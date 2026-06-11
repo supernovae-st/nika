@@ -19,7 +19,7 @@
 //!   unlisted host). A path/host built from a `${{ }}` value is dynamic and
 //!   stays the runtime `NIKA-SEC-004` check.
 
-use crate::raw::{RawAction, RawInvokeAction, RawWorkflow};
+use crate::raw::{RawAction, RawCommand, RawInvokeAction, RawWorkflow};
 use crate::types::{ExecPermit, Permits, permits::glob_matches};
 
 /// A statically-detectable effect outside the declared boundary.
@@ -45,7 +45,7 @@ pub(super) fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
     for task in &wf.tasks {
         let id = &task.value.id.value;
         match &task.value.action {
-            RawAction::Exec(a) => check_exec(id, &a.command.value, permits, &mut escapes),
+            RawAction::Exec(a) => check_exec(id, &a.command, permits, &mut escapes),
             RawAction::Invoke(a) => {
                 if permits.allows_tool(&a.tool.value) {
                     // Tool is granted — but it may still reach a host/path
@@ -79,9 +79,10 @@ pub(super) fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
 }
 
 /// An `exec:` task under a `permits:` boundary. A `false`/omitted permit
-/// denies any exec; a program allowlist applies to the literal leading
-/// program token (dynamic/pipeline heads are a runtime concern).
-fn check_exec(id: &str, command: &str, permits: &Permits, out: &mut Vec<CapabilityEscape>) {
+/// denies any exec; a program allowlist applies to the program — argv[0]
+/// for the array form (unambiguous), the literal leading token for the
+/// shell-string form (dynamic/pipeline heads are a runtime concern).
+fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<CapabilityEscape>) {
     if !permits.allows_exec() {
         out.push(CapabilityEscape {
             task: id.to_owned(),
@@ -90,8 +91,12 @@ fn check_exec(id: &str, command: &str, permits: &Permits, out: &mut Vec<Capabili
         });
         return;
     }
+    let program = match command {
+        RawCommand::Argv(_) => command.argv_program(),
+        RawCommand::Shell(s) => leading_program(&s.value),
+    };
     if let Some(ExecPermit::Programs(_)) = permits.exec.as_ref()
-        && let Some(program) = leading_program(command)
+        && let Some(program) = program
         && !permits.allows_program(program)
     {
         out.push(CapabilityEscape {
@@ -438,5 +443,59 @@ tasks:
     invoke: { tool: "nika:fetch", args: { url: "https://${{ vars.host }}/x" } }
 "#;
         assert!(escapes(y).is_empty(), "interpolated url = runtime check");
+    }
+}
+
+#[cfg(test)]
+mod argv_program_check {
+    use super::*;
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
+
+    fn escapes(yaml: &str) -> Vec<CapabilityEscape> {
+        scan_escapes(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    #[test]
+    fn argv_program_is_checked_unambiguously() {
+        // argv[0] is the program — no shell-split heuristic needed.
+        let allowed = r#"nika: v1
+workflow: w
+permits: { exec: ["git"] }
+tasks:
+  - id: t
+    exec: { command: ["git", "status"] }
+"#;
+        assert!(escapes(allowed).is_empty(), "git argv allowed");
+
+        let denied = r#"nika: v1
+workflow: w
+permits: { exec: ["git"] }
+tasks:
+  - id: t
+    exec: { command: ["rm", "-rf", "x"] }
+"#;
+        let e = escapes(denied);
+        assert_eq!(e.len(), 1);
+        assert!(
+            e[0].detail.contains("rm"),
+            "argv[0] rm flagged: {}",
+            e[0].detail
+        );
+    }
+
+    #[test]
+    fn argv_with_interpolated_arg_program_still_literal() {
+        // The PROGRAM (argv[0]) is literal even when later args interpolate —
+        // the whole point of the argv form (injection-safe).
+        let y = r#"nika: v1
+workflow: w
+vars: { x: "y" }
+permits: { exec: ["git"] }
+tasks:
+  - id: t
+    exec: { command: ["git", "${{ vars.x }}"] }
+"#;
+        assert!(escapes(y).is_empty(), "git allowed; the arg is just data");
     }
 }

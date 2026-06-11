@@ -54,7 +54,9 @@ pub(super) fn scan_leaks(wf: &RawWorkflow) -> Vec<SecretLeak> {
         };
         match &task.value.action {
             RawAction::Exec(a) => {
-                flag("exec.command", &a.command.value);
+                for frag in a.command.text_fragments() {
+                    flag("exec.command", frag);
+                }
                 if let Some(stdin) = &a.stdin {
                     flag("exec.stdin", &stdin.value);
                 }

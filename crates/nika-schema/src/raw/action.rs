@@ -121,12 +121,66 @@ impl RawInferAction {
     }
 }
 
+/// The `command:` of an `exec:` task — a shell string OR an argv array
+/// (spec `02-verbs.md` §exec).
+///
+/// - **`Shell`** (`command: "a | b"`) runs through `/bin/sh -c` — pipes and
+///   redirects work, the shell blocklist applies.
+/// - **`Argv`** (`command: ["prog", "arg"]`) runs through `execve` with NO
+///   shell — the structural fix for command injection: an interpolated
+///   value is ONE argv element no matter what it contains, no shell to
+///   parse it. The one-obvious-way for any command carrying untrusted
+///   values.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum RawCommand {
+    /// `/bin/sh -c <string>` — the shell-feature path.
+    Shell(Spanned<String>),
+    /// `execve(argv)` — no shell. Non-empty by construction (the parser
+    /// rejects an empty array).
+    Argv(Vec<Spanned<String>>),
+}
+
+impl RawCommand {
+    /// The leading program of the argv form — unambiguous, no shell-split
+    /// heuristic. `None` for the shell form (its program is the caller's
+    /// leading-token problem).
+    #[must_use]
+    pub fn argv_program(&self) -> Option<&str> {
+        match self {
+            Self::Argv(parts) => parts.first().map(|p| p.value.as_str()),
+            Self::Shell(_) => None,
+        }
+    }
+
+    /// The shell-string form, when this IS a shell command (`None` for
+    /// argv) — for lints/checks that only apply to `/bin/sh -c`.
+    #[must_use]
+    pub fn shell_str(&self) -> Option<&str> {
+        match self {
+            Self::Shell(s) => Some(s.value.as_str()),
+            Self::Argv(_) => None,
+        }
+    }
+
+    /// Every literal text fragment of the command (the whole string for
+    /// `Shell` · each element for `Argv`) — for the secret-leak / `${{ }}`
+    /// scan, which must see interpolations in any argv element.
+    #[must_use]
+    pub fn text_fragments(&self) -> Vec<&str> {
+        match self {
+            Self::Shell(s) => vec![s.value.as_str()],
+            Self::Argv(parts) => parts.iter().map(|p| p.value.as_str()).collect(),
+        }
+    }
+}
+
 /// `exec:` — shell command execution (spec `02-verbs.md` §exec).
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RawExecAction {
-    /// `command:` — REQUIRED · the command to run.
-    pub command: Spanned<String>,
+    /// `command:` — REQUIRED · a shell string OR an argv array.
+    pub command: RawCommand,
     /// `cwd:` — working directory.
     pub cwd: Option<Spanned<String>>,
     /// `env:` — OS environment of **this subprocess** (≠ the envelope
@@ -139,9 +193,15 @@ pub struct RawExecAction {
 }
 
 impl RawExecAction {
-    /// Create a new exec action with the given command.
+    /// Create a new exec action with a shell-string command.
     #[must_use]
     pub fn new(command: Spanned<String>) -> Self {
+        Self::with_command(RawCommand::Shell(command))
+    }
+
+    /// Create a new exec action with an explicit [`RawCommand`].
+    #[must_use]
+    pub fn with_command(command: RawCommand) -> Self {
         Self {
             command,
             cwd: None,
@@ -238,7 +298,7 @@ mod tests {
     #[test]
     fn exec_action_new() {
         let a = RawExecAction::new(span_str("ls -la"));
-        assert_eq!(a.command.value, "ls -la");
+        assert_eq!(a.command.shell_str(), Some("ls -la"));
         assert!(a.env.is_empty());
         assert!(a.capture.is_none());
     }

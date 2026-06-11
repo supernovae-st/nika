@@ -12,8 +12,8 @@ use marked_yaml::types::{MarkedMappingNode, MarkedScalarNode};
 
 use crate::error::SchemaError;
 use crate::raw::{
-    RawAction, RawAgentAction, RawExecAction, RawInferAction, RawInvokeAction, Thinking,
-    VisionInput,
+    RawAction, RawAgentAction, RawCommand, RawExecAction, RawInferAction, RawInvokeAction,
+    Thinking, VisionInput,
 };
 use crate::source::Spanned;
 use crate::types::CaptureMode;
@@ -130,8 +130,8 @@ fn parse_infer_body(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawInferAct
 /// Parse `exec:` — shell command.
 fn parse_exec_body(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawExecAction, SchemaError> {
     cx.check_unknown_keys(body, EXEC_KEYS, "`exec:`")?;
-    let command = cx.require_scalar(body, "command", "exec")?;
-    let mut action = RawExecAction::new(command);
+    let command = parse_command(cx, body)?;
+    let mut action = RawExecAction::with_command(command);
     action.cwd = cx.opt_scalar(body, "cwd")?;
     if let Some(node) = body.get_node("env") {
         action.env = parse_string_map(cx, node, "env")?;
@@ -139,6 +139,43 @@ fn parse_exec_body(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawExecActio
     action.stdin = cx.opt_scalar(body, "stdin")?;
     action.capture = parse_capture(cx, body)?;
     Ok(action)
+}
+
+/// Parse `exec.command` — a scalar (shell) OR a non-empty array (argv).
+///
+/// Spec `02-verbs.md` §exec · « String → `/bin/sh -c`. Array → `execve`,
+/// no shell. » An empty array has no program to run → a parse error.
+fn parse_command(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawCommand, SchemaError> {
+    let Some(node) = body.get_node("command") else {
+        return Err(SchemaError::MissingField {
+            field: "exec.command".to_owned(),
+            span: cx.span(body.span()),
+        });
+    };
+    if let Some(seq) = node.as_sequence() {
+        if seq.is_empty() {
+            return Err(SchemaError::Validation {
+                message: "`exec.command` array must not be empty (no program to run)".to_owned(),
+                span: cx.span(node.span()),
+            });
+        }
+        let mut parts = Vec::with_capacity(seq.len());
+        for item in seq.iter() {
+            let scalar = item.as_scalar().ok_or_else(|| SchemaError::Validation {
+                message: "each `exec.command` array element must be a string".to_owned(),
+                span: cx.span(item.span()),
+            })?;
+            parts.push(Spanned::new(
+                scalar.as_str().to_owned(),
+                cx.span_or_zero(scalar.span()),
+            ));
+        }
+        return Ok(RawCommand::Argv(parts));
+    }
+    // Scalar → a shell string (re-uses the canonical require-scalar error).
+    Ok(RawCommand::Shell(
+        cx.require_scalar(body, "command", "exec")?,
+    ))
 }
 
 /// Parse `invoke:` — builtin / MCP tool call.
@@ -652,7 +689,7 @@ tasks:
         let RawAction::Exec(action) = one_action(yaml) else {
             panic!("expected Exec");
         };
-        assert_eq!(action.command.value, "cargo build --release");
+        assert_eq!(action.command.shell_str(), Some("cargo build --release"));
         assert_eq!(action.cwd.expect("cwd").value, "./engine");
         assert_eq!(action.env.len(), 1);
         assert_eq!(action.env[0].0.value, "RUST_LOG");
@@ -874,5 +911,65 @@ tasks:
             matches!(&err, SchemaError::Validation { message, .. } if message.contains("mapping")),
             "{err:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod argv_command {
+    use crate::parser::{ParseMode, parse};
+    use crate::raw::{RawAction, RawCommand};
+    use crate::source::FileId;
+
+    fn exec_command(yaml: &str) -> RawCommand {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let RawAction::Exec(a) = &wf.tasks[0].value.action else {
+            panic!("expected exec");
+        };
+        a.command.clone()
+    }
+
+    #[test]
+    fn scalar_command_is_shell() {
+        let c = exec_command(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"a | b\" }\n",
+        );
+        assert!(matches!(c, RawCommand::Shell(_)));
+        assert_eq!(c.shell_str(), Some("a | b"));
+        assert_eq!(c.argv_program(), None);
+    }
+
+    #[test]
+    fn array_command_is_argv() {
+        let c = exec_command(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"git\", \"status\"] }\n",
+        );
+        assert!(matches!(c, RawCommand::Argv(_)));
+        assert_eq!(c.argv_program(), Some("git"), "argv[0] is the program");
+        assert_eq!(c.shell_str(), None, "argv has no shell string");
+        assert_eq!(c.text_fragments(), vec!["git", "status"]);
+    }
+
+    #[test]
+    fn empty_array_command_is_rejected() {
+        let err = parse(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [] }\n",
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .expect_err("empty argv rejected");
+        assert!(err.to_string().contains("must not be empty"), "{err}");
+    }
+
+    #[test]
+    fn non_string_array_element_is_rejected() {
+        // A nested mapping is not a scalar (a bare number `42` is a YAML
+        // scalar string `"42"` and is fine — argv elements are strings).
+        let err = parse(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"git\", { a: 1 }] }\n",
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .expect_err("non-scalar element rejected");
+        assert!(err.to_string().contains("must be a string"), "{err}");
     }
 }
