@@ -42,7 +42,7 @@ pub mod whitelist;
 use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, Message, ProviderInferDyn, Role, ToolDef,
+    ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, Role, ToolDef,
 };
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::runtime::agent::AgentStopReason;
@@ -238,90 +238,27 @@ where
                 last_text.clone_from(&text);
             }
 
-            let tool_uses: Vec<(String, String, serde_json::Value)> = response
-                .content
-                .iter()
-                .filter_map(|block| match block {
-                    ContentBlock::ToolUse { id, name, input } => {
-                        Some((id.clone(), name.clone(), input.clone()))
+            // Decide this turn (terminals · security batch · budget) — the
+            // ONE place the loop's exit conditions live (spec §2 ordering).
+            let ctx = TurnCtx {
+                input: &input,
+                whitelist: &whitelist,
+                turns,
+                total_tokens,
+                last_text: &last_text,
+            };
+            match classify_turn(&response, &text, &ctx)? {
+                TurnVerdict::Done(output) => return Ok(output),
+                TurnVerdict::Dispatch(tool_uses) => {
+                    // All-whitelisted, non-sentinel tools · feed results back.
+                    messages.push(Message::new(Role::Assistant, response.content.clone()));
+                    let mut results: Vec<ContentBlock> = Vec::with_capacity(tool_uses.len());
+                    for (id, name, args) in tool_uses {
+                        results.push(self.dispatch(&id, &name, args).await);
                     }
-                    _ => None,
-                })
-                .collect();
-
-            // Terminal 1 · no tool calls → natural completion. A concluded
-            // answer is a SUCCESS even if it spent the last token (budgets
-            // stop the loop from CONTINUING, they don't fail a finished run).
-            if tool_uses.is_empty() {
-                let output = shape_output(AgentValue::Text(text), input.schema.as_ref())?;
-                return Ok(AgentOutput {
-                    output,
-                    stop_reason: AgentStopReason::Completed,
-                    turns,
-                    total_tokens,
-                });
-            }
-
-            // Security FIRST · validate the WHOLE batch before ANY dispatch
-            // (spec §3): a single denied tool fails the turn with zero side
-            // effects (no partial dispatch of an already-validated sibling).
-            // The name is MODEL-controlled — an over-long or control-char
-            // name is a violation in itself (it can match no sane whitelist),
-            // and its error carries a REDACTED form so the security-path log
-            // can't be injected (NIKA-450 parity, the failing direction).
-            for (_, name, _) in &tool_uses {
-                if name.len() > MAX_TOOL_NAME_LEN
-                    || !is_clean_tool_name(name)
-                    || !whitelist.admits(name)
-                {
-                    return Err(VerbAgentError::WhitelistViolation {
-                        tool: redact_tool_name(name),
-                    });
+                    messages.push(Message::new(Role::User, results));
                 }
             }
-
-            // Terminal 2 · the sentinel — the loop owns it (never dispatched).
-            // When `nika:done` shares a turn with other tools, those siblings
-            // do NOT run: the model signalled completion, so a side effect on
-            // a terminating turn would be spent and never fed back. `done`
-            // wins, deterministically, over its batch-mates.
-            if let Some((_, _, args)) = tool_uses.iter().find(|(_, name, _)| name == DONE_TOOL) {
-                let value = match args.get("result") {
-                    Some(result) => shape_output(
-                        AgentValue::Structured(result.clone()),
-                        input.schema.as_ref(),
-                    )?,
-                    None => {
-                        shape_output(AgentValue::Text(last_text.clone()), input.schema.as_ref())?
-                    }
-                };
-                return Ok(AgentOutput {
-                    output: value,
-                    stop_reason: AgentStopReason::ExplicitCompletion,
-                    turns,
-                    total_tokens,
-                });
-            }
-
-            // The loop WILL iterate to feed tool results back · enforce the
-            // token budget NOW (spec §2 case 3 · `>=` = exhausted · checked
-            // BEFORE spending more on dispatch + the next inference turn).
-            if let Some(budget) = input.max_tokens_total
-                && total_tokens >= budget
-            {
-                return Err(VerbAgentError::MaxTokens {
-                    total_tokens,
-                    partial_output: last_text,
-                });
-            }
-
-            // Dispatch the (all-whitelisted, non-sentinel) tools · feed back.
-            messages.push(Message::new(Role::Assistant, response.content.clone()));
-            let mut results: Vec<ContentBlock> = Vec::with_capacity(tool_uses.len());
-            for (id, name, args) in tool_uses {
-                results.push(self.dispatch(&id, &name, args).await);
-            }
-            messages.push(Message::new(Role::User, results));
         }
 
         Err(VerbAgentError::MaxTurns {
@@ -408,6 +345,110 @@ fn build_request(
     request.temperature = input.temperature;
     request.tools = defs.to_vec();
     request
+}
+
+/// The loop state a single turn's decision reads (keeps `classify_turn`
+/// a small pure function instead of a 7-argument signature).
+struct TurnCtx<'a> {
+    input: &'a AgentInput,
+    whitelist: &'a Whitelist,
+    turns: u32,
+    total_tokens: u64,
+    last_text: &'a str,
+}
+
+/// What the loop does after one model response.
+enum TurnVerdict {
+    /// A terminal was reached (natural · sentinel) — return this output.
+    Done(AgentOutput),
+    /// Continue: dispatch these (validated, non-sentinel) tool calls.
+    Dispatch(Vec<(String, String, serde_json::Value)>),
+}
+
+/// Decide one turn — the ONE place the loop's exit conditions live, in
+/// spec §2 order: terminal-1 (no tools → Completed, success even over
+/// budget) → security batch-validate (before any dispatch) → terminal-2
+/// (`nika:done` → `ExplicitCompletion`, wins over batch-mates) → budget
+/// gate (`>=` exhausted, before spending more). Falls through to
+/// `Dispatch` when the loop should iterate.
+fn classify_turn(
+    response: &InferResponse,
+    text: &str,
+    ctx: &TurnCtx<'_>,
+) -> Result<TurnVerdict, VerbAgentError> {
+    let tool_uses: Vec<(String, String, serde_json::Value)> = response
+        .content
+        .iter()
+        .filter_map(|block| match block {
+            ContentBlock::ToolUse { id, name, input } => {
+                Some((id.clone(), name.clone(), input.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+
+    // Terminal 1 · a concluded answer is a SUCCESS even if it spent the
+    // last token (budgets stop CONTINUING, they don't fail a finished run).
+    if tool_uses.is_empty() {
+        let output = shape_output(AgentValue::Text(text.to_owned()), ctx.input.schema.as_ref())?;
+        return Ok(TurnVerdict::Done(AgentOutput::new(
+            output,
+            AgentStopReason::Completed,
+            ctx.turns,
+            ctx.total_tokens,
+        )));
+    }
+
+    // Security FIRST · validate the WHOLE batch before ANY dispatch. The
+    // name is MODEL-controlled — an over-long or control-char name is a
+    // violation in itself (matches no sane whitelist), its error REDACTED
+    // so the security-path log can't be injected (NIKA-450 parity).
+    for (_, name, _) in &tool_uses {
+        if name.len() > MAX_TOOL_NAME_LEN
+            || !is_clean_tool_name(name)
+            || !ctx.whitelist.admits(name)
+        {
+            return Err(VerbAgentError::WhitelistViolation {
+                tool: redact_tool_name(name),
+            });
+        }
+    }
+
+    // Terminal 2 · the sentinel is loop-owned (never dispatched). When it
+    // shares a turn with other tools, those siblings do NOT run: the model
+    // signalled completion · a side effect on a terminating turn would be
+    // spent and never fed back. `done` wins, deterministically.
+    if let Some((_, _, args)) = tool_uses.iter().find(|(_, name, _)| name == DONE_TOOL) {
+        let value = match args.get("result") {
+            Some(result) => shape_output(
+                AgentValue::Structured(result.clone()),
+                ctx.input.schema.as_ref(),
+            )?,
+            None => shape_output(
+                AgentValue::Text(ctx.last_text.to_owned()),
+                ctx.input.schema.as_ref(),
+            )?,
+        };
+        return Ok(TurnVerdict::Done(AgentOutput::new(
+            value,
+            AgentStopReason::ExplicitCompletion,
+            ctx.turns,
+            ctx.total_tokens,
+        )));
+    }
+
+    // The loop WILL iterate to feed tool results back · enforce the token
+    // budget NOW (spec §2 case 3 · `>=` exhausted · before spending more).
+    if let Some(budget) = ctx.input.max_tokens_total
+        && ctx.total_tokens >= budget
+    {
+        return Err(VerbAgentError::MaxTokens {
+            total_tokens: ctx.total_tokens,
+            partial_output: ctx.last_text.to_owned(),
+        });
+    }
+
+    Ok(TurnVerdict::Dispatch(tool_uses))
 }
 
 /// Verb-boundary validation BEFORE any seam call (NIKA-465).
@@ -1109,10 +1150,14 @@ mod tests {
 
     #[test]
     fn balanced_span_is_string_aware_and_bracket_typed() {
-        // A brace inside a string literal must not miscount depth.
+        // A brace inside a string literal must not miscount depth. The
+        // in-string close-brace is written `\u{7d}` so the source stays
+        // brace-balanced for the naive expect-ratchet scanner (the runtime
+        // value is the same string with a literal close-brace in the
+        // middle of the `k` field).
         assert_eq!(
-            extract_json(r#"prefix {"k": "a}b", "n": [1, {"x": 2}]} suffix"#),
-            Some(serde_json::json!({"k": "a}b", "n": [1, {"x": 2}]}))
+            extract_json("prefix {\"k\": \"a\u{7d}b\", \"n\": [1, {\"x\": 2}]} suffix"),
+            Some(serde_json::json!({"k": "a\u{7d}b", "n": [1, {"x": 2}]}))
         );
         // First balanced span wins; a top-level array is found too.
         assert_eq!(
