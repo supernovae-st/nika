@@ -1,0 +1,48 @@
+[package]
+name          = "nika-cli"
+description   = "The operator surface of the engine (L4) — the `nika` verb tree, the display fold (render = pure function of the event stream), and the flight-recorder reader. Seeded 2026-06-11 with display + `trace replay|show`; grows the full first-15-min suite (D-2026-06-10-N6) at the S6 build. Spec: docs/crate-specs/nika-cli.md."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L4 interface crate (the binary ships, the lib doesn't).
+
+[dependencies]
+nika-event = { path = "../nika-event", version = "0.80.0" }   # the REAL event taxonomy (the fold input)
+nika-types = { path = "../nika-types", version = "0.80.0" }   # Timestamp · KeyValue · ids
+clap       = { workspace = true }                              # verb tree (completions + man derive later)
+serde_json = { workspace = true }                              # trace NDJSON parse
+uuid       = { workspace = true }                              # deterministic demo EventIds
+
+[[bin]]
+name = "nika-cli"
+path = "src/main.rs"
+# The final user-facing binary name (`nika`) is reserved for the L5
+# composition root; this dev-named bin is the seed it will compose.
+
+[dev-dependencies]
+# The e2e pipeline rehearsal (tests/e2e_pipeline.rs) composes the REAL
+# shipped layers below the CLI — all strictly downward (L4 → L2/L1.5/L0.5/L0).
+nika-schema      = { path = "../nika-schema", version = "0.80.0" }
+nika-error       = { path = "../nika-error", version = "0.80.0" }
+nika-kernel      = { path = "../nika-kernel", version = "0.80.0" }
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.80.0" }
+nika-providers   = { path = "../nika-providers", version = "0.80.0" }
+nika-verb-infer  = { path = "../nika-verb-infer", version = "0.80.0" }
+nika-verb-exec   = { path = "../nika-verb-exec", version = "0.80.0" }
+nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.80.0" }
+tokio            = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "messager"
+archetype     = "kodama-messager"
+spirit_role   = "la voix du moteur vers l'humain · chaque glyphe dit la vérité du stream · l'audit avant l'action"
+voice_pattern = "spoken"
+layer         = "L4"
+err_prefix    = "none"
+
+[lints]
+workspace = true

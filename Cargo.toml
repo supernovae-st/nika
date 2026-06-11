@@ -1,11 +1,11 @@
 [workspace]
 resolver = "3"
-members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-exec-runner", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke"]
+members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-exec-runner", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke", "crates/nika-cli"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
 exclude = [
-  "crates/nika-builtin", "crates/nika-cli",
+  "crates/nika-builtin",
   "crates/nika-core", "crates/nika-daemon", "crates/nika-display", "crates/nika-engine",
   "crates/nika-extract",
   "crates/nika-init",
@@ -36,10 +36,13 @@ homepage     = "https://supernovae.studio"
 # is the projector that reads this; refresh-status.sh + check-crate-specs.sh
 # query the projector (never re-hardcode the list). When a crate is admitted,
 # remove it from this array — one edit, here, period.
-wip = ["nika-schema", "nika-infer-local"]
+wip = ["nika-schema", "nika-infer-local", "nika-cli"]
 # nika-pack · the embedded language pack (spec snapshot + manifest hashes ·
 # proposal branch feat/nika-pack · pure data · include_dir · zero I/O).
 layers.nika-pack = "L0"
+# nika-cli · the operator surface (D-2026-06-10-N6 first-15-min suite) · seeded
+# 2026-06-11 with the display fold + trace verbs per docs/crate-specs/nika-cli.md.
+layers.nika-cli = "L4"
 layers.nika-types = "L0"
 layers.nika-error = "L0"
 layers.nika-event = "L0"
@@ -224,6 +227,7 @@ png      = "0.18"   # nika-browser L1 — Page.captureScreenshot PNG → RGBA8 k
 futures-util  = { version = "0.3", default-features = false, features = ["std"] }   # nika-browser L1 — StreamExt::next to drain the CDP Handler stream (one owned task per session)
 jsonschema = { version = "0.33", default-features = false }   # nika-verb-infer L2 — structured-output schema validation (draft 2020-12 · no network resolver per sovereignty floor)
 uuid     = { version = "1", features = ["v7", "serde"] }   # ADR-033 UUIDv7 IDs (nika-error L0)
+clap     = { version = "4.5", features = ["derive"] }       # L4 CLI surface (completions + man derive from this tree)
 zeroize  = "1.8"    # ADR-034 Secret zeroize-on-drop (nika-kernel L0.5) — 1.8 adds heap-String zeroing
 
 # Dev / test deps

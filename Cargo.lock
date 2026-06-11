@@ -3047,6 +3047,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-cli"
+version = "0.80.0"
+dependencies = [
+ "clap",
+ "nika-error",
+ "nika-event",
+ "nika-kernel",
+ "nika-kernel-mock",
+ "nika-providers",
+ "nika-schema",
+ "nika-types",
+ "nika-verb-exec",
+ "nika-verb-infer",
+ "nika-verb-invoke",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "nika-clock"
 version = "0.80.0"
 dependencies = [
