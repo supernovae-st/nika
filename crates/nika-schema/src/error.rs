@@ -260,6 +260,20 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
+    /// A builtin `invoke:` violates its statically-checkable arg
+    /// contract (`stdlib/builtins-v0.1.md` · deep fixtures 009-012).
+    #[error("task `{task}` · `{tool}` {reason}")]
+    BadBuiltinArgs {
+        /// The task carrying the invoke.
+        task: String,
+        /// The builtin tool id.
+        tool: String,
+        /// The violated contract (prescriptive · names the fix).
+        reason: String,
+        /// The tool reference's span.
+        span: Option<Span>,
+    },
+
     /// `on_error.recover` references a task that transitively depends
     /// on the declaring task — the recovery-time await would deadlock
     /// (spec `05-errors.md` §recover resolution · `NIKA-DAG-004`).
@@ -471,6 +485,7 @@ schema_code!(SCHEMA_305, 305, "loop-local-outside-for-each");
 schema_code!(SCHEMA_306, 306, "unknown-task-field");
 schema_code!(SCHEMA_307, 307, "output-path-provably-invalid");
 schema_code!(SCHEMA_308, 308, "recover-await-deadlock");
+schema_code!(SCHEMA_309, 309, "bad-builtin-args");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -497,6 +512,7 @@ impl NikaErrorCode for SchemaError {
             Self::Validation { .. } => SCHEMA_299,
             Self::WhenNotBoolean { .. } => SCHEMA_300,
             Self::RecoverAwaitDeadlock { .. } => SCHEMA_308,
+            Self::BadBuiltinArgs { .. } => SCHEMA_309,
             Self::Cycle { .. } => SCHEMA_301,
             Self::UnknownDependency { .. } => SCHEMA_302,
             Self::MissingDependsOnEdge { .. } => SCHEMA_303,
@@ -637,6 +653,12 @@ fn analysis_level_variants() -> Vec<SchemaError> {
         SchemaError::RecoverAwaitDeadlock {
             task: String::new(),
             target: String::new(),
+            span: None,
+        },
+        SchemaError::BadBuiltinArgs {
+            task: String::new(),
+            tool: String::new(),
+            reason: String::new(),
             span: None,
         },
         SchemaError::UnresolvedNamespaceRef {

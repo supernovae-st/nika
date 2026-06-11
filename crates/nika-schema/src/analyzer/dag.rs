@@ -249,15 +249,18 @@ mod tests {
     const HEADER: &str = "nika: v1\nworkflow: t\n";
 
     #[test]
-    fn recover_deadlock_direct_and_transitive() {
-        // 05 §recover resolution · DAG-004 — direct dependent AND a
-        // 2-hop transitive dependent both deadlock the recovery await.
+    fn recover_deadlock_transitive_and_nested_refs() {
+        // 05 §recover resolution · DAG-004 — a 2-hop transitive
+        // dependent deadlocks the await · refs nest anywhere in the
+        // recover JSON value.
         let yaml = format!(
             "{HEADER}tasks:
   - id: fetch
     invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://x.example\" }} }}
     on_error:
-      recover: ${{{{ tasks.report.output }}}}
+      recover:
+        stale: true
+        body: \"${{{{ tasks.report.output }}}}\"
   - id: mid
     depends_on: [fetch]
     exec: {{ command: echo }}
@@ -292,31 +295,6 @@ mod tests {
 "
         );
         analyze_yaml(&yaml).expect("independent recover is legal");
-    }
-
-    #[test]
-    fn recover_nested_value_refs_are_walked() {
-        // The recover value may be an object/array · refs nest anywhere.
-        let yaml = format!(
-            "{HEADER}tasks:
-  - id: fetch
-    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://x.example\" }} }}
-    on_error:
-      recover:
-        stale: true
-        body: \"${{{{ tasks.consumer.output }}}}\"
-  - id: consumer
-    depends_on: [fetch]
-    exec: {{ command: echo }}
-"
-        );
-        let errors = analyze_yaml(&yaml).expect_err("nested ref deadlock");
-        assert!(
-            errors
-                .iter()
-                .any(|e| matches!(e, SchemaError::RecoverAwaitDeadlock { .. })),
-            "{errors:?}"
-        );
     }
 
     #[test]
