@@ -18,6 +18,31 @@ tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 
 ## [Unreleased]
 
+### 🔌 Announce ladder s11 · nika-verb-invoke L2 admission (ADMITTED · 12-gate closed · 2026-06-11)
+
+- **`nika-verb-invoke` crate** · the `invoke` verb executor per
+  `nika-spec spec/02-verbs.md §invoke` (third of the 4 verbs). Rides the
+  kernel `ToolExecuteDyn` seam with the engine's builtin+MCP dispatcher
+  injected — zero tool implementation of its own, zero Cargo dep on
+  `nika-builtin`/`nika-mcp`.
+- **The closed-namespace contract** · the tool-ref namespace set is CLOSED
+  at v1 (`nika:` · `mcp:` only · `mcp:` requires the `server/tool` slash);
+  the verb does the lightweight semantic check before dispatch (grammar
+  SHAPE stays the upstream `nika-schema` `NIKA-PARSE` concern). Result
+  mapping: `is_error: true` → NIKA-451, dispatcher `NotFound` →
+  `UnresolvableTool`, other dispatch failures → NIKA-452.
+- **Security guards (swarm)** · whitespace padding and ASCII control chars
+  in the tool id are rejected before it reaches a `ToolCall`/log field
+  (log-injection class); the derived fallback `call_id` appends a
+  process-monotonic counter so repeated same-tool invokes don't collide on
+  the kernel's unique-call-id contract.
+- **Error one-voice** · NIKA-450..452 registered in the Verb range; the
+  verb-range help moved into a `verb_help` helper (keeps `code_help` under
+  the 100-line cap).
+- 16 lib tests (1 totality proptest cross-checked against an independent
+  predicate) · mutation all viable killed bar one documented equivalent ·
+  clippy 0 · doc 0 · layering + deny green · tag `v0.80.0-alpha.7`.
+
 ### ⚙️ Announce ladder s10 · nika-verb-exec L2 admission (ADMITTED · 12-gate closed · 2026-06-11)
 
 - **`nika-verb-exec` crate** · the `exec` verb executor per
