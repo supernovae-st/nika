@@ -37,6 +37,7 @@ pub(crate) fn render(
     tools(&mut out, report, t);
     schema(&mut out, report, t);
     permits(&mut out, report, wf, t);
+    reach(&mut out, report, t);
     hints(&mut out, report, t);
     verdict(&mut out, report, t);
     out
@@ -403,6 +404,50 @@ fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     }
 }
 
+/// Gate reachability (ADR-092 #6) — dead tasks + bad status literals.
+fn reach(out: &mut String, report: &CheckReport, t: Theme) {
+    use nika_schema::GateFindingKind;
+    if report.gate_findings.is_empty() {
+        // only claim satisfiability when the analysis actually ran
+        // (it needs a valid DAG order — same gating as the plan)
+        if !report.waves.is_empty() {
+            let _ = writeln!(
+                out,
+                " {} {}    {}",
+                t.ok(t.glyph(Glyph::Ok)),
+                t.bold("REACH"),
+                t.dim("every when: gate is satisfiable")
+            );
+        }
+        return;
+    }
+    for g in &report.gate_findings {
+        let label = match g.kind {
+            GateFindingKind::DeadTask => "dead task",
+            GateFindingKind::BadStatusLiteral => "bad status",
+            _ => "gate",
+        };
+        let _ = writeln!(
+            out,
+            " {} {}    {} task `{}` {} {}",
+            t.err(t.glyph(Glyph::Err)),
+            t.bold("REACH"),
+            t.dim(&format!("[{label}]")),
+            t.bold(&g.task),
+            t.dim(t.mdash()),
+            g.detail
+        );
+        if let Some(fix) = &g.fix {
+            let _ = writeln!(
+                out,
+                "          {} {}",
+                t.accent(t.glyph(Glyph::Fix)),
+                t.accent(&format!("fix: {fix}"))
+            );
+        }
+    }
+}
+
 fn hints(out: &mut String, report: &CheckReport, t: Theme) {
     for h in &report.hints {
         let _ = writeln!(
@@ -488,6 +533,7 @@ mod tests {
             " ✔ SECRETS  no information-flow escapes\n",
             " ✔ TYPES    every deep output reference fits its declared shape\n",
             " ✔ PERMITS  body fits the declared boundary\n",
+            " ✔ REACH    every when: gate is satisfiable\n",
             "──────────────────────────────────────────────\n",
             " ✔ clean — audited before a single token was spent\n",
         );
@@ -510,6 +556,7 @@ mod tests {
             " ok SECRETS  no information-flow escapes\n",
             " ok TYPES    every deep output reference fits its declared shape\n",
             " ok PERMITS  body fits the declared boundary\n",
+            " ok REACH    every when: gate is satisfiable\n",
             "----------------------------------------------\n",
             " ok clean -- audited before a single token was spent\n",
         );

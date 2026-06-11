@@ -26,11 +26,16 @@
 //! 5. **open schema** (`strictness`) — an object schema admitting
 //!    undeclared keys: close it (`additionalProperties: false`) and the
 //!    structured-output shape is deterministic across providers.
+//! 6. **redundant success-gate** — `when: ${{ tasks.D.status ==
+//!    'success' }}` where `D` is a dep that can never be `skipped`:
+//!    the spec names this the discouraged restatement of the default
+//!    gate (spec 03 §the gate · « `depends_on` IS the success-gate »).
 
 use std::collections::BTreeSet;
 
-use crate::expression::{scan_templates, task_output_paths};
+use crate::expression::{Expr, Literal, RelOp, scan_templates, task_output_paths};
 use crate::raw::{RawAction, RawWorkflow};
+use crate::types::OnErrorAction;
 
 /// One advisory improvement with its concrete unlock.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -55,6 +60,28 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     for task in &wf.tasks {
         let t = &task.value;
         let id = t.id.value.as_str();
+        // 6. redundant success-gate — meaningful only if the dep may be
+        //    skipped (when:-gated or on_error: skip); otherwise the
+        //    default gate already requires success.
+        if let Some(when) = &t.when
+            && let Some(src) = when.value.as_expr()
+            && let Some(dep) = sole_success_gate(src)
+            && t.depends_on.iter().any(|d| d.value == dep)
+            && let Some(dep_task) = wf.tasks.iter().find(|x| x.value.id.value == dep)
+            && dep_task.value.when.is_none()
+            && !matches!(
+                dep_task.value.on_error.as_ref().map(|oe| &oe.value.action),
+                Some(OnErrorAction::Skip)
+            )
+        {
+            hints.push(Hint {
+                kind: "redundant-gate",
+                task: id.to_owned(),
+                advice: format!(
+                    "`when:` restates the default gate \u{2014} `depends_on: [{dep}]` already requires `{dep}` to succeed (spec 03 \u{a7}the gate); drop the `when:` (it becomes meaningful only if `{dep}` may be skipped)"
+                ),
+            });
+        }
         match &t.action {
             RawAction::Infer(a) => {
                 if a.max_tokens.is_none() {
@@ -265,6 +292,31 @@ fn hint(kind: &'static str, task: &str, advice: String) -> Hint {
     }
 }
 
+/// The WHOLE gate is exactly `tasks.<dep>.status == 'success'` (either
+/// operand order) — a conjunct inside a larger expression is a real
+/// condition beyond the default gate and never flagged.
+fn sole_success_gate(src: &str) -> Option<String> {
+    let islands = scan_templates(src).ok()?;
+    let island = islands.into_iter().next()?;
+    let Expr::Relation {
+        op: RelOp::Eq,
+        lhs,
+        rhs,
+    } = &island.expr
+    else {
+        return None;
+    };
+    let (dep, lit) = match (
+        super::reach::status_ref(lhs.as_ref()),
+        super::reach::status_ref(rhs.as_ref()),
+    ) {
+        (Some(d), None) => (d, rhs.as_ref()),
+        (None, Some(d)) => (d, lhs.as_ref()),
+        _ => return None,
+    };
+    matches!(lit, Expr::Lit(Literal::Str(s)) if s == "success").then(|| dep.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,6 +325,65 @@ mod tests {
 
     fn hints_of(yaml: &str) -> Vec<Hint> {
         scan_hints(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    #[test]
+    fn plain_success_gate_on_unskippable_dep_is_redundant() {
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    exec: { command: \"true\" }\n",
+        );
+        assert!(
+            h.iter()
+                .any(|x| x.kind == "redundant-gate" && x.task == "b"),
+            "{h:?}"
+        );
+    }
+
+    #[test]
+    fn success_gate_on_skippable_dep_is_meaningful_not_redundant() {
+        // a may be skipped two ways — when:-gated · on_error: skip —
+        // the spec's own « meaningful only when X may be skipped »
+        let gated = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { go: \"y\" }\ntasks:\n  - id: root\n    exec: { command: \"true\" }\n  - id: a\n    depends_on: [root]\n    when: ${{ vars.go == 'y' }}\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    exec: { command: \"true\" }\n",
+        );
+        assert!(
+            !gated.iter().any(|x| x.kind == "redundant-gate"),
+            "{gated:?}"
+        );
+        let skip_route = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n    on_error: { skip: true }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    exec: { command: \"true\" }\n",
+        );
+        assert!(
+            !skip_route.iter().any(|x| x.kind == "redundant-gate"),
+            "{skip_route:?}"
+        );
+    }
+
+    #[test]
+    fn compound_or_reversed_or_other_status_is_not_flagged() {
+        // conjunct = a condition beyond the default gate; reversed
+        // operand IS the same plain gate; 'failure' is not the pattern
+        let compound = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { env: \"p\" }\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' && vars.env == 'p' }}\n    exec: { command: \"true\" }\n",
+        );
+        assert!(
+            !compound.iter().any(|x| x.kind == "redundant-gate"),
+            "{compound:?}"
+        );
+        let reversed = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ 'success' == tasks.a.status }}\n    exec: { command: \"true\" }\n",
+        );
+        assert!(
+            reversed.iter().any(|x| x.kind == "redundant-gate"),
+            "{reversed:?}"
+        );
+        let failure = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'failure' }}\n    exec: { command: \"true\" }\n",
+        );
+        assert!(
+            !failure.iter().any(|x| x.kind == "redundant-gate"),
+            "{failure:?}"
+        );
     }
 
     #[test]

@@ -32,6 +32,7 @@ mod flow;
 mod hints;
 mod infer_permits;
 mod permits_fit;
+mod reach;
 mod schema_lint;
 mod schema_typing;
 mod secrets;
@@ -45,6 +46,7 @@ pub use flow::{FlowFacts, TaintTrace};
 pub use hints::Hint;
 pub use infer_permits::InferredPermits;
 pub use permits_fit::CapabilityEscape;
+pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::SchemaTypeFinding;
 pub use secrets::{SecretEgress, SecretLeak};
@@ -132,6 +134,13 @@ pub struct CheckReport {
     /// (`schema:` / `output:` bindings) PROVES invalid — typo'd field
     /// names caught before a single token is spent (ADR-092 #4).
     pub schema_findings: Vec<SchemaTypeFinding>,
+    /// Every `when:`-gate reachability finding — a PROVABLY dead task
+    /// (the gate is unsatisfiable under every reachable combination of
+    /// upstream terminal statuses) or a status comparison against a
+    /// literal outside the spec vocabulary (`'failed'` for `'failure'`).
+    /// ADR-092 ladder #6 (the acyclic no-SMT slice). Requires a valid
+    /// DAG order — empty when `conformance` has entries.
+    pub gate_findings: Vec<GateFinding>,
     /// Every `nika:` tool that names no canonical builtin (the closed
     /// 22-builtin catalog) — a runtime dispatch failure moved to check
     /// time, with the « did you mean » fix attached.
@@ -162,6 +171,7 @@ impl CheckReport {
             && self.schema_findings.is_empty()
             && self.unknown_tools.is_empty()
             && self.schema_lints.is_empty()
+            && self.gate_findings.is_empty()
     }
 }
 
@@ -207,6 +217,9 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         schema_findings: schema_typing::scan_types(wf),
         unknown_tools: tools::scan_unknown_tools(wf),
         schema_lints: schema_lint::scan_schemas(wf),
+        // gate reachability shares the IFC gating: a valid wave order or
+        // nothing (skipped, never wrong)
+        gate_findings: reach::scan_gates(wf, &topo_waves),
         hints: hints::scan_hints(wf),
         waves: topo_waves,
     }
