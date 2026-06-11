@@ -640,12 +640,12 @@ impl core::clone::Clone for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::clone(&self) -> nika_kernel_mock::provider::MockProvider
 impl core::default::Default for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::default() -> Self
-impl nika_kernel_ai::provider::ProviderInfer for nika_kernel_mock::provider::MockProvider
+impl nika_kernel_ai::provider::ProviderInferDyn for nika_kernel_mock::provider::MockProvider
 pub async fn nika_kernel_mock::provider::MockProvider::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
 impl nika_kernel_ai::provider::ProviderMeta for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::name(&self) -> &str
 pub fn nika_kernel_mock::provider::MockProvider::supports_response_format(&self) -> bool
-impl nika_kernel_ai::provider::ProviderStream for nika_kernel_mock::provider::MockProvider
+impl nika_kernel_ai::provider::ProviderStreamDyn for nika_kernel_mock::provider::MockProvider
 pub async fn nika_kernel_mock::provider::MockProvider::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferEventStream, nika_kernel_ai::provider::ProviderError>
 impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::provider::MockProvider
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::provider::MockProvider
@@ -674,6 +674,10 @@ pub fn nika_kernel_mock::provider::MockProvider::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::provider::MockProvider where T: 'static
 pub fn nika_kernel_mock::provider::MockProvider::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_ai::provider::Provider for nika_kernel_mock::provider::MockProvider where T: nika_kernel_ai::provider::ProviderInfer + nika_kernel_ai::provider::ProviderStream + nika_kernel_ai::provider::ProviderMeta + nika_kernel_core::sealed::Sealed
+impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_kernel_mock::provider::MockProvider where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
+pub async fn nika_kernel_mock::provider::MockProvider::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderStream for nika_kernel_mock::provider::MockProvider where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderStreamDyn
+pub async fn nika_kernel_mock::provider::MockProvider::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::provider::InferEvent, nika_kernel_ai::provider::ProviderError>> + core::marker::Send)>>, nika_kernel_ai::provider::ProviderError>
 pub mod nika_kernel_mock::sandbox
 #[non_exhaustive] pub struct nika_kernel_mock::sandbox::NullSandbox
 impl nika_kernel_mock::sandbox::NullSandbox
@@ -1186,12 +1190,12 @@ impl core::clone::Clone for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::clone(&self) -> nika_kernel_mock::provider::MockProvider
 impl core::default::Default for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::default() -> Self
-impl nika_kernel_ai::provider::ProviderInfer for nika_kernel_mock::provider::MockProvider
+impl nika_kernel_ai::provider::ProviderInferDyn for nika_kernel_mock::provider::MockProvider
 pub async fn nika_kernel_mock::provider::MockProvider::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
 impl nika_kernel_ai::provider::ProviderMeta for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::name(&self) -> &str
 pub fn nika_kernel_mock::provider::MockProvider::supports_response_format(&self) -> bool
-impl nika_kernel_ai::provider::ProviderStream for nika_kernel_mock::provider::MockProvider
+impl nika_kernel_ai::provider::ProviderStreamDyn for nika_kernel_mock::provider::MockProvider
 pub async fn nika_kernel_mock::provider::MockProvider::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferEventStream, nika_kernel_ai::provider::ProviderError>
 impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::provider::MockProvider
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::provider::MockProvider
@@ -1220,6 +1224,10 @@ pub fn nika_kernel_mock::provider::MockProvider::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::provider::MockProvider where T: 'static
 pub fn nika_kernel_mock::provider::MockProvider::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_ai::provider::Provider for nika_kernel_mock::provider::MockProvider where T: nika_kernel_ai::provider::ProviderInfer + nika_kernel_ai::provider::ProviderStream + nika_kernel_ai::provider::ProviderMeta + nika_kernel_core::sealed::Sealed
+impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_kernel_mock::provider::MockProvider where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
+pub async fn nika_kernel_mock::provider::MockProvider::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderStream for nika_kernel_mock::provider::MockProvider where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderStreamDyn
+pub async fn nika_kernel_mock::provider::MockProvider::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::provider::InferEvent, nika_kernel_ai::provider::ProviderError>> + core::marker::Send)>>, nika_kernel_ai::provider::ProviderError>
 #[non_exhaustive] pub struct nika_kernel_mock::MockShell
 impl nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::enqueue_err(self, error: nika_kernel_core::io::process::ShellError) -> Self

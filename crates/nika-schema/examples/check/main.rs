@@ -30,6 +30,16 @@ use nika_schema::{FileId, ParseMode, check, infer_permits, parse};
 use theme::{ColorFlag, Theme};
 
 /// Parsed CLI arguments.
+// ── exit codes (nika-cli contract §4 · LOCKED) ──────────────────────
+// 0 = clean · 2 = validation findings in the FILE (parse errors are
+// file-content errors → 2 · « CI gates on 2 ») · additive sysexits for
+// what the contract doesn't allocate: 64 `EX_USAGE` (bad invocation) ·
+// 66 `EX_NOINPUT` (unreadable input) · 70 `EX_SOFTWARE` (internal).
+const EXIT_FINDINGS: u8 = 2;
+const EXIT_USAGE: u8 = 64;
+const EXIT_NOINPUT: u8 = 66;
+const EXIT_INTERNAL: u8 = 70;
+
 /// What to run — mutually exclusive, so an enum (the type encodes it).
 enum Mode {
     /// The static pre-flight over a workflow file.
@@ -70,12 +80,12 @@ fn parse_args() -> Result<Args, ExitCode> {
             flag if flag.starts_with("--") => {
                 eprintln!("unknown flag `{flag}`");
                 eprintln!("{USAGE}");
-                return Err(ExitCode::from(2));
+                return Err(ExitCode::from(EXIT_USAGE));
             }
             _ if path.is_some() => {
                 eprintln!("expected exactly one workflow path");
                 eprintln!("{USAGE}");
-                return Err(ExitCode::from(2));
+                return Err(ExitCode::from(EXIT_USAGE));
             }
             _ => path = Some(arg),
         }
@@ -92,7 +102,7 @@ fn parse_args() -> Result<Args, ExitCode> {
     }
     let Some(path) = path else {
         eprintln!("{USAGE}");
-        return Err(ExitCode::from(2));
+        return Err(ExitCode::from(EXIT_USAGE));
     };
     Ok(Args {
         mode,
@@ -124,37 +134,13 @@ fn main() -> ExitCode {
         Ok(s) => s,
         Err(e) => {
             eprintln!("cannot read {path}: {e}");
-            return ExitCode::from(2);
+            return ExitCode::from(EXIT_NOINPUT);
         }
     };
 
     let wf = match parse(&yaml, FileId::new(0), ParseMode::Strict) {
         Ok(wf) => wf,
-        Err(e) => {
-            // the parse error goes through the SAME seam + snippet path
-            // as every other finding (one grammar, even for crashes-not).
-            let t = Theme::from_env(color, ascii);
-            let mut out = String::new();
-            let _ = writeln!(
-                out,
-                " {} {}    {}",
-                t.err(t.glyph(theme::Glyph::Err)),
-                t.bold("PARSE"),
-                e
-            );
-            if let Some(span) = e.span() {
-                let label = path.rsplit('/').next().unwrap_or(&path);
-                snippet::render_snippet(
-                    &mut out,
-                    &yaml,
-                    label,
-                    nika_schema::ByteSpan::new(span.start.0, span.end.0),
-                    t,
-                );
-            }
-            eprint!("{out}");
-            return ExitCode::FAILURE;
-        }
+        Err(e) => return render_parse_error(&e, &yaml, &path, json_mode, color, ascii),
     };
 
     // ── --infer-permits · write the boundary FOR the operator ───────
@@ -179,13 +165,13 @@ fn main() -> ExitCode {
             }
             Err(e) => {
                 eprintln!("cannot serialize report: {e}");
-                return ExitCode::from(2);
+                return ExitCode::from(EXIT_INTERNAL);
             }
         }
         return if clean {
             ExitCode::SUCCESS
         } else {
-            ExitCode::FAILURE
+            ExitCode::from(EXIT_FINDINGS)
         };
     }
 
@@ -196,7 +182,7 @@ fn main() -> ExitCode {
     if report.is_clean() {
         ExitCode::SUCCESS
     } else {
-        ExitCode::FAILURE
+        ExitCode::from(EXIT_FINDINGS)
     }
 }
 
@@ -235,4 +221,54 @@ fn run_infer_mode(
         inferred.notes.len(),
     );
     ExitCode::SUCCESS
+}
+
+/// A parse failure is a validation finding in the FILE (exit 2). In
+/// `--json` mode the machine promise holds: a structured error payload
+/// lands on stdout (code · message · span), so the agent repair loop
+/// has something to parse even when the YAML never became a workflow.
+fn render_parse_error(
+    e: &nika_schema::SchemaError,
+    yaml: &str,
+    path: &str,
+    json_mode: bool,
+    color: ColorFlag,
+    ascii: bool,
+) -> ExitCode {
+    let span = e
+        .span()
+        .map(|sp| nika_schema::ByteSpan::new(sp.start.0, sp.end.0));
+    if json_mode {
+        let payload = serde_json::json!({
+            "report_version": nika_schema::REPORT_VERSION,
+            "clean": false,
+            "error": {
+                "kind": "parse",
+                "code": e.spec_code().to_string(),
+                "message": e.to_string(),
+                "span": span.map(|sp| serde_json::json!({
+                    "start": sp.start,
+                    "end": sp.end,
+                })),
+            },
+        });
+        println!("{payload:#}");
+        return ExitCode::from(EXIT_FINDINGS);
+    }
+    // the human path: the SAME seam + snippet grammar as every finding
+    let t = Theme::from_env(color, ascii);
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        " {} {}    {}",
+        t.err(t.glyph(theme::Glyph::Err)),
+        t.bold("PARSE"),
+        e
+    );
+    if let Some(sp) = span {
+        let label = path.rsplit('/').next().unwrap_or(path);
+        snippet::render_snippet(&mut out, yaml, label, sp, t);
+    }
+    eprint!("{out}");
+    ExitCode::from(EXIT_FINDINGS)
 }

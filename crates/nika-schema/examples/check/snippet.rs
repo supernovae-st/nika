@@ -47,6 +47,11 @@ pub(crate) fn render_snippet(
         .map_or(source.len(), |i| line_start + i);
     let line = &source[line_start..line_end];
 
+    // CRLF sources: the trailing `\r` is invisible-but-real — strip it
+    // from the DISPLAY (offsets/carets are unaffected: a span never
+    // points at the EOL terminator).
+    let line = line.strip_suffix('\r').unwrap_or(line);
+
     let line_no = source[..start].matches('\n').count() + 1;
     let col = source[line_start..start].chars().count() + 1;
 
@@ -121,6 +126,22 @@ mod tests {
     fn out_of_bounds_span_is_a_noop_never_a_panic() {
         let s = snip(ByteSpan::new(10_000, 10_005), true);
         assert!(s.is_empty());
+    }
+
+    #[test]
+    fn crlf_line_displays_without_the_carriage_return() {
+        let src = "nika: v1\r\nworkflow: w\r\ntasks: [x]\r\n";
+        let tasks = src.find("tasks").expect("tasks");
+        let mut out = String::new();
+        render_snippet(
+            &mut out,
+            src,
+            "w.nika.yaml",
+            ByteSpan::new(tasks as u32, (tasks + 5) as u32),
+            Theme::new(false, true),
+        );
+        assert!(!out.contains('\r'), "CR leaked into the display: {out:?}");
+        assert!(out.contains("tasks: [x]\n"), "{out:?}");
     }
 
     #[test]

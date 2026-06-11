@@ -33,6 +33,9 @@ use theme::{ColorFlag, Theme, VerbKind};
 /// One playback tick (contract §3.2 spinner cadence).
 const TICK_MS: u64 = 80;
 
+/// Bad invocation (sysexits `EX_USAGE` — additive per the contract §4 law).
+const EXIT_USAGE: u8 = 64;
+
 const USAGE: &str = "usage: verbs [infer|exec|invoke|agent|workflow|all] [--events] [--legend] [--ascii] [--color=auto|always|never] [--frame N] [--no-anim]";
 
 /// What to show — the modes are mutually exclusive, so they are an
@@ -90,14 +93,14 @@ fn parse_args() -> Result<Args, ExitCode> {
                 let Some(n) = argv.next().and_then(|n| n.parse().ok()) else {
                     eprintln!("--frame needs a number");
                     eprintln!("{USAGE}");
-                    return Err(ExitCode::from(2));
+                    return Err(ExitCode::from(EXIT_USAGE));
                 };
                 frame = Some(n);
             }
             other => {
                 eprintln!("unknown argument `{other}`");
                 eprintln!("{USAGE}");
-                return Err(ExitCode::from(2));
+                return Err(ExitCode::from(EXIT_USAGE));
             }
         }
     }

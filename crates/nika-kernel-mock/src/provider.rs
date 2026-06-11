@@ -13,7 +13,7 @@ use parking_lot::Mutex;
 use nika_kernel::genai::{GenAiOperation, GenAiSystem};
 use nika_kernel::provider::{
     ContentBlock, InferEvent, InferEventStream, InferRequest, InferResponse, ProviderError,
-    ProviderInfer, ProviderMeta, ProviderStream, StopReason, TokenUsage,
+    ProviderInferDyn, ProviderMeta, ProviderStreamDyn, StopReason, TokenUsage,
 };
 
 /// Programmable LLM provider for tests.
@@ -112,13 +112,13 @@ impl Default for MockProvider {
     }
 }
 
-impl ProviderInfer for MockProvider {
+impl ProviderInferDyn for MockProvider {
     async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
         self.pop_response(request)
     }
 }
 
-impl ProviderStream for MockProvider {
+impl ProviderStreamDyn for MockProvider {
     async fn infer_stream(&self, request: InferRequest) -> Result<InferEventStream, ProviderError> {
         let response = self.pop_response(request)?;
         // Synthesize a stream from the canned response.
@@ -285,8 +285,10 @@ mod tests {
     }
 
     #[test]
-    fn satisfies_provider_trait() {
-        fn _accepts<T: nika_kernel::Provider>(_: &T) {}
+    fn satisfies_the_dyn_provider_seams() {
+        // The consuming seams (verb crates · the agent loop) take the
+        // `Dyn` variants — the MockShell/MockToolExecutor precedent.
+        fn _accepts<T: ProviderInferDyn + ProviderStreamDyn + nika_kernel::ProviderMeta>(_: &T) {}
         let p = MockProvider::new("test");
         _accepts(&p);
     }
