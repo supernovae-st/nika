@@ -271,7 +271,10 @@ impl Parser {
                 let mut items = Vec::new();
                 if self.peek_kind() != &TokenKind::RBracket {
                     loop {
-                        items.push(self.or_expr()?);
+                        // `list = "[" [ expr {"," expr} ] "]"` · expr = ternary
+                        // — a ternary element is grammar-valid, the cascade
+                        // must reach list elements too (not stop at or_expr).
+                        items.push(self.ternary_expr()?);
                         if self.peek_kind() == &TokenKind::Comma {
                             self.advance();
                         } else {
@@ -605,6 +608,14 @@ mod cel_v01_additions {
             parse_expression("s.contains('a', 'b')").is_err(),
             "2 args rejected"
         );
+    }
+
+    #[test]
+    fn ternary_inside_list_literal() {
+        // `[cond ? a : b, c]` — a ternary element is grammar-valid
+        // (regression: the cascade once stopped at or_expr for list elems).
+        let e = parse_expression("[vars.x == 1 ? 'a' : 'b', 'c']").expect("list ternary");
+        assert!(matches!(e, Expr::List(_)));
     }
 
     #[test]

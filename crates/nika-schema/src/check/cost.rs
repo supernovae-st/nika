@@ -108,17 +108,19 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
 
 /// Output price (USD per million tokens) for a `<provider>/<model>` string.
 ///
-/// The model segment is matched against `nika-catalog` pricing rows by
-/// exact `model_pattern`, then by substring (the catalog's documented
-/// match order). Returns `None` for local/unknown providers (zero-price
-/// sovereign models are correctly « unpriced », not « free »).
+/// Resolves through the catalog's PROVIDER-SCOPED lookup
+/// (`find_pricing_scoped`) — a bare cross-provider substring match
+/// (`"my-gpt-4-finetune".contains("gpt-4")`) would misprice an unrelated
+/// model at another provider's rate, the exact collision the catalog
+/// warns about. With no `provider/` prefix we fall back to the unscoped
+/// lookup (a bare model id). Returns `None` for local/unknown models —
+/// sovereign zero-price models are « unpriced », never « free ».
 fn output_price_per_million(model: &str) -> Option<f64> {
-    let name = model.split_once('/').map_or(model, |(_, n)| n);
-    let rows = nika_catalog::all_pricing();
-    rows.iter()
-        .find(|p| p.model_pattern == name)
-        .or_else(|| rows.iter().find(|p| name.contains(p.model_pattern)))
-        .map(|p| p.output_per_million)
+    let pricing = match model.split_once('/') {
+        Some((provider, name)) => nika_catalog::find_pricing_scoped(provider, name),
+        None => nika_catalog::find_pricing(model),
+    };
+    pricing.map(|p| p.output_per_million)
 }
 
 #[cfg(test)]
@@ -219,5 +221,38 @@ tasks:
         );
         assert_eq!(c.tasks[0].max_tokens, Some(50000));
         assert!(!c.has_unbounded && c.bounded_total_usd > 0.0);
+    }
+}
+
+#[cfg(test)]
+mod regression {
+    use super::*;
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
+
+    fn ceiling_of(yaml: &str) -> CostCeiling {
+        ceiling(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    #[test]
+    fn cross_provider_substring_does_not_misprice() {
+        // `ollama/my-gpt-4-finetune` must NOT pick up the OpenAI gpt-4 rate
+        // via a bare `.contains("gpt-4")` — provider-scoped lookup fails on
+        // the unknown local model → reported NoPrice, not mispriced.
+        let c = ceiling_of(
+            "\
+nika: v1
+workflow: w
+model: ollama/my-gpt-4-finetune
+tasks:
+  - id: t
+    infer: { prompt: \"hi\", max_tokens: 1000 }
+",
+        );
+        assert!(
+            c.has_unbounded,
+            "unknown local model is unpriced, not mispriced"
+        );
+        assert_eq!(c.tasks[0].unbounded_reason, Some(UnboundedReason::NoPrice));
     }
 }

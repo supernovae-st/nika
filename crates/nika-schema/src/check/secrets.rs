@@ -17,6 +17,7 @@
 //! the provider as designed (the operator chose that provider), and the
 //! response is the model's, not a verbatim echo of the secret.
 
+use crate::expression::{NamespaceRef, expr_refs, scan_templates};
 use crate::raw::{RawAction, RawWorkflow};
 
 /// A secret that escapes the masking boundary.
@@ -74,38 +75,33 @@ pub(super) fn scan_leaks(wf: &RawWorkflow) -> Vec<SecretLeak> {
     leaks
 }
 
-/// The declared secret names referenced as `${{ secrets.<name> }}` in `text`.
+/// The declared secret names genuinely REFERENCED as `${{ secrets.<name> }}`
+/// in `text` — via the real expression extractor, not a substring scan.
+///
+/// `scan_templates` finds only true `${{ … }}` islands (literal prose
+/// mentioning `secrets.api_key` outside an island is NOT a reference), and
+/// `expr_refs` decomposes each island into typed [`NamespaceRef`]s (so
+/// `mysecrets.api_key` resolves to root `mysecrets`, never `secrets`). This
+/// is the same path the analyzer uses for `NIKA-VAR-001`, so the leak scan
+/// and reference resolution agree by construction.
 fn secrets_in(text: &str, declared: &[&str]) -> Vec<String> {
+    let Ok(islands) = scan_templates(text) else {
+        // A malformed island is a parse error the analyzer already
+        // reports (`check` ran analyze() first); nothing to flag here.
+        return Vec::new();
+    };
     let mut found = Vec::new();
-    for decl in declared {
-        // Match `secrets.<name>` as a whole token (followed by a non-ident
-        // char or end) inside any `${{ … }}` island. The parser already
-        // validated expression shape; here we only need presence.
-        let needle = format!("secrets.{decl}");
-        if contains_ref(text, &needle) && !found.iter().any(|f| f == decl) {
-            found.push((*decl).to_owned());
+    for island in &islands {
+        for r in expr_refs(&island.expr) {
+            if let NamespaceRef::Secrets(name) = r
+                && declared.contains(&name.as_str())
+                && !found.iter().any(|f| f == &name)
+            {
+                found.push(name);
+            }
         }
     }
     found
-}
-
-/// Whether `text` references `secrets.<name>` as a complete identifier
-/// (not a prefix of a longer name like `secrets.api_key_backup`).
-fn contains_ref(text: &str, needle: &str) -> bool {
-    let bytes = text.as_bytes();
-    let mut from = 0;
-    while let Some(rel) = text[from..].find(needle) {
-        let start = from + rel;
-        let end = start + needle.len();
-        let next_is_ident = bytes
-            .get(end)
-            .is_some_and(|&b| b == b'_' || b.is_ascii_alphanumeric());
-        if !next_is_ident {
-            return true;
-        }
-        from = end;
-    }
-    false
 }
 
 #[cfg(test)]
@@ -184,5 +180,50 @@ secrets:
             l.iter().all(|x| x.secret != "api_key"),
             "no false prefix match"
         );
+    }
+}
+
+#[cfg(test)]
+mod regression {
+    use super::*;
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
+
+    fn leaks(yaml: &str) -> Vec<SecretLeak> {
+        scan_leaks(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    const S: &str = "secrets:\n  api_key:\n    source: vault\n    key: x\n";
+
+    #[test]
+    fn literal_prose_mentioning_secret_is_not_a_leak() {
+        // No ${{ }} island → no reference → no leak (was a false positive).
+        let y = format!(
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    exec: {{ command: \"echo 'set secrets.api_key in vault'\" }}\n"
+        );
+        assert!(leaks(&y).is_empty(), "prose mention is not a reference");
+    }
+
+    #[test]
+    fn longer_root_does_not_phantom_match() {
+        // `mysecrets.api_key` resolves to root `mysecrets`, never `secrets`.
+        // (mysecrets is itself NIKA-VAR-001 elsewhere; here: no api_key leak.)
+        let y = format!(
+            "nika: v1\nworkflow: w\n{S}vars: {{ mysecrets: \"x\" }}\ntasks:\n  - id: t\n    exec: {{ command: \"echo ${{{{ vars.mysecrets }}}}\" }}\n"
+        );
+        assert!(
+            leaks(&y).iter().all(|l| l.secret != "api_key"),
+            "no phantom prefix match"
+        );
+    }
+
+    #[test]
+    fn real_interpolated_secret_still_leaks() {
+        let y = format!(
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    exec: {{ command: \"curl -H ${{{{ secrets.api_key }}}}\" }}\n"
+        );
+        let l = leaks(&y);
+        assert_eq!(l.len(), 1);
+        assert_eq!(l[0].secret, "api_key");
     }
 }

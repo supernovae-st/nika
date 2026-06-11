@@ -9,15 +9,23 @@
 //! **zero API calls and zero tokens spent** — the property no other AI
 //! workflow runner gives (spec `07-conformance.md` §`nika check`).
 //!
-//! It composes [`analyze`](crate::analyze) (Core conformance) with four
-//! static reports over the [`RawWorkflow`] ·
+//! It composes [`analyze`](crate::analyze) (Core conformance) with three
+//! computed reports over the [`RawWorkflow`] ·
 //!
 //! - **plan** — the topological wave structure (who runs in parallel)
-//! - **cost ceiling** — worst-case spend · `Σ max_tokens × provider price`
+//! - **cost ceiling** — worst-case OUTPUT spend · `Σ max_tokens × output
+//!   price` · input/prompt cost is prompt-dependent (statically unbounded)
+//!   so it is excluded · the figure is an output-token ceiling
 //! - **secret leaks** — `secrets.X` flowing into an `exec`/tool capture
 //! - **capability escapes** — effects outside a declared `permits:` block
+//!   (exec program · tool surface · `nika:fetch` host · `nika:read`/`write`
+//!   path · for the literal cases · dynamic values stay the runtime check)
 //!
-//! `check` is read-only and never executes a verb.
+//! The spec's fourth `nika check` guarantee — provider parity — is
+//! STRUCTURAL, not a separate scan: the strict envelope parser already
+//! rejects any non-canonical verb field, so a workflow that parses uses
+//! only provider-agnostic fields and runs identically on all providers by
+//! construction. `check` is read-only and never executes a verb.
 
 mod cost;
 mod permits_fit;
