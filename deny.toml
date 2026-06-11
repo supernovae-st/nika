@@ -63,13 +63,15 @@ wrappers = [
   "nika-exec-runner",      # L1 exec effect: tokio::process is THE subprocess spawner (kill_on_drop · concurrent drain · timeout · registry cancel-by-pid) · announce floor exec · s7
   "nika-input",            # L1 write-side effect (M2.4): tokio `rt` for spawn_blocking — the sync `enigo` OS-event synthesis runs off the async runtime (worker-local · CANCEL SAFETY contract · same pattern as nika-a11y) · B.3 wires enigo
   "nika-browser",          # L1 web effect (M2.5): tokio `rt` for the per-session CDP Handler task — chromiumoxide is async-native (NO spawn_blocking) · B.3 wires chromiumoxide
-  "nika-providers",        # L1.5 provider layer (s8.5): tokio dev-dep for #[tokio::test] async wire-adapter tests (transport itself rides the injected kernel http effect · zero runtime tokio dep)
+  "nika-providers",
+  "nika-infer-local",      # L1.5 candle sidecar (ADR-091): tokio for the local-inference worker        # L1.5 provider layer (s8.5): tokio dev-dep for #[tokio::test] async wire-adapter tests (transport itself rides the injected kernel http effect · zero runtime tokio dep)
   "nika-verb-infer",       # L2 verb (s9): tokio dev-dep for #[tokio::test] run() tests over the mock registry (zero runtime tokio dep · transport inherited from the resolved provider)
   "nika-verb-exec",        # L2 verb (s10): tokio dev-dep for #[tokio::test] run() tests over MockShell (zero runtime tokio dep · subprocess owned by the injected runner)
   "nika-verb-invoke",      # L2 verb (s11): tokio dev-dep for #[tokio::test] run() tests over an inline mock ToolExecute (zero runtime tokio dep · dispatch owned by the injected executor)
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
+  # tower-http joined via chromiumoxide's reqwest 0.13 tree (nika-browser M2.5).
   "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",
-  "tower", "tokio-util", "tokio-rustls",
+  "tower", "tower-http", "tokio-util", "tokio-rustls",
   # Transitive consumers via chromiumoxide (nika-browser's CDP backend · M2.5):
   # the CDP WebSocket rides async-tungstenite/tokio · tower-http via its reqwest
   "chromiumoxide", "async-tungstenite", "tower-http",
