@@ -79,7 +79,7 @@ impl<T: ToolExecuteDyn + Send + Sync> InvokeVerb<T> {
 | Code | Variant | Spec mapping | transient |
 |---|---|---|---|
 | NIKA_450 | `UnresolvableTool { tool, detail }` (bad namespace · mcp missing slash · dispatcher NotFound) | NIKA-INVOKE-001 | `false` |
-| NIKA_451 | `ToolReportedError { tool, content_tail }` (`is_error: true`) | NIKA-INVOKE-001 family | `false` |
+| NIKA_451 | `ToolReportedError { tool, content_tail }` (`is_error: true`) | none (engine-internal · no spec row) | `false` |
 | NIKA_452 | `Dispatch` (wraps `ToolExecError` Timeout/ExecutionFailed/NotAvailable) | tool_error | inherited |
 
 NIKA_453–459 reserved (future: args-schema validation NIKA-INVOKE-002 when the

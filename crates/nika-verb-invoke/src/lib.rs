@@ -50,6 +50,7 @@
 mod errors;
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use nika_kernel::tool_executor::{ToolCall, ToolExecuteDyn};
 
@@ -119,7 +120,9 @@ impl<T> InvokeVerb<T> {
 
 impl<T> InvokeVerb<T>
 where
-    T: ToolExecuteDyn + Sync,
+    // `Sync` is inherited from the `ToolExecute` supertrait of the Dyn
+    // variant — not restated here (review lens 1 · P2).
+    T: ToolExecuteDyn,
 {
     /// Execute the `invoke` task.
     ///
@@ -156,12 +159,26 @@ where
 ///
 /// Grammar SHAPE (single colon, path charset) is the upstream
 /// `nika-schema` `NIKA-PARSE` concern; here we reject only what makes a
-/// tool id semantically unresolvable at the verb boundary.
+/// tool id semantically unresolvable at the verb boundary. NOTE the path
+/// after the namespace MAY itself contain `:` — that's the tool path's
+/// business (`split_once` claims only the first colon).
 fn validate_tool_ref(tool: &str) -> Result<(), VerbInvokeError> {
     let unresolvable = |detail: &str| VerbInvokeError::UnresolvableTool {
         tool: tool.to_owned(),
         detail: detail.to_owned(),
     };
+    // Reject leading/trailing whitespace + any ASCII control char before the
+    // id flows into a ToolCall (and from there into log/event fields) — a
+    // newline/tab in a forwarded tool name is a log-injection vector
+    // (review lens 3 · P1 · same class as the exec stderr tail).
+    if tool.starts_with(char::is_whitespace)
+        || tool.ends_with(char::is_whitespace)
+        || tool.bytes().any(|b| b < 0x20 || b == 0x7f)
+    {
+        return Err(unresolvable(
+            "tool id must not contain whitespace padding or control characters",
+        ));
+    }
     let Some((ns, path)) = tool.split_once(':') else {
         return Err(unresolvable("missing the `namespace:` prefix"));
     };
@@ -183,9 +200,18 @@ fn validate_tool_ref(tool: &str) -> Result<(), VerbInvokeError> {
     Ok(())
 }
 
-/// A stable `ToolCall` id when the engine did not supply one.
+/// Process-monotonic disambiguator for derived call ids.
+static DERIVED_CALL_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// A `ToolCall` id when the engine did not supply one.
+///
+/// The engine is EXPECTED to supply `call_id` (its event-correlation id);
+/// this fallback exists for direct/test use. It appends a process-monotonic
+/// counter so two `invoke` tasks calling the SAME tool in one run do not
+/// collide on the kernel's "unique call id" contract (review lens 1+3 · P1).
 fn derive_call_id(tool: &str) -> String {
-    format!("invoke:{tool}")
+    let n = DERIVED_CALL_SEQ.fetch_add(1, Ordering::Relaxed);
+    format!("invoke:{tool}:{n}")
 }
 
 /// Map the kernel dispatcher error onto the verb surface. `NotFound` is a
@@ -281,14 +307,37 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn derived_call_id_when_absent() {
+    async fn derived_call_id_is_prefixed_and_unique() {
+        async fn derived_id(content: &str) -> String {
+            let mock = Arc::new(MockTool::ok(content));
+            let verb = InvokeVerb::new(Arc::clone(&mock));
+            verb.run(InvokeInput::new("nika:read")).await.expect("ok");
+            mock.seen.lock().unwrap()[0].id.to_string()
+        }
+        let a = derived_id("1").await;
+        let b = derived_id("2").await;
+        // Same tool, no supplied id → distinct derived ids (kernel's
+        // unique-call-id contract holds across repeated tool ids).
+        assert!(a.starts_with("invoke:nika:read:"), "{a}");
+        assert!(b.starts_with("invoke:nika:read:"), "{b}");
+        assert_ne!(a, b, "derived ids disambiguate repeated tool ids");
+    }
+
+    #[tokio::test]
+    async fn control_char_in_tool_id_is_rejected_before_dispatch() {
         let mock = Arc::new(MockTool::ok("x"));
         let verb = InvokeVerb::new(Arc::clone(&mock));
-        verb.run(InvokeInput::new("nika:read")).await.expect("ok");
-        assert_eq!(
-            mock.seen.lock().unwrap()[0].id.to_string(),
-            "invoke:nika:read"
-        );
+        for bad in ["nika:read\n", "mcp:srv/tool\t", "nika:read ", " nika:read"] {
+            let err = verb
+                .run(InvokeInput::new(bad))
+                .await
+                .expect_err("control/whitespace rejected");
+            assert!(
+                matches!(err, VerbInvokeError::UnresolvableTool { .. }),
+                "{bad:?} rejected"
+            );
+        }
+        assert!(mock.seen.lock().unwrap().is_empty(), "zero dispatch");
     }
 
     #[tokio::test]
@@ -349,11 +398,29 @@ mod tests {
 
     #[test]
     fn tool_ref_validation_matrix() {
+        // `nika:connectome/recall` is verb-LEVEL valid (grammar shape ok);
+        // the injected dispatcher rejects it against the closed 22-builtin
+        // set today (spec 02-verbs §invoke · the verb does shape, the
+        // dispatcher does the closed-set check).
         assert!(validate_tool_ref("nika:read").is_ok());
         assert!(validate_tool_ref("nika:connectome/recall").is_ok());
         assert!(validate_tool_ref("mcp:db/query").is_ok());
+        // `nika:a:b` — a second colon is the tool path's business (we claim
+        // only the first colon for the namespace).
+        assert!(validate_tool_ref("nika:a:b").is_ok());
         for bad in [
-            "", "noprefix", "custom:x", "nika:", "mcp:", "mcp:db", "mcp:/q", "mcp:db/",
+            "",
+            "noprefix",
+            "custom:x",
+            "nika:",
+            "mcp:",
+            "mcp:db",
+            "mcp:/q",
+            "mcp:db/",
+            "NIKA:read",
+            "nika:read\n",
+            " nika:read",
+            "nika:read ",
         ] {
             assert!(validate_tool_ref(bad).is_err(), "{bad:?} must be rejected");
         }
@@ -372,7 +439,10 @@ mod proptests {
         fn validate_tool_ref_is_total(s in ".{0,40}") {
             let ok = validate_tool_ref(&s).is_ok();
             // Cross-check against an independent predicate.
-            let expected = match s.split_once(':') {
+            let clean = !s.starts_with(char::is_whitespace)
+                && !s.ends_with(char::is_whitespace)
+                && !s.bytes().any(|b| b < 0x20 || b == 0x7f);
+            let expected = clean && match s.split_once(':') {
                 Some(("nika", path)) => !path.is_empty(),
                 Some(("mcp", path)) => path
                     .split_once('/')

@@ -3,12 +3,14 @@
 
 //! `VerbInvokeError` — the `invoke` verb error surface (NIKA-450..452).
 //!
-//! Constants are registry-owned in `nika_error::codes`; the spec-level
-//! row is `NIKA-INVOKE-001` (`nika-spec spec/05-errors.md`). NIKA-450/451
-//! both map to INVOKE-001 (unresolvable tool · tool-reported error);
-//! NIKA-452 wraps the kernel `ToolExecError` (`tool_error` class).
-//! NIKA-INVOKE-002 (args-schema) is reserved (§2) — the tool owns its
-//! schema today.
+//! Constants are registry-owned in `nika_error::codes`. Spec anchoring:
+//! NIKA-450 maps to spec `NIKA-INVOKE-001` (unresolvable tool id). NIKA-451
+//! (the tool ran but returned `is_error: true`) has **no spec counterpart**
+//! — the spec assigns INVOKE-001 to unknown-tool and INVOKE-002 to
+//! args-schema, neither of which is a tool-runtime error; 451 is an
+//! engine-internal code. NIKA-452 wraps the kernel `ToolExecError`
+//! (`tool_error` class). NIKA-INVOKE-002 (args-schema) is reserved (§2) —
+//! the tool owns its schema today.
 
 use nika_error::codes::{self, NikaCode};
 use nika_error::traits::NikaErrorCode;
