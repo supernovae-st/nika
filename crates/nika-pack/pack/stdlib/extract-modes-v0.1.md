@@ -26,7 +26,7 @@ Plus an implicit ·
 
 | Mode | Output | Use case |
 |---|---|---|
-| `raw` | string (bytes as string) | Raw response body · no extraction (default if no body to extract) |
+| `raw` | string (text · UTF-8) | Raw response body · no extraction · **text only** (a non-UTF-8 body is `NIKA-BUILTIN-FETCH-001` · binary is file-mediated per [04 §value rendering](../spec/04-variables.md)) |
 
 ---
 
@@ -251,19 +251,13 @@ invoke:
 
 ---
 
-### `llm-txt` · (special) · llms.txt convention
+### `llm-txt` · RESERVED (not a v0.1 mode)
 
-```yaml
-invoke:
-  tool: "nika:fetch"
-  args:
-    url: "https://example.com/llms.txt"
-    mode: llm-txt
-```
-
-**Behavior** · fetches and parses an `llms.txt` file (the emerging convention for LLM-friendly site descriptions). Returns parsed structure.
-
-**Status** · experimental in v0.1 · MAY stabilize in stdlib v0.2.
+A future mode parsing the `llms.txt` convention (LLM-friendly site
+descriptions). **NOT in the v0.1 canonical set** — `mode: llm-txt` is
+rejected today (the canon list of 9 is closed · the conformance oracle
+enforces it). Until it stabilizes (stdlib v0.2 candidate) · fetch with
+`mode: text` and parse with `nika:jq` / an `infer:` step.
 
 ---
 

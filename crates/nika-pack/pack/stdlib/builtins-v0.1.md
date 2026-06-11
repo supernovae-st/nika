@@ -41,11 +41,15 @@ invoke: { tool: "nika:log", args: { level: info, message: "Processing ${{ vars.u
 ```
 Emit a log entry (`debug`/`info`/`warn`/`error`) to the workflow event stream (human-readable diagnostic).
 
+Returns `null` · best-effort (no failure codes · a log that cannot land never fails the task).
+
 ### `nika:emit`
 ```yaml
 invoke: { tool: "nika:emit", args: { event_type: custom.event, payload: { ... } } }
 ```
 Emit a custom machine event (consumed by subscribers · journal). Distinct from `log` · `log` = human diagnostic · `emit` = machine event.
+
+`event_type:` matches `^[a-z][a-z0-9_.-]*$` · `payload:` any JSON value. Returns `null`. Delivery is engine-side (journal · subscribers) · best-effort once shape-valid. Throws · `NIKA-BUILTIN-EMIT-001` (invalid event shape · `validation_error`).
 
 ### `nika:assert`
 ```yaml
@@ -53,11 +57,19 @@ invoke: { tool: "nika:assert", args: { condition: "${{ tasks.X.output.count > 0 
 ```
 Fail the task if `condition` (a **CEL `${{ }}` boolean**) is false · else no-op. The **fail-fast guard** (distinct from `when:` which is the **skip-guard**). `condition:` uses the canonical `${{ }}` CEL surface — never a legacy `$task` syntax.
 
+Returns `true` on pass. Throws · `NIKA-BUILTIN-ASSERT-001` (assertion failed · `tool_error` · `transient: false` · `message:` lands in the error message · retryable via `retry.on_codes` — the polling pattern's lever).
+
 ### `nika:prompt`
 ```yaml
 invoke: { tool: "nika:prompt", args: { message: "Approve deploy to production?", default: false } }
 ```
-Interactive human confirm · blocks until answered. v0.1 conformance · engines MAY use `default` in CI/non-interactive mode.
+Interactive human confirm · blocks until answered. **Returns a boolean**
+(`true` = confirmed · `false` = refused — a refusal is a VALUE, never an
+error · gate downstream with `when:`). Non-interactive contract (normative) ·
+when no human can answer (CI · daemon) the engine MUST use `default:` when
+present · and MUST fail `NIKA-BUILTIN-PROMPT-001` (`validation_error` ·
+non-interactive without a `default:`) when absent — never hang forever ·
+never silently pick an answer.
 
 ### `nika:done`
 ```yaml
@@ -89,7 +101,13 @@ Throws · `NIKA-BUILTIN-WAIT-001` on absolute timeout · `-002` if the timestamp
 ```yaml
 invoke: { tool: "nika:read", args: { path: "./config.yaml", encoding: utf-8 } }
 ```
-Read a file · returns string content.
+Read a file · returns **string** content (text mode · the default).
+`binary: true` (explicit · no content sniffing) returns **opaque bytes**
+([04 §value rendering](../spec/04-variables.md) · they flow tool→tool ·
+never into a string position). Throws · `NIKA-BUILTIN-READ-001` (file not
+found — the code the state-file first-run pattern scopes its recovery to) ·
+`-002` (IO failure · permission) · `-003` (text mode on non-UTF-8 content ·
+use `binary: true`). All `tool_error` · `transient: false`.
 
 ### `nika:write`
 ```yaml
@@ -97,23 +115,35 @@ invoke: { tool: "nika:write", args: { path: "./out.md", content: "...", create_d
 ```
 Write a file · returns the path. A binary `content` value (an opaque bytes output from an upstream tool · e.g. MCP image content) is written as-is · no `output_format` declaration needed (the value carries its own type).
 
+`overwrite:` defaults **true** · `create_dirs:` defaults **false**. Throws · `NIKA-BUILTIN-WRITE-001` (IO failure) · `-002` (`overwrite: false` and the path exists). Both `tool_error` · `transient: false`.
+
 ### `nika:edit`
 ```yaml
 invoke: { tool: "nika:edit", args: { path: "./file.md", find: "old", replace: "new" } }
 ```
-In-place find/replace · returns the modified path.
+In-place find/replace · returns the modified path. `find:` is a **literal
+string** (not a regex — use `nika:grep` to locate · jq to transform) ·
+replaces **all occurrences** · `count:` caps replacements when set. Throws ·
+`NIKA-BUILTIN-EDIT-001` (`find:` matched nothing — an edit that edits
+nothing is an authoring bug · `tool_error`) · `-002` (IO failure).
 
 ### `nika:glob`
 ```yaml
 invoke: { tool: "nika:glob", args: { pattern: "./src/**/*.rs", exclude: ["**/target/**"] } }
 ```
-Glob match · returns array of paths.
+Glob match · returns array of paths · **sorted lexicographically**
+(deterministic across engines · filesystems). Throws ·
+`NIKA-BUILTIN-GLOB-001` (invalid pattern · `validation_error`).
 
 ### `nika:grep`
 ```yaml
 invoke: { tool: "nika:grep", args: { pattern: "TODO:", path: "./src", case_insensitive: false } }
 ```
-Recursive grep · returns array of `{ path, line, match }`.
+Recursive grep · returns array of `{ path, line, match }` · `line` is the
+1-based line **number** (integer) · `match` the matched line text · results
+sorted by `(path, line)`. `pattern:` is a **Rust-regex-class** expression
+(RE2-compatible · no backreferences · the portable subset). Throws ·
+`NIKA-BUILTIN-GREP-001` (invalid pattern · `validation_error`).
 
 ---
 
@@ -135,26 +165,31 @@ invoke:
 ```
 Same shape combines / zips N inputs · build the array, index inside jq.
 
+**The arg is `expression:`** — exactly that name (not `query:` · not `expr:` ·
+one name everywhere · the conformance oracle gates it). Throws ·
+`NIKA-BUILTIN-JQ-001` (program error at runtime · `tool_error` — compile
+errors are caught statically · `NIKA-VAR-005`).
+
 **Implementation** · reference engine uses `jaq` (Rust jq).
 
 ### `nika:json_diff`
 ```yaml
 invoke: { tool: "nika:json_diff", args: { before: { ... }, after: { ... } } }
 ```
-JSON diff · returns **RFC 6902** JSON Patch. (jq can't diff.)
+JSON diff · returns **RFC 6902** JSON Patch. (jq can't diff.) Throws · `NIKA-BUILTIN-JSON_DIFF-001` (non-JSON input · `validation_error`).
 
 ### `nika:validate` · schema validation (json OR yaml)
 ```yaml
 invoke: { tool: "nika:validate", args: { data: { ... }, schema: { type: object, ... }, format: json } }
 # format: json (default · validate a value) | yaml (parse a YAML string first, then validate)
 ```
-Validate data against a **JSON Schema** · returns `{ valid: bool, errors: [...] }`. Merges the former `json_verify` + `yaml_validate` (`format:` arg · one validator).
+Validate data against a **JSON Schema** · returns `{ valid: bool, errors: [...] }` — invalid DATA is a **report, never a task failure** (gate on `.valid` downstream · or `nika:assert` it). Merges the former `json_verify` + `yaml_validate` (`format:` arg · one validator). Throws · `NIKA-BUILTIN-VALIDATE-001` (the `schema:` itself is not a valid JSON Schema · `validation_error`) · `-002` (`format: yaml` and the string does not parse as YAML).
 
 ### `nika:json_merge_patch`
 ```yaml
 invoke: { tool: "nika:json_merge_patch", args: { target: { ... }, patch: { ... } } }
 ```
-**RFC 7396** merge patch (`null` deletes a key) · the delete-on-null semantics jq's `*` recursive-merge does NOT provide (so this stays a genuine builtin). Plain recursive merge (no delete) is just `jq '.[0] * .[1]'` on a `[base, overlay]` input · no builtin needed.
+**RFC 7396** merge patch (`null` deletes a key) · the delete-on-null semantics jq's `*` recursive-merge does NOT provide (so this stays a genuine builtin). Plain recursive merge (no delete) is just `jq '.[0] * .[1]'` on a `[base, overlay]` input · no builtin needed. Throws · `NIKA-BUILTIN-JSON_MERGE_PATCH-001` (non-object target/patch · `validation_error`).
 
 ### `nika:convert` · universal multi-format conversion
 ```yaml
@@ -166,7 +201,7 @@ invoke:
     to: json                           # REQUIRED · enum · json | yaml | toml | csv
     has_header: true                   # OPTIONAL · CSV only · default true
 ```
-Universal format converter · 4 formats v0.1 (`json` · `yaml` · `toml` · `csv`) · 12 directions in scope (4×3 minus identity).
+Universal format converter · 4 formats v0.1 (`json` · `yaml` · `toml` · `csv`) · 12 directions in scope (4×3 minus identity) · `from == to` is rejected (`NIKA-BUILTIN-CONVERT-001` · `validation_error` · an identity conversion is an authoring bug). Throws · `-002` (the input does not parse as `from:` · `tool_error`).
 
 Pattern · `fetch+extract` symmetry · single super-powerful builtin · `from`/`to` mode parameters · all bidirectional pairs canonical · no per-direction builtin slot.
 
@@ -178,20 +213,20 @@ Reference implementation · `serde_transcode` 1.1+ orchestrator (zero-allocation
 ```yaml
 invoke: { tool: "nika:uuid", args: { version: v7 } }   # v7 default (timestamped/sortable · RFC 9562) | v4 (random)
 ```
-Generate a UUID. (Generators are not jq · jq is pure transform.)
+Generate a UUID. (Generators are not jq · jq is pure transform.) Returns the canonical lowercase-hyphenated string. No failure codes.
 
 ### `nika:date`
 ```yaml
 invoke: { tool: "nika:date", args: { op: now } }
 # op: now { tz } | add { base, duration } | subtract | format { input, format } | parse | diff { start, end, unit }
 ```
-Timestamp arithmetic · op-discriminated single builtin · timezone-aware (IANA · default UTC) · ISO 8601 out.
+Timestamp arithmetic · op-discriminated single builtin · timezone-aware (IANA · default UTC) · ISO 8601 out. `format:`/`parse` use the **strftime** field grammar (`%Y-%m-%d` · the one cross-language constant). Every op returns a string EXCEPT `diff` (integer · in `unit:`). Throws · `NIKA-BUILTIN-DATE-001` (unparseable input / unknown op / bad tz · `validation_error`).
 
 ### `nika:hash`
 ```yaml
 invoke: { tool: "nika:hash", args: { algo: blake3, content: "${{ tasks.X.output }}", encoding: hex } }
 ```
-Content hashing · default **blake3** (fastest modern cryptographic hash · parallel · secure) · or `sha256`/`sha512`. md5/sha1 NOT supported (cryptographically broken). Use cases · cache keys · content addressing · provenance.
+Content hashing · default **blake3** (fastest modern cryptographic hash · parallel · secure) · or `sha256`/`sha512`. md5/sha1 NOT supported (cryptographically broken · `NIKA-BUILTIN-HASH-001` `validation_error` on an unsupported algo). `encoding:` `hex` (default) | `base64`. Use cases · cache keys · content addressing · provenance.
 
 ---
 
@@ -210,13 +245,20 @@ invoke: { tool: "nika:fetch", args: { url: "https://example.com/article", mode: 
 | `mode` | extraction mode · see `extract-modes-v0.1.md` · default `markdown` |
 | `jq` | a jq expression · only with `mode: jq` (structured JSON extraction · replaces the former JSONPath mode) |
 
+**Non-2xx is failure (normative)** · a non-2xx response throws
+`NIKA-BUILTIN-FETCH-001` (`category: network_error` · `transient: true` for
+5xx/408/429 · `false` for other 4xx · `details.status_code` carries the
+status). To poll a pending resource · the jq-error pattern
+([08 H19](../spec/08-out-of-scope.md)) — not status-code inspection.
+Redirects follow up to an engine cap · the FINAL status decides.
+
 **Security (engine MUST)** · SSRF defense (reject private-net + cloud-metadata `169.254.169.254` unless configured) · honor task-level `timeout` · reject self-signed TLS by default.
 
 ### `nika:notify`
 ```yaml
 invoke: { tool: "nika:notify", args: { channel: webhook, target: "https://hooks.slack.com/...", message: "Done · ${{ tasks.X.status }}", severity: info } }
 ```
-Send notifications · `channel:` enum (`webhook`/`slack`/`email`/`discord`/`sms` · one builtin not 5). v0.81 engine MUST support `webhook` · others MAY be feature-gated (`NIKA-BUILTIN-NOTIFY-001` if unconfigured).
+Send notifications · `channel:` enum (`webhook`/`slack`/`email`/`discord`/`sms` · one builtin not 5). v0.81 engine MUST support `webhook` · others MAY be feature-gated. Returns `null` on accepted delivery. Throws · `NIKA-BUILTIN-NOTIFY-001` (channel unconfigured · `validation_error`) · `-002` (delivery failed · `network_error` · transient engine-assessed).
 
 ---
 
@@ -278,7 +320,7 @@ separate doc). Deliberate « less but better » (Rams 10).
 ## Cross-builtin invariants
 
 A v0.1-compliant builtin · takes a single `args` object · returns a
-JSON-serializable value · reports errors as typed `NIKA-BUILTIN-NNN` codes ·
+JSON-serializable value · reports errors as typed `NIKA-BUILTIN-<NAME>-NNN` codes (4-segment · per-builtin sub-namespace · [05](../spec/05-errors.md)) ·
 honors task-level `timeout` · respects engine security policies.
 
 ---

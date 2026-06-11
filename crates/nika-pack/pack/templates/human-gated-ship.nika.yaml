@@ -8,7 +8,9 @@
 # Instantiate · copy → fill `# SLOT:` → `nika check` → repair → re-check.
 # The contract (patterns 6 + 9) ·
 #   nothing irreversible happens before nika:prompt returns true
-#   the assert makes « no » terminal · on_finally records EITHER WAY
+#   the assert makes a RED gate terminal · the act fails LOUDLY (default
+#   capture) · a terminal `when: true` task records EVERY outcome
+#   (acted · refused · failed) — the always-pattern
 nika: v1
 workflow: human-gated-ship-template  # SLOT: kebab-case workflow id
 description: "verify in parallel · human GO · act · record"   # SLOT
@@ -51,15 +53,20 @@ tasks:
     when: ${{ tasks.human.output == true }}
     exec:
       command: "echo shipped"       # SLOT: the irreversible action
-      capture: structured
-    on_finally:                     # the record lands · acted OR refused
-      - invoke:
-          tool: "nika:notify"
-          args:
-            channel: webhook
-            target: "${{ secrets.webhook }}"
-            message: "Run finished · act=${{ tasks.act.status }}"   # SLOT
-            severity: info
+      # default capture · a failing ship fails LOUDLY (NIKA-EXEC-001) —
+      # never `capture: structured` on the irreversible step (exit codes
+      # would become data and a red ship would read as success)
+
+  - id: record
+    depends_on: [act]
+    when: true                      # the always-pattern · runs on success, failure, OR refusal
+    invoke:
+      tool: "nika:notify"
+      args:
+        channel: webhook
+        target: "${{ secrets.webhook }}"
+        message: "Run finished · act=${{ tasks.act.status }}"   # SLOT · success | failure | skipped
+        severity: info
 
 outputs:
   acted: ${{ tasks.act.status }}

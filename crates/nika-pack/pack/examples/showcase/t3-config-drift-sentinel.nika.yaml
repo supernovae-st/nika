@@ -78,6 +78,8 @@ tasks:
   - id: explain
     depends_on: [drift]
     when: ${{ size(tasks.drift.output) > 0 }}
+    on_error:
+      recover: "(explanation unavailable — model call failed · the raw patch is attached)"
     infer:
       prompt: |
         This RFC 6902 patch is UNSANCTIONED config drift in production ·

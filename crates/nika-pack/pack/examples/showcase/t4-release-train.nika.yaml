@@ -13,7 +13,7 @@
 #   - `nika:date` `op: diff` · compute how long the gates took
 #   - `nika:prompt` · the conductor's GO is a human decision
 #   - parallel gate wave + `capture: structured` exit-code checks
-#   - `nika:emit` + `on_finally:` · the departure record always lands
+#   - the always-pattern (`when: true`) · the departure record always lands
 #
 # Run · nika run examples/showcase/t4-release-train.nika.yaml
 nika: v1
@@ -130,14 +130,22 @@ tasks:
       args:
         condition: "${{ tasks.verify.output == vars.version }}"
         message: "Prod does not report the shipped version — investigate before announcing"
-    on_finally:                        # the record lands · shipped OR aborted
-      - invoke:
-          tool: "nika:emit"
-          args:
-            event_type: "release.train.departed"
-            payload:
-              version: "${{ vars.version }}"
-              status: "${{ tasks.live.status }}"
+
+  # the always-pattern · `when: true` replaces the default success-gate ·
+  # this task runs whether `live` succeeded, failed, or never started
+  # (upstream abort) — a record that must land on EVERY outcome is a
+  # terminal task, not a cleanup hook (03 §Task states).
+  - id: record
+    depends_on: [live]
+    when: true
+    invoke:
+      tool: "nika:emit"
+      args:
+        event_type: "release.train.departed"
+        payload:
+          version: "${{ vars.version }}"
+          status: "${{ tasks.live.status }}"
+    on_finally:
       - invoke:
           tool: "nika:notify"
           args:

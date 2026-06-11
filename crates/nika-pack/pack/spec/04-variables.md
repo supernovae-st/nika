@@ -154,7 +154,7 @@ takes whichever ran ·
     tool: nika:jq
     args:
       input: [ "${{ tasks.build_prod.output }}", "${{ tasks.build_dev.output }}" ]
-      query: "[ .[] | select(. != null) ] | first"
+      expression: "[ .[] | select(. != null) ] | first"
 ```
 
 **One obvious way · no bare alias.** `${{ tasks.X }}` is the whole result

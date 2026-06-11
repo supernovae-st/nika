@@ -58,6 +58,7 @@ tasks:
 
   - id: approve
     depends_on: [drafts]
+    when: ${{ tasks.drafts.output != null }}   # nothing drafted · nothing to approve
     invoke:
       tool: "nika:prompt"
       args:
@@ -66,7 +67,7 @@ tasks:
 
   - id: save
     depends_on: [approve, drafts]
-    when: ${{ tasks.approve.output == true }}
+    when: ${{ tasks.drafts.output != null && tasks.approve.output == true }}   # zero overdue → drafts skipped (null) · don't write nothing
     invoke:
       tool: "nika:write"
       args:

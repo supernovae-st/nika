@@ -151,21 +151,31 @@ invoke:
 
 These are not stdlib · they depend on the engine's MCP server registry being configured.
 
-## Namespace ownership · `nika:` · `mcp:` · `x-`
+## Namespace ownership · `nika:` · `mcp:` (closed at v1)
 
-The three canonical tool namespaces ·
+The namespace set is **CLOSED at v1** — `nika:` and `mcp:` are the only two
+([02 §tool reference grammar](./02-verbs.md#tool-reference-grammar-canonical) ·
+any other prefix is rejected at parse time) ·
 
 | Namespace | Owner | Source of truth | Examples |
 |---|---|---|---|
 | `nika:*` | **Spec-owned** | `stdlib/builtins-v0.1.md` (this directory's sibling) | `nika:read` · `nika:jq` · `nika:done` |
 | `mcp:<server>/*` | Engine + user | Engine's MCP server registry config | `mcp:postgres/query` · `mcp:browser/navigate` |
-| `x-<vendor>:*` | **Custom · engine-specific** | Engine documentation (OUT of spec) | `x-superclever:research` · `x-myengine:custom_tool` |
 
-The `nika:*` namespace is **spec-owned**. A custom engine MUST NOT add tools to the `nika:*` namespace · it would violate portability (a workflow using a vendor's `nika:custom` builtin would not run on a different engine).
+The `nika:*` namespace is **spec-owned**. A custom engine MUST NOT add tools
+to the `nika:*` namespace · it would violate portability (a workflow using a
+vendor's `nika:custom` builtin would not run on a different engine).
 
-Custom engines that want to ship engine-specific builtins MUST use the `x-<vendor>:*` prefix. Workflows referencing `x-*` tools are explicitly NOT portable across engines · the workflow author acknowledges the vendor lock-in.
+**Engine-specific tools route through `mcp:`** — an engine that ships custom
+capabilities exposes them as an MCP server it hosts (`mcp:myengine/research`).
+That is exactly what the protocol is for · the tool is then *declared* in the
+engine's MCP registry like any other (portability semantics intact · any
+engine with that server configured runs the workflow) · and no third
+namespace appears silently.
 
-This is the OpenAPI `x-` extension pattern · industry canonical.
+(An OpenAPI-style `x-<vendor>:` prefix was considered and is **reserved as a
+possible future additive minor** — it does NOT exist in v0.1 · a parser that
+accepts `x-anything:tool` today is non-conformant.)
 
 ---
 
@@ -178,7 +188,7 @@ See [07-conformance.md](./07-conformance.md). In summary ·
 | Core | None · only parse + DAG + variable + error · no execution needed |
 | Runtime | Must execute the 4 verbs · provider/tool implementations engine's choice |
 | Stdlib v0.1 | Must ship the <!-- canon:providers -->14<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->22<!-- /canon --> builtins |
-| Stdlib v0.1+media | Stdlib v0.1 + 24 media builtins |
+| Stdlib v0.1+media | RESERVED · enumerated when the media set publishes (stdlib v0.x · the 24 names are not yet normative) |
 
 A v0.1-compliant engine for a workflow author depends on which level they need.
 
