@@ -326,6 +326,20 @@ mod tests {
     }
 
     #[test]
+    fn consumption_inside_invoke_args_json_counts() {
+        // the output is consumed INSIDE an invoke args JSON value — the
+        // visit_json walker path; with it blinded, a phantom dead-spend
+        // hint would fire here.
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    depends_on: [a]\n    invoke: { tool: \"nika:write\", args: { path: \"./o\", content: \"${{ tasks.a.output }}\" } }\n",
+        );
+        assert!(
+            !h.iter().any(|x| x.kind == "dead-spend"),
+            "consumed via args JSON: {h:?}"
+        );
+    }
+
+    #[test]
     fn pure_compute_workflow_needs_no_boundary() {
         // infer-only → no permits hint (nothing to bound).
         let h = hints_of(

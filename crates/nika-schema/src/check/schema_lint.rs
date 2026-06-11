@@ -307,6 +307,37 @@ mod tests {
     }
 
     #[test]
+    fn non_schema_scalar_node_is_flagged_with_its_kind() {
+        // `items: 42` — not an object, not a boolean → finding naming
+        // the JSON kind (pins `kind()`'s output, not just existence).
+        let f = findings_of(&infer_with_schema(
+            "        type: array\n        items: 42\n",
+        ));
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert!(f[0].detail.contains("a number"), "{f:?}");
+        // boolean schemas are LEGAL (`items: false` = no items admitted)
+        let ok = findings_of(&infer_with_schema(
+            "        type: array\n        items: false\n",
+        ));
+        assert!(ok.is_empty(), "boolean schema is valid: {ok:?}");
+    }
+
+    #[test]
+    fn type_array_form_is_checked_per_entry() {
+        // `type: [string, "null"]` is the nullable idiom — every entry
+        // of the array form is validated, not just the string form.
+        let f = findings_of(&infer_with_schema(
+            "        type: object\n        properties:\n          v: { type: [strng, \"null\"] }\n",
+        ));
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert!(f[0].detail.contains("did you mean `string`"), "{f:?}");
+        let ok = findings_of(&infer_with_schema(
+            "        type: object\n        properties:\n          v: { type: [string, \"null\"] }\n",
+        ));
+        assert!(ok.is_empty(), "{ok:?}");
+    }
+
+    #[test]
     fn required_without_properties_is_legal() {
         // free-form object with mandated keys — valid JSON Schema.
         let f = findings_of(&infer_with_schema(

@@ -156,7 +156,6 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
 /// (`env:` · `secrets:` · `with:` · `output:` blocks).
 pub(super) type SpannedEntries<T> = Vec<(Spanned<String>, Spanned<T>)>;
 
-/// Per-parse context threaded through the submodules.
 /// Maximum leading-space indentation accepted per line — ~512 block
 /// nesting levels at 2 spaces/level, a 4–6× margin under the empirical
 /// marked-yaml stack-overflow point (~3000 levels / 8 MB stack) and
@@ -183,6 +182,7 @@ fn check_indentation_depth(source: &str) -> Result<(), SchemaError> {
     Ok(())
 }
 
+/// Per-parse context threaded through the submodules.
 pub(super) struct Cx<'a> {
     pub(super) file_id: FileId,
     pub(super) char_to_byte: &'a CharToByte,
