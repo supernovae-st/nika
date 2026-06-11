@@ -54,6 +54,10 @@
 //!   (constants in `nika_error::codes::NIKA_1301..1305` · M2.4 nika-input)
 //! - 1400–1499: Browser automation (`BrowserError`) — `nika-kernel-core`
 //!   `io/browser` (constants in `nika_error::codes::NIKA_1401..1406`)
+//! - 1500–1599: Vision inference (`VisionError`) — `nika-kernel-ai`
+//!   `vision.rs` (constants in `nika_error::codes::NIKA_1501..1505` · M2.6)
+//! - 1600–1699: Audio inference (`AudioError`) — `nika-kernel-ai`
+//!   `audio.rs` (constants in `nika_error::codes::NIKA_1601..1605` · R6)
 
 pub use nika_kernel_ai::errors::*;
 pub use nika_kernel_core::errors::*;

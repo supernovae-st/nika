@@ -5,12 +5,12 @@
 //!
 //! Phase 2 M1 PR 6 (sprint plan `2026-05-14-nika-phase-2-m1-kernel-
 //! modules-sprint-plan.md` §4 · FINAL M1 PR · SEALS the L0.5 io+ai
-//! kernel sealed-trait + DTO surface). Reserved error codes
-//! NIKA-1040..1059 per `docs/architecture/forward-compat-invariants.md`
-//! Gate 12 (vision-LLM L1 error codes · land in Phase 2 M4 via the
-//! `nika-vision-local` crate per ADR-037 bottom-up plan · in-process
+//! kernel sealed-trait + DTO surface). Error codes NIKA-1500..1599 per
+//! the ADR-081 `nika_codes` matrix (the sprint plan's draft 1040-block
+//! was superseded — see `crate::errors`). The L1 impl lands via the
+//! `nika-vision-local` crate per ADR-037 bottom-up plan (in-process
 //! ONNX runtime + remote multimodal-LLM fallback through
-//! `nika-verb-infer` 9-provider catalog).
+//! `nika-verb-infer`).
 //!
 //! ADR-006 monolithic-kernel-spirit (single trait + DTOs · no proc
 //! macro · no async runtime dep). ADR-016 ISP discipline (1 trait =
@@ -250,6 +250,47 @@ impl VisionResponse {
 /// without partial state · partial detections / descriptions MUST
 /// NOT leak to the caller.
 ///
+/// Vision-inference errors — the typed boundary of the `VisionModel`
+/// trait (Pattern A · FCI-023bis). `#[non_exhaustive]`; the `NikaErrorCode`
+/// impl + the reserved range (NIKA-1500..1599 · ADR-081 computer-use block)
+/// live in `crate::errors`.
+///
+/// SECURITY (ADR-081 Guard-4 posture): a `VisionError` MUST NEVER carry
+/// frame pixels or prompt content — vision inputs can contain on-screen
+/// secrets, and prompts can embed page-derived text. Variants carry only
+/// structural detail (model ids · reason strings · never analyzed content).
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum VisionError {
+    /// The requested vision model is not loaded / not found on this host.
+    #[error("NIKA-1501 · vision model unavailable: {model}")]
+    ModelUnavailable {
+        /// Model identifier (a card/file id · never content).
+        model: String,
+    },
+    /// The input frame failed validation (dimensions · pixel-buffer size).
+    #[error("NIKA-1502 · vision input invalid: {reason}")]
+    InvalidInput {
+        /// Structural reason (sizes/dimensions · NEVER pixel or prompt content).
+        reason: String,
+    },
+    /// The inference run itself failed (runtime/backend fault).
+    #[error("NIKA-1503 · vision inference failed: {reason}")]
+    InferenceFailed {
+        /// Backend-reported reason (sanitized · never analyzed content).
+        reason: String,
+    },
+    /// No vision backend is compiled/available on this platform.
+    #[error("NIKA-1504 · no vision backend on this platform")]
+    BackendUnavailable,
+    /// A `spawn_blocking` inference task panicked or was cancelled.
+    #[error("NIKA-1505 · vision task join failed: {reason}")]
+    TaskJoinFailed {
+        /// Join failure detail.
+        reason: String,
+    },
+}
+
 /// `#[trait_variant::make(VisionModelDyn: Send)]` generates a `Send`
 /// companion trait `VisionModelDyn` for generic constraints (cohérent
 /// `io::screen::ScreenCaptureDyn` · `io::ocr::OcrEngineDyn` · `io::a11y::
@@ -272,7 +313,7 @@ pub trait VisionModel: Send + Sync {
     ///
     /// CANCEL SAFETY: cancel-safe (read-only inference · no side
     /// effects · L1 impls wrap sync runtimes in `spawn_blocking`).
-    async fn describe(&self, frame: &Frame, prompt: &str) -> std::io::Result<VisionResponse>;
+    async fn describe(&self, frame: &Frame, prompt: &str) -> Result<VisionResponse, VisionError>;
 
     /// Locate target object or text in a frame · returns bounding boxes.
     ///
@@ -286,7 +327,7 @@ pub trait VisionModel: Send + Sync {
     ///
     /// CANCEL SAFETY: cancel-safe (read-only inference · no side
     /// effects · partial localization results MUST NOT leak on cancel).
-    async fn locate(&self, frame: &Frame, target: &str) -> std::io::Result<Vec<BoundingBox>>;
+    async fn locate(&self, frame: &Frame, target: &str) -> Result<Vec<BoundingBox>, VisionError>;
 
     /// Detect all objects in a frame · open-set or closed-set classification.
     ///
@@ -299,7 +340,7 @@ pub trait VisionModel: Send + Sync {
     ///
     /// CANCEL SAFETY: cancel-safe (read-only inference · no side
     /// effects · partial detection results MUST NOT leak on cancel).
-    async fn detect(&self, frame: &Frame) -> std::io::Result<Vec<DetectedObject>>;
+    async fn detect(&self, frame: &Frame) -> Result<Vec<DetectedObject>, VisionError>;
 }
 
 #[cfg(test)]

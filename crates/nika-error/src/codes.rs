@@ -98,6 +98,10 @@ pub enum Category {
     Input,
     /// Browser automation (1400-1499 · nika-browser · ADR-081).
     Browser,
+    /// Vision inference (NIKA-1500..1599 · `VisionModel` · `nika-vision-local` M2.6).
+    Vision,
+    /// Audio inference (NIKA-1600..1699 · stt/tts/vad · `ai::audio` seam R6).
+    Audio,
 }
 
 /// Severity level for an error code.
@@ -669,6 +673,82 @@ pub const NIKA_1406: NikaCode = NikaCode {
     slug: "browser-task-join-failed",
 };
 
+// ─── Vision inference · 1500-1599 (VisionModel · nika-vision-local M2.6) ────
+
+/// NIKA-1501: The requested vision model is unavailable on this host.
+pub const NIKA_1501: NikaCode = NikaCode {
+    num: 1501,
+    category: Category::Vision,
+    severity: Severity::Error,
+    slug: "vision-model-unavailable",
+};
+/// NIKA-1502: The vision input failed validation (frame dimensions/buffer).
+pub const NIKA_1502: NikaCode = NikaCode {
+    num: 1502,
+    category: Category::Vision,
+    severity: Severity::Error,
+    slug: "vision-input-invalid",
+};
+/// NIKA-1503: The vision inference run failed.
+pub const NIKA_1503: NikaCode = NikaCode {
+    num: 1503,
+    category: Category::Vision,
+    severity: Severity::Error,
+    slug: "vision-inference-failed",
+};
+/// NIKA-1504: No vision backend on this platform.
+pub const NIKA_1504: NikaCode = NikaCode {
+    num: 1504,
+    category: Category::Vision,
+    severity: Severity::Error,
+    slug: "vision-backend-unavailable",
+};
+/// NIKA-1505: `spawn_blocking` vision task failed to join.
+pub const NIKA_1505: NikaCode = NikaCode {
+    num: 1505,
+    category: Category::Vision,
+    severity: Severity::Error,
+    slug: "vision-task-join-failed",
+};
+
+// ─── Audio inference · 1600-1699 (stt/tts/vad · ai::audio seam R6) ──────────
+
+/// NIKA-1601: The requested audio model/voice is unavailable on this host.
+pub const NIKA_1601: NikaCode = NikaCode {
+    num: 1601,
+    category: Category::Audio,
+    severity: Severity::Error,
+    slug: "audio-model-unavailable",
+};
+/// NIKA-1602: The audio input failed validation (rate/channels/length).
+pub const NIKA_1602: NikaCode = NikaCode {
+    num: 1602,
+    category: Category::Audio,
+    severity: Severity::Error,
+    slug: "audio-input-invalid",
+};
+/// NIKA-1603: The audio inference/synthesis run failed.
+pub const NIKA_1603: NikaCode = NikaCode {
+    num: 1603,
+    category: Category::Audio,
+    severity: Severity::Error,
+    slug: "audio-inference-failed",
+};
+/// NIKA-1604: No audio backend on this platform.
+pub const NIKA_1604: NikaCode = NikaCode {
+    num: 1604,
+    category: Category::Audio,
+    severity: Severity::Error,
+    slug: "audio-backend-unavailable",
+};
+/// NIKA-1605: `spawn_blocking` audio task failed to join.
+pub const NIKA_1605: NikaCode = NikaCode {
+    num: 1605,
+    category: Category::Audio,
+    severity: Severity::Error,
+    slug: "audio-task-join-failed",
+};
+
 /// All registered codes within nika-error's own ranges + the M2
 /// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
 /// in their L1 crates, the CONSTANTS are registry-owned here so
@@ -691,7 +771,8 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1007, NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105,
     NIKA_1106, NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204,
     NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401,
-    NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406,
+    NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502, NIKA_1503,
+    NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605,
 ];
 
 /// Returns an actionable help message for a given code.
@@ -804,6 +885,12 @@ pub fn code_help(code: NikaCode) -> &'static str {
         }
         1400..=1499 => {
             "Browser automation failed. Check the browser session, the target URL/selector, and the automation backend."
+        }
+        1500..=1599 => {
+            "Vision inference failed. Check the model is available, the frame is valid RGBA8, and a vision backend is installed."
+        }
+        1600..=1699 => {
+            "Audio inference failed. Check the model/voice is available, the clip format (PCM s16le), and an audio backend is installed."
         }
         700..=749 => {
             "WASM plugin host reported an error. Check plugin manifest and capability grants."

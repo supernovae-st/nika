@@ -21,6 +21,8 @@ pub mod nika_error::codes
 #[non_exhaustive] pub enum nika_error::codes::Category
 pub nika_error::codes::Category::A11y
 pub nika_error::codes::Category::A11y
+pub nika_error::codes::Category::Audio
+pub nika_error::codes::Category::Audio
 pub nika_error::codes::Category::Auth
 pub nika_error::codes::Category::Auth
 pub nika_error::codes::Category::Binding
@@ -57,6 +59,8 @@ pub nika_error::codes::Category::Shell
 pub nika_error::codes::Category::Shell
 pub nika_error::codes::Category::Verb
 pub nika_error::codes::Category::Verb
+pub nika_error::codes::Category::Vision
+pub nika_error::codes::Category::Vision
 pub nika_error::codes::Category::WasmPlugin
 pub nika_error::codes::Category::WasmPlugin
 impl core::clone::Clone for nika_error::codes::Category
@@ -421,6 +425,46 @@ pub const nika_error::codes::NIKA_1405: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_1405: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_1406: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_1406: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1501: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1501: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1502: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1502: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1503: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1503: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1504: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1504: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1505: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1505: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1601: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1601: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1602: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1602: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1603: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1603: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1604: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1604: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1605: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1605: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_430: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_430: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_431: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_431: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_432: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_432: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_433: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_433: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_440: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_440: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_441: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_441: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_442: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_442: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_450: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_450: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_451: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_451: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_452: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_452: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_600: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_600: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_601: nika_error::codes::NikaCode
@@ -538,6 +582,7 @@ pub use nika_error::prelude::<<nika_types::prelude::*>>
 pub mod nika_error::prelude::codes
 #[non_exhaustive] pub enum nika_error::prelude::codes::Category
 pub nika_error::prelude::codes::Category::A11y
+pub nika_error::prelude::codes::Category::Audio
 pub nika_error::prelude::codes::Category::Auth
 pub nika_error::prelude::codes::Category::Binding
 pub nika_error::prelude::codes::Category::Browser
@@ -556,6 +601,7 @@ pub nika_error::prelude::codes::Category::Schema
 pub nika_error::prelude::codes::Category::Screen
 pub nika_error::prelude::codes::Category::Shell
 pub nika_error::prelude::codes::Category::Verb
+pub nika_error::prelude::codes::Category::Vision
 pub nika_error::prelude::codes::Category::WasmPlugin
 impl core::clone::Clone for nika_error::codes::Category
 pub fn nika_error::codes::Category::clone(&self) -> nika_error::codes::Category
@@ -738,6 +784,26 @@ pub const nika_error::prelude::codes::NIKA_1403: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_1404: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_1405: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_1406: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1501: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1502: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1503: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1504: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1505: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1601: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1602: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1603: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1604: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1605: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_430: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_431: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_432: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_433: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_440: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_441: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_442: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_450: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_451: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_452: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_600: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_601: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_602: nika_error::codes::NikaCode
@@ -751,6 +817,7 @@ pub fn nika_error::prelude::codes::code_help(code: nika_error::codes::NikaCode) 
 pub fn nika_error::prelude::codes::lookup(wire: &str) -> core::option::Option<nika_error::codes::NikaCode>
 #[non_exhaustive] pub enum nika_error::prelude::Category
 pub nika_error::prelude::Category::A11y
+pub nika_error::prelude::Category::Audio
 pub nika_error::prelude::Category::Auth
 pub nika_error::prelude::Category::Binding
 pub nika_error::prelude::Category::Browser
@@ -769,6 +836,7 @@ pub nika_error::prelude::Category::Schema
 pub nika_error::prelude::Category::Screen
 pub nika_error::prelude::Category::Shell
 pub nika_error::prelude::Category::Verb
+pub nika_error::prelude::Category::Vision
 pub nika_error::prelude::Category::WasmPlugin
 impl core::clone::Clone for nika_error::codes::Category
 pub fn nika_error::codes::Category::clone(&self) -> nika_error::codes::Category
@@ -1016,6 +1084,7 @@ pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
 pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
 #[non_exhaustive] pub enum nika_error::Category
 pub nika_error::Category::A11y
+pub nika_error::Category::Audio
 pub nika_error::Category::Auth
 pub nika_error::Category::Binding
 pub nika_error::Category::Browser
@@ -1034,6 +1103,7 @@ pub nika_error::Category::Schema
 pub nika_error::Category::Screen
 pub nika_error::Category::Shell
 pub nika_error::Category::Verb
+pub nika_error::Category::Vision
 pub nika_error::Category::WasmPlugin
 impl core::clone::Clone for nika_error::codes::Category
 pub fn nika_error::codes::Category::clone(&self) -> nika_error::codes::Category

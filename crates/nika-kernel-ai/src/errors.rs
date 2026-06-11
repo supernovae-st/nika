@@ -9,10 +9,16 @@
 //! - 330–379: Provider (`ProviderError`)
 //! - 600–649: Memory (`MemoryError` · impl co-located in `memory.rs` ·
 //!   constants in `nika_error::codes::NIKA_601..604`)
+//! - 1500–1599: Vision (`VisionError` · `vision.rs` · constants in
+//!   `nika_error::codes::NIKA_1501..1505` · ADR-081 M2.6)
+//! - 1600–1699: Audio (`AudioError` · `audio.rs` · constants in
+//!   `nika_error::codes::NIKA_1601..1605` · FCI-005 audio block)
 
 use nika_error::prelude::*;
 
+use crate::audio::AudioError;
 use crate::provider::ProviderError;
+use crate::vision::VisionError;
 
 // Provider: 330–379 (moved from 380-429 2026-05-11 · Shield slot free)
 /// Provider API error.
@@ -72,6 +78,50 @@ impl NikaErrorCode for ProviderError {
                     status: 500..=599,
                     ..
                 }
+        )
+    }
+}
+
+impl NikaErrorCode for VisionError {
+    fn nika_code(&self) -> NikaCode {
+        use nika_error::codes;
+        match self {
+            Self::ModelUnavailable { .. } => codes::NIKA_1501,
+            Self::InvalidInput { .. } => codes::NIKA_1502,
+            Self::InferenceFailed { .. } => codes::NIKA_1503,
+            Self::BackendUnavailable => codes::NIKA_1504,
+            Self::TaskJoinFailed { .. } => codes::NIKA_1505,
+        }
+    }
+
+    /// Inference + join failures may be transient (backend contention ·
+    /// worker churn); model absence, invalid input, and a missing backend
+    /// are structural.
+    fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::InferenceFailed { .. } | Self::TaskJoinFailed { .. }
+        )
+    }
+}
+
+impl NikaErrorCode for AudioError {
+    fn nika_code(&self) -> NikaCode {
+        use nika_error::codes;
+        match self {
+            Self::ModelUnavailable { .. } => codes::NIKA_1601,
+            Self::InvalidInput { .. } => codes::NIKA_1602,
+            Self::InferenceFailed { .. } => codes::NIKA_1603,
+            Self::BackendUnavailable => codes::NIKA_1604,
+            Self::TaskJoinFailed { .. } => codes::NIKA_1605,
+        }
+    }
+
+    /// Same transience split as `VisionError` (one capability-family canon).
+    fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::InferenceFailed { .. } | Self::TaskJoinFailed { .. }
         )
     }
 }

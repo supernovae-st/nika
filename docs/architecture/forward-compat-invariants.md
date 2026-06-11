@@ -356,20 +356,15 @@ goes RED if a NEW trait returns `std::io::Result`. A type-state-generic trait (e
 `input`'s `InputDevice<S: ConsentState>`) is no exception — the error type is
 orthogonal to the type-state, so it returns `Result<T, InputError>` just the same.
 
-**Compliant today:** the WHOLE `io/` family — `blob`/`http`/`process`/`fs`
-(pure-effect) + `screen`/`ocr`/`a11y`/`input`/`browser` (computer-use, migrated
-2026-06-10/11) — and in `ai/`, `memory` + `provider`. `clock` is infallible (no
-error surface).
-
-**Migrating (the remaining laggards — `ai/` inference traits `vision` + `audio`):**
-these still return `io::Result`. Surfaced 2026-06-11 when vector 40's scan was
-extended from `io/` to `ai/` (the gate never watched `ai/` before — a Pattern-A
-audit blind spot). They are a **tracked migration to Pattern A**, NOT an accepted
-alternative — each moves its error enum into the kernel ai module (the `FsError`
-template) and returns it directly. `VisionModel` is the M2.6 `nika-vision-local`
-prereq (NIKA-1500..1599 reserved). Vector 40's ratchet baseline
-(`scripts/ci/kernel-io-typed-error-baseline.txt`) lists the remaining ones
-(YELLOW); as each migrates, its line is deleted and the gate tightens to GREEN.
+**Compliant today — the convention is UNIFORM (vector 40 GREEN · 12 typed
+modules):** the WHOLE `io/` family — `blob`/`http`/`process`/`fs` (pure-effect)
++ `screen`/`ocr`/`a11y`/`input`/`browser` (computer-use, migrated 2026-06-10/11)
+— and the WHOLE `ai/` family — `memory` + `provider` + `vision` (`VisionError` ·
+NIKA-1501..1505) + `audio` (`AudioError` · NIKA-1601..1605 · one enum for the
+stt/tts/vad capability family), typed 2026-06-11 while both still had ZERO
+implementors (purely additive). `clock` is infallible (no error surface).
+Vector 40's baseline (`scripts/ci/kernel-io-typed-error-baseline.txt`) holds
+only comments; a NEW effect trait returning `std::io::Result` goes RED.
 
 ## 10 anti-patterns to avoid <!-- FCI-024..033 -->
 

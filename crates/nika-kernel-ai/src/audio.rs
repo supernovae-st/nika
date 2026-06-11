@@ -191,6 +191,47 @@ impl SpeechSegment {
     }
 }
 
+/// Audio-inference errors — the typed boundary of the `SpeechToText` /
+/// `TextToSpeech` / `VoiceActivity` traits (Pattern A · FCI-023bis · ONE
+/// enum for the audio seam: the three traits are one capability family).
+/// `#[non_exhaustive]`; the `NikaErrorCode` impl + the reserved range
+/// (NIKA-1600..1699 · FCI-005 audio block) live in `crate::errors`.
+///
+/// SECURITY: an `AudioError` MUST NEVER carry clip samples, transcripts, or
+/// synthesis text — audio can contain spoken secrets and TTS text can carry
+/// caller data. Variants carry only structural detail.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum AudioError {
+    /// The requested audio model/voice is not loaded on this host.
+    #[error("NIKA-1601 · audio model unavailable: {model}")]
+    ModelUnavailable {
+        /// Model/voice identifier (a card id · never content).
+        model: String,
+    },
+    /// The input clip failed validation (sample-rate · channels · length).
+    #[error("NIKA-1602 · audio input invalid: {reason}")]
+    InvalidInput {
+        /// Structural reason (rates/sizes · NEVER samples or text content).
+        reason: String,
+    },
+    /// The inference/synthesis run failed (runtime/backend fault).
+    #[error("NIKA-1603 · audio inference failed: {reason}")]
+    InferenceFailed {
+        /// Backend-reported reason (sanitized · never content).
+        reason: String,
+    },
+    /// No audio backend is compiled/available on this platform.
+    #[error("NIKA-1604 · no audio backend on this platform")]
+    BackendUnavailable,
+    /// A `spawn_blocking` audio task panicked or was cancelled.
+    #[error("NIKA-1605 · audio task join failed: {reason}")]
+    TaskJoinFailed {
+        /// Join failure detail.
+        reason: String,
+    },
+}
+
 /// Speech-to-text trait · async transcription of a captured clip.
 ///
 /// CANCEL SAFETY: cancel-safe · transcription is read-only inference
@@ -218,7 +259,7 @@ pub trait SpeechToText: Send + Sync {
         &self,
         clip: &AudioClip,
         language_hint: Option<&str>,
-    ) -> std::io::Result<Transcript>;
+    ) -> Result<Transcript, AudioError>;
 }
 
 /// Text-to-speech trait · async synthesis to the canonical PCM clip.
@@ -239,7 +280,7 @@ pub trait TextToSpeech: Send + Sync {
     ///
     /// CANCEL SAFETY: cancel-safe (no side effects · partial audio
     /// MUST NOT leak on cancel).
-    async fn synthesize(&self, text: &str, voice: &str) -> std::io::Result<AudioClip>;
+    async fn synthesize(&self, text: &str, voice: &str) -> Result<AudioClip, AudioError>;
 }
 
 /// Voice-activity-detection trait · async speech-region segmentation.
@@ -259,7 +300,7 @@ pub trait VoiceActivity: Send + Sync {
     ///
     /// CANCEL SAFETY: cancel-safe (read-only analysis · no side
     /// effects).
-    async fn detect_speech(&self, clip: &AudioClip) -> std::io::Result<Vec<SpeechSegment>>;
+    async fn detect_speech(&self, clip: &AudioClip) -> Result<Vec<SpeechSegment>, AudioError>;
 }
 
 #[cfg(test)]

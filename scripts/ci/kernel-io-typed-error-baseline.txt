@@ -15,14 +15,13 @@
 # error, DELETE its line; when this file holds only comments, vector 40 goes
 # fully green and the convention is uniform across io/ + ai/.
 #
-# The io/ computer-use family (screen → ocr → a11y → input → browser) is now
-# FULLY migrated. The remaining laggards are the ai/ inference traits, surfaced
-# 2026-06-11 when vector 40's scan was extended from io/ to ai/ (the previous
-# gate never watched ai/ — a Pattern-A audit blind spot). VisionModel is the
-# M2.6 nika-vision-local prereq (NIKA-1500..1599 reserved); AudioModel is the
-# audio seam (R6 · NIKA range TBD). Sequenced after the active kernel work
-# settles — type each like the FsError template, then delete its line.
+# FULLY MIGRATED 2026-06-11 — this file holds only comments and vector 40 is
+# GREEN: the io/ computer-use family (screen → ocr → a11y → input → browser)
+# migrated 2026-06-10/11, and the ai/ inference traits (VisionError
+# NIKA-1501..1505 · AudioError NIKA-1601..1605) were typed 2026-06-11, hours
+# after the ai/ scan extension surfaced them (the gate never watched ai/
+# before — a Pattern-A audit blind spot). Both had ZERO implementors, so the
+# retype was purely additive. A NEW effect trait returning std::io::Result
+# anywhere in io/ or ai/ goes RED unless listed here with a reason.
 #
 # Enforced by scripts/hygiene/check-kernel-io-typed-errors.sh (vector 40).
-vision
-audio

@@ -1,4 +1,238 @@
 pub mod nika_kernel_ai
+pub mod nika_kernel_ai::audio
+#[non_exhaustive] pub enum nika_kernel_ai::audio::AudioError
+pub nika_kernel_ai::audio::AudioError::BackendUnavailable
+pub nika_kernel_ai::audio::AudioError::InferenceFailed
+pub nika_kernel_ai::audio::AudioError::InferenceFailed::reason: alloc::string::String
+pub nika_kernel_ai::audio::AudioError::InvalidInput
+pub nika_kernel_ai::audio::AudioError::InvalidInput::reason: alloc::string::String
+pub nika_kernel_ai::audio::AudioError::ModelUnavailable
+pub nika_kernel_ai::audio::AudioError::ModelUnavailable::model: alloc::string::String
+pub nika_kernel_ai::audio::AudioError::TaskJoinFailed
+pub nika_kernel_ai::audio::AudioError::TaskJoinFailed::reason: alloc::string::String
+impl core::error::Error for nika_kernel_ai::audio::AudioError
+impl core::fmt::Debug for nika_kernel_ai::audio::AudioError
+pub fn nika_kernel_ai::audio::AudioError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_ai::audio::AudioError
+pub fn nika_kernel_ai::audio::AudioError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_ai::audio::AudioError
+impl nika_error::traits::NikaErrorCode for nika_kernel_ai::audio::AudioError
+pub fn nika_kernel_ai::audio::AudioError::is_transient(&self) -> bool
+pub fn nika_kernel_ai::audio::AudioError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::audio::AudioError
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::audio::AudioError where U: core::convert::From<T>
+pub fn nika_kernel_ai::audio::AudioError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::audio::AudioError where U: core::convert::Into<T>
+pub type nika_kernel_ai::audio::AudioError::Error = core::convert::Infallible
+pub fn nika_kernel_ai::audio::AudioError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::audio::AudioError where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::audio::AudioError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::audio::AudioError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_ai::audio::AudioError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_ai::audio::AudioError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_ai::audio::AudioError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::audio::AudioError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::audio::AudioError where T: ?core::marker::Sized
+pub fn nika_kernel_ai::audio::AudioError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::audio::AudioError where T: ?core::marker::Sized
+pub fn nika_kernel_ai::audio::AudioError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_ai::audio::AudioError
+pub fn nika_kernel_ai::audio::AudioError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::audio::AudioError where T: 'static
+pub fn nika_kernel_ai::audio::AudioError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::audio::AudioClip
+pub nika_kernel_ai::audio::AudioClip::channels: u16
+pub nika_kernel_ai::audio::AudioClip::data: bytes::bytes::Bytes
+pub nika_kernel_ai::audio::AudioClip::sample_rate_hz: u32
+pub nika_kernel_ai::audio::AudioClip::timestamp_ms: u64
+impl nika_kernel_ai::audio::AudioClip
+pub fn nika_kernel_ai::audio::AudioClip::frames(&self) -> usize
+pub fn nika_kernel_ai::audio::AudioClip::new(data: bytes::bytes::Bytes, sample_rate_hz: u32, channels: u16, timestamp_ms: u64) -> Self
+impl core::clone::Clone for nika_kernel_ai::audio::AudioClip
+pub fn nika_kernel_ai::audio::AudioClip::clone(&self) -> nika_kernel_ai::audio::AudioClip
+impl core::cmp::PartialEq for nika_kernel_ai::audio::AudioClip
+pub fn nika_kernel_ai::audio::AudioClip::eq(&self, other: &nika_kernel_ai::audio::AudioClip) -> bool
+impl core::fmt::Debug for nika_kernel_ai::audio::AudioClip
+pub fn nika_kernel_ai::audio::AudioClip::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::audio::AudioClip
+impl serde_core::ser::Serialize for nika_kernel_ai::audio::AudioClip
+pub fn nika_kernel_ai::audio::AudioClip::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::audio::AudioClip
+pub fn nika_kernel_ai::audio::AudioClip::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::audio::AudioClip
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::audio::AudioClip where U: core::convert::From<T>
+pub fn nika_kernel_ai::audio::AudioClip::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::audio::AudioClip where U: core::convert::Into<T>
+pub type nika_kernel_ai::audio::AudioClip::Error = core::convert::Infallible
+pub fn nika_kernel_ai::audio::AudioClip::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::audio::AudioClip where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::audio::AudioClip::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::audio::AudioClip::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::audio::AudioClip where T: core::clone::Clone
+pub type nika_kernel_ai::audio::AudioClip::Owned = T
+pub fn nika_kernel_ai::audio::AudioClip::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::audio::AudioClip::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::audio::AudioClip where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::audio::AudioClip::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::audio::AudioClip where T: ?core::marker::Sized
+pub fn nika_kernel_ai::audio::AudioClip::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::audio::AudioClip where T: ?core::marker::Sized
+pub fn nika_kernel_ai::audio::AudioClip::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::audio::AudioClip where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::audio::AudioClip::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::audio::AudioClip
+pub fn nika_kernel_ai::audio::AudioClip::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::audio::AudioClip where T: 'static
+pub fn nika_kernel_ai::audio::AudioClip::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::audio::AudioClip where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_ai::audio::SpeechSegment
+pub nika_kernel_ai::audio::SpeechSegment::confidence: f32
+pub nika_kernel_ai::audio::SpeechSegment::end_ms: u64
+pub nika_kernel_ai::audio::SpeechSegment::start_ms: u64
+impl nika_kernel_ai::audio::SpeechSegment
+pub fn nika_kernel_ai::audio::SpeechSegment::new(start_ms: u64, end_ms: u64, confidence: f32) -> Self
+impl core::clone::Clone for nika_kernel_ai::audio::SpeechSegment
+pub fn nika_kernel_ai::audio::SpeechSegment::clone(&self) -> nika_kernel_ai::audio::SpeechSegment
+impl core::cmp::PartialEq for nika_kernel_ai::audio::SpeechSegment
+pub fn nika_kernel_ai::audio::SpeechSegment::eq(&self, other: &nika_kernel_ai::audio::SpeechSegment) -> bool
+impl core::fmt::Debug for nika_kernel_ai::audio::SpeechSegment
+pub fn nika_kernel_ai::audio::SpeechSegment::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::audio::SpeechSegment
+impl serde_core::ser::Serialize for nika_kernel_ai::audio::SpeechSegment
+pub fn nika_kernel_ai::audio::SpeechSegment::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::audio::SpeechSegment
+pub fn nika_kernel_ai::audio::SpeechSegment::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::audio::SpeechSegment
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::audio::SpeechSegment where U: core::convert::From<T>
+pub fn nika_kernel_ai::audio::SpeechSegment::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::audio::SpeechSegment where U: core::convert::Into<T>
+pub type nika_kernel_ai::audio::SpeechSegment::Error = core::convert::Infallible
+pub fn nika_kernel_ai::audio::SpeechSegment::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::audio::SpeechSegment where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::audio::SpeechSegment::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::audio::SpeechSegment::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::audio::SpeechSegment where T: core::clone::Clone
+pub type nika_kernel_ai::audio::SpeechSegment::Owned = T
+pub fn nika_kernel_ai::audio::SpeechSegment::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::audio::SpeechSegment::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::audio::SpeechSegment where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::audio::SpeechSegment::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::audio::SpeechSegment where T: ?core::marker::Sized
+pub fn nika_kernel_ai::audio::SpeechSegment::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::audio::SpeechSegment where T: ?core::marker::Sized
+pub fn nika_kernel_ai::audio::SpeechSegment::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::audio::SpeechSegment where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::audio::SpeechSegment::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::audio::SpeechSegment
+pub fn nika_kernel_ai::audio::SpeechSegment::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::audio::SpeechSegment where T: 'static
+pub fn nika_kernel_ai::audio::SpeechSegment::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::audio::SpeechSegment where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_ai::audio::Transcript
+pub nika_kernel_ai::audio::Transcript::language: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::audio::Transcript::segments: alloc::vec::Vec<nika_kernel_ai::audio::TranscriptSegment>
+pub nika_kernel_ai::audio::Transcript::text: alloc::string::String
+impl nika_kernel_ai::audio::Transcript
+pub fn nika_kernel_ai::audio::Transcript::new(text: alloc::string::String, segments: alloc::vec::Vec<nika_kernel_ai::audio::TranscriptSegment>, language: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_ai::audio::Transcript
+pub fn nika_kernel_ai::audio::Transcript::clone(&self) -> nika_kernel_ai::audio::Transcript
+impl core::cmp::PartialEq for nika_kernel_ai::audio::Transcript
+pub fn nika_kernel_ai::audio::Transcript::eq(&self, other: &nika_kernel_ai::audio::Transcript) -> bool
+impl core::fmt::Debug for nika_kernel_ai::audio::Transcript
+pub fn nika_kernel_ai::audio::Transcript::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::audio::Transcript
+impl serde_core::ser::Serialize for nika_kernel_ai::audio::Transcript
+pub fn nika_kernel_ai::audio::Transcript::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::audio::Transcript
+pub fn nika_kernel_ai::audio::Transcript::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::audio::Transcript
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::audio::Transcript where U: core::convert::From<T>
+pub fn nika_kernel_ai::audio::Transcript::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::audio::Transcript where U: core::convert::Into<T>
+pub type nika_kernel_ai::audio::Transcript::Error = core::convert::Infallible
+pub fn nika_kernel_ai::audio::Transcript::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::audio::Transcript where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::audio::Transcript::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::audio::Transcript::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::audio::Transcript where T: core::clone::Clone
+pub type nika_kernel_ai::audio::Transcript::Owned = T
+pub fn nika_kernel_ai::audio::Transcript::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::audio::Transcript::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::audio::Transcript where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::audio::Transcript::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::audio::Transcript where T: ?core::marker::Sized
+pub fn nika_kernel_ai::audio::Transcript::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::audio::Transcript where T: ?core::marker::Sized
+pub fn nika_kernel_ai::audio::Transcript::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::audio::Transcript where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::audio::Transcript::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::audio::Transcript
+pub fn nika_kernel_ai::audio::Transcript::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::audio::Transcript where T: 'static
+pub fn nika_kernel_ai::audio::Transcript::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::audio::Transcript where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_ai::audio::TranscriptSegment
+pub nika_kernel_ai::audio::TranscriptSegment::confidence: f32
+pub nika_kernel_ai::audio::TranscriptSegment::end_ms: u64
+pub nika_kernel_ai::audio::TranscriptSegment::start_ms: u64
+pub nika_kernel_ai::audio::TranscriptSegment::text: alloc::string::String
+impl nika_kernel_ai::audio::TranscriptSegment
+pub fn nika_kernel_ai::audio::TranscriptSegment::new(text: alloc::string::String, start_ms: u64, end_ms: u64, confidence: f32) -> Self
+impl core::clone::Clone for nika_kernel_ai::audio::TranscriptSegment
+pub fn nika_kernel_ai::audio::TranscriptSegment::clone(&self) -> nika_kernel_ai::audio::TranscriptSegment
+impl core::cmp::PartialEq for nika_kernel_ai::audio::TranscriptSegment
+pub fn nika_kernel_ai::audio::TranscriptSegment::eq(&self, other: &nika_kernel_ai::audio::TranscriptSegment) -> bool
+impl core::fmt::Debug for nika_kernel_ai::audio::TranscriptSegment
+pub fn nika_kernel_ai::audio::TranscriptSegment::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::audio::TranscriptSegment
+impl serde_core::ser::Serialize for nika_kernel_ai::audio::TranscriptSegment
+pub fn nika_kernel_ai::audio::TranscriptSegment::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::audio::TranscriptSegment
+pub fn nika_kernel_ai::audio::TranscriptSegment::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::audio::TranscriptSegment
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::audio::TranscriptSegment where U: core::convert::From<T>
+pub fn nika_kernel_ai::audio::TranscriptSegment::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::audio::TranscriptSegment where U: core::convert::Into<T>
+pub type nika_kernel_ai::audio::TranscriptSegment::Error = core::convert::Infallible
+pub fn nika_kernel_ai::audio::TranscriptSegment::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::audio::TranscriptSegment where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::audio::TranscriptSegment::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::audio::TranscriptSegment::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::audio::TranscriptSegment where T: core::clone::Clone
+pub type nika_kernel_ai::audio::TranscriptSegment::Owned = T
+pub fn nika_kernel_ai::audio::TranscriptSegment::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::audio::TranscriptSegment::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::audio::TranscriptSegment where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::audio::TranscriptSegment::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::audio::TranscriptSegment where T: ?core::marker::Sized
+pub fn nika_kernel_ai::audio::TranscriptSegment::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::audio::TranscriptSegment where T: ?core::marker::Sized
+pub fn nika_kernel_ai::audio::TranscriptSegment::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::audio::TranscriptSegment where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::audio::TranscriptSegment::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::audio::TranscriptSegment
+pub fn nika_kernel_ai::audio::TranscriptSegment::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::audio::TranscriptSegment where T: 'static
+pub fn nika_kernel_ai::audio::TranscriptSegment::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::audio::TranscriptSegment where T: for<'de> serde_core::de::Deserialize<'de>
+pub trait nika_kernel_ai::audio::SpeechToText: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_ai::audio::SpeechToText::transcribe(&self, clip: &nika_kernel_ai::audio::AudioClip, language_hint: core::option::Option<&str>) -> core::result::Result<nika_kernel_ai::audio::Transcript, nika_kernel_ai::audio::AudioError>
+impl<TraitVariantBlanketType: nika_kernel_ai::audio::SpeechToTextDyn> nika_kernel_ai::audio::SpeechToText for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::transcribe(&self, clip: &nika_kernel_ai::audio::AudioClip, language_hint: core::option::Option<&str>) -> core::result::Result<nika_kernel_ai::audio::Transcript, nika_kernel_ai::audio::AudioError>
+pub trait nika_kernel_ai::audio::SpeechToTextDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_ai::audio::SpeechToTextDyn::transcribe(&self, clip: &nika_kernel_ai::audio::AudioClip, language_hint: core::option::Option<&str>) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_ai::audio::Transcript, nika_kernel_ai::audio::AudioError>> + core::marker::Send
+pub trait nika_kernel_ai::audio::TextToSpeech: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_ai::audio::TextToSpeech::synthesize(&self, text: &str, voice: &str) -> core::result::Result<nika_kernel_ai::audio::AudioClip, nika_kernel_ai::audio::AudioError>
+impl<TraitVariantBlanketType: nika_kernel_ai::audio::TextToSpeechDyn> nika_kernel_ai::audio::TextToSpeech for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::synthesize(&self, text: &str, voice: &str) -> core::result::Result<nika_kernel_ai::audio::AudioClip, nika_kernel_ai::audio::AudioError>
+pub trait nika_kernel_ai::audio::TextToSpeechDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_ai::audio::TextToSpeechDyn::synthesize(&self, text: &str, voice: &str) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_ai::audio::AudioClip, nika_kernel_ai::audio::AudioError>> + core::marker::Send
+pub trait nika_kernel_ai::audio::VoiceActivity: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_ai::audio::VoiceActivity::detect_speech(&self, clip: &nika_kernel_ai::audio::AudioClip) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::audio::SpeechSegment>, nika_kernel_ai::audio::AudioError>
+impl<TraitVariantBlanketType: nika_kernel_ai::audio::VoiceActivityDyn> nika_kernel_ai::audio::VoiceActivity for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::detect_speech(&self, clip: &nika_kernel_ai::audio::AudioClip) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::audio::SpeechSegment>, nika_kernel_ai::audio::AudioError>
+pub trait nika_kernel_ai::audio::VoiceActivityDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_ai::audio::VoiceActivityDyn::detect_speech(&self, clip: &nika_kernel_ai::audio::AudioClip) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<nika_kernel_ai::audio::SpeechSegment>, nika_kernel_ai::audio::AudioError>> + core::marker::Send
 pub mod nika_kernel_ai::context
 #[non_exhaustive] pub struct nika_kernel_ai::context::CompressedContext
 pub nika_kernel_ai::context::CompressedContext::messages_compressed: u32
@@ -1071,6 +1305,46 @@ pub trait nika_kernel_ai::provider::ProviderVision: core::marker::Send + core::m
 pub fn nika_kernel_ai::provider::ProviderVision::supports_vision(&self) -> bool
 pub type nika_kernel_ai::provider::InferEventStream = core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::provider::InferEvent, nika_kernel_ai::provider::ProviderError>> + core::marker::Send)>>
 pub mod nika_kernel_ai::vision
+#[non_exhaustive] pub enum nika_kernel_ai::vision::VisionError
+pub nika_kernel_ai::vision::VisionError::BackendUnavailable
+pub nika_kernel_ai::vision::VisionError::InferenceFailed
+pub nika_kernel_ai::vision::VisionError::InferenceFailed::reason: alloc::string::String
+pub nika_kernel_ai::vision::VisionError::InvalidInput
+pub nika_kernel_ai::vision::VisionError::InvalidInput::reason: alloc::string::String
+pub nika_kernel_ai::vision::VisionError::ModelUnavailable
+pub nika_kernel_ai::vision::VisionError::ModelUnavailable::model: alloc::string::String
+pub nika_kernel_ai::vision::VisionError::TaskJoinFailed
+pub nika_kernel_ai::vision::VisionError::TaskJoinFailed::reason: alloc::string::String
+impl core::error::Error for nika_kernel_ai::vision::VisionError
+impl core::fmt::Debug for nika_kernel_ai::vision::VisionError
+pub fn nika_kernel_ai::vision::VisionError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_ai::vision::VisionError
+pub fn nika_kernel_ai::vision::VisionError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_ai::vision::VisionError
+impl nika_error::traits::NikaErrorCode for nika_kernel_ai::vision::VisionError
+pub fn nika_kernel_ai::vision::VisionError::is_transient(&self) -> bool
+pub fn nika_kernel_ai::vision::VisionError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::vision::VisionError
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::vision::VisionError where U: core::convert::From<T>
+pub fn nika_kernel_ai::vision::VisionError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::vision::VisionError where U: core::convert::Into<T>
+pub type nika_kernel_ai::vision::VisionError::Error = core::convert::Infallible
+pub fn nika_kernel_ai::vision::VisionError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::vision::VisionError where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::vision::VisionError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::vision::VisionError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_ai::vision::VisionError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_ai::vision::VisionError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_ai::vision::VisionError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::vision::VisionError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::vision::VisionError where T: ?core::marker::Sized
+pub fn nika_kernel_ai::vision::VisionError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::vision::VisionError where T: ?core::marker::Sized
+pub fn nika_kernel_ai::vision::VisionError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_ai::vision::VisionError
+pub fn nika_kernel_ai::vision::VisionError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::vision::VisionError where T: 'static
+pub fn nika_kernel_ai::vision::VisionError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_ai::vision::BoundingBox
 pub nika_kernel_ai::vision::BoundingBox::confidence: f32
 pub nika_kernel_ai::vision::BoundingBox::height: f32
@@ -1205,14 +1479,14 @@ impl<T> nika_error::traits::AsAny for nika_kernel_ai::vision::VisionResponse whe
 pub fn nika_kernel_ai::vision::VisionResponse::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::vision::VisionResponse where T: for<'de> serde_core::de::Deserialize<'de>
 pub trait nika_kernel_ai::vision::VisionModel: core::marker::Send + core::marker::Sync
-pub async fn nika_kernel_ai::vision::VisionModel::describe(&self, frame: &nika_kernel_core::io::screen::Frame, prompt: &str) -> std::io::error::Result<nika_kernel_ai::vision::VisionResponse>
-pub async fn nika_kernel_ai::vision::VisionModel::detect(&self, frame: &nika_kernel_core::io::screen::Frame) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_ai::vision::DetectedObject>>
-pub async fn nika_kernel_ai::vision::VisionModel::locate(&self, frame: &nika_kernel_core::io::screen::Frame, target: &str) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_ai::vision::BoundingBox>>
+pub async fn nika_kernel_ai::vision::VisionModel::describe(&self, frame: &nika_kernel_core::io::screen::Frame, prompt: &str) -> core::result::Result<nika_kernel_ai::vision::VisionResponse, nika_kernel_ai::vision::VisionError>
+pub async fn nika_kernel_ai::vision::VisionModel::detect(&self, frame: &nika_kernel_core::io::screen::Frame) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::vision::DetectedObject>, nika_kernel_ai::vision::VisionError>
+pub async fn nika_kernel_ai::vision::VisionModel::locate(&self, frame: &nika_kernel_core::io::screen::Frame, target: &str) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::vision::BoundingBox>, nika_kernel_ai::vision::VisionError>
 impl<TraitVariantBlanketType: nika_kernel_ai::vision::VisionModelDyn> nika_kernel_ai::vision::VisionModel for TraitVariantBlanketType
-pub async fn TraitVariantBlanketType::describe(&self, frame: &nika_kernel_core::io::screen::Frame, prompt: &str) -> std::io::error::Result<nika_kernel_ai::vision::VisionResponse>
-pub async fn TraitVariantBlanketType::detect(&self, frame: &nika_kernel_core::io::screen::Frame) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_ai::vision::DetectedObject>>
-pub async fn TraitVariantBlanketType::locate(&self, frame: &nika_kernel_core::io::screen::Frame, target: &str) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_ai::vision::BoundingBox>>
+pub async fn TraitVariantBlanketType::describe(&self, frame: &nika_kernel_core::io::screen::Frame, prompt: &str) -> core::result::Result<nika_kernel_ai::vision::VisionResponse, nika_kernel_ai::vision::VisionError>
+pub async fn TraitVariantBlanketType::detect(&self, frame: &nika_kernel_core::io::screen::Frame) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::vision::DetectedObject>, nika_kernel_ai::vision::VisionError>
+pub async fn TraitVariantBlanketType::locate(&self, frame: &nika_kernel_core::io::screen::Frame, target: &str) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::vision::BoundingBox>, nika_kernel_ai::vision::VisionError>
 pub trait nika_kernel_ai::vision::VisionModelDyn: core::marker::Send + core::marker::Sync + core::marker::Send
-pub fn nika_kernel_ai::vision::VisionModelDyn::describe(&self, frame: &nika_kernel_core::io::screen::Frame, prompt: &str) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_ai::vision::VisionResponse>> + core::marker::Send
-pub fn nika_kernel_ai::vision::VisionModelDyn::detect(&self, frame: &nika_kernel_core::io::screen::Frame) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<nika_kernel_ai::vision::DetectedObject>>> + core::marker::Send
-pub fn nika_kernel_ai::vision::VisionModelDyn::locate(&self, frame: &nika_kernel_core::io::screen::Frame, target: &str) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<nika_kernel_ai::vision::BoundingBox>>> + core::marker::Send
+pub fn nika_kernel_ai::vision::VisionModelDyn::describe(&self, frame: &nika_kernel_core::io::screen::Frame, prompt: &str) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_ai::vision::VisionResponse, nika_kernel_ai::vision::VisionError>> + core::marker::Send
+pub fn nika_kernel_ai::vision::VisionModelDyn::detect(&self, frame: &nika_kernel_core::io::screen::Frame) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<nika_kernel_ai::vision::DetectedObject>, nika_kernel_ai::vision::VisionError>> + core::marker::Send
+pub fn nika_kernel_ai::vision::VisionModelDyn::locate(&self, frame: &nika_kernel_core::io::screen::Frame, target: &str) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<nika_kernel_ai::vision::BoundingBox>, nika_kernel_ai::vision::VisionError>> + core::marker::Send
