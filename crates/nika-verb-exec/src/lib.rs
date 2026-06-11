@@ -154,7 +154,7 @@ impl<S> ExecVerb<S> {
 
 impl<S> ExecVerb<S>
 where
-    S: ShellRunDyn + Send + Sync + 'static,
+    S: ShellRunDyn + Sync,
 {
     /// Execute the `exec` task.
     ///
@@ -163,65 +163,104 @@ where
     ///
     /// # Errors
     ///
-    /// [`VerbExecError::InvalidParam`] on an empty command ·
+    /// [`VerbExecError::InvalidParam`] on an empty command, a NUL byte in
+    /// the command/stdin, or a malformed env key ·
     /// [`VerbExecError::Shell`] when the runner fails (spawn · blocklist ·
     /// timeout) · [`VerbExecError::NonZeroExit`] on a non-zero exit in the
     /// default capture modes (`structured` returns it as data instead).
     pub async fn run(&self, input: ExecInput) -> Result<ExecOutput, VerbExecError> {
-        if input.command.trim().is_empty() {
-            return Err(VerbExecError::InvalidParam {
-                param: "command",
-                detail: "command must be a non-empty string".to_owned(),
-            });
-        }
+        validate_params(&input)?;
+        let capture = input.capture;
 
         let result = self
             .shell
-            .run(build_command(&input))
+            .run(build_command(input))
             .await
             .map_err(|source| VerbExecError::Shell { source })?;
 
+        // The capture one-obvious-way split: default modes fail on a
+        // non-zero exit; `structured` carries the exit code as data.
+        if capture != CaptureMode::Structured && result.status != 0 {
+            return Err(VerbExecError::non_zero(result.status, &result.stderr));
+        }
+
         let duration = result.duration;
-        Ok(ExecOutput::new(
-            shape_output(input.capture, result)?,
-            duration,
-        ))
+        Ok(ExecOutput::new(shape_output(capture, result), duration))
     }
+}
+
+/// Verb-boundary validation BEFORE the runner call (NIKA-442).
+///
+/// The runner's blocklist (s7) is the security floor, but two corruption
+/// classes must be refused at the verb boundary because they would
+/// silently change what the OS executes (review lens 3 · P1+P2):
+/// - a **NUL byte** in `command`/`stdin` truncates the C-string the shell
+///   receives, so the runner's string-based blocklist checks a different
+///   command than the one that runs;
+/// - a **malformed env key** (`=`, NUL, or empty) corrupts the child's
+///   `KEY=VALUE` environment assembly.
+fn validate_params(input: &ExecInput) -> Result<(), VerbExecError> {
+    if input.command.trim().is_empty() {
+        return Err(VerbExecError::InvalidParam {
+            param: "command",
+            detail: "command must be a non-empty string".to_owned(),
+        });
+    }
+    if input.command.contains('\0') {
+        return Err(VerbExecError::InvalidParam {
+            param: "command",
+            detail: "command must not contain a NUL byte".to_owned(),
+        });
+    }
+    if input.stdin.as_deref().is_some_and(|s| s.contains('\0')) {
+        return Err(VerbExecError::InvalidParam {
+            param: "stdin",
+            detail: "stdin must not contain a NUL byte".to_owned(),
+        });
+    }
+    for key in input.env.keys() {
+        if key.is_empty() || key.contains('=') || key.contains('\0') {
+            return Err(VerbExecError::InvalidParam {
+                param: "env",
+                detail: format!("env key {key:?} is invalid (empty, or contains '=' or NUL)"),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Map the spec task surface onto the kernel `ShellCommand`.
 ///
 /// `shell = true` (spec: « run via the OS shell ») · `pre_validated` stays
 /// `false` FOREVER — this crate never bypasses the runner blocklist.
-fn build_command(input: &ExecInput) -> ShellCommand {
-    let mut cmd = ShellCommand::new(input.command.clone());
+/// Takes `input` by value so the (potentially large) env map and strings
+/// move into the command instead of cloning (review lens 1 · P2-3).
+fn build_command(input: ExecInput) -> ShellCommand {
+    let mut cmd = ShellCommand::new(input.command);
     cmd.shell = true;
-    cmd.cwd.clone_from(&input.cwd);
-    cmd.env = input.env.clone();
-    cmd.stdin.clone_from(&input.stdin);
+    cmd.cwd = input.cwd;
+    cmd.env = input.env;
+    cmd.stdin = input.stdin;
     cmd.timeout = input.timeout;
     cmd
 }
 
 /// The capture one-obvious-way split (spec §exec conformance).
-fn shape_output(capture: CaptureMode, result: ShellResult) -> Result<ExecValue, VerbExecError> {
-    if capture == CaptureMode::Structured {
-        return Ok(ExecValue::Structured {
+///
+/// Total over `CaptureMode` — no panic arm: `structured` returns the exit
+/// code as DATA; the default modes fail on a non-zero exit (review lens
+/// 1+2 · P1 · the prior `unreachable!` is gone).
+fn shape_output(capture: CaptureMode, result: ShellResult) -> ExecValue {
+    match capture {
+        CaptureMode::Structured => ExecValue::Structured {
             stdout: result.stdout,
             stderr: result.stderr,
             exit_code: result.status,
-        });
+        },
+        CaptureMode::Stdout => ExecValue::Text(result.stdout),
+        CaptureMode::Stderr => ExecValue::Text(result.stderr),
+        CaptureMode::Combined => ExecValue::Text(format!("{}{}", result.stdout, result.stderr)),
     }
-    if result.status != 0 {
-        return Err(VerbExecError::non_zero(result.status, &result.stderr));
-    }
-    let text = match capture {
-        CaptureMode::Stdout => result.stdout,
-        CaptureMode::Stderr => result.stderr,
-        CaptureMode::Combined => format!("{}{}", result.stdout, result.stderr),
-        CaptureMode::Structured => unreachable!("handled above"),
-    };
-    Ok(ExecValue::Text(text))
 }
 
 #[cfg(test)]
@@ -373,27 +412,89 @@ mod tests {
     /// `stdout`/`stderr`/`exit_code`, and the runner-reported duration surfaces.
     #[tokio::test]
     async fn gate10_parity_delegation_vs_brouillon() {
-        let mock = MockShell::new().enqueue_ok("v0.80.0\n");
+        // Pin that run() reads result.duration verbatim (not a mock default):
+        // a known, unusual duration must surface unchanged.
+        let known = Duration::from_millis(4242);
+        let mock = MockShell::new().enqueue_result(nika_kernel::process::ShellResult::new(
+            0,
+            "v0.80.0\n",
+            "",
+            known,
+        ));
         let out = verb(mock)
             .run(ExecInput::new("nika --version"))
             .await
             .expect("delegates and succeeds");
         assert_eq!(out.output, ExecValue::Text("v0.80.0\n".to_owned()));
-        assert!(out.duration > Duration::ZERO, "runner duration surfaces");
+        assert_eq!(out.duration, known, "runner duration surfaces verbatim");
+    }
+
+    #[tokio::test]
+    async fn nul_byte_in_command_is_rejected_before_any_call() {
+        let mock = MockShell::new();
+        let recorder = mock.clone();
+        let err = verb(mock)
+            .run(ExecInput::new("echo ok\0; rm -rf /"))
+            .await
+            .expect_err("NUL truncation refused");
+        assert!(matches!(
+            err,
+            VerbExecError::InvalidParam {
+                param: "command",
+                ..
+            }
+        ));
+        assert!(recorder.executed_commands().is_empty(), "zero runner calls");
+    }
+
+    #[tokio::test]
+    async fn malformed_env_key_is_rejected() {
+        for bad in ["FOO=BAR", "", "NU\0L"] {
+            let mock = MockShell::new();
+            let recorder = mock.clone();
+            let mut input = ExecInput::new("printenv");
+            input.env.insert(bad.to_owned(), "v".to_owned());
+            let err = verb(mock).run(input).await.unwrap_err();
+            assert!(
+                matches!(err, VerbExecError::InvalidParam { param: "env", .. }),
+                "key {bad:?} rejected"
+            );
+            assert!(recorder.executed_commands().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn nul_byte_in_stdin_is_rejected() {
+        let mock = MockShell::new();
+        let mut input = ExecInput::new("cat");
+        input.stdin = Some("data\0more".to_owned());
+        let err = verb(mock).run(input).await.expect_err("NUL stdin refused");
+        assert!(matches!(
+            err,
+            VerbExecError::InvalidParam { param: "stdin", .. }
+        ));
     }
 }
 
 #[cfg(test)]
 mod proptests {
-    use super::*;
+    use std::sync::Arc;
+
+    use nika_kernel_mock::MockShell;
     use proptest::prelude::*;
 
+    use super::*;
+
+    fn verb(mock: MockShell) -> ExecVerb<MockShell> {
+        ExecVerb::new(Arc::new(mock))
+    }
+
     proptest! {
-        /// shape_output is total over arbitrary results and respects the
-        /// split: structured never errors; default modes error IFF the
-        /// status is non-zero.
+        /// `shape_output` is total over `CaptureMode` and never panics:
+        /// structured preserves the exit code verbatim, every other mode
+        /// yields `Text`.
         #[test]
-        fn capture_split_invariant(
+        fn shape_output_is_total(
             status in -255i32..=255,
             stdout in ".{0,80}",
             stderr in ".{0,80}",
@@ -401,17 +502,43 @@ mod proptests {
             let result = || nika_kernel::process::ShellResult::new(
                 status, stdout.clone(), stderr.clone(), Duration::from_millis(1),
             );
-            // structured: always Ok, exit code preserved verbatim
             let structured_ok = matches!(
                 shape_output(CaptureMode::Structured, result()),
-                Ok(ExecValue::Structured { exit_code, .. }) if exit_code == status
+                ExecValue::Structured { exit_code, .. } if exit_code == status
             );
             prop_assert!(structured_ok);
-            // default modes: Ok iff status == 0
             for mode in [CaptureMode::Stdout, CaptureMode::Stderr, CaptureMode::Combined] {
-                let shaped = shape_output(mode, result());
-                prop_assert_eq!(shaped.is_ok(), status == 0);
+                prop_assert!(matches!(shape_output(mode, result()), ExecValue::Text(_)));
             }
+        }
+
+        /// The whole `run()` split: a non-zero exit fails the default modes
+        /// and is data in `structured` — over arbitrary status codes.
+        #[test]
+        fn run_capture_split_over_status(status in -255i32..=255) {
+            let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+            rt.block_on(async {
+                for mode in [CaptureMode::Stdout, CaptureMode::Stderr, CaptureMode::Combined] {
+                    let mock = MockShell::new().enqueue_result(
+                        nika_kernel::process::ShellResult::new(
+                            status, "o", "e", Duration::from_millis(1),
+                        ),
+                    );
+                    let mut input = ExecInput::new("c");
+                    input.capture = mode;
+                    let ok = verb(mock).run(input).await.is_ok();
+                    prop_assert_eq!(ok, status == 0);
+                }
+                let mock = MockShell::new().enqueue_result(
+                    nika_kernel::process::ShellResult::new(
+                        status, "o", "e", Duration::from_millis(1),
+                    ),
+                );
+                let mut input = ExecInput::new("c");
+                input.capture = CaptureMode::Structured;
+                prop_assert!(verb(mock).run(input).await.is_ok());
+                Ok(())
+            })?;
         }
 
         /// Combined = stdout ⧺ stderr, exactly.
@@ -423,7 +550,7 @@ mod proptests {
             let expected = format!("{stdout}{stderr}");
             let combined_ok = matches!(
                 shape_output(CaptureMode::Combined, result),
-                Ok(ExecValue::Text(t)) if t == expected
+                ExecValue::Text(t) if t == expected
             );
             prop_assert!(combined_ok);
         }

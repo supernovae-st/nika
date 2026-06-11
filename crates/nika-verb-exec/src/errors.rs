@@ -119,29 +119,51 @@ mod tests {
         }
     }
 
-    #[test]
-    fn stderr_tail_is_capped_on_char_boundary() {
-        let long = format!("{}é-fin", "x".repeat(2000));
-        let err = VerbExecError::non_zero(1, &long);
+    fn tail_of(err: VerbExecError) -> String {
         match err {
-            VerbExecError::NonZeroExit { stderr_tail, .. } => {
-                assert!(stderr_tail.len() <= STDERR_TAIL_CAP + '…'.len_utf8());
-                assert!(stderr_tail.starts_with('…'));
-                assert!(stderr_tail.ends_with("é-fin"));
-            }
+            VerbExecError::NonZeroExit { stderr_tail, .. } => stderr_tail,
             other => panic!("expected NonZeroExit, got {other:?}"),
         }
     }
 
     #[test]
+    fn stderr_tail_keeps_the_last_cap_bytes_on_a_char_boundary() {
+        // ASCII prefix then a multibyte char straddling the cut point: the
+        // forward boundary-walk must land EXACTLY on the cap's tail, not
+        // earlier or later (kills the `>=`/`+=` arithmetic mutants).
+        let long = format!("HEAD{}é-TAIL", "x".repeat(2000));
+        let tail = tail_of(VerbExecError::non_zero(1, &long));
+        assert!(tail.starts_with('…'), "ellipsis marks truncation");
+        assert!(!tail.contains("HEAD"), "the head is dropped");
+        assert!(tail.ends_with("é-TAIL"), "the tail survives intact");
+        // The kept body (after the ellipsis) is at most the cap, and the
+        // cut never drops MORE than one byte past the cap (boundary walk).
+        let body = tail.trim_start_matches('…');
+        assert!(body.len() <= STDERR_TAIL_CAP, "kept ≤ cap: {}", body.len());
+        assert!(
+            body.len() >= STDERR_TAIL_CAP - 3,
+            "kept ~cap (walked ≤1 char): {}",
+            body.len()
+        );
+    }
+
+    #[test]
+    fn stderr_exactly_at_cap_is_not_truncated() {
+        // Boundary: len == cap takes the else branch (`>` not `>=`).
+        let at_cap = "y".repeat(STDERR_TAIL_CAP);
+        let tail = tail_of(VerbExecError::non_zero(1, &at_cap));
+        assert_eq!(tail, at_cap, "no ellipsis at exactly the cap");
+        // One over the cap DOES truncate.
+        let over = "y".repeat(STDERR_TAIL_CAP + 1);
+        assert!(tail_of(VerbExecError::non_zero(1, &over)).starts_with('…'));
+    }
+
+    #[test]
     fn short_stderr_passes_through_untouched() {
-        let err = VerbExecError::non_zero(1, "just this");
-        match err {
-            VerbExecError::NonZeroExit { stderr_tail, .. } => {
-                assert_eq!(stderr_tail, "just this");
-            }
-            other => panic!("expected NonZeroExit, got {other:?}"),
-        }
+        assert_eq!(
+            tail_of(VerbExecError::non_zero(1, "just this")),
+            "just this"
+        );
     }
 
     #[test]
