@@ -20,8 +20,10 @@ cd "$ENGINE_ROOT"
 
 TARGET=42 # v0.90 crate target (cap 100) · per nika-invariants.md + POST_AUDIT 2026-04-14
 
-# ── WIP list · single source = refresh-status.sh (stay DRY) ──────────
-WIP_CSV="$(grep -m1 '^WIP_CRATES=' scripts/refresh-status.sh | sed -E 's/.*"([^"]*)".*/\1/')"
+# ── WIP list · single source = crate-metrics.sh --wip (same SSOT as
+# refresh-status.sh L69 — the old grep-the-literal seam broke silently
+# when WIP_CRATES became derived, inflating the admitted count) ───────
+WIP_CSV="$(bash scripts/crate-metrics.sh --wip | xargs | tr ' ' ',')"
 is_wip() { case ",$WIP_CSV," in *",$1,"*) return 0 ;; *) return 1 ;; esac }
 
 # ── parse layer assignments (authoritative · same source cargo-deny uses) ──
@@ -69,21 +71,30 @@ render_layer "L5" "binary" # the `nika` CLI composition root
 render_layer "L4" "interfaces"
 render_layer "L3" "orchestration"
 render_layer "L2" "domain·verbs"
+render_layer "L1.5" "services"
 render_layer "L1" "effects"
 render_layer "L0.5" "kernel"
 render_layer "L0" "foundation"
 
-# ── the frontier · current computer-use M2 arc (canonical 6-crate sequence) ──
+# ── the frontier · M2 computer-use status DERIVED (not hand-maintained —
+# the previous heredoc said « M2.4 NEXT » for a day after input shipped) ──
+m2_mark() { # admitted ✅ · WIP 🔧 · absent ⬜
+  local c="nika-$1"
+  if grep -qE "^layers\.$c = \"" Cargo.toml; then
+    if is_wip "$c"; then printf '🔧'; else printf '✅'; fi
+  else printf '⬜'; fi
+}
+printf '\n  ── FRONTIER · Phase 2 M2 · computer-use L1 effects ──────────────────\n'
+printf '     M2.1 screen   %s   M2.2 ocr   %s   M2.3 a11y   %s\n' "$(m2_mark screen)" "$(m2_mark ocr)" "$(m2_mark a11y)"
+printf '     M2.4 input    %s   M2.5 browser %s   M2.6 vision-local %s\n' "$(m2_mark input)" "$(m2_mark browser)" "$(m2_mark vision-local)"
+
 cat <<'FRONTIER'
 
-  ── FRONTIER · Phase 2 M2 · computer-use L1 effects ──────────────────
-     M2.1 screen   ✅   M2.2 ocr   ✅   M2.3 a11y   ✅
-     M2.4 input    ⬜ NEXT (2 MANDATORY guards · write-side)
-     M2.5 browser  ⬜      M2.6 vision-local ⬜
-
   ── THE CLIMB AHEAD ──────────────────────────────────────────────────
-     finish M2 effects → L2 verbs (infer·exec·invoke·agent) + Connectome
-     → L3 runtime+daemon (runs the DAG) → L4 cli·serve·sdk → L5 binary
+     announce-ladder slice (D-2026-06-10-N6) · s8 policy (design locked)
+     → s9 verb-infer → L2 verbs (infer·exec·invoke·agent) → L3 engine
+     → L4 mcp·cli·sdk·lsp-core·lsp → tag v0.81 · announce Aug 1
+     → then Connectome + deferred (vault·storage·daemon·serve·init)
      → v0.90 (42 crates · 12 gates each · 7 shadow zones green)
 
 FRONTIER
