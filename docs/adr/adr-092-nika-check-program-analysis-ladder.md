@@ -143,7 +143,7 @@ design, not a leak; the model response is not a verbatim echo).
   core (`expr_refs` + `task_output_paths` consume one walker — no drift)
 - `crates/nika-schema/src/analyzer/dag.rs:104` -- `topo_waves`, reused for the fixpoint order
 - `crates/nika-schema/src/expression/refs.rs` -- `expr_refs`/`NamespaceRef`, the taint extractor
-- `crates/nika-schema/src/check/suggest.rs` -- deterministic did-you-mean core
+- `crates/nika-schema/src/suggest.rs` -- deterministic did-you-mean core (moved out of `check/` when the analyzer adopted it)
   (Damerau-Levenshtein · rustc threshold · lexicographic tie-break — the diagnostic
   model: every finding carries its machine-applicable repair)
 - `crates/nika-schema/src/check/tools.rs` -- unknown `nika:` builtin detection vs the
