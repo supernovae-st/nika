@@ -31,8 +31,11 @@ mod cost;
 mod flow;
 mod infer_permits;
 mod permits_fit;
+mod schema_lint;
 mod schema_typing;
 mod secrets;
+mod suggest;
+mod tools;
 
 use crate::analyzer::{self, AnalyzedWorkflow};
 use crate::error::SchemaError;
@@ -42,12 +45,16 @@ pub use cost::{CostCeiling, TaskCost, UnboundedReason};
 pub use flow::{FlowFacts, TaintTrace};
 pub use infer_permits::InferredPermits;
 pub use permits_fit::CapabilityEscape;
+pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::SchemaTypeFinding;
 pub use secrets::{SecretEgress, SecretLeak};
+pub use tools::UnknownTool;
 
 /// The static pre-flight report — everything `nika check` learns without
-/// running anything.
-#[derive(Debug, Clone)]
+/// running anything. Serializes to JSON (the agent-facing surface: a
+/// generator loop reads the findings + their machine-applicable
+/// suggestions, repairs, and re-checks until clean).
+#[derive(Debug, Clone, serde::Serialize)]
 #[non_exhaustive]
 pub struct CheckReport {
     /// Topological execution waves (`waves[n]` = task indices runnable
@@ -69,18 +76,29 @@ pub struct CheckReport {
     /// (`schema:` / `output:` bindings) PROVES invalid — typo'd field
     /// names caught before a single token is spent (ADR-092 #4).
     pub schema_findings: Vec<SchemaTypeFinding>,
+    /// Every `nika:` tool that names no canonical builtin (the closed
+    /// 22-builtin catalog) — a runtime dispatch failure moved to check
+    /// time, with the « did you mean » fix attached.
+    pub unknown_tools: Vec<UnknownTool>,
+    /// Every authored `schema:` defect that makes structured output
+    /// unsatisfiable or un-compilable (required∉properties · bad `type`
+    /// name · empty `enum`) — the static half of « structured output
+    /// works in all cases ».
+    pub schema_lints: Vec<SchemaLintFinding>,
 }
 
 impl CheckReport {
     /// Whether the workflow is clean — no leaks, no egresses, no capability
-    /// escapes, no schema-type findings. (Cost-ceiling unknowns are
-    /// informational, not failures.)
+    /// escapes, no schema-type findings, no unknown tools, no schema-lint
+    /// defects. (Cost-ceiling unknowns are informational, not failures.)
     #[must_use]
     pub fn is_clean(&self) -> bool {
         self.secret_leaks.is_empty()
             && self.secret_egresses.is_empty()
             && self.capability_escapes.is_empty()
             && self.schema_findings.is_empty()
+            && self.unknown_tools.is_empty()
+            && self.schema_lints.is_empty()
     }
 }
 
@@ -104,6 +122,8 @@ pub fn check(wf: &RawWorkflow) -> Result<CheckReport, Vec<SchemaError>> {
         secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes: permits_fit::scan_escapes(wf),
         schema_findings: schema_typing::scan_types(wf),
+        unknown_tools: tools::scan_unknown_tools(wf),
+        schema_lints: schema_lint::scan_schemas(wf),
         waves: topo_waves,
     })
 }

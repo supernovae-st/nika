@@ -3,12 +3,15 @@
 
 //! `nika check` — the static pre-flight, runnable today.
 //!
-//! Usage: `cargo run -p nika-schema --example check -- workflow.nika.yaml`
+//! Usage: `cargo run -p nika-schema --example check -- [--json] [--infer-permits] workflow.nika.yaml`
 //!
-//! Prints the plan (waves), the worst-case cost ceiling, secret leaks and
-//! capability escapes — with ZERO API calls and zero tokens spent. The
-//! polished surface ships with `nika-cli` (step 19); this example IS the
-//! seam, available now.
+//! Prints the plan (waves), the cost envelope, secret leaks, type/tool/
+//! schema findings and capability escapes — with ZERO API calls and zero
+//! tokens spent. `--json` emits the full machine-readable report (the
+//! agent surface: a generator loop reads findings + their deterministic
+//! suggestions, repairs, re-checks until clean). The polished surface
+//! ships with `nika-cli` (step 19); this example IS the seam, available
+//! now.
 
 // A console demo's whole job is printing — same exemption as the
 // nika-catalog-verify binary (the established precedent).
@@ -28,26 +31,29 @@ fn main() -> ExitCode {
     // checking. Unknown flags are REJECTED — a typo'd mode flag silently
     // degrading to a plain check (exit 0) would let an operator ship a
     // check report as their permits file.
+    const USAGE: &str = "usage: check [--json] [--infer-permits] <workflow.nika.yaml>";
     let mut infer_mode = false;
+    let mut json_mode = false;
     let mut path: Option<String> = None;
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
             "--infer-permits" => infer_mode = true,
+            "--json" => json_mode = true,
             flag if flag.starts_with("--") => {
                 eprintln!("unknown flag `{flag}`");
-                eprintln!("usage: check [--infer-permits] <workflow.nika.yaml>");
+                eprintln!("{USAGE}");
                 return ExitCode::from(2);
             }
             _ if path.is_some() => {
                 eprintln!("expected exactly one workflow path");
-                eprintln!("usage: check [--infer-permits] <workflow.nika.yaml>");
+                eprintln!("{USAGE}");
                 return ExitCode::from(2);
             }
             _ => path = Some(arg),
         }
     }
     let Some(path) = path else {
-        eprintln!("usage: check [--infer-permits] <workflow.nika.yaml>");
+        eprintln!("{USAGE}");
         return ExitCode::from(2);
     };
     let yaml = match std::fs::read_to_string(&path) {
@@ -69,6 +75,15 @@ fn main() -> ExitCode {
     // ── --infer-permits · write the boundary FOR the operator ───────
     if infer_mode {
         let inferred = infer_permits(&wf);
+        if json_mode {
+            // the agent shape: the paste-ready block + the honesty notes
+            let payload = serde_json::json!({
+                "permits_yaml": inferred.to_yaml(),
+                "notes": inferred.notes,
+            });
+            println!("{payload:#}");
+            return ExitCode::SUCCESS;
+        }
         print!("{}", inferred.to_yaml());
         if !inferred.notes.is_empty() {
             println!("\n# review — effects too dynamic to pin statically:");
@@ -82,13 +97,43 @@ fn main() -> ExitCode {
     let report = match check(&wf) {
         Ok(r) => r,
         Err(errors) => {
-            eprintln!("CHECK ✗  {} core-conformance violation(s):", errors.len());
-            for e in errors {
-                eprintln!("  · {e}");
+            if json_mode {
+                let payload = serde_json::json!({
+                    "clean": false,
+                    "conformance_errors": errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                });
+                println!("{payload:#}");
+            } else {
+                eprintln!("CHECK ✗  {} core-conformance violation(s):", errors.len());
+                for e in errors {
+                    eprintln!("  · {e}");
+                }
             }
             return ExitCode::FAILURE;
         }
     };
+
+    // ── --json · the full machine-readable report (agent surface) ───
+    if json_mode {
+        let clean = report.is_clean();
+        match serde_json::to_value(&report) {
+            Ok(mut payload) => {
+                if let Some(obj) = payload.as_object_mut() {
+                    obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
+                }
+                println!("{payload:#}");
+            }
+            Err(e) => {
+                eprintln!("cannot serialize report: {e}");
+                return ExitCode::from(2);
+            }
+        }
+        return if clean {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        };
+    }
 
     // ── plan ────────────────────────────────────────────────────────
     println!("PLAN     {} wave(s)", report.waves.len());
@@ -187,6 +232,26 @@ fn main() -> ExitCode {
                 f.reference, f.site, f.detail
             );
         }
+    }
+
+    // ── unknown nika: builtins (closed catalog · did-you-mean) ──────
+    for t in &report.unknown_tools {
+        let fix = t
+            .suggestion
+            .as_deref()
+            .map_or_else(String::new, |s| format!(" — did you mean `{s}`?"));
+        println!(
+            "TOOLS    ✗ `{}` (task `{}`) is not a canonical builtin{fix}",
+            t.tool, t.task
+        );
+    }
+
+    // ── structured-output schema lint ───────────────────────────────
+    for l in &report.schema_lints {
+        println!(
+            "SCHEMA   ✗ task `{}` at `{}` — {}",
+            l.task, l.path, l.detail
+        );
     }
 
     // ── permits ─────────────────────────────────────────────────────

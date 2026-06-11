@@ -143,7 +143,17 @@ design, not a leak; the model response is not a verbatim echo).
   core (`expr_refs` + `task_output_paths` consume one walker — no drift)
 - `crates/nika-schema/src/analyzer/dag.rs:104` -- `topo_waves`, reused for the fixpoint order
 - `crates/nika-schema/src/expression/refs.rs` -- `expr_refs`/`NamespaceRef`, the taint extractor
-- `crates/nika-schema/examples/check.rs` -- `--infer-permits` runnable surface
+- `crates/nika-schema/src/check/suggest.rs` -- deterministic did-you-mean core
+  (Damerau-Levenshtein · rustc threshold · lexicographic tie-break — the diagnostic
+  model: every finding carries its machine-applicable repair)
+- `crates/nika-schema/src/check/tools.rs` -- unknown `nika:` builtin detection vs the
+  closed catalog (same `all_builtins()` source as the codegen enum — no drift)
+- `crates/nika-schema/src/check/schema_lint.rs` -- authored `schema:` verification
+  (the static half of structured-output reliability: required∉properties · type
+  names · empty enum, with fixes)
+- `crates/nika-schema/examples/check.rs` -- `--infer-permits` + `--json` runnable
+  surface (the agent repair loop: check → apply emitted fixes → re-check → clean,
+  e2e-proven convergent)
 - Commit `9a0c20510` -- the review that exposed the one-hop + N-walks ceiling
 - `docs/crate-specs/nika-schema.md` §11bis -- the shipped surface + honest gaps
 

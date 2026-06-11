@@ -22,7 +22,7 @@ use super::flow::FlowFacts;
 use crate::raw::{RawAction, RawWorkflow};
 
 /// A secret that escapes the masking boundary into an effect.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
 pub struct SecretLeak {
     /// The task whose effect can re-emit the secret.
@@ -36,7 +36,7 @@ pub struct SecretLeak {
 }
 
 /// A secret that leaves the run as a workflow return value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
 pub struct SecretEgress {
     /// The `outputs:` entry name carrying the secret.

@@ -26,8 +26,10 @@ use std::collections::BTreeMap;
 use crate::expression::{scan_templates, task_output_paths};
 use crate::raw::{RawAction, RawTask, RawWorkflow};
 
+use super::suggest::{did_you_mean, suggestion_clause};
+
 /// A deep output reference the declared shape proves invalid.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
 pub struct SchemaTypeFinding {
     /// Where the reference appears (task id · `<id> (on_finally)` ·
@@ -222,8 +224,9 @@ fn check_binding(names: &[&str], path: &[String]) -> Option<String> {
     if names.contains(&first.as_str()) {
         return None;
     }
+    let clause = suggestion_clause(did_you_mean(first, names.iter().copied()));
     Some(format!(
-        "`{first}` is not one of the declared output bindings [{}]",
+        "`{first}` is not one of the declared output bindings [{}]{clause}",
         names.join(", ")
     ))
 }
@@ -268,8 +271,9 @@ fn resolve(schema: &Value, path: &[String]) -> Option<String> {
         } else if is_open_object(node) {
             return None; // explicitly open · unknown keys allowed
         } else {
+            let clause = suggestion_clause(did_you_mean(segment, props.keys().map(String::as_str)));
             return Some(format!(
-                "`{segment}` is not in the declared schema — keys here: [{}]",
+                "`{segment}` is not in the declared schema — keys here: [{}]{clause}",
                 props.keys().cloned().collect::<Vec<_>>().join(", ")
             ));
         }

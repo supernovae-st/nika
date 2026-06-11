@@ -24,7 +24,7 @@
 use crate::raw::{ForEachValue, RawAction, RawWorkflow};
 
 /// Per-task cost envelope.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[non_exhaustive]
 pub struct TaskCost {
     /// The task id.
@@ -57,7 +57,7 @@ pub struct TaskCost {
 }
 
 /// Why a task's cost could not be bounded.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
 pub enum UnboundedReason {
     /// No `max_tokens` / `max_tokens_total` — the token spend is unbounded.
@@ -70,7 +70,7 @@ pub enum UnboundedReason {
 }
 
 /// The whole-workflow cost envelope.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[non_exhaustive]
 pub struct CostCeiling {
     /// Per-task breakdown (only `infer:`/`agent:` tasks).

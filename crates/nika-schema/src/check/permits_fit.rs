@@ -23,7 +23,7 @@ use crate::raw::{RawAction, RawCommand, RawInvokeAction, RawWorkflow};
 use crate::types::{ExecPermit, Permits, permits::glob_matches};
 
 /// A statically-detectable effect outside the declared boundary.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
 pub struct CapabilityEscape {
     /// The offending task.
@@ -32,6 +32,9 @@ pub struct CapabilityEscape {
     pub category: &'static str,
     /// Human detail (the specific tool/program that escaped).
     pub detail: String,
+    /// The machine-applicable repair — the exact grant to add to the
+    /// `permits:` block (the agent repair loop applies it verbatim).
+    pub fix: Option<String>,
 }
 
 /// Scan a workflow for capability escapes. Empty when no `permits:` block
@@ -88,11 +91,21 @@ fn check_action(id: &str, action: &RawAction, permits: &Permits, out: &mut Vec<C
 }
 
 /// Record a tool-surface escape (`invoke`/`agent` tool outside the grant).
+///
+/// When the tool is a `nika:`-prefixed name that is NOT a canonical
+/// builtin, the grant fix is withheld — the rename (the `unknown_tools`
+/// finding's did-you-mean) owns the repair; recommending a grant for a
+/// tool that does not exist would steer the agent loop into a phantom
+/// permits entry.
 fn escapes_tool(id: &str, surface: &str, tool: &str, out: &mut Vec<CapabilityEscape>) {
+    let is_phantom_builtin = tool
+        .strip_prefix("nika:")
+        .is_some_and(|name| !nika_catalog::all_builtins().iter().any(|b| b.name == name));
     out.push(CapabilityEscape {
         task: id.to_owned(),
         category: "tools",
         detail: format!("{surface} tool `{tool}` is outside permits.tools"),
+        fix: (!is_phantom_builtin).then(|| format!("add \"{tool}\" to permits.tools")),
     });
 }
 
@@ -106,6 +119,8 @@ fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<C
             task: id.to_owned(),
             category: "exec",
             detail: "exec task under a boundary that forbids shells".to_owned(),
+            fix: static_program(command)
+                .map(|p| format!("set permits.exec to a program allowlist including \"{p}\"")),
         });
         return;
     }
@@ -118,6 +133,7 @@ fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<C
             task: id.to_owned(),
             category: "exec",
             detail: format!("program `{program}` is outside permits.exec allowlist"),
+            fix: Some(format!("add \"{program}\" to permits.exec")),
         });
     }
 }
@@ -207,6 +223,7 @@ fn check_builtin_effect(
                     task: id.to_owned(),
                     category: "net",
                     detail: format!("`{tool}` host `{host}` is outside permits.net.http"),
+                    fix: Some(format!("add \"{host}\" to permits.net.http")),
                 });
             }
         }
@@ -221,6 +238,7 @@ fn check_builtin_effect(
                         task: id.to_owned(),
                         category: "fs",
                         detail: format!("`{tool}` path `{path}` is outside permits.{cat}"),
+                        fix: Some(format!("add \"{path}\" to permits.{cat}")),
                     });
                 }
             }
@@ -395,6 +413,20 @@ mod tests {
             escapes_of(y).is_empty(),
             "dynamic argv[0] is not statically checkable"
         );
+    }
+
+    #[test]
+    fn escape_fixes_are_machine_applicable() {
+        // a REAL tool outside the grant → the fix is the grant line;
+        // a PHANTOM builtin (typo) → fix withheld (the rename owns it).
+        let y = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:read\"], exec: false }\ntasks:\n  - id: real\n    invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\" } }\n  - id: typo\n    invoke: { tool: \"nika:wrte\", args: { path: \"x\", content: \"y\" } }\n";
+        let e = escapes_of(y);
+        assert_eq!(e.len(), 2);
+        assert_eq!(
+            e[0].fix.as_deref(),
+            Some("add \"nika:write\" to permits.tools")
+        );
+        assert_eq!(e[1].fix, None, "phantom builtin → rename owns the repair");
     }
 
     #[test]
