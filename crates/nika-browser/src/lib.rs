@@ -955,6 +955,18 @@ mod tests {
     }
 
     #[test]
+    fn epoch_now_ns_is_a_real_recent_timestamp() {
+        // Kills the `-> 0` / `-> 1` stubs: the screenshot timestamp is a real
+        // epoch-ns reading, well past 2023 (1.7e18 ns) and below the u64 ceil.
+        let t = epoch_now_ns();
+        assert!(
+            t > 1_700_000_000_000_000_000,
+            "must be a post-2023 epoch-ns value"
+        );
+        assert!(t < u64::MAX, "not the saturation sentinel");
+    }
+
+    #[test]
     fn consume_click_expectation_removes_exactly_the_session_entry() {
         // Pins the consume half of the peek/consume split (kills the
         // `with ()` mutant): after consume, the entry is gone — and ONLY
