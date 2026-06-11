@@ -36,7 +36,7 @@ const TICK_MS: u64 = 80;
 /// Bad invocation (sysexits `EX_USAGE` — additive per the contract §4 law).
 const EXIT_USAGE: u8 = 64;
 
-const USAGE: &str = "usage: verbs [infer|exec|invoke|agent|workflow|all] [--events] [--legend] [--ascii] [--color=auto|always|never] [--frame N] [--no-anim]";
+const USAGE: &str = "usage: verbs [infer|exec|invoke|agent|workflow|all] [--events [--json]] [--legend] [--ascii] [--color=auto|always|never] [--frame N] [--no-anim]";
 
 /// What to show — the modes are mutually exclusive, so they are an
 /// enum, not flags (the type encodes the exclusivity).
@@ -53,6 +53,8 @@ enum Mode {
 
 struct Args {
     mode: Mode,
+    /// NDJSON wire output (only with `--events` — the machine renderer).
+    json: bool,
     color: ColorFlag,
     ascii: bool,
     frame: Option<usize>,
@@ -61,6 +63,7 @@ struct Args {
 
 fn parse_args() -> Result<Args, ExitCode> {
     let mut mode: Option<Mode> = None;
+    let mut json = false;
     let mut verbs: Vec<VerbKind> = Vec::new();
     let mut color = ColorFlag::Auto;
     let mut ascii = false;
@@ -84,6 +87,7 @@ fn parse_args() -> Result<Args, ExitCode> {
             }
             "--legend" => mode = Some(Mode::Legend),
             "--events" => mode = Some(Mode::Tape),
+            "--json" => json = true,
             "--ascii" => ascii = true,
             "--no-anim" => no_anim = true,
             "--color=auto" => color = ColorFlag::Auto,
@@ -118,6 +122,7 @@ fn parse_args() -> Result<Args, ExitCode> {
     });
     Ok(Args {
         mode,
+        json,
         color,
         ascii,
         frame,
@@ -140,12 +145,33 @@ fn main() -> ExitCode {
         Ok(a) => a,
         Err(code) => return code,
     };
+    if args.json && !matches!(args.mode, Mode::Tape) {
+        eprintln!(
+            "--json composes with --events only (the NDJSON wire is the tape's machine renderer)"
+        );
+        eprintln!("{USAGE}");
+        return ExitCode::from(EXIT_USAGE);
+    }
     let t = Theme::from_env(args.color, args.ascii);
 
     match args.mode {
         Mode::Legend => print!("{}", theme::legend(t)),
-        // the tape view — every telemetry event, then the folded card
-        Mode::Tape => print!("{}", tape::render_tape(t)),
+        // the tape view — every telemetry event, then the folded card;
+        // --json = the SAME tape as NDJSON verbatim (contract §3: the
+        // machine renderer · never coloured · one event per line)
+        Mode::Tape => {
+            if args.json {
+                match tape::render_ndjson() {
+                    Ok(nd) => print!("{nd}"),
+                    Err(e) => {
+                        eprintln!("cannot serialize tape: {e}");
+                        return ExitCode::from(70);
+                    }
+                }
+            } else {
+                print!("{}", tape::render_tape(t));
+            }
+        }
         // the motion view — the SAME tape, folded live into DAG lanes
         Mode::Workflow => {
             let total = tape::total_steps();

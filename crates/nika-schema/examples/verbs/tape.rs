@@ -542,6 +542,19 @@ pub(crate) fn render_tape(t: Theme) -> String {
     out
 }
 
+/// Renderer 3 — the machine wire: the SAME tape as NDJSON, one event
+/// per line, serde-verbatim (the contract's `--json` surface: what a
+/// real `nika run --json` streams to CI/agents). Never coloured; the
+/// contract bytes are the contract.
+pub(crate) fn render_ndjson() -> Result<String, serde_json::Error> {
+    let mut out = String::new();
+    for e in demo_tape() {
+        out.push_str(&serde_json::to_string(&e)?);
+        out.push('\n');
+    }
+    Ok(out)
+}
+
 // ── renderer 2 · the motion view (`verbs workflow`) ─────────────────
 
 /// Total animation steps (each event expands into PHASES sub-frames).
@@ -775,6 +788,36 @@ mod tests {
             .map(|n| workflow_frame(n, t))
             .find(|f| f.contains("\"The arti") && f.contains("1/4"));
         assert!(talking.is_some(), "no frame showed the live stream");
+    }
+
+    #[test]
+    fn ndjson_is_the_wire_format_verbatim() {
+        let nd = render_ndjson().expect("serializes");
+        let lines: Vec<&str> = nd.lines().collect();
+        assert_eq!(lines.len(), demo_tape().len(), "one event per line");
+        // every line parses back and carries the snake_case kind slug
+        for (line, e) in lines.iter().zip(demo_tape()) {
+            let v: serde_json::Value = serde_json::from_str(line).expect("parses");
+            assert_eq!(
+                v.get("kind").and_then(|k| k.as_str()),
+                Some(e.kind.as_str()),
+                "kind slug mismatch on {line}"
+            );
+        }
+        // the first line, byte-exact (the wire is a contract) — pinned
+        // from reality: ids nest as {"uuid": …} (the newtype's named
+        // field) and Value serializes untagged (bare string/int).
+        assert_eq!(
+            lines[0],
+            concat!(
+                "{\"id\":{\"uuid\":\"00000000-0000-0000-0000-000000000001\"},",
+                "\"timestamp\":0,\"kind\":\"workflow_started\",",
+                "\"run\":{\"uuid\":\"00000000-0000-0000-0000-000000000da6\"},",
+                "\"correlation\":null,",
+                "\"fields\":[{\"key\":\"workflow\",\"value\":\"demo-pipeline\"},",
+                "{\"key\":\"tasks\",\"value\":4}]}"
+            )
+        );
     }
 
     /// THE telemetry correspondence (SOTA law): every UI state of the
