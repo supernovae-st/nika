@@ -22,6 +22,7 @@ confidence-threshold = 0.8
 allow = [
   "AGPL-3.0-or-later",
   "MIT",
+  "MIT-0",                  # MIT No Attribution — strictly MORE permissive than MIT (no attribution clause) · OSI-approved · borrow-or-share via jsonschema (nika-verb-infer)
   "Apache-2.0",
   "Apache-2.0 WITH LLVM-exception",
   "BSD-2-Clause",
