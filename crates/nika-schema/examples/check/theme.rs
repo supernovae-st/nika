@@ -33,20 +33,58 @@
 
 use std::io::IsTerminal;
 
-// ── The glyph grammar (nika-cli display contract §3.1) ──────────────
-// Each glyph is part of the TEXT — it carries the state when colour is
-// off. Aligned to the contract's unicode column so the real CLI inherits
-// it with zero drift.
-pub(crate) const G_OK: &str = "✔";
-pub(crate) const G_ERR: &str = "✖";
-pub(crate) const G_WARN: &str = "⚠";
-pub(crate) const G_GATED: &str = "⊘";
-pub(crate) const G_PENDING: &str = "○";
-pub(crate) const G_HINT: &str = "➜";
-pub(crate) const G_DEP: &str = "←";
-pub(crate) const G_FIX: &str = "↳";
-pub(crate) const G_BANNER: &str = "◆";
-pub(crate) const G_RETRY: &str = "↻";
+/// The glyph grammar (nika-cli display contract §3.1) — a glyph is part
+/// of the TEXT, carrying the state when colour is off. Each has BOTH a
+/// unicode and an ASCII rendering: per the contract, ASCII is a
+/// **first-class theme** (CI logs · `TERM=dumb` · screen readers), not a
+/// degraded mode. The active set is chosen once on [`Theme`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Glyph {
+    Ok,
+    Err,
+    Warn,
+    Gated,
+    Pending,
+    Hint,
+    Dep,
+    Fix,
+    Banner,
+    Retry,
+}
+
+impl Glyph {
+    /// The unicode rendering (aligned to the contract's unicode column).
+    const fn unicode(self) -> &'static str {
+        match self {
+            Self::Ok => "✔",
+            Self::Err => "✖",
+            Self::Warn => "⚠",
+            Self::Gated => "⊘",
+            Self::Pending => "○",
+            Self::Hint => "➜",
+            Self::Dep => "←",
+            Self::Fix => "↳",
+            Self::Banner => "◆",
+            Self::Retry => "↻",
+        }
+    }
+
+    /// The ASCII rendering (the first-class fallback theme).
+    const fn ascii(self) -> &'static str {
+        match self {
+            Self::Ok => "+",
+            Self::Err => "x",
+            Self::Warn => "!",
+            Self::Gated => "-",
+            Self::Pending => ".",
+            Self::Hint => ">",
+            Self::Dep => "<-",
+            Self::Fix => "->",
+            Self::Banner => "#",
+            Self::Retry => "r",
+        }
+    }
+}
 
 /// The canonical semantic role — the SINGLE SOURCE OF TRUTH for colour.
 ///
@@ -165,20 +203,24 @@ pub(crate) fn resolve_colour(flag: ColorFlag, no_color: bool, force: bool, tty: 
 
 /// Auto-resetting semantic colour API — a call site cannot forget the
 /// reset, and cannot pick a non-semantic colour (it picks a [`Role`]).
+/// Also the glyph-theme selector (unicode vs the first-class ASCII set).
 #[derive(Clone, Copy)]
 pub(crate) struct Theme {
     on: bool,
+    unicode: bool,
 }
 
 impl Theme {
-    /// Resolve from the environment + the `--color` flag.
+    /// Resolve colour + glyph theme from the environment + flags.
     ///
-    /// `NO_COLOR`/`CLICOLOR_FORCE` are the cross-tool TERMINAL contract
-    /// (no-color.org), not workflow configuration — the only legitimate
-    /// direct env reads in a CLI surface (same exemption class as the
-    /// print macros; workflow env goes through the kernel caps).
+    /// `NO_COLOR`/`CLICOLOR_FORCE`/`TERM` are the cross-tool TERMINAL
+    /// contract (no-color.org), not workflow configuration — the only
+    /// legitimate direct env reads in a CLI surface (same exemption class
+    /// as the print macros; workflow env goes through the kernel caps).
+    /// ASCII is forced by `--ascii` OR a `TERM=dumb`/unset terminal.
     #[allow(clippy::disallowed_methods)]
-    pub(crate) fn from_env(flag: ColorFlag) -> Self {
+    pub(crate) fn from_env(flag: ColorFlag, ascii_flag: bool) -> Self {
+        let term_dumb = std::env::var_os("TERM").is_none_or(|t| t == "dumb");
         Self {
             on: resolve_colour(
                 flag,
@@ -186,14 +228,26 @@ impl Theme {
                 std::env::var_os("CLICOLOR_FORCE").is_some_and(|v| v != "0"),
                 std::io::stdout().is_terminal(),
             ),
+            unicode: !ascii_flag && !term_dumb,
         }
     }
 
-    /// Construct with colour forced on/off (test-only — the binary path
-    /// always resolves via [`Theme::from_env`]).
+    /// Construct explicitly (test-only — the binary always resolves via
+    /// [`Theme::from_env`]).
     #[cfg(test)]
-    pub(crate) const fn new(on: bool) -> Self {
-        Self { on }
+    pub(crate) const fn new(on: bool, unicode: bool) -> Self {
+        Self { on, unicode }
+    }
+
+    /// The active rendering of `g` (unicode or the first-class ASCII set).
+    pub(crate) const fn glyph(self, g: Glyph) -> &'static str {
+        if self.unicode { g.unicode() } else { g.ascii() }
+    }
+
+    /// Whether the unicode glyph theme is active (for non-[`Glyph`]
+    /// typography like the horizontal rule).
+    pub(crate) const fn unicode_glyphs(self) -> bool {
+        self.unicode
     }
 
     /// THE painting primitive — wrap `s` in `role`'s SGR + an auto-reset.
@@ -286,10 +340,39 @@ mod tests {
 
     #[test]
     fn paint_off_is_identity_on_wraps_and_resets() {
-        assert_eq!(Theme::new(false).paint(Role::Ok, "hi"), "hi");
-        assert_eq!(Theme::new(true).paint(Role::Ok, "hi"), "\x1b[32mhi\x1b[0m");
+        assert_eq!(Theme::new(false, true).paint(Role::Ok, "hi"), "hi");
+        assert_eq!(
+            Theme::new(true, true).paint(Role::Ok, "hi"),
+            "\x1b[32mhi\x1b[0m"
+        );
         // every painted span self-closes (no role bleeds past its string)
-        assert!(Theme::new(true).err("x").ends_with("\x1b[0m"));
+        assert!(Theme::new(true, true).err("x").ends_with("\x1b[0m"));
+    }
+
+    #[test]
+    fn glyph_theme_switches_and_both_sets_are_pinned() {
+        let uni = Theme::new(false, true);
+        let asc = Theme::new(false, false);
+        // unicode set
+        assert_eq!(uni.glyph(Glyph::Ok), "✔");
+        assert_eq!(uni.glyph(Glyph::Gated), "⊘");
+        assert_eq!(uni.glyph(Glyph::Retry), "↻");
+        // ASCII first-class fallback — pinned, every glyph distinct enough
+        assert_eq!(asc.glyph(Glyph::Ok), "+");
+        assert_eq!(asc.glyph(Glyph::Err), "x");
+        assert_eq!(asc.glyph(Glyph::Gated), "-");
+        assert_eq!(asc.glyph(Glyph::Retry), "r");
+        assert_eq!(asc.glyph(Glyph::Dep), "<-");
+        // ASCII is pure ASCII (the whole point: dumb terminals)
+        for g in [
+            Glyph::Ok,
+            Glyph::Err,
+            Glyph::Warn,
+            Glyph::Banner,
+            Glyph::Fix,
+        ] {
+            assert!(asc.glyph(g).is_ascii(), "{g:?} ascii must be ASCII");
+        }
     }
 
     #[test]

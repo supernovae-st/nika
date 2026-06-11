@@ -15,10 +15,7 @@ use nika_schema::raw::{RawAction, RawWorkflow};
 
 use std::fmt::Write as _;
 
-use crate::theme::{
-    G_BANNER, G_DEP, G_ERR, G_FIX, G_GATED, G_HINT, G_OK, G_PENDING, G_RETRY, G_WARN, Theme,
-    VerbKind,
-};
+use crate::theme::{Glyph, Theme, VerbKind};
 
 /// Render the full human report.
 pub(crate) fn render(report: &CheckReport, wf: &RawWorkflow, path: &str, t: Theme) -> String {
@@ -37,16 +34,22 @@ pub(crate) fn render(report: &CheckReport, wf: &RawWorkflow, path: &str, t: Them
     out
 }
 
+/// The horizontal rule — unicode or ASCII, themed like everything else.
+fn rule(t: Theme) -> String {
+    let bar = if t.unicode_glyphs() { "─" } else { "-" };
+    t.dim(&bar.repeat(46))
+}
+
 fn banner(out: &mut String, path: &str, t: Theme) {
     let name = path.rsplit('/').next().unwrap_or(path);
     let _ = writeln!(
         out,
         "{} {} {}",
-        t.accent(G_BANNER),
+        t.accent(t.glyph(Glyph::Banner)),
         t.bold("nika check"),
         t.dim(&format!("· {name}"))
     );
-    out.push_str(&t.dim("──────────────────────────────────────────────"));
+    out.push_str(&rule(t));
     out.push('\n');
 }
 
@@ -55,7 +58,7 @@ fn conformance(out: &mut String, report: &CheckReport, t: Theme) {
         let _ = writeln!(
             out,
             " {} {}  {} {}",
-            t.err(G_ERR),
+            t.err(t.glyph(Glyph::Err)),
             t.bold("CONFORM"),
             t.dim(&format!("[{}]", c.code)),
             c.message
@@ -93,13 +96,17 @@ fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     let _ = writeln!(
         out,
         "          {}  {} {} {}  ·  {} {} {}",
-        t.dim("○ will-run · ⊘ gated  "),
+        t.dim(&format!(
+            "{} will-run · {} gated  ",
+            t.glyph(Glyph::Pending),
+            t.glyph(Glyph::Gated)
+        )),
         t.verb(VerbKind::Infer, "infer"),
         t.verb(VerbKind::Agent, "agent"),
-        t.dim("→ cost"),
+        t.dim("= cost"),
         t.verb(VerbKind::Exec, "exec"),
         t.verb(VerbKind::Invoke, "invoke"),
-        t.dim("→ effect")
+        t.dim("= effect")
     );
 
     let id_width = wf
@@ -114,9 +121,9 @@ fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
             let task = &wf.tasks[i].value;
             let gated = task.when.is_some();
             let glyph = if gated {
-                t.dim(G_GATED)
+                t.dim(t.glyph(Glyph::Gated))
             } else {
-                t.dim(G_PENDING)
+                t.dim(t.glyph(Glyph::Pending))
             };
             let id = format!("{:width$}", task.id.value, width = id_width);
             let id = if gated { t.dim(&id) } else { id };
@@ -132,7 +139,7 @@ fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
             if let Some(retry) = &task.retry {
                 let attempts = retry.value.max_attempts;
                 if attempts > 1 {
-                    notes.push(t.warn(&format!("{G_RETRY}×{attempts}")));
+                    notes.push(t.warn(&format!("{}×{attempts}", t.glyph(Glyph::Retry))));
                 }
             }
             if task.for_each.is_some() {
@@ -143,7 +150,7 @@ fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
             }
             if !task.depends_on.is_empty() {
                 let deps: Vec<&str> = task.depends_on.iter().map(|d| d.value.as_str()).collect();
-                notes.push(t.dim(&format!("{G_DEP} {}", deps.join(", "))));
+                notes.push(t.dim(&format!("{} {}", t.glyph(Glyph::Dep), deps.join(", "))));
             }
             let notes = if notes.is_empty() {
                 String::new()
@@ -215,7 +222,7 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
             notes.push(t.dim(&format!("×{}", c.iterations)));
         }
         if c.attempts > 1 {
-            notes.push(t.warn(&format!("{G_RETRY}×{}", c.attempts)));
+            notes.push(t.warn(&format!("{}×{}", t.glyph(Glyph::Retry), c.attempts)));
         }
         if c.gated {
             notes.push(t.dim("when:"));
@@ -248,7 +255,7 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
                     out,
                     "   {}  {model}  {} {}",
                     c.task,
-                    t.warn(&format!("{G_WARN} UNBOUNDED")),
+                    t.warn(&format!("{} UNBOUNDED", t.glyph(Glyph::Warn))),
                     t.dim(&format!("— {why}"))
                 );
             }
@@ -265,7 +272,7 @@ fn secrets(out: &mut String, report: &CheckReport, t: Theme) {
         let _ = writeln!(
             out,
             " {} {}  leak into {} {} {}",
-            t.err(G_ERR),
+            t.err(t.glyph(Glyph::Err)),
             t.bold("SECRETS"),
             t.bold(l.sink),
             t.dim(&format!("(task `{}`)", l.task)),
@@ -276,7 +283,7 @@ fn secrets(out: &mut String, report: &CheckReport, t: Theme) {
         let _ = writeln!(
             out,
             " {} {}  EGRESS via outputs.{} {} {}",
-            t.err(G_ERR),
+            t.err(t.glyph(Glyph::Err)),
             t.bold("SECRETS"),
             t.bold(&e.output),
             t.dim(&format!("— {}", e.trace)),
@@ -299,7 +306,7 @@ fn types(out: &mut String, report: &CheckReport, t: Theme) {
         let _ = writeln!(
             out,
             " {} {}    {} {} — {}",
-            t.err(G_ERR),
+            t.err(t.glyph(Glyph::Err)),
             t.bold("TYPES"),
             t.bold(&f.reference),
             t.dim(&format!("(at `{}`)", f.site)),
@@ -313,7 +320,7 @@ fn tools(out: &mut String, report: &CheckReport, t: Theme) {
         let _ = writeln!(
             out,
             " {} {}    `{}` {} is not a canonical builtin",
-            t.err(G_ERR),
+            t.err(t.glyph(Glyph::Err)),
             t.bold("TOOLS"),
             t.bold(&u.tool),
             t.dim(&format!("(task `{}`)", u.task))
@@ -329,7 +336,7 @@ fn schema(out: &mut String, report: &CheckReport, t: Theme) {
         let _ = writeln!(
             out,
             " {} {}   task `{}` at {} — {}",
-            t.err(G_ERR),
+            t.err(t.glyph(Glyph::Err)),
             t.bold("SCHEMA"),
             t.bold(&l.task),
             t.dim(&l.path),
@@ -343,7 +350,7 @@ fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
         let _ = writeln!(
             out,
             " {} {}  {}",
-            t.dim(G_PENDING),
+            t.dim(t.glyph(Glyph::Pending)),
             t.bold("PERMITS"),
             t.dim("no boundary declared (engine floor only)")
         );
@@ -357,7 +364,7 @@ fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
         let _ = writeln!(
             out,
             " {} {}  {} task `{}` · {}",
-            t.err(G_ERR),
+            t.err(t.glyph(Glyph::Err)),
             t.bold("PERMITS"),
             t.dim(&format!("[{}]", e.category)),
             t.bold(&e.task),
@@ -374,7 +381,7 @@ fn hints(out: &mut String, report: &CheckReport, t: Theme) {
         let _ = writeln!(
             out,
             " {} {}     {} {}",
-            t.accent(G_HINT),
+            t.accent(t.glyph(Glyph::Hint)),
             t.bold("HINT"),
             t.accent(&format!("[{}]", h.kind)),
             h.advice
@@ -383,21 +390,22 @@ fn hints(out: &mut String, report: &CheckReport, t: Theme) {
 }
 
 fn verdict(out: &mut String, report: &CheckReport, t: Theme) {
-    out.push_str(&t.dim("──────────────────────────────────────────────"));
+    out.push_str(&rule(t));
     out.push('\n');
     if report.is_clean() {
         let _ = writeln!(
             out,
             " {}",
             t.verdict_ok(&format!(
-                "{G_OK} clean — audited before a single token was spent"
+                "{} clean — audited before a single token was spent",
+                t.glyph(Glyph::Ok)
             ))
         );
     } else {
         let _ = writeln!(
             out,
             " {}",
-            t.verdict_err(&format!("{G_ERR} findings above"))
+            t.verdict_err(&format!("{} findings above", t.glyph(Glyph::Err)))
         );
     }
 }
@@ -406,7 +414,7 @@ fn section_ok(out: &mut String, label: &str, msg: &str, t: Theme) {
     let _ = writeln!(
         out,
         " {} {}{}  {}",
-        t.ok(G_OK),
+        t.ok(t.glyph(Glyph::Ok)),
         t.bold(label),
         " ".repeat(7_usize.saturating_sub(label.len())),
         t.dim(msg)
@@ -417,7 +425,7 @@ fn fix_line(out: &mut String, fix: &str, t: Theme) {
     let _ = writeln!(
         out,
         "          {} {}",
-        t.accent(G_FIX),
+        t.accent(t.glyph(Glyph::Fix)),
         t.accent(&format!("fix: {fix}"))
     );
 }

@@ -31,16 +31,17 @@ fn main() -> ExitCode {
     // Unknown flags are REJECTED — a typo'd mode flag silently degrading
     // to a plain check (exit 0) would let an operator ship a check
     // report as their permits file.
-    const USAGE: &str =
-        "usage: check [--json] [--infer-permits] [--color=auto|always|never] <workflow.nika.yaml>";
+    const USAGE: &str = "usage: check [--json] [--infer-permits] [--color=auto|always|never] [--ascii] <workflow.nika.yaml>";
     let mut infer_mode = false;
     let mut json_mode = false;
     let mut color = ColorFlag::Auto;
+    let mut ascii = false;
     let mut path: Option<String> = None;
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
             "--infer-permits" => infer_mode = true,
             "--json" => json_mode = true,
+            "--ascii" => ascii = true,
             "--color=auto" => color = ColorFlag::Auto,
             "--color=always" => color = ColorFlag::Always,
             "--color=never" => color = ColorFlag::Never,
@@ -127,7 +128,7 @@ fn main() -> ExitCode {
     }
 
     // ── the human surface · DAG lanes + semantic sections ───────────
-    let t = Theme::from_env(color);
+    let t = Theme::from_env(color, ascii);
     print!("{}", render::render(&report, &wf, &path, t));
 
     if report.is_clean() {
