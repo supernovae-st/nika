@@ -47,6 +47,8 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 mod backend;
+#[cfg(feature = "local-infer")]
+mod candle_backend;
 mod error;
 mod logits;
 pub mod protocol;
@@ -55,6 +57,8 @@ mod stop;
 mod template;
 
 pub use backend::{Backend, BackendDyn, GenerationChunk, MockBackend};
+#[cfg(feature = "local-infer")]
+pub use candle_backend::CandleBackend;
 pub use error::InferLocalError;
 pub use logits::{apply_min_p, apply_repeat_penalty, apply_token_mask};
 pub use sampling::{DEFAULT_REPEAT_LAST_N, DEFAULT_SEED, SamplingConfig};

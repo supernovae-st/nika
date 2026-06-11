@@ -42,6 +42,13 @@ impl StopController {
         self.eos_ids.contains(&token)
     }
 
+    /// Whether any stop strings are configured — lets a generation loop skip
+    /// the per-step decode entirely when there is nothing to match.
+    #[must_use]
+    pub fn has_stop_strings(&self) -> bool {
+        !self.stop_strings.is_empty()
+    }
+
     /// True if the accumulated decoded text ends with any stop sequence.
     #[must_use]
     pub fn hit_stop_string(&self, text: &str) -> bool {

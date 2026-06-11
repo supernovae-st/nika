@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | **SCAFFOLDED** 2026-06-11 (protocol + Backend seam + MockBackend · `17ef5ff35`). candle backend = next, behind `local-infer` feature. NOT yet 12-gate admitted. |
+| Status | **CANDLE BACKEND WIRED** 2026-06-11 (scaffold `17ef5ff35` → review-fix `ce287e8c` → candle backend behind `local-infer`). Real-model e2e (Qwen3-1.7B Q8 · CPU) — see §6. In `workspace.metadata.diamond.wip` — NOT yet 12-gate admitted (mutation + swarm + canary pending). |
 | Layer | **L1.5** service (beside `nika-providers`) |
 | Decision | ADR-091 (candle-only · no rig · no mistral.rs · sidecar/subprocess · feature-gated · Metal/CPU-first · CUDA flagged) |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) |

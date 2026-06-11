@@ -16,10 +16,18 @@ serde_json    = { workspace = true }   # request/response (de)serialization.
 thiserror     = { workspace = true }   # internal typed errors.
 trait-variant = { workspace = true }   # BackendDyn: Send companion (workspace async-trait convention).
 
-# candle is DELIBERATELY absent from the default build (ADR-091 · feature-gated
-# off · keeps the lean core's dep tree + Cargo.lock untouched). The candle
-# backend + subprocess server land behind `local-infer` in a later commit:
-#   [features] local-infer = ["dep:candle-core", "dep:candle-transformers", "dep:tokenizers", "dep:tokio"]
+# ── the candle backend (ADR-091) — OFF by default ────────────────────────────
+# The default build links ZERO inference deps (the lean-core contract). The
+# `local-infer` feature pulls the pure-Rust candle stack; pinned per-crate (no
+# other workspace member uses them). `metal` adds the Apple-GPU kernels on top.
+candle-core         = { version = "0.10", optional = true }
+candle-transformers = { version = "0.10", optional = true }
+tokenizers          = { version = "0.21", optional = true, default-features = false, features = ["onig"] }
+tokio               = { workspace = true, optional = true }
+
+[features]
+local-infer = ["dep:candle-core", "dep:candle-transformers", "dep:tokenizers", "dep:tokio"]
+metal       = ["local-infer", "candle-core/metal"]
 
 [dev-dependencies]
 tokio    = { workspace = true }
