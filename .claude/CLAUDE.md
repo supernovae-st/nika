@@ -130,19 +130,19 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `320b94d39` (`320b94d39e192851b53dd8fa1d869eef4289ce95`)             |
+| HEAD             | `5bf733032` (`5bf733032264590c8451f407e4df67cda4ca0c3e`)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 30                                              |
+| crates (workspace)| 31                                              |
 | crates (admitted)| 28 / 42                                   |
-| crates (WIP)     | 2 — nika-schema nika-infer-local                                  |
+| crates (WIP)     | 3 — nika-schema nika-infer-local nika-cli                                  |
 | L0               | 7                                              |
 | L0.5             | 6                                              |
 | L1               | 11                                              |
 | L1.5             | 2                                              |
 | L2               | 3                                              |
 | L3               | 0                                              |
-| L4               | 1                                              |
-| lib tests        | 1678 passed, 0 failed                              |
+| L4               | 2                                              |
+| lib tests        | 1814 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
@@ -152,7 +152,7 @@ Narrative context (manually maintained):
 - L1 admitted: nika-clock, nika-bm25, nika-screen, nika-ocr, nika-a11y, nika-input (M2.4 · Guards 1+2), nika-browser (M2.5 · Guard 5 + occlusion hit-test), nika-fs (atomic write · s4), nika-http (reqwest+rustls · 3-layer SSRF + cross-origin cred-strip · s5), nika-blob (blake3 CAS · sidecar mime · s6), nika-exec-runner (shell/process effect · s7).
 - L1.5 admitted: nika-providers (s8.5 · 14/14 providers wired across 3 wire formats incl gemini s8.6 · kernel http seam).
 - L2 admitted: nika-verb-infer (s9 · FIRST verb crate · one-shot infer · structured-output floor · NIKA-430..433), nika-verb-exec (s10 · shell exec · kernel ShellRunDyn seam · capture one-obvious-way split · NIKA-440..442), nika-verb-invoke (s11 · builtin/MCP tool call · kernel ToolExecuteDyn seam · closed nika:/mcp: namespace validated · NIKA-450..452).
-- L4 admitted: nika-catalog-verify.
+- L4 admitted: nika-catalog-verify. WIP: nika-cli (operator-surface seed 2026-06-11 · display fold + trace replay|show + the e2e L3-rehearsal suite · S6 build grows the full first-15-min verb tree per D-2026-06-10-N6).
 - 0 unwraps in `src/`, Gate 8 GREEN, Invariant #19 FULL.
 - 32 providers, 49 capability rules, 7-axis ModelPricing, scope.providers canonical.
 - Q1-Q13 L0/L0.5 architecture decisions LOCKED 2026-04-16
