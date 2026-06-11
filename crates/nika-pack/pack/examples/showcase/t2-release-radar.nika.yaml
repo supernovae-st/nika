@@ -11,7 +11,8 @@
 #   - `nika:fetch` `mode: feed` · RSS/Atom parsing built in
 #   - the state-file pattern · read last run → diff → write next state
 #   - `nika:json_diff` (RFC 6902) · NEW entries = additions in the patch
-#   - `on_error: recover:` on first run (no state file yet)
+#   - `on_error: on_codes + recover:` · first-run recovery scoped to
+#     not-found ONLY — a permission error still fails loudly
 #
 # Run · nika run examples/showcase/t2-release-radar.nika.yaml
 nika: v1

@@ -9,6 +9,8 @@
 #   - `retry:` · transient-error retry policy (max_attempts + exponential backoff + jitter)
 #   - typed `vars:` · `text` is declared with a type → enables schema-gen for callable workflows
 #   - downstream binding of a structured field · `${{ tasks.extract.output.entities }}`
+#
+# Run · nika run examples/19-schema-retry.nika.yaml
 nika: v1
 workflow: schema-retry
 

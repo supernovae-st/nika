@@ -61,15 +61,28 @@ Returns `true` on pass. Throws · `NIKA-BUILTIN-ASSERT-001` (assertion failed ·
 
 ### `nika:prompt`
 ```yaml
+# confirm (default) — a yes/no gate
 invoke: { tool: "nika:prompt", args: { message: "Approve deploy to production?", default: false } }
+# input — collect a free-text value
+invoke: { tool: "nika:prompt", args: { mode: input, message: "Paste the OTP:", default: "" } }
+# choice — pick one of N
+invoke: { tool: "nika:prompt", args: { mode: choice, message: "Which title?", choices: ["${{ tasks.a.output }}", "${{ tasks.b.output }}"] } }
 ```
-Interactive human confirm · blocks until answered. **Returns a boolean**
-(`true` = confirmed · `false` = refused — a refusal is a VALUE, never an
-error · gate downstream with `when:`). Non-interactive contract (normative) ·
-when no human can answer (CI · daemon) the engine MUST use `default:` when
-present · and MUST fail `NIKA-BUILTIN-PROMPT-001` (`validation_error` ·
-non-interactive without a `default:`) when absent — never hang forever ·
-never silently pick an answer.
+Interactive human-in-the-loop · blocks until answered. **`mode:` selects what
+is collected** (default `confirm`) ·
+
+| `mode` | Returns | Notes |
+|---|---|---|
+| `confirm` (default) | **boolean** | `true` = confirmed · `false` = refused. A refusal is a VALUE, never an error — gate downstream with `when:`. |
+| `input` | **string** | the free text the human typed (may be empty). |
+| `choice` | **string** | the chosen element of `choices:` (required · non-empty array). Returns the chosen value (not its index) so it binds directly. |
+
+Non-interactive contract (normative · all modes) · when no human can answer
+(CI · daemon) the engine MUST use `default:` when present · and MUST fail
+`NIKA-BUILTIN-PROMPT-001` (`validation_error` · non-interactive without a
+`default:`) when absent — never hang forever · never silently pick an answer.
+A `choice` whose `default:` is not an element of `choices:` is a parse error
+(`NIKA-BUILTIN-PROMPT-002` · `validation_error`).
 
 ### `nika:done`
 ```yaml

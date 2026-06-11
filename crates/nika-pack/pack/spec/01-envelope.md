@@ -50,6 +50,12 @@ secrets:
     source: vault                        # never inline · a reference to a store
     key: prod/anthropic/api-key
 
+# The declared capability boundary · the file IS the blast radius (optional · default-deny once present)
+permits:
+  net:  { http: ["api.anthropic.com"] }  # only this host · everything else denied
+  fs:   { write: ["./output/**"] }       # no reads · writes only under ./output
+  exec: false                            # this workflow runs zero shells
+
 # Tasks (the DAG)
 tasks:
   - id: ...
@@ -241,6 +247,49 @@ config in `env:` (appears in logs), masked references in `secrets:` (never
 logged) — note `source: env` reads a *secret* from an env var and still masks
 it, which is different from the plain `env:` block.
 
+### `permits` · *optional · the declared capability boundary*
+
+```yaml
+permits:                          # the workflow's entire blast radius, declared in-file
+  fs:   { read: ["./data/**"], write: ["./out/**"] }   # path globs (gitignore-style)
+  net:  { http: ["api.example.com", "*.github.com"] }  # host allowlist — the SSRF boundary, in-file
+  exec: false                     # may this workflow run shells? false | true | ["git", "cargo"] (program allowlist)
+  tools: ["nika:read", "nika:write", "mcp:browser/*"]  # the builtin/MCP surface it may invoke
+```
+
+`permits:` makes the **file itself the security boundary** — an auditable
+property of the workflow, not a runtime flag. It is **optional and
+non-breaking**: a workflow with no `permits:` block runs exactly as today
+(bounded only by the engine's own SSRF + blocklist floor).
+
+**Semantics (normative) · once `permits:` is present, every category is
+DEFAULT-DENY unless listed** ·
+
+| Category | When listed | When the `permits:` block is present but this category is omitted |
+|---|---|---|
+| `fs.read` / `fs.write` | only the matching path globs are allowed | **no** filesystem read / write |
+| `net.http` | only the listed hosts (globs ok) — tightens the engine SSRF floor, never loosens it | **no** outbound network |
+| `exec` | `false` = no shells · `true` = any (still blocklist-gated) · array = only those program names (argv `command[0]`) | treated as `false` — **no** `exec:` |
+| `tools` | only the matching `nika:` / `mcp:` ids (globs ok) | **no** `invoke:` of any tool |
+
+So `permits: {}` is a workflow provably limited to pure compute (`infer:` +
+CEL + `nika:jq`) — zero fs, zero net, zero shell, zero tools. That property
+is checkable BEFORE the run.
+
+**The engine MUST enforce `permits:` on BOTH surfaces** ·
+1. **Statically** (`nika check`) · a `nika:write ./etc/x` outside `fs.write`,
+   a `nika:fetch` to an unlisted host, an `exec:` under `exec: false`, an
+   `invoke:` of an unlisted tool → a **lint error** (the run is refused
+   before it starts).
+2. **At runtime** · any effect escaping the declared set fails the task
+   `NIKA-SEC-004` (`security_error` · never fed back to an `agent:` model —
+   a capability boundary is not negotiation material). This catches the
+   dynamic cases a static check cannot (a host computed at run time).
+
+`permits.net.http` and the agent `tools:` whitelist compose: the agent
+whitelist scopes ONE task's tools; `permits.tools` scopes the WHOLE workflow
+(the union ceiling). An agent may never be granted a tool outside `permits`.
+
 ### `tasks` · **required · non-empty**
 
 ```yaml
@@ -415,7 +464,9 @@ A v0.1-compliant engine MUST ·
 3. Validate `workflow` identifier kebab-case format
 4. Make workflow-level `model`, `vars`, `env`, `secrets` available to all tasks as defaults
 5. Validate typed `vars` (type + required) before execution · reject missing required inputs
-6. Mask resolved `secrets` values in all logs · traces · journal events
+6. Validate each typed `outputs` value against its declared `type:` at run end · a value that does not match its declared type fails the run (`NIKA-VAR-009` · `validation_error`) — the callable contract is enforced on BOTH halves (typed in via `vars`, typed out via `outputs`) · symmetric with rule 5
+7. Mask resolved `secrets` values in all logs · traces · journal events
+8. Enforce a declared `permits:` block on both surfaces — refuse statically-detectable escapes at check time, and fail any runtime effect outside the boundary with `NIKA-SEC-004` · once `permits:` is present every category is default-deny unless listed
 
 ---
 

@@ -9,6 +9,8 @@
 # ONLY unsanctioned drift wakes anyone up. The LLM explains; jq decides.
 #
 # Demonstrates ·
+#   - `on_error: recover:` on the explain step · a model outage degrades the
+#     alert text, never silences the alert
 #   - `nika:json_merge_patch` · RFC 7396 — sanctioned overrides, null deletes
 #   - `nika:json_diff` · RFC 6902 patch — what ACTUALLY changed
 #   - `nika:hash` (blake3) · provenance fingerprint in the alert

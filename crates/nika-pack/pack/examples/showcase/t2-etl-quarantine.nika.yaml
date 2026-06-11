@@ -9,7 +9,8 @@
 # « fix three rows tomorrow morning ».
 #
 # Demonstrates ·
-#   - `on_error: recover:` · graceful degradation to a fallback value
+#   - `on_error: recover:` · graceful degradation to a fallback value ·
+#     the skipped branch reads as null — guard `size()` with `!= null`
 #   - `nika:convert` CSV→JSON + `nika:validate` as the schema gate
 #   - jq `group_by` aggregation · stats without a model call
 #   - the quarantine pattern · bad data is DATA, not an exception
