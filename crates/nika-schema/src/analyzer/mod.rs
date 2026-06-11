@@ -57,6 +57,7 @@ pub fn analyze(wf: &RawWorkflow) -> Result<AnalyzedWorkflow, Vec<SchemaError>> {
     let ids = task_id_index(wf, &mut errors);
     dag::check_depends_on_resolve(&wf.tasks, &ids, &mut errors);
     dag::check_cycles(&wf.tasks, &ids, &mut errors);
+    dag::check_recover_acyclic(&wf.tasks, &ids, &mut errors);
     scan::scan_workflow(wf, &mut errors);
 
     if errors.is_empty() {
