@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **SPEC** (Gate 1 · authored 2026-06-11 · announce-ladder step s12 · night arc · the 4th and LAST verb · **implementation deliberately deferred** — see §8) |
+| Status | **SPEC** (Gate 1 · authored 2026-06-11 · announce-ladder step s12 · night arc · the 4th and LAST verb · **impl BLOCKED on a `ToolDefinitionProvider` seam** — see §8 ⛔ · not just deferred for time) |
 | Layer | **L2** — verb crate · domain executor for the `agent` verb (4th of the 4 verbs · D-2026-05-22-N18) |
 | Design | the multi-turn agentic loop · consumes `nika-providers` (L1.5 · inference) **+ `nika-verb-invoke`** (L2 · tool dispatch · same-layer dep — layering-legal, §0.5) · drives infer → tool-calls → infer until a terminal condition |
 | LOC budget | ≤4k src (the most complex verb · brouillon agent loop was the largest verb) · caps ≤1500/file · ≤100/fn · ≤15k/crate |
@@ -163,18 +163,46 @@ vs brouillon agent loop.
 wip · `deny.toml` tokio wrapper · NIKA_460-469 registered in
 `nika-error/codes.rs` + `verb_help` · kernel hub doc row.
 
-## §8 · Why implementation is DEFERRED (not skipped)
+## §8 · Why implementation is DEFERRED (not skipped) — + the BLOCKER found
 
 The agent verb is the most complex of the four — a stateful multi-turn loop
 with budget tracking, the `nika:done` sentinel protocol, whitelist-glob
 security gating, and feed-back-vs-fatal error semantics. Per Diamond
 discipline (`diamond-discipline.md` Rule 6 · `session-discipline.md`
 anti-patinage · quality > speed · « no rushing »), this crate is authored as
-a complete Gate-1 SPEC and its implementation is left to a focused session
-rather than rushed. The seam is verified, the design is locked, the
-layering question is resolved — the next session starts from a clean
-blueprint, not a blank page. The three single-shot verbs (infer · exec ·
-invoke) shipped this arc; the loop verb earns its own dedicated pass.
+a complete Gate-1 SPEC and its implementation is left to a focused session.
+
+### ⛔ The missing seam (found 2026-06-11 · verify-the-seam-first paid off)
+
+A second-pass empirical check before coding surfaced a REAL upstream gap, not
+just complexity: **there is no tool-definition source in the workspace.** To
+*give* the model its whitelisted tools, the agent must build
+`nika_kernel_ai::ToolDef { name, description, parameters: <JSON Schema> }`
+(`provider.rs:104`) for each — the model needs the description + parameter
+schema to call a tool. But the agent only holds tool **names** (the whitelist).
+Resolving name → `ToolDef` is unsourced today:
+
+- **Builtins** (`nika:*`) — schemas live in the spec/`nika-catalog`, but
+  `nika-catalog` exposes NO `ToolDef`-shaped getter (grep-verified · it has
+  provider/pricing rows, not builtin tool schemas).
+- **MCP** (`mcp:server/*`) — schemas come from the live server's `tools/list`
+  (a runtime MCP-client call), which needs an MCP client surface not yet
+  admitted (`nika-mcp` is step 18, excluded).
+
+So the agent loop has an unresolved dependency: a **`ToolDefinitionProvider`**
+(name → `ToolDef`) seam — a NEW kernel trait OR a `nika-catalog` method +
+`nika-mcp` `tools/list`. That is an **architecture decision** (ASK-class per
+the Question-First doctrine), not a verb implementation. Building the loop now
+would mean inventing or stubbing that seam — exactly the fragile shortcut the
+deferral avoids.
+
+**Resolution for the next session** · decide the `ToolDefinitionProvider`
+shape FIRST (likely: a kernel trait the wiring layer implements over
+`nika-catalog` for builtins + `nika-mcp` for MCP), admit it, THEN the agent
+loop has a clean seam to consume. The loop logic itself (turns · sentinel ·
+whitelist · budgets) is fully designed above and unblocked once tool-defs
+resolve. The three single-shot verbs (infer · exec · invoke) needed no such
+seam — they shipped this arc; the loop verb is gated on this one decision.
 
 ## §9 · Update log
 
