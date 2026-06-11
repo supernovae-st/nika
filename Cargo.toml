@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-exec-runner", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack"]
+members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-exec-runner", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-providers"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
@@ -62,6 +62,10 @@ layers.nika-exec-runner = "L1"
 # implements kernel io::http {HttpGet,HttpPost} via reqwest · SSRF defense
 # (static + DNS-resolve + per-hop redirect re-check) · response size cap.
 layers.nika-http = "L1"
+# nika-providers · Phase-B slice step 8.5 (announce ladder · D-2026-06-10-N6) ·
+# implements kernel ai::provider {ProviderInferDyn,ProviderStreamDyn,ProviderMeta} ·
+# 14 canonical profiles over 3 wire formats · transport via kernel http (no reqwest here).
+layers.nika-providers = "L1.5"
 layers.nika-catalog = "L0"
 layers.nika-catalog-codegen = "L0"
 layers.nika-catalog-verify = "L4"

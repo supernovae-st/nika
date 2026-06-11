@@ -1,0 +1,403 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! Registry — `model: provider/name` resolution + key loading.
+//!
+//! [`ProviderRegistry`] is constructed once by the wiring layer with the
+//! injected http effect; verbs call [`ProviderRegistry::resolve`] per
+//! inference and drive the returned [`ResolvedProvider`] through the kernel
+//! `ProviderInferDyn` / `ProviderStreamDyn` / `ProviderMeta` traits.
+//!
+//! Fail-fast discipline: everything that can be diagnosed *before* a wire
+//! call (unknown provider · malformed model string · missing API key ·
+//! missing http effect) errors at `resolve` time with a message that names
+//! the exact fix (first-error UX · B7.2).
+//!
+//! Key sovereignty: this crate NEVER reads process env or any secret store.
+//! The composition root resolves secrets (kernel `SecretResolver` · or env
+//! at the L4 CLI) and injects them via [`ProvidersConfig::with_key`]. The
+//! profile env ladder is *data* used for error hints + `nika doctor`.
+
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
+use nika_kernel::ai::provider::{
+    InferEventStream, InferRequest, InferResponse, ProviderError, ProviderInferDyn, ProviderMeta,
+    ProviderStreamDyn,
+};
+use nika_kernel::http::{HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse};
+use nika_kernel::secret::Secret;
+
+use crate::profile::{Profile, WireFormat, seed};
+use crate::wire;
+
+/// Operator-owned configuration (overrides on top of the profile defaults).
+#[derive(Debug, Default, Clone)]
+#[non_exhaustive]
+pub struct ProvidersConfig {
+    base_urls: BTreeMap<String, String>,
+    keys: BTreeMap<String, Secret>,
+}
+
+impl ProvidersConfig {
+    /// Empty config — profile defaults · no keys (inject via [`Self::with_key`]).
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Override a provider's endpoint (local servers · openrouter-style
+    /// `base_url` escape hatch). Operator config only — never workflow YAML.
+    #[must_use]
+    pub fn with_base_url(mut self, provider: impl Into<String>, url: impl Into<String>) -> Self {
+        self.base_urls.insert(provider.into(), url.into());
+        self
+    }
+
+    /// Inject an API key explicitly (wins over the env ladder).
+    #[must_use]
+    pub fn with_key(mut self, provider: impl Into<String>, key: Secret) -> Self {
+        self.keys.insert(provider.into(), key);
+        self
+    }
+}
+
+/// Placeholder http effect for registries that only serve the `mock`
+/// profile (doc examples · zero-network tests). Any real call through it
+/// is a wiring bug and errors accordingly.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NoHttp;
+
+impl HttpPostDyn for NoHttp {
+    async fn post(&self, _request: HttpRequest) -> Result<HttpResponse, HttpError> {
+        Err(HttpError::Unsupported {
+            reason: "no http effect wired (ProviderRegistry::without_http)".to_owned(),
+        })
+    }
+
+    async fn send_streaming(&self, _request: HttpRequest) -> Result<HttpStreamResponse, HttpError> {
+        Err(HttpError::Unsupported {
+            reason: "no http effect wired (ProviderRegistry::without_http)".to_owned(),
+        })
+    }
+}
+
+/// The provider registry — canonical profiles + resolved keys + the http
+/// effect handle.
+#[derive(Debug)]
+pub struct ProviderRegistry<H = NoHttp> {
+    http: Option<Arc<H>>,
+    profiles: Vec<Profile>,
+    config: ProvidersConfig,
+}
+
+impl ProviderRegistry<NoHttp> {
+    /// Registry without an http effect — only the `mock` profile is
+    /// resolvable. For doc examples and zero-network tests.
+    #[must_use]
+    pub fn without_http(config: ProvidersConfig) -> Self {
+        Self {
+            http: None,
+            profiles: seed(),
+            config,
+        }
+    }
+}
+
+impl<H> ProviderRegistry<H>
+where
+    H: HttpPostDyn + Send + Sync + 'static,
+{
+    /// Construct with the injected http effect (the wiring layer passes
+    /// `nika-http`'s `ReqwestHttp`).
+    #[must_use]
+    pub fn new(http: Arc<H>, config: ProvidersConfig) -> Self {
+        Self {
+            http: Some(http),
+            profiles: seed(),
+            config,
+        }
+    }
+
+    /// The canonical profiles (read-only view).
+    #[must_use]
+    pub fn profiles(&self) -> &[Profile] {
+        &self.profiles
+    }
+
+    /// Resolve a `provider/name` model string into a ready-to-call
+    /// provider. All pre-wire diagnostics happen here (fail fast).
+    ///
+    /// # Errors
+    ///
+    /// `ProviderError::Other` on a malformed model string (no `/`), an
+    /// unknown provider id, or a cloud profile resolved without an http
+    /// effect; `ProviderError::AuthFailed` when the profile requires a key
+    /// and none was injected (the message prints the env ladder + the
+    /// `with_key` alternative).
+    pub fn resolve(&self, model: &str) -> Result<ResolvedProvider<H>, ProviderError> {
+        let Some((provider_id, model_rest)) = model.split_once('/') else {
+            return Err(ProviderError::Other {
+                reason: format!(
+                    "model '{model}' must be 'provider/name' (e.g. 'anthropic/sonnet') · \
+                     known providers: {}",
+                    crate::profile::CANONICAL_IDS.join(", ")
+                ),
+            });
+        };
+        if model_rest.is_empty() {
+            return Err(ProviderError::Other {
+                reason: format!(
+                    "model '{model}' is missing the model name after '/' \
+                     (e.g. '{provider_id}/sonnet')"
+                ),
+            });
+        }
+        let Some(profile) = self.profiles.iter().find(|p| p.id == provider_id) else {
+            return Err(ProviderError::Other {
+                reason: format!(
+                    "unknown provider '{provider_id}' · known providers: {}",
+                    crate::profile::CANONICAL_IDS.join(", ")
+                ),
+            });
+        };
+
+        let key = self.config.keys.get(profile.id).cloned();
+        if profile.requires_key && key.is_none() {
+            let ladder = profile.env_candidates();
+            return Err(ProviderError::AuthFailed {
+                reason: format!(
+                    "no API key for '{}' · set one of [{}] (e.g. `export {}=…`) or inject via \
+                     ProvidersConfig::with_key",
+                    profile.id,
+                    ladder.join(", "),
+                    ladder.last().map_or("", String::as_str),
+                ),
+            });
+        }
+
+        let http = match profile.wire {
+            WireFormat::Mock => None,
+            _ => match &self.http {
+                Some(h) => Some(Arc::clone(h)),
+                None => {
+                    return Err(ProviderError::Other {
+                        reason: format!(
+                            "provider '{}' needs an http effect · construct the registry with \
+                             ProviderRegistry::new(http, config)",
+                            profile.id
+                        ),
+                    });
+                }
+            },
+        };
+
+        let base_url = self
+            .config
+            .base_urls
+            .get(profile.id)
+            .cloned()
+            .unwrap_or_else(|| profile.base_url.to_owned());
+
+        Ok(ResolvedProvider {
+            profile: profile.clone(),
+            wire_model: profile.resolve_model(model_rest).to_owned(),
+            base_url,
+            key,
+            http,
+        })
+    }
+}
+
+/// One resolved provider — implements the kernel provider traits.
+///
+/// Fully owned (no registry borrow): streams returned by
+/// `infer_stream` are `'static` as the kernel contract requires.
+#[derive(Debug)]
+pub struct ResolvedProvider<H = NoHttp> {
+    pub(crate) profile: Profile,
+    pub(crate) wire_model: String,
+    pub(crate) base_url: String,
+    pub(crate) key: Option<Secret>,
+    pub(crate) http: Option<Arc<H>>,
+}
+
+impl<H> ResolvedProvider<H> {
+    /// The wire-level model identifier (nickname already resolved).
+    #[must_use]
+    pub fn wire_model(&self) -> &str {
+        &self.wire_model
+    }
+}
+
+// Soft-seal opt-in (workspace crate): with the ISP Dyn impls below, the
+// blanket `Provider` super-trait applies via trait-variant's reverse
+// blankets.
+impl<H> nika_kernel::sealed::Sealed for ResolvedProvider<H> {}
+
+impl<H> ProviderInferDyn for ResolvedProvider<H>
+where
+    H: HttpPostDyn + Send + Sync + 'static,
+{
+    async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+        match self.profile.wire {
+            WireFormat::Anthropic => wire::anthropic::infer(self, request).await,
+            WireFormat::OpenAiCompat => wire::openai_compat::infer(self, request).await,
+            WireFormat::Gemini => Err(wire::gemini_not_yet_wired()),
+            WireFormat::Mock => Ok(wire::mock::infer(self, &request)),
+        }
+    }
+}
+
+impl<H> ProviderStreamDyn for ResolvedProvider<H>
+where
+    H: HttpPostDyn + Send + Sync + 'static,
+{
+    async fn infer_stream(&self, request: InferRequest) -> Result<InferEventStream, ProviderError> {
+        match self.profile.wire {
+            WireFormat::Anthropic => wire::anthropic::infer_stream(self, request).await,
+            WireFormat::OpenAiCompat => wire::openai_compat::infer_stream(self, request).await,
+            WireFormat::Gemini => Err(wire::gemini_not_yet_wired()),
+            WireFormat::Mock => Ok(wire::mock::infer_stream(self, &request)),
+        }
+    }
+}
+
+impl<H> ProviderMeta for ResolvedProvider<H>
+where
+    H: Send + Sync,
+{
+    fn name(&self) -> &str {
+        self.profile.id
+    }
+
+    /// v0.1 approximation: answers per wire family — some local
+    /// OpenAI-compat servers lack strict `json_schema` support.
+    fn supports_response_format(&self) -> bool {
+        matches!(
+            self.profile.wire,
+            WireFormat::OpenAiCompat | WireFormat::Mock
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hermetic() -> ProvidersConfig {
+        ProvidersConfig::new()
+    }
+
+    #[tokio::test]
+    async fn profiles_view_exposes_the_canonical_fourteen() {
+        let reg = ProviderRegistry::new(Arc::new(NoHttp), hermetic());
+        assert_eq!(reg.profiles().len(), 14);
+    }
+
+    #[test]
+    fn mock_resolves_without_http() {
+        let reg = ProviderRegistry::without_http(hermetic());
+        let p = reg.resolve("mock/echo").expect("mock needs no http");
+        assert_eq!(p.name(), "mock");
+        assert_eq!(p.wire_model(), "echo");
+    }
+
+    #[test]
+    fn missing_slash_is_a_guided_error() {
+        let reg = ProviderRegistry::without_http(hermetic());
+        let err = reg.resolve("sonnet").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("provider/name"), "guides the shape: {msg}");
+    }
+
+    #[test]
+    fn unknown_provider_lists_the_knowns() {
+        let reg = ProviderRegistry::without_http(hermetic());
+        let err = reg.resolve("acme/gpt-99").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("unknown provider 'acme'"), "{msg}");
+        assert!(msg.contains("anthropic"), "lists knowns: {msg}");
+        assert!(msg.contains("ollama"), "lists knowns: {msg}");
+    }
+
+    #[test]
+    fn missing_key_fails_fast_with_export_hint() {
+        let reg = ProviderRegistry::without_http(hermetic());
+        let err = reg.resolve("anthropic/sonnet").unwrap_err();
+        assert!(matches!(err, ProviderError::AuthFailed { .. }));
+        let msg = err.to_string();
+        assert!(msg.contains("NIKA_ANTHROPIC_API_KEY"), "{msg}");
+        assert!(msg.contains("ANTHROPIC_API_KEY"), "{msg}");
+        assert!(msg.contains("export "), "actionable fix: {msg}");
+    }
+
+    #[test]
+    fn injected_key_resolves_and_maps_nickname() {
+        let reg = ProviderRegistry::without_http(
+            hermetic().with_key("anthropic", Secret::new("sk-ant-test")),
+        );
+        // anthropic with a key but no http → the http gate fires (after auth).
+        let err = reg.resolve("anthropic/sonnet").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("needs an http effect"), "{msg}");
+    }
+
+    #[tokio::test]
+    async fn cloud_profile_resolves_with_http_and_key() {
+        let http = Arc::new(NoHttp);
+        let reg = ProviderRegistry::new(
+            http,
+            hermetic().with_key("anthropic", Secret::new("sk-ant-test")),
+        );
+        let p = reg.resolve("anthropic/sonnet").expect("resolves");
+        assert_eq!(p.name(), "anthropic");
+        assert!(
+            p.wire_model().starts_with("claude-"),
+            "nickname mapped: {}",
+            p.wire_model()
+        );
+    }
+
+    #[test]
+    fn local_provider_needs_no_key_but_needs_http() {
+        let reg = ProviderRegistry::without_http(hermetic());
+        let err = reg.resolve("ollama/llama3.2").unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("needs an http effect"),
+            "no-key path reaches the http gate: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn base_url_override_wins() {
+        let reg = ProviderRegistry::new(
+            Arc::new(NoHttp),
+            hermetic().with_base_url("ollama", "http://10.0.0.5:11434/v1/chat/completions"),
+        );
+        let p = reg.resolve("ollama/llama3.2").expect("resolves");
+        assert_eq!(p.base_url, "http://10.0.0.5:11434/v1/chat/completions");
+    }
+
+    #[test]
+    fn debug_never_leaks_the_key() {
+        let reg = ProviderRegistry::without_http(
+            hermetic().with_key("mock", Secret::new("super-secret-value")),
+        );
+        let p = reg.resolve("mock/echo").expect("resolves");
+        let dbg = format!("{p:?}");
+        assert!(!dbg.contains("super-secret-value"), "redacted: {dbg}");
+    }
+
+    #[test]
+    fn gemini_profile_resolves_but_wire_lands_s86() {
+        let reg = ProviderRegistry::without_http(hermetic());
+        // gemini requires a key (catalog row) → inject one; no http → gate.
+        let reg2 =
+            ProviderRegistry::without_http(hermetic().with_key("gemini", Secret::new("test-key")));
+        drop(reg);
+        let err = reg2.resolve("gemini/flash-25").unwrap_err();
+        assert!(err.to_string().contains("needs an http effect"));
+    }
+}

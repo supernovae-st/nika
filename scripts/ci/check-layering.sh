@@ -7,7 +7,8 @@
 #   L0  → nothing (zero deps on workspace members)
 #   L0.5 → L0 only
 #   L1  → L0, L0.5
-#   L2  → L0, L0.5, L1
+#   L1.5 → L0, L0.5, L1
+#   L2  → L0, L0.5, L1, L1.5
 #   L3  → L0, L0.5, L1, L2
 #   L4  → L0, L0.5, L1, L2, L3
 #   L5  → L0, L0.5, L1, L2, L3, L4
@@ -34,10 +35,11 @@ layer_rank() {
     "L0") echo 0 ;;
     "L0.5") echo 1 ;;
     "L1") echo 2 ;;
-    "L2") echo 3 ;;
-    "L3") echo 4 ;;
-    "L4") echo 5 ;;
-    "L5") echo 6 ;;
+    "L1.5") echo 3 ;;
+    "L2") echo 4 ;;
+    "L3") echo 5 ;;
+    "L4") echo 6 ;;
+    "L5") echo 7 ;;
     *) echo -1 ;;
   esac
 }

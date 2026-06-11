@@ -55,3 +55,6 @@ nika-exec-runner
 nika-input
 # --- 2026-06-11: M2.5 web arm · Guard-5 pure core public, CDP internal at B.3 ---
 nika-browser
+# --- 2026-06-11: s8.5 announce-ladder · the L1.5 provider layer (14 profiles ·
+# 3 wire formats · kernel http seam · consumed by verb-infer s9 + verb-agent) ---
+nika-providers

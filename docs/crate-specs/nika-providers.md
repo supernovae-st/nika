@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **L1.5 admission target · DESIGN PROPOSAL** (Phase-B slice step 8.5 · before the verbs per D-2026-05-22-N17 · announce ladder per D-2026-06-10-N6) · architecture mostly **determined by existing canon** (§0) · ONE open fork for operator lock (§4) |
+| Status | **ADMITTED 2026-06-11** (Phase-B slice step 8.5 · before the verbs per D-2026-05-22-N17 · announce ladder per D-2026-06-10-N6) · shipped at §4 **Option B** scope (anthropic + openai-compat + mock = 13/14 wired · gemini profile present · adapter s8.6 before the v0.81.0 tag) |
 | Layer | L1.5 — service crate · the shared LLM-provider layer BOTH `nika-verb-infer` (s9) and `nika-verb-agent` depend on (no verb→verb sideways dep · D-N17) |
 | Design | impls of the EXISTING L0.5 `nika_kernel_ai::provider` ISP traits (`ProviderInferDyn` · `ProviderStreamDyn` · `ProviderMeta`) · transport via the L0.5 `nika_kernel::http` traits (injected effect · NOT its own `reqwest`) |
 | LOC budget | under the ≤1500/file + ≤15k/crate caps (vectors 12+24) · live count · `scripts/crate-metrics.sh nika-providers` |
@@ -85,32 +85,43 @@ auth: Bearer|XApiKey|None, env_key: NIKA_<PROVIDER>_API_KEY ladder, quirks }`,
 seeded from `nika-catalog::all_providers()`. Adding provider №15 (post-announce)
 = a canon.yaml row + a profile mapping — usually zero new wire code.
 
-## §2 · Public API (the crate shape)
+## §2 · Public API (as implemented · admission shape)
 
 ```rust
-pub struct ProviderRegistry { /* profiles + the injected http effect */ }
-impl ProviderRegistry {
-    pub fn new(http: Arc<dyn HttpClientDyn>, config: ProvidersConfig) -> Self;
-    /// `model: provider/name` (pillar ⑤) → resolve the profile + concrete model.
-    pub fn resolve(&self, model: &str) -> Result<ResolvedProvider<'_>, ProviderError>;
-    pub fn provider(&self, key: &str) -> Option<&dyn ProviderHandle>;
+pub struct ProviderRegistry<H = NoHttp> { /* profiles + injected http effect + config */ }
+impl<H: HttpPostDyn + Send + Sync + 'static> ProviderRegistry<H> {
+    pub fn new(http: Arc<H>, config: ProvidersConfig) -> Self;
+    pub fn profiles(&self) -> &[Profile];
+    /// `model: provider/name` (pillar ⑤) → profile + nickname→wire-model +
+    /// key + endpoint, fail-fast (unknown provider · missing key · no http).
+    pub fn resolve(&self, model: &str) -> Result<ResolvedProvider<H>, ProviderError>;
+}
+impl ProviderRegistry<NoHttp> {
+    /// Mock-only registry (doc examples · zero-network tests).
+    pub fn without_http(config: ProvidersConfig) -> Self;
 }
 
-/// One resolved provider — implements the kernel Dyn traits.
-/// (ProviderInferDyn + ProviderStreamDyn + ProviderMeta · sealed super-trait OK — workspace crate.)
-pub struct ResolvedProvider<'r> { /* profile + http + model */ }
+/// One resolved provider — fully OWNED (no registry borrow · streams are
+/// 'static as the kernel contract requires). Implements ProviderInferDyn +
+/// ProviderStreamDyn + ProviderMeta (sealed super-trait opt-in · workspace crate).
+pub struct ResolvedProvider<H = NoHttp> { /* profile + wire_model + base_url + key + http */ }
 
-pub struct ProvidersConfig {       // serde · operator-owned
-    // per-provider overrides: base_url (local/openrouter) · api_key env override ·
-    // timeout · default model — additive on top of catalog profile rows
+pub struct ProvidersConfig {       // builder · operator-owned
+    pub fn with_base_url(self, provider, url) -> Self;   // local/openrouter escape hatch
+    pub fn with_key(self, provider, key: Secret) -> Self; // the ONLY key path
 }
 ```
 
-Key resolution: API keys read from env (`NIKA_ANTHROPIC_API_KEY` →
-`ANTHROPIC_API_KEY` fallback ladder) at construction · **never logged · never
-serialized** (`Debug` redacts · same discipline as the brouillon vault rule) ·
-missing-key error message prints the exact `export` line (first-error UX ·
-B7.2). No key needed for `mock` and the 5 local providers (auth `None`).
+Key sovereignty (refined at impl · supersedes the env-read sketch): this
+crate **never reads process env** (clippy `disallowed-methods` bans
+`std::env::var` workspace-wide — the composition root resolves secrets via
+the kernel `SecretResolver` or env at the L4 CLI and injects them through
+`ProvidersConfig::with_key`). The `NIKA_<ID>_API_KEY` → conventional-var
+ladder lives on `Profile::env_candidates()` as **data** — consumed by the
+missing-key error message (prints the exact `export` line · first-error UX ·
+B7.2) and later by `nika doctor`. Keys are kernel `Secret` (zeroize-on-drop ·
+redacted `Debug` · never serialized). No key needed for `mock` + the 5 local
+providers.
 
 ## §3 · Security posture
 
@@ -129,22 +140,40 @@ B7.2). No key needed for `mock` and the 5 local providers (auth `None`).
   for the caller*, no exporter, no network beyond the provider call itself
   (telemetry-canon).
 
-## §4 · The ONE open fork — adapter scope at admission (operator lock)
+## §4 · Adapter scope — resolved at Option B (recommendation executed)
 
-The ladder note says « ship `anthropic` first for the Phase B demo ». Three
-calibrations possible for the **admission commit** (12 gates GREEN on
-whichever is chosen):
+The ladder note said « ship `anthropic` first for the Phase B demo ». Three
+calibrations were tabled; **B shipped** (autonomous-arc execution of the
+standing recommendation · 2026-06-11):
 
-| Option | Scope at s8.5 admission | Coverage | Risk |
+| Option | Scope at s8.5 admission | Coverage | Outcome |
 |---|---|---|---|
-| A | `anthropic` + `mock` | 2/14 | smallest reviewable diff · openai-compat lands s8.6 |
-| **B ⭐** | `anthropic` + `openai-compat` + `mock` | **13/14** | one more adapter · covers ALL local providers → `infer` works offline day-1 · gemini = fast-follow before tag |
-| C | all three wires | 14/14 | largest single admission · gemini quirks (safety settings · parts) eat review time |
+| A | `anthropic` + `mock` | 2/14 | not taken |
+| **B ✅ SHIPPED** | `anthropic` + `openai-compat` + `mock` | **13/14** | covers ALL local providers → `infer` works offline day-1 · gemini = fast-follow s8.6 before tag |
+| C | all three wires | 14/14 | not taken (gemini quirks eat review time) |
 
-**Recommendation · B.** The openai-compat adapter is the highest-leverage 200
-lines in the slice (12 profiles · the local-sovereignty story at announce) ·
-gemini follows as a small PR before the v0.81.0 tag (~07-28). Option B keeps
-the announce claim « 14 providers » honest at tag time, not at s8.5 time.
+The openai-compat adapter is the highest-leverage file in the slice (12
+profiles · the local-sovereignty story at announce) · gemini follows as a
+small PR before the v0.81.0 tag (~07-28) — its profile row + honest
+`s8.6` error are already in place. The announce claim « 14 providers »
+is honest at tag time.
+
+## §4bis · 12-gate admission table (2026-06-11)
+
+| Gate | Verdict | Evidence |
+|---|---|---|
+| 1 SPEC | ✅ | this file (design 2026-06-10 · pre-dated the impl) |
+| 2 TDD | ✅ | tests-first per module (profile seeding · registry resolve · wire fixtures · SSE proptest) · RED observed on the Pin-projection + fixture iterations |
+| 3 IMPL | ✅ | 3245 LOC src incl. in-file tests · max file 711 (caps ≤15k/≤1500 GREEN · live · `scripts/crate-metrics.sh nika-providers`) · 65 lib tests |
+| 4 CLIPPY | ✅ | `--all-targets -D warnings` = 0 |
+| 5 MUTATION | ✅ | **100%** (139/139 viable caught · 0 missed · 1 timeout non-missed · 58 unviable) |
+| 6 PROPERTY | ✅ | SSE parser = sensitive parser → proptest chunking-invariance + linear-scan cursor test |
+| 7 BENCH | N/A | network-bound service crate · no algorithmic hot path (http precedent) |
+| 8 DOCS | ✅ | `RUSTDOCFLAGS=-D warnings cargo doc --no-deps` 0 |
+| 9 CANARY | N/A | L1.5 service · no `.nika.yaml` surface until L2 verbs (clock/fs/http precedent) |
+| 10 PARITY | ✅ | cross-provider parity matrix (same assertions × every wired profile · the house rule executable) · brouillon rig-construction intentionally NOT carried (CRAFT · §1) · 14-profile set = canon.yaml projection |
+| 11 REVIEW | ✅ | 3-agent swarm 2026-06-11 · 0 P0 · P1s fixed same-session (stream non-2xx typed via `stream_status_error` · SSE quadratic rescan → linear cursor · clippy Gate-4 casts via `Duration::try_from_secs_f64` · layers metadata · spec §2 drift rewritten) · P2s fixed (in-band error transient mapping + terminal contract · extras first-write-wins · stream_options cloud-gated · post-[DONE] guard · catalog-join drift guard · empty-model fail-fast) |
+| 12 ATOMIC | ✅ | 1 commit · Nika 🦋 trailer |
 
 ## §5 · Test strategy (12-gate plan)
 
@@ -170,9 +199,10 @@ the announce claim « 14 providers » honest at tag time, not at s8.5 time.
 - **No kernel edits needed** (the seam is admitted) → ZERO collision with the
   session-B kernel-migration lane. The crate is net-new territory
   (`crates/nika-providers/`) + one workspace-members line.
-- Depends on: `nika-kernel-ai` (traits/DTOs) · `nika-kernel` (http traits
-  re-export) · `nika-catalog` (profiles/pricing) · `nika-error` (codes/cost) ·
-  dev-only: nothing network-bound.
+- Depends on: `nika-kernel` (the facade — `ai::provider` traits/DTOs ·
+  `http` traits · `secret::Secret` · the L1 convention, exec-runner
+  precedent) · `nika-catalog` (`providers` feature · profile rows) ·
+  dev-only: tokio + proptest (nothing network-bound).
 - Unblocks: **s9 `nika-verb-infer`** (the INFER half of the announce floor) ·
   later `verb-agent` shares it (D-N17's whole point).
 - `nika-native` (in-process candle/mistral.rs · L1.5 step 30) stays a
