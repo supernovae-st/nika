@@ -18,7 +18,8 @@ see [`ROADMAP.md`](ROADMAP.md). For the **10-year architectural horizon
 (2026 → 2036)** with refined 42-crate target, 4-verb stress test
 through 2036, 7-ADR queue (050-056) and per-crate detail, see
 [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
-(v1.1 · proposal-grade · annual decennial review 2027-04+).
+(proposal-grade · annual decennial review 2027-04+ · version lives in
+its frontmatter, not here).
 
 **Memory subsystem note** · Diamond and the memory cluster are
 **orthogonal** (per `naming-memory-subsystem.md` v2.4 external rule).
@@ -67,8 +68,9 @@ Four verbs: `infer`, `exec`, `invoke`, `agent`. (Fetching a URL is
 *calling a tool*, not a distinct execution model — it is the
 `nika:fetch` builtin, reached via `invoke`.) A typed
 schema, a taint-tracking template engine, and a layered kernel of
-side effects wired through `rig` (LLM providers) + `rmcp` (MCP
-servers).
+side effects. LLM providers speak wire-direct through the kernel http
+seam (`nika-providers` · rig NOT carried per D-2026-05-22-N17); MCP
+servers via `rmcp`.
 
 ## Crate architecture
 
@@ -77,18 +79,25 @@ servers).
 
 ```
 L5   nika                         binary, <500 LOC composition root
-L4   cli · lsp · serve · init · lints · pck · catalog-verify
-L3   runtime · daemon
-L2   verb-{exec,invoke,infer,agent} ·
-     provider-{rig,native,mock} ·
-     builtin · builtin-{github,cloud,workspace} · mcp · display ·
-     media-{cas,image,pdf,document,provenance} ·
-     pck-{manifest,registry,store}
-L1   shield · event · clock · fs · http · blob · process ·
-     extract · security · git · vault
-L0.5 kernel · kernel-mock
-L0   types · error · catalog · catalog-verify · schema · binding · pck-manifest
+L4   cli · daemon · serve · mcp-server · lsp · sdk · init · catalog-verify
+L3   runtime · shield · wasm-host · sandbox-{linux,macos,windows}
+L2   verb-{exec,invoke,infer,agent} · connectome (the Connectome
+     orchestrator) · policy · builtin · builtin-{github,cloud,workspace} ·
+     mcp · display · media-{cas,image,pdf,document,provenance} · pck
+L1.5 providers (14/14 wire-direct) · infer-local (candle · ADR-091)
+L1   clock · fs · http · blob · exec-runner · screen · ocr · a11y ·
+     input · browser · bm25 + the Connectome satellites (hnsw · rrf ·
+     rerank · fsrs · rdfs-reasoner · temporal · graph-algos ·
+     autodesc-{minimal,full}) · git · keys-* · pck-{registry,store}
+L0.5 kernel (facade) · kernel-{core,ai,runtime,plugin} · kernel-mock
+L0   types · error · catalog · catalog-codegen · schema · event · pack ·
+     binding · pck-manifest
 ```
+
+(The enforced canon is
+[`docs/architecture/crate-layer-registry.md`](docs/architecture/crate-layer-registry.md)
+— this tree mirrors it; live admission counts come from
+`scripts/refresh-status.sh`.)
 
 Invariants enforced by CI:
 - Every crate ≤ 15,000 LOC.
