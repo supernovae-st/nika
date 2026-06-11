@@ -18,6 +18,7 @@
 //! - `output:` binding rules · reserved names + pure-jq
 //! - topological waves (spec `03-dag.md` execution model)
 
+mod builtin_shape;
 mod dag;
 mod scan;
 mod schema_paths;
@@ -58,6 +59,7 @@ pub fn analyze(wf: &RawWorkflow) -> Result<AnalyzedWorkflow, Vec<SchemaError>> {
     dag::check_depends_on_resolve(&wf.tasks, &ids, &mut errors);
     dag::check_cycles(&wf.tasks, &ids, &mut errors);
     dag::check_recover_acyclic(&wf.tasks, &ids, &mut errors);
+    builtin_shape::check_builtin_shapes(&wf.tasks, &mut errors);
     scan::scan_workflow(wf, &mut errors);
 
     if errors.is_empty() {
