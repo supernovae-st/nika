@@ -100,7 +100,7 @@ fn main() -> ExitCode {
         println!("  wave {n} · {}", ids.join(" ∥ "));
     }
 
-    // ── cost ceiling ────────────────────────────────────────────────
+    // ── cost envelope (structural interval · ADR-092 #5) ────────────
     if report.cost.tasks.is_empty() {
         println!("COST     no inference tasks · $0.00");
     } else {
@@ -109,16 +109,31 @@ fn main() -> ExitCode {
         } else {
             "ceiling"
         };
-        println!(
-            "COST     ${:.4} worst-case {bound}",
-            report.cost.bounded_total_usd
-        );
+        let spread = report.cost.bounded_total_usd - report.cost.min_path_total_usd;
+        if spread > f64::EPSILON {
+            println!(
+                "COST     ${:.4} – ${:.4} {bound} (cheapest path: gates closed · first try)",
+                report.cost.min_path_total_usd, report.cost.bounded_total_usd
+            );
+        } else {
+            println!(
+                "COST     ${:.4} worst-case {bound}",
+                report.cost.bounded_total_usd
+            );
+        }
         for t in &report.cost.tasks {
-            let fanout = if t.iterations > 1 {
+            let iter = if t.iterations > 1 {
                 format!(" ×{}", t.iterations)
             } else {
                 String::new()
             };
+            let retries = if t.attempts > 1 {
+                format!(" ×{} retries", t.attempts)
+            } else {
+                String::new()
+            };
+            let gate = if t.gated { " (when:-gated)" } else { "" };
+            let fanout = format!("{iter}{retries}{gate}");
             match (t.usd, &t.unbounded_reason) {
                 (Some(usd), _) => println!(
                     "  {} · {} · ≤{} tokens{fanout} · ${usd:.4}",

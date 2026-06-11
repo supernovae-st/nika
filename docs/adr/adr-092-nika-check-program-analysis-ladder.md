@@ -83,7 +83,7 @@ The ranked roadmap (the rest of the ladder · sequenced, not vapor):
 | 2 | **Capability inference** (`--infer-permits`) | E-lang object-capabilities · Koka effects | ⭐⭐⭐ | ✅ shipped (`check/infer_permits.rs`) |
 | 3 | **Unified FlowFacts IR** | rust-analyzer HIR · single annotated pass | ⭐⭐ (enabler) | ✅ shipped (taint slice) |
 | 4 | **Dataflow schema typing** — `${{ tasks.A.output.field }}` type-checked transitively vs A's schema | bidirectional type inference | ⭐⭐⭐ | ✅ shipped (`check/schema_typing.rs`) |
-| 5 | **Symbolic cost intervals** — `[min,max]` over retry/agent-turns/`when:` branches; input-token bounds | RAML (Hoffmann) · WCET | ⭐⭐ | roadmap |
+| 5 | **Symbolic cost intervals** — `[min,max]` over retry/agent-turns/`when:` branches; input-token bounds | RAML (Hoffmann) · WCET | ⭐⭐ | ✅ shipped (structural slice — retry × fan-out × `when:` gates; input-token side stays out per the output-ceiling convention) |
 | 6 | **SMT reachability** — dead-task / mutual-exclusion / empty-`for_each` via Z3 over `when:` | symbolic execution · Z3/CVC5 | ⭐⭐ | roadmap |
 | 7 | **Termination + resource certificate** — machine-checkable proof | formal methods · WCET envelopes | ⭐⭐ | roadmap |
 | 8 | **Query-based incremental IR** — Salsa demand-driven; edit a task → re-analyze only the affected sub-DAG | Salsa (rust-analyzer) · Adapton | ⭐ (LSP infra) | roadmap |
