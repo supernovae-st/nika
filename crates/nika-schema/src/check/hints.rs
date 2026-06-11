@@ -306,14 +306,7 @@ fn sole_success_gate(src: &str) -> Option<String> {
     else {
         return None;
     };
-    let (dep, lit) = match (
-        super::reach::status_ref(lhs.as_ref()),
-        super::reach::status_ref(rhs.as_ref()),
-    ) {
-        (Some(d), None) => (d, rhs.as_ref()),
-        (None, Some(d)) => (d, lhs.as_ref()),
-        _ => return None,
-    };
+    let (dep, lit) = super::reach::status_atom(lhs, rhs)?;
     matches!(lit, Expr::Lit(Literal::Str(s)) if s == "success").then(|| dep.to_owned())
 }
 

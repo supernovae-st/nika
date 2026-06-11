@@ -166,6 +166,17 @@ pub(super) fn status_ref(e: &Expr) -> Option<&str> {
     }
 }
 
+/// The either-order status atom: `tasks.<id>.status <op> <other>` OR
+/// `<other> <op> tasks.<id>.status` — ONE destructure shared by the
+/// evaluator, the literal collector, and the hints matcher.
+pub(super) fn status_atom<'e>(lhs: &'e Expr, rhs: &'e Expr) -> Option<(&'e str, &'e Expr)> {
+    match (status_ref(lhs), status_ref(rhs)) {
+        (Some(id), None) => Some((id, rhs)),
+        (None, Some(id)) => Some((id, lhs)),
+        _ => None,
+    }
+}
+
 /// Evaluate a gate under one status assignment — Kleene-3, total.
 /// `sigma` maps task ids to their assigned status bit.
 fn eval_k3(e: &Expr, sigma: &BTreeMap<&str, u8>) -> K3 {
@@ -189,13 +200,7 @@ fn eval_k3(e: &Expr, sigma: &BTreeMap<&str, u8>) -> K3 {
 
 /// A relation — exact over status atoms, Unknown beyond them.
 fn eval_relation(op: RelOp, lhs: &Expr, rhs: &Expr, sigma: &BTreeMap<&str, u8>) -> K3 {
-    // `tasks.x.status == 'lit'` (either operand order)
-    let atom = match (status_ref(lhs), status_ref(rhs)) {
-        (Some(id), None) => Some((id, rhs)),
-        (None, Some(id)) => Some((id, lhs)),
-        _ => None,
-    };
-    let Some((id, other)) = atom else {
+    let Some((id, other)) = status_atom(lhs, rhs) else {
         return K3::Unknown;
     };
     let Some(&assigned) = sigma.get(id) else {
@@ -277,12 +282,7 @@ fn collect_bad_literals(e: &Expr) -> Vec<(String, String)> {
         let Expr::Relation { op, lhs, rhs } = node else {
             return;
         };
-        let atom = match (status_ref(lhs), status_ref(rhs)) {
-            (Some(id), None) => Some((id, rhs.as_ref())),
-            (None, Some(id)) => Some((id, lhs.as_ref())),
-            _ => None,
-        };
-        let Some((id, other)) = atom else {
+        let Some((id, other)) = status_atom(lhs, rhs) else {
             return;
         };
         let mut push = |lit: &str| {

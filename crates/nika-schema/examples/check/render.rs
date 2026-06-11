@@ -38,6 +38,7 @@ pub(crate) fn render(
     schema(&mut out, report, t);
     permits(&mut out, report, wf, t);
     reach(&mut out, report, t);
+    cert(&mut out, report, t);
     hints(&mut out, report, t);
     verdict(&mut out, report, t);
     out
@@ -448,6 +449,51 @@ fn reach(out: &mut String, report: &CheckReport, t: Theme) {
     }
 }
 
+/// The termination + resource certificate (ADR-092 #7) — always holds
+/// (termination is a theorem of the language); the value is the
+/// parametric envelope.
+fn cert(out: &mut String, report: &CheckReport, t: Theme) {
+    let c = &report.certificate;
+    let _ = writeln!(
+        out,
+        " {} {}     {} {} {} {} {} {}",
+        t.ok(t.glyph(Glyph::Ok)),
+        t.bold("CERT"),
+        t.dim("terminates"),
+        t.dim(t.middot()),
+        bound_text(&c.task_attempts, "task-attempts", t),
+        t.dim(t.middot()),
+        bound_text(&c.llm_calls, "LLM calls", t),
+        t.dim(&format!(
+            "{} {}",
+            t.middot(),
+            bound_text(&c.effect_calls, "effect calls", t)
+        ))
+    );
+}
+
+/// Render one bound: `0 LLM calls` exact-zero · `≤ 5 + 2·|fan| …` else
+/// (`*` for the product in ascii — the polynomial survives colour AND
+/// glyph loss).
+fn bound_text(b: &nika_schema::Bound, what: &str, t: Theme) -> String {
+    if b.is_zero() {
+        return t.dim(&format!("0 {what}"));
+    }
+    let mul = if t.unicode_glyphs() { "·" } else { "*" };
+    let mut parts: Vec<String> = Vec::new();
+    if b.constant > 0 || b.terms.is_empty() {
+        parts.push(b.constant.to_string());
+    }
+    for term in &b.terms {
+        if term.coeff == 1 {
+            parts.push(format!("|{}|", term.task));
+        } else {
+            parts.push(format!("{}{mul}|{}|", term.coeff, term.task));
+        }
+    }
+    t.dim(&format!("{} {} {what}", t.leq(), parts.join(" + ")))
+}
+
 fn hints(out: &mut String, report: &CheckReport, t: Theme) {
     for h in &report.hints {
         let _ = writeln!(
@@ -534,6 +580,7 @@ mod tests {
             " ✔ TYPES    every deep output reference fits its declared shape\n",
             " ✔ PERMITS  body fits the declared boundary\n",
             " ✔ REACH    every when: gate is satisfiable\n",
+            " ✔ CERT     terminates · ≤ 2 task-attempts · 0 LLM calls · ≤ 2 effect calls\n",
             "──────────────────────────────────────────────\n",
             " ✔ clean — audited before a single token was spent\n",
         );
@@ -557,6 +604,7 @@ mod tests {
             " ok TYPES    every deep output reference fits its declared shape\n",
             " ok PERMITS  body fits the declared boundary\n",
             " ok REACH    every when: gate is satisfiable\n",
+            " ok CERT     terminates - <= 2 task-attempts - 0 LLM calls - <= 2 effect calls\n",
             "----------------------------------------------\n",
             " ok clean -- audited before a single token was spent\n",
         );

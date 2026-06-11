@@ -27,6 +27,7 @@
 //! only provider-agnostic fields and runs identically on all providers by
 //! construction. `check` is read-only and never executes a verb.
 
+mod certificate;
 mod cost;
 mod flow;
 mod hints;
@@ -41,6 +42,7 @@ mod tools;
 use crate::analyzer::{self, AnalyzedWorkflow};
 use crate::raw::RawWorkflow;
 
+pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use cost::{CostCeiling, TaskCost, UnboundedReason};
 pub use flow::{FlowFacts, TaintTrace};
 pub use hints::Hint;
@@ -120,6 +122,12 @@ pub struct CheckReport {
     pub waves: Vec<Vec<usize>>,
     /// Worst-case cost ceiling across all `infer:`/`agent:` tasks.
     pub cost: CostCeiling,
+    /// The termination + parametric resource certificate (ADR-092 #7 ·
+    /// AARA degree-1) — ALWAYS exists (acyclic + every loop/retry/turn
+    /// capped makes termination a theorem of the language); the bounds
+    /// are degree-1 polynomials in the `for_each` collection sizes.
+    /// Additive: `report_version` stays 1.
+    pub certificate: RunCertificate,
     /// Every `secrets.X` that escapes the masking boundary into an
     /// `exec`/`invoke` effect (directly, via a `with:` alias, or
     /// transitively through a tainted upstream output · IFC · ADR-092).
@@ -211,6 +219,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         report_version: REPORT_VERSION,
         conformance,
         cost: cost::ceiling(wf),
+        certificate: certificate::certify(wf),
         secret_leaks: secrets::scan_leaks(wf, &flow),
         secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes: permits_fit::scan_escapes(wf),

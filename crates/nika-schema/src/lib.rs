@@ -52,9 +52,10 @@ pub mod types;
 // Re-exports for convenience.
 pub use analyzer::{AnalyzedWorkflow, analyze};
 pub use check::{
-    ByteSpan, CapabilityEscape, CheckReport, ConformanceViolation, CostCeiling, GateFinding,
-    GateFindingKind, Hint, InferredPermits, REPORT_VERSION, STATUS_VOCAB, SchemaLintFinding,
-    SchemaTypeFinding, SecretLeak, TaskCost, UnknownTool, check, infer_permits,
+    Bound, ByteSpan, CapabilityEscape, CertTerm, CheckReport, ConformanceViolation, CostCeiling,
+    GateFinding, GateFindingKind, Hint, InferredPermits, REPORT_VERSION, RunCertificate,
+    STATUS_VOCAB, SchemaLintFinding, SchemaTypeFinding, SecretLeak, TaskCost, UnknownTool, check,
+    infer_permits,
 };
 pub use codegen::nika_builtin_tool_enum_schema;
 pub use error::{SchemaError, SpecCategory, SpecCode};
