@@ -207,11 +207,14 @@ pub fn verify_selector_target(
 /// clickjacking decoy classes (`display:none` · zero-size · unrenderable) all
 /// surface as `bbox: None` or a zero dimension in the [`DomNode`] mapping.
 ///
-/// LIMITATION (documented · not yet enforced): this is GEOMETRIC visibility.
-/// An element with `opacity:0`, `visibility:hidden`, or one occluded by an
-/// overlay still has a non-zero box and passes here. Hit-test occlusion
-/// (CDP `DOM.getNodeForLocation` at the click point) is the next hardening
-/// step — tracked for a Guard-5 follow-up, not shipped at B.3.
+/// This is the GEOMETRIC layer — necessary but not sufficient. An element with
+/// `opacity:0`, `visibility:hidden`, or one fully covered by an overlay still
+/// has a non-zero box and passes here. Those are caught by the SEPARATE
+/// OCCLUSION hit-test the `click_selector` path runs (the actionability
+/// "receives events" check · `cdp::verify_click_point_hits_target` over the
+/// protocol-level `DOM.getNodeForLocation` · shipped 2026-06-11). Together:
+/// geometry says "the element has paint area", occlusion says "the click point
+/// actually reaches it".
 #[must_use]
 pub fn is_visible(node: &DomNode) -> bool {
     node.bbox
@@ -527,6 +530,7 @@ impl nika_kernel::io::browser::BrowserAutomationDyn for ChromiumBrowser {
         session: &BrowserSession,
         sel: &str,
     ) -> Result<(), BrowserError> {
+        use chromiumoxide::cdp::browser_protocol::dom::GetNodeForLocationParams;
         let page = self.page(&session.id)?;
         // Guard 5 · PEEK the expectation (clone, do not burn it): a
         // page-induced failure below must leave the pin in place so the
@@ -560,6 +564,31 @@ impl nika_kernel::io::browser::BrowserAutomationDyn for ChromiumBrowser {
         );
         // Guard 5 · the SINGLE pure gate (identity + shape pins, or visibility).
         guard5_gate(&resolved, expectation.as_ref())?;
+        // Guard 5 · OCCLUSION hit-test (the "receives events" actionability
+        // check · Playwright/Puppeteer model). Geometric visibility is not
+        // enough: a transparent overlay can sit on top of a visible button and
+        // steal the click. Hit-test the ACTUAL click point via the protocol
+        // (DOM.getNodeForLocation — never page-side JS the hostile page could
+        // poison) and require the topmost node there to be the target or one of
+        // its descendants. `clickable_point` itself fails closed when the
+        // element has no on-screen content quad.
+        let point = second
+            .clickable_point()
+            .await
+            .map_err(|e| selector_err(&e))?;
+        let mut subtree = std::collections::BTreeSet::new();
+        cdp::collect_backend_ids(&desc, &mut subtree);
+        let hit = page
+            .execute(
+                GetNodeForLocationParams::builder()
+                    .x(cdp::coord_to_i64(point.x))
+                    .y(cdp::coord_to_i64(point.y))
+                    .build()
+                    .map_err(|reason| BrowserError::SelectorFailed { reason })?,
+            )
+            .await
+            .map_err(|e| selector_err(&e))?;
+        cdp::verify_click_point_hits_target(*hit.result.backend_node_id.inner(), &subtree)?;
         second.click().await.map_err(|e| selector_err(&e))?;
         // Click succeeded → NOW consume the expectation (one guard, one click).
         self.consume_click_expectation(&session.id);
@@ -865,6 +894,42 @@ mod tests {
             .await
             .expect_err("tag swap pinned");
         assert_eq!(err.nika_code(), codes::NIKA_1404);
+
+        // Guard-5 OCCLUSION (SOTA actionability · the real clickjack): a
+        // visible <button> fully covered by a transparent overlay. Geometric
+        // visibility passes (the button has a non-zero box), but the hit-test
+        // at its click point lands on the overlay → the click is REFUSED. This
+        // is the attack the bbox check alone cannot see.
+        let page = browser.page(&session.id).expect("live page");
+        page.set_content(
+            "<!doctype html><html><body style='margin:0'>\
+             <button id='real' style='position:absolute;left:0;top:0;width:200px;height:80px'>Pay</button>\
+             <div id='trap' style='position:absolute;left:0;top:0;width:200px;height:80px;\
+             background:transparent'></div>\
+             </body></html>",
+        )
+        .await
+        .expect("set overlay content");
+        let err = browser
+            .click_selector(&session, "#real")
+            .await
+            .expect_err("occluded button must be refused");
+        assert_eq!(err.nika_code(), codes::NIKA_1404, "occlusion fail-closed");
+        assert!(err.to_string().contains("occlusion"), "{err}");
+
+        // Remove the overlay → the same button is now clickable (the guard
+        // refuses ONLY when genuinely occluded, never a false positive).
+        page.set_content(
+            "<!doctype html><html><body style='margin:0'>\
+             <button id='real' style='position:absolute;left:0;top:0;width:200px;height:80px'>Pay</button>\
+             </body></html>",
+        )
+        .await
+        .expect("set clean content");
+        browser
+            .click_selector(&session, "#real")
+            .await
+            .expect("un-occluded button clicks cleanly");
     }
 
     proptest::proptest! {

@@ -117,8 +117,15 @@ burned by a page-induced failure), (2) `cdp::verify_unique_match` (exactly
 one), (3) `cdp::verify_stable_resolve` (same backend node twice), (4) map the
 fresh element to a `DomNode` carrying its live `node_ref`, (5) `guard5_gate`
 — the STRONG node-identity pin (`node_ref`) defeats structural look-alike
-swaps that tag+attribute shape pins alone cannot, (6) dispatch the CDP click,
-(7) consume the expectation only AFTER the click succeeds. The kernel
+swaps that tag+attribute shape pins alone cannot, (6) **OCCLUSION hit-test**
+(`cdp::verify_click_point_hits_target` · the SOTA "receives events"
+actionability check · Playwright/Puppeteer model): hit-test the element's
+actual click point via the protocol-level `DOM.getNodeForLocation` (NOT
+page-side `elementsFromPoint`, which would need JS injection a hostile page
+could poison) and require the topmost node there to be the target or a
+descendant — a transparent overlay intercepting the click fails CLOSED,
+(7) dispatch the CDP click, (8) consume the expectation only AFTER the click
+succeeds. The kernel
 trait signature carries no expectation param — the L1 crate exposes the
 expectation via a `ChromiumBrowser::set_click_expectation` session-scoped
 API (additive, crate-level), and `click_selector` WITHOUT a registered
@@ -197,8 +204,11 @@ Guard 5 is THE mandatory guard (§5b). Additional posture:
   agent. (Per-attribute VALUE size is an unbounded residual · follow-up.)
 - The chromium child is always `kill_on_drop` — no orphan browsers (#11);
   the per-session Handler task is aborted on launch failure + at drop.
-- Guard-5 visibility is GEOMETRIC only — `opacity:0`/`visibility:hidden`/
-  occluded elements pass; hit-test occlusion is a documented follow-up.
+- Guard-5 click safety is TWO-layer: geometric visibility (non-zero box) +
+  OCCLUSION hit-test (the click point must hit-test to the target or a
+  descendant via protocol-level `DOM.getNodeForLocation` · shipped
+  2026-06-11 · the SOTA actionability model · catches transparent-overlay
+  clickjacks the bbox check alone cannot · e2e-verified on real chromium).
 - Headless follows the kernel `BrowserProfile` DTO (its `Default` is
   headful-VISIBLE — the transparency posture, consistent with the Guard-6
   LED-visibility spirit); agent callers opt INTO headless explicitly.

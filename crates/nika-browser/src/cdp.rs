@@ -9,7 +9,7 @@
 //! `navigate`, and the screenshot PNG → RGBA8 [`Frame`] decode. The CDP
 //! residue in `lib.rs` calls these and adds only wire I/O.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use chromiumoxide::cdp::browser_protocol::dom::Node as CdpNode;
 use nika_kernel::io::browser::{BrowserError, DomNode};
@@ -19,6 +19,69 @@ use crate::{MAX_DOM_DEPTH, MAX_DOM_NODES};
 
 /// CDP `nodeType` for element nodes (DOM spec: `ELEMENT_NODE == 1`).
 const ELEMENT_NODE: i64 = 1;
+
+/// Guard 5 occlusion check (PURE · headless-testable · mutation-killed) · the
+/// node hit-tested at the element's click point MUST be the target itself or
+/// one of its descendants — never an unrelated overlay.
+///
+/// This is the "receives events" half of the actionability model (Playwright /
+/// Puppeteer): an element obscured at its click point is NOT safe to click,
+/// even when its own geometry is visible. The hostile case it closes: a
+/// transparent `position:fixed` overlay (or `opacity:0` sibling stacked on
+/// top) that intercepts the click while the legit button reads as visible —
+/// the classic clickjack the geometric-bbox check alone cannot see.
+///
+/// A descendant hit is legitimate: clicking a button's child `<span>`/text node
+/// dispatches to the button. `subtree` is the target's backend-node id PLUS
+/// every descendant's (built from the CDP describe-node tree); a hit inside it
+/// is the target, a hit outside it is an interceptor.
+///
+/// # Errors
+/// [`BrowserError::SelectorFailed`] (NIKA-1404) when the click point is
+/// occluded (hit ∉ subtree) — fail CLOSED, never click through an overlay.
+pub(crate) fn verify_click_point_hits_target(
+    hit: i64,
+    subtree: &BTreeSet<i64>,
+) -> Result<(), BrowserError> {
+    if subtree.contains(&hit) {
+        Ok(())
+    } else {
+        Err(BrowserError::SelectorFailed {
+            reason: "guard-5 occlusion: the click point hit-tests to a DIFFERENT element \
+                     (an overlay intercepts the click — the target is obscured)"
+                .to_owned(),
+        })
+    }
+}
+
+/// Collect the backend-node id of a CDP node + EVERY descendant into `out` —
+/// the target subtree for the occlusion check (pure · depth-bounded by the
+/// describe-node `depth` the caller requested). Includes non-element nodes
+/// (text) on purpose: a hit-test at a button's center returns the button's
+/// child text node, which is a legitimate same-target hit.
+pub(crate) fn collect_backend_ids(node: &CdpNode, out: &mut BTreeSet<i64>) {
+    out.insert(*node.backend_node_id.inner());
+    for child in node.children.as_deref().unwrap_or_default() {
+        collect_backend_ids(child, out);
+    }
+}
+
+/// Round a CDP viewport coordinate (f64 CSS px) to the integer the hit-test
+/// query takes — pure. Non-finite / out-of-range clamps to 0 (a degenerate
+/// point hit-tests to nothing → occlusion fails closed, the safe direction).
+#[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "f64→i64 at the CDP boundary · clamped to the i64 domain first · \
+              viewport coordinates never exceed ±2^53 px"
+)]
+pub(crate) fn coord_to_i64(v: f64) -> i64 {
+    if v.is_finite() {
+        v.round().clamp(f64::from(i32::MIN), f64::from(i32::MAX)) as i64
+    } else {
+        0
+    }
+}
 
 /// Guard 5 structural check 1 (PURE) · a clickable selector must resolve to
 /// EXACTLY ONE element. Zero = nothing to click; ≥2 = ambiguous (the agent
@@ -248,6 +311,7 @@ pub(crate) fn bbox_to_rect(x: f64, y: f64, width: f64, height: f64) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_kernel::prelude::{NikaErrorCode, codes};
 
     /// Build a CDP `Node` from JSON — version-proof (the codegen struct has
     /// 40+ fields that churn per protocol revision; `Deserialize` is its
@@ -449,5 +513,61 @@ mod tests {
         assert_eq!(backend_ref(i64::MAX), Some(i64::MAX as u64));
         assert_eq!(backend_ref(0), None, "zero = no identity");
         assert_eq!(backend_ref(-7), None, "negative = no identity");
+    }
+
+    // ─── Guard 5 occlusion (SOTA actionability hit-test · 2026-06-11) ────────
+
+    #[test]
+    fn occlusion_accepts_target_and_descendants_rejects_overlay() {
+        let mut subtree = BTreeSet::new();
+        subtree.insert(10); // the target button
+        subtree.insert(11); // a child span
+        subtree.insert(12); // a grandchild text node
+        // Hit lands on the target itself → OK.
+        assert!(verify_click_point_hits_target(10, &subtree).is_ok());
+        // Hit lands on a descendant (child span / text) → OK (same target).
+        assert!(verify_click_point_hits_target(11, &subtree).is_ok());
+        assert!(verify_click_point_hits_target(12, &subtree).is_ok());
+        // Hit lands on an UNRELATED node (the overlay) → occluded, fail closed.
+        let err =
+            verify_click_point_hits_target(99, &subtree).expect_err("overlay must be refused");
+        assert_eq!(err.nika_code(), codes::NIKA_1404);
+        assert!(err.to_string().contains("occlusion"), "{err}");
+        // Empty subtree (degenerate) → nothing can match → fail closed.
+        assert!(verify_click_point_hits_target(10, &BTreeSet::new()).is_err());
+    }
+
+    #[test]
+    fn collect_backend_ids_walks_the_whole_subtree() {
+        // button(10) > span(11) > #text(12), plus a sibling text(13).
+        let text = cdp_node(3, "#text", None, None);
+        let mut grandchild = cdp_node(3, "#text", None, None);
+        grandchild.backend_node_id =
+            chromiumoxide::cdp::browser_protocol::dom::BackendNodeId::new(12_i64);
+        let mut span = cdp_node(1, "span", None, Some(vec![grandchild]));
+        span.backend_node_id =
+            chromiumoxide::cdp::browser_protocol::dom::BackendNodeId::new(11_i64);
+        let mut sibling = text;
+        sibling.backend_node_id =
+            chromiumoxide::cdp::browser_protocol::dom::BackendNodeId::new(13_i64);
+        let mut button = cdp_node(1, "button", None, Some(vec![span, sibling]));
+        button.backend_node_id =
+            chromiumoxide::cdp::browser_protocol::dom::BackendNodeId::new(10_i64);
+        let mut out = BTreeSet::new();
+        collect_backend_ids(&button, &mut out);
+        assert_eq!(
+            out,
+            [10, 11, 12, 13].into_iter().collect::<BTreeSet<i64>>(),
+            "every descendant id collected (elements + text)"
+        );
+    }
+
+    #[test]
+    fn coord_rounding_clamps_non_finite_to_zero() {
+        assert_eq!(coord_to_i64(10.4), 10);
+        assert_eq!(coord_to_i64(10.6), 11);
+        assert_eq!(coord_to_i64(-3.2), -3);
+        assert_eq!(coord_to_i64(f64::NAN), 0, "NaN → 0 (hit-tests to nothing)");
+        assert_eq!(coord_to_i64(f64::INFINITY), 0, "inf → 0");
     }
 }
