@@ -22,3 +22,4 @@ CodegenError	nika-catalog-codegen	build-time-tool	build.rs codegen error · neve
 AuditSinkError	nika-kernel-core	deferred-with-trigger	Observability range 800-819 reserved for the v0.100 OTel adapter · code allocated when the first L2 retry consumer lands (audit table)
 ExprError	nika-schema	wrapped-intermediate	internal CEL-subset parser error · wrapped into SchemaError before crossing the crate boundary · the wrapper carries the code (audit table §50)
 GoDurationError	nika-schema	wrapped-intermediate	internal Go-duration parse error · wrapped into SchemaError before crossing the crate boundary · the wrapper carries the code (audit table §50)
+InferLocalError	nika-infer-local	deferred-with-trigger	WIP sidecar crate (ADR-091) pre-gate-pass · Pattern A NikaErrorCode impl lands at its 12-gate admission · push-train unblock 2026-06-11
