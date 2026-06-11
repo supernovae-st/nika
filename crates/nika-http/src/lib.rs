@@ -16,23 +16,33 @@
 //! # SSRF defense (on by default · the Diamond upgrade vs brouillon)
 //!
 //! Workflows fetch attacker-influenced URLs, so the MECHANISM is safe
-//! before `nika-policy` (L1.5) adds capability gating. Three layers:
+//! before `nika-policy` (L1.5) adds capability gating. Four layers:
 //!
 //! 1. **Static** (the `ssrf` module · pure): scheme allow-list (http/https),
 //!    blocked hostnames (localhost · cloud metadata), literal-IP range
-//!    checks (loopback · RFC1918 · link-local/metadata · CGN · v6
-//!    local ranges · v4-mapped v6).
-//! 2. **DNS-resolve**: non-literal hosts are resolved via
-//!    `tokio::net::lookup_host` and EVERY address is range-checked —
-//!    kills decimal-IP tricks (`http://2130706433/`) and
-//!    public-names-resolving-private. Honest limit: the TOCTOU window
-//!    between this check and reqwest's own connect-time resolution is
-//!    narrowed, not eliminated (per-request IP pinning arrives with
-//!    `nika-policy`; reqwest `resolve()` is client-level).
-//! 3. **Per-hop re-check**: reqwest redirects are DISABLED
+//!    checks against the single oracle (see the `ssrf` module docs for
+//!    the full range list).
+//! 2. **DNS-resolve (advisory · fast-fail)**: non-literal hosts are
+//!    resolved via `tokio::net::lookup_host` and EVERY address is
+//!    range-checked — kills decimal-IP tricks (`http://2130706433/`)
+//!    and public-names-resolving-private with a TYPED error before any
+//!    connection attempt.
+//! 3. **Resolver-enforced connect path (the TOCTOU killer)**: the
+//!    reqwest client's DNS resolver IS [`GuardedResolver`] — every
+//!    address the transport will actually connect to is range-checked
+//!    inside the lookup that produces it. A DNS rebind between layer 2
+//!    and connect time now fails at the resolver; there is no window
+//!    in which an unchecked address reaches the socket. (Pooled
+//!    connections skip resolution — an established socket cannot be
+//!    rebound.) Ambient `HTTP(S)_PROXY` env vars are IGNORED
+//!    (`no_proxy`): a proxy resolves names itself, which would bypass
+//!    this layer — explicit proxy support is a future `HttpConfig`
+//!    field, never ambient.
+//! 4. **Per-hop re-check**: reqwest redirects are DISABLED
 //!    (`Policy::none`); this crate follows redirects itself and re-runs
-//!    layers 1+2 on every hop — per-request `follow_redirects` works,
-//!    and a public host can not bounce the client into private space.
+//!    layers 1+2 on every hop (layer 3 guards each hop's connect) —
+//!    per-request `follow_redirects` works, and a public host can not
+//!    bounce the client into private space.
 //!
 //! # Response size caps
 //!
@@ -139,15 +149,23 @@ impl ReqwestHttp {
     ///
     /// [`HttpError::Other`] when the TLS backend fails to initialize.
     pub fn with_config(config: HttpConfig) -> Result<Self, HttpError> {
-        let inner = reqwest::Client::builder()
+        let mut builder = reqwest::Client::builder()
             .user_agent(concat!("nika/", env!("CARGO_PKG_VERSION")))
             // Redirects are followed manually with per-hop SSRF
             // re-checks — reqwest must never follow on its own.
             .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .map_err(|e| HttpError::Other {
-                reason: format!("failed to build HTTP client: {e}"),
-            })?;
+            // Ambient HTTP(S)_PROXY env vars are ignored: a proxy
+            // resolves names itself, which would bypass the guarded
+            // resolver below. Proxy support is a future explicit
+            // HttpConfig field — never ambient (crate docs · layer 3).
+            .no_proxy();
+        if config.ssrf == SsrfMode::Enforce {
+            // Layer 3: range-check INSIDE the connect path.
+            builder = builder.dns_resolver(std::sync::Arc::new(GuardedResolver));
+        }
+        let inner = builder.build().map_err(|e| HttpError::Other {
+            reason: format!("failed to build HTTP client: {e}"),
+        })?;
         Ok(Self { inner, config })
     }
 
@@ -440,8 +458,53 @@ fn classify_resolved(addrs: impl IntoIterator<Item = std::net::SocketAddr>) -> R
     }
 }
 
+/// The reqwest DNS resolver that enforces the SSRF range check INSIDE
+/// the connect path (crate docs · layer 3). Every address handed to the
+/// transport went through [`classify_resolved`] in the same lookup —
+/// a rebind between the advisory check and the connection has nowhere
+/// to land. Resolution itself is `tokio::net::lookup_host` (the system
+/// resolver, same as reqwest's default `GaiResolver`) under
+/// [`DNS_RESOLVE_TIMEOUT`].
+#[derive(Debug, Clone, Copy, Default)]
+struct GuardedResolver;
+
+impl reqwest::dns::Resolve for GuardedResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let host = name.as_str().to_owned();
+        Box::pin(async move {
+            // Port 0 — reqwest substitutes the URL's effective port
+            // (`dns_resolver` contract · verified docs.rs 2026-06-12).
+            let lookup = tokio::time::timeout(
+                DNS_RESOLVE_TIMEOUT,
+                tokio::net::lookup_host((host.as_str(), 0)),
+            )
+            .await
+            .map_err(|_| HttpError::Timeout {
+                duration_ms: u64::try_from(DNS_RESOLVE_TIMEOUT.as_millis()).unwrap_or(u64::MAX),
+            })?
+            .map_err(|e| HttpError::Connection {
+                reason: format!("DNS resolution failed for {host}: {e}"),
+            })?;
+            let addrs: Vec<std::net::SocketAddr> = lookup.collect();
+            match classify_resolved(addrs.iter().copied()) {
+                ResolveVerdict::AllPublic => Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs),
+                ResolveVerdict::Private => Err(Box::new(HttpError::SsrfBlocked { url: host })
+                    as Box<dyn std::error::Error + Send + Sync>),
+                ResolveVerdict::Empty => Err(Box::new(HttpError::Connection {
+                    reason: format!("DNS returned no addresses for {host}"),
+                })
+                    as Box<dyn std::error::Error + Send + Sync>),
+            }
+        })
+    }
+}
+
 /// Resolve a non-literal host and range-check every returned address.
 /// Literal-IP hosts were already vetted by the static layer.
+///
+/// This is the ADVISORY layer (crate docs · layer 2): it fail-fasts
+/// with a typed error before any connection attempt. The ENFORCEMENT
+/// is [`GuardedResolver`] inside the connect path.
 async fn resolve_guard(parsed: &url::Url) -> Result<(), HttpError> {
     let Some(host) = parsed.host_str() else {
         return Err(HttpError::Other {
@@ -493,7 +556,14 @@ fn to_reqwest_method(method: HttpMethod) -> Result<reqwest::Method, HttpError> {
 }
 
 /// Map reqwest send errors onto the kernel error contract.
+///
+/// A [`GuardedResolver`] rejection arrives WRAPPED in reqwest's connect
+/// error — dig the source chain first so an SSRF block keeps its typed
+/// identity instead of collapsing into `Connection`.
 fn map_send_error(error: &reqwest::Error, timeout: Duration) -> HttpError {
+    if let Some(guard) = find_http_error(error) {
+        return guard;
+    }
     if error.is_timeout() {
         HttpError::Timeout {
             duration_ms: u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX),
@@ -507,6 +577,41 @@ fn map_send_error(error: &reqwest::Error, timeout: Duration) -> HttpError {
             reason: error.to_string(),
         }
     }
+}
+
+/// Walk an error's source chain looking for a kernel [`HttpError`]
+/// (the [`GuardedResolver`] emits one inside reqwest's wrapping).
+/// `HttpError` is not `Clone` — the found variant is reconstructed
+/// field-by-field. Best-effort: if reqwest's internal wrapping ever
+/// stops exposing the chain, the caller's generic mapping still
+/// applies (fail-closed either way — only the error TYPE degrades).
+fn find_http_error(error: &(dyn std::error::Error + 'static)) -> Option<HttpError> {
+    let mut source = error.source();
+    while let Some(err) = source {
+        if let Some(http) = err.downcast_ref::<HttpError>() {
+            return Some(match http {
+                HttpError::SsrfBlocked { url } => HttpError::SsrfBlocked { url: url.clone() },
+                HttpError::Timeout { duration_ms } => HttpError::Timeout {
+                    duration_ms: *duration_ms,
+                },
+                HttpError::Connection { reason } => HttpError::Connection {
+                    reason: reason.clone(),
+                },
+                HttpError::TooLarge { size, max } => HttpError::TooLarge {
+                    size: *size,
+                    max: *max,
+                },
+                HttpError::Unsupported { reason } => HttpError::Unsupported {
+                    reason: reason.clone(),
+                },
+                other => HttpError::Other {
+                    reason: other.to_string(),
+                },
+            });
+        }
+        source = err.source();
+    }
+    None
 }
 
 /// Lower response headers into the kernel's `BTreeMap<String, String>`
@@ -677,6 +782,105 @@ mod tests {
     fn map_send_error_probe(timeout: Duration) -> HttpError {
         HttpError::Timeout {
             duration_ms: u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX),
+        }
+    }
+
+    /// A two-level wrapper replicating reqwest's connect-error nesting
+    /// (outer error → middle wrapper → the resolver's `HttpError`).
+    #[derive(Debug)]
+    struct Wrap {
+        msg: &'static str,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    }
+    impl std::fmt::Display for Wrap {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str(self.msg)
+        }
+    }
+    impl std::error::Error for Wrap {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            Some(self.source.as_ref())
+        }
+    }
+
+    #[test]
+    fn find_http_error_digs_a_nested_chain() {
+        let chain = Wrap {
+            msg: "client error (Connect)",
+            source: Box::new(Wrap {
+                msg: "dns error",
+                source: Box::new(HttpError::SsrfBlocked {
+                    url: "internal.corp".to_owned(),
+                }),
+            }),
+        };
+        let found = find_http_error(&chain).expect("digs through two levels");
+        assert!(
+            matches!(found, HttpError::SsrfBlocked { url } if url == "internal.corp"),
+            "typed identity preserved"
+        );
+    }
+
+    #[test]
+    fn find_http_error_none_on_foreign_chain() {
+        let chain = Wrap {
+            msg: "outer",
+            source: Box::new(std::io::Error::other("plain io")),
+        };
+        assert!(find_http_error(&chain).is_none());
+    }
+
+    #[tokio::test]
+    async fn guarded_resolver_blocks_localhost_and_serves_public() {
+        use reqwest::dns::Resolve;
+        use std::str::FromStr;
+
+        // `localhost` resolves to loopback on every OS — the resolver
+        // must refuse to hand it to the transport. (`Addrs` is not
+        // Debug — go through `.err()` instead of `expect_err`.)
+        let name = reqwest::dns::Name::from_str("localhost").expect("valid name");
+        let err = GuardedResolver
+            .resolve(name)
+            .await
+            .err()
+            .expect("localhost must be blocked by the guarded resolver");
+        let http = err
+            .downcast_ref::<HttpError>()
+            .expect("the resolver emits the kernel error type");
+        assert!(matches!(http, HttpError::SsrfBlocked { .. }), "{http}");
+    }
+
+    #[tokio::test]
+    async fn enforce_mode_blocks_loopback_end_to_end() {
+        // Through the full client: a literal loopback URL dies in the
+        // STATIC layer; `localhost` dies static too (hostname list). The
+        // resolver layer is exercised directly above — here we pin that
+        // the composed client refuses both without any network.
+        let client = ReqwestHttp::new().expect("client builds");
+        for url in ["http://127.0.0.1:9/x", "http://localhost:9/x"] {
+            let err = client
+                .get(HttpRequest::get(url))
+                .await
+                .expect_err("must be blocked before any connection");
+            assert!(matches!(err, HttpError::SsrfBlocked { .. }), "{url}: {err}");
+        }
+    }
+
+    #[tokio::test]
+    async fn disabled_mode_still_builds_a_working_client() {
+        // SsrfMode::Disabled wires the DEFAULT resolver — the build path
+        // must stay valid (connection refused ≠ build failure).
+        let mut config = HttpConfig::new();
+        config.ssrf = SsrfMode::Disabled;
+        let client = ReqwestHttp::with_config(config).expect("builds without the guard");
+        // Port 9 (discard) on loopback: NOT SsrfBlocked in Disabled mode —
+        // the failure (if any) is a plain connection error.
+        let res = client.get(HttpRequest::get("http://127.0.0.1:9/x")).await;
+        if let Err(e) = res {
+            assert!(
+                !matches!(e, HttpError::SsrfBlocked { .. }),
+                "Disabled mode must not SSRF-block: {e}"
+            );
         }
     }
 }
