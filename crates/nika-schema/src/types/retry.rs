@@ -92,23 +92,33 @@ impl RetryConfig {
     }
 }
 
-/// Validate a `retry.on_codes` entry against the canonical error-code
-/// regex (spec `05-errors.md` §namespaces) ·
-/// `^NIKA-[A-Z]{2,9}(-[A-Z]{2,9})?-[0-9]{3}$`.
+/// Validate a `retry.on_codes` / `on_error.on_codes` entry against the
+/// canonical error-code regex (spec `05-errors.md` §namespaces) ·
+/// `^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$`.
 ///
-/// Hand-rolled (no regex dep in L0) · segments split on `-` ·
-/// `NIKA` · 1-2 uppercase namespace segments of 2-9 letters · 3 digits.
+/// Hand-rolled (no regex dep in L0) · segments split on `-` · `NIKA` ·
+/// a primary namespace of 2-9 uppercase letters · an optional
+/// sub-namespace (a leading letter then 1-15 of `[A-Z0-9_]` — the
+/// underscore admits underscore-named builtins ·
+/// `NIKA-BUILTIN-JSON_MERGE_PATCH-001`) · exactly 3 digits.
 #[must_use]
 pub fn is_valid_error_code(code: &str) -> bool {
     let segments: Vec<&str> = code.split('-').collect();
-    let (ns_segments, digits) = match segments.as_slice() {
-        ["NIKA", ns, digits] => (vec![*ns], *digits),
-        ["NIKA", ns1, ns2, digits] => (vec![*ns1, *ns2], *digits),
+    let (ns, sub, digits) = match segments.as_slice() {
+        ["NIKA", ns, digits] => (*ns, None, *digits),
+        ["NIKA", ns, sub, digits] => (*ns, Some(*sub), *digits),
         _ => return false,
     };
-    for ns in ns_segments {
-        let len = ns.len();
-        if !(2..=9).contains(&len) || !ns.chars().all(|c| c.is_ascii_uppercase()) {
+    if !(2..=9).contains(&ns.len()) || !ns.chars().all(|c| c.is_ascii_uppercase()) {
+        return false;
+    }
+    if let Some(sub) = sub {
+        let mut chars = sub.chars();
+        let first_is_letter = chars.next().is_some_and(|c| c.is_ascii_uppercase());
+        if !first_is_letter
+            || !(2..=16).contains(&sub.len())
+            || !chars.all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+        {
             return false;
         }
     }
@@ -128,6 +138,18 @@ mod tests {
         assert_eq!(r.backoff_max_ms, 60_000);
         assert!(r.jitter, "jitter defaults true · anti-thundering-herd");
         assert!(r.on_codes.is_empty());
+    }
+
+    #[test]
+    fn backoff_strategy_display_round_trips() {
+        // pins the Display impl (a mutant replaced fmt with Ok(()) unseen)
+        for (v, txt) in [
+            (BackoffStrategy::Fixed, "fixed"),
+            (BackoffStrategy::Linear, "linear"),
+            (BackoffStrategy::Exponential, "exponential"),
+        ] {
+            assert_eq!(v.to_string(), txt);
+        }
     }
 
     #[test]
@@ -153,6 +175,11 @@ mod tests {
         assert!(is_valid_error_code("NIKA-DAG-001"));
         assert!(is_valid_error_code("NIKA-BUILTIN-FETCH-001"));
         assert!(is_valid_error_code("NIKA-PARSE-WHEN-001"));
+        // underscore sub-namespaces (spec 05 · underscore-named builtins)
+        assert!(is_valid_error_code("NIKA-BUILTIN-JSON_MERGE_PATCH-001"));
+        assert!(is_valid_error_code("NIKA-BUILTIN-JSON_DIFF-001"));
+        // digits inside a sub-namespace (leading char stays a letter)
+        assert!(is_valid_error_code("NIKA-BUILTIN-BASE64-001"));
     }
 
     #[test]
@@ -166,5 +193,11 @@ mod tests {
         assert!(!is_valid_error_code("OLY-DAG-001")); // wrong prefix
         assert!(!is_valid_error_code("NIKA-A-B-C-001")); // 3 sub-namespaces
         assert!(!is_valid_error_code("503")); // HTTP status · not a code
+        // underscore rules · sub-namespace ONLY · never the primary ·
+        // never leading · ≤16 chars total
+        assert!(!is_valid_error_code("NIKA-BUIL_TIN-001")); // _ in primary ns
+        assert!(!is_valid_error_code("NIKA-BUILTIN-_MERGE-001")); // leading _
+        assert!(!is_valid_error_code("NIKA-BUILTIN-1MERGE-001")); // leading digit
+        assert!(!is_valid_error_code("NIKA-BUILTIN-JSON_MERGE_PATCHX2-001")); // sub 17 > 16
     }
 }

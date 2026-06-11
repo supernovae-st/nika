@@ -5,13 +5,19 @@
 //!
 //! Per spec `01-envelope.md` §secrets · « A secret is always a **reference
 //! to a store** — never an inline literal. » The `source` field is a closed
-//! enum (« the only three v0.1 values ») ·
+//! enum, and the entry shape is **discriminated by it** (spec 01 ·
+//! `vault`/`env` require `key:` · `file` requires `path:`) ·
 //!
-//! | `source` | `key` means |
-//! |---|---|
-//! | `vault` (default) | path in the local `nika-vault` |
-//! | `env` | name of an OS environment variable |
-//! | `file` | path to a file holding the value |
+//! | `source` | YAML field | the reference means |
+//! |---|---|---|
+//! | `vault` (default) | `key:` | path in the local `nika-vault` |
+//! | `env` | `key:` | name of an OS environment variable |
+//! | `file` | `path:` | path to a file holding the value |
+//!
+//! The model stores the reference uniformly in [`SecretRef::key`] — the
+//! parser owns the field-name discrimination (a `file` entry written
+//! with `key:`, or a `vault`/`env` entry written with `path:`, is a
+//! parse error).
 
 use std::fmt;
 

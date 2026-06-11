@@ -10,7 +10,7 @@
 //!
 //! `is_boolean_shaped` is the static `when:` gate (spec `03-dag.md`
 //! §when · « an engine MAY additionally reject statically-non-boolean-
-//! shaped roots » · we DO · `NIKA-PARSE-WHEN-001`).
+//! shaped roots » · we DO · the spec NIKA-VAR-005 class).
 
 use super::ast::{Expr, Literal, NamespaceRef};
 

@@ -19,8 +19,9 @@ use super::{Cx, value::node_to_json};
 /// Keys of the typed `vars:` form (spec 01 §vars).
 const TYPED_VAR_KEYS: &[&str] = &["type", "required", "default", "description"];
 
-/// Keys of a `secrets:` entry (spec 01 §secrets).
-const SECRET_KEYS: &[&str] = &["source", "key"];
+/// Keys of a `secrets:` entry (spec 01 §secrets · `key` XOR `path` ·
+/// discriminated by `source`).
+const SECRET_KEYS: &[&str] = &["source", "key", "path"];
 
 /// Keys of the typed `outputs:` form (spec 01 §outputs).
 const TYPED_OUTPUT_KEYS: &[&str] = &["value", "type", "description"];
@@ -131,10 +132,13 @@ pub(super) fn parse_env(
     parse_string_map(cx, node, "env")
 }
 
-/// Parse `secrets:` — each entry MUST be a `{ source, key }` reference.
+/// Parse `secrets:` — each entry MUST be a reference to a store,
+/// **discriminated by `source`** · `vault`/`env` require `key:` ·
+/// `file` requires `path:` (spec 01 §secrets).
 ///
-/// Spec 01 §secrets · « A secret is always a **reference to a store** —
-/// never an inline literal. » A scalar value is therefore a parse error.
+/// « A secret is always a **reference to a store** — never an inline
+/// literal. » A scalar value is therefore a parse error, and so is the
+/// wrong field for the source (`file` + `key:` · `vault` + `path:`).
 pub(super) fn parse_secrets(
     cx: &Cx<'_>,
     workflow: &MarkedMappingNode,
@@ -181,17 +185,37 @@ pub(super) fn parse_secrets(
             }
         };
 
-        let key_scalar = entry
-            .get_scalar("key")
+        // The reference field is discriminated by `source` (spec 01) ·
+        // vault/env read `key:` · file reads `path:` · the OTHER field
+        // present is a shape error (never silently accepted).
+        let (want, reject) = match source {
+            SecretSource::File => ("path", "key"),
+            SecretSource::Vault | SecretSource::Env => ("key", "path"),
+        };
+        if entry.get_node(reject).is_some() {
+            return Err(SchemaError::BadSecretRef {
+                reason: format!(
+                    "secret `{}` with `source: {source}` takes `{want}:`, not `{reject}:` \
+                     (spec 01 §secrets · the shape is discriminated by source)",
+                    name.value
+                ),
+                span: cx.span(entry.span()),
+            });
+        }
+        let reference = entry
+            .get_scalar(want)
             .ok_or_else(|| SchemaError::BadSecretRef {
-                reason: format!("secret `{}` is missing its `key`", name.value),
+                reason: format!(
+                    "secret `{}` with `source: {source}` is missing its `{want}:`",
+                    name.value
+                ),
                 span: cx.span(entry.span()),
             })?;
 
         let span = cx.span_or_zero(entry.span());
         out.push((
             name,
-            Spanned::new(SecretRef::new(source, key_scalar.as_str()), span),
+            Spanned::new(SecretRef::new(source, reference.as_str()), span),
         ));
     }
     Ok(out)
@@ -435,6 +459,50 @@ secrets:
 ";
         let err = parse_strict(yaml).expect_err("unknown source");
         assert!(matches!(err, SchemaError::BadSecretRef { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn secrets_file_source_takes_path() {
+        // Spec 01 §secrets · the shape is discriminated by source ·
+        // `file` requires `path:` (k8s/Docker mounted secrets).
+        let yaml = "\
+secrets:
+  signing_pem:
+    source: file
+    path: ~/.keys/signing.pem
+";
+        let wf = parse_strict(yaml).expect("parse");
+        assert_eq!(wf.secrets[0].1.value.source, SecretSource::File);
+        assert_eq!(wf.secrets[0].1.value.key, "~/.keys/signing.pem");
+    }
+
+    #[test]
+    fn secrets_wrong_field_for_source_errors() {
+        // `file` + `key:` and `vault` + `path:` are both shape errors —
+        // the wrong field is never silently accepted.
+        let file_with_key = "\
+secrets:
+  pem:
+    source: file
+    key: ~/.keys/signing.pem
+";
+        let err = parse_strict(file_with_key).expect_err("file takes path");
+        assert!(
+            matches!(&err, SchemaError::BadSecretRef { reason, .. } if reason.contains("`path:`")),
+            "{err:?}"
+        );
+
+        let vault_with_path = "\
+secrets:
+  api_key:
+    source: vault
+    path: prod/key
+";
+        let err = parse_strict(vault_with_path).expect_err("vault takes key");
+        assert!(
+            matches!(&err, SchemaError::BadSecretRef { reason, .. } if reason.contains("`key:`")),
+            "{err:?}"
+        );
     }
 
     #[test]

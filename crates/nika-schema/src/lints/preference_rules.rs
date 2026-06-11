@@ -20,7 +20,7 @@ use serde_json::{Value, json};
 use crate::expression::{Expr, Literal, NamespaceRef, RelOp, expr_refs, scan_templates};
 use crate::raw::{RawAction, RawTask, RawWorkflow};
 use crate::source::Span;
-use crate::types::OnError;
+use crate::types::OnErrorAction;
 
 /// One advisory finding from a lint pass.
 ///
@@ -97,7 +97,8 @@ pub fn one_obvious_way(wf: &RawWorkflow) -> Vec<Lint> {
 /// (the analyzer owns those errors · lints stay silent).
 fn when_expr(task: &RawTask) -> Option<Expr> {
     let w = task.when.as_ref()?;
-    let islands = scan_templates(&w.value).ok()?;
+    let src = w.value.as_expr()?; // boolean literals carry no expression
+    let islands = scan_templates(src).ok()?;
     let mut it = islands.into_iter();
     let island = it.next()?;
     if it.next().is_some() {
@@ -311,8 +312,8 @@ fn rule_001_redundant_success_when(
         // Skip-able dependency → the status check is NOT redundant.
         let dep_skippable = index.get(dep).is_some_and(|&i| {
             matches!(
-                tasks[i].on_error.as_ref().map(|o| &o.value),
-                Some(OnError::Skip)
+                tasks[i].on_error.as_ref().map(|o| &o.value.action),
+                Some(OnErrorAction::Skip)
             )
         });
         if dep_skippable {
@@ -338,8 +339,8 @@ fn rule_001_redundant_success_when(
 fn rule_002_skip_for_dependents(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
     for task in tasks {
         if !matches!(
-            task.on_error.as_ref().map(|o| &o.value),
-            Some(OnError::Skip)
+            task.on_error.as_ref().map(|o| &o.value.action),
+            Some(OnErrorAction::Skip)
         ) {
             continue;
         }
