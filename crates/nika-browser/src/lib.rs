@@ -20,18 +20,21 @@
 //! DIFFERENT element (the web equivalent of clickjacking). The guard is a
 //! verify-before-click contract with a PURE core:
 //!
-//! - [`SelectorExpectation`] — what the agent believes the selector targets
-//!   (tag + attribute pins), captured at decision time from the SAME snapshot
-//!   the agent reasoned over.
-//! - [`verify_selector_target`] — pure · headless-testable · mutation-killed:
-//!   the freshly-resolved element must match the expectation's tag, every
-//!   pinned attribute, and be VISIBLE (non-zero bbox). Any mismatch returns
+//! - [`SelectorExpectation`] — what the agent believes the selector targets,
+//!   captured at decision time from the SAME snapshot the agent reasoned
+//!   over. The STRONG pin is `node_ref` (the snapshot's backend-stable node
+//!   identity — a hostile look-alike element cannot reproduce it); tag +
+//!   attribute pins are the weak shape layer (defense-in-depth).
+//! - [`verify_selector_target`] / [`guard5_gate`] — pure · headless-testable
+//!   · mutation-killed: node identity, tag, every pinned attribute, and
+//!   VISIBILITY (non-zero bbox) must all hold. Any mismatch returns
 //!   [`BrowserError::SelectorFailed`] (NIKA-1404) — fail CLOSED, never click
 //!   a guess.
-//! - The B.3 `click_selector` path re-resolves `sel` FRESH via CDP, maps the
-//!   element to a [`DomNode`], runs the pure verify, and only then dispatches
-//!   the CDP click. Without a registered expectation the STRUCTURAL checks
-//!   still apply (exactly-one match · visible · stable double-resolve).
+//! - The click path PEEKS the expectation (a page-induced failure never
+//!   burns it — no retry downgrade), re-resolves `sel` FRESH, runs the pure
+//!   structural gates (exactly-one match · stable double-resolve) + the pin
+//!   gate, dispatches the CDP click, and consumes the expectation only AFTER
+//!   the click succeeds (one expectation guards one click).
 //!
 //! # Untrusted-input posture
 //!
@@ -948,6 +951,34 @@ mod tests {
                 .expect_err("unstable")
                 .nika_code(),
             codes::NIKA_1404
+        );
+    }
+
+    #[test]
+    fn consume_click_expectation_removes_exactly_the_session_entry() {
+        // Pins the consume half of the peek/consume split (kills the
+        // `with ()` mutant): after consume, the entry is gone — and ONLY
+        // that session's entry.
+        let browser = ChromiumBrowser::new().expect("construct");
+        let s1 = BrowserSession::new("s-1".to_owned(), None);
+        let s2 = BrowserSession::new("s-2".to_owned(), None);
+        let exp = SelectorExpectation::new("button".to_owned(), BTreeMap::new());
+        browser.set_click_expectation(&s1, exp.clone()).expect("s1");
+        browser.set_click_expectation(&s2, exp).expect("s2");
+        browser.consume_click_expectation("s-1");
+        assert!(
+            browser
+                .peek_click_expectation("s-1")
+                .expect("lock")
+                .is_none(),
+            "consumed entry must be gone"
+        );
+        assert!(
+            browser
+                .peek_click_expectation("s-2")
+                .expect("lock")
+                .is_some(),
+            "other sessions untouched"
         );
     }
 
