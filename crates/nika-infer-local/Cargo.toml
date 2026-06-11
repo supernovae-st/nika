@@ -11,9 +11,10 @@ homepage.workspace     = true
 publish                = false  # Internal L1.5 service crate.
 
 [dependencies]
-serde      = { workspace = true }   # OpenAI-compat protocol types (the wire contract).
-serde_json = { workspace = true }   # request/response (de)serialization.
-thiserror  = { workspace = true }   # internal typed errors.
+serde         = { workspace = true }   # OpenAI-compat protocol types (the wire contract).
+serde_json    = { workspace = true }   # request/response (de)serialization.
+thiserror     = { workspace = true }   # internal typed errors.
+trait-variant = { workspace = true }   # BackendDyn: Send companion (workspace async-trait convention).
 
 # candle is DELIBERATELY absent from the default build (ADR-091 · feature-gated
 # off · keeps the lean core's dep tree + Cargo.lock untouched). The candle

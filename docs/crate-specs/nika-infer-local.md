@@ -70,6 +70,16 @@ compile feature, not a rewrite.
 - **Context cap** — error (`ContextOverflow`) when the rendered prompt exceeds
   the model window.
 
+## 4bis. Known v1 limitations (documented, not hidden)
+
+- **No tool-calling**: `FinishReason` carries `Stop`/`Length` only. The engine's
+  `OpenAiCompat` parser also maps the `"tool_calls"` literal — a local model
+  that tool-calls would surface as `StopReason::Unknown("tool_calls")`. The
+  variant is added WHEN the candle backend emits tool calls (no dead enum
+  variants before then · review S4).
+- **Sequential requests**: one in-flight generation per sidecar process (v1
+  queue) — high-throughput fan-out stays on the `vllm/`/`llamacpp/` providers.
+
 ## 5. Isolation (ADR-091)
 
 The backend runs in a **supervised child process** (spawn / health-check /

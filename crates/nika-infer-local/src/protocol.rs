@@ -83,6 +83,26 @@ pub struct ChatRequest {
     pub stream: bool,
 }
 
+impl ChatRequest {
+    /// Construct a request with the required fields; sampling knobs start
+    /// unset (backend defaults) and are plain `pub` — set them directly.
+    /// (INV-019: every `#[non_exhaustive]` struct ships a constructor —
+    /// without one, external consumers cannot build a request at all.)
+    #[must_use]
+    pub fn new(model: impl Into<String>, messages: Vec<Message>) -> Self {
+        Self {
+            model: model.into(),
+            messages,
+            temperature: None,
+            top_p: None,
+            max_tokens: None,
+            stop: Vec::new(),
+            seed: None,
+            stream: false,
+        }
+    }
+}
+
 /// Why a generation stopped. Maps to the `OpenAI` `finish_reason`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -106,8 +126,22 @@ pub struct Usage {
     pub total_tokens: u32,
 }
 
+impl Usage {
+    /// Construct from the two counted parts; the total is derived — it can
+    /// never disagree with the sum (INV-019 constructor).
+    #[must_use]
+    pub fn new(prompt_tokens: u32, completion_tokens: u32) -> Self {
+        Self {
+            prompt_tokens,
+            completion_tokens,
+            total_tokens: prompt_tokens + completion_tokens,
+        }
+    }
+}
+
 /// One completion choice.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Choice {
     /// Position in the `choices` array (always 0 for single-completion).
     pub index: u32,

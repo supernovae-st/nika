@@ -50,10 +50,16 @@ impl StopController {
 
     /// When a stop string matched, trim it (and anything after) off the output
     /// so the caller never sees the stop marker itself — the `OpenAI` contract.
+    ///
+    /// Uses `rfind` (LAST occurrence) to match the `ends_with` direction of
+    /// [`Self::hit_stop_string`] — detection fires on the TRAILING marker, so
+    /// the trim must cut there too, not at an earlier one in the body (cutting
+    /// the first `STOP` in `"say STOP then STOP"` would discard far more than
+    /// intended).
     #[must_use]
     pub fn trim_stop<'t>(&self, text: &'t str) -> &'t str {
         for s in &self.stop_strings {
-            if let Some(idx) = text.find(s.as_str()) {
+            if let Some(idx) = text.rfind(s.as_str()) {
                 return &text[..idx];
             }
         }
@@ -97,5 +103,14 @@ mod tests {
         let s = StopController::new([], &["END".to_owned()]);
         assert_eq!(s.trim_stop("hello END garbage"), "hello ");
         assert_eq!(s.trim_stop("no marker here"), "no marker here");
+    }
+
+    #[test]
+    fn trim_stop_cuts_the_trailing_marker_not_an_earlier_one() {
+        // Regression (review S3): trim must match the ends_with direction of
+        // detection — the LAST occurrence, not the first. Cutting the first
+        // would silently discard the middle of legitimate output.
+        let s = StopController::new([], &["STOP".to_owned()]);
+        assert_eq!(s.trim_stop("say STOP then STOP"), "say STOP then ");
     }
 }

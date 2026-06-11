@@ -57,6 +57,12 @@ impl Default for SamplingConfig {
 
 impl SamplingConfig {
     /// Resolve a request's sampling knobs into a plan, applying the defaults.
+    ///
+    /// Penalty fields (`repeat_penalty` / `repeat_last_n`) are NOT in the
+    /// `OpenAI` request subset — they always take the defaults here and are
+    /// configured per-family by the backend. If a request knob is ever added
+    /// for them, wire it EXPLICITLY (the `..default()` spread below would
+    /// silently mask it).
     #[must_use]
     pub fn from_request(req: &ChatRequest) -> Self {
         Self {

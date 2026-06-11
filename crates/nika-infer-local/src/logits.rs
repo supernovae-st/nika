@@ -36,14 +36,20 @@ pub fn apply_min_p(probs: &mut [f32], p_base: f32) -> usize {
     if probs.is_empty() {
         return 0;
     }
+    // ALWAYS zero NaN first — a surviving NaN poisons the downstream weighted
+    // draw (undefined index). This runs on every path, including the early
+    // returns below, so a NaN can never reach the sampler regardless of p_base.
+    for p in probs.iter_mut() {
+        if p.is_nan() {
+            *p = 0.0;
+        }
+    }
     if p_base <= 0.0 {
         return probs.iter().filter(|p| **p > 0.0).count();
     }
-    // f32::max returns the non-NaN operand when one side is NaN, so a NaN
-    // entry cannot poison the maximum.
     let max = probs.iter().copied().fold(f32::NEG_INFINITY, f32::max);
     if !max.is_finite() || max <= 0.0 {
-        // Degenerate distribution (all zero / NaN) — nothing meaningful to
+        // Degenerate distribution (all zero) — nothing meaningful to
         // truncate; leave untouched and report what is there.
         return probs.iter().filter(|p| **p > 0.0).count();
     }
@@ -68,9 +74,9 @@ pub fn apply_min_p(probs: &mut [f32], p_base: f32) -> usize {
 /// `utils::apply_repeat_penalty`, reimplemented here so the crate's
 /// algorithms live in one candle-free place).
 ///
-/// `penalty == 1.0` (or ≤ 0, which would be nonsensical) is a no-op.
-/// Out-of-range ids in `recent` are ignored (defensive — a corrupt
-/// context can never index out of bounds).
+/// `penalty <= 1.0` is a no-op (1.0 = off; a sub-1 value would AMPLIFY
+/// repeats, never wanted). Out-of-range ids in `recent` are ignored
+/// (defensive — a corrupt context can never index out of bounds).
 pub fn apply_repeat_penalty(logits: &mut [f32], penalty: f32, recent: &[u32]) {
     // `penalty <= 1.0` is a no-op: 1.0 = off, and a value below 1 would
     // AMPLIFY repeats (never wanted) — so anything ≤1 (incl. ≤0) does nothing.

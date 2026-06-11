@@ -54,7 +54,7 @@ mod sampling;
 mod stop;
 mod template;
 
-pub use backend::{Backend, GenerationChunk, MockBackend};
+pub use backend::{Backend, BackendDyn, GenerationChunk, MockBackend};
 pub use error::InferLocalError;
 pub use logits::{apply_min_p, apply_repeat_penalty, apply_token_mask};
 pub use sampling::{DEFAULT_REPEAT_LAST_N, DEFAULT_SEED, SamplingConfig};
