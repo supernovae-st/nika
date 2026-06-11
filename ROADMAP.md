@@ -180,7 +180,7 @@ The **4-verb invariant (`infer · exec · invoke · agent`)** is locked through 
 | `v0.81.*` | L0 foundation **complete** (all 9-10 L0 crates admitted)        |
 | `v0.82.*` | L1 phase 1a **complete** — primitives (fs/process/http-client/keys-env) |
 | `v0.83.*` | L1 phase 1b — deps-étage-1 (git/keys-keychain/catalog-sync)     |
-| `v0.84.*` | L1 phase 1c — providers (rig + openai-compat + mock)            |
+| `v0.84.*` | L1 phase 1c — providers ✅ **shipped early at v0.80.x** (`nika-providers` s8.5/s8.6 · announce ladder D-2026-06-10-N6) |
 | `v0.85.*` | L1 phase 1d — pck backend (registry + store)                    |
 | `v0.86.*` | L1 phase 1e — memory foundation (embed/store/autodesc/hnsw/bm25/rrf) |
 | `v0.87.*` | L1 phase 1f — memory advanced (temporal/fsrs/rdfs/graph-algos)  |
@@ -244,8 +244,12 @@ Sub-phased per Q2 (topological × user-value):
   process/shell effect · supersedes the planned `nika-process`), `nika-http` ✅
   (shipped name of `nika-http-client`), `nika-blob` ✅, `nika-keys-env`
 - **1b deps-étage-1**: `nika-git` (gix), `nika-keys-keychain`, `nika-catalog-sync`
-- **1c providers**: `nika-provider-rig` (7 cloud + 7 OpenAI-compat),
-  `nika-provider-native` (mistral.rs GGUF, feature-gated), `nika-provider-mock`
+- **1c providers** ✅ SHIPPED 2026-06-11 as **`nika-providers`** (ONE L1.5
+  crate · 14/14 canonical providers over 3 wire formats: anthropic ·
+  openai-compat ×12 · gemini · in-crate mock — rig NOT carried, Diamond
+  talks wire directly through the kernel http seam per D-2026-05-22-N17).
+  The native in-process backend ships separately as `nika-infer-local`
+  (candle sidecar · ADR-091 · supersedes the `nika-provider-native` name)
 - **1d pck backend**: `nika-pck-registry`, `nika-pck-store`
 - **1e memory foundation** (Connectome climb · pro names per nika-invariants —
   `nika-bm25` ✅ ADMITTED proves the canon): `nika-embed` (own quantized local
@@ -417,10 +421,13 @@ checks. GitHub Actions daily cron for drift detection. Multi-distribution
 support: `Distribution::{Npm,Pypi,Oci,Remote,Binary,Mcpb}` aligned with
 official MCP Registry schema (`packages[]` + `remotes[]`).
 
-**Providers**: 25 shipped (+4 Tier 1 additions from provider audit). Split across 3 crates:
-- `nika-provider-rig` — 7 cloud + 7 OpenAI-compat
-- `nika-provider-native` — GGUF via mistral.rs (feature-gated)
-- `nika-provider-mock` — deterministic tests
+**Providers** ✅ SHIPPED 2026-06-11 as **`nika-providers`** (one L1.5 crate ·
+the catalog carries 32 provider rows as metadata · the v0.1 stdlib contract
+wires the canonical 14 over 3 wire formats — anthropic · openai-compat ×12 ·
+gemini · in-crate mock · rig NOT carried). The native in-process backend is
+`nika-infer-local` (candle sidecar · ADR-091). The 3-crate
+`nika-provider-{rig,native,mock}` split below is the superseded April plan,
+kept for the Tier-1 catalog additions it scoped:
 
 **Tier 1 additions** (high-priority providers):
 - `moonshot` — Kimi K2 (1M+ context, top-tier open-weight)
