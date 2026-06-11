@@ -3344,6 +3344,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-verb-agent"
+version = "0.80.0"
+dependencies = [
+ "jsonschema",
+ "miette",
+ "nika-error",
+ "nika-kernel",
+ "nika-kernel-mock",
+ "nika-verb-invoke",
+ "proptest",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "nika-verb-exec"
 version = "0.80.0"
 dependencies = [

@@ -27,7 +27,8 @@
 //!   `nika_error::codes` (registry-owned · M2 pattern) · `VerbInferError`
 //!   430-439 (s9 `nika-verb-infer` · `NIKA_430..433`) · `VerbExecError`
 //!   440-449 (s10 `nika-verb-exec` · `NIKA_440..442`) · `VerbInvokeError`
-//!   450-459 (s11 `nika-verb-invoke` · `NIKA_450..452`)
+//!   450-459 (s11 `nika-verb-invoke` · `NIKA_450..452`) · `VerbAgentError`
+//!   460-469 (s12 `nika-verb-agent` · `NIKA_460..466` · the 4th verb)
 //! - 380–429: Shield (`ShieldError`) — RESERVED, per `nika/SECURITY.md`
 //!   6-layer defense stack. `NIKA-380` `CapabilityDenied` · `NIKA-381`
 //!   `TrustViolation` · `NIKA-382` `CanaryLeaked` · `NIKA-383`

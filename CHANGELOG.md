@@ -18,6 +18,48 @@ tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 
 ## [Unreleased]
 
+### 🤖 Announce ladder s12 · nika-verb-agent L2 admission (ADMITTED · 12-gate closed · 2026-06-11)
+
+- **`nika-verb-agent` crate** · the `agent` verb executor — the multi-turn
+  ReAct loop (model → whitelisted tool dispatch → results fed back → repeat)
+  per `nika-spec spec/02-verbs.md §agent`. The **4th and last verb**
+  (`D-2026-05-22-N18` · the verb count is 4, absolute). Generic over three
+  injected kernel seams: `ProviderInferDyn` (inference) · `ToolExecuteDyn`
+  via `InvokeVerb` (dispatch) · `ToolDefinitionProviderDyn` (the tool-def
+  source). Zero runtime tokio dep — every turn rides the injected providers.
+- **The ToolDefinitionProvider seam** (`nika-kernel-ai`) · resolves the s12
+  §8 blocker found 2026-06-11: the agent hands the model its whitelisted
+  tools as `ToolDef`s, but only tool NAMES were in hand — nothing enumerated
+  definitions. A new kernel trait (the `ToolExecute` pattern · `Dyn` twin ·
+  `ToolDefsError` → NIKA-234) + `MockToolDefinitionProvider`. The wiring
+  layer implements it over the builtin catalog + (later) live MCP
+  `tools/list`.
+- **Loop semantics (normative · spec §2)** · terminal-1 (no tool calls →
+  `Completed`) and terminal-2 (`nika:done` → `ExplicitCompletion`, with the
+  `result:` arg or the last assistant message) BOTH precede the budget gate
+  — a concluded answer is a success even if its turn crossed the budget.
+  Budgets FAIL (max_turns → NIKA-460 · max_tokens_total → NIKA-461, `>=`
+  exhaustion, checked before spending more) with `partial_output` preserved.
+- **Security (spec §3 · default-deny)** · the whole tool batch is whitelist-
+  validated BEFORE any dispatch (a denied sibling fails the turn with zero
+  side effects · NIKA-462 immediate, not fed back). `nika:done` is loop-owned
+  (never dispatched · wins over batch-mates). Model-emitted names are length-
+  capped + control-char-rejected, and the violation error carries a REDACTED
+  name (NIKA-450 log-injection parity). Source-supplied tool defs are
+  sanitized before reaching the model.
+- **The glob whitelist** · gitignore semantics canonically (a spec
+  portability invariant): `*` bounded by `/` and `:`, `**` crosses them,
+  `!` negation, last-match-wins. Matched by an O(n·m) DP (correct under
+  interleaved `*`/`**`) + a totality proptest on the model-controlled input.
+- **Structured output** · the final message validates against the task
+  `schema:` (NIKA-464) with `infer.schema:` parity — bare-parse then a
+  string-aware balanced-span extraction (tolerates fences + prose).
+- **3-lens review swarm** (spn-nika + rust-pro + feature-dev) · all findings
+  folded same session: the budget-before-completion bug, the batch-validate
+  security ordering, the `**`/`*` glob backtrack gap, log-injection
+  redaction, saturating token math, INV-019 `AgentOutput::new()`, the
+  max_turns ceiling. NIKA_460..466 registered · hub 460-469 row · API-locked.
+
 ### 📡 Telemetry vocabulary closes over the display contract (nika-event · additive)
 
 - **6 new `EventKind`s** · `task_retrying` · `task_cancelled` ·

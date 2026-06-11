@@ -1,0 +1,303 @@
+pub mod nika_verb_agent
+pub mod nika_verb_agent::errors
+#[non_exhaustive] pub enum nika_verb_agent::errors::VerbAgentError
+pub nika_verb_agent::errors::VerbAgentError::Inference
+pub nika_verb_agent::errors::VerbAgentError::Inference::source: nika_kernel_ai::provider::ProviderError
+pub nika_verb_agent::errors::VerbAgentError::InvalidParam
+pub nika_verb_agent::errors::VerbAgentError::InvalidParam::detail: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::InvalidParam::param: &'static str
+pub nika_verb_agent::errors::VerbAgentError::MaxTokens
+pub nika_verb_agent::errors::VerbAgentError::MaxTokens::partial_output: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::MaxTokens::total_tokens: u64
+pub nika_verb_agent::errors::VerbAgentError::MaxTurns
+pub nika_verb_agent::errors::VerbAgentError::MaxTurns::partial_output: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::MaxTurns::turns: u32
+pub nika_verb_agent::errors::VerbAgentError::SchemaValidation
+pub nika_verb_agent::errors::VerbAgentError::SchemaValidation::detail: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::ToolDefs
+pub nika_verb_agent::errors::VerbAgentError::ToolDefs::source: nika_kernel_ai::tool_defs::ToolDefsError
+pub nika_verb_agent::errors::VerbAgentError::WhitelistViolation
+pub nika_verb_agent::errors::VerbAgentError::WhitelistViolation::tool: alloc::string::String
+impl core::error::Error for nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::code(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::is_transient(&self) -> bool
+pub fn nika_verb_agent::errors::VerbAgentError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_verb_agent::errors::VerbAgentError
+impl<T, U> core::convert::Into<U> for nika_verb_agent::errors::VerbAgentError where U: core::convert::From<T>
+pub fn nika_verb_agent::errors::VerbAgentError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::errors::VerbAgentError where U: core::convert::Into<T>
+pub type nika_verb_agent::errors::VerbAgentError::Error = core::convert::Infallible
+pub fn nika_verb_agent::errors::VerbAgentError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::errors::VerbAgentError where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::errors::VerbAgentError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::errors::VerbAgentError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_verb_agent::errors::VerbAgentError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_verb_agent::errors::VerbAgentError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_verb_agent::errors::VerbAgentError where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::errors::VerbAgentError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::errors::VerbAgentError where T: ?core::marker::Sized
+pub fn nika_verb_agent::errors::VerbAgentError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::errors::VerbAgentError where T: ?core::marker::Sized
+pub fn nika_verb_agent::errors::VerbAgentError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::errors::VerbAgentError where T: 'static
+pub fn nika_verb_agent::errors::VerbAgentError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub mod nika_verb_agent::whitelist
+pub struct nika_verb_agent::whitelist::Whitelist
+impl nika_verb_agent::whitelist::Whitelist
+pub fn nika_verb_agent::whitelist::Whitelist::admits(&self, tool: &str) -> bool
+pub fn nika_verb_agent::whitelist::Whitelist::is_empty(&self) -> bool
+pub fn nika_verb_agent::whitelist::Whitelist::new(patterns: &[alloc::string::String]) -> Self
+impl core::clone::Clone for nika_verb_agent::whitelist::Whitelist
+pub fn nika_verb_agent::whitelist::Whitelist::clone(&self) -> nika_verb_agent::whitelist::Whitelist
+impl core::fmt::Debug for nika_verb_agent::whitelist::Whitelist
+pub fn nika_verb_agent::whitelist::Whitelist::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_agent::whitelist::Whitelist
+impl<T, U> core::convert::Into<U> for nika_verb_agent::whitelist::Whitelist where U: core::convert::From<T>
+pub fn nika_verb_agent::whitelist::Whitelist::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::whitelist::Whitelist where U: core::convert::Into<T>
+pub type nika_verb_agent::whitelist::Whitelist::Error = core::convert::Infallible
+pub fn nika_verb_agent::whitelist::Whitelist::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::whitelist::Whitelist where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::whitelist::Whitelist::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::whitelist::Whitelist::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::whitelist::Whitelist where T: core::clone::Clone
+pub type nika_verb_agent::whitelist::Whitelist::Owned = T
+pub fn nika_verb_agent::whitelist::Whitelist::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::whitelist::Whitelist::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::whitelist::Whitelist where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::whitelist::Whitelist::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::whitelist::Whitelist where T: ?core::marker::Sized
+pub fn nika_verb_agent::whitelist::Whitelist::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::whitelist::Whitelist where T: ?core::marker::Sized
+pub fn nika_verb_agent::whitelist::Whitelist::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::whitelist::Whitelist where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::whitelist::Whitelist::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::whitelist::Whitelist
+pub fn nika_verb_agent::whitelist::Whitelist::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::whitelist::Whitelist where T: 'static
+pub fn nika_verb_agent::whitelist::Whitelist::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_verb_agent::AgentValue
+pub nika_verb_agent::AgentValue::Structured(serde_json::value::Value)
+pub nika_verb_agent::AgentValue::Text(alloc::string::String)
+impl core::clone::Clone for nika_verb_agent::AgentValue
+pub fn nika_verb_agent::AgentValue::clone(&self) -> nika_verb_agent::AgentValue
+impl core::cmp::PartialEq for nika_verb_agent::AgentValue
+pub fn nika_verb_agent::AgentValue::eq(&self, other: &nika_verb_agent::AgentValue) -> bool
+impl core::fmt::Debug for nika_verb_agent::AgentValue
+pub fn nika_verb_agent::AgentValue::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_verb_agent::AgentValue
+impl<D> owo_colors::OwoColorize for nika_verb_agent::AgentValue
+impl<T, U> core::convert::Into<U> for nika_verb_agent::AgentValue where U: core::convert::From<T>
+pub fn nika_verb_agent::AgentValue::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::AgentValue where U: core::convert::Into<T>
+pub type nika_verb_agent::AgentValue::Error = core::convert::Infallible
+pub fn nika_verb_agent::AgentValue::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::AgentValue where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::AgentValue::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::AgentValue::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::AgentValue where T: core::clone::Clone
+pub type nika_verb_agent::AgentValue::Owned = T
+pub fn nika_verb_agent::AgentValue::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::AgentValue::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::AgentValue where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::AgentValue::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::AgentValue where T: ?core::marker::Sized
+pub fn nika_verb_agent::AgentValue::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::AgentValue where T: ?core::marker::Sized
+pub fn nika_verb_agent::AgentValue::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::AgentValue where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::AgentValue::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::AgentValue
+pub fn nika_verb_agent::AgentValue::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::AgentValue where T: 'static
+pub fn nika_verb_agent::AgentValue::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_verb_agent::VerbAgentError
+pub nika_verb_agent::VerbAgentError::Inference
+pub nika_verb_agent::VerbAgentError::Inference::source: nika_kernel_ai::provider::ProviderError
+pub nika_verb_agent::VerbAgentError::InvalidParam
+pub nika_verb_agent::VerbAgentError::InvalidParam::detail: alloc::string::String
+pub nika_verb_agent::VerbAgentError::InvalidParam::param: &'static str
+pub nika_verb_agent::VerbAgentError::MaxTokens
+pub nika_verb_agent::VerbAgentError::MaxTokens::partial_output: alloc::string::String
+pub nika_verb_agent::VerbAgentError::MaxTokens::total_tokens: u64
+pub nika_verb_agent::VerbAgentError::MaxTurns
+pub nika_verb_agent::VerbAgentError::MaxTurns::partial_output: alloc::string::String
+pub nika_verb_agent::VerbAgentError::MaxTurns::turns: u32
+pub nika_verb_agent::VerbAgentError::SchemaValidation
+pub nika_verb_agent::VerbAgentError::SchemaValidation::detail: alloc::string::String
+pub nika_verb_agent::VerbAgentError::ToolDefs
+pub nika_verb_agent::VerbAgentError::ToolDefs::source: nika_kernel_ai::tool_defs::ToolDefsError
+pub nika_verb_agent::VerbAgentError::WhitelistViolation
+pub nika_verb_agent::VerbAgentError::WhitelistViolation::tool: alloc::string::String
+impl core::error::Error for nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::code(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::is_transient(&self) -> bool
+pub fn nika_verb_agent::errors::VerbAgentError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_verb_agent::errors::VerbAgentError
+impl<T, U> core::convert::Into<U> for nika_verb_agent::errors::VerbAgentError where U: core::convert::From<T>
+pub fn nika_verb_agent::errors::VerbAgentError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::errors::VerbAgentError where U: core::convert::Into<T>
+pub type nika_verb_agent::errors::VerbAgentError::Error = core::convert::Infallible
+pub fn nika_verb_agent::errors::VerbAgentError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::errors::VerbAgentError where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::errors::VerbAgentError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::errors::VerbAgentError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_verb_agent::errors::VerbAgentError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_verb_agent::errors::VerbAgentError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_verb_agent::errors::VerbAgentError where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::errors::VerbAgentError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::errors::VerbAgentError where T: ?core::marker::Sized
+pub fn nika_verb_agent::errors::VerbAgentError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::errors::VerbAgentError where T: ?core::marker::Sized
+pub fn nika_verb_agent::errors::VerbAgentError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::errors::VerbAgentError where T: 'static
+pub fn nika_verb_agent::errors::VerbAgentError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_verb_agent::AgentInput
+pub nika_verb_agent::AgentInput::max_tokens_total: core::option::Option<u64>
+pub nika_verb_agent::AgentInput::max_turns: core::option::Option<u32>
+pub nika_verb_agent::AgentInput::model: core::option::Option<alloc::string::String>
+pub nika_verb_agent::AgentInput::prompt: alloc::string::String
+pub nika_verb_agent::AgentInput::schema: core::option::Option<serde_json::value::Value>
+pub nika_verb_agent::AgentInput::system: core::option::Option<alloc::string::String>
+pub nika_verb_agent::AgentInput::temperature: core::option::Option<f32>
+pub nika_verb_agent::AgentInput::tools: alloc::vec::Vec<alloc::string::String>
+impl nika_verb_agent::AgentInput
+pub fn nika_verb_agent::AgentInput::new(prompt: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_verb_agent::AgentInput
+pub fn nika_verb_agent::AgentInput::clone(&self) -> nika_verb_agent::AgentInput
+impl core::fmt::Debug for nika_verb_agent::AgentInput
+pub fn nika_verb_agent::AgentInput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_agent::AgentInput
+impl<T, U> core::convert::Into<U> for nika_verb_agent::AgentInput where U: core::convert::From<T>
+pub fn nika_verb_agent::AgentInput::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::AgentInput where U: core::convert::Into<T>
+pub type nika_verb_agent::AgentInput::Error = core::convert::Infallible
+pub fn nika_verb_agent::AgentInput::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::AgentInput where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::AgentInput::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::AgentInput::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::AgentInput where T: core::clone::Clone
+pub type nika_verb_agent::AgentInput::Owned = T
+pub fn nika_verb_agent::AgentInput::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::AgentInput::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::AgentInput where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::AgentInput::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::AgentInput where T: ?core::marker::Sized
+pub fn nika_verb_agent::AgentInput::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::AgentInput where T: ?core::marker::Sized
+pub fn nika_verb_agent::AgentInput::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::AgentInput where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::AgentInput::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::AgentInput
+pub fn nika_verb_agent::AgentInput::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::AgentInput where T: 'static
+pub fn nika_verb_agent::AgentInput::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_verb_agent::AgentOutput
+pub nika_verb_agent::AgentOutput::output: nika_verb_agent::AgentValue
+pub nika_verb_agent::AgentOutput::stop_reason: nika_kernel_runtime::agent::AgentStopReason
+pub nika_verb_agent::AgentOutput::total_tokens: u64
+pub nika_verb_agent::AgentOutput::turns: u32
+impl nika_verb_agent::AgentOutput
+pub fn nika_verb_agent::AgentOutput::new(output: nika_verb_agent::AgentValue, stop_reason: nika_kernel_runtime::agent::AgentStopReason, turns: u32, total_tokens: u64) -> Self
+impl core::fmt::Debug for nika_verb_agent::AgentOutput
+pub fn nika_verb_agent::AgentOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_agent::AgentOutput
+impl<T, U> core::convert::Into<U> for nika_verb_agent::AgentOutput where U: core::convert::From<T>
+pub fn nika_verb_agent::AgentOutput::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::AgentOutput where U: core::convert::Into<T>
+pub type nika_verb_agent::AgentOutput::Error = core::convert::Infallible
+pub fn nika_verb_agent::AgentOutput::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::AgentOutput where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::AgentOutput::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::AgentOutput::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_verb_agent::AgentOutput where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::AgentOutput::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::AgentOutput where T: ?core::marker::Sized
+pub fn nika_verb_agent::AgentOutput::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::AgentOutput where T: ?core::marker::Sized
+pub fn nika_verb_agent::AgentOutput::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_verb_agent::AgentOutput
+pub fn nika_verb_agent::AgentOutput::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::AgentOutput where T: 'static
+pub fn nika_verb_agent::AgentOutput::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_verb_agent::AgentVerb<P, T, D>
+impl<P, T, D> nika_verb_agent::AgentVerb<P, T, D> where P: nika_kernel_ai::provider::ProviderInferDyn, T: nika_kernel_runtime::tool_executor::ToolExecuteDyn, D: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn
+pub async fn nika_verb_agent::AgentVerb<P, T, D>::run(&self, input: nika_verb_agent::AgentInput) -> core::result::Result<nika_verb_agent::AgentOutput, nika_verb_agent::errors::VerbAgentError>
+impl<P, T, D> nika_verb_agent::AgentVerb<P, T, D>
+pub fn nika_verb_agent::AgentVerb<P, T, D>::new(provider: alloc::sync::Arc<P>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, tool_defs: alloc::sync::Arc<D>, default_model: impl core::convert::Into<alloc::string::String>) -> Self
+impl<P: core::fmt::Debug, T: core::fmt::Debug, D: core::fmt::Debug> core::fmt::Debug for nika_verb_agent::AgentVerb<P, T, D>
+pub fn nika_verb_agent::AgentVerb<P, T, D>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_agent::AgentVerb<P, T, D>
+impl<T, U> core::convert::Into<U> for nika_verb_agent::AgentVerb<P, T, D> where U: core::convert::From<T>
+pub fn nika_verb_agent::AgentVerb<P, T, D>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::AgentVerb<P, T, D> where U: core::convert::Into<T>
+pub type nika_verb_agent::AgentVerb<P, T, D>::Error = core::convert::Infallible
+pub fn nika_verb_agent::AgentVerb<P, T, D>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::AgentVerb<P, T, D> where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::AgentVerb<P, T, D>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::AgentVerb<P, T, D>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_verb_agent::AgentVerb<P, T, D> where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::AgentVerb<P, T, D>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::AgentVerb<P, T, D> where T: ?core::marker::Sized
+pub fn nika_verb_agent::AgentVerb<P, T, D>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::AgentVerb<P, T, D> where T: ?core::marker::Sized
+pub fn nika_verb_agent::AgentVerb<P, T, D>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_verb_agent::AgentVerb<P, T, D>
+pub fn nika_verb_agent::AgentVerb<P, T, D>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::AgentVerb<P, T, D> where T: 'static
+pub fn nika_verb_agent::AgentVerb<P, T, D>::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_verb_agent::Whitelist
+impl nika_verb_agent::whitelist::Whitelist
+pub fn nika_verb_agent::whitelist::Whitelist::admits(&self, tool: &str) -> bool
+pub fn nika_verb_agent::whitelist::Whitelist::is_empty(&self) -> bool
+pub fn nika_verb_agent::whitelist::Whitelist::new(patterns: &[alloc::string::String]) -> Self
+impl core::clone::Clone for nika_verb_agent::whitelist::Whitelist
+pub fn nika_verb_agent::whitelist::Whitelist::clone(&self) -> nika_verb_agent::whitelist::Whitelist
+impl core::fmt::Debug for nika_verb_agent::whitelist::Whitelist
+pub fn nika_verb_agent::whitelist::Whitelist::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_agent::whitelist::Whitelist
+impl<T, U> core::convert::Into<U> for nika_verb_agent::whitelist::Whitelist where U: core::convert::From<T>
+pub fn nika_verb_agent::whitelist::Whitelist::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::whitelist::Whitelist where U: core::convert::Into<T>
+pub type nika_verb_agent::whitelist::Whitelist::Error = core::convert::Infallible
+pub fn nika_verb_agent::whitelist::Whitelist::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::whitelist::Whitelist where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::whitelist::Whitelist::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::whitelist::Whitelist::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::whitelist::Whitelist where T: core::clone::Clone
+pub type nika_verb_agent::whitelist::Whitelist::Owned = T
+pub fn nika_verb_agent::whitelist::Whitelist::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::whitelist::Whitelist::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::whitelist::Whitelist where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::whitelist::Whitelist::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::whitelist::Whitelist where T: ?core::marker::Sized
+pub fn nika_verb_agent::whitelist::Whitelist::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::whitelist::Whitelist where T: ?core::marker::Sized
+pub fn nika_verb_agent::whitelist::Whitelist::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::whitelist::Whitelist where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::whitelist::Whitelist::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::whitelist::Whitelist
+pub fn nika_verb_agent::whitelist::Whitelist::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::whitelist::Whitelist where T: 'static
+pub fn nika_verb_agent::whitelist::Whitelist::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_verb_agent::DEFAULT_MAX_TURNS: u32
+pub const nika_verb_agent::DONE_TOOL: &str
+pub const nika_verb_agent::MAX_TURNS_CEILING: u32

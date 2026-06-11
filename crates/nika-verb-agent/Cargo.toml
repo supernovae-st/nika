@@ -1,0 +1,36 @@
+[package]
+name          = "nika-verb-agent"
+description   = "The `agent` verb executor (L2) — the multi-turn ReAct loop: infer → whitelisted tool dispatch → feed-back, until completion or a budget. The 4th and last verb (D-2026-05-22-N18). Spec: docs/crate-specs/nika-verb-agent.md."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L2 verb crate (the binary ships, the lib doesn't).
+
+[dependencies]
+nika-kernel      = { path = "../nika-kernel", version = "0.80.0" }       # ai::provider seam · ai::tool_defs seam · runtime agent DTOs
+nika-error       = { path = "../nika-error", version = "0.80.0" }        # NIKA_460..466 registry constants
+nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.80.0" }  # tool dispatch (same-layer L2 · spec §0.5)
+jsonschema       = { workspace = true }                                   # final-message `schema:` validation (NIKA_464)
+serde_json       = { workspace = true }
+thiserror        = { workspace = true }
+miette           = { workspace = true }
+
+[dev-dependencies]
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.80.0" }  # MockProvider · MockToolExecutor · MockToolDefinitionProvider
+proptest         = { workspace = true }
+tokio            = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "navigatrice"
+archetype     = "kodama-navigatrice"
+spirit_role   = "la boucle qui pense puis agit · chaque tour négocie avec le budget · la whitelist est la côte qu'elle ne franchit jamais"
+voice_pattern = "spoken"
+layer         = "L2"
+err_prefix    = "NIKA-46x"
+
+[lints]
+workspace = true

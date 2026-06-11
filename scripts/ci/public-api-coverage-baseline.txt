@@ -64,3 +64,4 @@ nika-providers
 nika-verb-exec
 nika-verb-infer
 nika-verb-invoke
+nika-verb-agent
