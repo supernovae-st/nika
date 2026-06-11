@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Phase 1 — Step 3 (companion to nika-kernel) |
+| Status | **ADMITTED 2026-04-13** (`ef8804371`) · companion test-double crate to `nika-kernel` |
 | Layer | L0.5 (pure-memory test doubles, zero I/O, zero network) |
 | Design | Hand-written mocks with builder pattern + call recording |
 | LOC budget | <=2,000 src (target ~1,600, alarm at 2,000) |

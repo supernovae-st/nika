@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **L1 admission target** (Phase-B slice step 6 · announce ladder per D-2026-06-10-N6 cascade) |
+| Status | **ADMITTED 2026-06-10** (`e91adcef2`) · was **L1 admission target** (Phase-B slice step 6 · announce ladder per D-2026-06-10-N6 cascade) |
 | Layer | L1 — effect crate · the only production site touching the blob filesystem |
 | Design | `DiskBlobStore` impl of the L0.5 `nika_kernel::blob::BlobStore` trait via the `BlobStoreDyn` (`Send`) companion · blake3 CAS |
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · live count · `scripts/crate-metrics.sh nika-blob` |

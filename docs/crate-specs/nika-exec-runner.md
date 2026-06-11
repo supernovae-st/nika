@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **L1 admission target** (Phase-B slice step 7 · announce floor `exec` · per D-2026-06-10-N6) |
+| Status | **ADMITTED 2026-06-10** (`7ba7b51d8`) · was **L1 admission target** (Phase-B slice step 7 · announce floor `exec` · per D-2026-06-10-N6) |
 | Layer | L1 — effect crate · the only production site spawning subprocesses (`tokio::process`) |
 | Design | `TokioShell` impl of the L0.5 `nika_kernel::process` traits (`ShellRun` + `ShellCancel`) via the `*Dyn` (`Send`) companions · SECURITY-SENSITIVE (command blocklist + injection defense) |
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · live count · `scripts/crate-metrics.sh nika-exec-runner` |

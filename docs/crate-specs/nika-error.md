@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Phase 1 — first sub-crate of `nika-core` split |
+| Status | **ADMITTED 2026-04-13** (`42909b1c7`) · first sub-crate of the `nika-core` split |
 | Layer | L0 (PURE, zero I/O, zero async) |
 | Design | **Option C+** (trait-based error hierarchy) |
 | LOC budget | ≤800 src (target ~700, alarm at 800) |

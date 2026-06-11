@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **proposal · feat/nika-pack branch** (admission via the normal 12-gate ceremony) |
+| Status | **ADMITTED 2026-06-11** (`5f37637c3` · via PR from `feat/nika-pack`) · embedded language pack — spec snapshot + manifest hashes |
 | Layer | L0 — pure data · zero I/O · zero async · no error enum (total accessors) |
 | Design | `include_dir!` snapshot of the spec pack + total accessor functions |
 | LOC budget | ≤300 src (actual ~170) |

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **L0 admission target** (event chronicle surface · foundational) |
+| Status | **ADMITTED 2026-05-24** (`d009b1dd8`) · was **L0 admission target** (event chronicle surface · foundational) |
 | Layer | L0 — pure · zero I/O · zero async · `Send + Sync` |
 | Design | Caller-supplied id + timestamp (L0 never reads a clock) · `#[non_exhaustive]` taxonomy · object-safe `Emitter` trait |
 | LOC budget | ≤800 src (actual ~462 · kind ~103 + event ~105 + emitter ~118 + error ~71 + lib ~65) |

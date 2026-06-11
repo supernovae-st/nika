@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Phase 1.5 W3 admission target** (first L1 memory satellite · ADR-004 1+9 architecture · ADR-038 admission prep shipped) |
+| Status | **ADMITTED 2026-05-12** (`36ca8c3ee`) · was **Phase 1.5 W3 admission target** (first L1 memory satellite · ADR-004 1+9 architecture · ADR-038 admission prep shipped) |
 | Layer | L1 — memory satellite · pure-algo · zero I/O at trait boundary · `Send + Sync` |
 | Sub-tier | L1-deterministic — no ML deps · no async · pure-sync CPU-bound scoring (cooperation delegated to L2 `RecallPool` fan-out boundary per ADR-078 step 6) |
 | Design | **Pure BM25 (Okapi)** — Robertson 1994 canonical formula · k1 saturation · b length-norm · IDF smoothing |

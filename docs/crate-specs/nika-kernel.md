@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Phase 1 — Step 3 of `nika-core` split |
+| Status | **ADMITTED 2026-04-13** (`ef8804371`) · facade + range-registry hub post 4-way split 2026-06-10 |
 | Layer | L0.5 (TRAITS ONLY, zero I/O, zero impl, minimal deps) |
 | Design | **ISP-layered** — ~20 atomic traits + ~6 super-traits + Cortex/agent-v2 hooks |
 | LOC budget | ≤3,500 src (target ~3,000, alarm at 3,500) |

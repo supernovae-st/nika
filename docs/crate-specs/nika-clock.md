@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **L1 admission target** (first time-effect crate · pairs with nika-event) |
+| Status | **ADMITTED 2026-05-24** (`74a8ff483`) · was **L1 admission target** (first time-effect crate · pairs with nika-event) |
 | Layer | L1 — effect crate · the only production site touching `tokio::time` + `std::time` |
 | Design | `SystemClock` ZST impl of the L0.5 `nika_kernel::Clock` trait |
 | LOC budget | ≤200 src (actual ~62) |

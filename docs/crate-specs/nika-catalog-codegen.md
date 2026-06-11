@@ -7,7 +7,7 @@ status: Admitted
 
 | | |
 |---|---|
-| Status | **Pending** — Gate 1 SPEC only. TDD + impl + admission = Round 3 (Foundation v0.81). |
+| Status | **ADMITTED 2026-05-10** (`23ab2fef8`) · codegen WIRED byte-identical (D-2026-06-10-N4) · was: Gate-1 SPEC pending |
 | Layer | L0 (PURE build-time, zero I/O at runtime, zero async, no runtime code at all) |
 | Sub-tier | L0-tier-0 — leaf crate, zero `nika-*` dependencies. Consumed only by `nika-catalog`'s `build.rs`. |
 | Design | **Pure build-time transformation** — `TOML bytes → validated schema → Rust source String`. Extracted from `nika-catalog/build.rs` + `nika-catalog/build/{capabilities,pricing}.rs` per ADR-008 + Q5 (Foundation v0.81 lock). |
