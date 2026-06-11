@@ -18,6 +18,24 @@ tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 
 ## [Unreleased]
 
+### 📡 Telemetry vocabulary closes over the display contract (nika-event · additive)
+
+- **6 new `EventKind`s** · `task_retrying` · `task_cancelled` ·
+  `workflow_cancelled` · `cost_incurred` · `infer_chunk` ·
+  `permit_checked` — every state the run UI can show (contract §3.1
+  state machine) and every live-meter refold driver the contract names
+  (§3.3) is now expressible by a canonical engine event. Cancellation is
+  terminal-not-failure (a decision, not a defect). `permit_checked`
+  makes the declared `permits:` boundary observable at runtime (the
+  ADR-092 audit moat).
+- **`EventClass`** · the coarse 7-class classifier (`EventKind::class()`)
+  — renderers/routers branch on stable classes, not 17 variants.
+- **Reference fold** · the `nika-schema` `verbs` example consumes the
+  full vocabulary: `--events` renders the whole tape digestibly; `verbs
+  workflow` folds the SAME tape into the animated DAG (retry arc ↻ ·
+  live stream · ticking cost meter · permits counter). The state-machine
+  coverage test pins « every UI row status is event-reachable ».
+
 ### 🔌 Announce ladder s11 · nika-verb-invoke L2 admission (ADMITTED · 12-gate closed · 2026-06-11)
 
 - **`nika-verb-invoke` crate** · the `invoke` verb executor per

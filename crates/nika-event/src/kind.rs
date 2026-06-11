@@ -45,6 +45,29 @@ pub enum EventKind {
     ToolInvoked,
     /// A checkpoint was written (durable run state snapshot).
     CheckpointWritten,
+    // ── additive cohort 2026-06-11 · closes the vocabulary over the
+    //    nika-cli display contract (§3.1 state machine + §3.3 run card
+    //    refold drivers) — every state the UI can show is expressible
+    //    by an engine event. MINOR-bump additive per the header law. ──
+    /// A task attempt failed and a retry is scheduled (`attempt` /
+    /// `max_attempts` fields carry the counter — contract §3.1 `↻`).
+    TaskRetrying,
+    /// A task was cancelled (operator stop · timeout · budget kill —
+    /// contract §3.1 `◼`; distinct from [`EventKind::TaskFailed`]:
+    /// cancellation is a decision, not a defect).
+    TaskCancelled,
+    /// The whole run was cancelled (terminal, but NOT a failure).
+    WorkflowCancelled,
+    /// An incremental spend delta (`tokens` / `usd` fields) — the live
+    /// `~$` meter refolds on every one (contract §3.3 names it).
+    CostIncurred,
+    /// A streaming output delta arrived from an `infer`/`agent` turn
+    /// (`delta` field carries the text chunk — contract §3.3 names it).
+    InferChunk,
+    /// A `permits:` boundary check was evaluated (`gate` + `decision`
+    /// fields · `allow`/`deny`) — the declared security boundary made
+    /// observable at runtime (ADR-092 · the auditable moat).
+    PermitChecked,
 }
 
 impl EventKind {
@@ -68,32 +91,104 @@ impl EventKind {
             Self::VerbInvoked => "verb_invoked",
             Self::ToolInvoked => "tool_invoked",
             Self::CheckpointWritten => "checkpoint_written",
+            Self::TaskRetrying => "task_retrying",
+            Self::TaskCancelled => "task_cancelled",
+            Self::WorkflowCancelled => "workflow_cancelled",
+            Self::CostIncurred => "cost_incurred",
+            Self::InferChunk => "infer_chunk",
+            Self::PermitChecked => "permit_checked",
         }
     }
 
-    /// Whether this kind marks a terminal workflow state (completed or failed).
+    /// Whether this kind marks a terminal workflow state (completed,
+    /// failed, or cancelled — after it, no further events for the run).
     ///
     /// ```
     /// use nika_event::EventKind;
     /// assert!(EventKind::WorkflowCompleted.is_terminal());
+    /// assert!(EventKind::WorkflowCancelled.is_terminal());
     /// assert!(!EventKind::TaskStarted.is_terminal());
     /// ```
     #[must_use]
     pub const fn is_terminal(&self) -> bool {
-        matches!(self, Self::WorkflowCompleted | Self::WorkflowFailed)
+        matches!(
+            self,
+            Self::WorkflowCompleted | Self::WorkflowFailed | Self::WorkflowCancelled
+        )
     }
 
     /// Whether this kind represents a failure (workflow or task).
+    ///
+    /// Cancellation is NOT a failure — it is a decision (operator stop ·
+    /// budget kill), and renderers draw it dim, not red (contract §3.1).
     ///
     /// ```
     /// use nika_event::EventKind;
     /// assert!(EventKind::TaskFailed.is_failure());
     /// assert!(!EventKind::TaskCompleted.is_failure());
+    /// assert!(!EventKind::TaskCancelled.is_failure());
     /// ```
     #[must_use]
     pub const fn is_failure(&self) -> bool {
         matches!(self, Self::WorkflowFailed | Self::TaskFailed)
     }
+
+    /// The coarse classification — renderers and routers branch on the
+    /// CLASS (7 stable groups) instead of matching every variant, so a
+    /// new kind in an existing class flows through them untouched.
+    ///
+    /// ```
+    /// use nika_event::{EventClass, EventKind};
+    /// assert_eq!(EventKind::TaskRetrying.class(), EventClass::Task);
+    /// assert_eq!(EventKind::CostIncurred.class(), EventClass::Cost);
+    /// assert_eq!(EventKind::PermitChecked.class(), EventClass::Security);
+    /// ```
+    #[must_use]
+    pub const fn class(&self) -> EventClass {
+        match self {
+            Self::WorkflowStarted
+            | Self::WorkflowCompleted
+            | Self::WorkflowFailed
+            | Self::WorkflowCancelled => EventClass::Workflow,
+            Self::TaskScheduled
+            | Self::TaskStarted
+            | Self::TaskCompleted
+            | Self::TaskFailed
+            | Self::TaskSkipped
+            | Self::TaskRetrying
+            | Self::TaskCancelled => EventClass::Task,
+            Self::VerbInvoked | Self::ToolInvoked => EventClass::Dispatch,
+            Self::CheckpointWritten => EventClass::Durability,
+            Self::CostIncurred => EventClass::Cost,
+            Self::InferChunk => EventClass::Stream,
+            Self::PermitChecked => EventClass::Security,
+        }
+    }
+}
+
+/// The coarse event classification (see [`EventKind::class`]).
+///
+/// Closed-but-extensible like the kind enum itself: a renderer matching
+/// classes carries a `_` arm and inherits future classes gracefully.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[non_exhaustive]
+pub enum EventClass {
+    /// Run lifecycle (started · completed · failed · cancelled).
+    Workflow,
+    /// Per-task lifecycle (scheduled … cancelled).
+    Task,
+    /// Verb/tool dispatch surface.
+    Dispatch,
+    /// Durable-state writes (checkpoints).
+    Durability,
+    /// Incremental spend deltas.
+    Cost,
+    /// Streaming output deltas.
+    Stream,
+    /// Permits-boundary evaluations.
+    Security,
 }
 
 impl fmt::Display for EventKind {
@@ -123,6 +218,12 @@ mod tests {
         EventKind::VerbInvoked,
         EventKind::ToolInvoked,
         EventKind::CheckpointWritten,
+        EventKind::TaskRetrying,
+        EventKind::TaskCancelled,
+        EventKind::WorkflowCancelled,
+        EventKind::CostIncurred,
+        EventKind::InferChunk,
+        EventKind::PermitChecked,
     ];
 
     #[test]
@@ -142,10 +243,16 @@ mod tests {
                 | EventKind::TaskSkipped
                 | EventKind::VerbInvoked
                 | EventKind::ToolInvoked
-                | EventKind::CheckpointWritten => {}
+                | EventKind::CheckpointWritten
+                | EventKind::TaskRetrying
+                | EventKind::TaskCancelled
+                | EventKind::WorkflowCancelled
+                | EventKind::CostIncurred
+                | EventKind::InferChunk
+                | EventKind::PermitChecked => {}
             }
         }
-        assert_eq!(ALL.len(), 11, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 17, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
@@ -183,11 +290,52 @@ mod tests {
         // lifecycle variant can't silently mis-classify.
         assert!(EventKind::WorkflowCompleted.is_terminal());
         assert!(EventKind::WorkflowFailed.is_terminal());
+        assert!(EventKind::WorkflowCancelled.is_terminal());
         assert!(!EventKind::TaskCompleted.is_terminal());
+        assert!(!EventKind::TaskCancelled.is_terminal());
         assert!(EventKind::WorkflowFailed.is_failure());
         assert!(EventKind::TaskFailed.is_failure());
         assert!(!EventKind::WorkflowCompleted.is_failure());
         // A terminal-failure is both; a task-failure is a failure but not terminal.
         assert!(EventKind::TaskFailed.is_failure() && !EventKind::TaskFailed.is_terminal());
+        // Cancellation is terminal (workflow) but NEVER a failure — a
+        // decision, not a defect (contract §3.1 draws it dim, not red).
+        assert!(!EventKind::WorkflowCancelled.is_failure());
+        assert!(!EventKind::TaskCancelled.is_failure());
+        // Retrying is neither terminal nor a failure (the attempt failed;
+        // the TASK has not).
+        assert!(!EventKind::TaskRetrying.is_failure());
+        assert!(!EventKind::TaskRetrying.is_terminal());
+    }
+
+    #[test]
+    fn every_kind_has_a_class_and_classes_partition() {
+        use crate::kind::EventClass;
+        // Total: every kind classifies (the const fn cannot panic, but
+        // this pins the MAPPING against accidental re-grouping).
+        for k in ALL {
+            let expected = match k.as_str() {
+                s if s.starts_with("workflow_") => Some(EventClass::Workflow),
+                s if s.starts_with("task_") => Some(EventClass::Task),
+                "verb_invoked" | "tool_invoked" => Some(EventClass::Dispatch),
+                "checkpoint_written" => Some(EventClass::Durability),
+                "cost_incurred" => Some(EventClass::Cost),
+                "infer_chunk" => Some(EventClass::Stream),
+                "permit_checked" => Some(EventClass::Security),
+                _ => None,
+            };
+            assert_eq!(Some(k.class()), expected, "class drift for {k:?}");
+        }
+    }
+
+    #[test]
+    fn contract_named_slugs_are_canonical() {
+        // The nika-cli display contract §3.3 names these two event slugs
+        // VERBATIM as the live-meter refold drivers; §3.1 needs the two
+        // states. Pin the wire form the contract relies on.
+        assert_eq!(EventKind::CostIncurred.as_str(), "cost_incurred");
+        assert_eq!(EventKind::InferChunk.as_str(), "infer_chunk");
+        assert_eq!(EventKind::TaskRetrying.as_str(), "task_retrying");
+        assert_eq!(EventKind::TaskCancelled.as_str(), "task_cancelled");
     }
 }

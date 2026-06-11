@@ -54,12 +54,12 @@ pub mod kind;
 pub use emitter::{Emitter, InMemoryEmitter, NoOpEmitter};
 pub use error::EventError;
 pub use event::Event;
-pub use kind::EventKind;
+pub use kind::{EventClass, EventKind};
 
 /// Convenience re-exports for common usage.
 pub mod prelude {
     pub use crate::emitter::{Emitter, InMemoryEmitter, NoOpEmitter};
     pub use crate::error::EventError;
     pub use crate::event::Event;
-    pub use crate::kind::EventKind;
+    pub use crate::kind::{EventClass, EventKind};
 }
