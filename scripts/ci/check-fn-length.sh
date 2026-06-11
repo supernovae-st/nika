@@ -47,8 +47,13 @@ while i < n:
     started = False
     j = i
     while j < n:
-        # crude brace count (ignores strings/comments — good enough for a ratchet)
-        for c in lines[j]:
+        # crude brace count — strings/comments mostly ignorable for a
+        # ratchet, but CHAR LITERALS ('{' · b'{' · '}') must be skipped:
+        # a brace char-literal otherwise unbalances the counter and the
+        # fn "absorbs" everything until depth accidentally rebalances
+        # (false 172-line fn over a 33-line JSON scanner · 2026-06-11).
+        row = re.sub(r"b?'(\\.|[^'\\])'", "''", lines[j])
+        for c in row:
             if c == '{':
                 depth += 1
                 started = True
@@ -92,7 +97,8 @@ while i < n:
     started = False
     j = i
     while j < n:
-        for c in lines[j]:
+        row = re.sub(r"b?'(\\.|[^'\\])'", "''", lines[j])
+        for c in row:
             if c == '{':
                 depth += 1
                 started = True
