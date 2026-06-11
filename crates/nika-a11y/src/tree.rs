@@ -412,18 +412,19 @@ fn is_secure_field(node: &AxNode) -> bool {
 
 /// Recursively strip `value` from every secure-text field in the tree —
 /// **pure** · the MANDATORY Guard 3 (ADR-081). Applied to every node before
-/// it leaves the crate (B.3) so passwords never reach a caller. The redacted
+/// it leaves the crate (B.3) so passwords never reach a caller. A redacted
 /// `value` is set to `None` (NOT a masked string · zero leak).
 fn redact_secure_fields(node: AxNode) -> AxNode {
-    // For a secure field drop BOTH `value` and `label`. `value` is the typed
-    // secret; `label` is cleared defense-in-depth — some toolkits mirror the field
-    // content into the accessible name/title, so the redaction must be complete by
-    // construction, not reliant on every backend never doing that.
-    let (value, label) = if is_secure_field(&node) {
-        (None, None)
-    } else {
-        (node.value, node.label)
-    };
+    if is_secure_field(&node) {
+        // A secure field scrubs its ENTIRE subtree, not just its own node:
+        // `value` is the typed secret; `label` is cleared because some toolkits
+        // mirror the content into the accessible name/title; and a DESCENDANT
+        // (e.g. a child AXStaticText the widget exposes the text through) could
+        // mirror it too. The guard must be complete by construction, never
+        // reliant on a backend not doing that. (A node nested under a secure
+        // field carries no caller-useful non-secret data — scrubbing is safe.)
+        return scrub_subtree(node);
+    }
     let children = node
         .children
         .into_iter()
@@ -432,8 +433,23 @@ fn redact_secure_fields(node: AxNode) -> AxNode {
     AxNode::new(
         node.id,
         node.role,
-        label,
-        value,
+        node.label,
+        node.value,
+        node.bbox,
+        children,
+        node.attributes,
+    )
+}
+
+/// Unconditionally clear `value` + `label` on a node and EVERY descendant —
+/// the complete redaction applied to a secure field's whole subtree (pure).
+fn scrub_subtree(node: AxNode) -> AxNode {
+    let children = node.children.into_iter().map(scrub_subtree).collect();
+    AxNode::new(
+        node.id,
+        node.role,
+        None,
+        None,
         node.bbox,
         children,
         node.attributes,
@@ -659,6 +675,62 @@ mod tests {
             redacted.children[1].value.as_deref(),
             Some("label"),
             "sibling plain value preserved"
+        );
+    }
+
+    #[test]
+    fn redact_scrubs_the_secure_fields_entire_subtree() {
+        // The descendant-mirror leak (hardened 2026-06-11): some widgets expose
+        // the typed text through a CHILD node (e.g. an AXStaticText under the
+        // secure field). The old code cleared only the secure node itself —
+        // the child's value walked out unredacted. Guard 3 must scrub the
+        // WHOLE subtree rooted at a secure field, depth included.
+        let mirror_child = leaf("@e3", AxRole::StaticText, Some("hunter2"), &[]);
+        let mut deep_mirror = leaf("@e4", AxRole::StaticText, Some("hunter2"), &[]);
+        deep_mirror.label = Some("hunter2".to_string());
+        let mid = AxNode::new(
+            "@e2b".to_string(),
+            AxRole::Group,
+            None,
+            None,
+            None,
+            vec![deep_mirror],
+            BTreeMap::new(),
+        );
+        let mut secure = leaf(
+            "@e2",
+            AxRole::TextField,
+            Some("hunter2"),
+            &[("AXSubrole", "AXSecureTextField")],
+        );
+        secure.children = vec![mirror_child, mid];
+        // A plain sibling OUTSIDE the secure subtree must keep its value.
+        let plain_sibling = leaf("@e5", AxRole::StaticText, Some("public"), &[]);
+        let root = AxNode::new(
+            "@e1".to_string(),
+            AxRole::Group,
+            None,
+            None,
+            None,
+            vec![secure, plain_sibling],
+            BTreeMap::new(),
+        );
+        let redacted = redact_secure_fields(root);
+        let sec = &redacted.children[0];
+        assert_eq!(sec.value, None, "secure node scrubbed");
+        assert_eq!(sec.children[0].value, None, "direct child mirror scrubbed");
+        assert_eq!(
+            sec.children[1].children[0].value, None,
+            "deep descendant mirror scrubbed"
+        );
+        assert_eq!(
+            sec.children[1].children[0].label, None,
+            "deep descendant label scrubbed too"
+        );
+        assert_eq!(
+            redacted.children[1].value.as_deref(),
+            Some("public"),
+            "plain sibling outside the secure subtree untouched"
         );
     }
 
