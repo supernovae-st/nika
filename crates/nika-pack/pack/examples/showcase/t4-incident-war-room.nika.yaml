@@ -12,7 +12,7 @@
 #   - 3-way parallel gather · exec + fetch (with retry) + read
 #   - `nika:wait` · the settle window before the confirmation re-poll
 #   - `nika:assert` · refuse to write « resolved » while prod still burns
-#   - `on_finally:` · the journal event + the ping fire EVEN IF a step fails
+#   - the always-pattern (`when: true`) · the ping fires EVEN IF a step fails
 #
 # Run · nika run examples/showcase/t4-incident-war-room.nika.yaml
 nika: v1
@@ -124,14 +124,22 @@ tasks:
         path: "./incidents/${{ vars.service }}-postmortem.md"
         content: "${{ tasks.postmortem.output }}"
         create_dirs: true
-    on_finally:                        # ALWAYS fires · success, fail, timeout, cancel
-      - invoke:
-          tool: "nika:emit"
-          args:
-            event_type: "incident.postmortem.drafted"
-            payload:
-              service: "${{ vars.service }}"
-              status: "${{ tasks.save.status }}"
+
+  # the always-pattern · the on-call ping fires on EVERY outcome —
+  # including the designed failure path (recovery NOT confirmed → the
+  # assert fails → save never starts → this still runs · when: true
+  # replaces the default gate · 03 §Task states).
+  - id: ping
+    depends_on: [save]
+    when: true
+    invoke:
+      tool: "nika:emit"
+      args:
+        event_type: "incident.postmortem.drafted"
+        payload:
+          service: "${{ vars.service }}"
+          status: "${{ tasks.save.status }}"
+    on_finally:
       - invoke:
           tool: "nika:notify"
           args:

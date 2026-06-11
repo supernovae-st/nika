@@ -45,6 +45,7 @@ An engine claims « Core v0.1-compliant » if it ·
    - Detects cycles · rejects with `NIKA-DAG-001`
    - Detects unresolved `depends_on` references · rejects with `NIKA-DAG-002`
    - Detects a `when:`/`with:` reference to an undeclared dependency · rejects with `NIKA-DAG-003`
+   - Detects an `on_error.recover` reference to a task downstream of the declaring task · rejects with `NIKA-DAG-004` (the await would deadlock · [05](./05-errors.md#recover-reference-resolution-normative))
    - Computes topological waves for parallel execution
 
 3. **Resolves variable references** correctly (static · reference-resolution · NOT runtime evaluation)
@@ -53,8 +54,8 @@ An engine claims « Core v0.1-compliant » if it ·
    - `${{ tasks.X.field }}` resolves to a declared upstream task + a valid field name
    - `${{ env.X }}` · `${{ secrets.X }}` resolve to declared namespaces
    - `when:` and `for_each:` expressions are valid **CEL** (the v0.1 subset · see 03-dag) and their references **resolve to known namespaces** — Core parses but does NOT *evaluate* them (no execution = no `tasks.X.status` to compare against · that is Runtime's job)
-   - `output:` bindings are valid **jq** expressions (the one data language · see 04-variables)
-   - Reports undefined references with `NIKA-VAR-001`
+   - `output:` bindings are valid **jq** expressions (the one data language · see 04-variables) · `${{ }}` never appears inside a binding
+   - Reports undefined references with `NIKA-VAR-001` · static expression violations with `NIKA-VAR-005` (the deep-static layer · CEL subset parse · jq compile · `when:` boolean shape)
 
 4. **Produces typed errors** matching the v0.1 spec
    - `code` follows `NIKA-<NAMESPACE>-<NNN>` format
@@ -143,6 +144,7 @@ What is populated TODAY vs what lands with the reference engine ·
 | Layer | Status | What it proves |
 |---|---|---|
 | **Core fixtures** (`tests/core/`) | ✅ populated · runner-executable | parse + validate + DAG + variables + errors · the full Level-1 static contract |
+| **Deep-static fixtures** (`tests/deep/`) | ✅ populated · runner-executable | the expression layer the schema cannot see · the normative CEL EBNF parsed for real · jq compile · duration grammar · schema-meta · `when:` shape · binding purity |
 | **Stdlib static surface** (`tests/stdlib/`) | ✅ populated · runner-executable | the stdlib **names + shapes** layer · provider prefixes · the closed `nika:*` builtin set · extract modes · checkable with zero execution (lists derive from [`canon.yaml`](../canon.yaml)) |
 | **Examples as conformance inputs** (`examples/`) | ✅ executed by the runner `all` gate | every shipped example MUST validate at the full static level |
 | **Runtime behavioral fixtures** (`tests/runtime/`) | ⏳ **post-announce** | verb execution · task fields · events · they require an executing engine · they land with the reference engine's vertical slice (v0.81.0) |
@@ -168,10 +170,12 @@ conformance/
 │   │   ├── variables/
 │   │   └── errors/
 │   │
+│   ├── deep/                  # deep-static layer · CEL subset parse · jq compile ·
+│   │                          # durations · schema-meta · when shape · binding purity
 │   ├── runtime/               # verb execution · task fields · events
 │   │   ├── infer/
 │   │   ├── exec/
-││   │   ├── invoke/
+│   │   ├── invoke/
 │   │   ├── agent/
 │   │   └── workflow-lifecycle/
 │   │

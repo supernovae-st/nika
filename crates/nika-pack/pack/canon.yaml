@@ -45,6 +45,8 @@ counts:
   providers: 14
   extract_modes: 9
   error_namespaces: 14
+  error_categories: 12
+  error_codes: 28
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -178,6 +180,64 @@ error_namespaces:
     - NIKA-SEC
     - NIKA-TIMEOUT
     - NIKA-VAR
+
+# ---------------------------------------------------- error categories (v1 closed enum)
+# spec/05-errors.md §Categories is the prose home · 10 original + 2 additive
+# (process_error · budget_error · divergence-audit 2026-06-11 · spec 44bf15f).
+error_categories:
+  count: 12
+  reference: spec/05-errors.md
+  items:
+    - parse_error
+    - validation_error
+    - variable_error
+    - provider_error
+    - network_error
+    - tool_error
+    - process_error
+    - budget_error
+    - security_error
+    - timeout_error
+    - cancelled
+    - internal_error
+
+# ---------------------------------------------------- concrete error codes (v0.1 normative floor)
+# spec/05-errors.md §Concrete v0.1 codes is the prose home · the projector
+# emits website public/errors/catalog.json from THIS block and the parity
+# check binds the prose table to it (same row set · same fields).
+# transient · false | engine-assessed
+error_codes:
+  count: 28
+  reference: spec/05-errors.md
+  items:
+    - { code: NIKA-DAG-001, category: validation_error, transient: "false", failure: "cycle in depends_on (incl. self-dependency)" }
+    - { code: NIKA-DAG-002, category: validation_error, transient: "false", failure: "depends_on references an undeclared task" }
+    - { code: NIKA-DAG-003, category: validation_error, transient: "false", failure: "a tasks.X reference with no declared edge" }
+    - { code: NIKA-DAG-004, category: validation_error, transient: "false", failure: "on_error.recover references a task downstream of the declaring task (await would deadlock)" }
+    - { code: NIKA-VAR-001, category: variable_error, transient: "false", failure: "unresolved reference (unknown namespace entry · undeclared env/vars key)" }
+    - { code: NIKA-VAR-002, category: variable_error, transient: "false", failure: "binding cardinality — a jq binding emitted zero or multiple values" }
+    - { code: NIKA-VAR-003, category: validation_error, transient: "false", failure: "provably-invalid path into a declared schema (static walk)" }
+    - { code: NIKA-VAR-004, category: variable_error, transient: "false", failure: "jq runtime error while evaluating a binding" }
+    - { code: NIKA-VAR-005, category: validation_error, transient: "false", failure: "static expression violation — outside cel-subset/0.1 · chained relation · unknown function · non-boolean when: root · jq compile error" }
+    - { code: NIKA-VAR-006, category: variable_error, transient: "false", failure: "expression type error at evaluation — cross-type compare · non-boolean when: value · for_each over a non-array" }
+    - { code: NIKA-VAR-007, category: variable_error, transient: "false", failure: "bytes value substituted into a string position" }
+    - { code: NIKA-VAR-008, category: validation_error, transient: "false", failure: "unclosed ${{ opener" }
+    - { code: NIKA-INFER-001, category: provider_error, transient: "engine-assessed", failure: "provider call failed (HTTP error · provider refusal)" }
+    - { code: NIKA-INFER-002, category: validation_error, transient: "false", failure: "structured output failed schema validation (after any engine-internal retries)" }
+    - { code: NIKA-EXEC-001, category: process_error, transient: "false", failure: "non-zero exit code (default capture modes)" }
+    - { code: NIKA-EXEC-002, category: process_error, transient: "false", failure: "spawn failure (command not found · permission)" }
+    - { code: NIKA-INVOKE-001, category: validation_error, transient: "false", failure: "unknown tool (unresolvable nika:/mcp: id)" }
+    - { code: NIKA-INVOKE-002, category: validation_error, transient: "false", failure: "tool args failed the tool's schema" }
+    - { code: NIKA-AGENT-001, category: budget_error, transient: "false", failure: "max_turns exhausted before completion" }
+    - { code: NIKA-AGENT-002, category: budget_error, transient: "false", failure: "max_tokens_total exhausted before completion" }
+    - { code: NIKA-MCP-001, category: tool_error, transient: "engine-assessed", failure: "MCP server not configured / not reachable at call time" }
+    - { code: NIKA-MCP-002, category: tool_error, transient: "engine-assessed", failure: "MCP tool call failed (transport · tool-side error)" }
+    - { code: NIKA-SEC-001, category: security_error, transient: "false", failure: "exec: blocklist hit" }
+    - { code: NIKA-SEC-002, category: security_error, transient: "false", failure: "agent tool call outside the tools: whitelist" }
+    - { code: NIKA-SEC-003, category: security_error, transient: "false", failure: "run-recursion bound — nested-run depth exceeded OR self-launching workflow" }
+    - { code: NIKA-TIMEOUT-001, category: timeout_error, transient: "false", failure: "task (or for_each iteration) exceeded timeout:" }
+    - { code: NIKA-CANCEL-001, category: cancelled, transient: "false", failure: "task cancelled (workflow failure gate · user cancellation)" }
+    - { code: NIKA-BUILTIN-DONE-001, category: validation_error, transient: "false", failure: "nika:done invoked outside an agent: loop" }
 
 # ---------------------------------------------------------------- pillars
 # 5 immutable pillars forever (spec/00-overview · the language backbone).

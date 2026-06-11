@@ -84,7 +84,7 @@ tasks:
 
   - id: report
     depends_on: [good]
-    when: ${{ size(tasks.good.output) > 0 }}
+    when: ${{ tasks.good.output != null && size(tasks.good.output) > 0 }}   # good is SKIPPED (null) on the quarantine path · guard before size()
     invoke:
       tool: "nika:write"
       args:

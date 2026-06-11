@@ -677,7 +677,12 @@ completes · REGARDLESS of outcome (success · failure · timeout · cancel).
   per cleanup task via `timeout:` field).
 - **Failed parent task's `on_finally:` runs BEFORE** the error propagates
   upward in the DAG (gives cleanup a chance to undo side effects).
-- **Engine MUST execute** `on_finally:` on cancel (Ctrl+C) and timeout.
+- **Engine MUST execute** `on_finally:` on cancel (Ctrl+C) and timeout —
+  for a task that **started**. A task that never ran (`skipped` gate ·
+  cancelled-before-start) runs NO `on_finally:` (there is nothing to clean
+  up) — a record that must land on EVERY outcome is a **terminal
+  `when: true` task** (the always-pattern · §Task states), not a cleanup
+  hook.
 - **Engine MAY skip** `on_finally:` only if the workflow process itself
   crashes (SIGSEGV · OOM · hard kill).
 

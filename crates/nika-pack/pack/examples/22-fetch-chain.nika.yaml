@@ -17,6 +17,11 @@ vars:
 
 tasks:
   # A deterministic local fallback, in case the live fetch fails.
+  # SHAPE CONTRACT · the cached JSON mirrors the API response shape
+  # ({ data: { title, body } }) — on recovery the output: bindings below
+  # evaluate over THIS value (recover substitutes the raw output before
+  # extraction · 05-errors §recovery × bindings) · so tasks.fetch_article.title
+  # works on both paths.
   - id: cached
     invoke:
       tool: nika:read
@@ -34,7 +39,7 @@ tasks:
       title: ".data.title"
       body: ".data.body"
     on_error:
-      recover: ${{ tasks.cached.output }}    # degrade gracefully to the cached copy
+      recover: ${{ tasks.cached.output }}    # same shape as the live response · bindings still extract
 
   - id: summarize
     depends_on: [fetch_article]

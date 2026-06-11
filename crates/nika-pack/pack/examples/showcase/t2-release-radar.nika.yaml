@@ -36,6 +36,7 @@ tasks:
       tool: "nika:read"
       args: { path: "${{ vars.state_path }}" }
     on_error:
+      on_codes: [NIKA-BUILTIN-READ-001]   # not-found ONLY · a permission error still fails loudly
       recover: ${{ tasks.no_state.output }}
 
   - id: feed

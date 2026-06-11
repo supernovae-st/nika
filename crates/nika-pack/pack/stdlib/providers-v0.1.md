@@ -404,10 +404,23 @@ infer:
 **Backend** · deterministic test fixture · returns a configured response.
 
 **Models** ·
-- `mock-deterministic` · returns the prompt verbatim (echo)
+- **`echo` · THE canonical test model** (`model: mock/echo` — what every
+  canonical example uses) · returns the prompt text **verbatim** as the
+  output · zero network · zero entropy (bit-identical across runs/engines).
+  With a `schema:` declared · returns `{}` shaped to the schema's required
+  scalar defaults (string `""` · number `0` · boolean `false` · array `[]` ·
+  object recursed) — deterministic · validates · carries no meaning (test
+  the SHAPE of your DAG · not model quality).
+- `mock-deterministic` · returns the prompt verbatim (echo's long-form alias)
 - `mock-error` · returns a configured error
 - `mock-streaming` · streams a configured response
 - `mock-json` · returns structured JSON matching a configured schema
+
+The configured-response forms (`mock-error` · `mock-streaming` ·
+`mock-json`) read their fixture from **engine config** (NOT workflow YAML ·
+the workflow stays portable) — the behavioral conformance fixtures
+(post-announce) pin their exact contract. `mock/echo` is fully normative
+TODAY (the static + example gates rely on it).
 
 **Auth** · none.
 

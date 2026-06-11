@@ -264,6 +264,15 @@ Resolution happens at **recovery time** ·
    `skipped`), the reference is unresolved → `NIKA-VAR-001` → the recovery
    itself fails → the task fails as if `on_error:` were absent.
 
+**Recovery × `output:` bindings (normative)** · when `recover:` fires, the
+recovery value **substitutes the raw output BEFORE binding extraction** —
+the task's `output:` jq bindings evaluate over the recovered value exactly
+as they would over a verb response. Downstream consumers stay shape-stable
+(`tasks.X.title` works whether the live call or the fallback produced the
+data) — which is why a recovery source SHOULD match the raw output's shape.
+A binding that fails over the recovered shape errors as usual
+(`NIKA-VAR-002` / `NIKA-VAR-004`) · the recovery does not mask it.
+
 **Parse-time acyclicity rule (`NIKA-DAG-004` · `validation_error`)** · a
 `recover:` reference to a task that **transitively depends on the declaring
 task** is rejected at parse time. At recovery time such a task could never

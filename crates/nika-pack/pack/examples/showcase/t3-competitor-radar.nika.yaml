@@ -43,6 +43,8 @@ tasks:
     for_each: ${{ tasks.map.recent }}
     max_parallel: 4                    # be polite · 4 fetches in flight max
     fail_fast: false                   # one dead page must not kill the radar
+    on_error:
+      recover: null                    # a dead page yields null at its index · the radar lives
     timeout: "30s"
     retry:
       max_attempts: 3

@@ -49,6 +49,8 @@ tasks:
     for_each: ${{ tasks.files.output }}
     max_parallel: 4
     fail_fast: false
+    on_error:
+      recover: null                    # a budget-exhausted review yields null · the swarm lives
     agent:
       system: "You are a precise code reviewer. Read the file, then report findings."
       prompt: "Review ${{ item }} · bugs first, then risky patterns. Read it before judging."
@@ -78,7 +80,7 @@ tasks:
       tool: "nika:jq"
       args:
         input: "${{ tasks.reviews.output }}"
-        expression: 'map(.findings[] + {file: .file}) | sort_by(.severity)'
+        expression: 'map(select(. != null)) | map(.findings[] + {file: .file}) | sort_by(.severity)'
 
   - id: summary
     depends_on: [merged, todo_sweep]

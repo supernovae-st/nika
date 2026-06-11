@@ -52,7 +52,9 @@ tasks:
     depends_on: [pairs]
     for_each: ${{ tasks.pairs.output }}
     max_parallel: 3                    # rate-limit the provider
-    fail_fast: false                   # finish the batch · report stragglers
+    fail_fast: false                   # finish the batch · a failed file yields null at its index
+    on_error:
+      recover: null                    # null keeps the transpose zip aligned (order preserved)
     infer:
       prompt: |
         Translate to ${{ vars.lang }} · keep markdown structure, code blocks
@@ -65,7 +67,7 @@ tasks:
       tool: "nika:jq"
       args:
         input: ["${{ tasks.pairs.output }}", "${{ tasks.translated.output }}"]
-        expression: "transpose | map({path: .[0].path, text: .[1]})"
+        expression: "transpose | map(select(.[1] != null)) | map({path: .[0].path, text: .[1]})"
 
   - id: mirror
     depends_on: [bundle]

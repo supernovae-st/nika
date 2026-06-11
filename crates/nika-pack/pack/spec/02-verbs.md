@@ -219,6 +219,13 @@ spec minor — it never appears silently.
 
 See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) for the canonical builtin list (<!-- canon:builtins -->22<!-- /canon --> builtins in v0.1).
 
+> **Grouped paths are grammar-legal · v0.1 ships none.** The reference
+> grammar admits `nika:<group>/<tool>` (the `nika:connectome/recall`
+> illustration above is the reserved FUTURE shape) — but the v0.1 builtin
+> set contains only flat names · a grouped `nika:` path is rejected against
+> the closed 22 set today (`NIKA-INVOKE-001`). The seam exists so the
+> Connectome tools land additively · zero workflow-shape change.
+
 ### MCP call
 
 ```yaml
