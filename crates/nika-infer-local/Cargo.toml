@@ -23,6 +23,7 @@ thiserror  = { workspace = true }   # internal typed errors.
 [dev-dependencies]
 tokio    = { workspace = true }
 serde_json = { workspace = true }
+proptest = { workspace = true }   # property tests for the logits/sampling algorithms
 
 [package.metadata.lore]
 daemon        = "forgeron"

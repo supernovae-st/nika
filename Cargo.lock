@@ -2487,6 +2487,7 @@ dependencies = [
 name = "nika-infer-local"
 version = "0.80.0"
 dependencies = [
+ "proptest",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
