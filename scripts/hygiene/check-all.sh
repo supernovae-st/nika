@@ -47,7 +47,11 @@ record() {
 # very "social noise" ADR-090 exists to kill. So the ceiling is generous (60s,
 # ~5x the slowest vector's ~12s baseline) and env-overridable for extreme load.
 # Still bounded so a genuinely-hung vector can't wedge the suite.
-VECTOR_TIMEOUT_SECS="${HYGIENE_VECTOR_TIMEOUT_SECS:-60}"
+# 120s default · the 60s floor produced false-RED timeouts on the two
+# cargo-walking vectors (adr-schema-valid · doc-private-items) whenever a
+# concurrent session compiled the workspace — three occurrences 2026-06-11
+# (stress-to-ratchet threshold). Raise per-run via HYGIENE_VECTOR_TIMEOUT_SECS.
+VECTOR_TIMEOUT_SECS="${HYGIENE_VECTOR_TIMEOUT_SECS:-120}"
 TIMEOUT_CMD=""
 if command -v timeout >/dev/null 2>&1; then
   TIMEOUT_CMD="timeout $VECTOR_TIMEOUT_SECS"

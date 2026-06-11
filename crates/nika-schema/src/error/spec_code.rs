@@ -182,6 +182,22 @@ impl SchemaError {
             Self::MissingDependsOnEdge { .. } => dag(3),
             Self::RecoverAwaitDeadlock { .. } => dag(4),
 
+            // ── NIKA-BUILTIN · arg-shape contracts ── nika:done carries
+            // its REGISTERED exact code (deep fixture 010 matches on it) ·
+            // the other shapes emit the generic builtin namespace.
+            Self::BadBuiltinArgs { tool, .. } if tool == "nika:done" => SpecCode {
+                namespace: "BUILTIN-DONE",
+                num: 1,
+                category: ValidationError,
+                transient: false,
+            },
+            Self::BadBuiltinArgs { .. } => SpecCode {
+                namespace: "BUILTIN",
+                num: 1,
+                category: ValidationError,
+                transient: false,
+            },
+
             // ── NIKA-VAR · the ${{ }} surface ───────────────────────
             // NIKA-VAR-001 · reference resolution (fixtures 001-007 ·
             // variable_error) · loop-locals + unknown task fields are
@@ -301,10 +317,11 @@ mod tests {
             // variants (the spec defines ONE code for the class).
             seen.insert((code.namespace, code.num, code.category.as_str()));
         }
-        // 29 variants · 3 share VAR-001 · 2 share VAR-005 → 26
-        // distinct codes (DAG-004 + the registry remaps of 2026-06-11 ·
-        // WhenNotBoolean/JqBindingContainsTemplate → VAR-005 ·
-        // TemplateSyntax → VAR-008).
-        assert_eq!(seen.len(), 26, "{seen:?}");
+        // 30 variants · 3 share VAR-001 · 2 share VAR-005 → 27
+        // distinct codes (DAG-004 + BadBuiltinArgs generic + the
+        // registry remaps of 2026-06-11 · the nika:done arm adds
+        // BUILTIN-DONE-001 only when the tool matches — the enumerator
+        // carries the generic arm).
+        assert_eq!(seen.len(), 27, "{seen:?}");
     }
 }
