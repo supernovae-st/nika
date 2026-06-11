@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · agent-loop — plan with a fast model, execute with a
+# budgeted agent, validate the typed result.
+# The default shape for open-ended work (research · review · triage).
+#
+# Instantiate · copy → fill `# SLOT:` → `nika check` → repair → re-check.
+# Three leashes (pattern 5 + 8 · NEVER ship an unleashed agent) ·
+#   tools:    default-deny · grant the MINIMUM · nika:done ends cleanly
+#   max_turns + max_tokens_total · the worst case is bounded
+#   schema:   the final message is TYPED · prose is not a contract
+nika: v1
+workflow: agent-loop-template       # SLOT: kebab-case workflow id
+description: "plan → budgeted agent → typed result"   # SLOT
+
+model: mock/echo                    # SLOT: agents want a tool-calling model
+
+vars:
+  goal:
+    type: string
+    required: true
+    description: "What the agent must accomplish"   # SLOT
+
+tasks:
+  - id: plan
+    infer:
+      prompt: "Break '${{ vars.goal }}' into at most 4 concrete steps."   # SLOT
+      schema:
+        type: object
+        required: [steps]
+        properties:
+          steps: { type: array, items: { type: string } }
+
+  - id: execute
+    depends_on: [plan]
+    agent:
+      system: "Work the plan step by step. Call nika:done when finished."   # SLOT
+      prompt: "Plan · ${{ tasks.plan.output.steps }}"
+      tools:                        # SLOT: the MINIMUM grant for the job
+        - "nika:read"
+        - "nika:done"
+      max_turns: 15                 # SLOT: the loop bound
+      max_tokens_total: 80000       # SLOT: the spend bound
+      schema:                       # SLOT: the typed final-message contract
+        type: object
+        required: [findings]
+        properties:
+          findings: { type: array, items: { type: string } }
+
+  - id: confirm
+    depends_on: [execute]
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: "${{ size(tasks.execute.output.findings) > 0 }}"
+        message: "Agent returned no findings — do not trust an empty run"   # SLOT
+
+outputs:
+  findings:
+    value: ${{ tasks.execute.output.findings }}
+    type: array
+    description: "The agent's typed findings"   # SLOT

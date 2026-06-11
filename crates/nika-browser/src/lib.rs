@@ -36,9 +36,12 @@
 //! # Untrusted-input posture
 //!
 //! DOM snapshots come from arbitrary web pages — UNTRUSTED. The B.3 mapper is
-//! depth-capped ([`MAX_DOM_DEPTH`] · the `nika-a11y` `MAX_WALK_DEPTH`
-//! precedent) and the pure [`dom_depth`] measure is the headless-testable
-//! core of that cap: a hostile page cannot stack-overflow or OOM the agent.
+//! bounded on BOTH axes: depth ([`MAX_DOM_DEPTH`] · the `nika-a11y`
+//! `MAX_WALK_DEPTH` precedent) caps recursion, and a total node budget
+//! ([`MAX_DOM_NODES`]) caps memory — together a hostile page can neither
+//! stack-overflow nor OOM the agent via tree shape. (Per-attribute value
+//! size is still unbounded — a single multi-megabyte attribute value is a
+//! known residual, tracked for a follow-up cap.)
 //!
 //! # Backend (B.3 · `chromiumoxide` CDP · async-native)
 //!
@@ -84,12 +87,24 @@ use nika_kernel::io::screen::Frame;
 /// bounds every downstream consumer.
 pub const MAX_DOM_DEPTH: u16 = 512;
 
+/// Maximum total element count a single `dom_snapshot` maps (untrusted-input
+/// memory cap). Beyond it the mapper TRUNCATES (the tree stays valid, just
+/// partial) — depth alone bounds recursion but not memory, so a hostile page
+/// with millions of shallow siblings is capped here. Generous enough for any
+/// real page (a heavy app DOM is ~10⁴-10⁵ nodes).
+pub const MAX_DOM_NODES: u32 = 200_000;
+
 /// What the agent believes a selector targets — captured at DECISION time,
 /// from the same `dom_snapshot` the agent reasoned over (Guard 5 · ADR-081).
 ///
-/// `tag` pins the element name (lowercased, the [`DomNode`] normal form).
-/// `attributes` pins any subset of HTML attributes the agent anchored on
-/// (e.g. `id` · `name` · `type`) — EVERY pin must match exactly.
+/// `node_ref` is the STRONG pin: the [`DomNode::node_ref`] (backend-stable
+/// node identity) the agent saw in the snapshot. When set, the click path
+/// refuses unless the fresh resolve returns the SAME node — which a
+/// page-reproducible look-alike (a hostile element carrying the same
+/// tag+attributes) structurally cannot satisfy, because the browser engine
+/// mints a fresh id for every new node. `tag`/`attributes` are the WEAK
+/// shape pins (defense-in-depth + the fallback when no `node_ref` was
+/// captured); every set pin must match exactly.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub struct SelectorExpectation {
@@ -97,15 +112,35 @@ pub struct SelectorExpectation {
     pub tag: String,
     /// Attribute pins · every entry must match the resolved element exactly.
     pub attributes: BTreeMap<String, String>,
+    /// STRONG pin · the snapshot-time [`DomNode::node_ref`] the agent saw.
+    /// `None` = identity not captured (weak shape pins only · best effort).
+    pub node_ref: Option<u64>,
 }
 
 impl SelectorExpectation {
-    /// Construct a new selector expectation.
+    /// Construct a shape-only expectation (no node-identity pin · weak).
     ///
     /// Per Invariant #19 · every `#[non_exhaustive]` struct ships a `new()`.
+    /// Prefer [`Self::with_node_ref`] (carry the snapshot `node_ref`) for the
+    /// strong clickjacking defense.
     #[must_use]
     pub fn new(tag: String, attributes: BTreeMap<String, String>) -> Self {
-        Self { tag, attributes }
+        Self {
+            tag,
+            attributes,
+            node_ref: None,
+        }
+    }
+
+    /// Construct an expectation pinned to the snapshot node identity (the
+    /// STRONG Guard-5 form — defeats structural look-alike swaps).
+    #[must_use]
+    pub fn with_node_ref(tag: String, attributes: BTreeMap<String, String>, node_ref: u64) -> Self {
+        Self {
+            tag,
+            attributes,
+            node_ref: Some(node_ref),
+        }
     }
 }
 
@@ -113,27 +148,35 @@ impl SelectorExpectation {
 /// what the agent decided to click — **pure** · headless-testable ·
 /// mutation-killed.
 ///
-/// Three checks, ALL required (fail CLOSED on the first miss):
-/// 1. **Tag** — `resolved.tag` equals the expectation's tag (both are the
-///    lowercased [`DomNode`] normal form; comparison is case-insensitive to
-///    survive a non-normalized caller).
-/// 2. **Attribute pins** — every pinned `(name, value)` matches the resolved
-///    element's attributes exactly. A missing attribute or different value is
-///    a mismatch (the element the agent saw is not the element about to be
-///    clicked).
-/// 3. **Visibility** — the resolved element has a bbox with non-zero area.
-///    A `display:none` / off-screen / zero-size element is the classic
-///    clickjacking decoy: never click what the user cannot see.
+/// Checks in order, ALL required (fail CLOSED on the first miss):
+/// 1. **Node identity** (STRONG · when `expectation.node_ref` is set) —
+///    `resolved.node_ref` MUST equal it. A page that deletes the target and
+///    inserts a same-shape look-alike gets a fresh backend id → mismatch →
+///    refuse. This is the defense the shape pins alone cannot provide.
+/// 2. **Tag** — `resolved.tag` equals the expectation's tag (case-insensitive
+///    over the lowercased [`DomNode`] normal form).
+/// 3. **Attribute pins** — every pinned `(name, value)` matches exactly.
+/// 4. **Visibility** — the resolved element has a bbox with non-zero area
+///    (a `display:none`/zero-size decoy is never clicked).
 ///
 /// # Errors
-/// [`BrowserError::SelectorFailed`] (NIKA-1404) naming the first failed check
-/// (tag · attribute · visibility). The error carries the EXPECTED shape, never
-/// page-controlled content beyond the resolved tag name (a hostile page must
-/// not inject arbitrary text into our error/journal surface).
+/// [`BrowserError::SelectorFailed`] (NIKA-1404) naming the first failed check.
+/// The error carries the EXPECTED shape only, never page-controlled content
+/// beyond the resolved tag name (a hostile page must not inject text into our
+/// error/journal surface).
 pub fn verify_selector_target(
     resolved: &DomNode,
     expectation: &SelectorExpectation,
 ) -> Result<(), BrowserError> {
+    if let Some(want_ref) = expectation.node_ref
+        && resolved.node_ref != Some(want_ref)
+    {
+        return Err(BrowserError::SelectorFailed {
+            reason: "guard-5 node-identity mismatch: the fresh resolve is NOT the snapshot \
+                     node (page swapped the element)"
+                .to_owned(),
+        });
+    }
     if !resolved.tag.eq_ignore_ascii_case(&expectation.tag) {
         return Err(BrowserError::SelectorFailed {
             reason: format!(
@@ -160,6 +203,12 @@ pub fn verify_selector_target(
 /// Structural visibility — the element renders with non-zero area. The
 /// clickjacking decoy classes (`display:none` · zero-size · unrenderable) all
 /// surface as `bbox: None` or a zero dimension in the [`DomNode`] mapping.
+///
+/// LIMITATION (documented · not yet enforced): this is GEOMETRIC visibility.
+/// An element with `opacity:0`, `visibility:hidden`, or one occluded by an
+/// overlay still has a non-zero box and passes here. Hit-test occlusion
+/// (CDP `DOM.getNodeForLocation` at the click point) is the next hardening
+/// step — tracked for a Guard-5 follow-up, not shipped at B.3.
 #[must_use]
 pub fn is_visible(node: &DomNode) -> bool {
     node.bbox
@@ -167,10 +216,31 @@ pub fn is_visible(node: &DomNode) -> bool {
         .is_some_and(|b| b.width > 0 && b.height > 0)
 }
 
-/// Measure a DOM tree's depth — the pure core of the [`MAX_DOM_DEPTH`]
-/// untrusted-input cap (the B.3 mapper truncates beyond it; this measure is
-/// what tests + the mapper share). Iterative (explicit stack): measuring a
-/// hostile deep tree must not itself stack-overflow.
+/// Guard 5 (ADR-081 · MANDATORY) · the SINGLE pure decision gate the click
+/// path runs against the freshly-resolved element — headless-testable ·
+/// mutation-killed. With an expectation it applies the full pin set
+/// ([`verify_selector_target`]); without one it enforces visibility only
+/// (the agent did not pin, but a zero-area decoy is still never clicked).
+///
+/// # Errors
+/// [`BrowserError::SelectorFailed`] (NIKA-1404) on the first failed check.
+pub fn guard5_gate(
+    resolved: &DomNode,
+    expectation: Option<&SelectorExpectation>,
+) -> Result<(), BrowserError> {
+    match expectation {
+        Some(exp) => verify_selector_target(resolved, exp),
+        None if !is_visible(resolved) => Err(BrowserError::SelectorFailed {
+            reason: "guard-5 visibility: resolved element has no renderable area".to_owned(),
+        }),
+        None => Ok(()),
+    }
+}
+
+/// Measure a DOM tree's depth — iterative (explicit stack) so measuring a
+/// hostile deep tree never stack-overflows. The [`MAX_DOM_DEPTH`] cap is
+/// applied by the snapshot mapper at MAP time (it does not call this); this
+/// measure exists for downstream consumers + the cap's tests.
 #[must_use]
 pub fn dom_depth(node: &DomNode) -> u32 {
     let mut max = 0u32;
@@ -283,7 +353,37 @@ impl ChromiumBrowser {
         Ok(())
     }
 
+    /// PEEK (clone, do NOT remove) the registered expectation for `session`.
+    ///
+    /// # Errors
+    /// [`BrowserError`] (fail CLOSED) when the registry lock is poisoned — a
+    /// dropped expectation would silently downgrade Guard 5 to structural-only.
+    fn peek_click_expectation(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<SelectorExpectation>, BrowserError> {
+        let map = self
+            .expectations
+            .lock()
+            .map_err(|_| BrowserError::SelectorFailed {
+                reason: "guard-5 expectation registry poisoned".to_owned(),
+            })?;
+        Ok(map.get(session_id).cloned())
+    }
+
+    /// Consume (remove) the expectation for `session` — called ONLY after a
+    /// successful click, so "one expectation guards one click" holds for the
+    /// success case while a page-induced failure leaves the pin in place for
+    /// the agent's retry (no failure→structural-only downgrade).
+    fn consume_click_expectation(&self, session_id: &str) {
+        if let Ok(mut map) = self.expectations.lock() {
+            map.remove(session_id);
+        }
+    }
+
     /// Take (consume) the registered expectation for `session`, if any.
+    /// Test-only helper; production uses peek + consume-after-success.
+    #[cfg(test)]
     fn take_click_expectation(&self, session_id: &str) -> Option<SelectorExpectation> {
         self.expectations
             .lock()
@@ -350,8 +450,10 @@ impl nika_kernel::io::browser::BrowserAutomationDyn for ChromiumBrowser {
                 .map_err(|e| BrowserError::LaunchFailed {
                     reason: format!("chromium launch failed: {e}"),
                 })?;
-        // ONE owned Handler task per session pumps the CDP event loop; it
-        // ends when the browser closes (stream None) or on abort at drop.
+        // ONE owned Handler task per session pumps the CDP event loop until
+        // the browser closes (stream ends) or the task is aborted (on a
+        // failed launch below, or at session/backend drop). It does NOT
+        // terminate "naturally" while the browser lives — abort is the exit.
         let handler_task = tokio::spawn(async move {
             while let Some(event) = handler.next().await {
                 // Protocol-level errors are the session's own dispatch errors
@@ -359,13 +461,17 @@ impl nika_kernel::io::browser::BrowserAutomationDyn for ChromiumBrowser {
                 let _ = event;
             }
         });
-        let page =
-            browser
-                .new_page("about:blank")
-                .await
-                .map_err(|e| BrowserError::LaunchFailed {
+        let page = match browser.new_page("about:blank").await {
+            Ok(p) => p,
+            Err(e) => {
+                // Abort the pump + drop the browser (kill_on_drop kills the
+                // child) — no orphan task, no orphan chromium on this path.
+                handler_task.abort();
+                return Err(BrowserError::LaunchFailed {
                     reason: format!("initial page creation failed: {e}"),
-                })?;
+                });
+            }
+        };
         let id = format!(
             "cdp-{}",
             self.next_id
@@ -401,10 +507,15 @@ impl nika_kernel::io::browser::BrowserAutomationDyn for ChromiumBrowser {
         let page = self.page(&session.id)?;
         // depth -1 = full tree in ONE query (the per-node mapper applies the
         // MAX_DOM_DEPTH cap — a hostile page cannot recurse past it).
+        // A CDP query failure on an established session is a transient
+        // protocol fault (NIKA-1406), NOT a selector failure — no selector
+        // is involved in a full-document snapshot.
         let resp = page
             .execute(GetDocumentParams::builder().depth(-1).build())
             .await
-            .map_err(|e| selector_err(&e))?;
+            .map_err(|e| BrowserError::TaskJoinFailed {
+                reason: format!("dom snapshot query failed: {e}"),
+            })?;
         cdp::map_document(&resp.result.root)
     }
 
@@ -414,34 +525,24 @@ impl nika_kernel::io::browser::BrowserAutomationDyn for ChromiumBrowser {
         sel: &str,
     ) -> Result<(), BrowserError> {
         let page = self.page(&session.id)?;
-        // Guard 5 ordering FIXED since B.2: expectation consumed, fresh
-        // resolve, PURE verify — only then the CDP click.
-        let expectation = self.take_click_expectation(&session.id);
+        // Guard 5 · PEEK the expectation (clone, do not burn it): a
+        // page-induced failure below must leave the pin in place so the
+        // agent's retry re-applies it — never downgrade to structural-only.
+        let expectation = self.peek_click_expectation(&session.id)?;
 
-        // Structural check 1 · the selector matches EXACTLY ONE element.
+        // Structural check 1 · exactly one match (PURE decision · cdp module).
         let matches = page
             .find_elements(sel)
             .await
             .map_err(|e| selector_err(&e))?;
-        if matches.len() != 1 {
-            return Err(BrowserError::SelectorFailed {
-                reason: format!(
-                    "guard-5 structural: selector must match exactly one element (matched {})",
-                    matches.len()
-                ),
-            });
-        }
-        // Structural check 2 · stable double-resolve (same backend node).
-        let first = &matches[0];
+        cdp::verify_unique_match(matches.len())?;
+        // Structural check 2 · stable double-resolve (PURE decision).
+        let first_ref = *matches[0].backend_node_id.inner();
         let second = page.find_element(sel).await.map_err(|e| selector_err(&e))?;
-        if first.backend_node_id != second.backend_node_id {
-            return Err(BrowserError::SelectorFailed {
-                reason: "guard-5 structural: selector resolution is unstable (DOM mutated \
-                         between resolves)"
-                    .to_owned(),
-            });
-        }
-        // Build the resolved DomNode (live bbox → visibility).
+        let second_ref = *second.backend_node_id.inner();
+        cdp::verify_stable_resolve(first_ref, second_ref)?;
+        // Build the resolved DomNode — carry the live node identity (Guard-5
+        // STRONG pin) + the live bbox (visibility).
         let desc = second.description().await.map_err(|e| selector_err(&e))?;
         let bbox = match second.bounding_box().await {
             Ok(b) => Some(cdp::bbox_to_rect(b.x, b.y, b.width, b.height)),
@@ -452,20 +553,13 @@ impl nika_kernel::io::browser::BrowserAutomationDyn for ChromiumBrowser {
             cdp::attrs_to_map(desc.attributes.as_deref().unwrap_or_default()),
             Vec::new(),
             bbox,
+            cdp::backend_ref(second_ref),
         );
-        // Guard 5 · PURE verify (expectation pins) or structural visibility.
-        match expectation {
-            Some(exp) => verify_selector_target(&resolved, &exp)?,
-            None => {
-                if !is_visible(&resolved) {
-                    return Err(BrowserError::SelectorFailed {
-                        reason: "guard-5 visibility: resolved element has no renderable area"
-                            .to_owned(),
-                    });
-                }
-            }
-        }
+        // Guard 5 · the SINGLE pure gate (identity + shape pins, or visibility).
+        guard5_gate(&resolved, expectation.as_ref())?;
         second.click().await.map_err(|e| selector_err(&e))?;
+        // Click succeeded → NOW consume the expectation (one guard, one click).
+        self.consume_click_expectation(&session.id);
         Ok(())
     }
 
@@ -495,6 +589,15 @@ mod tests {
     use nika_kernel::prelude::{NikaErrorCode, codes};
 
     fn node(tag: &str, attrs: &[(&str, &str)], bbox: Option<Rect>) -> DomNode {
+        node_with_ref(tag, attrs, bbox, None)
+    }
+
+    fn node_with_ref(
+        tag: &str,
+        attrs: &[(&str, &str)],
+        bbox: Option<Rect>,
+        node_ref: Option<u64>,
+    ) -> DomNode {
         DomNode::new(
             tag.to_owned(),
             attrs
@@ -503,6 +606,7 @@ mod tests {
                 .collect(),
             Vec::new(),
             bbox,
+            node_ref,
         )
     }
 
@@ -621,7 +725,7 @@ mod tests {
         let beyond_cap = u32::from(MAX_DOM_DEPTH) * 2;
         let mut tree = node("div", &[], None);
         for _ in 0..beyond_cap {
-            tree = DomNode::new("div".to_owned(), BTreeMap::new(), vec![tree], None);
+            tree = DomNode::new("div".to_owned(), BTreeMap::new(), vec![tree], None, None);
         }
         assert_eq!(dom_depth(&tree), beyond_cap + 1);
         // Dismantle iteratively — dropping the deep chain recursively is the
@@ -636,6 +740,7 @@ mod tests {
             "div".to_owned(),
             BTreeMap::new(),
             vec![node("a", &[], None), node("b", &[], None)],
+            None,
             None,
         );
         assert_eq!(dom_depth(&wide), 2);
@@ -775,6 +880,7 @@ mod tests {
                 [("id".to_owned(), id.clone())].into(),
                 Vec::new(),
                 Some(nika_kernel::io::screen::Rect::new(0, 0, 100, 30)),
+                None,
             );
             let exp = SelectorExpectation::new(
                 expected_tag,
@@ -782,5 +888,93 @@ mod tests {
             );
             proptest::prop_assert!(verify_selector_target(&resolved, &exp).is_err());
         }
+    }
+
+    // ─── Guard-5 hardening (review-swarm P1 fixes · 2026-06-11) ──────────────
+
+    #[test]
+    fn guard5_node_identity_pin_defeats_structural_lookalike() {
+        // The structural-swap attack: a hostile page deletes the agent's
+        // target and inserts a look-alike with the SAME tag + attributes but
+        // a fresh backend node id. Shape pins pass; the node_ref pin refuses.
+        let visible = Some(visible_box());
+        let lookalike = node_with_ref("button", &[("id", "submit")], visible, Some(999));
+        let exp = SelectorExpectation::with_node_ref(
+            "button".to_owned(),
+            [("id".to_owned(), "submit".to_owned())].into(),
+            42, // the id the agent saw in the snapshot
+        );
+        let err = verify_selector_target(&lookalike, &exp)
+            .expect_err("a fresh node id must refuse the click");
+        assert_eq!(err.nika_code(), codes::NIKA_1404);
+        assert!(err.to_string().contains("node-identity"), "{err}");
+        // The SAME node (matching ref) with matching shape is accepted.
+        let same = node_with_ref("button", &[("id", "submit")], visible, Some(42));
+        assert!(verify_selector_target(&same, &exp).is_ok());
+    }
+
+    #[test]
+    fn guard5_gate_visibility_only_without_expectation() {
+        // No expectation → visibility-only (still never clicks a zero-area
+        // decoy), and a visible node passes.
+        let vis = node("div", &[], Some(visible_box()));
+        assert!(guard5_gate(&vis, None).is_ok());
+        let decoy = node("div", &[], None);
+        assert_eq!(
+            guard5_gate(&decoy, None).expect_err("decoy").nika_code(),
+            codes::NIKA_1404
+        );
+        // With an expectation it routes through the full pin set.
+        let exp = SelectorExpectation::new("button".to_owned(), BTreeMap::new());
+        assert!(guard5_gate(&node("a", &[], Some(visible_box())), Some(&exp)).is_err());
+    }
+
+    #[test]
+    fn structural_helpers_are_pure_and_fail_closed() {
+        // verify_unique_match: only 1 passes.
+        assert!(cdp::verify_unique_match(1).is_ok());
+        for n in [0, 2, 5] {
+            assert_eq!(
+                cdp::verify_unique_match(n)
+                    .expect_err("not one")
+                    .nika_code(),
+                codes::NIKA_1404
+            );
+        }
+        // verify_stable_resolve: equal ids pass, differing fail.
+        assert!(cdp::verify_stable_resolve(7, 7).is_ok());
+        assert_eq!(
+            cdp::verify_stable_resolve(7, 8)
+                .expect_err("unstable")
+                .nika_code(),
+            codes::NIKA_1404
+        );
+    }
+
+    #[tokio::test]
+    async fn page_induced_failure_preserves_the_expectation_for_retry() {
+        // The downgrade-bypass fix: a click that fails on a page-controlled
+        // step must NOT burn the expectation (else a retry runs unpinned).
+        // Here the session lookup fails (live-backend step) — the expectation
+        // must survive. (peek/consume split · consume only after a real click.)
+        let browser = ChromiumBrowser::new().expect("construct");
+        let session = BrowserSession::new("s-1".to_owned(), None);
+        browser
+            .set_click_expectation(
+                &session,
+                SelectorExpectation::with_node_ref("button".to_owned(), BTreeMap::new(), 42),
+            )
+            .expect("register");
+        let err = browser
+            .click_selector(&session, "#submit")
+            .await
+            .expect_err("no live session");
+        assert_eq!(err.nika_code(), codes::NIKA_1403);
+        // Survives — peek did not consume; consume only fires after a click.
+        let kept = browser
+            .peek_click_expectation("s-1")
+            .expect("lock")
+            .expect("expectation preserved across a page-induced failure");
+        assert_eq!(kept.node_ref, Some(42));
     }
 }

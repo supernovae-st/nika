@@ -1,0 +1,612 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nika.sh/spec/v1/workflow.schema.json",
+  "title": "Nika workflow · v1",
+  "description": "Structural contract for a Nika v1 workflow file. Hand-derived from the prose spec (spec/01-08) at v0.1 · to be superseded by the engine-generated `nika-schema` (schemars) output at engine GA · both derive from the same prose source of truth. Strict on structure (envelope · exactly-one-verb-per-task · enums · id patterns · unknown-key rejection) · permissive on leaf value types where a `${{ }}` CEL template may appear in place of a literal.",
+  "$comment": "INTERIM hand-derived schema · prose spec is the single source of truth · regenerate + diff against engine `nika-schema` at GA.",
+  "type": "object",
+  "required": [
+    "nika",
+    "workflow",
+    "tasks"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "nika": {
+      "const": "v1",
+      "description": "Language contract version · exactly `v1` for the v1 lifetime. NOT `v1.0` · `1` · `1.0`."
+    },
+    "workflow": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Workflow id · kebab-case · unique within file · the document-type discriminator."
+    },
+    "description": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string",
+      "description": "Default model · `<provider>/<name>` (e.g. anthropic/claude-sonnet-4-6 · ollama/llama3.1 · mock/echo)."
+    },
+    "vars": {
+      "type": "object",
+      "description": "Workflow inputs · `${{ vars.X }}`. Each value is untyped (the literal default) OR a typed declaration object.",
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "array",
+              "object",
+              "null"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "array",
+                  "object"
+                ]
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "description": {
+                "type": "string"
+              },
+              "default": {}
+            }
+          }
+        ],
+        "if": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "type": {
+              "enum": [
+                "string",
+                "number",
+                "integer",
+                "boolean",
+                "array",
+                "object"
+              ]
+            }
+          },
+          "$comment": "A typed-var declaration (an object carrying a string `type:`) MUST use the closed type enum per spec/01-envelope.md §vars · the untyped-object default form (no `type:` key) is untouched."
+        }
+      }
+    },
+    "env": {
+      "type": "object",
+      "description": "Non-sensitive runtime config · `${{ env.X }}` · may appear in logs.",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "description": "Vault-backed masked references · `${{ secrets.X }}` · never inline literals.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "vault",
+              "env",
+              "file"
+            ],
+            "default": "vault"
+          },
+          "key": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "description": "The workflow's return value · symmetric to vars. Each entry is a `${{ tasks.X.output }}` reference (untyped form · string) OR a typed declaration { value · type · description }. Powers `nika run` result + the output half of the callable-workflow schema.",
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "required": [
+              "value"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "array",
+                  "object"
+                ]
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "task": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "A DAG node. MUST bind exactly one of the 4 verbs (infer · exec · invoke · agent).",
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "infer"
+              ]
+            },
+            {
+              "required": [
+                "exec"
+              ]
+            },
+            {
+              "required": [
+                "invoke"
+              ]
+            },
+            {
+              "required": [
+                "agent"
+              ]
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Task id · snake_case (CEL-safe · no hyphens) · unique within workflow."
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          }
+        },
+        "when": {
+          "type": "string",
+          "format": "cel-expression",
+          "description": "CEL boolean · conditional execution · `${{ ... }}`."
+        },
+        "for_each": {
+          "description": "Map this task over a collection · `${{ ... }}` reference OR a literal array.",
+          "type": [
+            "string",
+            "array"
+          ]
+        },
+        "max_parallel": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Cap concurrent for_each iterations · default unbounded · 1 = sequential."
+        },
+        "fail_fast": {
+          "type": "boolean",
+          "description": "for_each abort-on-error · default true."
+        },
+        "retry": {
+          "$ref": "#/$defs/retry"
+        },
+        "on_error": {
+          "$ref": "#/$defs/onError"
+        },
+        "timeout": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))*$",
+          "description": "Go-duration string · quoted · e.g. \"30s\" \"5m\" \"1h30m\" \"2.5s\". Max 24h."
+        },
+        "on_finally": {
+          "type": "array",
+          "description": "Cleanup mini-tasks · ALWAYS run (success/fail/timeout/cancel) · sequential · best-effort.",
+          "items": {
+            "$ref": "#/$defs/finallyStep"
+          }
+        },
+        "with": {
+          "type": "object",
+          "description": "Task-level scope injection · `${{ with.X }}`."
+        },
+        "output": {
+          "type": "object",
+          "description": "Named jq-expression bindings · `${{ tasks.X.<name> }}`. jq is the single data extraction-and-transform language (the former RFC 9535 JSONPath was dropped · jq is a superset · per spec/04-variables.md §216-225). Reserved names forbidden at parse time (spec/04-variables.md §Rules): output · status · error · started_at · ended_at · duration_ms — enforced via propertyNames.",
+          "propertyNames": {
+            "not": {
+              "enum": [
+                "output",
+                "status",
+                "error",
+                "started_at",
+                "ended_at",
+                "duration_ms"
+              ]
+            }
+          },
+          "additionalProperties": {
+            "type": "string",
+            "format": "jq"
+          }
+        },
+        "infer": {
+          "$ref": "#/$defs/infer"
+        },
+        "exec": {
+          "$ref": "#/$defs/exec"
+        },
+        "invoke": {
+          "$ref": "#/$defs/invoke"
+        },
+        "agent": {
+          "$ref": "#/$defs/agent"
+        }
+      }
+    },
+    "infer": {
+      "type": "object",
+      "required": [
+        "prompt"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "prompt": {
+          "type": "string"
+        },
+        "system": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "temperature": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "description": "0-2 · number or `${{ }}`."
+        },
+        "max_tokens": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "schema": {
+          "type": "object",
+          "description": "JSON Schema · structured output contract."
+        },
+        "thinking": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "budget_tokens": {
+              "type": "integer"
+            }
+          }
+        },
+        "vision": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "enum": [
+                  "file",
+                  "url"
+                ]
+              },
+              "path": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "exec": {
+      "type": "object",
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "stdin": {
+          "type": "string"
+        },
+        "capture": {
+          "type": "string",
+          "enum": [
+            "stdout",
+            "stderr",
+            "combined",
+            "structured"
+          ]
+        }
+      }
+    },
+    "invoke": {
+      "type": "object",
+      "required": [
+        "tool"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "description": "Tool ref · `nika:<name>` builtin (closed enum from stdlib v0.1 · LSP-perfect completion) OR `mcp:<server>/<tool>` (open · pattern) OR `x-<vendor>:<tool>` (engine-specific · explicitly non-portable · 06-stdlib-contract §Namespace ownership).",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "`nika:*` builtin · 22 canonical per stdlib v0.1 (Core 6 · File 5 · Data 8 · Network 2 · Introspection 1). Closed enum for `yaml-language-server` autocomplete.",
+              "enum": [
+                "nika:assert",
+                "nika:convert",
+                "nika:date",
+                "nika:done",
+                "nika:edit",
+                "nika:emit",
+                "nika:fetch",
+                "nika:glob",
+                "nika:grep",
+                "nika:hash",
+                "nika:inspect",
+                "nika:jq",
+                "nika:json_diff",
+                "nika:json_merge_patch",
+                "nika:log",
+                "nika:notify",
+                "nika:prompt",
+                "nika:read",
+                "nika:uuid",
+                "nika:validate",
+                "nika:wait",
+                "nika:write"
+              ]
+            },
+            {
+              "type": "string",
+              "description": "`mcp:<server>/<tool>` external MCP tool · open (pattern · `/` separates path).",
+              "pattern": "^mcp:[a-z][a-z0-9_]*(/[a-z][a-z0-9_]*)*$"
+            },
+            {
+              "type": "string",
+              "description": "`x-<vendor>:<tool>` custom engine-specific tool · open (pattern) · workflows using `x-*` tools are explicitly NOT portable across engines (the OpenAPI `x-` extension pattern · per 06-stdlib-contract §Namespace ownership).",
+              "pattern": "^x-[a-z][a-z0-9-]*:[a-z][a-z0-9_]*(/[a-z][a-z0-9_]*)*$"
+            }
+          ]
+        },
+        "args": {
+          "type": "object"
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "required": [
+        "prompt"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "prompt": {
+          "type": "string"
+        },
+        "system": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "tools": {
+          "type": "array",
+          "description": "Whitelist · DEFAULT-DENY (no tools if absent) · gitignore-style globs · `!` negation.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_turns": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "max_tokens_total": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "temperature": {
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "schema": {
+          "type": "object",
+          "description": "JSON Schema · validate the agent's final message as structured output."
+        }
+      }
+    },
+    "retry": {
+      "type": "object",
+      "required": [
+        "max_attempts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "backoff_ms": {
+          "type": "integer"
+        },
+        "backoff_strategy": {
+          "type": "string",
+          "enum": [
+            "fixed",
+            "linear",
+            "exponential"
+          ]
+        },
+        "backoff_max_ms": {
+          "type": "integer"
+        },
+        "jitter": {
+          "type": "boolean"
+        },
+        "on_codes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^NIKA-[A-Z]{2,9}(-[A-Z]{2,9})?-[0-9]{3}$"
+          }
+        }
+      }
+    },
+    "onError": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Error recovery · exactly one of recover / skip / fail_workflow (mutually exclusive per spec/05-errors.md §Fields · maxProperties enforces it · the pre-merge fallback/value forms were REMOVED 2026-06-10 per the one-voice pass · spec/05-errors.md merged them into recover).",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "recover": {
+          "description": "Recovery output · a `${{ }}` ref OR a literal (merges the former fallback/value per spec/05-errors.md)."
+        },
+        "skip": {
+          "type": "boolean"
+        },
+        "fail_workflow": {
+          "type": "boolean"
+        }
+      }
+    },
+    "finallyStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "when": {
+          "type": "string",
+          "format": "cel-expression"
+        },
+        "timeout": {
+          "type": "string"
+        },
+        "infer": {
+          "$ref": "#/$defs/infer"
+        },
+        "exec": {
+          "$ref": "#/$defs/exec"
+        },
+        "invoke": {
+          "$ref": "#/$defs/invoke"
+        },
+        "agent": {
+          "$ref": "#/$defs/agent"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "infer"
+          ]
+        },
+        {
+          "required": [
+            "exec"
+          ]
+        },
+        {
+          "required": [
+            "invoke"
+          ]
+        },
+        {
+          "required": [
+            "agent"
+          ]
+        }
+      ]
+    }
+  }
+}

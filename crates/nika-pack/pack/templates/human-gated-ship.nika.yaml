@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · human-gated-ship — gates in parallel, a human signs,
+# the action ships, evidence always lands.
+# The default shape for anything irreversible (deploys · sends · publishes).
+#
+# Instantiate · copy → fill `# SLOT:` → `nika check` → repair → re-check.
+# The contract (patterns 6 + 9) ·
+#   nothing irreversible happens before nika:prompt returns true
+#   the assert makes « no » terminal · on_finally records EITHER WAY
+nika: v1
+workflow: human-gated-ship-template  # SLOT: kebab-case workflow id
+description: "verify in parallel · human GO · act · record"   # SLOT
+
+secrets:
+  webhook:
+    source: env
+    key: TEAM_WEBHOOK_URL           # SLOT: where the record lands
+
+tasks:
+  # ── the verification wave · all checks run in parallel ──
+  - id: check_a
+    exec:
+      command: "echo ok"            # SLOT: gate 1 (tests · lint · probe)
+      capture: structured
+
+  - id: check_b
+    exec:
+      command: "echo ok"            # SLOT: gate 2
+      capture: structured
+
+  - id: gates
+    depends_on: [check_a, check_b]
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: "${{ tasks.check_a.output.exit_code == 0 && tasks.check_b.output.exit_code == 0 }}"
+        message: "A gate is RED — refusing to proceed"   # SLOT
+
+  - id: human
+    depends_on: [gates]
+    invoke:
+      tool: "nika:prompt"
+      args:
+        message: "All gates GREEN. Proceed?"   # SLOT: the decision, fully informed
+        default: false
+
+  - id: act
+    depends_on: [human]
+    when: ${{ tasks.human.output == true }}
+    exec:
+      command: "echo shipped"       # SLOT: the irreversible action
+      capture: structured
+    on_finally:                     # the record lands · acted OR refused
+      - invoke:
+          tool: "nika:notify"
+          args:
+            channel: webhook
+            target: "${{ secrets.webhook }}"
+            message: "Run finished · act=${{ tasks.act.status }}"   # SLOT
+            severity: info
+
+outputs:
+  acted: ${{ tasks.act.status }}

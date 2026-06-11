@@ -15,10 +15,46 @@ use chromiumoxide::cdp::browser_protocol::dom::Node as CdpNode;
 use nika_kernel::io::browser::{BrowserError, DomNode};
 use nika_kernel::io::screen::{DisplayId, Frame, Rect};
 
-use crate::MAX_DOM_DEPTH;
+use crate::{MAX_DOM_DEPTH, MAX_DOM_NODES};
 
 /// CDP `nodeType` for element nodes (DOM spec: `ELEMENT_NODE == 1`).
 const ELEMENT_NODE: i64 = 1;
+
+/// Guard 5 structural check 1 (PURE) · a clickable selector must resolve to
+/// EXACTLY ONE element. Zero = nothing to click; ≥2 = ambiguous (the agent
+/// reasoned over one node, the page now offers several) — fail CLOSED.
+///
+/// # Errors
+/// [`BrowserError::SelectorFailed`] (NIKA-1404) with the observed count.
+pub(crate) fn verify_unique_match(count: usize) -> Result<(), BrowserError> {
+    if count == 1 {
+        Ok(())
+    } else {
+        Err(BrowserError::SelectorFailed {
+            reason: format!(
+                "guard-5 structural: selector must match exactly one element (matched {count})"
+            ),
+        })
+    }
+}
+
+/// Guard 5 structural check 2 (PURE) · the selector must resolve to the SAME
+/// backend node twice in a row — instability means the DOM mutated between
+/// resolves (a live page racing the click), fail CLOSED.
+///
+/// # Errors
+/// [`BrowserError::SelectorFailed`] (NIKA-1404) when the two ids differ.
+pub(crate) fn verify_stable_resolve(first: i64, second: i64) -> Result<(), BrowserError> {
+    if first == second {
+        Ok(())
+    } else {
+        Err(BrowserError::SelectorFailed {
+            reason: "guard-5 structural: selector resolution is unstable (DOM mutated between \
+                     resolves)"
+                .to_owned(),
+        })
+    }
+}
 
 /// Pair CDP's flat attribute array (`[name1, value1, name2, value2, …]`)
 /// into the kernel's deterministic `BTreeMap`. A trailing odd name (protocol
@@ -30,34 +66,52 @@ pub(crate) fn attrs_to_map(flat: &[String]) -> BTreeMap<String, String> {
         .collect()
 }
 
-/// Map a CDP element `Node` to the kernel [`DomNode`] — depth-capped at
-/// [`MAX_DOM_DEPTH`] (untrusted input: children beyond the cap are TRUNCATED,
-/// the node itself survives). Non-element children (text, comments) are
-/// skipped — the kernel tree is elements-only. Snapshot nodes carry
-/// `bbox: None` (box models are resolved live on the click path only).
-#[must_use]
-pub(crate) fn map_element(node: &CdpNode, depth: u16) -> DomNode {
-    let children = if depth >= MAX_DOM_DEPTH {
-        Vec::new() // cap: a hostile deep tree cannot recurse past here
+/// Map a CDP element `Node` to the kernel [`DomNode`] — bounded on BOTH axes
+/// (untrusted input): depth at [`MAX_DOM_DEPTH`] and total node count at
+/// [`MAX_DOM_NODES`] (`budget` is decremented per mapped node; at zero,
+/// remaining children are TRUNCATED). Together they bound recursion AND
+/// memory — a hostile page can neither stack-overflow nor OOM the agent.
+/// Non-element children (text, comments) are skipped — the kernel tree is
+/// elements-only. Snapshot nodes carry `bbox: None` (box models resolve live
+/// on the click path only).
+fn map_element(node: &CdpNode, depth: u16, budget: &mut u32) -> DomNode {
+    let children = if depth >= MAX_DOM_DEPTH || *budget == 0 {
+        Vec::new() // cap: depth OR node-budget exhausted — truncate here
     } else {
-        node.children
-            .as_deref()
-            .unwrap_or_default()
-            .iter()
-            .filter(|c| c.node_type == ELEMENT_NODE)
-            .map(|c| map_element(c, depth.saturating_add(1)))
-            .collect()
+        let mut mapped = Vec::new();
+        for c in node.children.as_deref().unwrap_or_default() {
+            if c.node_type != ELEMENT_NODE {
+                continue;
+            }
+            if *budget == 0 {
+                break; // node budget spent mid-sibling-list — truncate the rest
+            }
+            *budget -= 1;
+            mapped.push(map_element(c, depth.saturating_add(1), budget));
+        }
+        mapped
     };
     DomNode::new(
         node.local_name.to_ascii_lowercase(),
         attrs_to_map(node.attributes.as_deref().unwrap_or_default()),
         children,
         None,
+        backend_ref(*node.backend_node_id.inner()),
     )
 }
 
-/// Map a CDP document tree to the kernel root element (`<html>`): breadth-first
-/// search for the FIRST element node, then [`map_element`] from there.
+/// Widen a CDP `BackendNodeId` (i64) into the kernel's `node_ref: Option<u64>`
+/// — the Guard-5 identity anchor. CDP ids are positive; a non-positive value
+/// (protocol anomaly) maps to `None` (no identity claimed — fail toward
+/// "cannot pin" rather than a bogus pin).
+#[must_use]
+pub(crate) fn backend_ref(raw: i64) -> Option<u64> {
+    u64::try_from(raw).ok().filter(|&v| v != 0)
+}
+
+/// Map a CDP document tree to the kernel root element (`<html>`): depth-first
+/// search (explicit `Vec` + `pop`) for the FIRST element node, then
+/// [`map_element`] from there.
 ///
 /// # Errors
 /// [`BrowserError::SelectorFailed`] when the document contains no element node
@@ -66,7 +120,8 @@ pub(crate) fn map_document(root: &CdpNode) -> Result<DomNode, BrowserError> {
     let mut queue: Vec<&CdpNode> = vec![root];
     while let Some(n) = queue.pop() {
         if n.node_type == ELEMENT_NODE {
-            return Ok(map_element(n, 0));
+            let mut budget = MAX_DOM_NODES;
+            return Ok(map_element(n, 0, &mut budget));
         }
         queue.extend(n.children.as_deref().unwrap_or_default().iter());
     }
@@ -246,7 +301,8 @@ mod tests {
             None,
         );
         let div = cdp_node(1, "div", None, Some(vec![text_child, button]));
-        let mapped = map_element(&div, 0);
+        let mut budget = MAX_DOM_NODES;
+        let mapped = map_element(&div, 0, &mut budget);
         assert_eq!(mapped.tag, "div");
         assert_eq!(mapped.children.len(), 1, "text node skipped");
         assert_eq!(mapped.children[0].tag, "button");
@@ -257,10 +313,31 @@ mod tests {
         // Depth cap: at MAX_DOM_DEPTH the children are truncated.
         let leafy = cdp_node(1, "span", None, None);
         let parent = cdp_node(1, "div", None, Some(vec![leafy]));
-        let capped = map_element(&parent, MAX_DOM_DEPTH);
-        assert!(capped.children.is_empty(), "children truncated at the cap");
-        let uncapped = map_element(&parent, MAX_DOM_DEPTH - 1);
+        let mut b2 = MAX_DOM_NODES;
+        let capped = map_element(&parent, MAX_DOM_DEPTH, &mut b2);
+        assert!(
+            capped.children.is_empty(),
+            "children truncated at the depth cap"
+        );
+        let mut b3 = MAX_DOM_NODES;
+        let uncapped = map_element(&parent, MAX_DOM_DEPTH - 1, &mut b3);
         assert_eq!(uncapped.children.len(), 1, "one below the cap maps fully");
+    }
+
+    #[test]
+    fn map_element_node_budget_truncates_wide_sibling_lists() {
+        // Memory cap: a parent with many shallow children is truncated when
+        // the node budget runs out (depth alone would never catch this).
+        let kids: Vec<CdpNode> = (0..10).map(|_| cdp_node(1, "span", None, None)).collect();
+        let parent = cdp_node(1, "div", None, Some(kids));
+        let mut budget = 3u32; // room for 3 children before exhaustion
+        let mapped = map_element(&parent, 0, &mut budget);
+        assert_eq!(
+            mapped.children.len(),
+            3,
+            "wide list truncated at the budget"
+        );
+        assert_eq!(budget, 0, "budget fully spent");
     }
 
     #[test]

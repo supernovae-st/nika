@@ -59,11 +59,18 @@ fi
 #                         drift. HEAD parity for tracked docs is intentionally
 #                         left unenforced; vector 1 (memory-head-sha) handles
 #                         the out-of-tree MEMORY.md pointer separately.
-# What remains: branch, workspace version, crate counts, per-layer
+#   - branch            : tree-local, same class as HEAD. A PR branch that
+#                         splices the block then squash-merges poisons main's
+#                         embedded block with the feature-branch name, hard-
+#                         blocking every later push from main (fired twice,
+#                         2026-06-10/11 · feat/nika-pack). Committed docs on
+#                         main should cosmetically say `main`, but parity on
+#                         this row is structurally meaningless.
+# What remains: workspace version, crate counts, per-layer
 # distribution. These are the SLOWLY-changing fields where drift is
 # pathological (a wrong layer count = misleading architecture claim).
 strip_dynamic() {
-  grep -vE '^\| (lib tests|clippy|HEAD) '
+  grep -vE '^\| (lib tests|clippy|HEAD|branch) '
 }
 
 CANONICAL_STATIC=$(echo "$CANONICAL" | strip_dynamic)

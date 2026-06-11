@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T1 starter · e-commerce / personal
+#
+# A price-drop alert in ~20 lines — and ZERO model calls. Not every
+# workflow needs an LLM · the DAG, the tools and one CEL comparison
+# do the whole job deterministically.
+#
+# Demonstrates ·
+#   - `nika:fetch` with `mode: jq` · pull ONE structured field from an API
+#   - `output:` · named jq bindings → `${{ tasks.check.price }}`
+#   - `when:` · CEL number comparison gates the alert task
+#   - `secrets:` · the webhook URL is vault/env-backed, masked in logs
+#
+# Run · nika run examples/showcase/t1-price-watch.nika.yaml
+nika: v1
+workflow: price-watch
+description: "Watch a product price, ping me when it drops below my target"
+
+vars:
+  product_api: "https://api.shop.example.com/v1/products/macbook-air"
+  alert_below: 899
+
+secrets:
+  alerts_webhook:
+    source: env
+    key: ALERTS_WEBHOOK_URL
+
+tasks:
+  - id: check
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ vars.product_api }}"
+        mode: jq
+        jq: "."
+    output:                           # named jq bindings over the raw response
+      price: ".price"
+      name: ".name"
+
+  - id: alert
+    depends_on: [check]
+    when: ${{ tasks.check.price < vars.alert_below }}
+    invoke:
+      tool: "nika:notify"
+      args:
+        channel: webhook
+        target: "${{ secrets.alerts_webhook }}"
+        message: "Price drop · ${{ tasks.check.name }} is now ${{ tasks.check.price }} (target ${{ vars.alert_below }})"
+        severity: info
+
+outputs:
+  price: ${{ tasks.check.price }}

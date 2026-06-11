@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · etl-state — incremental data job with a state file.
+# The default shape for « only the NEW » jobs (feeds · exports · syncs)
+# and for batch pipelines that must survive bad input.
+#
+# Instantiate · copy → fill `# SLOT:` → `nika check` → repair → re-check.
+# Two load-bearing moves ·
+#   on_error: recover:   bad data is DATA · the pipeline lives
+#   state read→diff→write   you only process what changed
+nika: v1
+workflow: etl-state-template        # SLOT: kebab-case workflow id
+description: "read state · fetch fresh · diff · process the delta · save state"   # SLOT
+
+vars:
+  source_url: "https://api.example.com/v1/records"   # SLOT: the data source
+  state_path: "./state/etl-state.json"               # SLOT: the cursor file
+
+tasks:
+  # First run · no state file yet · recover to an empty list.
+  - id: empty
+    invoke:
+      tool: "nika:jq"
+      args: { input: [], expression: "." }
+
+  - id: previous
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ vars.state_path }}" }
+    on_error:
+      recover: ${{ tasks.empty.output }}
+
+  - id: fresh
+    invoke:
+      tool: "nika:fetch"            # SLOT: fetch / read / exec — the fresh data
+      args:
+        url: "${{ vars.source_url }}"
+        mode: jq
+        jq: ".records"
+
+  - id: delta
+    depends_on: [previous, fresh]
+    invoke:
+      tool: "nika:json_diff"        # RFC 6902 · empty patch = nothing new
+      args:
+        before: "${{ tasks.previous.output }}"
+        after: "${{ tasks.fresh.output }}"
+
+  - id: process
+    depends_on: [delta]
+    when: ${{ size(tasks.delta.output) > 0 }}
+    invoke:
+      tool: "nika:jq"               # SLOT: the delta job (jq · infer · write…)
+      args:
+        input: "${{ tasks.delta.output }}"
+        expression: "length"
+
+  - id: save_state
+    depends_on: [fresh]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "${{ vars.state_path }}"
+        content: "${{ tasks.fresh.output }}"
+        create_dirs: true
+        overwrite: true
+
+outputs:
+  changes:
+    value: ${{ tasks.delta.output }}
+    type: array
+    description: "RFC 6902 ops since last run · empty = no-op run"

@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T3 fan-out · strategy / product marketing
+#
+# Monday 8am · everything your competitor shipped last week, read in
+# parallel, digested into one brief on your desk. N pages is decided at
+# RUNTIME by their sitemap — not hardcoded.
+#
+# Demonstrates ·
+#   - `for_each` over a runtime collection · the matrix / fan-out pattern
+#   - `max_parallel: 4` + `fail_fast: false` · bounded, resilient crawling
+#   - `retry:` + `timeout:` · per-iteration resilience (flaky web is normal)
+#   - the fan-in · `${{ tasks.pages.output }}` is the ARRAY of page summaries
+#
+# Run · nika run examples/showcase/t3-competitor-radar.nika.yaml
+nika: v1
+workflow: competitor-radar
+description: "Sitemap → parallel page reads → one competitive brief + ping"
+
+model: mock/echo            # swap for anthropic/claude-sonnet-4-6
+
+vars:
+  competitor_sitemap: "https://competitor.example.com/sitemap.xml"
+
+secrets:
+  team_webhook:
+    source: env
+    key: TEAM_WEBHOOK_URL
+
+tasks:
+  - id: map
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ vars.competitor_sitemap }}"
+        mode: sitemap
+    output:
+      recent: ".urls[:8]"             # cap the radar at the 8 freshest pages
+
+  - id: pages
+    depends_on: [map]
+    for_each: ${{ tasks.map.recent }}
+    max_parallel: 4                    # be polite · 4 fetches in flight max
+    fail_fast: false                   # one dead page must not kill the radar
+    timeout: "30s"
+    retry:
+      max_attempts: 3
+      backoff_strategy: exponential
+      jitter: true
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ item }}"
+        mode: article
+
+  - id: digest
+    depends_on: [pages]
+    infer:
+      prompt: |
+        These are the pages a competitor published recently ·
+        ${{ tasks.pages.output }}
+        Write the Monday brief · what they shipped · what it signals ·
+        what we should watch. One page, plain words.
+
+  - id: save
+    depends_on: [digest]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./radar/competitor-brief.md"
+        content: "${{ tasks.digest.output }}"
+        create_dirs: true
+
+  - id: ping
+    depends_on: [save]
+    invoke:
+      tool: "nika:notify"
+      args:
+        channel: webhook
+        target: "${{ secrets.team_webhook }}"
+        message: "Competitor radar is ready · ./radar/competitor-brief.md"
+        severity: info
+
+outputs:
+  brief: ${{ tasks.digest.output }}

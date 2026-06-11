@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 06 · Parallel fan-out + merge — the core DAG pattern.
+#
+# Demonstrates ·
+#   - implicit parallelism · three tasks with no deps between them run concurrently
+#   - `depends_on:` · the merge task waits for all three
+#   - `${{ tasks.X.output }}` · referencing upstream outputs
+#   - `with:` · aliasing upstream outputs to short local names for a readable prompt
+#
+# DAG shape ·   angle ─┐
+#               cost  ─┼─→ synthesize
+#               risk  ─┘
+nika: v1
+workflow: parallel-fanout
+
+model: mock/echo
+vars:
+  topic: "adopting Rust for a backend rewrite"
+
+tasks:
+  # These three have no dependency on each other → the engine runs them in parallel.
+  - id: angle
+    infer:
+      prompt: "Give the strategic angle on · ${{ vars.topic }}"
+
+  - id: cost
+    infer:
+      prompt: "Give the cost angle on · ${{ vars.topic }}"
+
+  - id: risk
+    infer:
+      prompt: "Give the risk angle on · ${{ vars.topic }}"
+
+  # Merge · runs only after all three complete.
+  - id: synthesize
+    depends_on: [angle, cost, risk]
+    with:
+      a: ${{ tasks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.output }}
+    infer:
+      prompt: |
+        Synthesize one recommendation from three analyses.
+        Strategy · ${{ with.a }}
+        Cost · ${{ with.c }}
+        Risk · ${{ with.r }}
+
+# The workflow's return value · what `nika run` prints + a caller receives.
+outputs:
+  recommendation: ${{ tasks.synthesize.output }}

@@ -4,8 +4,9 @@
 //! Browser automation traits — L0.5 sealed DTOs + async trait.
 //!
 //! Phase 2 M1 PR 5 (sprint plan `2026-05-14-nika-phase-2-m1-kernel-
-//! modules-sprint-plan.md` §4). Reserved error codes NIKA-1100..1149
-//! per `docs/architecture/forward-compat-invariants.md` Gate 12.
+//! modules-sprint-plan.md` §4). Error codes NIKA-1400..1499 per the
+//! ADR-081 `nika_codes` matrix (the sprint plan's draft 1100-block was
+//! superseded — 1100-1199 is nika-ocr's range; see `crate::errors`).
 //!
 //! ADR-006 monolithic-kernel-spirit (single trait + DTOs · no proc
 //! macro · no async runtime dep). ADR-016 ISP discipline (1 trait =
@@ -22,10 +23,10 @@
 //! display capture + browser screenshot · cohérent
 //! `no-legacy-no-back-compat.md` Class 1).
 //!
-//! URL field decision (sprint plan §7 Risks · pre-flight verify) ·
-//! the workspace does NOT declare `url` as a dependency · scope-lock
-//! per `concurrent-session-conflict.md` Pattern 1 forbids workspace
-//! Cargo.toml structural change in this batch. `BrowserSession::url`
+//! URL field decision (sprint plan §7 Risks · updated M2.5 B.3) ·
+//! the kernel stays `url`-dep-free (L0.5 traits-only); the L1 impl
+//! (`nika-browser`) owns the `url` crate and runs the RFC-3986 gate
+//! BEFORE any CDP dispatch. `BrowserSession::url`
 //! and `BrowserAutomation::navigate` therefore carry `String` with
 //! documented format expectation (RFC 3986 absolute URI · scheme +
 //! authority + path · validated at L1 impl boundary). When `url`
@@ -130,6 +131,16 @@ impl BrowserProfile {
 /// `io::screen` (cross-PR dep · M1.1) · `None` when the element is
 /// `display: none` · off-screen · or otherwise unrenderable.
 ///
+/// `node_ref: Option<u64>` is the backend-stable node identity within ONE
+/// browser session (CDP `BackendNodeId` widened) — the ADR-081 Guard-5
+/// anchor: it lets an agent pin "the node I SAW in this snapshot" and a
+/// click path verify the fresh resolve is the SAME node, which
+/// page-reproducible shape (tag + attributes) structurally cannot
+/// (a hostile page can always mint a look-alike element). `None` when the
+/// producing surface carries no stable identity. NOT compared by
+/// `PartialEq` semantics consumers should rely on across sessions — the
+/// id is meaningful only against the session that produced it.
+///
 /// `PartialEq` + `Eq` derive recursively over `Vec<DomNode>` children ·
 /// the canonical equality is structural (cohérent `AxNode` shape at
 /// `io::a11y`). `Eq` is sound · no `f32`/`f64` fields · `Rect` is
@@ -146,6 +157,9 @@ pub struct DomNode {
     /// Bounding box in physical-pixel coordinates · `None` when off-screen
     /// or unrenderable.
     pub bbox: Option<Rect>,
+    /// Backend-stable node identity within one session (CDP `BackendNodeId`)
+    /// — the Guard-5 anchor. `None` = no stable identity on this surface.
+    pub node_ref: Option<u64>,
 }
 
 impl DomNode {
@@ -159,12 +173,14 @@ impl DomNode {
         attributes: BTreeMap<String, String>,
         children: Vec<DomNode>,
         bbox: Option<Rect>,
+        node_ref: Option<u64>,
     ) -> Self {
         Self {
             tag,
             attributes,
             children,
             bbox,
+            node_ref,
         }
     }
 }
@@ -353,6 +369,7 @@ mod tests {
             child_attrs,
             vec![],
             Some(Rect::new(100, 200, 80, 32)),
+            Some(42),
         );
 
         let mut parent_attrs = BTreeMap::new();
@@ -362,6 +379,7 @@ mod tests {
             parent_attrs,
             vec![child.clone()],
             Some(Rect::new(50, 150, 400, 200)),
+            None,
         );
 
         let json = serde_json::to_string(&parent).expect("serialize dom parent");

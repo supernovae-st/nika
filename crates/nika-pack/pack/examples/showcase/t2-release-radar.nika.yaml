@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 chain · devops / dependency hygiene
+#
+# « Did anything we depend on ship this week? » — answered from the
+# project's own feeds. `mode: feed` parses RSS/Atom natively · the
+# diff against last run's state means you only hear about what's NEW.
+#
+# Demonstrates ·
+#   - `nika:fetch` `mode: feed` · RSS/Atom parsing built in
+#   - the state-file pattern · read last run → diff → write next state
+#   - `nika:json_diff` (RFC 6902) · NEW entries = additions in the patch
+#   - `on_error: recover:` on first run (no state file yet)
+#
+# Run · nika run examples/showcase/t2-release-radar.nika.yaml
+nika: v1
+workflow: release-radar
+description: "dependency release feed → diff vs last run → only the NEW ships"
+
+model: mock/echo            # swap for anthropic/claude-haiku-4-5
+
+vars:
+  releases_feed: "https://github.com/tokio-rs/tokio/releases.atom"
+  state_path: "./state/release-radar.json"
+
+tasks:
+  # First run has no state file · recover to an empty list.
+  - id: no_state
+    invoke:
+      tool: "nika:jq"
+      args: { input: [], expression: "." }
+
+  - id: previous
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ vars.state_path }}" }
+    on_error:
+      recover: ${{ tasks.no_state.output }}
+
+  - id: feed
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ vars.releases_feed }}"
+        mode: feed
+    output:
+      entries: "[.items[] | {title, url, published}]"
+
+  - id: fresh
+    depends_on: [previous, feed]
+    invoke:
+      tool: "nika:json_diff"
+      args:
+        before: "${{ tasks.previous.output }}"
+        after: "${{ tasks.feed.entries }}"
+
+  - id: digest
+    depends_on: [fresh, feed]
+    when: ${{ size(tasks.fresh.output) > 0 }}
+    infer:
+      prompt: |
+        New releases appeared on our dependency radar (RFC 6902 patch
+        against last run) ·
+        ${{ tasks.fresh.output }}
+        Full current feed · ${{ tasks.feed.entries }}
+        Write 3 bullets · what shipped · whether it looks breaking ·
+        what to check in our code.
+
+  - id: save_state
+    depends_on: [feed]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "${{ vars.state_path }}"
+        content: "${{ tasks.feed.entries }}"
+        create_dirs: true
+        overwrite: true
+
+outputs:
+  new_entries:
+    value: ${{ tasks.fresh.output }}
+    type: array
+    description: "RFC 6902 ops · empty = nothing new since last run"

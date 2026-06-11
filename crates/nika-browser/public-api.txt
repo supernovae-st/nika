@@ -50,9 +50,11 @@ impl<V, T> ppv_lite86::types::VZip<V> for nika_browser::ChromiumBrowser where V:
 pub fn nika_browser::ChromiumBrowser::vzip(self) -> V
 #[non_exhaustive] pub struct nika_browser::SelectorExpectation
 pub nika_browser::SelectorExpectation::attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_browser::SelectorExpectation::node_ref: core::option::Option<u64>
 pub nika_browser::SelectorExpectation::tag: alloc::string::String
 impl nika_browser::SelectorExpectation
 pub fn nika_browser::SelectorExpectation::new(tag: alloc::string::String, attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
+pub fn nika_browser::SelectorExpectation::with_node_ref(tag: alloc::string::String, attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, node_ref: u64) -> Self
 impl core::clone::Clone for nika_browser::SelectorExpectation
 pub fn nika_browser::SelectorExpectation::clone(&self) -> nika_browser::SelectorExpectation
 impl core::cmp::Eq for nika_browser::SelectorExpectation
@@ -98,6 +100,8 @@ pub type nika_browser::SelectorExpectation::Output = T
 impl<V, T> ppv_lite86::types::VZip<V> for nika_browser::SelectorExpectation where V: ppv_lite86::types::MultiLane<T>
 pub fn nika_browser::SelectorExpectation::vzip(self) -> V
 pub const nika_browser::MAX_DOM_DEPTH: u16
+pub const nika_browser::MAX_DOM_NODES: u32
 pub fn nika_browser::dom_depth(node: &nika_kernel_core::io::browser::DomNode) -> u32
+pub fn nika_browser::guard5_gate(resolved: &nika_kernel_core::io::browser::DomNode, expectation: core::option::Option<&nika_browser::SelectorExpectation>) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
 pub fn nika_browser::is_visible(node: &nika_kernel_core::io::browser::DomNode) -> bool
 pub fn nika_browser::verify_selector_target(resolved: &nika_kernel_core::io::browser::DomNode, expectation: &nika_browser::SelectorExpectation) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>

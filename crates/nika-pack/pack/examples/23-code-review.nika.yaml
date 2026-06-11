@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 23 · Code-review agent — a multi-turn agentic loop.
+#
+# Demonstrates ·
+#   - the `agent:` verb · model + tools, looping until done or budget exhausted
+#   - `tools:` · DEFAULT-DENY whitelist (the agent gets ONLY what you grant · least-privilege)
+#   - glob grants · `nika:read` exact · `mcp:git/*` whole server
+#   - `max_turns:` + `max_tokens_total:` · budget caps
+#   - real provider (`model:`) · agentic loops want a tool-calling model
+#
+# The loop ends when the model returns no tool calls, hits a budget,
+# or calls the `nika:done` completion sentinel (valid only inside agent:).
+nika: v1
+workflow: code-review
+
+vars:
+  pr_path:
+    type: string
+    required: true
+    description: "Path to the changed files to review"
+
+tasks:
+  - id: review
+    agent:
+      model: anthropic/claude-sonnet-4-6
+      system: "You are a senior Rust reviewer. Read the diff, then write findings."
+      prompt: "Review the code under · ${{ vars.pr_path }} · and report bugs + style issues."
+      tools:                       # default-deny · these are the ONLY tools the agent may call
+        - "nika:read"              # read source files
+        - "mcp:git/*"              # any tool from the `git` MCP server (diff, blame, log)
+        - "nika:done"              # completion sentinel · lets the agent end the loop cleanly
+      max_turns: 20
+      max_tokens_total: 100000
+      temperature: 0.2
+      schema:                      # validate the agent's final message as structured findings
+        type: object
+        required: [findings]
+        properties:
+          findings:
+            type: array
+            items:
+              type: object
+              required: [severity, message]
+              properties:
+                severity: { type: string, enum: [blocker, high, med, low] }
+                message: { type: string }
+
+# Typed return contract · structured findings, ready for a caller to consume.
+outputs:
+  findings:
+    value: ${{ tasks.review.output.findings }}
+    type: array
+    description: "Structured code-review findings"

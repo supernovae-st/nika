@@ -1,0 +1,296 @@
+# nika canonical registry · the single source of truth for Nika canonical facts
+# License · Apache-2.0 (part of the Nika spec)
+#
+# THIS FILE IS THE SOURCE. Every other surface (the .ttl graph nodes, the
+# engine schemars enum, the prose counts in spec/stdlib/README/docs/blueprint)
+# is a PROJECTION of this file. Edit here once → run the projector to update
+# everywhere → drift caught structurally at commit time.
+#
+# Projectors · scripts/canon-projectors.py (in-repo · counts → docs+website) ·
+#   scripts/showcase-projector.py (examples → docs+website) · monorepo gate ·
+#   supernovae scripts/audit/nika-showcase-parity.sh + nika-canon-project.sh
+# Architecture · projection-by-default (edit here once → projectors update
+#   every surface · drift is caught structurally at commit time). The .ttl is currently parallel-authored · in Phase 3
+#   it gets generated from this file.
+#
+# Schema versioning · `schema_version` field forward-compat per
+#   no-legacy-no-back-compat.md (the projector rejects unknown versions with
+#   exit 2 · forces explicit upgrade when schema mutates). v1 baseline locked
+#   2026-05-27 evening · 12 categories · 4 yaml shapes (bare/struct/nested/flow).
+#
+# Self-check · for each category, `count: N` MUST equal `len(items)` ·
+#   projector verifies on every invocation · exits 2 (env error) on
+#   intra-canon drift · structural prevention of count-vs-items mismatch.
+#
+# v0.1 · 2026-05-27 · populated from .ttl HEAD (post atomic-language audit · the
+#   most-current canonical truth · cohort 42→27→26→25→22 builtins + NIKA-FETCH
+#   fold into NIKA-BUILTIN per "fetch is a builtin, not a verb" D-N18).
+# v0.2 · 2026-05-27 evening · schema_version 1 + 6 extended dimensions
+#   (lifecycle_product · lifecycle_decision · lifecycle_risk · diamond_layers ·
+#   steal_pattern_tiers · severity) + flow-style items[] support.
+
+# ---------------------------------------------------------------- schema
+# Forward-compat marker · bump on breaking schema change. The projector
+# refuses to run with an unknown schema_version (exit 2 · explicit upgrade
+# required).
+schema_version: 1
+
+# ---------------------------------------------------------------- counts
+# Top-level counts · derived from items[] length below · stated here for
+# fast grep-based projection checks (the projector reads `count:` lines).
+counts:
+  verbs: 4
+  namespaces: 5
+  builtins: 22
+  providers: 14
+  extract_modes: 9
+  error_namespaces: 14
+  pillars: 5
+  # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
+  lifecycle_product: 4
+  lifecycle_decision: 4
+  lifecycle_risk: 4
+  diamond_layers: 7
+  steal_pattern_tiers: 4
+  severity: 4
+
+# ---------------------------------------------------------------- verbs
+# D-2026-05-22-N18 · "the count is 4, absolute · immutable forever".
+# A verb = a distinct native execution model · fetch is NOT a verb (it is the
+# nika:fetch builtin reached via invoke:). spec/02-verbs.md is the prose home.
+verbs:
+  count: 4
+  immutable: true
+  reference: spec/02-verbs.md
+  items:
+    - { name: infer,  semantic: "LLM generation · structured output · vision · thinking" }
+    - { name: exec,   semantic: "Shell command · blocklist · streaming" }
+    - { name: invoke, semantic: "MCP tool call OR builtin (incl. nika:fetch)" }
+    - { name: agent,  semantic: "Multi-turn agentic loop · tool calling · guardrails" }
+
+# ---------------------------------------------------------------- namespaces
+# The 5 substitution namespaces · LOCKED at v1 (spec/04-variables.md ·
+# loop-locals item/index are for_each-scoped locals · NOT a 6th namespace).
+namespaces:
+  count: 5
+  immutable: true
+  reference: spec/04-variables.md
+  items:
+    - vars
+    - with
+    - tasks
+    - env
+    - secrets
+
+# ---------------------------------------------------------------- builtins
+# Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss).
+# stdlib/builtins-v0.1.md is the prose home (matches at 22 · cascade complete 2026-05-27).
+# Admission test · 3 razors · (1) NOT-expressible-in-jq+CEL+Schema · (2) canonical
+# interop format (RFC-6902/7396/9562 · etc.) · (3) cookbook-clarity.
+builtins:
+  count: 22
+  reference: stdlib/builtins-v0.1.md
+  items:
+    - assert
+    - convert
+    - date
+    - done
+    - edit
+    - emit
+    - fetch
+    - glob
+    - grep
+    - hash
+    - inspect
+    - jq
+    - json_diff
+    - json_merge_patch
+    - log
+    - notify
+    - prompt
+    - read
+    - uuid
+    - validate
+    - wait
+    - write
+
+# ---------------------------------------------------------------- providers
+# 8 cloud + 5 local + 1 test = 14 (openrouter promoted D-2026-06-10-N2). stdlib/providers-v0.1.md is the prose home.
+# Sovereignty · 5 local providers (sovereignty Rule 1 · zero-cloud default path).
+providers:
+  count: 14
+  reference: stdlib/providers-v0.1.md
+  items:
+    cloud:
+      - anthropic
+      - openai
+      - gemini
+      - deepseek
+      - mistral
+      - xai
+      - groq
+      - openrouter
+    local:
+      - ollama
+      - lmstudio
+      - llamacpp
+      - localai
+      - vllm
+    test:
+      - mock
+
+# ---------------------------------------------------------------- extract modes
+# 9 modes for the nika:fetch builtin's mode: parameter (builtins-v0.1.md).
+# stdlib/extract-modes-v0.1.md is the prose home.
+extract_modes:
+  count: 9
+  reference: stdlib/extract-modes-v0.1.md
+  items:
+    - article
+    - feed
+    - jq
+    - links
+    - markdown
+    - metadata
+    - selector
+    - sitemap
+    - text
+
+# ---------------------------------------------------------------- error namespaces
+# Post NIKA-FETCH fold into NIKA-BUILTIN (commit b14bf091c · 2026-05-27 ·
+# matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
+# spec/05-errors.md is the prose home (matches at 14 · cascade complete 2026-05-27).
+error_namespaces:
+  count: 14
+  reference: spec/05-errors.md
+  items:
+    - NIKA-AGENT
+    - NIKA-BUILTIN
+    - NIKA-CANCEL
+    - NIKA-DAG
+    - NIKA-EXEC
+    - NIKA-IMPL
+    - NIKA-INFER
+    - NIKA-INVOKE
+    - NIKA-MCP
+    - NIKA-PARSE
+    - NIKA-PROVIDER
+    - NIKA-SEC
+    - NIKA-TIMEOUT
+    - NIKA-VAR
+
+# ---------------------------------------------------------------- pillars
+# 5 immutable pillars forever (spec/00-overview · the language backbone).
+# Order is semantic · envelope frames · verbs act · dag composes · variables
+# thread state · errors handle failure.
+pillars:
+  count: 5
+  immutable: true
+  reference: spec/00-overview.md
+  items:
+    - { order: 1, name: envelope,  semantic: "nika: v1 contract envelope (single-version marker · ADR-082)" }
+    - { order: 2, name: verbs,     semantic: "the 4 native execution models" }
+    - { order: 3, name: dag,       semantic: "task composition + control flow (for_each · when)" }
+    - { order: 4, name: variables, semantic: "scope-bound state threading + binding (CEL + jq)" }
+    - { order: 5, name: errors,    semantic: "the 14 error namespaces + handling contract" }
+
+# ---------------------------------------------------------------- lifecycle enums
+# 4-state lifecycle taxonomies · studio-extended dimensions · public
+# framework usable across products. Closed enum forever.
+lifecycle_product:
+  count: 4
+  reference: studio-internal
+  items: [seed, active, mature, sunset]
+
+lifecycle_decision:
+  count: 4
+  reference: studio-internal
+  items: [proposed, active, superseded, archived]
+
+lifecycle_risk:
+  count: 4
+  reference: studio-internal
+  items: [open, mitigated, cleared, archived]
+
+# ---------------------------------------------------------------- diamond layers
+# 7 layers in the Diamond bottom-up admission DAG (ADR-037 + ADR-006 amendment).
+# L0 foundation · L0.5 traits-only · L1 satellites · L2 orchestrators ·
+# L3 verbs · L4 consumers · L5 top apps. Order semantic · monotonic.
+diamond_layers:
+  count: 7
+  reference: nika/engine/docs/adr/adr-037-bottom-up.md
+  items: ["L0", "L0.5", "L1", "L2", "L3", "L4", "L5"]
+
+# ---------------------------------------------------------------- steal-pattern tiers
+# 4-tier triage from steal-pattern.md · A native · B port FSM · C adopt headless ·
+# D defer. Public Tier 0/1/2/3 = the @spnds 3-tier sister (different domain ·
+# CSS/elements/machines). Closed enum forever.
+steal_pattern_tiers:
+  count: 4
+  reference: studio-internal
+  items:
+    - { name: A, semantic: "NATIVE-FIRST · browsers ship 95%+ (popover= · <dialog> · <details>)" }
+    - { name: B, semantic: "STEAL · port FSM · <2000 LOC · ≤4 algo layers · a11y <30%" }
+    - { name: C, semantic: "ADOPT-AS-DEVDEP · >3000 LOC · headless+MIT/Apache" }
+    - { name: D, semantic: "DEFER · >5000 LOC OR specialist (text engines)" }
+
+# ---------------------------------------------------------------- severity
+# 4-level review/finding severity per hq-hygiene + ds-discipline review canon.
+# Order semantic · descending · BLOCKER halts ship · LOW = informational.
+severity:
+  count: 4
+  reference: studio-internal
+  items: [BLOCKER, HIGH, MED, LOW]
+
+# ---------------------------------------------------------------- canonical phrasing
+# F2 one-voice registry (2026-06-10 night arc · B1) · the LOAD-BEARING sentences
+# that MUST read identically across spec · engine doc-comments · docs · website.
+# Each entry · key + the canonical sentence (quote VERBATIM · never paraphrase in
+# live canon prose) + the prose home. Sweep tooling matches on distinctive
+# fragments (`match:`) · a live-canon surface contradicting a phrasing = drift.
+# Historical/dated/archive surfaces exempt (leave-coupled-era prose).
+canonical_phrasing:
+  verb_definition:
+    phrase: "A verb is a distinct native execution model"
+    match: "distinct native execution model"
+    home: spec/02-verbs.md
+  callable_is_tool:
+    phrase: "Everything callable is a tool reached through invoke: · everything about ordering is a DAG construct"
+    match: "callable"
+    home: spec/02-verbs.md
+  fetch_not_a_verb:
+    # home text · "so it is the `nika:fetch` builtin, reached through invoke:"
+    phrase: "fetch is the `nika:fetch` builtin, reached through invoke: · not a verb"
+    match: "`nika:fetch` builtin, reached"
+    home: spec/02-verbs.md
+  jq_one_data_language:
+    phrase: "jq is the single data extraction-and-transform language"
+    match: "extraction-and-transform"
+    home: spec/04-variables.md
+  provider_is_prefix:
+    phrase: "You select an LLM with a single model: field · the provider is the prefix"
+    match: "the provider is the prefix"
+    home: stdlib/providers-v0.1.md
+  envelope_forever:
+    # home text · "names the language and pins the contract version"
+    phrase: "nika: v1 names the language and pins the contract version · v1 is the only value for the lifetime of the v1 contract"
+    match: "pins the contract version"
+    home: spec/01-envelope.md
+  edges_never_inferred:
+    # home text · "(a verb-body reference is an edge too · no invisible edges)"
+    phrase: "the engine rejects the workflow at parse time · it does not silently infer the edge · no invisible edges"
+    match: "no invisible edges"
+    home: spec/03-dag.md
+  cel_not_a_dsl:
+    phrase: "Nika does not invent an expression DSL · it adopts CEL"
+    match: "invent an expression DSL"
+    home: spec/03-dag.md
+  spec_owns_errors:
+    phrase: "the spec table · not any engine's source code · owns the taxonomy"
+    match: "owns the taxonomy"
+    home: spec/05-errors.md
+  prose_wins:
+    # home text · "(kept in sync · the prose is normative on conflict)"
+    phrase: "the prose is normative on conflict · the published JSON Schema and the reference engine follow the spec"
+    match: "the prose is normative on conflict"
+    home: spec/07-conformance.md

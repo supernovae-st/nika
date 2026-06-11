@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# sync-pack.sh · vendor the spec pack snapshot into crates/nika-pack/pack/
+#
+# The pack = the versioned language artifacts the binary embeds (per the
+# spec README §The examples pack). Source of truth = the nika-spec repo;
+# this script copies the exact surface and nothing else. Run it when
+# bumping the embedded pack to a new spec version, then commit the diff.
+#
+# Usage · scripts/sync-pack.sh [path-to-nika-spec-checkout]
+set -euo pipefail
+
+CRATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+[[ -n "${CRATE_DIR}" && -f "${CRATE_DIR}/Cargo.toml" ]] || {
+  echo "CRATE_DIR resolution failed" >&2
+  exit 2
+}
+SPEC="${1:-${CRATE_DIR}/../../../spec}"
+DEST="${CRATE_DIR}/pack"
+
+[[ -f "${SPEC}/canon.yaml" ]] || {
+  echo "spec checkout not found at ${SPEC}" >&2
+  exit 2
+}
+
+rm -rf "${DEST}"
+mkdir -p "${DEST}/schemas" "${DEST}/examples/showcase" "${DEST}/templates" "${DEST}/spec" "${DEST}/stdlib"
+
+cp "${SPEC}/VERSION" "${SPEC}/canon.yaml" "${SPEC}/QUICKSTART.md" "${DEST}/"
+cp "${SPEC}/schemas/workflow.schema.json" "${DEST}/schemas/"
+cp "${SPEC}/examples/manifest.yaml" "${SPEC}"/examples/*.nika.yaml "${DEST}/examples/"
+cp "${SPEC}"/examples/showcase/*.nika.yaml "${DEST}/examples/showcase/"
+cp "${SPEC}"/templates/*.nika.yaml "${DEST}/templates/"
+cp "${SPEC}"/spec/*.md "${DEST}/spec/"
+cp "${SPEC}"/stdlib/*.md "${DEST}/stdlib/"
+
+echo "pack synced from ${SPEC} → ${DEST} (version $(cat "${DEST}/VERSION"))"

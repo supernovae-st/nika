@@ -846,9 +846,10 @@ impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::browser::Brow
 pub nika_kernel_core::io::browser::DomNode::attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_kernel_core::io::browser::DomNode::bbox: core::option::Option<nika_kernel_core::io::screen::Rect>
 pub nika_kernel_core::io::browser::DomNode::children: alloc::vec::Vec<nika_kernel_core::io::browser::DomNode>
+pub nika_kernel_core::io::browser::DomNode::node_ref: core::option::Option<u64>
 pub nika_kernel_core::io::browser::DomNode::tag: alloc::string::String
 impl nika_kernel_core::io::browser::DomNode
-pub fn nika_kernel_core::io::browser::DomNode::new(tag: alloc::string::String, attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, children: alloc::vec::Vec<nika_kernel_core::io::browser::DomNode>, bbox: core::option::Option<nika_kernel_core::io::screen::Rect>) -> Self
+pub fn nika_kernel_core::io::browser::DomNode::new(tag: alloc::string::String, attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, children: alloc::vec::Vec<nika_kernel_core::io::browser::DomNode>, bbox: core::option::Option<nika_kernel_core::io::screen::Rect>, node_ref: core::option::Option<u64>) -> Self
 impl core::clone::Clone for nika_kernel_core::io::browser::DomNode
 pub fn nika_kernel_core::io::browser::DomNode::clone(&self) -> nika_kernel_core::io::browser::DomNode
 impl core::cmp::Eq for nika_kernel_core::io::browser::DomNode

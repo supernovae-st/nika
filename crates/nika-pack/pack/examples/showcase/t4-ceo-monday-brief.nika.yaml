@@ -1,0 +1,131 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T4 epic · founders / executives
+#
+# The Monday brief that assembles itself · market signal, engineering
+# pulse and the KPI sheet gathered in parallel · synthesized with a
+# thinking budget · saved, dated — and the ping tells you what the run
+# COST. The workflow reports its own bill.
+#
+# Demonstrates ·
+#   - 3-branch parallel gather · fetch + exec + read→convert→jq
+#   - jq arithmetic · `add` sums revenue WITHOUT a model call
+#   - `thinking:` · the synthesis gets a reasoning budget
+#   - `nika:inspect view: cost` · the run reports its own spend in the ping
+#   - `nika:date` · deterministic date in the filename, not model-guessed
+#
+# Run · nika run examples/showcase/t4-ceo-monday-brief.nika.yaml
+nika: v1
+workflow: ceo-monday-brief
+description: "news + repo pulse + KPIs → thinking synthesis → dated brief + cost ping"
+
+model: anthropic/claude-sonnet-4-6
+
+vars:
+  watch_query: "AI workflow engines"
+  kpi_csv: "./finance/kpis.csv"
+
+secrets:
+  founders_webhook:
+    source: env
+    key: FOUNDERS_WEBHOOK_URL
+
+tasks:
+  # ── branch 1 · market signal ──
+  - id: news
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://hn.algolia.com/api/v1/search?query=${{ vars.watch_query }}"
+        mode: jq
+        jq: ".hits[:10] | map(.title)"
+
+  # ── branch 2 · engineering pulse ──
+  - id: pulse
+    exec:
+      command: "git shortlog -sn --since='1 week ago'"
+
+  # ── branch 3 · the numbers ──
+  - id: kpi_raw
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ vars.kpi_csv }}" }
+
+  - id: kpis
+    depends_on: [kpi_raw]
+    invoke:
+      tool: "nika:convert"
+      args:
+        input: "${{ tasks.kpi_raw.output }}"
+        from: csv
+        to: json
+        has_header: true
+
+  - id: revenue
+    depends_on: [kpis]
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ tasks.kpis.output }}"
+        expression: "map(.weekly_revenue | tonumber) | add"
+
+  # ── synthesis · with a thinking budget ──
+  - id: brief
+    depends_on: [news, pulse, kpis, revenue]
+    infer:
+      prompt: |
+        Market signal · ${{ tasks.news.output }}
+        Engineering pulse · ${{ tasks.pulse.output }}
+        KPIs · ${{ tasks.kpis.output }}
+        Revenue (summed) · ${{ tasks.revenue.output }}
+
+        Write my Monday brief · 5 sections · market · product ·
+        numbers · risks · the ONE decision this week needs.
+      thinking:
+        enabled: true
+        budget_tokens: 10000
+
+  - id: stamp
+    invoke:
+      tool: "nika:date"
+      args: { op: now }
+    output:
+      day: ".iso[:10]"               # YYYY-MM-DD from the ISO timestamp
+
+  - id: save
+    depends_on: [brief, stamp]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./briefs/${{ tasks.stamp.day }}-monday.md"
+        content: "${{ tasks.brief.output }}"
+        create_dirs: true
+
+  # ── the run reports its own bill ──
+  - id: bill
+    depends_on: [save]
+    invoke:
+      tool: "nika:inspect"
+      args: { view: cost }
+
+  - id: ping
+    depends_on: [bill, stamp]
+    invoke:
+      tool: "nika:notify"
+      args:
+        channel: webhook
+        target: "${{ secrets.founders_webhook }}"
+        message: "Monday brief ready · briefs/${{ tasks.stamp.day }}-monday.md · run cost $${{ tasks.bill.output.total_usd }}"
+        severity: info
+    on_finally:
+      - invoke:
+          tool: "nika:emit"
+          args:
+            event_type: "brief.monday.run"
+            payload:
+              day: "${{ tasks.stamp.day }}"
+
+outputs:
+  brief: ${{ tasks.brief.output }}
+  cost_usd: ${{ tasks.bill.output.total_usd }}
