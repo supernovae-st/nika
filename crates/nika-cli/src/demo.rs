@@ -151,4 +151,18 @@ mod tests {
             let _ = ev.kind.as_str();
         }
     }
+
+    #[test]
+    fn scheduled_event_ids_pin_the_documented_sequence() {
+        // The five TaskScheduled events occupy seq 2..=6 — golden replay
+        // identity (drifted id arithmetic would break byte-stable traces).
+        let events = success();
+        for (n, ev) in events[1..6].iter().enumerate() {
+            assert_eq!(
+                ev.id,
+                EventId::new(Uuid::from_u128(2 + n as u128)),
+                "seq of scheduled[{n}]"
+            );
+        }
+    }
 }

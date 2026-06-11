@@ -249,6 +249,49 @@ mod tests {
         }
     }
 
+    /// Each lifecycle kind owns a distinct fold transition — scheduled
+    /// creates a Pending row, started flips it Running (deleting either
+    /// match arm collapses states the renderer must distinguish).
+    #[test]
+    fn scheduled_then_started_walk_the_state_machine() {
+        let mut view = RunView::new();
+        view.apply(&demo::bare_event(EventKind::TaskScheduled, 10).with_field(
+            nika_types::resource::KeyValue::new("task", Value::String("fetch_top".to_owned())),
+        ));
+        assert_eq!(view.rows().len(), 1, "scheduled creates the row");
+        assert_eq!(view.rows()[0].state, TaskState::Pending);
+        assert_eq!(view.done_count(), 0);
+
+        view.apply(&demo::bare_event(EventKind::TaskStarted, 20).with_field(
+            nika_types::resource::KeyValue::new("task", Value::String("fetch_top".to_owned())),
+        ));
+        assert_eq!(view.rows().len(), 1, "started upserts, never duplicates");
+        assert_eq!(view.rows()[0].state, TaskState::Running);
+    }
+
+    /// The token sparkline folds EXACTLY the completed tasks that carry a
+    /// `tokens` field — no invented samples, no dropped ones.
+    #[test]
+    fn token_samples_fold_exactly_the_reported_usage() {
+        let mut view = RunView::new();
+        for ev in demo::success() {
+            view.apply(&ev);
+        }
+        // The storyboard reports usage on exactly one completion (710).
+        assert_eq!(view.token_samples, vec![710]);
+    }
+
+    /// `ceiling_usd` accepts an integer-typed YAML value (`Value::Int`) —
+    /// the float coercion arm is load-bearing, not decorative.
+    #[test]
+    fn ceiling_accepts_integer_values() {
+        let mut view = RunView::new();
+        view.apply(&demo::bare_event(EventKind::WorkflowStarted, 0).with_field(
+            nika_types::resource::KeyValue::new("ceiling_usd", Value::Int(4)),
+        ));
+        assert_eq!(view.ceiling_usd, Some(4.0));
+    }
+
     #[test]
     fn unknown_task_events_render_nothing_not_garbage() {
         let mut view = RunView::new();

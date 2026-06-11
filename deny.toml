@@ -68,6 +68,7 @@ wrappers = [
   "nika-verb-infer",       # L2 verb (s9): tokio dev-dep for #[tokio::test] run() tests over the mock registry (zero runtime tokio dep · transport inherited from the resolved provider)
   "nika-verb-exec",        # L2 verb (s10): tokio dev-dep for #[tokio::test] run() tests over MockShell (zero runtime tokio dep · subprocess owned by the injected runner)
   "nika-verb-invoke",      # L2 verb (s11): tokio dev-dep for #[tokio::test] run() tests over an inline mock ToolExecute (zero runtime tokio dep · dispatch owned by the injected executor)
+  "nika-cli",              # L4 operator surface (WIP seed 2026-06-11): tokio dev-dep for the #[tokio::test] e2e pipeline rehearsal over the async verb crates (zero runtime tokio dep · the lib fold + bin replay are sync)
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   # tower-http joined via chromiumoxide's reqwest 0.13 tree (nika-browser M2.5).
   "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",

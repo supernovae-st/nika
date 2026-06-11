@@ -178,4 +178,84 @@ mod tests {
         let view = fold(&demo::success());
         assert_eq!(frame(&view, &UNICODE, 0), frame(&view, &UNICODE, 9));
     }
+
+    /// The sparkline rides the RUNNING row exactly when samples exist —
+    /// both injection guards are semantic, not cosmetic.
+    #[test]
+    fn running_row_carries_sparkline_only_with_samples() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+
+        // A running task with NO samples: no spark glyph anywhere.
+        let mut without = RunView::new();
+        without.apply(
+            &demo::bare_event(EventKind::TaskStarted, 10)
+                .with_field(KeyValue::new("task", Value::String("summarize".into())))
+                .with_field(KeyValue::new("note", Value::String("infer".into()))),
+        );
+        let lines = frame(&without, &UNICODE, 0);
+        assert!(
+            !lines.iter().any(|l| l.contains('▇')),
+            "no samples → no spark: {lines:?}"
+        );
+
+        // A completed task reported tokens: the spark appears on the
+        // RUNNING line (single sample 710 → top bar).
+        let mut with = RunView::new();
+        with.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 5)
+                .with_field(KeyValue::new("task", Value::String("fetch".into())))
+                .with_field(KeyValue::new("tokens", Value::Int(710))),
+        );
+        with.apply(
+            &demo::bare_event(EventKind::TaskStarted, 10)
+                .with_field(KeyValue::new("task", Value::String("summarize".into())))
+                .with_field(KeyValue::new("note", Value::String("infer".into()))),
+        );
+        let lines = frame(&with, &UNICODE, 0);
+        let running = lines
+            .iter()
+            .find(|l| l.contains("summarize"))
+            .expect("running row renders");
+        assert!(
+            running.contains('▇'),
+            "tokens reported → spark on the running row: {running}"
+        );
+    }
+
+    /// The failure card targets FAILED rows only — an Ok row that happens
+    /// to carry a `detail` field renders no card (the `&&` is semantic).
+    #[test]
+    fn failure_card_ignores_ok_rows_with_detail() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+
+        let mut view = RunView::new();
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 5)
+                .with_field(KeyValue::new("task", Value::String("ok_task".into())))
+                .with_field(KeyValue::new(
+                    "detail",
+                    Value::String("NIKA-999 retried twice, recovered".into()),
+                )),
+        );
+        view.apply(
+            &demo::bare_event(EventKind::TaskFailed, 10)
+                .with_field(KeyValue::new("task", Value::String("bad_task".into())))
+                .with_field(KeyValue::new(
+                    "detail",
+                    Value::String("NIKA-440 · boom".into()),
+                )),
+        );
+        view.apply(&demo::bare_event(EventKind::WorkflowFailed, 20));
+
+        let lines = frame(&view, &UNICODE, 0);
+        let card_lines: Vec<&String> = lines.iter().filter(|l| l.contains("NIKA-")).collect();
+        assert_eq!(
+            card_lines.len(),
+            2,
+            "headline + explain hint for the ONE failed row only: {lines:?}"
+        );
+        assert!(card_lines[0].contains("NIKA-440"));
+    }
 }

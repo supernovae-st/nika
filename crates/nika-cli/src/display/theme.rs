@@ -205,4 +205,20 @@ mod tests {
             "max sample = top bar"
         );
     }
+
+    /// Exact ramp pins — the scaling arithmetic `v·(len−1)/top` is the
+    /// semantics (a mutated operator draws a wrong-but-plausible chart,
+    /// only exact bars catch it).
+    #[test]
+    fn sparkline_exact_ramps() {
+        // top=8: 1·6/8=0 → ▁ · 4·6/8=3 → ▄ · 8·6/8=6 → ▇
+        assert_eq!(PLAIN.sparkline(&[1, 4, 8]), "▁▄▇");
+        // top=3: 2·6/3=4 → ▅ · 3·6/3=6 → ▇
+        assert_eq!(PLAIN.sparkline(&[2, 3]), "▅▇");
+        // Only the LAST 3 samples render: [9,1,2,3] → tail [1,2,3] ·
+        // top=3 · 1·6/3=2 → ▃ · 2·6/3=4 → ▅ · 3·6/3=6 → ▇
+        assert_eq!(PLAIN.sparkline(&[9, 1, 2, 3]), "▃▅▇");
+        // A zero sample floors at the bottom bar (top clamps to ≥1).
+        assert_eq!(PLAIN.sparkline(&[0]), "▁");
+    }
 }
