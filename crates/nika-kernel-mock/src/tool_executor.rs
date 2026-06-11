@@ -2,13 +2,20 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! `NullToolExecutor` + `MockToolExecutor` — tool execution test doubles.
+//!
+//! Both implement the `Dyn` (Send-future) trait variants directly — the
+//! `MockShell` precedent: `trait_variant::make` does NOT blanket the base
+//! impl into its `Dyn` variant, and the verb/runtime seams consume the
+//! `Dyn` side (`InvokeVerb<T: ToolExecuteDyn>`).
 
 use std::collections::VecDeque;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
 
-use nika_kernel::tool_executor::{ToolBatch, ToolCall, ToolExecError, ToolExecute, ToolResult};
+use nika_kernel::tool_executor::{
+    ToolBatchDyn, ToolCall, ToolExecError, ToolExecuteDyn, ToolResult,
+};
 
 /// No-op tool executor that always returns `NotAvailable`.
 ///
@@ -25,7 +32,7 @@ impl NullToolExecutor {
     }
 }
 
-impl ToolExecute for NullToolExecutor {
+impl ToolExecuteDyn for NullToolExecutor {
     async fn execute(&self, call: ToolCall) -> Result<ToolResult, ToolExecError> {
         Err(ToolExecError::NotAvailable {
             reason: format!("NullToolExecutor: tool '{}' not available", call.name),
@@ -33,7 +40,7 @@ impl ToolExecute for NullToolExecutor {
     }
 }
 
-impl ToolBatch for NullToolExecutor {
+impl ToolBatchDyn for NullToolExecutor {
     async fn execute_batch(&self, calls: Vec<ToolCall>) -> Vec<Result<ToolResult, ToolExecError>> {
         let mut results = Vec::with_capacity(calls.len());
         for call in calls {
@@ -82,7 +89,7 @@ impl MockToolExecutor {
     }
 }
 
-impl ToolExecute for MockToolExecutor {
+impl ToolExecuteDyn for MockToolExecutor {
     async fn execute(&self, call: ToolCall) -> Result<ToolResult, ToolExecError> {
         self.calls.lock().push(call);
         self.results.lock().pop_front().unwrap_or_else(|| {
@@ -93,7 +100,7 @@ impl ToolExecute for MockToolExecutor {
     }
 }
 
-impl ToolBatch for MockToolExecutor {
+impl ToolBatchDyn for MockToolExecutor {
     async fn execute_batch(&self, calls: Vec<ToolCall>) -> Vec<Result<ToolResult, ToolExecError>> {
         let mut results = Vec::with_capacity(calls.len());
         for call in calls {
@@ -205,14 +212,14 @@ mod tests {
     }
 
     #[test]
-    fn null_satisfies_tool_executor() {
-        fn _accepts<T: nika_kernel::ToolExecutor>(_: &T) {}
+    fn null_satisfies_the_dyn_runtime_seam() {
+        fn _accepts<T: ToolExecuteDyn + ToolBatchDyn>(_: &T) {}
         _accepts(&NullToolExecutor::new());
     }
 
     #[test]
-    fn mock_satisfies_tool_executor() {
-        fn _accepts<T: nika_kernel::ToolExecutor>(_: &T) {}
+    fn mock_satisfies_the_dyn_runtime_seam() {
+        fn _accepts<T: ToolExecuteDyn + ToolBatchDyn>(_: &T) {}
         _accepts(&MockToolExecutor::new());
     }
 

@@ -20,8 +20,8 @@
 //! | [`MockProvider`] | `Provider` | Deterministic responses + stream synthesis |
 //! | [`NullMemoryStore`] | `MemoryStore` | accept-all writes, empty recalls |
 //! | [`NullEmbeddingProvider`] | `EmbeddingProvider` | Zero vectors |
-//! | [`NullToolExecutor`] | `ToolExecutor` | Returns `NotAvailable` |
-//! | [`MockToolExecutor`] | `ToolExecutor` | FIFO results + call recording |
+//! | [`NullToolExecutor`] | `ToolExecuteDyn`+`ToolBatchDyn` | Returns `NotAvailable` |
+//! | [`MockToolExecutor`] | `ToolExecuteDyn`+`ToolBatchDyn` | FIFO results + call recording |
 //! | [`NullContextCompressor`] | `ContextCompressor` | Returns `None` |
 
 #![cfg_attr(
