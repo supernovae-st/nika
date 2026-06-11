@@ -1,0 +1,38 @@
+[package]
+name          = "nika-extract"
+description   = "The 9 fetch extract modes (stdlib extract-modes-v0.1.md) — pure byte→structured transformation behind nika:fetch's mode: argument. Zero I/O · zero async · zero locks. Spec: docs/crate-specs/nika-extract.md."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1.5 transformation layer.
+
+[dependencies]
+nika-types   = { path = "../nika-types", version = "0.80.0" }   # ExtractMode — the ONE closed vocabulary
+htmd         = { workspace = true }   # markdown|article — HTML→Markdown (Apache-2.0)
+dom_smoothie = { workspace = true }   # article — Readability (MIT)
+scraper      = { workspace = true }   # text|selector|metadata|links — CSS-select DOM (ISC)
+ego-tree     = { workspace = true }   # scraper tree traversal (text-mode walk)
+feed-rs      = { workspace = true }   # feed — RSS/Atom/JSON-Feed normalize (MIT)
+quick-xml    = { workspace = true }   # sitemap — urlset + sitemapindex parse (MIT)
+url          = { workspace = true }   # links — relative→absolute resolution
+serde_json   = { workspace = true }
+thiserror    = { workspace = true }
+miette       = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "kodama-forgeron"
+spirit_role   = "la presse à neuf filières · le web brut entre, la matière utile sort · jamais une goutte d'I/O"
+voice_pattern = "spoken"
+layer         = "L1.5"
+err_prefix    = "NIKA-BUILTIN-FETCH-*"
+
+[lints]
+workspace = true

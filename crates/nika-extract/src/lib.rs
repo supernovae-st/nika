@@ -1,0 +1,491 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! `nika-extract` — the fetch extract modes (L1.5 · pure).
+//!
+//! The transformation half of `nika:fetch` (`stdlib/extract-modes-v0.1.md`):
+//! `&str` in, [`serde_json::Value`] out, **zero I/O · zero async · zero
+//! locks**. The mode vocabulary is [`ExtractMode`] (`nika-types` L0 — ONE
+//! closed set shared with the static checker and the builtin).
+//!
+//! | Mode | Composes | Output |
+//! |---|---|---|
+//! | `markdown` | `htmd` | String (Markdown) |
+//! | `article` | `dom_smoothie` → `htmd` | String (Markdown) |
+//! | `text` | `scraper` DOM walk | String (plain · block `\n`) |
+//! | `selector` | `scraper` CSS select | String (HTML of matches) |
+//! | `metadata` | `scraper` head walk | Object (title·description·og·twitter·canonical·lang) |
+//! | `links` | `scraper` + `url` join | Array of absolute URLs |
+//! | `feed` | `feed-rs` | Object (title·description·link·updated·items) |
+//! | `sitemap` | `quick-xml` | Array of `{loc, lastmod?}` |
+//! | `raw` | identity | String (the decoded body) |
+//! | `jq` | **NOT here** — the builtin composes its jq engine | — |
+//!
+//! Charset is the CALLER's contract (`nika-builtin` decodes — v0.1 is
+//! strict UTF-8 per the spec's `raw` rule); this crate never sees bytes.
+
+#![forbid(unsafe_code)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+
+mod article;
+mod feed;
+mod html;
+mod metadata;
+mod sitemap;
+
+pub use nika_types::extract::{EXTRACT_MODE_NAMES, ExtractMode, UnknownExtractMode};
+
+/// Mode-specific options for [`extract`] (`selector:` for `mode:
+/// selector`, the fetch URL as `base_url` for link/canonical
+/// resolution).
+#[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
+pub struct ExtractOptions<'a> {
+    /// CSS selector (`mode: selector` only — its REQUIRED argument).
+    pub selector: Option<&'a str>,
+    /// The fetched URL — base for relative `href`/canonical resolution
+    /// (`links` · `metadata`). Without it, relative links are skipped.
+    pub base_url: Option<&'a str>,
+}
+
+impl ExtractOptions<'_> {
+    /// No selector, no base URL.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// Extraction failures. The builtin maps every variant onto
+/// `NIKA-BUILTIN-FETCH-001` (the spec's single fetch error code) — the
+/// variants exist for actionable MESSAGES, not for a parallel taxonomy.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum ExtractError {
+    /// A mode's required argument is missing (`selector` without `selector:`).
+    #[error("mode `{mode}` requires the `{arg}:` argument")]
+    MissingArg {
+        /// The mode that needs it.
+        mode: ExtractMode,
+        /// The missing argument name.
+        arg: &'static str,
+    },
+
+    /// The CSS selector does not parse.
+    #[error("invalid CSS selector `{selector}`: {reason}")]
+    Selector {
+        /// The selector as received.
+        selector: String,
+        /// Parser detail.
+        reason: String,
+    },
+
+    /// HTML transformation failed (markdown · article · text · selector).
+    #[error("{mode} extraction failed: {reason}")]
+    Html {
+        /// The failing mode.
+        mode: ExtractMode,
+        /// Converter detail.
+        reason: String,
+    },
+
+    /// The body is not a parseable RSS/Atom/JSON feed.
+    #[error("feed parse failed: {reason}")]
+    Feed {
+        /// Parser detail.
+        reason: String,
+    },
+
+    /// The body is not a parseable sitemap / sitemap index.
+    #[error("sitemap parse failed: {reason}")]
+    Sitemap {
+        /// Parser detail.
+        reason: String,
+    },
+
+    /// The mode is not handled by this crate (jq composes at the
+    /// builtin layer · future stdlib modes are absent from this build).
+    #[error("mode `{mode}` is not handled by nika-extract — {hint}")]
+    Unsupported {
+        /// The unhandled mode.
+        mode: ExtractMode,
+        /// Where it IS handled (or why it cannot be).
+        hint: &'static str,
+    },
+}
+
+/// Apply one extract mode to a decoded response body.
+///
+/// Total over arbitrary input: malformed HTML/XML degrades to an
+/// `Err`, never a panic (property-tested per mode).
+///
+/// # Errors
+///
+/// [`ExtractError`] — see each variant; the builtin renders every one
+/// into `NIKA-BUILTIN-FETCH-001 · <message>`.
+pub fn extract(
+    body: &str,
+    mode: ExtractMode,
+    opts: &ExtractOptions<'_>,
+) -> Result<serde_json::Value, ExtractError> {
+    match mode {
+        ExtractMode::Raw => Ok(serde_json::Value::String(body.to_owned())),
+        ExtractMode::Markdown => html::markdown(body),
+        ExtractMode::Article => article::article(body, opts.base_url),
+        ExtractMode::Text => Ok(html::text(body)),
+        ExtractMode::Selector => {
+            let selector = opts.selector.ok_or(ExtractError::MissingArg {
+                mode: ExtractMode::Selector,
+                arg: "selector",
+            })?;
+            html::selector(body, selector)
+        }
+        ExtractMode::Metadata => Ok(metadata::metadata(body, opts.base_url)),
+        ExtractMode::Links => Ok(metadata::links(body, opts.base_url)),
+        ExtractMode::Feed => feed::feed(body),
+        ExtractMode::Sitemap => sitemap::sitemap(body),
+        ExtractMode::Jq => Err(ExtractError::Unsupported {
+            mode: ExtractMode::Jq,
+            hint: "the builtin layer composes its jq engine (one data language, one engine)",
+        }),
+        other => Err(ExtractError::Unsupported {
+            mode: other,
+            hint: "future stdlib mode — not in this build",
+        }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PAGE: &str = r#"<!DOCTYPE html>
+<html lang="en"><head>
+  <title>Demo Page</title>
+  <meta name="description" content="A demo description.">
+  <meta property="og:title" content="Demo OG">
+  <meta property="og:image" content="https://example.com/og.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="/article">
+  <style>.x { color: red }</style>
+  <script>alert("evil")</script>
+</head><body>
+  <nav><a href="/nav">navigation</a></nav>
+  <h1>Demo Heading</h1>
+  <p>First paragraph with a <a href="/relative">relative link</a>.</p>
+  <p>Second paragraph with an <a href="https://other.example/abs">absolute link</a>.</p>
+  <ul><li>alpha</li><li>beta</li></ul>
+  <div class="content"><p>Inside the div.</p></div>
+  <a href="mailto:x@example.com">mail</a>
+  <a href="javascript:void(0)">js</a>
+  <a href="/relative">duplicate relative</a>
+  <footer>footer text</footer>
+</body></html>"#;
+
+    fn run(body: &str, mode: ExtractMode) -> Result<serde_json::Value, ExtractError> {
+        extract(body, mode, &ExtractOptions::new())
+    }
+
+    fn with_base(body: &str, mode: ExtractMode) -> serde_json::Value {
+        let mut opts = ExtractOptions::new();
+        opts.base_url = Some("https://example.com/article");
+        extract(body, mode, &opts).expect("mode succeeds")
+    }
+
+    // ─── raw ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn raw_is_the_identity() {
+        let out = run("plain  body\n", ExtractMode::Raw).expect("raw");
+        assert_eq!(out, serde_json::Value::String("plain  body\n".to_owned()));
+    }
+
+    // ─── markdown ────────────────────────────────────────────────────
+
+    #[test]
+    fn markdown_converts_and_strips_noise() {
+        let out = run(PAGE, ExtractMode::Markdown).expect("markdown");
+        let md = out.as_str().expect("string output");
+        assert!(md.contains("# Demo Heading"), "heading survives: {md}");
+        assert!(md.contains("First paragraph"), "prose survives");
+        assert!(
+            md.contains("[absolute link](https://other.example/abs)"),
+            "links survive as markdown: {md}"
+        );
+        assert!(!md.contains("alert("), "script stripped");
+        assert!(!md.contains("color: red"), "style stripped");
+        assert!(!md.contains("navigation"), "nav stripped");
+        assert!(!md.contains("footer text"), "footer stripped");
+        assert!(md.contains("alpha"), "list items survive");
+    }
+
+    // ─── text ────────────────────────────────────────────────────────
+
+    #[test]
+    fn text_strips_tags_and_scripts_keeps_breaks() {
+        let out = run(PAGE, ExtractMode::Text).expect("text");
+        let text = out.as_str().expect("string output");
+        assert!(text.contains("Demo Heading"));
+        assert!(text.contains("First paragraph with a relative link."));
+        assert!(!text.contains('<'), "no markup: {text}");
+        assert!(!text.contains("alert("), "script content stripped");
+        assert!(!text.contains("color: red"), "style content stripped");
+        // Block-level structure surfaces as line breaks.
+        assert!(
+            text.lines().count() >= 4,
+            "block elements produce line structure: {text:?}"
+        );
+        // Spec: headers/footers PRESERVED for text mode (unlike markdown).
+        assert!(text.contains("footer text"));
+    }
+
+    // ─── selector ────────────────────────────────────────────────────
+
+    #[test]
+    fn selector_returns_matching_html() {
+        let mut opts = ExtractOptions::new();
+        opts.selector = Some("div.content");
+        let out = extract(PAGE, ExtractMode::Selector, &opts).expect("selector");
+        let html = out.as_str().expect("string output");
+        assert!(html.contains("<p>Inside the div.</p>"), "{html}");
+        assert!(html.starts_with("<div class=\"content\">"));
+    }
+
+    #[test]
+    fn selector_concatenates_multiple_matches() {
+        let mut opts = ExtractOptions::new();
+        opts.selector = Some("li");
+        let out = extract(PAGE, ExtractMode::Selector, &opts).expect("selector");
+        let html = out.as_str().expect("string output");
+        assert!(html.contains("<li>alpha</li>"));
+        assert!(html.contains("<li>beta</li>"));
+    }
+
+    #[test]
+    fn selector_requires_its_argument_and_a_valid_selector() {
+        let missing = run(PAGE, ExtractMode::Selector).expect_err("no selector arg");
+        assert!(matches!(
+            missing,
+            ExtractError::MissingArg {
+                arg: "selector",
+                ..
+            }
+        ));
+
+        let mut opts = ExtractOptions::new();
+        opts.selector = Some(":::not-a-selector");
+        let invalid = extract(PAGE, ExtractMode::Selector, &opts).expect_err("bad selector");
+        assert!(
+            matches!(invalid, ExtractError::Selector { .. }),
+            "{invalid}"
+        );
+    }
+
+    // ─── metadata ────────────────────────────────────────────────────
+
+    #[test]
+    fn metadata_extracts_the_spec_shape() {
+        let out = with_base(PAGE, ExtractMode::Metadata);
+        assert_eq!(out["title"], "Demo Page");
+        assert_eq!(out["description"], "A demo description.");
+        assert_eq!(out["og"]["title"], "Demo OG");
+        assert_eq!(out["og"]["image"], "https://example.com/og.jpg");
+        assert_eq!(out["twitter"]["card"], "summary_large_image");
+        // Relative canonical resolved against the base URL.
+        assert_eq!(out["canonical"], "https://example.com/article");
+        assert_eq!(out["lang"], "en");
+    }
+
+    #[test]
+    fn metadata_on_bare_html_yields_stable_shape() {
+        let out = run("<html><body><p>x</p></body></html>", ExtractMode::Metadata)
+            .expect("metadata is total");
+        // og/twitter are ALWAYS objects (stable shape for jq consumers).
+        assert!(out["og"].is_object());
+        assert!(out["twitter"].is_object());
+        assert!(out.get("title").is_none() || out["title"].is_string());
+    }
+
+    // ─── links ───────────────────────────────────────────────────────
+
+    #[test]
+    fn links_resolve_dedupe_and_skip_non_http() {
+        let out = with_base(PAGE, ExtractMode::Links);
+        let links: Vec<&str> = out
+            .as_array()
+            .expect("array output")
+            .iter()
+            .map(|v| v.as_str().expect("string entries"))
+            .collect();
+        assert!(links.contains(&"https://example.com/relative"), "{links:?}");
+        assert!(links.contains(&"https://other.example/abs"));
+        assert!(links.contains(&"https://example.com/nav"));
+        // mailto/javascript are not crawlable links.
+        assert!(!links.iter().any(|l| l.starts_with("mailto:")));
+        assert!(!links.iter().any(|l| l.starts_with("javascript:")));
+        // Duplicates collapse (first occurrence wins).
+        let unique: std::collections::BTreeSet<_> = links.iter().collect();
+        assert_eq!(unique.len(), links.len(), "deduped: {links:?}");
+    }
+
+    #[test]
+    fn links_without_base_keep_absolute_only() {
+        let out = run(PAGE, ExtractMode::Links).expect("links");
+        let links = out.as_array().expect("array");
+        assert!(
+            links
+                .iter()
+                .all(|l| l.as_str().is_some_and(|s| s.starts_with("http"))),
+            "relative links are skipped without a base: {links:?}"
+        );
+    }
+
+    // ─── feed ────────────────────────────────────────────────────────
+
+    const RSS: &str = r#"<?xml version="1.0"?>
+<rss version="2.0"><channel>
+  <title>Demo Feed</title>
+  <description>Feed description</description>
+  <link>https://example.com</link>
+  <item>
+    <title>First post</title>
+    <link>https://example.com/post-1</link>
+    <description>Post summary</description>
+    <pubDate>Mon, 01 Jun 2026 10:00:00 GMT</pubDate>
+  </item>
+</channel></rss>"#;
+
+    const ATOM: &str = r#"<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Atom Demo</title>
+  <updated>2026-06-01T10:00:00Z</updated>
+  <entry>
+    <title>Atom entry</title>
+    <link href="https://example.com/atom-1"/>
+    <summary>Atom summary</summary>
+  </entry>
+</feed>"#;
+
+    #[test]
+    fn feed_normalizes_rss_and_atom() {
+        let rss = run(RSS, ExtractMode::Feed).expect("rss parses");
+        assert_eq!(rss["title"], "Demo Feed");
+        assert_eq!(rss["description"], "Feed description");
+        // feed-rs URL-normalizes the channel link (trailing slash).
+        assert_eq!(rss["link"], "https://example.com/");
+        assert_eq!(rss["items"][0]["title"], "First post");
+        assert_eq!(rss["items"][0]["link"], "https://example.com/post-1");
+        assert_eq!(rss["items"][0]["summary"], "Post summary");
+        assert!(
+            rss["items"][0]["published"]
+                .as_str()
+                .is_some_and(|d| d.starts_with("2026-06-01")),
+            "{rss}"
+        );
+
+        let atom = run(ATOM, ExtractMode::Feed).expect("atom parses");
+        assert_eq!(atom["title"], "Atom Demo");
+        assert_eq!(atom["items"][0]["title"], "Atom entry");
+        assert_eq!(atom["items"][0]["link"], "https://example.com/atom-1");
+    }
+
+    #[test]
+    fn feed_rejects_non_feeds() {
+        let err = run("not xml at all", ExtractMode::Feed).expect_err("not a feed");
+        assert!(matches!(err, ExtractError::Feed { .. }), "{err}");
+        let err = run(PAGE, ExtractMode::Feed).expect_err("html is not a feed");
+        assert!(matches!(err, ExtractError::Feed { .. }), "{err}");
+    }
+
+    // ─── sitemap ─────────────────────────────────────────────────────
+
+    const SITEMAP: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://example.com/</loc><lastmod>2026-05-20</lastmod></url>
+  <url><loc>https://example.com/about</loc></url>
+</urlset>"#;
+
+    const SITEMAP_INDEX: &str = r#"<?xml version="1.0"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap><loc>https://example.com/sitemap-1.xml</loc><lastmod>2026-05-01</lastmod></sitemap>
+  <sitemap><loc>https://example.com/sitemap-2.xml</loc></sitemap>
+</sitemapindex>"#;
+
+    #[test]
+    fn sitemap_parses_urlset_and_index() {
+        let out = run(SITEMAP, ExtractMode::Sitemap).expect("urlset");
+        assert_eq!(out[0]["loc"], "https://example.com/");
+        assert_eq!(out[0]["lastmod"], "2026-05-20");
+        assert_eq!(out[1]["loc"], "https://example.com/about");
+        assert!(out[1].get("lastmod").is_none(), "lastmod omitted: {out}");
+
+        let idx = run(SITEMAP_INDEX, ExtractMode::Sitemap).expect("index");
+        assert_eq!(idx[0]["loc"], "https://example.com/sitemap-1.xml");
+        assert_eq!(idx[1]["loc"], "https://example.com/sitemap-2.xml");
+    }
+
+    #[test]
+    fn sitemap_rejects_non_sitemaps() {
+        let err = run("plain text", ExtractMode::Sitemap).expect_err("not xml");
+        assert!(matches!(err, ExtractError::Sitemap { .. }), "{err}");
+        let err = run(PAGE, ExtractMode::Sitemap).expect_err("html has no urlset");
+        assert!(matches!(err, ExtractError::Sitemap { .. }), "{err}");
+    }
+
+    // ─── article ─────────────────────────────────────────────────────
+
+    #[test]
+    fn article_extracts_the_main_body_as_markdown() {
+        // Readability needs enough content mass to identify an article.
+        let long = format!(
+            r#"<html><head><title>Story</title></head><body>
+            <nav><a href="/x">site nav</a></nav>
+            <article><h1>The Story Headline</h1>{}</article>
+            <footer>site footer</footer></body></html>"#,
+            "<p>A sentence of real article prose that carries actual content mass for readability scoring.</p>".repeat(12)
+        );
+        let out = run(&long, ExtractMode::Article).expect("article extracts");
+        let md = out.as_str().expect("string output");
+        assert!(md.contains("article prose"), "body survives: {md}");
+        assert!(!md.contains("site nav"), "chrome stripped: {md}");
+    }
+
+    // ─── jq + unsupported ────────────────────────────────────────────
+
+    #[test]
+    fn jq_routes_upstream() {
+        let err = run("{}", ExtractMode::Jq).expect_err("jq is the builtin's job");
+        assert!(matches!(err, ExtractError::Unsupported { .. }));
+        assert!(err.to_string().contains("one data language"), "{err}");
+    }
+
+    // ─── totality (Gate 6) ───────────────────────────────────────────
+
+    mod properties {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(64))]
+
+            /// Every mode is TOTAL over arbitrary input: Ok or typed Err,
+            /// never a panic, never a hang.
+            #[test]
+            fn extract_never_panics(body in ".{0,2000}", mode_idx in 0usize..10) {
+                let mode = ExtractMode::ALL[mode_idx];
+                let mut opts = ExtractOptions::new();
+                opts.selector = Some("p");
+                opts.base_url = Some("https://example.com/");
+                let _ = extract(&body, mode, &opts);
+            }
+
+            /// Link extraction never panics on hostile href/base pairs.
+            #[test]
+            fn links_total_over_hostile_bases(body in ".{0,500}", base in ".{0,80}") {
+                let mut opts = ExtractOptions::new();
+                opts.base_url = Some(&base);
+                let _ = extract(&body, ExtractMode::Links, &opts);
+            }
+        }
+    }
+}

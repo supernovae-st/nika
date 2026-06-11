@@ -37,7 +37,7 @@ Cargo.lock.bak
 /crates/nika-display/
 /crates/nika-engine/
 # /crates/nika-exec-runner/   -- ADMITTED slice s7 (D-2026-06-10-N6)
-/crates/nika-extract/
+# /crates/nika-extract/  -- SEEDED s17 2026-06-12 (L1.5 · the 9 fetch extract modes · admission step 12)
 # /crates/nika-fs/           -- ADMITTED slice s4 (D-2026-06-10-N6)
 # /crates/nika-http/         -- ADMITTED slice s5 (D-2026-06-10-N6)
 /crates/nika-init/
