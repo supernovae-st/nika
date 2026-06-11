@@ -31,6 +31,10 @@ pub enum InferLocalError {
     },
 
     /// Generation exceeded its wall-clock budget.
+    ///
+    /// Constructed by the SERVER layer (which owns wall-clock budgets and
+    /// can drop the generation future) — the synchronous backend loop has
+    /// no preemption point, so it never returns this itself.
     #[error("generation timed out after {ms}ms")]
     Timeout {
         /// The elapsed budget in milliseconds.

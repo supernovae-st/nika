@@ -96,6 +96,21 @@ async fn real_model_generates_halts_and_is_deterministic() {
     let v = serde_json::to_value(&a).unwrap();
     assert!(v.pointer("/choices/0/message/content").is_some());
     assert!(v.pointer("/usage/total_tokens").is_some());
+
+    // ── 5 · context-overflow is a TYPED error, not garbage/crash ──
+    // A prompt far past any real window (Qwen3-1.7B is 32k+ · 200k words
+    // tokenizes well beyond it) must return ContextOverflow BEFORE prefill.
+    let huge = "word ".repeat(200_000);
+    let err = Backend::generate(&backend, &req(&huge, 16, 1))
+        .await
+        .expect_err("an over-window prompt must error, not run");
+    assert!(
+        matches!(
+            err,
+            nika_infer_local::InferLocalError::ContextOverflow { .. }
+        ),
+        "expected ContextOverflow, got {err:?}"
+    );
 }
 
 #[tokio::test]

@@ -58,6 +58,12 @@ pub struct CandleBackend {
     eos_ids: Vec<u32>,
     family: ChatFamily,
     model_id: String,
+    /// The model's context window (tokens) read from the GGUF metadata —
+    /// the cap a rendered prompt must not exceed (else `ContextOverflow`,
+    /// instead of candle producing garbage / failing cryptically deep in
+    /// the forward pass). `usize::MAX` when the metadata key is absent
+    /// (degrade open · never block a load over a missing hint).
+    context_window: usize,
 }
 
 struct ModelState {
@@ -90,6 +96,14 @@ impl CandleBackend {
             gguf_file::Content::read(&mut file).map_err(|e| InferLocalError::Backend {
                 reason: format!("GGUF parse failed: {e}"),
             })?;
+        // Read the context window BEFORE `content` moves into from_gguf.
+        // Absent key → usize::MAX (degrade open · a missing hint must not
+        // block the load — the check simply never fires then).
+        let context_window = content
+            .metadata
+            .get("qwen3.context_length")
+            .and_then(|v| v.to_u32().ok())
+            .map_or(usize::MAX, |v| v as usize);
         let model = Qwen3::from_gguf(content, &mut file, &device).map_err(|e| {
             InferLocalError::Backend {
                 reason: format!("model load failed: {e}"),
@@ -120,6 +134,7 @@ impl CandleBackend {
             eos_ids,
             family: ChatFamily::Qwen,
             model_id: model_id.into(),
+            context_window,
         })
     }
 
@@ -187,6 +202,16 @@ impl CandleBackend {
                 reason: "empty prompt after templating".to_owned(),
             });
         }
+        // Enforce the context window BEFORE the expensive prefill — a prompt
+        // at/over the cap would otherwise desync rotary positions / the
+        // cache and yield garbage (or fail cryptically deep in forward).
+        // ≥ (not >) leaves at least one slot for a generated token.
+        if prompt_tokens.len() >= self.context_window {
+            return Err(InferLocalError::ContextOverflow {
+                tokens: prompt_tokens.len(),
+                limit: self.context_window,
+            });
+        }
 
         // MANDATORY between requests — stale cache positions produce garbage.
         state.model.clear_kv_cache();
@@ -226,10 +251,20 @@ impl CandleBackend {
     }
 }
 
-/// Wrap a candle error into the crate's typed backend error.
+/// Wrap a candle error into the crate's typed backend error — classifying
+/// allocation failures as [`InferLocalError::OutOfMemory`] (candle surfaces
+/// them as message text; the caller's retry policy treats OOM differently
+/// from a logic error, so the type must carry the distinction).
 fn backend_err(what: &str, e: impl std::fmt::Display) -> InferLocalError {
+    let msg = e.to_string();
+    let lower = msg.to_lowercase();
+    if lower.contains("out of memory") || lower.contains("allocation") || lower.contains("oom") {
+        return InferLocalError::OutOfMemory {
+            reason: format!("{what}: {msg}"),
+        };
+    }
     InferLocalError::Backend {
-        reason: format!("{what}: {e}"),
+        reason: format!("{what}: {msg}"),
     }
 }
 
