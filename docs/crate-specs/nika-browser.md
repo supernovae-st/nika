@@ -99,8 +99,9 @@ the click lands on a DIFFERENT element — the web equivalent of clickjacking.
 /// from the SAME dom_snapshot the agent reasoned over).
 #[non_exhaustive]
 pub struct SelectorExpectation {
-    pub tag: String,                  // e.g. "button"
-    pub text_prefix: Option<String>,  // visible text the agent saw
+    pub tag: String,                       // weak shape pin
+    pub attributes: BTreeMap<String,String>, // weak shape pins (id · name · …)
+    pub node_ref: Option<u64>,             // STRONG pin · the snapshot DomNode.node_ref
 }
 
 /// Guard 5 PURE core — does the freshly-resolved element match what the
@@ -111,9 +112,13 @@ pub fn verify_selector_target(
 ) -> Result<(), BrowserError>;   // SelectorFailed(1404) on mismatch
 ```
 
-The `click_selector` dispatch path: (1) re-resolve `sel` fresh via CDP,
-(2) map the resolved element to a `DomNode`, (3) `verify_selector_target`
-against the expectation, (4) only then dispatch the CDP click. The kernel
+The `click_selector` dispatch path: (1) PEEK the expectation (clone · never
+burned by a page-induced failure), (2) `cdp::verify_unique_match` (exactly
+one), (3) `cdp::verify_stable_resolve` (same backend node twice), (4) map the
+fresh element to a `DomNode` carrying its live `node_ref`, (5) `guard5_gate`
+— the STRONG node-identity pin (`node_ref`) defeats structural look-alike
+swaps that tag+attribute shape pins alone cannot, (6) dispatch the CDP click,
+(7) consume the expectation only AFTER the click succeeds. The kernel
 trait signature carries no expectation param — the L1 crate exposes the
 expectation via a `ChromiumBrowser::set_click_expectation` session-scoped
 API (additive, crate-level), and `click_selector` WITHOUT a registered
@@ -145,17 +150,17 @@ never click a guess.
 | # | Gate | Status | Evidence |
 |---|------|--------|----------|
 | 1 | SPEC | ✅ | this file |
-| 2 | TDD | ⬜ | Guard-5 pure core headless-first |
-| 3 | IMPL | ⬜ | chromiumoxide 0.9.1 · API tarball-verified pre-write |
-| 4 | CLIPPY | ⬜ | workspace `-D warnings` 0 |
-| 5 | MUTATION | ⬜ | ≥90 % headless + Rule-2 CDP exemption |
-| 6 | PROPERTY | ⬜ | proptest · Guard-5 expectation-mismatch never clicks |
+| 2 | TDD | ✅ | Guard-5 pure core headless-first (B.2) |
+| 3 | IMPL | ✅ | chromiumoxide 0.9.1 · API tarball-verified pre-write (B.3) |
+| 4 | CLIPPY | ✅ | **measured 2026-06-11** workspace `-D warnings` 0 |
+| 5 | MUTATION | ⏳ | re-measuring post-hardening (target ≥90 % + Rule-2 CDP exemption) |
+| 6 | PROPERTY | ✅ | proptest `guard5_tag_swap_never_verifies` |
 | 7 | BENCHMARKS | ⚪ N/A | CDP round-trip is network/browser-bound (Rule 2) |
-| 8 | DOCS | ⬜ | cargo doc 0 warnings |
-| 9 | CANARY E2E | ⚪ N/A | L1 effect · `#[ignore]` smoke needs a local chromium |
+| 8 | DOCS | ✅ | **measured 2026-06-11** cargo doc 0 warnings |
+| 9 | CANARY E2E | ⚪ N/A | L1 effect · `#[ignore]` smoke (real chromium) PASSES |
 | 10 | PARITY | ⚪ N/A | the brouillon `feat/p5-chromium-render` branch is paged out to the private legacy repo · no public parity target |
-| 11 | REVIEW SWARM | ⬜ | 3-lens · write-side web crate = high scrutiny |
-| 12 | ATOMIC COMMIT | ⬜ | the admission commit |
+| 11 | REVIEW SWARM | ✅ | 3-lens adversarial swarm (28 agents) · 3 P1 + P2s on Guard 5 ALL folded before B.4 (node-identity pin · no failure-downgrade · pure structural gates) |
+| 12 | ATOMIC COMMIT | ⏳ | the admission commit (B.4) |
 
 ## 8. Security (ADR-081)
 
