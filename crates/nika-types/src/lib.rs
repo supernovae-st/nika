@@ -47,6 +47,7 @@ pub mod cancel;
 pub mod checkpoint;
 pub mod compression;
 pub mod embedding;
+pub mod extract;
 pub mod memory;
 pub mod role;
 pub mod timestamp;
@@ -77,6 +78,7 @@ pub mod prelude {
     pub use crate::checkpoint::{AgentCheckpoint, CheckpointMessage, ToolCallRecord};
     pub use crate::compression::CompressionPolicy;
     pub use crate::embedding::{DistanceMetric, EmbeddingDtype, EmbeddingSpec};
+    pub use crate::extract::ExtractMode;
     pub use crate::memory::{MemoryDirective, MemoryFrameRef, MemoryId, MemoryLevel};
     pub use crate::role::Role;
     pub use crate::timestamp::{Timestamp, WallDuration};
