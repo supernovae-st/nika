@@ -8,7 +8,7 @@
 | LOC budget | ≤15,000 src (target ~13,000, alarm at 14,000, hard cap 15,000) |
 | File cap | ≤1,500 LOC each |
 | Function cap | ≤100 lines each |
-| Source on `main` (reference) | `tools/nika-core/src/ast/` (22,544 LOC), `tools/nika-core/src/schema/` (400 LOC), `tools/nika-core/src/source/` (724 LOC), `tools/nika-core/src/trust.rs` (560 LOC), `tools/nika-core/src/binding/mention.rs` (851 LOC), `tools/nika-core/src/binding/validate.rs` (355 LOC) |
+| Source on `brouillon` (legacy reference · read via `git show brouillon:…`) | `tools/nika-core/src/ast/` (22,544 LOC), `tools/nika-core/src/schema/` (400 LOC), `tools/nika-core/src/source/` (724 LOC), `tools/nika-core/src/trust.rs` (560 LOC), `tools/nika-core/src/binding/mention.rs` (851 LOC), `tools/nika-core/src/binding/validate.rs` (355 LOC) |
 | Legacy total (reference only) | ~25,434 LOC (including ~8,000 LOC inline tests) — rewrite targets ~13,000 src + ~5,000 tests |
 | Crate version | tracks workspace (bumped to `0.90.0-alpha.1` at Phase 1 close) |
 | License | `AGPL-3.0-or-later` |

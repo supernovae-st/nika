@@ -104,7 +104,10 @@ pub enum WorkflowDoc {
 
 **Pattern**: Every registry (pck types, EventKind variants, MCP aliases,
 error codes, builtin names) uses explicit namespaces. Core Nika reserves
-`nika.*`. Community uses `x-*` or reverse-DNS (`com.acme.type/v1`).
+`nika.*`. The `x-*` community prefix applies to the **pck registry only** —
+the workflow-language TOOL namespace set is CLOSED at v1 (`nika:` + `mcp:`
+per spec 02-verbs · engine-specific tools route through `mcp:` · the
+spec reserves `x-` as a possible future additive minor).
 
 **Locked namespaces**:
 - **pck types**: `workflow` / `skill` / `agent` / `provider` / `mcp` /
@@ -389,8 +392,8 @@ prereq (NIKA-1500..1599 reserved). Vector 40's ratchet baseline
 |---|---|---|---|---|
 | Core engine | `Runtime::execute`, EventStream | EventKind Extension variant, new directives in InferRequest | LOW | EventKind `#[non_exhaustive]` |
 | pck | `schema:` + 9 types | `x-*` namespace, new schema versions | MED | `deny_unknown_fields` top-level only |
-| Natives | 7 builtins sealed | `ExternalVerb` registry for community | LOW | Sealed `Verb` + open `ExternalVerb` |
-| Providers | 21 via rig + native + mock | New providers as crates, `ProviderId` as newtype with `Custom(String)` | HIGH | Crate split already locked |
+| Natives | 4 verbs sealed · 22 spec-curated builtins | `ExternalVerb` registry for community | LOW | Sealed `Verb` + open `ExternalVerb` |
+| Providers | 14 canonical (spec stdlib) via wire dialects + mock | New providers as crates, `ProviderId` as newtype with `Custom(String)` | HIGH | Crate split already locked |
 | MCP | Catalog + aliases | New transports, MCP versions | MED | rmcp behind facade trait |
 | Cortex | Trait stubs only | Real impl v0.95 | LOW | All hooks in kernel v0.90 |
 | agent-v2 | Reserved EventKinds, error codes | New crate v0.95 | LOW | InferRequest fields + default methods |
