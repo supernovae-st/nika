@@ -36,14 +36,12 @@ ADR-081 guard contract · error one-voice via `NikaErrorCode` +
 `nika_error::codes` NIKA-1000..1206). Kernel 4-way split EXECUTED
 2026-06-10 (nika-kernel-{core,ai,runtime,plugin} + facade hub · see
 `docs/architecture/kernel-split-census-2026-06-10.md`). M2.4 `nika-input`
-ADMITTED 2026-06-10 (ADR-081 Guards 1+2 · InputDeviceDyn Send-variant canon
-uniform across ALL L1 effect crates). M2.5 `nika-browser` ADMITTED 2026-06-11
-(chromiumoxide CDP · ADR-081 Guard 5 selector-clickjacking HARDENED via
-3-lens swarm: node-identity pin `DomNode.node_ref` + peek/consume-after-
-success + pure structural gates) — the M2 computer-use surface is COMPLETE
-(desktop see→read→locate→ACT + the web arm). Next: M2.6 `nika-vision-local`
-(Guard 4) or M3 per roadmap. Announce-ladder slice runs in parallel
-(D-2026-06-10-N6) · s4 nika-fs + s5 nika-http + s6 nika-blob + s7 nika-exec-runner ADMITTED 2026-06-10 · s8.5 nika-providers ADMITTED 2026-06-11 (L1.5 · 13/14 wired · gemini s8.6) · s8 nika-policy design LOCKED (impl gated on kernel-migration) · next s9 verb-infer. NO live counts in this paragraph — crate ·
+ADMITTED 2026-06-10 (ADR-003 12 gates · ADR-081 Guards 1+2 password-redaction
++ ConsentProof-TTL · 3-lens review folded in · InputDeviceDyn Send-variant
+canon now uniform across ALL L1 effect crates) — the M2 computer-use
+see→read→locate→ACT loop is closed. Next: M2.5 `nika-browser` (Guard 5) or
+M3 per roadmap. Announce-ladder slice runs in parallel
+(D-2026-06-10-N6) · s4 nika-fs + s5 nika-http + s6 nika-blob + s7 nika-exec-runner ADMITTED 2026-06-10 · s8.5 nika-providers ADMITTED 2026-06-11 (L1.5 · 14/14 wired · gemini s8.6 done) · s8 nika-policy design LOCKED (impl gated on kernel-migration) · next s9 verb-infer. NO live counts in this paragraph — crate ·
 test · provider · capability-rule numbers live ONLY in the auto-generated
 block below (`scripts/refresh-status.sh` · vector 23 parity-enforced ·
 hand-typed counts here are the drift class that said 14 crates while the
@@ -131,12 +129,12 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/s4-nika-fs`                                      |
-| HEAD             | `02f1502ac` (`02f1502ac03c672d86d05953307dcb3f7d6c53d5`)             |
+| branch           | `main`                                      |
+| HEAD             | `4f1a9fb8d` (`4f1a9fb8d11c68e4816698516fd405af51b83b1d`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 26                                              |
-| crates (admitted)| 25 / 42                                   |
-| crates (WIP)     | 1 — nika-schema                                  |
+| crates (admitted)| 24 / 42                                   |
+| crates (WIP)     | 2 — nika-schema nika-browser                                  |
 | L0               | 7                                              |
 | L0.5             | 6                                              |
 | L1               | 11                                              |
@@ -144,7 +142,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1493 passed, 0 failed                              |
+| lib tests        | 1459 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
@@ -152,7 +150,7 @@ Narrative context (manually maintained):
 - L0 admitted: nika-types, nika-error, nika-catalog. WIP: nika-schema (parser scaffolding).
 - L0.5 admitted: nika-kernel (facade + range-registry hub post 4-way split 2026-06-10), nika-kernel-core, nika-kernel-ai, nika-kernel-runtime, nika-kernel-plugin, nika-kernel-mock.
 - L1 admitted: nika-clock, nika-bm25, nika-screen, nika-ocr, nika-a11y, nika-fs (atomic write · s4), nika-http (reqwest+rustls · 3-layer SSRF + cross-origin cred-strip · s5), nika-blob (blake3 CAS · sidecar mime · s6).
-- L1.5 admitted: nika-providers (s8.5 · 14 canonical profiles · 3 wire formats · kernel http seam · 100% mutation · unblocks s9 verb-infer).
+- L1.5 admitted: nika-providers (s8.5 · 14/14 providers wired across 3 wire formats incl gemini s8.6 · kernel http seam · unblocks s9 verb-infer).
 - L4 admitted: nika-catalog-verify.
 - 0 unwraps in `src/`, Gate 8 GREEN, Invariant #19 FULL.
 - 32 providers, 49 capability rules, 7-axis ModelPricing, scope.providers canonical.

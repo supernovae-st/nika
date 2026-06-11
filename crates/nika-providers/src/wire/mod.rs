@@ -8,6 +8,7 @@
 //! `GenAiSystem` attribution table.
 
 pub(crate) mod anthropic;
+pub(crate) mod gemini;
 pub(crate) mod mock;
 pub(crate) mod openai_compat;
 
@@ -22,16 +23,6 @@ use nika_kernel::genai::GenAiSystem;
 use nika_kernel::http::HttpError;
 
 use crate::sse::SseParser;
-
-/// Gemini wire adapter lands s8.6 (before the v0.81.0 tag) — honest error
-/// until then.
-pub(crate) fn gemini_not_yet_wired() -> ProviderError {
-    ProviderError::Other {
-        reason: "the 'gemini' wire adapter lands at slice s8.6 (before the v0.81.0 tag) · \
-                 until then use another provider (e.g. anthropic/… · openai/… · ollama/…)"
-            .to_owned(),
-    }
-}
 
 /// Transport-layer failure → provider error (no HTTP status yet).
 pub(crate) fn map_http_err(e: &HttpError) -> ProviderError {

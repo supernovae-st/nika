@@ -7,8 +7,7 @@
 //! **the same assertions run against every canonical profile** (a failure
 //! on one provider is an engine bug, not a provider quirk).
 //!
-//! Per wired profile (13 of 14 — gemini's adapter lands s8.6 and its
-//! honest-error contract is asserted instead):
+//! Per wired profile (14 of 14 — gemini wired at s8.6):
 //! 1. `infer` returns text content + populated `GenAiAttrs`
 //! 2. `infer_stream` yields ≥1 `Delta` and exactly one terminal `Done`
 //! 3. provider 401 maps to `ProviderError::AuthFailed` (http wires)
@@ -37,6 +36,12 @@ const OPENAI_OK: &str = r#"{"id":"cc_p","model":"compat-test",
 
 const AUTH_ERR: &str = r#"{"error":{"message":"invalid key"}}"#;
 
+const GEMINI_OK: &str = r#"{"responseId":"g_p","modelVersion":"gemini-test",
+    "candidates":[{"content":{"parts":[{"text":"parity"}]},"finishReason":"STOP"}],
+    "usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":1}}"#;
+
+const GEMINI_SSE: &str = "data: {\"responseId\":\"g_s\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"parity\"}]},\"finishReason\":\"STOP\"}],\"usageMetadata\":{\"promptTokenCount\":2,\"candidatesTokenCount\":1}}\n\n";
+
 const ANTHROPIC_SSE: &str = concat!(
     "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_s\",\"usage\":{\"input_tokens\":2}}}\n\n",
     "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"parity\"}}\n\n",
@@ -58,6 +63,7 @@ fn request() -> InferRequest {
 fn ok_fixture(wire: WireFormat) -> &'static str {
     match wire {
         WireFormat::Anthropic => ANTHROPIC_OK,
+        WireFormat::Gemini => GEMINI_OK,
         _ => OPENAI_OK,
     }
 }
@@ -65,6 +71,7 @@ fn ok_fixture(wire: WireFormat) -> &'static str {
 fn sse_fixture(wire: WireFormat) -> &'static str {
     match wire {
         WireFormat::Anthropic => ANTHROPIC_SSE,
+        WireFormat::Gemini => GEMINI_SSE,
         _ => OPENAI_SSE,
     }
 }
@@ -84,7 +91,7 @@ fn resolve_on(fake: &Arc<FakeHttp>, id: &str, requires_key: bool) -> ResolvedPro
 fn wired_http_profiles() -> Vec<(&'static str, WireFormat, bool)> {
     seed()
         .into_iter()
-        .filter(|p| matches!(p.wire, WireFormat::Anthropic | WireFormat::OpenAiCompat))
+        .filter(|p| !matches!(p.wire, WireFormat::Mock))
         .map(|p| (p.id, p.wire, p.requires_key))
         .collect()
 }
@@ -203,16 +210,6 @@ async fn mock_passes_the_same_matrix_without_network() {
     assert!(matches!(events.last(), Some(Ok(InferEvent::Done { .. }))));
 }
 
-#[tokio::test]
-async fn gemini_profile_errors_honestly_until_s86() {
-    let fake = FakeHttp::with_json(200, OPENAI_OK);
-    let rp = resolve_on(&fake, "gemini", true);
-    let err = rp.infer(request()).await.expect_err("honest error");
-    assert!(err.to_string().contains("s8.6"), "names the slice: {err}");
-    let err = rp.infer_stream(request()).await.err().expect("stream too");
-    assert!(err.to_string().contains("s8.6"));
-}
-
 #[test]
 fn meta_is_coherent_across_the_fourteen() {
     let reg = ProviderRegistry::new(
@@ -231,8 +228,8 @@ fn meta_is_coherent_across_the_fourteen() {
         assert_eq!(rp.name(), p.id, "[{}] ProviderMeta::name", p.id);
         let supports = rp.supports_response_format();
         match p.wire {
-            WireFormat::OpenAiCompat | WireFormat::Mock => {
-                assert!(supports, "[{}] compat+mock support response_format", p.id);
+            WireFormat::OpenAiCompat | WireFormat::Mock | WireFormat::Gemini => {
+                assert!(supports, "[{}] response_format supported", p.id);
             }
             _ => assert!(!supports, "[{}] honest capability answer", p.id),
         }

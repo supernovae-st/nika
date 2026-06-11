@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **ADMITTED 2026-06-11** (Phase-B slice step 8.5 · before the verbs per D-2026-05-22-N17 · announce ladder per D-2026-06-10-N6) · shipped at §4 **Option B** scope (anthropic + openai-compat + mock = 13/14 wired · gemini profile present · adapter s8.6 before the v0.81.0 tag) |
+| Status | **ADMITTED 2026-06-11** (Phase-B slice step 8.5 · before the verbs per D-2026-05-22-N17 · announce ladder per D-2026-06-10-N6) · shipped at §4 **Option B** scope · **gemini wired s8.6 (2026-06-11) → 14/14** |
 | Layer | L1.5 — service crate · the shared LLM-provider layer BOTH `nika-verb-infer` (s9) and `nika-verb-agent` depend on (no verb→verb sideways dep · D-N17) |
 | Design | impls of the EXISTING L0.5 `nika_kernel_ai::provider` ISP traits (`ProviderInferDyn` · `ProviderStreamDyn` · `ProviderMeta`) · transport via the L0.5 `nika_kernel::http` traits (injected effect · NOT its own `reqwest`) |
 | LOC budget | under the ≤1500/file + ≤15k/crate caps (vectors 12+24) · live count · `scripts/crate-metrics.sh nika-providers` |
@@ -149,7 +149,7 @@ standing recommendation · 2026-06-11):
 | Option | Scope at s8.5 admission | Coverage | Outcome |
 |---|---|---|---|
 | A | `anthropic` + `mock` | 2/14 | not taken |
-| **B ✅ SHIPPED** | `anthropic` + `openai-compat` + `mock` | **13/14** | covers ALL local providers → `infer` works offline day-1 · gemini = fast-follow s8.6 before tag |
+| **B ✅ SHIPPED** | `anthropic` + `openai-compat` + `mock` | **13/14** | covers ALL local providers → `infer` works offline day-1 · gemini = fast-follow s8.6 (✅ wired 2026-06-11 → **14/14**) |
 | C | all three wires | 14/14 | not taken (gemini quirks eat review time) |
 
 The openai-compat adapter is the highest-leverage file in the slice (12

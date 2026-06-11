@@ -24,9 +24,9 @@ pub enum WireFormat {
     /// `openrouter` · local: `ollama` · `lmstudio` · `llamacpp` ·
     /// `localai` · `vllm`).
     OpenAiCompat,
-    /// Google Gemini `generateContent`. Profile present at s8.5; the wire
-    /// adapter lands s8.6 (before the v0.81.0 tag) — calls return a clear
-    /// `ProviderError` until then.
+    /// Google Gemini `generateContent` (wired s8.6). The profile
+    /// `base_url` is a STEM — the adapter appends
+    /// `/models/{model}:generateContent` per request.
     Gemini,
     /// Deterministic in-process mock (zero network · zero key) — the
     /// `hello.yaml` first-run surface.

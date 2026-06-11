@@ -243,7 +243,7 @@ where
         match self.profile.wire {
             WireFormat::Anthropic => wire::anthropic::infer(self, request).await,
             WireFormat::OpenAiCompat => wire::openai_compat::infer(self, request).await,
-            WireFormat::Gemini => Err(wire::gemini_not_yet_wired()),
+            WireFormat::Gemini => wire::gemini::infer(self, request).await,
             WireFormat::Mock => Ok(wire::mock::infer(self, &request)),
         }
     }
@@ -257,7 +257,7 @@ where
         match self.profile.wire {
             WireFormat::Anthropic => wire::anthropic::infer_stream(self, request).await,
             WireFormat::OpenAiCompat => wire::openai_compat::infer_stream(self, request).await,
-            WireFormat::Gemini => Err(wire::gemini_not_yet_wired()),
+            WireFormat::Gemini => wire::gemini::infer_stream(self, request).await,
             WireFormat::Mock => Ok(wire::mock::infer_stream(self, &request)),
         }
     }
@@ -272,11 +272,12 @@ where
     }
 
     /// v0.1 approximation: answers per wire family — some local
-    /// OpenAI-compat servers lack strict `json_schema` support.
+    /// OpenAI-compat servers lack strict `json_schema` support; gemini
+    /// takes an OpenAPI-style schema subset via `responseSchema`.
     fn supports_response_format(&self) -> bool {
         matches!(
             self.profile.wire,
-            WireFormat::OpenAiCompat | WireFormat::Mock
+            WireFormat::OpenAiCompat | WireFormat::Mock | WireFormat::Gemini
         )
     }
 }
@@ -391,7 +392,7 @@ mod tests {
     }
 
     #[test]
-    fn gemini_profile_resolves_but_wire_lands_s86() {
+    fn gemini_profile_needs_http_like_other_clouds() {
         let reg = ProviderRegistry::without_http(hermetic());
         // gemini requires a key (catalog row) → inject one; no http → gate.
         let reg2 =
