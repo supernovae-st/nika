@@ -130,6 +130,33 @@ ${{ tasks.X.duration_ms }}           execution time · integer milliseconds
 ${{ tasks.X.<name> }}                a named output: binding (jq · see below)
 ```
 
+#### Defined-null reads (normative · the branch-join unlock)
+
+Reading a field of a task that reached a terminal state **never errors** —
+absent values are **`null`**, deterministically ·
+
+```
+tasks.X.output   of a skipped task        → null   (incl. empty-collection for_each)
+tasks.X.output   of a cancelled task      → null
+tasks.X.error    when status != failure   → null   (EXCEPT on_error.skip · error stays · see 05)
+tasks.X.<name>   bindings of a skipped/cancelled task → null
+```
+
+`null` is a CEL literal (`tasks.X.output != null` is in the v0.1 subset) and
+a JSON value (jq's `select(. != null)` filters it). This makes the
+**diamond-join** canonical · two exclusive `when:` branches + a join that
+takes whichever ran ·
+
+```yaml
+- id: pick
+  depends_on: [build_prod, build_dev]      # exactly one ran · the other is skipped (null)
+  invoke:
+    tool: nika:jq
+    args:
+      input: [ "${{ tasks.build_prod.output }}", "${{ tasks.build_dev.output }}" ]
+      query: "[ .[] | select(. != null) ] | first"
+```
+
 **One obvious way · no bare alias.** `${{ tasks.X }}` is the whole result
 object · the output is ALWAYS `${{ tasks.X.output }}` — there is no `tasks.X`
 == output shortcut (it would make `tasks.X` both a scalar and a record · which
@@ -307,10 +334,14 @@ extraction-and-transform language (`output:` bindings + the `nika:jq` builtin).
 
 - **A binding resolves to exactly ONE value.** A jq program emits a *stream* —
   `.users[]` yields N separate values, NOT an array. A binding whose program
-  emits zero or multiple values is a **parse-time error** (`NIKA-VAR-NNN`) ·
-  collect a stream with `[ … ]` (`[.users[].email]` → array) · take one with
-  an index (`.users[0]`) or `first(…)`. One obvious way · no silent
-  first-match, no implicit array-wrap.
+  emits zero or multiple values is an **evaluation-time error**
+  (`NIKA-VAR-002` · the emission count is data-dependent · undecidable at
+  parse) — the reference linter additionally WARNS at check time on the
+  statically-visible smell (a trailing iterator `[]` with no collecting
+  `[ … ]` wrapper). A jq program that itself errors at runtime is
+  `NIKA-VAR-004`. Collect a stream with `[ … ]` (`[.users[].email]` → array)
+  · take one with an index (`.users[0]`) or `first(…)`. One obvious way · no
+  silent first-match, no implicit array-wrap.
 - **An `output:` jq expression is pure jq over the task's raw output** — it does
   NOT contain `${{ }}` (the two expression layers never nest in one string ·
   CEL reads the namespaces · jq reads the task output). To parametrize an
@@ -348,7 +379,7 @@ A **bytes** output (tool-determined · e.g. MCP image content · a binary
 `nika:read`) is **opaque** · it flows tool→tool by reference
 (`${{ tasks.fetch_img.output }}` → another tool's `content:` arg · or a file
 path for `infer.vision`). Bytes **cannot** be jq-extracted (jq is JSON-only)
-nor substituted into a string position — that is an error (`NIKA-VAR-NNN`) ·
+nor substituted into a string position — that is an error (`NIKA-VAR-007`) ·
 the engine never silently UTF-8-coerces a blob (it would corrupt the data).
 For `nika:fetch` and `exec` (no binary value channel · the 9 fetch modes are
 text/JSON · `raw` is text), binary is **file-mediated** · write to a path,
@@ -369,7 +400,7 @@ infer:
 (Note · YAML escaping of backslash · `\\` in double-quoted strings · `\` in single-quoted or block scalars.)
 
 An **unclosed `${{`** (an unescaped opener with no closing `}}`) is rejected at
-parse time · `NIKA-VAR` · `validation_error` — the substitution surface belongs
+parse time · `NIKA-VAR-008` · `validation_error` — the substitution surface belongs
 to this section, even though the YAML itself parses fine.
 
 ---
