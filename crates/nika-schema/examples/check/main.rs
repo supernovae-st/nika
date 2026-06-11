@@ -19,18 +19,29 @@
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
 mod render;
+mod snippet;
 mod theme;
 
+use std::fmt::Write as _;
 use std::process::ExitCode;
 
 use nika_schema::{FileId, ParseMode, check, infer_permits, parse};
 
 use theme::{ColorFlag, Theme};
 
-fn main() -> ExitCode {
-    // Unknown flags are REJECTED — a typo'd mode flag silently degrading
-    // to a plain check (exit 0) would let an operator ship a check
-    // report as their permits file.
+/// Parsed CLI arguments.
+struct Args {
+    infer_mode: bool,
+    json_mode: bool,
+    color: ColorFlag,
+    ascii: bool,
+    path: String,
+}
+
+/// Parse the argv. Unknown flags are REJECTED — a typo'd mode flag
+/// silently degrading to a plain check (exit 0) would let an operator
+/// ship a check report as their permits file.
+fn parse_args() -> Result<Args, ExitCode> {
     const USAGE: &str = "usage: check [--json] [--infer-permits] [--color=auto|always|never] [--ascii] <workflow.nika.yaml>";
     let mut infer_mode = false;
     let mut json_mode = false;
@@ -48,20 +59,41 @@ fn main() -> ExitCode {
             flag if flag.starts_with("--") => {
                 eprintln!("unknown flag `{flag}`");
                 eprintln!("{USAGE}");
-                return ExitCode::from(2);
+                return Err(ExitCode::from(2));
             }
             _ if path.is_some() => {
                 eprintln!("expected exactly one workflow path");
                 eprintln!("{USAGE}");
-                return ExitCode::from(2);
+                return Err(ExitCode::from(2));
             }
             _ => path = Some(arg),
         }
     }
     let Some(path) = path else {
         eprintln!("{USAGE}");
-        return ExitCode::from(2);
+        return Err(ExitCode::from(2));
     };
+    Ok(Args {
+        infer_mode,
+        json_mode,
+        color,
+        ascii,
+        path,
+    })
+}
+
+fn main() -> ExitCode {
+    let args = match parse_args() {
+        Ok(a) => a,
+        Err(code) => return code,
+    };
+    let Args {
+        infer_mode,
+        json_mode,
+        color,
+        ascii,
+        path,
+    } = args;
     let yaml = match std::fs::read_to_string(&path) {
         Ok(s) => s,
         Err(e) => {
@@ -73,31 +105,35 @@ fn main() -> ExitCode {
     let wf = match parse(&yaml, FileId::new(0), ParseMode::Strict) {
         Ok(wf) => wf,
         Err(e) => {
-            eprintln!("PARSE ✗  {e}");
+            // the parse error goes through the SAME seam + snippet path
+            // as every other finding (one grammar, even for crashes-not).
+            let t = Theme::from_env(color, ascii);
+            let mut out = String::new();
+            let _ = writeln!(
+                out,
+                " {} {}    {}",
+                t.err(t.glyph(theme::Glyph::Err)),
+                t.bold("PARSE"),
+                e
+            );
+            if let Some(span) = e.span() {
+                let label = path.rsplit('/').next().unwrap_or(&path);
+                snippet::render_snippet(
+                    &mut out,
+                    &yaml,
+                    label,
+                    nika_schema::ByteSpan::new(span.start.0, span.end.0),
+                    t,
+                );
+            }
+            eprint!("{out}");
             return ExitCode::FAILURE;
         }
     };
 
     // ── --infer-permits · write the boundary FOR the operator ───────
     if infer_mode {
-        let inferred = infer_permits(&wf);
-        if json_mode {
-            // the agent shape: the paste-ready block + the honesty notes
-            let payload = serde_json::json!({
-                "permits_yaml": inferred.to_yaml(),
-                "notes": inferred.notes,
-            });
-            println!("{payload:#}");
-            return ExitCode::SUCCESS;
-        }
-        print!("{}", inferred.to_yaml());
-        if !inferred.notes.is_empty() {
-            println!("\n# review — effects too dynamic to pin statically:");
-            for note in &inferred.notes {
-                println!("#   · {note}");
-            }
-        }
-        return ExitCode::SUCCESS;
+        return run_infer_mode(&wf, json_mode, color, ascii);
     }
 
     // INFALLIBLE — conformance violations land in the report (rustc
@@ -129,11 +165,48 @@ fn main() -> ExitCode {
 
     // ── the human surface · DAG lanes + semantic sections ───────────
     let t = Theme::from_env(color, ascii);
-    print!("{}", render::render(&report, &wf, &path, t));
+    print!("{}", render::render(&report, &wf, &yaml, &path, t));
 
     if report.is_clean() {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
     }
+}
+
+/// `--infer-permits` — stdout is the pasteable artifact (the permits
+/// block + its YAML-comment review notes); human messaging goes to
+/// stderr (the clig.dev dual surface).
+fn run_infer_mode(
+    wf: &nika_schema::raw::RawWorkflow,
+    json_mode: bool,
+    color: ColorFlag,
+    ascii: bool,
+) -> ExitCode {
+    let inferred = infer_permits(wf);
+    if json_mode {
+        // the agent shape: the paste-ready block + the honesty notes
+        let payload = serde_json::json!({
+            "permits_yaml": inferred.to_yaml(),
+            "notes": inferred.notes,
+        });
+        println!("{payload:#}");
+        return ExitCode::SUCCESS;
+    }
+    print!("{}", inferred.to_yaml());
+    if !inferred.notes.is_empty() {
+        println!("\n# review — effects too dynamic to pin statically:");
+        for note in &inferred.notes {
+            println!("#   · {note}");
+        }
+    }
+    let t = Theme::from_env(color, ascii);
+    eprintln!(
+        "{} {} paste into the workflow envelope {} {} review note(s)",
+        t.accent(t.glyph(theme::Glyph::Banner)),
+        t.dim("inferred boundary"),
+        t.dim(t.middot()),
+        inferred.notes.len(),
+    );
+    ExitCode::SUCCESS
 }

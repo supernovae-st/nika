@@ -55,6 +55,27 @@ pub use tools::UnknownTool;
 /// silently misparsing (additive fields do not bump it).
 pub const REPORT_VERSION: u32 = 1;
 
+/// A source byte range, report-shaped (serializable — the JSON agent
+/// surface + the snippet renderer + the future LSP all read offsets
+/// against the source they already hold).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+pub struct ByteSpan {
+    /// Start byte offset (inclusive).
+    pub start: u32,
+    /// End byte offset (exclusive).
+    pub end: u32,
+}
+
+impl ByteSpan {
+    /// Create a byte span (invariant #19 — `#[non_exhaustive]` structs
+    /// ship a constructor).
+    #[must_use]
+    pub const fn new(start: u32, end: u32) -> Self {
+        Self { start, end }
+    }
+}
+
 /// One Core-conformance violation, in report shape (the canonical spec
 /// code + the rendered message, which carries the location and any
 /// did-you-mean repair).
@@ -65,6 +86,11 @@ pub struct ConformanceViolation {
     pub code: String,
     /// The rendered diagnostic (location + did-you-mean included).
     pub message: String,
+    /// The source byte range, when the error carries one — renderers
+    /// show the offending source line with a caret (rustc-grade
+    /// diagnostics for workflow YAML). Additive: `report_version`
+    /// stays 1.
+    pub span: Option<ByteSpan>,
 }
 
 /// The static pre-flight report — everything `nika check` learns without
@@ -158,6 +184,10 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
                 .map(|e| ConformanceViolation {
                     code: e.spec_code().to_string(),
                     message: e.to_string(),
+                    span: e.span().map(|s| ByteSpan {
+                        start: s.start.0,
+                        end: s.end.0,
+                    }),
                 })
                 .collect(),
             Vec::new(),
@@ -343,6 +373,16 @@ tasks:
             "{:?}",
             r.conformance
         );
+        // the violation carries its source span (the snippet renderers
+        // + the LSP read it) — and the offsets point INSIDE the source
+        let dag = r
+            .conformance
+            .iter()
+            .find(|c| c.code == "NIKA-DAG-002")
+            .expect("dag violation");
+        let span = dag.span.expect("span populated");
+        assert!(span.start <= span.end, "ordered offsets");
+        assert!((span.start as usize) < 1000, "within the tiny source");
         assert_eq!(r.unknown_tools.len(), 1, "tool typo still caught");
         assert_eq!(r.schema_lints.len(), 1, "schema defect still caught");
         assert!(

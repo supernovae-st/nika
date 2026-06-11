@@ -183,19 +183,42 @@ pub(crate) enum ColorFlag {
     Never,
 }
 
+/// The terminal-environment facts colour resolution reads — captured as
+/// a struct so the pure core stays testable and the call sites readable.
+///
+/// Four bools, deliberately: these are four INDEPENDENT cross-tool
+/// terminal-contract facts (no-color.org · CLICOLOR · TTY · TERM), not
+/// states of one machine — collapsing them into enums would move the
+/// precedence logic out of the tested pure core into the env reader.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Clone, Copy, Default)]
+pub(crate) struct ColourEnv {
+    /// `NO_COLOR` is set (no-color.org · any value).
+    pub(crate) no_color: bool,
+    /// `CLICOLOR_FORCE` is set non-`0`.
+    pub(crate) force: bool,
+    /// stdout is a terminal.
+    pub(crate) tty: bool,
+    /// `TERM` is `dumb` or unset.
+    pub(crate) term_dumb: bool,
+}
+
 /// The pure resolution core — unit-testable, no environment reads.
-/// Precedence: explicit flag → `NO_COLOR` → `CLICOLOR_FORCE` → TTY.
-pub(crate) fn resolve_colour(flag: ColorFlag, no_color: bool, force: bool, tty: bool) -> bool {
+/// Precedence (contract §3.4): explicit flag → `NO_COLOR` →
+/// `CLICOLOR_FORCE` → TTY detect → `TERM=dumb`. An explicit force
+/// (flag or `CLICOLOR_FORCE`) wins over a dumb terminal; otherwise a
+/// dumb terminal never gets ANSI even when stdout is a TTY.
+pub(crate) fn resolve_colour(flag: ColorFlag, env: ColourEnv) -> bool {
     match flag {
         ColorFlag::Always => true,
         ColorFlag::Never => false,
         ColorFlag::Auto => {
-            if no_color {
+            if env.no_color {
                 false
-            } else if force {
+            } else if env.force {
                 true
             } else {
-                tty
+                env.tty && !env.term_dumb
             }
         }
     }
@@ -221,13 +244,14 @@ impl Theme {
     #[allow(clippy::disallowed_methods)]
     pub(crate) fn from_env(flag: ColorFlag, ascii_flag: bool) -> Self {
         let term_dumb = std::env::var_os("TERM").is_none_or(|t| t == "dumb");
+        let env = ColourEnv {
+            no_color: std::env::var_os("NO_COLOR").is_some(),
+            force: std::env::var_os("CLICOLOR_FORCE").is_some_and(|v| v != "0"),
+            tty: std::io::stdout().is_terminal(),
+            term_dumb,
+        };
         Self {
-            on: resolve_colour(
-                flag,
-                std::env::var_os("NO_COLOR").is_some(),
-                std::env::var_os("CLICOLOR_FORCE").is_some_and(|v| v != "0"),
-                std::io::stdout().is_terminal(),
-            ),
+            on: resolve_colour(flag, env),
             unicode: !ascii_flag && !term_dumb,
         }
     }
@@ -396,13 +420,47 @@ mod tests {
 
     #[test]
     fn colour_resolution_precedence() {
-        // flag wins over everything
-        assert!(resolve_colour(ColorFlag::Always, true, false, false));
-        assert!(!resolve_colour(ColorFlag::Never, false, true, true));
-        // auto: NO_COLOR beats CLICOLOR_FORCE beats TTY
-        assert!(!resolve_colour(ColorFlag::Auto, true, true, true));
-        assert!(resolve_colour(ColorFlag::Auto, false, true, false));
-        assert!(resolve_colour(ColorFlag::Auto, false, false, true));
-        assert!(!resolve_colour(ColorFlag::Auto, false, false, false));
+        let env = |no_color, force, tty, term_dumb| ColourEnv {
+            no_color,
+            force,
+            tty,
+            term_dumb,
+        };
+        // flag wins over everything (even a dumb terminal)
+        assert!(resolve_colour(
+            ColorFlag::Always,
+            env(true, false, false, true)
+        ));
+        assert!(!resolve_colour(
+            ColorFlag::Never,
+            env(false, true, true, false)
+        ));
+        // auto: NO_COLOR beats CLICOLOR_FORCE beats TTY beats TERM=dumb
+        assert!(!resolve_colour(
+            ColorFlag::Auto,
+            env(true, true, true, false)
+        ));
+        assert!(resolve_colour(
+            ColorFlag::Auto,
+            env(false, true, false, false)
+        ));
+        assert!(resolve_colour(
+            ColorFlag::Auto,
+            env(false, false, true, false)
+        ));
+        assert!(!resolve_colour(
+            ColorFlag::Auto,
+            env(false, false, false, false)
+        ));
+        // a dumb terminal never gets ANSI on the auto path, TTY or not —
+        // but an explicit CLICOLOR_FORCE still wins (it is explicit)
+        assert!(!resolve_colour(
+            ColorFlag::Auto,
+            env(false, false, true, true)
+        ));
+        assert!(resolve_colour(
+            ColorFlag::Auto,
+            env(false, true, true, true)
+        ));
     }
 }

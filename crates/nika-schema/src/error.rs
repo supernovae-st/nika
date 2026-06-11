@@ -424,6 +424,46 @@ pub enum SchemaError {
 }
 
 impl SchemaError {
+    /// The source span of this error, when one is attached — the ONE
+    /// uniform surface diagnostics renderers (the check report · the
+    /// future LSP) read spans through. `Cycle` has no single span (a
+    /// cycle is a path property, not a location).
+    #[must_use]
+    pub fn span(&self) -> Option<Span> {
+        match self {
+            Self::YamlSyntax { span, .. }
+            | Self::MissingEnvelopeField { span, .. }
+            | Self::BadNikaVersion { span, .. }
+            | Self::BadWorkflowId { span, .. }
+            | Self::UnknownField { span, .. }
+            | Self::BadTaskId { span, .. }
+            | Self::DuplicateTaskId { span, .. }
+            | Self::MissingVerb { span, .. }
+            | Self::MultipleVerbs { span, .. }
+            | Self::BadTimeout { span, .. }
+            | Self::BadRetry { span, .. }
+            | Self::BadOnError { span, .. }
+            | Self::ReservedBindingName { span, .. }
+            | Self::BadSecretRef { span, .. }
+            | Self::BadTypedVar { span, .. }
+            | Self::TemplateSyntax { span, .. }
+            | Self::JqBindingContainsTemplate { span, .. }
+            | Self::DuplicateKey { span, .. }
+            | Self::MissingField { span, .. }
+            | Self::Validation { span, .. }
+            | Self::BadBuiltinArgs { span, .. }
+            | Self::RecoverAwaitDeadlock { span, .. }
+            | Self::WhenNotBoolean { span, .. }
+            | Self::UnknownDependency { span, .. }
+            | Self::MissingDependsOnEdge { span, .. }
+            | Self::UnresolvedNamespaceRef { span, .. }
+            | Self::LoopLocalOutsideForEach { span, .. }
+            | Self::UnknownTaskField { span, .. }
+            | Self::OutputPathProvablyInvalid { span, .. } => *span,
+            Self::Cycle { .. } => None,
+        }
+    }
+
     /// Create a validation error with no span.
     #[must_use]
     pub fn validation(message: impl Into<String>) -> Self {

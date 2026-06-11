@@ -17,11 +17,19 @@ use std::fmt::Write as _;
 
 use crate::theme::{Glyph, Theme, VerbKind};
 
-/// Render the full human report.
-pub(crate) fn render(report: &CheckReport, wf: &RawWorkflow, path: &str, t: Theme) -> String {
+/// Render the full human report. `source` is the workflow YAML text —
+/// findings that carry a span render their source excerpt from it.
+pub(crate) fn render(
+    report: &CheckReport,
+    wf: &RawWorkflow,
+    source: &str,
+    path: &str,
+    t: Theme,
+) -> String {
     let mut out = String::new();
+    let file_label = path.rsplit('/').next().unwrap_or(path);
     banner(&mut out, path, t);
-    conformance(&mut out, report, t);
+    conformance(&mut out, report, source, file_label, t);
     plan(&mut out, report, wf, t);
     cost(&mut out, report, t);
     secrets(&mut out, report, t);
@@ -53,7 +61,7 @@ fn banner(out: &mut String, path: &str, t: Theme) {
     out.push('\n');
 }
 
-fn conformance(out: &mut String, report: &CheckReport, t: Theme) {
+fn conformance(out: &mut String, report: &CheckReport, source: &str, file_label: &str, t: Theme) {
     for c in &report.conformance {
         let _ = writeln!(
             out,
@@ -63,6 +71,10 @@ fn conformance(out: &mut String, report: &CheckReport, t: Theme) {
             t.dim(&format!("[{}]", c.code)),
             c.message
         );
+        // rustc-grade: the offending source line, caret under the token
+        if let Some(span) = c.span {
+            crate::snippet::render_snippet(out, source, file_label, span, t);
+        }
     }
 }
 
@@ -458,7 +470,7 @@ mod tests {
     fn rendered(t: Theme) -> String {
         let wf = parse(CHROME_ONLY, FileId::new(0), ParseMode::Strict).expect("parse");
         let report = check(&wf);
-        render(&report, &wf, "pipeline.nika.yaml", t)
+        render(&report, &wf, CHROME_ONLY, "pipeline.nika.yaml", t)
     }
 
     #[test]
