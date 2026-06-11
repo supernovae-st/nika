@@ -36,7 +36,7 @@ const fn ellipsis(t: Theme) -> &'static str {
 }
 
 /// The spinner glyph for an animation step (`>` pulse in ascii).
-fn spin(step: usize, t: Theme) -> String {
+pub(crate) fn spin(step: usize, t: Theme) -> String {
     if t.unicode_glyphs() {
         t.accent(SPINNER[step % SPINNER.len()])
     } else {
@@ -46,7 +46,7 @@ fn spin(step: usize, t: Theme) -> String {
 
 /// A binding rail with the data dot at `pos` of `len` (the `${{ }}`
 /// value travelling from an upstream output into this verb's input).
-fn rail(pos: usize, len: usize, t: Theme) -> String {
+pub(crate) fn rail(pos: usize, len: usize, t: Theme) -> String {
     let (track, dot) = if t.unicode_glyphs() {
         ("┈", "●")
     } else {

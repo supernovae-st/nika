@@ -21,6 +21,7 @@
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
 mod scenes;
+mod tape;
 #[path = "../check/theme.rs"]
 mod theme;
 
@@ -32,11 +33,23 @@ use theme::{ColorFlag, Theme, VerbKind};
 /// One playback tick (contract §3.2 spinner cadence).
 const TICK_MS: u64 = 80;
 
-const USAGE: &str = "usage: verbs [infer|exec|invoke|agent|all] [--legend] [--ascii] [--color=auto|always|never] [--frame N] [--no-anim]";
+const USAGE: &str = "usage: verbs [infer|exec|invoke|agent|workflow|all] [--events] [--legend] [--ascii] [--color=auto|always|never] [--frame N] [--no-anim]";
+
+/// What to show — the modes are mutually exclusive, so they are an
+/// enum, not flags (the type encodes the exclusivity).
+enum Mode {
+    /// The per-verb storyboards.
+    Theater(Vec<VerbKind>),
+    /// The event tape folded live into the animated DAG.
+    Workflow,
+    /// Every telemetry event as a line, then the folded card.
+    Tape,
+    /// The canonical theme reference card.
+    Legend,
+}
 
 struct Args {
-    legend: bool,
-    verbs: Vec<VerbKind>,
+    mode: Mode,
     color: ColorFlag,
     ascii: bool,
     frame: Option<usize>,
@@ -44,7 +57,7 @@ struct Args {
 }
 
 fn parse_args() -> Result<Args, ExitCode> {
-    let mut legend = false;
+    let mut mode: Option<Mode> = None;
     let mut verbs: Vec<VerbKind> = Vec::new();
     let mut color = ColorFlag::Auto;
     let mut ascii = false;
@@ -57,6 +70,7 @@ fn parse_args() -> Result<Args, ExitCode> {
             "exec" => verbs.push(VerbKind::Exec),
             "invoke" => verbs.push(VerbKind::Invoke),
             "agent" => verbs.push(VerbKind::Agent),
+            "workflow" => mode = Some(Mode::Workflow),
             "all" => {
                 verbs = vec![
                     VerbKind::Infer,
@@ -65,7 +79,8 @@ fn parse_args() -> Result<Args, ExitCode> {
                     VerbKind::Agent,
                 ];
             }
-            "--legend" => legend = true,
+            "--legend" => mode = Some(Mode::Legend),
+            "--events" => mode = Some(Mode::Tape),
             "--ascii" => ascii = true,
             "--no-anim" => no_anim = true,
             "--color=auto" => color = ColorFlag::Auto,
@@ -86,17 +101,20 @@ fn parse_args() -> Result<Args, ExitCode> {
             }
         }
     }
-    if verbs.is_empty() {
-        verbs = vec![
-            VerbKind::Infer,
-            VerbKind::Exec,
-            VerbKind::Invoke,
-            VerbKind::Agent,
-        ];
-    }
+    let mode = mode.unwrap_or_else(|| {
+        Mode::Theater(if verbs.is_empty() {
+            vec![
+                VerbKind::Infer,
+                VerbKind::Exec,
+                VerbKind::Invoke,
+                VerbKind::Agent,
+            ]
+        } else {
+            verbs
+        })
+    });
     Ok(Args {
-        legend,
-        verbs,
+        mode,
         color,
         ascii,
         frame,
@@ -114,25 +132,6 @@ fn motion_allowed(no_anim: bool) -> bool {
         && std::env::var_os("NIKA_REDUCED_MOTION").is_none_or(|v| v == "0")
 }
 
-/// Play one verb's storyboard in place (cursor-up redraw). The ONLY
-/// raw escape here is cursor motion — colour stays in the theme seam.
-fn play(verb: VerbKind, t: Theme) {
-    let total = scenes::steps(verb);
-    let mut prev_lines = 0usize;
-    for step in 0..total {
-        let frame = scenes::frame(verb, step, t);
-        if prev_lines > 0 {
-            // move up over the previous frame and clear to the end
-            print!("\x1b[{prev_lines}A\x1b[J");
-        }
-        print!("{frame}");
-        let _ = std::io::stdout().flush();
-        prev_lines = frame.lines().count();
-        std::thread::sleep(std::time::Duration::from_millis(TICK_MS));
-    }
-    println!();
-}
-
 fn main() -> ExitCode {
     let args = match parse_args() {
         Ok(a) => a,
@@ -140,22 +139,52 @@ fn main() -> ExitCode {
     };
     let t = Theme::from_env(args.color, args.ascii);
 
-    if args.legend {
-        print!("{}", scenes::legend(t));
-        return ExitCode::SUCCESS;
-    }
-
-    for verb in &args.verbs {
-        if let Some(n) = args.frame {
-            // a single static frame — CI · screenshots · docs
-            print!("{}", scenes::frame(*verb, n, t));
-        } else if motion_allowed(args.no_anim) {
-            play(*verb, t);
-        } else {
-            // reduced motion / non-TTY: the completed card, once
-            print!("{}", scenes::frame(*verb, scenes::steps(*verb) - 1, t));
+    match args.mode {
+        Mode::Legend => print!("{}", scenes::legend(t)),
+        // the tape view — every telemetry event, then the folded card
+        Mode::Tape => print!("{}", tape::render_tape(t)),
+        // the motion view — the SAME tape, folded live into DAG lanes
+        Mode::Workflow => {
+            let total = tape::total_steps();
+            if let Some(n) = args.frame {
+                print!("{}", tape::workflow_frame(n, t));
+            } else if motion_allowed(args.no_anim) {
+                animate(total, |step| tape::workflow_frame(step, t));
+            } else {
+                print!("{}", tape::workflow_frame(total - 1, t));
+            }
+            println!();
         }
-        println!();
+        Mode::Theater(verbs) => {
+            for verb in verbs {
+                if let Some(n) = args.frame {
+                    // a single static frame — CI · screenshots · docs
+                    print!("{}", scenes::frame(verb, n, t));
+                } else if motion_allowed(args.no_anim) {
+                    animate(scenes::steps(verb), |step| scenes::frame(verb, step, t));
+                } else {
+                    // reduced motion / non-TTY: the completed card, once
+                    print!("{}", scenes::frame(verb, scenes::steps(verb) - 1, t));
+                }
+                println!();
+            }
+        }
     }
     ExitCode::SUCCESS
+}
+
+/// In-place playback of any pure frame function (cursor-up redraw —
+/// the ONLY raw escape, and it is motion, not colour).
+fn animate(total: usize, frame_fn: impl Fn(usize) -> String) {
+    let mut prev = 0usize;
+    for step in 0..total {
+        let frame = frame_fn(step);
+        if prev > 0 {
+            print!("\x1b[{prev}A\x1b[J");
+        }
+        print!("{frame}");
+        let _ = std::io::stdout().flush();
+        prev = frame.lines().count();
+        std::thread::sleep(std::time::Duration::from_millis(TICK_MS));
+    }
 }

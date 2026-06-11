@@ -22,6 +22,10 @@ serde_json = { workspace = true }
 miette     = { workspace = true }
 
 [dev-dependencies]
+# the verb-theater example folds REAL engine events (the telemetry truth)
+nika-event = { path = "../nika-event", version = "0.80.0" }
+nika-types = { path = "../nika-types", version = "0.80.0" }
+uuid       = { workspace = true }
 insta      = { workspace = true }
 proptest   = { workspace = true }
 rstest     = { workspace = true }
