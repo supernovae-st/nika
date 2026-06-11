@@ -12,7 +12,7 @@
 | Crate version | tracks workspace (`0.80.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
-| Publish | `true` — publishable on crates.io per ADR-004 « 9 satellites publishable standalone » external open-source value |
+| Publish | `true` — publishable on crates.io per ADR-004 « 10 satellites publishable standalone » external open-source value |
 | Reference | [Robertson & Walker 1994 · Okapi BM25](https://en.wikipedia.org/wiki/Okapi_BM25) · Manning Raghavan Schütze 2008 ch. 11 |
 
 ---
@@ -163,7 +163,7 @@ migration becomes meaningful (predicted ~15 ms linear vs target 50 ms ·
 
 - **P-1 · `Vec<String>` tokenize allocation** (`tokenize.rs:14`) · per-call heap alloc per token. Acceptable for W3 admission (small corpora). Migrate to iterator API (`fn tokens(&str) -> impl Iterator<Item = &str>` lifetime-tied · zero-alloc) at W4 if `synthetic_100_top_k_10` criterion bench > 1ms. Cross-link · BLUEPRINT v1.5 Gallant ripgrep 0-alloc CLI craft ratchet · tantivy `TextAnalyzer::token_stream` precedent.
 - **P-2 · `BTreeMap<String, u32>` tf-table** (`index.rs:24`) · O(log n) lookup · poor cache locality. Acceptable for W3 (deterministic iteration · zero unsafe · zero new dep). Migrate to `rustc_hash::FxHashMap` (used by rust-analyzer + cargo + tantivy stacker) at W4 if hot-path benchmark > 1ms. Pre-empt 8-sister cascade by documenting the trade-off now.
-- **P-3 · `BmIndex` type-state (Building → Finalized)** (`index.rs:36`) · today runtime `finalized: bool` flag · score-before-finalize is silent stale-IDF math. Migrate to `BmIndex<Building>` / `BmIndex<Finalized>` typestate (ADR-079 family · `PhantomData<S>` zero-cost) at W4 once sealed-pattern stabilizes across 9 satellites. Compile-time enforcement of state machine.
+- **P-3 · `BmIndex` type-state (Building → Finalized)** (`index.rs:36`) · today runtime `finalized: bool` flag · score-before-finalize is silent stale-IDF math. Migrate to `BmIndex<Building>` / `BmIndex<Finalized>` typestate (ADR-079 family · `PhantomData<S>` zero-cost) at W4 once sealed-pattern stabilizes across 10 satellites. Compile-time enforcement of state machine.
 - **P-4 · no postings list · `top_k` full-corpus scan** (`index.rs` `df` map + `query.rs` `top_k`) · the index keeps `df` (term→doc-COUNT) but no postings (term→doc-IDS), so `top_k` scores EVERY document, including those sharing no query term · O(N_docs · |query|) where a postings-driven scan + bounded top-k heap is O(matching_docs · log k). Empirically deferred · `synthetic_10k_top_k_10` measures 1.49 ms (3.3× under the <5 ms budget), so it is NOT a W3 blocker. Add `postings: BTreeMap<String, Vec<u32>>` (built in `add_document`, consumed by `top_k`) at W4 if a larger-corpus bench crosses budget. Correctness-preserving (identical BM25 scores · only skips guaranteed-zero docs).
 
 P-1/P-2/P-3/P-4 are tracked as **ADR-082 candidates** (post-W3 perf hardening cluster). NOT Gate 12 blockers · gate via Gate 7 criterion bench numbers (target `synthetic_100_top_k_10` < 1ms · `finalize_100` < 5ms per spec §5).

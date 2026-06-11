@@ -132,7 +132,7 @@ reserved even if unused, preventing collision when future subsystems ship.
 | NIKA-1600..1699 | audio L1 (stt · tts · vad · `ai::audio` seam R6) | reserved (2026-06-10 · impls stdlib v0.x) |
 | NIKA-200..299 | pck / validation | reserved v0.80, active v0.90 |
 | NIKA-300..399 | Providers + Shield | active (380-389 shield) |
-| NIKA-400..499 | Verbs (430..433 infer · 440..442 exec · 450..452 invoke · agent next) | ACTIVE 2026-06 — supersedes the v0.80 « Cortex / memory queries » reservation; memory lives at 600..649 (`nika-error/src/codes.rs` is the registry of record) |
+| NIKA-400..499 | Verbs (430..433 infer · 440..442 exec · 450..452 invoke · agent next) | active (`nika-error/src/codes.rs` = registry of record) |
 | NIKA-500..599 | agent-v2 | reserved v0.80, active v0.95 |
 | NIKA-600..649 | Memory — the Connectome (601..604 active · per-satellite sub-ranges 610+) | active (Category::Memory) |
 | NIKA-650..699 | (unallocated) | reserved |
@@ -179,8 +179,8 @@ flags. Default features are stable. CI runs both matrices.
 ```toml
 [features]
 default = ["std"]
-unstable-cortex     = ["dep:nika-memory-oxigraph"]
-unstable-agent-v2   = ["dep:nika-agent-v2", "unstable-cortex"]
+unstable-connectome = ["dep:nika-connectome"]
+unstable-agent-v2   = ["dep:nika-agent-v2", "unstable-connectome"]
 unstable-wasm       = ["dep:nika-wasm-host"]
 unstable-observ     = ["dep:nika-observability"]
 unstable-sandbox    = ["dep:nika-sandbox"]

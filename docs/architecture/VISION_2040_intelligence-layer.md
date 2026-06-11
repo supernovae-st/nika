@@ -287,7 +287,7 @@ promise.
 7. **The workflow generator** — schema-grounded constrained decoding on
    `workflow.schema.json` + `canon.yaml`. Carrier: `agent` verb capability or
    `nika-gen`.
-8. **The Connectome** (Phase 1.5) — the 9 satellites + orchestrator admitted.
+8. **The Connectome** (Phase 1.5) — the 10 satellites + orchestrator admitted.
 9. **Nika-OS** (v0.95+) — compose runtime + daemon + connectome + mcp into the
    sovereign agent runtime. First `nika-os` ADR.
 

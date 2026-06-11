@@ -2,7 +2,7 @@
 
 ## Crate structure
 
-- Total target : **42 crates diamond v0.90** (cap 100) + **11 Connectome crates** (1 L2 orchestrator `nika-connectome` [renamed from `nika-memory` per the Connectome lock 2026-05-22] + **10 L1 satellite crates** · autodesc splits into `nika-autodesc-minimal` [W4] + `nika-autodesc-full` [Phase 2] per ADR-042 · `nika-rerank` M13 added by the SOTA ratification 2026-06-11) — separate count. Satellites · `hnsw, bm25, rrf, rerank, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc-minimal, autodesc-full`. Phase-M climb · recall floor at v0.85 · cognition at v0.90+ · specs at `docs/crate-specs/nika-<sat>.md`. See ADR-004 + ADR-042 + `BLUEPRINT_2036.md`.
+- Total target : **42 crates diamond v0.90** (cap 100) + **11 Connectome crates** (1 L2 orchestrator `nika-connectome` + **10 L1 satellite crates** · autodesc split per ADR-042) — separate count. Satellites · `hnsw, bm25, rrf, rerank, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc-minimal, autodesc-full`. Phase-M climb · recall floor at v0.85 · cognition at v0.90+ · specs at `docs/crate-specs/nika-<sat>.md`. See ADR-004 + ADR-042 + `BLUEPRINT_2036.md`.
 
 ## Collapse-vs-publish principle (decision RULE locked · cluster collapses = QUEUED proposals)
 
@@ -26,11 +26,9 @@
 
 - `nika-*` prefix for all workspace members
 - `nika-verb-<verb>` for verb executors (exec, invoke, infer, agent · fetch is the `nika:fetch` builtin reached via invoke, not a verb)
-- Connectome satellites keep pro names (`nika-hnsw`, `nika-bm25`, … — NO `nika-memory-` prefix · `nika-bm25` admitted proves the canon)
+- Connectome satellites keep pro names (`nika-hnsw`, `nika-bm25`, … — NO `nika-memory-` prefix) <!-- stale-ok -->
 - `nika-<noun>` for effect impls (fs, http, blob, etc.)
-- `nika-exec-runner` — the shipped shell/process effect (s7 · ADMITTED
-  2026-06-10 · supersedes this rule's earlier `nika-process` pick;
-  `nika-shell` stays rejected)
+- `nika-exec-runner` — the shell/process effect (`nika-process` / `nika-shell` rejected names) <!-- stale-ok -->
 - `nika-daemon-db` (not `nika-storage`)
 - `nika-lints` (plural, dylint collection)
 
@@ -47,9 +45,6 @@
 - `nika-lsp-core` → merged into `nika-lsp`
 
 **Modules, not crates** (single consumer) :
-- ~~`nika-policy` → module in `nika-runtime`~~ SUPERSEDED — `nika-policy`
-  is a crate again (announce-ladder s8 · design LOCKED 2026-06-10 · impl
-  gated on kernel-migration)
 - `nika-storage` → module in `nika-daemon`
 - `nika-cache` → module in `nika-runtime`
 
@@ -62,13 +57,12 @@
 - `nika-media-document` — svg/chart/readability/html_to_md
 - `nika-media-provenance` — c2pa/verify/qr
 
-**providers — SHIPPED 2026-06-11 (supersedes the « split × 3 » plan)** :
+**providers** :
 - `nika-providers` — ONE L1.5 crate · 14/14 canonical providers over 3 wire
   formats (anthropic · openai-compat ×12 · gemini) + in-crate mock · rig NOT
   carried — Diamond talks wire directly through the kernel http seam
   (D-2026-05-22-N17)
-- `nika-infer-local` — native in-process backend (candle sidecar · ADR-091 ·
-  supersedes the `nika-provider-native` mistral.rs plan)
+- `nika-infer-local` — native in-process backend (candle sidecar · ADR-091)
 
 ## Added in POST_AUDIT 2026-04-14 expansion (8 new crates v0.90)
 

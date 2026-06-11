@@ -594,11 +594,11 @@ Every numbered line range was grep-verified against HEAD `9ebaf05ca`.
 
 ## 14. Reserved / future
 
-- **Cortex memory layer (L1 satellites admission).** No direct interaction. Cortex memory crates
-  (`nika-memory-*`) have no catalog TOML at L0 foundation scope. If
-  `nika/memory-adapters@1.0` ever becomes a TOML schema (it will not at
-  the 14-crate Cortex plan — 8 core + 6 reserved, per ADR-037), a sibling `nika-memory-codegen`
-  crate would be added — NOT retrofitted here.
+- **The Connectome (L1 satellite admissions).** No direct interaction.
+  The Connectome satellites have no catalog TOML at L0 foundation scope.
+  If `nika/memory-adapters@1.0` ever becomes a TOML schema (it will not
+  under the 1+10 Connectome cluster), a sibling codegen crate would be
+  added — NOT retrofitted here.
 - **WASM host (L3 admission).** N/A. This crate does not run at runtime, never gets
   compiled into a WASM binary, never crosses the plugin boundary. Pure
   build-time tool.

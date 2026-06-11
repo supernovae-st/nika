@@ -83,7 +83,7 @@ across 3.x releases over 20 years. Each release was diamond-grade. The
 product was complete AT EACH RELEASE for what it claimed to do.
 
 v0.90 ships when 42 crates pass 12 gates and 7 shadow zones are green.
-v0.95 ships Cortex and agent-v2. v0.100 ships WASM plugins and keys
+v0.95 ships the Connectome and agent-v2. v0.100 ships WASM plugins and keys
 subsystem. Each release is a complete chrysalis stage, not an intermediate
 build.
 
