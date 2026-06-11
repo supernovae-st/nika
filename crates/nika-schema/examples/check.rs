@@ -94,24 +94,9 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    let report = match check(&wf) {
-        Ok(r) => r,
-        Err(errors) => {
-            if json_mode {
-                let payload = serde_json::json!({
-                    "clean": false,
-                    "conformance_errors": errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
-                });
-                println!("{payload:#}");
-            } else {
-                eprintln!("CHECK ✗  {} core-conformance violation(s):", errors.len());
-                for e in errors {
-                    eprintln!("  · {e}");
-                }
-            }
-            return ExitCode::FAILURE;
-        }
-    };
+    // INFALLIBLE — conformance violations land in the report (rustc
+    // model: one run = maximal information).
+    let report = check(&wf);
 
     // ── --json · the full machine-readable report (agent surface) ───
     if json_mode {
@@ -135,14 +120,23 @@ fn main() -> ExitCode {
         };
     }
 
+    // ── conformance (in-band · the DAG-independent reports follow) ──
+    for c in &report.conformance {
+        println!("CONFORM  ✗ [{}] {}", c.code, c.message);
+    }
+
     // ── plan ────────────────────────────────────────────────────────
-    println!("PLAN     {} wave(s)", report.waves.len());
-    for (n, wave) in report.waves.iter().enumerate() {
-        let ids: Vec<&str> = wave
-            .iter()
-            .map(|&i| wf.tasks[i].value.id.value.as_str())
-            .collect();
-        println!("  wave {n} · {}", ids.join(" ∥ "));
+    if report.waves.is_empty() && !report.conformance.is_empty() {
+        println!("PLAN     (skipped — no valid DAG order while conformance fails)");
+    } else {
+        println!("PLAN     {} wave(s)", report.waves.len());
+        for (n, wave) in report.waves.iter().enumerate() {
+            let ids: Vec<&str> = wave
+                .iter()
+                .map(|&i| wf.tasks[i].value.id.value.as_str())
+                .collect();
+            println!("  wave {n} · {}", ids.join(" ∥ "));
+        }
     }
 
     // ── cost envelope (structural interval · ADR-092 #5) ────────────

@@ -664,6 +664,77 @@ tasks:
     }
 
     #[test]
+    fn unresolved_refs_carry_did_you_mean() {
+        // The most frequent agent error class: a typo'd name. Every
+        // namespace suggests within ITS OWN declared set (rustc model).
+        let yaml = "\
+nika: v1
+workflow: t
+vars: { topic: \"x\" }
+tasks:
+  - id: extract
+    exec: { command: echo }
+  - id: report
+    depends_on: [extarct]
+    exec: { command: \"echo ${{ vars.topci }} ${{ tasks.extract.output }}\" }
+";
+        let errors = analyze_yaml(yaml).expect_err("typos");
+        let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
+        assert!(
+            rendered
+                .iter()
+                .any(|m| m.contains("`extarct`") && m.contains("did you mean `extract`?")),
+            "depends_on typo repaired: {rendered:?}"
+        );
+        assert!(
+            rendered
+                .iter()
+                .any(|m| m.contains("vars.topci") && m.contains("did you mean `vars.topic`?")),
+            "vars typo repaired in-namespace: {rendered:?}"
+        );
+    }
+
+    #[test]
+    fn typo_d_namespace_root_suggests_the_root() {
+        let yaml = "\
+nika: v1
+workflow: t
+vars: { topic: \"x\" }
+tasks:
+  - id: a
+    exec: { command: \"echo ${{ vrs.topic }}\" }
+";
+        let errors = analyze_yaml(yaml).expect_err("root typo");
+        let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
+        assert!(
+            rendered.iter().any(|m| m.contains("did you mean `vars`?")),
+            "{rendered:?}"
+        );
+    }
+
+    #[test]
+    fn far_typo_gets_no_suggestion_clause() {
+        let yaml = "\
+nika: v1
+workflow: t
+vars: { topic: \"x\" }
+tasks:
+  - id: a
+    exec: { command: \"echo ${{ vars.zzzzzzzzz }}\" }
+";
+        let errors = analyze_yaml(yaml).expect_err("far typo");
+        let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
+        assert!(
+            rendered.iter().any(|m| m.contains("vars.zzzzzzzzz")),
+            "{rendered:?}"
+        );
+        assert!(
+            !rendered.iter().any(|m| m.contains("did you mean")),
+            "silence beats a wrong guess: {rendered:?}"
+        );
+    }
+
+    #[test]
     fn all_errors_collected_not_fail_fast() {
         // One workflow · several independent violations · ALL reported.
         let yaml = "\

@@ -398,17 +398,20 @@ fn check_ref(
     match r {
         NamespaceRef::Vars(name) => {
             if !index.vars.contains(name.as_str()) {
-                errors.push(unresolved(&format!("vars.{name}"), ctx, span));
+                let hint = suggest_in("vars", name, index.vars.iter().copied());
+                errors.push(unresolved(&format!("vars.{name}"), ctx, span, hint));
             }
         }
         NamespaceRef::Env(name) => {
             if !index.env.contains(name.as_str()) {
-                errors.push(unresolved(&format!("env.{name}"), ctx, span));
+                let hint = suggest_in("env", name, index.env.iter().copied());
+                errors.push(unresolved(&format!("env.{name}"), ctx, span, hint));
             }
         }
         NamespaceRef::Secrets(name) => {
             if !index.secrets.contains(name.as_str()) {
-                errors.push(unresolved(&format!("secrets.{name}"), ctx, span));
+                let hint = suggest_in("secrets", name, index.secrets.iter().copied());
+                errors.push(unresolved(&format!("secrets.{name}"), ctx, span, hint));
             }
         }
         NamespaceRef::With(name) => {
@@ -416,7 +419,10 @@ fn check_ref(
                 .with_names
                 .is_some_and(|names| names.contains(name.as_str()));
             if !declared {
-                errors.push(unresolved(&format!("with.{name}"), ctx, span));
+                let hint = ctx
+                    .with_names
+                    .and_then(|names| suggest_in("with", name, names.iter().copied()));
+                errors.push(unresolved(&format!("with.{name}"), ctx, span, hint));
             }
         }
         NamespaceRef::Tasks { id, field } => {
@@ -437,7 +443,10 @@ fn check_ref(
             }
         }
         NamespaceRef::Unknown(root) => {
-            errors.push(unresolved(root, ctx, span));
+            // a typo'd NAMESPACE root (`vrs.x`) — suggest among the roots
+            const ROOTS: [&str; 7] = ["env", "index", "item", "secrets", "tasks", "vars", "with"];
+            let hint = crate::suggest::did_you_mean(root, ROOTS).map(str::to_owned);
+            errors.push(unresolved(root, ctx, span, hint));
         }
     }
 }
@@ -454,7 +463,8 @@ fn check_task_ref(
     errors: &mut Vec<SchemaError>,
 ) {
     if !index.task_ids.contains(id) {
-        errors.push(unresolved(&format!("tasks.{id}"), ctx, span));
+        let hint = suggest_in("tasks", id, index.task_ids.iter().copied());
+        errors.push(unresolved(&format!("tasks.{id}"), ctx, span, hint));
         return;
     }
     if let Some(field) = field {
@@ -482,10 +492,27 @@ fn check_task_ref(
 }
 
 /// Build a `NIKA-VAR-001`-class unresolved-reference error.
-fn unresolved(reference: &str, ctx: &ScanCtx<'_>, span: Span) -> SchemaError {
+fn unresolved(
+    reference: &str,
+    ctx: &ScanCtx<'_>,
+    span: Span,
+    suggestion: Option<String>,
+) -> SchemaError {
     SchemaError::UnresolvedNamespaceRef {
         reference: reference.to_owned(),
         location: ctx.location.clone(),
+        suggestion,
         span: Some(span),
     }
+}
+
+/// The fully-qualified did-you-mean within ONE namespace's declared
+/// names (`vars.topic` for a typo'd `vars.topci`) — suggestions never
+/// cross namespaces (a `vars.` typo is not repaired with a secret).
+fn suggest_in<'a>(
+    namespace: &str,
+    name: &str,
+    candidates: impl IntoIterator<Item = &'a str>,
+) -> Option<String> {
+    crate::suggest::did_you_mean(name, candidates).map(|s| format!("{namespace}.{s}"))
 }

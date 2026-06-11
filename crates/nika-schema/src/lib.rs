@@ -45,14 +45,16 @@ pub mod lints;
 pub mod parser;
 pub mod raw;
 pub mod source;
+mod suggest;
 pub mod trust;
 pub mod types;
 
 // Re-exports for convenience.
 pub use analyzer::{AnalyzedWorkflow, analyze};
 pub use check::{
-    CapabilityEscape, CheckReport, CostCeiling, Hint, InferredPermits, SchemaLintFinding,
-    SchemaTypeFinding, SecretLeak, TaskCost, UnknownTool, check, infer_permits,
+    CapabilityEscape, CheckReport, ConformanceViolation, CostCeiling, Hint, InferredPermits,
+    REPORT_VERSION, SchemaLintFinding, SchemaTypeFinding, SecretLeak, TaskCost, UnknownTool, check,
+    infer_permits,
 };
 pub use codegen::nika_builtin_tool_enum_schema;
 pub use error::{SchemaError, SpecCategory, SpecCode};

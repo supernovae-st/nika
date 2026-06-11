@@ -26,7 +26,7 @@ use std::collections::BTreeMap;
 use crate::expression::{scan_templates, task_output_paths};
 use crate::raw::{RawAction, RawTask, RawWorkflow};
 
-use super::suggest::{did_you_mean, suggestion_clause};
+use crate::suggest::{did_you_mean, suggestion_clause};
 
 /// A deep output reference the declared shape proves invalid.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]

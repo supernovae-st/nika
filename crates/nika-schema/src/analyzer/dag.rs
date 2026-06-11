@@ -34,6 +34,11 @@ pub(super) fn check_depends_on_resolve(
                 errors.push(SchemaError::UnknownDependency {
                     from: task.value.id.value.clone(),
                     to: dep.value.clone(),
+                    suggestion: crate::suggest::did_you_mean(
+                        &dep.value,
+                        ids.keys().map(String::as_str),
+                    )
+                    .map(str::to_owned),
                     span: Some(dep.span),
                 });
             }

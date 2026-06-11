@@ -310,12 +310,18 @@ pub enum SchemaError {
 
     /// `depends_on` references a task that does not exist
     /// (`NIKA-DAG-002`).
-    #[error("unknown dependency: task `{from}` depends on `{to}`, which does not exist")]
+    #[error(
+        "unknown dependency: task `{from}` depends on `{to}`, which does not exist{}",
+        crate::suggest::suggestion_clause(.suggestion.as_deref())
+    )]
     UnknownDependency {
         /// The task that has the dependency.
         from: String,
         /// The referenced task that doesn't exist.
         to: String,
+        /// The nearest declared task id, when one is close enough — the
+        /// deterministic repair (rustc's did-you-mean model).
+        suggestion: Option<String>,
         /// Source span.
         span: Option<Span>,
     },
@@ -340,12 +346,19 @@ pub enum SchemaError {
     // ── Variable resolution · NIKA-VAR ──────────────────────────────
     /// A `${{ … }}` reference does not resolve to a declared name
     /// (`NIKA-VAR-001` · spec `04-variables.md` §resolution order).
-    #[error("unresolved reference `{reference}` in {location}")]
+    #[error(
+        "unresolved reference `{reference}` in {location}{}",
+        crate::suggest::suggestion_clause(.suggestion.as_deref())
+    )]
     UnresolvedNamespaceRef {
         /// The unresolved reference (e.g. `vars.ghost` · `tasks.ghost`).
         reference: String,
         /// Where it appeared (task id or `outputs:`).
         location: String,
+        /// The nearest declared name in the SAME namespace, fully
+        /// qualified (`vars.topic`), when one is close enough — the
+        /// deterministic repair (rustc's did-you-mean model).
+        suggestion: Option<String>,
         /// Source span.
         span: Option<Span>,
     },
@@ -613,6 +626,7 @@ fn analysis_level_variants() -> Vec<SchemaError> {
         SchemaError::UnknownDependency {
             from: String::new(),
             to: String::new(),
+            suggestion: None,
             span: None,
         },
         SchemaError::MissingDependsOnEdge {
@@ -628,6 +642,7 @@ fn analysis_level_variants() -> Vec<SchemaError> {
         SchemaError::UnresolvedNamespaceRef {
             reference: String::new(),
             location: String::new(),
+            suggestion: None,
             span: None,
         },
         SchemaError::LoopLocalOutsideForEach {

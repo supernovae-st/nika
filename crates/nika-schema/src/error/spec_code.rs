@@ -262,6 +262,7 @@ mod tests {
         let code = SchemaError::UnresolvedNamespaceRef {
             reference: "vars.topik".into(),
             location: "task `go`".into(),
+            suggestion: None,
             span: None,
         }
         .spec_code();

@@ -16,7 +16,7 @@
 /// The best near-match for `target` among `candidates`, when one is
 /// close enough to assert. Ties break to the lexicographically smallest
 /// candidate (full determinism — input order never changes the answer).
-pub(super) fn did_you_mean<'a, I>(target: &str, candidates: I) -> Option<&'a str>
+pub(crate) fn did_you_mean<'a, I>(target: &str, candidates: I) -> Option<&'a str>
 where
     I: IntoIterator<Item = &'a str>,
 {
@@ -39,14 +39,14 @@ where
 }
 
 /// Render a suggestion clause (`" — did you mean ___?"`) or empty.
-pub(super) fn suggestion_clause(suggestion: Option<&str>) -> String {
+pub(crate) fn suggestion_clause(suggestion: Option<&str>) -> String {
     suggestion.map_or_else(String::new, |s| format!(" — did you mean `{s}`?"))
 }
 
 /// Damerau-Levenshtein distance (optimal string alignment variant) —
 /// the classic O(n·m) dynamic program over chars, with the adjacent-
 /// transposition case. Unicode-correct (per-char, not per-byte).
-pub(super) fn damerau_levenshtein(a: &str, b: &str) -> usize {
+pub(crate) fn damerau_levenshtein(a: &str, b: &str) -> usize {
     let a: Vec<char> = a.chars().collect();
     let b: Vec<char> = b.chars().collect();
     if a.is_empty() {
