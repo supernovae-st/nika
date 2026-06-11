@@ -84,8 +84,11 @@ impl NikaErrorCode for VerbExecError {
             // A non-zero exit is the command's verdict — rerunning the same
             // command is workflow policy (`retry:`), not error transience.
             Self::NonZeroExit { .. } | Self::InvalidParam { .. } => false,
-            // Inherit the runner's classification (timeout transient · spawn
-            // and blocklist terminal).
+            // Forward-compat delegation: today every `ShellError` variant is
+            // terminal (the kernel default), so this is always `false` — a
+            // mutation to a literal `false` is EQUIVALENT until the kernel
+            // marks a variant (e.g. a future retryable Timeout) transient,
+            // at which point this delegation starts to matter.
             Self::Shell { source } => source.is_transient(),
         }
     }
@@ -129,24 +132,20 @@ mod tests {
     }
 
     #[test]
-    fn stderr_tail_keeps_the_last_cap_bytes_on_a_char_boundary() {
-        // ASCII prefix then a multibyte char straddling the cut point: the
-        // forward boundary-walk must land EXACTLY on the cap's tail, not
-        // earlier or later (kills the `>=`/`+=` arithmetic mutants).
-        let long = format!("HEAD{}é-TAIL", "x".repeat(2000));
-        let tail = tail_of(VerbExecError::non_zero(1, &long));
-        assert!(tail.starts_with('…'), "ellipsis marks truncation");
-        assert!(!tail.contains("HEAD"), "the head is dropped");
-        assert!(tail.ends_with("é-TAIL"), "the tail survives intact");
-        // The kept body (after the ellipsis) is at most the cap, and the
-        // cut never drops MORE than one byte past the cap (boundary walk).
-        let body = tail.trim_start_matches('…');
-        assert!(body.len() <= STDERR_TAIL_CAP, "kept ≤ cap: {}", body.len());
-        assert!(
-            body.len() >= STDERR_TAIL_CAP - 3,
-            "kept ~cap (walked ≤1 char): {}",
-            body.len()
-        );
+    fn stderr_tail_boundary_walk_lands_on_the_next_char() {
+        // Position a 2-byte `é` so its SECOND byte sits exactly at
+        // `len - CAP`: the raw cut is mid-char, the forward walk must step
+        // to the char AFTER it. Layout: "xx" + "é" + "T"*(CAP-1).
+        //   len = 2 + 2 + (CAP-1) = CAP + 3 · raw start = len - CAP = 3
+        //   byte 3 = é's 2nd byte → not a boundary → walk to 4 (the T run).
+        let tail_run = "T".repeat(STDERR_TAIL_CAP - 1);
+        let input = format!("xxé{tail_run}");
+        let tail = tail_of(VerbExecError::non_zero(1, &input));
+        // The kept body is EXACTLY the T run — é dropped, no x's. A `-=`
+        // mutant keeps é (start=2), a `*=` mutant overshoots — both differ.
+        assert_eq!(tail, format!("…{tail_run}"));
+        assert!(!tail.contains('é'), "the straddling char is dropped");
+        assert!(!tail.contains('x'), "the head is dropped");
     }
 
     #[test]
