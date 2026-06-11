@@ -1,0 +1,212 @@
+pub mod nika_verb_exec
+#[non_exhaustive] pub enum nika_verb_exec::CaptureMode
+pub nika_verb_exec::CaptureMode::Combined
+pub nika_verb_exec::CaptureMode::Stderr
+pub nika_verb_exec::CaptureMode::Stdout
+pub nika_verb_exec::CaptureMode::Structured
+impl core::clone::Clone for nika_verb_exec::CaptureMode
+pub fn nika_verb_exec::CaptureMode::clone(&self) -> nika_verb_exec::CaptureMode
+impl core::cmp::Eq for nika_verb_exec::CaptureMode
+impl core::cmp::PartialEq for nika_verb_exec::CaptureMode
+pub fn nika_verb_exec::CaptureMode::eq(&self, other: &nika_verb_exec::CaptureMode) -> bool
+impl core::default::Default for nika_verb_exec::CaptureMode
+pub fn nika_verb_exec::CaptureMode::default() -> nika_verb_exec::CaptureMode
+impl core::fmt::Debug for nika_verb_exec::CaptureMode
+pub fn nika_verb_exec::CaptureMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_verb_exec::CaptureMode
+impl core::marker::StructuralPartialEq for nika_verb_exec::CaptureMode
+impl<D> owo_colors::OwoColorize for nika_verb_exec::CaptureMode
+impl<T, U> core::convert::Into<U> for nika_verb_exec::CaptureMode where U: core::convert::From<T>
+pub fn nika_verb_exec::CaptureMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_exec::CaptureMode where U: core::convert::Into<T>
+pub type nika_verb_exec::CaptureMode::Error = core::convert::Infallible
+pub fn nika_verb_exec::CaptureMode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_exec::CaptureMode where U: core::convert::TryFrom<T>
+pub type nika_verb_exec::CaptureMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_exec::CaptureMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_exec::CaptureMode where T: core::clone::Clone
+pub type nika_verb_exec::CaptureMode::Owned = T
+pub fn nika_verb_exec::CaptureMode::clone_into(&self, target: &mut T)
+pub fn nika_verb_exec::CaptureMode::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_exec::CaptureMode where T: 'static + ?core::marker::Sized
+pub fn nika_verb_exec::CaptureMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_exec::CaptureMode where T: ?core::marker::Sized
+pub fn nika_verb_exec::CaptureMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_exec::CaptureMode where T: ?core::marker::Sized
+pub fn nika_verb_exec::CaptureMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_exec::CaptureMode where T: core::clone::Clone
+pub unsafe fn nika_verb_exec::CaptureMode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_exec::CaptureMode
+pub fn nika_verb_exec::CaptureMode::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_exec::CaptureMode where T: 'static
+pub fn nika_verb_exec::CaptureMode::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_verb_exec::ExecValue
+pub nika_verb_exec::ExecValue::Structured
+pub nika_verb_exec::ExecValue::Structured::exit_code: i32
+pub nika_verb_exec::ExecValue::Structured::stderr: alloc::string::String
+pub nika_verb_exec::ExecValue::Structured::stdout: alloc::string::String
+pub nika_verb_exec::ExecValue::Text(alloc::string::String)
+impl core::clone::Clone for nika_verb_exec::ExecValue
+pub fn nika_verb_exec::ExecValue::clone(&self) -> nika_verb_exec::ExecValue
+impl core::cmp::Eq for nika_verb_exec::ExecValue
+impl core::cmp::PartialEq for nika_verb_exec::ExecValue
+pub fn nika_verb_exec::ExecValue::eq(&self, other: &nika_verb_exec::ExecValue) -> bool
+impl core::fmt::Debug for nika_verb_exec::ExecValue
+pub fn nika_verb_exec::ExecValue::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_verb_exec::ExecValue
+impl<D> owo_colors::OwoColorize for nika_verb_exec::ExecValue
+impl<T, U> core::convert::Into<U> for nika_verb_exec::ExecValue where U: core::convert::From<T>
+pub fn nika_verb_exec::ExecValue::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_exec::ExecValue where U: core::convert::Into<T>
+pub type nika_verb_exec::ExecValue::Error = core::convert::Infallible
+pub fn nika_verb_exec::ExecValue::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_exec::ExecValue where U: core::convert::TryFrom<T>
+pub type nika_verb_exec::ExecValue::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_exec::ExecValue::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_exec::ExecValue where T: core::clone::Clone
+pub type nika_verb_exec::ExecValue::Owned = T
+pub fn nika_verb_exec::ExecValue::clone_into(&self, target: &mut T)
+pub fn nika_verb_exec::ExecValue::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_exec::ExecValue where T: 'static + ?core::marker::Sized
+pub fn nika_verb_exec::ExecValue::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_exec::ExecValue where T: ?core::marker::Sized
+pub fn nika_verb_exec::ExecValue::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_exec::ExecValue where T: ?core::marker::Sized
+pub fn nika_verb_exec::ExecValue::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_exec::ExecValue where T: core::clone::Clone
+pub unsafe fn nika_verb_exec::ExecValue::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_exec::ExecValue
+pub fn nika_verb_exec::ExecValue::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_exec::ExecValue where T: 'static
+pub fn nika_verb_exec::ExecValue::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_verb_exec::VerbExecError
+pub nika_verb_exec::VerbExecError::InvalidParam
+pub nika_verb_exec::VerbExecError::InvalidParam::detail: alloc::string::String
+pub nika_verb_exec::VerbExecError::InvalidParam::param: &'static str
+pub nika_verb_exec::VerbExecError::NonZeroExit
+pub nika_verb_exec::VerbExecError::NonZeroExit::status: i32
+pub nika_verb_exec::VerbExecError::NonZeroExit::stderr_tail: alloc::string::String
+pub nika_verb_exec::VerbExecError::Shell
+pub nika_verb_exec::VerbExecError::Shell::source: nika_kernel_core::io::process::ShellError
+impl core::error::Error for nika_verb_exec::VerbExecError
+pub fn nika_verb_exec::VerbExecError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_verb_exec::VerbExecError
+pub fn nika_verb_exec::VerbExecError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_verb_exec::VerbExecError
+pub fn nika_verb_exec::VerbExecError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_verb_exec::VerbExecError
+pub fn nika_verb_exec::VerbExecError::code(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_verb_exec::VerbExecError
+pub fn nika_verb_exec::VerbExecError::is_transient(&self) -> bool
+pub fn nika_verb_exec::VerbExecError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_verb_exec::VerbExecError
+impl<T, U> core::convert::Into<U> for nika_verb_exec::VerbExecError where U: core::convert::From<T>
+pub fn nika_verb_exec::VerbExecError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_exec::VerbExecError where U: core::convert::Into<T>
+pub type nika_verb_exec::VerbExecError::Error = core::convert::Infallible
+pub fn nika_verb_exec::VerbExecError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_exec::VerbExecError where U: core::convert::TryFrom<T>
+pub type nika_verb_exec::VerbExecError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_exec::VerbExecError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_verb_exec::VerbExecError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_verb_exec::VerbExecError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_verb_exec::VerbExecError where T: 'static + ?core::marker::Sized
+pub fn nika_verb_exec::VerbExecError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_exec::VerbExecError where T: ?core::marker::Sized
+pub fn nika_verb_exec::VerbExecError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_exec::VerbExecError where T: ?core::marker::Sized
+pub fn nika_verb_exec::VerbExecError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_verb_exec::VerbExecError
+pub fn nika_verb_exec::VerbExecError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_exec::VerbExecError where T: 'static
+pub fn nika_verb_exec::VerbExecError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_verb_exec::ExecInput
+pub nika_verb_exec::ExecInput::capture: nika_verb_exec::CaptureMode
+pub nika_verb_exec::ExecInput::command: alloc::string::String
+pub nika_verb_exec::ExecInput::cwd: core::option::Option<std::path::PathBuf>
+pub nika_verb_exec::ExecInput::env: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_verb_exec::ExecInput::stdin: core::option::Option<alloc::string::String>
+pub nika_verb_exec::ExecInput::timeout: core::option::Option<core::time::Duration>
+impl nika_verb_exec::ExecInput
+pub fn nika_verb_exec::ExecInput::new(command: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_verb_exec::ExecInput
+pub fn nika_verb_exec::ExecInput::clone(&self) -> nika_verb_exec::ExecInput
+impl core::fmt::Debug for nika_verb_exec::ExecInput
+pub fn nika_verb_exec::ExecInput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_exec::ExecInput
+impl<T, U> core::convert::Into<U> for nika_verb_exec::ExecInput where U: core::convert::From<T>
+pub fn nika_verb_exec::ExecInput::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_exec::ExecInput where U: core::convert::Into<T>
+pub type nika_verb_exec::ExecInput::Error = core::convert::Infallible
+pub fn nika_verb_exec::ExecInput::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_exec::ExecInput where U: core::convert::TryFrom<T>
+pub type nika_verb_exec::ExecInput::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_exec::ExecInput::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_exec::ExecInput where T: core::clone::Clone
+pub type nika_verb_exec::ExecInput::Owned = T
+pub fn nika_verb_exec::ExecInput::clone_into(&self, target: &mut T)
+pub fn nika_verb_exec::ExecInput::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_exec::ExecInput where T: 'static + ?core::marker::Sized
+pub fn nika_verb_exec::ExecInput::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_exec::ExecInput where T: ?core::marker::Sized
+pub fn nika_verb_exec::ExecInput::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_exec::ExecInput where T: ?core::marker::Sized
+pub fn nika_verb_exec::ExecInput::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_exec::ExecInput where T: core::clone::Clone
+pub unsafe fn nika_verb_exec::ExecInput::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_exec::ExecInput
+pub fn nika_verb_exec::ExecInput::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_exec::ExecInput where T: 'static
+pub fn nika_verb_exec::ExecInput::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_verb_exec::ExecOutput
+pub nika_verb_exec::ExecOutput::duration: core::time::Duration
+pub nika_verb_exec::ExecOutput::output: nika_verb_exec::ExecValue
+impl nika_verb_exec::ExecOutput
+pub fn nika_verb_exec::ExecOutput::new(output: nika_verb_exec::ExecValue, duration: core::time::Duration) -> Self
+impl core::fmt::Debug for nika_verb_exec::ExecOutput
+pub fn nika_verb_exec::ExecOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_exec::ExecOutput
+impl<T, U> core::convert::Into<U> for nika_verb_exec::ExecOutput where U: core::convert::From<T>
+pub fn nika_verb_exec::ExecOutput::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_exec::ExecOutput where U: core::convert::Into<T>
+pub type nika_verb_exec::ExecOutput::Error = core::convert::Infallible
+pub fn nika_verb_exec::ExecOutput::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_exec::ExecOutput where U: core::convert::TryFrom<T>
+pub type nika_verb_exec::ExecOutput::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_exec::ExecOutput::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_verb_exec::ExecOutput where T: 'static + ?core::marker::Sized
+pub fn nika_verb_exec::ExecOutput::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_exec::ExecOutput where T: ?core::marker::Sized
+pub fn nika_verb_exec::ExecOutput::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_exec::ExecOutput where T: ?core::marker::Sized
+pub fn nika_verb_exec::ExecOutput::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_verb_exec::ExecOutput
+pub fn nika_verb_exec::ExecOutput::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_exec::ExecOutput where T: 'static
+pub fn nika_verb_exec::ExecOutput::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_verb_exec::ExecVerb<S>
+impl<S> nika_verb_exec::ExecVerb<S> where S: nika_kernel_core::io::process::ShellRunDyn + core::marker::Sync
+pub async fn nika_verb_exec::ExecVerb<S>::run(&self, input: nika_verb_exec::ExecInput) -> core::result::Result<nika_verb_exec::ExecOutput, nika_verb_exec::VerbExecError>
+impl<S> nika_verb_exec::ExecVerb<S>
+pub fn nika_verb_exec::ExecVerb<S>::new(shell: alloc::sync::Arc<S>) -> Self
+impl<S: core::fmt::Debug> core::fmt::Debug for nika_verb_exec::ExecVerb<S>
+pub fn nika_verb_exec::ExecVerb<S>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_exec::ExecVerb<S>
+impl<T, U> core::convert::Into<U> for nika_verb_exec::ExecVerb<S> where U: core::convert::From<T>
+pub fn nika_verb_exec::ExecVerb<S>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_exec::ExecVerb<S> where U: core::convert::Into<T>
+pub type nika_verb_exec::ExecVerb<S>::Error = core::convert::Infallible
+pub fn nika_verb_exec::ExecVerb<S>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_exec::ExecVerb<S> where U: core::convert::TryFrom<T>
+pub type nika_verb_exec::ExecVerb<S>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_exec::ExecVerb<S>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_verb_exec::ExecVerb<S> where T: 'static + ?core::marker::Sized
+pub fn nika_verb_exec::ExecVerb<S>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_exec::ExecVerb<S> where T: ?core::marker::Sized
+pub fn nika_verb_exec::ExecVerb<S>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_exec::ExecVerb<S> where T: ?core::marker::Sized
+pub fn nika_verb_exec::ExecVerb<S>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_verb_exec::ExecVerb<S>
+pub fn nika_verb_exec::ExecVerb<S>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_exec::ExecVerb<S> where T: 'static
+pub fn nika_verb_exec::ExecVerb<S>::as_any(&self) -> &(dyn core::any::Any + 'static)

@@ -60,3 +60,7 @@ nika-pack
 # --- 2026-06-11: s8.5 announce-ladder · the L1.5 provider layer (14 profiles ·
 # 3 wire formats · kernel http seam · consumed by verb-infer s9 + verb-agent) ---
 nika-providers
+# --- 2026-06-11: L2 verb crates (session-B admissions s9-s11 · floored on consolidation · platform-neutral) ---
+nika-verb-exec
+nika-verb-infer
+nika-verb-invoke

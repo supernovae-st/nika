@@ -1,0 +1,175 @@
+pub mod nika_verb_infer
+#[non_exhaustive] pub enum nika_verb_infer::InferValue
+pub nika_verb_infer::InferValue::Structured(serde_json::value::Value)
+pub nika_verb_infer::InferValue::Text(alloc::string::String)
+impl core::clone::Clone for nika_verb_infer::InferValue
+pub fn nika_verb_infer::InferValue::clone(&self) -> nika_verb_infer::InferValue
+impl core::cmp::PartialEq for nika_verb_infer::InferValue
+pub fn nika_verb_infer::InferValue::eq(&self, other: &nika_verb_infer::InferValue) -> bool
+impl core::fmt::Debug for nika_verb_infer::InferValue
+pub fn nika_verb_infer::InferValue::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_verb_infer::InferValue
+impl<D> owo_colors::OwoColorize for nika_verb_infer::InferValue
+impl<T, U> core::convert::Into<U> for nika_verb_infer::InferValue where U: core::convert::From<T>
+pub fn nika_verb_infer::InferValue::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_infer::InferValue where U: core::convert::Into<T>
+pub type nika_verb_infer::InferValue::Error = core::convert::Infallible
+pub fn nika_verb_infer::InferValue::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_infer::InferValue where U: core::convert::TryFrom<T>
+pub type nika_verb_infer::InferValue::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_infer::InferValue::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_infer::InferValue where T: core::clone::Clone
+pub type nika_verb_infer::InferValue::Owned = T
+pub fn nika_verb_infer::InferValue::clone_into(&self, target: &mut T)
+pub fn nika_verb_infer::InferValue::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_infer::InferValue where T: 'static + ?core::marker::Sized
+pub fn nika_verb_infer::InferValue::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_infer::InferValue where T: ?core::marker::Sized
+pub fn nika_verb_infer::InferValue::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_infer::InferValue where T: ?core::marker::Sized
+pub fn nika_verb_infer::InferValue::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_infer::InferValue where T: core::clone::Clone
+pub unsafe fn nika_verb_infer::InferValue::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_infer::InferValue
+pub fn nika_verb_infer::InferValue::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_infer::InferValue where T: 'static
+pub fn nika_verb_infer::InferValue::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_verb_infer::VerbInferError
+pub nika_verb_infer::VerbInferError::InvalidParam
+pub nika_verb_infer::VerbInferError::InvalidParam::detail: alloc::string::String
+pub nika_verb_infer::VerbInferError::InvalidParam::param: &'static str
+pub nika_verb_infer::VerbInferError::ModelResolution
+pub nika_verb_infer::VerbInferError::ModelResolution::model: alloc::string::String
+pub nika_verb_infer::VerbInferError::ModelResolution::source: nika_kernel_ai::provider::ProviderError
+pub nika_verb_infer::VerbInferError::ProviderCall
+pub nika_verb_infer::VerbInferError::ProviderCall::source: nika_kernel_ai::provider::ProviderError
+pub nika_verb_infer::VerbInferError::SchemaValidation
+pub nika_verb_infer::VerbInferError::SchemaValidation::attempts: u32
+pub nika_verb_infer::VerbInferError::SchemaValidation::detail: alloc::string::String
+impl core::error::Error for nika_verb_infer::VerbInferError
+pub fn nika_verb_infer::VerbInferError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_verb_infer::VerbInferError
+pub fn nika_verb_infer::VerbInferError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_verb_infer::VerbInferError
+pub fn nika_verb_infer::VerbInferError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_verb_infer::VerbInferError
+pub fn nika_verb_infer::VerbInferError::code(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_verb_infer::VerbInferError
+pub fn nika_verb_infer::VerbInferError::is_transient(&self) -> bool
+pub fn nika_verb_infer::VerbInferError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_verb_infer::VerbInferError
+impl<T, U> core::convert::Into<U> for nika_verb_infer::VerbInferError where U: core::convert::From<T>
+pub fn nika_verb_infer::VerbInferError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_infer::VerbInferError where U: core::convert::Into<T>
+pub type nika_verb_infer::VerbInferError::Error = core::convert::Infallible
+pub fn nika_verb_infer::VerbInferError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_infer::VerbInferError where U: core::convert::TryFrom<T>
+pub type nika_verb_infer::VerbInferError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_infer::VerbInferError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_verb_infer::VerbInferError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_verb_infer::VerbInferError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_verb_infer::VerbInferError where T: 'static + ?core::marker::Sized
+pub fn nika_verb_infer::VerbInferError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_infer::VerbInferError where T: ?core::marker::Sized
+pub fn nika_verb_infer::VerbInferError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_infer::VerbInferError where T: ?core::marker::Sized
+pub fn nika_verb_infer::VerbInferError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_verb_infer::VerbInferError
+pub fn nika_verb_infer::VerbInferError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_infer::VerbInferError where T: 'static
+pub fn nika_verb_infer::VerbInferError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_verb_infer::InferInput
+pub nika_verb_infer::InferInput::max_tokens: core::option::Option<u32>
+pub nika_verb_infer::InferInput::model: core::option::Option<alloc::string::String>
+pub nika_verb_infer::InferInput::prompt: alloc::string::String
+pub nika_verb_infer::InferInput::schema: core::option::Option<serde_json::value::Value>
+pub nika_verb_infer::InferInput::system: core::option::Option<alloc::string::String>
+pub nika_verb_infer::InferInput::temperature: core::option::Option<f32>
+pub nika_verb_infer::InferInput::thinking_budget: core::option::Option<u32>
+impl nika_verb_infer::InferInput
+pub fn nika_verb_infer::InferInput::new(prompt: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_verb_infer::InferInput
+pub fn nika_verb_infer::InferInput::clone(&self) -> nika_verb_infer::InferInput
+impl core::fmt::Debug for nika_verb_infer::InferInput
+pub fn nika_verb_infer::InferInput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_infer::InferInput
+impl<T, U> core::convert::Into<U> for nika_verb_infer::InferInput where U: core::convert::From<T>
+pub fn nika_verb_infer::InferInput::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_infer::InferInput where U: core::convert::Into<T>
+pub type nika_verb_infer::InferInput::Error = core::convert::Infallible
+pub fn nika_verb_infer::InferInput::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_infer::InferInput where U: core::convert::TryFrom<T>
+pub type nika_verb_infer::InferInput::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_infer::InferInput::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_infer::InferInput where T: core::clone::Clone
+pub type nika_verb_infer::InferInput::Owned = T
+pub fn nika_verb_infer::InferInput::clone_into(&self, target: &mut T)
+pub fn nika_verb_infer::InferInput::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_infer::InferInput where T: 'static + ?core::marker::Sized
+pub fn nika_verb_infer::InferInput::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_infer::InferInput where T: ?core::marker::Sized
+pub fn nika_verb_infer::InferInput::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_infer::InferInput where T: ?core::marker::Sized
+pub fn nika_verb_infer::InferInput::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_infer::InferInput where T: core::clone::Clone
+pub unsafe fn nika_verb_infer::InferInput::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_infer::InferInput
+pub fn nika_verb_infer::InferInput::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_infer::InferInput where T: 'static
+pub fn nika_verb_infer::InferInput::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_verb_infer::InferOutput
+pub nika_verb_infer::InferOutput::model_resolved: alloc::string::String
+pub nika_verb_infer::InferOutput::output: nika_verb_infer::InferValue
+pub nika_verb_infer::InferOutput::response: nika_kernel_ai::provider::InferResponse
+pub nika_verb_infer::InferOutput::usage: nika_types::token_usage::TokenUsage
+impl nika_verb_infer::InferOutput
+pub fn nika_verb_infer::InferOutput::new(output: nika_verb_infer::InferValue, model_resolved: alloc::string::String, response: nika_kernel_ai::provider::InferResponse) -> Self
+impl core::fmt::Debug for nika_verb_infer::InferOutput
+pub fn nika_verb_infer::InferOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_infer::InferOutput
+impl<T, U> core::convert::Into<U> for nika_verb_infer::InferOutput where U: core::convert::From<T>
+pub fn nika_verb_infer::InferOutput::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_infer::InferOutput where U: core::convert::Into<T>
+pub type nika_verb_infer::InferOutput::Error = core::convert::Infallible
+pub fn nika_verb_infer::InferOutput::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_infer::InferOutput where U: core::convert::TryFrom<T>
+pub type nika_verb_infer::InferOutput::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_infer::InferOutput::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_verb_infer::InferOutput where T: 'static + ?core::marker::Sized
+pub fn nika_verb_infer::InferOutput::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_infer::InferOutput where T: ?core::marker::Sized
+pub fn nika_verb_infer::InferOutput::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_infer::InferOutput where T: ?core::marker::Sized
+pub fn nika_verb_infer::InferOutput::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_verb_infer::InferOutput
+pub fn nika_verb_infer::InferOutput::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_infer::InferOutput where T: 'static
+pub fn nika_verb_infer::InferOutput::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_verb_infer::InferVerb<H>
+impl<H> nika_verb_infer::InferVerb<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
+pub async fn nika_verb_infer::InferVerb<H>::run(&self, input: nika_verb_infer::InferInput) -> core::result::Result<nika_verb_infer::InferOutput, nika_verb_infer::VerbInferError>
+impl<H> nika_verb_infer::InferVerb<H>
+pub fn nika_verb_infer::InferVerb<H>::new(registry: alloc::sync::Arc<nika_providers::registry::ProviderRegistry<H>>, default_model: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_verb_infer::InferVerb<H>::with_schema_retry_budget(self, budget: u8) -> Self
+impl<H: core::fmt::Debug> core::fmt::Debug for nika_verb_infer::InferVerb<H>
+pub fn nika_verb_infer::InferVerb<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_infer::InferVerb<H>
+impl<T, U> core::convert::Into<U> for nika_verb_infer::InferVerb<H> where U: core::convert::From<T>
+pub fn nika_verb_infer::InferVerb<H>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_infer::InferVerb<H> where U: core::convert::Into<T>
+pub type nika_verb_infer::InferVerb<H>::Error = core::convert::Infallible
+pub fn nika_verb_infer::InferVerb<H>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_infer::InferVerb<H> where U: core::convert::TryFrom<T>
+pub type nika_verb_infer::InferVerb<H>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_infer::InferVerb<H>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_verb_infer::InferVerb<H> where T: 'static + ?core::marker::Sized
+pub fn nika_verb_infer::InferVerb<H>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_infer::InferVerb<H> where T: ?core::marker::Sized
+pub fn nika_verb_infer::InferVerb<H>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_infer::InferVerb<H> where T: ?core::marker::Sized
+pub fn nika_verb_infer::InferVerb<H>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_verb_infer::InferVerb<H>
+pub fn nika_verb_infer::InferVerb<H>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_infer::InferVerb<H> where T: 'static
+pub fn nika_verb_infer::InferVerb<H>::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_verb_infer::DEFAULT_SCHEMA_RETRY_BUDGET: u8
