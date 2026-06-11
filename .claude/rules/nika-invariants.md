@@ -27,8 +27,10 @@
 - `nika-*` prefix for all workspace members
 - `nika-verb-<verb>` for verb executors (exec, invoke, infer, agent · fetch is the `nika:fetch` builtin reached via invoke, not a verb)
 - Connectome satellites keep pro names (`nika-hnsw`, `nika-bm25`, … — NO `nika-memory-` prefix · `nika-bm25` admitted proves the canon)
-- `nika-<noun>` for effect impls (fs, http, blob, process, etc.)
-- `nika-process` (not `nika-exec-runner`, not `nika-shell`)
+- `nika-<noun>` for effect impls (fs, http, blob, etc.)
+- `nika-exec-runner` — the shipped shell/process effect (s7 · ADMITTED
+  2026-06-10 · supersedes this rule's earlier `nika-process` pick;
+  `nika-shell` stays rejected)
 - `nika-daemon-db` (not `nika-storage`)
 - `nika-lints` (plural, dylint collection)
 
@@ -45,7 +47,9 @@
 - `nika-lsp-core` → merged into `nika-lsp`
 
 **Modules, not crates** (single consumer) :
-- `nika-policy` → module in `nika-runtime`
+- ~~`nika-policy` → module in `nika-runtime`~~ SUPERSEDED — `nika-policy`
+  is a crate again (announce-ladder s8 · design LOCKED 2026-06-10 · impl
+  gated on kernel-migration)
 - `nika-storage` → module in `nika-daemon`
 - `nika-cache` → module in `nika-runtime`
 
@@ -58,10 +62,13 @@
 - `nika-media-document` — svg/chart/readability/html_to_md
 - `nika-media-provenance` — c2pa/verify/qr
 
-**nika-provider split × 3** :
-- `nika-provider-rig` — 7 cloud + 7 OpenAI-compat via rig-core
-- `nika-provider-native` — mistral.rs GGUF local, feature-gated
-- `nika-provider-mock` — deterministic testing, zero external deps
+**providers — SHIPPED 2026-06-11 (supersedes the « split × 3 » plan)** :
+- `nika-providers` — ONE L1.5 crate · 14/14 canonical providers over 3 wire
+  formats (anthropic · openai-compat ×12 · gemini) + in-crate mock · rig NOT
+  carried — Diamond talks wire directly through the kernel http seam
+  (D-2026-05-22-N17)
+- `nika-infer-local` — native in-process backend (candle sidecar · ADR-091 ·
+  supersedes the `nika-provider-native` mistral.rs plan)
 
 ## Added in POST_AUDIT 2026-04-14 expansion (8 new crates v0.90)
 

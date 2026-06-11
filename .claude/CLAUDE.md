@@ -147,9 +147,9 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 Narrative context (manually maintained):
 
-- L0 admitted: nika-types, nika-error, nika-catalog. WIP: nika-schema (parser scaffolding).
+- L0 admitted: nika-types, nika-error, nika-catalog, nika-catalog-codegen, nika-event, nika-pack. WIP: nika-schema (parser scaffolding).
 - L0.5 admitted: nika-kernel (facade + range-registry hub post 4-way split 2026-06-10), nika-kernel-core, nika-kernel-ai, nika-kernel-runtime, nika-kernel-plugin, nika-kernel-mock.
-- L1 admitted: nika-clock, nika-bm25, nika-screen, nika-ocr, nika-a11y, nika-fs (atomic write · s4), nika-http (reqwest+rustls · 3-layer SSRF + cross-origin cred-strip · s5), nika-blob (blake3 CAS · sidecar mime · s6).
+- L1 admitted: nika-clock, nika-bm25, nika-screen, nika-ocr, nika-a11y, nika-input (M2.4 · Guards 1+2), nika-browser (M2.5 · Guard 5 + occlusion hit-test), nika-fs (atomic write · s4), nika-http (reqwest+rustls · 3-layer SSRF + cross-origin cred-strip · s5), nika-blob (blake3 CAS · sidecar mime · s6), nika-exec-runner (shell/process effect · s7).
 - L1.5 admitted: nika-providers (s8.5 · 14/14 providers wired across 3 wire formats incl gemini s8.6 · kernel http seam).
 - L2 admitted: nika-verb-infer (s9 · FIRST verb crate · one-shot infer · structured-output floor · NIKA-430..433), nika-verb-exec (s10 · shell exec · kernel ShellRunDyn seam · capture one-obvious-way split · NIKA-440..442), nika-verb-invoke (s11 · builtin/MCP tool call · kernel ToolExecuteDyn seam · closed nika:/mcp: namespace validated · NIKA-450..452).
 - L4 admitted: nika-catalog-verify.

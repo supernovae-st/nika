@@ -83,28 +83,33 @@ Given a crate `nika-<role>`, ask these questions in order:
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
 ╭─ L1  (effect impls, async) ───────────────────────────────────────────────╮
-│ nika-fs                   [axes: rw-fs]                                   │
-│ nika-http-client          [axes: net-egress]   rustls only, no openssl    │
-│ nika-process              [axes: exec-shell]                              │
+│ nika-clock                [axes: none]         time source                │
+│ nika-fs                   [axes: rw-fs]        atomic write (s4)          │
+│ nika-http                 [axes: net-egress]   rustls only · 3-layer SSRF │
+│ nika-blob                 [axes: rw-fs]        blake3 CAS (s6)            │
+│ nika-exec-runner          [axes: exec-shell]   shell/process effect (s7)  │
 │ nika-git                  [axes: rw-fs, net]   gix wrapper                │
 │ nika-keys                 [axes: reads-env]    KeyProvider trait          │
 │ nika-keys-env             L1                                              │
 │ nika-keys-keychain        L2 feature-gated (never auto in tests)          │
-│ nika-memory-oxigraph      [axes: rw-fs]        Cortex impl v0.95          │
-│ nika-bm25                 [axes: none]         BM25 lexical scoring       │
-│                                                (admission target W3 ·     │
-│                                                 ADR-038 · MemoryRecall    │
-│                                                 impl · ~600 LOC CRAFT)    │
-│ nika-screen               [axes: screen-capture]  M2.1 1st computer-use L1 │
+│ nika-bm25                 [axes: none]         BM25 lexical (ADR-038) +   │
+│   the Connectome satellites (hnsw · rrf · rerank · fsrs · rdfs-reasoner   │
+│   · temporal · graph-algos · autodesc-minimal/full · Phase-M climb)       │
+│ nika-screen / ocr / a11y  [axes: computer-use read]  M2.1-M2.3 (ADR-081)  │
+│ nika-input / browser      [axes: computer-use act]   M2.4-M2.5 (ADR-081)  │
 │ nika-pck-registry         [axes: net-egress]                              │
 │ nika-pck-store            [axes: rw-fs]                                   │
-│ nika-<provider>-*         [axes: net-egress]   1 crate per frontier prov. │
 │ nika-catalog-sync         [axes: net-egress]   freshness pipeline         │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
+╭─ L1.5 (provider wire adapters) ───────────────────────────────────────────╮
+│ nika-providers            [axes: via L1 http]  14/14 wire + in-crate mock │
+│ nika-infer-local          [axes: rw-fs]        candle sidecar (ADR-091)   │
+╰──────────────────────────────────────────────────────────────────────────╯
+              ▲
 ╭─ L2  (verbs + domain services) ──────────────────────────────────────────╮
-│ nika-pck              nika-policy          nika-builtin-github            │
-│ nika-verb-*           nika-memory          nika-builtin-cloud             │
+│ nika-pck              nika-policy (s8)     nika-builtin-github            │
+│ nika-verb-*           nika-connectome      nika-builtin-cloud             │
 │ nika-observability                         nika-builtin-workspace         │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
@@ -114,7 +119,7 @@ Given a crate `nika-<role>`, ask these questions in order:
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
 ╭─ L4  (interfaces — libraries) ───────────────────────────────────────────╮
-│ nika-cli (lib)        nika-daemon (lib)    nika-http (lib)                │
+│ nika-cli (lib)        nika-daemon (lib)    nika-serve (lib)               │
 │ nika-mcp (lib)        nika-lsp (lib)       nika-sdk                       │
 │ nika-catalog-verify   (build-only TOML catalog validation tool)           │
 │                                             └─ xtask (build-only)         │
@@ -139,19 +144,21 @@ flags. They obey the same 12-gate admission as any other crate.
 
 | Layer | Role | Allowed I/O | Allowed deps | Example crates |
 |---|---|---|---|---|
-| L0 | Pure types, lookup tables, sync-only APIs (6 in workspace · 3 planned) | none | (leaf) | `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`, `nika-schema`, `nika-event` · *planned (not yet admitted)* · `nika-binding`, `nika-transform`, `nika-pck-manifest` |
+| L0 | Pure types, lookup tables, sync-only APIs (live counts: refresh-status block) | none | (leaf) | `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`, `nika-schema`, `nika-event`, `nika-pack` · *planned* · `nika-binding`, `nika-transform`, `nika-pck-manifest` |
 | L0.5 | Kernel trait definitions + companions (mock) — async OK; prelude re-export hub | none (traits only) | L0 | `nika-kernel` (facade hub), `nika-kernel-core`, `nika-kernel-ai`, `nika-kernel-runtime`, `nika-kernel-plugin`, `nika-kernel-mock` |
-| L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env · +screen-capture from M2.1) | L0, L0.5 | `nika-fs`, `nika-http-client`, `nika-process`, `nika-git`, `nika-keys-*`, `nika-memory-oxigraph`, `nika-bm25` (admission target W3 · ADR-038), `nika-pck-registry`, `nika-pck-store`, `nika-<provider>-*`, `nika-catalog-sync`, `nika-screen` (M2.1 · 1st computer-use L1 · ADR-081 guards 6+7) |
-| L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1 | `nika-pck`, `nika-verb-*`, `nika-policy`, `nika-memory`, `nika-observability`, `nika-builtin-{github,cloud,workspace}` |
+| L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env · +computer-use axes from M2) | L0, L0.5 | `nika-clock`, `nika-fs`, `nika-http`, `nika-blob`, `nika-exec-runner`, `nika-screen`, `nika-ocr`, `nika-a11y`, `nika-input`, `nika-browser` (ADR-081 guards), `nika-bm25` ✅ + the Connectome satellites (`nika-hnsw`, `nika-rrf`, `nika-rerank`, …), `nika-git`, `nika-keys-*`, `nika-pck-registry`, `nika-pck-store`, `nika-catalog-sync` |
+| L1.5 | Provider wire adapters — between effects and verbs | via L1 http seam | L0, L0.5, L1 | `nika-providers` (14/14 wire · in-crate mock), `nika-infer-local` (candle sidecar · ADR-091) |
+| L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1, L1.5 | `nika-pck`, `nika-verb-*`, `nika-policy` (s8 · design locked), `nika-connectome` (the Connectome orchestrator), `nika-observability`, `nika-builtin-{github,cloud,workspace}` |
 | L3 | Runtime + policy + sandbox — enforces execution contracts | via L2 | L0..L2 | `nika-runtime`, `nika-shield`, `nika-wasm-host` (v0.100), `nika-sandbox` (v0.100) |
-| L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-daemon`, `nika-http`, `nika-mcp`, `nika-lsp`, `nika-sdk`, `nika-catalog-verify` |
+| L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-daemon`, `nika-serve`, `nika-mcp`, `nika-lsp`, `nika-sdk`, `nika-catalog-verify` |
 | L5 | The binary — sole `[[bin]]` composition root | via L4 | L0..L4 | `nika` (<500 LOC) |
 
 ### Forward compatibility
 
-- **v0.95 Cortex** memory crates: 1 L2 orchestrator (`nika-memory`) + 8 L1
-  satellites (hnsw, bm25, rrf, fsrs, rdfs-reasoner, temporal, graph-algos,
-  autodesc). No renumber needed — they slot into L1/L2 naturally.
+- **The Connectome** (v0.85 recall floor → v0.90 operational): 1 L2
+  orchestrator (`nika-connectome`) + 10 L1 satellites (hnsw, bm25 ✅, rrf,
+  rerank, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc-minimal,
+  autodesc-full). No renumber needed — they slot into L1/L2 naturally.
 - **v0.100 WASM** plugin host + sandbox: L3 crates alongside `nika-runtime`.
   No renumber needed — L3 is "runtime + policy + sandbox" by design.
 

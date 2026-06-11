@@ -19,6 +19,17 @@ sources:
 
 # Nika Diamond · Blueprint final v0.x · 10-year horizon (2026 → 2036)
 
+> **v1.7 stack-pin note (2026-06-11)** · the dependency pins of this doc's
+> date are SUPERSEDED where the Connectome stack ratification + shipped
+> crates differ: `oxigraph@0.5.8` (not 0.5.6) · embeddings via **candle**
+> (fastembed/ort REJECTED — FFI + binary download) · providers shipped as
+> ONE `nika-providers` L1.5 crate + `nika-infer-local` (the
+> `nika-provider-{rig,native,mock}` split never built) · Connectome cluster
+> = 1 + 10 satellites (rerank M13 added). Authoritative pins live in
+> `docs/crate-specs/` (nika-connectome · nika-temporal · per-satellite).
+> Prior prose preserved below as audit trail per `cross-source-validation.md`
+> §2.7 — read it as the 2026-05 snapshot it is.
+
 > **v1.6 amendment (D-2026-05-22-N18)** · the « 5-verb » framing throughout
 > this doc is SUPERSEDED by the **4-verb canon** — `infer · exec · invoke ·
 > agent`. `fetch` is **not** a verb · fetching a URL is *calling a tool*, so

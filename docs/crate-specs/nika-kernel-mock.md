@@ -46,8 +46,10 @@ L1 upward.
 
 - NOT a mocking framework (no `mockall`, no `mockito`). Hand-written
   mocks provide clarity, debuggability, and compile-time safety.
-- NOT a provider simulator. `nika-provider-mock` (L2, Phase 3) provides
-  a higher-fidelity deterministic LLM for integration tests.
+- NOT a provider simulator. The in-crate mock provider inside
+  `nika-providers` (L1.5 · shipped 2026-06-11 · supersedes the planned
+  `nika-provider-mock` crate) provides a higher-fidelity deterministic
+  LLM for integration tests.
   `MockProvider` here is a low-level trait double for unit tests.
 
 ### Legacy reference

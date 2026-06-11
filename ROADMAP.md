@@ -218,23 +218,31 @@ continue to parse — they just warn.
 Bottom-up build order. Every crate is crafted when its layer is reached.
 No defer, no feature-milestone ceremony. Strictly downward dependencies.
 
+> Live admission state per layer lives ONLY in the auto-generated
+> §Current state block above (`scripts/refresh-status.sh` · vector 23).
+> The lists below are the dep-ordered PLAN — hand-typed "Admitted:"
+> lists here were the drift class and are gone.
+
 ### L0 — foundation (~9 crates, pure types, sync)
 
-Admitted: `nika-types`, `nika-error`, `nika-catalog`.
-WIP: `nika-schema` (parser scaffolding, Phase D rewrite pending).
-Pending: `nika-cap` (capability tokens, proposal A from swarm-1),
-`nika-pck-contracts` (manifest DTO scaffold, proposal B),
-`nika-event-types`, `nika-binding-types`, `nika-catalog-codegen`.
+Plan: `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`,
+`nika-schema`, `nika-event`, `nika-pack`, then `nika-cap` (capability
+tokens, proposal A from swarm-1), `nika-pck-contracts` (manifest DTO
+scaffold, proposal B), `nika-binding-types`.
 
-### L0.5 — kernel traits (2 crates, sealed, ISP)
+### L0.5 — kernel traits (6 crates post 4-way split 2026-06-10, sealed, ISP)
 
-Admitted: `nika-kernel`, `nika-kernel-mock`.
+`nika-kernel` (facade + range-registry hub), `nika-kernel-core`,
+`nika-kernel-ai`, `nika-kernel-runtime`, `nika-kernel-plugin`,
+`nika-kernel-mock`. See `docs/architecture/kernel-split-census-2026-06-10.md`.
 
 ### L1 — effects (~50+ crates, tokio-async OK)
 
 Sub-phased per Q2 (topological × user-value):
 
-- **1a primitives**: `nika-fs`, `nika-process`, `nika-http-client`, `nika-keys-env`
+- **1a primitives**: `nika-fs` ✅, `nika-exec-runner` ✅ (shipped name of the
+  process/shell effect · supersedes the planned `nika-process`), `nika-http` ✅
+  (shipped name of `nika-http-client`), `nika-blob` ✅, `nika-keys-env`
 - **1b deps-étage-1**: `nika-git` (gix), `nika-keys-keychain`, `nika-catalog-sync`
 - **1c providers**: `nika-provider-rig` (7 cloud + 7 OpenAI-compat),
   `nika-provider-native` (mistral.rs GGUF, feature-gated), `nika-provider-mock`

@@ -143,7 +143,7 @@ Phase roadmap (no dates):
 
 - **v0.81** — forward-compat seams (shipped), hygiene 10 → 31 vectors (done), `tools/` → `crates/` rename (done).
 - **v0.90** — Diamond foundation: 42 crates admitted, 7 shadow zones green, pck MVP, 7 native API adapters.
-- **v0.95** — Memory / Cortex (9-10 satellite crates), agent-v2 (parallel tools, ReWOO, reflection, resume), pck full with sigstore signing.
+- **v0.95** — the Connectome (1 L2 orchestrator + 10 L1 satellites), agent-v2 (parallel tools, ReWOO, reflection, resume), pck full with sigstore signing.
 - **v0.100** — WASM plugins (wasmtime + extism sandbox), full observability (OpenTelemetry), full LSP, keys subsystem.
 - **v0.110+** — Ecosystem growth; hosted Nika Cloud and Nika Enterprise are demand-driven, deferred until warranted.
 

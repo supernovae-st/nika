@@ -53,13 +53,14 @@
 | `nika-verb-infer` | `nika-verb-infer` |
 | (new, split from engine) | `nika-verb-agent` |
 
-3 providers (split legacy `nika-engine/provider/*`):
+Providers (legacy `nika-engine/provider/*` · landing SHIPPED 2026-06-11,
+supersedes the 3-crate split plan):
 
 | Legacy | Diamond |
 |---|---|
-| `nika-engine/provider/rig/*` | `nika-provider-rig` |
-| `nika-engine/provider/native/*` | `nika-provider-native` |
-| `nika-engine/provider/mock/*` | `nika-provider-mock` |
+| `nika-engine/provider/rig/*` | `nika-providers` (L1.5 · 14/14 wire-direct · rig NOT carried · D-2026-05-22-N17) |
+| `nika-engine/provider/native/*` | `nika-infer-local` (candle sidecar · ADR-091) |
+| `nika-engine/provider/mock/*` | in-crate mock inside `nika-providers` |
 
 5 media crates (split legacy `nika-media` 14k LOC, some deferred v0.95):
 
@@ -141,7 +142,7 @@ OR explicitly dropped with reason.
 - Output modes — `text | json | yaml | markdown | binary`
 - 65 templatable fields — per-field type coercion rules
 
-### Provider-specific features (owned by nika-provider-rig / nika-verb-infer)
+### Provider-specific features (owned by nika-providers / nika-verb-infer)
 - Anthropic `extended_thinking` + `thinking_budget` tokens
 - OpenAI `reasoning_effort` for o1/o3/o4
 - Gemini JSON mode `response_format: json`
