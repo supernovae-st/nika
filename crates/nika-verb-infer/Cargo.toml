@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name          = "nika-verb-infer"
+description   = "The `infer` verb executor (L2) — one-shot LLM inference per nika-spec 02-verbs.md. Resolves `provider/model` through nika-providers, shapes the kernel InferRequest, and owns the floor of the structured-output recipe (request-side ResponseFormat + bounded schema-validation retry)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L2 verb crate.
+
+[dependencies]
+nika-error     = { path = "../nika-error", version = "0.80.0" }
+nika-kernel    = { path = "../nika-kernel", version = "0.80.0" }
+nika-providers = { path = "../nika-providers", version = "0.80.0" }
+jsonschema     = { workspace = true }
+miette         = { workspace = true }
+serde_json     = { workspace = true }
+thiserror      = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tokio    = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "kodama-forgeron"
+spirit_role   = "premier des quatre verbes · une question posée à l'oracle · la réponse contrainte à la forme promise"
+voice_pattern = "silent"
+layer         = "L2"
+err_prefix    = "NIKA-43x"
+
+[lints]
+workspace = true
