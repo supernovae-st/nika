@@ -100,14 +100,18 @@ GPU abort) kills only the child; the lean core detects the broken pipe and
 restarts/degrades. `catch_unwind` is the inner backstop, the process boundary
 is the real containment.
 
-## 5bis. Connection path — wiring the island into a `.nika.yaml` (build-ready)
+## 5bis. Connection path — wiring the island into a `.nika.yaml`
 
-**Current state (verified 2026-06-11): `nika-infer-local` is a proven ISLAND.**
-`BackendDyn` generates correctly on a real model, but NO crate consumes it —
-`nika-verb-infer` reaches models only through `nika-providers` (the 14 HTTP
-providers). A `.nika.yaml` cannot yet run `model: local/qwen3`. This section
-specifies the connection so the build is mechanical (no new dispatch seam · the
-ADR-091 reuse-the-wire decision, made concrete).
+**Status update 2026-06-11 (same day · the server hop is BUILT):** the
+`server` module ships behind an orthogonal `server` feature (ADR-093 ·
+tiny_http · `POST /v1/chat/completions` + `GET /health` · stream refused
+honestly · 8 integration tests over a real TCP round-trip + MockBackend).
+**Remaining hop: the `local` provider profile.** That row cascades on the
+spec provider canon (`canon.yaml` provider list + `providers-v0.1.md`) and
+the provider-prefix validation surface (nika-schema) — DEFERRED to a window
+where those canon surfaces are not mid-arc in a concurrent session. Until
+then the crate is a *served* island: reachable over HTTP, not yet routable
+from a `.nika.yaml`.
 
 **The path (3 hops · each side already exists):**
 

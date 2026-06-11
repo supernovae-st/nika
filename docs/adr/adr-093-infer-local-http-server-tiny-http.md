@@ -58,9 +58,11 @@ The v1 server surface is intentionally tiny:
 
 ## Decision
 
-**`tiny_http` serves the v1 sidecar**, behind the same `local-infer` feature
-(the default `nika` build links neither candle nor the server). Sizing facts
-that drove the call:
+**`tiny_http` serves the v1 sidecar**, behind a dedicated `server` feature,
+orthogonal to `local-infer` (both off by default — the default `nika` build
+links neither candle nor the server; CI exercises the full HTTP round-trip
+against `MockBackend` without building the candle stack; the sidecar binary
+enables both). Sizing facts that drove the call:
 
 1. **The workload is sequential by design.** ADR-091 + the crate spec lock
    one in-flight generation per sidecar process; a multi-minute CPU/Metal

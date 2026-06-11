@@ -27,9 +27,15 @@ candle-transformers = { version = "0.10", optional = true }
 tokenizers          = { version = "0.22", optional = true, default-features = false, features = ["onig"] }
 tokio               = { workspace = true, optional = true }
 
+# ── the v1 sidecar HTTP server (ADR-093) — OFF by default ────────────────────
+# Orthogonal to `local-infer` so CI exercises the full HTTP round-trip against
+# MockBackend without building the candle stack. The sidecar binary enables both.
+tiny_http = { version = "0.12", optional = true }
+
 [features]
 local-infer = ["dep:candle-core", "dep:candle-transformers", "dep:tokenizers", "dep:tokio"]
 metal       = ["local-infer", "candle-core/metal"]
+server      = ["dep:tiny_http", "dep:tokio"]
 
 [dev-dependencies]
 tokio    = { workspace = true }
