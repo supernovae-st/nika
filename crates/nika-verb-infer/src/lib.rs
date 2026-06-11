@@ -507,6 +507,42 @@ mod tests {
         assert!(text_of(&fallback[0]).contains("JSON Schema"));
     }
 
+    /// Gate 10 PARITY — pins the request-shaping behaviors the brouillon
+    /// verb established (`git show brouillon:tools/nika-verb-infer/src/lib.rs`
+    /// · read-only reference · CRAFT rewrite): system prompt becomes the
+    /// System message, the prompt lands verbatim as a single user Text
+    /// block, sampling params pass through untouched, and the response
+    /// text is the concatenation of Text blocks only.
+    #[tokio::test]
+    async fn gate10_parity_request_shaping_vs_brouillon() {
+        let mut input = InferInput::new("What is the capital of France?");
+        input.system = Some("You are terse.".to_owned());
+        input.temperature = Some(0.3);
+        input.max_tokens = Some(128);
+        let messages = base_messages(&input, true);
+        // Brouillon shape: [System, User] · prompt verbatim · single block.
+        assert_eq!(messages.len(), 2);
+        assert!(matches!(messages[0].role, Role::System));
+        assert_eq!(messages[1].content.len(), 1);
+        assert!(matches!(
+            &messages[1].content[0],
+            ContentBlock::Text { text } if text == "What is the capital of France?"
+        ));
+        let req = build_request(&input, "echo", messages, true);
+        assert_eq!(req.temperature, Some(0.3));
+        assert_eq!(req.max_tokens, Some(128));
+        // End-to-end on the deterministic mock: echo carries the prompt,
+        // usage is word-count arithmetic (brouillon mock contract).
+        let out = mock_verb()
+            .run(input)
+            .await
+            .expect("parity round-trip succeeds");
+        match &out.output {
+            InferValue::Text(t) => assert!(t.contains("capital of France")),
+            other => panic!("expected text, got {other:?}"),
+        }
+    }
+
     #[test]
     fn request_carries_params_and_native_schema() {
         let mut input = InferInput::new("q");
