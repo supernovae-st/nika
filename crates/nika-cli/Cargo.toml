@@ -11,11 +11,16 @@ homepage.workspace     = true
 publish                = false  # Internal L4 interface crate (the binary ships, the lib doesn't).
 
 [dependencies]
-nika-event = { path = "../nika-event", version = "0.80.0" }   # the REAL event taxonomy (the fold input)
-nika-types = { path = "../nika-types", version = "0.80.0" }   # Timestamp · KeyValue · ids
-clap       = { workspace = true }                              # verb tree (completions + man derive later)
-serde_json = { workspace = true }                              # trace NDJSON parse
-uuid       = { workspace = true }                              # deterministic demo EventIds
+nika-event  = { path = "../nika-event", version = "0.80.0" }  # the REAL event taxonomy (the fold input)
+nika-types  = { path = "../nika-types", version = "0.80.0" }  # Timestamp · KeyValue · ids
+nika-schema = { path = "../nika-schema", version = "0.80.0" } # parse + the ADR-092 check ladder (check · inspect · graph)
+nika-error  = { path = "../nika-error", version = "0.80.0" }  # the code registry (`nika explain`)
+nika-pack   = { path = "../nika-pack", version = "0.80.0" }   # the embedded language pack (`nika spec|schema|examples|new`)
+clap        = { workspace = true }                             # verb tree (completions + man derive later)
+clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
+serde       = { workspace = true }                             # graph projection envelope (§6)
+serde_json  = { workspace = true }                             # trace NDJSON parse · --json surfaces
+uuid        = { workspace = true }                             # deterministic demo EventIds
 
 [[bin]]
 name = "nika-cli"
@@ -26,8 +31,6 @@ path = "src/main.rs"
 [dev-dependencies]
 # The e2e pipeline rehearsal (tests/e2e_pipeline.rs) composes the REAL
 # shipped layers below the CLI — all strictly downward (L4 → L2/L1.5/L0.5/L0).
-nika-schema      = { path = "../nika-schema", version = "0.80.0" }
-nika-error       = { path = "../nika-error", version = "0.80.0" }
 nika-kernel      = { path = "../nika-kernel", version = "0.80.0" }
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.80.0" }
 nika-providers   = { path = "../nika-providers", version = "0.80.0" }

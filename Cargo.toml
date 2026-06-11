@@ -228,6 +228,7 @@ futures-util  = { version = "0.3", default-features = false, features = ["std"] 
 jsonschema = { version = "0.33", default-features = false }   # nika-verb-infer L2 — structured-output schema validation (draft 2020-12 · no network resolver per sovereignty floor)
 uuid     = { version = "1", features = ["v7", "serde"] }   # ADR-033 UUIDv7 IDs (nika-error L0)
 clap     = { version = "4.5", features = ["derive"] }       # L4 CLI surface (completions + man derive from this tree)
+clap_complete = "4.5"   # L4 CLI — shell completions generated from the clap tree (nika-cli spec §9)
 zeroize  = "1.8"    # ADR-034 Secret zeroize-on-drop (nika-kernel L0.5) — 1.8 adds heap-String zeroing
 
 # Dev / test deps

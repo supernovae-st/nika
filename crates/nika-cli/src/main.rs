@@ -3,10 +3,12 @@
 
 //! The `nika-cli` dev binary — the seed of the `nika` verb tree.
 //!
-//! Ships `trace replay|show` today (the flight-recorder reader · spec §7),
-//! folding either the deterministic demo storyboards or a real trace
-//! NDJSON. Exit codes already follow the locked contract (spec §4):
-//! `0` run ok · `1` workflow failed · `3` environment error.
+//! Today: the full STATIC suite (`check` · `inspect` · `graph` ·
+//! `explain` · `spec` · `schema` · `examples` · `new` · `completions`) +
+//! `trace replay|show` (the flight-recorder reader · spec §7). Everything
+//! is auditable-before-run — the `run` verb arrives with the L3 runtime.
+//! Exit codes follow the locked contract (spec §4): `0` ok · `1` workflow
+//! failed · `2` file findings · `3` environment error.
 
 // A terminal binary's whole job is printing — the same exemption as the
 // nika-catalog-verify binary and the nika-schema check example.
@@ -16,7 +18,8 @@ use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
 use std::time::Duration;
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
+use nika_cli::verbs::{self, VerbOutput};
 use nika_cli::{RunView, Theme, frame};
 use nika_event::Event;
 
@@ -29,10 +32,101 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Static pre-flight: the ADR-092 ladder (audit BEFORE run).
+    Check {
+        /// Workflow file (`*.nika.yaml`).
+        file: String,
+        /// Emit the machine-readable report (never coloured).
+        #[arg(long)]
+        json: bool,
+        /// Print an inferred `permits:` boundary instead of the report.
+        #[arg(long)]
+        infer_permits: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+    },
+    /// Static anatomy: tasks · verbs · DAG tree · cost · permits.
+    Inspect {
+        /// Workflow file (`*.nika.yaml`).
+        file: String,
+    },
+    /// The ONE graph projector (json canonical · mermaid/dot derived).
+    Graph {
+        /// Workflow file (`*.nika.yaml`).
+        file: String,
+        /// Output format.
+        #[arg(long, value_enum, default_value_t = GraphFormatArg::Json)]
+        format: GraphFormatArg,
+    },
+    /// Teach one error code (cause · category · fix-form).
+    Explain {
+        /// The code (`NIKA-440` or bare `440`).
+        code: String,
+    },
+    /// The embedded spec identity (`--canon` prints the SSOT).
+    Spec {
+        /// Print the canon.yaml single source of truth.
+        #[arg(long)]
+        canon: bool,
+    },
+    /// The embedded JSON Schema for `*.nika.yaml`.
+    Schema,
+    /// Browse the embedded examples.
+    Examples {
+        #[command(subcommand)]
+        action: ExamplesAction,
+    },
+    /// Instantiate an embedded template skeleton.
+    New {
+        /// Template name (see `nika new --from '?'` for the set).
+        #[arg(long)]
+        from: String,
+        /// Destination path (`*.nika.yaml`).
+        dest: String,
+        /// Overwrite an existing destination.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Generate shell completions from the clap tree (spec §9).
+    Completions {
+        /// Target shell.
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
     /// Read the flight recorder (replay or summarize a run).
     Trace {
         #[command(subcommand)]
         action: TraceAction,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum GraphFormatArg {
+    /// Canonical JSON projection (`graph_format: 1`).
+    Json,
+    /// Mermaid flowchart.
+    Mermaid,
+    /// Graphviz dot.
+    Dot,
+}
+
+#[derive(Subcommand)]
+enum ExamplesAction {
+    /// List the embedded example slugs.
+    List,
+    /// Print one embedded example.
+    Show {
+        /// Example slug (from `list`).
+        slug: String,
+    },
+    /// Refused until the `run` verb (L3) ships.
+    Run {
+        /// Example slug (from `list`).
+        slug: String,
     },
 }
 
@@ -71,12 +165,71 @@ struct TraceArgs {
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     let code = match cli.command {
+        Command::Check {
+            file,
+            json,
+            infer_permits,
+            no_color,
+            ascii,
+        } => {
+            let out = if infer_permits {
+                verbs::check::run_infer_permits(&file, json)
+            } else {
+                verbs::check::run(&file, json, term_theme(no_color, ascii))
+            };
+            emit(&out)
+        }
+        Command::Inspect { file } => emit(&verbs::inspect::run(&file)),
+        Command::Graph { file, format } => {
+            let format = match format {
+                GraphFormatArg::Json => verbs::graph::GraphFormat::Json,
+                GraphFormatArg::Mermaid => verbs::graph::GraphFormat::Mermaid,
+                GraphFormatArg::Dot => verbs::graph::GraphFormat::Dot,
+            };
+            emit(&verbs::graph::run(&file, format))
+        }
+        Command::Explain { code } => emit(&verbs::explain::run(&code)),
+        Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
+        Command::Schema => emit(&verbs::pack_surface::schema()),
+        Command::Examples { action } => emit(&match action {
+            ExamplesAction::List => verbs::pack_surface::examples_list(),
+            ExamplesAction::Show { slug } => verbs::pack_surface::examples_show(&slug),
+            ExamplesAction::Run { slug } => verbs::pack_surface::examples_run(&slug),
+        }),
+        Command::New { from, dest, force } => emit(&verbs::new::run(&from, &dest, force)),
+        Command::Completions { shell } => {
+            let mut cmd = Cli::command();
+            clap_complete::generate(shell, &mut cmd, "nika-cli", &mut std::io::stdout());
+            0
+        }
         Command::Trace { action } => match action {
             TraceAction::Replay(args) => trace_render(&args, true),
             TraceAction::Show(args) => trace_render(&args, false),
         },
     };
     std::process::ExitCode::from(code)
+}
+
+/// Print a verb's text on the right stream and return its exit code.
+/// Findings + successes go to stdout (they ARE the product); only
+/// environment errors go to stderr.
+fn emit(out: &VerbOutput) -> u8 {
+    if out.code == verbs::exit::ENV {
+        eprintln!("nika-cli: {}", out.text);
+    } else if !out.text.is_empty() {
+        println!("{}", out.text.trim_end());
+    }
+    out.code
+}
+
+/// Resolve the colour/glyph theme for static (non-animated) surfaces.
+fn term_theme(no_color: bool, ascii: bool) -> Theme {
+    let tty = std::io::stdout().is_terminal();
+    Theme {
+        color: tty && !no_color && !env_flag("NO_COLOR"),
+        ascii,
+        animate: false,
+    }
 }
 
 /// Load events, fold, render — live replay or final card.

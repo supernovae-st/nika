@@ -20,6 +20,7 @@
 
 pub mod demo;
 pub mod display;
+pub mod verbs;
 
 pub use display::render::frame;
 pub use display::state::{RunView, TaskRow, TaskState};
