@@ -118,7 +118,8 @@ pub enum InferValue {
 pub struct InferOutput {
     /// The shaped output value (`.output` in spec terms).
     pub output: InferValue,
-    /// Token usage from the (final) provider round-trip.
+    /// Token usage from the (final) provider round-trip — a convenience
+    /// duplicate of `response.usage` (intentional · ergonomic access).
     pub usage: TokenUsage,
     /// The model string that was resolved (`provider/name`).
     pub model_resolved: String,
@@ -188,6 +189,20 @@ where
     pub async fn run(&self, input: InferInput) -> Result<InferOutput, VerbInferError> {
         validate_params(&input)?;
 
+        // Compile the task schema ONCE, before any provider call — a schema
+        // that doesn't compile is a task-authoring error (NIKA-432), not a
+        // validation failure, and must not burn paid round-trips (review
+        // lenses 1+3 · P1).
+        let validator = match input.schema.as_ref() {
+            Some(schema) => Some(structured::compile_schema(schema).map_err(|detail| {
+                VerbInferError::InvalidParam {
+                    param: "schema",
+                    detail,
+                }
+            })?),
+            None => None,
+        };
+
         let model = input.model.as_deref().unwrap_or(&self.default_model);
         let provider =
             self.registry
@@ -199,9 +214,11 @@ where
         let native_schema = provider.supports_response_format();
 
         let mut messages = base_messages(&input, native_schema);
-        let mut attempts: u8 = 0;
+        // u32 counter: a u8 would saturate at budget = u8::MAX and loop
+        // forever on paid calls (review lens 1 · P1).
+        let mut attempts: u32 = 0;
         loop {
-            attempts = attempts.saturating_add(1);
+            attempts += 1;
             let request = build_request(&input, provider.name(), messages.clone(), native_schema);
             let response = provider
                 .infer(request)
@@ -209,7 +226,8 @@ where
                 .map_err(|source| VerbInferError::ProviderCall { source })?;
             let text = response_text(&response);
 
-            let Some(schema) = input.schema.as_ref() else {
+            let (Some(schema), Some(validator)) = (input.schema.as_ref(), validator.as_ref())
+            else {
                 return Ok(InferOutput::new(
                     InferValue::Text(text),
                     model.to_owned(),
@@ -217,7 +235,7 @@ where
                 ));
             };
 
-            match structured::extract_and_validate(&text, schema) {
+            match structured::extract_and_validate(&text, validator) {
                 structured::Validation::Valid(value) => {
                     return Ok(InferOutput::new(
                         InferValue::Structured(value),
@@ -226,7 +244,7 @@ where
                     ));
                 }
                 structured::Validation::Invalid(detail) => {
-                    if attempts > self.schema_retry_budget {
+                    if attempts > u32::from(self.schema_retry_budget) {
                         return Err(VerbInferError::SchemaValidation { attempts, detail });
                     }
                     messages.push(Message::text(Role::Assistant, text));
@@ -270,8 +288,9 @@ fn base_messages(input: &InferInput, native_schema: bool) -> Vec<Message> {
     let prompt = match (&input.schema, native_schema) {
         (Some(schema), false) => format!(
             "{prompt}\n\nReply with ONLY a JSON value that satisfies this \
-             JSON Schema, no prose, no code fences:\n{schema}",
-            prompt = input.prompt
+             JSON Schema, no prose, no code fences:\n{rendered}",
+            prompt = input.prompt,
+            rendered = structured::render_schema(schema)
         ),
         _ => input.prompt.clone(),
     };
@@ -416,7 +435,7 @@ mod tests {
         match err {
             VerbInferError::SchemaValidation { attempts, .. } => {
                 // initial call + DEFAULT_SCHEMA_RETRY_BUDGET retries
-                assert_eq!(attempts, 1 + DEFAULT_SCHEMA_RETRY_BUDGET);
+                assert_eq!(attempts, 1 + u32::from(DEFAULT_SCHEMA_RETRY_BUDGET));
             }
             other => panic!("expected SchemaValidation, got {other:?}"),
         }
@@ -435,6 +454,33 @@ mod tests {
             err,
             VerbInferError::SchemaValidation { attempts: 1, .. }
         ));
+    }
+
+    #[tokio::test]
+    async fn invalid_schema_is_rejected_before_any_call() {
+        // A schema that doesn't compile is a task-authoring error: NIKA-432
+        // with ZERO provider round-trips (review lenses 1+3).
+        let mut input = InferInput::new("hi");
+        input.schema = Some(json!({ "type": "definitely-not-a-type" }));
+        let err = mock_verb().run(input).await.expect_err("schema rejected");
+        assert!(matches!(
+            err,
+            VerbInferError::InvalidParam {
+                param: "schema",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn oversized_schema_render_is_capped() {
+        let huge = json!({
+            "type": "object",
+            "description": "x".repeat(20_000),
+        });
+        let rendered = crate::structured::render_schema(&huge);
+        assert!(rendered.len() < 5_000, "render capped: {}", rendered.len());
+        assert!(rendered.ends_with("…(schema truncated)"));
     }
 
     #[test]
@@ -500,10 +546,9 @@ mod proptests {
         #[test]
         fn extraction_total_on_arbitrary_text(s in ".{0,400}") {
             // Total function — must not panic.
-            let _ = crate::structured::extract_and_validate(
-                &s,
-                &serde_json::json!({ "type": "object" }),
-            );
+            let v = crate::structured::compile_schema(&serde_json::json!({ "type": "object" }))
+                .expect("trivial schema compiles");
+            let _ = crate::structured::extract_and_validate(&s, &v);
         }
     }
 }

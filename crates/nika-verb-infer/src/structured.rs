@@ -19,17 +19,39 @@ pub(crate) enum Validation {
     Invalid(String),
 }
 
+/// Cap on the schema text re-injected into prompts (retry + instruction
+/// fallback) — an attacker-influenced schema must not be a token-cost
+/// amplifier across retries (review lens 3 · P1).
+const SCHEMA_RENDER_CAP: usize = 4096;
+
+/// Compile the task `schema:` once per `run()` (review lenses 1+3 · P1).
+///
+/// A schema that does not compile is a task-authoring error — the caller
+/// maps it to `InvalidParam` BEFORE any provider call is spent.
+pub(crate) fn compile_schema(schema: &serde_json::Value) -> Result<jsonschema::Validator, String> {
+    jsonschema::validator_for(schema).map_err(|e| e.to_string())
+}
+
+/// Render the schema for prompt injection, truncated at the cap.
+pub(crate) fn render_schema(schema: &serde_json::Value) -> String {
+    let mut rendered = schema.to_string();
+    if rendered.len() > SCHEMA_RENDER_CAP {
+        let mut cut = SCHEMA_RENDER_CAP;
+        while !rendered.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        rendered.truncate(cut);
+        rendered.push_str("…(schema truncated)");
+    }
+    rendered
+}
+
 /// Extract a JSON candidate from model text and validate it.
 ///
 /// Extraction is lenient by design — models wrap JSON in prose and code
 /// fences. Strategy: try the whole trimmed text first, then the first
 /// fenced block, then the first balanced `{…}` or `[…]` span.
-pub(crate) fn extract_and_validate(text: &str, schema: &serde_json::Value) -> Validation {
-    let validator = match jsonschema::validator_for(schema) {
-        Ok(v) => v,
-        Err(e) => return Validation::Invalid(format!("schema itself is invalid: {e}")),
-    };
-
+pub(crate) fn extract_and_validate(text: &str, validator: &jsonschema::Validator) -> Validation {
     let Some(candidate) = extract_json(text) else {
         return Validation::Invalid("no JSON value found in the model output".to_owned());
     };
@@ -55,10 +77,11 @@ pub(crate) fn extract_and_validate(text: &str, schema: &serde_json::Value) -> Va
 
 /// The corrective user message appended on a validation retry.
 pub(crate) fn retry_message(detail: &str, schema: &serde_json::Value) -> String {
+    let rendered = render_schema(schema);
     format!(
         "The previous reply did not satisfy the required output schema. \
          Validation failed with: {detail}. Reply again with ONLY a JSON value \
-         that satisfies this JSON Schema, no prose, no code fences:\n{schema}"
+         that satisfies this JSON Schema, no prose, no code fences:\n{rendered}"
     )
 }
 
@@ -127,6 +150,10 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn validator(schema: &serde_json::Value) -> jsonschema::Validator {
+        compile_schema(schema).expect("test schema compiles")
+    }
+
     fn person_schema() -> serde_json::Value {
         json!({
             "type": "object",
@@ -141,7 +168,7 @@ mod tests {
 
     #[test]
     fn bare_json_validates() {
-        let v = extract_and_validate(r#"{"name":"Ada","age":36}"#, &person_schema());
+        let v = extract_and_validate(r#"{"name":"Ada","age":36}"#, &validator(&person_schema()));
         match v {
             Validation::Valid(val) => assert_eq!(val["name"], "Ada"),
             Validation::Invalid(d) => panic!("expected valid, got: {d}"),
@@ -152,7 +179,7 @@ mod tests {
     fn fenced_json_is_extracted() {
         let text = "Here you go:\n```json\n{\"name\":\"Ada\",\"age\":36}\n```\nDone.";
         assert!(matches!(
-            extract_and_validate(text, &person_schema()),
+            extract_and_validate(text, &validator(&person_schema())),
             Validation::Valid(_)
         ));
     }
@@ -163,7 +190,7 @@ mod tests {
         // layer is what makes the deterministic happy path work end-to-end.
         let text = r#"mock(echo) · {"name":"Ada","age":36}"#;
         assert!(matches!(
-            extract_and_validate(text, &person_schema()),
+            extract_and_validate(text, &validator(&person_schema())),
             Validation::Valid(_)
         ));
     }
@@ -171,7 +198,7 @@ mod tests {
     #[test]
     fn balanced_span_ignores_braces_inside_strings() {
         let text = r#"noise {"name":"A{d}a","age":1} trail"#;
-        match extract_and_validate(text, &person_schema()) {
+        match extract_and_validate(text, &validator(&person_schema())) {
             Validation::Valid(val) => assert_eq!(val["name"], "A{d}a"),
             Validation::Invalid(d) => panic!("expected valid, got: {d}"),
         }
@@ -179,7 +206,7 @@ mod tests {
 
     #[test]
     fn schema_violation_reports_path() {
-        let v = extract_and_validate(r#"{"name":"Ada","age":-3}"#, &person_schema());
+        let v = extract_and_validate(r#"{"name":"Ada","age":-3}"#, &validator(&person_schema()));
         match v {
             Validation::Invalid(d) => assert!(d.contains("age"), "detail names the path: {d}"),
             Validation::Valid(_) => panic!("expected invalid"),
@@ -189,7 +216,7 @@ mod tests {
     #[test]
     fn no_json_at_all_is_invalid() {
         assert!(matches!(
-            extract_and_validate("plain prose, nothing else", &person_schema()),
+            extract_and_validate("plain prose, nothing else", &validator(&person_schema())),
             Validation::Invalid(_)
         ));
     }
@@ -198,7 +225,7 @@ mod tests {
     fn arrays_are_supported() {
         let schema = json!({ "type": "array", "items": { "type": "integer" } });
         assert!(matches!(
-            extract_and_validate("the list is [1, 2, 3] ok", &schema),
+            extract_and_validate("the list is [1, 2, 3] ok", &validator(&schema)),
             Validation::Valid(_)
         ));
     }
@@ -213,5 +240,60 @@ mod tests {
     #[test]
     fn unterminated_span_is_not_extracted() {
         assert!(extract_json("start { \"a\": 1 and never closes").is_none());
+    }
+
+    #[test]
+    fn fence_layer_is_load_bearing() {
+        // An unbalanced `{` BEFORE the fence poisons the balanced-span
+        // layer, and the fenced value is a bare string the span layer
+        // can't see — only the fence extraction can succeed here.
+        let text = "context { broken\n```json\n\"just a string\"\n```\nafter";
+        assert_eq!(extract_json(text), Some(serde_json::json!("just a string")));
+    }
+
+    #[test]
+    fn fence_with_language_tag_skips_the_tag_line() {
+        // Fence not at offset 0 + a language tag: the index arithmetic
+        // (start+3 · newline+1) must land exactly on the body.
+        let text = "x\n```yaml\n[7]\n```";
+        assert_eq!(extract_json(text), Some(serde_json::json!([7])));
+    }
+
+    #[test]
+    fn nested_objects_need_real_depth_counting() {
+        // A short-circuiting depth counter would cut at the inner `}`
+        // and yield invalid JSON.
+        let text = r#"reply: {"a":{"b":1},"c":2} end"#;
+        assert_eq!(
+            extract_json(text),
+            Some(serde_json::json!({"a":{"b":1},"c":2}))
+        );
+    }
+
+    #[test]
+    fn closing_brace_inside_string_does_not_close_the_span() {
+        // Without string-awareness the `}` inside the value closes the
+        // span early and the candidate fails to parse.
+        let text = r#"out: {"s":"}"} done"#;
+        assert_eq!(extract_json(text), Some(serde_json::json!({"s":"}"})));
+    }
+
+    #[test]
+    fn escaped_quote_inside_string_stays_in_string() {
+        // The `\"` must not flip the in-string flag — the `}` after it is
+        // still string content.
+        let text = r#"{"s":"a\"}x"}"#;
+        assert_eq!(extract_json(text), Some(serde_json::json!({"s":"a\"}x"})));
+    }
+
+    #[test]
+    fn array_span_must_close_with_a_bracket() {
+        // `[` opens an array span; a stray `}` must not close it.
+        let text = "data [1, 2} oops [3, 4] real";
+        // The first `[` span is `[1, 2} oops [3, 4]` — unparseable. The
+        // extractor deliberately does NOT backtrack to later candidates
+        // (first-plausible-span contract); it returns None rather than
+        // mis-pairing delimiters.
+        assert_eq!(extract_json(text), None);
     }
 }

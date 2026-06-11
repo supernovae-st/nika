@@ -45,20 +45,23 @@ Like s8.5, the s9 seam needs **zero new kernel traits**. Verified against `main`
    validation error. LLM-judge coercion + canary scanning stay OUT
    (engine/Shield scope · pre-launch Gate 2 owns cross-provider parity).
 
-4. **Events from exactly one site (INV-024).** The verb emits its
-   provider-call lifecycle through `nika-event` from a single `emit` module —
-   the brouillon's `ProviderResponded` shape, re-CRAFTed against the Diamond
-   `EventKind`.
+4. **Event emission is the ENGINE's seam, not the verb's (INV-024).**
+   Diamond departs from the brouillon here: `EventKind::VerbInvoked` is
+   emitted by the L3 scheduler that dispatches the verb (single site per
+   verb path), so this crate carries NO `nika-event` dep — the full
+   `InferResponse` returned on `InferOutput.response` is the engine's
+   event/cost/trace source. (Ratified at Gate 11 · the v0.1 sketch's
+   `emit` module is dropped.)
 
 ```text
    future L3 nika-engine ── schedules ──┐
                                         v
-   L2  nika-verb-infer   run(InferInput) → InferOutput
-         │ resolve(model)                       │ emit (1 site)
-         v                                      v
+   L2  nika-verb-infer   run(InferInput) → InferOutput (response = event src)
+         │ resolve(model)
+         v
    L1.5 nika-providers  ProviderRegistry → ResolvedProvider::infer()
    L0.5 nika-kernel-ai  InferRequest / InferResponse / ResponseFormat
-   L0   nika-event · nika-error · nika-types
+   L0   nika-error · nika-types
 ```
 
 ## §1 · Public API (admission shape)
@@ -67,7 +70,8 @@ Like s8.5, the s9 seam needs **zero new kernel traits**. Verified against `main`
 /// One-shot LLM inference — the `infer` verb executor.
 pub struct InferVerb<H = NoHttp> {
     registry: Arc<ProviderRegistry<H>>,
-    defaults: InferDefaults, // default model · retry budget
+    default_model: String,
+    schema_retry_budget: u8, // builder: with_schema_retry_budget()
 }
 
 #[non_exhaustive]
@@ -75,10 +79,14 @@ pub struct InferInput {
     pub prompt: String,                 // required (spec §infer)
     pub system: Option<String>,
     pub model: Option<String>,          // `provider/name` override
-    pub temperature: Option<f64>,       // 0–2 · validated here (NIKA_432)
+    pub temperature: Option<f32>,       // 0–2 · validated here (NIKA_432)
     pub max_tokens: Option<u32>,
     pub schema: Option<serde_json::Value>, // JSON Schema → structured mode
-    pub thinking: Option<ThinkingDirective>,
+    pub thinking_budget: Option<u32>,   // spec thinking.{enabled,budget_tokens}
+                                        // flattened: enabled:false → None ·
+                                        // enabled:true → Some(budget) — the
+                                        // upstream task parser owns the fold
+                                        // (ratified at Gate 11 · W1)
 }
 
 #[non_exhaustive]
@@ -90,7 +98,7 @@ pub struct InferOutput {
 }
 
 impl<H: HttpPostDyn + Send + Sync + 'static> InferVerb<H> {
-    pub fn new(registry: Arc<ProviderRegistry<H>>, defaults: InferDefaults) -> Self;
+    pub fn new(registry: Arc<ProviderRegistry<H>>, default_model: impl Into<String>) -> Self;
     /// CANCEL SAFETY: cancel-safe at the provider transport (kernel contract).
     pub async fn run(&self, input: InferInput) -> Result<InferOutput, VerbInferError>;
 }
@@ -127,7 +135,7 @@ passthrough). Range registered in the kernel range-registry hub at admission.
 
 ## §4 · Testing strategy (Gates 2–7)
 
-- **TDD**: mock-first via `ProviderRegistry::mock_only()` (zero network ·
+- **TDD**: mock-first via `ProviderRegistry::without_http()` (zero network ·
   deterministic) — RED before GREEN on: prompt→message shaping · system
   placement · param validation bounds · structured happy path · validation
   retry exhaustion → NIKA_431 · resolve failure → NIKA_433.
@@ -161,12 +169,11 @@ First L2 crate → verify each gate surface, expected state checked 2026-06-11:
 [dependencies]  # all workspace-inherited
 nika-kernel-ai = { workspace = true }   # DTOs + ProviderInferDyn
 nika-providers = { workspace = true }   # registry resolve (L2→L1.5 ok)
-nika-event     = { workspace = true }   # single-site emission
 nika-error     = { workspace = true }   # NikaErrorCode one-voice
-jsonschema     = { workspace = true }   # schema validation (already vetted? → verify at impl; else schemars/jsonschema audit via cargo-deny)
-serde_json, thiserror, tracing, tokio (rt only), async-trait/trait_variant per kernel canon
+jsonschema     = { workspace = true }   # schema validation (0.33 · default-features off · no network resolver)
+serde_json, thiserror, miette
 [dev-dependencies]
-nika-kernel-mock · proptest · insta
+proptest · tokio (test rt)
 ```
 
 ⚠️ `jsonschema` crate choice is the one OPEN dep decision — resolve at impl
@@ -176,6 +183,13 @@ workspace, not two.
 ## §7 · Update log
 
 ```
+2026-06-11  v0.2 — Gate 11 swarm reconciliation (3 lenses · 0 P0 · P1s fixed
+              same session): schema compiled once per run() (invalid schema →
+              NIKA-432 · zero provider calls) · attempts widened u8→u32
+              (u8::MAX budget saturation loop) · schema render capped 4096
+              chars in retry + fallback prompts · §1 sketch ratified to the
+              implemented shape (InferDefaults dropped · thinking flattened
+              to thinking_budget · W1+S4).
 2026-06-11  v0.1 — Gate 1 SPEC authored (night arc · s9 lane) ·
               architecture verified against main (kernel-ai DTOs ·
               providers registry · spec 02-verbs.md §infer · 05-errors.md

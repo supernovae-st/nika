@@ -30,7 +30,7 @@ pub enum VerbInferError {
     #[diagnostic(code(nika::verb::infer_schema_validation))]
     SchemaValidation {
         /// Total provider round-trips spent (initial call + retries).
-        attempts: u8,
+        attempts: u32,
         /// The last validation failure, human-readable.
         detail: String,
     },
@@ -152,10 +152,16 @@ mod tests {
             }
             .is_transient()
         );
-        // Provider transience is inherited, not overridden.
-        let wrapped = VerbInferError::ProviderCall {
+        // Provider transience is inherited, not overridden — both branches.
+        let transient = VerbInferError::ProviderCall {
             source: provider_err(),
         };
-        assert_eq!(wrapped.is_transient(), provider_err().is_transient());
+        assert!(provider_err().is_transient(), "500 is retry-eligible");
+        assert!(transient.is_transient());
+        let auth = || ProviderError::AuthFailed {
+            reason: "bad key".to_owned(),
+        };
+        assert!(!auth().is_transient(), "auth failure is terminal");
+        assert!(!VerbInferError::ProviderCall { source: auth() }.is_transient());
     }
 }
