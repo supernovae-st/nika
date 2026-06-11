@@ -169,6 +169,84 @@ tasks:
     }
 
     #[test]
+    fn repair_loop_converges_to_clean() {
+        // The agent-loop contract, AUTOMATED: a 6-finding workflow's
+        // emitted fixes/suggestions, applied verbatim, reach is_clean().
+        // Round 1 — assert the exact repairs the report prescribes.
+        let broken = r#"nika: v1
+workflow: agent-demo
+model: anthropic/claude-sonnet-4-6
+permits:
+  exec: false
+  tools: ["nika:read"]
+tasks:
+  - id: extract
+    infer:
+      prompt: "extract"
+      max_tokens: 200
+      schema:
+        type: object
+        properties:
+          summary: { type: string }
+          score: { type: integre }
+        required: [sumary]
+  - id: save
+    depends_on: [extract]
+    invoke: { tool: "nika:wrte", args: { path: "./out.md", content: "${{ tasks.extract.output.sumarry }}" } }
+  - id: push
+    depends_on: [save]
+    exec: { command: ["cargo", "publish"] }
+"#;
+        let wf = parse(broken, FileId::new(0), ParseMode::Strict).expect("parse");
+        let r = check(&wf).expect("analyzes");
+        assert!(!r.is_clean());
+        // rename repairs (did-you-mean)
+        assert_eq!(r.unknown_tools[0].suggestion.as_deref(), Some("nika:write"));
+        assert!(
+            r.schema_findings[0]
+                .detail
+                .contains("did you mean `summary`")
+        );
+        assert!(
+            r.schema_lints
+                .iter()
+                .any(|l| l.detail.contains("`summary`"))
+        );
+        assert!(
+            r.schema_lints
+                .iter()
+                .any(|l| l.detail.contains("`integer`"))
+        );
+        // grant repairs — ONE idiom, even against `exec: false`
+        let fixes: Vec<&str> = r
+            .capability_escapes
+            .iter()
+            .filter_map(|e| e.fix.as_deref())
+            .collect();
+        assert!(
+            fixes.contains(&"add \"cargo\" to permits.exec"),
+            "{fixes:?}"
+        );
+
+        // Round 2 — the workflow with every prescribed repair applied
+        // (renames per suggestions · grants per fixes · the round-2 fs
+        // grant surfaced once the tool rename lands).
+        let repaired = broken
+            .replace("sumary", "summary") // schema_lint suggestion
+            .replace("integre", "integer") // schema_lint suggestion
+            .replace("nika:wrte", "nika:write") // unknown_tools suggestion
+            .replace("sumarry", "summary") // schema_findings suggestion
+            .replace(
+                "tools: [\"nika:read\"]",
+                "tools: [\"nika:read\", \"nika:write\"]\n  fs: { write: [\"./out.md\"] }",
+            )
+            .replace("exec: false", "exec: [\"cargo\"]"); // add to a denying scalar
+        let wf2 = parse(&repaired, FileId::new(0), ParseMode::Strict).expect("repaired parses");
+        let r2 = check(&wf2).expect("repaired analyzes");
+        assert!(r2.is_clean(), "converged, but: {r2:?}");
+    }
+
+    #[test]
     fn check_fails_on_core_violation() {
         // a cycle is a Core violation → check returns the errors, no report
         let wf = parse(

@@ -101,6 +101,17 @@ mod tests {
     }
 
     #[test]
+    fn osa_variant_is_pinned() {
+        // THE distinguisher: full Damerau-Levenshtein gives 2 for
+        // "ca"→"abc" (transpose then insert INTO the transposed pair);
+        // optimal string alignment gives 3 (no edit-within-transposition).
+        // The doc contracts OSA — pin it so a refactor can't silently
+        // change which variant ships.
+        assert_eq!(damerau_levenshtein("ca", "abc"), 3);
+        assert_eq!(damerau_levenshtein("abc", "ca"), 3);
+    }
+
+    #[test]
     fn did_you_mean_respects_the_threshold() {
         let keys = ["summary", "highlights", "impact"];
         assert_eq!(did_you_mean("sumary", keys), Some("summary"));

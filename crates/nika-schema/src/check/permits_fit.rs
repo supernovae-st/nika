@@ -32,8 +32,12 @@ pub struct CapabilityEscape {
     pub category: &'static str,
     /// Human detail (the specific tool/program that escaped).
     pub detail: String,
-    /// The machine-applicable repair — the exact grant to add to the
-    /// `permits:` block (the agent repair loop applies it verbatim).
+    /// The machine-applicable repair, ALWAYS the one idiom
+    /// `add "<entry>" to permits.<category-path>` — where « add to »
+    /// means: ensure the list at that path exists (creating the block,
+    /// or replacing a denying `exec: false` scalar with a list) and
+    /// contains the entry. One idiom = the agent repair loop
+    /// pattern-matches once and converges (e2e-tested).
     pub fix: Option<String>,
 }
 
@@ -119,8 +123,9 @@ fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<C
             task: id.to_owned(),
             category: "exec",
             detail: "exec task under a boundary that forbids shells".to_owned(),
-            fix: static_program(command)
-                .map(|p| format!("set permits.exec to a program allowlist including \"{p}\"")),
+            // same `add … to …` idiom as every other fix — applied to a
+            // denying `exec: false`, « add » means replace it with the list
+            fix: static_program(command).map(|p| format!("add \"{p}\" to permits.exec")),
         });
         return;
     }

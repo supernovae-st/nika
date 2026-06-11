@@ -845,6 +845,7 @@ effects, and quote-bearing paths.
 | **cost input-token term** | input cost is prompt-dependent (interpolates task outputs) → statically unbounded | the figure is documented as an OUTPUT-token ceiling; `max_tokens` bounds output only |
 | **dynamic effects in inference** (`${{ }}`-built path/host/program) | not statically pinnable — sound-by-honesty: the category widens (e.g. `exec: true`) and a review note is emitted, never a silently under-permissive block | runtime `NIKA-SEC-004` enforces the declared boundary on resolved values |
 | **`infer`/`agent` outputs are NOT tainted** | trust-model carve-out (ADR-092): the provider is operator-chosen; a secret in a prompt is provider-bound by design, and a model response is not a verbatim echo | prompts are still masked in the engine's own logs/traces |
+| **`$ref` siblings are NOT linted** (a `required`/`type` defect beside a `$ref` in the same schema node) | draft 2020-12 evaluates `$ref` siblings, but the static linter has no `$ref` resolver — descending siblings without resolving the ref could emit FALSE claims, so the whole node goes opaque (sound-by-honesty) | the runtime validator (nika-verb-infer compiles the full schema) evaluates siblings per the draft and fails the task at dispatch |
 
 ### Next — completing the `nika check` story
 
