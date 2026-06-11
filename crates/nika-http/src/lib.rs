@@ -61,6 +61,9 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_MAX_REDIRECTS: u8 = 5;
 /// Default maximum response body size (64 MiB).
 const DEFAULT_MAX_RESPONSE_BYTES: u64 = 64 * 1024 * 1024;
+/// Upper bound on the body-buffer PRE-allocation (the Content-Length
+/// hint is attacker-influenced — see `read_capped`).
+const PREALLOC_FLOOR: u64 = 256 * 1024;
 
 /// SSRF enforcement mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -266,7 +269,16 @@ impl ReqwestHttp {
         let status = response.status().as_u16();
         let headers = headers_to_btreemap(response.headers());
 
-        let mut collected: Vec<u8> = Vec::new();
+        // Pre-size from Content-Length, BOUNDED: the header is
+        // attacker-influenced and already ≤ max here, but a lying value
+        // must not buy a 64 MiB allocation up front — growth past the
+        // floor is amortized doubling as usual.
+        let hint = response
+            .content_length()
+            .unwrap_or(0)
+            .min(max)
+            .min(PREALLOC_FLOOR);
+        let mut collected: Vec<u8> = Vec::with_capacity(usize::try_from(hint).unwrap_or(0));
         let mut response = response;
         while let Some(chunk) = response.chunk().await.map_err(|e| HttpError::Other {
             reason: format!("failed to read response body: {e}"),
@@ -417,7 +429,7 @@ fn classify_resolved(addrs: impl IntoIterator<Item = std::net::SocketAddr>) -> R
     let mut any = false;
     for addr in addrs {
         any = true;
-        if ssrf::ip_is_private(addr.ip()) {
+        if ssrf::ip_is_blocked(addr.ip()) {
             return ResolveVerdict::Private;
         }
     }
