@@ -79,21 +79,24 @@ fn main() -> ExitCode {
             report.cost.bounded_total_usd
         );
         for t in &report.cost.tasks {
+            let fanout = if t.iterations > 1 {
+                format!(" ×{}", t.iterations)
+            } else {
+                String::new()
+            };
             match (t.usd, &t.unbounded_reason) {
                 (Some(usd), _) => println!(
-                    "  {} · {} · ≤{} tokens · ${usd:.4}",
+                    "  {} · {} · ≤{} tokens{fanout} · ${usd:.4}",
                     t.task,
                     t.model.as_deref().unwrap_or("?"),
                     t.max_tokens.unwrap_or(0),
                 ),
                 (None, reason) => {
+                    use nika_schema::check::UnboundedReason as R;
                     let why = match reason {
-                        Some(nika_schema::check::UnboundedReason::NoTokenLimit) => {
-                            "no max_tokens declared"
-                        }
-                        Some(nika_schema::check::UnboundedReason::NoPrice) => {
-                            "no catalog price (local/unknown model)"
-                        }
+                        Some(R::NoTokenLimit) => "no max_tokens declared",
+                        Some(R::NoPrice) => "no catalog price (local/unknown model)",
+                        Some(R::UnknownIterations) => "for_each over an expression (unknown count)",
                         _ => "unbounded",
                     };
                     println!(

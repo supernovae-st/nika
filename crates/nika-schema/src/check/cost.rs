@@ -10,7 +10,7 @@
 //! the most likely « why did this cost $200 » surprise — and is reported
 //! as such (the foot-gun is named, not hidden).
 
-use crate::raw::{RawAction, RawWorkflow};
+use crate::raw::{ForEachValue, RawAction, RawWorkflow};
 
 /// Per-task worst-case cost.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,8 +22,14 @@ pub struct TaskCost {
     pub model: Option<String>,
     /// The token bound used (`max_tokens` / `max_tokens_total`).
     pub max_tokens: Option<u64>,
-    /// Worst-case USD for this task · `None` = unbounded tokens OR the
-    /// model has no catalog price (both reported, never silently zero).
+    /// `for_each` iteration multiplier · 1 for a plain task · N for a
+    /// literal `for_each: [..N..]` (the worst-case spend is N× the per-call
+    /// cost). An expression-source `for_each` has an unknown count and
+    /// makes the task unbounded ([`UnboundedReason::UnknownIterations`]).
+    pub iterations: u64,
+    /// Worst-case USD for this task (already × `iterations`) · `None` =
+    /// unbounded tokens, unknown iterations, OR the model has no catalog
+    /// price (all reported, never silently zero).
     pub usd: Option<f64>,
     /// Why `usd` is `None`, when it is.
     pub unbounded_reason: Option<UnboundedReason>,
@@ -37,6 +43,9 @@ pub enum UnboundedReason {
     NoTokenLimit,
     /// The model string did not resolve to a catalog price.
     NoPrice,
+    /// A `for_each:` over an EXPRESSION source — the iteration count (and
+    /// thus the fan-out cost multiplier) is not statically known.
+    UnknownIterations,
 }
 
 /// The whole-workflow cost ceiling.
@@ -75,12 +84,21 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
         };
         let model = model_override.or_else(|| default_model.clone());
 
-        let (usd, unbounded_reason) = match max_tokens {
-            None => (None, Some(UnboundedReason::NoTokenLimit)),
-            Some(tokens) => match model.as_deref().and_then(output_price_per_million) {
+        // `for_each` fan-out: a literal list is N calls (known multiplier);
+        // an expression source is an unknown count → unbounded.
+        let iterations = match task.value.for_each.as_ref().map(|f| &f.value) {
+            None => Some(1),
+            Some(ForEachValue::List(arr)) => Some(arr.as_array().map_or(1, Vec::len) as u64),
+            Some(ForEachValue::Expression(_)) => None,
+        };
+
+        let (usd, unbounded_reason) = match (max_tokens, iterations) {
+            (None, _) => (None, Some(UnboundedReason::NoTokenLimit)),
+            (Some(_), None) => (None, Some(UnboundedReason::UnknownIterations)),
+            (Some(tokens), Some(n)) => match model.as_deref().and_then(output_price_per_million) {
                 Some(price) => {
                     #[allow(clippy::cast_precision_loss)]
-                    let cost = (tokens as f64) * price / 1_000_000.0;
+                    let cost = (tokens as f64) * (n as f64) * price / 1_000_000.0;
                     bounded_total_usd += cost;
                     (Some(cost), None)
                 }
@@ -94,6 +112,7 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
             task: task.value.id.value.clone(),
             model,
             max_tokens,
+            iterations: iterations.unwrap_or(0),
             usd,
             unbounded_reason,
         });
@@ -254,5 +273,48 @@ tasks:
             "unknown local model is unpriced, not mispriced"
         );
         assert_eq!(c.tasks[0].unbounded_reason, Some(UnboundedReason::NoPrice));
+    }
+}
+
+#[cfg(test)]
+mod for_each_fanout {
+    use super::*;
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
+
+    fn ceiling_of(yaml: &str) -> CostCeiling {
+        ceiling(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    #[test]
+    fn literal_for_each_multiplies_cost_by_count() {
+        // 5-element literal list = 5× the per-call cost (was a 5× undercount).
+        let single = ceiling_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
+        );
+        let batch = ceiling_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    for_each: [1, 2, 3, 4, 5]\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
+        );
+        assert_eq!(batch.tasks[0].iterations, 5);
+        let one = single.bounded_total_usd;
+        assert!(
+            (batch.bounded_total_usd - one * 5.0).abs() < 1e-9,
+            "5 iterations cost 5× a single call: {} vs {}",
+            batch.bounded_total_usd,
+            one * 5.0
+        );
+    }
+
+    #[test]
+    fn expression_for_each_is_unbounded() {
+        // ${{ vars.items }} source → unknown iteration count → unbounded.
+        let c = ceiling_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { items: \"x\" }\ntasks:\n  - id: t\n    for_each: ${{ vars.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
+        );
+        assert!(c.has_unbounded);
+        assert_eq!(
+            c.tasks[0].unbounded_reason,
+            Some(UnboundedReason::UnknownIterations)
+        );
     }
 }
