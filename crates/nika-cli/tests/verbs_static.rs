@@ -400,3 +400,55 @@ fn new_refuses_an_unknown_template_and_names_the_set() {
         assert!(out.text.contains(&name), "set names {name}");
     }
 }
+
+#[test]
+fn graph_cost_interval_attributes_each_priced_task_to_itself() {
+    // Two priced infer tasks with DIFFERENT token bounds: the projector
+    // must attach each task's own interval (a swapped find would invert
+    // the order — the relative assert is price-change-proof).
+    let priced = r#"
+nika: v1
+workflow: priced-pair
+model: anthropic/claude-sonnet-4-6
+
+tasks:
+  - id: small
+    infer:
+      prompt: "a"
+      max_tokens: 100
+
+  - id: large
+    depends_on: [small]
+    infer:
+      prompt: "b · ${{ tasks.small.output }}"
+      max_tokens: 800
+
+outputs:
+  result: ${{ tasks.large.output }}
+"#;
+    let path = fixture_path("priced.nika.yaml", priced);
+    let out = graph::run(&path, GraphFormat::Json);
+    assert_eq!(out.code, exit::OK, "{}", out.text);
+    let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
+    let interval = |id: &str| -> [f64; 2] {
+        let node = doc["nodes"]
+            .as_array()
+            .expect("nodes")
+            .iter()
+            .find(|n| n["id"] == id)
+            .expect("node");
+        let pair = node["cost_interval"].as_array().expect("priced interval");
+        [
+            pair[0].as_f64().expect("min"),
+            pair[1].as_f64().expect("max"),
+        ]
+    };
+    let small = interval("small");
+    let large = interval("large");
+    assert!(small[1] > 0.0, "priced model yields a real ceiling");
+    assert!(
+        small[1] < large[1],
+        "each task carries ITS OWN bound: small {small:?} vs large {large:?}"
+    );
+    assert!(small[0] <= small[1] && large[0] <= large[1], "min ≤ max");
+}
