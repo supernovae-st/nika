@@ -109,14 +109,20 @@ fn main() -> ExitCode {
         }
     }
 
-    // ── secret leaks ────────────────────────────────────────────────
-    if report.secret_leaks.is_empty() {
-        println!("SECRETS  no masking-boundary escapes");
+    // ── secret leaks + egresses (IFC · ADR-092) ─────────────────────
+    if report.secret_leaks.is_empty() && report.secret_egresses.is_empty() {
+        println!("SECRETS  no information-flow escapes");
     } else {
         for l in &report.secret_leaks {
             println!(
-                "SECRETS  ⚠ `secrets.{}` flows into {} (task `{}`) — captured output can re-emit it",
-                l.secret, l.sink, l.task
+                "SECRETS  ⚠ leak into {} (task `{}`) — {}",
+                l.sink, l.task, l.trace
+            );
+        }
+        for e in &report.secret_egresses {
+            println!(
+                "SECRETS  ⚠ EGRESS via outputs.{} — {} (a secret leaves the run)",
+                e.output, e.trace
             );
         }
     }

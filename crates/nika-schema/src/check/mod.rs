@@ -28,6 +28,7 @@
 //! construction. `check` is read-only and never executes a verb.
 
 mod cost;
+mod flow;
 mod permits_fit;
 mod secrets;
 
@@ -36,8 +37,9 @@ use crate::error::SchemaError;
 use crate::raw::RawWorkflow;
 
 pub use cost::{CostCeiling, TaskCost, UnboundedReason};
+pub use flow::{FlowFacts, TaintTrace};
 pub use permits_fit::CapabilityEscape;
-pub use secrets::SecretLeak;
+pub use secrets::{SecretEgress, SecretLeak};
 
 /// The static pre-flight report — everything `nika check` learns without
 /// running anything.
@@ -49,20 +51,26 @@ pub struct CheckReport {
     pub waves: Vec<Vec<usize>>,
     /// Worst-case cost ceiling across all `infer:`/`agent:` tasks.
     pub cost: CostCeiling,
-    /// Every `secrets.X` that escapes the masking boundary (flows into an
-    /// `exec`/tool whose output is captured).
+    /// Every `secrets.X` that escapes the masking boundary into an
+    /// `exec`/`invoke` effect (directly, via a `with:` alias, or
+    /// transitively through a tainted upstream output · IFC · ADR-092).
     pub secret_leaks: Vec<SecretLeak>,
+    /// Every `secrets.X` that leaves the run as a workflow `outputs:`
+    /// return value (the literal exfiltration · IFC egress · ADR-092).
+    pub secret_egresses: Vec<SecretEgress>,
     /// Every statically-detectable effect outside the declared `permits:`
     /// boundary (empty when no `permits:` block is present).
     pub capability_escapes: Vec<CapabilityEscape>,
 }
 
 impl CheckReport {
-    /// Whether the workflow is clean — no leaks, no capability escapes.
-    /// (Cost-ceiling unknowns are informational, not failures.)
+    /// Whether the workflow is clean — no leaks, no egresses, no capability
+    /// escapes. (Cost-ceiling unknowns are informational, not failures.)
     #[must_use]
     pub fn is_clean(&self) -> bool {
-        self.secret_leaks.is_empty() && self.capability_escapes.is_empty()
+        self.secret_leaks.is_empty()
+            && self.secret_egresses.is_empty()
+            && self.capability_escapes.is_empty()
     }
 }
 
@@ -78,11 +86,14 @@ impl CheckReport {
 /// when the workflow does not pass them.
 pub fn check(wf: &RawWorkflow) -> Result<CheckReport, Vec<SchemaError>> {
     let AnalyzedWorkflow { topo_waves } = analyzer::analyze(wf)?;
+    // One IFC pass over the DAG — the taint fact base both leak reports read.
+    let flow = flow::analyze_flow(wf, &topo_waves);
     Ok(CheckReport {
-        waves: topo_waves,
         cost: cost::ceiling(wf),
-        secret_leaks: secrets::scan_leaks(wf),
+        secret_leaks: secrets::scan_leaks(wf, &flow),
+        secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes: permits_fit::scan_escapes(wf),
+        waves: topo_waves,
     })
 }
 
