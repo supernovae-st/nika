@@ -17,6 +17,7 @@ use std::fmt::Write as _;
 
 use crate::theme::{
     G_BANNER, G_DEP, G_ERR, G_FIX, G_GATED, G_HINT, G_OK, G_PENDING, G_RETRY, G_WARN, Theme,
+    VerbKind,
 };
 
 /// Render the full human report.
@@ -86,6 +87,20 @@ fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
         task_count,
         max_par
     );
+    // self-documenting legend — the colour FAMILY names its governing
+    // gate, so the DAG reads at a glance (and survives colour loss: the
+    // words carry the meaning too).
+    let _ = writeln!(
+        out,
+        "          {}  {} {} {}  ·  {} {} {}",
+        t.dim("○ will-run · ⊘ gated  "),
+        t.verb(VerbKind::Infer, "infer"),
+        t.verb(VerbKind::Agent, "agent"),
+        t.dim("→ cost"),
+        t.verb(VerbKind::Exec, "exec"),
+        t.verb(VerbKind::Invoke, "invoke"),
+        t.dim("→ effect")
+    );
 
     let id_width = wf
         .tasks
@@ -105,7 +120,13 @@ fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
             };
             let id = format!("{:width$}", task.id.value, width = id_width);
             let id = if gated { t.dim(&id) } else { id };
-            let verb = t.dim(&format!("{:6}", verb_name(&task.action)));
+            // the verb in its governing-gate colour (magenta=cost ·
+            // blue=effect) — pad the raw name, THEN paint (ANSI is
+            // zero-width, so the column stays aligned).
+            let verb = match verb_kind(&task.action) {
+                Some(k) => t.verb(k, &format!("{:6}", k.name())),
+                None => t.dim(&format!("{:6}", "?")),
+            };
 
             let mut notes: Vec<String> = Vec::new();
             if let Some(retry) = &task.retry {
@@ -139,15 +160,16 @@ fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     }
 }
 
-fn verb_name(action: &RawAction) -> &'static str {
+/// Map a raw action to its presentation verb-kind. `None` for a future
+/// `#[non_exhaustive]` verb this example has not learnt yet (renders `?`,
+/// never a crash).
+fn verb_kind(action: &RawAction) -> Option<VerbKind> {
     match action {
-        RawAction::Infer(_) => "infer",
-        RawAction::Exec(_) => "exec",
-        RawAction::Invoke(_) => "invoke",
-        RawAction::Agent(_) => "agent",
-        // RawAction is #[non_exhaustive] — a future verb renders blank
-        // until this example learns its name (never a crash).
-        _ => "?",
+        RawAction::Infer(_) => Some(VerbKind::Infer),
+        RawAction::Exec(_) => Some(VerbKind::Exec),
+        RawAction::Invoke(_) => Some(VerbKind::Invoke),
+        RawAction::Agent(_) => Some(VerbKind::Agent),
+        _ => None,
     }
 }
 
