@@ -169,20 +169,76 @@ impl<T> nika_error::traits::AsAny for nika_event::event::Event where T: 'static
 pub fn nika_event::event::Event::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::event::Event where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_event::kind
+#[non_exhaustive] pub enum nika_event::kind::EventClass
+pub nika_event::kind::EventClass::Cost
+pub nika_event::kind::EventClass::Dispatch
+pub nika_event::kind::EventClass::Durability
+pub nika_event::kind::EventClass::Security
+pub nika_event::kind::EventClass::Stream
+pub nika_event::kind::EventClass::Task
+pub nika_event::kind::EventClass::Workflow
+impl core::clone::Clone for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::clone(&self) -> nika_event::kind::EventClass
+impl core::cmp::Eq for nika_event::kind::EventClass
+impl core::cmp::PartialEq for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::eq(&self, other: &nika_event::kind::EventClass) -> bool
+impl core::fmt::Debug for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_event::kind::EventClass
+impl core::marker::StructuralPartialEq for nika_event::kind::EventClass
+impl serde_core::ser::Serialize for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_event::kind::EventClass
+impl<T, U> core::convert::Into<U> for nika_event::kind::EventClass where U: core::convert::From<T>
+pub fn nika_event::kind::EventClass::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::kind::EventClass where U: core::convert::Into<T>
+pub type nika_event::kind::EventClass::Error = core::convert::Infallible
+pub fn nika_event::kind::EventClass::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::kind::EventClass where U: core::convert::TryFrom<T>
+pub type nika_event::kind::EventClass::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::kind::EventClass::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::kind::EventClass where T: core::clone::Clone
+pub type nika_event::kind::EventClass::Owned = T
+pub fn nika_event::kind::EventClass::clone_into(&self, target: &mut T)
+pub fn nika_event::kind::EventClass::to_owned(&self) -> T
+impl<T> core::any::Any for nika_event::kind::EventClass where T: 'static + ?core::marker::Sized
+pub fn nika_event::kind::EventClass::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::kind::EventClass where T: ?core::marker::Sized
+pub fn nika_event::kind::EventClass::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::kind::EventClass where T: ?core::marker::Sized
+pub fn nika_event::kind::EventClass::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::kind::EventClass where T: core::clone::Clone
+pub unsafe fn nika_event::kind::EventClass::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::kind::EventClass where T: 'static
+pub fn nika_event::kind::EventClass::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventClass where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_event::kind::EventKind
 pub nika_event::kind::EventKind::CheckpointWritten
+pub nika_event::kind::EventKind::CostIncurred
+pub nika_event::kind::EventKind::InferChunk
+pub nika_event::kind::EventKind::PermitChecked
+pub nika_event::kind::EventKind::TaskCancelled
 pub nika_event::kind::EventKind::TaskCompleted
 pub nika_event::kind::EventKind::TaskFailed
+pub nika_event::kind::EventKind::TaskRetrying
 pub nika_event::kind::EventKind::TaskScheduled
 pub nika_event::kind::EventKind::TaskSkipped
 pub nika_event::kind::EventKind::TaskStarted
 pub nika_event::kind::EventKind::ToolInvoked
 pub nika_event::kind::EventKind::VerbInvoked
+pub nika_event::kind::EventKind::WorkflowCancelled
 pub nika_event::kind::EventKind::WorkflowCompleted
 pub nika_event::kind::EventKind::WorkflowFailed
 pub nika_event::kind::EventKind::WorkflowStarted
 impl nika_event::kind::EventKind
 pub const fn nika_event::kind::EventKind::as_str(&self) -> &'static str
+pub const fn nika_event::kind::EventKind::class(&self) -> nika_event::kind::EventClass
 pub const fn nika_event::kind::EventKind::is_failure(&self) -> bool
 pub const fn nika_event::kind::EventKind::is_terminal(&self) -> bool
 impl core::clone::Clone for nika_event::kind::EventKind
@@ -231,6 +287,55 @@ impl<T> nika_error::traits::AsAny for nika_event::kind::EventKind where T: 'stat
 pub fn nika_event::kind::EventKind::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventKind where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_event::prelude
+#[non_exhaustive] pub enum nika_event::prelude::EventClass
+pub nika_event::prelude::EventClass::Cost
+pub nika_event::prelude::EventClass::Dispatch
+pub nika_event::prelude::EventClass::Durability
+pub nika_event::prelude::EventClass::Security
+pub nika_event::prelude::EventClass::Stream
+pub nika_event::prelude::EventClass::Task
+pub nika_event::prelude::EventClass::Workflow
+impl core::clone::Clone for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::clone(&self) -> nika_event::kind::EventClass
+impl core::cmp::Eq for nika_event::kind::EventClass
+impl core::cmp::PartialEq for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::eq(&self, other: &nika_event::kind::EventClass) -> bool
+impl core::fmt::Debug for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_event::kind::EventClass
+impl core::marker::StructuralPartialEq for nika_event::kind::EventClass
+impl serde_core::ser::Serialize for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_event::kind::EventClass
+impl<T, U> core::convert::Into<U> for nika_event::kind::EventClass where U: core::convert::From<T>
+pub fn nika_event::kind::EventClass::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::kind::EventClass where U: core::convert::Into<T>
+pub type nika_event::kind::EventClass::Error = core::convert::Infallible
+pub fn nika_event::kind::EventClass::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::kind::EventClass where U: core::convert::TryFrom<T>
+pub type nika_event::kind::EventClass::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::kind::EventClass::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::kind::EventClass where T: core::clone::Clone
+pub type nika_event::kind::EventClass::Owned = T
+pub fn nika_event::kind::EventClass::clone_into(&self, target: &mut T)
+pub fn nika_event::kind::EventClass::to_owned(&self) -> T
+impl<T> core::any::Any for nika_event::kind::EventClass where T: 'static + ?core::marker::Sized
+pub fn nika_event::kind::EventClass::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::kind::EventClass where T: ?core::marker::Sized
+pub fn nika_event::kind::EventClass::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::kind::EventClass where T: ?core::marker::Sized
+pub fn nika_event::kind::EventClass::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::kind::EventClass where T: core::clone::Clone
+pub unsafe fn nika_event::kind::EventClass::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::kind::EventClass where T: 'static
+pub fn nika_event::kind::EventClass::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventClass where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_event::prelude::EventError
 pub nika_event::prelude::EventError::BufferFull
 pub nika_event::prelude::EventError::BufferFull::capacity: usize
@@ -272,18 +377,25 @@ impl<T> nika_error::traits::AsAny for nika_event::error::EventError where T: 'st
 pub fn nika_event::error::EventError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_event::prelude::EventKind
 pub nika_event::prelude::EventKind::CheckpointWritten
+pub nika_event::prelude::EventKind::CostIncurred
+pub nika_event::prelude::EventKind::InferChunk
+pub nika_event::prelude::EventKind::PermitChecked
+pub nika_event::prelude::EventKind::TaskCancelled
 pub nika_event::prelude::EventKind::TaskCompleted
 pub nika_event::prelude::EventKind::TaskFailed
+pub nika_event::prelude::EventKind::TaskRetrying
 pub nika_event::prelude::EventKind::TaskScheduled
 pub nika_event::prelude::EventKind::TaskSkipped
 pub nika_event::prelude::EventKind::TaskStarted
 pub nika_event::prelude::EventKind::ToolInvoked
 pub nika_event::prelude::EventKind::VerbInvoked
+pub nika_event::prelude::EventKind::WorkflowCancelled
 pub nika_event::prelude::EventKind::WorkflowCompleted
 pub nika_event::prelude::EventKind::WorkflowFailed
 pub nika_event::prelude::EventKind::WorkflowStarted
 impl nika_event::kind::EventKind
 pub const fn nika_event::kind::EventKind::as_str(&self) -> &'static str
+pub const fn nika_event::kind::EventKind::class(&self) -> nika_event::kind::EventClass
 pub const fn nika_event::kind::EventKind::is_failure(&self) -> bool
 pub const fn nika_event::kind::EventKind::is_terminal(&self) -> bool
 impl core::clone::Clone for nika_event::kind::EventKind
@@ -455,6 +567,55 @@ impl nika_event::emitter::Emitter for nika_event::emitter::InMemoryEmitter
 pub fn nika_event::emitter::InMemoryEmitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
 impl nika_event::emitter::Emitter for nika_event::emitter::NoOpEmitter
 pub fn nika_event::emitter::NoOpEmitter::emit(&self, _event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+#[non_exhaustive] pub enum nika_event::EventClass
+pub nika_event::EventClass::Cost
+pub nika_event::EventClass::Dispatch
+pub nika_event::EventClass::Durability
+pub nika_event::EventClass::Security
+pub nika_event::EventClass::Stream
+pub nika_event::EventClass::Task
+pub nika_event::EventClass::Workflow
+impl core::clone::Clone for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::clone(&self) -> nika_event::kind::EventClass
+impl core::cmp::Eq for nika_event::kind::EventClass
+impl core::cmp::PartialEq for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::eq(&self, other: &nika_event::kind::EventClass) -> bool
+impl core::fmt::Debug for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_event::kind::EventClass
+impl core::marker::StructuralPartialEq for nika_event::kind::EventClass
+impl serde_core::ser::Serialize for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_event::kind::EventClass
+impl<T, U> core::convert::Into<U> for nika_event::kind::EventClass where U: core::convert::From<T>
+pub fn nika_event::kind::EventClass::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::kind::EventClass where U: core::convert::Into<T>
+pub type nika_event::kind::EventClass::Error = core::convert::Infallible
+pub fn nika_event::kind::EventClass::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::kind::EventClass where U: core::convert::TryFrom<T>
+pub type nika_event::kind::EventClass::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::kind::EventClass::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::kind::EventClass where T: core::clone::Clone
+pub type nika_event::kind::EventClass::Owned = T
+pub fn nika_event::kind::EventClass::clone_into(&self, target: &mut T)
+pub fn nika_event::kind::EventClass::to_owned(&self) -> T
+impl<T> core::any::Any for nika_event::kind::EventClass where T: 'static + ?core::marker::Sized
+pub fn nika_event::kind::EventClass::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::kind::EventClass where T: ?core::marker::Sized
+pub fn nika_event::kind::EventClass::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::kind::EventClass where T: ?core::marker::Sized
+pub fn nika_event::kind::EventClass::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::kind::EventClass where T: core::clone::Clone
+pub unsafe fn nika_event::kind::EventClass::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::kind::EventClass
+pub fn nika_event::kind::EventClass::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::kind::EventClass where T: 'static
+pub fn nika_event::kind::EventClass::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventClass where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_event::EventError
 pub nika_event::EventError::BufferFull
 pub nika_event::EventError::BufferFull::capacity: usize
@@ -496,18 +657,25 @@ impl<T> nika_error::traits::AsAny for nika_event::error::EventError where T: 'st
 pub fn nika_event::error::EventError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_event::EventKind
 pub nika_event::EventKind::CheckpointWritten
+pub nika_event::EventKind::CostIncurred
+pub nika_event::EventKind::InferChunk
+pub nika_event::EventKind::PermitChecked
+pub nika_event::EventKind::TaskCancelled
 pub nika_event::EventKind::TaskCompleted
 pub nika_event::EventKind::TaskFailed
+pub nika_event::EventKind::TaskRetrying
 pub nika_event::EventKind::TaskScheduled
 pub nika_event::EventKind::TaskSkipped
 pub nika_event::EventKind::TaskStarted
 pub nika_event::EventKind::ToolInvoked
 pub nika_event::EventKind::VerbInvoked
+pub nika_event::EventKind::WorkflowCancelled
 pub nika_event::EventKind::WorkflowCompleted
 pub nika_event::EventKind::WorkflowFailed
 pub nika_event::EventKind::WorkflowStarted
 impl nika_event::kind::EventKind
 pub const fn nika_event::kind::EventKind::as_str(&self) -> &'static str
+pub const fn nika_event::kind::EventKind::class(&self) -> nika_event::kind::EventClass
 pub const fn nika_event::kind::EventKind::is_failure(&self) -> bool
 pub const fn nika_event::kind::EventKind::is_terminal(&self) -> bool
 impl core::clone::Clone for nika_event::kind::EventKind
