@@ -65,6 +65,7 @@ impl EagerIndex {
                     index.term_idf(term),
                     params.k1,
                     params.b,
+                    params.delta,
                 );
                 postings
                     .entry(term.clone())

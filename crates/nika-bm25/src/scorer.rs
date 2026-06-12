@@ -45,11 +45,28 @@ pub(crate) fn idf_robertson(n: usize, df: usize) -> f64 {
 /// - `avgdl` · average document length in the corpus
 /// - `idf` · pre-computed term idf
 /// - `k1`/`b` · canonical tunables (1.2 / 0.75)
+/// - `delta` · BM25+ lower-bound smoothing (Lv & Zhai 2011 ·
+///   *Lower-Bounding Term Frequency Normalization* · CIKM; the variant
+///   table in Lù 2024 BM25S · arxiv.org/abs/2407.03618 §2 is the
+///   arXiv-accessible formula source): for a PRESENT term the score
+///   becomes `idf · (saturation + δ)`, so a matching document is
+///   bounded BELOW by `δ·idf` no matter how long it is — fixing the
+///   Okapi pathology where one rare-term hit in a very long document
+///   scores arbitrarily close to a non-matching document. Absent terms
+///   still contribute exactly `0.0` (δ never applies).
 ///
 /// Returns `0.0` if `tf == 0` (term absent) · `avgdl == 0` (empty corpus).
 #[must_use]
 #[inline]
-pub(crate) fn term_score(tf: u32, doc_len: u32, avgdl: f64, idf: f64, k1: f64, b: f64) -> f64 {
+pub(crate) fn term_score(
+    tf: u32,
+    doc_len: u32,
+    avgdl: f64,
+    idf: f64,
+    k1: f64,
+    b: f64,
+    delta: Option<f64>,
+) -> f64 {
     if tf == 0 || avgdl <= 0.0 {
         return 0.0;
     }
@@ -63,7 +80,7 @@ pub(crate) fn term_score(tf: u32, doc_len: u32, avgdl: f64, idf: f64, k1: f64, b
     if denom <= 0.0 {
         return 0.0;
     }
-    idf * numer / denom
+    idf * (numer / denom + delta.unwrap_or(0.0))
 }
 
 #[cfg(test)]
@@ -92,17 +109,17 @@ mod tests {
 
     #[test]
     fn term_score_tf_zero_returns_zero() {
-        assert!((term_score(0, 10, 5.0, 1.5, 1.2, 0.75) - 0.0).abs() < f64::EPSILON);
+        assert!((term_score(0, 10, 5.0, 1.5, 1.2, 0.75, None) - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn term_score_empty_corpus_returns_zero() {
-        assert!((term_score(3, 10, 0.0, 1.5, 1.2, 0.75) - 0.0).abs() < f64::EPSILON);
+        assert!((term_score(3, 10, 0.0, 1.5, 1.2, 0.75, None) - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn term_score_finite() {
-        let s = term_score(2, 8, 6.0, 1.2, 1.2, 0.75);
+        let s = term_score(2, 8, 6.0, 1.2, 1.2, 0.75, None);
         assert!(s.is_finite());
         assert!(s > 0.0);
     }
@@ -112,8 +129,8 @@ mod tests {
         // Doubling tf increases score but less than 2x (saturation).
         let avgdl = 6.0;
         let idf = 1.2;
-        let s1 = term_score(1, 6, avgdl, idf, 1.2, 0.75);
-        let s2 = term_score(2, 6, avgdl, idf, 1.2, 0.75);
+        let s1 = term_score(1, 6, avgdl, idf, 1.2, 0.75, None);
+        let s2 = term_score(2, 6, avgdl, idf, 1.2, 0.75, None);
         assert!(s2 > s1);
         assert!(s2 < 2.0 * s1);
     }
@@ -165,7 +182,7 @@ mod tests {
             avgdl in 0.5f64..1_000_000.0,
             idf in 0.0f64..50.0,
         ) {
-            let s = term_score(tf, doc_len, avgdl, idf, 1.2, 0.75);
+            let s = term_score(tf, doc_len, avgdl, idf, 1.2, 0.75, None);
             proptest::prop_assert!(s.is_finite(), "score {s} not finite");
             proptest::prop_assert!(s >= 0.0, "score {s} negative");
         }
@@ -182,8 +199,8 @@ mod tests {
             avgdl in 0.5f64..100_000.0,
             idf in 0.0f64..50.0,
         ) {
-            let lo = term_score(tf, doc_len, avgdl, idf, 1.2, 0.75);
-            let hi = term_score(tf.saturating_add(bump), doc_len, avgdl, idf, 1.2, 0.75);
+            let lo = term_score(tf, doc_len, avgdl, idf, 1.2, 0.75, None);
+            let hi = term_score(tf.saturating_add(bump), doc_len, avgdl, idf, 1.2, 0.75, None);
             proptest::prop_assert!(hi + 1e-9 >= lo, "score dropped as tf rose: {lo} -> {hi}");
         }
 
@@ -199,9 +216,41 @@ mod tests {
             avgdl in 0.5f64..100_000.0,
             idf in 0.0f64..50.0,
         ) {
-            let short = term_score(tf, short_len, avgdl, idf, 1.2, 0.75);
-            let long = term_score(tf, short_len.saturating_add(extra), avgdl, idf, 1.2, 0.75);
+            let short = term_score(tf, short_len, avgdl, idf, 1.2, 0.75, None);
+            let long = term_score(tf, short_len.saturating_add(extra), avgdl, idf, 1.2, 0.75, None);
             proptest::prop_assert!(long <= short + 1e-9, "longer doc scored higher: {short} -> {long}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod bm25_plus_tests {
+    use super::*;
+
+    #[test]
+    fn delta_lower_bounds_matching_terms_and_never_touches_absent() {
+        let idf = 1.5;
+        let delta = Some(1.0);
+        // absent term: delta NEVER applies — exactly 0.0
+        assert!((term_score(0, 10_000, 5.0, idf, 1.2, 0.75, delta) - 0.0).abs() < f64::EPSILON);
+        // a PRESENT term in a pathologically long document: Okapi decays
+        // toward 0; BM25+ is bounded below by δ·idf
+        let okapi = term_score(1, 1_000_000, 5.0, idf, 1.2, 0.75, None);
+        let plus = term_score(1, 1_000_000, 5.0, idf, 1.2, 0.75, delta);
+        assert!(okapi < 0.01, "okapi decays: {okapi}");
+        assert!(plus >= idf * 1.0, "bm25+ lower bound: {plus}");
+        // and on a normal document, delta adds EXACTLY δ·idf
+        let base = term_score(2, 8, 6.0, idf, 1.2, 0.75, None);
+        let plussed = term_score(2, 8, 6.0, idf, 1.2, 0.75, delta);
+        assert!((plussed - (base + idf)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn none_delta_is_byte_identical_to_okapi() {
+        for (tf, len) in [(1u32, 6u32), (3, 12), (7, 2)] {
+            let a = term_score(tf, len, 6.0, 1.3, 1.2, 0.75, None);
+            let b = term_score(tf, len, 6.0, 1.3, 1.2, 0.75, Some(0.0));
+            assert!((a - b).abs() < f64::EPSILON, "δ=0 ≡ None");
         }
     }
 }

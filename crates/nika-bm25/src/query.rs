@@ -31,7 +31,15 @@ impl BmIndex {
             .map(|term| {
                 let idf = self.term_idf(&term);
                 let term_tf = tf.get(&term).copied().unwrap_or(0);
-                term_score(term_tf, doc_len, avgdl, idf, params.k1, params.b)
+                term_score(
+                    term_tf,
+                    doc_len,
+                    avgdl,
+                    idf,
+                    params.k1,
+                    params.b,
+                    params.delta,
+                )
             })
             .sum();
         Some(total)
@@ -61,7 +69,15 @@ impl BmIndex {
                     .map(|term| {
                         let idf = self.term_idf(term);
                         let term_tf = tf.get(term).copied().unwrap_or(0);
-                        term_score(term_tf, doc_len, avgdl, idf, params.k1, params.b)
+                        term_score(
+                            term_tf,
+                            doc_len,
+                            avgdl,
+                            idf,
+                            params.k1,
+                            params.b,
+                            params.delta,
+                        )
                     })
                     .sum();
                 (id, total)

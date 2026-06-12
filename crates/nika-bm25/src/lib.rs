@@ -59,11 +59,11 @@ pub use tokenize::tokenize as tokenize_text;
 ///
 /// - `k1` controls term-frequency saturation. Typical: 1.2.
 /// - `b` controls length-normalization (`0..=1`). Typical: 0.75.
-/// - `delta` reserved for BM25+ lower-bound smoothing (Lv & Zhai 2011 ·
-///   adds `δ` constant fixing « long doc with one rare-term hit »
-///   under-scoring). `None` = canonical Okapi (current default).
-///   `Some(0.5..=1.0)` activates BM25+ when shipped W4+ (consumer-signal
-///   gated per LOCK-031 · per rust-ml audit 2026-05-12 Q1).
+/// - `delta` · BM25+ lower-bound smoothing (Lv & Zhai 2011 · adds the
+///   `δ` constant fixing « long doc with one rare-term hit »
+///   under-scoring). `None` = canonical Okapi (the default).
+///   `Some(0.5..=1.0)` = BM25+ ACTIVE (consumer-signal received +
+///   wired 2026-06-12 · both the lazy and the eager paths honor it).
 ///
 /// # Score normalization
 ///
@@ -81,8 +81,8 @@ pub struct BmParams {
     pub k1: f64,
     /// Length-normalization tunable in `0..=1` (canonical 0.75).
     pub b: f64,
-    /// BM25+ lower-bound smoothing constant (Lv & Zhai 2011) · reserved
-    /// for W4+ activation · `None` = pure Okapi (current canonical).
+    /// BM25+ lower-bound smoothing constant (Lv & Zhai 2011) ·
+    /// `None` = pure Okapi (canonical default) · `Some(δ)` = BM25+.
     pub delta: Option<f64>,
 }
 
@@ -97,9 +97,8 @@ impl BmParams {
 
     /// Create new BM25+ params with lower-bound smoothing constant.
     ///
-    /// `delta` typical range `0.5..=1.0` per Lv & Zhai 2011. RESERVED
-    /// for W4+ activation · current `BmIndex` ignores this field
-    /// (Okapi formula only · BM25+ wire-up gated on consumer signal).
+    /// `delta` typical range `0.5..=1.0` per Lv & Zhai 2011 — ACTIVE:
+    /// every matching term's score is bounded below by `δ·idf`.
     #[must_use]
     pub const fn with_delta(k1: f64, b: f64, delta: f64) -> Self {
         Self {
