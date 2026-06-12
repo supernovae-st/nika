@@ -23,3 +23,4 @@ AuditSinkError	nika-kernel-core	deferred-with-trigger	Observability range 800-81
 ExprError	nika-schema	wrapped-intermediate	internal CEL-subset parser error · wrapped into SchemaError before crossing the crate boundary · the wrapper carries the code (audit table §50)
 GoDurationError	nika-schema	wrapped-intermediate	internal Go-duration parse error · wrapped into SchemaError before crossing the crate boundary · the wrapper carries the code (audit table §50)
 InferLocalError	nika-infer-local	deferred-with-trigger	WIP sidecar crate (ADR-091) pre-gate-pass · Pattern A NikaErrorCode impl lands at its 12-gate admission · push-train unblock 2026-06-11
+ExtractError	nika-extract	wrapped-intermediate	pure L1.5 transformation error · its ONLY consumer (nika-builtin fetch) flattens every variant onto the spec-form NIKA-BUILTIN-FETCH-001 string at the dispatcher boundary (crate spec §header) · the builtin plane carries the code (audit table)

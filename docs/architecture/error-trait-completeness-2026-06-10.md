@@ -50,6 +50,7 @@ all 25 new constants · `lookup()` + `code_help()` resolve them ·
 | `GoDurationError` · `ExprError` (nika-schema) | internal intermediate errors · wrapped into `SchemaError` before crossing the crate boundary · the wrapper carries the code |
 | `ToolErrorPolicy` · `OnError` · `ErrorCategory` | NOT error types (policy/config enums matching the `*Error` name pattern) |
 | `TestError`/`OtherError` (traits.rs tests) | test fixtures |
+| `ExtractError` (nika-extract) | pure L1.5 transformation error · its only consumer (`nika-builtin` fetch) flattens every variant onto the spec-form `NIKA-BUILTIN-FETCH-001` string at the dispatcher boundary (crate spec) · the builtin plane carries the code |
 
 ## Open follow-ups (deferred-with-trigger)
 

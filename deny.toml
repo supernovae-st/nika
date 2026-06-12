@@ -71,6 +71,7 @@ wrappers = [
   "nika-cli",              # L4 operator surface (WIP seed 2026-06-11): tokio dev-dep for the #[tokio::test] e2e pipeline rehearsal over the async verb crates (zero runtime tokio dep · the lib fold + bin replay are sync)
   "nika-verb-agent",       # L2 verb (s12): tokio dev-dep for #[tokio::test] loop tests over the three mock seams (zero runtime tokio dep · inference + dispatch ride the injected providers)
   "nika-builtin",          # L1.5 (s16): tokio `rt` for spawn_blocking — nika:jq's sync jaq eval runs off the async executor (model-controlled cost · the nika-ocr/a11y pattern) + #[tokio::test] over the mock seams
+  "nika-extract",          # L1.5 (s17): tokio `rt` for spawn_blocking — the HTML/feed parse of a model-fetched body (up to 64 MiB) runs off the async executor (same pattern) + #[tokio::test]
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   # tower-http joined via chromiumoxide's reqwest 0.13 tree (nika-browser M2.5).
   "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",
