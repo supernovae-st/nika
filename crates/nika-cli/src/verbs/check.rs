@@ -218,9 +218,28 @@ fn plan(out: &mut String, report: &CheckReport, t: Theme) {
     }
     let tasks: usize = report.waves.iter().map(Vec::len).sum();
     let max_par = report.waves.iter().map(Vec::len).max().unwrap_or(1);
+    // The wave peak is what the wave scheduler executes; the DAG's exact
+    // width (Dilworth · report.analysis) can exceed it — say so when it
+    // does, with the witness teaching WHICH tasks could run together.
+    let width_note = report
+        .analysis
+        .as_ref()
+        .filter(|a| a.width > max_par)
+        .map(|a| {
+            let mut sample = a.width_witness.clone();
+            sample.truncate(4);
+            let suffix = if a.width_witness.len() > 4 { " · …" } else { "" };
+            format!(
+                " · width {} (the DAG permits {} concurrent · e.g. {}{suffix})",
+                a.width,
+                a.width,
+                sample.join(" · "),
+            )
+        })
+        .unwrap_or_default();
     let _ = writeln!(
         out,
-        " {} {}     {} wave(s) · {tasks} task(s) · max parallelism {max_par}",
+        " {} {}     {} wave(s) · {tasks} task(s) · max parallelism {max_par}{width_note}",
         mark(t, true),
         t.paint(Role::Strong, "PLAN"),
         report.waves.len(),
