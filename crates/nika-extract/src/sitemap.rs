@@ -2,13 +2,35 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! `mode: sitemap` — sitemap.xml `<urlset>` AND `<sitemapindex>` →
-//! array of `{loc, lastmod?}` via a streaming `quick-xml` pass
-//! (namespace-agnostic local names · no DOM build).
+//! array of `{loc, lastmod?, changefreq?, priority?}` via a streaming
+//! `quick-xml` pass (namespace-agnostic local names · no DOM build).
+//!
+//! Field text ACCUMULATES across events: quick-xml 0.40 emits
+//! `&amp;`-class entities as separate [`Event::GeneralRef`] events
+//! BETWEEN `Text` events (and CDATA as `Event::CData`) — an
+//! assign-per-event handler would keep only the last fragment, mangling
+//! every sitemap URL with a query string (review lens 2 · P1 · the
+//! sitemaps.org spec MANDATES entity-escaping).
 
 use quick_xml::Reader;
 use quick_xml::events::Event;
 
 use crate::ExtractError;
+
+/// The per-entry fields captured (the spec's `<url>`/`<sitemap>` children).
+const FIELDS: [(&[u8], &str); 4] = [
+    (b"loc", "loc"),
+    (b"lastmod", "lastmod"),
+    (b"changefreq", "changefreq"),
+    (b"priority", "priority"),
+];
+
+fn field_name(local: &[u8]) -> Option<&'static str> {
+    FIELDS
+        .iter()
+        .find(|(tag, _)| *tag == local)
+        .map(|(_, name)| *name)
+}
 
 pub(crate) fn sitemap(body: &str) -> Result<serde_json::Value, ExtractError> {
     let mut reader = Reader::from_str(body);
@@ -18,8 +40,12 @@ pub(crate) fn sitemap(body: &str) -> Result<serde_json::Value, ExtractError> {
     let mut saw_root = false;
     let mut in_entry = false;
     let mut field: Option<&'static str> = None;
-    let mut loc: Option<String> = None;
-    let mut lastmod: Option<String> = None;
+    let mut buf = String::new();
+    let mut current = serde_json::Map::new();
+
+    let decode_err = |what: &str, e: &dyn std::fmt::Display| ExtractError::Sitemap {
+        reason: format!("{what}: {e}"),
+    };
 
     loop {
         match reader.read_event() {
@@ -27,54 +53,87 @@ pub(crate) fn sitemap(body: &str) -> Result<serde_json::Value, ExtractError> {
                 b"urlset" | b"sitemapindex" => saw_root = true,
                 b"url" | b"sitemap" if saw_root => {
                     in_entry = true;
-                    loc = None;
-                    lastmod = None;
+                    current.clear();
                 }
                 // MUTATION (equivalent · the `in_entry` guard here is
                 // defensive depth, not output-load-bearing): a stray
-                // `<loc>`/`<lastmod>` outside an entry sets `field`, but
-                // the captured value is only ever FLUSHED by the
+                // field outside an entry fills `buf`, but the value is
+                // only ever FLUSHED into an entry by the
                 // `</url>`/`</sitemap>` End arm — which IS `in_entry`-
-                // gated and tested. So dropping these two guards changes
-                // no output; they stay for malformed-XML robustness.
-                b"loc" if in_entry => field = Some("loc"),
-                b"lastmod" if in_entry => field = Some("lastmod"),
+                // gated and tested. Dropping these guards changes no
+                // output; they stay for malformed-XML robustness.
+                local if in_entry && field_name(local).is_some() => {
+                    field = field_name(local);
+                    buf.clear();
+                }
                 _ => {}
             },
+            // The three content-event kinds a field's text arrives as —
+            // ALL append (never assign).
             Ok(Event::Text(t)) => {
-                if let Some(name) = field {
-                    // decode = bytes→str per encoding; unescape = XML
-                    // entities (`&amp;` is common in sitemap URLs).
-                    let decoded = t.decode().map_err(|e| ExtractError::Sitemap {
-                        reason: format!("text decode: {e}"),
-                    })?;
-                    let value = quick_xml::escape::unescape(&decoded)
-                        .map_err(|e| ExtractError::Sitemap {
-                            reason: format!("entity unescape: {e}"),
-                        })?
-                        .trim()
-                        .to_owned();
-                    match name {
-                        "loc" => loc = Some(value),
-                        _ => lastmod = Some(value),
+                if field.is_some() {
+                    buf.push_str(&t.decode().map_err(|e| decode_err("text decode", &e))?);
+                }
+            }
+            Ok(Event::CData(c)) => {
+                if field.is_some() {
+                    let bytes = c.into_inner();
+                    let text =
+                        std::str::from_utf8(&bytes).map_err(|e| decode_err("CDATA decode", &e))?;
+                    buf.push_str(text);
+                }
+            }
+            Ok(Event::GeneralRef(r)) => {
+                if field.is_some() {
+                    if let Some(ch) = r
+                        .resolve_char_ref()
+                        .map_err(|e| decode_err("char reference", &e))?
+                    {
+                        buf.push(ch); // numeric: &#47; &#x2F;
+                    } else {
+                        let name = r.decode().map_err(|e| decode_err("entity decode", &e))?;
+                        if let Some(resolved) = quick_xml::escape::resolve_predefined_entity(&name)
+                        {
+                            buf.push_str(resolved); // amp/lt/gt/quot/apos
+                        } else {
+                            // Sitemaps carry no DTD — an unknown custom
+                            // entity is preserved verbatim (faithful
+                            // over guessy).
+                            buf.push('&');
+                            buf.push_str(&name);
+                            buf.push(';');
+                        }
                     }
                 }
             }
-            Ok(Event::End(el)) => match el.local_name().as_ref() {
-                b"url" | b"sitemap" if in_entry => {
-                    if let Some(loc_value) = loc.take() {
-                        let mut entry = serde_json::Map::new();
-                        entry.insert("loc".to_owned(), loc_value.into());
-                        if let Some(lastmod_value) = lastmod.take() {
-                            entry.insert("lastmod".to_owned(), lastmod_value.into());
+            Ok(Event::End(el)) => {
+                let local = el.local_name();
+                match local.as_ref() {
+                    b"url" | b"sitemap" if in_entry => {
+                        // An entry without a <loc> is dropped (the URL IS
+                        // the entry); extras ride along when present.
+                        if current.contains_key("loc") {
+                            entries.push(serde_json::Value::Object(std::mem::take(&mut current)));
                         }
-                        entries.push(serde_json::Value::Object(entry));
+                        // Malformed `<url><loc>x</url>` hygiene: a field
+                        // left open dies with its entry.
+                        in_entry = false;
+                        field = None;
+                        buf.clear();
                     }
-                    in_entry = false;
+                    local_name => {
+                        // Flush ONLY the matching close — a stray nested
+                        // element inside a field must not steal the flush
+                        // (`<loc>a<b/>c</loc>` keeps accumulating).
+                        if field.is_some() && field_name(local_name) == field {
+                            if let Some(name) = field.take() {
+                                current.insert(name.to_owned(), buf.trim().into());
+                            }
+                            buf.clear();
+                        }
+                    }
                 }
-                b"loc" | b"lastmod" => field = None,
-                _ => {}
-            },
+            }
             Ok(Event::Eof) => break,
             Ok(_) => {}
             Err(e) => {

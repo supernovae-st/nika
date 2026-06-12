@@ -2,14 +2,34 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! `mode: metadata` (head walk · title·description·og·twitter·
-//! canonical·lang) and `mode: links` (every `<a href>` → absolute URL).
+//! `canonical·lang·author·published_time·favicon·alternates`) and
+//! `mode: links` (every `<a href>` → absolute URL).
 //!
 //! Both are TOTAL: malformed HTML yields what the parser salvages
 //! (html5ever error-recovers per the WHATWG spec) — honest emptiness,
-//! never a failure. The selectors are compile-time constants; the
-//! infallible signatures fail SOFT on the impossible parse branch.
+//! never a failure. The static selectors are parsed ONCE
+//! (`LazyLock` — `Selector` is `Send + Sync`); the impossible
+//! parse-failure branch fails SOFT (the selector is skipped).
+
+use std::sync::LazyLock;
 
 use scraper::{Html, Selector};
+
+/// A `LazyLock` over an infallible-by-construction static selector.
+/// The `Option` carries the (unreachable) parse-failure branch without
+/// an `expect` — consumers skip a `None` selector.
+fn parse_static(css: &'static str) -> Option<Selector> {
+    Selector::parse(css).ok()
+}
+
+static TITLE: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static("head > title"));
+static META: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static("meta"));
+static CANONICAL: LazyLock<Option<Selector>> =
+    LazyLock::new(|| parse_static(r#"link[rel="canonical"]"#));
+// `rel~=` is the CSS word-match: catches `icon` AND `shortcut icon`.
+static ICON: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static(r#"link[rel~="icon"]"#));
+static HTML_TAG: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static("html"));
+static ANCHORS: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static("a[href]"));
 
 /// `mode: metadata` — the spec's documented object shape. `og`/`twitter`
 /// are ALWAYS objects (stable shape for jq consumers); scalar keys are
@@ -20,8 +40,8 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
     let mut og = serde_json::Map::new();
     let mut twitter = serde_json::Map::new();
 
-    if let Ok(sel) = Selector::parse("head > title")
-        && let Some(el) = doc.select(&sel).next()
+    if let Some(sel) = TITLE.as_ref()
+        && let Some(el) = doc.select(sel).next()
     {
         let title = el.text().collect::<String>().trim().to_owned();
         if !title.is_empty() {
@@ -29,16 +49,20 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
         }
     }
 
-    if let Ok(sel) = Selector::parse("meta") {
-        for el in doc.select(&sel) {
+    if let Some(sel) = META.as_ref() {
+        for el in doc.select(sel) {
             let Some(content) = el.value().attr("content") else {
                 continue;
             };
-            if let Some(property) = el.value().attr("property")
-                && let Some(key) = property.strip_prefix("og:")
-                && !key.is_empty()
-            {
-                og.entry(key.to_owned()).or_insert_with(|| content.into());
+            if let Some(property) = el.value().attr("property") {
+                if let Some(key) = property.strip_prefix("og:")
+                    && !key.is_empty()
+                {
+                    og.entry(key.to_owned()).or_insert_with(|| content.into());
+                } else if property.eq_ignore_ascii_case("article:published_time") {
+                    out.entry("published_time".to_owned())
+                        .or_insert_with(|| content.into());
+                }
             }
             if let Some(name) = el.value().attr("name") {
                 if let Some(key) = name.strip_prefix("twitter:")
@@ -50,14 +74,17 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
                 } else if name.eq_ignore_ascii_case("description") {
                     out.entry("description".to_owned())
                         .or_insert_with(|| content.into());
+                } else if name.eq_ignore_ascii_case("author") {
+                    out.entry("author".to_owned())
+                        .or_insert_with(|| content.into());
                 }
             }
         }
     }
 
-    if let Ok(sel) = Selector::parse(r#"link[rel="canonical"]"#)
+    if let Some(sel) = CANONICAL.as_ref()
         && let Some(href) = doc
-            .select(&sel)
+            .select(sel)
             .next()
             .and_then(|el| el.value().attr("href"))
         && let Some(resolved) = resolve(href, base)
@@ -65,9 +92,19 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
         out.insert("canonical".to_owned(), resolved.into());
     }
 
-    if let Ok(sel) = Selector::parse("html")
+    if let Some(sel) = ICON.as_ref()
+        && let Some(href) = doc
+            .select(sel)
+            .next()
+            .and_then(|el| el.value().attr("href"))
+        && let Some(resolved) = resolve(href, base)
+    {
+        out.insert("favicon".to_owned(), resolved.into());
+    }
+
+    if let Some(sel) = HTML_TAG.as_ref()
         && let Some(lang) = doc
-            .select(&sel)
+            .select(sel)
             .next()
             .and_then(|el| el.value().attr("lang"))
         && !lang.is_empty()
@@ -89,8 +126,8 @@ pub(crate) fn links(body: &str, base: Option<&str>) -> serde_json::Value {
     let mut seen = std::collections::BTreeSet::new();
     let mut out: Vec<serde_json::Value> = Vec::new();
 
-    if let Ok(sel) = Selector::parse("a[href]") {
-        for el in doc.select(&sel) {
+    if let Some(sel) = ANCHORS.as_ref() {
+        for el in doc.select(sel) {
             let Some(href) = el.value().attr("href") else {
                 continue;
             };

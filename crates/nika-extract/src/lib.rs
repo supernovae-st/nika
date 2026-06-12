@@ -28,11 +28,14 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 mod article;
+mod blocks;
 mod feed;
 mod html;
+pub mod link_header;
 mod metadata;
 mod sitemap;
 
+pub use feed::feed_from_bytes;
 pub use nika_types::extract::{EXTRACT_MODE_NAMES, ExtractMode, UnknownExtractMode};
 
 /// Mode-specific options for [`extract`] (`selector:` for `mode:
@@ -308,6 +311,23 @@ mod tests {
     }
 
     #[test]
+    fn metadata_enrichment_author_published_favicon() {
+        let html = r#"<html lang="fr"><head>
+            <title>T</title>
+            <meta name="author" content="Ada Lovelace">
+            <meta property="article:published_time" content="2026-06-01T10:00:00Z">
+            <link rel="shortcut icon" href="/favicon.ico">
+        </head><body></body></html>"#;
+        let mut opts = ExtractOptions::new();
+        opts.base_url = Some("https://example.com/post");
+        let out = extract(html, ExtractMode::Metadata, &opts).expect("metadata");
+        assert_eq!(out["author"], "Ada Lovelace");
+        assert_eq!(out["published_time"], "2026-06-01T10:00:00Z");
+        // rel~="icon" word-matches `shortcut icon` · resolved vs base.
+        assert_eq!(out["favicon"], "https://example.com/favicon.ico");
+    }
+
+    #[test]
     fn metadata_on_bare_html_yields_stable_shape() {
         let out = run("<html><body><p>x</p></body></html>", ExtractMode::Metadata)
             .expect("metadata is total");
@@ -436,6 +456,59 @@ mod tests {
     }
 
     #[test]
+    fn sitemap_locs_survive_entities_and_cdata() {
+        // sitemaps.org MANDATES entity-escaping — `&` in query strings is
+        // the COMMON case. quick-xml 0.40 emits `&amp;` as a separate
+        // GeneralRef event between two Text events: the handler must
+        // ACCUMULATE, never assign (review lens 2 · P1).
+        let xml = r#"<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://e.com/search?q=rust&amp;page=2&amp;lang=fr</loc></url>
+  <url><loc><![CDATA[https://e.com/cdata?a=1&b=2]]></loc></url>
+  <url><loc>https://e.com/mixed&#47;path</loc></url>
+</urlset>"#;
+        let out = run(xml, ExtractMode::Sitemap).expect("urlset");
+        let entries = out.as_array().expect("array");
+        assert_eq!(
+            entries[0]["loc"], "https://e.com/search?q=rust&page=2&lang=fr",
+            "entity-split text must reassemble: {entries:?}"
+        );
+        assert_eq!(
+            entries[1]["loc"], "https://e.com/cdata?a=1&b=2",
+            "CDATA loc must be captured: {entries:?}"
+        );
+        assert_eq!(
+            entries[2]["loc"], "https://e.com/mixed/path",
+            "numeric char refs resolve: {entries:?}"
+        );
+    }
+
+    #[test]
+    fn sitemap_carries_changefreq_and_priority() {
+        let xml = r#"<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://e.com/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+</urlset>"#;
+        let out = run(xml, ExtractMode::Sitemap).expect("urlset");
+        assert_eq!(out[0]["loc"], "https://e.com/");
+        assert_eq!(out[0]["changefreq"], "daily");
+        assert_eq!(out[0]["priority"], "0.8");
+    }
+
+    #[test]
+    fn feed_items_carry_id_and_categories() {
+        let rss = r#"<?xml version="1.0"?>
+<rss version="2.0"><channel><title>F</title>
+  <item><title>P</title><guid>post-guid-1</guid>
+    <category>rust</category><category>web</category></item>
+</channel></rss>"#;
+        let out = run(rss, ExtractMode::Feed).expect("rss");
+        assert_eq!(out["items"][0]["id"], "post-guid-1");
+        assert_eq!(
+            out["items"][0]["categories"],
+            serde_json::json!(["rust", "web"])
+        );
+    }
+
+    #[test]
     fn sitemap_ignores_entries_outside_the_root_and_text_after_loc_close() {
         // An entry BEFORE the root element does not count (the
         // `saw_root` guard); junk text after `</loc>` must not
@@ -461,6 +534,34 @@ mod tests {
     }
 
     // ─── article ─────────────────────────────────────────────────────
+
+    #[test]
+    fn article_falls_back_to_boilerpipe_on_div_soup() {
+        // No <p>, no semantic classes, prose drowning in link rows —
+        // the readability stage starves here; the shallow-feature
+        // fallback (Boilerpipe Alg. 2 · WSDM'10) recovers the prose.
+        let prose = "This page hides genuinely long running prose inside an \
+                     anonymous division with no paragraph markup whatsoever, \
+                     which is exactly the structural shape where class-signal \
+                     and paragraph-based extractors traditionally starve and \
+                     return nothing of substance at all. The shallow text \
+                     features still see a long low-link-density block here.";
+        let html = format!(
+            r#"<html><body>
+            <div><a href="/1">Home</a> <a href="/2">Shop</a> <a href="/3">Blog</a></div>
+            <div>{prose}</div>
+            <div>{prose}</div>
+            <div><a href="/l">Legal</a> <a href="/p">Privacy</a></div>
+            </body></html>"#
+        );
+        let out = run(&html, ExtractMode::Article).expect("article never dies on div soup");
+        let md = out.as_str().expect("string");
+        assert!(
+            md.contains("genuinely long running prose"),
+            "prose recovered: {md}"
+        );
+        assert!(!md.contains("Privacy"), "link rows stay dead: {md}");
+    }
 
     #[test]
     fn article_extracts_the_main_body_as_markdown() {

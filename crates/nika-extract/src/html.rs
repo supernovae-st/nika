@@ -122,20 +122,46 @@ fn tidy_text(raw: &str) -> String {
     while lines.last().is_some_and(String::is_empty) {
         lines.pop();
     }
-    while lines.first().is_some_and(String::is_empty) {
-        lines.remove(0);
-    }
+    // Leading blanks: one drain, not remove(0)-per-line (the collapse
+    // bounds it to ≤1 anyway — this keeps the shape O(n) by inspection).
+    let lead = lines
+        .iter()
+        .position(|l| !l.is_empty())
+        .unwrap_or(lines.len());
+    lines.drain(..lead);
     lines.join("\n")
 }
 
+/// Output ceiling for `mode: selector`: NESTED matches each serialize
+/// their full subtree, so N nested hits cost Σ(subtree sizes) ≈ O(N²)
+/// bytes — a 1 MiB hostile page of deeply nested `<div>`s against the
+/// ordinary selector `div` would otherwise allocate gigabytes (review
+/// lens 2 · P1). 64 MiB mirrors the transport's response cap.
+const SELECTOR_OUTPUT_CEILING: usize = 64 * 1024 * 1024;
+
 /// `mode: selector` — raw HTML of every match, concatenated (spec: "if
-/// multiple match · concatenated").
+/// multiple match · concatenated") under [`SELECTOR_OUTPUT_CEILING`].
 pub(crate) fn selector(body: &str, sel: &str) -> Result<serde_json::Value, ExtractError> {
     let parsed = Selector::parse(sel).map_err(|e| ExtractError::Selector {
         selector: sel.to_owned(),
         reason: e.to_string(),
     })?;
     let doc = Html::parse_document(body);
-    let html: Vec<String> = doc.select(&parsed).map(|el| el.html()).collect();
-    Ok(serde_json::Value::String(html.join("\n")))
+    let mut out = String::new();
+    for el in doc.select(&parsed) {
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str(&el.html());
+        if out.len() > SELECTOR_OUTPUT_CEILING {
+            return Err(ExtractError::Html {
+                mode: ExtractMode::Selector,
+                reason: format!(
+                    "selector output exceeds the {SELECTOR_OUTPUT_CEILING}-byte ceiling \
+                     (nested matches each serialize their whole subtree — narrow the selector)"
+                ),
+            });
+        }
+    }
+    Ok(serde_json::Value::String(out))
 }
