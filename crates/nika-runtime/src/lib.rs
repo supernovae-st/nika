@@ -273,6 +273,9 @@ where
             return Err(RuntimeError::DirtyReport);
         }
         let (vars, workflow_name) = envelope_values(wf);
+        // The declared capability boundary (spec 01 §permits) flows to every
+        // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
+        let permits = wf.permits.as_ref().map(|spanned| &spanned.value);
         emit_prologue(wf, &workflow_name, stamper, sink);
 
         let mut records: BTreeMap<String, TaskRecord> = BTreeMap::new();
@@ -300,7 +303,7 @@ where
             let finishes: Vec<Finish> = futures_util::stream::iter(
                 members
                     .iter()
-                    .map(|&task| self.run_task_pipeline(task, &records, &vars)),
+                    .map(|&task| self.run_task_pipeline(task, &records, &vars, permits)),
             )
             .buffered(cap)
             .collect()

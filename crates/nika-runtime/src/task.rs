@@ -22,7 +22,7 @@ use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::{ForEachValue, RawAction, RawFinallyTask, RawTask};
-use nika_schema::types::{OnError, OnErrorAction, WhenGate};
+use nika_schema::types::{OnError, OnErrorAction, Permits, WhenGate};
 use serde_json::Value;
 
 use crate::Runtime;
@@ -135,6 +135,7 @@ where
         task: &RawTask,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
+        permits: Option<&Permits>,
     ) -> Finish {
         let id = task.id.value.clone();
         let gate_scope = Scope::workflow(records, vars);
@@ -180,8 +181,11 @@ where
 
         // ── `for_each:` fan-out or the single lane ──────────────────
         let settle = match task.for_each.as_ref() {
-            None => self.run_single(task, records, vars).await,
-            Some(spanned) => self.run_fan_out(task, &spanned.value, records, vars).await,
+            None => self.run_single(task, records, vars, permits).await,
+            Some(spanned) => {
+                self.run_fan_out(task, &spanned.value, records, vars, permits)
+                    .await
+            }
         };
         Finish { id, settle }
     }
@@ -192,6 +196,7 @@ where
         task: &RawTask,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
+        permits: Option<&Permits>,
     ) -> SettleAs {
         // `with:` renders ONCE here (per-iteration in the fan-out lane).
         let with_ns = match render_with(task, records, vars, None, None) {
@@ -209,6 +214,7 @@ where
             with_ns: Some(&with_ns),
             item: None,
             index: None,
+            permits,
         };
         let started = self.clock.now();
         let mut ran = self.attempt_loop(task, &scope).await;
@@ -226,6 +232,7 @@ where
         collection: &ForEachValue,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
+        permits: Option<&Permits>,
     ) -> SettleAs {
         let scope = Scope::workflow(records, vars);
         let items = match resolve_collection(collection, &scope) {
@@ -251,13 +258,11 @@ where
         // Iterations dispatch concurrently (cap = `max_parallel`) ·
         // settle in INPUT order (the same ordered-settlement law as
         // waves · positions stay aligned · spec 03 §null-at-index).
-        let mut stream = futures_util::stream::iter(
-            items
-                .iter()
-                .enumerate()
-                .map(|(index, item)| self.run_iteration(task, records, vars, item, index)),
-        )
-        .buffered(cap);
+        let mut stream =
+            futures_util::stream::iter(items.iter().enumerate().map(|(index, item)| {
+                self.run_iteration(task, records, vars, item, index, permits)
+            }))
+            .buffered(cap);
 
         let mut outputs: Vec<Value> = Vec::with_capacity(total);
         let mut retries: Vec<RetryStamp> = Vec::new();
@@ -328,6 +333,7 @@ where
         vars: &BTreeMap<String, Value>,
         item: &Value,
         index: usize,
+        permits: Option<&Permits>,
     ) -> RanTask {
         let with_ns = match render_with(task, records, vars, Some(item), Some(index)) {
             Ok(ns) => ns,
@@ -349,6 +355,7 @@ where
             with_ns: Some(&with_ns),
             item: Some(item),
             index: Some(index),
+            permits,
         };
         let mut ran = self.attempt_loop(task, &scope).await;
         // Stamp the lane: without it a 2-iteration fan-out and a retried
@@ -484,6 +491,7 @@ where
             with_ns: scope.with_ns,
             item: None, // locals out of scope after the fan-out (spec 03)
             index: None,
+            permits: scope.permits, // on_finally exec stays within the boundary
         };
         for mini in &task.on_finally {
             self.run_one_cleanup(&mini.value, &cleanup_scope).await;
@@ -688,6 +696,7 @@ fn render_with(
         with_ns: None,
         item,
         index,
+        permits: None, // `with:` rendering performs no effect (no exec sink)
     };
     task.with
         .iter()

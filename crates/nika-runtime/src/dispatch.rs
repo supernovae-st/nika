@@ -87,6 +87,20 @@ impl Dispatched {
             }),
         }
     }
+
+    /// An effect refused by the declared `permits:` capability boundary
+    /// (spec 01 §permits · `NIKA-SEC-004`). A security boundary is never
+    /// retryable, and (for `agent:` loops) never fed back to the model.
+    fn security_err(note: &str, reason: impl Into<String>) -> Self {
+        Self {
+            note: note.to_owned(),
+            result: Err(TaskErrorRecord {
+                code: "NIKA-SEC-004".to_owned(),
+                message: reason.into(),
+                transient: false,
+            }),
+        }
+    }
 }
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
@@ -182,6 +196,46 @@ where
             }
         };
         let note = format!("exec · {program}");
+
+        // Capability boundary (spec 01 §permits · NIKA-SEC-004): once a
+        // workflow declares `permits`, the exec sink enforces it — matching
+        // the static `nika check` (permits_fit) so a workflow that passes the
+        // check never fails HERE for a different reason. The program allowlist
+        // governs the resolved leading token (`argv[0]`, or the first word of
+        // a shell line) — the same `program` permits_fit verifies statically.
+        // No declared permits = today's behavior (the runner blocklist floor
+        // is the only gate). Richer/operator policy is nika-policy's job (s8).
+        if let Some(permits) = scope.permits {
+            use nika_schema::types::ExecPermit;
+            match &permits.exec {
+                // Omitted or `false` → this workflow runs zero processes.
+                None | Some(ExecPermit::No) => {
+                    return Dispatched::security_err(
+                        &note,
+                        "exec is not permitted by the workflow `permits` boundary",
+                    );
+                }
+                // `true` → any process (still blocklist-gated at the floor).
+                Some(ExecPermit::Any) => {}
+                // A program allowlist → the resolved program must be listed.
+                Some(ExecPermit::Programs(allowed)) => {
+                    if !allowed.iter().any(|p| p == &program) {
+                        return Dispatched::security_err(
+                            &note,
+                            format!("program {program:?} is not in the `permits.exec` allowlist"),
+                        );
+                    }
+                }
+                // #[non_exhaustive] · a future permit form fails CLOSED.
+                Some(_) => {
+                    return Dispatched::security_err(
+                        &note,
+                        "exec permit form not understood by this engine version",
+                    );
+                }
+            }
+        }
+
         match self.shell.run(input).await {
             Ok(out) => {
                 let text = match out.output {

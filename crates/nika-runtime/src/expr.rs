@@ -20,6 +20,7 @@
 
 use std::collections::BTreeMap;
 
+use nika_schema::types::Permits;
 use serde_json::Value;
 
 use crate::errors::RuntimeError;
@@ -38,10 +39,15 @@ pub(crate) struct Scope<'a> {
     pub item: Option<&'a Value>,
     /// Zero-based position of `item` (spec 03 §`for_each`).
     pub index: Option<usize>,
+    /// `permits:` — the workflow's declared capability boundary (spec 01
+    /// §permits). `None` = no boundary declared (today's behavior · the
+    /// effect floors apply). Set on the task-dispatch scopes so the exec
+    /// sink can enforce `permits.exec` (NIKA-SEC-004); `None` elsewhere.
+    pub permits: Option<&'a Permits>,
 }
 
 impl<'a> Scope<'a> {
-    /// A workflow-level scope (no task-local namespaces).
+    /// A workflow-level scope (no task-local namespaces · no permits).
     pub(crate) fn workflow(
         records: &'a BTreeMap<String, TaskRecord>,
         vars: &'a BTreeMap<String, Value>,
@@ -52,6 +58,7 @@ impl<'a> Scope<'a> {
             with_ns: None,
             item: None,
             index: None,
+            permits: None,
         }
     }
 
@@ -401,6 +408,7 @@ mod tests {
             with_ns: Some(&with_ns),
             item: Some(&item),
             index: Some(3),
+            permits: None,
         };
         assert_eq!(
             render("${{ with.page }}/${{ item }}@${{ index }}", &scope).expect("renders"),
