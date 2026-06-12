@@ -16,6 +16,7 @@ nika-types  = { path = "../nika-types", version = "0.80.0" }  # Timestamp · Key
 nika-schema = { path = "../nika-schema", version = "0.80.0" } # parse + the ADR-092 check ladder (check · inspect · graph)
 nika-error  = { path = "../nika-error", version = "0.80.0" }  # the code registry (`nika explain`)
 nika-pack   = { path = "../nika-pack", version = "0.80.0" }   # the embedded language pack (`nika spec|schema|examples|new`)
+nika-bm25   = { path = "../nika-bm25", version = "0.80.0" }   # intent→template routing (`nika new` · the deterministic floor)
 clap        = { workspace = true }                             # verb tree (completions + man derive later)
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
 serde       = { workspace = true }                             # graph projection envelope (§6)
