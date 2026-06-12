@@ -456,10 +456,16 @@ fn cert(out: &mut String, report: &CheckReport, t: Theme) {
     let c = &report.certificate;
     let _ = writeln!(
         out,
-        " {} {}     {} {} {} {} {} {}",
+        " {} {}     {} {} {} {} {} {} {}",
         t.ok(t.glyph(Glyph::Ok)),
         t.bold("CERT"),
         t.dim("terminates"),
+        t.dim(&format!(
+            "{} span {} {}",
+            t.middot(),
+            t.leq(),
+            c.span_attempts
+        )),
         t.dim(t.middot()),
         bound_text(&c.task_attempts, "task-attempts", t),
         t.dim(t.middot()),
@@ -604,7 +610,7 @@ mod tests {
             " ✔ TYPES    every deep output reference fits its declared shape\n",
             " ✔ PERMITS  body fits the declared boundary\n",
             " ✔ REACH    every when: gate is satisfiable\n",
-            " ✔ CERT     terminates · ≤ 2 task-attempts · 0 LLM calls · ≤ 2 effect calls · $0 spend\n",
+            " ✔ CERT     terminates · span ≤ 2 · ≤ 2 task-attempts · 0 LLM calls · ≤ 2 effect calls · $0 spend\n",
             "──────────────────────────────────────────────\n",
             " ✔ clean — audited before a single token was spent\n",
         );
@@ -628,7 +634,7 @@ mod tests {
             " ok TYPES    every deep output reference fits its declared shape\n",
             " ok PERMITS  body fits the declared boundary\n",
             " ok REACH    every when: gate is satisfiable\n",
-            " ok CERT     terminates - <= 2 task-attempts - 0 LLM calls - <= 2 effect calls - $0 spend\n",
+            " ok CERT     terminates - span <= 2 - <= 2 task-attempts - 0 LLM calls - <= 2 effect calls - $0 spend\n",
             "----------------------------------------------\n",
             " ok clean -- audited before a single token was spent\n",
         );

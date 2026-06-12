@@ -118,6 +118,15 @@ pub struct RunCertificate {
     /// `None` when any spender is unpriceable (no token bound · no
     /// catalog price — the COST report names which and why).
     pub usd_micros: Option<Bound>,
+    /// The SPAN bound — the longest chain of sequential dependencies,
+    /// in task-attempts (Tassarotti 2017 *Probabilistic Recurrence
+    /// Relations for Work and Span of Parallel Algorithms* ·
+    /// arxiv.org/abs/1704.02061 formalizes the work/span model; the
+    /// lineage is Brent 1974). Retries are SEQUENTIAL (they extend the
+    /// span); `for_each` fan-out is element-parallel (it extends WORK,
+    /// never span). With `task_attempts` this gives the Brent envelope:
+    /// the run's parallelism is work/span.
+    pub span_attempts: u64,
     /// The WITNESS: per-task contribution rows. The bounds above are
     /// derived from these rows by ONE shared fold — and
     /// [`RunCertificate::audit`] re-derives + compares, so a foreign
@@ -154,6 +163,7 @@ impl RunCertificate {
             || refolded.llm_calls != self.llm_calls
             || refolded.effect_calls != self.effect_calls
             || refolded.usd_micros != self.usd_micros
+            || refolded.span_attempts != self.span_attempts
         {
             return Err("the claimed bounds do not match the derivation".into());
         }
@@ -166,6 +176,10 @@ fn check_row(t: &crate::raw::RawTask, row: &TaskContribution) -> Result<(), Stri
     let id = t.id.value.as_str();
     if row.task != id {
         return Err(format!("row names `{}` but the task is `{id}`", row.task));
+    }
+    let deps: Vec<String> = t.depends_on.iter().map(|d| d.value.clone()).collect();
+    if row.deps != deps {
+        return Err(format!("`{id}`: dependency list mismatch"));
     }
     let attempts = t
         .retry
@@ -218,6 +232,9 @@ pub enum FanOut {
 pub struct TaskContribution {
     /// The task id.
     pub task: String,
+    /// The task's dependencies (by id) — the DAG edges the span bound
+    /// re-folds over (witness-complete: `audit` re-checks them).
+    pub deps: Vec<String>,
     /// `retry: max_attempts` (1 when absent).
     pub attempts: u64,
     /// The fan-out shape.
@@ -339,6 +356,7 @@ fn contribution(t: &crate::raw::RawTask, default_model: Option<&str>) -> TaskCon
     }
     TaskContribution {
         task: t.id.value.clone(),
+        deps: t.depends_on.iter().map(|d| d.value.clone()).collect(),
         attempts,
         fanout,
         main_llm,
@@ -384,7 +402,62 @@ fn fold_rows(rows: &[TaskContribution]) -> RunCertificate {
         }
     }
     cert.usd_micros = spend;
+    cert.span_attempts = span_of_rows(rows);
     cert
+}
+
+/// The span — longest dependency chain in attempts, computed FROM the
+/// witness rows (the same one-source law as the other bounds: `audit`
+/// re-runs this exact fold). Iterative DFS with memo; an unknown dep
+/// id contributes 0 (conformance owns that error) and a cycle is cut
+/// at the visiting mark (a cyclic workflow never runs — span is
+/// garbage-in there, and conformance flags it first).
+fn span_of_rows(rows: &[TaskContribution]) -> u64 {
+    use std::collections::BTreeMap;
+    let index: BTreeMap<&str, usize> = rows
+        .iter()
+        .enumerate()
+        .map(|(i, r)| (r.task.as_str(), i))
+        .collect();
+    let mut memo: Vec<Option<u64>> = vec![None; rows.len()];
+    let mut visiting: Vec<bool> = vec![false; rows.len()];
+    let mut best = 0u64;
+    for start in 0..rows.len() {
+        // explicit stack: (node, next-dep-cursor)
+        let mut stack: Vec<(usize, usize)> = vec![(start, 0)];
+        while let Some(&mut (node, ref mut cursor)) = stack.last_mut() {
+            if memo[node].is_some() {
+                stack.pop();
+                continue;
+            }
+            visiting[node] = true;
+            let deps = &rows[node].deps;
+            if *cursor < deps.len() {
+                let dep = deps[*cursor].as_str();
+                *cursor += 1;
+                if let Some(&d) = index.get(dep)
+                    && memo[d].is_none()
+                    && !visiting[d]
+                {
+                    stack.push((d, 0));
+                }
+                continue;
+            }
+            let longest_dep = deps
+                .iter()
+                .filter_map(|d| index.get(d.as_str()))
+                .filter_map(|&d| memo[d])
+                .max()
+                .unwrap_or(0);
+            memo[node] = Some(rows[node].attempts.saturating_add(longest_dep));
+            visiting[node] = false;
+            stack.pop();
+        }
+        if let Some(v) = memo[start] {
+            best = best.max(v);
+        }
+    }
+    best
 }
 
 /// Fold `coeff` occurrences through the fan-out multiplier.
@@ -571,6 +644,52 @@ mod tests {
     }
 
     #[test]
+    fn span_is_the_longest_dependency_chain_in_attempts() {
+        // chain a→b→c with retries: span = 1 + 3 + 2 = 6 = work
+        let chain = cert(&wf(
+            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    retry: { max_attempts: 3 }\n    exec: { command: \"true\" }\n  - id: c\n    depends_on: [b]\n    retry: { max_attempts: 2 }\n    exec: { command: \"true\" }\n",
+        ));
+        assert_eq!(chain.span_attempts, 6);
+        assert_eq!(chain.task_attempts, konst(6), "a pure chain: span == work");
+
+        // diamond a→{b,c}→d: span = longest branch (1+3+1), work = sum
+        let diamond = cert(&wf(
+            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    retry: { max_attempts: 3 }\n    exec: { command: \"true\" }\n  - id: c\n    depends_on: [a]\n    exec: { command: \"true\" }\n  - id: d\n    depends_on: [b, c]\n    exec: { command: \"true\" }\n",
+        ));
+        assert_eq!(diamond.span_attempts, 5, "longest branch: 1+3+1");
+        assert_eq!(diamond.task_attempts, konst(6), "work: 1+3+1+1");
+    }
+
+    #[test]
+    fn fanout_extends_work_never_span() {
+        // a for_each over 4 elements: work ×4, span unchanged (the
+        // elements run in parallel — Brent: parallelism = work/span)
+        let c = cert(&wf(
+            "  - id: a\n    exec: { command: \"true\" }\n  - id: fan\n    depends_on: [a]\n    for_each: [\"w\", \"x\", \"y\", \"z\"]\n    exec: { command: \"true\" }\n",
+        ));
+        assert_eq!(c.task_attempts, konst(5), "work: 1 + 4");
+        assert_eq!(c.span_attempts, 2, "span: 1 + 1 (elements parallel)");
+    }
+
+    #[test]
+    fn audit_catches_span_and_dep_tampering() {
+        let yaml = wf(
+            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"true\" }\n",
+        );
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let honest = certify(&parsed);
+        assert!(honest.audit(&parsed).is_ok());
+        // tamper the claimed span
+        let mut spanned = honest.clone();
+        spanned.span_attempts = 1;
+        assert!(spanned.audit(&parsed).is_err());
+        // tamper a witness dep list
+        let mut cut = honest;
+        cut.derivation[1].deps.clear();
+        assert!(cut.audit(&parsed).is_err_and(|e| e.contains("dependency")));
+    }
+
+    #[test]
     fn the_wire_shape_is_pinned() {
         let c = cert(&wf(
             "  - id: fan\n    for_each: ${{ vars.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 5 }\n",
@@ -585,9 +704,11 @@ mod tests {
                 // 5 tokens × the catalog output price ($15/M) = 75 µ$ —
                 // the PARAMETRIC spend the cost ceiling cannot express
                 "usd_micros": { "constant": 0, "terms": [{ "task": "fan", "coeff": 75 }] },
+                // span: one task · one attempt (fan-out is element-parallel)
+                "span_attempts": 1,
                 // the WITNESS row — what audit() re-checks
                 "derivation": [{
-                    "task": "fan", "attempts": 1, "fanout": "collection",
+                    "task": "fan", "deps": [], "attempts": 1, "fanout": "collection",
                     "main_llm": 1, "main_effect": 0, "main_spend_micros": 75,
                     "finally_llm": 0, "finally_effect": 0, "finally_spend_micros": 0,
                 }],
