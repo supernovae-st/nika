@@ -38,6 +38,11 @@ static JSONLD: LazyLock<Option<Selector>> =
 /// (`Product` · `BreadcrumbList` · `Organization`). Bounds the output.
 const MAX_JSONLD_BLOCKS: usize = 32;
 
+/// Cap on JSON-LD blocks ATTEMPTED (parsed) — bounds the work when a
+/// hostile page floods malformed `ld+json` scripts (each parse is
+/// already body-cap-bounded; this bounds their COUNT).
+const MAX_JSONLD_ATTEMPTS: usize = 256;
+
 /// `mode: metadata` — the spec's documented object shape. `og`/`twitter`
 /// are ALWAYS objects (stable shape for jq consumers); scalar keys are
 /// omitted when absent (JSON absence over null).
@@ -129,6 +134,12 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
     if let Some(sel) = JSONLD.as_ref() {
         let blocks: Vec<serde_json::Value> = doc
             .select(sel)
+            // ATTEMPT cap before the VALID cap: `take(MAX_JSONLD_BLOCKS)`
+            // alone would parse every block until 32 succeed — a page of
+            // 10 000 malformed ld+json scripts would parse all 10 000.
+            // Bound the parse attempts first (a real page has 1–3 blocks;
+            // the attempt window is generous but finite).
+            .take(MAX_JSONLD_ATTEMPTS)
             .filter_map(|el| {
                 let raw = el.text().collect::<String>();
                 serde_json::from_str::<serde_json::Value>(raw.trim()).ok()

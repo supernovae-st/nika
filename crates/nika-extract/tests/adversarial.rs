@@ -86,6 +86,179 @@ fn void_element_flood_is_accepted_not_rejected() {
     );
 }
 
+/// Markup-like content inside a COMMENT is text, not nesting — a legit
+/// page with a big commented-out template must NOT be falsely rejected
+/// (the depth guard skips `<!-- … -->` wholesale).
+#[test]
+fn markup_inside_comment_is_not_counted() {
+    let body = format!(
+        "<html><body><!-- {} --><p>real</p></body></html>",
+        "<div>".repeat(50_000)
+    );
+    assert!(
+        run(&body, ExtractMode::Text).is_ok(),
+        "50k <div> inside a comment is text, not depth"
+    );
+}
+
+/// Markup-like strings inside `<script>`/`<style>` (JSON-LD, hydration
+/// data, CSS combinators, JS template literals) are RAWTEXT, never
+/// nested elements — must NOT trip the depth guard.
+#[test]
+fn markup_inside_script_and_style_is_not_counted() {
+    let script = format!(
+        "<html><head><script>var x = `{}`;</script></head><body><p>real</p></body></html>",
+        "<div>".repeat(50_000)
+    );
+    assert!(
+        run(&script, ExtractMode::Text).is_ok(),
+        "50k <div> inside <script> is rawtext"
+    );
+    let style = format!(
+        "<html><head><style>{}</style></head><body><p>x</p></body></html>",
+        "a > b { color: red } ".repeat(20_000)
+    );
+    assert!(
+        run(&style, ExtractMode::Text).is_ok(),
+        "CSS `>` combinators inside <style> are rawtext"
+    );
+    // …but a REAL deep tree AFTER a script still gets caught (the skip
+    // doesn't swallow past the matching close tag).
+    let mixed = format!(
+        "<html><body><script>x</script>{}deep</body></html>",
+        "<div>".repeat(50_000)
+    );
+    assert!(
+        run(&mixed, ExtractMode::Text).is_err(),
+        "real nesting after a script is still rejected"
+    );
+}
+
+/// THE rawtext-bypass P0 (verified 2026-06-12, rust-pro swarm). A naive
+/// close-counting byte scan pops on the `</div>` INSIDE the `<script>` —
+/// so `<div><script></div></script>` nets to depth 0 and the scan stays
+/// flat forever, waving an unbounded document through to htmd's recursive
+/// rcdom `Drop` (SIGABRT at ~56 KiB). The real parser treats that
+/// `</div>` as script text and nests +1 per unit. The guard MUST see the
+/// same: jump from `<script>` to its matching `</script>`, never counting
+/// the inner close — so the document is rejected at the cap, FAST.
+#[test]
+fn rawtext_close_tag_bypass_is_rejected() {
+    let exploit = "<div><script></div></script>".repeat(50_000);
+    let started = std::time::Instant::now();
+    assert!(
+        run(&exploit, ExtractMode::Markdown).is_err(),
+        "<div><script></div></script>×N must be rejected — the inner \
+         </div> is script text, the <div> really nests"
+    );
+    assert!(
+        started.elapsed().as_millis() < 500,
+        "guard must early-exit on the rawtext bypass, took {:?}",
+        started.elapsed()
+    );
+}
+
+/// A bare `<plaintext>` makes the REST of the document text — no markup
+/// after it ever nests. 50 000 `<div>` following a `<plaintext>` is flat
+/// (the parser would never build a tree from them), so it must be
+/// ACCEPTED, not falsely rejected.
+#[test]
+fn plaintext_makes_rest_text_not_depth() {
+    let body = format!("<html><body><plaintext>{}", "<div>".repeat(50_000));
+    assert!(
+        run(&body, ExtractMode::Text).is_ok(),
+        "markup after <plaintext> is text, not depth"
+    );
+}
+
+/// An abrupt-closing empty comment `<!-->` ends IMMEDIATELY (HTML5). A
+/// guard that scanned for a full `-->` would swallow everything after it
+/// to EOF and UNDER-count — so `<!-->` then 50 000 real `<div>` must
+/// still be REJECTED (the deep tree after the comment is seen).
+#[test]
+fn abrupt_comment_does_not_swallow_following_markup() {
+    let body = format!("<!-->{}deep", "<div>".repeat(50_000));
+    assert!(
+        run(&body, ExtractMode::Markdown).is_err(),
+        "<!--> ends at once; the <div>×50000 after it must be caught"
+    );
+}
+
+/// THE foreign-content P0 (verified 2026-06-12, rust-security swarm).
+/// Whether an element is RAWTEXT is CONTEXT-dependent, not name-dependent:
+/// inside SVG/MathML foreign content NONE of the rawtext names tokenize as
+/// text — they NEST (html5ever `step_foreign`). `<svg><title><g>×N` made a
+/// name-only guard skip to a `</title>` that never comes, counting depth 2
+/// while html5ever built an N-deep foreign DOM → htmd recursive-Drop
+/// SIGABRT on the DEFAULT markdown path. The guard must NOT skip rawtext
+/// inside foreign content — every wrapper here must be rejected, fast.
+#[test]
+fn foreign_content_rawtext_bypass_is_rejected() {
+    let wrappers = [
+        "<svg><title>",
+        "<svg><style>",
+        "<svg><script>",
+        "<svg><xmp>",
+        "<svg><iframe>",
+        "<svg><noembed>",
+        "<svg><noframes>",
+        "<svg><textarea>",
+        "<svg><plaintext>",
+        "<math><title>",
+        "<html><body><svg><title>",
+    ];
+    for w in wrappers {
+        let exploit = format!("{w}{}", "<g>".repeat(50_000));
+        let started = std::time::Instant::now();
+        assert!(
+            run(&exploit, ExtractMode::Markdown).is_err(),
+            "foreign-content bypass via {w:?} must be rejected"
+        );
+        assert!(
+            started.elapsed().as_millis() < 500,
+            "guard must early-exit on {w:?}, took {:?}",
+            started.elapsed()
+        );
+    }
+}
+
+/// CDATA is not a skip vector. Inside SVG foreign content `<![CDATA[ … ]]>`
+/// is text, but the guard treats `<!…` (non-comment) as a bogus-comment skip
+/// to the FIRST `>` — it can never swallow a deep subtree the way a rawtext
+/// skip-to-close could. So a CDATA-wrapped `<g>` bomb is at worst over-counted
+/// (rejected), NEVER under-counted to a crash. Pins that the `<!`/`<?` arm
+/// stays a one-`>` advance, not a skip-to-terminator.
+#[test]
+fn cdata_in_foreign_content_is_not_an_undercount_skip() {
+    let body = format!("<svg><![CDATA[{}]]>", "<g>".repeat(50_000));
+    let started = std::time::Instant::now();
+    assert!(
+        run(&body, ExtractMode::Markdown).is_err(),
+        "deep markup inside CDATA in <svg> must be rejected, not crashed through"
+    );
+    assert!(
+        started.elapsed().as_millis() < 500,
+        "guard must early-exit on the CDATA bomb, took {:?}",
+        started.elapsed()
+    );
+}
+
+/// The integration-point refinement must NOT over-reject: inside
+/// `<svg><foreignObject>` (an HTML integration point) HTML parsing RESUMES,
+/// so `<style>` is rawtext again and a big CSS blob there stays shallow —
+/// ACCEPTED, not falsely rejected (the skip is restored, not lost).
+#[test]
+fn integration_point_restores_rawtext_skip() {
+    let body = format!(
+        "<svg><foreignObject><style>{}</style></foreignObject></svg>",
+        "a > b {{ color: red }} ".repeat(20_000)
+    );
+    assert!(
+        run(&body, ExtractMode::Text).is_ok(),
+        "foreignObject restores HTML context — style is rawtext again, shallow"
+    );
+}
+
 /// Deeply-nested anchors stress the boilerpipe/links anchor-depth walk.
 #[test]
 fn deep_nested_anchors_are_total() {

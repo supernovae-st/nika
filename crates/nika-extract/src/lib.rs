@@ -694,6 +694,32 @@ mod tests {
             addr
         }
 
+        /// Serve an OWNED body (built at runtime, e.g. a depth bomb) with a
+        /// chosen `Content-Type`.
+        async fn serve_owned(body: Vec<u8>, content_type: &'static str) -> std::net::SocketAddr {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("bind loopback");
+            let addr = listener.local_addr().expect("addr");
+            tokio::spawn(async move {
+                let Ok((mut socket, _)) = listener.accept().await else {
+                    return;
+                };
+                let mut buf = [0u8; 4096];
+                let _ = socket.read(&mut buf).await;
+                let mut response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\n\
+                     Content-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                )
+                .into_bytes();
+                response.extend_from_slice(&body);
+                let _ = socket.write_all(&response).await;
+                let _ = socket.shutdown().await;
+            });
+            addr
+        }
+
         #[tokio::test]
         async fn fetch_then_extract_over_a_real_socket() {
             let addr = serve_page(PAGE).await;
@@ -728,6 +754,31 @@ mod tests {
             // metadata canonical resolves too.
             let meta = extract(body, ExtractMode::Metadata, &opts).expect("metadata");
             assert_eq!(meta["canonical"], format!("http://{addr}/article"));
+        }
+
+        #[tokio::test]
+        async fn guard_rejects_foreign_bomb_over_a_real_socket() {
+            // The verified SVG foreign-content bypass, served by a real
+            // socket and pulled through the real reqwest client: extraction
+            // must REJECT it via the depth guard, never SIGABRT the process
+            // through htmd's recursive rcdom Drop. `markdown` is the default
+            // nika:fetch mode — the exact path that crashed pre-fix.
+            let bomb = format!("<svg><title>{}", "<g>".repeat(50_000)).into_bytes();
+            let addr = serve_owned(bomb, "text/html; charset=utf-8").await;
+            let mut config = HttpConfig::new();
+            config.ssrf = SsrfMode::Disabled;
+            let client = ReqwestHttp::with_config(config).expect("client");
+
+            let response = client
+                .get(HttpRequest::get(format!("http://{addr}/bomb")))
+                .await
+                .expect("fetch succeeds");
+            let body = std::str::from_utf8(&response.body).expect("utf-8 page");
+            let opts = ExtractOptions::new();
+            assert!(
+                extract(body, ExtractMode::Markdown, &opts).is_err(),
+                "foreign-content bomb must be rejected by the guard, not crash"
+            );
         }
     }
 }
