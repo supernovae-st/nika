@@ -114,6 +114,8 @@ impl EagerIndex {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)] // test-scope: a bad fixture IS the failure
+
     use super::*;
     use crate::BmParams;
 
