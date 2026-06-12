@@ -271,4 +271,13 @@ seam — they shipped this arc; the loop verb is gated on this one decision.
               clippy 0 · the non-issues (SipHash collisions valueless ·
               router has zero security authority · classify_turn order ·
               cancel-safety) verified + documented by the review.
+2026-06-12  v0.4 — run_observed(input, &dyn AgentObserver): the L3 wiring
+              seam (additive · run() delegates to the stored observer).
+              A wave dispatches CONCURRENT agent tasks through ONE shared
+              verb — a verb-wide observer interleaves their decision
+              streams; the per-call observer keeps each run attributable.
+              Consumed by nika-runtime's agent_events adapter (per-dispatch
+              BufferingObserver → Dispatched → RanTask → settle drain onto
+              the canonical stream · e2e-proven in the runtime's
+              tests/agent_telemetry.rs). API baseline +1, zero removals.
 ```

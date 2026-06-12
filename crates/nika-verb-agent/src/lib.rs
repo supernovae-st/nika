@@ -268,24 +268,36 @@ where
     /// [`VerbAgentError::SchemaValidation`] (464) when the final output
     /// misses the task `schema:`.
     pub async fn run(&self, input: AgentInput) -> Result<AgentOutput, VerbAgentError> {
+        let observer = Arc::clone(&self.observer);
+        self.run_observed(input, &*observer).await
+    }
+
+    /// Execute the `agent` task, reporting decisions to a RUN-SCOPED
+    /// observer instead of the verb-wide one set by [`Self::with_observer`].
+    ///
+    /// This is the L3 runtime's seam: the verb is one shared instance
+    /// dispatching CONCURRENT tasks in a wave — a verb-wide observer
+    /// would interleave their decision streams, while a per-call
+    /// observer keeps each run's telemetry attributable (ADR-093).
+    /// Same contract as [`Self::run`] otherwise.
+    ///
+    /// # Errors
+    ///
+    /// Exactly [`Self::run`]'s errors.
+    pub async fn run_observed(
+        &self,
+        input: AgentInput,
+        observer: &dyn AgentObserver,
+    ) -> Result<AgentOutput, VerbAgentError> {
         validate_params(&input)?;
         let whitelist = Whitelist::new(&input.tools);
         let defs = self.whitelisted_defs(&whitelist).await?;
-
         let model = input
             .model
             .clone()
             .unwrap_or_else(|| self.default_model.clone());
         let max_turns = input.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
-
-        let mut router = ToolRouter::new(&defs, self.config.router.clone());
-        let mut guard = Guard::new(self.config.guard.clone());
-        #[allow(clippy::cast_possible_truncation)] // universe ≪ u32::MAX
-        self.observer.on_event(&AgentEvent::RunStarted {
-            model: model.clone(),
-            universe: defs.len() as u32,
-            routed: router.is_routing(),
-        });
+        let (mut router, mut guard) = self.arm_loop(observer, &model, &defs);
 
         let mut messages = opening_messages(&input);
         let mut turns: u32 = 0;
@@ -295,19 +307,18 @@ where
 
         while turns < max_turns {
             turns += 1;
-            self.observer
-                .on_event(&AgentEvent::TurnStarted { turn: turns });
+            observer.on_event(&AgentEvent::TurnStarted { turn: turns });
 
             // Per-turn routing: rank the universe against the LIVE task
             // context (prompt + the model's last words + last observations),
             // each component budgeted so a long prompt can't evict the live
             // tail the routing is supposed to read.
             let query = routing_query(&input.prompt, &last_text, &last_observations);
-            let offered = self.route_turn(&router, &defs, &query, turns);
+            let offered = route_turn(observer, &router, &defs, &query, turns);
 
             let request = build_request(&model, messages.clone(), &input, offered);
             let response = self
-                .infer_turn(turns, request, &mut total_tokens, &input)
+                .infer_turn(observer, turns, request, &mut total_tokens, &input)
                 .await?;
             let text = joined_text(&response.content);
             if !text.is_empty() {
@@ -325,7 +336,7 @@ where
             };
             match classify_turn(&response, &text, &ctx)? {
                 TurnVerdict::Done(output) => {
-                    self.observer.on_event(&AgentEvent::Finished {
+                    observer.on_event(&AgentEvent::Finished {
                         turns,
                         total_tokens,
                     });
@@ -345,7 +356,14 @@ where
                     // All-whitelisted, non-sentinel tools · feed results back.
                     messages.push(Message::new(Role::Assistant, response.content.clone()));
                     last_observations = self
-                        .dispatch_turn(turns, tool_uses, &mut router, &mut guard, &mut messages)
+                        .dispatch_turn(
+                            observer,
+                            turns,
+                            tool_uses,
+                            &mut router,
+                            &mut guard,
+                            &mut messages,
+                        )
                         .await
                         .map_err(|(period, repeats)| VerbAgentError::Stalled {
                             period,
@@ -362,10 +380,30 @@ where
         })
     }
 
+    /// Arm the intelligence layer for one run: build the router + the
+    /// guard from config and announce the run (universe + routing mode).
+    fn arm_loop(
+        &self,
+        observer: &dyn AgentObserver,
+        model: &str,
+        defs: &[ToolDef],
+    ) -> (ToolRouter, Guard) {
+        let router = ToolRouter::new(defs, self.config.router.clone());
+        let guard = Guard::new(self.config.guard.clone());
+        #[allow(clippy::cast_possible_truncation)] // universe ≪ u32::MAX
+        observer.on_event(&AgentEvent::RunStarted {
+            model: model.to_owned(),
+            universe: defs.len() as u32,
+            routed: router.is_routing(),
+        });
+        (router, guard)
+    }
+
     /// One provider call: infer, fold its usage into the running total,
     /// and report the budget checkpoint. Maps a provider failure to 463.
     async fn infer_turn(
         &self,
+        observer: &dyn AgentObserver,
         turn: u32,
         request: InferRequest,
         total_tokens: &mut u64,
@@ -382,30 +420,12 @@ where
                 .input_tokens
                 .saturating_add(response.usage.output_tokens),
         );
-        self.observer.on_event(&AgentEvent::BudgetCheckpoint {
+        observer.on_event(&AgentEvent::BudgetCheckpoint {
             turn,
             total_tokens: *total_tokens,
             budget: input.max_tokens_total,
         });
         Ok(response)
-    }
-
-    /// One routing decision: select this turn's definitions + report it.
-    fn route_turn(
-        &self,
-        router: &ToolRouter,
-        defs: &[ToolDef],
-        query: &str,
-        turn: u32,
-    ) -> Vec<ToolDef> {
-        let (offered, selection) = router.select(defs, query, turn);
-        self.observer.on_event(&AgentEvent::ToolsSelected {
-            turn,
-            offered: selection.offered,
-            universe: selection.universe,
-            by_source: selection.by_source,
-        });
-        offered
     }
 
     /// One Dispatch turn: run the batch, feed results into the
@@ -415,13 +435,14 @@ where
     /// stops the run.
     async fn dispatch_turn(
         &self,
+        observer: &dyn AgentObserver,
         turn: u32,
         tool_uses: Vec<(String, String, serde_json::Value)>,
         router: &mut ToolRouter,
         guard: &mut Guard,
         messages: &mut Vec<Message>,
     ) -> Result<String, (u32, u32)> {
-        let batch = self.run_batch(turn, tool_uses, router).await;
+        let batch = self.run_batch(observer, turn, tool_uses, router).await;
         // Consult the guard BEFORE pushing, so a nudge rides INSIDE the
         // same user message as the tool results — never a second adjacent
         // `Role::User` message (which some provider wires reject as
@@ -432,7 +453,7 @@ where
         match guard.observe_turn(batch.signature, batch.all_errors) {
             GuardVerdict::Proceed => {}
             GuardVerdict::Nudge(reason, period) => {
-                self.observer.on_event(&AgentEvent::Nudged {
+                observer.on_event(&AgentEvent::Nudged {
                     turn,
                     reason,
                     period,
@@ -442,7 +463,7 @@ where
                 });
             }
             GuardVerdict::Stall { period, repeats } => {
-                self.observer.on_event(&AgentEvent::Stalled {
+                observer.on_event(&AgentEvent::Stalled {
                     turn,
                     period,
                     repeats,
@@ -460,6 +481,7 @@ where
     /// are collected as the batch runs.
     async fn run_batch(
         &self,
+        observer: &dyn AgentObserver,
         turn: u32,
         tool_uses: Vec<(String, String, serde_json::Value)>,
         router: &mut ToolRouter,
@@ -477,7 +499,9 @@ where
         for (id, name, args) in tool_uses {
             let is_intrinsic = intrinsic::Intrinsic::parse(&name).is_some();
             let block = if let Some(intrinsic) = intrinsic::Intrinsic::parse(&name) {
-                let outcome = self.run_intrinsic(turn, intrinsic, args.clone()).await;
+                let outcome = self
+                    .run_intrinsic(observer, turn, intrinsic, args.clone())
+                    .await;
                 ContentBlock::ToolResult {
                     tool_use_id: id,
                     content: outcome.0,
@@ -490,7 +514,7 @@ where
                 content, is_error, ..
             } = &block
             {
-                self.observer.on_event(&AgentEvent::ToolCompleted {
+                observer.on_event(&AgentEvent::ToolCompleted {
                     turn,
                     name: name.clone(),
                     is_error: *is_error,
@@ -528,6 +552,7 @@ where
     /// failure (runtime shutdown) feeds back as an error, never fatal.
     async fn run_intrinsic(
         &self,
+        observer: &dyn AgentObserver,
         turn: u32,
         intrinsic: intrinsic::Intrinsic,
         args: serde_json::Value,
@@ -538,7 +563,7 @@ where
         .await;
         match join {
             Ok((content, is_error, outcome)) => {
-                self.observer.on_event(&AgentEvent::ComposeChecked {
+                observer.on_event(&AgentEvent::ComposeChecked {
                     turn,
                     valid: outcome.valid,
                     violations: outcome.violations,
@@ -546,7 +571,7 @@ where
                 (content, is_error)
             }
             Err(join_err) => {
-                self.observer.on_event(&AgentEvent::ComposeChecked {
+                observer.on_event(&AgentEvent::ComposeChecked {
                     turn,
                     valid: false,
                     violations: 1,
@@ -663,6 +688,24 @@ fn build_request(
 const QUERY_PROMPT_CHARS: usize = 2048;
 const QUERY_TEXT_CHARS: usize = 1024;
 const QUERY_OBS_CHARS: usize = 1024;
+
+/// One routing decision: select this turn's definitions + report it.
+fn route_turn(
+    observer: &dyn AgentObserver,
+    router: &ToolRouter,
+    defs: &[ToolDef],
+    query: &str,
+    turn: u32,
+) -> Vec<ToolDef> {
+    let (offered, selection) = router.select(defs, query, turn);
+    observer.on_event(&AgentEvent::ToolsSelected {
+        turn,
+        offered: selection.offered,
+        universe: selection.universe,
+        by_source: selection.by_source,
+    });
+    offered
+}
 
 /// Build the BM25 routing query from the live task context, each piece
 /// bounded independently (a 100 KB prompt can't crowd out the model's
