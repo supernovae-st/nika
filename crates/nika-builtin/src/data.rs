@@ -17,6 +17,14 @@ use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str};
 
 // ─── nika:jq · the transform + extraction primitive ─────────────────────
 
+/// The rendered-output ceiling for one jq value (16 MiB). Bounds the
+/// string + re-parse allocations on a model-controlled `expression:`;
+/// jaq's INTERNAL evaluation cost (a `[range(1e9)]` materializes inside
+/// the engine before any output is yielded) is the engine's task-level
+/// supervision concern — same delegation class as SSRF→L1 http (crate
+/// spec §4 honest gaps).
+const MAX_JQ_OUTPUT_BYTES: usize = 16 * 1024 * 1024;
+
 /// Run a jq `expression:` over `input:` — and emit EXACTLY ONE output
 /// value (the 04-variables.md:347 binding law applied to the tool: a
 /// stream that isn't a single value is a `[ … ]`-collect authoring bug).
@@ -54,25 +62,48 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
         .map_err(|errs| BuiltinFailure::new(C, format!("jq compile error: {errs:?}")))?;
 
     let ctx = Ctx::<jaq_data::JustLut<Val>>::new(&filter.lut, Vars::new([]));
-    let mut outputs = Vec::new();
+    let mut single: Option<serde_json::Value> = None;
     for result in filter.id.run((ctx, val)).map(unwrap_valr) {
         let value = result.map_err(|e| BuiltinFailure::new(C, format!("jq runtime error: {e}")))?;
-        let json = serde_json::from_str(&value.to_string())
-            .map_err(|e| BuiltinFailure::new(C, e.to_string()))?;
-        outputs.push(json);
-        if outputs.len() > 1 {
+        // The exactly-one law fires BEFORE serializing a second value —
+        // a long stream never pays per-element render cost past the law.
+        if single.is_some() {
             return Err(BuiltinFailure::new(
                 C,
                 "the program emitted MORE than one value — wrap it in `[ … ]` to collect a stream into an array",
             ));
         }
+        let text = value.to_string();
+        if text.len() > MAX_JQ_OUTPUT_BYTES {
+            return Err(BuiltinFailure::new(
+                C,
+                format!(
+                    "the output is {} bytes — the per-value ceiling is {MAX_JQ_OUTPUT_BYTES} (narrow the expression)",
+                    text.len()
+                ),
+            ));
+        }
+        single = Some(serde_json::from_str(&text).map_err(|e| jq_render_failure(&text, &e))?);
     }
-    outputs.pop().ok_or_else(|| {
+    single.ok_or_else(|| {
         BuiltinFailure::new(
             C,
             "the program emitted NO value — a binding needs exactly one (use `// default` or `first(…)`)",
         )
     })
+}
+
+/// A jq output that won't re-parse as JSON — jaq renders non-finite
+/// numbers as the bare tokens `NaN`/`Infinity` (valid jq, invalid JSON),
+/// so surface THAT cause instead of a raw parser offset.
+fn jq_render_failure(text: &str, e: &serde_json::Error) -> BuiltinFailure {
+    const C: &str = "NIKA-BUILTIN-JQ-001";
+    let hint = if text.contains("Infinity") || text.contains("NaN") {
+        " (the program produced a non-finite number — NaN/Infinity is not valid JSON)"
+    } else {
+        ""
+    };
+    BuiltinFailure::new(C, format!("output is not valid JSON: {e}{hint}"))
 }
 
 // ─── nika:json_diff · RFC 6902 ──────────────────────────────────────────
@@ -189,10 +220,42 @@ fn parse_format(
     match from {
         "json" => Ok(input.clone()),
         "yaml" => serde_yaml_bw::from_str(&as_text()?).map_err(|e| format!("invalid YAML: {e}")),
-        "toml" => toml_convert::from_str(&as_text()?).map_err(|e| format!("invalid TOML: {e}")),
+        "toml" => {
+            let parsed: toml_convert::Value =
+                toml_convert::from_str(&as_text()?).map_err(|e| format!("invalid TOML: {e}"))?;
+            toml_to_json(parsed)
+        }
         "csv" => parse_csv(&as_text()?, crate::opt_bool(args, "has_header", true)),
         other => Err(format!("unknown from: {other} (json|yaml|toml|csv)")),
     }
+}
+
+/// The typed TOML→JSON bridge. A serde round-trip leaks toml's internal
+/// `$__toml_private_datetime` sentinel for date values — walking the
+/// typed `toml::Value` instead renders datetimes as their ISO 8601
+/// strings (the only JSON-representable form).
+fn toml_to_json(value: toml_convert::Value) -> Result<serde_json::Value, String> {
+    Ok(match value {
+        toml_convert::Value::String(s) => serde_json::Value::String(s),
+        toml_convert::Value::Integer(i) => serde_json::Value::Number(i.into()),
+        toml_convert::Value::Float(f) => serde_json::Number::from_f64(f)
+            .map(serde_json::Value::Number)
+            .ok_or("TOML non-finite float (nan/inf) is not representable in JSON")?,
+        toml_convert::Value::Boolean(b) => serde_json::Value::Bool(b),
+        toml_convert::Value::Datetime(dt) => serde_json::Value::String(dt.to_string()),
+        toml_convert::Value::Array(items) => serde_json::Value::Array(
+            items
+                .into_iter()
+                .map(toml_to_json)
+                .collect::<Result<_, _>>()?,
+        ),
+        toml_convert::Value::Table(table) => serde_json::Value::Object(
+            table
+                .into_iter()
+                .map(|(k, v)| Ok((k, toml_to_json(v)?)))
+                .collect::<Result<_, String>>()?,
+        ),
+    })
 }
 
 fn emit_format(
@@ -303,52 +366,119 @@ pub(crate) fn uuid(args: &Args) -> BuiltinOutcome {
 
 // ─── nika:date · timestamp arithmetic (op-discriminated) ────────────────
 
-/// `op`-discriminated time builtin (now · add · subtract · format ·
-/// parse · diff). `now` rides the injected [`ClockDyn`] for hermeticity.
-pub(crate) fn date<C: ClockDyn>(_clock: &C, args: &Args) -> BuiltinOutcome {
-    const E: &str = "NIKA-BUILTIN-DATE-001";
-    let op = req_str(args, "op", E)?;
+/// The `nika:date` code (stdlib §date · unparseable input / unknown op /
+/// bad tz · `validation_error`).
+const DATE_CODE: &str = "NIKA-BUILTIN-DATE-001";
+
+/// `op`-discriminated time builtin — the spec's full six (now · add ·
+/// subtract · format · parse · diff). `now` rides the injected
+/// [`ClockDyn`] wall clock (`system_now`) for test hermeticity;
+/// `format`/`parse` speak the strftime field grammar.
+pub(crate) fn date<C: ClockDyn>(clock: &C, args: &Args) -> BuiltinOutcome {
+    let op = req_str(args, "op", DATE_CODE)?;
     match op {
-        "now" => {
-            // jiff reads the system clock; the kernel ClockDyn is the seam
-            // a future deterministic-time pass routes through (its now()
-            // is Instant, not wall-clock — date needs SystemTime, which
-            // arrives when the clock seam grows a wall-now accessor).
-            let now = jiff::Timestamp::now();
-            Ok(serde_json::Value::String(now.to_string()))
-        }
-        "add" | "subtract" => {
-            let base = req_str(args, "base", E)?;
-            let dur = req_str(args, "duration", E)?;
-            let ts: jiff::Timestamp = base
-                .parse()
-                .map_err(|e| BuiltinFailure::new(E, format!("`base:` unparseable: {e}")))?;
-            let span: jiff::Span = dur
-                .parse()
-                .map_err(|e| BuiltinFailure::new(E, format!("`duration:` unparseable: {e}")))?;
-            let out = if op == "add" {
-                ts.checked_add(span)
-            } else {
-                ts.checked_sub(span)
-            }
-            .map_err(|e| BuiltinFailure::new(E, format!("{op} overflow: {e}")))?;
-            Ok(serde_json::Value::String(out.to_string()))
-        }
-        "diff" => {
-            let start: jiff::Timestamp = req_str(args, "start", E)?
-                .parse()
-                .map_err(|e| BuiltinFailure::new(E, format!("`start:` unparseable: {e}")))?;
-            let end: jiff::Timestamp = req_str(args, "end", E)?
-                .parse()
-                .map_err(|e| BuiltinFailure::new(E, format!("`end:` unparseable: {e}")))?;
-            let secs = (end - start).get_seconds();
-            Ok(serde_json::Value::Number(secs.into()))
-        }
+        "now" => date_now(clock, args),
+        "add" | "subtract" => date_shift(op, args),
+        "format" => date_format(args),
+        "parse" => date_parse(args),
+        "diff" => date_diff(args),
         other => Err(BuiltinFailure::new(
-            E,
-            format!("unknown op `{other}` (now|add|subtract|diff at v0.1)"),
+            DATE_CODE,
+            format!("unknown op `{other}` (now|add|subtract|format|parse|diff)"),
         )),
     }
+}
+
+fn parse_ts(args: &Args, key: &str) -> Result<jiff::Timestamp, BuiltinFailure> {
+    req_str(args, key, DATE_CODE)?
+        .parse()
+        .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("`{key}:` unparseable: {e}")))
+}
+
+/// `op: now { tz }` — the injected wall clock, ISO 8601 out (UTC `Z`
+/// form by default · offset form in an IANA `tz:`).
+fn date_now<C: ClockDyn>(clock: &C, args: &Args) -> BuiltinOutcome {
+    let now = jiff::Timestamp::try_from(clock.system_now())
+        .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("clock out of range: {e}")))?;
+    match opt_str(args, "tz", DATE_CODE)? {
+        None => Ok(serde_json::Value::String(now.to_string())),
+        Some(tz) => {
+            let zoned = now
+                .in_tz(tz)
+                .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("bad `tz:` `{tz}`: {e}")))?;
+            let text = jiff::fmt::strtime::format("%Y-%m-%dT%H:%M:%S%.f%:z", &zoned)
+                .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("render failed: {e}")))?;
+            Ok(serde_json::Value::String(text))
+        }
+    }
+}
+
+/// `op: add|subtract { base, duration }` — ISO 8601 span arithmetic.
+fn date_shift(op: &str, args: &Args) -> BuiltinOutcome {
+    let ts = parse_ts(args, "base")?;
+    let span: jiff::Span = req_str(args, "duration", DATE_CODE)?
+        .parse()
+        .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("`duration:` unparseable: {e}")))?;
+    let out = if op == "add" {
+        ts.checked_add(span)
+    } else {
+        ts.checked_sub(span)
+    }
+    .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("{op} overflow: {e}")))?;
+    Ok(serde_json::Value::String(out.to_string()))
+}
+
+/// `op: format { input, format }` — render an instant through the
+/// strftime grammar (`%Y-%m-%d` · UTC fields).
+fn date_format(args: &Args) -> BuiltinOutcome {
+    let ts = parse_ts(args, "input")?;
+    let fmt = req_str(args, "format", DATE_CODE)?;
+    let zoned = ts.to_zoned(jiff::tz::TimeZone::UTC);
+    let text = jiff::fmt::strtime::format(fmt, &zoned)
+        .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("`format:` failed: {e}")))?;
+    Ok(serde_json::Value::String(text))
+}
+
+/// `op: parse { input, format }` — strftime → ISO 8601 instant. An
+/// input that carries no offset is read as UTC (the spec default tz).
+fn date_parse(args: &Args) -> BuiltinOutcome {
+    let input = req_str(args, "input", DATE_CODE)?;
+    let fmt = req_str(args, "format", DATE_CODE)?;
+    let broken = jiff::fmt::strtime::parse(fmt, input)
+        .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("`parse` failed: {e}")))?;
+    let ts = broken.to_timestamp().or_else(|_| {
+        broken
+            .to_datetime()
+            .and_then(|dt| dt.to_zoned(jiff::tz::TimeZone::UTC))
+            .map(|z| z.timestamp())
+    });
+    let ts =
+        ts.map_err(|e| BuiltinFailure::new(DATE_CODE, format!("parsed fields incomplete: {e}")))?;
+    Ok(serde_json::Value::String(ts.to_string()))
+}
+
+/// `op: diff { start, end, unit }` — an integer in `unit:` (seconds
+/// default · negative when `end` precedes `start`).
+fn date_diff(args: &Args) -> BuiltinOutcome {
+    let start = parse_ts(args, "start")?;
+    let end = parse_ts(args, "end")?;
+    let dur = end.duration_since(start);
+    let unit = opt_str(args, "unit", DATE_CODE)?.unwrap_or("seconds");
+    let value = match unit {
+        "seconds" => dur.as_secs(),
+        "milliseconds" => i64::try_from(dur.as_millis())
+            .map_err(|_| BuiltinFailure::new(DATE_CODE, "diff out of i64 millisecond range"))?,
+        "minutes" => dur.as_secs() / 60,
+        "hours" => dur.as_secs() / 3600,
+        "days" => dur.as_secs() / 86_400,
+        other => {
+            return Err(BuiltinFailure::new(
+                DATE_CODE,
+                format!("unknown unit `{other}` (seconds|milliseconds|minutes|hours|days)"),
+            ));
+        }
+    };
+    Ok(serde_json::Value::Number(value.into()))
 }
 
 // ─── nika:hash · content hashing ────────────────────────────────────────
@@ -457,6 +587,51 @@ mod tests {
             serde_json::json!({ "expression": "this is not jq", "input": 1 }),
         ));
         assert!(bad.is_err());
+    }
+
+    #[test]
+    fn jq_bounds_the_rendered_output_and_names_non_finite() {
+        // A single value past the 16 MiB rendered ceiling is a typed
+        // failure, not an allocation storm ("x" * 17M is one output).
+        let huge = jq(&args(serde_json::json!({
+            "expression": "\"x\" * 17000000", "input": null
+        })));
+        assert!(
+            matches!(&huge, Err(f) if f.code == "NIKA-BUILTIN-JQ-001" && f.message.contains("ceiling")),
+            "{huge:?}"
+        );
+        // Non-finite numbers (valid jq · invalid JSON) get the actionable
+        // cause, not a raw parser offset.
+        let inf = jq(&args(
+            serde_json::json!({ "expression": "1e308 * 10", "input": null }),
+        ));
+        assert!(
+            matches!(&inf, Err(f) if f.message.contains("non-finite")),
+            "{inf:?}"
+        );
+        // An under-ceiling collect still works (the law allows one array).
+        let ok = jq(&args(serde_json::json!({
+            "expression": "[range(3)]", "input": null
+        })))
+        .expect("ok");
+        assert_eq!(ok, serde_json::json!([0, 1, 2]));
+        // A mid-size output (2 MB) is comfortably UNDER the 16 MiB ceiling
+        // (kills the constant-arithmetic mutants that shrink it to ~1 MB).
+        let mid = jq(&args(serde_json::json!({
+            "expression": "\"x\" * 2000000 | length", "input": null
+        })))
+        .expect("2 MB renders fine");
+        assert_eq!(mid, serde_json::json!(2_000_000));
+        let mid_value = jq(&args(serde_json::json!({
+            "expression": "\"x\" * 2000000", "input": null
+        })));
+        assert!(mid_value.is_ok(), "2 MB value is under the ceiling");
+        // The exact boundary: a rendered output of EXACTLY the ceiling
+        // passes (`>` not `>=`) — quotes add 2 bytes to the raw repeat.
+        let exact = jq(&args(serde_json::json!({
+            "expression": format!("\"x\" * {}", MAX_JQ_OUTPUT_BYTES - 2), "input": null
+        })));
+        assert!(exact.is_ok(), "len == ceiling is allowed");
     }
 
     #[test]
@@ -587,6 +762,38 @@ mod tests {
     }
 
     #[test]
+    fn convert_toml_datetime_is_an_iso_string_not_a_sentinel() {
+        // The typed bridge: toml dates render as ISO strings — the serde
+        // path would leak `$__toml_private_datetime` into user output.
+        let out = convert(&args(serde_json::json!({
+            "input": "when = 2026-01-01T00:00:00Z\nn = 3\npi = 1.5\nok = true",
+            "from": "toml", "to": "json"
+        })))
+        .expect("ok");
+        assert_eq!(out["when"], serde_json::json!("2026-01-01T00:00:00Z"));
+        assert_eq!(out["n"], serde_json::json!(3));
+        assert_eq!(out["pi"], serde_json::json!(1.5));
+        assert_eq!(out["ok"], serde_json::json!(true));
+        assert!(
+            !out.to_string().contains("$__toml"),
+            "no private sentinel: {out}"
+        );
+        // Nested tables + arrays walk through the same bridge.
+        let nested = convert(&args(serde_json::json!({
+            "input": "[a]\nwhen = 2026-01-01\nlist = [1, 2]",
+            "from": "toml", "to": "json"
+        })))
+        .expect("ok");
+        assert_eq!(nested["a"]["when"], serde_json::json!("2026-01-01"));
+        assert_eq!(nested["a"]["list"], serde_json::json!([1, 2]));
+        // A TOML non-finite float is not JSON-representable → typed error.
+        let nan = convert(&args(serde_json::json!({
+            "input": "x = nan", "from": "toml", "to": "json"
+        })));
+        assert!(matches!(nan, Err(f) if f.message.contains("non-finite")));
+    }
+
+    #[test]
     fn uuid_format_and_version() {
         let v7 = uuid(&args(serde_json::json!({}))).expect("ok");
         let s = v7.as_str().expect("string");
@@ -620,6 +827,108 @@ mod tests {
         assert_eq!(diff, serde_json::json!(60));
 
         assert!(date(&clock, &args(serde_json::json!({ "op": "warp" }))).is_err());
+    }
+
+    #[test]
+    fn date_now_rides_the_injected_clock() {
+        use nika_kernel_mock::MockClock;
+        let clock = MockClock::new();
+        let parse = |v: serde_json::Value| -> jiff::Timestamp {
+            v.as_str().expect("string").parse().expect("ISO 8601")
+        };
+        let t0 = parse(date(&clock, &args(serde_json::json!({ "op": "now" }))).expect("ok"));
+        clock.advance(std::time::Duration::from_secs(3600));
+        let t1 = parse(date(&clock, &args(serde_json::json!({ "op": "now" }))).expect("ok"));
+        // The mock clock IS the time source — exactly the advanced hour.
+        assert_eq!(t1.duration_since(t0).as_secs(), 3600);
+
+        // tz renders the offset form (fixed-offset zone = deterministic).
+        let zoned = date(
+            &clock,
+            &args(serde_json::json!({ "op": "now", "tz": "Etc/GMT-2" })),
+        )
+        .expect("ok");
+        assert!(zoned.as_str().expect("s").ends_with("+02:00"), "{zoned}");
+        let bad_tz = date(
+            &clock,
+            &args(serde_json::json!({ "op": "now", "tz": "Mars/Olympus" })),
+        );
+        assert!(matches!(bad_tz, Err(f) if f.code == "NIKA-BUILTIN-DATE-001"));
+    }
+
+    #[test]
+    fn date_format_and_parse_speak_strftime() {
+        use nika_kernel_mock::MockClock;
+        let clock = MockClock::new();
+        let formatted = date(
+            &clock,
+            &args(serde_json::json!({
+                "op": "format", "input": "2026-01-02T03:04:05Z", "format": "%Y-%m-%d %H:%M"
+            })),
+        )
+        .expect("ok");
+        assert_eq!(formatted, serde_json::json!("2026-01-02 03:04"));
+
+        // parse without an offset reads as UTC (spec default tz).
+        let parsed = date(
+            &clock,
+            &args(serde_json::json!({
+                "op": "parse", "input": "2026-01-02", "format": "%Y-%m-%d"
+            })),
+        )
+        .expect("ok");
+        assert_eq!(parsed, serde_json::json!("2026-01-02T00:00:00Z"));
+
+        // parse WITH an offset is exact-instant.
+        let offset = date(
+            &clock,
+            &args(serde_json::json!({
+                "op": "parse", "input": "2026-01-02 03:00 +0200", "format": "%Y-%m-%d %H:%M %z"
+            })),
+        )
+        .expect("ok");
+        assert_eq!(offset, serde_json::json!("2026-01-02T01:00:00Z"));
+
+        let bad = date(
+            &clock,
+            &args(serde_json::json!({
+                "op": "parse", "input": "abc", "format": "%Y-%m-%d"
+            })),
+        );
+        assert!(matches!(bad, Err(f) if f.code == "NIKA-BUILTIN-DATE-001"));
+    }
+
+    #[test]
+    fn date_diff_units_are_the_closed_set() {
+        use nika_kernel_mock::MockClock;
+        let clock = MockClock::new();
+        let diff_in = |unit: &str| {
+            date(
+                &clock,
+                &args(serde_json::json!({
+                    "op": "diff", "start": "2026-01-01T00:00:00Z",
+                    "end": "2026-01-02T01:30:00Z", "unit": unit
+                })),
+            )
+        };
+        assert_eq!(diff_in("seconds").expect("ok"), serde_json::json!(91_800));
+        assert_eq!(
+            diff_in("milliseconds").expect("ok"),
+            serde_json::json!(91_800_000)
+        );
+        assert_eq!(diff_in("minutes").expect("ok"), serde_json::json!(1530));
+        assert_eq!(diff_in("hours").expect("ok"), serde_json::json!(25));
+        assert_eq!(diff_in("days").expect("ok"), serde_json::json!(1));
+        assert!(diff_in("fortnights").is_err());
+        // Negative when end precedes start (signed integer semantics).
+        let negative = date(
+            &clock,
+            &args(serde_json::json!({
+                "op": "diff", "start": "2026-01-02T00:00:00Z", "end": "2026-01-01T00:00:00Z"
+            })),
+        )
+        .expect("ok");
+        assert_eq!(negative, serde_json::json!(-86_400));
     }
 
     #[test]

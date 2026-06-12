@@ -3593,12 +3593,15 @@ dependencies = [
  "feed-rs",
  "htmd",
  "miette",
+ "nika-http",
+ "nika-kernel",
  "nika-types",
  "proptest",
  "quick-xml 0.40.1",
  "scraper",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
  "url",
 ]
 

@@ -6,13 +6,14 @@
 //! Both compose the injected kernel http seam — SSRF defense lives in the
 //! L1 http effect (3-layer · s5), this layer never re-implements it.
 
-use nika_kernel::io::http::{HttpGetDyn, HttpMethod, HttpPostDyn, HttpRequest};
+use nika_kernel::io::http::{HttpError, HttpGetDyn, HttpMethod, HttpPostDyn, HttpRequest};
 
 use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str};
 
 /// `nika:fetch` — HTTP request + content extraction. Non-2xx is failure
-/// (stdlib §fetch · `transient` per status). Extraction modes beyond the
-/// raw body are the `nika-extract` job (R2 · honest gap below).
+/// (stdlib §fetch · `transient: true` for 5xx/408/429, `false` for other
+/// 4xx — normative). Extraction modes beyond the raw body are the
+/// `nika-extract` job (R2 · honest gap below).
 pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-FETCH-001";
     let url = req_str(args, "url", C)?;
@@ -28,13 +29,19 @@ pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn>(http: &H, args: &Args) ->
         "GET" | "HEAD" => http.get(request).await,
         _ => http.post(request).await,
     }
-    .map_err(|e| BuiltinFailure::new(C, format!("request failed: {e}")))?;
+    .map_err(|e| {
+        // Transport-plane retryability: timeouts + connection failures are
+        // the canonical transient conditions; SSRF/size/scheme rejections
+        // are deterministic.
+        let transient = matches!(e, HttpError::Timeout { .. } | HttpError::Connection { .. });
+        BuiltinFailure::new(C, format!("request failed: {e}")).with_transient(transient)
+    })?;
 
     if !(200..300).contains(&response.status) {
-        return Err(BuiltinFailure {
-            code: C,
-            message: format!("HTTP {} from {url}", response.status),
-        });
+        return Err(
+            BuiltinFailure::new(C, format!("HTTP {} from {url}", response.status))
+                .with_transient(is_transient_status(response.status)),
+        );
     }
     // R1 scope: the raw body as a string. The `mode:` extraction surface
     // (markdown · article · jq · …) lands with `nika-extract` (the spec's
@@ -79,6 +86,12 @@ fn parse_method(method: &str) -> HttpMethod {
     }
 }
 
+/// The spec's status→retryability table (stdlib §fetch · normative):
+/// 5xx, 408 (request timeout) and 429 (rate limit) are transient.
+fn is_transient_status(status: u16) -> bool {
+    matches!(status, 500..=599 | 408 | 429)
+}
+
 /// `nika:notify` — send an alert. `webhook` MUST work (POST the message);
 /// other channels are feature-gated → `NIKA-BUILTIN-NOTIFY-001` when
 /// unconfigured (stdlib §notify).
@@ -101,7 +114,9 @@ pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutc
         .headers
         .insert("content-type".to_owned(), "application/json".to_owned());
     let payload = serde_json::json!({ "message": message, "severity": severity });
-    request.body = Some(serde_json::to_vec(&payload).unwrap_or_default().into());
+    let body = serde_json::to_vec(&payload)
+        .map_err(|e| BuiltinFailure::new(C1, format!("payload serialization failed: {e}")))?;
+    request.body = Some(body.into());
 
     let response = http
         .post(request)
@@ -110,10 +125,10 @@ pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutc
     if (200..300).contains(&response.status) {
         Ok(serde_json::Value::Null)
     } else {
-        Err(BuiltinFailure {
-            code: C2,
-            message: format!("webhook returned HTTP {}", response.status),
-        })
+        Err(
+            BuiltinFailure::new(C2, format!("webhook returned HTTP {}", response.status))
+                .with_transient(is_transient_status(response.status)),
+        )
     }
 }
 
@@ -142,6 +157,43 @@ mod tests {
         assert!(
             matches!(fail, Err(f) if f.code == "NIKA-BUILTIN-FETCH-001" && f.message.contains("404"))
         );
+    }
+
+    #[tokio::test]
+    async fn fetch_transient_follows_the_spec_status_table() {
+        // 5xx · 408 · 429 are transient; other 4xx are not (stdlib §fetch).
+        for (status, expect) in [
+            (503, true),
+            (500, true),
+            (408, true),
+            (429, true),
+            (404, false),
+        ] {
+            let http = MockHttp::new().enqueue_ok(status, Vec::new());
+            let fail = fetch(&http, &args(serde_json::json!({ "url": "https://x.test" })))
+                .await
+                .expect_err("non-2xx fails");
+            assert_eq!(fail.transient, expect, "HTTP {status}");
+        }
+        // The boundary neighbours of the 5xx range stay non-transient.
+        assert!(!is_transient_status(499));
+        assert!(is_transient_status(599));
+        assert!(!is_transient_status(600));
+        assert!(!is_transient_status(200));
+    }
+
+    #[tokio::test]
+    async fn fetch_head_succeeds_with_an_empty_body() {
+        // HEAD carries no body per HTTP — a 200 HEAD is an empty-string
+        // success, not an error.
+        let http = MockHttp::new().enqueue_ok(200, Vec::new());
+        let out = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "https://x.test", "method": "HEAD" })),
+        )
+        .await
+        .expect("ok");
+        assert_eq!(out, serde_json::Value::String(String::new()));
     }
 
     #[tokio::test]
@@ -218,5 +270,15 @@ mod tests {
         )
         .await;
         assert!(matches!(unconfigured, Err(f) if f.code == "NIKA-BUILTIN-NOTIFY-001"));
+
+        // A 5xx webhook delivery is transient (same status table as fetch).
+        let http = MockHttp::new().enqueue_ok(503, Vec::new());
+        let retry = notify(
+            &http,
+            &args(serde_json::json!({ "target": "https://hooks.x", "message": "m" })),
+        )
+        .await
+        .expect_err("5xx fails");
+        assert!(retry.code == "NIKA-BUILTIN-NOTIFY-002" && retry.transient);
     }
 }

@@ -78,21 +78,36 @@ compact JSON). One rendering, one seam.
 |---|---|---|
 | log · emit | `EventSinkDyn` | best-effort (log never fails) · emit shape-gates `event_type` regex → `NIKA-BUILTIN-EMIT-001` |
 | assert | — | `condition` arrives CEL-resolved (a boolean) · false → `NIKA-BUILTIN-ASSERT-001` |
-| prompt | `Prompter` | 3 modes · non-interactive contract normative (stdlib §prompt) |
+| prompt | `Prompter` | 3 modes · non-interactive contract normative (stdlib §prompt) · `choice` validates `default:`∈`choices:` EAGERLY (PROMPT-002 is a parse-error class — it fires even when a human would have answered) |
 | done | — | reject `NIKA-BUILTIN-DONE-001` |
-| wait | `ClockDyn` | duration XOR until · Go-duration parse · `-001/-002/-003` |
-| read · write · edit · glob · grep | `Fs*Dyn` | text/binary read · overwrite/create_dirs · literal find/replace-all · sorted glob · `(path,line)`-sorted grep over `regex` crate (RE2-class) |
-| jq | `jaq` 3.1 (jaq-core+std+json · MIT · API source-verified 2026-06-11) | **exactly-one-output** (the 04-variables.md:347 binding law applied to the tool) · 0/N outputs → `NIKA-BUILTIN-JQ-001` advising `[…]` · compile errors are also `-001` at runtime (static catch is `NIKA-VAR-005`, the check ladder's job) |
+| wait | `ClockDyn` (`sleep` + `system_now`) | duration XOR until · Go-duration parse · ABSOLUTE `until:` shipped (wall-clock compare via the injected clock · `timeout:` cap honored) · `-001` input/timeout · `-002` past timestamp · `-003` exactly-one-of |
+| read · write · edit · glob · grep | `Fs*Dyn` | text/binary read · overwrite/create_dirs · literal find/replace-all (RMW not atomic across concurrent edits — DAG ordering serializes) · sorted glob (exclude filter = iterative DP matcher · polynomial on adversarial patterns) · `(path,line)`-sorted grep over `regex` crate (RE2-class) · grep skips unreadable entries deliberately (dirs/binary/raced · `grep -rs` semantics · spec allocates only `-001`) |
+| jq | `jaq` 3.1 (jaq-core+std+json · MIT · API source-verified 2026-06-11) | **exactly-one-output** (the 04-variables.md:347 binding law applied to the tool) · 0/N outputs → `NIKA-BUILTIN-JQ-001` advising `[…]` · compile errors are also `-001` at runtime (static catch is `NIKA-VAR-005`, the check ladder's job) · rendered output ≤16 MiB per value · non-finite results named actionably · runs on `spawn_blocking` (sync CPU off the executor) |
 | json_diff | `json-patch` 4.2 (MIT/Apache) | RFC 6902 `diff()` |
 | json_merge_patch | `json-patch` 4.2 | RFC 7396 `merge()` — null-deletes (jq's `*` can't) |
 | validate | `jsonschema` (already workspace) + `serde_yaml_bw` | report-never-fail `{valid, errors}` · `-001` bad schema · `-002` yaml parse |
-| convert | `toml` 1.1 + `csv` 1.4 + `serde_yaml_bw` 2.5 + `serde_json` | 4 formats · 12 directions · `from==to` → `-001` · parse fail → `-002` (spec names these reference crates) |
+| convert | `toml` 1.1 + `csv` 1.4 + `serde_yaml_bw` 2.5 + `serde_json` | 4 formats · 12 directions · `from==to` → `-001` · parse fail → `-002` (spec names these reference crates) · TOML datetimes bridge to ISO 8601 strings (typed walk — never the serde `$__toml_private_datetime` sentinel) · TOML non-finite floats → `-001` (not JSON-representable) · a nested object value in a CSV row emits as its compact-JSON cell |
 | uuid | `uuid` (workspace) | v7 default / v4 · tests pin FORMAT + version nibble (not value) |
-| date | `jiff` 0.2 (Unlicense OR MIT · bundles IANA tzdb — sovereign, zero system dependency) + `ClockDyn` for `op:now` | op-discriminated · strftime grammar · `-001` |
+| date | `jiff` 0.2 (Unlicense OR MIT · bundles IANA tzdb — sovereign, zero system dependency) + `ClockDyn` | the spec's FULL six ops (now · add · subtract · format · parse · diff) · `op:now` rides `ClockDyn::system_now` (hermetic under MockClock) + IANA `tz:` · format/parse speak strftime · diff returns an integer in `unit:` (seconds default · ms/min/h/days) · `-001` |
 | hash | `blake3` + `sha2` (both workspace) | blake3 default · md5/sha1 → `-001` |
-| fetch | `HttpGetDyn`/`HttpPostDyn` + extract modes | non-2xx → `-001` (`transient` per status) · SSRF lives in the L1 http effect (3-layer · s5) — this layer does NOT re-implement it · extract modes per `extract-modes-v0.1.md` (R1 scope decided against that doc at impl time · gaps documented here honestly) |
-| notify | `HttpPostDyn` | `webhook` MUST · other channels `-001` unconfigured |
+| fetch | `HttpGetDyn`/`HttpPostDyn` + extract modes | non-2xx → `-001` with `BuiltinFailure.transient` per the normative status table (5xx/408/429 true · other 4xx false) · transport timeouts/connection failures transient too · SSRF lives in the L1 http effect (3-layer · s5 · verified) — this layer does NOT re-implement it · extract modes per `extract-modes-v0.1.md` (R1 scope decided against that doc at impl time · gaps documented here honestly) |
+| notify | `HttpPostDyn` | `webhook` MUST · other channels `-001` unconfigured · non-2xx `-002` carries `transient` per the same status table |
 | inspect | `WorkflowIntrospect` | 4 views · `-001` unknown view |
+
+### Honest gaps (delegations, not omissions)
+
+- **Path capability gating** (`nika:write` outside-CWD rejection · NIKA-204
+  class): NOT here — `nika-policy` (L1.5 · design locked, impl gated on
+  kernel-migration) sits between the verbs and this dispatcher. A canary
+  test pins today's pass-through so the policy landing flips it visibly.
+- **jq evaluation cost**: the 16 MiB ceiling bounds the RENDERED output;
+  jaq's internal materialization (`[range(1e9)]` builds in-engine before
+  any output is yielded) is bounded by the engine's task-level supervision
+  (timeout · memory caps), not re-implemented per-builtin. `spawn_blocking`
+  keeps the executor responsive meanwhile.
+- **`BuiltinFailure.transient`** is typed at the failure plane; the wire
+  `ToolResult` has no metadata slot yet — the flag projects when the kernel
+  grows one (both types `#[non_exhaustive]`, strictly additive).
 
 ## §5 · Testing strategy
 

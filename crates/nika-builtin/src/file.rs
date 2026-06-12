@@ -80,6 +80,10 @@ pub(crate) async fn write<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Bui
 }
 
 /// `nika:edit` — literal find/replace-all (NOT regex · stdlib §edit).
+///
+/// Read-modify-write: the kernel `write` is atomic per-write (temp +
+/// rename), but concurrent edits of the SAME path can lose an update —
+/// the engine's DAG ordering is the serialization layer for that.
 pub(crate) async fn edit<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
     const C1: &str = "NIKA-BUILTIN-EDIT-001";
     const C2: &str = "NIKA-BUILTIN-EDIT-002";
@@ -98,7 +102,11 @@ pub(crate) async fn edit<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Buil
         ));
     }
     let edited = match args.get("count").and_then(serde_json::Value::as_u64) {
-        Some(cap) => original.replacen(find, replace, usize::try_from(cap).unwrap_or(usize::MAX)),
+        Some(cap) => {
+            let cap = usize::try_from(cap)
+                .map_err(|_| BuiltinFailure::new(C1, "`count:` is out of range"))?;
+            original.replacen(find, replace, cap)
+        }
         None => original.replace(find, replace),
     };
     fs.write(Path::new(path), edited.as_bytes())
@@ -140,19 +148,74 @@ fn exclude_patterns(args: &Args) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// A minimal `**`/`*` glob for the exclude filter (`**` crosses `/`).
+/// A minimal `**`/`*` glob for the exclude filter (`**` crosses `/`,
+/// `*` stops at `/`). Iterative position-set DP — polynomial worst-case
+/// and zero recursion, so a model-supplied `exclude:` can't trigger the
+/// exponential backtracking / stack blowup a naive recursive matcher
+/// invites.
 fn simple_glob(pattern: &str, text: &str) -> bool {
-    fn go(p: &[u8], t: &[u8]) -> bool {
-        match p.first() {
-            None => t.is_empty(),
-            Some(b'*') if p.get(1) == Some(&b'*') => {
-                go(&p[2..], t) || (!t.is_empty() && go(p, &t[1..]))
+    enum Tok {
+        /// `**` — matches any run, including `/`.
+        Any,
+        /// `*` — matches any run of non-`/` bytes.
+        Seg,
+        /// One literal byte.
+        Ch(u8),
+    }
+    let p = pattern.as_bytes();
+    let mut toks = Vec::with_capacity(p.len());
+    let mut i = 0;
+    while i < p.len() {
+        if p[i] == b'*' {
+            if p.get(i + 1) == Some(&b'*') {
+                toks.push(Tok::Any);
+                i += 2;
+            } else {
+                toks.push(Tok::Seg);
+                i += 1;
             }
-            Some(b'*') => go(&p[1..], t) || (!t.is_empty() && t[0] != b'/' && go(p, &t[1..])),
-            Some(&c) => !t.is_empty() && t[0] == c && go(&p[1..], &t[1..]),
+        } else {
+            toks.push(Tok::Ch(p[i]));
+            i += 1;
         }
     }
-    go(pattern.as_bytes(), text.as_bytes())
+    let t = text.as_bytes();
+    // reached[j] = the tokens consumed so far can match text[..j].
+    let mut reached = vec![false; t.len() + 1];
+    reached[0] = true;
+    for tok in toks {
+        let mut next = vec![false; t.len() + 1];
+        match tok {
+            Tok::Ch(c) => {
+                for j in 0..t.len() {
+                    if reached[j] && t[j] == c {
+                        next[j + 1] = true;
+                    }
+                }
+            }
+            Tok::Seg => {
+                for j in 0..=t.len() {
+                    if reached[j] {
+                        next[j] = true;
+                        let mut k = j;
+                        while k < t.len() && t[k] != b'/' {
+                            k += 1;
+                            next[k] = true;
+                        }
+                    }
+                }
+            }
+            Tok::Any => {
+                if let Some(first) = reached.iter().position(|&r| r) {
+                    for slot in &mut next[first..] {
+                        *slot = true;
+                    }
+                }
+            }
+        }
+        reached = next;
+    }
+    reached[t.len()]
 }
 
 /// `nika:grep` — recursive regex search · `{path,line,match}` sorted by
@@ -173,8 +236,13 @@ pub(crate) async fn grep<F: FsReadDyn + FsListDyn>(fs: &F, args: &Args) -> Built
         .map_err(|e| BuiltinFailure::new(C, format!("walk failed: {e}")))?;
     let mut hits = Vec::new();
     for file in files {
+        // The walk yields directories (EISDIR), binary files (InvalidData),
+        // raced deletions (NotFound) and unreadable entries alike — grep
+        // semantics skip them all (`grep -rs`): the spec allocates only
+        // GREP-001 (invalid pattern) and no partial-result warning channel
+        // exists at v0.1, so the skip is deliberate and total.
         let Ok(text) = fs.read_to_string(&file).await else {
-            continue; // unreadable/binary files skip silently (grep semantics)
+            continue;
         };
         let path = file.to_string_lossy().into_owned();
         for (n, line) in text.lines().enumerate() {
@@ -295,21 +363,39 @@ mod tests {
 
     #[tokio::test]
     async fn glob_sorts_and_excludes() {
+        // Files keyed under "./" so the mock's root `.` finds them.
         let fs = MockFs::new()
-            .with_file("proj/b.rs", "")
-            .with_file("proj/a.rs", "")
-            .with_file("proj/target/x.rs", "");
-        // Without exclude: all three, sorted.
+            .with_file("./b.rs", "")
+            .with_file("./a.rs", "")
+            .with_file("./target/x.rs", "");
         let all = glob(&fs, &args(serde_json::json!({ "pattern": "**" })))
             .await
             .expect("ok");
-        // The mock globs from `.`; our keys are under `proj/`, so root `.`
-        // yields nothing — assert the EXCLUDE path with a proj-rooted glob
-        // is exercised by the dispatcher-level test; here we pin the
-        // exclude filter directly through simple_glob (the same predicate).
-        let _ = all;
-        assert!(simple_glob("**/target/**", "proj/target/x.rs"));
-        assert!(!simple_glob("**/target/**", "proj/a.rs"));
+        let names: Vec<&str> = all
+            .as_array()
+            .expect("array")
+            .iter()
+            .map(|v| v.as_str().expect("string"))
+            .collect();
+        assert_eq!(
+            names,
+            vec!["./a.rs", "./b.rs", "./target/x.rs"],
+            "sorted lexicographically"
+        );
+        // The exclude predicate over the same tree drops target/.
+        let filtered = glob(
+            &fs,
+            &args(serde_json::json!({ "pattern": "**", "exclude": ["**/target/**"] })),
+        )
+        .await
+        .expect("ok");
+        let kept: Vec<&str> = filtered
+            .as_array()
+            .expect("array")
+            .iter()
+            .map(|v| v.as_str().expect("string"))
+            .collect();
+        assert_eq!(kept, vec!["./a.rs", "./b.rs"]);
     }
 
     #[tokio::test]
@@ -362,5 +448,49 @@ mod tests {
         assert!(simple_glob("a*c", "ac"), "* matches empty");
         // ** crosses / (kills the doublestar-vs-star confusion).
         assert!(simple_glob("a**c", "a/x/c"));
+        // Empty pattern matches only empty text.
+        assert!(simple_glob("", ""));
+        assert!(!simple_glob("", "x"));
+        // Trailing-star edge: matches through to the end.
+        assert!(simple_glob("a*", "abc"));
+        assert!(simple_glob("a**", "a/b/c"));
+    }
+
+    #[test]
+    fn simple_glob_is_polynomial_on_adversarial_patterns() {
+        // The classic exponential-backtracking killer: many stars against
+        // a long non-matching text. The DP matcher answers fast (a
+        // recursive matcher would hang for years here).
+        let start = std::time::Instant::now();
+        let pattern = "*a*a*a*a*a*a*a*a*a*a*a*a*b";
+        let text = "a".repeat(2_000);
+        assert!(!simple_glob(pattern, &text));
+        // A leading ** against a long text — linear-ish, no stack risk.
+        let long = "x".repeat(100_000);
+        assert!(!simple_glob("**Y", &long));
+        assert!(simple_glob("**x", &long));
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(5),
+            "polynomial bound holds: {:?}",
+            start.elapsed()
+        );
+    }
+
+    #[tokio::test]
+    async fn write_path_gating_is_the_policy_layer_job() {
+        // CANARY (crate spec §4 honest gap): this layer passes `path:`
+        // verbatim to the fs seam — CWD confinement / traversal rejection
+        // is `nika-policy`'s contract (L1.5 · design locked, impl gated).
+        // When policy lands between the verbs and this dispatcher, THIS
+        // pin flips to an expect-reject — until then the delegation is
+        // explicit, not accidental.
+        let fs = MockFs::new();
+        let out = write(
+            &fs,
+            &args(serde_json::json!({ "path": "../escape.txt", "content": "x" })),
+        )
+        .await
+        .expect("delegated today");
+        assert_eq!(out, serde_json::Value::String("../escape.txt".to_owned()));
     }
 }

@@ -52,20 +52,37 @@ pub const NAMESPACE: &str = "nika:";
 /// One builtin failure — the spec's 4-segment code + the human message.
 /// Rendered into `ToolResult.content` as `"<code> · <message>"`.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct BuiltinFailure {
     /// The spec code (`NIKA-BUILTIN-<NAME>-NNN` · taxonomy-owned by
     /// `spec/05-errors.md` — never invented here).
     pub code: &'static str,
     /// Actionable detail (lands after the code in the fed-back content).
     pub message: String,
+    /// Retryability per the spec's per-builtin contract (e.g. `fetch` ·
+    /// `transient: true` for 5xx/408/429). Typed here at the failure
+    /// plane; the wire `ToolResult` has no metadata slot yet, so the
+    /// flag projects when the kernel grows one (additive · both types
+    /// are `#[non_exhaustive]`).
+    pub transient: bool,
 }
 
 impl BuiltinFailure {
-    fn new(code: &'static str, message: impl Into<String>) -> Self {
+    /// A non-transient failure (the default for every builtin).
+    #[must_use]
+    pub fn new(code: &'static str, message: impl Into<String>) -> Self {
         Self {
             code,
             message: message.into(),
+            transient: false,
         }
+    }
+
+    /// Mark this failure transient (retryable per the spec contract).
+    #[must_use]
+    pub fn with_transient(mut self, transient: bool) -> Self {
+        self.transient = transient;
+        self
     }
 }
 
@@ -93,7 +110,9 @@ pub trait Prompter: Send + Sync {
 /// The headless prompter: never answers — `nika:prompt` then uses
 /// `default:` when present and fails `NIKA-BUILTIN-PROMPT-001` when
 /// absent (stdlib §prompt · normative · never hang, never invent).
+/// Construct via [`Default`].
 #[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
 pub struct NonInteractive;
 
 impl Prompter for NonInteractive {
@@ -118,7 +137,9 @@ pub trait Emitter: Send + Sync {
 }
 
 /// Discards everything (tests · engines without a journal yet).
+/// Construct via [`Default`].
 #[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
 pub struct NullEmitter;
 
 impl Emitter for NullEmitter {
@@ -140,8 +161,9 @@ pub trait WorkflowIntrospect: Send + Sync {
 
 /// The empty-run introspection (no workflow context): every view returns
 /// its shape with zero contents — honest emptiness, never an error (the
-/// VIEW argument is still validated).
+/// VIEW argument is still validated). Construct via [`Default`].
 #[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
 pub struct NoWorkflow;
 
 impl WorkflowIntrospect for NoWorkflow {
@@ -210,6 +232,11 @@ where
     /// Route one call to its builtin. `Err(ToolExecError)` = the
     /// dispatch plane (unknown tool · arg SHAPE the static ladder owns);
     /// `Ok(Err(BuiltinFailure))` = the tool ran and failed (spec codes).
+    ///
+    /// The `nika:` prefix is REQUIRED (the spec's invocation surface is
+    /// `tool: "nika:<name>"`): a bare `read` is `NotFound`, so a model
+    /// that drops the prefix gets corrective feedback instead of a
+    /// silently-forgiven alias.
     async fn route(
         &self,
         name: &str,
@@ -221,7 +248,11 @@ where
                 name: name.to_owned(),
                 reason: "builtin args must be a JSON object".to_owned(),
             })?;
-        let short = name.strip_prefix(NAMESPACE).unwrap_or(name);
+        let Some(short) = name.strip_prefix(NAMESPACE) else {
+            return Err(ToolExecError::NotFound {
+                name: name.to_owned(),
+            });
+        };
         match short {
             // core 6
             "log" => Ok(core_tools::log(self.emitter.as_ref(), args)),
@@ -237,7 +268,18 @@ where
             "glob" => Ok(file::glob(self.fs.as_ref(), args).await),
             "grep" => Ok(file::grep(self.fs.as_ref(), args).await),
             // data 8
-            "jq" => Ok(data::jq(args)),
+            // jq is synchronous CPU (jaq eval) with model-controlled cost —
+            // it runs on the blocking pool so a heavy expression can't
+            // starve the async executor (the nika-ocr/a11y precedent).
+            "jq" => {
+                let owned = args.clone();
+                tokio::task::spawn_blocking(move || data::jq(&owned))
+                    .await
+                    .map_err(|e| ToolExecError::ExecutionFailed {
+                        name: name.to_owned(),
+                        reason: format!("jq evaluation task failed: {e}"),
+                    })
+            }
             "json_diff" => Ok(data::json_diff(args)),
             "validate" => Ok(data::validate(args)),
             "json_merge_patch" => Ok(data::json_merge_patch(args)),
@@ -406,6 +448,24 @@ mod tests {
             .await
             .expect_err("unknown tool");
         assert!(matches!(err, ToolExecError::NotFound { name } if name == "nika:ghost"));
+    }
+
+    #[tokio::test]
+    async fn the_namespace_prefix_is_required() {
+        // A bare `uuid` (model dropped the prefix) is NotFound — corrective
+        // feedback, not a silently-forgiven alias (the spec's invocation
+        // surface is `tool: "nika:<name>"`).
+        let bare = rig()
+            .execute(call("uuid", serde_json::json!({})))
+            .await
+            .expect_err("bare name");
+        assert!(matches!(bare, ToolExecError::NotFound { name } if name == "uuid"));
+        // Foreign namespaces never route here either.
+        let mcp = rig()
+            .execute(call("mcp:server/tool", serde_json::json!({})))
+            .await
+            .expect_err("foreign namespace");
+        assert!(matches!(mcp, ToolExecError::NotFound { .. }));
     }
 
     #[tokio::test]
