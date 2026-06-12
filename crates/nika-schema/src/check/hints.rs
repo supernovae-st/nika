@@ -10,26 +10,30 @@
 //! yields the same hints, because each one is derived from a structural
 //! property the analyzer already computed.
 //!
-//! The five v0.1 hints, ranked by unlocked value ·
+//! The hint classes, ranked by unlocked value ·
 //!
-//! 1. **unbounded cost** — an `infer:`/`agent:` task with no token
-//!    bound: add one and the cost report becomes a hard ceiling.
-//! 2. **unconsumed output** — a pure `infer:` task whose output no one
-//!    reads (no task references it · not in `outputs:`): every token it
-//!    spends is dead spend.
-//! 3. **opaque consumed output** — a task whose output IS deeply
-//!    referenced (`tasks.X.output.field`) but declares no `schema:` /
-//!    `output:` bindings: declare a shape and the dataflow typer starts
-//!    proving those references.
-//! 4. **no boundary** — effectful tasks and no `permits:` block:
-//!    `--infer-permits` writes the tightest one.
-//! 5. **open schema** (`strictness`) — an object schema admitting
-//!    undeclared keys: close it (`additionalProperties: false`) and the
-//!    structured-output shape is deterministic across providers.
-//! 6. **redundant success-gate** — `when: ${{ tasks.D.status ==
-//!    'success' }}` where `D` is a dep that can never be `skipped`:
-//!    the spec names this the discouraged restatement of the default
-//!    gate (spec 03 §the gate · « `depends_on` IS the success-gate »).
+//! - **unbounded cost** (`cost`) — an `infer:`/`agent:` task with no
+//!   token bound: add one and the cost report becomes a hard ceiling.
+//! - **unconsumed output** (`dead-spend`) — a pure `infer:` task whose
+//!   output no one reads (no task references it · not in `outputs:`):
+//!   every token it spends is dead spend.
+//! - **opaque consumed output** (`typing`) — a task whose output IS
+//!   deeply referenced (`tasks.X.output.field`) but declares no
+//!   `schema:` / `output:` bindings: declare a shape and the dataflow
+//!   typer starts proving those references.
+//! - **no boundary** (`permits`) — effectful tasks and no `permits:`
+//!   block: `--infer-permits` writes the tightest one.
+//! - **open schema** (`strictness`) — an object schema admitting
+//!   undeclared keys: close it (`additionalProperties: false`) and the
+//!   structured-output shape is deterministic across providers.
+//! - **redundant success-gate** (`redundant-gate`) — `when: ${{
+//!   tasks.D.status == 'success' }}` where `D` is a dep that can never
+//!   be `skipped`: the spec names this the discouraged restatement of
+//!   the default gate (spec 03 §the gate).
+//! - **retry on uncontracted effects** (`retry-effects`) — see
+//!   [`push_retry_effects_hint`].
+//! - **concurrent same-path writers** (`parallel-writers`) — emitted by
+//!   the DAG analysis pass (`check/analysis.rs`) and merged here.
 
 use std::collections::BTreeSet;
 
@@ -41,7 +45,10 @@ use crate::types::OnErrorAction;
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
 pub struct Hint {
-    /// The hint class (`cost` · `dead-spend` · `typing` · `permits`).
+    /// The hint class — the closed set today: `cost` · `dead-spend` ·
+    /// `typing` · `permits` · `strictness` · `redundant-gate` ·
+    /// `retry-effects` · `parallel-writers` (additive · agents route on
+    /// it; the module doc describes each).
     pub kind: &'static str,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,
@@ -136,10 +143,15 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
 /// - `invoke: mcp:*` — external tool, no idempotency contract.
 ///
 /// `nika:` builtins carry documented semantics (atomic-overwrite write
-/// · GET fetch) and `infer:`/`agent:` retries re-spend tokens but
-/// mutate nothing external — no claim on those. First-of-kind for a
-/// workflow DSL per the 2026 survey (the formal treatments — Rehearsal
-/// PLDI'16 · Durable Functions OOPSLA'21 — verify engines, not files).
+/// · GET fetch) and an `infer:` retry re-spends tokens but mutates
+/// nothing external — no claim on those. An `agent:` retry DOES replay
+/// its whole tool loop, but which effects that re-dispatches depends on
+/// the runtime whitelist state — tool-mediated and out of this static
+/// rung's scope (a dedicated agent-retry read would own it). The formal
+/// idempotency treatments verify ENGINES, not workflow files (Rehearsal
+/// · Shambaugh et al. · PLDI 2016 · Puppet manifests via SMT; Durable
+/// Functions · Burckhardt et al. · OOPSLA 2021 · deterministic-replay
+/// semantics) — this hint is the static, file-level read of the hazard.
 fn push_retry_effects_hint(hints: &mut Vec<Hint>, t: &crate::raw::RawTask) {
     let retries = t.retry.as_ref().is_some_and(|r| r.value.max_attempts > 1);
     if !retries {

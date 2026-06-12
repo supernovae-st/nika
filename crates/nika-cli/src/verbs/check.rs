@@ -228,7 +228,11 @@ fn plan(out: &mut String, report: &CheckReport, t: Theme) {
         .map(|a| {
             let mut sample = a.width_witness.clone();
             sample.truncate(4);
-            let suffix = if a.width_witness.len() > 4 { " · …" } else { "" };
+            let suffix = if a.width_witness.len() > 4 {
+                " · …"
+            } else {
+                ""
+            };
             format!(
                 " · width {} (the DAG permits {} concurrent · e.g. {}{suffix})",
                 a.width,

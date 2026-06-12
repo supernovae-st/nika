@@ -55,17 +55,33 @@ pub fn run(wire: &str) -> VerbOutput {
 /// - { code: NIKA-DAG-003, category: validation_error, transient: "false", failure: "…" }
 /// ```
 ///
-/// The failure text is the LAST field and quoted — commas inside it are
-/// safe under this anchored parse. Hand-rolled (no regex dep): the rows
-/// are projector-emitted, shape-stable, and parity-checked against the
-/// spec prose.
+/// The scan is ANCHORED to the `error_codes:` section (a same-shaped
+/// row in any other canon table is never served as an error code), and
+/// a malformed row is skipped, never fatal — codes in later rows stay
+/// reachable. The failure text is the LAST field and quoted — commas
+/// inside it are safe under this anchored parse. Hand-rolled (no regex
+/// dep): the rows are projector-emitted, shape-stable, and the
+/// derived-coverage test walks every one of them.
 fn canon_row(code: &str) -> Option<String> {
+    let mut in_section = false;
     for line in nika_pack::canon().lines() {
+        if line.starts_with("error_codes:") {
+            in_section = true;
+            continue;
+        }
+        if in_section && !line.trim().is_empty() && !line.starts_with([' ', '#']) {
+            break; // next top-level key — the section is closed
+        }
+        if !in_section {
+            continue;
+        }
         let trimmed = line.trim_start();
         let Some(rest) = trimmed.strip_prefix("- { code:") else {
             continue;
         };
-        let (row_code, tail) = rest.split_once(',')?;
+        let Some((row_code, tail)) = rest.split_once(',') else {
+            continue; // malformed row — skip, never abort the scan
+        };
         if row_code.trim() != code {
             continue;
         }
@@ -115,7 +131,12 @@ mod tests {
     fn spec_conformance_codes_answer_from_the_canon() {
         // ONE voice: every code `nika check` emits is explainable.
         let out = run("NIKA-DAG-003");
-        assert_eq!(out.code, exit::OK, "spec codes must teach, not 404:\n{}", out.text);
+        assert_eq!(
+            out.code,
+            exit::OK,
+            "spec codes must teach, not 404:\n{}",
+            out.text
+        );
         assert!(out.text.contains("NIKA-DAG-003"));
         assert!(out.text.contains("validation_error"));
         assert!(out.text.contains("spec/05-errors.md"));
@@ -131,16 +152,20 @@ mod tests {
     #[test]
     fn every_canon_table_row_explains() {
         // DERIVED coverage (never a hand-enumerated list): every code the
-        // canon's error_codes table carries must answer exit 0. Known
-        // spec-side gap (filed): the checker also emits NIKA-BUILTIN-001
-        // (BadBuiltinArgs generic) which the table does not list yet —
-        // the table is the SSOT to fix, not this test.
+        // canon's error_codes table carries must answer exit 0, and the
+        // anchored parse's standing assumption — rows stay escape-free —
+        // is asserted here at the projector seam (an escaped quote would
+        // silently truncate the failure text otherwise).
         let mut covered = 0usize;
         for line in nika_pack::canon().lines() {
             let trimmed = line.trim_start();
             let Some(rest) = trimmed.strip_prefix("- { code:") else {
                 continue;
             };
+            assert!(
+                !line.contains('\\'),
+                "canon error_codes rows must stay escape-free for the anchored parse: {line}"
+            );
             let Some((code, _)) = rest.split_once(',') else {
                 continue;
             };
@@ -149,7 +174,12 @@ mod tests {
             assert_eq!(out.code, exit::OK, "{code} must explain:\n{}", out.text);
             covered += 1;
         }
-        assert!(covered > 0, "the canon error_codes table must not be empty");
+        // ≥ the v0.1 floor — the parse-shape drifting to zero rows must
+        // fail loudly, not pass vacuously.
+        assert!(
+            covered >= 30,
+            "canon error_codes parse broke ({covered} rows)"
+        );
     }
 
     #[test]

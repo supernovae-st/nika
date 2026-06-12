@@ -84,6 +84,17 @@ impl DagRead {
     }
 }
 
+/// Above this task count the exact read is SKIPPED (honest, never
+/// wrong — same posture as the conformance gate). The materialized
+/// closure is O(n²) and the matching phases O(E√V): at the parser's
+/// 10k-task cap that is ~400 MB + minutes of CPU from a few-KB YAML —
+/// a `DoS` surface on a checker that markets static safety (house
+/// precedent: the marked-yaml depth caps · the 64 MiB ceilings). At
+/// 2 000 tasks the worst case stays ~60 MB · milliseconds typical —
+/// far above any real workflow. The cap also bounds the augmenting
+/// DFS recursion (≤ n frames · see [`hk_dfs`]).
+const ANALYSIS_TASK_CAP: usize = 2_000;
+
 /// Run the engineering read over a conformant workflow.
 pub(super) fn read_dag(wf: &RawWorkflow, topo_waves: &[Vec<usize>]) -> DagRead {
     let n = wf.tasks.len();
@@ -97,6 +108,9 @@ pub(super) fn read_dag(wf: &RawWorkflow, topo_waves: &[Vec<usize>]) -> DagRead {
             }),
             conflicts: Vec::new(),
         };
+    }
+    if n > ANALYSIS_TASK_CAP {
+        return DagRead::skipped();
     }
 
     let down = downstream_adjacency(&wf.tasks);
@@ -112,8 +126,8 @@ pub(super) fn read_dag(wf: &RawWorkflow, topo_waves: &[Vec<usize>]) -> DagRead {
         .map(|row| row.iter().map(|w| w.count_ones() as usize).sum())
         .collect();
     let mut anc_count = vec![0usize; n];
-    for row in &desc {
-        for v in set_bits(row) {
+    for row in &closure_adj {
+        for &v in row {
             anc_count[v] += 1;
         }
     }
@@ -204,18 +218,30 @@ fn set_bits(row: &[u64]) -> Vec<usize> {
 /// Hopcroft-Karp maximum bipartite matching (1973 · O(E√V)) over the
 /// comparability graph: left `u` → right `v` for every `u ≺ v` in the
 /// closure. Dilworth: width = n − |maximum matching|.
+///
+/// The √V phase bound needs BOTH textbook details: the BFS truncates at
+/// the first layer reaching a free right vertex (`free_layer`), and the
+/// DFS accepts a free right vertex only at exactly that layer — without
+/// them phases may augment along non-shortest paths and the bound
+/// degrades to O(V·E) (review finding · the matching stays maximum
+/// either way by Berge, only the complexity claim breaks).
 fn hopcroft_karp(n: usize, adj: &[Vec<usize>]) -> (Vec<Option<usize>>, Vec<Option<usize>>, usize) {
     let mut match_left: Vec<Option<usize>> = vec![None; n];
     let mut match_right: Vec<Option<usize>> = vec![None; n];
     let mut matched = 0usize;
 
-    loop {
-        let dist = hk_bfs(n, adj, &match_left, &match_right);
-        let Some(mut dist) = dist else { break };
+    while let Some((mut dist, free_layer)) = hk_bfs(n, adj, &match_left, &match_right) {
         let mut progressed = false;
         for u in 0..n {
             if match_left[u].is_none()
-                && hk_dfs(u, adj, &mut dist, &mut match_left, &mut match_right)
+                && hk_dfs(
+                    u,
+                    adj,
+                    &mut dist,
+                    free_layer,
+                    &mut match_left,
+                    &mut match_right,
+                )
             {
                 matched += 1;
                 progressed = true;
@@ -228,14 +254,17 @@ fn hopcroft_karp(n: usize, adj: &[Vec<usize>]) -> (Vec<Option<usize>>, Vec<Optio
     (match_left, match_right, matched)
 }
 
-/// BFS layering from unmatched left vertices. `None` = no augmenting
-/// path exists (the matching is maximum).
+/// BFS layering from unmatched left vertices. Returns the per-vertex
+/// layers AND the layer of the nearest free right vertex; `None` = no
+/// augmenting path exists (the matching is maximum). Exploration stops
+/// at `free_layer` — deeper layers cannot start a SHORTEST augmenting
+/// path and visiting them is what forfeits the √V bound.
 fn hk_bfs(
     n: usize,
     adj: &[Vec<usize>],
     match_left: &[Option<usize>],
     match_right: &[Option<usize>],
-) -> Option<Vec<usize>> {
+) -> Option<(Vec<usize>, usize)> {
     const INF: usize = usize::MAX;
     let mut dist = vec![INF; n];
     let mut queue = std::collections::VecDeque::new();
@@ -245,11 +274,14 @@ fn hk_bfs(
             queue.push_back(u);
         }
     }
-    let mut reaches_free = false;
+    let mut free_layer = INF;
     while let Some(u) = queue.pop_front() {
+        if dist[u] >= free_layer {
+            continue;
+        }
         for &v in &adj[u] {
             match match_right[v] {
-                None => reaches_free = true,
+                None => free_layer = free_layer.min(dist[u].saturating_add(1)),
                 Some(next) => {
                     if dist[next] == INF {
                         dist[next] = dist[u].saturating_add(1);
@@ -259,24 +291,31 @@ fn hk_bfs(
             }
         }
     }
-    reaches_free.then_some(dist)
+    (free_layer != INF).then_some((dist, free_layer))
 }
 
-/// Layered augmenting DFS (the Hopcroft-Karp phase step).
+/// Layered augmenting DFS (the Hopcroft-Karp phase step). Recursion
+/// depth ≤ augmenting-path length ≤ [`ANALYSIS_TASK_CAP`] frames — the
+/// `read_dag` size gate is what makes the recursion safe everywhere
+/// (including a 2 MiB worker stack).
 fn hk_dfs(
     u: usize,
     adj: &[Vec<usize>],
     dist: &mut [usize],
+    free_layer: usize,
     match_left: &mut [Option<usize>],
     match_right: &mut [Option<usize>],
 ) -> bool {
+    // Indexed loop on purpose: the recursive call needs `dist`/matches
+    // mutably while `adj[u]` would be held by a `for &v in` borrow.
     for i in 0..adj[u].len() {
         let v = adj[u][i];
         let advance = match match_right[v] {
-            None => true,
+            // Free right vertex: accept only at the shortest-path layer.
+            None => dist[u].saturating_add(1) == free_layer,
             Some(next) => {
                 dist[next] == dist[u].saturating_add(1)
-                    && hk_dfs(next, adj, dist, match_left, match_right)
+                    && hk_dfs(next, adj, dist, free_layer, match_left, match_right)
             }
         };
         if advance {
@@ -619,5 +658,43 @@ mod tests {
         assert_eq!(size, 2);
         assert_eq!(ml[1], Some(0));
         assert_eq!(ml[0], Some(1));
+    }
+
+    #[test]
+    fn hk_staircase_needs_long_augmenting_paths() {
+        // The staircase u_i → {v_i, v_{i+1}}-shape forces alternating
+        // augmenting paths — the layered (free_layer-gated) phases must
+        // still reach the maximum matching, not stall on greedy picks.
+        let k = 40usize;
+        let mut adj = vec![Vec::new(); k];
+        for u in 0..k {
+            adj[u].push(u);
+            if u + 1 < k {
+                adj[u].push(u + 1);
+            }
+        }
+        let (_, _, size) = hopcroft_karp(k, &adj);
+        assert_eq!(size, k); // perfect on this gadget
+    }
+
+    #[test]
+    fn oversized_workflows_skip_the_exact_read_honestly() {
+        // One task above the cap: the read is skipped (None · no claim)
+        // instead of materializing an O(n²) closure — never slow, never
+        // wrong, same posture as the conformance gate.
+        let mut yaml = String::from(HEADER);
+        yaml.push_str(&infer_task("t0", &[]));
+        for i in 1..=ANALYSIS_TASK_CAP {
+            let prev = format!("t{}", i - 1);
+            yaml.push_str(&infer_task(&format!("t{i}"), &[prev.as_str()]));
+        }
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let analyzed = crate::analyzer::analyze(&parsed).expect("conformant");
+        let read = read_dag(&parsed, &analyzed.topo_waves);
+        assert!(
+            read.analysis.is_none(),
+            "above the cap the read claims nothing"
+        );
+        assert!(read.conflicts.is_empty());
     }
 }

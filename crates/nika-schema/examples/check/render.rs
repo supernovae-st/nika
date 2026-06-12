@@ -99,9 +99,18 @@ fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     }
     let task_count: usize = report.waves.iter().map(Vec::len).sum();
     let max_par = report.waves.iter().map(Vec::len).max().unwrap_or(1);
+    // Mirror of the CLI renderer's width note (nika-cli verbs/check.rs)
+    // — the DAG's exact width can exceed the wave peak; both renderers
+    // say so or neither is honest.
+    let width_note = report
+        .analysis
+        .as_ref()
+        .filter(|a| a.width > max_par)
+        .map(|a| format!(" {} width {} (the DAG permits)", t.middot(), a.width))
+        .unwrap_or_default();
     let _ = writeln!(
         out,
-        " {}     {} wave(s) {mid} {} task(s) {mid} max parallelism {}",
+        " {}     {} wave(s) {mid} {} task(s) {mid} max parallelism {}{width_note}",
         t.bold("PLAN"),
         report.waves.len(),
         task_count,
@@ -641,6 +650,29 @@ mod tests {
         let s = rendered(Theme::new(false, false));
         assert_eq!(s, expected);
         assert!(s.is_ascii(), "ascii theme leaked non-ascii: {s:?}");
+    }
+
+    #[test]
+    fn plan_names_the_width_when_it_exceeds_the_wave_peak() {
+        // p→a1→x2 · p→x1 · isolated x0: Kahn waves peak at 2, the exact
+        // antichain width is 3 — BOTH renderers must say so (this is
+        // the example renderer's half; verbs/check.rs has the CLI's).
+        let yaml = "nika: v1\nworkflow: wide\npermits: { exec: [\"true\"] }\ntasks:\n  - id: p\n    exec: { command: \"true\" }\n  - id: x0\n    exec: { command: \"true\" }\n  - id: a1\n    depends_on: [p]\n    exec: { command: \"true\" }\n  - id: x1\n    depends_on: [p]\n    exec: { command: \"true\" }\n  - id: x2\n    depends_on: [a1]\n    exec: { command: \"true\" }\n";
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let report = check(&wf);
+        let analysis = report.analysis.as_ref().expect("conformant -> analysis");
+        assert_eq!(analysis.width, 3);
+        let out = render(
+            &report,
+            &wf,
+            yaml,
+            "wide.nika.yaml",
+            Theme::new(false, false),
+        );
+        assert!(
+            out.contains("max parallelism 2 - width 3"),
+            "the PLAN line must carry the width note:\n{out}"
+        );
     }
 
     #[test]

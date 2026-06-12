@@ -169,8 +169,11 @@ pub struct CheckReport {
     pub hints: Vec<Hint>,
     /// The scheduler-independent DAG read — exact width (Dilworth) with
     /// a witness antichain, pinch points, per-task failure blast radius.
-    /// `None` when conformance fails (no valid order — no claim).
-    /// Additive: `report_version` stays 1.
+    /// `None` when conformance fails (no valid order) OR the workflow
+    /// exceeds the exact-read size cap (analysis.rs · the O(n²) closure
+    /// is a `DoS` surface at the parser's 10k-task limit) — both are the
+    /// honest skip: no claim, never wrong. Additive: `report_version`
+    /// stays 1.
     pub analysis: Option<DagAnalysis>,
 }
 
