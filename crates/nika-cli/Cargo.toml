@@ -39,6 +39,7 @@ nika-verb-exec   = { path = "../nika-verb-exec", version = "0.80.0" }
 nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.80.0" }
 nika-verb-agent  = { path = "../nika-verb-agent", version = "0.80.0" }
 nika-builtin     = { path = "../nika-builtin", version = "0.80.0" }
+nika-runtime     = { path = "../nika-runtime", version = "0.80.0" }  # the L3 it rehearsed for — the floor flip (s18)
 tokio            = { workspace = true }
 
 [package.metadata.lore]

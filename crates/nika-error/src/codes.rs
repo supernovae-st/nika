@@ -860,6 +860,41 @@ pub const NIKA_1605: NikaCode = NikaCode {
     slug: "audio-task-join-failed",
 };
 
+// ─── Runtime orchestration · 1700-1799 (nika-runtime L3 · s17) ──────────
+
+/// NIKA-1700: A dirty `CheckReport` was handed to the runtime
+/// (audit-before-run violated · a dirty workflow never executes).
+pub const NIKA_1700: NikaCode = NikaCode {
+    num: 1700,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-dirty-report",
+};
+/// NIKA-1701: A wave index fell outside the task list (the
+/// checker/runtime schedule contract was breached).
+pub const NIKA_1701: NikaCode = NikaCode {
+    num: 1701,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-wave-out-of-bounds",
+};
+/// NIKA-1702: A rendered string still carries `${{` after
+/// interpolation (unknown reference · the silent-literal guard).
+pub const NIKA_1702: NikaCode = NikaCode {
+    num: 1702,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-unresolved-template",
+};
+/// NIKA-1703: A `when:` expression is outside the v0 gate subset
+/// (`<ref> == '<lit>'` · `<ref> != '<lit>'` · bare `<ref>`).
+pub const NIKA_1703: NikaCode = NikaCode {
+    num: 1703,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-when-unsupported",
+};
+
 /// All registered codes within nika-error's own ranges + the M2
 /// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
 /// in their L1 crates, the CONSTANTS are registry-owned here so
@@ -884,7 +919,8 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204, NIKA_1205,
     NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401, NIKA_1402,
     NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502, NIKA_1503, NIKA_1504,
-    NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605,
+    NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605, NIKA_1700, NIKA_1701,
+    NIKA_1702, NIKA_1703,
 ];
 
 /// Returns an actionable help message for a given code.
@@ -1027,6 +1063,16 @@ pub fn code_help(code: NikaCode) -> &'static str {
         }
         1600..=1699 => {
             "Audio inference failed. Check the model/voice is available, the clip format (PCM s16le), and an audio backend is installed."
+        }
+        1700 => "Run `nika check` first — the runtime refuses a workflow whose audit is dirty.",
+        1701 => {
+            "The wave schedule references a task index outside the workflow. Re-run `nika check`; if it persists, report the checker/runtime mismatch."
+        }
+        1702 => {
+            "A `${{ }}` reference did not resolve. Check the task id / var name spelling — only `tasks.<id>.output` and `vars.<key>` resolve in v0."
+        }
+        1703 => {
+            "This `when:` form is not in the v0 subset. Supported: `${{ <ref> == '<lit>' }}`, `!=`, or a bare `${{ <ref> }}` truthy gate."
         }
         700..=749 => {
             "WASM plugin host reported an error. Check plugin manifest and capability grants."

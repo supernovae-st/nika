@@ -1,0 +1,24 @@
+---
+source: crates/nika-runtime/tests/floor.rs
+assertion_line: 243
+expression: lines
+---
+- "WorkflowStarted ·  · "
+- "TaskScheduled · gather · "
+- "TaskScheduled · probe · "
+- "TaskScheduled · extract · "
+- "TaskScheduled · think · "
+- "TaskScheduled · write_out · "
+- "TaskScheduled · notify · "
+- "TaskStarted · gather · invoke · nika:read"
+- "TaskCompleted · gather · invoke · nika:read"
+- TaskStarted · probe · exec · wc
+- TaskCompleted · probe · exec · wc
+- TaskStarted · extract · infer · mock/echo
+- TaskCompleted · extract · infer · mock/echo
+- TaskStarted · think · infer · mock/echo
+- TaskCompleted · think · infer · mock/echo
+- "TaskStarted · write_out · invoke · nika:write"
+- "TaskCompleted · write_out · invoke · nika:write"
+- "TaskSkipped · notify · when: gate closed"
+- "WorkflowCompleted ·  · "
