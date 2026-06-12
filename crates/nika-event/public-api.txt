@@ -170,6 +170,7 @@ pub fn nika_event::event::Event::as_any(&self) -> &(dyn core::any::Any + 'static
 impl<T> serde_core::de::DeserializeOwned for nika_event::event::Event where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_event::kind
 #[non_exhaustive] pub enum nika_event::kind::EventClass
+pub nika_event::kind::EventClass::Agent
 pub nika_event::kind::EventClass::Cost
 pub nika_event::kind::EventClass::Dispatch
 pub nika_event::kind::EventClass::Durability
@@ -219,6 +220,11 @@ impl<T> nika_error::traits::AsAny for nika_event::kind::EventClass where T: 'sta
 pub fn nika_event::kind::EventClass::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventClass where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_event::kind::EventKind
+pub nika_event::kind::EventKind::AgentBudgetCheckpoint
+pub nika_event::kind::EventKind::AgentComposeChecked
+pub nika_event::kind::EventKind::AgentNudge
+pub nika_event::kind::EventKind::AgentStalled
+pub nika_event::kind::EventKind::AgentToolsSelected
 pub nika_event::kind::EventKind::CheckpointWritten
 pub nika_event::kind::EventKind::CostIncurred
 pub nika_event::kind::EventKind::InferChunk
@@ -288,6 +294,7 @@ pub fn nika_event::kind::EventKind::as_any(&self) -> &(dyn core::any::Any + 'sta
 impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventKind where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_event::prelude
 #[non_exhaustive] pub enum nika_event::prelude::EventClass
+pub nika_event::prelude::EventClass::Agent
 pub nika_event::prelude::EventClass::Cost
 pub nika_event::prelude::EventClass::Dispatch
 pub nika_event::prelude::EventClass::Durability
@@ -376,6 +383,11 @@ pub fn nika_event::error::EventError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::error::EventError where T: 'static
 pub fn nika_event::error::EventError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_event::prelude::EventKind
+pub nika_event::prelude::EventKind::AgentBudgetCheckpoint
+pub nika_event::prelude::EventKind::AgentComposeChecked
+pub nika_event::prelude::EventKind::AgentNudge
+pub nika_event::prelude::EventKind::AgentStalled
+pub nika_event::prelude::EventKind::AgentToolsSelected
 pub nika_event::prelude::EventKind::CheckpointWritten
 pub nika_event::prelude::EventKind::CostIncurred
 pub nika_event::prelude::EventKind::InferChunk
@@ -568,6 +580,7 @@ pub fn nika_event::emitter::InMemoryEmitter::emit(&self, event: nika_event::even
 impl nika_event::emitter::Emitter for nika_event::emitter::NoOpEmitter
 pub fn nika_event::emitter::NoOpEmitter::emit(&self, _event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
 #[non_exhaustive] pub enum nika_event::EventClass
+pub nika_event::EventClass::Agent
 pub nika_event::EventClass::Cost
 pub nika_event::EventClass::Dispatch
 pub nika_event::EventClass::Durability
@@ -656,6 +669,11 @@ pub fn nika_event::error::EventError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::error::EventError where T: 'static
 pub fn nika_event::error::EventError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_event::EventKind
+pub nika_event::EventKind::AgentBudgetCheckpoint
+pub nika_event::EventKind::AgentComposeChecked
+pub nika_event::EventKind::AgentNudge
+pub nika_event::EventKind::AgentStalled
+pub nika_event::EventKind::AgentToolsSelected
 pub nika_event::EventKind::CheckpointWritten
 pub nika_event::EventKind::CostIncurred
 pub nika_event::EventKind::InferChunk

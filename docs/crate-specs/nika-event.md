@@ -129,8 +129,8 @@ states must be ⊆ event-expressible states):
 
 | Kind | Slug | Why |
 |---|---|---|
-| `TaskRetrying` | `task_retrying` | §3.1 `↻` — attempt failed, retry scheduled (`attempt`/`max_attempts` fields) |
-| `TaskCancelled` | `task_cancelled` | §3.1 `◼` — a decision, not a defect (NOT `is_failure`) |
+| `TaskRetrying` | `task_retrying` | §3.1 `↻` — attempt failed, retry scheduled (`attempt`/`max_attempts`/`delay_ms` fields · the runtime stamps the chosen backoff) |
+| `TaskCancelled` | `task_cancelled` | §3.1 `◼` — a decision, not a defect (NOT `is_failure`) · the runtime emits it for an upstream-failure cascade (spec 03 default gate); a task `timeout:` is a FAILURE (`NIKA-TIMEOUT-001`), never a cancellation |
 | `WorkflowCancelled` | `workflow_cancelled` | terminal-not-failure (joins `is_terminal`) |
 | `CostIncurred` | `cost_incurred` | §3.3 verbatim — the live `~$` meter refold driver (`tokens`/`usd` deltas) |
 | `InferChunk` | `infer_chunk` | §3.3 verbatim — streaming output delta (`delta` field) |
@@ -140,12 +140,28 @@ Cost shape law: `cost_incurred` carries SPEND (deltas a meter folds);
 `task_completed` carries OUTCOME — consumers never double-count.
 
 `EventKind::class()` → `EventClass` (Workflow · Task · Dispatch ·
-Durability · Cost · Stream · Security · `#[non_exhaustive]`): renderers
-and routers branch on the 7 stable classes instead of every variant.
-Tests pin: the 17-slug wire table (serde ↔ `as_str` FCI-003) · the
-classification partition · the contract-named slugs verbatim ·
+Durability · Cost · Stream · Security · Agent · `#[non_exhaustive]`):
+renderers and routers branch on the stable classes instead of every
+variant. Tests pin: the full slug wire table (serde ↔ `as_str` FCI-003) ·
+the classification partition · the contract-named slugs verbatim ·
 cancellation ≠ failure. Mutation on `kind.rs`: 7 caught / 1 unviable
 (100% viable-kill).
+
+## 4ter. Agent-loop cohort 2026-06-12 — the loop's observable mind (additive)
+
+Five kinds + the `EventClass::Agent` class (ADR-093): every internal
+DECISION the `agent` verb takes is event-expressible. The L2 loop reports
+through its `AgentObserver` seam; the L3 runtime maps payloads onto these
+kinds 1:1 (INV-024 — the adapter is the ONE emission site). Per AgentOps
+(arXiv:2411.05285), agent traces must expose decisions, not just I/O.
+
+| Kind | Slug | Why |
+|---|---|---|
+| `AgentToolsSelected` | `agent_tools_selected` | the per-turn routing decision (`offered`/`universe`/per-source counts — the MCP-Zero-style active-discovery surface) |
+| `AgentNudge` | `agent_nudge` | a bounded Reflexion corrective was injected (`reason` · `repeated_actions`/`error_streak`) |
+| `AgentStalled` | `agent_stalled` | the no-progress stop's evidence (`period`/`repeats` — the TRAIL repetitive-action class) rides IN the trace; diagnostic, NOT `is_failure` (the task event carries the verdict) |
+| `AgentComposeChecked` | `agent_compose_checked` | an `agent:compose` draft got its static verdict (`valid`/`violations` — generation is not permission) |
+| `AgentBudgetCheckpoint` | `agent_budget_checkpoint` | per-turn spend snapshot — the curve is observable mid-run, not just at the end |
 
 ## 5. Consumers (downstream)
 

@@ -37,7 +37,10 @@ pub enum EventKind {
     TaskCompleted,
     /// A task aborted on an error.
     TaskFailed,
-    /// A task was skipped (guard false, or an upstream dependency failed).
+    /// A task was skipped (`when:` gate false · empty `for_each`
+    /// collection · `on_error: skip` — never ran OR recovered-by-skip,
+    /// by design; an upstream failure is [`EventKind::TaskCancelled`],
+    /// spec 03 §task states).
     TaskSkipped,
     /// A verb was dispatched (`infer · exec · invoke · agent`).
     VerbInvoked,
@@ -52,9 +55,11 @@ pub enum EventKind {
     /// A task attempt failed and a retry is scheduled (`attempt` /
     /// `max_attempts` fields carry the counter — contract §3.1 `↻`).
     TaskRetrying,
-    /// A task was cancelled (operator stop · timeout · budget kill —
-    /// contract §3.1 `◼`; distinct from [`EventKind::TaskFailed`]:
-    /// cancellation is a decision, not a defect).
+    /// A task was cancelled (an upstream failure made the default gate
+    /// unsatisfiable · operator stop · budget kill — contract §3.1 `◼`;
+    /// distinct from [`EventKind::TaskFailed`]: cancellation is a
+    /// decision, not a defect. A task-level `timeout:` is a FAILURE,
+    /// not a cancellation — spec 03 §timeout · `NIKA-TIMEOUT-001`).
     TaskCancelled,
     /// The whole run was cancelled (terminal, but NOT a failure).
     WorkflowCancelled,
@@ -68,6 +73,33 @@ pub enum EventKind {
     /// fields · `allow`/`deny`) — the declared security boundary made
     /// observable at runtime (ADR-092 · the auditable moat).
     PermitChecked,
+    // ── additive cohort 2026-06-12 · the agent-loop telemetry vocabulary
+    //    (ADR-093) — every internal decision the `agent` verb takes is
+    //    expressible as an engine event («eyes everywhere»: per AgentOps,
+    //    Dong · Lu · Zhu 2024 · arxiv.org/abs/2411.05285, agent traces
+    //    must expose DECISIONS, not just I/O). The L2 loop reports through
+    //    its observer seam; the L3 runtime maps observer payloads onto
+    //    these kinds 1:1. MINOR-bump additive per the header law. ──
+    /// The agent's per-turn tool routing decided which definitions the
+    /// model sees (`offered` / `universe` / per-source counts — the
+    /// MCP-Zero-style active-discovery surface made observable).
+    AgentToolsSelected,
+    /// A corrective reflection message was injected into the transcript
+    /// (`reason` field · `repeated_actions`/`error_streak` — the
+    /// Reflexion-style verbal feedback, bounded by config).
+    AgentNudge,
+    /// The agent loop detected a no-progress action cycle past the stall
+    /// threshold and stopped (`period` + `repeats` fields carry the
+    /// evidence — the failure class TRAIL calls repetitive-action loops).
+    AgentStalled,
+    /// An `agent:compose` intrinsic draft was statically checked
+    /// (`valid` + `violations` fields — generation is not permission:
+    /// every self-composed workflow carries its check verdict).
+    AgentComposeChecked,
+    /// A per-turn budget snapshot (`turn` + `total_tokens` + optional
+    /// `budget` fields — the spend curve is observable while the loop
+    /// runs, not just at its end).
+    AgentBudgetCheckpoint,
 }
 
 impl EventKind {
@@ -97,6 +129,11 @@ impl EventKind {
             Self::CostIncurred => "cost_incurred",
             Self::InferChunk => "infer_chunk",
             Self::PermitChecked => "permit_checked",
+            Self::AgentToolsSelected => "agent_tools_selected",
+            Self::AgentNudge => "agent_nudge",
+            Self::AgentStalled => "agent_stalled",
+            Self::AgentComposeChecked => "agent_compose_checked",
+            Self::AgentBudgetCheckpoint => "agent_budget_checkpoint",
         }
     }
 
@@ -162,6 +199,11 @@ impl EventKind {
             Self::CostIncurred => EventClass::Cost,
             Self::InferChunk => EventClass::Stream,
             Self::PermitChecked => EventClass::Security,
+            Self::AgentToolsSelected
+            | Self::AgentNudge
+            | Self::AgentStalled
+            | Self::AgentComposeChecked
+            | Self::AgentBudgetCheckpoint => EventClass::Agent,
         }
     }
 }
@@ -189,6 +231,9 @@ pub enum EventClass {
     Stream,
     /// Permits-boundary evaluations.
     Security,
+    /// Agent-loop internal decisions (routing · reflection · stall ·
+    /// compose · budget) — the `agent` verb's observable mind.
+    Agent,
 }
 
 impl fmt::Display for EventKind {
@@ -224,6 +269,11 @@ mod tests {
         EventKind::CostIncurred,
         EventKind::InferChunk,
         EventKind::PermitChecked,
+        EventKind::AgentToolsSelected,
+        EventKind::AgentNudge,
+        EventKind::AgentStalled,
+        EventKind::AgentComposeChecked,
+        EventKind::AgentBudgetCheckpoint,
     ];
 
     #[test]
@@ -249,10 +299,15 @@ mod tests {
                 | EventKind::WorkflowCancelled
                 | EventKind::CostIncurred
                 | EventKind::InferChunk
-                | EventKind::PermitChecked => {}
+                | EventKind::PermitChecked
+                | EventKind::AgentToolsSelected
+                | EventKind::AgentNudge
+                | EventKind::AgentStalled
+                | EventKind::AgentComposeChecked
+                | EventKind::AgentBudgetCheckpoint => {}
             }
         }
-        assert_eq!(ALL.len(), 17, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 22, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
@@ -322,9 +377,28 @@ mod tests {
                 "cost_incurred" => Some(EventClass::Cost),
                 "infer_chunk" => Some(EventClass::Stream),
                 "permit_checked" => Some(EventClass::Security),
+                s if s.starts_with("agent_") => Some(EventClass::Agent),
                 _ => None,
             };
             assert_eq!(Some(k.class()), expected, "class drift for {k:?}");
+        }
+    }
+
+    #[test]
+    fn agent_kinds_are_neither_terminal_nor_failures() {
+        // The agent-loop telemetry is DIAGNOSTIC: a stall is evidence the
+        // task-level failure event will carry the verdict for — the
+        // lifecycle classifiers must not double-count it (ADR-093).
+        for k in [
+            EventKind::AgentToolsSelected,
+            EventKind::AgentNudge,
+            EventKind::AgentStalled,
+            EventKind::AgentComposeChecked,
+            EventKind::AgentBudgetCheckpoint,
+        ] {
+            assert!(!k.is_terminal(), "{k:?} must not be terminal");
+            assert!(!k.is_failure(), "{k:?} must not be a lifecycle failure");
+            assert_eq!(k.class(), EventClass::Agent);
         }
     }
 
