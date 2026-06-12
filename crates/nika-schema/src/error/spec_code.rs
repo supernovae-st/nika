@@ -266,26 +266,23 @@ mod tests {
         // not list them — `nika explain` had nothing to teach and a
         // second engine could not match parse-time behavior from the
         // spec alone. Both sides DERIVED: the variant enumerator on the
-        // left, the embedded canon registry on the right — a new error
-        // variant whose code lacks a registry row fails HERE, at the
-        // crate that introduces it, before any release.
-        let registered: std::collections::BTreeSet<String> = nika_pack::canon()
-            .lines()
-            .filter_map(|line| {
-                let rest = line.trim_start().strip_prefix("- { code:")?;
-                let (code, _) = rest.split_once(',')?;
-                Some(code.trim().to_owned())
-            })
+        // left, the typed registry accessor on the right (THE one
+        // parser · its contract pinned in nika-pack's seam tests) — a
+        // new error variant whose code lacks a registry row fails HERE,
+        // at the crate that introduces it, before any release.
+        let registered: std::collections::BTreeSet<&str> = nika_pack::error_codes()
+            .into_iter()
+            .map(|row| row.code)
             .collect();
         assert!(
             registered.len() >= 30,
-            "canon registry parse broke — {} rows found (the table is never this small)",
+            "canon registry parse broke — {} rows (the table is never this small)",
             registered.len()
         );
         for err in &all_error_variants() {
             let code = err.spec_code().to_string();
             assert!(
-                registered.contains(&code),
+                registered.contains(code.as_str()),
                 "{code} is emitted by the checker but NOT registered in the canon \
                  error_codes table — add the row to spec canon.yaml + \
                  spec/05-errors.md (the table is the SSOT · the engine derives), \

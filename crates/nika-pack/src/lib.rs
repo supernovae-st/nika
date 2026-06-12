@@ -53,6 +53,89 @@ pub fn canon() -> &'static str {
     file_str("canon.yaml").unwrap_or("")
 }
 
+/// One row of the canon's `error_codes` registry — the spec's normative
+/// floor (`spec/05-errors.md` · projector-emitted flow-style rows).
+/// Output-only: constructed solely by [`error_codes`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ErrorCodeRow {
+    /// The canonical code (`NIKA-DAG-003`).
+    pub code: &'static str,
+    /// The closed-enum category (`validation_error` · `variable_error` · …).
+    pub category: &'static str,
+    /// The transient marker (`false` · `engine-assessed`).
+    pub transient: &'static str,
+    /// The one-line failure description.
+    pub failure: &'static str,
+}
+
+/// The canon's `error_codes` table, typed — THE one parser for the
+/// registry rows (`nika explain`'s teach surface and the
+/// emitted⊆registered ratchet both consume this; a second hand-rolled
+/// parser of the same rows is the drift class this accessor kills).
+///
+/// The scan is anchored to the `error_codes:` section — a same-shaped
+/// row in any other canon table is never served as an error code — and
+/// a malformed row is skipped, never fatal (later rows stay reachable).
+/// The quoted `failure` text is the LAST field, so commas inside it are
+/// safe; the rows-stay-escape-free assumption is pinned by this crate's
+/// tests at the projector seam.
+#[must_use]
+pub fn error_codes() -> Vec<ErrorCodeRow> {
+    let mut out = Vec::new();
+    let mut in_section = false;
+    for line in canon().lines() {
+        if line.starts_with("error_codes:") {
+            in_section = true;
+            continue;
+        }
+        if in_section && !line.trim().is_empty() && !line.starts_with([' ', '#']) {
+            break; // next top-level key — the section is closed
+        }
+        if !in_section {
+            continue;
+        }
+        let Some(rest) = line.trim_start().strip_prefix("- { code:") else {
+            continue;
+        };
+        let Some((code, tail)) = rest.split_once(',') else {
+            continue;
+        };
+        let (Some(category), Some(transient), Some(failure)) = (
+            bare_field(tail, "category:"),
+            quoted_field(tail, "transient:"),
+            quoted_field(tail, "failure:"),
+        ) else {
+            continue;
+        };
+        out.push(ErrorCodeRow {
+            code: code.trim(),
+            category,
+            transient,
+            failure,
+        });
+    }
+    out
+}
+
+/// `key: value` where the value runs to the next `,` or `}` (unquoted).
+fn bare_field(tail: &'static str, key: &str) -> Option<&'static str> {
+    let start = tail.find(key)? + key.len();
+    let rest = &tail[start..];
+    let end = rest.find([',', '}']).unwrap_or(rest.len());
+    let value = rest[..end].trim();
+    (!value.is_empty()).then_some(value)
+}
+
+/// `key: "value"` — the quoted form (commas inside stay intact).
+fn quoted_field(tail: &'static str, key: &str) -> Option<&'static str> {
+    let start = tail.find(key)? + key.len();
+    let rest = tail[start..].trim_start();
+    let inner = rest.strip_prefix('"')?;
+    let end = inner.find('"')?;
+    Some(&inner[..end])
+}
+
 /// The workflow JSON Schema — pipe it to editors
 /// (`nika schema > workflow.schema.json`).
 #[must_use]

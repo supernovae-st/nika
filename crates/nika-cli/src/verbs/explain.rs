@@ -48,71 +48,22 @@ pub fn run(wire: &str) -> VerbOutput {
     VerbOutput::ok(text)
 }
 
-/// Teach a spec conformance code from the embedded canon's
-/// `error_codes` flow-style rows:
-///
-/// ```yaml
-/// - { code: NIKA-DAG-003, category: validation_error, transient: "false", failure: "…" }
-/// ```
-///
-/// The scan is ANCHORED to the `error_codes:` section (a same-shaped
-/// row in any other canon table is never served as an error code), and
-/// a malformed row is skipped, never fatal — codes in later rows stay
-/// reachable. The failure text is the LAST field and quoted — commas
-/// inside it are safe under this anchored parse. Hand-rolled (no regex
-/// dep): the rows are projector-emitted, shape-stable, and the
-/// derived-coverage test walks every one of them.
+/// Teach a spec conformance code from the embedded canon's registry —
+/// through THE one typed parser ([`nika_pack::error_codes`] · its
+/// anchoring, malformed-row tolerance and escape-free invariant are
+/// pinned at the nika-pack seam, not re-rolled here).
 fn canon_row(code: &str) -> Option<String> {
-    let mut in_section = false;
-    for line in nika_pack::canon().lines() {
-        if line.starts_with("error_codes:") {
-            in_section = true;
-            continue;
-        }
-        if in_section && !line.trim().is_empty() && !line.starts_with([' ', '#']) {
-            break; // next top-level key — the section is closed
-        }
-        if !in_section {
-            continue;
-        }
-        let trimmed = line.trim_start();
-        let Some(rest) = trimmed.strip_prefix("- { code:") else {
-            continue;
-        };
-        let Some((row_code, tail)) = rest.split_once(',') else {
-            continue; // malformed row — skip, never abort the scan
-        };
-        if row_code.trim() != code {
-            continue;
-        }
-        let category = bare_field(tail, "category:")?;
-        let transient = quoted_field(tail, "transient:")?;
-        let failure = quoted_field(tail, "failure:")?;
-        return Some(format!(
-            "{code} · {category} · transient: {transient}\n\n  {failure}\n\n\
-             spec conformance code — emitted by `nika check`; prose home: \
-             spec/05-errors.md (embedded canon `error_codes` is the SSOT row).\n",
-        ));
-    }
-    None
-}
-
-/// `key: value` where the value runs to the next `,` or `}` (unquoted).
-fn bare_field<'a>(tail: &'a str, key: &str) -> Option<&'a str> {
-    let start = tail.find(key)? + key.len();
-    let rest = &tail[start..];
-    let end = rest.find([',', '}']).unwrap_or(rest.len());
-    let value = rest[..end].trim();
-    (!value.is_empty()).then_some(value)
-}
-
-/// `key: "value"` — the quoted form (commas inside stay intact).
-fn quoted_field<'a>(tail: &'a str, key: &str) -> Option<&'a str> {
-    let start = tail.find(key)? + key.len();
-    let rest = tail[start..].trim_start();
-    let inner = rest.strip_prefix('"')?;
-    let end = inner.find('"')?;
-    Some(&inner[..end])
+    let row = nika_pack::error_codes()
+        .into_iter()
+        .find(|r| r.code == code)?;
+    Some(format!(
+        "{code} · {category} · transient: {transient}\n\n  {failure}\n\n\
+         spec conformance code — emitted by `nika check`; prose home: \
+         spec/05-errors.md (embedded canon `error_codes` is the SSOT row).\n",
+        category = row.category,
+        transient = row.transient,
+        failure = row.failure,
+    ))
 }
 
 #[cfg(test)]
@@ -151,35 +102,26 @@ mod tests {
 
     #[test]
     fn every_canon_table_row_explains() {
-        // DERIVED coverage (never a hand-enumerated list): every code the
-        // canon's error_codes table carries must answer exit 0, and the
-        // anchored parse's standing assumption — rows stay escape-free —
-        // is asserted here at the projector seam (an escaped quote would
-        // silently truncate the failure text otherwise).
-        let mut covered = 0usize;
-        for line in nika_pack::canon().lines() {
-            let trimmed = line.trim_start();
-            let Some(rest) = trimmed.strip_prefix("- { code:") else {
-                continue;
-            };
-            assert!(
-                !line.contains('\\'),
-                "canon error_codes rows must stay escape-free for the anchored parse: {line}"
-            );
-            let Some((code, _)) = rest.split_once(',') else {
-                continue;
-            };
-            let code = code.trim();
-            let out = run(code);
-            assert_eq!(out.code, exit::OK, "{code} must explain:\n{}", out.text);
-            covered += 1;
-        }
-        // ≥ the v0.1 floor — the parse-shape drifting to zero rows must
-        // fail loudly, not pass vacuously.
+        // DERIVED coverage (never a hand-enumerated list): every code
+        // the typed registry carries must answer exit 0. The parse
+        // contract itself (anchoring · escape-free rows · count vs the
+        // canon's own field) is pinned in nika-pack's seam tests.
+        let rows = nika_pack::error_codes();
         assert!(
-            covered >= 30,
-            "canon error_codes parse broke ({covered} rows)"
+            rows.len() >= 30,
+            "registry parse broke ({} rows)",
+            rows.len()
         );
+        for row in rows {
+            let out = run(row.code);
+            assert_eq!(
+                out.code,
+                exit::OK,
+                "{} must explain:\n{}",
+                row.code,
+                out.text
+            );
+        }
     }
 
     #[test]
@@ -190,12 +132,12 @@ mod tests {
     }
 
     #[test]
-    fn quoted_field_keeps_commas_inside_the_failure_text() {
-        let tail = r#" category: variable_error, transient: "false", failure: "zero, or multiple, values" }"#;
-        assert_eq!(
-            quoted_field(tail, "failure:"),
-            Some("zero, or multiple, values")
-        );
-        assert_eq!(bare_field(tail, "category:"), Some("variable_error"));
+    fn commas_inside_the_failure_text_render_intact() {
+        // The parse detail lives in nika-pack now; this pins the
+        // CONSUMER-visible property — VAR-002's comma-bearing failure
+        // text arrives whole through the typed seam.
+        let out = run("NIKA-VAR-002");
+        assert_eq!(out.code, exit::OK);
+        assert!(out.text.contains("zero or multiple values"), "{}", out.text);
     }
 }

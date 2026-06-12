@@ -125,3 +125,55 @@ fn lean_strips_the_banner_and_nothing_else() {
     // (python keeps one trailing \n). Multi-newline tails normalize.
     assert_eq!(nika_pack::lean("nika: v1\n\n"), "nika: v1");
 }
+
+#[test]
+fn error_codes_registry_parses_typed_and_complete() {
+    // THE one parser for the canon error_codes rows — every consumer
+    // (explain's teach surface · the emitted⊆registered ratchet) reads
+    // through this accessor, so its contract is pinned at the seam:
+    let rows = nika_pack::error_codes();
+    // ≥ the v0.1 normative floor (49 at vendoring · never hand-pin the
+    // live count — the canon's own count field is the cross-check).
+    assert!(
+        rows.len() >= 30,
+        "registry parse broke ({} rows)",
+        rows.len()
+    );
+    let declared: usize = nika_pack::canon()
+        .lines()
+        .skip_while(|l| !l.starts_with("error_codes:"))
+        .take_while(|l| {
+            l.starts_with([' ', '#']) || l.starts_with("error_codes:") || l.trim().is_empty()
+        })
+        .find_map(|l| {
+            l.trim()
+                .strip_prefix("count:")
+                .and_then(|v| v.trim().parse().ok())
+        })
+        .expect("canon declares error_codes.count");
+    assert_eq!(rows.len(), declared, "parsed rows vs the canon's own count");
+
+    // Spot-pin one row fully (the beginner's #1 error).
+    let dag3 = rows
+        .iter()
+        .find(|r| r.code == "NIKA-DAG-003")
+        .expect("NIKA-DAG-003 row");
+    assert_eq!(dag3.category, "validation_error");
+    assert_eq!(dag3.transient, "false");
+    assert!(dag3.failure.len() > 10);
+
+    // Every row is well-formed + the escape-free invariant the anchored
+    // parse relies on (an escaped quote would silently truncate).
+    for r in &rows {
+        assert!(r.code.starts_with("NIKA-"), "{r:?}");
+        assert!(!r.category.is_empty() && !r.failure.is_empty(), "{r:?}");
+        assert!(!r.failure.contains('\\'), "escape in failure text: {r:?}");
+    }
+
+    // Anchoring: codes are unique (a same-shaped row from another canon
+    // table leaking in would collide or inflate the count).
+    let mut codes: Vec<_> = rows.iter().map(|r| r.code).collect();
+    codes.sort_unstable();
+    codes.dedup();
+    assert_eq!(codes.len(), rows.len(), "duplicate codes in the registry");
+}
