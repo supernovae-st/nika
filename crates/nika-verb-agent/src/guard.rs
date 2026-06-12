@@ -11,8 +11,8 @@
 //! action+outcome cycles do. Repetitive-action loops are the dominant
 //! agentic failure class in trace taxonomies (TRAIL · Deshpande et al.
 //! 2025, arxiv.org/abs/2505.08638); the windowed period scan is
-//! elementary on purpose — over a window of W=16 signatures it is at
-//! most W²/4 u64 compares per turn, deterministic and zero-LLM.
+//! elementary on purpose — over the default window of 25 signatures it is
+//! at most W²/4 ≈ 156 u64 compares per turn, deterministic and zero-LLM.
 //!
 //! Escalation is a two-step ladder per [`crate::config::GuardConfig`]:
 //! `nudge_after` occurrences → ONE bounded verbal reflection (Reflexion ·

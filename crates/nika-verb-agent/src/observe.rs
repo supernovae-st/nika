@@ -12,11 +12,14 @@
 //! arxiv.org/abs/2505.08638) traces are only debuggable when the failure
 //! evidence (the cycle period, the repeat count) rides IN the trace.
 //!
-//! The L3 runtime maps these payloads 1:1 onto the `nika-event` kinds
-//! (`agent_tools_selected` · `agent_nudge` · `agent_stalled` ·
-//! `agent_compose_checked` · `agent_budget_checkpoint`); the verb crate
-//! itself stays event-log-agnostic (INV-024: ONE emission site per verb
-//! path — that site is the runtime adapter, not the loop).
+//! The L3 runtime maps these payloads 1:1 onto the `nika-event` kinds:
+//! the five `agent_*` kinds (`agent_tools_selected` · `agent_nudge` ·
+//! `agent_stalled` · `agent_compose_checked` · `agent_budget_checkpoint`)
+//! plus `tool_invoked` for a DISPATCHED tool's completion (an intrinsic
+//! is loop-served, never a dispatch — it reports only its `agent_*`
+//! event). The verb crate itself stays event-log-agnostic (INV-024: ONE
+//! emission site per verb path — that site is the runtime adapter, not
+//! the loop).
 //!
 //! Callbacks are synchronous and MUST be cheap (enqueue, don't block):
 //! the loop calls them between awaits on its hot path.

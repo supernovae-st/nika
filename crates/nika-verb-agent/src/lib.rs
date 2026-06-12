@@ -313,7 +313,13 @@ where
         let mut last_text = String::new();
         let mut last_observations = String::new();
 
-        while turns < max_turns {
+        // `loop`, not `while turns < max_turns`: the Dispatch arm below is
+        // the SOLE max_turns authority (it fires BEFORE spending the final
+        // batch). A trailing `while`-condition exit could never be
+        // reached — every turn at the budget returns from inside — so a
+        // duplicate trailing `Err(MaxTurns)` would be dead, untestable
+        // code (J2 review fold).
+        loop {
             turns += 1;
             observer.on_event(&AgentEvent::TurnStarted { turn: turns });
 
@@ -355,6 +361,7 @@ where
                     // allowed turn there is no iteration left to show them —
                     // stop NOW without spending the batch (mirrors the token
                     // gate's "before spending more": no wasted side effects).
+                    // This is the ONLY max_turns exit.
                     if turns >= max_turns {
                         return Err(VerbAgentError::MaxTurns {
                             turns,
@@ -381,11 +388,6 @@ where
                 }
             }
         }
-
-        Err(VerbAgentError::MaxTurns {
-            turns,
-            partial_output: last_text,
-        })
     }
 
     /// Arm the intelligence layer for one run: build the router + the
@@ -445,7 +447,7 @@ where
         &self,
         observer: &dyn AgentObserver,
         turn: u32,
-        tool_uses: Vec<(String, String, serde_json::Value)>,
+        tool_uses: Vec<ToolUse>,
         router: &mut ToolRouter,
         guard: &mut Guard,
         messages: &mut Vec<Message>,
@@ -510,19 +512,16 @@ where
         &self,
         observer: &dyn AgentObserver,
         turn: u32,
-        tool_uses: Vec<(String, String, serde_json::Value)>,
+        tool_uses: Vec<ToolUse>,
         router: &mut ToolRouter,
     ) -> BatchOutcome {
         use futures_util::StreamExt;
         let cap = self.config.max_parallel_tools.max(1);
-        let resolved: Vec<Resolved> = futures_util::stream::iter(
-            tool_uses
-                .into_iter()
-                .map(|(id, name, args)| self.resolve_tool(id, name, args)),
-        )
-        .buffered(cap)
-        .collect()
-        .await;
+        let resolved: Vec<Resolved> =
+            futures_util::stream::iter(tool_uses.into_iter().map(|u| self.resolve_tool(u)))
+                .buffered(cap)
+                .collect()
+                .await;
 
         let mut results: Vec<ContentBlock> = Vec::with_capacity(resolved.len());
         let mut sig_calls: Vec<(String, serde_json::Value)> = Vec::with_capacity(resolved.len());
@@ -586,24 +585,24 @@ where
 
     /// Resolve ONE tool call to its result block (phase-1 unit — pure
     /// with respect to loop state: no observer, no router).
-    async fn resolve_tool(&self, id: String, name: String, args: serde_json::Value) -> Resolved {
-        if let Some(intrinsic) = intrinsic::Intrinsic::parse(&name) {
-            let (content, is_error, outcome) = self.run_intrinsic(intrinsic, args.clone()).await;
+    async fn resolve_tool(&self, u: ToolUse) -> Resolved {
+        if let Some(intrinsic) = intrinsic::Intrinsic::parse(&u.name) {
+            let (content, is_error, outcome) = self.run_intrinsic(intrinsic, u.args.clone()).await;
             Resolved {
                 block: ContentBlock::ToolResult {
-                    tool_use_id: id,
+                    tool_use_id: u.id,
                     content,
                     is_error,
                 },
-                name,
-                args,
+                name: u.name,
+                args: u.args,
                 compose: Some(outcome),
             }
         } else {
             Resolved {
-                block: self.dispatch(&id, &name, args.clone()).await,
-                name,
-                args,
+                block: self.dispatch(&u.id, &u.name, u.args.clone()).await,
+                name: u.name,
+                args: u.args,
                 compose: None,
             }
         }
@@ -652,40 +651,18 @@ where
             .map_err(|source| VerbAgentError::ToolDefs { source })?;
         let mut defs: Vec<ToolDef> = universe
             .into_iter()
-            // Exclude any source-supplied `nika:done` AND the whole
-            // `agent:` namespace (the loop owns the sentinel + every
-            // intrinsic · a poisoned def must never shadow them) +
-            // sanitize names the way the invoke seam does (NIKA-450 parity):
-            // a control-char/whitespace-padded name from a compromised MCP
-            // `tools/list` must not be serialized into the model's tool list.
+            // Drop every LOOP-OWNED name a source supplied (the loop
+            // synthesizes its own · a poisoned def must never shadow them)
+            // + sanitize names the way the invoke seam does (NIKA-450
+            // parity): a control-char/whitespace-padded name from a
+            // compromised MCP `tools/list` must not reach the model's list.
             .filter(|def| {
-                def.name != DONE_TOOL
-                    && !def.name.starts_with("agent:")
+                !intrinsic::is_loop_owned(&def.name)
                     && whitelist.admits(&def.name)
                     && is_clean_tool_name(&def.name)
             })
             .collect();
-        if whitelist.admits(DONE_TOOL) {
-            // The loop owns the sentinel's definition — sources never do.
-            defs.push(ToolDef::new(
-                DONE_TOOL,
-                "Finish the task. Pass `result` when the answer is a value; \
-                 omit it to finish with your final message.",
-                serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "result": {
-                            "description": "The final answer value (any JSON)."
-                        }
-                    }
-                }),
-            ));
-        }
-        if whitelist.admits(intrinsic::COMPOSE_TOOL) {
-            // Loop-owned like the sentinel: drafting stays default-deny
-            // (absent from `tools:`, the model never sees it).
-            defs.push(intrinsic::compose_def());
-        }
+        defs.extend(intrinsic::synthesized_defs(whitelist));
         Ok(defs)
     }
 
@@ -796,12 +773,21 @@ struct TurnCtx<'a> {
     last_text: &'a str,
 }
 
+/// One model-emitted tool call, named (two adjacent `String`s in a raw
+/// tuple invite a silent id/name swap; the struct makes every read
+/// self-documenting · the same move as `TurnCtx`).
+struct ToolUse {
+    id: String,
+    name: String,
+    args: serde_json::Value,
+}
+
 /// What the loop does after one model response.
 enum TurnVerdict {
     /// A terminal was reached (natural · sentinel) — return this output.
     Done(AgentOutput),
     /// Continue: dispatch these (validated, non-sentinel) tool calls.
-    Dispatch(Vec<(String, String, serde_json::Value)>),
+    Dispatch(Vec<ToolUse>),
 }
 
 /// Decide one turn — the ONE place the loop's exit conditions live, in
@@ -815,13 +801,15 @@ fn classify_turn(
     text: &str,
     ctx: &TurnCtx<'_>,
 ) -> Result<TurnVerdict, VerbAgentError> {
-    let tool_uses: Vec<(String, String, serde_json::Value)> = response
+    let tool_uses: Vec<ToolUse> = response
         .content
         .iter()
         .filter_map(|block| match block {
-            ContentBlock::ToolUse { id, name, input } => {
-                Some((id.clone(), name.clone(), input.clone()))
-            }
+            ContentBlock::ToolUse { id, name, input } => Some(ToolUse {
+                id: id.clone(),
+                name: name.clone(),
+                args: input.clone(),
+            }),
             _ => None,
         })
         .collect();
@@ -842,13 +830,13 @@ fn classify_turn(
     // name is MODEL-controlled — an over-long or control-char name is a
     // violation in itself (matches no sane whitelist), its error REDACTED
     // so the security-path log can't be injected (NIKA-450 parity).
-    for (_, name, _) in &tool_uses {
-        if name.len() > MAX_TOOL_NAME_LEN
-            || !is_clean_tool_name(name)
-            || !ctx.whitelist.admits(name)
+    for u in &tool_uses {
+        if u.name.len() > MAX_TOOL_NAME_LEN
+            || !is_clean_tool_name(&u.name)
+            || !ctx.whitelist.admits(&u.name)
         {
             return Err(VerbAgentError::WhitelistViolation {
-                tool: redact_tool_name(name),
+                tool: redact_tool_name(&u.name),
             });
         }
     }
@@ -857,8 +845,8 @@ fn classify_turn(
     // shares a turn with other tools, those siblings do NOT run: the model
     // signalled completion · a side effect on a terminating turn would be
     // spent and never fed back. `done` wins, deterministically.
-    if let Some((_, _, args)) = tool_uses.iter().find(|(_, name, _)| name == DONE_TOOL) {
-        let value = match args.get("result") {
+    if let Some(done) = tool_uses.iter().find(|u| u.name == DONE_TOOL) {
+        let value = match done.args.get("result") {
             Some(result) => shape_output(
                 AgentValue::Structured(result.clone()),
                 ctx.input.schema.as_ref(),

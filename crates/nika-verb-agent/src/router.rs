@@ -30,9 +30,8 @@ use std::collections::BTreeMap;
 use nika_bm25::{BmIndex, BmParams, EagerIndex};
 use nika_kernel::ai::provider::ToolDef;
 
-use crate::DONE_TOOL;
 use crate::config::RouterConfig;
-use crate::observe::{SourceCounts, ToolSource};
+use crate::observe::SourceCounts;
 
 /// Belt-and-braces cap on the query CHARS fed to the ranker (the caller
 /// already budgets per-component in `routing_query`; this bounds any
@@ -121,8 +120,10 @@ impl ToolRouter {
 
         let mut keep = vec![false; defs.len()];
         for (i, def) in defs.iter().enumerate() {
-            let pinned = matches!(ToolSource::classify(&def.name), ToolSource::Intrinsic)
-                || def.name == DONE_TOOL;
+            // Loop-owned terminals/intrinsics always ride — routing them
+            // away would hide the model's only way to finish or compose
+            // (the ONE definition of the set · J3 review fold).
+            let pinned = crate::intrinsic::is_loop_owned(&def.name);
             let recent = self
                 .last_used
                 .get(&def.name)

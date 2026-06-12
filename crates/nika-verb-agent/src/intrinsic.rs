@@ -50,9 +50,51 @@ impl Intrinsic {
     }
 }
 
+/// Is this name LOOP-OWNED — synthesized + served by the loop itself,
+/// never a source-provided def, never an executor dispatch? The ONE
+/// definition of the closed set {the `nika:done` sentinel} ∪ {the whole
+/// `agent:` intrinsic namespace}, consumed at all three sites that used
+/// to spell it out separately (the def filter, the recency-pin, this
+/// module's `parse`) — J3 review fold.
+pub(crate) fn is_loop_owned(name: &str) -> bool {
+    name == crate::DONE_TOOL || name.starts_with("agent:")
+}
+
+/// Every loop-owned definition the whitelist admits — synthesized HERE so
+/// a poisoned upstream def can never shadow them (the model sees the
+/// loop's own `nika:done` + `agent:compose`, default-deny when absent
+/// from `tools:`).
+pub(crate) fn synthesized_defs(whitelist: &crate::Whitelist) -> Vec<ToolDef> {
+    let mut defs = Vec::new();
+    if whitelist.admits(crate::DONE_TOOL) {
+        defs.push(done_def());
+    }
+    if whitelist.admits(COMPOSE_TOOL) {
+        defs.push(compose_def());
+    }
+    defs
+}
+
+/// The synthesized `nika:done` sentinel definition (loop-owned).
+fn done_def() -> ToolDef {
+    ToolDef::new(
+        crate::DONE_TOOL,
+        "Finish the task. Pass `result` when the answer is a value; \
+         omit it to finish with your final message.",
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "result": {
+                    "description": "The final answer value (any JSON)."
+                }
+            }
+        }),
+    )
+}
+
 /// The synthesized `agent:compose` definition (loop-owned, like the
 /// `nika:done` sentinel def).
-pub(crate) fn compose_def() -> ToolDef {
+fn compose_def() -> ToolDef {
     ToolDef::new(
         COMPOSE_TOOL,
         "Statically check a Nika workflow draft you wrote. Returns the full \

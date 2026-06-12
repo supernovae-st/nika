@@ -46,18 +46,38 @@ pub(crate) fn shape_output(
 /// first balanced `{…}`/`[…]` span (tolerates code fences + prose).
 /// String-aware so a brace inside a string literal never miscounts depth.
 ///
-/// NOTE · this mirrors `nika-verb-infer`'s structured extraction (spec §2
-/// `infer.schema:` parity · pinned by the fenced-JSON test). The canonical
-/// home for both is a future `nika-verb-common`; until that exists the
-/// duplication is intentional and behavior-tested rather than a hidden
-/// fork (both reviewers flagged the cross-crate dup · the test is the
-/// contract that keeps them in step).
+/// THREE layers, IDENTICAL to `nika-verb-infer`'s structured extraction
+/// (spec §2 `infer.schema:` parity): bare parse → first fenced block →
+/// first balanced span. The fence layer is load-bearing — a model that
+/// fences a BARE scalar (` ```json\n"a string"\n``` `) after an unbalanced
+/// `{` is extractable ONLY by the fence (the span layer is poisoned, the
+/// bare parse fails); without this layer the agent verb would reject under
+/// `schema:` a final message the infer verb accepts. The duplication is
+/// intentional (the DAG forbids a shared L2 sibling home for 60 LOC, and a
+/// dedicated crate isn't worth 12 gates) — kept honest by the SHARED test
+/// vectors below, ported verbatim from infer's load-bearing suite.
 pub(crate) fn extract_json(text: &str) -> Option<serde_json::Value> {
-    if let Ok(value) = serde_json::from_str::<serde_json::Value>(text.trim()) {
+    let trimmed = text.trim();
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
         return Some(value);
     }
-    let span = balanced_span(text)?;
+    if let Some(fenced) = first_fenced_block(trimmed)
+        && let Ok(value) = serde_json::from_str::<serde_json::Value>(fenced)
+    {
+        return Some(value);
+    }
+    let span = balanced_span(trimmed)?;
     serde_json::from_str(span).ok()
+}
+
+/// The body of the first code fence (with or without a language tag).
+fn first_fenced_block(text: &str) -> Option<&str> {
+    let start = text.find("```")?;
+    let after_ticks = &text[start + 3..];
+    let body_start = after_ticks.find('\n').map_or(0, |i| i + 1);
+    let body = &after_ticks[body_start..];
+    let end = body.find("```")?;
+    Some(body[..end].trim())
 }
 
 /// The first balanced `{…}` or `[…]` substring, honoring string literals.
@@ -120,5 +140,48 @@ mod tests {
         );
         // No JSON at all → None (→ SchemaValidation upstream).
         assert_eq!(extract_json("just prose, no braces"), None);
+    }
+
+    // ── parity vectors · ported VERBATIM from nika-verb-infer's
+    //    structured.rs load-bearing suite (the contract that keeps the
+    //    two extractors identical · J1 review fold) ─────────────────────
+
+    #[test]
+    fn fenced_json_is_extracted() {
+        let text = "Here you go:\n```json\n{\"name\":\"Ada\",\"age\":36}\n```\nDone.";
+        assert_eq!(
+            extract_json(text),
+            Some(serde_json::json!({"name": "Ada", "age": 36}))
+        );
+    }
+
+    #[test]
+    fn fence_layer_is_load_bearing() {
+        // An unbalanced `{` BEFORE the fence poisons the balanced-span
+        // layer, and the fenced value is a bare string the span layer
+        // can't see — only the fence extraction can succeed here. THIS is
+        // the message the agent verb used to reject while infer accepted.
+        let text = "context { broken\n```json\n\"just a string\"\n```\nafter";
+        assert_eq!(extract_json(text), Some(serde_json::json!("just a string")));
+    }
+
+    #[test]
+    fn fence_with_language_tag_skips_the_tag_line() {
+        let text = "x\n```yaml\n[7]\n```";
+        assert_eq!(extract_json(text), Some(serde_json::json!([7])));
+    }
+
+    #[test]
+    fn nested_objects_need_real_depth_counting() {
+        let text = r#"reply: {"a":{"b":1},"c":2} end"#;
+        assert_eq!(
+            extract_json(text),
+            Some(serde_json::json!({"a": {"b": 1}, "c": 2}))
+        );
+    }
+
+    #[test]
+    fn unterminated_span_is_not_extracted() {
+        assert_eq!(extract_json("start { \"a\": 1 and never closes"), None);
     }
 }
