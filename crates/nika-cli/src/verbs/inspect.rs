@@ -51,7 +51,57 @@ pub fn run(path: &str) -> VerbOutput {
     // The spec §6 footer verbatim — NIKA-DAG-001 is the conformance code
     // the ladder proved clean to get here.
     out.push_str("└─ (no orphans · DAG check NIKA-DAG-001 clean)\n");
+    render_analysis(&mut out, report.analysis.as_ref());
     VerbOutput::ok(out)
+}
+
+/// The engineering read in the anatomy surface — the scheduler-
+/// independent facts the report already computed (check/analysis.rs):
+/// exact width with its witness antichain, pinch points, the widest
+/// failure blast radii. Single-task workflows render nothing extra
+/// (width 1 of 1 is noise) and an absent read (oversized workflow ·
+/// honest skip) renders nothing — never a claim it cannot back.
+fn render_analysis(out: &mut String, analysis: Option<&nika_schema::check::DagAnalysis>) {
+    let Some(a) = analysis else { return };
+    if a.width_witness.len() < 2 {
+        return;
+    }
+    let mut witness: Vec<&str> = a.width_witness.iter().map(String::as_str).collect();
+    witness.truncate(4);
+    let ellipsis = if a.width_witness.len() > 4 {
+        " · …"
+    } else {
+        ""
+    };
+    let _ = writeln!(
+        out,
+        "\nparallelism  width {} · can run together: {}{ellipsis}",
+        a.width,
+        witness.join(" · "),
+    );
+    if !a.pinch_points.is_empty() {
+        let _ = writeln!(
+            out,
+            "pinch        {} · nothing else runs while these run",
+            a.pinch_points.join(" · "),
+        );
+    }
+    // Failure economics at a glance — the report sorts widest-first.
+    let top: Vec<String> = a
+        .blast_radius
+        .iter()
+        .take(3)
+        .map(|b| format!("{} blocks {}", b.task, b.blocks))
+        .collect();
+    if !top.is_empty() {
+        let more = a.blast_radius.len().saturating_sub(3);
+        let suffix = if more > 0 {
+            format!(" · +{more} more")
+        } else {
+            String::new()
+        };
+        let _ = writeln!(out, "blast        {}{suffix}", top.join(" · "));
+    }
 }
 
 /// Box-drawing tree: roots at depth 0, children under their FIRST parent
@@ -149,5 +199,62 @@ fn walk<'a>(
             printed,
             id_width,
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::verbs::exit;
+
+    fn tmp(content: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "nika-inspect-{}-{}.nika.yaml",
+            std::process::id(),
+            content.len(),
+        ));
+        std::fs::write(&path, content).expect("fixture written");
+        path
+    }
+
+    #[test]
+    fn anatomy_carries_the_engineering_read() {
+        // The diamond: width 2 ({left,right}) · pinch {root,join} ·
+        // root blocks 3 — the report computed it, inspect must SAY it.
+        let path = tmp(
+            "nika: v1\nworkflow: anatomy\n\nmodel: mock/echo\n\ntasks:\n  - id: root\n    infer: { prompt: \"r\", max_tokens: 10 }\n  - id: left\n    depends_on: [root]\n    infer: { prompt: \"l\", max_tokens: 10 }\n  - id: right\n    depends_on: [root]\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: join\n    depends_on: [left, right]\n    infer: { prompt: \"j\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.join.output }}\n",
+        );
+        let out = run(path.to_str().expect("utf-8 tmp path"));
+        std::fs::remove_file(&path).ok();
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(out.text.contains("parallelism  width 2"), "{}", out.text);
+        assert!(
+            out.text.contains("left") && out.text.contains("right"),
+            "{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("pinch        root · join"),
+            "{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("blast        root blocks 3"),
+            "{}",
+            out.text
+        );
+    }
+
+    #[test]
+    fn single_task_anatomy_stays_quiet() {
+        // width 1 of 1 is noise, not insight — no engineering section.
+        let path = tmp(
+            "nika: v1\nworkflow: solo\n\nmodel: mock/echo\n\ntasks:\n  - id: only\n    infer: { prompt: \"x\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.only.output }}\n",
+        );
+        let out = run(path.to_str().expect("utf-8 tmp path"));
+        std::fs::remove_file(&path).ok();
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(!out.text.contains("parallelism"), "{}", out.text);
+        assert!(!out.text.contains("blast"), "{}", out.text);
     }
 }
