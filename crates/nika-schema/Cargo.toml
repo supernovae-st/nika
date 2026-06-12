@@ -13,6 +13,7 @@ publish                = false  # Foundation crate — never on crates.io. See f
 [dependencies]
 nika-error   = { path = "../nika-error", version = "0.80.0" }
 nika-catalog = { path = "../nika-catalog", version = "0.80.0" }
+nika-types   = { path = "../nika-types", version = "0.80.0" }   # ExtractMode — fetch arg-shape rules (one closed vocabulary)
 
 thiserror  = { workspace = true }
 serde      = { workspace = true }
@@ -24,7 +25,6 @@ miette     = { workspace = true }
 [dev-dependencies]
 # the verb-theater example folds REAL engine events (the telemetry truth)
 nika-event = { path = "../nika-event", version = "0.80.0" }
-nika-types = { path = "../nika-types", version = "0.80.0" }
 uuid       = { workspace = true }
 insta      = { workspace = true }
 proptest   = { workspace = true }

@@ -8,6 +8,8 @@
 //! loop sentinel · `NIKA-BUILTIN-DONE-001`) · `nika:jq` takes exactly
 //! `expression:` · `nika:wait` takes `duration:` XOR `until:`.
 
+use nika_types::extract::{EXTRACT_MODE_NAMES, ExtractMode};
+
 use crate::error::SchemaError;
 use crate::raw::{RawAction, RawTask};
 use crate::source::{Span, Spanned};
@@ -65,7 +67,94 @@ fn check_action(action: &RawAction, task: &str, errors: &mut Vec<SchemaError>) {
              (builtins-v0.1.md §nika:wait)",
             span,
         )),
+        "nika:fetch" => check_fetch_shape(task, tool, args, span, errors),
         _ => {}
+    }
+}
+
+/// `nika:fetch` static contracts (stdlib §fetch + extract-modes-v0.1.md ·
+/// conformance `stdlib/extract-modes/001..004`): the mode set is CLOSED
+/// at v0.1 · `jq:` pairs with `mode: jq` exactly · `selector:` pairs
+/// with `mode: selector` exactly. A templated `mode:` (`${{ … }}`) is
+/// runtime business — statically silent.
+fn check_fetch_shape(
+    task: &str,
+    tool: &str,
+    args: Option<&serde_json::Value>,
+    span: Span,
+    errors: &mut Vec<SchemaError>,
+) {
+    let object = args.and_then(serde_json::Value::as_object);
+    let mode = match object.and_then(|map| map.get("mode")) {
+        // Absent → the spec default (markdown).
+        None => Some(ExtractMode::Markdown),
+        Some(serde_json::Value::String(raw)) => {
+            if raw.contains("${{") {
+                None // templated — the pairing is unknowable statically
+            } else if let Ok(parsed) = raw.parse::<ExtractMode>() {
+                Some(parsed)
+            } else {
+                errors.push(shape(
+                    task,
+                    tool,
+                    &format!(
+                        "`mode: {raw}` is not a stdlib v0.1 extract mode — the set \
+                         is closed: {EXTRACT_MODE_NAMES} (extract-modes-v0.1.md)"
+                    ),
+                    span,
+                ));
+                return;
+            }
+        }
+        Some(_) => {
+            errors.push(shape(
+                task,
+                tool,
+                "`mode:` must be a string (extract-modes-v0.1.md)",
+                span,
+            ));
+            return;
+        }
+    };
+
+    let has = |key: &str| object.is_some_and(|map| map.contains_key(key));
+    let Some(mode) = mode else { return };
+
+    if has("jq") && mode != ExtractMode::Jq {
+        errors.push(shape(
+            task,
+            tool,
+            "`jq:` is «a jq expression · only with mode: jq» — pair it with \
+             `mode: jq` or drop it (builtins-v0.1.md §nika:fetch)",
+            span,
+        ));
+    }
+    if mode == ExtractMode::Jq && !has("jq") {
+        errors.push(shape(
+            task,
+            tool,
+            "`mode: jq` requires the `jq:` expression to apply \
+             (builtins-v0.1.md §nika:fetch)",
+            span,
+        ));
+    }
+    if has("selector") && mode != ExtractMode::Selector {
+        errors.push(shape(
+            task,
+            tool,
+            "`selector:` pairs with `mode: selector` only \
+             (extract-modes-v0.1.md §selector)",
+            span,
+        ));
+    }
+    if mode == ExtractMode::Selector && !has("selector") {
+        errors.push(shape(
+            task,
+            tool,
+            "`mode: selector` requires the `selector:` CSS selector \
+             (extract-modes-v0.1.md §selector)",
+            span,
+        ));
     }
 }
 
@@ -110,6 +199,46 @@ mod tests {
             ),
             ("{}", "nika:wait", true),                     // neither mode
             (r#"{ duration: "5s" }"#, "nika:wait", false), // exactly one
+            // nika:fetch — the closed mode set + arg pairings
+            // (conformance stdlib/extract-modes/001..004).
+            (r#"{ url: "https://x.test" }"#, "nika:fetch", false), // default markdown
+            (r#"{ url: "https://x.test", mode: article }"#, "nika:fetch", false),
+            (r#"{ url: "https://x.test", mode: raw }"#, "nika:fetch", false),
+            (r#"{ url: "https://x.test", mode: html }"#, "nika:fetch", true), // 001: not a mode
+            (r#"{ url: "https://x.test", mode: llm-txt }"#, "nika:fetch", true), // RESERVED
+            (
+                r#"{ url: "https://x.test", mode: markdown, jq: ".x" }"#,
+                "nika:fetch",
+                true, // 003: jq only with mode: jq
+            ),
+            (
+                r#"{ url: "https://x.test", jq: ".x" }"#,
+                "nika:fetch",
+                true, // jq with the DEFAULT mode (markdown) — same violation
+            ),
+            (
+                r#"{ url: "https://x.test", mode: jq, jq: ".items | map(.name)" }"#,
+                "nika:fetch",
+                false, // 004: the valid pairing
+            ),
+            (r#"{ url: "https://x.test", mode: jq }"#, "nika:fetch", true), // jq needs jq:
+            (r#"{ url: "https://x.test", mode: selector }"#, "nika:fetch", true), // needs selector:
+            (
+                r#"{ url: "https://x.test", mode: selector, selector: "div.c" }"#,
+                "nika:fetch",
+                false,
+            ),
+            (
+                r#"{ url: "https://x.test", mode: text, selector: "div.c" }"#,
+                "nika:fetch",
+                true, // selector: only with mode: selector
+            ),
+            (
+                r#"{ url: "https://x.test", mode: "${{ inputs.m }}" }"#,
+                "nika:fetch",
+                false, // templated mode — runtime business, statically silent
+            ),
+            (r#"{ url: "https://x.test", mode: 5 }"#, "nika:fetch", true), // not a string
         ];
         for (args, tool, violates) in cases {
             let yaml = format!(
