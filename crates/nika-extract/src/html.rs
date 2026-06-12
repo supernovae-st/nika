@@ -368,7 +368,9 @@ pub(crate) fn convert_markdown(
 /// Infallible: html5ever error-recovers, the walk is total.
 pub(crate) fn text(body: &str) -> serde_json::Value {
     let doc = Html::parse_document(body);
-    let mut out = String::new();
+    // Plain text is never longer than the HTML it came from — one
+    // allocation up front beats ~26 reallocs growing into a 64 MiB body.
+    let mut out = String::with_capacity(body.len());
     let mut skip_depth = 0usize;
 
     for edge in doc.root_element().traverse() {
@@ -402,31 +404,40 @@ pub(crate) fn text(body: &str) -> serde_json::Value {
 }
 
 /// Collapse intra-line whitespace runs and blank-line runs (HTML
-/// whitespace is presentation, not content).
+/// whitespace is presentation, not content). Single streaming pass into
+/// ONE buffer — no `Vec<String>` of every line, no per-line join — so a
+/// 64 MiB text body costs one output copy, not three. Output contract
+/// (unchanged): content lines `\n`-joined, at most one blank line
+/// between content blocks, no leading/trailing blanks.
 fn tidy_text(raw: &str) -> String {
-    let mut lines: Vec<String> = Vec::new();
+    let mut out = String::with_capacity(raw.len());
+    let mut collapsed = String::new(); // reused across lines (one alloc)
+    let mut pending_blank = false; // a blank seen AFTER content — emit iff more content follows
+    let mut wrote_content = false;
     for line in raw.lines() {
-        let collapsed = line.split_whitespace().collect::<Vec<_>>().join(" ");
-        match (
-            collapsed.is_empty(),
-            lines.last().is_some_and(String::is_empty),
-        ) {
-            (true, true) => {} // collapse blank runs
-            (true, false) => lines.push(String::new()),
-            (false, _) => lines.push(collapsed),
+        collapsed.clear();
+        for word in line.split_whitespace() {
+            if !collapsed.is_empty() {
+                collapsed.push(' ');
+            }
+            collapsed.push_str(word);
+        }
+        if collapsed.is_empty() {
+            // Suppress leading blanks; remember an interior one (collapsing runs).
+            pending_blank = wrote_content;
+        } else {
+            if pending_blank {
+                out.push('\n');
+                pending_blank = false;
+            }
+            if wrote_content {
+                out.push('\n');
+            }
+            out.push_str(&collapsed);
+            wrote_content = true;
         }
     }
-    while lines.last().is_some_and(String::is_empty) {
-        lines.pop();
-    }
-    // Leading blanks: one drain, not remove(0)-per-line (the collapse
-    // bounds it to ≤1 anyway — this keeps the shape O(n) by inspection).
-    let lead = lines
-        .iter()
-        .position(|l| !l.is_empty())
-        .unwrap_or(lines.len());
-    lines.drain(..lead);
-    lines.join("\n")
+    out // trailing blanks never emitted (pending_blank discarded at EOF)
 }
 
 /// Output ceiling for `mode: selector`: NESTED matches each serialize
@@ -461,4 +472,30 @@ pub(crate) fn selector(body: &str, sel: &str) -> Result<serde_json::Value, Extra
         }
     }
     Ok(serde_json::Value::String(out))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tidy_text;
+
+    // The single-pass rewrite's contract: intra-line whitespace collapses,
+    // blank-line RUNS collapse to at most one, leading/trailing blanks are
+    // stripped. Pins behavior the end-to-end `text()` tests don't fully
+    // exercise (multi-blank runs · padded edges).
+    #[test]
+    fn tidy_text_collapses_runs_and_strips_edges() {
+        // intra-line runs → single spaces; the line keeps its content.
+        assert_eq!(tidy_text("  a   b\tc  "), "a b c");
+        // a single interior blank survives (paragraph break).
+        assert_eq!(tidy_text("one\n\ntwo"), "one\n\ntwo");
+        // a RUN of blanks collapses to exactly one.
+        assert_eq!(tidy_text("one\n\n\n\ntwo"), "one\n\ntwo");
+        // adjacent content lines stay single-`\n` separated.
+        assert_eq!(tidy_text("one\ntwo"), "one\ntwo");
+        // leading + trailing blank runs are stripped entirely.
+        assert_eq!(tidy_text("\n\n  \nhi\n  \n\n"), "hi");
+        // whitespace-only input yields empty (no spurious blank line).
+        assert_eq!(tidy_text("   \n\t\n  "), "");
+        assert_eq!(tidy_text(""), "");
+    }
 }
