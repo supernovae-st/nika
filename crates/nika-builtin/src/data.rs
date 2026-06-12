@@ -960,4 +960,57 @@ mod tests {
         assert_eq!(base64_encode(&[0xff, 0xff, 0xff]), "////");
         assert_eq!(base64_encode(&[0xfb, 0xf0]), "+/A=");
     }
+
+    // ── Gate 6 · property tests (crate spec §5) ─────────────────────────
+
+    /// Arbitrary JSON values whose textual form round-trips exactly:
+    /// full-range integers (jaq carries them losslessly), finite floats
+    /// (Display is shortest-round-trip), and `-0.0` excluded (its sign
+    /// is not observable through `Value` equality).
+    fn arb_json() -> impl proptest::strategy::Strategy<Value = serde_json::Value> {
+        use proptest::prelude::*;
+        let leaf = prop_oneof![
+            Just(serde_json::Value::Null),
+            any::<bool>().prop_map(serde_json::Value::Bool),
+            any::<i64>().prop_map(|n| serde_json::json!(n)),
+            // Floats restricted to serde_json's OWN round-trip set: on
+            // rare 17-digit edges serde's printer and parser disagree by
+            // 1 ULP (verified empirically on 118132816.07034513 ·
+            // serde_json 1.0.149) — that ecosystem caveat is not this
+            // bridge's contract. Text fidelity through jaq is verbatim
+            // either way (Num::Dec carries the literal).
+            (-1.0e9f64..1.0e9)
+                .prop_filter("skip negative zero", |f| !(*f == 0.0
+                    && f.is_sign_negative()))
+                .prop_filter("serde_json self-round-trips", |f| {
+                    serde_json::to_string(f)
+                        .ok()
+                        .and_then(|s| serde_json::from_str::<f64>(&s).ok())
+                        == Some(*f)
+                })
+                .prop_map(|f| serde_json::json!(f)),
+            "[a-zA-Z0-9 _.-]{0,12}".prop_map(serde_json::Value::String),
+        ];
+        leaf.prop_recursive(3, 24, 4, |inner| {
+            prop_oneof![
+                proptest::collection::vec(inner.clone(), 0..4).prop_map(serde_json::Value::Array),
+                proptest::collection::btree_map("[a-z]{1,6}", inner, 0..4)
+                    .prop_map(|m| serde_json::Value::Object(m.into_iter().collect())),
+            ]
+        })
+    }
+
+    proptest::proptest! {
+        /// The exactly-one-output law over ARBITRARY input: the identity
+        /// program always emits exactly one value, and the jaq round-trip
+        /// (serde → Val → Display → serde) is lossless.
+        #[test]
+        fn jq_identity_round_trips_arbitrary_json(value in arb_json()) {
+            let out = jq(&args(serde_json::json!({
+                "expression": ".", "input": value.clone()
+            })))
+            .expect("identity emits exactly one value");
+            proptest::prop_assert_eq!(out, value);
+        }
+    }
 }

@@ -456,6 +456,41 @@ mod tests {
         assert!(simple_glob("a**", "a/b/c"));
     }
 
+    // ── Gate 6 · property test (crate spec §5 · glob determinism) ───────
+
+    /// The pre-DP recursive matcher — the semantic REFERENCE the
+    /// iterative rewrite must agree with (kept test-only; exponential
+    /// on adversarial input, harmless at proptest's small bounds).
+    fn naive_glob(p: &[u8], t: &[u8]) -> bool {
+        match p.first() {
+            None => t.is_empty(),
+            Some(b'*') if p.get(1) == Some(&b'*') => {
+                naive_glob(&p[2..], t) || (!t.is_empty() && naive_glob(p, &t[1..]))
+            }
+            Some(b'*') => {
+                naive_glob(&p[1..], t) || (!t.is_empty() && t[0] != b'/' && naive_glob(p, &t[1..]))
+            }
+            Some(&c) => !t.is_empty() && t[0] == c && naive_glob(&p[1..], &t[1..]),
+        }
+    }
+
+    proptest::proptest! {
+        /// The DP matcher is EXTENSIONALLY EQUAL to the recursive
+        /// reference over the full small-input space (both star forms ·
+        /// separators · literals).
+        #[test]
+        fn dp_glob_agrees_with_the_recursive_reference(
+            pattern in "[ab/*]{0,8}",
+            text in "[ab/]{0,10}",
+        ) {
+            proptest::prop_assert_eq!(
+                simple_glob(&pattern, &text),
+                naive_glob(pattern.as_bytes(), text.as_bytes()),
+                "pattern={:?} text={:?}", pattern, text
+            );
+        }
+    }
+
     #[test]
     fn simple_glob_is_polynomial_on_adversarial_patterns() {
         // The classic exponential-backtracking killer: many stars against

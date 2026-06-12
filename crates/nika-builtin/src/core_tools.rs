@@ -429,6 +429,29 @@ mod tests {
         assert!(matches!(bad, Err(f) if f.code == "NIKA-BUILTIN-WAIT-001"));
     }
 
+    // ── Gate 6 · property test (crate spec §5 · parser totality) ────────
+
+    proptest::proptest! {
+        /// The Go-duration parser is TOTAL: arbitrary bytes (including
+        /// multibyte UTF-8 across the digit/unit boundary) never panic,
+        /// and any accepted value re-parses to the same duration when
+        /// re-rendered through its seconds form.
+        #[test]
+        fn go_duration_parser_is_total(input in ".{0,24}") {
+            if let Some(d) = parse_go_duration(&input) {
+                // An accepted parse is canonical: rendering the total
+                // seconds back through the grammar agrees.
+                let rendered = format!("{}s", d.as_secs());
+                if d.subsec_nanos() == 0 {
+                    proptest::prop_assert_eq!(
+                        parse_go_duration(&rendered),
+                        Some(std::time::Duration::from_secs(d.as_secs()))
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn go_duration_parser_covers_the_grammar() {
         assert_eq!(parse_go_duration("30s"), Some(Duration::from_secs(30)));
