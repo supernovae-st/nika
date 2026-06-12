@@ -28,7 +28,7 @@
 //!    and public-names-resolving-private with a TYPED error before any
 //!    connection attempt.
 //! 3. **Resolver-enforced connect path (the TOCTOU killer)**: the
-//!    reqwest client's DNS resolver IS [`GuardedResolver`] — every
+//!    reqwest client's DNS resolver IS `GuardedResolver` (private) — every
 //!    address the transport will actually connect to is range-checked
 //!    inside the lookup that produces it. A DNS rebind between layer 2
 //!    and connect time now fails at the resolver; there is no window
@@ -489,11 +489,11 @@ impl reqwest::dns::Resolve for GuardedResolver {
             match classify_resolved(addrs.iter().copied()) {
                 ResolveVerdict::AllPublic => Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs),
                 ResolveVerdict::Private => Err(Box::new(HttpError::SsrfBlocked { url: host })
-                    as Box<dyn std::error::Error + Send + Sync>),
+                    as Box<dyn std::error::Error + Send + Sync>), // box-dyn-ok(vendor-seam): reqwest::dns::Resolving's error slot REQUIRES this exact type — the typed HttpError rides inside and is recovered by find_http_error
                 ResolveVerdict::Empty => Err(Box::new(HttpError::Connection {
                     reason: format!("DNS returned no addresses for {host}"),
                 })
-                    as Box<dyn std::error::Error + Send + Sync>),
+                    as Box<dyn std::error::Error + Send + Sync>), // box-dyn-ok(vendor-seam): same reqwest::dns::Resolving signature
             }
         })
     }
@@ -790,7 +790,7 @@ mod tests {
     #[derive(Debug)]
     struct Wrap {
         msg: &'static str,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: Box<dyn std::error::Error + Send + Sync>, // box-dyn-ok(test-harness): #[cfg(test)] fixture replicating reqwest's nesting
     }
     impl std::fmt::Display for Wrap {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

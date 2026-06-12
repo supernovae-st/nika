@@ -8,11 +8,19 @@
 #
 # Banned everywhere in crates/*/src/ — except:
 #   - nika-error's own impls (core::error::Error source chain)
-#   - dev tests (#[cfg(test)] blocks — reviewer discretion)
+#   - lines carrying an inline `box-dyn-ok(<class>): <reason>` marker in a
+#     trailing comment. Two classes only:
+#       vendor-seam   — an external API's signature REQUIRES the boxed type
+#                       (e.g. reqwest::dns::Resolving's error slot); the box
+#                       never crosses INTO our domain untyped.
+#       test-harness  — #[cfg(test)] fixtures replicating a vendor's error
+#                       nesting (the vector is cfg-blind; the marker is the
+#                       reviewer-discretion hook the header always promised).
+#     Exempted lines are COUNTED and printed (audit-visible, greppable).
 #
 # Exit codes:
-#   0 -- GREEN (no violations)
-#   2 -- RED (at least one violation)
+#   0 -- GREEN (no violations; exemptions listed)
+#   2 -- RED (at least one unmarked violation)
 #
 # See: ADR-007 forward-compat invariants, nika-error traits.rs.
 
@@ -27,6 +35,8 @@ FORBIDDEN_RE='Box<dyn[[:space:]]+([a-zA-Z_:]+::)*Error([[:space:]]*[+>]|$)'
 
 violations=0
 violation_log=""
+exempt_count=0
+exempt_log=""
 
 # Scan every admitted crate except nika-error (which defines the alternative
 # NikaErrorCode trait and legitimately uses core::error::Error for `source()`).
@@ -36,9 +46,16 @@ for crate_dir in crates/*/src; do
     nika-error) continue ;; # owns the alternative pattern
   esac
 
-  matches=$(grep -rEn "$FORBIDDEN_RE" "$crate_dir" 2>/dev/null \
+  all_matches=$(grep -rEn "$FORBIDDEN_RE" "$crate_dir" 2>/dev/null \
     | grep -vE ':[0-9]+:[[:space:]]*//' \
     || true)
+  matches=$(echo "$all_matches" | grep -v 'box-dyn-ok(' || true)
+  exempted=$(echo "$all_matches" | grep 'box-dyn-ok(' || true)
+  if [ -n "$exempted" ]; then
+    exempt_count=$((exempt_count + $(echo "$exempted" | wc -l | tr -d ' ')))
+    exempt_log+="\n  $crate_name:\n"
+    exempt_log+="    ${exempted//$'\n'/$'\n'    }\n"
+  fi
   if [ -n "$matches" ]; then
     count=$(echo "$matches" | wc -l | tr -d ' ')
     violations=$((violations + count))
@@ -60,5 +77,10 @@ if [ "$violations" -gt 0 ]; then
   exit 2
 fi
 
-echo "OK: no Box<dyn Error> usage in admitted crate src/"
+if [ "$exempt_count" -gt 0 ]; then
+  printf "OK: no unmarked Box<dyn Error> in src/ (%d marked exemption(s) — audit list):%b\n" \
+    "$exempt_count" "$exempt_log"
+else
+  echo "OK: no Box<dyn Error> usage in admitted crate src/"
+fi
 exit 0
