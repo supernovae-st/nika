@@ -188,7 +188,16 @@ pub enum AgentEvent {
     },
 }
 
-/// The observer seam. Implementations MUST be cheap and non-blocking.
+/// The observer seam. Implementations MUST be cheap and non-blocking
+/// (the loop calls `on_event` between awaits on its hot path — enqueue,
+/// don't block).
+///
+/// BRACKETING IS NOT GUARANTEED: a successful run is bracketed
+/// [`AgentEvent::RunStarted`] … [`AgentEvent::Finished`], but if the run
+/// future is DROPPED mid-flight (an L3 timeout · operator cancel) the
+/// stream simply stops after whatever event fired last — no terminal
+/// event is emitted. Implementations (e.g. the L3 runtime adapter) must
+/// tolerate a sequence that ends without `Finished`/`Stalled`.
 pub trait AgentObserver: Send + Sync {
     /// One loop decision happened.
     fn on_event(&self, event: &AgentEvent);

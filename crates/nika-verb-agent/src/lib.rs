@@ -299,28 +299,16 @@ where
                 .on_event(&AgentEvent::TurnStarted { turn: turns });
 
             // Per-turn routing: rank the universe against the LIVE task
-            // context (prompt + the model's last words + last observations).
-            let query = format!("{} {} {}", input.prompt, last_text, last_observations);
+            // context (prompt + the model's last words + last observations),
+            // each component budgeted so a long prompt can't evict the live
+            // tail the routing is supposed to read.
+            let query = routing_query(&input.prompt, &last_text, &last_observations);
             let offered = self.route_turn(&router, &defs, &query, turns);
 
-            let request = build_request(&model, messages.clone(), &input, &offered);
+            let request = build_request(&model, messages.clone(), &input, offered);
             let response = self
-                .provider
-                .infer(request)
-                .await
-                .map_err(|source| VerbAgentError::Inference { source })?;
-
-            total_tokens = total_tokens.saturating_add(
-                response
-                    .usage
-                    .input_tokens
-                    .saturating_add(response.usage.output_tokens),
-            );
-            self.observer.on_event(&AgentEvent::BudgetCheckpoint {
-                turn: turns,
-                total_tokens,
-                budget: input.max_tokens_total,
-            });
+                .infer_turn(turns, request, &mut total_tokens, &input)
+                .await?;
             let text = joined_text(&response.content);
             if !text.is_empty() {
                 last_text.clone_from(&text);
@@ -344,6 +332,16 @@ where
                     return Ok(output);
                 }
                 TurnVerdict::Dispatch(tool_uses) => {
+                    // The loop WILL iterate to feed results back. On the last
+                    // allowed turn there is no iteration left to show them —
+                    // stop NOW without spending the batch (mirrors the token
+                    // gate's "before spending more": no wasted side effects).
+                    if turns >= max_turns {
+                        return Err(VerbAgentError::MaxTurns {
+                            turns,
+                            partial_output: last_text,
+                        });
+                    }
                     // All-whitelisted, non-sentinel tools · feed results back.
                     messages.push(Message::new(Role::Assistant, response.content.clone()));
                     last_observations = self
@@ -362,6 +360,34 @@ where
             turns,
             partial_output: last_text,
         })
+    }
+
+    /// One provider call: infer, fold its usage into the running total,
+    /// and report the budget checkpoint. Maps a provider failure to 463.
+    async fn infer_turn(
+        &self,
+        turn: u32,
+        request: InferRequest,
+        total_tokens: &mut u64,
+        input: &AgentInput,
+    ) -> Result<InferResponse, VerbAgentError> {
+        let response = self
+            .provider
+            .infer(request)
+            .await
+            .map_err(|source| VerbAgentError::Inference { source })?;
+        *total_tokens = total_tokens.saturating_add(
+            response
+                .usage
+                .input_tokens
+                .saturating_add(response.usage.output_tokens),
+        );
+        self.observer.on_event(&AgentEvent::BudgetCheckpoint {
+            turn,
+            total_tokens: *total_tokens,
+            budget: input.max_tokens_total,
+        });
+        Ok(response)
     }
 
     /// One routing decision: select this turn's definitions + report it.
@@ -396,7 +422,13 @@ where
         messages: &mut Vec<Message>,
     ) -> Result<String, (u32, u32)> {
         let batch = self.run_batch(turn, tool_uses, router).await;
-        messages.push(Message::new(Role::User, batch.results));
+        // Consult the guard BEFORE pushing, so a nudge rides INSIDE the
+        // same user message as the tool results — never a second adjacent
+        // `Role::User` message (which some provider wires reject as
+        // non-alternating roles · the anthropic wire serializes messages
+        // verbatim · a trailing text block after tool results is the
+        // documented-legal shape on every wire).
+        let mut content = batch.results;
         match guard.observe_turn(batch.signature, batch.all_errors) {
             GuardVerdict::Proceed => {}
             GuardVerdict::Nudge(reason, period) => {
@@ -405,7 +437,9 @@ where
                     reason,
                     period,
                 });
-                messages.push(Message::text(Role::User, guard::nudge_text(reason, period)));
+                content.push(ContentBlock::Text {
+                    text: guard::nudge_text(reason, period),
+                });
             }
             GuardVerdict::Stall { period, repeats } => {
                 self.observer.on_event(&AgentEvent::Stalled {
@@ -416,6 +450,7 @@ where
                 return Err((period, repeats));
             }
         }
+        messages.push(Message::new(Role::User, content));
         Ok(batch.observations_digest)
     }
 
@@ -432,21 +467,21 @@ where
         let mut results: Vec<ContentBlock> = Vec::with_capacity(tool_uses.len());
         let mut sig_calls: Vec<(String, serde_json::Value)> = Vec::with_capacity(tool_uses.len());
         let mut sig_results: Vec<(String, bool)> = Vec::with_capacity(tool_uses.len());
-        let mut all_errors = true;
+        // The error STREAK counts real tool failures only — a compose
+        // verdict of `invalid` is the EXPECTED feedback of the draft→repair
+        // loop, never a tool fault, so it must not arm the error-streak
+        // nudge (which would spend the one reflection budget during normal
+        // repair). Tracked separately from the per-block is_error.
+        let mut all_dispatch_errors = true;
+        let mut had_dispatch = false;
         for (id, name, args) in tool_uses {
+            let is_intrinsic = intrinsic::Intrinsic::parse(&name).is_some();
             let block = if let Some(intrinsic) = intrinsic::Intrinsic::parse(&name) {
-                let (content, is_error, outcome) = match intrinsic {
-                    intrinsic::Intrinsic::Compose => intrinsic::run_compose(&args),
-                };
-                self.observer.on_event(&AgentEvent::ComposeChecked {
-                    turn,
-                    valid: outcome.valid,
-                    violations: outcome.violations,
-                });
+                let outcome = self.run_intrinsic(turn, intrinsic, args.clone()).await;
                 ContentBlock::ToolResult {
                     tool_use_id: id,
-                    content,
-                    is_error,
+                    content: outcome.0,
+                    is_error: outcome.1,
                 }
             } else {
                 self.dispatch(&id, &name, args.clone()).await
@@ -460,23 +495,64 @@ where
                     name: name.clone(),
                     is_error: *is_error,
                 });
-                all_errors &= *is_error;
+                if !is_intrinsic {
+                    had_dispatch = true;
+                    all_dispatch_errors &= *is_error;
+                }
                 sig_results.push((content.clone(), *is_error));
             }
             router.note_used(&name, turn);
             sig_calls.push((name, args));
             results.push(block);
         }
+        // ' '-joined so adjacent results don't fuse into phantom seam tokens
+        // ("…statusfetch…") in the next turn's BM25 query.
         let observations_digest = sig_results
             .iter()
-            .flat_map(|(content, _)| content.chars().take(512))
+            .flat_map(|(content, _)| content.chars().take(512).chain(std::iter::once(' ')))
             .take(2048)
             .collect();
         BatchOutcome {
             signature: guard::turn_signature(&sig_calls, &sig_results),
             results,
             observations_digest,
-            all_errors,
+            // No real dispatch this turn (compose-only) ⇒ no error streak.
+            all_errors: had_dispatch && all_dispatch_errors,
+        }
+    }
+
+    /// Run one loop intrinsic off the async executor — the static check
+    /// (`nika-schema` parse + the full ladder over a ≤256 KiB model draft)
+    /// is sync CPU work that must not starve sibling workflows on the
+    /// runtime (the `nika-ocr`/`jq` `spawn_blocking` precedent). A join
+    /// failure (runtime shutdown) feeds back as an error, never fatal.
+    async fn run_intrinsic(
+        &self,
+        turn: u32,
+        intrinsic: intrinsic::Intrinsic,
+        args: serde_json::Value,
+    ) -> (String, bool) {
+        let join = tokio::task::spawn_blocking(move || match intrinsic {
+            intrinsic::Intrinsic::Compose => intrinsic::run_compose(&args),
+        })
+        .await;
+        match join {
+            Ok((content, is_error, outcome)) => {
+                self.observer.on_event(&AgentEvent::ComposeChecked {
+                    turn,
+                    valid: outcome.valid,
+                    violations: outcome.violations,
+                });
+                (content, is_error)
+            }
+            Err(join_err) => {
+                self.observer.on_event(&AgentEvent::ComposeChecked {
+                    turn,
+                    valid: false,
+                    violations: 1,
+                });
+                (format!("agent:compose check task failed: {join_err}"), true)
+            }
         }
     }
 
@@ -567,16 +643,38 @@ struct BatchOutcome {
 }
 
 /// One turn's request — the live transcript + this turn's routed tools.
+/// `defs` is consumed (the router already handed us an owned `Vec`) so a
+/// large fail-open universe isn't cloned a second time per turn.
 fn build_request(
     model: &str,
     messages: Vec<Message>,
     input: &AgentInput,
-    defs: &[ToolDef],
+    defs: Vec<ToolDef>,
 ) -> InferRequest {
     let mut request = InferRequest::new(model, messages);
     request.temperature = input.temperature;
-    request.tools = defs.to_vec();
+    request.tools = defs;
     request
+}
+
+/// Per-component character budgets for the routing query — the live tail
+/// (`last_text` · `last_observations`) must always reach the ranker, so a
+/// long prompt can't evict it via a single tail-truncating cap.
+const QUERY_PROMPT_CHARS: usize = 2048;
+const QUERY_TEXT_CHARS: usize = 1024;
+const QUERY_OBS_CHARS: usize = 1024;
+
+/// Build the BM25 routing query from the live task context, each piece
+/// bounded independently (a 100 KB prompt can't crowd out the model's
+/// last words or the last observations — the signal routing ranks on).
+fn routing_query(prompt: &str, last_text: &str, last_observations: &str) -> String {
+    let take = |s: &str, n: usize| s.chars().take(n).collect::<String>();
+    format!(
+        "{} {} {}",
+        take(prompt, QUERY_PROMPT_CHARS),
+        take(last_text, QUERY_TEXT_CHARS),
+        take(last_observations, QUERY_OBS_CHARS),
+    )
 }
 
 /// The loop state a single turn's decision reads (keeps `classify_turn`

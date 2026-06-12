@@ -34,9 +34,11 @@ use crate::DONE_TOOL;
 use crate::config::RouterConfig;
 use crate::observe::{SourceCounts, ToolSource};
 
-/// Bounds the query text fed to the ranker (defense-in-depth: the query
-/// is built from model output + tool results, both untrusted sizes).
-const MAX_QUERY_BYTES: usize = 4096;
+/// Belt-and-braces cap on the query CHARS fed to the ranker (the caller
+/// already budgets per-component in `routing_query`; this bounds any
+/// future direct caller — the query is built from model output + tool
+/// results, both untrusted sizes).
+const MAX_QUERY_CHARS: usize = 4096;
 
 /// One routing decision, for telemetry.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -130,7 +132,7 @@ impl ToolRouter {
             }
         }
 
-        let bounded: String = query.chars().take(MAX_QUERY_BYTES).collect();
+        let bounded: String = query.chars().take(MAX_QUERY_CHARS).collect();
         let ranked = eager.top_k(&bounded, self.cfg.top_k);
         let mut any_ranked = false;
         for (doc, score) in ranked {

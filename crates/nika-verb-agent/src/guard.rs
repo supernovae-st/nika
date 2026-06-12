@@ -55,8 +55,14 @@ pub(crate) struct Guard {
 }
 
 impl Guard {
-    pub(crate) fn new(cfg: GuardConfig) -> Self {
-        let capacity = cfg.window.max(2);
+    pub(crate) fn new(mut cfg: GuardConfig) -> Self {
+        // REACH INVARIANT clamp (config.rs · GuardConfig): a window smaller
+        // than the periods it must hold silently disarms detection. Floor
+        // the window at `stall_after · 5` so cycles up to period 5 can
+        // actually reach the stop — a too-small configured window can never
+        // make the guard a no-op.
+        cfg.window = cfg.window.max(cfg.stall_after as usize * 5).max(2);
+        let capacity = cfg.window;
         Self {
             cfg,
             window: VecDeque::with_capacity(capacity),
@@ -73,7 +79,8 @@ impl Guard {
     /// the shared reflection budget; once spent, only the stall threshold
     /// remains armed.
     pub(crate) fn observe_turn(&mut self, signature: u64, all_errors: bool) -> GuardVerdict {
-        if self.window.len() == self.cfg.window.max(2) {
+        // `cfg.window` is already clamped ≥ 2 in `new` (REACH INVARIANT).
+        if self.window.len() == self.cfg.window {
             self.window.pop_front();
         }
         self.window.push_back(signature);
@@ -287,6 +294,49 @@ mod tests {
     }
 
     #[test]
+    fn a_period_four_cycle_reaches_the_stall_under_defaults() {
+        // THE review-caught bug: at window 16 a 4-step byte-identical cycle
+        // repeats at most floor(16/4) = 4 < stall_after 5 → never stops,
+        // burning ~990 of 1000 turns. With the default window (stall·5 =
+        // 25) it must stall. Drive the guard with production defaults.
+        let mut g = Guard::new(GuardConfig::new());
+        let cycle = [11_u64, 22, 33, 44];
+        let mut stalled = None;
+        'outer: for rep in 0..8 {
+            for &s in &cycle {
+                if let GuardVerdict::Stall { period, repeats } = g.observe_turn(s, false) {
+                    stalled = Some((period, repeats));
+                    let _ = rep;
+                    break 'outer;
+                }
+            }
+        }
+        assert_eq!(
+            stalled,
+            Some((4, 5)),
+            "a period-4 cycle MUST reach NIKA-467 under default config"
+        );
+    }
+
+    #[test]
+    fn a_tiny_configured_window_cannot_disarm_detection() {
+        // Misconfig: window 3 with stall_after 5 — the clamp must lift the
+        // window so period-1 still stops (the second prong of the bug).
+        let mut cfg = GuardConfig::new();
+        cfg.window = 3;
+        cfg.max_reflections = 0;
+        let mut g = Guard::new(cfg);
+        let mut last = GuardVerdict::Proceed;
+        for _ in 0..6 {
+            last = g.observe_turn(7, false);
+        }
+        assert!(
+            matches!(last, GuardVerdict::Stall { period: 1, .. }),
+            "the clamp must keep detection armed: {last:?}"
+        );
+    }
+
+    #[test]
     fn changing_observations_never_trip_the_detector() {
         // The polling pattern: same call, different result each turn.
         let mut g = guard(3, 5, 1);
@@ -396,22 +446,27 @@ mod tests {
     }
 
     proptest! {
-        /// Injected periodic suffixes are detected within 2 extra periods;
-        /// random aperiodic prefixes never mask them.
+        /// Injected periodic suffixes are detected; random aperiodic
+        /// prefixes never mask them. Cycle length 1..=5 — the post-fix
+        /// reach (window 25 = stall·5 holds 5 periods up to period 5),
+        /// which the old window-16 default could not (period-4 was unstoppable).
         #[test]
         fn injected_cycles_are_detected(
             prefix in proptest::collection::vec(0u64..1000, 0..6),
-            cycle in proptest::collection::vec(0u64..3, 1..4),
+            cycle in proptest::collection::vec(0u64..4, 1..6),
             extra in 0u32..3,
         ) {
-            // Make the cycle non-degenerate vs the prefix tail.
-            let mut g = guard(3, 5, 0); // no nudge budget → pure detection via stall
+            // Default config: window is clamped to stall_after·5 = 25, big
+            // enough for 5 periods of a period-≤5 cycle.
+            let mut cfg = GuardConfig::new();
+            cfg.max_reflections = 0; // no nudge budget → pure detection via stall
+            let mut g = Guard::new(cfg);
             let mut last = GuardVerdict::Proceed;
             for &s in &prefix {
                 last = g.observe_turn(s.wrapping_add(10_000), false);
             }
-            // Feed 5 + extra full cycles — MUST stall by the end (period
-            // detection is on raw signatures; 5 occurrences ≥ stall_after).
+            // Feed 5 + extra full cycles — MUST stall by the end (5
+            // occurrences ≥ stall_after, and the window now holds them).
             let mut stalled = false;
             for _ in 0..(5 + extra) {
                 for &s in &cycle {

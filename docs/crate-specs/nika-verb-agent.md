@@ -239,4 +239,36 @@ seam — they shipped this arc; the loop verb is gated on this one decision.
               config.rs AgentConfig{router, guard} embedder tuning · lib.rs
               1482 ≤ 1500 · run() 96 ≤ 100 · clippy 0 · 71 tests GREEN ·
               full record docs/adr/adr-093-agent-loop-intelligence.md.
+2026-06-12  v0.3 — 2-lens review fold (rust-pro + rust-security · 2×P1 +
+              1×P1-sec + 6×P2, all folded same-arc):
+              · REACH INVARIANT (P1) — window 16 made period-4 cycles
+                structurally unstoppable (floor(16/4) < stall_after 5):
+                default window → 25 (= stall·5) + Guard::new clamps
+                window ≥ stall_after·5 (a misconfigured window can never
+                disarm detection) · period-4-stalls + tiny-window-clamp
+                tests · proptest widened to period 1..=5;
+              · wire-shape (P1) — the nudge was a SECOND adjacent
+                Role::User message (the anthropic wire serializes verbatim
+                → non-alternating-roles rejection class): the nudge now
+                rides as a trailing ContentBlock::Text INSIDE the same
+                tool-results user message (legal on every wire);
+              · certificate amplification (P1-sec) — compose feedback
+                embedded the FULL RunCertificate (derivation = one row PER
+                TASK → 256 KiB draft ⇒ ~MB feedback re-riding every
+                transcript clone): certificate_summary() emits bounded
+                scalars only (same .len() discipline as sibling fields);
+              · error-streak excludes intrinsics (a compose `invalid` is
+                the EXPECTED repair feedback, not a tool fault — it no
+                longer spends the reflection budget) · max_turns gates
+                BEFORE the last batch dispatches (mirrors the token gate's
+                no-wasted-side-effects) · routing_query budgets per
+                component (a long prompt can't evict the live tail) ·
+                run_compose under spawn_blocking (the ocr/jq precedent) ·
+                build_request consumes defs (double-clone removed) ·
+                digest space-joined (no phantom seam tokens) · observer
+                doc: bracketing NOT guaranteed on cancellation.
+              run() 94 ≤ 100 (infer_turn extracted) · 77 tests GREEN ·
+              clippy 0 · the non-issues (SipHash collisions valueless ·
+              router has zero security authority · classify_turn order ·
+              cancel-safety) verified + documented by the review.
 ```

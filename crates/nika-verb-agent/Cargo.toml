@@ -20,11 +20,11 @@ jsonschema       = { workspace = true }                                   # fina
 serde_json       = { workspace = true }
 thiserror        = { workspace = true }
 miette           = { workspace = true }
+tokio            = { workspace = true }                                   # spawn_blocking — agent:compose's sync check off the async executor (ADR-093)
 
 [dev-dependencies]
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.80.0" }  # MockProvider · MockToolExecutor · MockToolDefinitionProvider
 proptest         = { workspace = true }
-tokio            = { workspace = true }
 
 [package.metadata.lore]
 daemon        = "navigatrice"

@@ -77,11 +77,20 @@ impl RouterConfig {
 /// CHANGING result) never trips it; only byte-identical action+outcome
 /// cycles do. Thresholds are in CYCLE OCCURRENCES, period-agnostic: an
 /// A,B,A,B,A,B alternation counts 3 occurrences of a period-2 cycle.
+///
+/// REACH INVARIANT (the review caught this): a period-`p` cycle can repeat
+/// at most `floor(window / p)` times inside the window, so a cycle is only
+/// detectable when `window ≥ p · stall_after`. The default `window` is
+/// sized at `stall_after · 5` so cycles up to period 5 reach the stall
+/// threshold; `Guard::new` additionally clamps `window ≥ stall_after` so a
+/// misconfigured small window can never silently disarm even period-1
+/// detection. (Period > window/2 is inherently invisible — a cycle that
+/// long is indistinguishable from forward progress over the window.)
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct GuardConfig {
     /// Sliding window of turn signatures the detector scans (bounds the
-    /// per-turn scan at `window²/4` u64 compares — trivial at 16).
+    /// per-turn scan at `window²/4` u64 compares — trivial at 25 ≈ 156).
     pub window: usize,
     /// Cycle occurrences that trigger ONE corrective reflection message
     /// (Reflexion-style verbal feedback · Shinn et al. 2023,
@@ -102,7 +111,9 @@ pub struct GuardConfig {
 impl Default for GuardConfig {
     fn default() -> Self {
         Self {
-            window: 16,
+            // stall_after · 5 — cycles up to period 5 reach the stall
+            // threshold (floor(25/5) = 5); see the REACH INVARIANT above.
+            window: 25,
             nudge_after: 3,
             stall_after: 5,
             max_reflections: 1,
@@ -127,7 +138,13 @@ mod tests {
     fn defaults_are_internally_coherent() {
         let cfg = AgentConfig::new();
         assert!(cfg.guard.stall_after > cfg.guard.nudge_after);
-        assert!(cfg.guard.window >= cfg.guard.stall_after as usize);
+        // REACH INVARIANT: the window must hold `stall_after` full periods
+        // of a multi-step cycle, not just one — the bug the review caught
+        // (window 16 made period-4 cycles unstoppable: floor(16/4) < 5).
+        assert!(
+            cfg.guard.window >= cfg.guard.stall_after as usize * 5,
+            "window must fit stall_after periods of cycles up to period 5"
+        );
         assert!(cfg.router.top_k > 0);
         assert!(cfg.router.min_universe > cfg.router.top_k);
     }

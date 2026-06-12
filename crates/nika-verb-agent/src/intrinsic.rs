@@ -160,11 +160,30 @@ pub(crate) fn run_compose(args: &serde_json::Value) -> (String, bool, ComposeOut
         "secret_egresses": report.secret_egresses.len(),
         "capability_escapes": report.capability_escapes.len(),
         "waves": report.waves.len(),
-        "certificate": report.certificate,
+        "certificate": certificate_summary(&report.certificate),
     })
     .to_string();
 
     (content, !valid, ComposeOutcome { valid, violations })
+}
+
+/// The certificate as bounded SCALARS — never the full witness.
+///
+/// `RunCertificate.derivation` is one row PER TASK; serializing it whole
+/// turns a 256 KiB draft into MB of feedback that re-rides every turn's
+/// transcript clone (O(turns²) growth · the amplification the review
+/// caught). The model repairs from codes + the headline bounds; the
+/// per-task witness exists for local `audit()` re-verification, not for
+/// the model. Same `.len()`-not-`.clone()` discipline the sibling fields
+/// already use.
+fn certificate_summary(cert: &nika_schema::RunCertificate) -> serde_json::Value {
+    serde_json::json!({
+        "task_attempts": cert.task_attempts.constant,
+        "llm_calls": cert.llm_calls.constant,
+        "effect_calls": cert.effect_calls.constant,
+        "span_attempts": cert.span_attempts,
+        "parametric_terms": cert.task_attempts.terms.len(),
+    })
 }
 
 #[cfg(test)]
