@@ -258,6 +258,43 @@ mod tests {
     }
 
     #[test]
+    fn every_emittable_code_is_registered_in_the_canon() {
+        // THE RATCHET (emitted ⊆ registered) — the gap class this kills:
+        // the checker emitted the whole NIKA-PARSE namespace plus the
+        // generic NIKA-BUILTIN-001 for weeks while the spec registry
+        // (canon error_codes · spec/05-errors.md normative floor) did
+        // not list them — `nika explain` had nothing to teach and a
+        // second engine could not match parse-time behavior from the
+        // spec alone. Both sides DERIVED: the variant enumerator on the
+        // left, the embedded canon registry on the right — a new error
+        // variant whose code lacks a registry row fails HERE, at the
+        // crate that introduces it, before any release.
+        let registered: std::collections::BTreeSet<String> = nika_pack::canon()
+            .lines()
+            .filter_map(|line| {
+                let rest = line.trim_start().strip_prefix("- { code:")?;
+                let (code, _) = rest.split_once(',')?;
+                Some(code.trim().to_owned())
+            })
+            .collect();
+        assert!(
+            registered.len() >= 30,
+            "canon registry parse broke — {} rows found (the table is never this small)",
+            registered.len()
+        );
+        for err in &all_error_variants() {
+            let code = err.spec_code().to_string();
+            assert!(
+                registered.contains(&code),
+                "{code} is emitted by the checker but NOT registered in the canon \
+                 error_codes table — add the row to spec canon.yaml + \
+                 spec/05-errors.md (the table is the SSOT · the engine derives), \
+                 then re-run crates/nika-pack/scripts/sync-pack.sh"
+            );
+        }
+    }
+
+    #[test]
     fn fixture_critical_mappings() {
         use crate::error::SchemaError;
         // envelope/003 · bad nika version → NIKA-PARSE + parse_error.

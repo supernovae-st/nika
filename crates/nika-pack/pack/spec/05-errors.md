@@ -74,6 +74,24 @@ these from this file alone.
 
 | Code | Failure | Category | `transient` |
 |---|---|---|---|
+| `NIKA-PARSE-001` | the YAML itself does not parse (syntax error) | `parse_error` | false |
+| `NIKA-PARSE-002` | missing envelope field (`nika:` / `workflow:` / non-empty `tasks:`) | `validation_error` | false |
+| `NIKA-PARSE-003` | `nika:` version marker is not exactly `v1` | `parse_error` | false |
+| `NIKA-PARSE-004` | `workflow:` id violates `^[a-z][a-z0-9-]*$` | `validation_error` | false |
+| `NIKA-PARSE-005` | unknown field — strict mode rejects anything outside the closed v1 set | `validation_error` | false |
+| `NIKA-PARSE-006` | task id violates `^[a-z][a-z0-9_]*$` (snake_case · CEL-safe · no hyphens) | `validation_error` | false |
+| `NIKA-PARSE-007` | duplicate task id within the workflow | `validation_error` | false |
+| `NIKA-PARSE-008` | task declares no verb — exactly one of `infer`/`exec`/`invoke`/`agent` required | `validation_error` | false |
+| `NIKA-PARSE-009` | task declares multiple verbs — exactly one required | `validation_error` | false |
+| `NIKA-PARSE-010` | `timeout:` violates the quoted Go-duration contract (positive · max 24h · descending units) | `validation_error` | false |
+| `NIKA-PARSE-011` | `retry:` block violates the spec shape (§retry below) | `validation_error` | false |
+| `NIKA-PARSE-012` | `on_error:` block violates the spec shape (fields mutually exclusive) | `validation_error` | false |
+| `NIKA-PARSE-013` | `with:`/`output:` binding uses a reserved name (`output` · `status` · `error` · `started_at` · `ended_at` · `duration_ms`) | `validation_error` | false |
+| `NIKA-PARSE-014` | `secrets:` entry is not a store reference — inline literals forbidden ([01 §secrets](./01-envelope.md)) | `validation_error` | false |
+| `NIKA-PARSE-015` | typed `vars:` declaration malformed (type in string/number/integer/boolean/array/object) | `validation_error` | false |
+| `NIKA-PARSE-017` | duplicate mapping key — no silent last-wins | `validation_error` | false |
+| `NIKA-PARSE-018` | missing required field in a verb body (`infer.prompt` · `exec.command` · `invoke.tool`) | `validation_error` | false |
+| `NIKA-PARSE-019` | generic structural validation — wrong YAML shape for a field | `validation_error` | false |
 | `NIKA-DAG-001` | cycle in `depends_on` (incl. self-dependency) | `validation_error` | false |
 | `NIKA-DAG-002` | `depends_on` references an undeclared task | `validation_error` | false |
 | `NIKA-DAG-003` | a `${{ tasks.X }}` reference with no declared edge | `validation_error` | false |
@@ -103,7 +121,13 @@ these from this file alone.
 | `NIKA-SEC-004` | effect outside the declared `permits:` capability boundary (fs/net/exec/tool · [01 §permits](./01-envelope.md#permits--optional--the-declared-capability-boundary)) | `security_error` | false |
 | `NIKA-TIMEOUT-001` | task (or for_each iteration) exceeded `timeout:` | `timeout_error` | false |
 | `NIKA-CANCEL-001` | task cancelled (workflow failure gate · user cancellation) | `cancelled` | false |
+| `NIKA-BUILTIN-001` | builtin `invoke:` violates its statically-checkable arg contract (e.g. `nika:fetch` without `url:` · `nika:jq` arg shape) | `validation_error` | false |
 | `NIKA-BUILTIN-DONE-001` | `nika:done` invoked outside an `agent:` loop | `validation_error` | false |
+
+
+`NIKA-PARSE-016` is **retired** (never reuse): the jq-binding-contains-template
+class folded into `NIKA-VAR-005` at the deep-conformance registry remap — the
+allocation hole is deliberate, per the additive-never-repurposed rule above.
 
 ### Taxonomy ownership · the spec table is normative · engines derive
 

@@ -25,6 +25,9 @@ miette     = { workspace = true }
 [dev-dependencies]
 # the verb-theater example folds REAL engine events (the telemetry truth)
 nika-event = { path = "../nika-event", version = "0.80.0" }
+# the emitted⊆registered ratchet cross-checks every statically-emittable
+# spec code against the embedded canon registry (spec/05-errors.md SSOT)
+nika-pack  = { path = "../nika-pack", version = "0.80.0" }
 uuid       = { workspace = true }
 insta      = { workspace = true }
 proptest   = { workspace = true }
