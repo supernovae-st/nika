@@ -48,7 +48,7 @@ pub(crate) fn skip_in_mutants_sandbox() -> bool {
         .is_some_and(|d| d.to_string_lossy().contains("cargo-mutants"));
     if env_says || path_says {
         // test-scope diagnostics: the loud-skip message IS the point
-        #[allow(clippy::disallowed_macros)]
+        #[allow(clippy::disallowed_macros, clippy::print_stderr)]
         {
             eprintln!(
                 "conformance: skipped in the cargo-mutants sandbox (no ../spec sibling by construction)"
