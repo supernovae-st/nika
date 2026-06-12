@@ -21,6 +21,7 @@ the module that implements or builds on their work.
 | Xiao-Yang Liu Yanglet, Xiaodong Wang, Agostino Capponi, *No Certificate, No Execution: Certified Traces as a Foundation for Trustworthy AI Agents*, 2026 — [arXiv:2605.24462](https://arxiv.org/abs/2605.24462) | the Proposal–Certification–Execution architecture (« generation is not permission ») that `nika check`'s check-before-run + re-checkable certificates feed |
 | Jingwen Wu, Jiajing Zheng, Zhenyu Yang, Zhongxing Yu, *Compiler Optimization Testing Based on Optimization-Guided Equivalence Transformations*, 2025 — [arXiv:2504.04321](https://arxiv.org/abs/2504.04321) | `check/metamorphic.rs` — differential testing without a second engine: equivalence transformations on one system (ADR-092 #9 first slice) |
 | Jinsheng Ba, Yuancheng Jiang, Manuel Rigger, *Metamorphic Coverage*, 2025 — [arXiv:2508.16307](https://arxiv.org/abs/2508.16307) | `check/metamorphic.rs` — the pairs-of-executions methodology lineage behind relations R0–R6 |
+| Richard P. Brent, *The Parallel Evaluation of General Arithmetic Expressions*, JACM 1974 · Joseph Tassarotti, *Probabilistic Recurrence Relations for Work and Span of Parallel Algorithms*, 2017 — [arXiv:1704.02061](https://arxiv.org/abs/1704.02061) | `check/certificate.rs` — the work/span model: `span_attempts` (longest sequential chain · retries serial · fan-out parallel) alongside the work bound gives the Brent parallelism envelope |
 
 ## Memory satellites (the Connectome line)
 
@@ -31,6 +32,7 @@ the module that implements or builds on their work.
 | Yuhao Lù, *BM25S: Orders of magnitude faster lexical search via eager sparse scoring*, 2024 — [arXiv:2407.03618](https://arxiv.org/abs/2407.03618) | `nika-bm25/src/eager.rs` — `EagerIndex`: per-posting scores precomputed at freeze time, queries as sparse accumulation (byte-identical to the lazy path, pinned by property test) |
 | Yuanhua Lv, ChengXiang Zhai, *Lower-Bounding Term Frequency Normalization*, CIKM 2011 | `nika-bm25` — the reserved `BmParams::delta` (BM25+) lower-bound smoothing, consumer-signal gated |
 | Gordon V. Cormack, Charles L. A. Clarke, Stefan Büttcher, *Reciprocal Rank Fusion outperforms Condorcet and individual rank learning methods*, SIGIR 2009 | the hybrid-retrieval fusion contract (`nika-rrf` · fuse ranks, never scores — the score-normalization note in `nika-bm25/src/lib.rs`) |
+| Howard Turtle, James Flood, *Query evaluation: strategies and optimizations*, IP&M 1995 · arXiv anchor: Yifan Qiao, Yingrui Yang, Haixin Lin, Tao Yang, *Optimizing Guided Traversal for Fast Learned Sparse Retrieval*, 2023 — [arXiv:2305.01203](https://arxiv.org/abs/2305.01203) | `nika-bm25/src/eager.rs` — `EagerIndex::top_k_pruned`: MaxScore dynamic pruning (essential/non-essential term split · rank-exact · measured fewer postings visited) |
 
 ## Agent loop (`nika-verb-agent`)
 
