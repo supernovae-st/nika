@@ -1,4 +1,117 @@
 pub mod nika_verb_agent
+pub mod nika_verb_agent::config
+#[non_exhaustive] pub struct nika_verb_agent::config::AgentConfig
+pub nika_verb_agent::config::AgentConfig::guard: nika_verb_agent::config::GuardConfig
+pub nika_verb_agent::config::AgentConfig::router: nika_verb_agent::config::RouterConfig
+impl nika_verb_agent::config::AgentConfig
+pub fn nika_verb_agent::config::AgentConfig::new() -> Self
+impl core::clone::Clone for nika_verb_agent::config::AgentConfig
+pub fn nika_verb_agent::config::AgentConfig::clone(&self) -> nika_verb_agent::config::AgentConfig
+impl core::default::Default for nika_verb_agent::config::AgentConfig
+pub fn nika_verb_agent::config::AgentConfig::default() -> nika_verb_agent::config::AgentConfig
+impl core::fmt::Debug for nika_verb_agent::config::AgentConfig
+pub fn nika_verb_agent::config::AgentConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_agent::config::AgentConfig
+impl<T, U> core::convert::Into<U> for nika_verb_agent::config::AgentConfig where U: core::convert::From<T>
+pub fn nika_verb_agent::config::AgentConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::config::AgentConfig where U: core::convert::Into<T>
+pub type nika_verb_agent::config::AgentConfig::Error = core::convert::Infallible
+pub fn nika_verb_agent::config::AgentConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::config::AgentConfig where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::config::AgentConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::config::AgentConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::config::AgentConfig where T: core::clone::Clone
+pub type nika_verb_agent::config::AgentConfig::Owned = T
+pub fn nika_verb_agent::config::AgentConfig::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::config::AgentConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::config::AgentConfig where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::config::AgentConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::config::AgentConfig where T: ?core::marker::Sized
+pub fn nika_verb_agent::config::AgentConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::config::AgentConfig where T: ?core::marker::Sized
+pub fn nika_verb_agent::config::AgentConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::config::AgentConfig where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::config::AgentConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::config::AgentConfig
+pub fn nika_verb_agent::config::AgentConfig::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::config::AgentConfig where T: 'static
+pub fn nika_verb_agent::config::AgentConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_verb_agent::config::GuardConfig
+pub nika_verb_agent::config::GuardConfig::error_streak_nudge: u32
+pub nika_verb_agent::config::GuardConfig::max_reflections: u32
+pub nika_verb_agent::config::GuardConfig::nudge_after: u32
+pub nika_verb_agent::config::GuardConfig::stall_after: u32
+pub nika_verb_agent::config::GuardConfig::window: usize
+impl nika_verb_agent::config::GuardConfig
+pub fn nika_verb_agent::config::GuardConfig::new() -> Self
+impl core::clone::Clone for nika_verb_agent::config::GuardConfig
+pub fn nika_verb_agent::config::GuardConfig::clone(&self) -> nika_verb_agent::config::GuardConfig
+impl core::default::Default for nika_verb_agent::config::GuardConfig
+pub fn nika_verb_agent::config::GuardConfig::default() -> Self
+impl core::fmt::Debug for nika_verb_agent::config::GuardConfig
+pub fn nika_verb_agent::config::GuardConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_agent::config::GuardConfig
+impl<T, U> core::convert::Into<U> for nika_verb_agent::config::GuardConfig where U: core::convert::From<T>
+pub fn nika_verb_agent::config::GuardConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::config::GuardConfig where U: core::convert::Into<T>
+pub type nika_verb_agent::config::GuardConfig::Error = core::convert::Infallible
+pub fn nika_verb_agent::config::GuardConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::config::GuardConfig where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::config::GuardConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::config::GuardConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::config::GuardConfig where T: core::clone::Clone
+pub type nika_verb_agent::config::GuardConfig::Owned = T
+pub fn nika_verb_agent::config::GuardConfig::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::config::GuardConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::config::GuardConfig where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::config::GuardConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::config::GuardConfig where T: ?core::marker::Sized
+pub fn nika_verb_agent::config::GuardConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::config::GuardConfig where T: ?core::marker::Sized
+pub fn nika_verb_agent::config::GuardConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::config::GuardConfig where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::config::GuardConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::config::GuardConfig
+pub fn nika_verb_agent::config::GuardConfig::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::config::GuardConfig where T: 'static
+pub fn nika_verb_agent::config::GuardConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_verb_agent::config::RouterConfig
+pub nika_verb_agent::config::RouterConfig::min_universe: usize
+pub nika_verb_agent::config::RouterConfig::recency_turns: u32
+pub nika_verb_agent::config::RouterConfig::top_k: usize
+impl nika_verb_agent::config::RouterConfig
+pub fn nika_verb_agent::config::RouterConfig::new() -> Self
+impl core::clone::Clone for nika_verb_agent::config::RouterConfig
+pub fn nika_verb_agent::config::RouterConfig::clone(&self) -> nika_verb_agent::config::RouterConfig
+impl core::default::Default for nika_verb_agent::config::RouterConfig
+pub fn nika_verb_agent::config::RouterConfig::default() -> Self
+impl core::fmt::Debug for nika_verb_agent::config::RouterConfig
+pub fn nika_verb_agent::config::RouterConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_agent::config::RouterConfig
+impl<T, U> core::convert::Into<U> for nika_verb_agent::config::RouterConfig where U: core::convert::From<T>
+pub fn nika_verb_agent::config::RouterConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::config::RouterConfig where U: core::convert::Into<T>
+pub type nika_verb_agent::config::RouterConfig::Error = core::convert::Infallible
+pub fn nika_verb_agent::config::RouterConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::config::RouterConfig where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::config::RouterConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::config::RouterConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::config::RouterConfig where T: core::clone::Clone
+pub type nika_verb_agent::config::RouterConfig::Owned = T
+pub fn nika_verb_agent::config::RouterConfig::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::config::RouterConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::config::RouterConfig where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::config::RouterConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::config::RouterConfig where T: ?core::marker::Sized
+pub fn nika_verb_agent::config::RouterConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::config::RouterConfig where T: ?core::marker::Sized
+pub fn nika_verb_agent::config::RouterConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::config::RouterConfig where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::config::RouterConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::config::RouterConfig
+pub fn nika_verb_agent::config::RouterConfig::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::config::RouterConfig where T: 'static
+pub fn nika_verb_agent::config::RouterConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_verb_agent::errors
 #[non_exhaustive] pub enum nika_verb_agent::errors::VerbAgentError
 pub nika_verb_agent::errors::VerbAgentError::Inference
@@ -14,6 +127,10 @@ pub nika_verb_agent::errors::VerbAgentError::MaxTurns::partial_output: alloc::st
 pub nika_verb_agent::errors::VerbAgentError::MaxTurns::turns: u32
 pub nika_verb_agent::errors::VerbAgentError::SchemaValidation
 pub nika_verb_agent::errors::VerbAgentError::SchemaValidation::detail: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::Stalled
+pub nika_verb_agent::errors::VerbAgentError::Stalled::partial_output: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::Stalled::period: u32
+pub nika_verb_agent::errors::VerbAgentError::Stalled::repeats: u32
 pub nika_verb_agent::errors::VerbAgentError::ToolDefs
 pub nika_verb_agent::errors::VerbAgentError::ToolDefs::source: nika_kernel_ai::tool_defs::ToolDefsError
 pub nika_verb_agent::errors::VerbAgentError::WhitelistViolation
@@ -50,6 +167,252 @@ impl<T> core::convert::From<T> for nika_verb_agent::errors::VerbAgentError
 pub fn nika_verb_agent::errors::VerbAgentError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_agent::errors::VerbAgentError where T: 'static
 pub fn nika_verb_agent::errors::VerbAgentError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub mod nika_verb_agent::observe
+#[non_exhaustive] pub enum nika_verb_agent::observe::AgentEvent
+pub nika_verb_agent::observe::AgentEvent::BudgetCheckpoint
+pub nika_verb_agent::observe::AgentEvent::BudgetCheckpoint::budget: core::option::Option<u64>
+pub nika_verb_agent::observe::AgentEvent::BudgetCheckpoint::total_tokens: u64
+pub nika_verb_agent::observe::AgentEvent::BudgetCheckpoint::turn: u32
+pub nika_verb_agent::observe::AgentEvent::ComposeChecked
+pub nika_verb_agent::observe::AgentEvent::ComposeChecked::turn: u32
+pub nika_verb_agent::observe::AgentEvent::ComposeChecked::valid: bool
+pub nika_verb_agent::observe::AgentEvent::ComposeChecked::violations: u32
+pub nika_verb_agent::observe::AgentEvent::Finished
+pub nika_verb_agent::observe::AgentEvent::Finished::total_tokens: u64
+pub nika_verb_agent::observe::AgentEvent::Finished::turns: u32
+pub nika_verb_agent::observe::AgentEvent::Nudged
+pub nika_verb_agent::observe::AgentEvent::Nudged::period: u32
+pub nika_verb_agent::observe::AgentEvent::Nudged::reason: nika_verb_agent::observe::NudgeReason
+pub nika_verb_agent::observe::AgentEvent::Nudged::turn: u32
+pub nika_verb_agent::observe::AgentEvent::RunStarted
+pub nika_verb_agent::observe::AgentEvent::RunStarted::model: alloc::string::String
+pub nika_verb_agent::observe::AgentEvent::RunStarted::routed: bool
+pub nika_verb_agent::observe::AgentEvent::RunStarted::universe: u32
+pub nika_verb_agent::observe::AgentEvent::Stalled
+pub nika_verb_agent::observe::AgentEvent::Stalled::period: u32
+pub nika_verb_agent::observe::AgentEvent::Stalled::repeats: u32
+pub nika_verb_agent::observe::AgentEvent::Stalled::turn: u32
+pub nika_verb_agent::observe::AgentEvent::ToolCompleted
+pub nika_verb_agent::observe::AgentEvent::ToolCompleted::is_error: bool
+pub nika_verb_agent::observe::AgentEvent::ToolCompleted::name: alloc::string::String
+pub nika_verb_agent::observe::AgentEvent::ToolCompleted::turn: u32
+pub nika_verb_agent::observe::AgentEvent::ToolsSelected
+pub nika_verb_agent::observe::AgentEvent::ToolsSelected::by_source: nika_verb_agent::observe::SourceCounts
+pub nika_verb_agent::observe::AgentEvent::ToolsSelected::offered: u32
+pub nika_verb_agent::observe::AgentEvent::ToolsSelected::turn: u32
+pub nika_verb_agent::observe::AgentEvent::ToolsSelected::universe: u32
+pub nika_verb_agent::observe::AgentEvent::TurnStarted
+pub nika_verb_agent::observe::AgentEvent::TurnStarted::turn: u32
+impl core::clone::Clone for nika_verb_agent::observe::AgentEvent
+pub fn nika_verb_agent::observe::AgentEvent::clone(&self) -> nika_verb_agent::observe::AgentEvent
+impl core::cmp::PartialEq for nika_verb_agent::observe::AgentEvent
+pub fn nika_verb_agent::observe::AgentEvent::eq(&self, other: &nika_verb_agent::observe::AgentEvent) -> bool
+impl core::fmt::Debug for nika_verb_agent::observe::AgentEvent
+pub fn nika_verb_agent::observe::AgentEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_verb_agent::observe::AgentEvent
+impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::AgentEvent
+impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::AgentEvent where U: core::convert::From<T>
+pub fn nika_verb_agent::observe::AgentEvent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::observe::AgentEvent where U: core::convert::Into<T>
+pub type nika_verb_agent::observe::AgentEvent::Error = core::convert::Infallible
+pub fn nika_verb_agent::observe::AgentEvent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::observe::AgentEvent where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::observe::AgentEvent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::observe::AgentEvent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::observe::AgentEvent where T: core::clone::Clone
+pub type nika_verb_agent::observe::AgentEvent::Owned = T
+pub fn nika_verb_agent::observe::AgentEvent::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::observe::AgentEvent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::observe::AgentEvent where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::observe::AgentEvent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::observe::AgentEvent where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::AgentEvent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::observe::AgentEvent where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::AgentEvent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::observe::AgentEvent where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::observe::AgentEvent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::observe::AgentEvent
+pub fn nika_verb_agent::observe::AgentEvent::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::observe::AgentEvent where T: 'static
+pub fn nika_verb_agent::observe::AgentEvent::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_verb_agent::observe::NudgeReason
+pub nika_verb_agent::observe::NudgeReason::ErrorStreak
+pub nika_verb_agent::observe::NudgeReason::RepeatedActions
+impl core::clone::Clone for nika_verb_agent::observe::NudgeReason
+pub fn nika_verb_agent::observe::NudgeReason::clone(&self) -> nika_verb_agent::observe::NudgeReason
+impl core::cmp::Eq for nika_verb_agent::observe::NudgeReason
+impl core::cmp::PartialEq for nika_verb_agent::observe::NudgeReason
+pub fn nika_verb_agent::observe::NudgeReason::eq(&self, other: &nika_verb_agent::observe::NudgeReason) -> bool
+impl core::fmt::Debug for nika_verb_agent::observe::NudgeReason
+pub fn nika_verb_agent::observe::NudgeReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_verb_agent::observe::NudgeReason
+impl core::marker::StructuralPartialEq for nika_verb_agent::observe::NudgeReason
+impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::NudgeReason
+impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::NudgeReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_verb_agent::observe::NudgeReason::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::NudgeReason where U: core::convert::From<T>
+pub fn nika_verb_agent::observe::NudgeReason::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::observe::NudgeReason where U: core::convert::Into<T>
+pub type nika_verb_agent::observe::NudgeReason::Error = core::convert::Infallible
+pub fn nika_verb_agent::observe::NudgeReason::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::observe::NudgeReason where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::observe::NudgeReason::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::observe::NudgeReason::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::observe::NudgeReason where T: core::clone::Clone
+pub type nika_verb_agent::observe::NudgeReason::Owned = T
+pub fn nika_verb_agent::observe::NudgeReason::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::observe::NudgeReason::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::observe::NudgeReason where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::observe::NudgeReason::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::observe::NudgeReason where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::NudgeReason::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::observe::NudgeReason where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::NudgeReason::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::observe::NudgeReason where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::observe::NudgeReason::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::observe::NudgeReason
+pub fn nika_verb_agent::observe::NudgeReason::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::observe::NudgeReason where T: 'static
+pub fn nika_verb_agent::observe::NudgeReason::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_verb_agent::observe::NudgeReason where T: core::marker::Copy
+pub fn nika_verb_agent::observe::NudgeReason::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_verb_agent::observe::ToolSource
+pub nika_verb_agent::observe::ToolSource::Builtin
+pub nika_verb_agent::observe::ToolSource::Intrinsic
+pub nika_verb_agent::observe::ToolSource::Mcp
+pub nika_verb_agent::observe::ToolSource::Other
+pub nika_verb_agent::observe::ToolSource::Skill
+impl nika_verb_agent::observe::ToolSource
+pub fn nika_verb_agent::observe::ToolSource::classify(name: &str) -> Self
+impl core::clone::Clone for nika_verb_agent::observe::ToolSource
+pub fn nika_verb_agent::observe::ToolSource::clone(&self) -> nika_verb_agent::observe::ToolSource
+impl core::cmp::Eq for nika_verb_agent::observe::ToolSource
+impl core::cmp::PartialEq for nika_verb_agent::observe::ToolSource
+pub fn nika_verb_agent::observe::ToolSource::eq(&self, other: &nika_verb_agent::observe::ToolSource) -> bool
+impl core::fmt::Debug for nika_verb_agent::observe::ToolSource
+pub fn nika_verb_agent::observe::ToolSource::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_verb_agent::observe::ToolSource
+pub fn nika_verb_agent::observe::ToolSource::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_verb_agent::observe::ToolSource
+impl core::marker::StructuralPartialEq for nika_verb_agent::observe::ToolSource
+impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::ToolSource
+impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::ToolSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_verb_agent::observe::ToolSource::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::ToolSource where U: core::convert::From<T>
+pub fn nika_verb_agent::observe::ToolSource::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::observe::ToolSource where U: core::convert::Into<T>
+pub type nika_verb_agent::observe::ToolSource::Error = core::convert::Infallible
+pub fn nika_verb_agent::observe::ToolSource::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::observe::ToolSource where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::observe::ToolSource::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::observe::ToolSource::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::observe::ToolSource where T: core::clone::Clone
+pub type nika_verb_agent::observe::ToolSource::Owned = T
+pub fn nika_verb_agent::observe::ToolSource::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::observe::ToolSource::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::observe::ToolSource where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::observe::ToolSource::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::observe::ToolSource where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::ToolSource::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::observe::ToolSource where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::ToolSource::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::observe::ToolSource where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::observe::ToolSource::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::observe::ToolSource
+pub fn nika_verb_agent::observe::ToolSource::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::observe::ToolSource where T: 'static
+pub fn nika_verb_agent::observe::ToolSource::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_verb_agent::observe::ToolSource where T: core::marker::Copy
+pub fn nika_verb_agent::observe::ToolSource::as_out(&mut self) -> outref::Out<'_, T>
+pub struct nika_verb_agent::observe::NoopObserver
+impl core::clone::Clone for nika_verb_agent::observe::NoopObserver
+pub fn nika_verb_agent::observe::NoopObserver::clone(&self) -> nika_verb_agent::observe::NoopObserver
+impl core::default::Default for nika_verb_agent::observe::NoopObserver
+pub fn nika_verb_agent::observe::NoopObserver::default() -> nika_verb_agent::observe::NoopObserver
+impl core::fmt::Debug for nika_verb_agent::observe::NoopObserver
+pub fn nika_verb_agent::observe::NoopObserver::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_verb_agent::observe::NoopObserver
+impl nika_verb_agent::observe::AgentObserver for nika_verb_agent::observe::NoopObserver
+pub fn nika_verb_agent::observe::NoopObserver::on_event(&self, _event: &nika_verb_agent::observe::AgentEvent)
+impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::NoopObserver
+impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::NoopObserver where U: core::convert::From<T>
+pub fn nika_verb_agent::observe::NoopObserver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::observe::NoopObserver where U: core::convert::Into<T>
+pub type nika_verb_agent::observe::NoopObserver::Error = core::convert::Infallible
+pub fn nika_verb_agent::observe::NoopObserver::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::observe::NoopObserver where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::observe::NoopObserver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::observe::NoopObserver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::observe::NoopObserver where T: core::clone::Clone
+pub type nika_verb_agent::observe::NoopObserver::Owned = T
+pub fn nika_verb_agent::observe::NoopObserver::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::observe::NoopObserver::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::observe::NoopObserver where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::observe::NoopObserver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::observe::NoopObserver where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::NoopObserver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::observe::NoopObserver where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::NoopObserver::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::observe::NoopObserver where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::observe::NoopObserver::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::observe::NoopObserver
+pub fn nika_verb_agent::observe::NoopObserver::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::observe::NoopObserver where T: 'static
+pub fn nika_verb_agent::observe::NoopObserver::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_verb_agent::observe::NoopObserver where T: core::marker::Copy
+pub fn nika_verb_agent::observe::NoopObserver::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub struct nika_verb_agent::observe::SourceCounts
+pub nika_verb_agent::observe::SourceCounts::builtin: u32
+pub nika_verb_agent::observe::SourceCounts::intrinsic: u32
+pub nika_verb_agent::observe::SourceCounts::mcp: u32
+pub nika_verb_agent::observe::SourceCounts::other: u32
+pub nika_verb_agent::observe::SourceCounts::skill: u32
+impl nika_verb_agent::observe::SourceCounts
+pub fn nika_verb_agent::observe::SourceCounts::tally<'a>(names: impl core::iter::traits::iterator::Iterator<Item = &'a str>) -> Self
+impl core::clone::Clone for nika_verb_agent::observe::SourceCounts
+pub fn nika_verb_agent::observe::SourceCounts::clone(&self) -> nika_verb_agent::observe::SourceCounts
+impl core::cmp::Eq for nika_verb_agent::observe::SourceCounts
+impl core::cmp::PartialEq for nika_verb_agent::observe::SourceCounts
+pub fn nika_verb_agent::observe::SourceCounts::eq(&self, other: &nika_verb_agent::observe::SourceCounts) -> bool
+impl core::default::Default for nika_verb_agent::observe::SourceCounts
+pub fn nika_verb_agent::observe::SourceCounts::default() -> nika_verb_agent::observe::SourceCounts
+impl core::fmt::Debug for nika_verb_agent::observe::SourceCounts
+pub fn nika_verb_agent::observe::SourceCounts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_verb_agent::observe::SourceCounts
+impl core::marker::StructuralPartialEq for nika_verb_agent::observe::SourceCounts
+impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::SourceCounts
+impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::SourceCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_verb_agent::observe::SourceCounts::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::SourceCounts where U: core::convert::From<T>
+pub fn nika_verb_agent::observe::SourceCounts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::observe::SourceCounts where U: core::convert::Into<T>
+pub type nika_verb_agent::observe::SourceCounts::Error = core::convert::Infallible
+pub fn nika_verb_agent::observe::SourceCounts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::observe::SourceCounts where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::observe::SourceCounts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::observe::SourceCounts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::observe::SourceCounts where T: core::clone::Clone
+pub type nika_verb_agent::observe::SourceCounts::Owned = T
+pub fn nika_verb_agent::observe::SourceCounts::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::observe::SourceCounts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::observe::SourceCounts where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::observe::SourceCounts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::observe::SourceCounts where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::SourceCounts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::observe::SourceCounts where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::SourceCounts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::observe::SourceCounts where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::observe::SourceCounts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::observe::SourceCounts
+pub fn nika_verb_agent::observe::SourceCounts::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::observe::SourceCounts where T: 'static
+pub fn nika_verb_agent::observe::SourceCounts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_verb_agent::observe::SourceCounts where T: core::marker::Copy
+pub fn nika_verb_agent::observe::SourceCounts::as_out(&mut self) -> outref::Out<'_, T>
+pub trait nika_verb_agent::observe::AgentObserver: core::marker::Send + core::marker::Sync
+pub fn nika_verb_agent::observe::AgentObserver::on_event(&self, event: &nika_verb_agent::observe::AgentEvent)
+impl nika_verb_agent::observe::AgentObserver for nika_verb_agent::observe::NoopObserver
+pub fn nika_verb_agent::observe::NoopObserver::on_event(&self, _event: &nika_verb_agent::observe::AgentEvent)
 pub mod nika_verb_agent::whitelist
 pub struct nika_verb_agent::whitelist::Whitelist
 impl nika_verb_agent::whitelist::Whitelist
@@ -85,6 +448,73 @@ impl<T> core::convert::From<T> for nika_verb_agent::whitelist::Whitelist
 pub fn nika_verb_agent::whitelist::Whitelist::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_agent::whitelist::Whitelist where T: 'static
 pub fn nika_verb_agent::whitelist::Whitelist::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_verb_agent::AgentEvent
+pub nika_verb_agent::AgentEvent::BudgetCheckpoint
+pub nika_verb_agent::AgentEvent::BudgetCheckpoint::budget: core::option::Option<u64>
+pub nika_verb_agent::AgentEvent::BudgetCheckpoint::total_tokens: u64
+pub nika_verb_agent::AgentEvent::BudgetCheckpoint::turn: u32
+pub nika_verb_agent::AgentEvent::ComposeChecked
+pub nika_verb_agent::AgentEvent::ComposeChecked::turn: u32
+pub nika_verb_agent::AgentEvent::ComposeChecked::valid: bool
+pub nika_verb_agent::AgentEvent::ComposeChecked::violations: u32
+pub nika_verb_agent::AgentEvent::Finished
+pub nika_verb_agent::AgentEvent::Finished::total_tokens: u64
+pub nika_verb_agent::AgentEvent::Finished::turns: u32
+pub nika_verb_agent::AgentEvent::Nudged
+pub nika_verb_agent::AgentEvent::Nudged::period: u32
+pub nika_verb_agent::AgentEvent::Nudged::reason: nika_verb_agent::observe::NudgeReason
+pub nika_verb_agent::AgentEvent::Nudged::turn: u32
+pub nika_verb_agent::AgentEvent::RunStarted
+pub nika_verb_agent::AgentEvent::RunStarted::model: alloc::string::String
+pub nika_verb_agent::AgentEvent::RunStarted::routed: bool
+pub nika_verb_agent::AgentEvent::RunStarted::universe: u32
+pub nika_verb_agent::AgentEvent::Stalled
+pub nika_verb_agent::AgentEvent::Stalled::period: u32
+pub nika_verb_agent::AgentEvent::Stalled::repeats: u32
+pub nika_verb_agent::AgentEvent::Stalled::turn: u32
+pub nika_verb_agent::AgentEvent::ToolCompleted
+pub nika_verb_agent::AgentEvent::ToolCompleted::is_error: bool
+pub nika_verb_agent::AgentEvent::ToolCompleted::name: alloc::string::String
+pub nika_verb_agent::AgentEvent::ToolCompleted::turn: u32
+pub nika_verb_agent::AgentEvent::ToolsSelected
+pub nika_verb_agent::AgentEvent::ToolsSelected::by_source: nika_verb_agent::observe::SourceCounts
+pub nika_verb_agent::AgentEvent::ToolsSelected::offered: u32
+pub nika_verb_agent::AgentEvent::ToolsSelected::turn: u32
+pub nika_verb_agent::AgentEvent::ToolsSelected::universe: u32
+pub nika_verb_agent::AgentEvent::TurnStarted
+pub nika_verb_agent::AgentEvent::TurnStarted::turn: u32
+impl core::clone::Clone for nika_verb_agent::observe::AgentEvent
+pub fn nika_verb_agent::observe::AgentEvent::clone(&self) -> nika_verb_agent::observe::AgentEvent
+impl core::cmp::PartialEq for nika_verb_agent::observe::AgentEvent
+pub fn nika_verb_agent::observe::AgentEvent::eq(&self, other: &nika_verb_agent::observe::AgentEvent) -> bool
+impl core::fmt::Debug for nika_verb_agent::observe::AgentEvent
+pub fn nika_verb_agent::observe::AgentEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_verb_agent::observe::AgentEvent
+impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::AgentEvent
+impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::AgentEvent where U: core::convert::From<T>
+pub fn nika_verb_agent::observe::AgentEvent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::observe::AgentEvent where U: core::convert::Into<T>
+pub type nika_verb_agent::observe::AgentEvent::Error = core::convert::Infallible
+pub fn nika_verb_agent::observe::AgentEvent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::observe::AgentEvent where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::observe::AgentEvent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::observe::AgentEvent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::observe::AgentEvent where T: core::clone::Clone
+pub type nika_verb_agent::observe::AgentEvent::Owned = T
+pub fn nika_verb_agent::observe::AgentEvent::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::observe::AgentEvent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::observe::AgentEvent where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::observe::AgentEvent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::observe::AgentEvent where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::AgentEvent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::observe::AgentEvent where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::AgentEvent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::observe::AgentEvent where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::observe::AgentEvent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::observe::AgentEvent
+pub fn nika_verb_agent::observe::AgentEvent::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::observe::AgentEvent where T: 'static
+pub fn nika_verb_agent::observe::AgentEvent::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_verb_agent::AgentValue
 pub nika_verb_agent::AgentValue::Structured(serde_json::value::Value)
 pub nika_verb_agent::AgentValue::Text(alloc::string::String)
@@ -120,6 +550,95 @@ impl<T> core::convert::From<T> for nika_verb_agent::AgentValue
 pub fn nika_verb_agent::AgentValue::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_agent::AgentValue where T: 'static
 pub fn nika_verb_agent::AgentValue::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_verb_agent::NudgeReason
+pub nika_verb_agent::NudgeReason::ErrorStreak
+pub nika_verb_agent::NudgeReason::RepeatedActions
+impl core::clone::Clone for nika_verb_agent::observe::NudgeReason
+pub fn nika_verb_agent::observe::NudgeReason::clone(&self) -> nika_verb_agent::observe::NudgeReason
+impl core::cmp::Eq for nika_verb_agent::observe::NudgeReason
+impl core::cmp::PartialEq for nika_verb_agent::observe::NudgeReason
+pub fn nika_verb_agent::observe::NudgeReason::eq(&self, other: &nika_verb_agent::observe::NudgeReason) -> bool
+impl core::fmt::Debug for nika_verb_agent::observe::NudgeReason
+pub fn nika_verb_agent::observe::NudgeReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_verb_agent::observe::NudgeReason
+impl core::marker::StructuralPartialEq for nika_verb_agent::observe::NudgeReason
+impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::NudgeReason
+impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::NudgeReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_verb_agent::observe::NudgeReason::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::NudgeReason where U: core::convert::From<T>
+pub fn nika_verb_agent::observe::NudgeReason::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::observe::NudgeReason where U: core::convert::Into<T>
+pub type nika_verb_agent::observe::NudgeReason::Error = core::convert::Infallible
+pub fn nika_verb_agent::observe::NudgeReason::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::observe::NudgeReason where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::observe::NudgeReason::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::observe::NudgeReason::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::observe::NudgeReason where T: core::clone::Clone
+pub type nika_verb_agent::observe::NudgeReason::Owned = T
+pub fn nika_verb_agent::observe::NudgeReason::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::observe::NudgeReason::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::observe::NudgeReason where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::observe::NudgeReason::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::observe::NudgeReason where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::NudgeReason::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::observe::NudgeReason where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::NudgeReason::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::observe::NudgeReason where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::observe::NudgeReason::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::observe::NudgeReason
+pub fn nika_verb_agent::observe::NudgeReason::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::observe::NudgeReason where T: 'static
+pub fn nika_verb_agent::observe::NudgeReason::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_verb_agent::observe::NudgeReason where T: core::marker::Copy
+pub fn nika_verb_agent::observe::NudgeReason::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_verb_agent::ToolSource
+pub nika_verb_agent::ToolSource::Builtin
+pub nika_verb_agent::ToolSource::Intrinsic
+pub nika_verb_agent::ToolSource::Mcp
+pub nika_verb_agent::ToolSource::Other
+pub nika_verb_agent::ToolSource::Skill
+impl nika_verb_agent::observe::ToolSource
+pub fn nika_verb_agent::observe::ToolSource::classify(name: &str) -> Self
+impl core::clone::Clone for nika_verb_agent::observe::ToolSource
+pub fn nika_verb_agent::observe::ToolSource::clone(&self) -> nika_verb_agent::observe::ToolSource
+impl core::cmp::Eq for nika_verb_agent::observe::ToolSource
+impl core::cmp::PartialEq for nika_verb_agent::observe::ToolSource
+pub fn nika_verb_agent::observe::ToolSource::eq(&self, other: &nika_verb_agent::observe::ToolSource) -> bool
+impl core::fmt::Debug for nika_verb_agent::observe::ToolSource
+pub fn nika_verb_agent::observe::ToolSource::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_verb_agent::observe::ToolSource
+pub fn nika_verb_agent::observe::ToolSource::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_verb_agent::observe::ToolSource
+impl core::marker::StructuralPartialEq for nika_verb_agent::observe::ToolSource
+impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::ToolSource
+impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::ToolSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_verb_agent::observe::ToolSource::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::ToolSource where U: core::convert::From<T>
+pub fn nika_verb_agent::observe::ToolSource::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::observe::ToolSource where U: core::convert::Into<T>
+pub type nika_verb_agent::observe::ToolSource::Error = core::convert::Infallible
+pub fn nika_verb_agent::observe::ToolSource::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::observe::ToolSource where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::observe::ToolSource::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::observe::ToolSource::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::observe::ToolSource where T: core::clone::Clone
+pub type nika_verb_agent::observe::ToolSource::Owned = T
+pub fn nika_verb_agent::observe::ToolSource::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::observe::ToolSource::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::observe::ToolSource where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::observe::ToolSource::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::observe::ToolSource where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::ToolSource::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::observe::ToolSource where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::ToolSource::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::observe::ToolSource where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::observe::ToolSource::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::observe::ToolSource
+pub fn nika_verb_agent::observe::ToolSource::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::observe::ToolSource where T: 'static
+pub fn nika_verb_agent::observe::ToolSource::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_verb_agent::observe::ToolSource where T: core::marker::Copy
+pub fn nika_verb_agent::observe::ToolSource::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_verb_agent::VerbAgentError
 pub nika_verb_agent::VerbAgentError::Inference
 pub nika_verb_agent::VerbAgentError::Inference::source: nika_kernel_ai::provider::ProviderError
@@ -134,6 +653,10 @@ pub nika_verb_agent::VerbAgentError::MaxTurns::partial_output: alloc::string::St
 pub nika_verb_agent::VerbAgentError::MaxTurns::turns: u32
 pub nika_verb_agent::VerbAgentError::SchemaValidation
 pub nika_verb_agent::VerbAgentError::SchemaValidation::detail: alloc::string::String
+pub nika_verb_agent::VerbAgentError::Stalled
+pub nika_verb_agent::VerbAgentError::Stalled::partial_output: alloc::string::String
+pub nika_verb_agent::VerbAgentError::Stalled::period: u32
+pub nika_verb_agent::VerbAgentError::Stalled::repeats: u32
 pub nika_verb_agent::VerbAgentError::ToolDefs
 pub nika_verb_agent::VerbAgentError::ToolDefs::source: nika_kernel_ai::tool_defs::ToolDefsError
 pub nika_verb_agent::VerbAgentError::WhitelistViolation
@@ -170,6 +693,42 @@ impl<T> core::convert::From<T> for nika_verb_agent::errors::VerbAgentError
 pub fn nika_verb_agent::errors::VerbAgentError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_agent::errors::VerbAgentError where T: 'static
 pub fn nika_verb_agent::errors::VerbAgentError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_verb_agent::AgentConfig
+pub nika_verb_agent::AgentConfig::guard: nika_verb_agent::config::GuardConfig
+pub nika_verb_agent::AgentConfig::router: nika_verb_agent::config::RouterConfig
+impl nika_verb_agent::config::AgentConfig
+pub fn nika_verb_agent::config::AgentConfig::new() -> Self
+impl core::clone::Clone for nika_verb_agent::config::AgentConfig
+pub fn nika_verb_agent::config::AgentConfig::clone(&self) -> nika_verb_agent::config::AgentConfig
+impl core::default::Default for nika_verb_agent::config::AgentConfig
+pub fn nika_verb_agent::config::AgentConfig::default() -> nika_verb_agent::config::AgentConfig
+impl core::fmt::Debug for nika_verb_agent::config::AgentConfig
+pub fn nika_verb_agent::config::AgentConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_agent::config::AgentConfig
+impl<T, U> core::convert::Into<U> for nika_verb_agent::config::AgentConfig where U: core::convert::From<T>
+pub fn nika_verb_agent::config::AgentConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::config::AgentConfig where U: core::convert::Into<T>
+pub type nika_verb_agent::config::AgentConfig::Error = core::convert::Infallible
+pub fn nika_verb_agent::config::AgentConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::config::AgentConfig where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::config::AgentConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::config::AgentConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::config::AgentConfig where T: core::clone::Clone
+pub type nika_verb_agent::config::AgentConfig::Owned = T
+pub fn nika_verb_agent::config::AgentConfig::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::config::AgentConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::config::AgentConfig where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::config::AgentConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::config::AgentConfig where T: ?core::marker::Sized
+pub fn nika_verb_agent::config::AgentConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::config::AgentConfig where T: ?core::marker::Sized
+pub fn nika_verb_agent::config::AgentConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::config::AgentConfig where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::config::AgentConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::config::AgentConfig
+pub fn nika_verb_agent::config::AgentConfig::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::config::AgentConfig where T: 'static
+pub fn nika_verb_agent::config::AgentConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_verb_agent::AgentInput
 pub nika_verb_agent::AgentInput::max_tokens_total: core::option::Option<u64>
 pub nika_verb_agent::AgentInput::max_turns: core::option::Option<u32>
@@ -243,7 +802,9 @@ impl<P, T, D> nika_verb_agent::AgentVerb<P, T, D> where P: nika_kernel_ai::provi
 pub async fn nika_verb_agent::AgentVerb<P, T, D>::run(&self, input: nika_verb_agent::AgentInput) -> core::result::Result<nika_verb_agent::AgentOutput, nika_verb_agent::errors::VerbAgentError>
 impl<P, T, D> nika_verb_agent::AgentVerb<P, T, D>
 pub fn nika_verb_agent::AgentVerb<P, T, D>::new(provider: alloc::sync::Arc<P>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, tool_defs: alloc::sync::Arc<D>, default_model: impl core::convert::Into<alloc::string::String>) -> Self
-impl<P: core::fmt::Debug, T: core::fmt::Debug, D: core::fmt::Debug> core::fmt::Debug for nika_verb_agent::AgentVerb<P, T, D>
+pub fn nika_verb_agent::AgentVerb<P, T, D>::with_config(self, config: nika_verb_agent::config::AgentConfig) -> Self
+pub fn nika_verb_agent::AgentVerb<P, T, D>::with_observer(self, observer: alloc::sync::Arc<dyn nika_verb_agent::observe::AgentObserver>) -> Self
+impl<P, T, D> core::fmt::Debug for nika_verb_agent::AgentVerb<P, T, D>
 pub fn nika_verb_agent::AgentVerb<P, T, D>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_verb_agent::AgentVerb<P, T, D>
 impl<T, U> core::convert::Into<U> for nika_verb_agent::AgentVerb<P, T, D> where U: core::convert::From<T>
@@ -264,6 +825,167 @@ impl<T> core::convert::From<T> for nika_verb_agent::AgentVerb<P, T, D>
 pub fn nika_verb_agent::AgentVerb<P, T, D>::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_agent::AgentVerb<P, T, D> where T: 'static
 pub fn nika_verb_agent::AgentVerb<P, T, D>::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_verb_agent::GuardConfig
+pub nika_verb_agent::GuardConfig::error_streak_nudge: u32
+pub nika_verb_agent::GuardConfig::max_reflections: u32
+pub nika_verb_agent::GuardConfig::nudge_after: u32
+pub nika_verb_agent::GuardConfig::stall_after: u32
+pub nika_verb_agent::GuardConfig::window: usize
+impl nika_verb_agent::config::GuardConfig
+pub fn nika_verb_agent::config::GuardConfig::new() -> Self
+impl core::clone::Clone for nika_verb_agent::config::GuardConfig
+pub fn nika_verb_agent::config::GuardConfig::clone(&self) -> nika_verb_agent::config::GuardConfig
+impl core::default::Default for nika_verb_agent::config::GuardConfig
+pub fn nika_verb_agent::config::GuardConfig::default() -> Self
+impl core::fmt::Debug for nika_verb_agent::config::GuardConfig
+pub fn nika_verb_agent::config::GuardConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_agent::config::GuardConfig
+impl<T, U> core::convert::Into<U> for nika_verb_agent::config::GuardConfig where U: core::convert::From<T>
+pub fn nika_verb_agent::config::GuardConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::config::GuardConfig where U: core::convert::Into<T>
+pub type nika_verb_agent::config::GuardConfig::Error = core::convert::Infallible
+pub fn nika_verb_agent::config::GuardConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::config::GuardConfig where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::config::GuardConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::config::GuardConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::config::GuardConfig where T: core::clone::Clone
+pub type nika_verb_agent::config::GuardConfig::Owned = T
+pub fn nika_verb_agent::config::GuardConfig::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::config::GuardConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::config::GuardConfig where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::config::GuardConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::config::GuardConfig where T: ?core::marker::Sized
+pub fn nika_verb_agent::config::GuardConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::config::GuardConfig where T: ?core::marker::Sized
+pub fn nika_verb_agent::config::GuardConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::config::GuardConfig where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::config::GuardConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::config::GuardConfig
+pub fn nika_verb_agent::config::GuardConfig::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::config::GuardConfig where T: 'static
+pub fn nika_verb_agent::config::GuardConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_verb_agent::NoopObserver
+impl core::clone::Clone for nika_verb_agent::observe::NoopObserver
+pub fn nika_verb_agent::observe::NoopObserver::clone(&self) -> nika_verb_agent::observe::NoopObserver
+impl core::default::Default for nika_verb_agent::observe::NoopObserver
+pub fn nika_verb_agent::observe::NoopObserver::default() -> nika_verb_agent::observe::NoopObserver
+impl core::fmt::Debug for nika_verb_agent::observe::NoopObserver
+pub fn nika_verb_agent::observe::NoopObserver::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_verb_agent::observe::NoopObserver
+impl nika_verb_agent::observe::AgentObserver for nika_verb_agent::observe::NoopObserver
+pub fn nika_verb_agent::observe::NoopObserver::on_event(&self, _event: &nika_verb_agent::observe::AgentEvent)
+impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::NoopObserver
+impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::NoopObserver where U: core::convert::From<T>
+pub fn nika_verb_agent::observe::NoopObserver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::observe::NoopObserver where U: core::convert::Into<T>
+pub type nika_verb_agent::observe::NoopObserver::Error = core::convert::Infallible
+pub fn nika_verb_agent::observe::NoopObserver::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::observe::NoopObserver where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::observe::NoopObserver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::observe::NoopObserver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::observe::NoopObserver where T: core::clone::Clone
+pub type nika_verb_agent::observe::NoopObserver::Owned = T
+pub fn nika_verb_agent::observe::NoopObserver::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::observe::NoopObserver::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::observe::NoopObserver where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::observe::NoopObserver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::observe::NoopObserver where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::NoopObserver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::observe::NoopObserver where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::NoopObserver::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::observe::NoopObserver where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::observe::NoopObserver::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::observe::NoopObserver
+pub fn nika_verb_agent::observe::NoopObserver::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::observe::NoopObserver where T: 'static
+pub fn nika_verb_agent::observe::NoopObserver::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_verb_agent::observe::NoopObserver where T: core::marker::Copy
+pub fn nika_verb_agent::observe::NoopObserver::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub struct nika_verb_agent::RouterConfig
+pub nika_verb_agent::RouterConfig::min_universe: usize
+pub nika_verb_agent::RouterConfig::recency_turns: u32
+pub nika_verb_agent::RouterConfig::top_k: usize
+impl nika_verb_agent::config::RouterConfig
+pub fn nika_verb_agent::config::RouterConfig::new() -> Self
+impl core::clone::Clone for nika_verb_agent::config::RouterConfig
+pub fn nika_verb_agent::config::RouterConfig::clone(&self) -> nika_verb_agent::config::RouterConfig
+impl core::default::Default for nika_verb_agent::config::RouterConfig
+pub fn nika_verb_agent::config::RouterConfig::default() -> Self
+impl core::fmt::Debug for nika_verb_agent::config::RouterConfig
+pub fn nika_verb_agent::config::RouterConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_agent::config::RouterConfig
+impl<T, U> core::convert::Into<U> for nika_verb_agent::config::RouterConfig where U: core::convert::From<T>
+pub fn nika_verb_agent::config::RouterConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::config::RouterConfig where U: core::convert::Into<T>
+pub type nika_verb_agent::config::RouterConfig::Error = core::convert::Infallible
+pub fn nika_verb_agent::config::RouterConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::config::RouterConfig where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::config::RouterConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::config::RouterConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::config::RouterConfig where T: core::clone::Clone
+pub type nika_verb_agent::config::RouterConfig::Owned = T
+pub fn nika_verb_agent::config::RouterConfig::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::config::RouterConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::config::RouterConfig where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::config::RouterConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::config::RouterConfig where T: ?core::marker::Sized
+pub fn nika_verb_agent::config::RouterConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::config::RouterConfig where T: ?core::marker::Sized
+pub fn nika_verb_agent::config::RouterConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::config::RouterConfig where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::config::RouterConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::config::RouterConfig
+pub fn nika_verb_agent::config::RouterConfig::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::config::RouterConfig where T: 'static
+pub fn nika_verb_agent::config::RouterConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_verb_agent::SourceCounts
+pub nika_verb_agent::SourceCounts::builtin: u32
+pub nika_verb_agent::SourceCounts::intrinsic: u32
+pub nika_verb_agent::SourceCounts::mcp: u32
+pub nika_verb_agent::SourceCounts::other: u32
+pub nika_verb_agent::SourceCounts::skill: u32
+impl nika_verb_agent::observe::SourceCounts
+pub fn nika_verb_agent::observe::SourceCounts::tally<'a>(names: impl core::iter::traits::iterator::Iterator<Item = &'a str>) -> Self
+impl core::clone::Clone for nika_verb_agent::observe::SourceCounts
+pub fn nika_verb_agent::observe::SourceCounts::clone(&self) -> nika_verb_agent::observe::SourceCounts
+impl core::cmp::Eq for nika_verb_agent::observe::SourceCounts
+impl core::cmp::PartialEq for nika_verb_agent::observe::SourceCounts
+pub fn nika_verb_agent::observe::SourceCounts::eq(&self, other: &nika_verb_agent::observe::SourceCounts) -> bool
+impl core::default::Default for nika_verb_agent::observe::SourceCounts
+pub fn nika_verb_agent::observe::SourceCounts::default() -> nika_verb_agent::observe::SourceCounts
+impl core::fmt::Debug for nika_verb_agent::observe::SourceCounts
+pub fn nika_verb_agent::observe::SourceCounts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_verb_agent::observe::SourceCounts
+impl core::marker::StructuralPartialEq for nika_verb_agent::observe::SourceCounts
+impl<D> owo_colors::OwoColorize for nika_verb_agent::observe::SourceCounts
+impl<Q, K> hashbrown::Equivalent<K> for nika_verb_agent::observe::SourceCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_verb_agent::observe::SourceCounts::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_verb_agent::observe::SourceCounts where U: core::convert::From<T>
+pub fn nika_verb_agent::observe::SourceCounts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::observe::SourceCounts where U: core::convert::Into<T>
+pub type nika_verb_agent::observe::SourceCounts::Error = core::convert::Infallible
+pub fn nika_verb_agent::observe::SourceCounts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::observe::SourceCounts where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::observe::SourceCounts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::observe::SourceCounts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_agent::observe::SourceCounts where T: core::clone::Clone
+pub type nika_verb_agent::observe::SourceCounts::Owned = T
+pub fn nika_verb_agent::observe::SourceCounts::clone_into(&self, target: &mut T)
+pub fn nika_verb_agent::observe::SourceCounts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_agent::observe::SourceCounts where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::observe::SourceCounts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::observe::SourceCounts where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::SourceCounts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::observe::SourceCounts where T: ?core::marker::Sized
+pub fn nika_verb_agent::observe::SourceCounts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_agent::observe::SourceCounts where T: core::clone::Clone
+pub unsafe fn nika_verb_agent::observe::SourceCounts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_agent::observe::SourceCounts
+pub fn nika_verb_agent::observe::SourceCounts::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::observe::SourceCounts where T: 'static
+pub fn nika_verb_agent::observe::SourceCounts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_verb_agent::observe::SourceCounts where T: core::marker::Copy
+pub fn nika_verb_agent::observe::SourceCounts::as_out(&mut self) -> outref::Out<'_, T>
 pub struct nika_verb_agent::Whitelist
 impl nika_verb_agent::whitelist::Whitelist
 pub fn nika_verb_agent::whitelist::Whitelist::admits(&self, tool: &str) -> bool
@@ -298,6 +1020,11 @@ impl<T> core::convert::From<T> for nika_verb_agent::whitelist::Whitelist
 pub fn nika_verb_agent::whitelist::Whitelist::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_agent::whitelist::Whitelist where T: 'static
 pub fn nika_verb_agent::whitelist::Whitelist::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_verb_agent::COMPOSE_TOOL: &str
 pub const nika_verb_agent::DEFAULT_MAX_TURNS: u32
 pub const nika_verb_agent::DONE_TOOL: &str
 pub const nika_verb_agent::MAX_TURNS_CEILING: u32
+pub trait nika_verb_agent::AgentObserver: core::marker::Send + core::marker::Sync
+pub fn nika_verb_agent::AgentObserver::on_event(&self, event: &nika_verb_agent::observe::AgentEvent)
+impl nika_verb_agent::observe::AgentObserver for nika_verb_agent::observe::NoopObserver
+pub fn nika_verb_agent::observe::NoopObserver::on_event(&self, _event: &nika_verb_agent::observe::AgentEvent)

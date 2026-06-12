@@ -1,0 +1,134 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! [`AgentConfig`] — engine-internal tuning for the agent-loop
+//! intelligence (ADR-093).
+//!
+//! Deliberately NOT a YAML surface: the spec's `agent:` field table is
+//! the public contract and stays untouched (own-corpus law — no phantom
+//! fields). The embedder (L3 runtime · tests) tunes the loop through
+//! this struct; every default is chosen so an unconfigured loop behaves
+//! sanely on real workloads.
+
+/// Tuning for the whole intelligence layer. `Default` is the production
+/// posture; construct + mutate fields to override (all fields public —
+/// this is config, not API surface to defend).
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct AgentConfig {
+    /// Per-turn tool routing (the MCP-Zero-style active-discovery gate).
+    pub router: RouterConfig,
+    /// Stall detection + bounded reflection.
+    pub guard: GuardConfig,
+}
+
+impl AgentConfig {
+    /// The production defaults (INV-019).
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// Per-turn tool-definition routing.
+///
+/// Below [`Self::min_universe`] definitions, routing is a no-op: the
+/// model sees the full whitelisted set every turn (stable prompts are
+/// provider-cache-friendly; selection only pays for itself once the
+/// universe is large enough to crowd the context — per Fei · Zheng ·
+/// Feng 2025, arxiv.org/abs/2506.01056, injecting full schemas for
+/// large tool sets degrades both context budget and selection quality).
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct RouterConfig {
+    /// Route only when the whitelisted universe is at least this large;
+    /// smaller universes ship whole (prompt-cache stability wins).
+    pub min_universe: usize,
+    /// How many ranked definitions to offer per turn (pinned tools ride
+    /// on top of this budget, they never crowd it).
+    pub top_k: usize,
+    /// A tool used within the last N turns stays offered (the model just
+    /// saw its results — yanking it mid-thought confuses the transcript).
+    pub recency_turns: u32,
+}
+
+impl Default for RouterConfig {
+    fn default() -> Self {
+        Self {
+            min_universe: 24,
+            top_k: 12,
+            recency_turns: 2,
+        }
+    }
+}
+
+impl RouterConfig {
+    /// The production defaults (INV-019).
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// Stall detection + bounded verbal reflection.
+///
+/// The detector watches TURN SIGNATURES — a hash of the turn's tool
+/// calls AND their observations — so legitimate polling (same call,
+/// CHANGING result) never trips it; only byte-identical action+outcome
+/// cycles do. Thresholds are in CYCLE OCCURRENCES, period-agnostic: an
+/// A,B,A,B,A,B alternation counts 3 occurrences of a period-2 cycle.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct GuardConfig {
+    /// Sliding window of turn signatures the detector scans (bounds the
+    /// per-turn scan at `window²/4` u64 compares — trivial at 16).
+    pub window: usize,
+    /// Cycle occurrences that trigger ONE corrective reflection message
+    /// (Reflexion-style verbal feedback · Shinn et al. 2023,
+    /// arxiv.org/abs/2303.11366) before any harder stop.
+    pub nudge_after: u32,
+    /// Cycle occurrences that stop the run as NIKA-467 (the nudge was
+    /// spent and the loop is still burning budget without progress).
+    /// Clamped to at least `nudge_after + 1` at use sites.
+    pub stall_after: u32,
+    /// Maximum reflection messages injected per run (bounded — verbal
+    /// feedback helps once; repeating it is itself a loop).
+    pub max_reflections: u32,
+    /// Consecutive ALL-ERROR tool turns that trigger the error-streak
+    /// reflection (shares the `max_reflections` budget).
+    pub error_streak_nudge: u32,
+}
+
+impl Default for GuardConfig {
+    fn default() -> Self {
+        Self {
+            window: 16,
+            nudge_after: 3,
+            stall_after: 5,
+            max_reflections: 1,
+            error_streak_nudge: 2,
+        }
+    }
+}
+
+impl GuardConfig {
+    /// The production defaults (INV-019).
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_are_internally_coherent() {
+        let cfg = AgentConfig::new();
+        assert!(cfg.guard.stall_after > cfg.guard.nudge_after);
+        assert!(cfg.guard.window >= cfg.guard.stall_after as usize);
+        assert!(cfg.router.top_k > 0);
+        assert!(cfg.router.min_universe > cfg.router.top_k);
+    }
+}

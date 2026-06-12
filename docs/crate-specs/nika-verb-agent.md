@@ -211,4 +211,32 @@ seam — they shipped this arc; the loop verb is gated on this one decision.
               (kernel agent.rs DTOs · spec §agent loop semantics · L2→L2
               dep resolved layering-legal · brouillon read-only reference) ·
               implementation deliberately deferred per Diamond §8.
+2026-06-12  v0.2 — ADR-093 intelligence layer (engine-internal · ZERO new
+              YAML · spec §agent untouched). Four deterministic mechanisms,
+              each arXiv-grounded + property-proven through the REAL loop
+              (tests/research_conformance.rs · 10 e2e + unit proptests):
+              · guard.rs — windowed max-repeats cycle detection over
+                action+OBSERVATION turn signatures (polling-proof) · ONE
+                bounded Reflexion nudge (arXiv:2303.11366) then NIKA-467
+                Stalled{period, repeats} (TRAIL failure class ·
+                arXiv:2505.08638) · key-order-canonical JSON hashing.
+              · router.rs — per-turn BM25 tool routing via nika-bm25
+                (L2→L1 · MCP-Zero direction arXiv:2506.01056 · sovereign
+                zero-LLM) · passthrough <24 defs · pinned intrinsics +
+                sentinel + recency ≤2 turns · FAIL-OPEN on zero overlap.
+              · intrinsic.rs — agent:compose loop-served gate: full
+                nika-schema check verdict + AARA certificate fed back as
+                JSON (PCE «generation is not permission» arXiv:2605.24462
+                · CodeAct arXiv:2402.01030 · AWM direction arXiv:2409.07429)
+                · 256 KiB draft cap · poison-shadow-proof (upstream agent:*
+                defs dropped · loop synthesizes its own) · NEVER executes.
+              · observe.rs — AgentObserver 4th seam (Arc<dyn> · telemetry
+                off the data path) · 10 AgentEvent decision payloads → the
+                5 nika-event agent_* kinds (AgentOps arXiv:2411.05285) ·
+                ToolSource closed-namespace classifier (skill: forward seam).
+              New deps nika-bm25 + nika-schema (downward · layering-legal) ·
+              NIKA-467 registered · errors.rs Stalled terminal-not-transient ·
+              config.rs AgentConfig{router, guard} embedder tuning · lib.rs
+              1482 ≤ 1500 · run() 96 ≤ 100 · clippy 0 · 71 tests GREEN ·
+              full record docs/adr/adr-093-agent-loop-intelligence.md.
 ```

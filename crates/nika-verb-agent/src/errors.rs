@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `VerbAgentError` — the `agent` verb error surface (NIKA-460..466).
+//! `VerbAgentError` — the `agent` verb error surface (NIKA-460..467).
 //!
 //! Spec mapping (`docs/crate-specs/nika-verb-agent.md` §4): budgets are
 //! FAILURES (460 turns · 461 tokens · spec `NIKA-AGENT-001/002`), the
@@ -11,7 +11,7 @@
 //! tool-definition seam failure (466 · wraps the kernel NIKA-234).
 
 use nika_error::codes::{
-    NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466, NikaCode,
+    NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466, NIKA_467, NikaCode,
 };
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::ai::provider::ProviderError;
@@ -85,6 +85,24 @@ pub enum VerbAgentError {
         #[source]
         source: ToolDefsError,
     },
+
+    /// The loop stalled: an identical action+observation cycle repeated
+    /// past the stall threshold after the corrective reflection was
+    /// already spent (NIKA-467 · ADR-093). Further turns would burn
+    /// budget on a proven no-progress loop.
+    #[error(
+        "agent stalled: a {period}-turn action cycle repeated {repeats}× with \
+         identical observations (no progress)"
+    )]
+    #[diagnostic(code(nika::verb::agent_stalled))]
+    Stalled {
+        /// Detected cycle length in turns.
+        period: u32,
+        /// How many times the cycle repeated.
+        repeats: u32,
+        /// The last assistant text (the spec's `partial_output`).
+        partial_output: String,
+    },
 }
 
 impl NikaErrorCode for VerbAgentError {
@@ -97,6 +115,7 @@ impl NikaErrorCode for VerbAgentError {
             Self::SchemaValidation { .. } => NIKA_464,
             Self::InvalidParam { .. } => NIKA_465,
             Self::ToolDefs { .. } => NIKA_466,
+            Self::Stalled { .. } => NIKA_467,
         }
     }
 
@@ -104,11 +123,14 @@ impl NikaErrorCode for VerbAgentError {
         match self {
             // Budgets, security and validation are verdicts — rerunning
             // the same loop is workflow policy (`retry:`), not transience.
+            // A stall is the same class: the loop PROVED no progress; a
+            // blind rerun replays the proof.
             Self::MaxTurns { .. }
             | Self::MaxTokens { .. }
             | Self::WhitelistViolation { .. }
             | Self::SchemaValidation { .. }
-            | Self::InvalidParam { .. } => false,
+            | Self::InvalidParam { .. }
+            | Self::Stalled { .. } => false,
             // Mid-loop provider failures inherit the provider's verdict
             // (rate limits ARE transient).
             Self::Inference { source } => source.is_transient(),
@@ -165,6 +187,14 @@ mod tests {
                     },
                 },
                 466,
+            ),
+            (
+                VerbAgentError::Stalled {
+                    period: 2,
+                    repeats: 5,
+                    partial_output: String::new(),
+                },
+                467,
             ),
         ];
         for (err, num) in cases {

@@ -30,14 +30,41 @@
 //! are not model-negotiable. Failing TOOLS are fed back as error
 //! results (the agentic convention); the loop continues on its budgets.
 //!
-//! v0.1 fences (spec §5): `ReAct` only · sequential dispatch · no
-//! reflection/compression · cost/duration stops are engine concerns.
+//! ## The intelligence layer (ADR-093 · engine-internal, zero YAML)
+//!
+//! Four orthogonal pieces ride the same loop, all deterministic and
+//! all observable through the [`AgentObserver`] seam:
+//!
+//! - **per-turn tool routing** (`router` · private) — BM25 active
+//!   discovery over the whitelisted universe (MCP-Zero-style;
+//!   sovereign: the engine's own `nika-bm25` satellite, zero LLM calls);
+//! - **stall guard** (`guard` · private) — windowed cycle detection
+//!   over action+observation turn signatures, with a bounded Reflexion
+//!   nudge before the NIKA-467 stop;
+//! - **intrinsics** (`intrinsic` · private) — `agent:compose` drafts a
+//!   Nika workflow and gets the full `nika check` verdict back in-turn
+//!   (« generation is not permission »: composition yields an artifact
+//!   + its certificate, never an execution);
+//! - **telemetry** ([`observe`]) — every loop DECISION is an event;
+//!   the L3 runtime maps them onto the `nika-event` agent kinds.
+//!
+//! v0.1 fences (spec §5): `ReAct` shape · sequential dispatch ·
+//! cost/duration stops are engine concerns. (The spec's « no
+//! reflection » fence is amended by ADR-093: ONE bounded corrective
+//! nudge on detected no-progress, engine-internal, no YAML surface.)
 
 #![forbid(unsafe_code)]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+pub mod config;
 pub mod errors;
+pub mod observe;
 pub mod whitelist;
+
+mod guard;
+mod intrinsic;
+mod router;
+mod shape;
 
 use std::sync::Arc;
 
@@ -48,7 +75,14 @@ use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::runtime::agent::AgentStopReason;
 use nika_verb_invoke::{InvokeInput, InvokeVerb, VerbInvokeError};
 
+use crate::guard::{Guard, GuardVerdict};
+use crate::router::ToolRouter;
+use crate::shape::shape_output;
+
+pub use config::{AgentConfig, GuardConfig, RouterConfig};
 pub use errors::VerbAgentError;
+pub use intrinsic::COMPOSE_TOOL;
+pub use observe::{AgentEvent, AgentObserver, NoopObserver, NudgeReason, SourceCounts, ToolSource};
 pub use whitelist::Whitelist;
 
 /// Default turn budget (spec §1 · `max_turns` default 10).
@@ -153,16 +187,30 @@ impl AgentOutput {
 }
 
 /// The multi-turn agentic loop — the `agent` verb executor.
-#[derive(Debug)]
 pub struct AgentVerb<P, T, D> {
     provider: Arc<P>,
     invoke: Arc<InvokeVerb<T>>,
     tool_defs: Arc<D>,
     default_model: String,
+    config: AgentConfig,
+    // dyn on purpose: a 4th OPTIONAL seam as a generic would infect every
+    // embedder signature (Runtime::new already carries the verb generics);
+    // the observer is telemetry, never on the data path's hot types.
+    observer: Arc<dyn AgentObserver>,
+}
+
+impl<P, T, D> std::fmt::Debug for AgentVerb<P, T, D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AgentVerb")
+            .field("default_model", &self.default_model)
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<P, T, D> AgentVerb<P, T, D> {
-    /// Create the verb over its three injected seams.
+    /// Create the verb over its three injected seams (default config ·
+    /// no-op observer).
     #[must_use]
     pub fn new(
         provider: Arc<P>,
@@ -175,7 +223,24 @@ impl<P, T, D> AgentVerb<P, T, D> {
             invoke,
             tool_defs,
             default_model: default_model.into(),
+            config: AgentConfig::new(),
+            observer: Arc::new(NoopObserver),
         }
+    }
+
+    /// Override the intelligence-layer tuning (ADR-093).
+    #[must_use]
+    pub fn with_config(mut self, config: AgentConfig) -> Self {
+        self.config = config;
+        self
+    }
+
+    /// Wire the telemetry observer (the L3 runtime adapts it onto the
+    /// `nika-event` agent kinds; tests capture it directly).
+    #[must_use]
+    pub fn with_observer(mut self, observer: Arc<dyn AgentObserver>) -> Self {
+        self.observer = observer;
+        self
     }
 }
 
@@ -213,14 +278,32 @@ where
             .unwrap_or_else(|| self.default_model.clone());
         let max_turns = input.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
 
+        let mut router = ToolRouter::new(&defs, self.config.router.clone());
+        let mut guard = Guard::new(self.config.guard.clone());
+        #[allow(clippy::cast_possible_truncation)] // universe ≪ u32::MAX
+        self.observer.on_event(&AgentEvent::RunStarted {
+            model: model.clone(),
+            universe: defs.len() as u32,
+            routed: router.is_routing(),
+        });
+
         let mut messages = opening_messages(&input);
         let mut turns: u32 = 0;
         let mut total_tokens: u64 = 0;
         let mut last_text = String::new();
+        let mut last_observations = String::new();
 
         while turns < max_turns {
             turns += 1;
-            let request = build_request(&model, messages.clone(), &input, &defs);
+            self.observer
+                .on_event(&AgentEvent::TurnStarted { turn: turns });
+
+            // Per-turn routing: rank the universe against the LIVE task
+            // context (prompt + the model's last words + last observations).
+            let query = format!("{} {} {}", input.prompt, last_text, last_observations);
+            let offered = self.route_turn(&router, &defs, &query, turns);
+
+            let request = build_request(&model, messages.clone(), &input, &offered);
             let response = self
                 .provider
                 .infer(request)
@@ -233,6 +316,11 @@ where
                     .input_tokens
                     .saturating_add(response.usage.output_tokens),
             );
+            self.observer.on_event(&AgentEvent::BudgetCheckpoint {
+                turn: turns,
+                total_tokens,
+                budget: input.max_tokens_total,
+            });
             let text = joined_text(&response.content);
             if !text.is_empty() {
                 last_text.clone_from(&text);
@@ -248,15 +336,24 @@ where
                 last_text: &last_text,
             };
             match classify_turn(&response, &text, &ctx)? {
-                TurnVerdict::Done(output) => return Ok(output),
+                TurnVerdict::Done(output) => {
+                    self.observer.on_event(&AgentEvent::Finished {
+                        turns,
+                        total_tokens,
+                    });
+                    return Ok(output);
+                }
                 TurnVerdict::Dispatch(tool_uses) => {
                     // All-whitelisted, non-sentinel tools · feed results back.
                     messages.push(Message::new(Role::Assistant, response.content.clone()));
-                    let mut results: Vec<ContentBlock> = Vec::with_capacity(tool_uses.len());
-                    for (id, name, args) in tool_uses {
-                        results.push(self.dispatch(&id, &name, args).await);
-                    }
-                    messages.push(Message::new(Role::User, results));
+                    last_observations = self
+                        .dispatch_turn(turns, tool_uses, &mut router, &mut guard, &mut messages)
+                        .await
+                        .map_err(|(period, repeats)| VerbAgentError::Stalled {
+                            period,
+                            repeats,
+                            partial_output: last_text.clone(),
+                        })?;
                 }
             }
         }
@@ -265,6 +362,122 @@ where
             turns,
             partial_output: last_text,
         })
+    }
+
+    /// One routing decision: select this turn's definitions + report it.
+    fn route_turn(
+        &self,
+        router: &ToolRouter,
+        defs: &[ToolDef],
+        query: &str,
+        turn: u32,
+    ) -> Vec<ToolDef> {
+        let (offered, selection) = router.select(defs, query, turn);
+        self.observer.on_event(&AgentEvent::ToolsSelected {
+            turn,
+            offered: selection.offered,
+            universe: selection.universe,
+            by_source: selection.by_source,
+        });
+        offered
+    }
+
+    /// One Dispatch turn: run the batch, feed results into the
+    /// transcript, then consult the stall guard (signature = actions +
+    /// outcomes). Returns the observations digest for the next routing
+    /// query, or the stall evidence `(period, repeats)` when the guard
+    /// stops the run.
+    async fn dispatch_turn(
+        &self,
+        turn: u32,
+        tool_uses: Vec<(String, String, serde_json::Value)>,
+        router: &mut ToolRouter,
+        guard: &mut Guard,
+        messages: &mut Vec<Message>,
+    ) -> Result<String, (u32, u32)> {
+        let batch = self.run_batch(turn, tool_uses, router).await;
+        messages.push(Message::new(Role::User, batch.results));
+        match guard.observe_turn(batch.signature, batch.all_errors) {
+            GuardVerdict::Proceed => {}
+            GuardVerdict::Nudge(reason, period) => {
+                self.observer.on_event(&AgentEvent::Nudged {
+                    turn,
+                    reason,
+                    period,
+                });
+                messages.push(Message::text(Role::User, guard::nudge_text(reason, period)));
+            }
+            GuardVerdict::Stall { period, repeats } => {
+                self.observer.on_event(&AgentEvent::Stalled {
+                    turn,
+                    period,
+                    repeats,
+                });
+                return Err((period, repeats));
+            }
+        }
+        Ok(batch.observations_digest)
+    }
+
+    /// Dispatch one turn's validated tool batch: intrinsics are served
+    /// in-loop (never reach the executor seam), everything else goes
+    /// through the invoke verb; telemetry + the guard signature parts
+    /// are collected as the batch runs.
+    async fn run_batch(
+        &self,
+        turn: u32,
+        tool_uses: Vec<(String, String, serde_json::Value)>,
+        router: &mut ToolRouter,
+    ) -> BatchOutcome {
+        let mut results: Vec<ContentBlock> = Vec::with_capacity(tool_uses.len());
+        let mut sig_calls: Vec<(String, serde_json::Value)> = Vec::with_capacity(tool_uses.len());
+        let mut sig_results: Vec<(String, bool)> = Vec::with_capacity(tool_uses.len());
+        let mut all_errors = true;
+        for (id, name, args) in tool_uses {
+            let block = if let Some(intrinsic) = intrinsic::Intrinsic::parse(&name) {
+                let (content, is_error, outcome) = match intrinsic {
+                    intrinsic::Intrinsic::Compose => intrinsic::run_compose(&args),
+                };
+                self.observer.on_event(&AgentEvent::ComposeChecked {
+                    turn,
+                    valid: outcome.valid,
+                    violations: outcome.violations,
+                });
+                ContentBlock::ToolResult {
+                    tool_use_id: id,
+                    content,
+                    is_error,
+                }
+            } else {
+                self.dispatch(&id, &name, args.clone()).await
+            };
+            if let ContentBlock::ToolResult {
+                content, is_error, ..
+            } = &block
+            {
+                self.observer.on_event(&AgentEvent::ToolCompleted {
+                    turn,
+                    name: name.clone(),
+                    is_error: *is_error,
+                });
+                all_errors &= *is_error;
+                sig_results.push((content.clone(), *is_error));
+            }
+            router.note_used(&name, turn);
+            sig_calls.push((name, args));
+            results.push(block);
+        }
+        let observations_digest = sig_results
+            .iter()
+            .flat_map(|(content, _)| content.chars().take(512))
+            .take(2048)
+            .collect();
+        BatchOutcome {
+            signature: guard::turn_signature(&sig_calls, &sig_results),
+            results,
+            observations_digest,
+            all_errors,
+        }
     }
 
     /// The whitelisted tool universe + the synthesized sentinel def.
@@ -282,13 +495,15 @@ where
             .map_err(|source| VerbAgentError::ToolDefs { source })?;
         let mut defs: Vec<ToolDef> = universe
             .into_iter()
-            // Exclude any source-supplied `nika:done` (the loop owns the
-            // sentinel · a poisoned def must never reach the model) +
+            // Exclude any source-supplied `nika:done` AND the whole
+            // `agent:` namespace (the loop owns the sentinel + every
+            // intrinsic · a poisoned def must never shadow them) +
             // sanitize names the way the invoke seam does (NIKA-450 parity):
             // a control-char/whitespace-padded name from a compromised MCP
             // `tools/list` must not be serialized into the model's tool list.
             .filter(|def| {
                 def.name != DONE_TOOL
+                    && !def.name.starts_with("agent:")
                     && whitelist.admits(&def.name)
                     && is_clean_tool_name(&def.name)
             })
@@ -308,6 +523,11 @@ where
                     }
                 }),
             ));
+        }
+        if whitelist.admits(intrinsic::COMPOSE_TOOL) {
+            // Loop-owned like the sentinel: drafting stays default-deny
+            // (absent from `tools:`, the model never sees it).
+            defs.push(intrinsic::compose_def());
         }
         Ok(defs)
     }
@@ -334,7 +554,19 @@ where
     }
 }
 
-/// One turn's request — same transcript, same tools, every turn.
+/// What one dispatched batch produced (results + the guard's evidence).
+struct BatchOutcome {
+    /// The tool-result blocks, in dispatch order.
+    results: Vec<ContentBlock>,
+    /// Turn signature over actions + observations (see `guard`).
+    signature: u64,
+    /// A bounded digest of the observations, for the next routing query.
+    observations_digest: String,
+    /// Whether EVERY call in the batch errored.
+    all_errors: bool,
+}
+
+/// One turn's request — the live transcript + this turn's routed tools.
 fn build_request(
     model: &str,
     messages: Vec<Message>,
@@ -523,94 +755,6 @@ fn feedback_text(err: &VerbInvokeError) -> String {
 /// same shapes at dispatch · this is the GO-TO-model mirror of that).
 fn is_clean_tool_name(name: &str) -> bool {
     !name.is_empty() && !name.bytes().any(|b| b < 0x20 || b == 0x7f) && name.trim() == name
-}
-
-/// Validate the final value against the task `schema:` when present
-/// (spec §2: the schema validates the FINAL output · NIKA-464).
-fn shape_output(
-    value: AgentValue,
-    schema: Option<&serde_json::Value>,
-) -> Result<AgentValue, VerbAgentError> {
-    let Some(schema) = schema else {
-        return Ok(value);
-    };
-    let validator =
-        jsonschema::validator_for(schema).map_err(|e| VerbAgentError::SchemaValidation {
-            detail: format!("schema does not compile: {e}"),
-        })?;
-    let candidate = match &value {
-        AgentValue::Structured(json) => json.clone(),
-        // The `infer.schema:` parity (spec §2): a final message wrapping
-        // its JSON in ``` fences or prose is the common real-model case —
-        // bare-parse first, then the first balanced span.
-        AgentValue::Text(text) => {
-            extract_json(text).ok_or_else(|| VerbAgentError::SchemaValidation {
-                detail: "final message contains no extractable JSON".to_owned(),
-            })?
-        }
-    };
-    if let Err(error) = validator.validate(&candidate) {
-        return Err(VerbAgentError::SchemaValidation {
-            detail: error.to_string(),
-        });
-    }
-    Ok(AgentValue::Structured(candidate))
-}
-
-/// Pull the first JSON value out of model text: a bare parse, else the
-/// first balanced `{…}`/`[…]` span (tolerates code fences + prose).
-/// String-aware so a brace inside a string literal never miscounts depth.
-///
-/// NOTE · this mirrors `nika-verb-infer`'s structured extraction (spec §2
-/// `infer.schema:` parity · pinned by the fenced-JSON test). The canonical
-/// home for both is a future `nika-verb-common`; until that exists the
-/// duplication is intentional and behavior-tested rather than a hidden
-/// fork (both reviewers flagged the cross-crate dup · the test is the
-/// contract that keeps them in step).
-fn extract_json(text: &str) -> Option<serde_json::Value> {
-    if let Ok(value) = serde_json::from_str::<serde_json::Value>(text.trim()) {
-        return Some(value);
-    }
-    let span = balanced_span(text)?;
-    serde_json::from_str(span).ok()
-}
-
-/// The first balanced `{…}` or `[…]` substring, honoring string literals.
-fn balanced_span(text: &str) -> Option<&str> {
-    let bytes = text.as_bytes();
-    let start = bytes.iter().position(|&b| b == b'{' || b == b'[')?;
-    let (open, close) = if bytes[start] == b'{' {
-        (b'{', b'}')
-    } else {
-        (b'[', b']')
-    };
-    let mut depth = 0i32;
-    let mut in_str = false;
-    let mut escaped = false;
-    for (i, &b) in bytes.iter().enumerate().skip(start) {
-        if in_str {
-            if escaped {
-                escaped = false;
-            } else if b == b'\\' {
-                escaped = true;
-            } else if b == b'"' {
-                in_str = false;
-            }
-            continue;
-        }
-        match b {
-            b'"' => in_str = true,
-            _ if b == open => depth += 1,
-            _ if b == close => {
-                depth -= 1;
-                if depth == 0 {
-                    return text.get(start..=i);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
 }
 
 #[cfg(test)]
@@ -1146,26 +1290,6 @@ mod tests {
             out.output,
             AgentValue::Structured(serde_json::json!({"score": 9}))
         );
-    }
-
-    #[test]
-    fn balanced_span_is_string_aware_and_bracket_typed() {
-        // A brace inside a string literal must not miscount depth. The
-        // in-string close-brace is written `\u{7d}` so the source stays
-        // brace-balanced for the naive expect-ratchet scanner (the runtime
-        // value is the same string with a literal close-brace in the
-        // middle of the `k` field).
-        assert_eq!(
-            extract_json("prefix {\"k\": \"a\u{7d}b\", \"n\": [1, {\"x\": 2}]} suffix"),
-            Some(serde_json::json!({"k": "a\u{7d}b", "n": [1, {"x": 2}]}))
-        );
-        // First balanced span wins; a top-level array is found too.
-        assert_eq!(
-            extract_json("noise [1, 2, 3] more"),
-            Some(serde_json::json!([1, 2, 3]))
-        );
-        // No JSON at all → None (→ SchemaValidation upstream).
-        assert_eq!(extract_json("just prose, no braces"), None);
     }
 
     #[tokio::test]
