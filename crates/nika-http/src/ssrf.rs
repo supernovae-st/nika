@@ -45,10 +45,14 @@ use nika_kernel::HttpError;
 /// (`localhost.` is the absolute-FQDN spelling of `localhost`).
 const BLOCKED_HOSTNAMES: &[&str] = &[
     "localhost",
-    // Cloud metadata endpoints
+    // Cloud metadata NAMES only. The metadata IP 169.254.169.254 does
+    // NOT belong here: url::Url canonicalizes every IPv4 spelling, so
+    // the literal-IP branch below is the AUTHORITATIVE guard for that
+    // address class (link-local) — a string entry would be unreachable
+    // dead code misleading maintainers about which layer defends it
+    // (review swarm P0 · 2026-06-12).
     "metadata.google.internal",
     "metadata.goog",
-    "169.254.169.254", // AWS/GCP/Azure metadata IP (also caught by link-local)
 ];
 
 /// Statically vet a URL before any network activity.

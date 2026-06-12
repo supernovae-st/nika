@@ -312,6 +312,10 @@ fn is_transient_status(status: u16) -> bool {
 /// `nika:notify` — send an alert. `webhook` MUST work (POST the message);
 /// other channels are feature-gated → `NIKA-BUILTIN-NOTIFY-001` when
 /// unconfigured (stdlib §notify).
+///
+/// SECURITY: `target:` is workflow-controlled — callers MUST inject an
+/// SSRF-guarding `H` (production = `ReqwestHttp` with
+/// `SsrfMode::Enforce`); this layer never re-implements the guard.
 pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutcome {
     const C1: &str = "NIKA-BUILTIN-NOTIFY-001";
     const C2: &str = "NIKA-BUILTIN-NOTIFY-002";
