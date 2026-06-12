@@ -280,4 +280,20 @@ seam — they shipped this arc; the loop verb is gated on this one decision.
               BufferingObserver → Dispatched → RanTask → settle drain onto
               the canonical stream · e2e-proven in the runtime's
               tests/agent_telemetry.rs). API baseline +1, zero removals.
+2026-06-12  v0.5 — ADR-094 parallel intra-turn dispatch (amends the spec
+              §5 « sequential dispatch » fence · engine-internal · zero
+              YAML). run_batch = two phases: CONCURRENT resolve
+              (buffered(max_parallel_tools) · yields in INPUT order ·
+              pure: no observer, no router) then SEQUENTIAL fold (request
+              order: telemetry · recency ledger · guard signature).
+              Transcript + signature + event stream byte-identical to
+              sequential; max_parallel_tools: 1 restores it exactly;
+              cancel = drop per seam contracts. Grounded: LLMCompiler
+              (Kim et al. 2023 · arXiv:2312.04511) · ReWOO (Xu et al.
+              2023 · arXiv:2305.18323). Proof: rendezvous executor
+              (every call waits until 2 in flight — sequential dispatch
+              DEADLOCKS there · 5s timeout makes the hang loud) + fed-back
+              blocks AND ToolCompleted events asserted in request order.
+              with_observer doc honesty fix (review F4): run_observed
+              callers — the runtime included — REPLACE it, no tee.
 ```

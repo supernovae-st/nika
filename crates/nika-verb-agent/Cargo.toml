@@ -21,6 +21,7 @@ serde_json       = { workspace = true }
 thiserror        = { workspace = true }
 miette           = { workspace = true }
 tokio            = { workspace = true }                                   # spawn_blocking — agent:compose's sync check off the async executor (ADR-093)
+futures-util     = { workspace = true }                                   # buffered — order-preserving parallel intra-turn dispatch (ADR-094)
 
 [dev-dependencies]
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.80.0" }  # MockProvider · MockToolExecutor · MockToolDefinitionProvider

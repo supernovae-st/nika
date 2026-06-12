@@ -2,13 +2,14 @@ pub mod nika_verb_agent
 pub mod nika_verb_agent::config
 #[non_exhaustive] pub struct nika_verb_agent::config::AgentConfig
 pub nika_verb_agent::config::AgentConfig::guard: nika_verb_agent::config::GuardConfig
+pub nika_verb_agent::config::AgentConfig::max_parallel_tools: usize
 pub nika_verb_agent::config::AgentConfig::router: nika_verb_agent::config::RouterConfig
 impl nika_verb_agent::config::AgentConfig
 pub fn nika_verb_agent::config::AgentConfig::new() -> Self
 impl core::clone::Clone for nika_verb_agent::config::AgentConfig
 pub fn nika_verb_agent::config::AgentConfig::clone(&self) -> nika_verb_agent::config::AgentConfig
 impl core::default::Default for nika_verb_agent::config::AgentConfig
-pub fn nika_verb_agent::config::AgentConfig::default() -> nika_verb_agent::config::AgentConfig
+pub fn nika_verb_agent::config::AgentConfig::default() -> Self
 impl core::fmt::Debug for nika_verb_agent::config::AgentConfig
 pub fn nika_verb_agent::config::AgentConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_verb_agent::config::AgentConfig
@@ -695,13 +696,14 @@ impl<T> nika_error::traits::AsAny for nika_verb_agent::errors::VerbAgentError wh
 pub fn nika_verb_agent::errors::VerbAgentError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_verb_agent::AgentConfig
 pub nika_verb_agent::AgentConfig::guard: nika_verb_agent::config::GuardConfig
+pub nika_verb_agent::AgentConfig::max_parallel_tools: usize
 pub nika_verb_agent::AgentConfig::router: nika_verb_agent::config::RouterConfig
 impl nika_verb_agent::config::AgentConfig
 pub fn nika_verb_agent::config::AgentConfig::new() -> Self
 impl core::clone::Clone for nika_verb_agent::config::AgentConfig
 pub fn nika_verb_agent::config::AgentConfig::clone(&self) -> nika_verb_agent::config::AgentConfig
 impl core::default::Default for nika_verb_agent::config::AgentConfig
-pub fn nika_verb_agent::config::AgentConfig::default() -> nika_verb_agent::config::AgentConfig
+pub fn nika_verb_agent::config::AgentConfig::default() -> Self
 impl core::fmt::Debug for nika_verb_agent::config::AgentConfig
 pub fn nika_verb_agent::config::AgentConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_verb_agent::config::AgentConfig

@@ -13,13 +13,32 @@
 /// Tuning for the whole intelligence layer. `Default` is the production
 /// posture; construct + mutate fields to override (all fields public —
 /// this is config, not API surface to defend).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct AgentConfig {
     /// Per-turn tool routing (the MCP-Zero-style active-discovery gate).
     pub router: RouterConfig,
     /// Stall detection + bounded reflection.
     pub guard: GuardConfig,
+    /// Concurrency cap for one turn's tool batch (ADR-094 · the
+    /// `LLMCompiler` direction, Kim et al. 2023, arxiv.org/abs/2312.04511:
+    /// independent calls the model batched into ONE turn run
+    /// concurrently). `1` restores strictly sequential dispatch; results
+    /// are ALWAYS fed back in request order regardless of this cap.
+    pub max_parallel_tools: usize,
+}
+
+impl Default for AgentConfig {
+    fn default() -> Self {
+        Self {
+            router: RouterConfig::default(),
+            guard: GuardConfig::default(),
+            // A turn's batch is model-sized (a handful) — 8 covers it
+            // without letting a pathological 100-call turn stampede the
+            // executor seam.
+            max_parallel_tools: 8,
+        }
+    }
 }
 
 impl AgentConfig {
@@ -137,6 +156,7 @@ mod tests {
     #[test]
     fn defaults_are_internally_coherent() {
         let cfg = AgentConfig::new();
+        assert!(cfg.max_parallel_tools >= 1, "0 would dispatch nothing");
         assert!(cfg.guard.stall_after > cfg.guard.nudge_after);
         // REACH INVARIANT: the window must hold `stall_after` full periods
         // of a multi-step cycle, not just one — the bug the review caught

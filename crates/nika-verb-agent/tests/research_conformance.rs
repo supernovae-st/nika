@@ -13,6 +13,7 @@
 //! | Active discovery beats injecting every tool schema | Fei · Zheng · Feng 2025 · arXiv:2506.01056 (MCP-Zero) | routing MEASURABLY narrows the request's tool list; fail-open on zero overlap |
 //! | Check-don't-execute self-composition | Liu Yanglet et al. 2026 · arXiv:2605.24462 (PCE) + Wang et al. 2024 · arXiv:2402.01030 (CodeAct) | `agent:compose` returns the full check verdict; the draft NEVER reaches the executor; the repair loop converges |
 //! | Agent decisions must be observable | Dong · Lu · Zhu 2024 · arXiv:2411.05285 (AgentOps) | the observer sees the decision sequence, bracketed run-start → finish |
+//! | One turn's batched calls run in PARALLEL | Kim et al. 2023 · arXiv:2312.04511 (LLMCompiler) · Xu et al. 2023 · arXiv:2305.18323 (ReWOO) | a 2-call turn passes a rendezvous only reachable when both are in flight; results still feed back in REQUEST order |
 
 #![allow(clippy::expect_used, clippy::panic)]
 
@@ -499,6 +500,109 @@ async fn the_observer_sees_the_bracketed_decision_sequence() {
         e,
         AgentEvent::ToolCompleted { name, is_error: false, .. } if name == "nika:read"
     )));
+}
+
+// ─────── parallel intra-turn dispatch · LLMCompiler arXiv:2312.04511 ───────
+
+/// A rendezvous executor: every call WAITS until `expected` calls are in
+/// flight, then all complete. Under sequential dispatch the first call
+/// blocks forever (the second never starts) — only true intra-turn
+/// concurrency can pass. Completion-based, zero wall-clock assumptions.
+struct RendezvousExecutor {
+    arrived: std::sync::atomic::AtomicUsize,
+    expected: usize,
+}
+
+impl nika_kernel::runtime::tool_executor::ToolExecuteDyn for RendezvousExecutor {
+    async fn execute(
+        &self,
+        call: nika_kernel::runtime::tool_executor::ToolCall,
+    ) -> Result<ToolResult, nika_kernel::runtime::tool_executor::ToolExecError> {
+        use std::sync::atomic::Ordering;
+        self.arrived.fetch_add(1, Ordering::SeqCst);
+        while self.arrived.load(Ordering::SeqCst) < self.expected {
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+        Ok(ToolResult::success(
+            call.id.as_str(),
+            format!("rendezvous passed for {}", call.name),
+        ))
+    }
+}
+
+#[tokio::test]
+async fn one_turns_batched_calls_run_concurrently_and_feed_back_in_request_order() {
+    // ONE turn batching two independent calls (the LLMCompiler shape).
+    let two_calls = InferResponse::new(
+        vec![
+            ContentBlock::ToolUse {
+                id: "a".to_owned(),
+                name: "nika:read".to_owned(),
+                input: serde_json::json!({"path": "a.txt"}),
+            },
+            ContentBlock::ToolUse {
+                id: "b".to_owned(),
+                name: "nika:glob".to_owned(),
+                input: serde_json::json!({"pattern": "*.md"}),
+            },
+        ],
+        usage(),
+        StopReason::ToolUse,
+    );
+    let provider = Arc::new(
+        MockProvider::new("mock")
+            .enqueue_response(two_calls)
+            .enqueue_response(text_response("both done")),
+    );
+    let executor = Arc::new(RendezvousExecutor {
+        arrived: std::sync::atomic::AtomicUsize::new(0),
+        expected: 2,
+    });
+    let observer = Arc::new(CaptureObserver::default());
+    let verb = AgentVerb::new(
+        Arc::clone(&provider),
+        Arc::new(InvokeVerb::new(executor)),
+        Arc::new(MockToolDefinitionProvider::with_defs(vec![
+            def("nika:read", "read a file"),
+            def("nika:glob", "glob files"),
+        ])),
+        "mock/agent",
+    )
+    .with_observer(Arc::clone(&observer) as Arc<dyn AgentObserver>);
+
+    let mut input = AgentInput::new("read and glob");
+    input.tools = vec!["nika:read".to_owned(), "nika:glob".to_owned()];
+
+    // 5s guard: a regression to sequential dispatch deadlocks at the
+    // rendezvous — the timeout turns that hang into a LOUD failure.
+    let out = tokio::time::timeout(std::time::Duration::from_secs(5), verb.run(input))
+        .await
+        .expect("parallel dispatch must pass the rendezvous (sequential deadlocks here)")
+        .expect("completes");
+    assert_eq!(out.turns, 2);
+
+    // Results fed back in REQUEST order despite concurrent execution.
+    let reqs = provider.captured_requests();
+    let fed: Vec<&str> = reqs[1].messages[2]
+        .content
+        .iter()
+        .filter_map(|b| match b {
+            ContentBlock::ToolResult { tool_use_id, .. } => Some(tool_use_id.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(fed, vec!["a", "b"], "request order survives concurrency");
+
+    // Telemetry too: ToolCompleted events in request order.
+    let completed: Vec<String> = observer
+        .events()
+        .iter()
+        .filter_map(|e| match e {
+            AgentEvent::ToolCompleted { name, .. } => Some(name.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(completed, vec!["nika:read", "nika:glob"]);
 }
 
 // ─────────────── error-streak reflection (Reflexion corollary) ───────────────

@@ -48,10 +48,12 @@
 //! - **telemetry** ([`observe`]) — every loop DECISION is an event;
 //!   the L3 runtime maps them onto the `nika-event` agent kinds.
 //!
-//! v0.1 fences (spec §5): `ReAct` shape · sequential dispatch ·
-//! cost/duration stops are engine concerns. (The spec's « no
-//! reflection » fence is amended by ADR-093: ONE bounded corrective
-//! nudge on detected no-progress, engine-internal, no YAML surface.)
+//! v0.1 fences (spec §5): `ReAct` shape · cost/duration stops are
+//! engine concerns. Two fences carry ADR amendments: « no reflection »
+//! → ADR-093 (ONE bounded corrective nudge, engine-internal) ·
+//! « sequential dispatch » → ADR-094 (one turn's batch resolves
+//! CONCURRENTLY, results in request order — the transcript, signature
+//! and event stream are byte-identical to sequential; no YAML surface).
 
 #![forbid(unsafe_code)]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
@@ -235,8 +237,14 @@ impl<P, T, D> AgentVerb<P, T, D> {
         self
     }
 
-    /// Wire the telemetry observer (the L3 runtime adapts it onto the
-    /// `nika-event` agent kinds; tests capture it directly).
+    /// Wire the observer the [`Self::run`] path reports to (tests
+    /// capture it directly; embedders driving the verb themselves use
+    /// it as their telemetry tap).
+    ///
+    /// NOTE: callers of [`Self::run_observed`] — the L3 runtime among
+    /// them — pass a RUN-SCOPED observer that REPLACES this one for
+    /// that call (no tee): through the runtime, this verb-wide observer
+    /// is not consulted.
     #[must_use]
     pub fn with_observer(mut self, observer: Arc<dyn AgentObserver>) -> Self {
         self.observer = observer;
@@ -475,10 +483,29 @@ where
         Ok(batch.observations_digest)
     }
 
-    /// Dispatch one turn's validated tool batch: intrinsics are served
-    /// in-loop (never reach the executor seam), everything else goes
-    /// through the invoke verb; telemetry + the guard signature parts
-    /// are collected as the batch runs.
+    /// Dispatch one turn's validated tool batch — CONCURRENTLY, results
+    /// in REQUEST order (ADR-094 · the `LLMCompiler` direction, Kim et al.
+    /// 2023, arxiv.org/abs/2312.04511: calls the model batched into ONE
+    /// turn are independent by construction — interleaved sequential
+    /// round-trips waste wall-clock the same way interleaved reasoning
+    /// does, `ReWOO`, arxiv.org/abs/2305.18323).
+    ///
+    /// Two phases keep every guarantee intact:
+    /// 1. CONCURRENT resolve (`buffered(max_parallel_tools)` — yields in
+    ///    INPUT order): intrinsics are served in-loop (never reach the
+    ///    executor seam), everything else goes through the invoke verb.
+    ///    No observer calls, no router mutation in this phase — two
+    ///    concurrent composes must not interleave the event stream.
+    /// 2. SEQUENTIAL fold (request order): telemetry, the router's
+    ///    recency ledger, the guard signature parts. The transcript,
+    ///    the signature, and the event stream are byte-identical to the
+    ///    sequential dispatch's — `max_parallel_tools: 1` restores it
+    ///    exactly.
+    ///
+    /// CANCEL SAFETY: dropping this future drops the buffered stream →
+    /// in-flight calls cancel per THEIR seam contracts (a compose
+    /// `spawn_blocking` runs to completion detached, result discarded —
+    /// the documented blocking-pool contract).
     async fn run_batch(
         &self,
         observer: &dyn AgentObserver,
@@ -486,9 +513,20 @@ where
         tool_uses: Vec<(String, String, serde_json::Value)>,
         router: &mut ToolRouter,
     ) -> BatchOutcome {
-        let mut results: Vec<ContentBlock> = Vec::with_capacity(tool_uses.len());
-        let mut sig_calls: Vec<(String, serde_json::Value)> = Vec::with_capacity(tool_uses.len());
-        let mut sig_results: Vec<(String, bool)> = Vec::with_capacity(tool_uses.len());
+        use futures_util::StreamExt;
+        let cap = self.config.max_parallel_tools.max(1);
+        let resolved: Vec<Resolved> = futures_util::stream::iter(
+            tool_uses
+                .into_iter()
+                .map(|(id, name, args)| self.resolve_tool(id, name, args)),
+        )
+        .buffered(cap)
+        .collect()
+        .await;
+
+        let mut results: Vec<ContentBlock> = Vec::with_capacity(resolved.len());
+        let mut sig_calls: Vec<(String, serde_json::Value)> = Vec::with_capacity(resolved.len());
+        let mut sig_results: Vec<(String, bool)> = Vec::with_capacity(resolved.len());
         // The error STREAK counts real tool failures only — a compose
         // verdict of `invalid` is the EXPECTED feedback of the draft→repair
         // loop, never a tool fault, so it must not arm the error-streak
@@ -496,38 +534,31 @@ where
         // repair). Tracked separately from the per-block is_error.
         let mut all_dispatch_errors = true;
         let mut had_dispatch = false;
-        for (id, name, args) in tool_uses {
-            let is_intrinsic = intrinsic::Intrinsic::parse(&name).is_some();
-            let block = if let Some(intrinsic) = intrinsic::Intrinsic::parse(&name) {
-                let outcome = self
-                    .run_intrinsic(observer, turn, intrinsic, args.clone())
-                    .await;
-                ContentBlock::ToolResult {
-                    tool_use_id: id,
-                    content: outcome.0,
-                    is_error: outcome.1,
-                }
-            } else {
-                self.dispatch(&id, &name, args.clone()).await
-            };
+        for r in resolved {
+            if let Some(outcome) = r.compose {
+                observer.on_event(&AgentEvent::ComposeChecked {
+                    turn,
+                    valid: outcome.valid,
+                    violations: outcome.violations,
+                });
+            } else if let ContentBlock::ToolResult { is_error, .. } = &r.block {
+                had_dispatch = true;
+                all_dispatch_errors &= *is_error;
+            }
             if let ContentBlock::ToolResult {
                 content, is_error, ..
-            } = &block
+            } = &r.block
             {
                 observer.on_event(&AgentEvent::ToolCompleted {
                     turn,
-                    name: name.clone(),
+                    name: r.name.clone(),
                     is_error: *is_error,
                 });
-                if !is_intrinsic {
-                    had_dispatch = true;
-                    all_dispatch_errors &= *is_error;
-                }
                 sig_results.push((content.clone(), *is_error));
             }
-            router.note_used(&name, turn);
-            sig_calls.push((name, args));
-            results.push(block);
+            router.note_used(&r.name, turn);
+            sig_calls.push((r.name, r.args));
+            results.push(r.block);
         }
         // ' '-joined so adjacent results don't fuse into phantom seam tokens
         // ("…statusfetch…") in the next turn's BM25 query.
@@ -545,39 +576,56 @@ where
         }
     }
 
+    /// Resolve ONE tool call to its result block (phase-1 unit — pure
+    /// with respect to loop state: no observer, no router).
+    async fn resolve_tool(&self, id: String, name: String, args: serde_json::Value) -> Resolved {
+        if let Some(intrinsic) = intrinsic::Intrinsic::parse(&name) {
+            let (content, is_error, outcome) = self.run_intrinsic(intrinsic, args.clone()).await;
+            Resolved {
+                block: ContentBlock::ToolResult {
+                    tool_use_id: id,
+                    content,
+                    is_error,
+                },
+                name,
+                args,
+                compose: Some(outcome),
+            }
+        } else {
+            Resolved {
+                block: self.dispatch(&id, &name, args.clone()).await,
+                name,
+                args,
+                compose: None,
+            }
+        }
+    }
+
     /// Run one loop intrinsic off the async executor — the static check
     /// (`nika-schema` parse + the full ladder over a ≤256 KiB model draft)
     /// is sync CPU work that must not starve sibling workflows on the
     /// runtime (the `nika-ocr`/`jq` `spawn_blocking` precedent). A join
     /// failure (runtime shutdown) feeds back as an error, never fatal.
+    /// Telemetry is the FOLD's job (request order · ADR-094 phase 2).
     async fn run_intrinsic(
         &self,
-        observer: &dyn AgentObserver,
-        turn: u32,
         intrinsic: intrinsic::Intrinsic,
         args: serde_json::Value,
-    ) -> (String, bool) {
+    ) -> (String, bool, intrinsic::ComposeOutcome) {
         let join = tokio::task::spawn_blocking(move || match intrinsic {
             intrinsic::Intrinsic::Compose => intrinsic::run_compose(&args),
         })
         .await;
         match join {
-            Ok((content, is_error, outcome)) => {
-                observer.on_event(&AgentEvent::ComposeChecked {
-                    turn,
-                    valid: outcome.valid,
-                    violations: outcome.violations,
-                });
-                (content, is_error)
-            }
-            Err(join_err) => {
-                observer.on_event(&AgentEvent::ComposeChecked {
-                    turn,
+            Ok(done) => done,
+            Err(join_err) => (
+                format!("agent:compose check task failed: {join_err}"),
+                true,
+                intrinsic::ComposeOutcome {
                     valid: false,
                     violations: 1,
-                });
-                (format!("agent:compose check task failed: {join_err}"), true)
-            }
+                },
+            ),
         }
     }
 
@@ -653,6 +701,16 @@ where
             },
         }
     }
+}
+
+/// One resolved tool call (phase-1 output · ADR-094): the result block
+/// plus what the fold needs (name + args for the signature/router · the
+/// compose outcome for its telemetry).
+struct Resolved {
+    block: ContentBlock,
+    name: String,
+    args: serde_json::Value,
+    compose: Option<intrinsic::ComposeOutcome>,
 }
 
 /// What one dispatched batch produced (results + the guard's evidence).
