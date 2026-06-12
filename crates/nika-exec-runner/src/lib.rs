@@ -17,11 +17,20 @@
 //!
 //! Workflows run attacker-influenced commands, so the MECHANISM is safe
 //! before `nika-policy` (L1.5 · step 8) adds richer gating. Unless
-//! `command.pre_validated`, every command is checked against the `blocklist` module
-//! (NFKC + zero-width + quote/basename bypass defenses · ~100 patterns) and,
-//! for `shell: true`, the shell-mode blocklist — `ShellError::Blocked` on a
-//! hit. `pre_validated` is the documented seam for the policy layer that has
-//! already done intent-aware validation.
+//! `command.pre_validated`, the blocklist floor runs PER MODE:
+//! - **`shell: true`** → the full string scan (`check_command` · NFKC +
+//!   zero-width + quote/basename defenses · ~100 patterns) + `check_shell_mode`
+//!   (alias/function + expansion/glob/substitution-char refusal · the TOCTOU
+//!   floor for `sh -c`).
+//! - **`shell: false` (argv)** → `check_argv`: the program IDENTITY
+//!   (`DANGEROUS_PROGRAMS`) PLUS the structural re-exec class (interpreter
+//!   inline-eval `-c`/`-e`, `env`, `nc -e`, `dd if=`) — symmetric with shell
+//!   mode but per-argv-element, so a literal arg is never a false positive.
+//!
+//! `ShellError::Blocked` on a hit. `pre_validated` is the documented seam for
+//! the policy layer that has already done intent-aware validation. The floor
+//! is a TRIPWIRE, not a boundary — `permits.exec` + the sandbox are the real
+//! gates (a glob/symlink in `$PATH` resolution is theirs to contain).
 //!
 //! # Process safety (kernel CANCEL SAFETY contract)
 //!
@@ -136,16 +145,16 @@ impl ShellRunDyn for TokioShell {
                 blocklist::check_command(&full)?;
                 blocklist::check_shell_mode(&full)?;
             } else {
-                // Argv form: `execve`, NO shell. Shell-syntax patterns are
+                // Argv form: `execve`, NO shell. The shell-SYNTAX patterns are
                 // meaningless here — a `;` or `| bash` inside an argument is a
-                // LITERAL character, not a separator — so scanning the joined
-                // line would false-positive on benign literal args
-                // (`["echo", "a; b"]`) AND on safe wrappers (`timeout`, `env`,
-                // `nice`). Only the PROGRAM can do harm by its mere identity
-                // (and `command[0]` may itself be interpolated), so check its
-                // basename against the dangerous-program floor. The argv form's
-                // real gates are `permits.exec` (allowlist) + the sandbox.
-                blocklist::check_program(&command.program)?;
+                // LITERAL character, so scanning the joined line would false-
+                // positive on benign args (`["echo", "a; b"]`). But the floor
+                // must stay SYMMETRIC with shell mode for the program-level
+                // dangers (review P0): `check_argv` checks the program identity
+                // AND, STRUCTURALLY, the re-exec class an interpreter / `env`
+                // re-introduces (`["sh","-c",…]`, `["python","-c",…]`, `nc -e`,
+                // `dd if=`). Richer gating is `permits.exec` + the sandbox.
+                blocklist::check_argv(&command.program, &command.args)?;
             }
         }
 
@@ -280,7 +289,11 @@ impl ShellCancelDyn for TokioShell {
             .ok()
             .and_then(|reg| reg.get(&pid).map(Arc::clone));
         if let Some(n) = notify {
-            n.notify_waiters(); // wakes run()'s `notified()` arm → child drop → SIGKILL
+            // `notify_one` RETAINS a permit if `cancel` races ahead of `run()`
+            // first polling `notified()` (the register→select window) — so an
+            // early cancel is not lost (review P3). Wakes run()'s `notified()`
+            // arm → child drop → SIGKILL.
+            n.notify_one();
         }
         Ok(())
     }
@@ -297,12 +310,16 @@ impl ShellCancelDyn for TokioShell {
 /// confined workflow's declared needs.
 const DANGEROUS_ENV_VARS: &[&str] = &[
     // Dynamic-linker library injection (run attacker code in any dynamically
-    // linked child) — Linux + macOS.
+    // linked child) — Linux + macOS (incl. the macOS fallback paths · P2).
     "LD_PRELOAD",
     "LD_LIBRARY_PATH",
     "LD_AUDIT",
+    "GCONV_PATH", // glibc iconv module load → code execution (P2)
     "DYLD_INSERT_LIBRARIES",
     "DYLD_LIBRARY_PATH",
+    "DYLD_FRAMEWORK_PATH",
+    "DYLD_FALLBACK_LIBRARY_PATH",
+    "DYLD_FALLBACK_FRAMEWORK_PATH",
     // Shell startup-file sourcing on non-interactive `sh`/bash.
     "BASH_ENV",
     "ENV",
@@ -311,8 +328,14 @@ const DANGEROUS_ENV_VARS: &[&str] = &[
     "GIT_SSH",
     "GIT_EXTERNAL_DIFF",
     "GIT_PAGER",
+    "GIT_PROXY_COMMAND", // config-driven git RCE (P2)
+    "GIT_CONFIG_GLOBAL", // point git at an attacker config (core.pager/fsmonitor)
+    "GIT_CONFIG_SYSTEM",
+    "GIT_TEMPLATE_DIR", // attacker hooks copied into a new repo
+    "LESSOPEN",         // pager-input-preprocess command injection (P2)
     // Interpreter pre-exec hooks.
     "PYTHONSTARTUP",
+    "PYTHONPATH", // inject a module into any python that imports (P2)
     "PERL5OPT",
     "PERL5LIB",
     "RUBYOPT",

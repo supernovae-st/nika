@@ -192,6 +192,24 @@ async fn argv_floor_blocks_dangerous_program_before_spawn() {
 }
 
 #[tokio::test]
+async fn argv_floor_blocks_interpreter_reexec_before_spawn() {
+    // The review P0: `["sh","-c",…]` re-introduces a shell even in argv mode.
+    // run() wires check_argv, so it is refused before any spawn (sh is NOT in
+    // DANGEROUS_PROGRAMS — the structural inline-eval check catches it).
+    let err = shell()
+        .run(cmd("sh", &["-c", "echo pwned"]))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ShellError::Blocked { .. }), "got {err:?}");
+    // `env` re-injection (defeats the env scrub) is likewise refused.
+    let err = shell()
+        .run(cmd("env", &["LD_PRELOAD=/tmp/x", "cat"]))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ShellError::Blocked { .. }), "got {err:?}");
+}
+
+#[tokio::test]
 async fn argv_floor_blocks_absolute_path_priv_esc() {
     // Basename resolution: `/usr/bin/sudo` is still caught as `sudo`.
     let err = shell()
