@@ -6,7 +6,9 @@
 //! Today: the full STATIC suite (`check` · `inspect` · `graph` ·
 //! `explain` · `spec` · `schema` · `examples` · `new` · `completions`) +
 //! `trace replay|show` (the flight-recorder reader · spec §7). Everything
-//! is auditable-before-run — the `run` verb arrives with the L3 runtime.
+//! is auditable-before-run — `nika-runtime` (L3) shipped s18; the `run`
+//! verb wires it once the tool dispatcher (`nika-builtin`) is admitted
+//! (the composer needs production seams · not mocks).
 //! Exit codes follow the locked contract (spec §4): `0` ok · `1` workflow
 //! failed · `2` file findings · `3` environment error.
 

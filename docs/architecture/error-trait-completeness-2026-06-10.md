@@ -42,6 +42,26 @@ all 25 new constants · `lookup()` + `code_help()` resolve them ·
 `computer_use_codes_have_their_categories` +
 `computer_use_codes_lookup_and_help` pin the registry rows.
 
+## Post-census additions (append-only · the census above stays frozen)
+
+Crates admitted AFTER the 2026-06-10 census · same B5 one-voice contract
+(`NikaErrorCode` impl · registry constants · pinned tests):
+
+| Enum | Crate · home | nika_code range | is_transient | Pinning test |
+|---|---|---|---|---|
+| `VerbInferError` | nika-verb-infer `errors.rs` (s9) | 430-433 Verb | ProviderCall passthrough (RateLimited/5xx true) · rest false | `errors.rs` code/transient tests |
+| `VerbExecError` | nika-verb-exec `errors.rs` (s10) | 440-442 Verb | Shell passthrough (kernel default false) · NonZeroExit false by design (a verdict, not transience) | `errors.rs` pair table |
+| `VerbInvokeError` | nika-verb-invoke `errors.rs` (s11) | 450-452 Verb | Dispatch passthrough · rest false | `errors.rs` tests |
+| `VerbAgentError` | nika-verb-agent `errors.rs` (s12) | 460-467 Verb | per-variant (budget/turn caps false) | `errors.rs` tests |
+| `RuntimeError` | nika-runtime `errors.rs` (s18 · L3) | **1700-1703 Runtime** | never (contract breaches + static expression classes · retry never helps) | `unique-in-range` + `code-first Display` + `registry lookup` + `never-transient` |
+
+Task-plane note · the runtime's `TaskErrorRecord` (spec 05 §error
+structure) is a VALUE, not an enum — it carries whichever wire code the
+failing verb/template produced (`code` + `message` + `transient`) into
+`tasks.X.error` reads and `TaskFailed` event details. The spec-form
+timeout class `NIKA-TIMEOUT-001` is stamped by the runtime at the task
+timeout boundary (spec 03 · catchable · never retryable).
+
 ## Documented exemptions (not gaps)
 
 | Enum | Why exempt |

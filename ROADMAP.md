@@ -80,8 +80,11 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | lib tests        | 2069 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
-Diamond foundation, **8 crates admitted** + **2 WIP** in workspace
-(8 total), orphan branch from scratch.
+Diamond foundation — orphan branch from scratch. Live counts (admitted ·
+WIP · per-layer) are in the AUTO-GENERATED status block above (the
+hand-typed "8 crates admitted" this paragraph carried rotted to 30+ ·
+the PILLAR-1 class). The list below is the per-crate HISTORY (admission
+notes · key decisions), not a census.
 
 - **nika-types** — L0 foundation value types (split from nika-error 2026-04-16, `5baeee044`)
   - 23 types (cost, trust, budget, retry, baggage, schema, hash, resource, role, token_usage, etc.)
