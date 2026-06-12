@@ -205,7 +205,7 @@ invoke:
     mode: feed
 ```
 
-**Behavior** · parses RSS · Atom · or JSON Feed. Returns normalized structure.
+**Behavior** · parses RSS · Atom · or JSON Feed. Returns normalized structure. Each item carries the short `summary` blurb AND, when present, the full `content` body (RSS `<content:encoded>` · Atom `<content>` · JSON Feed `content_html`) — `content` is the field for full-text pipelines. Fields absent from the source are omitted (absence over null · stable shape).
 
 **Implementation** · reference engine uses `feed-rs`.
 
@@ -218,10 +218,14 @@ invoke:
   "updated": "2026-05-22T10:00:00Z",
   "items": [
     {
+      "id": "...",
       "title": "...",
       "link": "...",
+      "author": "...",
       "summary": "...",
-      "published": "..."
+      "content": "...",
+      "published": "...",
+      "categories": ["..."]
     }
   ]
 }
