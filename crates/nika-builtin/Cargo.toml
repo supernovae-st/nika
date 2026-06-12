@@ -32,8 +32,6 @@ regex         = { workspace = true }   # nika:grep (RE2-class · the portable su
 encoding_rs   = { workspace = true }   # nika:fetch — charset-aware decode for extraction modes
 # plumbing
 serde_json    = { workspace = true }
-thiserror     = { workspace = true }
-miette        = { workspace = true }
 tokio         = { workspace = true }   # spawn_blocking — jq's sync CPU eval off the async executor
 
 [dev-dependencies]
