@@ -338,7 +338,7 @@ mod tests {
              "offers":{"@type":"Offer","price":"19.99","priceCurrency":"USD"}}
             </script>
             <script type="application/ld+json">{"@type":"BreadcrumbList"}</script>
-            <script type="application/ld+json">{ this is not json </script>
+            <script type="application/ld+json">{ this is not json }</script>
         </head><body></body></html>"#;
         let out = run(html, ExtractMode::Metadata).expect("metadata");
         let blocks = out["jsonld"].as_array().expect("jsonld array");

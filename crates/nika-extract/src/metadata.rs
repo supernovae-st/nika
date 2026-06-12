@@ -43,6 +43,46 @@ const MAX_JSONLD_BLOCKS: usize = 32;
 /// already body-cap-bounded; this bounds their COUNT).
 const MAX_JSONLD_ATTEMPTS: usize = 256;
 
+/// Fold one `<meta>` tag into the metadata maps — `og:*`/`twitter:*`
+/// prefixes route to their objects · the scalar names (`description` ·
+/// `author` · `article:published_time`) land at the top level ·
+/// first-wins (`or_insert_with` · the page's head order is canonical).
+fn fold_meta_tag(
+    el: &scraper::ElementRef<'_>,
+    out: &mut serde_json::Map<String, serde_json::Value>,
+    og: &mut serde_json::Map<String, serde_json::Value>,
+    twitter: &mut serde_json::Map<String, serde_json::Value>,
+) {
+    let Some(content) = el.value().attr("content") else {
+        return;
+    };
+    if let Some(property) = el.value().attr("property") {
+        if let Some(key) = property.strip_prefix("og:")
+            && !key.is_empty()
+        {
+            og.entry(key.to_owned()).or_insert_with(|| content.into());
+        } else if property.eq_ignore_ascii_case("article:published_time") {
+            out.entry("published_time".to_owned())
+                .or_insert_with(|| content.into());
+        }
+    }
+    if let Some(name) = el.value().attr("name") {
+        if let Some(key) = name.strip_prefix("twitter:")
+            && !key.is_empty()
+        {
+            twitter
+                .entry(key.to_owned())
+                .or_insert_with(|| content.into());
+        } else if name.eq_ignore_ascii_case("description") {
+            out.entry("description".to_owned())
+                .or_insert_with(|| content.into());
+        } else if name.eq_ignore_ascii_case("author") {
+            out.entry("author".to_owned())
+                .or_insert_with(|| content.into());
+        }
+    }
+}
+
 /// `mode: metadata` — the spec's documented object shape. `og`/`twitter`
 /// are ALWAYS objects (stable shape for jq consumers); scalar keys are
 /// omitted when absent (JSON absence over null).
@@ -63,34 +103,7 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
 
     if let Some(sel) = META.as_ref() {
         for el in doc.select(sel) {
-            let Some(content) = el.value().attr("content") else {
-                continue;
-            };
-            if let Some(property) = el.value().attr("property") {
-                if let Some(key) = property.strip_prefix("og:")
-                    && !key.is_empty()
-                {
-                    og.entry(key.to_owned()).or_insert_with(|| content.into());
-                } else if property.eq_ignore_ascii_case("article:published_time") {
-                    out.entry("published_time".to_owned())
-                        .or_insert_with(|| content.into());
-                }
-            }
-            if let Some(name) = el.value().attr("name") {
-                if let Some(key) = name.strip_prefix("twitter:")
-                    && !key.is_empty()
-                {
-                    twitter
-                        .entry(key.to_owned())
-                        .or_insert_with(|| content.into());
-                } else if name.eq_ignore_ascii_case("description") {
-                    out.entry("description".to_owned())
-                        .or_insert_with(|| content.into());
-                } else if name.eq_ignore_ascii_case("author") {
-                    out.entry("author".to_owned())
-                        .or_insert_with(|| content.into());
-                }
-            }
+            fold_meta_tag(&el, &mut out, &mut og, &mut twitter);
         }
     }
 
