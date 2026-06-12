@@ -248,6 +248,7 @@ dom_smoothie  = "0.18"   # nika-extract L1.5 — mode article Readability (MIT �
 scraper       = "0.27"   # nika-extract L1.5 — modes text|selector|metadata|links CSS-select DOM (ISC)
 feed-rs       = "2.3"    # nika-extract L1.5 — mode feed RSS/Atom/JSON-Feed normalize (MIT)
 quick-xml     = "0.40"   # nika-extract L1.5 — mode sitemap urlset+index parse (MIT)
+encoding_rs   = "0.8"    # nika-builtin L1.5 — nika:fetch charset-aware decode for extraction modes (Apache-2.0/MIT/BSD-3 · the encoding the web actually uses · same crate reqwest text() uses)
 ego-tree      = "0.11"   # nika-extract L1.5 — scraper public tree API (Edge traversal for the text-mode walk · ISC · pinned aligned with scraper 0.27)
 uuid     = { version = "1", features = ["v7", "v4", "serde"] }   # ADR-033 UUIDv7 IDs (nika-error L0) · v4 for nika:builtin nika:uuid
 clap     = { version = "4.5", features = ["derive"] }       # L4 CLI surface (completions + man derive from this tree)

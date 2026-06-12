@@ -24,7 +24,10 @@ thiserror    = { workspace = true }
 miette       = { workspace = true }
 
 [dev-dependencies]
-proptest = { workspace = true }
+proptest  = { workspace = true }
+nika-http   = { path = "../nika-http", version = "0.80.0" }   # e2e: extraction over a REAL socket (L1.5→L1 downward)
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }  # e2e: the http seam types the client implements
+tokio     = { workspace = true, features = ["rt", "macros", "net", "io-util"] }
 
 [package.metadata.lore]
 daemon        = "forgeron"

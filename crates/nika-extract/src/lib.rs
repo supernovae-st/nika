@@ -222,6 +222,17 @@ mod tests {
     // ─── text ────────────────────────────────────────────────────────
 
     #[test]
+    fn text_emits_breaks_for_br_and_block_closes() {
+        // Pins the two `skip_depth == 0` arms (mutation: `!=` flips
+        // them): <br> emits a line split · block closes emit one too.
+        let html = "<html><body><p>one<br>two</p><p>three</p></body></html>";
+        let out = run(html, ExtractMode::Text).expect("text");
+        let text = out.as_str().expect("string");
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines, ["one", "two", "three"], "{text:?}");
+    }
+
+    #[test]
     fn text_strips_tags_and_scripts_keeps_breaks() {
         let out = run(PAGE, ExtractMode::Text).expect("text");
         let text = out.as_str().expect("string output");
@@ -425,6 +436,23 @@ mod tests {
     }
 
     #[test]
+    fn sitemap_ignores_entries_outside_the_root_and_text_after_loc_close() {
+        // An entry BEFORE the root element does not count (the
+        // `saw_root` guard); junk text after `</loc>` must not
+        // overwrite the captured loc (the field-clearing End arm).
+        let xml = r#"<?xml version="1.0"?>
+<url><loc>https://outside.example/</loc></url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://example.com/real</loc>junk<lastmod>2026-01-01</lastmod></url>
+</urlset>"#;
+        let out = run(xml, ExtractMode::Sitemap).expect("urlset parses");
+        let entries = out.as_array().expect("array");
+        assert_eq!(entries.len(), 1, "pre-root entry ignored: {entries:?}");
+        assert_eq!(entries[0]["loc"], "https://example.com/real");
+        assert_eq!(entries[0]["lastmod"], "2026-01-01");
+    }
+
+    #[test]
     fn sitemap_rejects_non_sitemaps() {
         let err = run("plain text", ExtractMode::Sitemap).expect_err("not xml");
         assert!(matches!(err, ExtractError::Sitemap { .. }), "{err}");
@@ -486,6 +514,76 @@ mod tests {
                 opts.base_url = Some(&base);
                 let _ = extract(&body, ExtractMode::Links, &opts);
             }
+        }
+    }
+
+    /// The fetch-pipeline rehearsal: the PAGE served over a REAL socket,
+    /// fetched by the production `nika-http` client, extracted by this
+    /// crate — the exact composition the `nika:fetch` builtin performs
+    /// (step 13). `SsrfMode::Disabled`: the target IS loopback; SSRF has
+    /// its own suite in `nika-http`.
+    mod e2e {
+        use super::*;
+        use nika_http::{HttpConfig, ReqwestHttp, SsrfMode};
+        use nika_kernel::http::{HttpGetDyn, HttpRequest};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        async fn serve_page(body: &'static str) -> std::net::SocketAddr {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("bind loopback");
+            let addr = listener.local_addr().expect("addr");
+            tokio::spawn(async move {
+                let Ok((mut socket, _)) = listener.accept().await else {
+                    return;
+                };
+                let mut buf = [0u8; 4096];
+                let _ = socket.read(&mut buf).await;
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\
+                     Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = socket.write_all(response.as_bytes()).await;
+                let _ = socket.shutdown().await;
+            });
+            addr
+        }
+
+        #[tokio::test]
+        async fn fetch_then_extract_over_a_real_socket() {
+            let addr = serve_page(PAGE).await;
+            let mut config = HttpConfig::new();
+            config.ssrf = SsrfMode::Disabled;
+            let client = ReqwestHttp::with_config(config).expect("client");
+
+            let url = format!("http://{addr}/article");
+            let response = client
+                .get(HttpRequest::get(url.clone()))
+                .await
+                .expect("fetch succeeds");
+            assert_eq!(response.status, 200);
+            let body = std::str::from_utf8(&response.body).expect("utf-8 page");
+
+            // markdown — the spec default the builtin will apply.
+            let mut opts = ExtractOptions::new();
+            opts.base_url = Some(response.final_url.as_str());
+            let md = extract(body, ExtractMode::Markdown, &opts).expect("markdown");
+            assert!(md.as_str().is_some_and(|m| m.contains("# Demo Heading")));
+
+            // links resolve against the LIVE final_url.
+            let links = extract(body, ExtractMode::Links, &opts).expect("links");
+            let links = links.as_array().expect("array");
+            assert!(
+                links
+                    .iter()
+                    .any(|l| l.as_str() == Some(format!("http://{addr}/relative").as_str())),
+                "relative href resolved against the live origin: {links:?}"
+            );
+
+            // metadata canonical resolves too.
+            let meta = extract(body, ExtractMode::Metadata, &opts).expect("metadata");
+            assert_eq!(meta["canonical"], format!("http://{addr}/article"));
         }
     }
 }

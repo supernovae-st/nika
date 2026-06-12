@@ -30,6 +30,13 @@ pub(crate) fn sitemap(body: &str) -> Result<serde_json::Value, ExtractError> {
                     loc = None;
                     lastmod = None;
                 }
+                // MUTATION (equivalent · the `in_entry` guard here is
+                // defensive depth, not output-load-bearing): a stray
+                // `<loc>`/`<lastmod>` outside an entry sets `field`, but
+                // the captured value is only ever FLUSHED by the
+                // `</url>`/`</sitemap>` End arm — which IS `in_entry`-
+                // gated and tested. So dropping these two guards changes
+                // no output; they stay for malformed-XML robustness.
                 b"loc" if in_entry => field = Some("loc"),
                 b"lastmod" if in_entry => field = Some("lastmod"),
                 _ => {}
