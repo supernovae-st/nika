@@ -1065,3 +1065,146 @@ async fn e2e_agent_budget_and_schema_terminals() {
         "{bad:?}"
     );
 }
+
+// ─── test 7 · binary round-trip + tz rendering through the REAL chain ────
+//
+// The conformance batch (write binary-content · fetch status details ·
+// date tz) verified at the crate plane — THIS rehearses the user-visible
+// promise through the production chain: an agent moves OPAQUE BYTES
+// between files (read binary → write binary → re-read) with the payload
+// riding the model's tool-result turns untouched, then renders a
+// timestamp in a requested timezone. Only fs/clock and the scripted
+// model are mocks.
+
+#[tokio::test]
+async fn e2e_agent_round_trips_binary_bytes_and_renders_tz() {
+    use nika_builtin::{BuiltinDispatcher, NoWorkflow, NonInteractive, NullEmitter};
+    use nika_kernel::fs::FsReadDyn as _;
+    use nika_kernel::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
+    use nika_kernel::runtime::agent::AgentStopReason;
+    use nika_kernel_mock::{MockClock, MockFs, MockHttp, MockProvider};
+    use nika_verb_agent::{AgentInput, AgentValue, AgentVerb};
+
+    fn tool_turn(id: &str, name: &str, args: serde_json::Value) -> InferResponse {
+        InferResponse::new(
+            vec![ContentBlock::ToolUse {
+                id: id.to_owned(),
+                name: name.to_owned(),
+                input: args,
+            }],
+            TokenUsage::new(10, 5),
+            StopReason::ToolUse,
+        )
+    }
+
+    // A payload that is NOT valid UTF-8 — only the binary path can carry it.
+    let payload: Vec<u8> = vec![0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0x00];
+    let fs = MockFs::new().with_file("logo.png", payload.clone());
+    let dispatcher = Arc::new(BuiltinDispatcher::new(
+        Arc::new(fs.clone()),
+        Arc::new(MockHttp::new()),
+        Arc::new(MockClock::new()),
+        Arc::new(NullEmitter::default()),
+        Arc::new(NonInteractive::default()),
+        Arc::new(NoWorkflow::default()),
+    ));
+
+    // The scripted model: ① read the binary · ② write it to a new path
+    // FEEDING BACK the exact object it received as turn ①'s result —
+    // which is precisely what a real model does (copies the tool result
+    // into the next call's args) · ③ render a timestamp in Tokyo-like
+    // fixed offset · ④ done.
+    let read_result_echo = serde_json::json!({
+        "bytes_base64": "iVBORw0KGgr/AA==", // base64 of the payload (verified below)
+        "len": 10
+    });
+    let provider = MockProvider::new("mock")
+        .enqueue_response(tool_turn(
+            "b-1",
+            "nika:read",
+            serde_json::json!({ "path": "logo.png", "binary": true }),
+        ))
+        .enqueue_response(tool_turn(
+            "b-2",
+            "nika:write",
+            serde_json::json!({ "path": "copy.png", "content": read_result_echo }),
+        ))
+        .enqueue_response(tool_turn(
+            "b-3",
+            "nika:date",
+            serde_json::json!({
+                "op": "format", "input": "2026-01-02T03:04:05Z",
+                "format": "%Y-%m-%d %H:%M", "tz": "Etc/GMT-9"
+            }),
+        ))
+        .enqueue_response(tool_turn(
+            "b-4",
+            "nika:done",
+            serde_json::json!({ "result": "shipped" }),
+        ));
+
+    let invoke = Arc::new(nika_verb_invoke::InvokeVerb::new(Arc::clone(&dispatcher)));
+    let agent = AgentVerb::new(
+        Arc::new(provider.clone()),
+        invoke,
+        Arc::clone(&dispatcher),
+        "mock/echo",
+    );
+    let mut input = AgentInput::new("copy the logo then stamp it");
+    input.tools = vec!["nika:*".to_owned()];
+    let output = agent.run(input).await.expect("the loop completes");
+    assert_eq!(output.stop_reason, AgentStopReason::ExplicitCompletion);
+    assert!(
+        matches!(output.output, AgentValue::Structured(v) if v == serde_json::json!("shipped"))
+    );
+
+    // The wire proof, turn by turn.
+    let requests = provider.captured_requests();
+    // Turn ①'s result (what the model saw) IS the canonical binary object
+    // — and our scripted echo matches it byte-for-byte, proving the
+    // base64 the model copies around is OUR encoder's output.
+    let read_fed_back = requests[1]
+        .messages
+        .iter()
+        .flat_map(|m| m.content.iter())
+        .find_map(|b| match b {
+            ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+                is_error,
+            } if tool_use_id == "b-1" => Some((content.clone(), *is_error)),
+            _ => None,
+        })
+        .expect("read result fed back");
+    assert!(!read_fed_back.1);
+    let parsed: serde_json::Value =
+        serde_json::from_str(&read_fed_back.0).expect("binary result is JSON");
+    assert_eq!(
+        parsed, read_result_echo,
+        "the scripted echo IS the real read output (encoder verified)"
+    );
+
+    // The copy landed byte-exact on the fs seam — non-UTF-8 bytes
+    // survived two model turns.
+    let copied = fs
+        .read(std::path::Path::new("copy.png"))
+        .await
+        .expect("copy exists");
+    assert_eq!(copied, payload, "byte-exact through the agent loop");
+
+    // The tz rendering came back shifted (+9h on the fixed-offset zone).
+    let date_fed_back = requests[3]
+        .messages
+        .iter()
+        .flat_map(|m| m.content.iter())
+        .find_map(|b| match b {
+            ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+                ..
+            } if tool_use_id == "b-3" => Some(content.clone()),
+            _ => None,
+        })
+        .expect("date result fed back");
+    assert_eq!(date_fed_back, "2026-01-02 12:04", "UTC+9 fields");
+}
