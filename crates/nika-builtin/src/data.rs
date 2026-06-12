@@ -598,6 +598,9 @@ pub(crate) fn base64_decode(text: &str) -> Result<Vec<u8>, String> {
         if !pads_ok {
             return Err("malformed base64 padding".to_owned());
         }
+        // MUTATION (equivalent): `|` vs `^` — the four 6-bit values land
+        // on DISJOINT bit ranges (<<18, <<12, <<6, <<0), so OR and XOR
+        // pack identically (the encoder's documented mirror class).
         let n = (val(quad[0])? << 18)
             | (val(quad[1])? << 12)
             | (if pads >= 2 { 0 } else { val(quad[2])? << 6 })
@@ -1074,6 +1077,14 @@ mod tests {
         assert!(base64_decode("=g==").is_err(), "leading pad");
         assert!(base64_decode("Zg==Zm8=").is_err(), "interior padding quad");
         assert!(base64_decode("Z===").is_err(), "triple pad");
+        // "A=B=": two pads but quad[2] is NOT '=' — this MUST be the
+        // PADDING error, not the later invalid-byte error a mutated
+        // `&&`→`||` arm would fall through to (the message IS the pin).
+        let split_pads = base64_decode("A=B=").expect_err("split pads rejected");
+        assert!(
+            split_pads.contains("padding"),
+            "rejected AT the padding gate: {split_pads}"
+        );
     }
 
     proptest::proptest! {
