@@ -21,11 +21,17 @@ use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str};
 /// other 4xx — normative). The body is decoded then run through the
 /// `mode:` extraction (default `markdown` · extract-modes-v0.1.md).
 ///
-/// CANCEL SAFETY: dropping this future does NOT stop an in-flight
-/// extraction — `spawn_blocking` closures run to completion (a heavy
-/// parse keeps its pool thread until done; the orphan is bounded by
-/// the 64 MiB body cap). The L3 timeout path therefore detaches, never
-/// leaks unbounded work.
+/// CANCEL SAFETY: dropping this future detaches — it does NOT stop an
+/// in-flight extraction. A dropped `spawn_blocking` keeps running to
+/// completion on its pool thread, so the L3 timeout path leaves a
+/// bounded orphan, never unbounded work. The bound is two-sided:
+/// MEMORY by the L1 http 64 MiB body cap, and TIME by the extractor's
+/// own guarantees — the depth guard rejects pathological nesting in
+/// O(cap) BEFORE any parse (so a hostile body can't spin or, via
+/// htmd's recursive rcdom `Drop`, abort the whole process), and every
+/// mode is otherwise linear in the (capped) body. A panic inside the
+/// closure unwinds (workspace `panic = "unwind"`) to a `JoinError`
+/// handled at the call site — it is never a process-wide abort.
 pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-FETCH-001";
     let url = req_str(args, "url", C)?;
@@ -213,25 +219,122 @@ fn decode_utf8_strict(body: &[u8], code: &'static str) -> Result<String, Builtin
     })
 }
 
-/// Charset-aware decode for the extraction modes: honor the
-/// `Content-Type` charset (default UTF-8), lossily replacing
-/// undecodable bytes — extraction is best-effort cleanup, a stray byte
-/// must not sink the whole page (the strict path is `raw`/`jq` above).
-/// `Cow`: clean UTF-8 (the web's majority) BORROWS — no copy.
+/// Charset-aware decode for the extraction modes, in the WHATWG
+/// encoding-sniffing precedence (HTML §13.2 · the order browsers use):
+///
+/// 1. **BOM** — a leading UTF-8/UTF-16 byte-order mark is MORE
+///    authoritative than any header (WHATWG: "the BOM … is more
+///    authoritative than anything else"). Without this a UTF-16 page
+///    decodes as UTF-8-lossy → mojibake (the security-audit P3).
+/// 2. **`Content-Type` charset** — the transport label.
+/// 3. **`<meta charset>` prescan** of the first 1024 bytes — legacy
+///    pages that declare their charset only in HTML (windows-1251 /
+///    `Shift_JIS` / GBK …). Closes the prior "header-less → UTF-8" gap.
+/// 4. **UTF-8** default.
+///
+/// Lossy by design — extraction is best-effort cleanup, a stray byte
+/// must not sink the page (the strict path is `raw`/`jq` above). `Cow`:
+/// clean UTF-8 (the web's majority) BORROWS — no copy.
 fn decode_charset<'a>(body: &'a [u8], content_type: Option<&str>) -> std::borrow::Cow<'a, str> {
-    let encoding = content_type
-        .and_then(charset_label)
-        .and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()))
+    let encoding = encoding_rs::Encoding::for_bom(body)
+        .map(|(enc, _bom_len)| enc)
+        .or_else(|| {
+            content_type
+                .and_then(charset_label)
+                .and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()))
+        })
+        .or_else(|| meta_charset(body))
         .unwrap_or(encoding_rs::UTF_8);
     encoding.decode(body).0
+}
+
+/// Number of leading bytes scanned for a `<meta>` charset declaration —
+/// the WHATWG prescan window (HTML §13.2 "prescan a byte stream").
+const META_PRESCAN_LEN: usize = 1024;
+
+/// Prescan the first [`META_PRESCAN_LEN`] bytes for an HTML-declared
+/// charset: `<meta charset=…>` (HTML5) or `<meta http-equiv=…
+/// content="…; charset=…">` (legacy). Returns the matched encoding, or
+/// `None`. Byte-level + case-insensitive — runs before any decode, so
+/// it must not assume the bytes are already UTF-8 (ASCII-subset match).
+///
+/// Anchored to `<meta` tags (per the WHATWG prescan): a `charset=`
+/// substring living in a `<script>` string or a comment must NOT be
+/// honored — only the charset declared inside an actual `<meta>` tag.
+fn meta_charset(body: &[u8]) -> Option<&'static encoding_rs::Encoding> {
+    let window = &body[..body.len().min(META_PRESCAN_LEN)];
+    // Lowercased ASCII view (non-ASCII bytes map to themselves — we only
+    // match ASCII tokens, so this is sound on un-decoded bytes).
+    let lower: Vec<u8> = window.iter().map(u8::to_ascii_lowercase).collect();
+    let mut i = 0;
+    while i < lower.len() {
+        // Step OVER comments wholesale (the WHATWG prescan does too) — a
+        // `<meta charset=…>` living inside `<!-- … -->` is NOT a real
+        // declaration and must not set the encoding.
+        if lower[i..].starts_with(b"<!--") {
+            i = match find_subslice(&lower[i + 4..], b"-->") {
+                Some(rel) => i + 4 + rel + 3,
+                None => lower.len(),
+            };
+            continue;
+        }
+        // A real `<meta>` tag: search ONLY its own bytes (to the closing
+        // `>`) for a `charset` label.
+        if lower[i..].starts_with(b"<meta") {
+            let tag_start = i + b"<meta".len();
+            let tag_end = lower[tag_start..]
+                .iter()
+                .position(|&b| b == b'>')
+                .map_or(lower.len(), |p| tag_start + p);
+            if let Some(enc) = charset_in_tag(&lower[tag_start..tag_end]) {
+                return Some(enc);
+            }
+            i = tag_end;
+            continue;
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Extract a `charset` label from one `<meta …>` tag's bytes (already
+/// lowercased, sans the `<meta`/`>` delimiters).
+fn charset_in_tag(tag: &[u8]) -> Option<&'static encoding_rs::Encoding> {
+    let rel = find_subslice(tag, b"charset")?;
+    let after = rel + b"charset".len();
+    // Skip `=` / whitespace / quotes between `charset` and the label.
+    let mut k = after;
+    while k < tag.len() && matches!(tag[k], b'=' | b' ' | b'\t' | b'"' | b'\'') {
+        k += 1;
+    }
+    let start = k;
+    while k < tag.len()
+        && !matches!(
+            tag[k],
+            b'"' | b'\'' | b' ' | b'\t' | b';' | b'/' | b'\r' | b'\n'
+        )
+    {
+        k += 1;
+    }
+    (start < k)
+        .then(|| encoding_rs::Encoding::for_label(&tag[start..k]))
+        .flatten()
+}
+
+/// First index of `needle` in `haystack` (tiny — no memchr dep needed
+/// for a ≤1024-byte window scanned once).
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    (0..=haystack.len() - needle.len()).find(|&i| &haystack[i..i + needle.len()] == needle)
 }
 
 /// Pull the `charset=` parameter out of a `Content-Type` (case-
 /// insensitive key · quotes trimmed · quote-AWARE splitting: a `;`
 /// inside a quoted param value must not cut the scan —
 /// `title="a;charset=koi8-r"; charset=utf-8` is utf-8). `None` when
-/// absent → caller defaults to UTF-8. Known accepted gap: no `<meta
-/// charset>` body prescan (header-less legacy pages decode as UTF-8).
+/// absent → [`decode_charset`] falls back to the `<meta>` prescan.
 fn charset_label(content_type: &str) -> Option<&str> {
     split_params_quote_aware(content_type)
         .into_iter()
@@ -554,6 +657,94 @@ mod tests {
         .await
         .expect("ok");
         assert_eq!(out.as_str(), Some("Café"), "ISO-8859-1 é recovered");
+    }
+
+    #[tokio::test]
+    async fn fetch_bom_overrides_header_charset() {
+        // WHATWG: the BOM is more authoritative than the header. A
+        // UTF-16LE body with a misleading `charset=utf-8` header must
+        // decode via the BOM, not mojibake as UTF-8 (the audit's P3).
+        // "Hi" in UTF-16LE with BOM: FF FE 48 00 69 00.
+        let body = vec![0xff, 0xfe, b'H', 0x00, b'i', 0x00];
+        let http = MockHttp::new().enqueue_ok_with_headers(
+            200,
+            [("Content-Type", "text/html; charset=utf-8")],
+            body,
+        );
+        let out = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "https://x.test", "mode": "text" })),
+        )
+        .await
+        .expect("ok");
+        assert_eq!(
+            out.as_str(),
+            Some("Hi"),
+            "UTF-16LE BOM beat the lying header"
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_meta_charset_prescan_when_header_absent() {
+        // No charset in the header → the <meta charset> prescan recovers
+        // it (the legacy-page gap). 'é' = 0xE9 in ISO-8859-1.
+        let mut body = br#"<html><head><meta charset="iso-8859-1"></head><body><p>Caf"#.to_vec();
+        body.push(0xe9);
+        body.extend_from_slice(b"</p></body></html>");
+        let http = MockHttp::new().enqueue_ok_with_headers(
+            200,
+            [("Content-Type", "text/html")], // NO charset param
+            body,
+        );
+        let out = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "https://x.test", "mode": "text" })),
+        )
+        .await
+        .expect("ok");
+        assert!(
+            out.as_str().is_some_and(|s| s.contains("Café")),
+            "meta-charset prescan recovered ISO-8859-1: {out:?}"
+        );
+    }
+
+    #[test]
+    fn meta_charset_ignores_a_meta_inside_a_comment() {
+        // A `<meta charset>` living in a comment is NOT a declaration (the
+        // WHATWG prescan steps over comments) — the real one downstream wins.
+        assert_eq!(
+            meta_charset(b"<!-- <meta charset=koi8-r> --><meta charset=shift_jis>"),
+            Some(encoding_rs::SHIFT_JIS),
+            "the commented <meta> must be skipped; the real one wins"
+        );
+        // Comment-only → no declaration (decode falls back to UTF-8 upstream).
+        assert_eq!(
+            meta_charset(b"<!-- <meta charset=koi8-r> -->"),
+            None,
+            "a <meta> seen only inside a comment yields no charset"
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_header_charset_beats_meta_prescan() {
+        // Precedence: a Content-Type charset OUTRANKS a (conflicting)
+        // <meta> declaration. Body is ISO-8859-1 (0xE9 = é); meta lies
+        // "utf-8", header says "iso-8859-1" → header wins, é recovered.
+        let mut body = br#"<html><head><meta charset="utf-8"></head><body><p>Caf"#.to_vec();
+        body.push(0xe9);
+        body.extend_from_slice(b"</p></body></html>");
+        let http = MockHttp::new().enqueue_ok_with_headers(
+            200,
+            [("Content-Type", "text/html; charset=iso-8859-1")],
+            body,
+        );
+        let out = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "https://x.test", "mode": "text" })),
+        )
+        .await
+        .expect("ok");
+        assert!(out.as_str().is_some_and(|s| s.contains("Café")), "{out:?}");
     }
 
     #[tokio::test]
