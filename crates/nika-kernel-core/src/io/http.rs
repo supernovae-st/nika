@@ -228,7 +228,10 @@ impl std::fmt::Debug for HttpStreamResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HttpStreamResponse")
             .field("status", &self.status)
-            .field("headers", &self.headers)
+            // Same redaction as HttpResponse — a streamed response's
+            // set-cookie is a credential too (the raw map here was the
+            // one Debug path that leaked · review swarm 2026-06-12).
+            .field("headers", &redacted_headers(&self.headers))
             .field("final_url", &self.final_url)
             .field("content_length", &self.content_length)
             .field("body", &"<stream>")
@@ -490,5 +493,27 @@ mod tests {
         assert!(!debug.contains("TOKEN-LEAK"), "{debug}");
         assert!(debug.contains("set-cookie"));
         assert!(debug.contains("content-length"));
+    }
+
+    #[test]
+    fn stream_response_debug_redacts_set_cookie() {
+        use std::task::{Context, Poll};
+        struct EmptyStream;
+        impl futures_core::Stream for EmptyStream {
+            type Item = Result<Bytes, HttpError>;
+            fn poll_next(
+                self: std::pin::Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+            ) -> Poll<Option<Self::Item>> {
+                Poll::Ready(None)
+            }
+        }
+        let mut headers = BTreeMap::new();
+        headers.insert("set-cookie".to_owned(), "session=STREAM-LEAK".to_owned());
+        let resp =
+            HttpStreamResponse::new(200, headers, "https://e.com", None, Box::pin(EmptyStream));
+        let debug = format!("{resp:?}");
+        assert!(!debug.contains("STREAM-LEAK"), "{debug}");
+        assert!(debug.contains("set-cookie"), "names stay visible");
     }
 }
