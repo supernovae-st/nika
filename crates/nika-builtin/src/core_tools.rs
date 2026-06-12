@@ -83,27 +83,38 @@ pub(crate) fn prompt<P: Prompter>(prompter: &P, args: &Args) -> BuiltinOutcome {
     match mode {
         "confirm" => match prompter.confirm(message) {
             Some(answer) => Ok(serde_json::Value::Bool(answer)),
-            None => default_or_fail(args, C1, |d| d.as_bool().map(serde_json::Value::Bool)),
+            None => default_or_fail(args, C1, "a boolean", |d| {
+                d.as_bool().map(serde_json::Value::Bool)
+            }),
         },
         "input" => match prompter.input(message) {
             Some(text) => Ok(serde_json::Value::String(text)),
-            None => default_or_fail(args, C1, |d| {
+            None => default_or_fail(args, C1, "a string", |d| {
                 d.as_str().map(|s| serde_json::Value::String(s.to_owned()))
             }),
         },
         "choice" => {
             let choices = string_choices(args, C2)?;
-            if let Some(default) = args.get("default").and_then(serde_json::Value::as_str)
-                && !choices.iter().any(|c| c == default)
-            {
-                return Err(BuiltinFailure::new(
-                    C2,
-                    format!("`default:` `{default}` is not one of `choices:`"),
-                ));
+            // `default:` (if present) is a PARSE-TIME contract: it MUST be a
+            // string that is an element of `choices:` (stdlib §prompt ·
+            // PROMPT-002). A wrong-TYPE default (a number/bool) is ALSO
+            // -002, NOT a silent "no default" — the prior `and_then(as_str)`
+            // skipped the check on a non-string and then lied downstream
+            // ("no default" while a default was present).
+            if let Some(default) = args.get("default") {
+                let is_valid_member = default
+                    .as_str()
+                    .is_some_and(|d| choices.iter().any(|c| c == d));
+                if !is_valid_member {
+                    return Err(BuiltinFailure::new(
+                        C2,
+                        format!("`default:` must be one of `choices:` (got {default})"),
+                    ));
+                }
             }
             match prompter.choice(message, &choices) {
                 Some(chosen) => Ok(serde_json::Value::String(chosen)),
-                None => default_or_fail(args, C1, |d| {
+                None => default_or_fail(args, C1, "a string", |d| {
                     d.as_str().map(|s| serde_json::Value::String(s.to_owned()))
                 }),
             }
@@ -114,13 +125,23 @@ pub(crate) fn prompt<P: Prompter>(prompter: &P, args: &Args) -> BuiltinOutcome {
 
 /// No human answered: use `default:` when present, else the normative
 /// `NIKA-BUILTIN-PROMPT-001` (never hang, never invent · stdlib §prompt).
+/// Distinguishes a PRESENT-but-wrong-type default (its own honest message)
+/// from an ABSENT one — the prior code conflated them and reported "no
+/// `default:`" when a wrong-typed default WAS present (a silent lie that
+/// gave a model-repair loop nothing to repair).
 fn default_or_fail(
     args: &Args,
     code: &'static str,
+    type_hint: &str,
     pick: impl Fn(&serde_json::Value) -> Option<serde_json::Value>,
 ) -> BuiltinOutcome {
-    match args.get("default").and_then(pick) {
-        Some(value) => Ok(value),
+    match args.get("default") {
+        Some(raw) => pick(raw).ok_or_else(|| {
+            BuiltinFailure::new(
+                code,
+                format!("`default:` must be {type_hint} for this mode (got {raw})"),
+            )
+        }),
         None => Err(BuiltinFailure::new(
             code,
             "non-interactive and no `default:` — cannot answer without a human",
@@ -170,6 +191,17 @@ pub(crate) async fn wait<C: ClockDyn>(clock: &C, args: &Args) -> BuiltinOutcome 
     let until = opt_str(args, "until", E1)?;
     match (duration, until) {
         (Some(d), None) => {
+            // `timeout:` is "cap for absolute wait (until: only)" (stdlib
+            // §wait) — pairing it with `duration:` was silently IGNORED
+            // before (the author believed something was capped). Loud
+            // reject teaches the contract instead.
+            if args.contains_key("timeout") {
+                return Err(BuiltinFailure::new(
+                    E1,
+                    "`timeout:` caps ABSOLUTE waits only (`until:`) — a relative \
+                     `duration:` is its own bound",
+                ));
+            }
             let dur = parse_go_duration(d)
                 .ok_or_else(|| BuiltinFailure::new(E1, format!("unparseable duration `{d}`")))?;
             clock.sleep(dur).await;
@@ -375,6 +407,59 @@ mod tests {
     }
 
     #[test]
+    fn prompt_wrong_type_default_is_not_a_silent_no_default_lie() {
+        // The fixed silent bug: a PRESENT-but-wrong-type default was
+        // conflated with an ABSENT one. Each mode now reports honestly.
+
+        // choice · a NON-STRING default is a parse error (PROMPT-002),
+        // not the old lying PROMPT-001 "no default" (a default WAS present).
+        let choice_num = prompt(
+            &NonInteractive,
+            &args(serde_json::json!({
+                "mode": "choice", "message": "pick", "choices": ["a", "b"], "default": 5
+            })),
+        );
+        assert!(
+            matches!(&choice_num, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-002"
+                && f.message.contains("must be one of")),
+            "{choice_num:?}"
+        );
+
+        // confirm · a string default (wrong type for a yes/no) names the
+        // type instead of claiming none was given.
+        let confirm_str = prompt(
+            &NonInteractive,
+            &args(serde_json::json!({ "message": "ok?", "default": "yes" })),
+        );
+        assert!(
+            matches!(&confirm_str, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-001"
+                && f.message.contains("must be a boolean")),
+            "{confirm_str:?}"
+        );
+
+        // input · a non-string default likewise names the type.
+        let input_num = prompt(
+            &NonInteractive,
+            &args(serde_json::json!({ "mode": "input", "message": "?", "default": 42 })),
+        );
+        assert!(
+            matches!(&input_num, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-001"
+                && f.message.contains("must be a string")),
+            "{input_num:?}"
+        );
+
+        // And a CORRECT-type default still works (no regression).
+        let ok = prompt(
+            &NonInteractive,
+            &args(serde_json::json!({
+                "mode": "choice", "message": "pick", "choices": ["a", "b"], "default": "a"
+            })),
+        )
+        .expect("valid default used");
+        assert_eq!(ok, serde_json::Value::String("a".to_owned()));
+    }
+
+    #[test]
     fn done_always_rejects() {
         assert!(matches!(done(), Err(f) if f.code == "NIKA-BUILTIN-DONE-001"));
     }
@@ -398,6 +483,18 @@ mod tests {
         // A wrong-TYPE arg is an input error (E1), not an XOR violation.
         let wrong_type = wait(&clock, &args(serde_json::json!({ "duration": 5 }))).await;
         assert!(matches!(wrong_type, Err(f) if f.code == "NIKA-BUILTIN-WAIT-001"));
+        // `timeout:` with a RELATIVE duration was silently ignored before —
+        // now a loud teaching reject (timeout caps absolute waits only).
+        let paired = wait(
+            &clock,
+            &args(serde_json::json!({ "duration": "5ms", "timeout": "1h" })),
+        )
+        .await;
+        assert!(
+            matches!(&paired, Err(f) if f.code == "NIKA-BUILTIN-WAIT-001"
+                && f.message.contains("ABSOLUTE")),
+            "{paired:?}"
+        );
     }
 
     #[tokio::test]
