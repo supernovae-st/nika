@@ -884,3 +884,220 @@ mod tests {
         }
     }
 }
+
+/// End-to-end over REAL sockets: a minimal in-process HTTP/1.1
+/// responder (tokio `TcpListener` · zero extra deps) exercises the
+/// production client's transport mechanics — redirect loop ·
+/// cross-origin credential stripping · 303 demotion · size caps ·
+/// timeouts · streaming. `SsrfMode::Disabled` everywhere here: the
+/// targets ARE loopback (the SSRF layers have their own tests above).
+#[cfg(test)]
+mod e2e {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    fn client(max_bytes: u64) -> ReqwestHttp {
+        let mut config = HttpConfig::new();
+        config.ssrf = SsrfMode::Disabled;
+        config.max_response_bytes = max_bytes;
+        ReqwestHttp::with_config(config).expect("client builds")
+    }
+
+    /// Serve `responses` in order on a fresh loopback listener; each
+    /// connection gets the REQUEST HEAD echoed nowhere — the canned
+    /// response verbatim. Returns the bound address.
+    async fn serve(responses: Vec<String>) -> std::net::SocketAddr {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind loopback");
+        let addr = listener.local_addr().expect("addr");
+        tokio::spawn(async move {
+            for response in responses {
+                let Ok((mut socket, _)) = listener.accept().await else {
+                    return;
+                };
+                let mut buf = [0u8; 8192];
+                let _ = socket.read(&mut buf).await;
+                let _ = socket.write_all(response.as_bytes()).await;
+                let _ = socket.shutdown().await;
+            }
+        });
+        addr
+    }
+
+    /// Serve one connection that ECHOES the received request head as
+    /// the response body (the probe for what actually went on the wire).
+    async fn serve_echo() -> std::net::SocketAddr {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind loopback");
+        let addr = listener.local_addr().expect("addr");
+        tokio::spawn(async move {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                return;
+            };
+            let mut buf = vec![0u8; 8192];
+            let n = socket.read(&mut buf).await.unwrap_or(0);
+            let head = String::from_utf8_lossy(&buf[..n]).into_owned();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{head}",
+                head.len()
+            );
+            let _ = socket.write_all(response.as_bytes()).await;
+            let _ = socket.shutdown().await;
+        });
+        addr
+    }
+
+    fn ok_response(body: &str) -> String {
+        format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+    }
+
+    #[tokio::test]
+    async fn redirect_chain_lands_with_final_url() {
+        let dest = serve(vec![ok_response("arrived")]).await;
+        let hop = serve(vec![format!(
+            "HTTP/1.1 302 Found\r\nLocation: http://{dest}/final\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        )])
+        .await;
+
+        let resp = client(1 << 20)
+            .get(HttpRequest::get(format!("http://{hop}/start")))
+            .await
+            .expect("redirect followed");
+        assert_eq!(resp.status, 200);
+        assert_eq!(resp.body.as_ref(), b"arrived");
+        assert_eq!(resp.final_url, format!("http://{dest}/final"));
+    }
+
+    #[tokio::test]
+    async fn cross_origin_redirect_strips_credentials_and_303_demotes() {
+        // Echo destination shows exactly what crossed the wire.
+        let dest = serve_echo().await;
+        // 303 See Other from a DIFFERENT origin (different port =
+        // different origin on loopback).
+        let hop = serve(vec![format!(
+            "HTTP/1.1 303 See Other\r\nLocation: http://{dest}/after\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        )])
+        .await;
+
+        let mut request = HttpRequest::post(format!("http://{hop}/submit"));
+        request
+            .headers
+            .insert("authorization".to_owned(), "Bearer sk-LEAK".to_owned());
+        request
+            .headers
+            .insert("x-trace".to_owned(), "keep-me".to_owned());
+        request.body = Some(Bytes::from_static(b"{\"payload\":1}"));
+
+        let resp = client(1 << 20).post(request).await.expect("follows");
+        let wire = String::from_utf8_lossy(&resp.body);
+        // 303 demotion: POST became GET, body gone.
+        assert!(wire.starts_with("GET /after"), "{wire}");
+        assert!(!wire.contains("payload"), "body dropped on demote: {wire}");
+        // Cross-origin: credentials stripped, neutral headers ride on.
+        assert!(!wire.contains("sk-LEAK"), "credential stripped: {wire}");
+        assert!(wire.contains("keep-me"), "neutral header kept: {wire}");
+    }
+
+    #[tokio::test]
+    async fn content_length_over_cap_fails_fast_and_counted_read_caps() {
+        // Declared Content-Length above the cap → TooLarge before the body.
+        let big = "x".repeat(64);
+        let declared = serve(vec![ok_response(&big)]).await;
+        let err = client(16)
+            .get(HttpRequest::get(format!("http://{declared}/big")))
+            .await
+            .expect_err("declared too large");
+        assert!(matches!(err, HttpError::TooLarge { max: 16, .. }), "{err}");
+
+        // No Content-Length (close-framed) → the counting reader caps.
+        let unframed = serve(vec![format!(
+            "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n{big}"
+        )])
+        .await;
+        let err = client(16)
+            .get(HttpRequest::get(format!("http://{unframed}/big")))
+            .await
+            .expect_err("counted read too large");
+        assert!(matches!(err, HttpError::TooLarge { .. }), "{err}");
+    }
+
+    #[tokio::test]
+    async fn per_request_timeout_maps_to_timeout_error() {
+        // A listener that accepts and then stalls forever.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        tokio::spawn(async move {
+            let Ok((socket, _)) = listener.accept().await else {
+                return;
+            };
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            drop(socket);
+        });
+
+        let mut request = HttpRequest::get(format!("http://{addr}/slow"));
+        request.timeout = Some(Duration::from_millis(120));
+        let err = client(1 << 20)
+            .get(request)
+            .await
+            .expect_err("must time out");
+        assert!(matches!(err, HttpError::Timeout { .. }), "{err}");
+    }
+
+    #[tokio::test]
+    async fn streaming_delivers_chunks_and_caps_mid_stream() {
+        use futures_util_shim::collect_stream;
+
+        // Within cap: chunks arrive and concatenate.
+        let body = "streamed-body-content";
+        let addr = serve(vec![ok_response(body)]).await;
+        let stream_resp = client(1 << 20)
+            .send_streaming(HttpRequest::get(format!("http://{addr}/s")))
+            .await
+            .expect("stream opens");
+        assert_eq!(stream_resp.status, 200);
+        let collected = collect_stream(stream_resp.body).await.expect("in cap");
+        assert_eq!(collected, body.as_bytes());
+
+        // Past cap (close-framed, undeclared length): TooLarge mid-stream.
+        let big = "y".repeat(64);
+        let addr = serve(vec![format!(
+            "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n{big}"
+        )])
+        .await;
+        let stream_resp = client(16)
+            .send_streaming(HttpRequest::get(format!("http://{addr}/s")))
+            .await
+            .expect("stream opens (length unknown)");
+        let err = collect_stream(stream_resp.body)
+            .await
+            .expect_err("caps mid-stream");
+        assert!(matches!(err, HttpError::TooLarge { .. }), "{err}");
+    }
+
+    /// A tiny hand-rolled stream collector (no futures-util dev-dep):
+    /// polls the response stream to completion.
+    mod futures_util_shim {
+        use super::*;
+
+        pub(super) async fn collect_stream(
+            mut stream: Pin<Box<dyn Stream<Item = Result<Bytes, HttpError>> + Send>>,
+        ) -> Result<Vec<u8>, HttpError> {
+            let mut out = Vec::new();
+            loop {
+                let next = std::future::poll_fn(|cx| stream.as_mut().poll_next(cx)).await;
+                match next {
+                    Some(Ok(chunk)) => out.extend_from_slice(&chunk),
+                    Some(Err(e)) => return Err(e),
+                    None => return Ok(out),
+                }
+            }
+        }
+    }
+}
