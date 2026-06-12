@@ -45,6 +45,11 @@ enum Kind {
     /// `for_each` over a scalar var — statically clean · fails at run
     /// time (`NIKA-VAR-006` · `FailedBeforeStart` · cascades).
     Fails,
+    /// `agent:` over the echo provider (one text turn · no tools) —
+    /// exercises the BUFFERED telemetry path (ADR-093): the agent's
+    /// decisions ride the Finish to the ordered settle, so the
+    /// determinism theorems must hold over them too.
+    Agent,
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +72,7 @@ fn dag_strategy() -> impl Strategy<Value = Vec<TaskSpec>> {
                 let kind = match kind_roll {
                     0 | 1 => Kind::Gated,
                     2 => Kind::Fails,
+                    3 | 4 => Kind::Agent,
                     _ => Kind::Normal,
                 };
                 TaskSpec { deps, kind }
@@ -102,6 +108,9 @@ fn yaml_of(specs: &[TaskSpec]) -> String {
                 }
                 let _ = writeln!(y, "    infer: {{ prompt: \"t{i}{refs}\" }}");
             }
+            Kind::Agent => {
+                let _ = writeln!(y, "    agent: {{ prompt: \"agent t{i}\" }}");
+            }
         }
     }
     y
@@ -116,17 +125,25 @@ type PropRuntime = Runtime<
     MockClock,
 >;
 
-fn prop_runtime(cap: Option<NonZeroUsize>) -> PropRuntime {
+fn prop_runtime(cap: Option<NonZeroUsize>, agent_tasks: usize) -> PropRuntime {
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
     let invoke = Arc::new(InvokeVerb::new(Arc::new(
         nika_kernel_mock::MockToolExecutor::new(),
     )));
+    // One IDENTICAL text turn per agent task: the shared FIFO queue's
+    // dequeue order under concurrency becomes inconsequential — the
+    // streams stay byte-comparable across caps (the determinism law
+    // must hold over the BUFFERED telemetry path too · ADR-093).
+    let mut provider = MockProvider::new("mock");
+    for _ in 0..agent_tasks {
+        provider = provider.enqueue_text("done");
+    }
     Runtime::new(
         ExecVerb::new(Arc::new(MockShell::new())),
         Arc::clone(&invoke),
         InferVerb::new(registry, "mock/echo"),
         AgentVerb::new(
-            Arc::new(MockProvider::new("mock")),
+            Arc::new(provider),
             invoke,
             Arc::new(MockToolDefinitionProvider::new()),
             "mock/echo",
@@ -136,14 +153,14 @@ fn prop_runtime(cap: Option<NonZeroUsize>) -> PropRuntime {
     )
 }
 
-fn run_once(yaml: &str, cap: Option<NonZeroUsize>) -> (RunOutcome, Vec<Event>) {
+fn run_once(yaml: &str, cap: Option<NonZeroUsize>, agent_tasks: usize) -> (RunOutcome, Vec<Event>) {
     let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("generated YAML parses");
     let report = check(&wf);
     assert!(
         report.is_clean(),
         "generated DAG passes the ladder:\n{yaml}"
     );
-    let runtime = prop_runtime(cap);
+    let runtime = prop_runtime(cap, agent_tasks);
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_time()
         .build()
@@ -183,14 +200,18 @@ proptest! {
     fn random_dags_uphold_the_determinism_theorems(specs in dag_strategy()) {
         let yaml = yaml_of(&specs);
         let n = specs.len();
+        // Identical queued turns ⇒ dequeue order is inconsequential ·
+        // a generous count covers the live agents (dead ones never draw).
+        let agents = specs.iter().filter(|s| matches!(s.kind, Kind::Agent)).count();
 
         // ── 1 · replay: same workflow twice ⇒ byte-identical streams.
-        let (outcome_a, events_a) = run_once(&yaml, None);
-        let (_, events_b) = run_once(&yaml, None);
+        let (outcome_a, events_a) = run_once(&yaml, None, agents);
+        let (_, events_b) = run_once(&yaml, None, agents);
         prop_assert_eq!(&events_a, &events_b, "replay diverged:\n{}", yaml);
 
-        // ── 2 · cap-equivalence: cap=1 ⇒ the SAME stream.
-        let (_, events_seq) = run_once(&yaml, NonZeroUsize::new(1));
+        // ── 2 · cap-equivalence: cap=1 ⇒ the SAME stream (the buffered
+        // agent telemetry rides the ordered settle · ADR-093 — covered).
+        let (_, events_seq) = run_once(&yaml, NonZeroUsize::new(1), agents);
         prop_assert_eq!(&events_a, &events_seq, "cap leaked:\n{}", yaml);
 
         // ── 3 · settle-exactly-once + records complete.
@@ -231,7 +252,7 @@ proptest! {
                     status, TaskStatus::Skipped,
                     "gated t{} is skipped whatever its deps:\n{}", i, yaml
                 ),
-                Kind::Normal | Kind::Fails if dead_dep => prop_assert_eq!(
+                Kind::Normal | Kind::Fails | Kind::Agent if dead_dep => prop_assert_eq!(
                     status, TaskStatus::Cancelled,
                     "default-gate t{} over a dead dep is cancelled:\n{}", i, yaml
                 ),
@@ -242,6 +263,10 @@ proptest! {
                 Kind::Normal => prop_assert_eq!(
                     status, TaskStatus::Success,
                     "live normal t{} succeeds:\n{}", i, yaml
+                ),
+                Kind::Agent => prop_assert_eq!(
+                    status, TaskStatus::Success,
+                    "live agent t{} succeeds (one echo turn):\n{}", i, yaml
                 ),
             }
         }
