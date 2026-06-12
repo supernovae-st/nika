@@ -1,0 +1,262 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! [`TaskRecord`] — the per-task result record (spec `04-variables.md`
+//! §task output reference) + the canonical value→string rendering
+//! (spec 04 §value rendering · compact JSON · **sorted keys**).
+//!
+//! Defined-null reads (04 §branch-join unlock): every field of a
+//! TERMINAL task resolves — absent values are [`Value::Null`],
+//! deterministically (a skipped task's output · a non-failure's error).
+
+use std::collections::BTreeMap;
+use std::fmt::Write as _;
+
+use nika_types::timestamp::Timestamp;
+use serde_json::Value;
+
+/// A task's terminal status (spec 03 §task states · closed enum at v1 —
+/// only the four terminal states are observable from expressions).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskStatus {
+    /// The task completed successfully (incl. `on_error: recover`).
+    Success,
+    /// The task failed after retries with no recovery.
+    Failure,
+    /// The gate evaluated false · or `on_error: skip` fired.
+    Skipped,
+    /// The default gate became unsatisfiable (an upstream failure or
+    /// cancellation) — a decision, not a defect (spec 03).
+    Cancelled,
+}
+
+impl TaskStatus {
+    /// The spec wire word (`tasks.X.status` comparisons · spec 04).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::Failure => "failure",
+            Self::Skipped => "skipped",
+            Self::Cancelled => "cancelled",
+        }
+    }
+}
+
+/// The typed error payload readable at `tasks.X.error` (spec 05
+/// §error structure · v0 carries the load-bearing trio).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskErrorRecord {
+    /// The canonical wire code (`NIKA-…` · verb-owned or spec class).
+    pub code: String,
+    /// Human-readable message.
+    pub message: String,
+    /// Retry eligibility class (spec 05 · `error.transient`).
+    pub transient: bool,
+}
+
+impl TaskErrorRecord {
+    /// The record as a JSON value (the `${{ tasks.X.error }}` shape).
+    #[must_use]
+    pub fn to_value(&self) -> Value {
+        serde_json::json!({
+            "code": self.code,
+            "message": self.message,
+            "transient": self.transient,
+        })
+    }
+}
+
+/// One task's result record — the `tasks.<id>` namespace (spec 04 ·
+/// a CEL object, never a bare scalar).
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct TaskRecord {
+    /// Terminal status (closed enum · spec 03).
+    pub status: TaskStatus,
+    /// The verb's output (`Null` on skipped/cancelled/failure ·
+    /// defined-null per spec 04).
+    pub output: Value,
+    /// Present iff `status == failure` — PLUS the `on_error: skip`
+    /// state where status is `skipped` AND the original error stays
+    /// readable (spec 05 · the one coexist state).
+    pub error: Option<TaskErrorRecord>,
+    /// The `TaskStarted` stamp (None when the task never ran).
+    pub started_at: Option<Timestamp>,
+    /// The terminal-event stamp (None when the task never ran).
+    pub ended_at: Option<Timestamp>,
+    /// Clock-measured execution time (None when the task never ran).
+    pub duration_ms: Option<u64>,
+}
+
+impl TaskRecord {
+    /// A record for a task that never ran (skipped gate · cancelled).
+    #[must_use]
+    pub fn unran(status: TaskStatus) -> Self {
+        Self {
+            status,
+            output: Value::Null,
+            error: None,
+            started_at: None,
+            ended_at: None,
+            duration_ms: None,
+        }
+    }
+
+    /// Resolve one record field by name (the closed field set of spec
+    /// 04). `None` = not a record field (the reference form is out of
+    /// the v0 subset — the caller raises NIKA-1703, not 1702: the task
+    /// EXISTS, the field doesn't).
+    #[must_use]
+    pub fn field(&self, name: &str) -> Option<Value> {
+        Some(match name {
+            "output" => self.output.clone(),
+            "status" => Value::String(self.status.as_str().to_owned()),
+            // Defined-null · spec 04: absent values are null, never errors.
+            "error" => self
+                .error
+                .as_ref()
+                .map_or(Value::Null, TaskErrorRecord::to_value),
+            "started_at" => stamp_value(self.started_at),
+            "ended_at" => stamp_value(self.ended_at),
+            "duration_ms" => self
+                .duration_ms
+                .map_or(Value::Null, |ms| Value::Number(ms.into())),
+            _ => return None,
+        })
+    }
+}
+
+fn stamp_value(ts: Option<Timestamp>) -> Value {
+    ts.map_or(Value::Null, |t| Value::String(t.to_string()))
+}
+
+/// Render a value into a string position (spec 04 §value rendering) ·
+/// scalars natural (`null` → `null`) · objects/arrays compact JSON
+/// with **sorted keys** (deterministic · no insignificant whitespace).
+#[must_use]
+pub(crate) fn render_value(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        Value::Null => "null".to_owned(),
+        Value::Bool(b) => b.to_string(),
+        Value::Number(n) => n.to_string(),
+        Value::Array(_) | Value::Object(_) => {
+            let mut out = String::new();
+            write_canonical(value, &mut out);
+            out
+        }
+    }
+}
+
+/// Compact JSON writer with recursively sorted object keys — the ONE
+/// deterministic object→string form (spec 04 · "object keys sorted ·
+/// no insignificant whitespace").
+fn write_canonical(value: &Value, out: &mut String) {
+    match value {
+        Value::Object(map) => {
+            out.push('{');
+            let sorted: BTreeMap<&String, &Value> = map.iter().collect();
+            for (i, (key, val)) in sorted.into_iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                // Key serialization via serde_json (escaping correctness).
+                let _ = write!(out, "{}", Value::String((*key).clone()));
+                out.push(':');
+                write_canonical(val, out);
+            }
+            out.push('}');
+        }
+        Value::Array(items) => {
+            out.push('[');
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                write_canonical(item, out);
+            }
+            out.push(']');
+        }
+        // Scalars: serde_json's canonical token (strings escaped+quoted —
+        // INSIDE a JSON document a string is quoted · only the top-level
+        // string-into-string-position case renders raw, in render_value).
+        scalar => {
+            let _ = write!(out, "{scalar}");
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_wire_words_match_spec_enum() {
+        // Spec 04 · closed enum · `success | failure | skipped | cancelled`.
+        assert_eq!(TaskStatus::Success.as_str(), "success");
+        assert_eq!(TaskStatus::Failure.as_str(), "failure");
+        assert_eq!(TaskStatus::Skipped.as_str(), "skipped");
+        assert_eq!(TaskStatus::Cancelled.as_str(), "cancelled");
+    }
+
+    #[test]
+    fn defined_null_reads_never_error() {
+        // Spec 04 §branch-join unlock: every field of a terminal task
+        // resolves · absent = null.
+        let rec = TaskRecord::unran(TaskStatus::Skipped);
+        for field in ["output", "error", "started_at", "ended_at", "duration_ms"] {
+            assert_eq!(
+                rec.field(field).expect("closed field set resolves"),
+                Value::Null,
+                "{field} of a never-ran task must be defined-null"
+            );
+        }
+        assert_eq!(
+            rec.field("status").expect("status resolves"),
+            Value::String("skipped".to_owned())
+        );
+        assert!(rec.field("nope").is_none(), "unknown field = out of subset");
+    }
+
+    #[test]
+    fn error_record_coexists_with_skipped_status() {
+        // Spec 05 · `on_error: skip` = the ONE state where status is
+        // skipped AND the original error stays readable.
+        let mut rec = TaskRecord::unran(TaskStatus::Skipped);
+        rec.error = Some(TaskErrorRecord {
+            code: "NIKA-1402".to_owned(),
+            message: "boom".to_owned(),
+            transient: false,
+        });
+        let err = rec.field("error").expect("resolves");
+        assert_eq!(err["code"], "NIKA-1402");
+        assert_eq!(err["transient"], false);
+    }
+
+    #[test]
+    fn render_value_scalars_are_natural() {
+        // Spec 04 §value rendering · scalars natural · null → "null".
+        assert_eq!(render_value(&Value::String("raw text".into())), "raw text");
+        assert_eq!(render_value(&Value::Null), "null");
+        assert_eq!(render_value(&serde_json::json!(true)), "true");
+        assert_eq!(render_value(&serde_json::json!(42)), "42");
+    }
+
+    #[test]
+    fn render_value_objects_sort_keys_recursively() {
+        // Spec 04 · deterministic compact JSON · keys sorted at EVERY depth.
+        let v = serde_json::json!({"z": {"b": 2, "a": 1}, "a": [3, {"y": 0, "x": 9}]});
+        assert_eq!(
+            render_value(&v),
+            r#"{"a":[3,{"x":9,"y":0}],"z":{"a":1,"b":2}}"#
+        );
+    }
+
+    #[test]
+    fn render_value_strings_inside_json_stay_quoted_and_escaped() {
+        let v = serde_json::json!({"k": "a\"b"});
+        assert_eq!(render_value(&v), r#"{"k":"a\"b"}"#);
+    }
+}
