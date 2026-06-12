@@ -34,7 +34,10 @@
 //! # References
 //! - Robertson & Walker 1994 · canonical Okapi BM25
 //! - Manning · Raghavan · Schütze 2008 *IIR* ch. 11
+//! - Lù 2024 *BM25S* · arxiv.org/abs/2407.03618 · the eager sparse
+//!   scoring architecture behind [`EagerIndex`]
 
+mod eager;
 mod index;
 mod query;
 mod scorer;
@@ -45,6 +48,7 @@ mod tokenize;
 // cannot populate (content · level · tags) · L2 `RecallPool` orchestrator
 // merges with metadata from sister satellites.
 
+pub use eager::EagerIndex;
 pub use index::BmIndex;
 pub use tokenize::tokenize as tokenize_text;
 

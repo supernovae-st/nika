@@ -17,7 +17,7 @@
 //! 4. Monotonicity in TF · same doc-length + same IDF, more occurrences → higher score.
 //! 5. Saturation · doubling TF yields strictly less than 2× score (BM25 asymptote).
 
-use nika_bm25::{BmIndex, BmParams};
+use nika_bm25::{BmIndex, BmParams, EagerIndex};
 use proptest::prelude::*;
 
 /// Strategy · vocabulary of 4-8 lowercase tokens · documents of 1-12 tokens each ·
@@ -149,4 +149,38 @@ fn saturation_doubling_yields_less_than_2x() {
         s2 < 2.0 * s1,
         "BM25 saturation · s2/s1 should be <2 · got {ratio}"
     );
+}
+
+proptest! {
+    /// 6. BM25S equivalence (Lù 2024 · arxiv.org/abs/2407.03618) — the
+    /// eager sparse path is BYTE-IDENTICAL to the lazy dense path on
+    /// positive-score documents, over the whole corpus/query space
+    /// (same addition order → exact IEEE equality, not approximate).
+    #[test]
+    fn eager_sparse_equals_lazy_dense_exactly(
+        docs in proptest::collection::vec(doc_text(
+            ["auto", "car", "insurance", "best", "fast", "cheap", "policy", "claim"].to_vec()
+        ), 2..20),
+        query in doc_text(
+            ["auto", "car", "insurance", "best", "fast", "cheap", "policy", "claim"].to_vec()
+        ),
+        k in 1usize..10,
+    ) {
+        let mut idx = BmIndex::new(BmParams::default());
+        for (i, d) in docs.iter().enumerate() {
+            idx.add_document(i as u32, d);
+        }
+        idx.finalize();
+        let eager = EagerIndex::build(&idx).expect("finalized");
+        let lazy: Vec<(u32, f64)> = idx
+            .top_k(&query, k)
+            .into_iter()
+            .filter(|(_, s)| *s > 0.0)
+            .collect();
+        let mut fast = eager.top_k(&query, k);
+        // the lazy path may fill the tail of k with zero-score docs the
+        // sparse path never visits — compare on the positive prefix
+        fast.truncate(lazy.len());
+        prop_assert_eq!(lazy, fast);
+    }
 }

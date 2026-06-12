@@ -186,3 +186,9 @@ P-1/P-2/P-3/P-4 are tracked as **ADR-082 candidates** (post-W3 perf hardening cl
 - `tantivy` · `bm25` Rust crate · `lib.rs` (read for inspiration only · NOT copy-paste · per ADR-001 CRAFT discipline)
 - `nika/engine/docs/adr/adr-038-nika-bm25-admission.md` · binding admission prep
 - `nika/engine/docs/architecture/BLUEPRINT_2036.md` v1.3 §2.5 nika-bm25 row
+
+## Audit trail (continued)
+
+| Date | What | Detail |
+|---|---|---|
+| 2026-06-12 | `EagerIndex` — the BM25S architecture | arXiv-grounded (Lù 2024 *BM25S: Orders of magnitude faster lexical search via eager sparse scoring* · arxiv.org/abs/2407.03618): once the corpus is frozen, every `(term, doc)` BM25 contribution is fully determined — precompute at build time, make a query a SPARSE accumulation over its terms' postings (docs sharing no vocabulary are never visited; the lazy path is `O(N·|Q|)` dense). Additive new type built FROM a finalized `BmIndex` (the separate type IS the freshness contract: cannot exist unfinalized · cannot be silently staled — a re-opened source refuses `build` until re-finalize). **Byte-identical to the lazy path** — the accumulator adds in QUERY-TOKEN order (the lazy per-doc sum's order; IEEE addition is non-associative, matching the order is what buys exactness) — pinned by 5 unit tests + a proptest equivalence over the corpus/query space (property #6 in the Gate-6 suite). Degenerate-case guards deleted ON PURPOSE (empty corpus/query/k=0 fall through the same path — the round-19 lesson: a fast-path guard is an equivalent-mutant factory). Gate 5 on `eager.rs`: 14 mutants → 13 caught · 1 unviable · **0 missed**. API baseline regenerated: 74→105 lines, **0 removals** (additive proof). Citations shipped repo-wide: `CITATIONS.md` (15 works · per-module mapping · correction policy). |

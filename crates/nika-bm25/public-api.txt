@@ -71,4 +71,35 @@ impl<T> core::clone::CloneToUninit for nika_bm25::BmParams where T: core::clone:
 pub unsafe fn nika_bm25::BmParams::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_bm25::BmParams
 pub fn nika_bm25::BmParams::from(t: T) -> T
+#[non_exhaustive] pub struct nika_bm25::EagerIndex
+impl nika_bm25::EagerIndex
+pub fn nika_bm25::EagerIndex::build(index: &nika_bm25::BmIndex) -> core::option::Option<Self>
+pub fn nika_bm25::EagerIndex::doc_count(&self) -> usize
+pub fn nika_bm25::EagerIndex::top_k(&self, query: &str, k: usize) -> alloc::vec::Vec<(u32, f64)>
+impl core::clone::Clone for nika_bm25::EagerIndex
+pub fn nika_bm25::EagerIndex::clone(&self) -> nika_bm25::EagerIndex
+impl core::fmt::Debug for nika_bm25::EagerIndex
+pub fn nika_bm25::EagerIndex::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_bm25::EagerIndex where U: core::convert::From<T>
+pub fn nika_bm25::EagerIndex::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_bm25::EagerIndex where U: core::convert::Into<T>
+pub type nika_bm25::EagerIndex::Error = core::convert::Infallible
+pub fn nika_bm25::EagerIndex::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_bm25::EagerIndex where U: core::convert::TryFrom<T>
+pub type nika_bm25::EagerIndex::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_bm25::EagerIndex::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_bm25::EagerIndex where T: core::clone::Clone
+pub type nika_bm25::EagerIndex::Owned = T
+pub fn nika_bm25::EagerIndex::clone_into(&self, target: &mut T)
+pub fn nika_bm25::EagerIndex::to_owned(&self) -> T
+impl<T> core::any::Any for nika_bm25::EagerIndex where T: 'static + ?core::marker::Sized
+pub fn nika_bm25::EagerIndex::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_bm25::EagerIndex where T: ?core::marker::Sized
+pub fn nika_bm25::EagerIndex::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_bm25::EagerIndex where T: ?core::marker::Sized
+pub fn nika_bm25::EagerIndex::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_bm25::EagerIndex where T: core::clone::Clone
+pub unsafe fn nika_bm25::EagerIndex::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_bm25::EagerIndex
+pub fn nika_bm25::EagerIndex::from(t: T) -> T
 pub fn nika_bm25::tokenize_text(text: &str) -> alloc::vec::Vec<alloc::string::String>
