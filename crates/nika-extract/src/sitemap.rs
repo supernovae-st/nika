@@ -65,86 +65,101 @@ fn append_general_ref(
     Ok(())
 }
 
+/// Streaming parser state for the sitemap event loop.
+#[derive(Default)]
+struct SitemapParser {
+    entries: Vec<serde_json::Value>,
+    saw_root: bool,
+    in_entry: bool,
+    field: Option<&'static str>,
+    buf: String,
+    current: serde_json::Map<String, serde_json::Value>,
+}
+
+impl SitemapParser {
+    fn on_start(&mut self, el: &quick_xml::events::BytesStart<'_>) {
+        match el.local_name().as_ref() {
+            b"urlset" | b"sitemapindex" => self.saw_root = true,
+            b"url" | b"sitemap" if self.saw_root => {
+                self.in_entry = true;
+                self.current.clear();
+            }
+            // MUTATION (equivalent · the `in_entry` guard here is
+            // defensive depth, not output-load-bearing): a stray
+            // field outside an entry fills `buf`, but the value is
+            // only ever FLUSHED into an entry by the
+            // `</url>`/`</sitemap>` End arm — which IS `in_entry`-
+            // gated and tested. Dropping these guards changes no
+            // output; they stay for malformed-XML robustness.
+            local if self.in_entry && field_name(local).is_some() => {
+                self.field = field_name(local);
+                self.buf.clear();
+            }
+            _ => {}
+        }
+    }
+
+    fn on_end(&mut self, el: &quick_xml::events::BytesEnd<'_>) {
+        let local = el.local_name();
+        match local.as_ref() {
+            b"url" | b"sitemap" if self.in_entry => {
+                // An entry without a <loc> is dropped (the URL IS
+                // the entry); extras ride along when present.
+                if self.current.contains_key("loc") {
+                    self.entries
+                        .push(serde_json::Value::Object(std::mem::take(&mut self.current)));
+                }
+                // Malformed `<url><loc>x</url>` hygiene: a field
+                // left open dies with its entry.
+                self.in_entry = false;
+                self.field = None;
+                self.buf.clear();
+            }
+            local_name => {
+                // Flush ONLY the matching close — a stray nested
+                // element inside a field must not steal the flush
+                // (`<loc>a<b/>c</loc>` keeps accumulating).
+                if self.field.is_some() && field_name(local_name) == self.field {
+                    if let Some(name) = self.field.take() {
+                        self.current.insert(name.to_owned(), self.buf.trim().into());
+                    }
+                    self.buf.clear();
+                }
+            }
+        }
+    }
+}
+
 pub(crate) fn sitemap(body: &str) -> Result<serde_json::Value, ExtractError> {
     let mut reader = Reader::from_str(body);
     reader.config_mut().trim_text(true);
-
-    let mut entries: Vec<serde_json::Value> = Vec::new();
-    let mut saw_root = false;
-    let mut in_entry = false;
-    let mut field: Option<&'static str> = None;
-    let mut buf = String::new();
-    let mut current = serde_json::Map::new();
+    let mut p = SitemapParser::default();
 
     loop {
         match reader.read_event() {
-            Ok(Event::Start(el)) => match el.local_name().as_ref() {
-                b"urlset" | b"sitemapindex" => saw_root = true,
-                b"url" | b"sitemap" if saw_root => {
-                    in_entry = true;
-                    current.clear();
-                }
-                // MUTATION (equivalent · the `in_entry` guard here is
-                // defensive depth, not output-load-bearing): a stray
-                // field outside an entry fills `buf`, but the value is
-                // only ever FLUSHED into an entry by the
-                // `</url>`/`</sitemap>` End arm — which IS `in_entry`-
-                // gated and tested. Dropping these guards changes no
-                // output; they stay for malformed-XML robustness.
-                local if in_entry && field_name(local).is_some() => {
-                    field = field_name(local);
-                    buf.clear();
-                }
-                _ => {}
-            },
+            Ok(Event::Start(el)) => p.on_start(&el),
             // The three content-event kinds a field's text arrives as —
             // ALL append (never assign).
             Ok(Event::Text(t)) => {
-                if field.is_some() {
-                    buf.push_str(&t.decode().map_err(|e| sitemap_err("text decode", &e))?);
+                if p.field.is_some() {
+                    p.buf
+                        .push_str(&t.decode().map_err(|e| sitemap_err("text decode", &e))?);
                 }
             }
             Ok(Event::CData(c)) => {
-                if field.is_some() {
+                if p.field.is_some() {
                     let bytes = c.into_inner();
                     let text =
                         std::str::from_utf8(&bytes).map_err(|e| sitemap_err("CDATA decode", &e))?;
-                    buf.push_str(text);
+                    p.buf.push_str(text);
                 }
             }
             Ok(Event::GeneralRef(r)) => {
-                if field.is_some() {
-                    append_general_ref(&mut buf, &r)?;
+                if p.field.is_some() {
+                    append_general_ref(&mut p.buf, &r)?;
                 }
             }
-            Ok(Event::End(el)) => {
-                let local = el.local_name();
-                match local.as_ref() {
-                    b"url" | b"sitemap" if in_entry => {
-                        // An entry without a <loc> is dropped (the URL IS
-                        // the entry); extras ride along when present.
-                        if current.contains_key("loc") {
-                            entries.push(serde_json::Value::Object(std::mem::take(&mut current)));
-                        }
-                        // Malformed `<url><loc>x</url>` hygiene: a field
-                        // left open dies with its entry.
-                        in_entry = false;
-                        field = None;
-                        buf.clear();
-                    }
-                    local_name => {
-                        // Flush ONLY the matching close — a stray nested
-                        // element inside a field must not steal the flush
-                        // (`<loc>a<b/>c</loc>` keeps accumulating).
-                        if field.is_some() && field_name(local_name) == field {
-                            if let Some(name) = field.take() {
-                                current.insert(name.to_owned(), buf.trim().into());
-                            }
-                            buf.clear();
-                        }
-                    }
-                }
-            }
+            Ok(Event::End(el)) => p.on_end(&el),
             Ok(Event::Eof) => break,
             Ok(_) => {}
             Err(e) => {
@@ -155,10 +170,10 @@ pub(crate) fn sitemap(body: &str) -> Result<serde_json::Value, ExtractError> {
         }
     }
 
-    if !saw_root {
+    if !p.saw_root {
         return Err(ExtractError::Sitemap {
             reason: "no <urlset> or <sitemapindex> root element".to_owned(),
         });
     }
-    Ok(serde_json::Value::Array(entries))
+    Ok(serde_json::Value::Array(p.entries))
 }
