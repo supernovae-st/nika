@@ -112,6 +112,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
             }
             RawAction::Exec(_) | RawAction::Invoke(_) => any_effect = true,
         }
+        push_retry_effects_hint(&mut hints, t);
     }
 
     if any_effect && wf.permits.is_none() {
@@ -122,6 +123,43 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
         ));
     }
     hints
+}
+
+/// The retry-safety hint (class `retry-effects`): `retry:` replays the
+/// WHOLE attempt on transient failure — at-least-once semantics. For
+/// effect classes with no idempotency contract that means duplicated
+/// side effects (a subprocess killed mid-write already mutated the
+/// world; the replay mutates it again). Conservative scope — only the
+/// classes whose contract is genuinely unknown:
+///
+/// - `exec:` — arbitrary subprocess, side effects unknowable;
+/// - `invoke: mcp:*` — external tool, no idempotency contract.
+///
+/// `nika:` builtins carry documented semantics (atomic-overwrite write
+/// · GET fetch) and `infer:`/`agent:` retries re-spend tokens but
+/// mutate nothing external — no claim on those. First-of-kind for a
+/// workflow DSL per the 2026 survey (the formal treatments — Rehearsal
+/// PLDI'16 · Durable Functions OOPSLA'21 — verify engines, not files).
+fn push_retry_effects_hint(hints: &mut Vec<Hint>, t: &crate::raw::RawTask) {
+    let retries = t.retry.as_ref().is_some_and(|r| r.value.max_attempts > 1);
+    if !retries {
+        return;
+    }
+    let id = t.id.value.as_str();
+    match &t.action {
+        RawAction::Exec(_) => {
+            hints.push(hint("retry-effects", id, format!(
+                "`{id}` retries a subprocess — a transient failure mid-effect replays side effects already applied (at-least-once); make the command idempotent or guard it with a pre-check"
+            )));
+        }
+        RawAction::Invoke(a) if a.tool.value.starts_with("mcp:") => {
+            hints.push(hint("retry-effects", id, format!(
+                "`{id}` retries `{}` — external MCP tools carry no idempotency contract; a transient failure replays the call's side effects (at-least-once)",
+                a.tool.value
+            )));
+        }
+        _ => {}
+    }
 }
 
 /// The structured-output determinism hint (class `strictness`): an
@@ -490,5 +528,35 @@ mod tests {
             "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          field: { type: string }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.a.output.field }}\" }\n",
         );
         assert!(!h.iter().any(|x| x.kind == "typing"), "{h:?}");
+    }
+
+    #[test]
+    fn retried_exec_warns_at_least_once_semantics() {
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: deploy\n    retry: { max_attempts: 3 }\n    exec: { command: \"./deploy.sh\" }\n",
+        );
+        let hit = h.iter().find(|x| x.kind == "retry-effects").expect("hint");
+        assert_eq!(hit.task, "deploy");
+        assert!(hit.advice.contains("at-least-once"), "{hit:?}");
+    }
+
+    #[test]
+    fn retried_mcp_tool_warns_no_idempotency_contract() {
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: post\n    retry: { max_attempts: 2 }\n    invoke:\n      tool: mcp:slack/send\n      args: { text: \"hi\" }\n",
+        );
+        let hit = h.iter().find(|x| x.kind == "retry-effects").expect("hint");
+        assert!(hit.advice.contains("mcp:slack/send"), "{hit:?}");
+    }
+
+    #[test]
+    fn retry_on_contracted_effects_makes_no_claim() {
+        // infer retries re-spend tokens (covered by cost) · nika:
+        // builtins carry documented idempotent semantics · max_attempts
+        // 1 is no retry at all — none of these hint.
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: ask\n    retry: { max_attempts: 3 }\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n  - id: save\n    retry: { max_attempts: 3 }\n    depends_on: [ask]\n    invoke:\n      tool: nika:write\n      args: { path: out.md, content: \"${{ tasks.ask.output }}\" }\n  - id: once\n    retry: { max_attempts: 1 }\n    depends_on: [save]\n    exec: { command: \"true\" }\n",
+        );
+        assert!(!h.iter().any(|x| x.kind == "retry-effects"), "{h:?}");
     }
 }
