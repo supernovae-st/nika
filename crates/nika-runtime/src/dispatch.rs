@@ -35,6 +35,9 @@ pub(crate) struct Dispatched {
     pub note: String,
     /// The verb's value (spec-04 typed) or the task error.
     pub result: Result<DispatchOk, TaskErrorRecord>,
+    /// The agent loop's buffered decisions (ADR-093 · empty for every
+    /// other verb) — the settle pass emits them with the task stamped.
+    pub agent_events: Vec<nika_verb_agent::AgentEvent>,
 }
 
 /// A successful dispatch — the output value + token spend when the
@@ -49,6 +52,7 @@ impl Dispatched {
         Self {
             note,
             result: Ok(DispatchOk { value, tokens }),
+            agent_events: Vec::new(),
         }
     }
 
@@ -60,6 +64,7 @@ impl Dispatched {
                 message: err.to_string(),
                 transient: err.is_transient(),
             }),
+            agent_events: Vec::new(),
         }
     }
 
@@ -71,6 +76,7 @@ impl Dispatched {
                 message: err.to_string(),
                 transient: false, // static expression class · retry never helps
             }),
+            agent_events: Vec::new(),
         }
     }
 
@@ -82,6 +88,7 @@ impl Dispatched {
                 message: detail,
                 transient: false,
             }),
+            agent_events: Vec::new(),
         }
     }
 }
@@ -250,7 +257,11 @@ where
             input.temperature = action.temperature.as_ref().map(|t| t.value as f32);
         }
         input.schema = action.schema.as_ref().map(|v| v.value.clone());
-        match self.agent.run(input).await {
+        // Per-dispatch buffer (ADR-093): a wave dispatches concurrently —
+        // a verb-wide observer would interleave tasks' decision streams.
+        let buffer = crate::agent_events::BufferingObserver::new();
+        let ran = self.agent.run_observed(input, &buffer).await;
+        let mut dispatched = match ran {
             Ok(out) => {
                 let note = format!("agent · {} turns", out.turns);
                 let value = match out.output {
@@ -268,7 +279,11 @@ where
                 Dispatched::ok(note, value, tokens)
             }
             Err(err) => Dispatched::verb_err("agent · ?".to_owned(), &err),
-        }
+        };
+        // BOTH arms keep the telemetry — the events up to a stall/failure
+        // ARE the evidence the stream exists to carry.
+        dispatched.agent_events = buffer.into_events();
+        dispatched
     }
 }
 

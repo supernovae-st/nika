@@ -306,6 +306,21 @@ form; the timeout class surfaces the SPEC code `NIKA-TIMEOUT-001`.
     determinism (run twice ≡) · settle-exactly-once · event
     arithmetic · cap-equivalence over random caps.
 13. **Mutation** · `cargo mutants -p nika-runtime` · 0 missed.
+14. **Agent telemetry** (`tests/agent_telemetry.rs` · ADR-093) · an
+    `agent:` task through the REAL runtime puts its decisions on the
+    canonical stream: per-turn `agent_tools_selected` (offered ·
+    universe · per-source counts) · `tool_invoked` per dispatched tool
+    (the agent path's ONE emission site · INV-024) ·
+    `agent_budget_checkpoint` per turn — each task-stamped, ordered
+    inside the task's lifecycle bracket; a stalled agent puts
+    `agent_nudge` (reason) + `agent_stalled` (period · repeats) on the
+    stream and `NIKA-467` on the `TaskFailed` frame. Topology: the
+    dispatch pass stays pen-free — decisions are BUFFERED per dispatch
+    (`agent_events::BufferingObserver` → `AgentVerb::run_observed` ·
+    per-dispatch because a wave dispatches concurrently and a verb-wide
+    observer would interleave tasks' streams), ride `Dispatched` →
+    `RanTask` across attempts, and the settle pass emits them between
+    the retry frames and the terminal frame.
 
 ## 6 · Non-goals (v0.1 · tracked)
 

@@ -39,6 +39,7 @@
 
 #![forbid(unsafe_code)]
 
+mod agent_events;
 mod dispatch;
 mod errors;
 mod expr;
@@ -405,6 +406,11 @@ fn settle_ran(
             ],
         );
     }
+    // The agent loop's decisions (ADR-093 · buffered per dispatch · in
+    // order across attempts) land between the attempt history and the
+    // terminal frame — readers reconstruct per-attempt interleaving
+    // from the `turn` field.
+    agent_events::emit_agent_events(id, &run.agent_events, stamper, sink);
     let duration = i64::try_from(run.duration_ms).unwrap_or(i64::MAX);
     let mut record = TaskRecord::unran(TaskStatus::Success);
     record.started_at = Some(started_at);

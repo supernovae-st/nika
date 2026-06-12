@@ -70,6 +70,10 @@ pub(crate) struct RanTask {
     pub note: String,
     /// One entry per retry that was scheduled (`TaskRetrying`).
     pub retries: Vec<RetryStamp>,
+    /// The agent loop's decisions across ALL attempts, in order
+    /// (ADR-093 · empty for non-agent verbs) — the settle pass emits
+    /// them between the retry frames and the terminal frame.
+    pub agent_events: Vec<nika_verb_agent::AgentEvent>,
     /// Clock-measured wall time across attempts + cleanup (0 under a
     /// mock clock · real under the production clock — the event-stream
     /// determinism contract is "deterministic seams in · deterministic
@@ -244,6 +248,7 @@ where
 
         let mut outputs: Vec<Value> = Vec::with_capacity(total);
         let mut retries: Vec<RetryStamp> = Vec::new();
+        let mut agent_events: Vec<nika_verb_agent::AgentEvent> = Vec::new();
         let mut first_error: Option<TaskErrorRecord> = None;
         // Truth accounting · per-iteration token spend SUMS onto the
         // parent (a 50-infer fan-out must never report zero to the
@@ -252,6 +257,7 @@ where
 
         while let Some(iter_ran) = stream.next().await {
             retries.extend(iter_ran.retries);
+            agent_events.extend(iter_ran.agent_events);
             match iter_ran.result {
                 RunResult::Success { value, tokens } => {
                     outputs.push(value);
@@ -288,6 +294,7 @@ where
         let mut ran = RanTask {
             note: format!("for_each · {total} items"),
             retries,
+            agent_events,
             duration_ms: 0,
             result,
         };
@@ -315,6 +322,7 @@ where
                 return RanTask {
                     note: format!("for_each[{index}]"),
                     retries: Vec::new(),
+                    agent_events: Vec::new(),
                     duration_ms: 0,
                     result: RunResult::Failed {
                         error: runtime_error_record(&err),
@@ -351,18 +359,18 @@ where
             Some(i) => format!("{}[{i}]", task.id.value),
             None => task.id.value.clone(),
         };
-
         let mut note = String::new();
         let mut retries: Vec<RetryStamp> = Vec::new();
-
+        let mut agent_events = Vec::new();
         let outcome = {
             // The attempt loop borrows the accumulators; the borrow ends
             // when the loop future is consumed/dropped (both arms below).
             let attempts = async {
                 let mut attempt = 1_u32;
                 loop {
-                    let dispatched = self.dispatch(&task.action, scope).await;
+                    let mut dispatched = self.dispatch(&task.action, scope).await;
                     note.clone_from(&dispatched.note);
+                    agent_events.append(&mut dispatched.agent_events);
                     match dispatched.result {
                         Ok(ok) => return Ok(ok),
                         Err(error) => {
@@ -431,6 +439,7 @@ where
         RanTask {
             note,
             retries,
+            agent_events,
             duration_ms,
             result,
         }
