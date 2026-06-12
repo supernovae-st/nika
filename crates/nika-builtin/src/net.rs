@@ -20,23 +20,47 @@ use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str};
 /// Non-2xx is failure (`transient: true` for 5xx/408/429, `false` for
 /// other 4xx — normative). The body is decoded then run through the
 /// `mode:` extraction (default `markdown` · extract-modes-v0.1.md).
+///
+/// CANCEL SAFETY: dropping this future does NOT stop an in-flight
+/// extraction — `spawn_blocking` closures run to completion (a heavy
+/// parse keeps its pool thread until done; the orphan is bounded by
+/// the 64 MiB body cap). The L3 timeout path therefore detaches, never
+/// leaks unbounded work.
 pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-FETCH-001";
     let url = req_str(args, "url", C)?;
     let method = opt_str(args, "method", C)?.unwrap_or("GET").to_uppercase();
-    // Vet the mode BEFORE the network call — a bad `mode:` should fail
-    // without spending a request (the static checker catches it earlier;
-    // this is the runtime defense for a hand-built ToolCall).
+    // Vet the mode + arg pairings BEFORE the network call — a bad
+    // `mode:` or a silently-droppable `selector:`/`jq:` should fail
+    // without spending a request (the static checker catches literals;
+    // this is the runtime defense for hand-built ToolCalls and
+    // TEMPLATED modes the static ladder can't see · review lens 3 P2).
     let mode = parse_mode(args, C)?;
+    let selector = opt_str(args, "selector", C)?.map(str::to_owned);
+    if selector.is_some() && mode != ExtractMode::Selector {
+        return Err(BuiltinFailure::new(
+            C,
+            "`selector:` pairs with `mode: selector` only (extract-modes-v0.1.md §selector)",
+        ));
+    }
+    if args.contains_key("jq") && mode != ExtractMode::Jq {
+        return Err(BuiltinFailure::new(
+            C,
+            "`jq:` is «a jq expression · only with mode: jq» (builtins-v0.1.md §nika:fetch)",
+        ));
+    }
 
-    let request = build_request(&method, url, args).map_err(|m| BuiltinFailure::new(C, m))?;
+    // ONE method parse — routing + the wire request both derive from
+    // the enum (no string re-match to desync).
+    let http_method = parse_method(&method).map_err(|m| BuiltinFailure::new(C, m))?;
+    let request = build_request(http_method, url, args).map_err(|m| BuiltinFailure::new(C, m))?;
     // MUTATION (equivalent under the mock): GET/HEAD route to .get(), all
     // else to .post() — but a test double serves both identically and the
     // recorded request carries its own method, so deleting this arm is
     // behaviorally invisible in tests. Real transports differ (GET has no
     // body); the per-method `request.method` mapping IS pinned below.
-    let response = match method.as_str() {
-        "GET" | "HEAD" => http.get(request).await,
+    let response = match http_method {
+        HttpMethod::Get | HttpMethod::Head => http.get(request).await,
         _ => http.post(request).await,
     }
     .map_err(|e| {
@@ -62,12 +86,13 @@ pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn>(http: &H, args: &Args) ->
         mode,
         body: response.body.clone(),
         content_type: response.headers.get("content-type").cloned(),
+        link_header: response.headers.get("link").cloned(),
         base_url: if response.final_url.is_empty() {
             url.to_owned()
         } else {
             response.final_url.clone()
         },
-        selector: opt_str(args, "selector", C)?.map(str::to_owned),
+        selector,
         jq: if mode == ExtractMode::Jq {
             Some(req_str(args, "jq", C)?.to_owned())
         } else {
@@ -97,6 +122,9 @@ struct ExtractPlan {
     mode: ExtractMode,
     body: Bytes,
     content_type: Option<String>,
+    /// The response `Link:` header (RFC 8288) — `mode: metadata` mines
+    /// it for hreflang alternates.
+    link_header: Option<String>,
     base_url: String,
     selector: Option<String>,
     jq: Option<String>,
@@ -109,12 +137,16 @@ impl ExtractPlan {
     /// from `Content-Type` (the web is not all UTF-8).
     fn run(self, code: &'static str) -> BuiltinOutcome {
         match self.mode {
-            ExtractMode::Raw => {
-                Ok(serde_json::Value::String(decode_utf8_strict(&self.body, code)?))
-            }
+            ExtractMode::Raw => Ok(serde_json::Value::String(decode_utf8_strict(
+                &self.body, code,
+            )?)),
             ExtractMode::Jq => {
-                // `jq:` presence is guaranteed by the caller (mode == Jq).
-                let expression = self.jq.unwrap_or_default();
+                // The caller sets `jq` iff mode == Jq — reaching this arm
+                // without it is an internal invariant break, not an empty
+                // expression (a silent wrong answer · review lens 1 P1).
+                let expression = self.jq.ok_or_else(|| {
+                    BuiltinFailure::new(code, "internal: mode jq reached without a jq expression")
+                })?;
                 let text = decode_utf8_strict(&self.body, code)?;
                 let input: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
                     BuiltinFailure::new(code, format!("response is not JSON (mode: jq): {e}"))
@@ -122,19 +154,45 @@ impl ExtractPlan {
                 // Compose THE jq engine (data::jq · one data language · the
                 // exactly-one-output law + ceiling live there, not here).
                 let mut jq_args = serde_json::Map::new();
-                jq_args.insert("expression".to_owned(), serde_json::Value::String(expression));
+                jq_args.insert(
+                    "expression".to_owned(),
+                    serde_json::Value::String(expression),
+                );
                 jq_args.insert("input".to_owned(), input);
                 crate::data::jq(&jq_args)
             }
+            // feed gets RAW BYTES: feed-rs owns charset detection (XML
+            // prolog + BOM) — pre-transcoding would leave a stale prolog
+            // and mojibake non-ASCII (review lens 2 · P3-7).
+            ExtractMode::Feed => nika_extract::feed_from_bytes(&self.body)
+                .map_err(|e| BuiltinFailure::new(code, e.to_string())),
             other => {
                 let mut opts = ExtractOptions::new();
                 opts.base_url = Some(&self.base_url);
                 opts.selector = self.selector.as_deref();
+                // Cow: a UTF-8 body (the web's majority) borrows — no
+                // 64 MiB copy before the DOM build (review lens 3 P3).
                 let text = decode_charset(&self.body, self.content_type.as_deref());
                 // Extraction is deterministic (parse failures don't get
                 // better on retry).
-                nika_extract::extract(&text, other, &opts)
-                    .map_err(|e| BuiltinFailure::new(code, e.to_string()))
+                let mut value = nika_extract::extract(&text, other, &opts)
+                    .map_err(|e| BuiltinFailure::new(code, e.to_string()))?;
+                // metadata gains the RFC 8288 hreflang alternates when
+                // the response carried a Link header (additive key).
+                if other == ExtractMode::Metadata
+                    && let Some(header) = self.link_header.as_deref()
+                    && let Some(object) = value.as_object_mut()
+                {
+                    let entries = nika_extract::link_header::parse_link_header(header);
+                    let alternates = nika_extract::link_header::alternates(&entries);
+                    if !alternates.is_empty() {
+                        object.insert(
+                            "alternates".to_owned(),
+                            serde_json::Value::Array(alternates),
+                        );
+                    }
+                }
+                Ok(value)
             }
         }
     }
@@ -159,38 +217,80 @@ fn decode_utf8_strict(body: &[u8], code: &'static str) -> Result<String, Builtin
 /// `Content-Type` charset (default UTF-8), lossily replacing
 /// undecodable bytes — extraction is best-effort cleanup, a stray byte
 /// must not sink the whole page (the strict path is `raw`/`jq` above).
-fn decode_charset(body: &[u8], content_type: Option<&str>) -> String {
+/// `Cow`: clean UTF-8 (the web's majority) BORROWS — no copy.
+fn decode_charset<'a>(body: &'a [u8], content_type: Option<&str>) -> std::borrow::Cow<'a, str> {
     let encoding = content_type
         .and_then(charset_label)
         .and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()))
         .unwrap_or(encoding_rs::UTF_8);
-    encoding.decode(body).0.into_owned()
+    encoding.decode(body).0
 }
 
 /// Pull the `charset=` parameter out of a `Content-Type` (case-
-/// insensitive key · quotes trimmed). `None` when absent → caller
-/// defaults to UTF-8.
+/// insensitive key · quotes trimmed · quote-AWARE splitting: a `;`
+/// inside a quoted param value must not cut the scan —
+/// `title="a;charset=koi8-r"; charset=utf-8` is utf-8). `None` when
+/// absent → caller defaults to UTF-8. Known accepted gap: no `<meta
+/// charset>` body prescan (header-less legacy pages decode as UTF-8).
 fn charset_label(content_type: &str) -> Option<&str> {
-    content_type.split(';').skip(1).find_map(|param| {
-        let (key, value) = param.split_once('=')?;
-        key.trim()
-            .eq_ignore_ascii_case("charset")
-            .then(|| value.trim().trim_matches('"'))
-    })
+    split_params_quote_aware(content_type)
+        .into_iter()
+        .skip(1)
+        .find_map(|param| {
+            let (key, value) = param.split_once('=')?;
+            key.trim()
+                .eq_ignore_ascii_case("charset")
+                .then(|| value.trim().trim_matches('"').trim_matches('\''))
+        })
 }
 
-fn build_request(method: &str, url: &str, args: &Args) -> Result<HttpRequest, String> {
-    let mut request = match method {
-        "GET" | "HEAD" => HttpRequest::get(url),
-        "POST" | "PUT" | "DELETE" | "PATCH" => HttpRequest::post(url),
-        other => return Err(format!("unsupported method `{other}`")),
-    };
-    request.method = parse_method(method);
+/// Split a header value on `;` OUTSIDE double quotes (RFC 9110
+/// parameter syntax — quoted-string values may carry `;`).
+fn split_params_quote_aware(value: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut in_quotes = false;
+    let mut start = 0usize;
+    for (i, ch) in value.char_indices() {
+        match ch {
+            '"' => in_quotes = !in_quotes,
+            ';' if !in_quotes => {
+                parts.push(&value[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(&value[start..]);
+    parts
+}
+
+/// One method parse for the whole builtin (review lens 2 · P3-8 — the
+/// string was matched three times with a silent `_ => Get` fallback a
+/// future edit could desync into a GET downgrade).
+fn parse_method(method: &str) -> Result<HttpMethod, String> {
+    match method {
+        "GET" => Ok(HttpMethod::Get),
+        "HEAD" => Ok(HttpMethod::Head),
+        "POST" => Ok(HttpMethod::Post),
+        "PUT" => Ok(HttpMethod::Put),
+        "DELETE" => Ok(HttpMethod::Delete),
+        "PATCH" => Ok(HttpMethod::Patch),
+        other => Err(format!("unsupported method `{other}`")),
+    }
+}
+
+fn build_request(method: HttpMethod, url: &str, args: &Args) -> Result<HttpRequest, String> {
+    let mut request = HttpRequest::get(url);
+    request.method = method;
     if let Some(headers) = args.get("headers").and_then(serde_json::Value::as_object) {
         for (key, value) in headers {
-            if let Some(text) = value.as_str() {
-                request.headers.insert(key.clone(), text.to_owned());
-            }
+            // A non-string header value is LOUD (mirrors opt_str's
+            // strictness three lines up the file — silent drops are the
+            // anti-pattern this builtin exists to avoid).
+            let Some(text) = value.as_str() else {
+                return Err(format!("header `{key}:` must be a string"));
+            };
+            request.headers.insert(key.clone(), text.to_owned());
         }
     }
     if let Some(body) = args.get("body") {
@@ -201,17 +301,6 @@ fn build_request(method: &str, url: &str, args: &Args) -> Result<HttpRequest, St
         request.body = Some(bytes.into());
     }
     Ok(request)
-}
-
-fn parse_method(method: &str) -> HttpMethod {
-    match method {
-        "POST" => HttpMethod::Post,
-        "PUT" => HttpMethod::Put,
-        "DELETE" => HttpMethod::Delete,
-        "PATCH" => HttpMethod::Patch,
-        "HEAD" => HttpMethod::Head,
-        _ => HttpMethod::Get,
-    }
 }
 
 /// The spec's status→retryability table (stdlib §fetch · normative):
@@ -394,6 +483,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fetch_runtime_mirrors_the_pairing_rules() {
+        // A templated mode bypasses the STATIC checker — the runtime
+        // must reject the same pairings loud, never silently drop args.
+        let http = MockHttp::new(); // nothing enqueued — must fail pre-network
+        let err = fetch(
+            &http,
+            &args(serde_json::json!({
+                "url": "https://x.test", "mode": "text", "selector": "div"
+            })),
+        )
+        .await
+        .expect_err("selector with non-selector mode");
+        assert!(err.message.contains("mode: selector"), "{}", err.message);
+
+        let err = fetch(
+            &http,
+            &args(serde_json::json!({
+                "url": "https://x.test", "jq": ".x"
+            })),
+        )
+        .await
+        .expect_err("jq with the default markdown mode");
+        assert!(err.message.contains("mode: jq"), "{}", err.message);
+        assert!(http.sent_requests().is_empty(), "no request spent");
+    }
+
+    #[tokio::test]
+    async fn fetch_metadata_merges_link_header_alternates() {
+        let html = br#"<html lang="en"><head><title>T</title></head><body></body></html>"#.to_vec();
+        let http = MockHttp::new().enqueue_ok_with_headers(
+            200,
+            [(
+                "Link",
+                r#"<https://x.test/fr/>; rel="alternate"; hreflang="fr", <https://x.test/de/>; rel="alternate"; hreflang="de""#,
+            )],
+            html,
+        );
+        let out = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "https://x.test", "mode": "metadata" })),
+        )
+        .await
+        .expect("ok");
+        assert_eq!(out["alternates"][0]["lang"], "fr");
+        assert_eq!(out["alternates"][1]["href"], "https://x.test/de/");
+        assert_eq!(out["title"], "T", "the HTML head still mined");
+    }
+
+    #[tokio::test]
     async fn fetch_decodes_declared_charset_for_extraction() {
         // "Café" in ISO-8859-1: 'é' = 0xE9. UTF-8-lossy would corrupt it;
         // charset-aware decode recovers it.
@@ -412,6 +550,100 @@ mod tests {
         .await
         .expect("ok");
         assert_eq!(out.as_str(), Some("Café"), "ISO-8859-1 é recovered");
+    }
+
+    #[tokio::test]
+    async fn fetch_charset_matrix_windows1252_shiftjis_quoted() {
+        // windows-1252: € = 0x80 (the byte ISO-8859-1 maps to a C1
+        // control — the label distinction is real).
+        let body = vec![b'<', b'p', b'>', 0x80, b'5', b'<', b'/', b'p', b'>'];
+        let http = MockHttp::new().enqueue_ok_with_headers(
+            200,
+            [("Content-Type", "text/html; charset=windows-1252")],
+            body,
+        );
+        let out = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "https://x.test", "mode": "text" })),
+        )
+        .await
+        .expect("ok");
+        assert_eq!(out.as_str(), Some("€5"), "windows-1252 euro sign");
+
+        // Shift_JIS: 日本 = 93 FA 96 7B.
+        let body = vec![
+            b'<', b'p', b'>', 0x93, 0xfa, 0x96, 0x7b, b'<', b'/', b'p', b'>',
+        ];
+        let http = MockHttp::new().enqueue_ok_with_headers(
+            200,
+            [("Content-Type", "text/html; charset=Shift_JIS")],
+            body,
+        );
+        let out = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "https://x.test", "mode": "text" })),
+        )
+        .await
+        .expect("ok");
+        assert_eq!(out.as_str(), Some("日本"), "Shift_JIS kanji");
+
+        // Quote-aware param split: a `;` inside a QUOTED earlier param
+        // must not hide the real charset (review lens 2 · P3-3).
+        let body = vec![
+            b'<', b'p', b'>', b'C', b'a', b'f', 0xe9, b'<', b'/', b'p', b'>',
+        ];
+        let http = MockHttp::new().enqueue_ok_with_headers(
+            200,
+            [(
+                "Content-Type",
+                r#"text/html; title="a;charset=koi8-r"; charset=iso-8859-1"#,
+            )],
+            body,
+        );
+        let out = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "https://x.test", "mode": "text" })),
+        )
+        .await
+        .expect("ok");
+        assert_eq!(
+            out.as_str(),
+            Some("Café"),
+            "quoted ; did not derail the scan"
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_huge_body_extracts_without_distortion() {
+        // ~600 KB of repeated paragraphs: the blocking-pool handoff +
+        // markdown pipeline must hold shape (no truncation · no panic).
+        let para = "<p>Sixty kilobyte stress paragraph with stable words.</p>";
+        let html = format!("<html><body>{}</body></html>", para.repeat(10_000));
+        let http = MockHttp::new().enqueue_ok(200, html.into_bytes());
+        let out = fetch(&http, &args(serde_json::json!({ "url": "https://x.test" })))
+            .await
+            .expect("ok");
+        let md = out.as_str().expect("string");
+        assert_eq!(
+            md.matches("Sixty kilobyte stress paragraph").count(),
+            10_000,
+            "every paragraph survived"
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_non_string_header_value_is_loud() {
+        let http = MockHttp::new();
+        let err = fetch(
+            &http,
+            &args(serde_json::json!({
+                "url": "https://x.test", "headers": { "x-count": 1 }
+            })),
+        )
+        .await
+        .expect_err("non-string header");
+        assert!(err.message.contains("x-count"), "{}", err.message);
+        assert!(http.sent_requests().is_empty(), "failed before the wire");
     }
 
     #[tokio::test]

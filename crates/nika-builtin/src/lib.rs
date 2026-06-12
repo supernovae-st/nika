@@ -521,6 +521,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fetch_through_the_dispatcher_extracts_markdown() {
+        // The agent's REAL path: ToolCall → dispatcher → fetch → extract
+        // (not the unit fn) — pins the route + the wire ToolResult shape.
+        let http = MockHttp::new().enqueue_ok(
+            200,
+            b"<html><body><h1>Wire</h1><p>Through the dispatcher.</p></body></html>".to_vec(),
+        );
+        let dispatcher = test_rig::dispatcher(MockFs::new(), http, MockClock::new());
+        let result = dispatcher
+            .execute(call(
+                "nika:fetch",
+                serde_json::json!({ "url": "https://x.test" }),
+            ))
+            .await
+            .expect("dispatches");
+        assert!(!result.is_error, "{}", result.content);
+        assert!(result.content.contains("# Wire"), "{}", result.content);
+        assert!(result.content.contains("Through the dispatcher."));
+
+        // And the failure plane: a spec-code failure rides ToolResult,
+        // never the dispatch plane.
+        let http = MockHttp::new().enqueue_ok(404, Vec::new());
+        let dispatcher = test_rig::dispatcher(MockFs::new(), http, MockClock::new());
+        let result = dispatcher
+            .execute(call(
+                "nika:fetch",
+                serde_json::json!({ "url": "https://x.test" }),
+            ))
+            .await
+            .expect("dispatches");
+        assert!(result.is_error);
+        assert!(
+            result.content.starts_with("NIKA-BUILTIN-FETCH-001"),
+            "{}",
+            result.content
+        );
+    }
+
+    #[tokio::test]
     async fn tool_defs_seam_serves_the_catalog() {
         let defs = ToolDefinitionProviderDyn::tool_defs(&rig())
             .await
