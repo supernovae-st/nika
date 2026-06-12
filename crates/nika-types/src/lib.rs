@@ -69,7 +69,7 @@ pub mod prelude {
         WorkflowId,
     };
     pub use crate::resource::{KeyValue, Resource, Value};
-    pub use crate::retry::{ErrorCategory, RetryConfig};
+    pub use crate::retry::{ErrorCategory, RetryBudget, RetryConfig};
     pub use crate::schema::{EventSchemaVersion, TraceFormatVersion};
     pub use crate::trust::TrustLevel;
 
