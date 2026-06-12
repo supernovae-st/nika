@@ -40,6 +40,7 @@
 mod eager;
 mod index;
 mod query;
+mod rank;
 mod scorer;
 mod tokenize;
 

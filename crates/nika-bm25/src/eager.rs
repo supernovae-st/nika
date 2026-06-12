@@ -41,6 +41,7 @@
 use std::collections::BTreeMap;
 
 use crate::BmIndex;
+use crate::rank::select_top_k;
 use crate::tokenize::tokenize;
 
 /// A frozen, eagerly-scored BM25 index (BM25S form).
@@ -131,10 +132,7 @@ impl EagerIndex {
                 }
             }
         }
-        let mut scored: Vec<(u32, f64)> = acc.into_iter().collect();
-        scored.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
-        scored.truncate(k);
-        scored
+        select_top_k(acc.into_iter(), k)
     }
 }
 
