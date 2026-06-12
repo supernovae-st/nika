@@ -143,6 +143,23 @@ const BLOCKLIST: &[&str] = &[
 /// Shell-mode patterns ALWAYS blocked (structural commands · `shell: true`).
 const SHELL_MODE_BLOCKLIST: &[&str] = &["alias ", "function ", "declare -f"];
 
+/// Programs blocked at the ARGV floor by their BASENAME alone — their mere
+/// invocation is dangerous regardless of arguments (privilege escalation +
+/// system control). The argv form (`shell: false`) has no shell to hide a
+/// program behind, so an EXACT basename match is precise: no substring
+/// false-positives (`issue` ≠ `su`, `printenv` ≠ `env`), and no need to scan
+/// the (literal, un-parsed) arguments at all. Deciding WHICH non-listed
+/// program may run, and what it may touch, is `permits.exec` (allowlist) +
+/// the sandbox — NOT this floor. `command[0]` can itself be an interpolated,
+/// attacker-influenced value, so [`check_program`] still NFKC-normalizes
+/// confusables (fullwidth `ｓｕｄｏ` → `sudo`) before matching.
+const DANGEROUS_PROGRAMS: &[&str] = &[
+    // Privilege escalation
+    "sudo", "doas", "pkexec", "su", "runas",
+    // System control (halts / reboots / powers off the host)
+    "shutdown", "reboot", "halt", "poweroff",
+];
+
 /// Zero-width / invisible characters stripped before the blocklist check
 /// (NFKC preserves these — they are a confusable-bypass vector on their own).
 const ZERO_WIDTH_CHARS: &[char] = &[
@@ -257,6 +274,39 @@ pub(crate) fn check_shell_mode(command: &str) -> Result<(), ShellError> {
         return Err(ShellError::Blocked {
             reason: format!(
                 "shell-mode expansion/substitution char refused: {c:?} (route via pre_validated)"
+            ),
+        });
+    }
+    Ok(())
+}
+
+/// Check an argv-form PROGRAM against the dangerous-program floor.
+///
+/// Argv mode (`shell: false`) runs the program via `execve` with no shell, so
+/// arguments are literal and the shell-syntax blocklist ([`check_command`])
+/// does not apply — scanning a joined line would false-positive on benign
+/// literal args. The only floor that makes sense is the program's IDENTITY:
+/// an exact basename match against [`DANGEROUS_PROGRAMS`], after NFKC +
+/// zero-width normalization (because `command[0]` may be an interpolated,
+/// attacker-influenced value). Quoting is NOT stripped — `execve` takes the
+/// program name literally, so `su""do` is a (non-existent) filename, not
+/// `sudo`.
+///
+/// # Errors
+///
+/// [`ShellError::Blocked`] when the program basename is a dangerous program.
+pub(crate) fn check_program(program: &str) -> Result<(), ShellError> {
+    let normalized = normalize_for_blocklist(program);
+    let basename = normalized
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(normalized.as_str());
+    let lower = basename.to_lowercase();
+    if DANGEROUS_PROGRAMS.contains(&lower.as_str()) {
+        return Err(ShellError::Blocked {
+            reason: format!(
+                "program {basename:?} is blocked at the exec floor \
+                 (privilege escalation / system control)"
             ),
         });
     }
@@ -499,5 +549,70 @@ mod tests {
     #[test]
     fn printenv_is_over_blocked() {
         assert!(blocked("printenv PATH"), "env-wrapper substring over-block");
+    }
+
+    // ── argv-mode program floor (check_program · exact basename) ──
+    //
+    // The shell-line scanner above is the SHELL-mode tripwire. Argv mode has
+    // no shell, so it checks only the program's IDENTITY — which removes the
+    // shell-line false-positives (printenv / timeout / env / nice) AND the
+    // value false-positives (a `;` inside an argument is a literal char).
+
+    fn prog_blocked(program: &str) -> bool {
+        matches!(check_program(program), Err(ShellError::Blocked { .. }))
+    }
+
+    #[test]
+    fn argv_floor_blocks_priv_esc_and_system_control() {
+        for p in [
+            "sudo",
+            "/usr/bin/sudo",
+            "doas",
+            "pkexec",
+            "su",
+            "runas",
+            "shutdown",
+            "/sbin/reboot",
+            "halt",
+            "poweroff",
+        ] {
+            assert!(prog_blocked(p), "argv floor must block: {p}");
+        }
+    }
+
+    #[test]
+    fn argv_floor_is_exact_basename_not_substring() {
+        // `su` is blocked, but programs that merely CONTAIN it are not —
+        // exact basename match kills the substring false-positives.
+        assert!(prog_blocked("su"));
+        for ok in ["issue", "sudoku", "subl", "lsusb"] {
+            assert!(check_program(ok).is_ok(), "must allow: {ok}");
+        }
+    }
+
+    #[test]
+    fn argv_floor_allows_normal_programs_and_shell_wrappers() {
+        // The wrappers the SHELL-line scanner over-blocks (timeout / env /
+        // nice) and ordinary tools pass the argv floor — checked by identity,
+        // not by a fake-shell scan of their arguments.
+        for ok in [
+            "echo", "cargo", "git", "npm", "ffmpeg", "timeout", "env", "nice", "rm", "printenv",
+        ] {
+            assert!(check_program(ok).is_ok(), "argv floor must allow: {ok}");
+        }
+    }
+
+    #[test]
+    fn argv_floor_normalizes_confusable_program() {
+        // An interpolated `command[0]` of fullwidth `ｓｕｄｏ` folds to `sudo`.
+        assert!(prog_blocked("\u{FF53}\u{FF55}\u{FF44}\u{FF4F}"));
+    }
+
+    #[test]
+    fn argv_floor_does_not_dequote_the_program() {
+        // execve takes the program literally; `su""do` is a filename that is
+        // NOT `sudo` (no shell to strip the quotes), so the floor allows it
+        // (it would simply fail to spawn as NotFound).
+        assert!(check_program("su\"\"do").is_ok());
     }
 }

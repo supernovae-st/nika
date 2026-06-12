@@ -127,10 +127,25 @@ impl ShellRunDyn for TokioShell {
     /// future SIGKILLs the child (no orphan). The PRIMARY cancellation path.
     async fn run(&self, command: ShellCommand) -> Result<ShellResult, ShellError> {
         if !command.pre_validated {
-            let full = format!("{} {}", command.program, command.args.join(" "));
-            blocklist::check_command(&full)?;
             if command.shell {
+                // Shell form: the whole line goes to `sh -c`, so shell-syntax
+                // metacharacters in any argument ARE parsed — the full
+                // blocklist (dangerous patterns) + the expansion-char refusal
+                // are the tripwire. The battle-tested floor, unchanged.
+                let full = format!("{} {}", command.program, command.args.join(" "));
+                blocklist::check_command(&full)?;
                 blocklist::check_shell_mode(&full)?;
+            } else {
+                // Argv form: `execve`, NO shell. Shell-syntax patterns are
+                // meaningless here — a `;` or `| bash` inside an argument is a
+                // LITERAL character, not a separator — so scanning the joined
+                // line would false-positive on benign literal args
+                // (`["echo", "a; b"]`) AND on safe wrappers (`timeout`, `env`,
+                // `nice`). Only the PROGRAM can do harm by its mere identity
+                // (and `command[0]` may itself be interpolated), so check its
+                // basename against the dangerous-program floor. The argv form's
+                // real gates are `permits.exec` (allowlist) + the sandbox.
+                blocklist::check_program(&command.program)?;
             }
         }
 
