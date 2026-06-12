@@ -1076,6 +1076,29 @@ async fn e2e_agent_budget_and_schema_terminals() {
 // timestamp in a requested timezone. Only fs/clock and the scripted
 // model are mocks.
 
+/// The tool-result block a given call id fed back to the model
+/// (`(content, is_error)`) — the wire-proof accessor.
+fn fed_back(
+    requests: &[nika_kernel::provider::InferRequest],
+    turn: usize,
+    id: &str,
+) -> (String, bool) {
+    use nika_kernel::provider::ContentBlock;
+    requests[turn]
+        .messages
+        .iter()
+        .flat_map(|m| m.content.iter())
+        .find_map(|b| match b {
+            ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+                is_error,
+            } if tool_use_id == id => Some((content.clone(), *is_error)),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("{id} result fed back"))
+}
+
 #[tokio::test]
 async fn e2e_agent_round_trips_binary_bytes_and_renders_tz() {
     use nika_builtin::{BuiltinDispatcher, NoWorkflow, NonInteractive, NullEmitter};
@@ -1163,19 +1186,7 @@ async fn e2e_agent_round_trips_binary_bytes_and_renders_tz() {
     // Turn ①'s result (what the model saw) IS the canonical binary object
     // — and our scripted echo matches it byte-for-byte, proving the
     // base64 the model copies around is OUR encoder's output.
-    let read_fed_back = requests[1]
-        .messages
-        .iter()
-        .flat_map(|m| m.content.iter())
-        .find_map(|b| match b {
-            ContentBlock::ToolResult {
-                tool_use_id,
-                content,
-                is_error,
-            } if tool_use_id == "b-1" => Some((content.clone(), *is_error)),
-            _ => None,
-        })
-        .expect("read result fed back");
+    let read_fed_back = fed_back(&requests, 1, "b-1");
     assert!(!read_fed_back.1);
     let parsed: serde_json::Value =
         serde_json::from_str(&read_fed_back.0).expect("binary result is JSON");
@@ -1193,18 +1204,6 @@ async fn e2e_agent_round_trips_binary_bytes_and_renders_tz() {
     assert_eq!(copied, payload, "byte-exact through the agent loop");
 
     // The tz rendering came back shifted (+9h on the fixed-offset zone).
-    let date_fed_back = requests[3]
-        .messages
-        .iter()
-        .flat_map(|m| m.content.iter())
-        .find_map(|b| match b {
-            ContentBlock::ToolResult {
-                tool_use_id,
-                content,
-                ..
-            } if tool_use_id == "b-3" => Some(content.clone()),
-            _ => None,
-        })
-        .expect("date result fed back");
+    let date_fed_back = fed_back(&requests, 3, "b-3").0;
     assert_eq!(date_fed_back, "2026-01-02 12:04", "UTC+9 fields");
 }
