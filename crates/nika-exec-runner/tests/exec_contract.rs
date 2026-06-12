@@ -99,6 +99,24 @@ async fn env_var_is_set() {
 }
 
 #[tokio::test]
+async fn dangerous_env_vars_are_stripped_from_the_child() {
+    // The dangerous-env floor strips library-injection / startup-sourcing /
+    // tool-hook vectors even when EXPLICITLY set — so it strips an ambient
+    // inherited one too (`env_remove` removes regardless of source). Argv
+    // mode (`printenv` is not a dangerous program); `printenv VAR` exits
+    // non-zero with empty stdout when VAR is absent → proof of the strip.
+    for var in ["LD_PRELOAD", "BASH_ENV", "GIT_SSH_COMMAND", "NODE_OPTIONS"] {
+        let mut c = cmd("printenv", &[var]);
+        c.env.insert(var.to_string(), "/tmp/evil".to_string());
+        let r = shell().run(c).await.unwrap();
+        assert!(
+            !r.success() && r.stdout.trim().is_empty(),
+            "{var} must be stripped from the child env"
+        );
+    }
+}
+
+#[tokio::test]
 async fn cwd_is_respected() {
     let dir = std::env::temp_dir();
     let mut c = cmd("pwd", &[]);

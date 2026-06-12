@@ -274,6 +274,41 @@ impl ShellCancelDyn for TokioShell {
     }
 }
 
+/// Environment variables ALWAYS stripped from the child's environment — the
+/// injection vectors that grant code execution or library injection with no
+/// dangerous flag in the command itself (the "env-var injection" class). An
+/// ambient `LD_PRELOAD` inherited from the engine's own environment is not
+/// something a policy vouched for, so the strip is independent of
+/// `pre_validated` and runs AFTER the explicit `env` map (the floor wins — a
+/// workflow does not pass these). The stronger clean-slate posture (drop ALL
+/// inherited env + a curated `PATH`) belongs to the sandbox, which knows the
+/// confined workflow's declared needs.
+const DANGEROUS_ENV_VARS: &[&str] = &[
+    // Dynamic-linker library injection (run attacker code in any dynamically
+    // linked child) — Linux + macOS.
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "LD_AUDIT",
+    "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH",
+    // Shell startup-file sourcing on non-interactive `sh`/bash.
+    "BASH_ENV",
+    "ENV",
+    // Tool-specific command hooks (RCE with no flags).
+    "GIT_SSH_COMMAND",
+    "GIT_SSH",
+    "GIT_EXTERNAL_DIFF",
+    "GIT_PAGER",
+    // Interpreter pre-exec hooks.
+    "PYTHONSTARTUP",
+    "PERL5OPT",
+    "PERL5LIB",
+    "RUBYOPT",
+    "NODE_OPTIONS",
+    // Field-splitting injection for shell-mode commands.
+    "IFS",
+];
+
 /// Build the `tokio::process::Command` (program/args or `sh -c`, env, cwd).
 fn build_command(command: &ShellCommand) -> Command {
     let mut cmd = if command.shell {
@@ -296,6 +331,13 @@ fn build_command(command: &ShellCommand) -> Command {
     // After env so a removal wins over a set of the same key.
     for k in &command.env_remove {
         cmd.env_remove(k);
+    }
+    // SECURITY (always-on · independent of `pre_validated`): strip the
+    // dangerous-env injection vectors LAST so the floor wins even over an
+    // explicit set — these grant code/library injection with no dangerous
+    // flag in the command (see [`DANGEROUS_ENV_VARS`]).
+    for var in DANGEROUS_ENV_VARS {
+        cmd.env_remove(var);
     }
     if let Some(cwd) = &command.cwd {
         cmd.current_dir(cwd);
