@@ -219,6 +219,91 @@ mod tests {
     }
 
     #[test]
+    fn the_tree_boundaries_are_exact() {
+        let zero = Block::default();
+        // link_density is a RATIO (mutation `/`→`*`): 2 anchors over 20
+        // words = 0.1 ≤ 0.333 → content; the product (40) would reject.
+        assert!(is_content(zero, block(20, 2), zero));
+        // prev.words boundary: exactly 4 is NOT > 4 (mutation `>`→`>=`).
+        assert!(!is_content(block(4, 0), block(10, 0), block(5, 0)));
+        // next.words boundary: exactly 17 is NOT > 17 after a
+        // link-dense prev (mutation `>`→`>=`).
+        let dense_prev = block(10, 9);
+        assert!(!is_content(dense_prev, block(30, 0), block(17, 0)));
+    }
+
+    #[test]
+    fn degenerate_floor_demands_both_legs() {
+        // && not || (mutation): each single-leg pass must REJECT.
+        assert!(!is_content_degenerate(block(20, 10))); // mass ok · too linky
+        assert!(!is_content_degenerate(block(5, 0))); // clean · too short
+        assert!(is_content_degenerate(block(10, 3))); // both legs → content
+    }
+
+    #[test]
+    fn classify_window_reads_true_prev_and_next() {
+        // Verdicts hinge on the NEIGHBOUR indices (mutations `i-1`→`i/1`
+        // = prev-becomes-curr · `i+1`→`i*1` = next-becomes-curr):
+        // row B: prev(3 words) ≤ 4 → boilerplate — but if "prev" were
+        // CURR (10 words) it would pass. row E: next(16) > 15 → content
+        // — but if "next" were CURR (10 ≤ 15) it would fail on prev 2.
+        let blocks = vec![
+            (block(3, 0), "A".to_owned()),
+            (block(10, 0), "B".to_owned()),
+            (block(2, 0), "C".to_owned()),
+            (block(10, 0), "D".to_owned()),
+            (block(16, 0), "E".to_owned()),
+        ];
+        let kept = classify_blocks(&blocks, is_content);
+        assert!(!kept.contains(&"B".to_owned()), "{kept:?}");
+        assert!(kept.contains(&"D".to_owned()), "{kept:?}");
+    }
+
+    #[test]
+    fn script_text_never_counts() {
+        // The skip_depth guard on the TEXT arm (mutation `==0`→true) +
+        // the counter arithmetic (mutations `+=`→`-=`/`*=`): script
+        // prose must produce ZERO blocks and never panic.
+        let html = "<html><body><script>spam words pile up here beyond any \
+                    threshold spam words pile up here</script><p>real text \
+                    only survives this</p></body></html>";
+        let blocks = segment(html);
+        assert_eq!(blocks.len(), 1, "{blocks:?}");
+        assert!(blocks[0].1.contains("real text"), "{blocks:?}");
+        assert!(!blocks[0].1.contains("spam"), "{blocks:?}");
+    }
+
+    #[test]
+    fn mixed_content_splits_on_both_open_and_close_boundaries() {
+        // Text as a SIBLING of elements (mixed content) is where the
+        // open-flush and close-flush stop being redundant (mutations
+        // `==`→`!=` on either skip_depth flush guard): alpha must split
+        // at the <p> OPEN, gamma exists only via the </p> CLOSE split.
+        let html = "<body>alpha one<p>beta two</p>gamma three</body>";
+        let texts: Vec<String> = segment(html).into_iter().map(|(_, t)| t).collect();
+        assert_eq!(texts, ["alpha one", "beta two", "gamma three"]);
+    }
+
+    #[test]
+    fn segmentation_tuples_are_exact_across_elements() {
+        // Pins the OPEN and CLOSE `name == "a"` discriminations
+        // (mutations `==`→`!=` on both arms): per-block (words ·
+        // anchor_words · text) tuples over a multi-element document.
+        let html = "<html><body><p>one <a href=\"/x\">two</a> three</p>\
+                    <p>four five</p></body></html>";
+        let blocks = segment(html);
+        let view: Vec<(u32, u32, &str)> = blocks
+            .iter()
+            .map(|(b, t)| (b.words, b.anchor_words, t.as_str()))
+            .collect();
+        assert_eq!(
+            view,
+            vec![(3, 1, "one two three"), (2, 0, "four five")],
+            "exact tuples pin anchor counting AND block boundaries"
+        );
+    }
+
+    #[test]
     fn segmentation_anchors_do_not_split_and_count_anchor_words() {
         let html = r#"<html><body>
             <p>Plain words then <a href="/x">linked words here</a> then more.</p>

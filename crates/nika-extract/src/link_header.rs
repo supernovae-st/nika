@@ -169,6 +169,46 @@ mod tests {
     }
 
     #[test]
+    fn split_yields_exact_parts() {
+        // Pins the split arithmetic directly (mutations `i+1`→`i*1` on
+        // the next-part start · `<`→`<=` on the tail push): the parts
+        // are EXACT — no leading comma bleed, no phantom empty tail.
+        assert_eq!(split_top_level_commas("a, b"), vec!["a", " b"]);
+        assert_eq!(split_top_level_commas("a,"), vec!["a"]);
+        assert_eq!(split_top_level_commas("<x,y>, b"), vec!["<x,y>", " b"]);
+    }
+
+    #[test]
+    fn padded_entry_resolves_href_from_the_real_brackets() {
+        // '<' NOT at position 0 (the close-offset mutation `+open`→
+        // `*open` only diverges when open > 0).
+        let entries = parse_link_header("rel-first <https://pad.example/p>; rel=next");
+        assert_eq!(entries.len(), 1, "{entries:?}");
+        assert_eq!(entries[0].href, "https://pad.example/p");
+    }
+
+    #[test]
+    fn params_start_strictly_after_the_closing_bracket() {
+        // Lenient no-semicolon form: the param scan starts at close+1
+        // (mutation `+`→`*` leaves the `>` glued to the first key and
+        // the param dies). Pins the lenient contract exactly.
+        let entries = parse_link_header("<https://e.com/x> rel=next");
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].has_rel("next"), "{entries:?}");
+    }
+
+    #[test]
+    fn repeated_hreflang_and_type_keep_the_first() {
+        // Same first-wins contract as rel (mutations drop the is_none
+        // guards): repeats must not overwrite.
+        let entries = parse_link_header(
+            r#"<https://e.com/>; rel=alternate; hreflang=fr; hreflang=de; type="text/html"; type="text/plain""#,
+        );
+        assert_eq!(entries[0].hreflang.as_deref(), Some("fr"));
+        assert_eq!(entries[0].media_type.as_deref(), Some("text/html"));
+    }
+
+    #[test]
     fn type_parameter_lands_in_media_type() {
         let entries =
             parse_link_header(r#"<https://e.com/feed>; rel=alternate; type="application/rss+xml""#);

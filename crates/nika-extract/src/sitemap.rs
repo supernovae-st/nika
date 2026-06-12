@@ -32,6 +32,39 @@ fn field_name(local: &[u8]) -> Option<&'static str> {
         .map(|(_, name)| *name)
 }
 
+/// One sitemap error with a what-failed prefix.
+fn sitemap_err(what: &str, e: &dyn std::fmt::Display) -> ExtractError {
+    ExtractError::Sitemap {
+        reason: format!("{what}: {e}"),
+    }
+}
+
+/// Append one resolved general reference to the field buffer: numeric
+/// char-refs (`&#47;` · `&#x2F;`) resolve to their char, the five
+/// predefined entities to their text, unknown custom entities are
+/// preserved VERBATIM (sitemaps carry no DTD — faithful over guessy).
+fn append_general_ref(
+    buf: &mut String,
+    r: &quick_xml::events::BytesRef<'_>,
+) -> Result<(), ExtractError> {
+    if let Some(ch) = r
+        .resolve_char_ref()
+        .map_err(|e| sitemap_err("char reference", &e))?
+    {
+        buf.push(ch);
+        return Ok(());
+    }
+    let name = r.decode().map_err(|e| sitemap_err("entity decode", &e))?;
+    if let Some(resolved) = quick_xml::escape::resolve_predefined_entity(&name) {
+        buf.push_str(resolved); // amp/lt/gt/quot/apos
+    } else {
+        buf.push('&');
+        buf.push_str(&name);
+        buf.push(';');
+    }
+    Ok(())
+}
+
 pub(crate) fn sitemap(body: &str) -> Result<serde_json::Value, ExtractError> {
     let mut reader = Reader::from_str(body);
     reader.config_mut().trim_text(true);
@@ -42,10 +75,6 @@ pub(crate) fn sitemap(body: &str) -> Result<serde_json::Value, ExtractError> {
     let mut field: Option<&'static str> = None;
     let mut buf = String::new();
     let mut current = serde_json::Map::new();
-
-    let decode_err = |what: &str, e: &dyn std::fmt::Display| ExtractError::Sitemap {
-        reason: format!("{what}: {e}"),
-    };
 
     loop {
         match reader.read_event() {
@@ -72,38 +101,20 @@ pub(crate) fn sitemap(body: &str) -> Result<serde_json::Value, ExtractError> {
             // ALL append (never assign).
             Ok(Event::Text(t)) => {
                 if field.is_some() {
-                    buf.push_str(&t.decode().map_err(|e| decode_err("text decode", &e))?);
+                    buf.push_str(&t.decode().map_err(|e| sitemap_err("text decode", &e))?);
                 }
             }
             Ok(Event::CData(c)) => {
                 if field.is_some() {
                     let bytes = c.into_inner();
                     let text =
-                        std::str::from_utf8(&bytes).map_err(|e| decode_err("CDATA decode", &e))?;
+                        std::str::from_utf8(&bytes).map_err(|e| sitemap_err("CDATA decode", &e))?;
                     buf.push_str(text);
                 }
             }
             Ok(Event::GeneralRef(r)) => {
                 if field.is_some() {
-                    if let Some(ch) = r
-                        .resolve_char_ref()
-                        .map_err(|e| decode_err("char reference", &e))?
-                    {
-                        buf.push(ch); // numeric: &#47; &#x2F;
-                    } else {
-                        let name = r.decode().map_err(|e| decode_err("entity decode", &e))?;
-                        if let Some(resolved) = quick_xml::escape::resolve_predefined_entity(&name)
-                        {
-                            buf.push_str(resolved); // amp/lt/gt/quot/apos
-                        } else {
-                            // Sitemaps carry no DTD — an unknown custom
-                            // entity is preserved verbatim (faithful
-                            // over guessy).
-                            buf.push('&');
-                            buf.push_str(&name);
-                            buf.push(';');
-                        }
-                    }
+                    append_general_ref(&mut buf, &r)?;
                 }
             }
             Ok(Event::End(el)) => {
