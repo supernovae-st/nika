@@ -341,7 +341,7 @@ tasks:
   - id: cached
     invoke: { tool: \"nika:read\" }
   - id: fetch_article
-    invoke: { tool: \"nika:fetch\" }
+    invoke: { tool: \"nika:fetch\", args: { url: \"https://x.test\" } }
     on_error:
       recover: ${{ tasks.cached.output }}
 ";
@@ -530,7 +530,7 @@ nika: v1
 workflow: t
 tasks:
   - id: api
-    invoke: { tool: \"nika:fetch\" }
+    invoke: { tool: \"nika:fetch\", args: { url: \"https://x.test\" } }
     output:
       user_count: \".data.users | length\"
   - id: report
