@@ -148,15 +148,31 @@ where
         action: &nika_schema::raw::RawExecAction,
         scope: &Scope<'_>,
     ) -> Dispatched {
-        let rendered = match &action.command {
-            RawCommand::Shell(text) => expr::render(&text.value, scope),
-            // v0 joins argv for the shell seam (the argv runner path is
-            // an engine roadmap item) · render each part first.
-            RawCommand::Argv(parts) => parts
-                .iter()
-                .map(|p| expr::render(&p.value, scope))
-                .collect::<Result<Vec<_>, _>>()
-                .map(|v| v.join(" ")),
+        // Each command form maps to its OWN ExecInput variant — the argv
+        // form is rendered PER ELEMENT and passed as a vector (NO join, NO
+        // shell), so an interpolated value can never break out of its argv
+        // token. The shell form keeps `/bin/sh -c` for genuine pipelines.
+        let (input, program) = match &action.command {
+            RawCommand::Shell(text) => match expr::render(&text.value, scope) {
+                Ok(line) => {
+                    let program = line.split_whitespace().next().unwrap_or("?").to_owned();
+                    (ExecInput::shell(line), program)
+                }
+                Err(err) => return Dispatched::template_err("exec · ?", &err),
+            },
+            RawCommand::Argv(parts) => {
+                let rendered: Result<Vec<_>, _> = parts
+                    .iter()
+                    .map(|p| expr::render(&p.value, scope))
+                    .collect();
+                match rendered {
+                    Ok(argv) => {
+                        let program = argv.first().cloned().unwrap_or_else(|| "?".to_owned());
+                        (ExecInput::argv(argv), program)
+                    }
+                    Err(err) => return Dispatched::template_err("exec · ?", &err),
+                }
+            }
             // #[non_exhaustive] · refuse loudly · never guess a shape.
             other => {
                 return Dispatched::unwired(
@@ -165,13 +181,8 @@ where
                 );
             }
         };
-        let command = match rendered {
-            Ok(c) => c,
-            Err(err) => return Dispatched::template_err("exec · ?", &err),
-        };
-        let program = command.split_whitespace().next().unwrap_or("?").to_owned();
         let note = format!("exec · {program}");
-        match self.shell.run(ExecInput::new(command)).await {
+        match self.shell.run(input).await {
             Ok(out) => {
                 let text = match out.output {
                     ExecValue::Text(text) => text,

