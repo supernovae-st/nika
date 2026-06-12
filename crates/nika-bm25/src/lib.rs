@@ -107,10 +107,51 @@ impl BmParams {
             delta: Some(delta),
         }
     }
+
+    /// Canonical BM25+ — k1/b at the Robertson defaults, `δ = 1.0` (the
+    /// value Lv & Zhai recommend · *Lower-Bounding Term Frequency
+    /// Normalization* · CIKM 2011 · DOI 10.1145/2063576.2063584 · the
+    /// arXiv-accessible formula table is Lù 2024 BM25S,
+    /// arxiv.org/abs/2407.03618 §2).
+    ///
+    /// What δ buys (primary-source verified 2026-06-12): **length
+    /// robustness on corpora with heavy length skew** — as `|D| → ∞` a
+    /// matched term's contribution stays bounded below by `δ·idf`, so one
+    /// occurrence in a very long document always outscores non-occurrence
+    /// (plain Okapi decays toward 0). On SHORT low-variance corpora the δ
+    /// term barely perturbs ranking, and the variant-comparison literature
+    /// (Trotman 2014 ADCS · Kamphuis 2020 ECIR *Which BM25 Do You Mean?*)
+    /// finds no consistent significant quality win for any variant — claim
+    /// length-robustness, not quality. [`Default`] stays pure Okapi —
+    /// existing rankings are unchanged.
+    #[must_use]
+    pub const fn plus() -> Self {
+        Self::with_delta(1.2, 0.75, 1.0)
+    }
 }
 
 impl Default for BmParams {
     fn default() -> Self {
         Self::new(1.2, 0.75)
+    }
+}
+
+#[cfg(test)]
+mod params_tests {
+    use super::BmParams;
+
+    #[test]
+    fn plus_is_canonical_lv_zhai() {
+        let p = BmParams::plus();
+        assert!((p.k1 - 1.2).abs() < f64::EPSILON);
+        assert!((p.b - 0.75).abs() < f64::EPSILON);
+        assert_eq!(p.delta, Some(1.0));
+    }
+
+    #[test]
+    fn default_stays_pure_okapi() {
+        // ranking-stability contract: Default NEVER silently becomes BM25+
+        let d = BmParams::default();
+        assert_eq!(d.delta, None);
     }
 }
