@@ -204,6 +204,15 @@ silent).
 - Per-iteration scope: `item` + `index` bound · **every body
   expression re-evaluates per iteration** (`with:` · verb fields) ·
   the only once-evaluated expression is the collection itself.
+  (Spec-drift note · 03 §for_each lists `when:` BOTH among the
+  per-iteration re-evaluations AND as "evaluated once before the
+  fan-out" — the engine implements the second, more specific bullet:
+  ONE gate evaluation before the fan-out · `item`/`index` are not in
+  scope in a gate. Flagged for a spec erratum.)
+- Per-iteration retry jitter rides a DISTINCT stream
+  (`task[index]` coordinates) — anti-thundering-herd applies WITHIN
+  a fan-out (Brooker 2015) · replay-stable (the index is part of the
+  deterministic coordinates).
 - Iterations dispatch concurrently capped by `max_parallel` (default
   unbounded) · settle in input order (same ordered-settlement
   pattern) · `retry:`/`timeout:`/`on_error:` apply per iteration.
@@ -236,9 +245,11 @@ Settle order = wave order (3.1). Per task: `TaskStarted` (note =
 dispatch note) · `TaskRetrying`× (attempt history) · terminal event
 (`TaskCompleted` + `duration_ms` + tokens? · `TaskFailed` + detail +
 `duration_ms` · `TaskSkipped` · `TaskCancelled`) — `started_at` /
-`ended_at` = the two stamps · `duration_ms` = their delta (stamp-
-derived · deterministic under replay · wall-accurate under a live
-stamper). Record inserted at settle. Terminal: `WorkflowCompleted`
+`ended_at` = the two stamps (event identity · settle-time) ·
+`duration_ms` = **clock-derived** (the injected `ClockDyn` measures
+the actual attempt-loop wall time · 0 under MockClock · the stamps
+are NOT the duration source — a settle-time stamp pair would lie
+about a task that ran long before its settle slot). Record inserted at settle. Terminal: `WorkflowCompleted`
 iff zero unrecovered failures else `WorkflowFailed` (always-pattern
 tasks may have run after a failure · the verdict stands · spec 05).
 `outputs:` resolve after the terminal event from the records (an

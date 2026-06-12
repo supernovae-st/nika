@@ -324,6 +324,76 @@ tasks:
 
 // ─── 5 · retry (spec 05 · transient via the agent lane) ─────────────────
 
+/// Fan-out iterations ride DISTINCT jitter streams — two iterations
+/// retrying the same upstream must NOT synchronize their backoff
+/// (anti-thundering-herd applies WITHIN a `for_each` · Brooker 2015 ·
+/// the `task[index]` salt) · and the delays stay replay-stable.
+#[tokio::test]
+async fn fan_out_iterations_jitter_on_distinct_streams() {
+    let yaml = r#"
+nika: v1
+workflow: herd
+model: mock/echo
+vars:
+  items: ["x", "y"]
+tasks:
+  - id: flaky_fan
+    for_each: ${{ vars.items }}
+    max_parallel: 1
+    retry: { max_attempts: 2, backoff_ms: 10000, backoff_strategy: fixed, jitter: true }
+    agent:
+      prompt: "ask ${{ item }}"
+"#;
+    // FIFO under max_parallel:1 · iter0 err→ok · iter1 err→ok.
+    let make_provider = || {
+        MockProvider::new("mock")
+            .enqueue_error(ProviderError::RateLimited {
+                retry_after_ms: Some(1),
+            })
+            .enqueue_text("ok-0")
+            .enqueue_error(ProviderError::RateLimited {
+                retry_after_ms: Some(1),
+            })
+            .enqueue_text("ok-1")
+    };
+    let (outcome, events) = run_to_events(
+        yaml,
+        MockShell::new(),
+        MockToolExecutor::new(),
+        make_provider(),
+        RuntimeConfig::default(),
+    )
+    .await;
+
+    assert!(outcome.ok, "both iterations recovered");
+    let delays: Vec<i64> = events
+        .iter()
+        .filter(|e| e.kind == EventKind::TaskRetrying)
+        .filter_map(|e| int_field(e, "delay_ms"))
+        .collect();
+    assert_eq!(delays.len(), 2, "one retry per iteration");
+    assert_ne!(
+        delays[0], delays[1],
+        "same task · same attempt · DIFFERENT iterations ⇒ distinct \
+         jitter draws (the herd must not synchronize): {delays:?}"
+    );
+    // Replay-stable: the index is part of the deterministic coordinates.
+    let (_, events_again) = run_to_events(
+        yaml,
+        MockShell::new(),
+        MockToolExecutor::new(),
+        make_provider(),
+        RuntimeConfig::default(),
+    )
+    .await;
+    let delays_again: Vec<i64> = events_again
+        .iter()
+        .filter(|e| e.kind == EventKind::TaskRetrying)
+        .filter_map(|e| int_field(e, "delay_ms"))
+        .collect();
+    assert_eq!(delays, delays_again, "jittered delays replay byte-stable");
+}
+
 /// A rate-limited first attempt (transient) retries and succeeds — the
 /// `TaskRetrying` frame carries `attempt`/`max_attempts`/`delay_ms` and the
 /// terminal frame is success.

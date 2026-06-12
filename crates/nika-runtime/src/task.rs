@@ -211,41 +211,9 @@ where
         vars: &BTreeMap<String, Value>,
     ) -> SettleAs {
         let scope = Scope::workflow(records, vars);
-
-        // The collection expression is the ONLY once-evaluated one.
-        let resolved = match collection {
-            ForEachValue::List(value) => expr::render_json(value, &scope),
-            ForEachValue::Expression(text) => {
-                expr::render_json(&Value::String(text.clone()), &scope)
-            }
-            // #[non_exhaustive] · a future collection form fails loudly.
-            other => Err(RuntimeError::WhenUnsupported {
-                expr: format!("for_each form not wired in the runtime yet: {other:?}"),
-            }),
-        };
-        let items = match resolved {
-            Ok(Value::Array(items)) => items,
-            Ok(other) => {
-                // Non-array collection = evaluation error (spec 03 ·
-                // the NIKA-VAR-006 class).
-                return SettleAs::FailedBeforeStart {
-                    stage: "for_each",
-                    error: TaskErrorRecord {
-                        code: "NIKA-VAR-006".to_owned(),
-                        message: format!(
-                            "for_each collection must be an array · got {}",
-                            json_kind(&other)
-                        ),
-                        transient: false,
-                    },
-                };
-            }
-            Err(err) => {
-                return SettleAs::FailedBeforeStart {
-                    stage: "for_each",
-                    error: runtime_error_record(&err),
-                };
-            }
+        let items = match resolve_collection(collection, &scope) {
+            Ok(items) => items,
+            Err(settle) => return *settle,
         };
 
         // Empty collection → the task is `skipped` (spec 03).
@@ -374,6 +342,15 @@ where
             .retry
             .as_ref()
             .map_or(1, |r| r.value.max_attempts.max(1));
+        // The jitter stream selector — fan-out iterations get DISTINCT
+        // streams (anti-thundering-herd applies WITHIN a fan-out too ·
+        // Brooker 2015: same-task iterations retrying the same upstream
+        // must not synchronize) while staying replay-stable (the index
+        // is part of the deterministic coordinates).
+        let jitter_key = match scope.index {
+            Some(i) => format!("{}[{i}]", task.id.value),
+            None => task.id.value.clone(),
+        };
 
         let mut note = String::new();
         let mut retries: Vec<RetryStamp> = Vec::new();
@@ -401,7 +378,7 @@ where
                             let delay = delay_ms(
                                 cfg,
                                 attempt,
-                                rand_unit(self.config.jitter_seed, &task.id.value, attempt),
+                                rand_unit(self.config.jitter_seed, &jitter_key, attempt),
                             );
                             retries.push(RetryStamp {
                                 attempt,
@@ -503,6 +480,43 @@ where
     /// Milliseconds since `started` per the injected clock.
     fn since_ms(&self, started: std::time::Instant) -> u64 {
         u64::try_from(self.clock.now().duration_since(started).as_millis()).unwrap_or(u64::MAX)
+    }
+}
+
+/// Resolve the `for_each:` collection (the ONLY once-evaluated body
+/// expression · spec 03) — an array of items, or the settle verdict
+/// for the failure lanes (boxed: the error lane stays pointer-thin).
+fn resolve_collection(
+    collection: &ForEachValue,
+    scope: &Scope<'_>,
+) -> Result<Vec<Value>, Box<SettleAs>> {
+    let resolved = match collection {
+        ForEachValue::List(value) => expr::render_json(value, scope),
+        ForEachValue::Expression(text) => expr::render_json(&Value::String(text.clone()), scope),
+        // #[non_exhaustive] · a future collection form fails loudly.
+        other => Err(RuntimeError::WhenUnsupported {
+            expr: format!("for_each form not wired in the runtime yet: {other:?}"),
+        }),
+    };
+    match resolved {
+        Ok(Value::Array(items)) => Ok(items),
+        // Non-array collection = evaluation error (spec 03 · the
+        // NIKA-VAR-006 class).
+        Ok(other) => Err(Box::new(SettleAs::FailedBeforeStart {
+            stage: "for_each",
+            error: TaskErrorRecord {
+                code: "NIKA-VAR-006".to_owned(),
+                message: format!(
+                    "for_each collection must be an array · got {}",
+                    json_kind(&other)
+                ),
+                transient: false,
+            },
+        })),
+        Err(err) => Err(Box::new(SettleAs::FailedBeforeStart {
+            stage: "for_each",
+            error: runtime_error_record(&err),
+        })),
     }
 }
 
