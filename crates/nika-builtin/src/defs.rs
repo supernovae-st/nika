@@ -254,12 +254,15 @@ fn net_defs() -> Vec<ToolDef> {
     vec![
         def(
             "fetch",
-            "HTTP request · returns the response body (non-2xx is an error). SSRF-defended.",
+            "HTTP request + content extraction · returns the extracted body (non-2xx is an error). SSRF-defended.",
             serde_json::json!({
                 "url": s("the URL"),
                 "method": s("GET (default) | POST | PUT | DELETE | PATCH | HEAD"),
                 "headers": { "type": "object" },
-                "body": { "description": "request body (objects auto-JSON)" }
+                "body": { "description": "request body (objects auto-JSON)" },
+                "mode": s("markdown (default) | article | text | selector | jq | metadata | links | feed | sitemap | raw"),
+                "selector": s("CSS selector (mode: selector only)"),
+                "jq": s("a jq expression (mode: jq only · the one data language)")
             }),
             &["url"],
         ),

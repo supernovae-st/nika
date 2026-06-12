@@ -12,7 +12,7 @@ publish                = false  # Internal L1.5 tool layer.
 
 [dependencies]
 nika-kernel = { path = "../nika-kernel", version = "0.80.0" }   # the 3 tool seams + fs/http/clock/event effect seams
-nika-error  = { path = "../nika-error", version = "0.80.0" }    # NikaError (EventSink signature)
+nika-extract = { path = "../nika-extract", version = "0.80.0" }  # nika:fetch — the 8 extract modes (L1.5→L1.5 same-layer)
 # data wave
 jaq-core      = { workspace = true }   # nika:jq — THE data language
 jaq-std       = { workspace = true }
@@ -23,11 +23,13 @@ jiff          = { workspace = true }   # nika:date (IANA tzdb bundled · soverei
 serde_yaml_bw = { workspace = true }   # nika:convert yaml + nika:validate format:yaml
 toml_convert  = { workspace = true }   # nika:convert toml
 csv           = { workspace = true }   # nika:convert csv
+bytes         = { workspace = true }   # nika:fetch — Bytes (HttpResponse.body) handed to the blocking pool
 blake3        = { workspace = true }   # nika:hash default algo
 sha2          = { workspace = true }   # nika:hash sha256/sha512
 uuid          = { workspace = true }   # nika:uuid v7/v4
 # file wave
 regex         = { workspace = true }   # nika:grep (RE2-class · the portable subset)
+encoding_rs   = { workspace = true }   # nika:fetch — charset-aware decode for extraction modes
 # plumbing
 serde_json    = { workspace = true }
 thiserror     = { workspace = true }

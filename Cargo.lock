@@ -3439,7 +3439,9 @@ name = "nika-builtin"
 version = "0.80.0"
 dependencies = [
  "blake3",
+ "bytes",
  "csv",
+ "encoding_rs",
  "jaq-core",
  "jaq-json",
  "jaq-std",
@@ -3447,7 +3449,7 @@ dependencies = [
  "json-patch",
  "jsonschema",
  "miette",
- "nika-error",
+ "nika-extract",
  "nika-kernel",
  "nika-kernel-mock",
  "proptest",

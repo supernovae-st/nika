@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **SPEC** (Gate 1 · authored 2026-06-12 · admission step 12 per `crate-admission-order.md`) |
+| Status | **SEEDED** (s17 · 2026-06-12 · admission step 12 per `crate-admission-order.md` · wired into `nika:fetch` step 13 same arc · 8 modes GREEN · full 12-gate admission at the wave close) |
 | Layer | **L1.5** — pure transformation · consumed by `nika-builtin` (`nika:fetch` step 13) · above the L0 types it shares, below nothing that does I/O |
 | Design | the extraction pipeline behind `nika:fetch`'s `mode:` argument — byte→structured transformation, **zero I/O · zero async · zero locks** |
 | Normative source | `nika-spec stdlib/extract-modes-v0.1.md` (the 9 canonical modes + implicit `raw`) — **this doc cites, never restates** |
