@@ -20,8 +20,9 @@
 //! - **Schedule is the checker's** · [`CheckReport::waves`] is executed
 //!   as given · the runtime never re-sorts (a bad index is `NIKA-1701`).
 //! - **Loud expressions** · unresolved `${{ }}` is `NIKA-1702` · a
-//!   `when:` outside the v0 subset is `NIKA-1703` (see [`mod@expr`] ·
-//!   never a silent literal · never a silently-closed gate).
+//!   `when:` outside the v0 subset is `NIKA-1703` (see the private
+//!   `expr` module · never a silent literal · never a silently-closed
+//!   gate).
 //!
 //! ## Seams (why 5 generics)
 //!
@@ -73,6 +74,16 @@ enum Outcome {
         detail: String,
         note: String,
     },
+}
+
+impl Outcome {
+    /// The dispatch note (`invoke · <tool>` · `exec · <argv0>` · …) ·
+    /// identical on both arms · stamped on `TaskStarted`.
+    fn note(&self) -> &str {
+        match self {
+            Self::Ok { note, .. } | Self::Failed { note, .. } => note,
+        }
+    }
 }
 
 /// The run's verdict + resolved dataflow (spec §2).
@@ -200,6 +211,15 @@ fn gate_is_open(
     }
 }
 
+/// Mutable run state threaded through the wave loop · completed
+/// outputs (`bindings`) · the failure-cascade set (`dead`) · the
+/// terminal verdict (`ok`).
+struct RunState {
+    bindings: BTreeMap<String, String>,
+    dead: BTreeSet<String>,
+    ok: bool,
+}
+
 /// The envelope's string view · `vars` defaults + the workflow name.
 fn envelope_strings(wf: &RawWorkflow) -> (BTreeMap<String, String>, String) {
     let vars = wf
@@ -254,9 +274,11 @@ where
         let (vars, workflow_name) = envelope_strings(wf);
         emit_prologue(wf, &workflow_name, stamper, sink);
 
-        let mut bindings: BTreeMap<String, String> = BTreeMap::new();
-        let mut dead: BTreeSet<String> = BTreeSet::new();
-        let mut workflow_ok = true;
+        let mut state = RunState {
+            bindings: BTreeMap::new(),
+            dead: BTreeSet::new(),
+            ok: true,
+        };
 
         for wave in &report.waves {
             for &index in wave {
@@ -272,25 +294,29 @@ where
 
                 // Upstream-failure cascade · any dead dependency skips
                 // this task and propagates death downstream.
-                if task.depends_on.iter().any(|d| dead.contains(&d.value)) {
+                if task
+                    .depends_on
+                    .iter()
+                    .any(|d| state.dead.contains(&d.value))
+                {
                     emit(
                         stamper,
                         sink,
                         EventKind::TaskSkipped,
                         &[("task", s(&id)), ("note", s("upstream failed"))],
                     );
-                    dead.insert(id);
+                    state.dead.insert(id);
                     continue;
                 }
 
                 // `when:` gate (v0 subset · spec §3). A closed gate is a
                 // pure skip · NOT a cascade (downstream with live deps
                 // still runs · floor semantics).
-                let scope = Scope {
-                    bindings: &bindings,
+                let gate = Scope {
+                    bindings: &state.bindings,
                     vars: &vars,
                 };
-                if !gate_is_open(task.when.as_ref(), &scope)? {
+                if !gate_is_open(task.when.as_ref(), &gate)? {
                     emit(
                         stamper,
                         sink,
@@ -300,54 +326,69 @@ where
                     continue;
                 }
 
-                match self.dispatch(&task.action, &scope).await {
-                    Outcome::Ok {
-                        output,
-                        note,
-                        tokens,
-                    } => {
-                        emit(
-                            stamper,
-                            sink,
-                            EventKind::TaskStarted,
-                            &[("task", s(&id)), ("note", s(&note))],
-                        );
-                        let mut fields = vec![("task", s(&id)), ("note", s(&note))];
-                        if let Some(n) = tokens {
-                            fields.push(("tokens", i(n)));
-                        }
-                        emit(stamper, sink, EventKind::TaskCompleted, &fields);
-                        bindings.insert(id, output);
-                    }
-                    Outcome::Failed { detail, note } => {
-                        emit(
-                            stamper,
-                            sink,
-                            EventKind::TaskStarted,
-                            &[("task", s(&id)), ("note", s(&note))],
-                        );
-                        emit(
-                            stamper,
-                            sink,
-                            EventKind::TaskFailed,
-                            &[("task", s(&id)), ("note", s(&note)), ("detail", s(&detail))],
-                        );
-                        dead.insert(id);
-                        workflow_ok = false;
-                    }
-                }
+                self.run_task(id, &task.action, &vars, stamper, sink, &mut state)
+                    .await;
             }
         }
 
-        let terminal = if workflow_ok {
+        let terminal = if state.ok {
             EventKind::WorkflowCompleted
         } else {
             EventKind::WorkflowFailed
         };
         emit(stamper, sink, terminal, &[("workflow", s(&workflow_name))]);
 
-        let outputs = resolve_outputs(wf, &bindings, &vars);
-        Ok(RunOutcome::new(workflow_ok, bindings, outputs))
+        let outputs = resolve_outputs(wf, &state.bindings, &vars);
+        Ok(RunOutcome::new(state.ok, state.bindings, outputs))
+    }
+
+    /// Execute one scheduled task · dispatch through its verb and
+    /// settle the outcome (events + bindings on success · the dead
+    /// set + verdict on failure).
+    async fn run_task(
+        &self,
+        id: String,
+        action: &RawAction,
+        vars: &BTreeMap<String, String>,
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+        state: &mut RunState,
+    ) {
+        let scope = Scope {
+            bindings: &state.bindings,
+            vars,
+        };
+        let outcome = self.dispatch(action, &scope).await;
+        emit(
+            stamper,
+            sink,
+            EventKind::TaskStarted,
+            &[("task", s(&id)), ("note", s(outcome.note()))],
+        );
+        match outcome {
+            Outcome::Ok {
+                output,
+                note,
+                tokens,
+            } => {
+                let mut fields = vec![("task", s(&id)), ("note", s(&note))];
+                if let Some(n) = tokens {
+                    fields.push(("tokens", i(n)));
+                }
+                emit(stamper, sink, EventKind::TaskCompleted, &fields);
+                state.bindings.insert(id, output);
+            }
+            Outcome::Failed { detail, note } => {
+                emit(
+                    stamper,
+                    sink,
+                    EventKind::TaskFailed,
+                    &[("task", s(&id)), ("note", s(&note)), ("detail", s(&detail))],
+                );
+                state.dead.insert(id);
+                state.ok = false;
+            }
+        }
     }
 
     /// Dispatch one action through its verb · template failures inside
