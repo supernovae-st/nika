@@ -113,10 +113,10 @@ invoke:
   args:
     url: "https://api.example.com/v1/users"
     mode: jq
-    jq: ".data.users[].email"
+    jq: "[.data.users[].email]"
 ```
 
-**Behavior** · parses response as JSON · applies the jq expression · returns the result. The SAME jq language used in `output:` bindings and the `nika:jq` builtin — Nika has ONE data language (replaces the former JSONPath mode · jq is a superset of JSONPath).
+**Behavior** · parses response as JSON · applies the jq expression · returns the result. The SAME jq language used in `output:` bindings and the `nika:jq` builtin — Nika has ONE data language (replaces the former JSONPath mode · jq is a superset of JSONPath). **The exactly-one-output law applies** (same engine · same law as `nika:jq` per [04 §bindings](../spec/04-variables.md)) · an expression producing 0 or N outputs is `NIKA-BUILTIN-FETCH-001` — wrap streams in `[…]` to collect.
 
 **Implementation** · reference engine uses `jaq` (Rust jq).
 
@@ -125,7 +125,7 @@ invoke:
 **Examples** ·
 - `.` — whole response
 - `.data.users[0]` — first user
-- `.data.users[].name` — all user names
+- `[.data.users[].name]` — all user names (collected · one array)
 - `[.. | .price?] | map(select(. != null))` — all prices recursively
 
 ---
@@ -189,7 +189,9 @@ invoke:
 
 **Use case** · crawler · link analysis · sitemap building.
 
-**Variant** · `mode: metadata-links` combines metadata + links in one response.
+**Combining metadata + links** · two tasks on the same URL (the canon
+set is CLOSED at v0.1 — a combined `metadata-links` mode is a stdlib
+v0.x candidate, rejected today like `llm-txt`).
 
 ---
 
