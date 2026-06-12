@@ -39,6 +39,29 @@ impl MockHttp {
         self
     }
 
+    /// Enqueue a successful response carrying headers (builder) — for
+    /// consumers that read `Content-Type` & friends (header names
+    /// lowercase, mirroring the production client's normalization).
+    #[must_use]
+    pub fn enqueue_ok_with_headers<K, V>(
+        self,
+        status: u16,
+        headers: impl IntoIterator<Item = (K, V)>,
+        body: impl Into<Bytes>,
+    ) -> Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+    {
+        let map: BTreeMap<String, String> = headers
+            .into_iter()
+            .map(|(k, v)| (k.into().to_ascii_lowercase(), v.into()))
+            .collect();
+        let resp = HttpResponse::new(status, map, body.into(), String::new());
+        self.responses.lock().push_back(Ok(resp));
+        self
+    }
+
     /// Enqueue an error response (builder).
     #[must_use]
     pub fn enqueue_err(self, error: HttpError) -> Self {
@@ -99,6 +122,24 @@ mod tests {
         let resp = http.get(req).await.unwrap();
         assert_eq!(resp.status, 200);
         assert_eq!(resp.body.as_ref(), b"ok");
+    }
+
+    #[tokio::test]
+    async fn enqueue_with_headers_normalizes_names() {
+        let http = MockHttp::new().enqueue_ok_with_headers(
+            200,
+            [("Content-Type", "text/html; charset=iso-8859-1")],
+            "body",
+        );
+        let resp = http
+            .get(HttpRequest::get("https://example.com"))
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.headers.get("content-type").map(String::as_str),
+            Some("text/html; charset=iso-8859-1"),
+            "names lowercased like the production client"
+        );
     }
 
     #[tokio::test]
