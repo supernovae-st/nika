@@ -37,9 +37,11 @@ use std::sync::Arc;
 use nika_cli::{RunView, TaskState, Theme, frame};
 use nika_event::{Event, EventKind};
 use nika_kernel::tool_executor::ToolResult;
-use nika_kernel_mock::{MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor};
+use nika_kernel_mock::{
+    MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+};
 use nika_providers::{ProviderRegistry, ProvidersConfig};
-use nika_runtime::{DeterministicStamper, Runtime, VecSink};
+use nika_runtime::{DeterministicStamper, Runtime, RuntimeConfig, VecSink};
 use nika_schema::check::CheckReport;
 use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::{FileId, ParseMode, check, infer_permits, parse};
@@ -169,6 +171,8 @@ async fn execute(wf: &RawWorkflow, report: &CheckReport, seams: &Seams) -> (Vec<
             Arc::new(MockToolDefinitionProvider::new()),
             "mock/echo",
         ),
+        MockClock::new(),
+        RuntimeConfig::default(),
     );
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
@@ -443,8 +447,13 @@ async fn e2e_failure_cascade_partial_schedule_and_card() {
     assert_eq!(by_id["gather"], TaskState::Ok);
     assert_eq!(by_id["probe"], TaskState::Failed);
     assert_eq!(by_id["extract"], TaskState::Ok, "independent lane survived");
-    assert_eq!(by_id["think"], TaskState::Skipped);
-    assert_eq!(by_id["write_out"], TaskState::Skipped);
+    // Spec 03 · a default-gate task over a dead dep is CANCELLED (§3.1
+    // `◼` · the v1 rehearsal said skipped — the spec-parity runtime
+    // upgraded the cascade class · the fold + glyphs followed).
+    assert_eq!(by_id["think"], TaskState::Cancelled);
+    assert_eq!(by_id["write_out"], TaskState::Cancelled);
+    // notify's explicit `when:` still gets its evaluation (deps are
+    // terminal · the always-pattern lane) — publish=no · gate closed.
     assert_eq!(by_id["notify"], TaskState::Skipped);
     assert_eq!(view.done_count(), 6, "every task reached a terminal state");
 

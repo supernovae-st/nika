@@ -78,12 +78,15 @@ impl Theme {
             return self.paint(Role::Accent, &format!("{frame} "));
         }
         let raw = if self.ascii {
+            // The LOCKED §3.1 ASCII column (err `X` ≠ cancelled `x`).
             match state {
                 TaskState::Pending => ". ",
                 TaskState::Running => "> ",
                 TaskState::Ok => "ok",
                 TaskState::Failed => "X ",
+                TaskState::Retrying => "r ",
                 TaskState::Skipped => "- ",
+                TaskState::Cancelled => "x ",
             }
         } else {
             match state {
@@ -91,14 +94,17 @@ impl Theme {
                 TaskState::Running => "◐ ",
                 TaskState::Ok => "✔ ",
                 TaskState::Failed => "✖ ",
+                TaskState::Retrying => "↻ ",
                 TaskState::Skipped => "⊘ ",
+                TaskState::Cancelled => "◼ ",
             }
         };
         let role = match state {
             TaskState::Running => Role::Accent,
             TaskState::Ok => Role::Good,
             TaskState::Failed => Role::Bad,
-            TaskState::Pending | TaskState::Skipped => Role::Dim,
+            TaskState::Retrying => Role::Warn,
+            TaskState::Pending | TaskState::Skipped | TaskState::Cancelled => Role::Dim,
         };
         self.paint(role, raw)
     }
@@ -153,7 +159,9 @@ mod tests {
             TaskState::Running,
             TaskState::Ok,
             TaskState::Failed,
+            TaskState::Retrying,
             TaskState::Skipped,
+            TaskState::Cancelled,
         ] {
             assert_eq!(ASCII.glyph(state, 0).chars().count(), 2, "{state:?} ascii");
             assert_eq!(
@@ -162,6 +170,33 @@ mod tests {
                 "{state:?} unicode"
             );
         }
+    }
+
+    #[test]
+    fn locked_contract_glyphs_for_the_new_states() {
+        // §3.1 LOCKED table · retrying ↻/r yellow · cancelled ◼/x dim ·
+        // err `X` ≠ cancelled `x` (the case IS the distinction).
+        assert_eq!(PLAIN.glyph(TaskState::Retrying, 0), "↻ ");
+        assert_eq!(ASCII.glyph(TaskState::Retrying, 0), "r ");
+        assert_eq!(PLAIN.glyph(TaskState::Cancelled, 0), "◼ ");
+        assert_eq!(ASCII.glyph(TaskState::Cancelled, 0), "x ");
+        assert_ne!(
+            ASCII.glyph(TaskState::Failed, 0),
+            ASCII.glyph(TaskState::Cancelled, 0)
+        );
+        let coloured = Theme {
+            color: true,
+            ascii: false,
+            animate: false,
+        };
+        assert!(
+            coloured.glyph(TaskState::Retrying, 0).contains("\x1b[33m"),
+            "retrying paints yellow (Warn)"
+        );
+        assert!(
+            coloured.glyph(TaskState::Cancelled, 0).contains("\x1b[2m"),
+            "cancelled paints dim — a decision, never red"
+        );
     }
 
     #[test]

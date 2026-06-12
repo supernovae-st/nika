@@ -26,8 +26,13 @@ pub enum TaskState {
     Ok,
     /// Reached failure.
     Failed,
-    /// Guard false or upstream failed — never ran, by design.
+    /// An attempt failed · a retry is scheduled (§3.1 `↻` · yellow).
+    Retrying,
+    /// Guard false — never ran, by design.
     Skipped,
+    /// Cancelled (upstream failure · operator stop · §3.1 `◼` · dim ·
+    /// a decision, not a defect — never red).
+    Cancelled,
 }
 
 /// One render row (insertion order = first-seen order = stable layout).
@@ -86,7 +91,7 @@ impl RunView {
             .filter(|r| {
                 matches!(
                     r.state,
-                    TaskState::Ok | TaskState::Failed | TaskState::Skipped
+                    TaskState::Ok | TaskState::Failed | TaskState::Skipped | TaskState::Cancelled
                 )
             })
             .count()
@@ -119,11 +124,15 @@ impl RunView {
             }
             EventKind::TaskFailed => self.touch(event, TaskState::Failed),
             EventKind::TaskSkipped => self.touch(event, TaskState::Skipped),
+            // §3.1 `↻` — the attempt failed · the TASK has not · the row
+            // holds yellow until the terminal frame replaces it.
+            EventKind::TaskRetrying => self.touch(event, TaskState::Retrying),
+            // §3.1 `◼` — a decision, not a defect (dim · never red).
+            EventKind::TaskCancelled => self.touch(event, TaskState::Cancelled),
             EventKind::WorkflowCompleted => self.verdict = Some(true),
             EventKind::WorkflowFailed => self.verdict = Some(false),
-            // Dispatch + checkpoint kinds carry no row state today; the
-            // §3bis taxonomy extension (cost/retry/permit kinds) lands with
-            // the runtime emitters. `#[non_exhaustive]` future kinds render
+            // Dispatch + checkpoint + cost/stream/permit kinds carry no
+            // row state today. `#[non_exhaustive]` future kinds render
             // nothing rather than lying.
             _ => {}
         }

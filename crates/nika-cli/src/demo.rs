@@ -120,10 +120,12 @@ pub fn failure() -> Vec<Event> {
                 "detail",
                 "summarize failed · NIKA-431 provider refused (429) · retried 2×",
             )),
-        at(31, 5610, EventKind::TaskSkipped)
+        // Spec 03 · an upstream failure CANCELS default-gate downstream
+        // (§3.1 `◼` · a decision, not a defect — the runtime's cascade).
+        at(31, 5610, EventKind::TaskCancelled)
             .with_field(s("task", "write_md"))
             .with_field(s("note", "upstream failed")),
-        at(32, 5620, EventKind::TaskSkipped)
+        at(32, 5620, EventKind::TaskCancelled)
             .with_field(s("task", "notify_slack"))
             .with_field(s("note", "upstream failed")),
         at(33, 5630, EventKind::WorkflowFailed).with_field(s("workflow", "veille-news")),
