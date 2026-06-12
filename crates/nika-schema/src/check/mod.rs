@@ -27,6 +27,7 @@
 //! only provider-agnostic fields and runs identically on all providers by
 //! construction. `check` is read-only and never executes a verb.
 
+mod analysis;
 mod certificate;
 mod cost;
 mod flow;
@@ -44,6 +45,7 @@ mod tools;
 use crate::analyzer::{self, AnalyzedWorkflow};
 use crate::raw::RawWorkflow;
 
+pub use analysis::{DagAnalysis, TaskBlast};
 pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use cost::{CostCeiling, TaskCost, UnboundedReason};
 pub use flow::{FlowFacts, TaintTrace};
@@ -165,6 +167,11 @@ pub struct CheckReport {
     /// guarantee. NEVER fail the check ([`CheckReport::is_clean`]
     /// ignores them).
     pub hints: Vec<Hint>,
+    /// The scheduler-independent DAG read — exact width (Dilworth) with
+    /// a witness antichain, pinch points, per-task failure blast radius.
+    /// `None` when conformance fails (no valid order — no claim).
+    /// Additive: `report_version` stays 1.
+    pub analysis: Option<DagAnalysis>,
 }
 
 impl CheckReport {
@@ -217,6 +224,15 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     // read. An empty wave order (conformance failure) taints nothing:
     // the analysis is simply skipped, never wrong.
     let flow = flow::analyze_flow(wf, &topo_waves);
+    // The engineering read shares the same gating: a valid order or no
+    // claim (its parallel-writers conflicts ride the hints, advisory).
+    let dag_read = if conformance.is_empty() {
+        analysis::read_dag(wf, &topo_waves)
+    } else {
+        analysis::DagRead::skipped()
+    };
+    let mut hints = hints::scan_hints(wf);
+    hints.extend(dag_read.conflicts);
     CheckReport {
         report_version: REPORT_VERSION,
         conformance,
@@ -231,8 +247,9 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         // gate reachability shares the IFC gating: a valid wave order or
         // nothing (skipped, never wrong)
         gate_findings: reach::scan_gates(wf, &topo_waves),
-        hints: hints::scan_hints(wf),
+        hints,
         waves: topo_waves,
+        analysis: dag_read.analysis,
     }
 }
 
