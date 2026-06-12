@@ -37,6 +37,8 @@ nika-providers   = { path = "../nika-providers", version = "0.80.0" }
 nika-verb-infer  = { path = "../nika-verb-infer", version = "0.80.0" }
 nika-verb-exec   = { path = "../nika-verb-exec", version = "0.80.0" }
 nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.80.0" }
+nika-verb-agent  = { path = "../nika-verb-agent", version = "0.80.0" }
+nika-builtin     = { path = "../nika-builtin", version = "0.80.0" }
 tokio            = { workspace = true }
 
 [package.metadata.lore]

@@ -454,9 +454,11 @@ async fn run_task(
                 },
             }
         }
-        // `agent` is specced, not yet shipped (s12) — and any future verb
-        // lands here too (#[non_exhaustive]): the rehearsal refuses rather
-        // than silently no-ops.
+        // `agent` SHIPPED (s12) but the YAML-driven rehearsal does not
+        // dispatch it yet (its loop needs the scripted-provider wiring —
+        // test 5 rehearses the verb directly over the REAL s16 builtin
+        // dispatcher). Any future verb lands here too (#[non_exhaustive]):
+        // the rehearsal refuses rather than silently no-ops.
         other => Outcome::Skipped {
             note: format!("verb not shipped yet: {other:?}"),
         },
@@ -848,4 +850,134 @@ async fn e2e_trace_ndjson_roundtrip_is_lossless() {
         .collect::<Vec<_>>()
         .join("\n");
     assert_eq!(ndjson, ndjson2, "two runs, one byte-identical trace");
+}
+
+// ─── test 5 · the agent loop over the REAL builtin dispatcher ────────────
+//
+// s12 (the 4th verb) × s16 (the tool layer): BOTH production types in one
+// chain — AgentVerb dispatches through InvokeVerb into BuiltinDispatcher,
+// and the model-facing catalog the whitelist filters IS the dispatcher's
+// own `tool_defs()`. Only the effect edges (fs · http · clock) and the
+// model itself are mocks. This is the conformance floor for the L3
+// runtime's agent wiring: same seams, same loop, real tools.
+
+#[tokio::test]
+async fn e2e_agent_loop_over_the_real_builtin_dispatcher() {
+    use nika_builtin::{BuiltinDispatcher, NoWorkflow, NonInteractive, NullEmitter};
+    use nika_kernel::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
+    use nika_kernel::runtime::agent::AgentStopReason;
+    use nika_kernel_mock::{MockClock, MockFs, MockHttp, MockProvider};
+    use nika_verb_agent::{AgentInput, AgentValue, AgentVerb};
+
+    fn tool_turn(id: &str, name: &str, args: serde_json::Value) -> InferResponse {
+        InferResponse::new(
+            vec![ContentBlock::ToolUse {
+                id: id.to_owned(),
+                name: name.to_owned(),
+                input: args,
+            }],
+            TokenUsage::new(10, 5),
+            StopReason::ToolUse,
+        )
+    }
+
+    // The REAL tool layer over mock effect seams.
+    let fs = MockFs::new().with_file("./notes.md", "release: ship the agent");
+    let dispatcher = Arc::new(BuiltinDispatcher::new(
+        Arc::new(fs),
+        Arc::new(MockHttp::new()),
+        Arc::new(MockClock::new()),
+        Arc::new(NullEmitter::default()),
+        Arc::new(NonInteractive::default()),
+        Arc::new(NoWorkflow::default()),
+    ));
+
+    // The scripted model: ① jq over structured input → ② read the seeded
+    // file → ③ the done sentinel carrying a result built FROM both tools.
+    let provider = MockProvider::new("mock")
+        .enqueue_response(tool_turn(
+            "c-1",
+            "nika:jq",
+            serde_json::json!({ "expression": ".prices | add", "input": { "prices": [2, 3] } }),
+        ))
+        .enqueue_response(tool_turn(
+            "c-2",
+            "nika:read",
+            serde_json::json!({ "path": "./notes.md" }),
+        ))
+        .enqueue_response(tool_turn(
+            "c-3",
+            "nika:done",
+            serde_json::json!({ "result": { "sum": 5, "note": "release: ship the agent" } }),
+        ));
+
+    let invoke = Arc::new(nika_verb_invoke::InvokeVerb::new(Arc::clone(&dispatcher)));
+    let agent = AgentVerb::new(
+        Arc::new(provider.clone()),
+        invoke,
+        Arc::clone(&dispatcher),
+        "mock/echo",
+    );
+
+    let mut input = AgentInput::new("sum the prices, read ./notes.md, then finish");
+    input.tools = vec!["nika:*".to_owned()];
+    let output = agent.run(input).await.expect("the loop completes");
+
+    // The loop ran exactly the scripted three turns and ended on the
+    // sentinel (ExplicitCompletion), with the structured result.
+    assert_eq!(output.turns, 3);
+    assert_eq!(output.stop_reason, AgentStopReason::ExplicitCompletion);
+    let AgentValue::Structured(value) = output.output else {
+        panic!("done carried a result: {:?}", output.output);
+    };
+    assert_eq!(
+        value,
+        serde_json::json!({ "sum": 5, "note": "release: ship the agent" })
+    );
+
+    // The wired proof: the REAL builtins produced the values the model saw.
+    let requests = provider.captured_requests();
+    assert_eq!(requests.len(), 3);
+    // Turn 2's request carries turn 1's jq result — computed by jaq, not
+    // by a mock ("5" · the exactly-one-output law shipped it as a value).
+    let turn2_results: Vec<&ContentBlock> = requests[1]
+        .messages
+        .iter()
+        .flat_map(|m| m.content.iter())
+        .filter(|b| matches!(b, ContentBlock::ToolResult { .. }))
+        .collect();
+    assert_eq!(turn2_results.len(), 1);
+    if let ContentBlock::ToolResult {
+        tool_use_id,
+        content,
+        is_error,
+    } = turn2_results[0]
+    {
+        assert_eq!(tool_use_id, "c-1");
+        assert_eq!(content, "5", "jaq computed the sum");
+        assert!(!is_error);
+    }
+    // Turn 3's request carries the REAL file content read through MockFs.
+    let turn3_read = requests[2]
+        .messages
+        .iter()
+        .flat_map(|m| m.content.iter())
+        .find_map(|b| match b {
+            ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+                ..
+            } if tool_use_id == "c-2" => Some(content.clone()),
+            _ => None,
+        })
+        .expect("the read result fed back");
+    assert_eq!(turn3_read, "release: ship the agent");
+
+    // And the catalog the model was offered IS the dispatcher's: the
+    // whitelist admitted the 22 builtins minus the source-side `nika:done`
+    // (the loop owns the sentinel and re-synthesizes its def) → 22 defs.
+    let offered = &requests[0].tools;
+    assert_eq!(offered.len(), 22, "21 builtins + the loop's done def");
+    assert!(offered.iter().any(|d| d.name == "nika:jq"));
+    assert!(offered.iter().any(|d| d.name == "nika:done"));
 }
