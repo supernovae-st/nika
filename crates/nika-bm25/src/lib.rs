@@ -49,7 +49,7 @@ mod tokenize;
 // cannot populate (content · level · tags) · L2 `RecallPool` orchestrator
 // merges with metadata from sister satellites.
 
-pub use eager::EagerIndex;
+pub use eager::{EagerIndex, PruneStats};
 pub use index::BmIndex;
 pub use tokenize::tokenize as tokenize_text;
 

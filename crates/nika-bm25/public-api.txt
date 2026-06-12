@@ -41,6 +41,7 @@ pub nika_bm25::BmParams::delta: core::option::Option<f64>
 pub nika_bm25::BmParams::k1: f64
 impl nika_bm25::BmParams
 pub const fn nika_bm25::BmParams::new(k1: f64, b: f64) -> Self
+pub const fn nika_bm25::BmParams::plus() -> Self
 pub const fn nika_bm25::BmParams::with_delta(k1: f64, b: f64, delta: f64) -> Self
 impl core::clone::Clone for nika_bm25::BmParams
 pub fn nika_bm25::BmParams::clone(&self) -> nika_bm25::BmParams
@@ -76,6 +77,9 @@ impl nika_bm25::EagerIndex
 pub fn nika_bm25::EagerIndex::build(index: &nika_bm25::BmIndex) -> core::option::Option<Self>
 pub fn nika_bm25::EagerIndex::doc_count(&self) -> usize
 pub fn nika_bm25::EagerIndex::top_k(&self, query: &str, k: usize) -> alloc::vec::Vec<(u32, f64)>
+impl nika_bm25::EagerIndex
+pub fn nika_bm25::EagerIndex::top_k_pruned(&self, query: &str, k: usize) -> alloc::vec::Vec<(u32, f64)>
+pub fn nika_bm25::EagerIndex::top_k_pruned_stats(&self, query: &str, k: usize) -> (alloc::vec::Vec<(u32, f64)>, nika_bm25::PruneStats)
 impl core::clone::Clone for nika_bm25::EagerIndex
 pub fn nika_bm25::EagerIndex::clone(&self) -> nika_bm25::EagerIndex
 impl core::fmt::Debug for nika_bm25::EagerIndex
@@ -102,4 +106,38 @@ impl<T> core::clone::CloneToUninit for nika_bm25::EagerIndex where T: core::clon
 pub unsafe fn nika_bm25::EagerIndex::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_bm25::EagerIndex
 pub fn nika_bm25::EagerIndex::from(t: T) -> T
+#[non_exhaustive] pub struct nika_bm25::PruneStats
+pub nika_bm25::PruneStats::postings_dense: usize
+pub nika_bm25::PruneStats::postings_visited: usize
+impl core::clone::Clone for nika_bm25::PruneStats
+pub fn nika_bm25::PruneStats::clone(&self) -> nika_bm25::PruneStats
+impl core::cmp::Eq for nika_bm25::PruneStats
+impl core::cmp::PartialEq for nika_bm25::PruneStats
+pub fn nika_bm25::PruneStats::eq(&self, other: &nika_bm25::PruneStats) -> bool
+impl core::fmt::Debug for nika_bm25::PruneStats
+pub fn nika_bm25::PruneStats::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_bm25::PruneStats
+impl core::marker::StructuralPartialEq for nika_bm25::PruneStats
+impl<T, U> core::convert::Into<U> for nika_bm25::PruneStats where U: core::convert::From<T>
+pub fn nika_bm25::PruneStats::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_bm25::PruneStats where U: core::convert::Into<T>
+pub type nika_bm25::PruneStats::Error = core::convert::Infallible
+pub fn nika_bm25::PruneStats::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_bm25::PruneStats where U: core::convert::TryFrom<T>
+pub type nika_bm25::PruneStats::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_bm25::PruneStats::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_bm25::PruneStats where T: core::clone::Clone
+pub type nika_bm25::PruneStats::Owned = T
+pub fn nika_bm25::PruneStats::clone_into(&self, target: &mut T)
+pub fn nika_bm25::PruneStats::to_owned(&self) -> T
+impl<T> core::any::Any for nika_bm25::PruneStats where T: 'static + ?core::marker::Sized
+pub fn nika_bm25::PruneStats::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_bm25::PruneStats where T: ?core::marker::Sized
+pub fn nika_bm25::PruneStats::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_bm25::PruneStats where T: ?core::marker::Sized
+pub fn nika_bm25::PruneStats::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_bm25::PruneStats where T: core::clone::Clone
+pub unsafe fn nika_bm25::PruneStats::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_bm25::PruneStats
+pub fn nika_bm25::PruneStats::from(t: T) -> T
 pub fn nika_bm25::tokenize_text(text: &str) -> alloc::vec::Vec<alloc::string::String>
