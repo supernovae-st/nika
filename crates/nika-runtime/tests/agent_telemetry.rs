@@ -225,6 +225,120 @@ async fn agent_decisions_ride_the_canonical_event_stream() {
     assert_eq!(int_field(terminal, "tokens"), Some(30));
 }
 
+/// A tool that never completes — the timeout-evidence fixture.
+struct HangingTool;
+
+impl nika_kernel::tool_executor::ToolExecuteDyn for HangingTool {
+    async fn execute(
+        &self,
+        _call: nika_kernel::tool_executor::ToolCall,
+    ) -> Result<ToolResult, nika_kernel::tool_executor::ToolExecError> {
+        std::future::pending().await
+    }
+}
+
+#[tokio::test]
+async fn a_timed_out_agent_keeps_its_pre_timeout_evidence() {
+    // The review's F1: the buffer lives OUTSIDE the timeout-cancellable
+    // region — a timed-out attempt's decisions (routing · budget) must
+    // survive the drop of the attempt future and reach the stream.
+    const TIMEOUT_WORKFLOW: &str = r#"
+nika: v1
+workflow: agent-timeout
+model: mock/echo
+
+tasks:
+  - id: wedged
+    timeout: "50ms"
+    agent:
+      prompt: "read the file"
+      tools: ["nika:read"]
+"#;
+    let wf = parse(TIMEOUT_WORKFLOW, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+    let report = check(&wf);
+
+    // Turn 1: the model calls the tool — which hangs forever; the task
+    // timeout (instant under MockClock) cuts the attempt.
+    let provider = MockProvider::new("mock").enqueue_response(tool_use_response(
+        "c1",
+        "nika:read",
+        serde_json::json!({"path": "./never.md"}),
+    ));
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::new(HangingTool)));
+    let runtime: Runtime<
+        MockShell,
+        HangingTool,
+        NoHttp,
+        MockProvider,
+        MockToolDefinitionProvider,
+        MockClock,
+    > = Runtime::new(
+        ExecVerb::new(Arc::new(MockShell::new())),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        AgentVerb::new(
+            Arc::new(provider),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::with_defs(vec![
+                nika_kernel::provider::ToolDef::new(
+                    "nika:read",
+                    "read a file",
+                    serde_json::json!({}),
+                ),
+            ])),
+            "mock/echo",
+        ),
+        MockClock::new(),
+        RuntimeConfig::default(),
+    );
+
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        runtime.run(&wf, &report, &mut stamper, &mut sink),
+    )
+    .await
+    .expect("the budget fires — a hanging tool never wedges the run")
+    .expect("the run settles");
+    assert!(!outcome.ok, "the timed-out task fails the run");
+    let events = sink.into_events();
+
+    // The pre-timeout decisions SURVIVED the cancelled attempt.
+    let selected = events
+        .iter()
+        .find(|e| e.kind == EventKind::AgentToolsSelected)
+        .expect("the routing decision survived the timeout");
+    assert_eq!(str_field(selected, "task"), Some("wedged"));
+    assert_eq!(int_field(selected, "turn"), Some(1));
+    assert_eq!(
+        int_field(selected, "attempt"),
+        Some(1),
+        "the in-flight attempt is attributed"
+    );
+    assert!(
+        events
+            .iter()
+            .any(|e| e.kind == EventKind::AgentBudgetCheckpoint),
+        "the spend checkpoint survived too"
+    );
+    // The tool never completed: no ToolInvoked frame.
+    assert!(
+        !events.iter().any(|e| e.kind == EventKind::ToolInvoked),
+        "a hung call has no completion to report"
+    );
+    // And the terminal frame carries the timeout verdict.
+    let failed = events
+        .iter()
+        .find(|e| e.kind == EventKind::TaskFailed && str_field(e, "task") == Some("wedged"))
+        .expect("the task fails");
+    assert!(
+        str_field(failed, "detail").is_some_and(|d| d.contains("NIKA-TIMEOUT-001")),
+        "the timeout code rides the failure frame"
+    );
+}
+
 #[tokio::test]
 async fn a_stalled_agent_puts_the_evidence_on_the_stream() {
     const STALL_WORKFLOW: &str = r#"

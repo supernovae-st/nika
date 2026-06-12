@@ -70,10 +70,13 @@ pub(crate) struct RanTask {
     pub note: String,
     /// One entry per retry that was scheduled (`TaskRetrying`).
     pub retries: Vec<RetryStamp>,
-    /// The agent loop's decisions across ALL attempts, in order
-    /// (ADR-093 · empty for non-agent verbs) — the settle pass emits
-    /// them between the retry frames and the terminal frame.
-    pub agent_events: Vec<nika_verb_agent::AgentEvent>,
+    /// The agent loop's decisions across ALL attempts, in order,
+    /// attempt-stamped (+ iteration on fan-out lanes) — ADR-093 · empty
+    /// for non-agent verbs · the settle pass emits them between the
+    /// retry frames and the terminal frame. Includes the prefix of an
+    /// attempt a timeout cut short (the buffer lives OUTSIDE the
+    /// cancellable region — review F1).
+    pub agent_events: Vec<crate::agent_events::StampedAgentEvent>,
     /// Clock-measured wall time across attempts + cleanup (0 under a
     /// mock clock · real under the production clock — the event-stream
     /// determinism contract is "deterministic seams in · deterministic
@@ -248,7 +251,7 @@ where
 
         let mut outputs: Vec<Value> = Vec::with_capacity(total);
         let mut retries: Vec<RetryStamp> = Vec::new();
-        let mut agent_events: Vec<nika_verb_agent::AgentEvent> = Vec::new();
+        let mut agent_events: Vec<crate::agent_events::StampedAgentEvent> = Vec::new();
         let mut first_error: Option<TaskErrorRecord> = None;
         // Truth accounting · per-iteration token spend SUMS onto the
         // parent (a 50-infer fan-out must never report zero to the
@@ -337,7 +340,14 @@ where
             item: Some(item),
             index: Some(index),
         };
-        self.attempt_loop(task, &scope).await
+        let mut ran = self.attempt_loop(task, &scope).await;
+        // Stamp the lane: without it a 2-iteration fan-out and a retried
+        // single lane produce indistinguishable flat streams (review F3).
+        #[allow(clippy::cast_possible_truncation)] // fan-out ≪ u32::MAX
+        for stamped in &mut ran.agent_events {
+            stamped.iteration = Some(index as u32);
+        }
+        ran
     }
 
     /// The attempt loop — `retry:` (transient-only · `on_codes` filter ·
@@ -350,27 +360,22 @@ where
             .retry
             .as_ref()
             .map_or(1, |r| r.value.max_attempts.max(1));
-        // The jitter stream selector — fan-out iterations get DISTINCT
-        // streams (anti-thundering-herd applies WITHIN a fan-out too ·
-        // Brooker 2015: same-task iterations retrying the same upstream
-        // must not synchronize) while staying replay-stable (the index
-        // is part of the deterministic coordinates).
-        let jitter_key = match scope.index {
-            Some(i) => format!("{}[{i}]", task.id.value),
-            None => task.id.value.clone(),
-        };
+        let jitter_key = jitter_key(task, scope);
         let mut note = String::new();
         let mut retries: Vec<RetryStamp> = Vec::new();
-        let mut agent_events = Vec::new();
+        // OUTSIDE the timeout-cancellable region: a timed-out attempt's
+        // decisions survive the drop of the attempt future (review F1).
+        let agent_buffer = crate::agent_events::BufferingObserver::new();
+        let mut attempt_marks: Vec<usize> = Vec::new();
         let outcome = {
             // The attempt loop borrows the accumulators; the borrow ends
             // when the loop future is consumed/dropped (both arms below).
             let attempts = async {
                 let mut attempt = 1_u32;
                 loop {
-                    let mut dispatched = self.dispatch(&task.action, scope).await;
+                    let dispatched = self.dispatch(&task.action, scope, &agent_buffer).await;
                     note.clone_from(&dispatched.note);
-                    agent_events.append(&mut dispatched.agent_events);
+                    attempt_marks.push(agent_buffer.len());
                     match dispatched.result {
                         Ok(ok) => return Ok(ok),
                         Err(error) => {
@@ -439,7 +444,10 @@ where
         RanTask {
             note,
             retries,
-            agent_events,
+            agent_events: crate::agent_events::stamp_attempts(
+                agent_buffer.into_events(),
+                &attempt_marks,
+            ),
             duration_ms,
             result,
         }
@@ -479,7 +487,11 @@ where
             }
         }
         let limit = mini.timeout.as_ref().map_or(CLEANUP_TIMEOUT, |t| t.value);
-        let attempt = std::pin::pin!(self.dispatch(&mini.action, scope));
+        // Cleanup agent decisions are NOT collected (best-effort lane ·
+        // outcome dropped by design) — a throwaway buffer satisfies the
+        // dispatch seam; collecting it is a trigger-gated ratchet.
+        let cleanup_buffer = crate::agent_events::BufferingObserver::new();
+        let attempt = std::pin::pin!(self.dispatch(&mini.action, scope, &cleanup_buffer));
         let timer = std::pin::pin!(self.clock.sleep(limit));
         // Either way the outcome is dropped — cleanup observability is
         // the cleanup's own effects (e.g. `nika:emit` · spec 03).
@@ -495,6 +507,18 @@ where
 /// Resolve the `for_each:` collection (the ONLY once-evaluated body
 /// expression · spec 03) — an array of items, or the settle verdict
 /// for the failure lanes (boxed: the error lane stays pointer-thin).
+/// The jitter stream selector — fan-out iterations get DISTINCT
+/// streams (anti-thundering-herd applies WITHIN a fan-out too ·
+/// Brooker 2015: same-task iterations retrying the same upstream
+/// must not synchronize) while staying replay-stable (the index
+/// is part of the deterministic coordinates).
+fn jitter_key(task: &RawTask, scope: &Scope<'_>) -> String {
+    match scope.index {
+        Some(i) => format!("{}[{i}]", task.id.value),
+        None => task.id.value.clone(),
+    }
+}
+
 fn resolve_collection(
     collection: &ForEachValue,
     scope: &Scope<'_>,

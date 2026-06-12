@@ -30,14 +30,14 @@ use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
 
 /// One dispatch's outcome — the display note + value-or-error.
+/// (Agent decisions do NOT ride here: the buffer lives in the CALLER,
+/// outside the timeout-cancellable region, so a timed-out attempt's
+/// telemetry survives — the wiring review's F1.)
 pub(crate) struct Dispatched {
     /// `<verb> · <subject>` (the display contract's `TaskStarted` note).
     pub note: String,
     /// The verb's value (spec-04 typed) or the task error.
     pub result: Result<DispatchOk, TaskErrorRecord>,
-    /// The agent loop's buffered decisions (ADR-093 · empty for every
-    /// other verb) — the settle pass emits them with the task stamped.
-    pub agent_events: Vec<nika_verb_agent::AgentEvent>,
 }
 
 /// A successful dispatch — the output value + token spend when the
@@ -52,7 +52,6 @@ impl Dispatched {
         Self {
             note,
             result: Ok(DispatchOk { value, tokens }),
-            agent_events: Vec::new(),
         }
     }
 
@@ -64,7 +63,6 @@ impl Dispatched {
                 message: err.to_string(),
                 transient: err.is_transient(),
             }),
-            agent_events: Vec::new(),
         }
     }
 
@@ -76,7 +74,6 @@ impl Dispatched {
                 message: err.to_string(),
                 transient: false, // static expression class · retry never helps
             }),
-            agent_events: Vec::new(),
         }
     }
 
@@ -88,7 +85,6 @@ impl Dispatched {
                 message: detail,
                 transient: false,
             }),
-            agent_events: Vec::new(),
         }
     }
 }
@@ -102,12 +98,17 @@ where
     D: ToolDefinitionProviderDyn,
 {
     /// Dispatch one action through its verb (see module docs).
-    pub(crate) async fn dispatch(&self, action: &RawAction, scope: &Scope<'_>) -> Dispatched {
+    pub(crate) async fn dispatch(
+        &self,
+        action: &RawAction,
+        scope: &Scope<'_>,
+        agent_buffer: &crate::agent_events::BufferingObserver,
+    ) -> Dispatched {
         match action {
             RawAction::Invoke(inner) => self.dispatch_invoke(inner, scope).await,
             RawAction::Exec(inner) => self.dispatch_shell(inner, scope).await,
             RawAction::Infer(inner) => self.dispatch_infer(inner, scope).await,
-            RawAction::Agent(inner) => self.dispatch_agent(inner, scope).await,
+            RawAction::Agent(inner) => self.dispatch_agent(inner, scope, agent_buffer).await,
             // #[non_exhaustive] · a future verb must land HERE loudly ·
             // the runtime refuses rather than silently no-ops.
             other => Dispatched::unwired(
@@ -238,6 +239,7 @@ where
         &self,
         action: &nika_schema::raw::RawAgentAction,
         scope: &Scope<'_>,
+        agent_buffer: &crate::agent_events::BufferingObserver,
     ) -> Dispatched {
         let prompt = match expr::render(&action.prompt.value, scope) {
             Ok(p) => p,
@@ -257,11 +259,12 @@ where
             input.temperature = action.temperature.as_ref().map(|t| t.value as f32);
         }
         input.schema = action.schema.as_ref().map(|v| v.value.clone());
-        // Per-dispatch buffer (ADR-093): a wave dispatches concurrently —
-        // a verb-wide observer would interleave tasks' decision streams.
-        let buffer = crate::agent_events::BufferingObserver::new();
-        let ran = self.agent.run_observed(input, &buffer).await;
-        let mut dispatched = match ran {
+        // The buffer is the CALLER's (per task-attempt-loop · still
+        // per-dispatch-isolated since a wave's tasks each own one):
+        // owning it here would put it inside the timeout-cancellable
+        // region and lose a timed-out attempt's telemetry (review F1).
+        let ran = self.agent.run_observed(input, agent_buffer).await;
+        match ran {
             Ok(out) => {
                 let note = format!("agent · {} turns", out.turns);
                 let value = match out.output {
@@ -279,11 +282,7 @@ where
                 Dispatched::ok(note, value, tokens)
             }
             Err(err) => Dispatched::verb_err("agent · ?".to_owned(), &err),
-        };
-        // BOTH arms keep the telemetry — the events up to a stall/failure
-        // ARE the evidence the stream exists to carry.
-        dispatched.agent_events = buffer.into_events();
-        dispatched
+        }
     }
 }
 

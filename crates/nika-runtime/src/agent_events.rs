@@ -35,6 +35,12 @@ impl BufferingObserver {
         Self::default()
     }
 
+    /// Events buffered so far (the attempt-boundary marks read this
+    /// between awaits — never concurrently with a push).
+    pub(crate) fn len(&self) -> usize {
+        self.events.lock().map_or(0, |events| events.len())
+    }
+
     /// Take the buffered events (poisoning recovers the inner state —
     /// telemetry must never panic a run).
     pub(crate) fn into_events(self) -> Vec<AgentEvent> {
@@ -52,6 +58,38 @@ impl AgentObserver for BufferingObserver {
     }
 }
 
+/// One buffered decision with its provenance: which attempt produced it
+/// (1-based · the `TaskRetrying` frames carry the same counter) and, for
+/// `for_each` tasks, which iteration — without these two stamps a
+/// retried agent and a 2-iteration fan-out produce indistinguishable
+/// flat streams (the wiring review's F3).
+#[derive(Debug, Clone)]
+pub(crate) struct StampedAgentEvent {
+    pub attempt: u32,
+    pub iteration: Option<u32>,
+    pub event: AgentEvent,
+}
+
+/// Stamp a drained buffer with attempt provenance. `marks[i]` is the
+/// buffer length after attempt `i+1` returned; events past the last
+/// mark belong to the in-flight attempt a timeout/cancel cut short —
+/// exactly the evidence worth keeping (the wiring review's F1).
+pub(crate) fn stamp_attempts(events: Vec<AgentEvent>, marks: &[usize]) -> Vec<StampedAgentEvent> {
+    events
+        .into_iter()
+        .enumerate()
+        .map(|(idx, event)| {
+            let settled = marks.iter().filter(|&&m| idx >= m).count();
+            #[allow(clippy::cast_possible_truncation)] // attempts ≤ u32 by spec
+            StampedAgentEvent {
+                attempt: settled as u32 + 1,
+                iteration: None,
+                event,
+            }
+        })
+        .collect()
+}
+
 /// Emit one task's buffered agent decisions onto the canonical stream
 /// (settle pass · the pens are the caller's).
 ///
@@ -59,97 +97,110 @@ impl AgentObserver for BufferingObserver {
 /// routing → `agent_tools_selected` · dispatched tool → `tool_invoked`
 /// (the agent path's one emission site) · compose → `agent_compose_checked`
 /// · nudge → `agent_nudge` · stall → `agent_stalled` · budget →
-/// `agent_budget_checkpoint`. Loop lifecycle (`RunStarted` ·
+/// `agent_budget_checkpoint` — each stamped with `task` + `attempt` (+
+/// `iteration` on fan-out lanes). Loop lifecycle (`RunStarted` ·
 /// `TurnStarted` · `Finished`) is intentionally NOT re-emitted — the
 /// task lifecycle events already bracket the run (`TaskStarted` carries
 /// the `agent · …` note · `TaskCompleted` carries turns + tokens).
 pub(crate) fn emit_agent_events(
     task: &str,
-    events: &[AgentEvent],
+    events: &[StampedAgentEvent],
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
-    for event in events {
-        emit_one(task, event, stamper, sink);
+    for stamped in events {
+        let Some((kind, mut fields)) = fields_of(&stamped.event) else {
+            continue; // lifecycle — bracketed by the task frames
+        };
+        fields.insert(0, ("task", s(task)));
+        fields.push(("attempt", i(i64::from(stamped.attempt))));
+        if let Some(iteration) = stamped.iteration {
+            fields.push(("iteration", i(i64::from(iteration))));
+        }
+        put(stamper, sink, kind, &fields);
     }
 }
 
-/// Map ONE agent decision onto its canonical kind + fields.
-fn emit_one(task: &str, event: &AgentEvent, stamper: &mut dyn Stamper, sink: &mut dyn EventSink) {
+/// Map ONE agent decision onto its canonical kind + specific fields
+/// (`None` for loop lifecycle — `RunStarted` · `TurnStarted` ·
+/// `Finished` are bracketed by the task frames; `#[non_exhaustive]`: a
+/// future decision kind lands here silently-skipped until this adapter
+/// learns its mapping).
+#[allow(clippy::type_complexity)] // one private call site · the tuple IS the contract
+fn fields_of(event: &AgentEvent) -> Option<(EventKind, Vec<(&'static str, FieldValue)>)> {
     match event {
         AgentEvent::ToolsSelected {
             turn,
             offered,
             universe,
             by_source,
-        } => emit_selected(task, *turn, *offered, *universe, by_source, stamper, sink),
+        } => Some((
+            EventKind::AgentToolsSelected,
+            vec![
+                ("turn", i(i64::from(*turn))),
+                ("offered", i(i64::from(*offered))),
+                ("universe", i(i64::from(*universe))),
+                ("builtin", i(i64::from(by_source.builtin))),
+                ("mcp", i(i64::from(by_source.mcp))),
+                ("skill", i(i64::from(by_source.skill))),
+                ("intrinsic", i(i64::from(by_source.intrinsic))),
+                ("other", i(i64::from(by_source.other))),
+            ],
+        )),
         AgentEvent::ToolCompleted {
             turn,
             name,
             is_error,
-        } => put(
-            stamper,
-            sink,
+        } => Some((
             EventKind::ToolInvoked,
-            &[
-                ("task", s(task)),
+            vec![
                 ("turn", i(i64::from(*turn))),
                 ("tool", s(name)),
                 ("error", FieldValue::Bool(*is_error)),
             ],
-        ),
+        )),
         AgentEvent::ComposeChecked {
             turn,
             valid,
             violations,
-        } => put(
-            stamper,
-            sink,
+        } => Some((
             EventKind::AgentComposeChecked,
-            &[
-                ("task", s(task)),
+            vec![
                 ("turn", i(i64::from(*turn))),
                 ("valid", FieldValue::Bool(*valid)),
                 ("violations", i(i64::from(*violations))),
             ],
-        ),
+        )),
         AgentEvent::Nudged {
             turn,
             reason,
             period,
-        } => put(
-            stamper,
-            sink,
+        } => Some((
             EventKind::AgentNudge,
-            &[
-                ("task", s(task)),
+            vec![
                 ("turn", i(i64::from(*turn))),
                 ("reason", s(reason_slug(*reason))),
                 ("period", i(i64::from(*period))),
             ],
-        ),
+        )),
         AgentEvent::Stalled {
             turn,
             period,
             repeats,
-        } => put(
-            stamper,
-            sink,
+        } => Some((
             EventKind::AgentStalled,
-            &[
-                ("task", s(task)),
+            vec![
                 ("turn", i(i64::from(*turn))),
                 ("period", i(i64::from(*period))),
                 ("repeats", i(i64::from(*repeats))),
             ],
-        ),
+        )),
         AgentEvent::BudgetCheckpoint {
             turn,
             total_tokens,
             budget,
         } => {
             let mut fields = vec![
-                ("task", s(task)),
                 ("turn", i(i64::from(*turn))),
                 (
                     "total_tokens",
@@ -159,41 +210,10 @@ fn emit_one(task: &str, event: &AgentEvent, stamper: &mut dyn Stamper, sink: &mu
             if let Some(b) = budget {
                 fields.push(("budget", i(i64::try_from(*b).unwrap_or(i64::MAX))));
             }
-            put(stamper, sink, EventKind::AgentBudgetCheckpoint, &fields);
+            Some((EventKind::AgentBudgetCheckpoint, fields))
         }
-        // Loop lifecycle — bracketed by the task events (see above).
-        // `#[non_exhaustive]`: a future decision kind lands here
-        // silently-skipped until this adapter learns its mapping.
-        _ => {}
+        _ => None,
     }
-}
-
-/// The routing decision's 9 fields (the per-source breakdown).
-fn emit_selected(
-    task: &str,
-    turn: u32,
-    offered: u32,
-    universe: u32,
-    by_source: &nika_verb_agent::SourceCounts,
-    stamper: &mut dyn Stamper,
-    sink: &mut dyn EventSink,
-) {
-    put(
-        stamper,
-        sink,
-        EventKind::AgentToolsSelected,
-        &[
-            ("task", s(task)),
-            ("turn", i(i64::from(turn))),
-            ("offered", i(i64::from(offered))),
-            ("universe", i(i64::from(universe))),
-            ("builtin", i(i64::from(by_source.builtin))),
-            ("mcp", i(i64::from(by_source.mcp))),
-            ("skill", i(i64::from(by_source.skill))),
-            ("intrinsic", i(i64::from(by_source.intrinsic))),
-            ("other", i(i64::from(by_source.other))),
-        ],
-    );
 }
 
 /// Emit-and-discard (the settle pass tracks timestamps only for the

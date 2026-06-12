@@ -320,7 +320,17 @@ form; the timeout class surfaces the SPEC code `NIKA-TIMEOUT-001`.
     per-dispatch because a wave dispatches concurrently and a verb-wide
     observer would interleave tasks' streams), ride `Dispatched` →
     `RanTask` across attempts, and the settle pass emits them between
-    the retry frames and the terminal frame.
+    the retry frames and the terminal frame. Review fold (2-lens audit
+    on the wiring): the buffer is OWNED BY `attempt_loop`, OUTSIDE the
+    timeout-cancellable region — a timed-out attempt's pre-timeout
+    decisions (routing · budget) SURVIVE the drop and reach the stream
+    with the `NIKA-TIMEOUT-001` frame (F1 · the timed-out-agent test
+    pins it); every emitted event carries `attempt` (and `iteration` on
+    fan-out lanes) so a retried agent and a 2-iteration fan-out are
+    distinguishable in the flat stream (F3 · joins the `TaskRetrying`
+    frames' counter); cleanup mini-tasks dispatch with a throwaway
+    buffer (best-effort lane · collecting it is a trigger-gated
+    ratchet).
 
 ## 6 · Non-goals (v0.1 · tracked)
 
