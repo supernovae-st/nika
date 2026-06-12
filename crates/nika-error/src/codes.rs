@@ -487,6 +487,15 @@ pub const NIKA_466: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "agent-tool-defs-unavailable",
 };
+/// NIKA-467: The agent loop stalled — identical actions with identical
+/// observations repeated past the stall threshold (no progress; further
+/// turns would spend budget for nothing · ADR-093).
+pub const NIKA_467: NikaCode = NikaCode {
+    num: 467,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "agent-stalled",
+};
 
 /// NIKA-999: Internal error (catch-all).
 pub const NIKA_999: NikaCode = NikaCode {
@@ -913,14 +922,14 @@ pub const ALL: &[NikaCode] = &[
     NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
     NIKA_234, NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_440, NIKA_441, NIKA_442, NIKA_450,
     NIKA_451, NIKA_452, NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466,
-    NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_700, NIKA_750, NIKA_800, NIKA_999,
-    NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005, NIKA_1006, NIKA_1007,
-    NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105, NIKA_1106,
-    NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204, NIKA_1205,
-    NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401, NIKA_1402,
-    NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502, NIKA_1503, NIKA_1504,
-    NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605, NIKA_1700, NIKA_1701,
-    NIKA_1702, NIKA_1703,
+    NIKA_467, NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_700, NIKA_750, NIKA_800,
+    NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005, NIKA_1006,
+    NIKA_1007, NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105,
+    NIKA_1106, NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204,
+    NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401,
+    NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502, NIKA_1503,
+    NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605, NIKA_1700,
+    NIKA_1701, NIKA_1702, NIKA_1703,
 ];
 
 /// Returns an actionable help message for a given code.
@@ -1205,6 +1214,27 @@ mod tests {
                 assert_ne!(a.num, b.num, "duplicate num: {a} and {b}");
             }
         }
+    }
+
+    #[test]
+    fn every_declared_code_is_registered_in_all() {
+        // THE RATCHET (declared == registered) — `ALL` is hand-listed,
+        // so the day someone declares `NIKA_468` and forgets the array,
+        // `lookup()` 404s and `explain` goes silent for a live code.
+        // Source-as-data: count the declaration lines in THIS file and
+        // pin them to `ALL.len()`. Phantoms in `ALL` already fail to
+        // compile (the array references the consts) — the forgotten
+        // direction is the one only this test catches. Sister ratchet:
+        // nika-schema's emitted⊆registered test for the SPEC codes.
+        let declared = include_str!("codes.rs")
+            .lines()
+            .filter(|l| l.trim_start().starts_with("pub const NIKA_"))
+            .count();
+        assert_eq!(
+            declared,
+            ALL.len(),
+            "a `pub const NIKA_*` is declared but not listed in `ALL` — register it"
+        );
     }
 
     #[test]
