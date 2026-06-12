@@ -14,9 +14,11 @@ use std::sync::Arc;
 use nika_event::EventKind;
 use nika_kernel::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
 use nika_kernel::tool_executor::ToolResult;
-use nika_kernel_mock::{MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor};
+use nika_kernel_mock::{
+    MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+};
 use nika_providers::{NoHttp, ProviderRegistry, ProvidersConfig};
-use nika_runtime::{DeterministicStamper, Runtime, RuntimeError, VecSink};
+use nika_runtime::{DeterministicStamper, Runtime, RuntimeConfig, RuntimeError, VecSink};
 use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 use nika_schema::{FileId, ParseMode, check, parse};
@@ -92,8 +94,14 @@ fn parse_and_check(yaml: &str) -> (RawWorkflow, CheckReport) {
     (wf, report)
 }
 
-type FloorRuntime =
-    Runtime<MockShell, MockToolExecutor, NoHttp, MockProvider, MockToolDefinitionProvider>;
+type FloorRuntime = Runtime<
+    MockShell,
+    MockToolExecutor,
+    NoHttp,
+    MockProvider,
+    MockToolDefinitionProvider,
+    MockClock,
+>;
 
 /// Assemble the runtime exactly as the composer will: four verbs over
 /// mock seams · the agent lane idle unless a fixture dispatches it.
@@ -114,7 +122,17 @@ fn floor_runtime(
             Arc::new(MockToolDefinitionProvider::new()),
             "mock/echo",
         ),
+        MockClock::new(),
+        RuntimeConfig::default(),
     )
+}
+
+/// A task's success output as text (the floor fixtures' string lanes).
+fn output_str(outcome: &nika_runtime::RunOutcome, task: &str) -> String {
+    match &outcome.records[task].output {
+        serde_json::Value::String(s) => s.clone(),
+        other => other.to_string(),
+    }
 }
 
 /// Field accessor · the stream's `note`/`task` string fields.
@@ -212,9 +230,15 @@ async fn floor_happy_path_same_yaml_same_stream() {
     );
 
     // Dataflow proof · gather's JSON flowed through think into write_out ·
-    // and the workflow output resolved from the final bindings.
-    assert!(outcome.bindings["think"].contains(GATHER_JSON));
+    // and the workflow output resolved from the final records.
+    assert!(output_str(&outcome, "think").contains(GATHER_JSON));
     assert_eq!(outcome.outputs["report"], "2.1 KB written");
+
+    // Records carry the spec-04 result fields (status · stamps · duration).
+    let think = &outcome.records["think"];
+    assert_eq!(think.status, nika_runtime::TaskStatus::Success);
+    assert!(think.started_at.is_some() && think.ended_at.is_some());
+    assert!(think.error.is_none());
 }
 
 // ─── test 2 · replay stability (the snapshot the runtime owns) ──────────
@@ -282,15 +306,33 @@ async fn floor_failure_cascades_and_terminal_is_failed() {
         .collect();
     assert_eq!(failed, ["probe"], "exactly one root failure");
 
-    let skipped: BTreeMap<&str, &str> = rows
+    // Spec 03 · a default-gate task whose deps can no longer all end
+    // success/skipped is CANCELLED (the v1 floor said skipped — the
+    // spec-parity engine upgraded the cascade class · §3.1 `◼`).
+    let cancelled: BTreeMap<&str, &str> = rows
         .iter()
-        .filter(|(k, _, _)| *k == EventKind::TaskSkipped)
+        .filter(|(k, _, _)| *k == EventKind::TaskCancelled)
         .map(|(_, t, note)| (t.as_str(), note.as_str()))
         .collect();
-    assert_eq!(skipped["think"], "upstream failed");
-    assert_eq!(skipped["write_out"], "upstream failed");
-    assert_eq!(skipped["notify"], "upstream failed");
-    assert!(!skipped.contains_key("extract"), "the live lane completed");
+    assert_eq!(cancelled["think"], "upstream failed");
+    assert_eq!(cancelled["write_out"], "upstream failed");
+    assert!(
+        !cancelled.contains_key("extract"),
+        "the live lane completed"
+    );
+    // notify's explicit `when:` gets its evaluation (deps terminal ·
+    // spec 05 always-pattern lane) — publish=no · the gate closes.
+    let notify_skip = rows
+        .iter()
+        .find(|(k, t, _)| *k == EventKind::TaskSkipped && t == "notify")
+        .expect("notify gate evaluated despite the dead upstream");
+    assert_eq!(notify_skip.2, "when: gate closed");
+    // The cancelled records read defined-null (spec 04).
+    assert_eq!(
+        outcome.records["think"].status,
+        nika_runtime::TaskStatus::Cancelled
+    );
+    assert_eq!(outcome.records["think"].output, serde_json::Value::Null);
 
     // The failure detail carries the verb's wire code (B5 one-voice).
     let probe_failed = events
@@ -370,7 +412,7 @@ tasks:
     let events = sink.into_events();
 
     assert!(outcome.ok);
-    assert_eq!(outcome.bindings["ask"], "done thinking");
+    assert_eq!(output_str(&outcome, "ask"), "done thinking");
     let completed = events
         .iter()
         .find(|e| e.kind == EventKind::TaskCompleted)
@@ -411,11 +453,14 @@ tasks:
         .expect("clean run");
 
     assert!(outcome.ok);
+    assert_eq!(output_str(&outcome, "always"), "a");
+    // The skipped task HAS a record (defined-null reads · spec 04) —
+    // status skipped · output null.
     assert_eq!(
-        outcome.bindings.get("always").map(String::as_str),
-        Some("a")
+        outcome.records["never"].status,
+        nika_runtime::TaskStatus::Skipped
     );
-    assert!(!outcome.bindings.contains_key("never"));
+    assert_eq!(outcome.records["never"].output, serde_json::Value::Null);
     let rows = storyboard(&sink.into_events());
     let never_skip = rows
         .iter()
@@ -463,30 +508,36 @@ outputs:
 }
 
 /// Kills the three `render_opt` mutants (Ok(None) · Some("") ·
-/// Some("xyzzy")) · a `system:` referencing the output of a GATED task
-/// is statically valid (the ladder sees a real id) but unresolvable at
-/// run time · the task must fail loudly (NIKA-1702 in the detail) —
-/// every mutant silently succeeds instead.
+/// Some("xyzzy")) · a DEEP output path in `system:` is statically
+/// valid (the ladder proves it against the declared `schema:` ·
+/// ADR-092 #4) but OUT of the v0 render subset — the task must fail
+/// loudly (NIKA-1703 · CEL territory · documented divergence until
+/// the 03-dag evaluator) — every mutant silently succeeds instead.
 #[tokio::test]
-async fn floor_bad_system_template_fails_the_task() {
+async fn floor_deep_path_system_template_fails_the_task_loudly() {
     let yaml = r#"
 nika: v1
-workflow: gated-ref
+workflow: deep-ref
 model: mock/echo
 tasks:
-  - id: maybe
-    when: false
-    exec: { command: 'echo never' }
+  - id: extract
+    infer:
+      prompt: 'extract from {"headline":"Rust 2.0"}'
+      schema:
+        type: object
+        properties:
+          headline: { type: string }
+        required: [headline]
   - id: think
-    depends_on: [maybe]
+    depends_on: [extract]
     infer:
       prompt: "hello"
-      system: "${{ tasks.maybe.output }}"
+      system: "${{ tasks.extract.output.headline }}"
 "#;
     let (wf, report) = parse_and_check(yaml);
     assert!(
         report.is_clean(),
-        "statically valid · the v0 render owns the RUN-time failure"
+        "deep path proves against the declared schema · the v0 render owns the refusal"
     );
 
     let runtime = floor_runtime(
@@ -502,15 +553,65 @@ tasks:
         .expect("the run survives · the task fails");
     let events = sink.into_events();
 
-    assert!(!outcome.ok, "a bad system template fails the workflow");
+    assert!(
+        !outcome.ok,
+        "a deep-path system template fails the workflow"
+    );
     let failed = events
         .iter()
         .find(|e| e.kind == EventKind::TaskFailed)
         .expect("think failed");
     let detail = field(failed, "detail").expect("detail field");
     assert!(
-        detail.contains("NIKA-1702"),
-        "the silent-literal guard names itself: {detail}"
+        detail.contains("NIKA-1703"),
+        "the out-of-subset guard names itself: {detail}"
+    );
+}
+
+/// The defined-null read (spec 04 §branch-join unlock) — the output of
+/// a `when:`-skipped task reads as `null`, deterministically · the
+/// downstream consumer RUNS (v1's floor failed this lane — the records
+/// model unlocked it · the diamond-join pattern now works).
+#[tokio::test]
+async fn floor_skipped_upstream_reads_null_downstream() {
+    let yaml = r#"
+nika: v1
+workflow: gated-ref
+model: mock/echo
+tasks:
+  - id: maybe
+    when: false
+    exec: { command: 'echo never' }
+  - id: think
+    depends_on: [maybe]
+    infer:
+      prompt: "value is ${{ tasks.maybe.output }} · status ${{ tasks.maybe.status }}"
+"#;
+    let (wf, report) = parse_and_check(yaml);
+    assert!(report.is_clean());
+
+    let runtime = floor_runtime(
+        MockShell::new(),
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+    );
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("clean run");
+
+    assert!(outcome.ok, "defined-null · the join lane completes");
+    // mock/echo echoes the prompt — both record fields resolved.
+    let echoed = output_str(&outcome, "think");
+    assert!(
+        echoed.contains("value is null"),
+        "skipped output reads null: {echoed}"
+    );
+    assert!(
+        echoed.contains("status skipped"),
+        "the status field resolves: {echoed}"
     );
 }
 
@@ -550,7 +651,7 @@ async fn stress_deep_chain_threads_bindings_in_order() {
     let events = sink.into_events();
 
     assert!(outcome.ok);
-    assert_eq!(outcome.bindings.len(), DEPTH, "every link bound");
+    assert_eq!(outcome.records.len(), DEPTH, "every link recorded");
     // Event arithmetic · 1 started + N scheduled + N×(started+completed) + 1 terminal.
     assert_eq!(events.len(), 1 + DEPTH + 2 * DEPTH + 1);
     // Strict chain order · TaskStarted frames appear exactly t0..t23.
@@ -563,7 +664,7 @@ async fn stress_deep_chain_threads_bindings_in_order() {
     assert_eq!(started, expected, "the chain runs strictly in order");
     // Dataflow proof at depth · the last link bound its own output.
     assert_eq!(
-        outcome.bindings[&format!("t{}", DEPTH - 1)],
+        output_str(&outcome, &format!("t{}", DEPTH - 1)),
         format!("out-{}", DEPTH - 1)
     );
 }
@@ -615,6 +716,8 @@ async fn stress_wide_fan_in_joins_every_source() {
             Arc::new(MockToolDefinitionProvider::new()),
             "mock/echo",
         ),
+        MockClock::new(),
+        RuntimeConfig::default(),
     );
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();

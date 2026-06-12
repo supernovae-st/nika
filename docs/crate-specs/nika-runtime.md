@@ -1,26 +1,29 @@
 # nika-runtime — crate spec (L3 · orchestration)
 
-> Gate 1 artifact · 2026-06-12 · the first L3 crate. The DAG executor
-> that owns what `crates/nika-cli/tests/e2e_pipeline.rs` rehearsed: the
-> harness PLAYED the missing layer over the real verb crates · this
-> crate IS that layer · the harness assertions are its conformance
-> floor (same YAML in · same event stream out).
+> Gate 1 artifact · v2 · 2026-06-12 · the first L3 crate. v1 (admission
+> `2e0386d3a`) shipped the conformance-floor executor the nika-cli
+> rehearsal pinned. v2 is the **v0.1 spec-parity engine**: the full task
+> pipeline of `nika-spec` 03/04/05 (gates · records · `with:` · retry ·
+> timeout · `on_error:` · `for_each:` · `on_finally:`) + bounded
+> intra-wave concurrency with ordered settlement. Research-grounded —
+> every mechanism cites its paper or its spec section (citation law).
 
 ## 1 · Role
 
 Execute one **checked** workflow wave-by-wave through the four verb
 crates, emitting the canonical event stream. The runtime is the ONE
 emission site per verb path (INV-024 · the verbs stay event-free) and
-the ONE place dataflow bindings live.
+the ONE place run state (task records · dataflow) lives.
 
 ```text
 RawWorkflow + CheckReport (clean)        nika-schema   (audit BEFORE run)
         │
         ▼
 nika_runtime::Runtime::run()             THIS CRATE
-        │  waves (CheckReport order) · upstream-failure cascade
-        │  `when:` gate (v0 subset · loud on out-of-scope)
-        │  `${{ }}` interpolation (v0 textual · the CEL seam)
+        │  waves (CheckReport order) · per-wave bounded concurrency
+        │  ordered settlement (deterministic event stream)
+        │  task pipeline · gate → with → for_each → retry/timeout →
+        │                  on_error → on_finally → settle
         ├──▶ infer  → nika-verb-infer
         ├──▶ exec   → nika-verb-exec
         ├──▶ invoke → nika-verb-invoke
@@ -29,78 +32,217 @@ nika_runtime::Runtime::run()             THIS CRATE
 Vec<Event> via EventSink                 nika-event    (display folds it)
 ```
 
-## 2 · Public API (v0)
+## 2 · Public API (v2)
 
 ```rust
-pub struct Runtime<S, T, P, D> { /* the four verb instances */ }
+pub struct Runtime<S, T, H, P, D, C> { /* 4 verbs + clock + config */ }
 
-impl<S, T, P, D> Runtime<S, T, P, D>
+impl<…> Runtime<S, T, H, P, D, C>
 where
-    S: ShellDyn,                  // exec seam   (kernel)
-    T: ToolExecuteDyn,            // invoke seam (kernel)
-    P: ProviderInferDyn,          // infer/agent seam (providers)
-    D: ToolDefinitionProviderDyn, // agent tool-defs seam
+    S: ShellRunDyn + Sync, T: ToolExecuteDyn,
+    H: HttpPostDyn + Send + Sync + 'static,
+    P: ProviderInferDyn, D: ToolDefinitionProviderDyn,
+    C: ClockDyn + Sync,            // sleep = backoff + timeout (kernel seam)
 {
-    pub fn new(shell: Arc<S>, tools: Arc<T>, provider: Arc<P>,
-               tool_defs: Arc<D>, default_model: impl Into<String>) -> Self;
-
-    /// Audit-before-run is a hard precondition · a dirty report is
-    /// NIKA-1700 (never executes).
-    pub async fn run(
-        &self,
-        wf: &RawWorkflow,
-        report: &CheckReport,
-        stamper: &mut dyn Stamper,
-        sink: &mut dyn EventSink,
-    ) -> Result<RunOutcome, RuntimeError>;
+    pub fn new(shell, invoke, infer, agent, clock: C, config: RuntimeConfig) -> Self;
+    pub async fn run(&self, wf, report, stamper: &mut dyn Stamper,
+                     sink: &mut dyn EventSink) -> Result<RunOutcome, RuntimeError>;
 }
 
-pub trait Stamper   { fn next(&mut self) -> (EventId, Timestamp); }
-pub trait EventSink { fn emit(&mut self, event: Event); }
+pub struct RuntimeConfig {
+    /// Per-wave in-flight cap (for_each has its own `max_parallel`).
+    /// None = wave-width (unbounded within the wave).
+    pub wave_parallelism: Option<NonZeroUsize>,
+    /// Seed for the retry full-jitter PRNG (splitmix64 over
+    /// (seed, task, attempt) — pure · replay-stable · no RNG state).
+    pub jitter_seed: u64,
+}
 
 pub struct RunOutcome {
-    pub ok: bool,                              // terminal Completed vs Failed
-    pub bindings: BTreeMap<String, String>,    // tasks.<id>.output
-    pub outputs: BTreeMap<String, String>,     // workflow outputs: resolved
+    pub ok: bool,
+    pub records: BTreeMap<String, TaskRecord>,   // the result records (04)
+    pub outputs: BTreeMap<String, Value>,        // workflow outputs:
+}
+
+pub struct TaskRecord {                          // spec 04 §task reference
+    pub status: TaskStatus,                      // success|failure|skipped|cancelled
+    pub output: Value,                           // Null on skipped/cancelled
+    pub error: Option<TaskErrorRecord>,          // present iff failure (+ on_error.skip)
+    pub started_at / ended_at: Option<Timestamp>,
+    pub duration_ms: Option<u64>,
 }
 ```
 
-`DeterministicStamper` (seq·10ms · the EventPen idiom) ships in the
-crate for tests + replay. `VecSink` (collect) ships for tests. Prod
-stampers (kernel clock + uuid-v7) are the composer's concern (L4).
+**Why generic over 6 seams** · the agent tool-defs impl lives in
+`nika-builtin` (WIP · NOT admitted) · the clock impl in `nika-clock`
+(L1 effect). An admitted crate never depends on a sideways impl — the
+composer (nika-cli L4) injects. Zero Cargo edge beyond the four verb
+crates + the kernel hub + `futures-util` (std combinators · no
+executor — the crate keeps ZERO runtime tokio dep · async rides the
+injected seams).
 
-**Why generic over 4 seams** · the agent tool-defs impl lives in
-`nika-builtin` (WIP · NOT admitted). An admitted crate never depends on
-a WIP crate · the runtime stays seam-generic exactly like `AgentVerb`
-and the composer (nika-cli L4) injects. Zero Cargo edge to any L2
-domain impl beyond the four verb crates.
+## 3 · Execution model (v0.1 · spec 03 §DAG execution model)
 
-## 3 · Semantics (v0 scope · declared honest)
+### 3.1 Waves + bounded concurrency + ordered settlement
 
-- **Waves** · `CheckReport.waves` is the schedule (the checker owns
-  topology · the runtime never re-sorts). Tasks within a wave run
-  sequentially in v0 (concurrency = roadmap · the event contract is
-  order-stable for replay).
-- **Cascade** · a task whose `depends_on` contains a dead id (failed or
-  skip-cascaded) emits `TaskSkipped(note: "upstream failed")` and joins
-  the dead set. A `when:`-skip is NOT a cascade (downstream of the gate
-  still runs if its other deps are alive — floor semantics).
-- **`when:` gate (v0 subset)** · `${{ <ref> == '<lit>' }}` ·
-  `${{ <ref> != '<lit>' }}` · bare `${{ <ref> }}` (truthy = non-empty ·
-  not `"no"`/`"false"`/`"0"`). `<ref>` = `vars.<key>` or
-  `tasks.<id>.output`. ANYTHING else = NIKA-1703 loud · never a silent
-  closed-gate (the rehearsal's stand-in dies here).
-- **Interpolation (v0)** · textual `${{ tasks.<id>.output }}` +
-  `${{ vars.<key> }}` substitution · invoke `args:` resolved over every
-  JSON string leaf · an unresolved `${{` left in a rendered string is
-  NIKA-1702 loud (the silent-literal class). The CEL evaluator (03-dag)
-  replaces the module behind the same `expr::render` seam.
-- **Per-verb notes** (display contract) · `invoke · <tool>` ·
-  `exec · <argv0>` · `infer · <model_resolved>` · `agent · <model>` ·
-  tokens field on infer/agent completions.
-- **Terminal** · `WorkflowCompleted` iff zero failed tasks · else
-  `WorkflowFailed`. `outputs:` resolve AFTER the terminal event from
-  the final bindings (absent binding → output omitted · ok unchanged).
+- `CheckReport.waves` is the schedule (the checker owns topology · the
+  runtime never re-sorts · a bad index is NIKA-1701). Wave-barrier
+  (BSP) execution is a deliberate v0 trade: bounded makespan loss at
+  workflow widths (≤50) vs static auditability — per Graham 1969
+  (list-schedule 2−1/m bound) · Nelson & Tantawi 1988 (fork/join
+  barrier cost ~H_k) · Buttari et al. 2009 (async DAG gains). Eager
+  dispatch is a future seam the settlement contract already permits.
+- Within a wave, tasks **dispatch concurrently** (cap =
+  `wave_parallelism`) and **settle in wave order**: dispatch is pure
+  (returns an `Outcome` · no emission), settlement owns the pens
+  (stamper + sink) and runs sequentially in the checker's task order.
+  This is the canonical deterministic-parallelism pattern — Blelloch
+  et al. PPoPP 2012 (deterministic reservations · commit in fixed
+  priority order) · Thomson et al. SIGMOD 2012 (Calvin · sequencer
+  fixes order ahead of execution) · Kahn 1974 (the determinism floor).
+  Consequence: **the event stream is byte-identical for any cap ≥ 1**
+  (the cap-equivalence test pins this).
+- Mechanism: `futures_util::StreamExt::buffered(k)` over the wave's
+  dispatch futures — polls up to k concurrently, yields in submission
+  order (source-verified semantics · futures-util 0.3.31). Send-free
+  (single-task concurrency · no spawn). The settle body is sync
+  (event emission) — no in-flight stall (the "Barbara" pitfall).
+- **In-flight drain** (spec 05 §workflow-level) · a sibling failure
+  never aborts a running task — all wave members settle.
+
+### 3.2 The gate (spec 03 §task states · §when)
+
+- **Default gate** (no `when:`) · run iff ALL deps ∈ {success,
+  skipped} · else the task is **`cancelled`** (emits `TaskCancelled` ·
+  note `upstream failed/cancelled` · propagates downstream — the
+  Dead-Path-Elimination pattern · Ouyang et al. SCP 2007 · skipped
+  nodes still fire an observable token).
+- **Explicit `when:` REPLACES the default gate** · evaluated once deps
+  are terminal whatever their status · `true` → run (the
+  always-pattern — a notify task runs even in a failing workflow) ·
+  `false` → `skipped` (emits `TaskSkipped` · note `when: gate
+  closed`). Evaluation error → the task FAILS (NIKA-1702/1703 in the
+  detail · cascade · never a run abort).
+- v1's `TaskSkipped(upstream failed)` cascade emission is SUPERSEDED
+  by `TaskCancelled` per spec 03's closed status enum (the event
+  taxonomy's `TaskSkipped` doc comment is amended in lockstep).
+
+### 3.3 Expressions (v0 subset · the CEL seam)
+
+Value-model scope (spec 04): namespaces `vars.*` (envelope defaults ·
+typed or untyped · JSON values) · `with.*` (task-local · rendered
+per task / per iteration) · `item` / `index` (`for_each` locals) ·
+`tasks.<id>.{output,status,error,started_at,ended_at,duration_ms}`
+(the result record · closed field set · named jq bindings DEFER with
+`output:` below). **Defined-null reads** (04 §branch-join unlock):
+record fields of a terminal task never error — absent = `Value::Null`
+(skipped/cancelled output → null · error of a non-failure → null).
+Unknown reference = NIKA-1702 loud · out-of-subset form = NIKA-1703
+loud. Rendering into string positions (04 §value rendering): scalars
+natural (`null` → `null`) · objects/arrays compact JSON with **sorted
+keys** (deterministic). Single-pass island scan — injected values are
+DATA, never re-scanned. `when:` v0 subset: `<ref> == '<lit>'` ·
+`<ref> != '<lit>'` · bare `<ref>` truthy (null/false/0/empty/
+`"no"`/`"false"` → false · CEL replaces truthiness with bool-typing
+at the 03-dag milestone, deliberately).
+
+### 3.4 Retry (spec 05 §retry · schema `RetryConfig`)
+
+- Transient-only (`error.transient` — the verbs' `NikaErrorCode::
+  is_transient()` feeds it) unless `on_codes:` whitelists the final
+  error's wire code. `max_attempts` strict · last error surfaces.
+- Backoff per the spec's three strategies (`fixed` · `linear` ·
+  `exponential`, capped at `backoff_max_ms`) + **full jitter** when
+  `jitter: true` (default) — Brooker (AWS Architecture Blog 2015) ·
+  cap per Bender et al. JACM 2019 (uncapped backoff loses throughput).
+  Delay arithmetic mirrors `nika_types::retry::delay_for_ms`'s
+  blend/clamp discipline (the shared semantics) extended with the two
+  spec ramps — the adapter graduates into nika-types on a second
+  consumer (stress-to-ratchet).
+- Jitter randomness: splitmix64 over `(jitter_seed, task-id hash,
+  attempt)` — pure · Sync · replay-stable by construction (no RNG
+  state · no logged-sleep requirement). The chosen `delay_ms` lands ON
+  the `TaskRetrying` event (attempt · max_attempts · delay_ms fields ·
+  the display contract's `↻`).
+- Sleeps via the injected kernel clock (`ClockDyn::sleep` ·
+  cancel-safe · MockClock = instant in tests).
+
+### 3.5 Timeout (spec 03 §timeout)
+
+ONE per-task wall-clock budget covering the whole attempt loop
+(retries + backoff sleeps included) — the spec deliberately rejects
+Temporal's per-attempt/per-schedule split at v0.1 ("the timeout
+already covered the retries by definition"). Implemented as a
+`select` race: the task pipeline vs `clock.sleep(timeout)` ·
+loser-dropped (drop-cancellation is the futures contract · exec
+subprocesses die via the runner's kill_on_drop). On expiry: the task
+fails with the spec wire code `NIKA-TIMEOUT-001` (catchable by
+`on_error:` · NEVER retryable · `transient: false`) — emitted as
+`TaskFailed` (the timeout is an error class, not an operator
+cancellation; `TaskCancelled` stays the decision class per the event
+taxonomy). On a `for_each` task the budget applies **per iteration**.
+
+### 3.6 `on_error:` (spec 05 · schema `OnError`)
+
+After retries exhaust: `on_codes:` filter (empty = all) → action:
+`recover: <value>` (render the value — a `${{ }}` ref or literal —
+task becomes **success** with the recovered output) · `skip: true`
+(task becomes **skipped** · the original error STAYS readable at
+`tasks.X.error` — the one status where both coexist) ·
+`fail_workflow: true` (explicit default). Unlisted code falls through
+to fail. v0 recover-ref resolution: against the records at recovery
+time — a ref to a not-yet-terminal task fails the recovery (the task
+fails as if `on_error:` were absent) · the spec's step-3 await
+arrives with eager dispatch (documented divergence · LOUD over
+silent).
+
+### 3.7 `for_each:` (spec 03 §for_each · closed at v1)
+
+- Collection = the rendered single-island expression or literal list ·
+  MUST be an array (else the task fails · `NIKA-VAR-006` class) ·
+  empty → `skipped`.
+- Per-iteration scope: `item` + `index` bound · **every body
+  expression re-evaluates per iteration** (`with:` · verb fields) ·
+  the only once-evaluated expression is the collection itself.
+- Iterations dispatch concurrently capped by `max_parallel` (default
+  unbounded) · settle in input order (same ordered-settlement
+  pattern) · `retry:`/`timeout:`/`on_error:` apply per iteration.
+- `fail_fast: true` (default) · first settled error drops the
+  remaining stream (in-flight cancelled · unspawned never start) ·
+  `false` · all iterations run · failed slots contribute `null` at
+  their index (positional alignment survives · spec §null-at-index).
+- Task output = the array of per-iteration outputs in input order ·
+  task status = failure if ANY iteration failed unrecovered.
+- Events: ONE task-level Started/Completed/Failed pair (iterations are
+  internal · the note carries `for_each · N items`) — the event
+  grammar has no per-iteration id space at v0.1.
+
+### 3.8 `on_finally:` (spec 03 · ALWAYS runs)
+
+For a task that **started**: after its terminal status, run the
+cleanup mini-tasks **sequentially in declared order** · each with its
+own `when:` (the scope sees the parent's fresh record — status/error
+routing) + `timeout:` (default 30s). Cleanup outcomes are best-effort:
+errors are swallowed (the parent's status reflects ONLY the main
+verb) — consistent with the cross-engine canon (cleanup never masks
+the original error · Sagas '87 lineage · Temporal detached scopes).
+Never-started tasks (skipped gate · cancelled) run NO cleanup. v0
+emits no engine events for mini-tasks (no id grammar) — observability
+via the cleanup's own effects (e.g. `nika:emit`).
+
+### 3.9 Settlement + records + terminal
+
+Settle order = wave order (3.1). Per task: `TaskStarted` (note =
+dispatch note) · `TaskRetrying`× (attempt history) · terminal event
+(`TaskCompleted` + `duration_ms` + tokens? · `TaskFailed` + detail +
+`duration_ms` · `TaskSkipped` · `TaskCancelled`) — `started_at` /
+`ended_at` = the two stamps · `duration_ms` = their delta (stamp-
+derived · deterministic under replay · wall-accurate under a live
+stamper). Record inserted at settle. Terminal: `WorkflowCompleted`
+iff zero unrecovered failures else `WorkflowFailed` (always-pattern
+tasks may have run after a failure · the verdict stands · spec 05).
+`outputs:` resolve after the terminal event from the records (an
+unresolvable output is omitted · the verdict unchanged).
 
 ## 4 · Errors (NIKA-1700 range · Category::Runtime)
 
@@ -108,41 +250,84 @@ domain impl beyond the four verb crates.
 |---|---|
 | NIKA-1700 | dirty CheckReport handed to run (audit-before-run violated) |
 | NIKA-1701 | wave index out of bounds (checker/runtime contract breach) |
-| NIKA-1702 | unresolved `${{ }}` after render (silent-literal guard) |
-| NIKA-1703 | `when:` expression outside the v0 subset |
+| NIKA-1702 | unresolved `${{ }}` reference (silent-literal guard) |
+| NIKA-1703 | expression outside the v0 subset (when/render forms) |
 
-Verb failures are NOT runtime errors — they are `TaskFailed` events
-carrying the verb's own `nika_code()` (the run continues per cascade).
-`is_transient()` = false for all four (contract breaches + static
-expression classes · retry never helps).
+NIKA-1700/1701 abort the RUN. NIKA-1702/1703 inside a task pipeline
+fail THE TASK (cascade · the detail carries the code) — only a
+**system** surface (a corrupt schedule) aborts the run. Verb failures
+are `TaskFailed` events carrying the verb's own `nika_code()` wire
+form; the timeout class surfaces the SPEC code `NIKA-TIMEOUT-001`.
 
-## 5 · Tests (the floor, ported + owned)
+## 5 · Tests (the floor + the v2 battery)
 
-1. **Conformance floor** · the e2e fixture (4 waves · 6 tasks · diamond
-   DAG) byte-equal event stream vs the rehearsal expectations (states ·
-   notes · tokens · skip reasons) — then `e2e_pipeline.rs` flips from
-   playing the runtime to CALLING it (the rehearsal retires its
-   dispatch loop · same assertions).
-2. **Cascade** · fail mid-DAG → downstream skipped · terminal Failed.
-3. **Gate v0** · `==` open/closed · `!=` · bare-ref truthy table ·
-   out-of-scope expr = NIKA-1703.
-4. **Interpolation** · proptest (random ids/vars · render never panics ·
-   resolved strings contain no `${{` · unknown ref = NIKA-1702).
-5. **Agent dispatch** · scripted provider + mock tool-defs (the s12
-   pattern) through the YAML path.
-6. **Snapshots** · insta on the event stream (replay-stable ·
-   DeterministicStamper).
-7. **Mutation** · `cargo mutants -p nika-runtime` ≥90% killed.
+1. **Conformance floor** (v1 · kept) · diamond fixture byte-stable
+   storyboard · cascade (now `TaskCancelled` per 3.2 · the cli e2e
+   updates in lockstep) · gates · agent lane · 24-deep / 12-wide.
+2. **Cap-equivalence** · same workflow · `wave_parallelism` 1 vs 8 →
+   byte-identical event streams (the determinism theorem made a test).
+3. **True-concurrency proof** · two same-wave tasks that each await
+   the other's start signal (mock handshake) — completes under cap ≥ 2
+   · would deadlock sequentially (timeout-guarded).
+4. **Drain** · sibling failure mid-wave never cancels an in-flight
+   task (spec 05).
+5. **Gate matrix** · default-gate cancel cascade · always-pattern
+   (`when: true` over a failed dep RUNS) · `when:` false → skipped ·
+   eval-error → task failure.
+6. **Records** · status/error/duration refs in `when:` + render ·
+   defined-null diamond join · skipped→null output.
+7. **Retry** · transient×N→success (attempt counts · `TaskRetrying`
+   delay fields) · non-transient never retries · `on_codes` filter ·
+   `max_attempts` strict · backoff table (fixed/linear/exponential ·
+   jitter bounds · property: delay ≤ cap forever).
+8. **Timeout** · hanging verb killed at budget (`NIKA-TIMEOUT-001` ·
+   catchable by `on_error:` · never retried) · fast verb unaffected.
+9. **`on_error`** · recover (downstream sees success + value) · skip
+   (status skipped + error readable) · filter fall-through.
+10. **`for_each`** · literal + upstream-array collections ·
+    `max_parallel: 1` ordering · `fail_fast` both ways ·
+    null-at-index · empty→skipped · `item`/`index`/`with` per
+    iteration · non-array loud.
+11. **`on_finally`** · runs on success AND failure · errors swallowed
+    · parent status visible to cleanup `when:` · never-started runs
+    none.
+12. **Properties** (proptest) · random DAG schedules: replay
+    determinism (run twice ≡) · settle-exactly-once · event
+    arithmetic · cap-equivalence over random caps.
+13. **Mutation** · `cargo mutants -p nika-runtime` · 0 missed.
 
-## 6 · Non-goals (v0 · roadmap-tracked)
+## 6 · Non-goals (v0.1 · tracked)
 
-Full CEL · intra-wave concurrency · retry/backoff (`on_error` policies)
-· checkpoints/resume (`CheckpointWritten` stays unemitted) · streaming
-token frames · `nika-shield` enforcement (L3 sibling) · sandbox.
+Full CEL (the 03-dag milestone · replaces `expr` behind the same
+seam) · `output:` jq bindings (ONE jq engine law — jaq lives in
+nika-builtin · WIP · the record model already reserves the field
+space) · `env.*` / `secrets.*` namespaces (envelope features ·
+checker-validated · loud 1702 here) · eager (non-wave) dispatch ·
+operator cancellation (Ctrl+C · daemon milestone · `TaskCancelled`
+/ `WorkflowCancelled` reserved) · checkpoints/resume · streaming
+frames (`InferChunk`) · `CostIncurred` (consumer-signal gated) ·
+recover-await (3.6) · USL-fitted auto caps (Gunther arXiv:0808.1431).
 
 ## 7 · Dependencies
 
 `nika-types` · `nika-error` · `nika-event` · `nika-schema` ·
-`nika-kernel` (hub) · the four `nika-verb-*` crates. Dev ·
-`nika-kernel-mock` · `nika-providers` (mock/echo + scripted) · insta ·
-proptest · tokio.
+`nika-kernel` (hub · ClockDyn) · the four `nika-verb-*` ·
+`futures-util` (default-features off · std). Dev · `nika-kernel-mock`
+(MockClock · seams) · `nika-providers` (mock/echo) · insta · proptest
+· tokio (test rt).
+
+## 8 · Research base (the citation law)
+
+Graham 1969 (SIAM J. Appl. Math 17(2)) · Topcuoglu et al. 2002 (HEFT ·
+TPDS 13(3) · explicitly NOT implemented · needs duration estimates) ·
+Nelson & Tantawi 1988 (IEEE TC 37(6) · barrier cost) · Buttari et al.
+2009 (arXiv:0709.1272) · Blelloch et al. 2012 (PPoPP · deterministic
+reservations) · Thomson et al. 2012 (Calvin · SIGMOD) · Kahn 1974
+(IFIP) · Ouyang et al. 2007 (SCP 67 · BPEL DPE) · Russell et al. 2006
+(CAiSE · exception patterns) · Brooker 2015 (AWS · full jitter) ·
+Bender et al. 2019 (JACM · saturating backoff) · Bronson et al. 2021
+(HotOS · metastable retries — why attempts stay finite + certified) ·
+Garcia-Molina & Salem 1987 (Sagas · cleanup canon) · Gunther
+arXiv:0808.1431 (USL · future cap fitting) · Schroeder et al. 2006
+(NSDI · closed-loop caps) · Temporal/Restate/Azure-DF/SFN/Flyte docs
+(determinism + retry + timeout layering cross-engine canon).

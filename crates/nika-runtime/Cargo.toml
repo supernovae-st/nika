@@ -15,19 +15,20 @@ nika-types       = { path = "../nika-types", version = "0.80.0" }        # Event
 nika-error       = { path = "../nika-error", version = "0.80.0" }        # NIKA_1700..1703 registry constants
 nika-event       = { path = "../nika-event", version = "0.80.0" }        # Event · EventKind (the stream this crate emits)
 nika-schema      = { path = "../nika-schema", version = "0.80.0" }       # RawWorkflow · RawAction · CheckReport (audit-before-run)
-nika-kernel      = { path = "../nika-kernel", version = "0.80.0" }       # ShellRunDyn · ToolExecuteDyn · ai seams (hub only)
-nika-providers   = { path = "../nika-providers", version = "0.80.0" }    # ProviderRegistry (InferVerb construction seam)
+nika-kernel      = { path = "../nika-kernel", version = "0.80.0" }       # ShellRunDyn · ToolExecuteDyn · ClockDyn · ai seams (hub only)
 nika-verb-infer  = { path = "../nika-verb-infer", version = "0.80.0" }
 nika-verb-exec   = { path = "../nika-verb-exec", version = "0.80.0" }
 nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.80.0" }
 nika-verb-agent  = { path = "../nika-verb-agent", version = "0.80.0" }
+futures-util     = { workspace = true }   # buffered(k) intra-wave concurrency + select (no executor · async rides the injected seams)
 serde_json       = { workspace = true }
 thiserror        = { workspace = true }
 miette           = { workspace = true }
 uuid             = { workspace = true }
 
 [dev-dependencies]
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.80.0" }  # MockShell · MockToolExecutor · MockToolDefinitionProvider
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.80.0" }  # MockClock · MockShell · MockToolExecutor · MockToolDefinitionProvider
+nika-providers   = { path = "../nika-providers", version = "0.80.0" }    # ProviderRegistry mock/echo (the tests' InferVerb seam · the composer owns it in prod)
 insta            = { workspace = true }
 proptest         = { workspace = true }
 tokio            = { workspace = true }
