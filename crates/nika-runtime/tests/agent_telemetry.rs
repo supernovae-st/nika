@@ -105,8 +105,21 @@ type AgentRuntime = Runtime<
 /// Assemble the runtime with the agent lane scripted: one `nika:read`
 /// definition in the universe, the given provider script + tool results.
 fn agent_runtime(provider: MockProvider, tools: MockToolExecutor) -> AgentRuntime {
+    runtime_with_universe(provider, tools, vec![("nika:read", "read a file")])
+}
+
+/// Same, but with an explicit whitelisted universe (name, description).
+fn runtime_with_universe(
+    provider: MockProvider,
+    tools: MockToolExecutor,
+    defs: Vec<(&str, &str)>,
+) -> AgentRuntime {
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
     let invoke = Arc::new(InvokeVerb::new(Arc::new(tools)));
+    let universe = defs
+        .into_iter()
+        .map(|(name, desc)| nika_kernel::provider::ToolDef::new(name, desc, serde_json::json!({})))
+        .collect();
     Runtime::new(
         ExecVerb::new(Arc::new(MockShell::new())),
         Arc::clone(&invoke),
@@ -114,13 +127,7 @@ fn agent_runtime(provider: MockProvider, tools: MockToolExecutor) -> AgentRuntim
         AgentVerb::new(
             Arc::new(provider),
             invoke,
-            Arc::new(MockToolDefinitionProvider::with_defs(vec![
-                nika_kernel::provider::ToolDef::new(
-                    "nika:read",
-                    "read a file",
-                    serde_json::json!({}),
-                ),
-            ])),
+            Arc::new(MockToolDefinitionProvider::with_defs(universe)),
             "mock/echo",
         ),
         MockClock::new(),
@@ -431,5 +438,210 @@ tasks:
     assert!(
         str_field(failed, "detail").is_some_and(|d| d.contains("NIKA-467")),
         "the stall code rides the failure frame"
+    );
+}
+
+#[tokio::test]
+async fn agent_decisions_are_attributed_to_their_retry_attempt() {
+    // A retried agent: attempt 1's mid-loop inference fails (transient →
+    // retryable), attempt 2 succeeds. The decisions of BOTH attempts ride
+    // the stream, each stamped with its `attempt` — without the stamp a
+    // retried agent and a fan-out are indistinguishable flat streams (the
+    // wiring review's F3). The attempt mark is what the stamp reads, so
+    // this is also the ONLY test that exercises `BufferingObserver::len`
+    // returning a meaningful (non-zero, per-attempt) value.
+    const RETRY_WORKFLOW: &str = r#"
+nika: v1
+workflow: agent-retry
+model: mock/echo
+
+tasks:
+  - id: flaky
+    retry: { max_attempts: 2 }
+    agent:
+      prompt: "read the file"
+      tools: ["nika:read"]
+      max_turns: 4
+"#;
+    let wf = parse(RETRY_WORKFLOW, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+    let report = check(&wf);
+
+    // Attempt 1: routes (ToolsSelected turn 1) then the provider rate-
+    // limits → NIKA-463 transient → the runtime retries. Attempt 2:
+    // routes, reads, concludes.
+    let provider = MockProvider::new("mock")
+        .enqueue_error(nika_kernel::provider::ProviderError::RateLimited {
+            retry_after_ms: Some(1),
+        })
+        .enqueue_response(tool_use_response(
+            "c1",
+            "nika:read",
+            serde_json::json!({"path": "./f.md"}),
+        ))
+        .enqueue_response(text_response("the file says hi"));
+    let tools = MockToolExecutor::new().enqueue_ok(ToolResult::success("c1", "file body"));
+    let runtime = agent_runtime(provider, tools);
+
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("the retry recovers");
+    assert!(outcome.ok, "attempt 2 succeeds");
+    let events = sink.into_events();
+
+    // Every routing decision carries its attempt. Attempt 1 routed once
+    // (turn 1, before the failed infer); attempt 2 routed for each of its
+    // turns. The attempts present MUST be exactly {1, 2}.
+    let attempts: std::collections::BTreeSet<i64> = events
+        .iter()
+        .filter(|e| e.kind == EventKind::AgentToolsSelected)
+        .filter_map(|e| int_field(e, "attempt"))
+        .collect();
+    assert_eq!(
+        attempts,
+        [1, 2].into_iter().collect(),
+        "decisions are attributed to BOTH attempts, distinctly: {attempts:?}"
+    );
+
+    // Concretely: a turn-1 routing decision exists for attempt 1 AND a
+    // distinct one for attempt 2 (the retry re-ran turn 1).
+    let turn1_attempts: Vec<i64> = events
+        .iter()
+        .filter(|e| e.kind == EventKind::AgentToolsSelected && int_field(e, "turn") == Some(1))
+        .filter_map(|e| int_field(e, "attempt"))
+        .collect();
+    assert!(
+        turn1_attempts.contains(&1) && turn1_attempts.contains(&2),
+        "turn 1 was routed under both attempts: {turn1_attempts:?}"
+    );
+    // The retry frame is on the stream too (the attempt counter the
+    // agent events join against).
+    assert!(
+        events.iter().any(|e| e.kind == EventKind::TaskRetrying),
+        "the retry is visible"
+    );
+}
+
+#[tokio::test]
+async fn an_agent_compose_check_rides_the_canonical_stream() {
+    // The `agent:compose` intrinsic's static verdict reaches the stream
+    // as `agent_compose_checked` — the ONE agent kind the prior e2e set
+    // never exercised through the real runtime (mutation gap).
+    const COMPOSE_WORKFLOW: &str = r#"
+nika: v1
+workflow: agent-compose
+model: mock/echo
+
+tasks:
+  - id: drafter
+    agent:
+      prompt: "draft a workflow then finish"
+      tools: ["agent:compose"]
+      max_turns: 4
+"#;
+    let wf = parse(COMPOSE_WORKFLOW, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+    let report = check(&wf);
+
+    let draft =
+        "nika: v1\nworkflow: drafted\ntasks:\n  - id: t\n    exec:\n      command: \"echo hi\"\n";
+    let provider = MockProvider::new("mock")
+        .enqueue_response(tool_use_response(
+            "d1",
+            "agent:compose",
+            serde_json::json!({ "workflow_yaml": draft }),
+        ))
+        .enqueue_response(text_response("drafted and certified"));
+    // Empty executor: a compose never dispatches; any dispatch would error.
+    let runtime = runtime_with_universe(provider, MockToolExecutor::new(), Vec::new());
+
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("the compose run completes");
+    assert!(outcome.ok);
+    let events = sink.into_events();
+
+    let checked = events
+        .iter()
+        .find(|e| e.kind == EventKind::AgentComposeChecked)
+        .expect("the compose verdict is on the stream");
+    assert_eq!(str_field(checked, "task"), Some("drafter"));
+    assert_eq!(int_field(checked, "turn"), Some(1));
+    assert_eq!(int_field(checked, "violations"), Some(0));
+    assert_eq!(
+        checked
+            .fields
+            .iter()
+            .find(|f| f.key == "valid")
+            .map(|f| f.value.clone()),
+        Some(FieldValue::Bool(true)),
+        "the valid draft is reported valid"
+    );
+    // Generation is not permission: the draft never reached the executor.
+    assert!(
+        !events.iter().any(|e| e.kind == EventKind::ToolInvoked),
+        "compose is loop-served, never dispatched"
+    );
+}
+
+#[tokio::test]
+async fn an_error_streak_nudge_names_its_reason_on_the_stream() {
+    // Two consecutive ALL-ERROR turns (distinct args → the cycle detector
+    // stays out) draw the error-streak nudge — distinct from the stall
+    // test's `repeated_actions` reason, and the ONLY runtime test that
+    // pins the `error_streak` slug (mutation gap on `reason_slug`).
+    const STREAK_WORKFLOW: &str = r#"
+nika: v1
+workflow: agent-streak
+model: mock/echo
+
+tasks:
+  - id: failer
+    agent:
+      prompt: "keep trying different reads"
+      tools: ["nika:read"]
+      max_turns: 6
+"#;
+    let wf = parse(STREAK_WORKFLOW, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+    let report = check(&wf);
+
+    // Turns 1-2: read with DIFFERENT args (no cycle) · empty executor →
+    // every dispatch errors → streak 2 → nudge · turn 3: conclude.
+    let provider = MockProvider::new("mock")
+        .enqueue_response(tool_use_response(
+            "a",
+            "nika:read",
+            serde_json::json!({"p": 1}),
+        ))
+        .enqueue_response(tool_use_response(
+            "b",
+            "nika:read",
+            serde_json::json!({"p": 2}),
+        ))
+        .enqueue_response(text_response("giving up, here's a partial answer"));
+    let runtime = agent_runtime(provider, MockToolExecutor::new());
+
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("the agent recovers with an answer");
+    assert!(outcome.ok);
+    let events = sink.into_events();
+
+    let nudge = events
+        .iter()
+        .find(|e| e.kind == EventKind::AgentNudge)
+        .expect("the error-streak nudge is on the stream");
+    assert_eq!(str_field(nudge, "task"), Some("failer"));
+    assert_eq!(
+        str_field(nudge, "reason"),
+        Some("error_streak"),
+        "the streak reason is named distinctly from repeated_actions"
     );
 }
