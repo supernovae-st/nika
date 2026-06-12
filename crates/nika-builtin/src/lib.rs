@@ -65,6 +65,11 @@ pub struct BuiltinFailure {
     /// flag projects when the kernel grows one (additive · both types
     /// are `#[non_exhaustive]`).
     pub transient: bool,
+    /// Structured error details per the spec's error object (e.g.
+    /// `fetch` · `details.status_code` carries the HTTP status —
+    /// builtins-v0.1.md §fetch, normative). Machine-readable where the
+    /// message is human-readable; same projection story as `transient`.
+    pub details: Option<serde_json::Value>,
 }
 
 impl BuiltinFailure {
@@ -75,6 +80,7 @@ impl BuiltinFailure {
             code,
             message: message.into(),
             transient: false,
+            details: None,
         }
     }
 
@@ -82,6 +88,13 @@ impl BuiltinFailure {
     #[must_use]
     pub fn with_transient(mut self, transient: bool) -> Self {
         self.transient = transient;
+        self
+    }
+
+    /// Attach structured details (the spec's machine-readable plane).
+    #[must_use]
+    pub fn with_details(mut self, details: serde_json::Value) -> Self {
+        self.details = Some(details);
         self
     }
 }

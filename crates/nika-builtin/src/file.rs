@@ -53,12 +53,16 @@ fn read_failure(e: FsError, path: &str) -> BuiltinFailure {
 }
 
 /// `nika:write` — write a file, return its path. `overwrite:` default
-/// true · `create_dirs:` default false (stdlib §write).
+/// true · `create_dirs:` default false (stdlib §write). A BINARY
+/// `content:` value — the opaque-bytes object an upstream tool produced
+/// (`nika:read binary: true` → `{ bytes_base64, len }`) — is written
+/// as-is (builtins-v0.1.md:130 · the value carries its own type), so
+/// read→write round-trips bytes without a decoder step in the workflow.
 pub(crate) async fn write<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
     const C1: &str = "NIKA-BUILTIN-WRITE-001";
     const C2: &str = "NIKA-BUILTIN-WRITE-002";
     let path = req_str(args, "path", C1)?;
-    let content = req_str(args, "content", C1)?;
+    let content = write_content(args, C1)?;
     let overwrite = opt_bool(args, "overwrite", true);
     let create_dirs = opt_bool(args, "create_dirs", false);
 
@@ -73,10 +77,37 @@ pub(crate) async fn write<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Bui
             .await
             .map_err(|e| BuiltinFailure::new(C1, format!("create_dirs failed: {e}")))?;
     }
-    fs.write(Path::new(path), content.as_bytes())
+    fs.write(Path::new(path), &content)
         .await
         .map_err(|e| BuiltinFailure::new(C1, format!("write failed: {e}")))?;
     Ok(serde_json::Value::String(path.to_owned()))
+}
+
+/// Resolve `content:` to bytes — text (string) verbatim, or the binary
+/// pass-through object. Any OTHER shape is loud (numbers/arrays don't
+/// silently stringify; the binary object with a corrupt payload names
+/// the corruption).
+fn write_content(args: &Args, code: &'static str) -> Result<Vec<u8>, BuiltinFailure> {
+    match args.get("content") {
+        Some(serde_json::Value::String(text)) => Ok(text.clone().into_bytes()),
+        Some(serde_json::Value::Object(obj)) if obj.contains_key("bytes_base64") => {
+            let encoded = obj
+                .get("bytes_base64")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| {
+                    BuiltinFailure::new(code, "`content.bytes_base64` must be a string")
+                })?;
+            crate::data::base64_decode(encoded)
+                .map_err(|e| BuiltinFailure::new(code, format!("binary `content:` corrupt: {e}")))
+        }
+        Some(other) => Err(BuiltinFailure::new(
+            code,
+            format!(
+                "`content:` must be a string or a binary `{{ bytes_base64 }}` object (got {other})"
+            ),
+        )),
+        None => Err(BuiltinFailure::new(code, "`content:` (string) is required")),
+    }
 }
 
 /// `nika:edit` — literal find/replace-all (NOT regex · stdlib §edit).
@@ -293,6 +324,68 @@ mod tests {
         assert_eq!(out, serde_json::Value::String("hello".to_owned()));
         let missing = read(&fs, &args(serde_json::json!({ "path": "nope.txt" }))).await;
         assert!(matches!(missing, Err(f) if f.code == "NIKA-BUILTIN-READ-001"));
+    }
+
+    #[tokio::test]
+    async fn write_binary_content_round_trips_read_binary() {
+        // The spec clause (builtins-v0.1.md:130): a binary content value
+        // from an upstream tool is written AS-IS — read binary:true →
+        // write → read binary:true must round-trip the exact bytes with
+        // no decoder step in the workflow.
+        let payload: Vec<u8> = vec![0x00, 0xff, 0x7f, 0x80, 0x0a, 0xfe];
+        let fs = MockFs::new().with_file("blob.bin", payload.clone());
+        let read_out = read(
+            &fs,
+            &args(serde_json::json!({ "path": "blob.bin", "binary": true })),
+        )
+        .await
+        .expect("binary read");
+        // Feed the read's OWN output object straight into write.
+        let wrote = write(
+            &fs,
+            &args(serde_json::json!({ "path": "copy.bin", "content": read_out })),
+        )
+        .await
+        .expect("binary write");
+        assert_eq!(wrote, serde_json::Value::String("copy.bin".to_owned()));
+        let back = read(
+            &fs,
+            &args(serde_json::json!({ "path": "copy.bin", "binary": true })),
+        )
+        .await
+        .expect("re-read");
+        assert_eq!(
+            back["len"],
+            serde_json::json!(payload.len()),
+            "byte-exact round-trip"
+        );
+        assert_eq!(back["bytes_base64"], crate::data::base64_encode(&payload));
+
+        // Corrupt payload is loud, not a silent garbage write.
+        let corrupt = write(
+            &fs,
+            &args(serde_json::json!({
+                "path": "x.bin", "content": { "bytes_base64": "not valid!" }
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&corrupt, Err(f) if f.code == "NIKA-BUILTIN-WRITE-001"
+                && f.message.contains("corrupt")),
+            "{corrupt:?}"
+        );
+        // A non-string/non-binary shape is loud too (numbers never
+        // silently stringify).
+        let wrong = write(
+            &fs,
+            &args(serde_json::json!({ "path": "y.txt", "content": 42 })),
+        )
+        .await;
+        assert!(
+            matches!(&wrong, Err(f) if f.code == "NIKA-BUILTIN-WRITE-001"
+                && f.message.contains("must be a string or a binary")),
+            "{wrong:?}"
+        );
     }
 
     #[tokio::test]

@@ -428,12 +428,20 @@ fn date_shift(op: &str, args: &Args) -> BuiltinOutcome {
     Ok(serde_json::Value::String(out.to_string()))
 }
 
-/// `op: format { input, format }` — render an instant through the
-/// strftime grammar (`%Y-%m-%d` · UTC fields).
+/// `op: format { input, format, tz }` — render an instant through the
+/// strftime grammar (`%Y-%m-%d`). Fields render in `tz:` (IANA ·
+/// default UTC) — the `ToolDef` declared `tz:` all along; the impl
+/// silently hardcoded UTC (a Paris-display request got UTC fields with
+/// no error · the ambition-audit #5 fix).
 fn date_format(args: &Args) -> BuiltinOutcome {
     let ts = parse_ts(args, "input")?;
     let fmt = req_str(args, "format", DATE_CODE)?;
-    let zoned = ts.to_zoned(jiff::tz::TimeZone::UTC);
+    let zoned = match opt_str(args, "tz", DATE_CODE)? {
+        None => ts.to_zoned(jiff::tz::TimeZone::UTC),
+        Some(tz) => ts
+            .in_tz(tz)
+            .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("bad `tz:` `{tz}`: {e}")))?,
+    };
     let text = jiff::fmt::strtime::format(fmt, &zoned)
         .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("`format:` failed: {e}")))?;
     Ok(serde_json::Value::String(text))
@@ -551,6 +559,61 @@ pub(crate) fn base64_encode(bytes: &[u8]) -> String {
         });
     }
     out
+}
+
+/// Standard base64 decode (RFC 4648 · the encoder's mirror) — strict:
+/// canonical alphabet only, correct `=` padding, no whitespace. The
+/// consumer is `nika:write`'s binary-content clause, whose input is OUR
+/// OWN `base64_encode` output (`nika:read binary: true`) — strictness
+/// is therefore a round-trip invariant, not user hostility.
+pub(crate) fn base64_decode(text: &str) -> Result<Vec<u8>, String> {
+    fn val(c: u8) -> Result<u32, String> {
+        match c {
+            b'A'..=b'Z' => Ok(u32::from(c - b'A')),
+            b'a'..=b'z' => Ok(u32::from(c - b'a') + 26),
+            b'0'..=b'9' => Ok(u32::from(c - b'0') + 52),
+            b'+' => Ok(62),
+            b'/' => Ok(63),
+            other => Err(format!("invalid base64 byte 0x{other:02x}")),
+        }
+    }
+    let bytes = text.as_bytes();
+    if !bytes.len().is_multiple_of(4) {
+        return Err("base64 length must be a multiple of 4".to_owned());
+    }
+    let mut out = Vec::with_capacity(bytes.len() / 4 * 3);
+    for (i, quad) in bytes.chunks_exact(4).enumerate() {
+        let last = (i + 1) * 4 == bytes.len();
+        // 4-byte window — a bytecount dep for this is the lint's blind
+        // spot, not ours.
+        #[allow(clippy::naive_bytecount)]
+        let pads = quad.iter().filter(|&&c| c == b'=').count();
+        // `=` is legal only as the final 1-2 bytes of the final quad.
+        let pads_ok = match pads {
+            0 => true,
+            1 => last && quad[3] == b'=',
+            2 => last && quad[2] == b'=' && quad[3] == b'=',
+            _ => false,
+        };
+        if !pads_ok {
+            return Err("malformed base64 padding".to_owned());
+        }
+        let n = (val(quad[0])? << 18)
+            | (val(quad[1])? << 12)
+            | (if pads >= 2 { 0 } else { val(quad[2])? << 6 })
+            | (if pads >= 1 { 0 } else { val(quad[3])? });
+        #[allow(clippy::cast_possible_truncation)] // each shift isolates one byte
+        {
+            out.push((n >> 16) as u8);
+            if pads < 2 {
+                out.push((n >> 8) as u8);
+            }
+            if pads < 1 {
+                out.push(n as u8);
+            }
+        }
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -889,6 +952,30 @@ mod tests {
         .expect("ok");
         assert_eq!(offset, serde_json::json!("2026-01-02T01:00:00Z"));
 
+        // format honors `tz:` (the ToolDef declared it all along — the
+        // impl hardcoded UTC silently · ambition-audit #5). A fixed-
+        // offset zone keeps the pin deterministic.
+        let paris_ish = date(
+            &clock,
+            &args(serde_json::json!({
+                "op": "format", "input": "2026-01-02T03:04:05Z",
+                "format": "%Y-%m-%d %H:%M", "tz": "Etc/GMT-2"
+            })),
+        )
+        .expect("ok");
+        assert_eq!(paris_ish, serde_json::json!("2026-01-02 05:04"));
+        let bad_tz = date(
+            &clock,
+            &args(serde_json::json!({
+                "op": "format", "input": "2026-01-02T03:04:05Z",
+                "format": "%H", "tz": "Mars/Olympus"
+            })),
+        );
+        assert!(
+            matches!(&bad_tz, Err(f) if f.code == "NIKA-BUILTIN-DATE-001"),
+            "{bad_tz:?}"
+        );
+
         let bad = date(
             &clock,
             &args(serde_json::json!({
@@ -959,6 +1046,46 @@ mod tests {
         // High bytes with overlapping bits: | and ^ diverge here.
         assert_eq!(base64_encode(&[0xff, 0xff, 0xff]), "////");
         assert_eq!(base64_encode(&[0xfb, 0xf0]), "+/A=");
+    }
+
+    #[test]
+    fn base64_decoder_mirrors_the_encoder_and_rejects_malformed() {
+        // Round-trip over the encoder's own vectors (the consumer
+        // contract: read binary → write).
+        for bytes in [
+            &b""[..],
+            b"f",
+            b"fo",
+            b"foo",
+            b"foobar",
+            &[0xff, 0xff, 0xff],
+            &[0xfb, 0xf0],
+            &[0x00, 0x01, 0x02, 0x03, 0xfe],
+        ] {
+            assert_eq!(
+                base64_decode(&base64_encode(bytes)).expect("round-trips"),
+                bytes,
+                "{bytes:?}"
+            );
+        }
+        // Strictness: bad length · bad byte · interior/misplaced padding.
+        assert!(base64_decode("Zg=").is_err(), "length not multiple of 4");
+        assert!(base64_decode("Zg!=").is_err(), "non-alphabet byte");
+        assert!(base64_decode("=g==").is_err(), "leading pad");
+        assert!(base64_decode("Zg==Zm8=").is_err(), "interior padding quad");
+        assert!(base64_decode("Z===").is_err(), "triple pad");
+    }
+
+    proptest::proptest! {
+        /// decode ∘ encode = identity over arbitrary bytes (the binary
+        /// write clause rides this exact round-trip).
+        #[test]
+        fn base64_round_trips_arbitrary_bytes(bytes in proptest::collection::vec(proptest::prelude::any::<u8>(), 0..256)) {
+            proptest::prop_assert_eq!(
+                base64_decode(&base64_encode(&bytes)).expect("round-trips"),
+                bytes
+            );
+        }
     }
 
     // ── Gate 6 · property tests (crate spec §5) ─────────────────────────

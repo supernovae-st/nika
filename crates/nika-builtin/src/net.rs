@@ -78,9 +78,13 @@ pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn>(http: &H, args: &Args) ->
     })?;
 
     if !(200..300).contains(&response.status) {
+        // `details.status_code` carries the status (stdlib §fetch ·
+        // normative) — branching on 403 vs 429 must never mean parsing
+        // the human message.
         return Err(
             BuiltinFailure::new(C, format!("HTTP {} from {url}", response.status))
-                .with_transient(is_transient_status(response.status)),
+                .with_transient(is_transient_status(response.status))
+                .with_details(serde_json::json!({ "status_code": response.status })),
         );
     }
 
@@ -862,6 +866,30 @@ mod tests {
         assert!(is_transient_status(599));
         assert!(!is_transient_status(600));
         assert!(!is_transient_status(200));
+    }
+
+    #[tokio::test]
+    async fn fetch_failure_details_carry_the_status_code() {
+        // `details.status_code` is normative (stdlib §fetch) — branching
+        // on 403 vs 429 must never mean parsing the human message.
+        let http = MockHttp::new().enqueue_ok(429, Vec::new());
+        let fail = fetch(&http, &args(serde_json::json!({ "url": "https://x.test" })))
+            .await
+            .expect_err("non-2xx fails");
+        assert_eq!(
+            fail.details,
+            Some(serde_json::json!({ "status_code": 429 })),
+            "machine-readable status in details"
+        );
+        // Transport-plane failures carry no status (no response existed).
+        let empty = MockHttp::new();
+        let transport = fetch(
+            &empty,
+            &args(serde_json::json!({ "url": "https://x.test" })),
+        )
+        .await
+        .expect_err("no canned response = transport error");
+        assert_eq!(transport.details, None);
     }
 
     #[tokio::test]
