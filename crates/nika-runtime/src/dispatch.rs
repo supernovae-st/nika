@@ -166,11 +166,11 @@ where
         // form is rendered PER ELEMENT and passed as a vector (NO join, NO
         // shell), so an interpolated value can never break out of its argv
         // token. The shell form keeps `/bin/sh -c` for genuine pipelines.
-        let (input, program) = match &action.command {
+        let (input, program, is_argv) = match &action.command {
             RawCommand::Shell(text) => match expr::render(&text.value, scope) {
                 Ok(line) => {
-                    let program = line.split_whitespace().next().unwrap_or("?").to_owned();
-                    (ExecInput::shell(line), program)
+                    let program = shell_leading_program(&line);
+                    (ExecInput::shell(line), program, false)
                 }
                 Err(err) => return Dispatched::template_err("exec · ?", &err),
             },
@@ -182,7 +182,7 @@ where
                 match rendered {
                     Ok(argv) => {
                         let program = argv.first().cloned().unwrap_or_else(|| "?".to_owned());
-                        (ExecInput::argv(argv), program)
+                        (ExecInput::argv(argv), program, true)
                     }
                     Err(err) => return Dispatched::template_err("exec · ?", &err),
                 }
@@ -198,13 +198,14 @@ where
         let note = format!("exec · {program}");
 
         // Capability boundary (spec 01 §permits · NIKA-SEC-004): once a
-        // workflow declares `permits`, the exec sink enforces it — matching
-        // the static `nika check` (permits_fit) so a workflow that passes the
-        // check never fails HERE for a different reason. The program allowlist
-        // governs the resolved leading token (`argv[0]`, or the first word of
-        // a shell line) — the same `program` permits_fit verifies statically.
-        // No declared permits = today's behavior (the runner blocklist floor
-        // is the only gate). Richer/operator policy is nika-policy's job (s8).
+        // workflow declares `permits`, the exec sink enforces it. A program
+        // allowlist (`Programs`) governs `argv[0]` of the ARRAY form (the
+        // unambiguous program); the SHELL form is REFUSED under an allowlist
+        // because a pipeline can launch any program, so a single leading token
+        // cannot verify it (use the array form). This is STRICTER than the
+        // static `nika check` for shell-under-allowlist — the safe direction.
+        // No declared permits = today's behavior (the runner floor is the only
+        // gate). Operator policy is nika-policy's job (s8).
         if let Some(permits) = scope.permits {
             use nika_schema::types::ExecPermit;
             match &permits.exec {
@@ -217,8 +218,18 @@ where
                 }
                 // `true` → any process (still blocklist-gated at the floor).
                 Some(ExecPermit::Any) => {}
-                // A program allowlist → the resolved program must be listed.
+                // A program allowlist → ARRAY form only (argv[0] must be
+                // listed); the SHELL form cannot be verified (a pipeline can
+                // launch any program), so it is refused — use the array form.
                 Some(ExecPermit::Programs(allowed)) => {
+                    if !is_argv {
+                        return Dispatched::security_err(
+                            &note,
+                            "a shell-string command cannot be verified against a \
+                             `permits.exec` program allowlist (a pipeline can launch \
+                             any program) — use the array form",
+                        );
+                    }
                     if !allowed.iter().any(|p| p == &program) {
                         return Dispatched::security_err(
                             &note,
@@ -357,4 +368,31 @@ fn render_opt(
     scope: &Scope<'_>,
 ) -> Result<Option<String>, RuntimeError> {
     field.map(|f| expr::render(&f.value, scope)).transpose()
+}
+
+/// The leading program token of a shell command line (for the display note +
+/// identity), skipping leading `NAME=value` env assignments — `FOO=bar git`
+/// → `git`, matching the static `permits_fit::leading_program` so the note
+/// names the real program (not the assignment).
+fn shell_leading_program(line: &str) -> String {
+    line.split_whitespace()
+        .find(|token| !is_env_assignment(token))
+        .unwrap_or("?")
+        .to_owned()
+}
+
+/// Whether a shell token is a `NAME=value` environment assignment (a valid
+/// env name before the `=`), not the program — `FOO=bar` runs `git`, not `FOO`.
+fn is_env_assignment(token: &str) -> bool {
+    match token.split_once('=') {
+        Some((name, _)) => {
+            !name.is_empty()
+                && name
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        }
+        None => false,
+    }
 }

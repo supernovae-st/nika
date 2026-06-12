@@ -317,8 +317,17 @@ where
             result,
         };
         // `on_finally:` runs ONCE after all iterations (spec 03 ·
-        // `item`/`index` are NOT in scope there).
-        let finally_scope = Scope::workflow(records, vars);
+        // `item`/`index` are NOT in scope there). `permits` MUST flow so a
+        // fan-out `on_finally` exec is enforced like every other (NIKA-SEC-004)
+        // — `Scope::workflow` would drop it to None (the cleanup-bypass gap).
+        let finally_scope = Scope {
+            records,
+            vars,
+            with_ns: None,
+            item: None,
+            index: None,
+            permits,
+        };
         self.run_finally(task, &finally_scope, &ran).await;
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(ran)
