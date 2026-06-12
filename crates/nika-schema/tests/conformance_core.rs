@@ -22,10 +22,13 @@
 
 mod common;
 
-use common::{fixture_dirs, fixture_verdict, spec_dir};
+use common::{fixture_dirs, fixture_verdict, skip_in_mutants_sandbox, spec_dir};
 
 #[test]
 fn core_conformance_suite() {
+    if skip_in_mutants_sandbox() {
+        return;
+    }
     let core = spec_dir().join("conformance/tests/core");
     assert!(
         core.is_dir(),

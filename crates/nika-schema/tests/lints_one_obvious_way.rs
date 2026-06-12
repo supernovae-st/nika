@@ -17,7 +17,7 @@
 
 mod common;
 
-use common::{fixture_dirs, spec_dir};
+use common::{fixture_dirs, skip_in_mutants_sandbox, spec_dir};
 use nika_schema::lints::{Lint, one_obvious_way};
 use nika_schema::{FileId, ParseMode, parse};
 
@@ -39,6 +39,9 @@ struct ExpectedLints {
 
 #[test]
 fn lint_fixture_corpus() {
+    if skip_in_mutants_sandbox() {
+        return;
+    }
     let root = spec_dir().join("conformance/tests/lints");
     assert!(root.is_dir(), "missing {} — clone ../spec", root.display());
 
@@ -88,6 +91,9 @@ fn lint_fixture_corpus() {
 
 #[test]
 fn lint_carries_message_and_suggestion() {
+    if skip_in_mutants_sandbox() {
+        return;
+    }
     // Engine-specific shape — the WARNING text itself (not spec
     // surface · the corpus pins rule/task only).
     let yaml = "\

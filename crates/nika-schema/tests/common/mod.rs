@@ -29,6 +29,36 @@ pub(crate) fn spec_dir() -> PathBuf {
         .expect("nika-spec checkout missing — set NIKA_SPEC_DIR or clone ../spec")
 }
 
+/// In the cargo-mutants SANDBOX (tree copied without the `../spec`
+/// sibling) the conformance suites cannot resolve their fixtures BY
+/// CONSTRUCTION — skip LOUDLY there only; everywhere else the
+/// hard-fail stands (the gate must never silently skip in CI).
+///
+/// Detection is belt-and-braces: the `CARGO_MUTANTS=1` env var (newer
+/// cargo-mutants) OR the sandbox path signature — the tree is copied
+/// under a `cargo-mutants-*` temp dir, which `CARGO_MANIFEST_DIR`
+/// carries (measured empirically: our installed cargo-mutants does NOT
+/// set the env var, so the path signature is the one that fires).
+pub(crate) fn skip_in_mutants_sandbox() -> bool {
+    if std::env::var_os("NIKA_SPEC_DIR").is_some() {
+        return false; // an explicit spec dir always wins
+    }
+    let env_says = std::env::var_os("CARGO_MUTANTS").is_some_and(|v| v == "1");
+    let path_says = std::env::var_os("CARGO_MANIFEST_DIR")
+        .is_some_and(|d| d.to_string_lossy().contains("cargo-mutants"));
+    if env_says || path_says {
+        // test-scope diagnostics: the loud-skip message IS the point
+        #[allow(clippy::disallowed_macros)]
+        {
+            eprintln!(
+                "conformance: skipped in the cargo-mutants sandbox (no ../spec sibling by construction)"
+            );
+        }
+        return true;
+    }
+    false
+}
+
 /// One expected-error entry (`code` XOR `namespace` per protocol).
 #[derive(Debug, serde::Deserialize)]
 pub(crate) struct ExpectedError {

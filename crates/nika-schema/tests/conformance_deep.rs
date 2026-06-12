@@ -17,7 +17,7 @@
 
 mod common;
 
-use common::{fixture_dirs, fixture_verdict, spec_dir};
+use common::{fixture_dirs, fixture_verdict, skip_in_mutants_sandbox, spec_dir};
 
 /// The deep-tier gap ledger · fixture-name prefix → why the engine
 /// does not implement the check yet. Closing a gap = implement + DELETE
@@ -42,6 +42,9 @@ const DEEP_GAPS: &[(&str, &str)] = &[
 
 #[test]
 fn deep_conformance_suite() {
+    if skip_in_mutants_sandbox() {
+        return;
+    }
     let deep = spec_dir().join("conformance/tests/deep");
     assert!(
         deep.is_dir(),

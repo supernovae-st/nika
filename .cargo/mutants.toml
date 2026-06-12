@@ -13,15 +13,14 @@
 # `examine_re` / `exclude_re` match the mutant's textual description (which
 # includes the mutated function path), per cargo-mutants config semantics.
 #
-# `--lib` is STRUCTURAL, not advisory: cargo-mutants copies the tree to a
-# sandbox where the `../spec` sibling checkout does not exist, so the
-# conformance integration suite hard-fails its baseline BY DESIGN there
-# (the gate must never silently skip) and every mutation run that forgets
-# `-- --lib` reports `Found 0 mutants` — silently. Baking the canonical
-# lib surface here (the same law as the repo-wide `cargo test --workspace
-# --lib`) makes `cargo mutants` correct whether or not the operator
-# remembers the flag.
-additional_cargo_test_args = ["--lib"]
+# NO global `--lib` here — it was tried (2026-06-12) and MEASURED to
+# degrade sister crates: nika-bm25's formula arithmetic is pinned by its
+# INTEGRATION suites (golden_values · okapibm25_parity), and hiding them
+# from mutation re-opened 13 formula mutants. The nika-schema sandbox
+# problem (the `../spec` sibling does not exist in the cargo-mutants
+# copy) is solved at the SOURCE instead: `tests/common/mod.rs` detects
+# `CARGO_MUTANTS=1` (set by cargo-mutants in the sandbox) and skips the
+# conformance suites THERE ONLY, loudly — CI keeps the hard-fail.
 
 exclude_re = [
   # nika-a11y · the AT-SPI (Linux) accessibility backend — role mapping + node

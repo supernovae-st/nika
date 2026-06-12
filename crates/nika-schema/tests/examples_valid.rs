@@ -12,10 +12,14 @@ use std::path::PathBuf;
 use nika_schema::{FileId, ParseMode, analyze, parse};
 
 mod common;
+use common::skip_in_mutants_sandbox;
 use common::spec_dir;
 
 #[test]
 fn all_spec_examples_are_valid_strict() {
+    if skip_in_mutants_sandbox() {
+        return;
+    }
     let examples = spec_dir().join("examples");
     assert!(examples.is_dir(), "missing {}", examples.display());
 
