@@ -2,11 +2,14 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 #![allow(clippy::expect_used, clippy::panic)]
 
-//! End-to-end pipeline — the L3-runtime rehearsal.
+//! End-to-end pipeline — the L3 conformance floor, now over the REAL runtime.
 //!
-//! No orchestration crate exists yet (L3 = 0), so this harness PLAYS the
-//! runtime's role across the real shipped layers, wiring the full chain
-//! the `nika run` binary will compose:
+//! This suite was born as the L3 rehearsal: the harness PLAYED the missing
+//! runtime's role across the real shipped layers. `nika-runtime` shipped
+//! (s18) and `execute()` flipped from playing the layer to CALLING it —
+//! every assertion below predates the crate and survived the flip
+//! unchanged. That is the floor contract honored: same YAML in, same
+//! event stream out, through the chain the `nika run` binary composes:
 //!
 //! ```text
 //! .nika.yaml ──▶ nika-schema   parse + check ladder   (audit BEFORE run)
@@ -22,30 +25,29 @@
 //! the L3 runtime ships its emitters, this suite is its conformance
 //! floor: same YAML in, same event stream out, same frames.
 //!
-//! Harness limits (documented, not hidden): `${{ }}` resolution is a
-//! textual substitution (the CEL evaluator ships with the 03-dag engine)
-//! and a present `when:` gate is treated as CLOSED — the fixture's only
-//! gate is statically false, and the skip path is exactly what we assert.
+//! v0 limits (documented, not hidden): `${{ }}` resolution is the
+//! runtime's reference resolver (the CEL evaluator ships with the 03-dag
+//! engine behind the same seam) and `when:` evaluates the v0 subset —
+//! the fixture's gate (`vars.publish == 'yes'` · publish=no) evaluates
+//! closed, and the skip path is exactly what we assert.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use nika_cli::{RunView, TaskState, Theme, frame};
-use nika_error::traits::NikaErrorCode;
 use nika_event::{Event, EventKind};
 use nika_kernel::tool_executor::ToolResult;
-use nika_kernel_mock::{MockShell, MockToolExecutor};
+use nika_kernel_mock::{MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor};
 use nika_providers::{ProviderRegistry, ProvidersConfig};
+use nika_runtime::{DeterministicStamper, Runtime, VecSink};
 use nika_schema::check::CheckReport;
-use nika_schema::raw::{RawAction, RawCommand, RawWorkflow};
+use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::{FileId, ParseMode, check, infer_permits, parse};
-use nika_types::id::EventId;
-use nika_types::resource::{KeyValue, Value};
-use nika_types::timestamp::Timestamp;
-use nika_verb_exec::{ExecInput, ExecOutput, ExecValue, ExecVerb};
-use nika_verb_infer::{InferInput, InferOutput, InferValue, InferVerb};
-use nika_verb_invoke::{InvokeInput, InvokeOutput, InvokeVerb};
-use uuid::Uuid;
+use nika_types::resource::Value;
+use nika_verb_agent::AgentVerb;
+use nika_verb_exec::ExecVerb;
+use nika_verb_infer::{InferInput, InferValue, InferVerb};
+use nika_verb_invoke::InvokeVerb;
 
 // ─── the fixture · one workflow, all three shipped verbs ───────────────
 
@@ -112,47 +114,6 @@ outputs:
 /// `extract` task can prove schema validation over real dataflow.
 const GATHER_JSON: &str = r#"{"headline":"Rust 2.0","score":9}"#;
 
-// ─── deterministic event emission (the demo.rs idiom) ──────────────────
-
-/// Monotonic (seq, ms) source — no wall clock, replay-stable forever.
-struct EventPen {
-    seq: u128,
-    ms: u64,
-    events: Vec<Event>,
-}
-
-impl EventPen {
-    fn new() -> Self {
-        Self {
-            seq: 0,
-            ms: 0,
-            events: Vec::new(),
-        }
-    }
-
-    fn emit(&mut self, kind: EventKind, fields: &[(&str, Value)]) {
-        self.seq += 1;
-        self.ms += 10;
-        let mut ev = Event::new(
-            EventId::new(Uuid::from_u128(self.seq)),
-            Timestamp::from_unix_ms(self.ms),
-            kind,
-        );
-        for (key, value) in fields {
-            ev = ev.with_field(KeyValue::new(*key, value.clone()));
-        }
-        self.events.push(ev);
-    }
-}
-
-fn s(v: &str) -> Value {
-    Value::String(v.to_owned())
-}
-
-fn i(v: i64) -> Value {
-    Value::Int(v)
-}
-
 // ─── the harness · wave-ordered dispatch over the real verbs ───────────
 
 struct Seams {
@@ -190,279 +151,32 @@ fn interpolate(
     out
 }
 
-/// Interpolate every string leaf of a JSON value (invoke `args:`).
-fn interpolate_json(
-    value: &serde_json::Value,
-    bindings: &BTreeMap<String, String>,
-    vars: &BTreeMap<String, String>,
-) -> serde_json::Value {
-    match value {
-        serde_json::Value::String(text) => {
-            serde_json::Value::String(interpolate(text, bindings, vars))
-        }
-        serde_json::Value::Array(items) => serde_json::Value::Array(
-            items
-                .iter()
-                .map(|v| interpolate_json(v, bindings, vars))
-                .collect(),
-        ),
-        serde_json::Value::Object(map) => serde_json::Value::Object(
-            map.iter()
-                .map(|(k, v)| (k.clone(), interpolate_json(v, bindings, vars)))
-                .collect(),
-        ),
-        other => other.clone(),
-    }
-}
-
-/// One task's terminal outcome, as the harness records it.
-enum Outcome {
-    Ok {
-        output: String,
-        note: String,
-        tokens: Option<i64>,
-    },
-    Failed {
-        detail: String,
-        note: String,
-    },
-    Skipped {
-        note: String,
-    },
-}
-
-/// The rehearsal's view of the envelope: string vars + the workflow name.
-fn envelope_strings(wf: &RawWorkflow) -> (BTreeMap<String, String>, String) {
-    let vars = wf
-        .vars
-        .iter()
-        .filter_map(|(key, decl)| {
-            let value = match decl {
-                nika_schema::types::VarDecl::Untyped(v) => v.as_str().map(str::to_owned),
-                nika_schema::types::VarDecl::Typed { default, .. } => {
-                    default.as_ref().and_then(|d| d.as_str()).map(str::to_owned)
-                }
-                _ => None, // #[non_exhaustive] future forms carry no rehearsal value
-            }?;
-            Some((key.value.clone(), value))
-        })
-        .collect();
-    let name = wf
-        .workflow
-        .as_ref()
-        .map_or_else(|| "workflow".to_owned(), |w| w.value.clone());
-    (vars, name)
-}
-
-/// Execute one parsed workflow wave-by-wave through the real verb crates,
-/// emitting the event stream the L3 runtime will own. Returns the stream
-/// and the run verdict.
-///
-/// INV-024 rehearsal: this function is the ONE emission site per verb
-/// path — the verbs themselves stay event-free.
+/// Execute the workflow through the REAL `nika-runtime` (the flip) ·
+/// deterministic stamps · collected stream · the rehearsal's old
+/// signature so every pre-existing assertion runs unchanged.
 async fn execute(wf: &RawWorkflow, report: &CheckReport, seams: &Seams) -> (Vec<Event>, bool) {
-    assert!(
-        report.is_clean(),
-        "the audit-before-run contract: a dirty workflow never executes"
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::clone(&seams.tools)));
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::clone(&seams.shell)),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        // The agent lane idles in these fixtures · the floor suite in
+        // nika-runtime drives it through the YAML path.
+        AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        ),
     );
-
-    let (vars, workflow_name) = envelope_strings(wf);
-
-    let mut pen = EventPen::new();
-    pen.emit(
-        EventKind::WorkflowStarted,
-        &[
-            ("workflow", s(&workflow_name)),
-            ("permits", s("engine floor (no boundary declared)")),
-        ],
-    );
-    for task in &wf.tasks {
-        pen.emit(
-            EventKind::TaskScheduled,
-            &[("task", s(&task.value.id.value))],
-        );
-    }
-
-    let mut bindings: BTreeMap<String, String> = BTreeMap::new();
-    let mut dead: BTreeSet<String> = BTreeSet::new(); // failed or skip-cascaded
-    let mut workflow_ok = true;
-
-    for wave in &report.waves {
-        for &index in wave {
-            let task = &wf.tasks[index].value;
-            let id = task.id.value.clone();
-
-            // Upstream failure cascade: any dead dependency skips this task.
-            if task.depends_on.iter().any(|d| dead.contains(&d.value)) {
-                pen.emit(
-                    EventKind::TaskSkipped,
-                    &[("task", s(&id)), ("note", s("upstream failed"))],
-                );
-                dead.insert(id);
-                continue;
-            }
-            // Gate rehearsal: a present `when:` is CLOSED (see module doc).
-            // Downstream tasks still ran upstream of the gate, so this is
-            // a pure skip, not a cascade.
-            if task.when.is_some() {
-                pen.emit(
-                    EventKind::TaskSkipped,
-                    &[("task", s(&id)), ("note", s("when: gate closed"))],
-                );
-                continue;
-            }
-
-            let outcome = run_task(&task.action, &bindings, &vars, seams).await;
-            match outcome {
-                Outcome::Ok {
-                    output,
-                    note,
-                    tokens,
-                } => {
-                    pen.emit(
-                        EventKind::TaskStarted,
-                        &[("task", s(&id)), ("note", s(&note))],
-                    );
-                    let mut fields = vec![("task", s(&id)), ("note", s(&note))];
-                    if let Some(n) = tokens {
-                        fields.push(("tokens", i(n)));
-                    }
-                    pen.emit(EventKind::TaskCompleted, &fields);
-                    bindings.insert(id, output);
-                }
-                Outcome::Failed { detail, note } => {
-                    pen.emit(
-                        EventKind::TaskStarted,
-                        &[("task", s(&id)), ("note", s(&note))],
-                    );
-                    pen.emit(
-                        EventKind::TaskFailed,
-                        &[("task", s(&id)), ("note", s(&note)), ("detail", s(&detail))],
-                    );
-                    dead.insert(id);
-                    workflow_ok = false;
-                }
-                Outcome::Skipped { note } => {
-                    pen.emit(
-                        EventKind::TaskSkipped,
-                        &[("task", s(&id)), ("note", s(&note))],
-                    );
-                }
-            }
-        }
-    }
-
-    let terminal = if workflow_ok {
-        EventKind::WorkflowCompleted
-    } else {
-        EventKind::WorkflowFailed
-    };
-    pen.emit(terminal, &[("workflow", s(&workflow_name))]);
-    (pen.events, workflow_ok)
-}
-
-/// Dispatch one action through its real verb crate.
-async fn run_task(
-    action: &RawAction,
-    bindings: &BTreeMap<String, String>,
-    vars: &BTreeMap<String, String>,
-    seams: &Seams,
-) -> Outcome {
-    match action {
-        RawAction::Invoke(invoke) => {
-            let tool = invoke.tool.value.clone();
-            let args = invoke.args.as_ref().map_or_else(
-                || serde_json::Value::Object(serde_json::Map::new()),
-                |a| interpolate_json(&a.value, bindings, vars),
-            );
-            let mut input = InvokeInput::new(tool.clone());
-            input.args = args;
-            let verb = InvokeVerb::new(Arc::clone(&seams.tools));
-            match verb.run(input).await {
-                Ok(InvokeOutput { content, .. }) => Outcome::Ok {
-                    output: content,
-                    note: format!("invoke · {tool}"),
-                    tokens: None,
-                },
-                Err(err) => Outcome::Failed {
-                    detail: format!("{} · {err}", err.nika_code()),
-                    note: format!("invoke · {tool}"),
-                },
-            }
-        }
-        RawAction::Exec(exec) => {
-            let command = match &exec.command {
-                RawCommand::Shell(text) => interpolate(&text.value, bindings, vars),
-                // The argv runner path ships with the engine; the rehearsal
-                // joins for the mock seam (which records, never executes).
-                RawCommand::Argv(parts) => parts
-                    .iter()
-                    .map(|p| interpolate(&p.value, bindings, vars))
-                    .collect::<Vec<_>>()
-                    .join(" "),
-                // #[non_exhaustive]: a future command form must update the
-                // rehearsal, loudly.
-                other => panic!("unknown command form: {other:?}"),
-            };
-            let program = command.split_whitespace().next().unwrap_or("?").to_owned();
-            let verb = ExecVerb::new(Arc::clone(&seams.shell));
-            match verb.run(ExecInput::new(command)).await {
-                Ok(ExecOutput { output, .. }) => {
-                    let text = match output {
-                        ExecValue::Text(text) => text,
-                        ExecValue::Structured { stdout, .. } => stdout,
-                        other => panic!("unexpected exec value: {other:?}"),
-                    };
-                    Outcome::Ok {
-                        output: text.trim_end().to_owned(),
-                        note: format!("exec · {program}"),
-                        tokens: None,
-                    }
-                }
-                Err(err) => Outcome::Failed {
-                    detail: format!("{} · {err}", err.nika_code()),
-                    note: format!("exec · {program}"),
-                },
-            }
-        }
-        RawAction::Infer(infer) => {
-            let prompt = interpolate(&infer.prompt.value, bindings, vars);
-            let mut input = InferInput::new(prompt);
-            input.max_tokens = infer.max_tokens.as_ref().map(|t| t.value);
-            input.schema = infer.schema.as_ref().map(|v| v.value.clone());
-            match seams.infer.run(input).await {
-                Ok(InferOutput {
-                    output,
-                    usage,
-                    model_resolved,
-                    ..
-                }) => {
-                    let text = match output {
-                        InferValue::Text(text) => text,
-                        InferValue::Structured(value) => value.to_string(),
-                        other => panic!("unexpected infer value: {other:?}"),
-                    };
-                    Outcome::Ok {
-                        output: text,
-                        note: format!("infer · {model_resolved}"),
-                        tokens: Some(i64::try_from(usage.output_tokens).unwrap_or(i64::MAX)),
-                    }
-                }
-                Err(err) => Outcome::Failed {
-                    detail: format!("{err}"),
-                    note: "infer · mock/echo".to_owned(),
-                },
-            }
-        }
-        // `agent` SHIPPED (s12) but the YAML-driven rehearsal does not
-        // dispatch it yet (its loop needs the scripted-provider wiring —
-        // test 5 rehearses the verb directly over the REAL s16 builtin
-        // dispatcher). Any future verb lands here too (#[non_exhaustive]):
-        // the rehearsal refuses rather than silently no-ops.
-        other => Outcome::Skipped {
-            note: format!("verb not shipped yet: {other:?}"),
-        },
-    }
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = runtime
+        .run(wf, report, &mut stamper, &mut sink)
+        .await
+        .expect("the audit-before-run contract: a dirty workflow never executes");
+    (sink.into_events(), outcome.ok)
 }
 
 // ─── helpers shared by the tests ────────────────────────────────────────
@@ -980,4 +694,365 @@ async fn e2e_agent_loop_over_the_real_builtin_dispatcher() {
     assert_eq!(offered.len(), 22, "21 builtins + the loop's done def");
     assert!(offered.iter().any(|d| d.name == "nika:jq"));
     assert!(offered.iter().any(|d| d.name == "nika:done"));
+}
+
+// ─── test 6 · the agent×builtin REPAIR loop + the security/budget edges ──
+//
+// The deeper rehearsal wave over the same all-production chain: the spec's
+// error-feedback contract is exactly the verdict-grounded repair pattern
+// the program-repair literature converged on — a model corrects reliably
+// when fed an ORACLE VERDICT (here the typed NIKA-BUILTIN-* failure), and
+// repair gains plateau after ~2 feedback rounds (Olausson et al.,
+// arXiv:2306.09896; Huang et al., arXiv:2310.01798 — self-correction
+// WITHOUT external verdict does not work; the builtin error plane IS the
+// verdict). One scripted repair round is therefore the canonical shape.
+
+#[tokio::test]
+async fn e2e_agent_repairs_a_failing_tool_from_the_typed_verdict() {
+    use nika_builtin::{BuiltinDispatcher, NoWorkflow, NonInteractive, NullEmitter};
+    use nika_kernel::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
+    use nika_kernel::runtime::agent::AgentStopReason;
+    use nika_kernel_mock::{MockClock, MockFs, MockHttp, MockProvider};
+    use nika_verb_agent::{AgentInput, AgentValue, AgentVerb};
+
+    fn tool_turn(id: &str, name: &str, args: serde_json::Value) -> InferResponse {
+        InferResponse::new(
+            vec![ContentBlock::ToolUse {
+                id: id.to_owned(),
+                name: name.to_owned(),
+                input: args,
+            }],
+            TokenUsage::new(10, 5),
+            StopReason::ToolUse,
+        )
+    }
+
+    let dispatcher = Arc::new(BuiltinDispatcher::new(
+        Arc::new(MockFs::new()),
+        Arc::new(MockHttp::new()),
+        Arc::new(MockClock::new()),
+        Arc::new(NullEmitter::default()),
+        Arc::new(NonInteractive::default()),
+        Arc::new(NoWorkflow::default()),
+    ));
+
+    // Turn 1: a BROKEN jq program (real failure, computed by the real
+    // engine). Turn 2: the repaired program. Turn 3: done.
+    let provider = MockProvider::new("mock")
+        .enqueue_response(tool_turn(
+            "r-1",
+            "nika:jq",
+            serde_json::json!({ "expression": ".prices | sum", "input": { "prices": [2, 3] } }),
+        ))
+        .enqueue_response(tool_turn(
+            "r-2",
+            "nika:jq",
+            serde_json::json!({ "expression": ".prices | add", "input": { "prices": [2, 3] } }),
+        ))
+        .enqueue_response(tool_turn(
+            "r-3",
+            "nika:done",
+            serde_json::json!({ "result": 5 }),
+        ));
+
+    let invoke = Arc::new(nika_verb_invoke::InvokeVerb::new(Arc::clone(&dispatcher)));
+    let agent = AgentVerb::new(
+        Arc::new(provider.clone()),
+        invoke,
+        Arc::clone(&dispatcher),
+        "mock/echo",
+    );
+
+    let mut input = AgentInput::new("sum the prices");
+    input.tools = vec!["nika:jq".to_owned(), "nika:done".to_owned()];
+    let output = agent.run(input).await.expect("repair round completes");
+    assert_eq!(output.turns, 3);
+    assert_eq!(output.stop_reason, AgentStopReason::ExplicitCompletion);
+    let AgentValue::Structured(v) = output.output else {
+        panic!("structured result");
+    };
+    assert_eq!(v, serde_json::json!(5));
+
+    // The verdict plane: turn 2's request carries the TYPED failure
+    // (is_error · NIKA-BUILTIN-JQ-001 code in the content) — the loop
+    // continued instead of aborting (failing tools are FED BACK; only
+    // whitelist violations stop the loop).
+    let requests = provider.captured_requests();
+    let verdict = requests[1]
+        .messages
+        .iter()
+        .flat_map(|m| m.content.iter())
+        .find_map(|b| match b {
+            ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+                is_error,
+            } if tool_use_id == "r-1" => Some((content.clone(), *is_error)),
+            _ => None,
+        })
+        .expect("the failure fed back");
+    assert!(verdict.1, "is_error rode the wire");
+    assert!(
+        verdict.0.contains("NIKA-BUILTIN-JQ-001"),
+        "the typed code IS the oracle verdict: {}",
+        verdict.0
+    );
+    // And the repaired call's result is the real computed value.
+    let repaired = requests[2]
+        .messages
+        .iter()
+        .flat_map(|m| m.content.iter())
+        .find_map(|b| match b {
+            ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+                is_error,
+            } if tool_use_id == "r-2" => Some((content.clone(), *is_error)),
+            _ => None,
+        })
+        .expect("the repair's result fed back");
+    assert!(!repaired.1);
+    assert_eq!(repaired.0, "5");
+}
+
+#[tokio::test]
+async fn e2e_agent_multi_tool_turn_preserves_order_and_ids() {
+    use nika_builtin::{BuiltinDispatcher, NoWorkflow, NonInteractive, NullEmitter};
+    use nika_kernel::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
+    use nika_kernel_mock::{MockClock, MockFs, MockHttp, MockProvider};
+    use nika_verb_agent::{AgentInput, AgentVerb};
+
+    // ONE assistant turn carrying TWO tool calls — the batch contract:
+    // both dispatch, both results come back in ONE user message, order
+    // preserved, ids paired.
+    let multi = InferResponse::new(
+        vec![
+            ContentBlock::ToolUse {
+                id: "m-uuid".to_owned(),
+                name: "nika:hash".to_owned(),
+                input: serde_json::json!({ "content": "nika" }),
+            },
+            ContentBlock::ToolUse {
+                id: "m-jq".to_owned(),
+                name: "nika:jq".to_owned(),
+                input: serde_json::json!({ "expression": "1 + 1", "input": null }),
+            },
+        ],
+        TokenUsage::new(10, 5),
+        StopReason::ToolUse,
+    );
+    let done = InferResponse::new(
+        vec![ContentBlock::ToolUse {
+            id: "m-done".to_owned(),
+            name: "nika:done".to_owned(),
+            input: serde_json::json!({}),
+        }],
+        TokenUsage::new(10, 5),
+        StopReason::ToolUse,
+    );
+
+    let dispatcher = Arc::new(BuiltinDispatcher::new(
+        Arc::new(MockFs::new()),
+        Arc::new(MockHttp::new()),
+        Arc::new(MockClock::new()),
+        Arc::new(NullEmitter::default()),
+        Arc::new(NonInteractive::default()),
+        Arc::new(NoWorkflow::default()),
+    ));
+    let provider = MockProvider::new("mock")
+        .enqueue_response(multi)
+        .enqueue_response(done);
+    let invoke = Arc::new(nika_verb_invoke::InvokeVerb::new(Arc::clone(&dispatcher)));
+    let agent = AgentVerb::new(
+        Arc::new(provider.clone()),
+        invoke,
+        Arc::clone(&dispatcher),
+        "mock/echo",
+    );
+
+    let mut input = AgentInput::new("hash then add");
+    input.tools = vec!["nika:*".to_owned()];
+    agent.run(input).await.expect("completes");
+
+    let requests = provider.captured_requests();
+    let results: Vec<(String, String)> = requests[1]
+        .messages
+        .iter()
+        .flat_map(|m| m.content.iter())
+        .filter_map(|b| match b {
+            ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+                ..
+            } => Some((tool_use_id.clone(), content.clone())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(results.len(), 2, "both results in one feedback message");
+    assert_eq!(results[0].0, "m-uuid", "order preserved");
+    assert_eq!(results[1].0, "m-jq");
+    assert_eq!(
+        results[0].1.len(),
+        64,
+        "blake3 hex from the real hash builtin"
+    );
+    assert_eq!(results[1].1, "2", "jaq computed 1+1");
+}
+
+#[tokio::test]
+async fn e2e_agent_whitelist_violation_is_an_immediate_stop_fs_untouched() {
+    use nika_builtin::{BuiltinDispatcher, NoWorkflow, NonInteractive, NullEmitter};
+    use nika_kernel::fs::FsReadDyn as _;
+    use nika_kernel::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
+    use nika_kernel_mock::{MockClock, MockFs, MockHttp, MockProvider};
+    use nika_verb_agent::{AgentInput, AgentVerb, VerbAgentError};
+
+    // The model attempts nika:write while only nika:jq is whitelisted —
+    // the ONE failure class that stops the loop instead of feeding back
+    // (security plane ≠ error plane), and the side effect NEVER runs.
+    let fs = MockFs::new();
+    let dispatcher = Arc::new(BuiltinDispatcher::new(
+        Arc::new(fs.clone()),
+        Arc::new(MockHttp::new()),
+        Arc::new(MockClock::new()),
+        Arc::new(NullEmitter::default()),
+        Arc::new(NonInteractive::default()),
+        Arc::new(NoWorkflow::default()),
+    ));
+    let provider = MockProvider::new("mock").enqueue_response(InferResponse::new(
+        vec![ContentBlock::ToolUse {
+            id: "w-1".to_owned(),
+            name: "nika:write".to_owned(),
+            input: serde_json::json!({ "path": "./escape.txt", "content": "pwned" }),
+        }],
+        TokenUsage::new(10, 5),
+        StopReason::ToolUse,
+    ));
+    let invoke = Arc::new(nika_verb_invoke::InvokeVerb::new(Arc::clone(&dispatcher)));
+    let agent = AgentVerb::new(
+        Arc::new(provider),
+        invoke,
+        Arc::clone(&dispatcher),
+        "mock/echo",
+    );
+
+    let mut input = AgentInput::new("try to escape");
+    input.tools = vec!["nika:jq".to_owned()];
+    let err = agent.run(input).await.expect_err("security stop");
+    assert!(
+        matches!(err, VerbAgentError::WhitelistViolation { ref tool } if tool == "nika:write"),
+        "{err:?}"
+    );
+    assert!(
+        !fs.exists(std::path::Path::new("./escape.txt")).await,
+        "the write NEVER reached the fs seam"
+    );
+}
+
+#[tokio::test]
+async fn e2e_agent_budget_and_schema_terminals() {
+    use nika_builtin::{BuiltinDispatcher, NoWorkflow, NonInteractive, NullEmitter};
+    use nika_kernel::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
+    use nika_kernel_mock::{MockClock, MockFs, MockHttp, MockProvider};
+    use nika_verb_agent::{AgentInput, AgentValue, AgentVerb, VerbAgentError};
+
+    fn dispatcher_rig()
+    -> Arc<BuiltinDispatcher<MockFs, MockHttp, MockClock, NullEmitter, NonInteractive, NoWorkflow>>
+    {
+        Arc::new(BuiltinDispatcher::new(
+            Arc::new(MockFs::new()),
+            Arc::new(MockHttp::new()),
+            Arc::new(MockClock::new()),
+            Arc::new(NullEmitter::default()),
+            Arc::new(NonInteractive::default()),
+            Arc::new(NoWorkflow::default()),
+        ))
+    }
+    fn uuid_turn(id: &str) -> InferResponse {
+        InferResponse::new(
+            vec![ContentBlock::ToolUse {
+                id: id.to_owned(),
+                name: "nika:uuid".to_owned(),
+                input: serde_json::json!({}),
+            }],
+            TokenUsage::new(10, 5),
+            StopReason::ToolUse,
+        )
+    }
+
+    // Budget terminal: max_turns=2 with a model that NEVER concludes →
+    // MaxTurns carries the turn count (a budget stop, not a tool error).
+    let dispatcher = dispatcher_rig();
+    let provider = MockProvider::new("mock")
+        .enqueue_response(uuid_turn("b-1"))
+        .enqueue_response(uuid_turn("b-2"))
+        .enqueue_response(uuid_turn("b-3"));
+    let agent = AgentVerb::new(
+        Arc::new(provider),
+        Arc::new(nika_verb_invoke::InvokeVerb::new(Arc::clone(&dispatcher))),
+        Arc::clone(&dispatcher),
+        "mock/echo",
+    );
+    let mut input = AgentInput::new("loop forever");
+    input.tools = vec!["nika:*".to_owned()];
+    input.max_turns = Some(2);
+    let err = agent.run(input).await.expect_err("budget stop");
+    assert!(
+        matches!(err, VerbAgentError::MaxTurns { turns: 2, .. }),
+        "{err:?}"
+    );
+
+    // Schema terminal: the done result is validated against the task
+    // schema — conforming passes (Structured), violating is NIKA-464.
+    let schema = serde_json::json!({
+        "type": "object",
+        "required": ["sum"],
+        "properties": { "sum": { "type": "integer" } }
+    });
+    let dispatcher = dispatcher_rig();
+    let provider = MockProvider::new("mock").enqueue_response(InferResponse::new(
+        vec![ContentBlock::ToolUse {
+            id: "s-1".to_owned(),
+            name: "nika:done".to_owned(),
+            input: serde_json::json!({ "result": { "sum": 5 } }),
+        }],
+        TokenUsage::new(10, 5),
+        StopReason::ToolUse,
+    ));
+    let agent = AgentVerb::new(
+        Arc::new(provider),
+        Arc::new(nika_verb_invoke::InvokeVerb::new(Arc::clone(&dispatcher))),
+        Arc::clone(&dispatcher),
+        "mock/echo",
+    );
+    let mut input = AgentInput::new("sum");
+    input.tools = vec!["nika:*".to_owned()];
+    input.schema = Some(schema.clone());
+    let ok = agent.run(input).await.expect("conforming result");
+    assert!(matches!(ok.output, AgentValue::Structured(v) if v == serde_json::json!({"sum": 5})));
+
+    let dispatcher = dispatcher_rig();
+    let provider = MockProvider::new("mock").enqueue_response(InferResponse::new(
+        vec![ContentBlock::ToolUse {
+            id: "s-2".to_owned(),
+            name: "nika:done".to_owned(),
+            input: serde_json::json!({ "result": { "sum": "five" } }),
+        }],
+        TokenUsage::new(10, 5),
+        StopReason::ToolUse,
+    ));
+    let agent = AgentVerb::new(
+        Arc::new(provider),
+        Arc::new(nika_verb_invoke::InvokeVerb::new(Arc::clone(&dispatcher))),
+        Arc::clone(&dispatcher),
+        "mock/echo",
+    );
+    let mut input = AgentInput::new("sum");
+    input.tools = vec!["nika:*".to_owned()];
+    input.schema = Some(schema);
+    let bad = agent.run(input).await.expect_err("schema violation");
+    assert!(
+        matches!(bad, VerbAgentError::SchemaValidation { .. }),
+        "{bad:?}"
+    );
 }
