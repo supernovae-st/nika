@@ -661,12 +661,32 @@ fn find_http_error(error: &(dyn std::error::Error + 'static)) -> Option<HttpErro
 
 /// Lower response headers into the kernel's `BTreeMap<String, String>`
 /// (header names are already lowercase per the `http` crate; non-UTF-8
-/// values are skipped — brouillon parity; repeats: last wins).
+/// values are skipped — brouillon parity).
+///
+/// Repeated field lines COMMA-JOIN per RFC 9110 §5.2 (semantically
+/// identical to the combined form, and what the `Link:` consumer
+/// already parses) — last-wins silently DROPPED earlier lines before
+/// (an i18n site emitting one `Link: …; rel=alternate` per locale lost
+/// all but the last). `set-cookie` is THE standard exception: its
+/// `Expires` dates carry commas, so joining corrupts — last wins there.
 fn headers_to_btreemap(headers: &reqwest::header::HeaderMap) -> BTreeMap<String, String> {
-    let mut map = BTreeMap::new();
+    let mut map: BTreeMap<String, String> = BTreeMap::new();
     for (key, value) in headers {
-        if let Ok(v) = value.to_str() {
-            map.insert(key.as_str().to_string(), v.to_string());
+        let Ok(v) = value.to_str() else { continue };
+        let name = key.as_str();
+        match map.entry(name.to_string()) {
+            std::collections::btree_map::Entry::Occupied(mut slot) => {
+                if name == "set-cookie" {
+                    *slot.get_mut() = v.to_string();
+                } else {
+                    let joined = slot.get_mut();
+                    joined.push_str(", ");
+                    joined.push_str(v);
+                }
+            }
+            std::collections::btree_map::Entry::Vacant(slot) => {
+                slot.insert(v.to_string());
+            }
         }
     }
     map
@@ -729,6 +749,48 @@ mod tests {
     #[test]
     fn config_default_is_enforce() {
         assert_eq!(HttpConfig::default().ssrf, SsrfMode::Enforce);
+    }
+
+    #[test]
+    fn repeated_headers_comma_join_except_set_cookie() {
+        // RFC 9110 §5.2: N field lines ≡ one comma-joined value — the
+        // i18n shape (one Link per locale) must survive the lowering.
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.append(
+            "link",
+            "<https://x.test/fr>; rel=\"alternate\"; hreflang=\"fr\""
+                .parse()
+                .expect("valid"),
+        );
+        headers.append(
+            "link",
+            "<https://x.test/de>; rel=\"alternate\"; hreflang=\"de\""
+                .parse()
+                .expect("valid"),
+        );
+        // set-cookie: comma-UNSAFE (Expires dates) → last wins.
+        headers.append(
+            "set-cookie",
+            "a=1; Expires=Wed, 01 Jan 2025".parse().expect("valid"),
+        );
+        headers.append("set-cookie", "b=2".parse().expect("valid"));
+        // Non-UTF-8 values are skipped, not joined.
+        headers.append(
+            "x-binary",
+            reqwest::header::HeaderValue::from_bytes(&[0xff, 0xfe]).expect("bytes"),
+        );
+
+        let map = headers_to_btreemap(&headers);
+        assert_eq!(
+            map.get("link").map(String::as_str),
+            Some(
+                "<https://x.test/fr>; rel=\"alternate\"; hreflang=\"fr\", \
+                 <https://x.test/de>; rel=\"alternate\"; hreflang=\"de\""
+            ),
+            "both locales survive, comma-joined"
+        );
+        assert_eq!(map.get("set-cookie").map(String::as_str), Some("b=2"));
+        assert!(!map.contains_key("x-binary"), "non-UTF-8 skipped");
     }
 
     #[test]

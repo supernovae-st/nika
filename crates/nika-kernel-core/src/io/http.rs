@@ -107,7 +107,11 @@ impl HttpRequest {
 pub struct HttpResponse {
     /// HTTP status code.
     pub status: u16,
-    /// Response headers.
+    /// Response headers — the IMPL CONTRACT every producer upholds
+    /// (reqwest natively · mocks at enqueue): names are LOWERCASE, and
+    /// repeated field lines arrive COMMA-JOINED per RFC 9110 §5.2
+    /// (`set-cookie` excepted: comma-unsafe, last wins). Consumers may
+    /// exact-match lowercase keys (`headers.get("content-type")`).
     pub headers: BTreeMap<String, String>,
     /// Response body.
     pub body: Bytes,
@@ -281,6 +285,11 @@ pub enum HttpError {
     },
 
     /// Other HTTP error.
+    ///
+    /// Retryability contract: consumers treat `Other` as NON-transient
+    /// (only `Timeout`/`Connection` earn a retry — the fetch builtin's
+    /// table). Impls MUST map genuinely transient transport conditions
+    /// to those variants, never park them here.
     #[error("HTTP error: {reason}")]
     Other {
         /// Error description.
