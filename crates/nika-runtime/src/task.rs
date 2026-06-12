@@ -34,7 +34,17 @@ use crate::retry::{delay_ms, rand_unit};
 
 /// The spec wire code for a task-level timeout (spec 03 §timeout ·
 /// catchable by `on_error:` · never retryable).
+///
+/// SPEC-PLANE code (the canon is the spec 05 table · resolvable via
+/// `nika_pack::error_codes()` · NOT a `nika_error::codes` registry
+/// entry — that registry carries the engine-internal NIKA-1700 range).
+/// Pinned against the embedded canon by `emitted_spec_codes_resolve_in_the_embedded_canon`.
 pub(crate) const TIMEOUT_CODE: &str = "NIKA-TIMEOUT-001";
+
+/// The spec wire code for an expression type error at evaluation —
+/// the runtime's emission site is the non-array `for_each` collection
+/// (spec 03 · same spec-plane discipline as [`TIMEOUT_CODE`]).
+pub(crate) const VAR_TYPE_CODE: &str = "NIKA-VAR-006";
 
 /// Default per-cleanup-task timeout (spec 03 §`on_finally`).
 const CLEANUP_TIMEOUT: Duration = Duration::from_secs(30);
@@ -461,6 +471,11 @@ where
         }
         // The cleanup scope sees the PARENT's fresh status/error via a
         // one-record overlay (spec 03 · status/error routing).
+        // PERF (documented trade): one records-map clone per
+        // task-WITH-cleanup (early-return above keeps the common lane
+        // free) · workflow size is certificate-bounded (degree-1) — a
+        // copy-on-read overlay Scope would save it at the cost of a
+        // two-level resolve on EVERY lookup.
         let mut records = scope.records.clone();
         records.insert(task.id.value.clone(), preview_record(ran));
         let cleanup_scope = Scope {
@@ -500,18 +515,25 @@ where
 
     /// Milliseconds since `started` per the injected clock.
     fn since_ms(&self, started: std::time::Instant) -> u64 {
-        u64::try_from(self.clock.now().duration_since(started).as_millis()).unwrap_or(u64::MAX)
+        // checked_duration_since: the ClockDyn contract does not forbid
+        // a non-monotonic now() (an injected seam) — `duration_since`
+        // would PANIC there (std contract) · a backwards clock reads as
+        // 0 elapsed, honestly (review P1 · rust-pro angles).
+        self.clock
+            .now()
+            .checked_duration_since(started)
+            .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
     }
 }
 
-/// Resolve the `for_each:` collection (the ONLY once-evaluated body
-/// expression · spec 03) — an array of items, or the settle verdict
-/// for the failure lanes (boxed: the error lane stays pointer-thin).
 /// The jitter stream selector — fan-out iterations get DISTINCT
 /// streams (anti-thundering-herd applies WITHIN a fan-out too ·
 /// Brooker 2015: same-task iterations retrying the same upstream
 /// must not synchronize) while staying replay-stable (the index
-/// is part of the deterministic coordinates).
+/// is part of the deterministic coordinates). Collision-free: task
+/// ids are `snake_case` (checker law · CEL-safe) so `[` can never
+/// appear in a real id — iteration `t[0]` can't collide with a task
+/// NAMED `t[0]`.
 fn jitter_key(task: &RawTask, scope: &Scope<'_>) -> String {
     match scope.index {
         Some(i) => format!("{}[{i}]", task.id.value),
@@ -519,6 +541,9 @@ fn jitter_key(task: &RawTask, scope: &Scope<'_>) -> String {
     }
 }
 
+/// Resolve the `for_each:` collection (the ONLY once-evaluated body
+/// expression · spec 03) — an array of items, or the settle verdict
+/// for the failure lanes (boxed: the error lane stays pointer-thin).
 fn resolve_collection(
     collection: &ForEachValue,
     scope: &Scope<'_>,
@@ -538,7 +563,7 @@ fn resolve_collection(
         Ok(other) => Err(Box::new(SettleAs::FailedBeforeStart {
             stage: "for_each",
             error: TaskErrorRecord {
-                code: "NIKA-VAR-006".to_owned(),
+                code: VAR_TYPE_CODE.to_owned(),
                 message: format!(
                     "for_each collection must be an array · got {}",
                     json_kind(&other)
@@ -623,7 +648,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, error: TaskErrorRecord) -> 
         // #[non_exhaustive] · refuse loudly.
         other => RunResult::Failed {
             error: TaskErrorRecord {
-                code: "NIKA-1703".to_owned(),
+                code: nika_error::codes::NIKA_1703.to_string(),
                 message: format!("on_error action not wired in the runtime yet: {other:?}"),
                 transient: false,
             },

@@ -986,3 +986,128 @@ tasks:
     assert_eq!(outcome.records["slow_path"].status, TaskStatus::Skipped);
     assert_eq!(output_str(&outcome, "report"), "reported");
 }
+
+// ─── 11 · spec-plane wire codes pin to the embedded canon ───────────────
+
+/// Every spec-plane code the runtime EMITS into `TaskErrorRecord` must
+/// resolve in the embedded spec table (`nika_pack::error_codes()` —
+/// the one typed accessor over the canon). A drifted slug silently
+/// breaks user `on_codes:` filters (review P0 · the hand-typed-code
+/// class) — this pins the BEHAVIORAL emission, not just the const.
+#[tokio::test]
+async fn emitted_spec_codes_resolve_in_the_embedded_canon() {
+    // Shape 1 · the timeout class (NIKA-TIMEOUT-001).
+    let timeout_yaml = r#"
+nika: v1
+workflow: pin-timeout
+tasks:
+  - id: stuck
+    timeout: "10ms"
+    invoke: { tool: "nika:read", args: { path: "slow.txt" } }
+"#;
+    let (wf, report) = parse_and_check(timeout_yaml);
+    let runtime = runtime_with_tools(
+        MockShell::new(),
+        HangingTools,
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    );
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        runtime.run(&wf, &report, &mut stamper, &mut sink),
+    )
+    .await
+    .expect("budget fires")
+    .expect("clean run");
+    let timeout_code = outcome.records["stuck"]
+        .error
+        .as_ref()
+        .expect("typed error")
+        .code
+        .clone();
+
+    // Shape 2 · the expression-type class (non-array for_each).
+    let var_yaml = r#"
+nika: v1
+workflow: pin-var
+vars: { scalar: "not a list" }
+tasks:
+  - id: bad
+    for_each: ${{ vars.scalar }}
+    exec: { command: "never ${{ item }}" }
+"#;
+    let (outcome2, _) = run_to_events(
+        var_yaml,
+        MockShell::new(),
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+    let var_code = outcome2.records["bad"]
+        .error
+        .as_ref()
+        .expect("typed error")
+        .code
+        .clone();
+
+    // Both resolve in the canon — the table IS the truth source.
+    let canon = nika_pack::error_codes();
+    for code in [&timeout_code, &var_code] {
+        assert!(
+            canon.iter().any(|row| row.code == code),
+            "{code} must resolve in the embedded spec canon — a drifted \
+             slug silently breaks on_codes: filters"
+        );
+    }
+    assert_eq!(timeout_code, "NIKA-TIMEOUT-001");
+    assert_eq!(var_code, "NIKA-VAR-006");
+}
+
+// ─── 12 · the for_each when-gate scope hazard (pinned) ──────────────────
+
+/// Spec-drift pin: the checker ACCEPTS `item` inside a `for_each`
+/// task's `when:` (statically clean — probed 2026-06-13) but the
+/// engine evaluates the gate ONCE before the fan-out (spec 03's
+/// normative bullet) where `item` is NOT in scope — the task fails
+/// LOUDLY (NIKA-1702 · never a silently-closed gate). This pins the
+/// loud lane until the checker grows the matching static rule
+/// (flagged in the crate spec §3.7 + the run-verb plan).
+#[tokio::test]
+async fn for_each_when_gate_referencing_item_fails_loudly() {
+    let yaml = r#"
+nika: v1
+workflow: gate-item
+vars:
+  items: ["a", "b"]
+tasks:
+  - id: fan
+    for_each: ${{ vars.items }}
+    when: ${{ item != 'skip' }}
+    exec: { command: "do ${{ item }}" }
+"#;
+    let (outcome, events) = run_to_events(
+        yaml,
+        MockShell::new(),
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+
+    assert!(!outcome.ok, "the unresolvable gate fails the workflow");
+    assert_eq!(outcome.records["fan"].status, TaskStatus::Failure);
+    let err = outcome.records["fan"].error.as_ref().expect("typed error");
+    assert!(
+        err.code.contains("1702"),
+        "item out of gate scope = the unresolved-reference class: {}",
+        err.code
+    );
+    // LOUD before start: no TaskStarted frame · no iteration dispatched.
+    assert!(
+        !events.iter().any(|e| e.kind == EventKind::TaskStarted),
+        "the gate failure precedes any dispatch"
+    );
+}

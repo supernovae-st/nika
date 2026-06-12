@@ -81,7 +81,7 @@ impl Dispatched {
         Self {
             note: note.to_owned(),
             result: Err(TaskErrorRecord {
-                code: "NIKA-1703".to_owned(),
+                code: nika_error::codes::NIKA_1703.to_string(),
                 message: detail,
                 transient: false,
             }),

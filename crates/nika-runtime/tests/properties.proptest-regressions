@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 73391b53483de58ae353b2809c3ffb06b9e626e38a391a5f8302dc363fe8f94f # shrinks to specs = [TaskSpec { deps: [], kind: Fails }, TaskSpec { deps: [0], kind: Agent }]
