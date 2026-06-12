@@ -37,13 +37,22 @@ pub(crate) fn article(body: &str, base: Option<&str>) -> Result<serde_json::Valu
         // honest emptiness beats fabricated content.
         thin_or_err => {
             let fallback = crate::blocks::boilerpipe_content(body);
-            if fallback.len() >= THIN_THRESHOLD {
+            // Compare on TRIMMED length everywhere (the same metric
+            // `is_thin` uses) — htmd emits leading/trailing whitespace, so
+            // an untrimmed `.len()` could let a whitespace-padded near-empty
+            // readability result outrank real boilerpipe prose, or pass the
+            // threshold on padding alone.
+            if fallback.trim().len() >= THIN_THRESHOLD {
                 return Ok(serde_json::Value::String(fallback));
             }
             // Keep the RICHER of the two thin results (or the original
             // readability error when it produced nothing at all).
             match thin_or_err {
-                Ok(value) if value.as_str().map_or(0, str::len) >= fallback.len() => Ok(value),
+                Ok(value)
+                    if value.as_str().map_or(0, |s| s.trim().len()) >= fallback.trim().len() =>
+                {
+                    Ok(value)
+                }
                 Ok(_) | Err(_) if !fallback.is_empty() => Ok(serde_json::Value::String(fallback)),
                 other => other,
             }
