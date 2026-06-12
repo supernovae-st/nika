@@ -1,3 +1,19 @@
+---
+id: ADR-093
+title: "The agent-loop intelligence layer — routing, stall guard, compose, telemetry"
+status: accepted
+date: 2026-06-12
+phase: ""
+deciders: ["@ThibautMelen"]
+tags: [nika-verb-agent, agent-loop, react, stall-guard, tool-routing, sota-2040]
+affects_crates: [nika-verb-agent, nika-event]
+affects_layers: [L2, L0]
+supersedes: []
+superseded_by: []
+related: ["ADR-092"]
+requires: []
+---
+
 # ADR-093 — The agent-loop intelligence layer
 
 - **Status**: Accepted (2026-06-12)
