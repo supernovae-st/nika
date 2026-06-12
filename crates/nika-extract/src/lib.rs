@@ -354,6 +354,89 @@ mod tests {
     }
 
     #[test]
+    fn metadata_extracts_microdata_structured_data() {
+        // A schema.org Product in MICRODATA (the 26% of pages JSON-LD
+        // doesn't cover · HTTP Archive 2024). Exercises: itemtype → type[],
+        // the W3C value-by-element rules (meta@content · a@href resolved ·
+        // time@datetime · img@src · plain text), a NESTED item (offers →
+        // Offer), and multi-token itemprop.
+        let html = r#"<html><body>
+          <div itemscope itemtype="https://schema.org/Product">
+            <span itemprop="name">Widget</span>
+            <img itemprop="image" src="/w.png">
+            <a itemprop="url" href="/widget">link</a>
+            <meta itemprop="sku" content="W-123">
+            <time itemprop="releaseDate" datetime="2026-06-01">June</time>
+            <div itemprop="offers" itemscope itemtype="https://schema.org/Offer">
+              <data itemprop="price" value="19.99">$19.99</data>
+              <span itemprop="priceCurrency">USD</span>
+            </div>
+          </div>
+        </body></html>"#;
+        let mut opts = ExtractOptions::new();
+        opts.base_url = Some("https://shop.example/");
+        let out = extract(html, ExtractMode::Metadata, &opts).expect("metadata");
+        let items = out["microdata"].as_array().expect("microdata array");
+        assert_eq!(items.len(), 1, "one top-level item: {items:?}");
+        let p = &items[0];
+        assert_eq!(p["type"][0], "https://schema.org/Product");
+        // properties values are ALWAYS arrays (a property may repeat).
+        assert_eq!(p["properties"]["name"][0], "Widget");
+        assert_eq!(p["properties"]["sku"][0], "W-123", "meta@content");
+        assert_eq!(
+            p["properties"]["image"][0], "https://shop.example/w.png",
+            "img@src resolved vs base"
+        );
+        assert_eq!(
+            p["properties"]["url"][0], "https://shop.example/widget",
+            "a@href resolved"
+        );
+        assert_eq!(
+            p["properties"]["releaseDate"][0], "2026-06-01",
+            "time@datetime"
+        );
+        // The nested Offer is surfaced as a sub-item under `offers`, NOT
+        // flattened into the parent (W3C item nesting · no-cross rule).
+        let offer = &p["properties"]["offers"][0];
+        assert_eq!(offer["type"][0], "https://schema.org/Offer");
+        assert_eq!(offer["properties"]["price"][0], "19.99", "data@value");
+        assert_eq!(offer["properties"]["priceCurrency"][0], "USD");
+        // The parent must NOT have absorbed the nested item's props.
+        assert!(
+            p["properties"].get("price").is_none(),
+            "no-cross: price belongs to Offer, not Product: {p}"
+        );
+        // A page with no microdata omits the key (absence over empty array).
+        let bare =
+            run("<html><body><p>x</p></body></html>", ExtractMode::Metadata).expect("metadata");
+        assert!(
+            bare.get("microdata").is_none(),
+            "no key when absent: {bare}"
+        );
+    }
+
+    #[test]
+    fn metadata_microdata_multivalue_and_text_fallback() {
+        // A repeated itemprop accumulates into the value array; a bare
+        // element (no special attr) falls back to its text content.
+        let html = r#"<div itemscope itemtype="https://schema.org/Recipe">
+          <span itemprop="recipeIngredient">flour</span>
+          <span itemprop="recipeIngredient">water</span>
+          <p itemprop="description">  A   simple  bread.  </p>
+        </div>"#;
+        let out = run(html, ExtractMode::Metadata).expect("metadata");
+        let r = &out["microdata"][0];
+        let ingredients = r["properties"]["recipeIngredient"]
+            .as_array()
+            .expect("array");
+        assert_eq!(ingredients.len(), 2, "repeated itemprop accumulates");
+        assert_eq!(ingredients[0], "flour");
+        assert_eq!(ingredients[1], "water");
+        // text-content value is trimmed (inner whitespace is the DOM's).
+        assert_eq!(r["properties"]["description"][0], "A   simple  bread.");
+    }
+
+    #[test]
     fn metadata_enrichment_author_published_favicon() {
         let html = r#"<html lang="fr"><head>
             <title>T</title>

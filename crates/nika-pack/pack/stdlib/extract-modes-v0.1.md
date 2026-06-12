@@ -140,29 +140,32 @@ invoke:
     mode: metadata
 ```
 
-**Behavior** · extracts `<meta>` tags from HTML head. Returns a structured object.
+**Behavior** · walks the HTML head + the embedded structured data. Returns a structured object. `og`/`twitter` are ALWAYS objects (stable shape); scalar keys are omitted when absent. Beyond the `<meta>` tags it surfaces the two embedded-structured-data carriers: `jsonld` (schema.org `<script type=ld+json>` blocks, parsed) and `microdata` (schema.org `itemscope`/`itemprop` items, the W3C item model) — schema-agnostic, for a downstream `jq` step to walk.
 
 **Output** ·
 ```json
 {
   "title": "Article title",
   "description": "Article description",
-  "og": {
-    "title": "...",
-    "description": "...",
-    "image": "https://example.com/og.jpg",
-    "url": "https://example.com/article"
-  },
-  "twitter": {
-    "card": "summary_large_image",
-    "title": "..."
-  },
+  "og": { "title": "...", "image": "https://example.com/og.jpg", "url": "..." },
+  "twitter": { "card": "summary_large_image", "title": "..." },
   "canonical": "https://example.com/article",
-  "lang": "en"
+  "lang": "en",
+  "author": "...",
+  "published_time": "2026-06-01T10:00:00Z",
+  "favicon": "https://example.com/favicon.ico",
+  "alternates": [{ "href": "https://example.com/fr", "hreflang": "fr" }],
+  "jsonld": [{ "@type": "Article", "headline": "..." }],
+  "microdata": [{
+    "type": ["https://schema.org/Product"],
+    "properties": { "name": ["Widget"], "offers": [{ "type": ["https://schema.org/Offer"], "properties": { "price": ["19.99"] } }] }
+  }]
 }
 ```
 
-**Use case** · indexing · preview generation · backlink analysis.
+Keys present only when the source carries them (absence over null). `jsonld`/`microdata` are surfaced only when ≥1 item is found.
+
+**Use case** · indexing · preview generation · backlink analysis · product/recipe structured-data mining (the `jsonld`/`microdata` arrays).
 
 ---
 

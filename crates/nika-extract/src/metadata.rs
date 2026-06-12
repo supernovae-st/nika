@@ -32,6 +32,12 @@ static HTML_TAG: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static("htm
 static ANCHORS: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static("a[href]"));
 static JSONLD: LazyLock<Option<Selector>> =
     LazyLock::new(|| parse_static(r#"script[type="application/ld+json"]"#));
+// TOP-LEVEL microdata items only: `itemscope` WITHOUT `itemprop` (an
+// `itemscope itemprop` element is a PROPERTY of its parent item, surfaced
+// via nesting, never as a standalone top-level item · W3C Microdata
+// §"top-level microdata items").
+static MICRODATA_ITEMS: LazyLock<Option<Selector>> =
+    LazyLock::new(|| parse_static("[itemscope]:not([itemprop])"));
 
 /// Cap on JSON-LD blocks surfaced — a page with thousands of
 /// `<script type=ld+json>` is pathological; the real web has 1–3
@@ -42,6 +48,16 @@ const MAX_JSONLD_BLOCKS: usize = 32;
 /// hostile page floods malformed `ld+json` scripts (each parse is
 /// already body-cap-bounded; this bounds their COUNT).
 const MAX_JSONLD_ATTEMPTS: usize = 256;
+
+/// Cap on TOP-LEVEL microdata items surfaced — like [`MAX_JSONLD_BLOCKS`],
+/// a page with thousands of `itemscope` roots is pathological.
+const MAX_MICRODATA_ITEMS: usize = 64;
+
+/// Max NESTED-item depth (`itemscope` inside an `itemprop` value). The
+/// pre-parse depth guard already caps DOM nesting at 2048; this is a
+/// tighter, defense-in-depth bound on the recursive item walk (real
+/// schema.org nests 2–3 deep · `Product` → `offers` → `priceSpecification`).
+const MAX_MICRODATA_DEPTH: usize = 16;
 
 /// Fold one `<meta>` tag into the metadata maps — `og:*`/`twitter:*`
 /// prefixes route to their objects · the scalar names (`description` ·
@@ -164,9 +180,133 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
         }
     }
 
+    // schema.org MICRODATA (`itemscope`/`itemprop`/`itemtype`) — the OTHER
+    // embedded-structured-data carrier (26% of pages · HTTP Archive Web
+    // Almanac 2024 · legacy + recipe-heavy, where JSON-LD is absent).
+    // Surfaced as `microdata: [{type, id?, properties}]` — the W3C item
+    // model, schema-agnostic like `jsonld[]` (the caller's jq walks it).
+    if let Some(sel) = MICRODATA_ITEMS.as_ref() {
+        let items: Vec<serde_json::Value> = doc
+            .select(sel)
+            .take(MAX_MICRODATA_ITEMS)
+            .map(|item| microdata_item(item, base, 0))
+            .collect();
+        if !items.is_empty() {
+            out.insert("microdata".to_owned(), serde_json::Value::Array(items));
+        }
+    }
+
     out.insert("og".to_owned(), serde_json::Value::Object(og));
     out.insert("twitter".to_owned(), serde_json::Value::Object(twitter));
     serde_json::Value::Object(out)
+}
+
+/// One microdata item → `{ type: [...]?, id: "..."?, properties: { name:
+/// [values] } }` (W3C HTML Microdata item model). `properties` values are
+/// ALWAYS arrays (a property may repeat · stable shape for jq consumers).
+fn microdata_item(
+    item: scraper::ElementRef<'_>,
+    base: Option<&str>,
+    depth: usize,
+) -> serde_json::Value {
+    let mut obj = serde_json::Map::new();
+    if let Some(itemtype) = item.value().attr("itemtype") {
+        let types: Vec<serde_json::Value> = itemtype.split_whitespace().map(Into::into).collect();
+        if !types.is_empty() {
+            obj.insert("type".to_owned(), serde_json::Value::Array(types));
+        }
+    }
+    if let Some(id) = item.value().attr("itemid").filter(|s| !s.is_empty()) {
+        obj.insert("id".to_owned(), id.into());
+    }
+
+    let mut properties = serde_json::Map::new();
+    // Past the nesting cap, surface the item's identity but stop recursing
+    // into its properties (bounded work · the cap is far below real pages).
+    if depth < MAX_MICRODATA_DEPTH {
+        for prop_el in property_elements(item) {
+            let Some(names) = prop_el.value().attr("itemprop") else {
+                continue;
+            };
+            let value = microdata_value(prop_el, base, depth);
+            for name in names.split_whitespace() {
+                if let Some(arr) = properties
+                    .entry(name.to_owned())
+                    .or_insert_with(|| serde_json::Value::Array(Vec::new()))
+                    .as_array_mut()
+                {
+                    arr.push(value.clone());
+                }
+            }
+        }
+    }
+    obj.insert(
+        "properties".to_owned(),
+        serde_json::Value::Object(properties),
+    );
+    serde_json::Value::Object(obj)
+}
+
+/// The property elements of an item (W3C "the properties of an item"):
+/// descendants carrying `itemprop`, NOT crossing into a nested `itemscope`
+/// (whose own properties belong to IT). Iterative worklist — a hostile DOM
+/// depth must never become stack depth (same discipline as `html::text`).
+fn property_elements(item: scraper::ElementRef<'_>) -> Vec<scraper::ElementRef<'_>> {
+    let mut results = Vec::new();
+    // Seed with the item's direct children (NOT the item itself).
+    let mut pending: Vec<scraper::ElementRef<'_>> = item
+        .children()
+        .filter_map(scraper::ElementRef::wrap)
+        .collect();
+    let mut i = 0;
+    while i < pending.len() {
+        let el = pending[i];
+        i += 1;
+        let is_scope = el.value().attr("itemscope").is_some();
+        if el.value().attr("itemprop").is_some() {
+            results.push(el);
+        }
+        // Descend ONLY through non-item elements: an `itemscope` boundary
+        // ends this item's property region (its children are its own).
+        if !is_scope {
+            pending.extend(el.children().filter_map(scraper::ElementRef::wrap));
+        }
+    }
+    results
+}
+
+/// One property's value (W3C "property value"): a nested item when the
+/// element is itself an `itemscope`, else the element-type-specific value
+/// (URL attrs resolved against `base` · `meta@content` · `time@datetime`
+/// · `data`/`meter@value` · else the text content).
+fn microdata_value(
+    el: scraper::ElementRef<'_>,
+    base: Option<&str>,
+    depth: usize,
+) -> serde_json::Value {
+    if el.value().attr("itemscope").is_some() {
+        return microdata_item(el, base, depth + 1);
+    }
+    let attr = el.value();
+    let text = || el.text().collect::<String>().trim().to_owned();
+    let url = |raw: Option<&str>| {
+        raw.map(|r| resolve(r, base).unwrap_or_else(|| r.to_owned()))
+            .unwrap_or_default()
+    };
+    let value = match attr.name() {
+        "meta" => attr.attr("content").unwrap_or("").to_owned(),
+        "audio" | "embed" | "iframe" | "img" | "source" | "track" | "video" => {
+            url(attr.attr("src"))
+        }
+        "a" | "area" | "link" => url(attr.attr("href")),
+        "object" => url(attr.attr("data")),
+        "data" | "meter" => attr.attr("value").unwrap_or("").to_owned(),
+        // `time@datetime` is the machine value; fall back to the text it
+        // wraps (`<time>3 days ago</time>` with no datetime attr).
+        "time" => attr.attr("datetime").map_or_else(text, str::to_owned),
+        _ => text(),
+    };
+    serde_json::Value::String(value)
 }
 
 /// `mode: links` — document-order `<a href>` targets, resolved against

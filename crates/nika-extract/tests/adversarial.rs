@@ -259,6 +259,40 @@ fn integration_point_restores_rawtext_skip() {
     );
 }
 
+/// Microdata's recursive item walk must stay bounded on hostile input.
+/// 1000 nested `itemscope`s pass the 2048 depth guard (so the walk runs),
+/// but the `MAX_MICRODATA_DEPTH` cap must stop recursion well before any
+/// stack risk — bounded, no panic, no hang. Plus a flat flood of items
+/// (the `MAX_MICRODATA_ITEMS` cap). metadata mode is TOTAL either way.
+#[test]
+fn microdata_nesting_and_flood_are_bounded() {
+    // Deep nested-item chain (< guard cap, exercises the depth limiter).
+    let deep = format!(
+        "<div itemscope itemtype=\"https://schema.org/Thing\">{}{}",
+        "<div itemprop=\"part\" itemscope>".repeat(1_000),
+        "<span itemprop=\"n\">x</span></div>".repeat(1_000)
+    );
+    let started = std::time::Instant::now();
+    let out = run(&deep, ExtractMode::Metadata);
+    assert!(out.is_ok(), "deep microdata nesting must be total");
+    assert!(
+        started.elapsed().as_secs() < 5,
+        "depth cap bounds the walk, took {:?}",
+        started.elapsed()
+    );
+    // Flat flood of top-level items (exercises the item-count cap).
+    let flood = "<div itemscope itemtype=\"https://schema.org/X\"></div>".repeat(50_000);
+    let out = run(&flood, ExtractMode::Metadata);
+    let count = out
+        .as_ref()
+        .ok()
+        .and_then(|v| v.get("microdata"))
+        .and_then(serde_json::Value::as_array)
+        .map_or(0, Vec::len);
+    assert!(out.is_ok(), "flood is total");
+    assert!(count <= 64, "item count is capped: {count}");
+}
+
 /// Deeply-nested anchors stress the boilerpipe/links anchor-depth walk.
 #[test]
 fn deep_nested_anchors_are_total() {
