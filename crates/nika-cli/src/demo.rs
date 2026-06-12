@@ -108,6 +108,35 @@ pub fn success() -> Vec<Event> {
     events
 }
 
+/// The mid-retry storyboard (§3.1 `↻` — a transient refusal · the
+/// retry scheduled · the run still in flight). The one state the
+/// success/failure tapes never show.
+#[must_use]
+pub fn retrying() -> Vec<Event> {
+    let mut events = opening();
+    events.extend([
+        at(10, 600, EventKind::TaskStarted)
+            .with_field(s("task", "fetch_top"))
+            .with_field(s("note", "invoke · nika:fetch")),
+        at(11, 1800, EventKind::TaskCompleted)
+            .with_field(s("task", "fetch_top"))
+            .with_field(s("note", "http 200 · 1.2s · 34 KB")),
+        at(12, 1900, EventKind::TaskStarted)
+            .with_field(s("task", "summarize"))
+            .with_field(s("note", "infer · claude-sonnet")),
+        // The attempt failed · the TASK has not — the row holds yellow
+        // until a terminal frame replaces it (the runtime stamps the
+        // chosen backoff on the frame · attempt/max_attempts/delay_ms).
+        at(13, 3100, EventKind::TaskRetrying)
+            .with_field(s("task", "summarize"))
+            .with_field(s("note", "rate limited · retrying"))
+            .with_field(i("attempt", 1))
+            .with_field(i("max_attempts", 3))
+            .with_field(i("delay_ms", 740)),
+    ]);
+    events
+}
+
 /// The failure storyboard (provider refusal → downstream skips → card).
 #[must_use]
 pub fn failure() -> Vec<Event> {

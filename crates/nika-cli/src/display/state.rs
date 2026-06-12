@@ -3,12 +3,14 @@
 
 //! The fold: `RunView` = a pure function of the event stream (spec §3).
 //!
-//! Consumes the REAL [`nika_event::Event`] taxonomy — the 11 shipped kinds,
-//! nothing invented. Live cost folds from `cost_usd` fields on completed
-//! tasks today; per-chunk cost ticks arrive with the §3bis proposed
-//! `cost_incurred` kind when the runtime (L3) ships its emitters. Every
-//! renderer (terminal · `--json` · SSE · webview) reads THIS state — one
-//! truth, N surfaces.
+//! Consumes the REAL [`nika_event::Event`] taxonomy — the shipped kinds,
+//! nothing invented (the census lives in nika-event's `ALL` slice · a
+//! hand-typed count here rotted twice). Row states cover the full §3.1
+//! table (pending/running/ok/failed/retrying/skipped/cancelled). Live
+//! cost folds from `cost_usd` fields on completed tasks; per-chunk
+//! `cost_incurred` ticks are a fold extension the runtime's cost meter
+//! arrives with (consumer-signal gated). Every renderer (terminal ·
+//! `--json` · SSE · webview) reads THIS state — one truth, N surfaces.
 
 use std::collections::BTreeMap;
 

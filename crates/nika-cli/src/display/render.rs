@@ -173,6 +173,50 @@ mod tests {
         assert_eq!(tail[1], "    fix: nika explain NIKA-431");
     }
 
+    /// The cascade rows RENDER as §3.1 `◼` (the runtime's
+    /// upstream-failure cancellation · dim · never red) — the fold and
+    /// the glyph were each pinned alone; this pins the assembled line.
+    #[test]
+    fn golden_failure_frame_renders_cancelled_rows() {
+        let lines = frame(&fold(&demo::failure()), &UNICODE, 0);
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.starts_with("  ◼  write_md") && l.contains("upstream failed")),
+            "unicode cancelled row: {lines:?}"
+        );
+        let ascii = frame(&fold(&demo::failure()), &ASCII, 0);
+        assert!(
+            ascii
+                .iter()
+                .any(|l| l.starts_with("  x  write_md") && l.contains("upstream failed")),
+            "ascii cancelled row (err X ≠ cancelled x): {ascii:?}"
+        );
+    }
+
+    /// A mid-retry run RENDERS the `↻` row (§3.1 — the attempt failed ·
+    /// the TASK has not · the row holds until a terminal frame).
+    #[test]
+    fn golden_retrying_frame_renders_the_yellow_arrow() {
+        let lines = frame(&fold(&demo::retrying()), &UNICODE, 0);
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.starts_with("  ↻  summarize") && l.contains("rate limited")),
+            "unicode retrying row: {lines:?}"
+        );
+        let ascii = frame(&fold(&demo::retrying()), &ASCII, 0);
+        assert!(
+            ascii
+                .iter()
+                .any(|l| l.starts_with("  r  summarize") && l.contains("rate limited")),
+            "ascii retrying row: {ascii:?}"
+        );
+        // Still in flight: no terminal frame · no verdict line.
+        let view = fold(&demo::retrying());
+        assert_eq!(view.verdict, None, "a retrying run has no verdict yet");
+    }
+
     #[test]
     fn frame_is_stable_under_ticks_when_nothing_runs() {
         let view = fold(&demo::success());
