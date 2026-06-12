@@ -108,7 +108,7 @@ Aggressive cluster-collapse per ADR-006 monolithic-kernel spirit applied to ALL 
 | L5 | `nika` (binary) | 1 | Composition root <500 LOC per nika-invariants |
 | `pck` | first-party packages (3-5) | 3-5 | Phase 4 dyn-trait · Phase 7 WASM Component Model |
 | builtin | `nika-builtin-github` · `nika-builtin-cloud` · `nika-builtin-workspace` | 3 | Native API adapters |
-| provider | `nika-provider-rig` · `nika-provider-native` · `nika-provider-mock` | 3 | 9-provider catalog dispatch |
+| provider | `nika-provider-rig` · `nika-provider-native` · `nika-provider-mock` | 3 | 14-provider catalog dispatch (per spec canon.yaml · 8 cloud + 5 local + mock) |
 | media | `nika-media` *(audit · ADR-054 collapse pending empirical signal)* | 1-5 | Default = single crate · split only if `pck` shows real need |
 | Edge | `nika-memory-edge` *(Phase 3+ · feature-gated no_std)* | 1 | DEFERRED |
 | **TOTAL ADMITTED** | | **~42** | **ON TARGET** |
@@ -394,7 +394,7 @@ prose-only · save ~5 empty ADR shells.
 
 ### Scaling reservations · multi-tenant + provider failover + daemon (per use-case audit 2026-05-12)
 
-- **ADR-074 (queued · HIGH)** · Provider failover policy across 9-provider catalog (ADR-008) · current state · single-provider retry via `ProviderError::is_transient()` + `nika-types::RetryConfig` per-call only · ZERO cross-provider failover. 3 design axes · (a) `FailoverPolicy` enum on `InferRequest` (per-call · reservation field NOW) · (b) Tower-style `Service<Request>` middleware in `nika-runtime` (orchestrator · DEFER post-W10) · (c) declarative `on_provider_error: [anthropic, openai, mistral]` in workflow YAML (runtime admission). Trigger · L2 `nika-runtime` admission OR `nika serve` consumer signal.
+- **ADR-074 (queued · HIGH)** · Provider failover policy across the 14-provider catalog (ADR-008 · catalog grown 9→14 since · spec canon.yaml is the count SSOT) · current state · single-provider retry via `ProviderError::is_transient()` + `nika-types::RetryConfig` per-call only · ZERO cross-provider failover. 3 design axes · (a) `FailoverPolicy` enum on `InferRequest` (per-call · reservation field NOW) · (b) Tower-style `Service<Request>` middleware in `nika-runtime` (orchestrator · DEFER post-W10) · (c) declarative `on_provider_error: [anthropic, openai, mistral]` in workflow YAML (runtime admission). Trigger · L2 `nika-runtime` admission OR `nika serve` consumer signal.
 
 - **ADR-075 (queued · MED)** · Multi-tenant quota + cost rollup contract · current state · `TenantId` shipped at L0 + `RecallQuery.tenant` MANDATORY + `InferRequest.tenant: Option<TenantId>` + `Trust` is u8 lattice NOT tenant-aware. Reservation `BillingSink.aggregate_by(TenantId)` + `QuotaPolicy` kernel trait stub L0.5 surface · zero impl until consumer signal (LOCK-031 spirit). Trigger · 10k concurrent users measured OR multi-tenant SaaS consumer ticket.
 
@@ -506,7 +506,7 @@ Nika Diamond is the **structural inverse** ·
 | License                | Proprietary         | **AGPL-3.0-or-later** (share-alike forced)    |
 | Plugin protocol        | Closed-vendor       | **MCP + ACP + WASM Component** (open)         |
 | Provenance             | Black-box           | RDF-star reification (W3C standard · audit)   |
-| Inference provider     | Single-vendor       | **9-provider catalog · user picks**           |
+| Inference provider     | Single-vendor       | **14-provider catalog · user picks**           |
 | Threat model           | Surveillance        | Sovereignty + capability-scoped agents        |
 
 **Framing lens-pair** · « unified Rust runtime contract » (per `dx/.claude/rules/naming-memory-subsystem.md` substrate lens · one Rust binary · one ABI · zero runtime fragmentation) + « 7-axes distributed third path » (this §4.7 strategic lens · anti-Palantir surface positioning) are SAME structural commitment from different altitudes · NOT contradictory.
