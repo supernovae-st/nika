@@ -85,6 +85,19 @@ fn check_fetch_shape(
     errors: &mut Vec<SchemaError>,
 ) {
     let object = args.and_then(serde_json::Value::as_object);
+
+    // `url:` is fetch's one REQUIRED argument — a fetch with nothing to
+    // fetch should die at check time, not at runtime (review lens 1 P1).
+    if !object.is_some_and(|map| map.contains_key("url")) {
+        errors.push(shape(
+            task,
+            tool,
+            "requires a `url:` argument — a fetch with nothing to fetch \
+             (builtins-v0.1.md §nika:fetch)",
+            span,
+        ));
+        return;
+    }
     let mode = match object.and_then(|map| map.get("mode")) {
         // Absent → the spec default (markdown).
         None => Some(ExtractMode::Markdown),
@@ -201,11 +214,29 @@ mod tests {
             (r#"{ duration: "5s" }"#, "nika:wait", false), // exactly one
             // nika:fetch — the closed mode set + arg pairings
             // (conformance stdlib/extract-modes/001..004).
+            ("{}", "nika:fetch", true),                 // url: is REQUIRED
+            ("{ mode: markdown }", "nika:fetch", true), // still no url
             (r#"{ url: "https://x.test" }"#, "nika:fetch", false), // default markdown
-            (r#"{ url: "https://x.test", mode: article }"#, "nika:fetch", false),
-            (r#"{ url: "https://x.test", mode: raw }"#, "nika:fetch", false),
-            (r#"{ url: "https://x.test", mode: html }"#, "nika:fetch", true), // 001: not a mode
-            (r#"{ url: "https://x.test", mode: llm-txt }"#, "nika:fetch", true), // RESERVED
+            (
+                r#"{ url: "https://x.test", mode: article }"#,
+                "nika:fetch",
+                false,
+            ),
+            (
+                r#"{ url: "https://x.test", mode: raw }"#,
+                "nika:fetch",
+                false,
+            ),
+            (
+                r#"{ url: "https://x.test", mode: html }"#,
+                "nika:fetch",
+                true,
+            ), // 001: not a mode
+            (
+                r#"{ url: "https://x.test", mode: llm-txt }"#,
+                "nika:fetch",
+                true,
+            ), // RESERVED
             (
                 r#"{ url: "https://x.test", mode: markdown, jq: ".x" }"#,
                 "nika:fetch",
@@ -222,7 +253,11 @@ mod tests {
                 false, // 004: the valid pairing
             ),
             (r#"{ url: "https://x.test", mode: jq }"#, "nika:fetch", true), // jq needs jq:
-            (r#"{ url: "https://x.test", mode: selector }"#, "nika:fetch", true), // needs selector:
+            (
+                r#"{ url: "https://x.test", mode: selector }"#,
+                "nika:fetch",
+                true,
+            ), // needs selector:
             (
                 r#"{ url: "https://x.test", mode: selector, selector: "div.c" }"#,
                 "nika:fetch",
