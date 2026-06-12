@@ -115,3 +115,84 @@ tasks:
     assert!(!l.suggestion.is_empty());
     assert!(l.suggestion.contains("depends_on"), "{}", l.suggestion);
 }
+
+// ── rule 008 · interpolated string command → use the array form ──────────
+
+fn lints_008(yaml: &str) -> Vec<nika_schema::lints::Lint> {
+    lint(yaml)
+        .into_iter()
+        .filter(|l| l.rule == "one-obvious-way/008")
+        .collect()
+}
+
+#[test]
+fn rule_008_flags_interpolated_string_command_needing_no_shell() {
+    let yaml = "\
+nika: v1
+workflow: interp
+tasks:
+  - id: produce
+    exec: { command: \"./gen.sh\" }
+  - id: consume
+    depends_on: [produce]
+    exec: { command: \"process ${{ tasks.produce.output }}\" }
+";
+    let eight = lints_008(yaml);
+    assert_eq!(eight.len(), 1, "exactly one /008");
+    assert_eq!(eight[0].task_id, "consume");
+    assert!(
+        eight[0].suggestion.contains("array form"),
+        "{}",
+        eight[0].suggestion
+    );
+}
+
+#[test]
+fn rule_008_silent_on_a_genuine_pipeline() {
+    // A `|` means the author genuinely needs `/bin/sh -c` — keep the string.
+    let yaml = "\
+nika: v1
+workflow: pipe
+tasks:
+  - id: produce
+    exec: { command: \"./gen.sh\" }
+  - id: consume
+    depends_on: [produce]
+    exec: { command: \"cat ${{ tasks.produce.output }} | wc -l\" }
+";
+    assert!(lints_008(yaml).is_empty(), "a real pipeline is not flagged");
+}
+
+#[test]
+fn rule_008_silent_on_the_array_form() {
+    let yaml = "\
+nika: v1
+workflow: argv
+tasks:
+  - id: produce
+    exec: { command: \"./gen.sh\" }
+  - id: consume
+    depends_on: [produce]
+    exec:
+      command: [\"process\", \"${{ tasks.produce.output }}\"]
+";
+    assert!(
+        lints_008(yaml).is_empty(),
+        "the array form is already the safe way"
+    );
+}
+
+#[test]
+fn rule_008_silent_without_interpolation() {
+    let yaml = "\
+nika: v1
+workflow: plain
+tasks:
+  - id: build
+    exec: { command: \"cargo build --release\" }
+";
+    assert!(
+        lints_008(yaml).is_empty(),
+        "no interpolation, nothing to steer"
+    );
+}

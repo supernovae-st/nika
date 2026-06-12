@@ -1,23 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The `one-obvious-way` rule set — spec `03-dag.md` §One obvious way.
+//! The `one-obvious-way` rule set — spec `03-dag.md` §One obvious way
+//! (rules 001-007) + spec `02-verbs.md` §exec Security (rule 008).
 //!
-//! Seven control-flow preference rules · the spec table is « normative
-//! for linters » · emitted as warnings in table order
-//! (`one-obvious-way/001` … `/007`) · never hard errors.
+//! Eight preference rules · the spec tables are « normative for linters »
+//! · emitted as warnings in table order (`one-obvious-way/001` … `/008`)
+//! · never hard errors.
 //!
 //! Each rule fires only on a PRECISE static signature (low
 //! false-positive contract — pinned by `tests/lints_one_obvious_way.rs`).
 //! Where the spec row describes intent the validator cannot decide
-//! statically (« a mere value » · « manual sharding »), the rule
-//! implements a documented conservative subset.
+//! statically (« a mere value » · « manual sharding » · « an interpolated
+//! value that needs no shell »), the rule implements a documented
+//! conservative subset.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Value, json};
 
-use crate::expression::{Expr, Literal, NamespaceRef, RelOp, expr_refs, scan_templates};
+use crate::expression::{
+    Expr, Literal, NamespaceRef, RelOp, TemplateIsland, expr_refs, scan_templates,
+};
 use crate::raw::{RawAction, RawTask, RawWorkflow};
 use crate::source::Span;
 use crate::types::OnErrorAction;
@@ -81,6 +85,7 @@ pub fn one_obvious_way(wf: &RawWorkflow) -> Vec<Lint> {
     rule_005_cleanup_via_terminal_task(&tasks, &mut lints);
     rule_006_per_element_timing(&tasks, &mut lints);
     rule_007_manual_sharding(&tasks, &index, &mut lints);
+    rule_008_interpolated_string_command(&tasks, &mut lints);
 
     lints.sort_by(|a, b| {
         let pa = index.get(a.task_id.as_str()).copied().unwrap_or(usize::MAX);
@@ -88,6 +93,61 @@ pub fn one_obvious_way(wf: &RawWorkflow) -> Vec<Lint> {
         pa.cmp(&pb).then_with(|| a.rule.cmp(b.rule))
     });
     lints
+}
+
+/// `one-obvious-way/008` — an interpolated value in a STRING `exec.command`
+/// that needs no shell (spec `02-verbs.md` §exec Security). The array form
+/// passes the value as ONE argv token (injection-safe); the string form
+/// shell-parses it. Fires ONLY when the LITERAL command parts carry no shell
+/// metacharacter — a genuine pipeline/redirect/glob legitimately keeps the
+/// string form (`/bin/sh -c` is exactly what it is for), so the rule must
+/// not flag it (the low-false-positive contract).
+fn rule_008_interpolated_string_command(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
+    for task in tasks {
+        let RawAction::Exec(e) = &task.action else {
+            continue;
+        };
+        let Some(command) = e.command.shell_str() else {
+            continue; // already the array form — nothing to steer
+        };
+        let Ok(islands) = scan_templates(command) else {
+            continue; // a malformed template is the analyzer's error, not ours
+        };
+        if islands.is_empty() || literal_parts_use_shell(command, &islands) {
+            // no interpolation, OR a genuine shell line (pipe/redirect/glob).
+            continue;
+        }
+        lints.push(Lint::new(
+            "one-obvious-way/008",
+            task.id.value.clone(),
+            task.id.span,
+            "an interpolated value lands in a string `command` that needs no \
+             shell — it is shell-parsed (the command-injection surface)"
+                .to_string(),
+            "use the array form `command: [prog, \"${{ … }}\", …]` — each element \
+             is one literal argv token, so the value cannot break out (spec §exec)"
+                .to_string(),
+        ));
+    }
+}
+
+/// Whether the LITERAL parts of `command` (the `${{ }}` islands removed)
+/// carry a shell metacharacter — i.e. the author genuinely needs `/bin/sh
+/// -c` (a pipe, redirect, sub-shell, glob, shell variable, …). When they do,
+/// the string form is correct and [`rule_008_interpolated_string_command`]
+/// must not fire.
+fn literal_parts_use_shell(command: &str, islands: &[TemplateIsland]) -> bool {
+    const SHELL_META: &[char] = &[
+        '|', '&', ';', '<', '>', '(', ')', '$', '`', '*', '?', '{', '}',
+    ];
+    let mut cursor = 0;
+    for island in islands {
+        if command[cursor..island.start].contains(SHELL_META) {
+            return true;
+        }
+        cursor = island.end;
+    }
+    command[cursor..].contains(SHELL_META)
 }
 
 // ───────────────────────── shared expression helpers ─────────────────────────
