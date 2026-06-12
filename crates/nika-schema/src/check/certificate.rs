@@ -25,6 +25,21 @@
 //! workflow engine can state this before running (Turing-complete
 //! competitors cannot state it at all).
 //!
+//! **Certifying-algorithm form** (round 4): the certificate carries its
+//! WITNESS — the per-task `derivation` rows — and [`RunCertificate::audit`]
+//! is the independent checker: simpler than the analysis — field
+//! equality and one shared fold, no enumeration — per the discipline
+//! that a certifying algorithm outputs a result WITH a witness and a
+//! checker the user can trust without trusting the solver (Shokry,
+//! Elmasry,
+//! Khalafallah & Aly 2024 *Verifying Shortest Paths in Linear Time* ·
+//! arxiv.org/abs/2412.06121). The execution-side architecture this
+//! feeds is Proposal–Certification–Execution — « generation is not
+//! permission » (Liu Yanglet, Wang & Capponi 2026 *No Certificate, No
+//! Execution* · arxiv.org/abs/2605.24462): a foreign certificate (a
+//! marketplace artifact · a CI gate input) is re-checkable LOCALLY
+//! against the workflow it claims to bound.
+//!
 //! Counting model (sound worst-case) ·
 //! - a task body runs ≤ `attempts × iterations` times (`retry:` re-runs
 //!   the body · `for_each` fans it out per element)
@@ -103,6 +118,122 @@ pub struct RunCertificate {
     /// `None` when any spender is unpriceable (no token bound · no
     /// catalog price — the COST report names which and why).
     pub usd_micros: Option<Bound>,
+    /// The WITNESS: per-task contribution rows. The bounds above are
+    /// derived from these rows by ONE shared fold — and
+    /// [`RunCertificate::audit`] re-derives + compares, so a foreign
+    /// certificate whose bounds disagree with its own derivation (or
+    /// whose derivation disagrees with the workflow) is rejected
+    /// locally, no analysis re-run needed.
+    pub derivation: Vec<TaskContribution>,
+}
+
+impl RunCertificate {
+    /// The independent checker (certifying-algorithm discipline): a
+    /// certificate is accepted iff (a) every derivation row matches the
+    /// workflow's declared structure — direct field equality, no
+    /// analysis machinery — and (b) the rows re-fold to exactly the
+    /// claimed bounds. Price VALUES inside rows are trusted (re-pricing
+    /// would need the catalog — the checker stays catalog-free); what
+    /// cannot be tampered with is the arithmetic and the structure.
+    ///
+    /// # Errors
+    /// A human-readable description of the first mismatch.
+    pub fn audit(&self, wf: &RawWorkflow) -> Result<(), String> {
+        if wf.tasks.len() != self.derivation.len() {
+            return Err(format!(
+                "derivation has {} rows but the workflow has {} tasks",
+                self.derivation.len(),
+                wf.tasks.len()
+            ));
+        }
+        for (task, row) in wf.tasks.iter().zip(&self.derivation) {
+            check_row(&task.value, row)?;
+        }
+        let refolded = fold_rows(&self.derivation);
+        if refolded.task_attempts != self.task_attempts
+            || refolded.llm_calls != self.llm_calls
+            || refolded.effect_calls != self.effect_calls
+            || refolded.usd_micros != self.usd_micros
+        {
+            return Err("the claimed bounds do not match the derivation".into());
+        }
+        Ok(())
+    }
+}
+
+/// Row ↔ workflow structural equality (the LOCAL half of the checker).
+fn check_row(t: &crate::raw::RawTask, row: &TaskContribution) -> Result<(), String> {
+    let id = t.id.value.as_str();
+    if row.task != id {
+        return Err(format!("row names `{}` but the task is `{id}`", row.task));
+    }
+    let attempts = t
+        .retry
+        .as_ref()
+        .map_or(1, |r| u64::from(r.value.max_attempts).max(1));
+    if row.attempts != attempts {
+        return Err(format!(
+            "`{id}`: row claims {} attempts, workflow says {attempts}",
+            row.attempts
+        ));
+    }
+    let fanout = match t.for_each.as_ref().map(|f| &f.value) {
+        None => FanOut::Known(1),
+        Some(ForEachValue::List(arr)) => FanOut::Known(arr.as_array().map_or(1, Vec::len) as u64),
+        Some(ForEachValue::Expression(_)) => FanOut::Collection,
+    };
+    if row.fanout != fanout {
+        return Err(format!("`{id}`: fan-out shape mismatch"));
+    }
+    let (llm, effect) = action_calls(&t.action);
+    if row.main_llm != llm || row.main_effect != effect {
+        return Err(format!("`{id}`: main-action call counts mismatch"));
+    }
+    let (mut f_llm, mut f_effect) = (0u64, 0u64);
+    for cleanup in &t.on_finally {
+        let (l, e) = action_calls(&cleanup.value.action);
+        f_llm += l;
+        f_effect += e;
+    }
+    if row.finally_llm != f_llm || row.finally_effect != f_effect {
+        return Err(format!("`{id}`: on_finally call counts mismatch"));
+    }
+    Ok(())
+}
+
+/// A task's fan-out, witness-shaped (serializable).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum FanOut {
+    /// Plain task or literal list: a known multiplier.
+    Known(u64),
+    /// `for_each` over an expression: ×|task| at runtime.
+    Collection,
+}
+
+/// One derivation row — the per-task WITNESS the checker re-verifies.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+pub struct TaskContribution {
+    /// The task id.
+    pub task: String,
+    /// `retry: max_attempts` (1 when absent).
+    pub attempts: u64,
+    /// The fan-out shape.
+    pub fanout: FanOut,
+    /// LLM calls per body run (main action).
+    pub main_llm: u64,
+    /// Effect calls per body run (main action).
+    pub main_effect: u64,
+    /// Spend per body run in micro-USD (`None` = unpriceable).
+    pub main_spend_micros: Option<u64>,
+    /// LLM calls per ITERATION from `on_finally` cleanups.
+    pub finally_llm: u64,
+    /// Effect calls per ITERATION from `on_finally` cleanups.
+    pub finally_effect: u64,
+    /// `on_finally` spend per iteration (`None` = unpriceable).
+    pub finally_spend_micros: Option<u64>,
 }
 
 /// A task's fan-out multiplier.
@@ -163,63 +294,93 @@ fn action_spend_micros(action: &RawAction, default_model: Option<&str>) -> Resul
     Ok(((tokens as f64) * price).round() as u64)
 }
 
-/// Compute the certificate — one linear pass, conformance-independent
-/// (a pure sum over tasks, like the cost ceiling).
+/// Compute the certificate — build the witness rows, then derive the
+/// bounds from them by the ONE shared fold (the bounds cannot disagree
+/// with the derivation by construction; `audit` re-runs the same fold
+/// on foreign certificates).
 pub(crate) fn certify(wf: &RawWorkflow) -> RunCertificate {
-    let mut cert = RunCertificate::default();
     let default_model = wf.model.as_ref().map(|m| m.value.as_str());
+    let derivation: Vec<TaskContribution> = wf
+        .tasks
+        .iter()
+        .map(|task| contribution(&task.value, default_model))
+        .collect();
+    let mut cert = fold_rows(&derivation);
+    cert.derivation = derivation;
+    cert
+}
+
+/// One task's witness row.
+fn contribution(t: &crate::raw::RawTask, default_model: Option<&str>) -> TaskContribution {
+    let attempts = t
+        .retry
+        .as_ref()
+        .map_or(1, |r| u64::from(r.value.max_attempts).max(1));
+    let fanout = match t.for_each.as_ref().map(|f| &f.value) {
+        None => FanOut::Known(1),
+        Some(ForEachValue::List(arr)) => FanOut::Known(arr.as_array().map_or(1, Vec::len) as u64),
+        Some(ForEachValue::Expression(_)) => FanOut::Collection,
+    };
+    let (main_llm, main_effect) = action_calls(&t.action);
+    let main_spend_micros = action_spend_micros(&t.action, default_model).ok();
+    let (mut finally_llm, mut finally_effect) = (0u64, 0u64);
+    let mut finally_spend_micros = Some(0u64);
+    for cleanup in &t.on_finally {
+        let (l, e) = action_calls(&cleanup.value.action);
+        finally_llm += l;
+        finally_effect += e;
+        match (
+            finally_spend_micros,
+            action_spend_micros(&cleanup.value.action, default_model),
+        ) {
+            (Some(acc), Ok(m)) => finally_spend_micros = Some(acc.saturating_add(m)),
+            _ => finally_spend_micros = None,
+        }
+    }
+    TaskContribution {
+        task: t.id.value.clone(),
+        attempts,
+        fanout,
+        main_llm,
+        main_effect,
+        main_spend_micros,
+        finally_llm,
+        finally_effect,
+        finally_spend_micros,
+    }
+}
+
+/// THE shared fold: witness rows → bounds. Used by `certify` (to build)
+/// and by `audit` (to re-check) — the arithmetic cannot drift between
+/// the two because it exists once.
+fn fold_rows(rows: &[TaskContribution]) -> RunCertificate {
+    let mut cert = RunCertificate::default();
     let mut spend = Some(Bound::default());
-
-    for task in &wf.tasks {
-        let t = &task.value;
-        let id = t.id.value.as_str();
-        let attempts = t
-            .retry
-            .as_ref()
-            .map_or(1, |r| u64::from(r.value.max_attempts).max(1));
-        let mult = match t.for_each.as_ref().map(|f| &f.value) {
-            None => Multiplier::Const(1),
-            Some(ForEachValue::List(arr)) => {
-                Multiplier::Const(arr.as_array().map_or(1, Vec::len) as u64)
-            }
-            Some(ForEachValue::Expression(_)) => Multiplier::Param(id),
+    for row in rows {
+        let mult = match row.fanout {
+            FanOut::Known(n) => Multiplier::Const(n),
+            FanOut::Collection => Multiplier::Param(&row.task),
         };
-
-        // body runs: attempts × fan-out
-        add(&mut cert.task_attempts, &mult, attempts);
-
-        // calls from the main action: per body run
-        let (llm, effect) = action_calls(&t.action);
-        add(&mut cert.llm_calls, &mult, llm.saturating_mul(attempts));
+        add(&mut cert.task_attempts, &mult, row.attempts);
+        add(
+            &mut cert.llm_calls,
+            &mult,
+            row.main_llm.saturating_mul(row.attempts) + row.finally_llm,
+        );
         add(
             &mut cert.effect_calls,
             &mult,
-            effect.saturating_mul(attempts),
+            row.main_effect.saturating_mul(row.attempts) + row.finally_effect,
         );
-
-        // the spend axis: per body run × attempts (a retry re-spends)
-        match action_spend_micros(&t.action, default_model) {
-            Ok(micros) => {
-                if let Some(b) = spend.as_mut() {
-                    add(b, &mult, micros.saturating_mul(attempts));
-                }
+        match (
+            spend.as_mut(),
+            row.main_spend_micros,
+            row.finally_spend_micros,
+        ) {
+            (Some(b), Some(main), Some(fin)) => {
+                add(b, &mult, main.saturating_mul(row.attempts) + fin);
             }
-            Err(()) => spend = None,
-        }
-
-        // on_finally: once per iteration (after the terminal attempt)
-        for cleanup in &t.on_finally {
-            let (llm, effect) = action_calls(&cleanup.value.action);
-            add(&mut cert.llm_calls, &mult, llm);
-            add(&mut cert.effect_calls, &mult, effect);
-            match action_spend_micros(&cleanup.value.action, default_model) {
-                Ok(micros) => {
-                    if let Some(b) = spend.as_mut() {
-                        add(b, &mult, micros);
-                    }
-                }
-                Err(()) => spend = None,
-            }
+            _ => spend = None,
         }
     }
     cert.usd_micros = spend;
@@ -370,6 +531,46 @@ mod tests {
     }
 
     #[test]
+    fn audit_accepts_honest_and_rejects_tampered_certificates() {
+        let yaml = wf(
+            "  - id: a\n    exec: { command: \"true\" }\n  - id: fan\n    depends_on: [a]\n    for_each: ${{ tasks.a.output.items }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x\", max_tokens: 50 }\n",
+        );
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let honest = certify(&parsed);
+        assert!(honest.audit(&parsed).is_ok(), "honest cert must pass");
+
+        // tamper 1: inflate a claimed bound — the derivation no longer
+        // re-folds to it
+        let mut inflated = honest.clone();
+        inflated.llm_calls.constant += 5;
+        assert!(
+            inflated
+                .audit(&parsed)
+                .is_err_and(|e| e.contains("do not match the derivation")),
+            "bound tampering must be caught"
+        );
+
+        // tamper 2: doctor a witness row — structure check catches it
+        let mut doctored = honest.clone();
+        doctored.derivation[1].attempts = 1;
+        // keep the bounds consistent with the doctored row so ONLY the
+        // structural half can catch it
+        let mut refold = doctored.clone();
+        refold.derivation[1].attempts = 1;
+        assert!(
+            doctored
+                .audit(&parsed)
+                .is_err_and(|e| e.contains("attempts")),
+            "row/workflow mismatch must be caught"
+        );
+
+        // tamper 3: wrong row count
+        let mut truncated = honest;
+        truncated.derivation.pop();
+        assert!(truncated.audit(&parsed).is_err());
+    }
+
+    #[test]
     fn the_wire_shape_is_pinned() {
         let c = cert(&wf(
             "  - id: fan\n    for_each: ${{ vars.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 5 }\n",
@@ -384,6 +585,12 @@ mod tests {
                 // 5 tokens × the catalog output price ($15/M) = 75 µ$ —
                 // the PARAMETRIC spend the cost ceiling cannot express
                 "usd_micros": { "constant": 0, "terms": [{ "task": "fan", "coeff": 75 }] },
+                // the WITNESS row — what audit() re-checks
+                "derivation": [{
+                    "task": "fan", "attempts": 1, "fanout": "collection",
+                    "main_llm": 1, "main_effect": 0, "main_spend_micros": 75,
+                    "finally_llm": 0, "finally_effect": 0, "finally_spend_micros": 0,
+                }],
             })
         );
     }

@@ -33,6 +33,7 @@ use std::fmt::Write as _;
 use proptest::prelude::*;
 
 use super::certificate::Bound;
+use super::certificate::RunCertificate;
 use crate::{FileId, ParseMode, parse};
 
 /// One generated task — a STRUCTURE, rendered to YAML with any id
@@ -225,6 +226,115 @@ proptest! {
         prop_assert_eq!(
             a.certificate.usd_micros.as_ref().map(|x| deprefix(canon(x), "alpha")),
             b.certificate.usd_micros.as_ref().map(|x| deprefix(canon(x), "beta"))
+        );
+    }
+}
+
+/// Total counts with every parametric term erased — for relations that
+/// preserve TOTALS but not names (R3 unfolding).
+fn totals(c: &RunCertificate) -> (u64, u64, u64, Option<u64>) {
+    let flat = |b: &Bound| b.constant + b.terms.iter().map(|t| t.coeff).sum::<u64>();
+    (
+        flat(&c.task_attempts),
+        flat(&c.llm_calls),
+        flat(&c.effect_calls),
+        c.usd_micros.as_ref().map(flat),
+    )
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
+    /// R3 — unfolding: a literal 2-list `for_each` task equals TWO
+    /// plain copies of the task (total attempts · calls · spend).
+    #[test]
+    fn r3_literal_fanout_unfolds_to_duplicated_tasks(verb in 0..3u8, attempts in 1..=3u8) {
+        let spec = |fan: bool, n: usize| {
+            let body = match verb {
+                0 => "    exec: { command: \"true\" }\n",
+                1 => "    infer: { prompt: \"go\", max_tokens: 50 }\n",
+                _ => "    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
+            };
+            let retry = if attempts > 1 {
+                format!("    retry: {{ max_attempts: {attempts} }}\n")
+            } else {
+                String::new()
+            };
+            let mut y = String::from(
+                "nika: v1\nworkflow: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n",
+            );
+            for i in 0..n {
+                use std::fmt::Write as _;
+                let _ = writeln!(y, "  - id: t{i}");
+                y.push_str(&retry);
+                if fan {
+                    y.push_str("    for_each: [\"a\", \"b\"]\n");
+                }
+                y.push_str(body);
+            }
+            y
+        };
+        let folded = run(&spec(true, 1)).expect("folded parses");
+        let unfolded = run(&spec(false, 2)).expect("unfolded parses");
+        prop_assert_eq!(totals(&folded.certificate), totals(&unfolded.certificate));
+    }
+
+    /// R4 — frame: adding an independent plain task changes the bounds
+    /// by EXACTLY its own contribution (compositionality).
+    #[test]
+    fn r4_adding_an_independent_task_is_compositional(tasks in workflow_strategy()) {
+        let base = run(&to_yaml(&tasks, "t")).expect("base parses");
+        let mut extended_yaml = to_yaml(&tasks, "t");
+        extended_yaml.push_str("  - id: frame_extra\n    exec: { command: \"true\" }\n");
+        let extended = run(&extended_yaml).expect("extended parses");
+        let (a1, l1, e1, _) = totals(&base.certificate);
+        let (a2, l2, e2, _) = totals(&extended.certificate);
+        // one plain exec task: +1 attempt · +0 llm · +1 effect
+        prop_assert_eq!(a2, a1 + 1);
+        prop_assert_eq!(l2, l1);
+        prop_assert_eq!(e2, e1 + 1);
+    }
+
+    /// R5 — `retry: max_attempts: 1` is the identity (≡ no retry block).
+    #[test]
+    fn r5_retry_one_is_identity(tasks in workflow_strategy()) {
+        // normalize every task to attempts=1 (the generator then emits
+        // NO retry lines), and build the twin with an EXPLICIT retry-1
+        // block inserted after each task header
+        let mut ones = tasks.clone();
+        for t in &mut ones {
+            t.attempts = 1;
+        }
+        let plain = to_yaml(&ones, "t");
+        let with_retry1 = plain
+            .lines()
+            .map(|l| {
+                if l.starts_with("  - id: ") {
+                    format!("{l}\n    retry: {{ max_attempts: 1 }}")
+                } else {
+                    l.to_owned()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        let a = run(&plain).expect("plain parses");
+        let b = run(&with_retry1).expect("retry-1 parses");
+        prop_assert_eq!(canon(&a.certificate.task_attempts), canon(&b.certificate.task_attempts));
+        prop_assert_eq!(canon(&a.certificate.llm_calls), canon(&b.certificate.llm_calls));
+        prop_assert_eq!(a.is_clean(), b.is_clean());
+    }
+
+    /// R6 — every honest certificate passes its own audit (the checker
+    /// accepts what the analysis produces, over the whole generator).
+    #[test]
+    fn r6_honest_certificates_always_audit_clean(tasks in workflow_strategy()) {
+        let yaml = to_yaml(&tasks, "t");
+        let wf = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = super::check(&wf);
+        prop_assert!(
+            report.certificate.audit(&wf).is_ok(),
+            "honest certificate rejected on:\n{yaml}"
         );
     }
 }
