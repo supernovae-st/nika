@@ -50,6 +50,18 @@
 //! [`HttpError::TooLarge`]: a `Content-Length` above the cap fails
 //! fast; bodies without one are capped while reading; streaming bodies
 //! get a counting wrapper that yields `TooLarge` mid-stream.
+//!
+//! # Compression (transparent) + HTTP/2
+//!
+//! reqwest's `gzip`/`brotli`/`deflate` features are ON: the client
+//! sends `Accept-Encoding` and decompresses transparently (pure-Rust
+//! codecs). Cap semantics under compression: reqwest hides the
+//! compressed `Content-Length` for encoded bodies (`content_length()`
+//! is `None`), so the fail-fast branch is skipped and the COUNTING
+//! reader caps the DECOMPRESSED stream — the cap holds against
+//! decompression bombs, it just fires while reading instead of before.
+//! `http2` is ON (ALPN over rustls); plain-`http://` stays HTTP/1.1
+//! (h2c is not attempted — ALPN needs TLS).
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
@@ -94,7 +106,9 @@ pub enum SsrfMode {
 pub struct HttpConfig {
     /// Default request timeout (a per-request `timeout` wins).
     pub timeout: Duration,
-    /// Maximum redirect hops followed (each hop re-checked).
+    /// Maximum redirect hops followed (each hop re-checked). Counts
+    /// REDIRECTS, not requests: `5` allows the initial request plus up
+    /// to 5 follow-ups (6 wire requests total).
     pub max_redirects: u8,
     /// Maximum response body size in bytes ([`HttpError::TooLarge`]).
     pub max_response_bytes: u64,
@@ -154,6 +168,11 @@ impl ReqwestHttp {
             // Redirects are followed manually with per-hop SSRF
             // re-checks — reqwest must never follow on its own.
             .redirect(reqwest::redirect::Policy::none())
+            // Idle-read guard: a connection that stops DELIVERING for a
+            // full timeout window dies — this (not a total deadline)
+            // is what protects STREAMING responses, where wall-clock
+            // legitimately exceeds any total budget (SSE generations).
+            .read_timeout(config.timeout)
             // Ambient HTTP(S)_PROXY env vars are ignored: a proxy
             // resolves names itself, which would bypass the guarded
             // resolver below. Proxy support is a future explicit
@@ -187,26 +206,37 @@ impl ReqwestHttp {
     /// Drive the request including the manual redirect loop. Every hop
     /// is re-vetted; the final `reqwest::Response` is returned together
     /// with the URL string that produced it.
+    ///
+    /// `total_deadline`: reqwest's per-request timeout spans "until the
+    /// body has FINISHED" — correct for the buffered get/post paths,
+    /// fatal for streaming (an SSE generation routinely outlives any
+    /// total budget). Buffered callers pass `Some`; `send_streaming`
+    /// passes the request's EXPLICIT timeout only (else `None`) and
+    /// relies on the client-level idle-read guard.
     async fn execute(
         &self,
         request: HttpRequest,
+        total_deadline: Option<Duration>,
     ) -> Result<(reqwest::Response, String), HttpError> {
-        let timeout = request.timeout.unwrap_or(self.config.timeout);
+        // The duration used in Timeout error MESSAGES (the idle guard
+        // still bounds a deadline-less stream).
+        let reported_timeout = total_deadline.unwrap_or(self.config.timeout);
         let mut method = to_reqwest_method(request.method)?;
-        let mut body = request.body.clone();
-        // Headers are owned + mutable so cross-origin redirects can strip
-        // credentials (see the redirect branch below).
-        let mut headers = request.headers.clone();
-        let mut url = request.url.clone();
+        // Move the owned fields out (field moves are legal on a foreign
+        // `#[non_exhaustive]` struct — full destructuring is not); the
+        // redirect loop mutates headers/body in place. Zero clones.
+        let mut body = request.body;
+        let mut headers = request.headers;
+        let mut url = request.url;
 
         // First attempt + up to max_redirects follow-ups.
         for _hop in 0..=u32::from(self.config.max_redirects) {
             let vetted = self.vet(&url).await?;
 
-            let mut builder = self
-                .inner
-                .request(method.clone(), vetted.as_str())
-                .timeout(timeout);
+            let mut builder = self.inner.request(method.clone(), vetted.as_str());
+            if let Some(deadline) = total_deadline {
+                builder = builder.timeout(deadline);
+            }
             for (key, value) in &headers {
                 builder = builder.header(key.as_str(), value.as_str());
             }
@@ -217,7 +247,7 @@ impl ReqwestHttp {
             let response = builder
                 .send()
                 .await
-                .map_err(|e| map_send_error(&e, timeout))?;
+                .map_err(|e| map_send_error(&e, reported_timeout))?;
 
             let status = response.status();
             // Only the FOLLOWABLE 3xx codes drive the loop. 300 Multiple
@@ -327,7 +357,8 @@ impl HttpGetDyn for ReqwestHttp {
     /// dropping the future releases the connection and discards unread
     /// bytes.
     async fn get(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
-        let (response, final_url) = self.execute(request).await?;
+        let deadline = request.timeout.unwrap_or(self.config.timeout);
+        let (response, final_url) = self.execute(request, Some(deadline)).await?;
         self.read_capped(response, final_url).await
     }
 }
@@ -342,7 +373,8 @@ impl HttpPostDyn for ReqwestHttp {
     /// key or accept that retry-on-cancel may double-commit (kernel
     /// contract verbatim).
     async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
-        let (response, final_url) = self.execute(request).await?;
+        let deadline = request.timeout.unwrap_or(self.config.timeout);
+        let (response, final_url) = self.execute(request, Some(deadline)).await?;
         self.read_capped(response, final_url).await
     }
 
@@ -350,13 +382,22 @@ impl HttpPostDyn for ReqwestHttp {
     /// is wrapped in a byte counter that yields
     /// [`HttpError::TooLarge`] mid-stream past the cap.
     ///
+    /// TIMEOUT SEMANTICS: the config's total deadline does NOT apply —
+    /// reqwest's per-request timeout spans the whole body, and a
+    /// long-lived stream (an LLM SSE generation) routinely outlives any
+    /// total budget. An EXPLICIT `request.timeout` is honored as a
+    /// total deadline when the caller wants one; otherwise the
+    /// client-level idle-read guard (`read_timeout` = config.timeout)
+    /// kills a STALLED stream without capping an active one.
+    ///
     /// CANCEL SAFETY: cancel-safe from the reader side (drop the stream
     /// and the connection is released). Request-side safety follows
     /// `post` rules.
     async fn send_streaming(&self, request: HttpRequest) -> Result<HttpStreamResponse, HttpError> {
         let max = self.config.max_response_bytes;
         let timeout = request.timeout.unwrap_or(self.config.timeout);
-        let (response, final_url) = self.execute(request).await?;
+        let explicit_deadline = request.timeout;
+        let (response, final_url) = self.execute(request, explicit_deadline).await?;
 
         let content_length = response.content_length();
         if let Some(len) = content_length
@@ -474,28 +515,37 @@ impl reqwest::dns::Resolve for GuardedResolver {
         Box::pin(async move {
             // Port 0 — reqwest substitutes the URL's effective port
             // (`dns_resolver` contract · verified docs.rs 2026-06-12).
-            let lookup = tokio::time::timeout(
-                DNS_RESOLVE_TIMEOUT,
-                tokio::net::lookup_host((host.as_str(), 0)),
-            )
-            .await
-            .map_err(|_| HttpError::Timeout {
-                duration_ms: u64::try_from(DNS_RESOLVE_TIMEOUT.as_millis()).unwrap_or(u64::MAX),
-            })?
-            .map_err(|e| HttpError::Connection {
-                reason: format!("DNS resolution failed for {host}: {e}"),
-            })?;
-            let addrs: Vec<std::net::SocketAddr> = lookup.collect();
-            match classify_resolved(addrs.iter().copied()) {
-                ResolveVerdict::AllPublic => Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs),
-                ResolveVerdict::Private => Err(Box::new(HttpError::SsrfBlocked { url: host })
-                    as Box<dyn std::error::Error + Send + Sync>), // box-dyn-ok(vendor-seam): reqwest::dns::Resolving's error slot REQUIRES this exact type — the typed HttpError rides inside and is recovered by find_http_error
-                ResolveVerdict::Empty => Err(Box::new(HttpError::Connection {
-                    reason: format!("DNS returned no addresses for {host}"),
-                })
-                    as Box<dyn std::error::Error + Send + Sync>), // box-dyn-ok(vendor-seam): same reqwest::dns::Resolving signature
+            match guarded_lookup(&host, 0).await {
+                Ok(addrs) => Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs),
+                Err(e) => Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>), // box-dyn-ok(vendor-seam): reqwest::dns::Resolving's error slot REQUIRES this exact type — the typed HttpError rides inside and is recovered by find_http_error
             }
         })
+    }
+}
+
+/// One guarded DNS resolution — system lookup under
+/// [`DNS_RESOLVE_TIMEOUT`], EVERY returned address range-checked.
+/// Shared by the advisory layer ([`resolve_guard`]) and the
+/// enforcement layer ([`GuardedResolver`]): one logic, two seams
+/// (review lens 2 · P3-1 dedupe).
+async fn guarded_lookup(host: &str, port: u16) -> Result<Vec<std::net::SocketAddr>, HttpError> {
+    let lookup = tokio::time::timeout(DNS_RESOLVE_TIMEOUT, tokio::net::lookup_host((host, port)))
+        .await
+        .map_err(|_| HttpError::Timeout {
+            duration_ms: u64::try_from(DNS_RESOLVE_TIMEOUT.as_millis()).unwrap_or(u64::MAX),
+        })?
+        .map_err(|e| HttpError::Connection {
+            reason: format!("DNS resolution failed for {host}: {e}"),
+        })?;
+    let addrs: Vec<std::net::SocketAddr> = lookup.collect();
+    match classify_resolved(addrs.iter().copied()) {
+        ResolveVerdict::AllPublic => Ok(addrs),
+        ResolveVerdict::Private => Err(HttpError::SsrfBlocked {
+            url: host.to_owned(),
+        }),
+        ResolveVerdict::Empty => Err(HttpError::Connection {
+            reason: format!("DNS returned no addresses for {host}"),
+        }),
     }
 }
 
@@ -517,23 +567,14 @@ async fn resolve_guard(parsed: &url::Url) -> Result<(), HttpError> {
     }
 
     let port = parsed.port_or_known_default().unwrap_or(80);
-    let lookup = tokio::time::timeout(DNS_RESOLVE_TIMEOUT, tokio::net::lookup_host((bare, port)))
-        .await
-        .map_err(|_| HttpError::Timeout {
-            duration_ms: u64::try_from(DNS_RESOLVE_TIMEOUT.as_millis()).unwrap_or(u64::MAX),
-        })?;
-    let addrs = lookup.map_err(|e| HttpError::Connection {
-        reason: format!("DNS resolution failed for {bare}: {e}"),
-    })?;
-
-    match classify_resolved(addrs) {
-        ResolveVerdict::AllPublic => Ok(()),
-        ResolveVerdict::Private => Err(HttpError::SsrfBlocked {
+    // A Private verdict re-labels with the FULL url (the advisory layer
+    // has it; the resolver only sees the bare host).
+    match guarded_lookup(bare, port).await {
+        Ok(_) => Ok(()),
+        Err(HttpError::SsrfBlocked { .. }) => Err(HttpError::SsrfBlocked {
             url: parsed.to_string(),
         }),
-        ResolveVerdict::Empty => Err(HttpError::Connection {
-            reason: format!("DNS returned no addresses for {bare}"),
-        }),
+        Err(other) => Err(other),
     }
 }
 
@@ -604,6 +645,10 @@ fn find_http_error(error: &(dyn std::error::Error + 'static)) -> Option<HttpErro
                 HttpError::Unsupported { reason } => HttpError::Unsupported {
                     reason: reason.clone(),
                 },
+                // WARN: deliberately LOSSY — a future HttpError variant
+                // must gain an arm here to keep its typed identity
+                // through the resolver seam (fail-closed either way,
+                // only the error TYPE degrades to Other).
                 other => HttpError::Other {
                     reason: other.to_string(),
                 },
@@ -659,7 +704,8 @@ impl Stream for CappedStream {
                 Poll::Ready(Some(Err(map_send_error(&e, timeout))))
             }
             Poll::Ready(Some(Ok(chunk))) => {
-                self.seen += chunk.len() as u64;
+                // Saturating: matches read_capped's defensive arithmetic.
+                self.seen = self.seen.saturating_add(chunk.len() as u64);
                 if self.seen > self.max {
                     self.done = true;
                     return Poll::Ready(Some(Err(HttpError::TooLarge {
@@ -1024,6 +1070,55 @@ mod e2e {
             .await
             .expect_err("counted read too large");
         assert!(matches!(err, HttpError::TooLarge { .. }), "{err}");
+    }
+
+    /// gzip of `"hello from the compressed side"` (`mtime=0` — fully
+    /// deterministic bytes, no compressor dev-dep).
+    const GZIP_BODY: &[u8] = &[
+        0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcb, 0x48, 0xcd, 0xc9, 0xc9,
+        0x57, 0x48, 0x2b, 0xca, 0xcf, 0x55, 0x28, 0xc9, 0x48, 0x55, 0x48, 0xce, 0xcf, 0x2d, 0x28,
+        0x4a, 0x2d, 0x2e, 0x4e, 0x4d, 0x51, 0x28, 0xce, 0x4c, 0x49, 0x05, 0x00, 0xcf, 0xe4, 0x53,
+        0xe4, 0x1e, 0x00, 0x00, 0x00,
+    ];
+
+    #[tokio::test]
+    async fn gzip_responses_decompress_transparently() {
+        // The wire carries gzip; the caller sees plain text — and the
+        // client ADVERTISED the capability (the captured request head
+        // carries Accept-Encoding).
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        let (head_tx, head_rx) = tokio::sync::oneshot::channel::<String>();
+        tokio::spawn(async move {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                return;
+            };
+            let mut buf = vec![0u8; 8192];
+            let n = socket.read(&mut buf).await.unwrap_or(0);
+            let _ = head_tx.send(String::from_utf8_lossy(&buf[..n]).into_owned());
+            let head = format!(
+                "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                GZIP_BODY.len()
+            );
+            let _ = socket.write_all(head.as_bytes()).await;
+            let _ = socket.write_all(GZIP_BODY).await;
+            let _ = socket.shutdown().await;
+        });
+
+        let resp = client(1 << 20)
+            .get(HttpRequest::get(format!("http://{addr}/gz")))
+            .await
+            .expect("decompresses");
+        assert_eq!(resp.body.as_ref(), b"hello from the compressed side");
+        let request_head = head_rx.await.expect("server captured the head");
+        assert!(
+            request_head
+                .to_ascii_lowercase()
+                .contains("accept-encoding"),
+            "the client advertises compression: {request_head}"
+        );
     }
 
     #[tokio::test]

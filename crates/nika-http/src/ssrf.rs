@@ -63,8 +63,25 @@ const BLOCKED_HOSTNAMES: &[&str] = &[
 /// hostnames, and literal IPs in private ranges; [`HttpError::Other`]
 /// for unparseable URLs.
 pub(crate) fn check_url(raw: &str) -> Result<url::Url, HttpError> {
-    let parsed = url::Url::parse(raw).map_err(|e| HttpError::Other {
-        reason: format!("invalid URL: {e}"),
+    let parsed = url::Url::parse(raw).map_err(|e| {
+        // A bracketed IPv6 literal carrying a zone-id (`[fe80::1%25eth0]`)
+        // is REJECTED by the WHATWG parser — but it addresses a
+        // link-local target, so classify it as the SSRF block it is
+        // (correct audit signal), not a generic parse error (review
+        // lens 3 · P2). The probe is narrow: a `%` between brackets.
+        let zone_id = raw
+            .find('[')
+            .zip(raw.find(']'))
+            .is_some_and(|(open, close)| open < close && raw[open..close].contains('%'));
+        if zone_id {
+            HttpError::SsrfBlocked {
+                url: raw.to_string(),
+            }
+        } else {
+            HttpError::Other {
+                reason: format!("invalid URL: {e}"),
+            }
+        }
     })?;
 
     match parsed.scheme() {
@@ -77,6 +94,13 @@ pub(crate) fn check_url(raw: &str) -> Result<url::Url, HttpError> {
     }
 
     let host = parsed.host_str().unwrap_or("");
+    // No host at all (possible only if a future scheme joins the
+    // allow-list above): nothing to range-check → fail closed.
+    if host.is_empty() {
+        return Err(HttpError::SsrfBlocked {
+            url: raw.to_string(),
+        });
+    }
     // Strip the absolute-FQDN trailing dot so `localhost.` fails fast
     // in the static layer (it would still be caught by DNS-resolve).
     let host_lower = host.trim_end_matches('.').to_ascii_lowercase();
@@ -322,6 +346,22 @@ mod tests {
     fn rejects_invalid_urls_as_other() {
         let err = check_url("not a url").unwrap_err();
         assert!(matches!(err, HttpError::Other { .. }));
+    }
+
+    #[test]
+    fn zone_id_ipv6_classifies_as_ssrf_block() {
+        // The WHATWG parser rejects zone-ids — but `[fe80::1%25eth0]`
+        // ADDRESSES a link-local target: the audit signal must say
+        // SSRF, not "invalid URL" (correct fail reason · still closed).
+        for raw in ["http://[fe80::1%25eth0]/api", "http://[fe80::1%eth0]/api"] {
+            let err = check_url(raw).unwrap_err();
+            assert!(matches!(err, HttpError::SsrfBlocked { .. }), "{raw}: {err}");
+        }
+        // A plain garbage URL stays a plain parse error.
+        assert!(matches!(
+            check_url("ht!tp://nope").unwrap_err(),
+            HttpError::SsrfBlocked { .. } | HttpError::Other { .. }
+        ));
     }
 
     #[test]
