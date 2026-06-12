@@ -535,6 +535,11 @@ where
         let mut all_dispatch_errors = true;
         let mut had_dispatch = false;
         for r in resolved {
+            // An intrinsic reports ComposeChecked; a real dispatch reports
+            // ToolCompleted. They are NOT both — `agent:compose` is
+            // loop-served, never a tool invocation, so it must not surface
+            // as one on the stream (a `tool_invoked` for a call that never
+            // hit the executor would mislead every reader).
             if let Some(outcome) = r.compose {
                 observer.on_event(&AgentEvent::ComposeChecked {
                     turn,
@@ -544,16 +549,19 @@ where
             } else if let ContentBlock::ToolResult { is_error, .. } = &r.block {
                 had_dispatch = true;
                 all_dispatch_errors &= *is_error;
-            }
-            if let ContentBlock::ToolResult {
-                content, is_error, ..
-            } = &r.block
-            {
                 observer.on_event(&AgentEvent::ToolCompleted {
                     turn,
                     name: r.name.clone(),
                     is_error: *is_error,
                 });
+            }
+            // The guard signature reads EVERY observation (compose
+            // included — a repeating compose draft is still a no-progress
+            // loop) regardless of which event reported it.
+            if let ContentBlock::ToolResult {
+                content, is_error, ..
+            } = &r.block
+            {
                 sig_results.push((content.clone(), *is_error));
             }
             router.note_used(&r.name, turn);
