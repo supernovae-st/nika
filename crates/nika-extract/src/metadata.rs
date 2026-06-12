@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! `mode: metadata` (head walk · title·description·og·twitter·
-//! `canonical·lang·author·published_time·favicon·alternates`) and
+//! `canonical·lang·author·published_time·favicon·alternates·jsonld`) and
 //! `mode: links` (every `<a href>` → absolute URL).
 //!
 //! Both are TOTAL: malformed HTML yields what the parser salvages
@@ -30,6 +30,13 @@ static CANONICAL: LazyLock<Option<Selector>> =
 static ICON: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static(r#"link[rel~="icon"]"#));
 static HTML_TAG: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static("html"));
 static ANCHORS: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static("a[href]"));
+static JSONLD: LazyLock<Option<Selector>> =
+    LazyLock::new(|| parse_static(r#"script[type="application/ld+json"]"#));
+
+/// Cap on JSON-LD blocks surfaced — a page with thousands of
+/// `<script type=ld+json>` is pathological; the real web has 1–3
+/// (`Product` · `BreadcrumbList` · `Organization`). Bounds the output.
+const MAX_JSONLD_BLOCKS: usize = 32;
 
 /// `mode: metadata` — the spec's documented object shape. `og`/`twitter`
 /// are ALWAYS objects (stable shape for jq consumers); scalar keys are
@@ -110,6 +117,27 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
         && !lang.is_empty()
     {
         out.insert("lang".to_owned(), lang.into());
+    }
+
+    // schema.org structured data (JSON-LD) — the highest-yield path for
+    // NON-article pages (products · listings · recipes), where the
+    // useful fields live in `<script type=ld+json>` not the visible DOM
+    // (WCXB arXiv:2605.21097 · +20-30 F1 on product pages). Surfaced as
+    // `jsonld: [...]` (the parsed blocks, schema-agnostic — the caller's
+    // jq/infer step walks `@type`). Invalid blocks are skipped, never
+    // fatal: a malformed inline script must not sink the metadata.
+    if let Some(sel) = JSONLD.as_ref() {
+        let blocks: Vec<serde_json::Value> = doc
+            .select(sel)
+            .filter_map(|el| {
+                let raw = el.text().collect::<String>();
+                serde_json::from_str::<serde_json::Value>(raw.trim()).ok()
+            })
+            .take(MAX_JSONLD_BLOCKS)
+            .collect();
+        if !blocks.is_empty() {
+            out.insert("jsonld".to_owned(), serde_json::Value::Array(blocks));
+        }
     }
 
     out.insert("og".to_owned(), serde_json::Value::Object(og));

@@ -131,6 +131,23 @@ pub fn extract(
     mode: ExtractMode,
     opts: &ExtractOptions<'_>,
 ) -> Result<serde_json::Value, ExtractError> {
+    // Every HTML-DOM mode passes the body to a parser/recursive
+    // consumer (htmd → markup5ever_rcdom recursive Drop · dom_smoothie ·
+    // scraper). One cheap byte-scan depth guard up front stops the
+    // stack-overflow-on-teardown DoS for ALL of them before any parse
+    // (raw/jq are passthrough; feed/sitemap are streaming XML, not an
+    // HTML DOM — no recursive teardown).
+    if matches!(
+        mode,
+        ExtractMode::Markdown
+            | ExtractMode::Article
+            | ExtractMode::Text
+            | ExtractMode::Selector
+            | ExtractMode::Metadata
+            | ExtractMode::Links
+    ) {
+        html::guard_depth(body, mode)?;
+    }
     match mode {
         ExtractMode::Raw => Ok(serde_json::Value::String(body.to_owned())),
         ExtractMode::Markdown => html::markdown(body),
@@ -308,6 +325,32 @@ mod tests {
         // Relative canonical resolved against the base URL.
         assert_eq!(out["canonical"], "https://example.com/article");
         assert_eq!(out["lang"], "en");
+    }
+
+    #[test]
+    fn metadata_extracts_jsonld_structured_data() {
+        // A product page: the price lives in JSON-LD, not the visible DOM
+        // (the WCXB non-article case). metadata mode surfaces it under
+        // `jsonld` for a downstream jq/infer step to walk.
+        let html = r#"<html><head><title>Widget</title>
+            <script type="application/ld+json">
+            {"@context":"https://schema.org","@type":"Product","name":"Widget",
+             "offers":{"@type":"Offer","price":"19.99","priceCurrency":"USD"}}
+            </script>
+            <script type="application/ld+json">{"@type":"BreadcrumbList"}</script>
+            <script type="application/ld+json">{ this is not json </script>
+        </head><body></body></html>"#;
+        let out = run(html, ExtractMode::Metadata).expect("metadata");
+        let blocks = out["jsonld"].as_array().expect("jsonld array");
+        // Two VALID blocks; the malformed third is skipped, not fatal.
+        assert_eq!(blocks.len(), 2, "{blocks:?}");
+        assert_eq!(blocks[0]["@type"], "Product");
+        assert_eq!(blocks[0]["offers"]["price"], "19.99");
+        assert_eq!(blocks[1]["@type"], "BreadcrumbList");
+        // A page with no JSON-LD omits the key (absence over empty array).
+        let bare =
+            run("<html><body><p>x</p></body></html>", ExtractMode::Metadata).expect("metadata");
+        assert!(bare.get("jsonld").is_none(), "no key when absent: {bare}");
     }
 
     #[test]
