@@ -667,10 +667,10 @@ mod tests {
         // still reach the maximum matching, not stall on greedy picks.
         let k = 40usize;
         let mut adj = vec![Vec::new(); k];
-        for u in 0..k {
-            adj[u].push(u);
+        for (u, row) in adj.iter_mut().enumerate() {
+            row.push(u);
             if u + 1 < k {
-                adj[u].push(u + 1);
+                row.push(u + 1);
             }
         }
         let (_, _, size) = hopcroft_karp(k, &adj);
