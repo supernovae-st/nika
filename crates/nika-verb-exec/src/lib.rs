@@ -309,11 +309,19 @@ fn validate_params(input: &ExecInput) -> Result<(), VerbExecError> {
             detail: "stdin must not contain a NUL byte".to_owned(),
         });
     }
-    for key in input.env.keys() {
+    for (key, value) in &input.env {
         if key.is_empty() || key.contains('=') || key.contains('\0') {
             return Err(VerbExecError::InvalidParam {
                 param: "env",
                 detail: format!("env key {key:?} is invalid (empty, or contains '=' or NUL)"),
+            });
+        }
+        // A NUL in the VALUE truncates the child's `KEY=VALUE` C-string just
+        // like a key NUL — refuse it at the same boundary (review F2).
+        if value.contains('\0') {
+            return Err(VerbExecError::InvalidParam {
+                param: "env",
+                detail: format!("env value for {key:?} must not contain a NUL byte"),
             });
         }
     }
