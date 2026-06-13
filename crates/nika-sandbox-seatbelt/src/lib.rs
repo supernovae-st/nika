@@ -87,18 +87,16 @@ fn build_profile(spec: &SandboxSpec) -> Result<String, CommandSandboxError> {
     let mut p = String::from(PROFILE_PREAMBLE);
 
     for glob in &spec.fs_read {
-        let prefix = literal_prefix(glob);
-        if prefix.is_empty() {
+        let Some(prefix) = grant_subpath(glob)? else {
             continue; // a glob with no literal prefix is un-expressible as a subpath
-        }
+        };
         let _ = writeln!(p, "(allow file-read* (subpath {}))", sbpl_string(&prefix)?);
     }
 
     for glob in &spec.fs_write {
-        let prefix = literal_prefix(glob);
-        if prefix.is_empty() {
+        let Some(prefix) = grant_subpath(glob)? else {
             continue;
-        }
+        };
         let _ = writeln!(
             p,
             "(allow file-write* file-read* (subpath {}))",
@@ -155,6 +153,47 @@ fn wrap(command: ShellCommand, profile: &str) -> ShellCommand {
     wrapped
 }
 
+/// The grant subpath for a glob: its literal prefix, VALIDATED so the floor
+/// holds even against a hostile or wrong permit (the sandbox's whole job). The
+/// transform that turns a declared glob into a real OS grant must never be able
+/// to express a whole-filesystem or system-root grant (review P1-1/P1-2/P2-1).
+///
+/// - `Ok(None)` — the glob has no literal prefix (`**/x` · `*`) — skipped.
+/// - `Ok(Some(p))` — a safe absolute subpath at least two segments deep.
+/// - `Err(Profile)` — the prefix would over-grant or is non-canonical:
+///   root `/`, a non-absolute / `~` / `$`-bearing path (SBPL does not expand
+///   them · they would match unreliably), a `..` traversal, or a bare
+///   system-root directory (`/etc`, `/usr`, `/Users`, … — a filename glob that
+///   trims to one of these would grant the whole tree). Fail-closed: the
+///   caller (the runner) maps this to a refusal to spawn.
+fn grant_subpath(glob: &str) -> Result<Option<String>, CommandSandboxError> {
+    let prefix = literal_prefix(glob);
+    if prefix.is_empty() {
+        return Ok(None);
+    }
+    let refuse = |why: &str| {
+        Err(CommandSandboxError::Profile {
+            reason: format!("permits path {glob:?} cannot be confined: {why}"),
+        })
+    };
+    if !prefix.starts_with('/') {
+        // rejects relative (`./out`, `data/`), `~/…`, and `$VAR/…` — SBPL has
+        // no shell expansion, so these would not match the canonical path.
+        return refuse("a sandbox path must be absolute (canonicalize it first)");
+    }
+    if prefix.split('/').any(|seg| seg == "..") {
+        return refuse("a `..` traversal cannot be expressed as a stable subpath");
+    }
+    let normalized = prefix.trim_end_matches('/');
+    if normalized.is_empty() {
+        return refuse("a path of `/` would grant the whole filesystem");
+    }
+    if SYSTEM_ROOTS.contains(&normalized) {
+        return refuse("a bare system-root directory would over-grant its whole tree");
+    }
+    Ok(Some(prefix))
+}
+
 /// The literal directory prefix of a gitignore-style glob — everything before
 /// the first glob metacharacter, trimmed back to the last path separator so a
 /// directory boundary is kept. `./output/**` -> `./output`; `/data/lo*` ->
@@ -167,6 +206,31 @@ fn literal_prefix(glob: &str) -> String {
         _ => head.to_owned(),
     }
 }
+
+/// Bare system-root directories a permit must NOT grant as a subpath (granting
+/// the whole tree would defeat the jail). A filename glob that trims to one of
+/// these (`/etc/passwd*` -> `/etc`) is refused (review P2-1); the author must
+/// declare a more specific subpath (`/etc/myapp/**`).
+const SYSTEM_ROOTS: &[&str] = &[
+    "/etc",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/var",
+    "/private",
+    "/System",
+    "/Library",
+    "/Users",
+    "/opt",
+    "/root",
+    "/home",
+    "/dev",
+    "/tmp",
+    "/Applications",
+    "/Volumes",
+    "/cores",
+    "/net",
+];
 
 /// Quote a path as an SBPL string literal, escaping the two metacharacters
 /// (`\` and `"`) that could otherwise BREAK OUT of the string and inject
@@ -281,6 +345,64 @@ mod tests {
         let p = build_profile(&spec).unwrap();
         assert!(p.contains("(allow file-read* (subpath \"/data/in\"))"));
         assert!(p.contains("(allow file-write* file-read* (subpath \"/data/out\"))"));
+    }
+
+    #[test]
+    fn grant_subpath_refuses_an_over_granting_or_non_canonical_permit() {
+        // The floor must make a whole-filesystem / system-root / non-canonical
+        // grant IMPOSSIBLE to express — even from a hostile or wrong permit
+        // (review P1-1/P1-2/P2-1). Each of these is fail-closed (Profile error).
+        for over in [
+            "/",                  // whole filesystem (P1-1)
+            "//",                 // root, trailing-slash form
+            "/etc/passwd*",       // trims to the /etc system root (P2-1)
+            "/Users/*",           // trims to /Users (every home)
+            "/usr/**",            // bare system root
+            "./output/**",        // relative — SBPL can't canonicalize (P1-2)
+            "../shared/**",       // parent traversal
+            "~/.aws/**",          // ~ is not expanded by SBPL (P3-1)
+            "$HOME/secrets/**",   // $VAR is not expanded by SBPL
+            "/data/../../etc/x*", // a `..` escape
+        ] {
+            assert!(
+                matches!(
+                    grant_subpath(over),
+                    Err(CommandSandboxError::Profile { .. })
+                ),
+                "permit {over:?} must be refused (fail-closed), not granted"
+            );
+        }
+    }
+
+    #[test]
+    fn grant_subpath_allows_a_specific_absolute_permit() {
+        // A genuinely-scoped permit (≥2 absolute segments, not a system root)
+        // is granted as its directory subpath.
+        assert_eq!(
+            grant_subpath("/data/project/in/**").unwrap(),
+            Some("/data/project/in".to_owned())
+        );
+        assert_eq!(
+            grant_subpath("/srv/app/cache/x.txt").unwrap(),
+            Some("/srv/app/cache/x.txt".to_owned())
+        );
+        // A glob with no literal prefix is SKIPPED (safe · no grant emitted),
+        // not an error — `**/y` and root-level globs like `/*` `/**`.
+        assert_eq!(grant_subpath("**/y").unwrap(), None);
+        assert_eq!(grant_subpath("/*").unwrap(), None);
+        assert_eq!(grant_subpath("/**").unwrap(), None);
+    }
+
+    #[test]
+    fn a_root_write_permit_fails_the_whole_profile() {
+        // The end-to-end fail-closed: a spec asking to write `/` does not yield
+        // a permissive profile — build_profile refuses it.
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec!["/".to_owned()];
+        assert!(matches!(
+            build_profile(&spec),
+            Err(CommandSandboxError::Profile { .. })
+        ));
     }
 
     #[test]
