@@ -279,10 +279,8 @@ impl<T> outref::AsOut<T> for nika_verb_agent::observe::NudgeReason where T: core
 pub fn nika_verb_agent::observe::NudgeReason::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_verb_agent::observe::ToolSource
 pub nika_verb_agent::observe::ToolSource::Builtin
-pub nika_verb_agent::observe::ToolSource::Intrinsic
 pub nika_verb_agent::observe::ToolSource::Mcp
 pub nika_verb_agent::observe::ToolSource::Other
-pub nika_verb_agent::observe::ToolSource::Skill
 impl nika_verb_agent::observe::ToolSource
 pub fn nika_verb_agent::observe::ToolSource::classify(name: &str) -> Self
 impl core::clone::Clone for nika_verb_agent::observe::ToolSource
@@ -364,10 +362,8 @@ impl<T> outref::AsOut<T> for nika_verb_agent::observe::NoopObserver where T: cor
 pub fn nika_verb_agent::observe::NoopObserver::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub struct nika_verb_agent::observe::SourceCounts
 pub nika_verb_agent::observe::SourceCounts::builtin: u32
-pub nika_verb_agent::observe::SourceCounts::intrinsic: u32
 pub nika_verb_agent::observe::SourceCounts::mcp: u32
 pub nika_verb_agent::observe::SourceCounts::other: u32
-pub nika_verb_agent::observe::SourceCounts::skill: u32
 impl nika_verb_agent::observe::SourceCounts
 pub fn nika_verb_agent::observe::SourceCounts::tally<'a>(names: impl core::iter::traits::iterator::Iterator<Item = &'a str>) -> Self
 impl core::clone::Clone for nika_verb_agent::observe::SourceCounts
@@ -594,10 +590,8 @@ impl<T> outref::AsOut<T> for nika_verb_agent::observe::NudgeReason where T: core
 pub fn nika_verb_agent::observe::NudgeReason::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_verb_agent::ToolSource
 pub nika_verb_agent::ToolSource::Builtin
-pub nika_verb_agent::ToolSource::Intrinsic
 pub nika_verb_agent::ToolSource::Mcp
 pub nika_verb_agent::ToolSource::Other
-pub nika_verb_agent::ToolSource::Skill
 impl nika_verb_agent::observe::ToolSource
 pub fn nika_verb_agent::observe::ToolSource::classify(name: &str) -> Self
 impl core::clone::Clone for nika_verb_agent::observe::ToolSource
@@ -943,10 +937,8 @@ impl<T> nika_error::traits::AsAny for nika_verb_agent::config::RouterConfig wher
 pub fn nika_verb_agent::config::RouterConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_verb_agent::SourceCounts
 pub nika_verb_agent::SourceCounts::builtin: u32
-pub nika_verb_agent::SourceCounts::intrinsic: u32
 pub nika_verb_agent::SourceCounts::mcp: u32
 pub nika_verb_agent::SourceCounts::other: u32
-pub nika_verb_agent::SourceCounts::skill: u32
 impl nika_verb_agent::observe::SourceCounts
 pub fn nika_verb_agent::observe::SourceCounts::tally<'a>(names: impl core::iter::traits::iterator::Iterator<Item = &'a str>) -> Self
 impl core::clone::Clone for nika_verb_agent::observe::SourceCounts

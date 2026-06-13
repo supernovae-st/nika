@@ -526,7 +526,7 @@ tasks:
 
 #[tokio::test]
 async fn an_agent_compose_check_rides_the_canonical_stream() {
-    // The `agent:compose` intrinsic's static verdict reaches the stream
+    // The `nika:compose` intrinsic's static verdict reaches the stream
     // as `agent_compose_checked` — the ONE agent kind the prior e2e set
     // never exercised through the real runtime (mutation gap).
     const COMPOSE_WORKFLOW: &str = r#"
@@ -538,7 +538,7 @@ tasks:
   - id: drafter
     agent:
       prompt: "draft a workflow then finish"
-      tools: ["agent:compose"]
+      tools: ["nika:compose"]
       max_turns: 4
 "#;
     let wf = parse(COMPOSE_WORKFLOW, FileId::new(0), ParseMode::Strict).expect("fixture parses");
@@ -549,7 +549,7 @@ tasks:
     let provider = MockProvider::new("mock")
         .enqueue_response(tool_use_response(
             "d1",
-            "agent:compose",
+            "nika:compose",
             serde_json::json!({ "workflow_yaml": draft }),
         ))
         .enqueue_response(text_response("drafted and certified"));

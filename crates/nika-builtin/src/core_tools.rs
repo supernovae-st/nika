@@ -180,6 +180,19 @@ pub(crate) fn done() -> BuiltinOutcome {
     ))
 }
 
+/// `nika:compose` — the agent loop's self-verification intrinsic. Like
+/// `done`, it is LOOP-SERVED: the agent loop runs the static check and
+/// feeds the verdict back; a standalone `invoke: nika:compose` has no
+/// draft-repair loop, so it is rejected here → `NIKA-BUILTIN-COMPOSE-001`
+/// (stdlib §compose · ADR-093). The model-facing def lives in `defs.rs`.
+#[allow(clippy::unnecessary_wraps)] // uniform BuiltinOutcome · always the same rejection
+pub(crate) fn compose() -> BuiltinOutcome {
+    Err(BuiltinFailure::new(
+        "NIKA-BUILTIN-COMPOSE-001",
+        "`nika:compose` is valid only inside an `agent:` loop's tool whitelist",
+    ))
+}
+
 /// `nika:wait` — temporal pause · relative `duration:` XOR absolute
 /// `until:` (exactly-one-of · stdlib §wait). Both modes ride the
 /// injected clock (`sleep` + `system_now` for the absolute comparison),
@@ -505,6 +518,7 @@ mod tests {
     #[test]
     fn done_always_rejects() {
         assert!(matches!(done(), Err(f) if f.code == "NIKA-BUILTIN-DONE-001"));
+        assert!(matches!(compose(), Err(f) if f.code == "NIKA-BUILTIN-COMPOSE-001"));
     }
 
     #[tokio::test]

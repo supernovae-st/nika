@@ -24,23 +24,27 @@
 //! Callbacks are synchronous and MUST be cheap (enqueue, don't block):
 //! the loop calls them between awaits on its hot path.
 
-/// Where a tool definition came from, classified by its closed namespace
-/// prefix. The router reports per-source counts so MCP-heavy universes
-/// are visible at a glance.
+/// Where a tool definition came from, classified by its namespace prefix.
+/// The router reports per-source counts so MCP-heavy universes are
+/// visible at a glance.
+///
+/// EXACTLY the spec's closed v1 namespace set `{nika:, mcp:}` (`02-verbs`
+/// §agent) plus a defensive catch-all. `nika:compose` is a `nika:`
+/// builtin (loop-only · ADR-093) so it counts as `Builtin`, like its
+/// sibling `nika:done`. (The earlier `Skill`/`Intrinsic` variants
+/// anticipated `skill:`/`agent:` namespaces the spec doesn't have yet —
+/// the parser now rejects them · they re-add here when those namespaces
+/// actually land, "additive" per the spec.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ToolSource {
-    /// `nika:` — the engine's builtin stdlib.
+    /// `nika:` — the engine's builtin stdlib (incl. the loop-only
+    /// `nika:done` sentinel + `nika:compose` self-check intrinsic).
     Builtin,
     /// `mcp:` — Model Context Protocol servers.
     Mcp,
-    /// `skill:` — stored-workflow skills (forward seam: routed + counted
-    /// today, served by definition providers when the pack layer ships).
-    Skill,
-    /// `agent:` — loop-intrinsic capabilities (compose · done sentinel
-    /// lives under `nika:` for spec-compat).
-    Intrinsic,
-    /// Any other prefix (an MCP alias, a future namespace).
+    /// Any other prefix (a defensive bucket — the parser enforces the
+    /// closed `{nika:, mcp:}` set, so this stays empty in valid v0.1).
     Other,
 }
 
@@ -52,10 +56,6 @@ impl ToolSource {
             Self::Builtin
         } else if name.starts_with("mcp:") {
             Self::Mcp
-        } else if name.starts_with("skill:") {
-            Self::Skill
-        } else if name.starts_with("agent:") {
-            Self::Intrinsic
         } else {
             Self::Other
         }
@@ -70,11 +70,7 @@ pub struct SourceCounts {
     pub builtin: u32,
     /// `mcp:` tools offered.
     pub mcp: u32,
-    /// `skill:` workflows offered.
-    pub skill: u32,
-    /// `agent:` intrinsics offered.
-    pub intrinsic: u32,
-    /// Everything else.
+    /// Everything else (defensive — empty in valid v0.1).
     pub other: u32,
 }
 
@@ -87,8 +83,6 @@ impl SourceCounts {
             match ToolSource::classify(name) {
                 ToolSource::Builtin => counts.builtin += 1,
                 ToolSource::Mcp => counts.mcp += 1,
-                ToolSource::Skill => counts.skill += 1,
-                ToolSource::Intrinsic => counts.intrinsic += 1,
                 ToolSource::Other => counts.other += 1,
             }
         }
@@ -146,7 +140,7 @@ pub enum AgentEvent {
         /// Whether the result was an error fed back to the model.
         is_error: bool,
     },
-    /// An `agent:compose` draft was statically checked.
+    /// A `nika:compose` draft was statically checked.
     ComposeChecked {
         /// 1-based turn counter.
         turn: u32,
@@ -221,9 +215,12 @@ mod tests {
     #[test]
     fn source_classification_covers_the_closed_namespaces() {
         assert_eq!(ToolSource::classify("nika:read"), ToolSource::Builtin);
+        // nika:compose is a nika: builtin (loop-only) → Builtin, like done.
+        assert_eq!(ToolSource::classify("nika:compose"), ToolSource::Builtin);
         assert_eq!(ToolSource::classify("mcp:server/tool"), ToolSource::Mcp);
-        assert_eq!(ToolSource::classify("skill:audit-site"), ToolSource::Skill);
-        assert_eq!(ToolSource::classify("agent:compose"), ToolSource::Intrinsic);
+        // Namespaces the spec doesn't have yet fall to the catch-all
+        // (the parser rejects them before they reach a real workflow).
+        assert_eq!(ToolSource::classify("skill:audit-site"), ToolSource::Other);
         assert_eq!(ToolSource::classify("custom-thing"), ToolSource::Other);
         // Prefixes are exact: a bare namespace word is not its namespace.
         assert_eq!(ToolSource::classify("nika"), ToolSource::Other);
@@ -233,10 +230,8 @@ mod tests {
     fn source_counts_tally_each_bucket() {
         let names = [
             "nika:read",
-            "nika:write",
+            "nika:compose",
             "mcp:gh/issues",
-            "skill:weekly-report",
-            "agent:compose",
             "weird",
         ];
         let counts = SourceCounts::tally(names.iter().copied());
@@ -245,8 +240,6 @@ mod tests {
             SourceCounts {
                 builtin: 2,
                 mcp: 1,
-                skill: 1,
-                intrinsic: 1,
                 other: 1,
             }
         );

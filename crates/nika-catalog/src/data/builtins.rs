@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Static builtin tool catalog — 22 `nika:*` tools in a sorted array.
+//! Static builtin tool catalog — 23 `nika:*` tools in a sorted array.
 //!
 //! Case-sensitive lookup via binary search. Tool names are engine-controlled,
 //! always lowercase.
@@ -15,13 +15,13 @@
 //! `nika:json_merge_patch` stays for RFC-7396 null-delete which `jq *` cannot
 //! express).
 //!
-//! 5 categories · Core 6 · File 5 · Data 8 · Network 2 · Introspection 1 = 22.
+//! 5 categories · Core 6 · File 5 · Data 8 · Network 2 · Introspection 2 = 23.
 
 use crate::types::builtin::{Builtin, BuiltinCategory};
 
 use BuiltinCategory::{Core, Data, File, Introspection, Network};
 
-/// All 22 builtin tools, **sorted alphabetically by name**.
+/// All 23 builtin tools, **sorted alphabetically by name**.
 ///
 /// Invariant: array MUST be sorted for `binary_search` to work.
 /// This is validated by a unit test.
@@ -29,6 +29,16 @@ pub static ALL_BUILTINS: &[Builtin] = &[
     Builtin {
         name: "assert",
         category: Core,
+    },
+    Builtin {
+        // The agent loop's self-verification intrinsic — checks a workflow
+        // draft the model wrote (`nika check`: conformance + secret-flow +
+        // permits + the AARA certificate) and never executes it. Loop-only
+        // + loop-served like `done` (rejected standalone · NIKA-BUILTIN-
+        // COMPOSE-001 · ADR-093). Introspection: it analyses workflow
+        // structure, the static sibling of `inspect`'s runtime view.
+        name: "compose",
+        category: Introspection,
     },
     Builtin {
         name: "convert",
@@ -137,7 +147,7 @@ mod tests {
 
     #[test]
     fn builtin_count() {
-        assert_eq!(ALL_BUILTINS.len(), 22);
+        assert_eq!(ALL_BUILTINS.len(), 23);
     }
 
     #[test]
@@ -225,13 +235,13 @@ mod tests {
         assert_eq!(data, 8, "expected 8 data builtins");
         assert_eq!(network, 2, "expected 2 network builtins");
         assert_eq!(
-            intro, 1,
-            "expected 1 introspection builtin (post-ADR-088 inspect merge)"
+            intro, 2,
+            "expected 2 introspection builtins (inspect runtime · compose static · ADR-093)"
         );
         assert_eq!(
             core + file + data + network + intro,
-            22,
-            "total must equal 22"
+            23,
+            "total must equal 23"
         );
     }
 }

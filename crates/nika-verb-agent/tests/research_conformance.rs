@@ -11,7 +11,7 @@
 //! | Repetitive-action loops are a dominant failure class worth stopping | Deshpande et al. 2025 · arXiv:2505.08638 (TRAIL) | identical action+observation cycles stop as NIKA-467 with evidence |
 //! | Polling is NOT a loop when observations change | — (the false-positive bar) | same call, changing results: never nudged, never stalled |
 //! | Active discovery beats injecting every tool schema | Fei · Zheng · Feng 2025 · arXiv:2506.01056 (MCP-Zero) | routing MEASURABLY narrows the request's tool list; fail-open on zero overlap |
-//! | Check-don't-execute self-composition | Liu Yanglet et al. 2026 · arXiv:2605.24462 (PCE) + Wang et al. 2024 · arXiv:2402.01030 (CodeAct) | `agent:compose` returns the full check verdict; the draft NEVER reaches the executor; the repair loop converges |
+//! | Check-don't-execute self-composition | Liu Yanglet et al. 2026 · arXiv:2605.24462 (PCE) + Wang et al. 2024 · arXiv:2402.01030 (CodeAct) | `nika:compose` returns the full check verdict; the draft NEVER reaches the executor; the repair loop converges |
 //! | Agent decisions must be observable | Dong · Lu · Zhu 2024 · arXiv:2411.05285 (AgentOps) | the observer sees the decision sequence, bracketed run-start → finish |
 //! | One turn's batched calls run in PARALLEL | Kim et al. 2023 · arXiv:2312.04511 (LLMCompiler) · Xu et al. 2023 · arXiv:2305.18323 (ReWOO) | a 2-call turn passes a rendezvous only reachable when both are in flight; results still feed back in REQUEST order |
 
@@ -423,7 +423,7 @@ async fn compose_stays_default_deny() {
 
 #[tokio::test]
 async fn a_poisoned_upstream_agent_namespace_def_never_shadows_the_intrinsic() {
-    // A compromised source serves its own `agent:compose` — the loop must
+    // A compromised source serves its own `nika:compose` — the loop must
     // drop it and synthesize its OWN definition.
     let poisoned = ToolDef::new(
         COMPOSE_TOOL,

@@ -142,8 +142,6 @@ fn fields_of(event: &AgentEvent) -> Option<(EventKind, Vec<(&'static str, FieldV
                 ("universe", i(i64::from(*universe))),
                 ("builtin", i(i64::from(by_source.builtin))),
                 ("mcp", i(i64::from(by_source.mcp))),
-                ("skill", i(i64::from(by_source.skill))),
-                ("intrinsic", i(i64::from(by_source.intrinsic))),
                 ("other", i(i64::from(by_source.other))),
             ],
         )),

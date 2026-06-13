@@ -4,7 +4,7 @@
 //! Loop intrinsics — capabilities the agent loop serves ITSELF, never
 //! dispatched to the tool executor (ADR-093).
 //!
-//! `agent:compose` lets the model draft a Nika workflow and get the FULL
+//! `nika:compose` lets the model draft a Nika workflow and get the FULL
 //! static verdict back in-turn: parse + Core conformance + the
 //! secret-flow / permits analyses + the AARA cost-and-termination
 //! certificate (`nika-schema::check` — the same ladder `nika check`
@@ -26,7 +26,7 @@ use nika_kernel::ai::provider::ToolDef;
 use nika_schema::{FileId, ParseMode};
 
 /// The workflow-drafting intrinsic (whitelist-gated like every tool).
-pub const COMPOSE_TOOL: &str = "agent:compose";
+pub const COMPOSE_TOOL: &str = "nika:compose";
 
 /// Drafts above this size are rejected before parsing (the YAML comes
 /// from the model — bound untrusted input ahead of the parser).
@@ -39,7 +39,7 @@ const MAX_ECHOED_VIOLATIONS: usize = 12;
 /// A recognized intrinsic call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Intrinsic {
-    /// `agent:compose` — statically check a drafted workflow.
+    /// `nika:compose` — statically check a drafted workflow.
     Compose,
 }
 
@@ -52,17 +52,18 @@ impl Intrinsic {
 
 /// Is this name LOOP-OWNED — synthesized + served by the loop itself,
 /// never a source-provided def, never an executor dispatch? The ONE
-/// definition of the closed set {the `nika:done` sentinel} ∪ {the whole
-/// `agent:` intrinsic namespace}, consumed at all three sites that used
-/// to spell it out separately (the def filter, the recency-pin, this
-/// module's `parse`) — J3 review fold.
+/// definition of the closed two-tool set — the `nika:done` sentinel +
+/// the `nika:compose` self-check intrinsic — consumed at all three sites
+/// that used to spell it out separately (the def filter, the recency-pin,
+/// this module's `parse`). Both are `nika:` builtins (loop-only · ADR-093)
+/// the loop owns rather than dispatches.
 pub(crate) fn is_loop_owned(name: &str) -> bool {
-    name == crate::DONE_TOOL || name.starts_with("agent:")
+    name == crate::DONE_TOOL || name == COMPOSE_TOOL
 }
 
 /// Every loop-owned definition the whitelist admits — synthesized HERE so
 /// a poisoned upstream def can never shadow them (the model sees the
-/// loop's own `nika:done` + `agent:compose`, default-deny when absent
+/// loop's own `nika:done` + `nika:compose`, default-deny when absent
 /// from `tools:`).
 pub(crate) fn synthesized_defs(whitelist: &crate::Whitelist) -> Vec<ToolDef> {
     let mut defs = Vec::new();
@@ -92,7 +93,7 @@ fn done_def() -> ToolDef {
     )
 }
 
-/// The synthesized `agent:compose` definition (loop-owned, like the
+/// The synthesized `nika:compose` definition (loop-owned, like the
 /// `nika:done` sentinel def).
 fn compose_def() -> ToolDef {
     ToolDef::new(
@@ -132,7 +133,7 @@ pub(crate) struct ComposeOutcome {
 pub(crate) fn run_compose(args: &serde_json::Value) -> (String, bool, ComposeOutcome) {
     let Some(yaml) = args.get("workflow_yaml").and_then(|v| v.as_str()) else {
         return (
-            "agent:compose requires `workflow_yaml` (string): pass the complete \
+            "nika:compose requires `workflow_yaml` (string): pass the complete \
              workflow draft to check."
                 .to_owned(),
             true,
@@ -330,7 +331,10 @@ tasks:
     #[test]
     fn intrinsic_parse_recognizes_only_the_closed_set() {
         assert_eq!(Intrinsic::parse(COMPOSE_TOOL), Some(Intrinsic::Compose));
-        assert_eq!(Intrinsic::parse("agent:other"), None);
-        assert_eq!(Intrinsic::parse("nika:compose"), None);
+        assert_eq!(Intrinsic::parse("nika:compose"), Some(Intrinsic::Compose));
+        // Any OTHER tool — a real dispatched builtin, an MCP tool — is not
+        // a loop intrinsic.
+        assert_eq!(Intrinsic::parse("nika:read"), None);
+        assert_eq!(Intrinsic::parse("mcp:srv/tool"), None);
     }
 }

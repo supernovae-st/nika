@@ -70,18 +70,34 @@ satellite; sovereign, zero LLM calls, bit-reproducible) and offer top-12
 **Fail-open**: zero lexical overlap ships the full universe — a blind
 model is worse than a crowded one.
 
-### 3 · Intrinsics (`intrinsic.rs` · `agent:compose`)
+### 3 · Intrinsics (`intrinsic.rs` · `nika:compose`)
 
-A loop-served namespace (`agent:*`): synthesized definitions (upstream
-defs on that namespace are dropped — poison-shadow proof), whitelist-gated
-like every tool, NEVER dispatched to the executor seam. `agent:compose`
-takes a full workflow YAML draft and returns the complete `nika check`
-verdict as JSON — conformance violations with prescriptive codes, secret
-flows, permits escapes, and the AARA cost/termination **certificate**
-(ADR-092 · via `nika-schema`, L2→L0). The draft never executes here:
-composition yields an artifact + its certificate; running it stays a
-separate, gated decision. Drafts are size-capped (256 KiB) ahead of the
-parser.
+> **Amendment 2026-06-13 · `nika:compose`, not `agent:compose`.** The
+> first cut put this in an `agent:` tool namespace — but the spec's tool
+> namespace set is CLOSED at `{nika:, mcp:}` (`02-verbs` §218, enforced in
+> the prose + the JSON schema + `validate_tool_ref`), so a third namespace
+> was a grammar violation that only "worked" through a gap in the agent
+> whitelist's namespace check. The precedent `nika:done` already shows the
+> right shape: a loop-served tool is a `nika:` builtin, marked loop-only.
+> So `compose` is now `nika:compose` — the 23rd canonical builtin
+> (Introspection, the static sibling of `inspect`), catalogued in
+> `nika-catalog`, rejected standalone in `nika-builtin` (NIKA-BUILTIN-
+> COMPOSE-001), documented in the public spec. The whitelist gap is
+> closed (the parser now enforces the closed set). `ToolSource` collapses
+> to `{Builtin, Mcp, Other}` (the spec's set + a catch-all); the `Skill`/
+> `Intrinsic` variants — which anticipated namespaces the spec doesn't
+> have — are removed, re-added when those namespaces actually land.
+
+`nika:compose` is a loop-served `nika:` builtin (like `nika:done`):
+synthesized by the loop (any upstream def of the same name is dropped —
+poison-shadow proof), whitelist-gated, NEVER dispatched to the executor
+seam. It takes a full workflow YAML draft and returns the complete
+`nika check` verdict as JSON — conformance violations with prescriptive
+codes, secret flows, permits escapes, and the AARA cost/termination
+**certificate** (ADR-092 · via `nika-schema`, L2→L0). The draft never
+executes here: composition yields an artifact + its certificate; running
+it stays a separate, gated decision. Drafts are size-capped (256 KiB)
+ahead of the parser.
 
 ### 4 · Telemetry (`observe.rs` + 5 `nika-event` kinds)
 
@@ -95,13 +111,17 @@ BudgetCheckpoint · Finished`. The L3 runtime maps these 1:1 onto the new
 agent_compose_checked · agent_budget_checkpoint`, `EventClass::Agent`) —
 INV-024 holds: the runtime adapter is the ONE emission site.
 
-## The `skill:` forward seam
+## The `skill:` forward direction (NOT a v0.1 namespace)
 
-`ToolSource` classifies the closed namespaces (`nika:` · `mcp:` ·
-`skill:` · `agent:`). `skill:` (Voyager-style stored-workflow skills,
-arXiv:2305.16291; AWM, arXiv:2409.07429) is routed, counted, and
-whitelist-gated TODAY; serving actual skill definitions is the pack/L3
-layer's job when it ships. No engine change will be needed.
+> **Amended 2026-06-13.** `ToolSource` classifies ONLY the spec's closed
+> v1 set (`nika:` · `mcp:`) + a catch-all. Stored-workflow skills
+> (Voyager-style · arXiv:2305.16291; AWM · arXiv:2409.07429) are a real
+> FUTURE direction, but `skill:` is not a v0.1 tool namespace (the spec's
+> set is closed; the parser rejects it). When `skill:` lands — a future
+> additive MINOR per `02-verbs` §218 — its `ToolSource` variant + the
+> parser acceptance + the served definitions land together. The earlier
+> "routed and counted today" framing was the same ahead-of-contract
+> mistake `agent:compose` was, now corrected.
 
 ## Alternatives rejected
 

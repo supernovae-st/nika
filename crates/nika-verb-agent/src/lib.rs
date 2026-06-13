@@ -41,7 +41,7 @@
 //! - **stall guard** (`guard` · private) — windowed cycle detection
 //!   over action+observation turn signatures, with a bounded Reflexion
 //!   nudge before the NIKA-467 stop;
-//! - **intrinsics** (`intrinsic` · private) — `agent:compose` drafts a
+//! - **intrinsics** (`intrinsic` · private) — `nika:compose` drafts a
 //!   Nika workflow and gets the full `nika check` verdict back in-turn
 //!   (« generation is not permission »: composition yields an artifact
 //!   + its certificate, never an execution);
@@ -535,7 +535,7 @@ where
         let mut had_dispatch = false;
         for r in resolved {
             // An intrinsic reports ComposeChecked; a real dispatch reports
-            // ToolCompleted. They are NOT both — `agent:compose` is
+            // ToolCompleted. They are NOT both — `nika:compose` is
             // loop-served, never a tool invocation, so it must not surface
             // as one on the stream (a `tool_invoked` for a call that never
             // hit the executor would mislead every reader).
@@ -626,7 +626,7 @@ where
         match join {
             Ok(done) => done,
             Err(join_err) => (
-                format!("agent:compose check task failed: {join_err}"),
+                format!("nika:compose check task failed: {join_err}"),
                 true,
                 intrinsic::ComposeOutcome {
                     valid: false,

@@ -4,7 +4,7 @@
 //! JSON-Schema codegen primitives for the Nika workflow schema.
 //!
 //! **Today** · pure-Rust helpers that emit JSON-Schema fragments derived
-//! from `nika-catalog` (single source of truth · the canonical 22 builtins
+//! from `nika-catalog` (single source of truth · the canonical 23 builtins
 //! per `nika/spec/stdlib/builtins-v0.1.md` post ADR-084 catalog reconciliation
 //! + ADR-086 convert + ADR-087 wait + ADR-088 inspect).
 //!
@@ -28,7 +28,7 @@ use serde_json::{Value, json};
 ///
 /// Reads [`nika_catalog::all_builtins`] at call time · the schema is
 /// automatically up-to-date with the engine catalog (no-drift property ·
-/// **structural** · not discipline). The 22 entries are sorted alphabetically
+/// **structural** · not discipline). The 23 entries are sorted alphabetically
 /// (matches `ALL_BUILTINS` binary-search invariant).
 ///
 /// # Returned shape
@@ -36,7 +36,7 @@ use serde_json::{Value, json};
 /// ```jsonc
 /// {
 ///   "type": "string",
-///   "description": "`nika:*` builtin · 22 canonical per stdlib v0.1",
+///   "description": "`nika:*` builtin · 23 canonical per stdlib v0.1",
 ///   "enum": [
 ///     "nika:assert", "nika:convert", "nika:date",  "nika:done",
 ///     "nika:edit",   "nika:emit",    "nika:fetch", "nika:glob",
@@ -63,7 +63,7 @@ pub fn nika_builtin_tool_enum_schema() -> Value {
         .collect();
     json!({
         "type": "string",
-        "description": "`nika:*` builtin · 22 canonical per stdlib v0.1",
+        "description": "`nika:*` builtin · 23 canonical per stdlib v0.1",
         "enum": names
     })
 }
@@ -73,10 +73,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn enum_has_22_entries() {
+    fn enum_has_23_entries() {
         let schema = nika_builtin_tool_enum_schema();
         let arr = schema["enum"].as_array().expect("enum must be array");
-        assert_eq!(arr.len(), 22, "expected 22 spec-canonical builtins");
+        assert_eq!(arr.len(), 23, "expected 23 spec-canonical builtins");
     }
 
     #[test]

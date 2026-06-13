@@ -172,11 +172,15 @@ surface). The list below is the CURRENT reality, not the admission draft.
   trajectory ahead (changes the author-observable ReAct contract). The
   kernel DTOs (`CompressionPolicy` · `PlanningStrategy::ReWoo`) are
   forward-compat seams · gate them off.
-- **`agent:compose` intrinsic** — SHIPPED engine-internal (ADR-093),
-  whitelist-gated in the `agent:` namespace. **Public-surface status is
-  an OPEN v0.1-scope question** (the public spec §agent documents only the
-  `nika:`/`mcp:` tool namespaces · an author enabling `agent:compose`
-  today uses an undocumented surface) — tracked, not yet resolved.
+- **`nika:compose` self-check intrinsic** — RESOLVED (2026-06-13). The
+  agent's draft→check→repair tool is a loop-only `nika:` builtin (the
+  23rd · Introspection · sibling to `nika:done`), catalogued in
+  `nika-catalog`, rejected standalone in `nika-builtin`
+  (NIKA-BUILTIN-COMPOSE-001), and DOCUMENTED in the public spec
+  (`stdlib/builtins-v0.1.md` · `02-verbs` §agent). It respects the closed
+  `{nika:, mcp:}` namespace set; the earlier `agent:compose` (a third
+  namespace) is gone, and the agent whitelist now enforces the closed set
+  at parse (`validate_whitelist_namespace`).
 - **`${{ }}` resolution / glob compilation** — `tools:` globs are matched
   here, but `${{ }}` in prompt/system is upstream-resolved.
 - **Cost/duration limits** — `CostLimit`/`DurationLimit` stop reasons exist in
@@ -332,4 +336,25 @@ seam — they shipped this arc; the loop verb is gated on this one decision.
               blocks AND ToolCompleted events asserted in request order.
               with_observer doc honesty fix (review F4): run_observed
               callers — the runtime included — REPLACE it, no tee.
+2026-06-13  v0.6 — agent:compose → nika:compose (the compose intrinsic
+              becomes the 23rd `nika:` builtin · operator decision · the
+              spec's tool-namespace set is CLOSED at {nika:, mcp:} and a
+              third `agent:` namespace violated it, only "working" through
+              a gap in the agent whitelist's namespace check). The
+              `nika:done` precedent dictated the shape: a loop-served tool
+              is a `nika:` builtin marked loop-only. Done across the
+              catalog stack: nika-catalog ALL_BUILTINS 22→23 (compose ·
+              Introspection · the static sibling of inspect) · nika-builtin
+              core_tools::compose() standalone-rejection (NIKA-BUILTIN-
+              COMPOSE-001) + defs.rs model-facing def · nika-schema codegen
+              enum 22→23 (auto-mirrors) + the parser now enforces the
+              closed namespace set on agent whitelists (validate_whitelist_
+              namespace · catches a stray agent:compose with a pointer to
+              nika:compose) · nika-verb-agent COMPOSE_TOOL + is_loop_owned
+              {done, compose} + ToolSource collapsed to {Builtin, Mcp,
+              Other} (Skill/Intrinsic removed · they anticipated namespaces
+              the spec lacks). Public spec updated in lockstep (canon.yaml
+              · builtins-v0.1.md · workflow.schema.json enum · 02-verbs §agent
+              · CHANGELOG). 100+ tests GREEN across the 5 engine crates ·
+              the §5 OPEN question is RESOLVED.
 ```

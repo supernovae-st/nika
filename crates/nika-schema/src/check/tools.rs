@@ -4,7 +4,7 @@
 //! Unknown-builtin detection — `nika:raed` caught statically, with the
 //! deterministic « did you mean `nika:read`? » (rustc's diagnostic model).
 //!
-//! The `nika:` namespace is CLOSED (22 canonical builtins · stdlib v0.1 ·
+//! The `nika:` namespace is CLOSED (23 canonical builtins · stdlib v0.1 ·
 //! the same `nika_catalog::all_builtins()` the codegen enum reads — one
 //! source, no drift). A typo'd builtin parses fine and only dies at
 //! runtime dispatch; this check moves that failure to `nika check`, with

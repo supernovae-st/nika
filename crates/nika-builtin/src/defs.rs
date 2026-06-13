@@ -37,15 +37,15 @@ fn def(name: &str, desc: &str, properties: serde_json::Value, required: &[&str])
     ToolDef::new(format!("nika:{name}"), desc, schema(properties, required))
 }
 
-/// Every builtin's model-facing definition — the canonical 22 (core 6 +
-/// file 5 + data 8 + network 2 + introspection 1).
+/// Every builtin's model-facing definition — the canonical 23 (core 6 +
+/// file 5 + data 8 + network 2 + introspection 2).
 #[must_use]
 pub fn tool_defs() -> Vec<ToolDef> {
     let mut defs = core_defs();
     defs.extend(file_defs());
     defs.extend(data_defs());
     defs.extend(net_defs());
-    defs.extend(inspect_defs());
+    defs.extend(introspection_defs());
     defs
 }
 
@@ -281,13 +281,21 @@ fn net_defs() -> Vec<ToolDef> {
     ]
 }
 
-fn inspect_defs() -> Vec<ToolDef> {
-    vec![def(
-        "inspect",
-        "Introspect the running workflow · view: cost | records | dag_info | threads.",
-        serde_json::json!({ "view": s("cost | records | dag_info | threads") }),
-        &["view"],
-    )]
+fn introspection_defs() -> Vec<ToolDef> {
+    vec![
+        def(
+            "compose",
+            "Statically check a Nika workflow draft you wrote · returns the full              `nika check` verdict as JSON (conformance + secret-flow + permits +              the termination/cost certificate) · NEVER executes it. Iterate until              valid, then deliver the draft. Agent loops only.",
+            serde_json::json!({ "workflow_yaml": s("the complete workflow YAML draft") }),
+            &["workflow_yaml"],
+        ),
+        def(
+            "inspect",
+            "Introspect the running workflow · view: cost | records | dag_info | threads.",
+            serde_json::json!({ "view": s("cost | records | dag_info | threads") }),
+            &["view"],
+        ),
+    ]
 }
 
 #[cfg(test)]
@@ -295,9 +303,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_catalog_is_the_canonical_22_with_no_dupes() {
+    fn the_catalog_is_the_canonical_23_with_no_dupes() {
         let defs = tool_defs();
-        assert_eq!(defs.len(), 22, "stdlib v0.1 ships exactly 22");
+        assert_eq!(defs.len(), 23, "stdlib v0.1 ships exactly 23 (+ nika:compose · ADR-093)");
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         names.sort_unstable();
         let before = names.len();

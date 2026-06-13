@@ -212,6 +212,9 @@ fn parse_agent_body(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawAgentAct
     // `tools:` — whitelist globs · default-deny (« if absent the agent
     // gets NO tools · pure conversation · least-privilege »).
     action.tools = parse_string_list(cx, body, "tools")?;
+    for tool in &action.tools {
+        validate_whitelist_namespace(tool)?;
+    }
     action.max_turns = parse_u32_field(cx, body, "max_turns")?;
     action.max_tokens_total = parse_u64_field(cx, body, "max_tokens_total")?;
     action.temperature = parse_temperature(cx, body)?;
@@ -419,6 +422,33 @@ fn parse_capture(
             span: cx.span(scalar.span()),
         })?;
     Ok(Some(Spanned::new(mode, cx.span_or_zero(scalar.span()))))
+}
+
+/// Validate ONE agent `tools:` whitelist glob's namespace (spec
+/// `02-verbs.md` §agent · the namespace set is CLOSED at `{nika:, mcp:}`).
+///
+/// The entries are globs (`nika:*` · `mcp:browser/*`), optionally negated
+/// (`!mcp:x`); a colon-less pattern (`*` · `**`) names no namespace and is
+/// legal (it matches nothing namespaced · least-privilege). But a glob
+/// that DOES name a namespace must name a v1 one — this is what catches a
+/// `agent:compose` left over from before `nika:compose` (the compose
+/// intrinsic moved into the closed `nika:` set · ADR-093).
+fn validate_whitelist_namespace(tool: &Spanned<String>) -> Result<(), SchemaError> {
+    let body = tool.value.strip_prefix('!').unwrap_or(&tool.value);
+    let Some((namespace, _)) = body.split_once(':') else {
+        return Ok(()); // colon-less glob (`*`/`**`) names no namespace
+    };
+    if namespace == "nika" || namespace == "mcp" {
+        return Ok(());
+    }
+    Err(SchemaError::Validation {
+        message: format!(
+            "unknown tool namespace in agent whitelist `{}` — v1 namespaces are \
+             `nika:` and `mcp:` (the compose intrinsic is `nika:compose`)",
+            tool.value
+        ),
+        span: Some(tool.span),
+    })
 }
 
 /// Validate the tool reference grammar (spec `02-verbs.md` §invoke ·
@@ -816,6 +846,21 @@ tasks:
     }
 
     // ── agent ───────────────────────────────────────────────────────
+
+    #[test]
+    fn agent_whitelist_rejects_an_unknown_namespace() {
+        // The closed-namespace gate (ADR-093 · the compose move): a third
+        // namespace fails at parse with a pointer to nika:compose.
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"agent:compose\"]\n";
+        let err = parse(yaml, FileId::new(0), ParseMode::Strict).expect_err("rejected");
+        assert!(
+            err.to_string().contains("unknown tool namespace") && err.to_string().contains("nika:compose"),
+            "{err}"
+        );
+        // nika: + mcp: globs (incl. negation) + a bare `*` stay legal.
+        let ok = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:*\", \"mcp:srv/*\", \"!mcp:srv/danger\", \"nika:compose\"]\n";
+        assert!(parse(ok, FileId::new(0), ParseMode::Strict).is_ok());
+    }
 
     #[test]
     fn agent_full_fields() {

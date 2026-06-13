@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika-builtin` — the 22 canonical stdlib v0.1 builtins (L1.5).
+//! `nika-builtin` — the 23 canonical stdlib v0.1 builtins (L1.5).
 //!
 //! ONE dispatcher ([`BuiltinDispatcher`]) implements the three kernel tool
 //! seams the verbs consume — [`ToolExecuteDyn`] + [`ToolBatchDyn`]
@@ -303,7 +303,8 @@ where
             // network 2
             "fetch" => Ok(net::fetch(self.http.as_ref(), args).await),
             "notify" => Ok(net::notify(self.http.as_ref(), args).await),
-            // introspection 1
+            // introspection 2
+            "compose" => Ok(core_tools::compose()),
             "inspect" => Ok(inspect::inspect(self.workflow.as_ref(), args)),
             _ => Err(ToolExecError::NotFound {
                 name: name.to_owned(),
@@ -517,7 +518,7 @@ mod tests {
             assert!(outcome.is_ok(), "{} must route (got {outcome:?})", def.name);
         }
         // …and the count is the canonical 22 (stdlib v0.1).
-        assert_eq!(tool_defs().len(), 22);
+        assert_eq!(tool_defs().len(), 23);
     }
 
     #[tokio::test]
@@ -577,7 +578,7 @@ mod tests {
         let defs = ToolDefinitionProviderDyn::tool_defs(&rig())
             .await
             .expect("enumerates");
-        assert_eq!(defs.len(), 22);
+        assert_eq!(defs.len(), 23);
         assert!(defs.iter().all(|d| d.name.starts_with(NAMESPACE)));
         assert!(defs.iter().all(|d| !d.description.is_empty()));
         assert!(
