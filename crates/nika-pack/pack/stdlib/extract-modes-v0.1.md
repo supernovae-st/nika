@@ -208,7 +208,7 @@ invoke:
     mode: feed
 ```
 
-**Behavior** · parses RSS · Atom · or JSON Feed. Returns normalized structure. Each item carries the short `summary` blurb AND, when present, the full `content` body (RSS `<content:encoded>` · Atom `<content>` · JSON Feed `content_html`) — `content` is the field for full-text pipelines. Fields absent from the source are omitted (absence over null · stable shape).
+**Behavior** · parses RSS · Atom · or JSON Feed. Returns normalized structure. Each item carries the short `summary` blurb AND, when present, the full `content` body (RSS `<content:encoded>` · Atom `<content>` · JSON Feed `content_html`) — `content` is the field for full-text pipelines. Items also carry `media` (attached audio/video — RSS `<enclosure>` + MediaRSS `<media:content>` — for podcast/video feeds). Fields absent from the source are omitted (absence over null · stable shape).
 
 **Implementation** · reference engine uses `feed-rs`.
 
@@ -228,7 +228,8 @@ invoke:
       "summary": "...",
       "content": "...",
       "published": "...",
-      "categories": ["..."]
+      "categories": ["..."],
+      "media": [{ "url": "...", "type": "audio/mpeg", "size": 12345, "duration_secs": 1800 }]
     }
   ]
 }

@@ -12,6 +12,29 @@
 
 use crate::ExtractError;
 
+/// Cap on media objects surfaced per item — a real podcast/video item has
+/// 1-3 (the episode + maybe a thumbnail); a flood is pathological. Bounds
+/// the output like the JSON-LD/microdata caps in `metadata`.
+const MAX_MEDIA_PER_ITEM: usize = 16;
+
+/// One `feed-rs` `MediaContent` → `{url, type?, size?, duration_secs?}`,
+/// or `None` when it carries no URL (nothing to point at).
+fn media_object(content: feed_rs::model::MediaContent) -> Option<serde_json::Value> {
+    let url = content.url?;
+    let mut obj = serde_json::Map::new();
+    obj.insert("url".to_owned(), url.to_string().into());
+    if let Some(t) = content.content_type {
+        obj.insert("type".to_owned(), t.to_string().into());
+    }
+    if let Some(size) = content.size {
+        obj.insert("size".to_owned(), size.into());
+    }
+    if let Some(d) = content.duration {
+        obj.insert("duration_secs".to_owned(), d.as_secs().into());
+    }
+    Some(serde_json::Value::Object(obj))
+}
+
 /// Parse a feed from RAW response bytes (the builtin's entry — bypasses
 /// the charset-aware text decode the other HTML modes use).
 ///
@@ -90,6 +113,21 @@ pub fn feed_from_bytes(body: &[u8]) -> Result<serde_json::Value, ExtractError> {
                     .map(|c| c.term.into())
                     .collect();
                 item.insert("categories".to_owned(), serde_json::Value::Array(cats));
+            }
+            // Attached media — RSS `<enclosure>` (the podcast standard) AND
+            // MediaRSS `<media:content>`, both mapped by feed-rs into
+            // `entry.media`. THE field for podcast/video feed consumers
+            // (the audio/video URL). `[{url, type?, size?, duration_secs?}]`
+            // · only entries carrying a url · capped (a real item has 1-3).
+            let media: Vec<serde_json::Value> = entry
+                .media
+                .into_iter()
+                .flat_map(|m| m.content)
+                .filter_map(media_object)
+                .take(MAX_MEDIA_PER_ITEM)
+                .collect();
+            if !media.is_empty() {
+                item.insert("media".to_owned(), serde_json::Value::Array(media));
             }
             serde_json::Value::Object(item)
         })
@@ -175,5 +213,46 @@ mod tests {
         let item = out["items"][0].as_object().expect("item object");
         assert!(!item.contains_key("author"), "no author key: {out}");
         assert!(!item.contains_key("content"), "no content key: {out}");
+    }
+
+    #[test]
+    fn items_surface_enclosure_and_mediarss_media() {
+        // RSS <enclosure> (the podcast standard) AND MediaRSS <media:content>
+        // both surface as item `media: [{url, type, ...}]` — THE field for
+        // podcast/video feed consumers. A text-only item has no media key.
+        let rss = r#"<?xml version="1.0"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel>
+  <title>Pod</title>
+  <item>
+    <title>Episode 1</title>
+    <enclosure url="https://cdn.example/ep1.mp3" type="audio/mpeg" length="12345"/>
+  </item>
+  <item>
+    <title>Video clip</title>
+    <media:content url="https://cdn.example/clip.mp4" type="video/mp4"/>
+  </item>
+  <item><title>Text only</title><link>https://e.test/3</link></item>
+</channel></rss>"#;
+        let out = feed(rss).expect("parses");
+        // Item 0: <enclosure> → media[0] with url + type + size.
+        let m0 = &out["items"][0]["media"][0];
+        assert_eq!(m0["url"], "https://cdn.example/ep1.mp3", "{out}");
+        assert_eq!(m0["type"], "audio/mpeg", "{out}");
+        assert_eq!(m0["size"], 12345, "enclosure length → size: {out}");
+        // Item 1: MediaRSS <media:content> → media[0].
+        assert_eq!(
+            out["items"][1]["media"][0]["url"], "https://cdn.example/clip.mp4",
+            "{out}"
+        );
+        assert_eq!(out["items"][1]["media"][0]["type"], "video/mp4", "{out}");
+        // Item 2: no media → key omitted (absence over empty array).
+        assert!(
+            out["items"][2]
+                .as_object()
+                .expect("obj")
+                .get("media")
+                .is_none(),
+            "text-only item has no media key: {out}"
+        );
     }
 }
