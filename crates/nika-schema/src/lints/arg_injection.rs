@@ -26,11 +26,45 @@
 //! The catalog is authored from the public argument-injection facts
 //! (`GTFOArgs` · `SonarSource` argument-injection-vectors · CAPEC-6) — the
 //! FACTS (which flag of which binary is dangerous), not their files.
+//!
+//! ## Scope limits (documented · not silent · review P1)
+//!
+//! This advisory is deliberately precise — it covers ONE shape: an
+//! interpolated value in a catalog binary's ARGV form before any `--`. It does
+//! NOT cover, by design:
+//! - **A dynamically-selected program** (`["${{ vars.tool }}", …]`) — the
+//!   catalog cannot match an interpolated `argv[0]`; that is `permits.exec`'s
+//!   (the allowlist) concern.
+//! - **Dangerous ENV injection** (`env: { GIT_SSH_COMMAND: "${{ … }}" }`) —
+//!   the runner's dangerous-env scrub + `permits` own that; this pass reads
+//!   only `command` argv.
+//! - **A shell-form command that uses a shell feature AND interpolates into a
+//!   catalog binary** (`"ssh ${{ host }} | tee x"`) — `one-obvious-way/008`
+//!   stays silent (a genuine pipeline) and this pass only sees the ARRAY form,
+//!   so neither fires. Use the array form for any interpolated value.
 
 use crate::expression::scan_templates;
 use crate::raw::{RawAction, RawCommand, RawTask, RawWorkflow};
 
 use super::preference_rules::Lint;
+
+/// How to neutralize a binary's argument-injection vector — drives the
+/// advisory's suggestion (the prior `dash_dash_helps: bool` could not express
+/// the awk/sed "the value IS the program" case, and leaked git's `ext::`
+/// clause onto every binary · review P2).
+#[derive(Clone, Copy)]
+enum FixKind {
+    /// `--` end-of-options neutralizes the flag vector (the value is then a
+    /// positional, never an option) — tar/zip/unzip.
+    DashDash,
+    /// `--` does NOT help (the dangerous flag takes a value, e.g. `ssh -o`, or
+    /// is config-driven, e.g. `git -c`) — validate the value is not flag-shaped.
+    ValidateValue,
+    /// The interpolated value is itself executed AS code (awk/sed program text,
+    /// psql `-c`) — `--` and leading-dash checks do not help; never pass
+    /// untrusted input in that position.
+    ProgramText,
+}
 
 /// A known argument-injection-prone binary + the concrete vector to cite in
 /// the advisory (so the author knows WHY the value is dangerous).
@@ -39,9 +73,8 @@ struct ArgInjectionBinary {
     name: &'static str,
     /// The dangerous-flag vector (one short clause · cited in the message).
     vector: &'static str,
-    /// Whether the canonical `--` end-of-options separator neutralizes the
-    /// flag vector (true for most), so the suggestion can name it.
-    dash_dash_helps: bool,
+    /// How to neutralize it (drives the suggestion text).
+    fix: FixKind,
 }
 
 /// The catalog (authored from `GTFOArgs` · `SonarSource` · CAPEC-6 FACTS).
@@ -51,72 +84,101 @@ const BINARIES: &[ArgInjectionBinary] = &[
     ArgInjectionBinary {
         name: "ssh",
         vector: "-o ProxyCommand=/-o LocalCommand= run a command; -F reads a config",
-        dash_dash_helps: false,
+        fix: FixKind::ValidateValue,
     },
     ArgInjectionBinary {
         name: "scp",
         vector: "-o ProxyCommand= / -S <program> run a command",
-        dash_dash_helps: false,
+        fix: FixKind::ValidateValue,
     },
     ArgInjectionBinary {
         name: "sftp",
         vector: "-o ProxyCommand= / -F <config> run a command",
-        dash_dash_helps: false,
+        fix: FixKind::ValidateValue,
     },
     ArgInjectionBinary {
         name: "rsync",
         vector: "-e/--rsh= and --rsync-path= run a command",
-        dash_dash_helps: false,
+        fix: FixKind::ValidateValue,
     },
     ArgInjectionBinary {
         name: "git",
         vector: "-c core.sshCommand=/core.pager=, --upload-pack=, --exec=, ext:: URLs run a command",
-        dash_dash_helps: false,
+        fix: FixKind::ValidateValue,
     },
     ArgInjectionBinary {
         name: "tar",
         vector: "--checkpoint-action=exec=, -I/--use-compress-program=, --to-command= run a command",
-        dash_dash_helps: true,
+        fix: FixKind::DashDash,
+    },
+    ArgInjectionBinary {
+        // bsdtar (the default `tar` on macOS) shares tar's vectors under a
+        // distinct basename — matched separately (review P1 · catalog hole).
+        name: "bsdtar",
+        vector: "--checkpoint-action=exec=, --use-compress-program=, --to-command= run a command",
+        fix: FixKind::DashDash,
     },
     ArgInjectionBinary {
         name: "curl",
         vector: "-K/--config reads creds from a file; -o/--output and --upload-file read/write files",
-        dash_dash_helps: false,
+        fix: FixKind::ValidateValue,
     },
     ArgInjectionBinary {
         name: "wget",
         vector: "--use-askpass= runs a command; -O/-i/--post-file read/write files",
-        dash_dash_helps: false,
+        fix: FixKind::ValidateValue,
     },
     ArgInjectionBinary {
         name: "find",
         vector: "-exec/-execdir run a command; -fprintf writes a file",
-        dash_dash_helps: false,
+        fix: FixKind::ValidateValue,
     },
     ArgInjectionBinary {
         name: "awk",
-        vector: "the program text runs system(); -f reads a program file",
-        dash_dash_helps: false,
+        vector: "argv after the program text is data, but the program text itself runs system()",
+        fix: FixKind::ProgramText,
     },
     ArgInjectionBinary {
         name: "sed",
         vector: "the GNU `e` command runs a command; `w` writes a file",
-        dash_dash_helps: false,
+        fix: FixKind::ProgramText,
     },
     ArgInjectionBinary {
         name: "zip",
         vector: "-T -TT=<cmd> runs a command",
-        dash_dash_helps: true,
+        fix: FixKind::DashDash,
     },
     ArgInjectionBinary {
         name: "unzip",
         vector: "-o overwrites files outside the target",
-        dash_dash_helps: true,
+        fix: FixKind::DashDash,
     },
     ArgInjectionBinary {
         name: "psql",
         vector: "-c '\\! cmd' shells out; -o/-f read/write files",
-        dash_dash_helps: false,
+        fix: FixKind::ProgramText,
+    },
+    ArgInjectionBinary {
+        // review P1 · catalog hole: mysql is commonly deployed + has a
+        // well-documented exec vector.
+        name: "mysql",
+        vector: "-e/--execute runs SQL; --init-command runs SQL on connect; \\! shells out",
+        fix: FixKind::ProgramText,
+    },
+    ArgInjectionBinary {
+        name: "gpg",
+        vector: "--exec= and config/keyring options read/write arbitrary files",
+        fix: FixKind::ValidateValue,
+    },
+    ArgInjectionBinary {
+        name: "openssl",
+        vector: "s_client -cert/-key and dgst options read arbitrary files",
+        fix: FixKind::ValidateValue,
+    },
+    ArgInjectionBinary {
+        name: "socat",
+        vector: "an EXEC: / SYSTEM: address runs a command",
+        fix: FixKind::ProgramText,
     },
 ];
 
@@ -179,19 +241,31 @@ fn check_task(task: &RawTask, lints: &mut Vec<Lint>) {
         return;
     }
 
-    let suggestion = if binary.dash_dash_helps {
-        format!(
+    let suggestion = match binary.fix {
+        FixKind::DashDash => format!(
             "insert a `--` element before the interpolated value (everything after \
              `--` is positional, never parsed as a flag), e.g. `[\"{}\", …, \"--\", \
              \"${{{{ … }}}}\"]`",
             binary.name
-        )
-    } else {
-        format!(
-            "validate the interpolated value does not begin with `-` (or `ext::` for git) \
-             before it reaches `{}` — a `--` separator does NOT neutralize this vector",
+        ),
+        FixKind::ValidateValue => {
+            let git_note = if binary.name == "git" {
+                " (or `ext::`)"
+            } else {
+                ""
+            };
+            format!(
+                "validate the interpolated value does not begin with `-`{git_note} before it \
+                 reaches `{}` — a `--` separator does NOT neutralize this vector",
+                binary.name
+            )
+        }
+        FixKind::ProgramText => format!(
+            "never pass an interpolated value where `{}` reads it AS code/program text — \
+             a `--` separator and leading-dash checks do not help; pass untrusted input \
+             only as a positional DATA argument",
             binary.name
-        )
+        ),
     };
 
     lints.push(Lint::new(
@@ -215,6 +289,61 @@ mod tests {
     fn lints_of(yaml: &str) -> Vec<Lint> {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
         arg_injection(&wf)
+    }
+
+    fn one_lint(prog: &str) -> Lint {
+        let yaml = format!(
+            "nika: v1\nworkflow: ai\nvars:\n  x: \"v\"\ntasks:\n  - id: t\n    exec:\n      command: [\"{prog}\", \"${{{{ vars.x }}}}\"]\n"
+        );
+        let mut ls = lints_of(&yaml);
+        assert_eq!(ls.len(), 1, "exactly one /001 for {prog}");
+        ls.remove(0)
+    }
+
+    #[test]
+    fn bsdtar_catalog_hole_is_closed() {
+        // review P1 · bsdtar shares tar's vectors under a distinct basename.
+        let l = one_lint("bsdtar");
+        assert!(l.message.contains("bsdtar"));
+        assert!(l.suggestion.contains("--"), "bsdtar → dash-dash fix");
+    }
+
+    #[test]
+    fn mysql_catalog_hole_is_closed() {
+        let l = one_lint("mysql");
+        assert!(l.message.contains("mysql"));
+    }
+
+    #[test]
+    fn ext_clause_is_git_only_not_leaked() {
+        // review P2 · the `ext::` clause must appear ONLY for git.
+        assert!(
+            one_lint("git").suggestion.contains("ext::"),
+            "git names ext::"
+        );
+        for non_git in ["ssh", "scp", "curl", "wget", "rsync"] {
+            assert!(
+                !one_lint(non_git).suggestion.contains("ext::"),
+                "{non_git} must NOT mention ext::"
+            );
+        }
+    }
+
+    #[test]
+    fn program_text_binaries_get_the_right_advice() {
+        // review P2 · awk/sed/socat: the danger is the value-as-code, so the
+        // suggestion is "never pass untrusted input there", NOT "validate `-`".
+        for prog in ["awk", "sed", "socat", "mysql"] {
+            let s = one_lint(prog).suggestion;
+            assert!(
+                s.contains("AS code") || s.contains("program text"),
+                "{prog}: {s}"
+            );
+            assert!(
+                !s.contains("begin with `-`"),
+                "{prog} must not give the wrong fix"
+            );
+        }
     }
 
     #[test]
