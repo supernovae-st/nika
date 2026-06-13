@@ -1,5 +1,24 @@
 # `nika run` — the composer plan (the L4 wiring of the shipped L3)
 
+> **SHIPPED 2026-06-13** · B1-B5 landed (`68ed4a44c` foundation ·
+> `10f4ccdd6` the verb + bin coverage · `6c1c93f16` examples-run flip).
+> `nika run <file>` executes a checked workflow through the real
+> composed runtime · exit contract 0/1/2/3 proven at the binary plane
+> (8 run_verb tests + 10 module units). Two bridges built as scoped:
+> RegistryProvider (per-call model resolution · the agent's single-
+> provider seam) + config_from_env (the sanctioned std::env→secret
+> boundary). The dev-deps→deps graduation (runtime + verbs + builtin +
+> providers · load-bearing in src/ now) was the structural move.
+>
+> **Open follow-ups** (the v0.82 + CEL milestones, not this plan):
+> - the CEL evaluator — some embedded examples (16-exec-pipeline) use
+>   `&&` + deep `.output` paths beyond the v0 expr subset → NIKA-1703
+>   loud today. The checker-side static rule for the for_each when-gate
+>   `item` hazard belongs here too (nika-schema).
+> - `--model` override · `--resume` (needs CheckpointWritten) ·
+>   streaming InferChunk · the CostIncurred meter (consumer-gated).
+> - the spinner-tick timed polish on the interactive FoldSink lane.
+
 > Plan artifact · 2026-06-13 · post runtime-v2 ship (`be582b247`).
 > The contract is LOCKED in `docs/crate-specs/nika-cli.md` §v0.81
 > (`nika run <file>` · exit 0 ok · 1 workflow failed · live render §3)
