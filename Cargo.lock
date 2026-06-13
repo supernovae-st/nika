@@ -3582,6 +3582,7 @@ version = "0.80.0"
 dependencies = [
  "clap",
  "clap_complete",
+ "nika-bm25",
  "nika-builtin",
  "nika-error",
  "nika-event",

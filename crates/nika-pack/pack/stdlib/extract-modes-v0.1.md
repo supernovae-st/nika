@@ -50,7 +50,7 @@ invoke:
 
 ---
 
-### `article` · readability-based extraction
+### `article` · main-content extraction
 
 ```yaml
 invoke:
@@ -60,13 +60,13 @@ invoke:
     mode: article
 ```
 
-**Behavior** · uses Readability algorithm to extract the main article body · stripping out navigation · sidebars · ads · comments.
+**Behavior** · extracts the main article body · stripping navigation · sidebars · ads · share widgets · related-post blocks · comments. Page-type aware: on forum/discussion pages the posts and replies ARE the content (kept, not pruned).
 
-**Implementation** · reference engine uses `dom_smoothie` (Apache 2.0 · Rust Readability port).
+**Implementation** · reference engine runs a three-stage cascade (the failure modes are decorrelated, so the cascade beats any single extractor): (1) a Trafilatura-grade rule cascade — zone targeting (the semantic content container) + a boilerplate prune denylist, the 2024-2026 SOTA for main-content extraction; (2) a Readability pass (`dom_smoothie`) for markup-poor pages; (3) a Boilerpipe shallow-text-density floor for div-soup pages. The earlier stage wins when it yields a substantial body, else the next fires.
 
 **Output** · Markdown string · article body only.
 
-**When to use** vs `markdown` · use `article` for news/blogs (cleaner) · use `markdown` for general pages (more content preserved).
+**When to use** vs `markdown` · use `article` for news/blogs/forums (cleaner · main content only) · use `markdown` for general pages (more content preserved).
 
 ---
 

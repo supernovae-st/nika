@@ -11,7 +11,7 @@
 //! | Mode | Composes | Output |
 //! |---|---|---|
 //! | `markdown` | `htmd` | String (Markdown) |
-//! | `article` | `dom_smoothie` → `htmd` | String (Markdown) |
+//! | `article` | rule cascade → `dom_smoothie` → boilerpipe | String (Markdown) |
 //! | `text` | `scraper` DOM walk | String (plain · block `\n`) |
 //! | `selector` | `scraper` CSS select | String (HTML of matches) |
 //! | `metadata` | `scraper` head walk | Object (title·description·og·twitter·canonical·lang) |
@@ -33,7 +33,9 @@ mod feed;
 mod html;
 pub mod link_header;
 mod metadata;
+mod page_type;
 mod sitemap;
+mod zones;
 
 pub use feed::feed_from_bytes;
 pub use nika_types::extract::{EXTRACT_MODE_NAMES, ExtractMode, UnknownExtractMode};
@@ -703,6 +705,44 @@ mod tests {
         let md = out.as_str().expect("string output");
         assert!(md.contains("article prose"), "body survives: {md}");
         assert!(!md.contains("site nav"), "chrome stripped: {md}");
+    }
+
+    #[test]
+    fn article_rule_cascade_strips_within_zone_boilerplate() {
+        // The Trafilatura-grade STAGE 1 win: boilerplate INSIDE the semantic
+        // <article> (related-posts, share buttons, a comments section) — the
+        // stuff readability often leaves — is pruned by the zone cascade.
+        let prose = "<p>A full sentence of genuine article prose that carries real \
+                     content mass for the reader who came to this page today.</p>";
+        let page = format!(
+            r#"<html><head><title>Story</title></head><body>
+            <nav><a href="/x">site nav links here</a></nav>
+            <article class="entry-content">
+              <h1>The Real Story Headline</h1>
+              {prose}{prose}{prose}{prose}
+              <aside class="related-posts"><a href="/r1">Related story one</a>
+                 <a href="/r2">Related story two</a></aside>
+              <div class="share-bar"><a href="/tw">Tweet this</a> <a href="/fb">Share this</a></div>
+              <section class="comments"><h3>Comments</h3>
+                <div class="comment"><p>first spammy comment text</p></div></section>
+            </article>
+            <footer>site footer junk</footer></body></html>"#
+        );
+        let mut opts = ExtractOptions::new();
+        opts.base_url = Some("https://blog.example/2026/06/the-real-story");
+        let out = extract(&page, ExtractMode::Article, &opts).expect("article extracts");
+        let md = out.as_str().expect("string");
+        assert!(md.contains("genuine article prose"), "body survives: {md}");
+        assert!(
+            md.contains("Real Story Headline"),
+            "headline survives: {md}"
+        );
+        // Within-zone boilerplate gone (what the rule cascade adds over plain readability).
+        assert!(!md.contains("site nav"), "nav stripped: {md}");
+        assert!(!md.contains("Related story"), "related pruned: {md}");
+        assert!(!md.contains("Tweet this"), "share pruned: {md}");
+        assert!(!md.contains("spammy comment"), "comments pruned: {md}");
+        assert!(!md.contains("footer junk"), "footer stripped: {md}");
     }
 
     // ─── jq + unsupported ────────────────────────────────────────────

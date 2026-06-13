@@ -293,6 +293,38 @@ fn microdata_nesting_and_flood_are_bounded() {
     assert!(count <= 64, "item count is capped: {count}");
 }
 
+/// The article rule cascade (zone targeting + prune-by-detach + link-density)
+/// must stay bounded on a hostile page: a flood of discard-class divs (the
+/// detach set), deeply-nested article markup, and link-dense blocks. The
+/// depth guard caps nesting upstream, but the prune/zone walks must not blow
+/// up on width. Total + fast, no panic.
+#[test]
+fn article_rule_cascade_is_bounded_on_hostile_input() {
+    // 30k sibling boilerplate divs around a real article — the discard
+    // select + outermost-dedup + detach must handle the width.
+    let junk = r#"<div class="share-widget"><a href="/x">share</a></div>"#.repeat(30_000);
+    let body = format!(
+        r#"<html><body>{junk}<article class="post-content">
+           <h1>Title</h1><p>{}</p></article>{junk}</body></html>"#,
+        "real article prose with plenty of running words for content mass ".repeat(20)
+    );
+    let started = std::time::Instant::now();
+    let out = run(&body, ExtractMode::Article);
+    assert!(out.is_ok(), "hostile article page must be total");
+    assert!(
+        started.elapsed().as_secs() < 10,
+        "rule cascade bounded, took {:?}",
+        started.elapsed()
+    );
+    // The article body still wins through the noise.
+    assert!(
+        out.unwrap_or_default()
+            .as_str()
+            .is_some_and(|m| m.contains("real article prose")),
+        "article body extracted despite the flood"
+    );
+}
+
 /// Deeply-nested anchors stress the boilerpipe/links anchor-depth walk.
 #[test]
 fn deep_nested_anchors_are_total() {
