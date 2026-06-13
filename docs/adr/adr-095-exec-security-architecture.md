@@ -6,7 +6,7 @@ date: 2026-06-12
 phase: "Phase B · announce-ladder"
 deciders: ["@ThibautMelen"]
 tags: ["security", "exec", "injection", "sandbox", "permits", "defense-in-depth", "l1", "l2", "l3"]
-affects_crates: ["nika-verb-exec", "nika-exec-runner", "nika-kernel-core", "nika-runtime", "nika-schema", "nika-sandbox"]
+affects_crates: ["nika-verb-exec", "nika-exec-runner", "nika-kernel-core", "nika-runtime", "nika-schema", "nika-sandbox-seatbelt", "nika-sandbox-landlock"]
 affects_layers: ["L0.5", "L1", "L2", "L3"]
 supersedes: []
 superseded_by: []
@@ -128,18 +128,55 @@ capped (64 MiB/stream) and the timeout hard-kills. Resource rlimits
 (RLIMIT_CPU/FSIZE/NPROC + no-core-dump) need a child-side `pre_exec` (unsafe),
 so they move to `nika-sandbox` (which owns the low-level confinement).
 
-### Layer 6 — OS sandbox (L1 nika-sandbox · DESIGNED)
+### Layer 6 — OS sandbox (PER-PLATFORM L1 crates · macOS SHIPPED + verified)
 
-A new L1 crate behind an L0.5 kernel `Sandbox` seam (injected · testable ·
-heavy-dep isolation). It translates `permits.fs`/`permits.net` into an OS
-confinement: Linux = `landlock` (FS allowlist) + `extrasafe`/seccomp (block
-ptrace/unshare/AF_UNIX) + net-deny + rlimits + setpgid, applied in a child-side
-`Confinement` (the kernel seam stays tokio-free, returning a closure the runner
-installs in `pre_exec`); macOS = a Seatbelt profile (deny file-write outside
-`permits.fs.write`, deny network unless `permits.net`) + rlimits. Fail-closed
-when the sandbox is unavailable; honest capability reporting (never silently
-run unconfined). 12-gate admission with an adversarial SandboxEval-style suite
-(prove the jail blocks FS-escape, secret reads, and egress).
+**Reconciliation (2026-06-13).** The kernel already RESERVES a capability
+`Sandbox` (`plugin::sandbox` · WASM/MCP · the `enter()` self-restriction model
+· v0.100), whose doc names the future impl crates `nika-sandbox-landlock`
+(Linux) and `nika-sandbox-seatbelt` (macOS). Confining the `exec` verb's CHILD
+process is a DISTINCT operation — "transform the command into its confined
+form" — so it rides a NEW additive kernel seam, NOT the reserved trait, and
+ships as the per-platform crates the reservation already names (operator-locked
+2026-06-13: per-platform crates + a new trait · supersedes the original single
+`nika-sandbox` framing of this ADR).
+
+**The seam (L0.5 · `nika-kernel-core/src/io/command_sandbox.rs` · SHIPPED).**
+A new `CommandSandbox` trait — sync, object-safe, `confine(spec, ShellCommand)
+-> ShellCommand` — plus `SandboxSpec` (`fs_read`/`fs_write` prefixes ·
+`allow_network` · derived from `permits.fs/net`), `CommandSandboxError`
+(`Unavailable`/`Profile` · fail-closed), and a `NoopSandbox` (the explicit,
+auditable "unconfined" choice). Add a `ShellCommand.sandbox` field. The
+**wrapper model** (no `unsafe`, no FFI · the seam returns a TRANSFORMED command,
+not a `pre_exec` closure) replaces the original `Confinement`-closure design —
+it keeps the crates at `unsafe_code = forbid` and is what every coding-agent CLI
+uses.
+
+**macOS — `nika-sandbox-seatbelt` (SHIPPED · adversarially verified).** Wraps a
+command in the OS-shipped `sandbox-exec` launcher with a deny-default SBPL
+profile generated from the spec: network denied unless granted; writes only
+under declared `fs_write` + scratch; reads of the system paths every binary
+needs, plus declared `fs_read` — so sensitive home paths (`~/.ssh`, `~/.aws`)
+are denied. Profile-injection via a malicious path is closed (control-char
+refusal + quote-escaping). An adversarial jail suite RUNS `sandbox-exec` on
+darwin and proves: a home-secret read is denied, a declared path is readable, a
+write outside the allowlist is denied, an ordinary command still runs. Wired
+into `TokioShell::with_sandbox` (applied after the blocklist · fail-closed).
+
+**Linux — `nika-sandbox-landlock` (CI-GATED).** The sibling crate: `landlock`
+(FS allowlist) + `extrasafe`/seccomp (block ptrace/unshare/AF_UNIX) + net-deny
++ rlimits, via `bwrap` or a Landlock helper. Only partly verifiable off a Linux
+box → a focused CI-backed arc. Same `CommandSandbox` seam.
+
+**Follow-on plumbing.** Runtime derivation (`permits.fs/net` → `SandboxSpec` →
+`ExecInput.sandbox`) and composer injection (select + inject the platform
+backend into `TokioShell`) connect a workflow's `permits:` to confinement
+end-to-end; the composer is the `nika-cli`/engine surface (in flight).
+
+Honest limits (documented in the crate): glob→subpath is a coarsening (path-
+prefix, not per-file); network is allow-all-or-deny (host-granular needs a
+proxy); resource rlimits + the SandboxEval egress suite are part of the
+landlock arc. Full 12-gate admission (Linux backend · mutation ≥90% · review
+swarm) is the CI completion.
 
 ### Layer 7 — Blocklist demoted to a tripwire (L1 · SHIPPED)
 
@@ -193,10 +230,14 @@ all enforcement (the file is the security boundary).
 | 1 array execution | nika-verb-exec · nika-runtime | ✅ shipped |
 | 2 permits.exec | nika-runtime | ✅ shipped |
 | 2b /008 steer | nika-schema | ✅ shipped |
-| 2b arg-injection pack | nika-schema | 🔜 designed |
+| 2b arg-injection pack | nika-schema | ✅ shipped (arg-injection/001) |
 | 3 env scrub | nika-exec-runner | ✅ shipped (denylist) · clean-slate → L6 |
 | 4/5 process group | nika-exec-runner | ✅ shipped · rlimits → L6 |
-| 6 OS sandbox | nika-sandbox (new) + kernel seam | 🔜 designed (12-gate arc) |
+| 6 sandbox seam | nika-kernel-core (CommandSandbox) | ✅ shipped |
+| 6 sandbox macOS | nika-sandbox-seatbelt | ✅ shipped · adversarially verified |
+| 6 sandbox wiring | nika-exec-runner (with_sandbox) | ✅ shipped |
+| 6 sandbox Linux | nika-sandbox-landlock | 🔜 CI-gated arc |
+| 6 permits→spec + composer inject | nika-runtime · engine | 🔜 follow-on |
 | 7 blocklist tripwire | nika-exec-runner | ✅ shipped (mode-split) |
 
 ## References
