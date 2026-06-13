@@ -502,6 +502,40 @@ mod tests {
         assert!(out.get("title").is_none() || out["title"].is_string());
     }
 
+    #[test]
+    fn metadata_title_description_fall_back_to_og_then_twitter() {
+        // A SPA-style page with NO <title>/<meta description> but good og:/
+        // twitter: tags — title/description borrow from them (standard).
+        let spa = r#"<html><head>
+            <meta property="og:title" content="OG Headline">
+            <meta property="og:description" content="OG summary line.">
+        </head><body></body></html>"#;
+        let out = run(spa, ExtractMode::Metadata).expect("metadata");
+        assert_eq!(out["title"], "OG Headline", "title ← og: {out}");
+        assert_eq!(out["description"], "OG summary line.", "desc ← og: {out}");
+
+        // twitter: fills when og: is absent.
+        let tw = r#"<html><head>
+            <meta name="twitter:title" content="TW Headline">
+        </head><body></body></html>"#;
+        let out = run(tw, ExtractMode::Metadata).expect("metadata");
+        assert_eq!(out["title"], "TW Headline", "title ← twitter: {out}");
+
+        // An EXPLICIT <title>/<meta description> always wins over og:.
+        let explicit = r#"<html><head>
+            <title>Real Title</title>
+            <meta name="description" content="Real description.">
+            <meta property="og:title" content="OG Title">
+            <meta property="og:description" content="OG desc">
+        </head><body></body></html>"#;
+        let out = run(explicit, ExtractMode::Metadata).expect("metadata");
+        assert_eq!(out["title"], "Real Title", "explicit title wins: {out}");
+        assert_eq!(
+            out["description"], "Real description.",
+            "explicit desc wins: {out}"
+        );
+    }
+
     // ─── links ───────────────────────────────────────────────────────
 
     #[test]

@@ -201,6 +201,18 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
         }
     }
 
+    // Fallback: a page with a missing/empty `<title>` or no
+    // `<meta name=description>` (common on SPAs) borrows from `og:` then
+    // `twitter:` — the standard extractor behavior (Mercury/readability).
+    // Only fills an ABSENT key, so an explicit `<title>` always wins.
+    for key in ["title", "description"] {
+        if !out.contains_key(key)
+            && let Some(v) = og.get(key).or_else(|| twitter.get(key))
+        {
+            out.insert(key.to_owned(), v.clone());
+        }
+    }
+
     out.insert("og".to_owned(), serde_json::Value::Object(og));
     out.insert("twitter".to_owned(), serde_json::Value::Object(twitter));
     serde_json::Value::Object(out)
