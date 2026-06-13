@@ -305,7 +305,11 @@ mod tests {
     #[test]
     fn the_catalog_is_the_canonical_23_with_no_dupes() {
         let defs = tool_defs();
-        assert_eq!(defs.len(), 23, "stdlib v0.1 ships exactly 23 (+ nika:compose · ADR-093)");
+        assert_eq!(
+            defs.len(),
+            23,
+            "stdlib v0.1 ships exactly 23 (+ nika:compose · ADR-093)"
+        );
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         names.sort_unstable();
         let before = names.len();

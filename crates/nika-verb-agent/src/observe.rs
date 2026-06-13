@@ -228,12 +228,7 @@ mod tests {
 
     #[test]
     fn source_counts_tally_each_bucket() {
-        let names = [
-            "nika:read",
-            "nika:compose",
-            "mcp:gh/issues",
-            "weird",
-        ];
+        let names = ["nika:read", "nika:compose", "mcp:gh/issues", "weird"];
         let counts = SourceCounts::tally(names.iter().copied());
         assert_eq!(
             counts,
