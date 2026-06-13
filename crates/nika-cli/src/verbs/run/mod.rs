@@ -89,6 +89,26 @@ pub fn run(file: &str, json: bool, theme: Theme) -> u8 {
     rt.block_on(execute(&runtime, &wf, &report, json, theme))
 }
 
+/// `nika examples run <slug>` — execute one EMBEDDED example through the
+/// real runtime (the pack ships offline · zero network for the exec/
+/// mock-model examples). Stages the embedded YAML to a temp file (the
+/// verb reads a path) and runs it.
+#[must_use]
+pub fn example(slug: &str, theme: Theme) -> u8 {
+    let Some(yaml) = nika_pack::example(slug) else {
+        eprintln!("unknown example `{slug}` — `nika examples list` names the embedded set");
+        return exit::FILE;
+    };
+    // The slug comes from the embedded set (path-safe) · stage it beside
+    // a stable name so a re-run overwrites rather than litters.
+    let path = std::env::temp_dir().join(format!("nika-example-{slug}.nika.yaml"));
+    if let Err(e) = std::fs::write(&path, yaml) {
+        eprintln!("nika run: environment: cannot stage example `{slug}`: {e}");
+        return exit::ENV;
+    }
+    run(&path.to_string_lossy(), false, theme)
+}
+
 /// Drive the runtime through the chosen sink · return the exit code.
 async fn execute(
     runtime: &ProdRuntime,

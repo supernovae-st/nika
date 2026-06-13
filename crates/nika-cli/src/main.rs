@@ -213,11 +213,12 @@ fn main() -> std::process::ExitCode {
         Command::Explain { code } => emit(&verbs::explain::run(&code)),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
         Command::Schema => emit(&verbs::pack_surface::schema()),
-        Command::Examples { action } => emit(&match action {
-            ExamplesAction::List => verbs::pack_surface::examples_list(),
-            ExamplesAction::Show { slug } => verbs::pack_surface::examples_show(&slug),
-            ExamplesAction::Run { slug } => verbs::pack_surface::examples_run(&slug),
-        }),
+        Command::Examples { action } => match action {
+            ExamplesAction::List => emit(&verbs::pack_surface::examples_list()),
+            ExamplesAction::Show { slug } => emit(&verbs::pack_surface::examples_show(&slug)),
+            // The L3 run verb shipped — execute the embedded example for real.
+            ExamplesAction::Run { slug } => verbs::run::example(&slug, term_theme(false, false)),
+        },
         Command::New { from, dest, force } => emit(&verbs::new::run(&from, &dest, force)),
         Command::Completions { shell } => {
             let mut cmd = Cli::command();

@@ -351,7 +351,9 @@ fn pack_surface_round_trips_the_embedded_pack() {
     assert_eq!(shown.text, nika_pack::example(&slugs[0]).expect("exists"));
 
     assert_eq!(pack_surface::examples_show("no-such-slug").code, exit::FILE);
-    assert_eq!(pack_surface::examples_run(&slugs[0]).code, exit::ENV);
+    // `examples run` no longer refuses — it EXECUTES (the L3 run verb
+    // shipped). Its behavior is pinned at the binary plane in
+    // tests/run_verb.rs (the static suite can't drive a real run).
 }
 
 // ─── new · template instantiation (the own-corpus law) ──────────────────

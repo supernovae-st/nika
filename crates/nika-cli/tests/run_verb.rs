@@ -198,3 +198,41 @@ fn the_live_lane_paints_one_clean_frame_when_piped() {
         "piped (non-TTY) leaks no cursor escapes: {stdout:?}"
     );
 }
+
+#[test]
+fn examples_run_executes_an_embedded_workflow() {
+    // The flip: `examples run` no longer refuses — it EXECUTES. 01-hello
+    // is mock/echo (hermetic · no key/network) — it must complete (0).
+    let out = bin()
+        .arg("examples")
+        .arg("run")
+        .arg("01-hello")
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "the embedded mock/echo example runs clean · stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn examples_run_unknown_slug_is_a_finding() {
+    let out = bin()
+        .arg("examples")
+        .arg("run")
+        .arg("no-such-example")
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "an unknown slug is a FILE finding (2) · names the set on stderr"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("examples list"),
+        "points at the set: {stderr}"
+    );
+}

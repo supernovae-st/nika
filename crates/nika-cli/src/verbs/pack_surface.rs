@@ -5,8 +5,9 @@
 //! `nika schema` · `nika examples list|show|run`.
 //!
 //! Everything reads `nika-pack` (the spec snapshot baked at build):
-//! offline forever, version-pinned, zero network. `examples run` is
-//! refused honestly until the L3 run verb exists.
+//! offline forever, version-pinned, zero network. `examples run`
+//! executes the embedded example through the shipped L3 runtime (see
+//! `verbs::run::example`).
 
 use crate::verbs::{VerbOutput, exit};
 
@@ -47,15 +48,5 @@ pub fn examples_show(slug: &str) -> VerbOutput {
     }
 }
 
-/// `nika examples run <slug>` — refused until the run verb (L3) ships.
-#[must_use]
-pub fn examples_run(slug: &str) -> VerbOutput {
-    VerbOutput {
-        text: format!(
-            "`nika examples run {slug}` arrives with the `run` verb (the L3 \
-             runtime) — today: `nika examples show {slug} > {slug}.nika.yaml` \
-             then `nika check {slug}.nika.yaml`"
-        ),
-        code: exit::ENV,
-    }
-}
+// `nika examples run <slug>` now EXECUTES — `verbs::run::example` (the
+// L3 runtime shipped · the refusal stub retired).
