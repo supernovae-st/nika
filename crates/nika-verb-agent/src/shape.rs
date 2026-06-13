@@ -74,6 +74,11 @@ pub(crate) fn extract_json(text: &str) -> Option<serde_json::Value> {
 fn first_fenced_block(text: &str) -> Option<&str> {
     let start = text.find("```")?;
     let after_ticks = &text[start + 3..];
+    // `+ 1` skips the tag-line newline; the trailing `.trim()` then makes
+    // the exact boundary irrelevant (a leading `\n` is whitespace it
+    // removes) — so cargo-mutants flags `i + 1` → `i` as an EQUIVALENT
+    // mutant. Kept honest: the +1 is the intent, the trim the safety net;
+    // degrading the trim to make the mutant killable would be worse code.
     let body_start = after_ticks.find('\n').map_or(0, |i| i + 1);
     let body = &after_ticks[body_start..];
     let end = body.find("```")?;

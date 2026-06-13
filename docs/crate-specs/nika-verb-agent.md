@@ -26,6 +26,20 @@
    RetryTransient · FailFast) · `ReflectionConfig` · all `#[non_exhaustive]`.
    **There is NO agent-loop EXECUTOR trait** — these are config/outcome value
    types; the loop logic lives in THIS crate.
+
+   > **Config-shape reconciliation (OPEN · 2026-06-13).** `AgentLoopConfig`
+   > is a SPECULATIVE forward-compat DTO — grep-verified **consumed by
+   > nobody** (defined in `kernel-runtime/src/agent.rs`, re-exported by the
+   > `nika-kernel` facade, read by zero crates). The SHIPPED config is two
+   > types it predates and overlaps: `AgentInput` (the public spec fields ·
+   > `max_turns`/`max_tokens_total`/…) + `AgentConfig` (ADR-093/094
+   > engine-internal tuning · router/guard/`max_parallel_tools`). So
+   > `AgentLoopConfig::{parallel_tools, reflection}` now read as the OPPOSITE
+   > of reality (parallel is on · reflection is the bounded nudge). When the
+   > kernel DTO is finally wired (L3 composer), it must be reconciled with
+   > the shipped pair — NOT layered on top as a third config vocabulary
+   > (parallel-taxonomy trap). Tracked here rather than silently left to
+   > drift.
 2. **Inference rides `nika-providers`** (NOT `nika-verb-infer`) — the agent
    builds its own `InferRequest`s each turn (it needs `tools` on the request
    and tool-use blocks in the response, which the one-shot infer verb fences
@@ -137,10 +151,32 @@ ONLY inside an agent whitelist (the loop sentinel).
 
 ## §5 · Scope fences
 
-- **Reflection / compression / ReWOO** — `AgentLoopConfig` exposes them, but
-  v0.1 ships **ReAct only**, no reflection, no compression (the DTOs are
-  forward-compat seams · spec §agent v0.1 is the basic loop). Gate them off.
-- **Parallel tools** — sequential dispatch at v0.1 (`parallel_tools = false`).
+Two of the original v0.1 fences were AMENDED by engine-internal ADRs after
+admission (each byte-transparent to the public spec §agent · zero YAML
+surface). The list below is the CURRENT reality, not the admission draft.
+
+- **Reflection** — AMENDED by **ADR-093**: the loop ships ONE bounded,
+  deterministic corrective nudge on detected no-progress (cycle / error
+  streak · `GuardConfig::max_reflections`, default 1). NOT the open
+  `ReflectionConfig` self-evaluation loop the kernel DTO sketches — that
+  stays fenced.
+- **Parallel tools** — AMENDED by **ADR-094**: one turn's batch resolves
+  CONCURRENTLY (`AgentConfig::max_parallel_tools`, default 8), results
+  folded in REQUEST order. The transcript, guard signature, and event
+  stream are byte-identical to sequential, so the public §agent contract
+  is unchanged; `max_parallel_tools: 1` restores strict sequencing. (The
+  kernel `AgentLoopConfig::parallel_tools: bool` seam predates this — see
+  §0 note.)
+- **Compression / ReWOO planning** — STILL fenced. v0.1 never drops or
+  summarizes transcript history (lossy · v0.2), and never plans the whole
+  trajectory ahead (changes the author-observable ReAct contract). The
+  kernel DTOs (`CompressionPolicy` · `PlanningStrategy::ReWoo`) are
+  forward-compat seams · gate them off.
+- **`agent:compose` intrinsic** — SHIPPED engine-internal (ADR-093),
+  whitelist-gated in the `agent:` namespace. **Public-surface status is
+  an OPEN v0.1-scope question** (the public spec §agent documents only the
+  `nika:`/`mcp:` tool namespaces · an author enabling `agent:compose`
+  today uses an undocumented surface) — tracked, not yet resolved.
 - **`${{ }}` resolution / glob compilation** — `tools:` globs are matched
   here, but `${{ }}` in prompt/system is upstream-resolved.
 - **Cost/duration limits** — `CostLimit`/`DurationLimit` stop reasons exist in
