@@ -140,7 +140,7 @@ invoke:
     mode: metadata
 ```
 
-**Behavior** · walks the HTML head + the embedded structured data. Returns a structured object. `og`/`twitter` are ALWAYS objects (stable shape); scalar keys are omitted when absent. `title`/`description` fall back to the `og:`/`twitter:` equivalents when the `<title>`/`<meta name=description>` is missing (common on SPAs). Beyond the `<meta>` tags it surfaces the two embedded-structured-data carriers: `jsonld` (schema.org `<script type=ld+json>` blocks, parsed) and `microdata` (schema.org `itemscope`/`itemprop` items, the W3C item model) — schema-agnostic, for a downstream `jq` step to walk.
+**Behavior** · walks the HTML head + the embedded structured data. Returns a structured object. `og`/`twitter` are ALWAYS objects (stable shape); scalar keys are omitted when absent. `title`/`description` fall back to the `og:`/`twitter:` equivalents when the `<title>`/`<meta name=description>` is missing (common on SPAs). The URL-valued `og:image`/`og:url`/`twitter:image` are resolved to absolute against the effective base (like `canonical`). Beyond the `<meta>` tags it surfaces the two embedded-structured-data carriers: `jsonld` (schema.org `<script type=ld+json>` blocks, parsed) and `microdata` (schema.org `itemscope`/`itemprop` items, the W3C item model) — schema-agnostic, for a downstream `jq` step to walk.
 
 **Output** ·
 ```json

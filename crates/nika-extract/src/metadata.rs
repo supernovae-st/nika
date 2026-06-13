@@ -213,6 +213,15 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
         }
     }
 
+    // Absolutize the URL-valued og/twitter keys against the effective base
+    // — `og:image`/`og:url`/`twitter:image` are routinely relative or
+    // protocol-relative, and a social-preview consumer needs the absolute
+    // URL (consistent with how `canonical`/`favicon` are already resolved).
+    // Only the exact URL keys (NOT `image:width`/`image:alt` subkeys).
+    absolutize_url(&mut og, "image", base);
+    absolutize_url(&mut og, "url", base);
+    absolutize_url(&mut twitter, "image", base);
+
     out.insert("og".to_owned(), serde_json::Value::Object(og));
     out.insert("twitter".to_owned(), serde_json::Value::Object(twitter));
     serde_json::Value::Object(out)
@@ -368,6 +377,22 @@ fn effective_base(doc: &Html, fetch: Option<&str>) -> Option<String> {
         // `<base href>` resolved against the fetch URL (or absolute on its own).
         Some(href) => resolve_any(href, fetch).or_else(|| fetch.map(str::to_owned)),
         None => fetch.map(str::to_owned),
+    }
+}
+
+/// Resolve a string-valued URL key IN PLACE against `base`: a relative or
+/// protocol-relative value becomes absolute; an already-absolute value is
+/// kept (`Url::join` returns it unchanged); a value that can't resolve
+/// stays raw. No-op when the key is absent or non-string.
+fn absolutize_url(
+    map: &mut serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    base: Option<&str>,
+) {
+    if let Some(v) = map.get(key).and_then(serde_json::Value::as_str)
+        && let Some(abs) = resolve_any(v, base)
+    {
+        map.insert(key.to_owned(), abs.into());
     }
 }
 

@@ -536,6 +536,49 @@ mod tests {
         );
     }
 
+    #[test]
+    fn metadata_og_twitter_image_urls_are_absolutized() {
+        // og:image/og:url/twitter:image are routinely relative — a
+        // social-preview consumer needs absolute URLs (like canonical).
+        let html = r#"<html><head>
+            <meta property="og:image" content="/img/hero.jpg">
+            <meta property="og:image:width" content="1200">
+            <meta property="og:url" content="article">
+            <meta name="twitter:image" content="//cdn.example/tw.png">
+            <meta name="twitter:card" content="summary">
+        </head><body></body></html>"#;
+        let mut opts = ExtractOptions::new();
+        opts.base_url = Some("https://site.example/blog/post.html");
+        let out = extract(html, ExtractMode::Metadata, &opts).expect("metadata");
+        // relative → absolute against base.
+        assert_eq!(
+            out["og"]["image"], "https://site.example/img/hero.jpg",
+            "{out}"
+        );
+        assert_eq!(
+            out["og"]["url"], "https://site.example/blog/article",
+            "{out}"
+        );
+        // protocol-relative → base scheme.
+        assert_eq!(
+            out["twitter"]["image"], "https://cdn.example/tw.png",
+            "{out}"
+        );
+        // a NON-URL subkey (image:width) is untouched.
+        assert_eq!(out["og"]["image:width"], "1200", "subkey untouched: {out}");
+        assert_eq!(out["twitter"]["card"], "summary", "{out}");
+
+        // An already-absolute og:image is kept verbatim.
+        let abs = r#"<html><head>
+            <meta property="og:image" content="https://other.example/x.jpg">
+        </head><body></body></html>"#;
+        let out = extract(abs, ExtractMode::Metadata, &opts).expect("metadata");
+        assert_eq!(
+            out["og"]["image"], "https://other.example/x.jpg",
+            "absolute kept: {out}"
+        );
+    }
+
     // ─── links ───────────────────────────────────────────────────────
 
     #[test]
