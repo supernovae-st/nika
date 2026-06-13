@@ -1,0 +1,34 @@
+[package]
+name          = "nika-sandbox-seatbelt"
+description   = "macOS command-sandbox L1 effect crate — implements the nika-kernel CommandSandbox trait by wrapping a command in sandbox-exec with an SBPL profile generated from the workflow's permits boundary (deny-default · network-deny · write-confine). The macOS half of the per-platform sandbox pair (sibling: nika-sandbox-landlock)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
+
+# Reserved-architecture realization: plugin::sandbox's doc names this crate as
+# the macOS sandbox impl. Implements the NEW CommandSandbox seam (exec-child
+# confinement · distinct from the v0.100 capability Sandbox enter() model).
+[package.metadata.adr]
+adr = ["ADR-003", "ADR-095"]
+
+[dependencies]
+# The trait + ShellCommand + SandboxSpec. NO heavy deps: this crate only
+# builds an SBPL profile string and wraps the command argv for the OS-shipped
+# `sandbox-exec` launcher (the wrapper model · no unsafe · no FFI).
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+
+[package.metadata.lore]
+daemon        = "sentinelle"
+archetype     = "kodama-sentinelle"
+spirit_role   = "trace le cercle de craie autour du process · rien ne sort qui n'ait été nommé"
+voice_pattern = "silent"
+layer         = "L1"
+err_prefix    = "none"
+
+[lints]
+workspace = true

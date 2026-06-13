@@ -3888,6 +3888,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-sandbox-seatbelt"
+version = "0.80.0"
+dependencies = [
+ "nika-kernel",
+]
+
+[[package]]
 name = "nika-schema"
 version = "0.80.0"
 dependencies = [
