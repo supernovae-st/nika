@@ -3584,8 +3584,13 @@ dependencies = [
  "clap_complete",
  "nika-bm25",
  "nika-builtin",
+ "nika-catalog",
+ "nika-clock",
  "nika-error",
  "nika-event",
+ "nika-exec-runner",
+ "nika-fs",
+ "nika-http",
  "nika-kernel",
  "nika-kernel-mock",
  "nika-pack",
@@ -3857,6 +3862,7 @@ dependencies = [
  "nika-event",
  "nika-kernel",
  "nika-kernel-mock",
+ "nika-pack",
  "nika-providers",
  "nika-schema",
  "nika-types",
@@ -3919,6 +3925,7 @@ dependencies = [
 name = "nika-verb-agent"
 version = "0.80.0"
 dependencies = [
+ "futures-util",
  "jsonschema",
  "miette",
  "nika-bm25",
