@@ -179,7 +179,7 @@ invoke:
     mode: links
 ```
 
-**Behavior** · extracts all `<a href>` URLs. Resolves relative to absolute.
+**Behavior** · extracts all `<a href>` URLs. Resolves relative to absolute against the document's effective base — a `<base href>` element when present (WHATWG), else the fetch URL.
 
 **Output** · array of strings ·
 ```json

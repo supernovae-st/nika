@@ -30,6 +30,7 @@ static CANONICAL: LazyLock<Option<Selector>> =
 static ICON: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static(r#"link[rel~="icon"]"#));
 static HTML_TAG: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static("html"));
 static ANCHORS: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static("a[href]"));
+static BASE_HREF: LazyLock<Option<Selector>> = LazyLock::new(|| parse_static("base[href]"));
 static JSONLD: LazyLock<Option<Selector>> =
     LazyLock::new(|| parse_static(r#"script[type="application/ld+json"]"#));
 // TOP-LEVEL microdata items only: `itemscope` WITHOUT `itemprop` (an
@@ -104,6 +105,10 @@ fn fold_meta_tag(
 /// omitted when absent (JSON absence over null).
 pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
     let doc = Html::parse_document(body);
+    // Honor `<base href>`: canonical/favicon/microdata URLs resolve against
+    // the document's effective base, not the fetch URL (WHATWG).
+    let base = effective_base(&doc, base);
+    let base = base.as_deref();
     let mut out = serde_json::Map::new();
     let mut og = serde_json::Map::new();
     let mut twitter = serde_json::Map::new();
@@ -315,6 +320,8 @@ fn microdata_value(
 /// are skipped (nothing sound to resolve them against).
 pub(crate) fn links(body: &str, base: Option<&str>) -> serde_json::Value {
     let doc = Html::parse_document(body);
+    let base = effective_base(&doc, base);
+    let base = base.as_deref();
     let mut seen = std::collections::BTreeSet::new();
     let mut out: Vec<serde_json::Value> = Vec::new();
 
@@ -332,6 +339,33 @@ pub(crate) fn links(body: &str, base: Option<&str>) -> serde_json::Value {
         }
     }
     serde_json::Value::Array(out)
+}
+
+/// The document's EFFECTIVE base URL (WHATWG): the first `<base href>` in
+/// tree order, resolved against the fetch URL (an `href` may itself be
+/// relative), else the fetch URL unchanged. Pages that declare `<base
+/// href>` (CMS, AMP, doc sites) resolve every relative link/canonical/img
+/// against IT, not the fetch URL — honoring it is a correctness fix.
+fn effective_base(doc: &Html, fetch: Option<&str>) -> Option<String> {
+    let declared = BASE_HREF
+        .as_ref()
+        .and_then(|sel| doc.select(sel).next())
+        .and_then(|el| el.value().attr("href"))
+        .filter(|h| !h.is_empty());
+    match declared {
+        // `<base href>` resolved against the fetch URL (or absolute on its own).
+        Some(href) => resolve_any(href, fetch).or_else(|| fetch.map(str::to_owned)),
+        None => fetch.map(str::to_owned),
+    }
+}
+
+/// Like [`resolve`] but keeps ANY scheme (the base URL itself need not be
+/// http(s) to be a valid resolution root — though in practice it is).
+fn resolve_any(href: &str, base: Option<&str>) -> Option<String> {
+    match base.and_then(|b| url::Url::parse(b).ok()) {
+        Some(base_url) => base_url.join(href).ok().map(|u| u.to_string()),
+        None => url::Url::parse(href).ok().map(|u| u.to_string()),
+    }
 }
 
 /// Resolve one href: against `base` when provided, else only absolute

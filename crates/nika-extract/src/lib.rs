@@ -536,6 +536,65 @@ mod tests {
         );
     }
 
+    #[test]
+    fn base_href_overrides_the_fetch_url_for_relative_resolution() {
+        // WHATWG: a <base href> is the document base for ALL relative URLs,
+        // overriding the fetch URL. links + metadata(canonical) must honor it.
+        let html = r#"<html><head>
+            <base href="https://cdn.example/sub/">
+            <link rel="canonical" href="canon">
+        </head><body>
+            <a href="page-one">one</a>
+            <a href="/abs-path">two</a>
+        </body></html>"#;
+        let mut opts = ExtractOptions::new();
+        opts.base_url = Some("https://fetch.example/orig/doc.html");
+        // links resolve against <base>, NOT the fetch URL.
+        let links = extract(html, ExtractMode::Links, &opts).expect("links");
+        let links = links.as_array().expect("array");
+        assert!(
+            links
+                .iter()
+                .any(|l| l.as_str() == Some("https://cdn.example/sub/page-one")),
+            "relative link resolved against <base href>: {links:?}"
+        );
+        // Root-absolute path uses the <base>'s ORIGIN.
+        assert!(
+            links
+                .iter()
+                .any(|l| l.as_str() == Some("https://cdn.example/abs-path")),
+            "root-absolute uses <base> origin: {links:?}"
+        );
+        assert!(
+            !links
+                .iter()
+                .any(|l| l.as_str().is_some_and(|s| s.contains("fetch.example"))),
+            "fetch URL must NOT be the base when <base href> is present: {links:?}"
+        );
+        // canonical too.
+        let meta = extract(html, ExtractMode::Metadata, &opts).expect("metadata");
+        assert_eq!(meta["canonical"], "https://cdn.example/sub/canon", "{meta}");
+    }
+
+    #[test]
+    fn relative_base_href_resolves_against_fetch_url() {
+        // A <base href> can itself be relative — it resolves against the
+        // fetch URL first, then links resolve against THAT.
+        let html = r#"<html><head><base href="/cdn/"></head>
+            <body><a href="img.jpg">x</a></body></html>"#;
+        let mut opts = ExtractOptions::new();
+        opts.base_url = Some("https://site.example/a/b/page.html");
+        let links = extract(html, ExtractMode::Links, &opts).expect("links");
+        assert!(
+            links
+                .as_array()
+                .expect("array")
+                .iter()
+                .any(|l| l.as_str() == Some("https://site.example/cdn/img.jpg")),
+            "relative <base> resolved against fetch URL: {links:?}"
+        );
+    }
+
     // ─── feed ────────────────────────────────────────────────────────
 
     const RSS: &str = r#"<?xml version="1.0"?>
