@@ -130,6 +130,18 @@ mod tests {
     }
 
     #[test]
+    fn the_two_loop_only_builtins_are_known_not_flagged() {
+        // `nika:done` and `nika:compose` are loop-only `nika:` builtins
+        // (ADR-093) — granting them in an agent whitelist must NOT raise an
+        // unknown-tool finding (the contract that keeps `nika:compose` in
+        // the closed catalog rather than a separate `agent:` namespace).
+        let f = findings_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:done\", \"nika:compose\"]\n",
+        );
+        assert!(f.is_empty(), "loop-only builtins are catalogued: {f:?}");
+    }
+
+    #[test]
     fn on_finally_cleanup_tools_are_checked() {
         let f = findings_of(
             "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"true\" }\n    on_finally:\n      - invoke: { tool: \"nika:wrte\", args: { path: \"x\", content: \"y\" } }\n",

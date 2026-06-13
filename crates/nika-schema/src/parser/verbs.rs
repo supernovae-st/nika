@@ -435,20 +435,33 @@ fn parse_capture(
 /// intrinsic moved into the closed `nika:` set · ADR-093).
 fn validate_whitelist_namespace(tool: &Spanned<String>) -> Result<(), SchemaError> {
     let body = tool.value.strip_prefix('!').unwrap_or(&tool.value);
-    let Some((namespace, _)) = body.split_once(':') else {
+    let Some((namespace, path)) = body.split_once(':') else {
         return Ok(()); // colon-less glob (`*`/`**`) names no namespace
     };
-    if namespace == "nika" || namespace == "mcp" {
-        return Ok(());
+    if namespace != "nika" && namespace != "mcp" {
+        return Err(SchemaError::Validation {
+            message: format!(
+                "unknown tool namespace in agent whitelist `{}` — v1 namespaces are \
+                 `nika:` and `mcp:` (the compose intrinsic is `nika:compose`)",
+                tool.value
+            ),
+            span: Some(tool.span),
+        });
     }
-    Err(SchemaError::Validation {
-        message: format!(
-            "unknown tool namespace in agent whitelist `{}` — v1 namespaces are \
-             `nika:` and `mcp:` (the compose intrinsic is `nika:compose`)",
-            tool.value
-        ),
-        span: Some(tool.span),
-    })
+    // Parity with `validate_tool_ref` (invoke): the colon marks the
+    // namespace boundary EXACTLY once. A second colon (`nika:read:x`) is
+    // malformed even in a glob — `*` separates with `/`, never `:`.
+    if path.contains(':') {
+        return Err(SchemaError::Validation {
+            message: format!(
+                "invalid agent whitelist glob `{}` — the colon marks the namespace \
+                 boundary exactly once",
+                tool.value
+            ),
+            span: Some(tool.span),
+        });
+    }
+    Ok(())
 }
 
 /// Validate the tool reference grammar (spec `02-verbs.md` §invoke ·
@@ -854,12 +867,21 @@ tasks:
         let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"agent:compose\"]\n";
         let err = parse(yaml, FileId::new(0), ParseMode::Strict).expect_err("rejected");
         assert!(
-            err.to_string().contains("unknown tool namespace") && err.to_string().contains("nika:compose"),
+            err.to_string().contains("unknown tool namespace")
+                && err.to_string().contains("nika:compose"),
             "{err}"
         );
         // nika: + mcp: globs (incl. negation) + a bare `*` stay legal.
-        let ok = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:*\", \"mcp:srv/*\", \"!mcp:srv/danger\", \"nika:compose\"]\n";
+        let ok = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:*\", \"mcp:srv/*\", \"!mcp:srv/danger\", \"nika:compose\", \"*\"]\n";
         assert!(parse(ok, FileId::new(0), ParseMode::Strict).is_ok());
+        // A SECOND colon is malformed even in a glob — parity with the
+        // invoke `validate_tool_ref` boundary rule.
+        let two_colons = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read:typo\"]\n";
+        let err = parse(two_colons, FileId::new(0), ParseMode::Strict).expect_err("rejected");
+        assert!(err.to_string().contains("exactly once"), "{err}");
+        // Uppercase namespace is not a v1 namespace.
+        let upper = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"NIKA:read\"]\n";
+        assert!(parse(upper, FileId::new(0), ParseMode::Strict).is_err());
     }
 
     #[test]
