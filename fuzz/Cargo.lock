@@ -515,6 +515,7 @@ dependencies = [
  "miette",
  "nika-catalog",
  "nika-error",
+ "nika-types",
  "serde",
  "serde-saphyr",
  "serde_json",
