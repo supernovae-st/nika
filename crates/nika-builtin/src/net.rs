@@ -441,7 +441,13 @@ pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutc
     request
         .headers
         .insert("content-type".to_owned(), "application/json".to_owned());
-    let payload = serde_json::json!({ "message": message, "severity": severity });
+    // `{ message, severity, data? }` — `data:` carries structured context
+    // so receivers branch on machine fields, never parse the human
+    // message (stdlib §notify · the key is ABSENT when not given).
+    let mut payload = serde_json::json!({ "message": message, "severity": severity });
+    if let (Some(map), Some(data)) = (payload.as_object_mut(), args.get("data")) {
+        map.insert("data".to_owned(), data.clone());
+    }
     let body = serde_json::to_vec(&payload)
         .map_err(|e| BuiltinFailure::new(C1, format!("payload serialization failed: {e}")))?;
     request.body = Some(body.into());
@@ -990,5 +996,48 @@ mod tests {
         .await
         .expect_err("5xx fails");
         assert!(retry.code == "NIKA-BUILTIN-NOTIFY-002" && retry.transient);
+    }
+
+    #[tokio::test]
+    async fn notify_data_rides_the_payload_and_is_absent_when_not_given() {
+        // With data: the payload is { message, severity, data } —
+        // receivers branch on machine fields, never parse the message.
+        let http = MockHttp::new().enqueue_ok(200, Vec::new());
+        notify(
+            &http,
+            &args(serde_json::json!({
+                "target": "https://hooks.x", "message": "done",
+                "data": { "run": "r-42", "count": 7 }
+            })),
+        )
+        .await
+        .expect("ok");
+        let sent = http.sent_requests();
+        let body: serde_json::Value =
+            serde_json::from_slice(sent[0].body.as_ref().expect("body")).expect("json");
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "message": "done", "severity": "info",
+                "data": { "run": "r-42", "count": 7 }
+            })
+        );
+
+        // Without data: the key is ABSENT (not null — spec §notify).
+        let http = MockHttp::new().enqueue_ok(200, Vec::new());
+        notify(
+            &http,
+            &args(serde_json::json!({ "target": "https://hooks.x", "message": "m" })),
+        )
+        .await
+        .expect("ok");
+        let sent = http.sent_requests();
+        let body: serde_json::Value =
+            serde_json::from_slice(sent[0].body.as_ref().expect("body")).expect("json");
+        assert_eq!(
+            body,
+            serde_json::json!({ "message": "m", "severity": "info" })
+        );
+        assert!(body.get("data").is_none(), "absent, never null");
     }
 }

@@ -174,9 +174,20 @@ pub(crate) fn validate(args: &Args) -> BuiltinOutcome {
     let validator = jsonschema::validator_for(schema).map_err(|e| {
         BuiltinFailure::new(C1, format!("`schema:` is not a valid JSON Schema: {e}"))
     })?;
-    let errors: Vec<String> = validator
+    // Structured error objects, not bare strings — `path` (JSON Pointer
+    // to the failing value) + `schema_path` (the violated keyword) are
+    // what a repair step branches on; the human `message` rides along.
+    // The spec pins `errors: [...]` without an element shape (stdlib
+    // §validate) — this is the machine-readable refinement.
+    let errors: Vec<serde_json::Value> = validator
         .iter_errors(&data)
-        .map(|e| e.to_string())
+        .map(|e| {
+            serde_json::json!({
+                "path": e.instance_path.to_string(),
+                "schema_path": e.schema_path.to_string(),
+                "message": e.to_string(),
+            })
+        })
         .collect();
     Ok(serde_json::json!({ "valid": errors.is_empty(), "errors": errors }))
 }
@@ -764,6 +775,57 @@ mod tests {
             serde_json::json!({ "data": {}, "schema": {"type": "nonsense"} }),
         ));
         assert!(broken.is_err());
+    }
+
+    #[test]
+    fn validate_errors_are_structured_repair_handles() {
+        // Each error is { path, schema_path, message } — the JSON Pointer
+        // a repair step branches on, not a prose blob to re-parse.
+        let schema = serde_json::json!({
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+                "age": { "type": "integer" },
+                "name": { "type": "string" }
+            }
+        });
+        let report = validate(&args(serde_json::json!({
+            "data": { "age": "not-a-number" }, "schema": schema
+        })))
+        .expect("report");
+        assert_eq!(report["valid"], false);
+        let errors = report["errors"].as_array().expect("array");
+        assert_eq!(errors.len(), 2, "missing name + wrong-type age");
+        // The wrong-type error points AT the failing value.
+        let age_err = errors
+            .iter()
+            .find(|e| e["path"] == "/age")
+            .expect("age error present");
+        assert!(
+            age_err["schema_path"]
+                .as_str()
+                .expect("schema_path")
+                .contains("type"),
+            "{age_err}"
+        );
+        assert!(
+            age_err["message"]
+                .as_str()
+                .expect("message")
+                .contains("integer")
+        );
+        // The missing-required error points at the ROOT.
+        let root_err = errors
+            .iter()
+            .find(|e| e["path"] == "")
+            .expect("root error present");
+        assert!(
+            root_err["schema_path"]
+                .as_str()
+                .expect("schema_path")
+                .contains("required"),
+            "{root_err}"
+        );
     }
 
     #[test]

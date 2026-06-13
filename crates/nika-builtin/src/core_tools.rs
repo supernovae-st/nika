@@ -14,9 +14,14 @@ use crate::{Args, BuiltinFailure, BuiltinOutcome, Emitter, Prompter, opt_str, re
 /// A log that cannot land NEVER fails the task (stdlib §log).
 #[allow(clippy::unnecessary_wraps)] // uniform BuiltinOutcome · the dispatcher matches all 22 alike
 pub(crate) fn log<E: Emitter>(emitter: &E, args: &Args) -> BuiltinOutcome {
+    // The level NORMALIZES to the spec enum (debug|info|warn|error ·
+    // stdlib §log) — log never fails, so an out-of-enum level clamps to
+    // `info` instead of leaking a non-canonical level onto the journal
+    // (downstream aggregators key on the closed set).
     let level = args
         .get("level")
         .and_then(serde_json::Value::as_str)
+        .filter(|l| matches!(*l, "debug" | "info" | "warn" | "error"))
         .unwrap_or("info");
     let payload = serde_json::json!({
         "level": level,
@@ -321,6 +326,44 @@ mod tests {
     fn log_is_best_effort_null() {
         let out = log(&NullEmitter, &args(serde_json::json!({ "message": "hi" }))).expect("ok");
         assert_eq!(out, serde_json::Value::Null);
+    }
+
+    #[test]
+    fn log_level_clamps_to_the_spec_enum() {
+        // A recording emitter — the level that actually lands on the
+        // stream is the contract, not the fn's return value.
+        #[derive(Default)]
+        struct Capture(std::sync::Mutex<Vec<serde_json::Value>>);
+        impl Emitter for Capture {
+            fn emit(&self, _kind: &str, payload: serde_json::Value) {
+                self.0.lock().expect("lock").push(payload);
+            }
+        }
+        let cap = Capture::default();
+        // In-enum levels pass through; out-of-enum (typo · wrong case ·
+        // wrong type) clamp to info — log never fails, and the journal
+        // only ever carries the closed set (stdlib §log).
+        for (given, expect) in [
+            (serde_json::json!("debug"), "debug"),
+            (serde_json::json!("error"), "error"),
+            (serde_json::json!("DEBUG"), "info"),
+            (serde_json::json!("catastrophic"), "info"),
+            (serde_json::json!(5), "info"),
+        ] {
+            log(
+                &cap,
+                &args(serde_json::json!({ "level": given, "message": "x" })),
+            )
+            .expect("never fails");
+            let last = cap
+                .0
+                .lock()
+                .expect("lock")
+                .last()
+                .cloned()
+                .expect("emitted");
+            assert_eq!(last["level"], expect, "given {given}");
+        }
     }
 
     #[test]

@@ -273,7 +273,8 @@ fn net_defs() -> Vec<ToolDef> {
                 "channel": s("webhook (v0.1) | slack | email | discord | sms (gated)"),
                 "target": s("the webhook URL"),
                 "message": s("the alert text"),
-                "severity": s("info (default) | warn | error")
+                "severity": s("info (default) | warn | error"),
+                "data": { "description": "optional structured context (any JSON · rides the payload beside the message)" }
             }),
             &["target", "message"],
         ),
