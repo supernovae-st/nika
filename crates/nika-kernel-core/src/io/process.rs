@@ -14,6 +14,39 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
+/// The OS-confinement boundary for a spawned command (spec 01 §permits ·
+/// derived from `permits.fs` / `permits.net`). A `CommandSandbox` (the L1
+/// `nika-sandbox-{seatbelt,landlock}` crates) translates this into a
+/// platform sandbox (Seatbelt profile · Landlock ruleset) that confines the
+/// child to the declared filesystem reach and denies network unless granted.
+///
+/// Empty spec = maximally confined (no reads/writes beyond the always-allowed
+/// system paths · no network) — `permits: {}` pure compute. Absent (the
+/// `ShellCommand.sandbox` field is `None`) = today's behavior, unconfined
+/// (the blocklist floor is the only gate).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SandboxSpec {
+    /// Readable path prefixes (beyond the always-allowed system paths the
+    /// dynamic linker + the program binary need to start).
+    pub fs_read: Vec<String>,
+    /// Writable path prefixes (the ONLY paths the child may write · beyond
+    /// the always-allowed scratch like `$TMPDIR`).
+    pub fs_write: Vec<String>,
+    /// Whether outbound network is allowed at all. `false` = deny egress (the
+    /// default under a declared boundary). Host-granular filtering is a
+    /// follow-on (it needs a local proxy · a Seatbelt host rule is TLS-blind).
+    pub allow_network: bool,
+}
+
+impl SandboxSpec {
+    /// A maximally-confined spec — no extra reads/writes, no network.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// A shell command to execute.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -39,6 +72,11 @@ pub struct ShellCommand {
     /// Set by callers that have already performed intelligent validation
     /// (e.g., the engine's `validate_exec_command_full`).
     pub pre_validated: bool,
+    /// The OS-confinement boundary (derived from `permits`). `None` = today's
+    /// behavior (unconfined · the blocklist floor is the only gate); `Some` =
+    /// the runner wraps the spawn in the injected `CommandSandbox` (applied
+    /// AFTER the blocklist, so the floor still sees the real command).
+    pub sandbox: Option<SandboxSpec>,
 }
 
 impl ShellCommand {
@@ -55,6 +93,7 @@ impl ShellCommand {
             stdin: None,
             shell: false,
             pre_validated: false,
+            sandbox: None,
         }
     }
 
