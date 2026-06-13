@@ -1,0 +1,29 @@
+[package]
+name          = "nika-cel"
+description   = "The cel-subset/0.1 expression engine (L0) — the ONE CEL parser + computer the whole engine shares (nika-schema static-shape + nika-runtime compute behind the expr seam). Pure · non-Turing-complete · side-effect-free. Spec: docs/crate-specs/nika-cel.md."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L0 expression engine.
+
+[dependencies]
+serde_json = { workspace = true }   # the value currency (the runtime Scope + checker shapes speak it)
+thiserror  = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }   # the totality/determinism property battery (spec §5.5)
+
+[package.metadata.lore]
+daemon        = "scribe"
+archetype     = "kodama-scribe"
+spirit_role   = "lit la grammaire à la lettre · une seule lecture pour tous les moteurs · jamais d'effet de bord"
+voice_pattern = "written"
+layer         = "L0"
+err_prefix    = "NIKA-VAR (spec-plane)"
+
+[lints]
+workspace = true

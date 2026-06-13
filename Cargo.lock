@@ -3577,6 +3577,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-cel"
+version = "0.80.0"
+dependencies = [
+ "proptest",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "nika-cli"
 version = "0.80.0"
 dependencies = [
