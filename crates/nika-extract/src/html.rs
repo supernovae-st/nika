@@ -346,7 +346,10 @@ pub(crate) fn markdown(body: &str) -> Result<serde_json::Value, ExtractError> {
 }
 
 /// The shared htmd leg (`markdown` strips chrome; `article` receives
-/// readability-cleaned HTML and only strips script/style).
+/// readability-cleaned HTML and only strips script/style). A custom `img`
+/// handler resolves LAZY-loaded images (the placeholder-`src` +
+/// `data-src`/`srcset` pattern) so they emit the real URL, not a blank
+/// `data:` placeholder — Firecrawl does the same (the SOTA cheap win).
 pub(crate) fn convert_markdown(
     html: &str,
     mode: ExtractMode,
@@ -354,12 +357,103 @@ pub(crate) fn convert_markdown(
 ) -> Result<serde_json::Value, ExtractError> {
     let converter = htmd::HtmlToMarkdown::builder()
         .skip_tags(skip.to_vec())
+        .add_handler(vec!["img"], lazy_img_handler)
         .build();
     let md = converter.convert(html).map_err(|e| ExtractError::Html {
         mode,
         reason: e.to_string(),
     })?;
     Ok(serde_json::Value::String(md))
+}
+
+/// htmd `img` handler with lazy-image resolution. For a NORMAL `<img src>`
+/// it reproduces htmd's own markdown byte-for-byte (no regression); for a
+/// LAZY image (missing/`data:`-placeholder `src` + a `data-src`/`srcset`)
+/// it emits the real URL instead of the placeholder. Returns `None` when
+/// no usable URL exists (matches htmd: an `<img>` with no link emits
+/// nothing).
+// `el` is by-value because htmd's `ElementHandler` trait dictates the
+// `Fn(&dyn Handlers, Element)` signature — we only borrow it, but the
+// trait owns the contract.
+#[allow(clippy::needless_pass_by_value)]
+fn lazy_img_handler(
+    _: &dyn htmd::element_handler::Handlers,
+    el: htmd::Element<'_>,
+) -> Option<htmd::element_handler::HandlerResult> {
+    let attr = |want: &str| {
+        el.attrs
+            .iter()
+            .find(|a| a.name.local.as_ref() == want)
+            .map(|a| a.value.as_ref())
+    };
+    // Real `src` wins (matches htmd exactly for normal images). Only when
+    // it is absent or a `data:`/empty placeholder do we reach for the lazy
+    // attributes — so normal-image output is unchanged.
+    let real_src = attr("src").filter(|s| !s.is_empty() && !s.starts_with("data:"));
+    let link = real_src
+        .map(str::to_owned)
+        .or_else(|| best_srcset(attr("srcset").or_else(|| attr("data-srcset"))))
+        .or_else(|| attr("data-src").map(str::to_owned))
+        .or_else(|| attr("data-lazy-src").map(str::to_owned))
+        .or_else(|| attr("data-original").map(str::to_owned))
+        // Last resort: whatever `src` was (even a placeholder) — never
+        // worse than htmd's default.
+        .or_else(|| attr("src").map(str::to_owned))?;
+
+    // htmd's exact escaping (img.rs): alt/title trimmed + `"`-escaped per
+    // line; link parens escaped; spaces wrap the link in `<>`.
+    let clean = |text: &str| {
+        text.lines()
+            .map(|l| l.trim().replace('"', "\\\""))
+            .filter(|l| !l.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let alt = attr("alt").map(clean).unwrap_or_default();
+    let link = link.replace('(', "\\(").replace(')', "\\)");
+    let title = attr("title")
+        .map(clean)
+        .filter(|t| !t.is_empty())
+        .map_or(String::new(), |t| format!(" \"{t}\""));
+    let (lt, gt) = if link.contains(' ') {
+        ("<", ">")
+    } else {
+        ("", "")
+    };
+    Some(format!("![{alt}]({lt}{link}{title}{gt})").into())
+}
+
+/// Pick the highest-resolution URL from a `srcset` value. `srcset` is
+/// comma-separated `url [descriptor]` where the descriptor is `<n>w`
+/// (width) or `<n>x` (density); we keep the largest width, else the
+/// largest density, else the last entry (srcset is conventionally
+/// ascending). `None` when empty.
+fn best_srcset(srcset: Option<&str>) -> Option<String> {
+    let srcset = srcset?;
+    let mut best: Option<(u64, String)> = None;
+    for entry in srcset.split(',') {
+        let mut parts = entry.split_whitespace();
+        let Some(url) = parts.next() else {
+            continue;
+        };
+        // Rank: width descriptor (×1000 to dominate density) > density >
+        // bare/last (rank 1, so a later bare entry wins over an earlier one).
+        let rank = parts.next().map_or(1, |d| {
+            let digits: String = d.chars().take_while(char::is_ascii_digit).collect();
+            let n: u64 = digits.parse().unwrap_or(0);
+            if d.ends_with('w') {
+                n.saturating_mul(1000)
+            } else if d.ends_with('x') {
+                n
+            } else {
+                1
+            }
+        });
+        if best.as_ref().is_none_or(|(r, _)| rank >= *r) {
+            best = Some((rank, url.to_owned()));
+        }
+    }
+    best.map(|(_, url)| url)
 }
 
 /// `mode: text` — tags stripped, text preserved with block-level line

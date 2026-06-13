@@ -42,7 +42,7 @@ invoke:
     mode: markdown
 ```
 
-**Behavior** · HTML → cleaned Markdown. Removes scripts · styles · nav · footer · ads. Preserves headings · paragraphs · lists · code blocks · links · images.
+**Behavior** · HTML → cleaned Markdown. Removes scripts · styles · nav · footer · ads. Preserves headings · paragraphs · lists · code blocks · links · images (lazy-loaded `data-src`/`srcset` images resolve to the real URL · largest `srcset` candidate).
 
 **Implementation** · reference engine uses `htmd` (Rust port of html-to-markdown).
 

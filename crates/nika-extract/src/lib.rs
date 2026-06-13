@@ -241,6 +241,43 @@ mod tests {
         assert!(md.contains("alpha"), "list items survive");
     }
 
+    #[test]
+    fn markdown_resolves_lazy_images() {
+        // Lazy-loaded images (placeholder src + data-src/srcset) must emit
+        // the REAL url, not the blank `data:` placeholder (the SOTA cheap
+        // win · Firecrawl does the same). A normal <img src> is unchanged.
+        let html = r#"<html><body>
+          <img src="data:image/gif;base64,R0lGOD" data-src="https://cdn.example/real.jpg" alt="lazy one">
+          <img srcset="https://cdn.example/small.jpg 320w, https://cdn.example/big.jpg 1280w" alt="responsive">
+          <img src="https://cdn.example/normal.png" alt="normal">
+          <img src="data:image/svg+xml,placeholder" data-lazy-src="https://cdn.example/lazy2.webp" alt="lazy two">
+        </body></html>"#;
+        let out = run(html, ExtractMode::Markdown).expect("markdown");
+        let md = out.as_str().expect("string");
+        // data-src resolved (placeholder src ignored).
+        assert!(
+            md.contains("(https://cdn.example/real.jpg)"),
+            "data-src resolved: {md}"
+        );
+        assert!(!md.contains("base64"), "placeholder src dropped: {md}");
+        // srcset → biggest (1280w over 320w).
+        assert!(
+            md.contains("(https://cdn.example/big.jpg)"),
+            "srcset biggest: {md}"
+        );
+        assert!(!md.contains("small.jpg"), "srcset small dropped: {md}");
+        // normal img unchanged (htmd-faithful).
+        assert!(
+            md.contains("![normal](https://cdn.example/normal.png)"),
+            "normal img: {md}"
+        );
+        // data-lazy-src resolved.
+        assert!(
+            md.contains("(https://cdn.example/lazy2.webp)"),
+            "data-lazy-src: {md}"
+        );
+    }
+
     // ─── text ────────────────────────────────────────────────────────
 
     #[test]
