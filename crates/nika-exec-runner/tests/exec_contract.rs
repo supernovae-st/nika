@@ -11,14 +11,36 @@
 //! the large-output no-deadlock invariant (INV-012). Cancel-by-pid plumbing
 //! is unit-tested in `src/lib.rs` (the registry is not publicly observable).
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use nika_exec_runner::TokioShell;
-use nika_kernel::process::{ShellCancelDyn, ShellRunDyn};
+use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
+use nika_kernel::process::{SandboxSpec, ShellCancelDyn, ShellRunDyn};
 use nika_kernel::{ShellCommand, ShellError, ShellExecutor};
 
 fn shell() -> TokioShell {
     TokioShell::new()
+}
+
+/// A test backend that proves `confine` was called: it REPLACES the command
+/// with a marker `echo`, so a confined run yields the marker on stdout.
+#[derive(Debug)]
+struct MarkerSandbox;
+
+impl CommandSandbox for MarkerSandbox {
+    fn confine(
+        &self,
+        _spec: &SandboxSpec,
+        _command: ShellCommand,
+    ) -> Result<ShellCommand, CommandSandboxError> {
+        let mut c = ShellCommand::new("echo");
+        c.args = vec!["CONFINED".to_string()];
+        Ok(c)
+    }
+    fn backend(&self) -> &'static str {
+        "marker"
+    }
 }
 
 fn cmd(program: &str, args: &[&str]) -> ShellCommand {
@@ -279,4 +301,48 @@ async fn cancel_unknown_id_is_idempotent_ok() {
     let s = shell();
     assert!(s.cancel("999999999").await.is_ok());
     assert!(s.cancel("not-a-pid").await.is_ok());
+}
+
+// ── sandbox wiring (ADR-095 Layer 6) ──────────────────────────────────
+
+#[tokio::test]
+async fn a_command_with_a_spec_is_confined_by_the_backend() {
+    // With a backend wired AND a SandboxSpec on the command, the runner calls
+    // confine() before spawning — proven by the marker backend replacing the
+    // command (the real read would have been `cat`).
+    let shell = TokioShell::with_sandbox(Arc::new(MarkerSandbox));
+    let mut c = cmd("cat", &["/etc/hosts"]);
+    c.sandbox = Some(SandboxSpec::new());
+    let r = shell.run(c).await.unwrap();
+    assert_eq!(
+        r.stdout.trim(),
+        "CONFINED",
+        "the backend confined the command"
+    );
+}
+
+#[tokio::test]
+async fn a_spec_without_a_backend_fails_closed() {
+    // A command asks to be confined (spec present) but NO backend is wired →
+    // refuse rather than run it unconfined.
+    let mut c = cmd("echo", &["hi"]);
+    c.sandbox = Some(SandboxSpec::new());
+    let err = shell().run(c).await.unwrap_err();
+    assert!(
+        matches!(err, ShellError::Blocked { .. }),
+        "no backend → fail closed, got {err:?}"
+    );
+}
+
+#[tokio::test]
+async fn no_spec_runs_unconfined_even_with_a_backend() {
+    // No SandboxSpec on the command → today's behavior, the backend is NOT
+    // invoked (the marker would have fired).
+    let shell = TokioShell::with_sandbox(Arc::new(MarkerSandbox));
+    let r = shell.run(cmd("echo", &["hi"])).await.unwrap();
+    assert_eq!(
+        r.stdout.trim(),
+        "hi",
+        "unconfined: the backend was not applied"
+    );
 }

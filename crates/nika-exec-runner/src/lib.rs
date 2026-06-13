@@ -55,6 +55,7 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
 use nika_kernel::process::{ShellCancelDyn, ShellRunDyn};
 use nika_kernel::{ShellCommand, ShellError, ShellResult};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -91,16 +92,42 @@ type Registry = Arc<Mutex<BTreeMap<u32, Arc<Notify>>>>;
 ///
 /// Cheap to clone (the cancel registry is `Arc`-shared). The blocklist is
 /// the safe-by-default floor; `kill_on_drop` + the registry give cancellation.
-#[derive(Debug, Clone, Default)]
+/// An optional injected [`CommandSandbox`] (the `nika-sandbox-{seatbelt,
+/// landlock}` backends) confines a command that carries a `SandboxSpec`.
+#[derive(Clone, Default)]
 pub struct TokioShell {
     registry: Registry,
+    /// The OS-confinement backend (injected by the wiring layer · `None` =
+    /// no sandbox available, today's behavior). Applied AFTER the blocklist.
+    sandbox: Option<Arc<dyn CommandSandbox>>,
+}
+
+impl std::fmt::Debug for TokioShell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TokioShell")
+            .field("sandbox", &self.sandbox.as_ref().map(|s| s.backend()))
+            .finish_non_exhaustive()
+    }
 }
 
 impl TokioShell {
-    /// Create a new shell executor with an empty cancel registry.
+    /// Create a new shell executor with an empty cancel registry and NO
+    /// sandbox backend (unconfined · today's behavior · the blocklist floor
+    /// is the only gate).
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Create a shell executor with an injected OS-confinement backend. A
+    /// command carrying a `SandboxSpec` is confined by it (after the blocklist,
+    /// before the spawn); a command with no spec runs unconfined as before.
+    #[must_use]
+    pub fn with_sandbox(sandbox: Arc<dyn CommandSandbox>) -> Self {
+        Self {
+            registry: Registry::default(),
+            sandbox: Some(sandbox),
+        }
     }
 
     /// Register a pid's cancel signal; returns the shared `Notify`.
@@ -116,6 +143,26 @@ impl TokioShell {
     fn deregister(&self, pid: u32) {
         if let Ok(mut reg) = self.registry.lock() {
             reg.remove(&pid);
+        }
+    }
+
+    /// Apply the injected OS sandbox to a command that requests one. No spec =
+    /// unchanged (today's behavior); spec + backend = confined; spec but NO
+    /// backend = fail-closed (refuse rather than run an asked-for-confined
+    /// command unconfined).
+    fn apply_sandbox(&self, command: ShellCommand) -> Result<ShellCommand, ShellError> {
+        let Some(spec) = command.sandbox.clone() else {
+            return Ok(command);
+        };
+        match &self.sandbox {
+            Some(backend) => backend
+                .confine(&spec, command)
+                .map_err(|e| map_sandbox_error(&e)),
+            None => Err(ShellError::Blocked {
+                reason: "command requires an OS sandbox but no backend is wired \
+                         (refusing to run unconfined)"
+                    .to_string(),
+            }),
         }
     }
 }
@@ -157,6 +204,11 @@ impl ShellRunDyn for TokioShell {
                 blocklist::check_argv(&command.program, &command.args)?;
             }
         }
+
+        // OS confinement (spec 01 §permits · ADR-095 Layer 6) — applied AFTER
+        // the blocklist so the floor inspected the REAL command, not the
+        // launcher wrapper.
+        let command = self.apply_sandbox(command)?;
 
         let start = Instant::now();
         let mut cmd = build_command(&command);
@@ -432,6 +484,15 @@ fn classify_drain_error(e: &std::io::Error) -> ShellError {
 /// Saturating `Duration` → milliseconds (kernel `Timeout.duration_ms` is u64).
 fn dur_ms(t: std::time::Duration) -> u64 {
     u64::try_from(t.as_millis()).unwrap_or(u64::MAX)
+}
+
+/// Map a [`CommandSandboxError`] to [`ShellError`] — both an unavailable
+/// backend and an un-expressible profile are a fail-closed refusal to spawn,
+/// surfaced as `Blocked` (the command was not run).
+fn map_sandbox_error(e: &CommandSandboxError) -> ShellError {
+    ShellError::Blocked {
+        reason: format!("sandbox could not confine the command: {e}"),
+    }
 }
 
 /// Grace between SIGTERM and SIGKILL when terminating a timed-out / cancelled
