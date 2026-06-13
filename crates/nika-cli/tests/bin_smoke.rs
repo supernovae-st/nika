@@ -85,9 +85,10 @@ fn check_json_is_uncoloured_and_parseable_both_ways() {
     let dir = std::env::temp_dir().join("nika-bin-smoke-json");
     std::fs::create_dir_all(&dir).expect("tmp dir");
 
-    for (name, yaml, expect_clean) in
-        [("ok.nika.yaml", VALID, true), ("bad.nika.yaml", INVALID, false)]
-    {
+    for (name, yaml, expect_clean) in [
+        ("ok.nika.yaml", VALID, true),
+        ("bad.nika.yaml", INVALID, false),
+    ] {
         let wf = write_fixture(&dir, name, yaml);
         let out = bin()
             .arg("check")
@@ -133,7 +134,11 @@ fn explain_known_code_exits_zero() {
         .arg("NIKA-1700")
         .output()
         .expect("binary runs");
-    assert_eq!(out.status.code(), Some(0), "the runtime range is registered");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "the runtime range is registered"
+    );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         stdout.contains("NIKA-1700"),
