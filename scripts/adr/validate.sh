@@ -129,6 +129,21 @@ for filepath in "$ADR_DIR"/adr-[0-9][0-9][0-9]-*.md; do
     error "$fname: id '${adr_id}' does not match filename (expected '${expected_id}')"
   fi
 
+  # Cross-file ID UNIQUENESS — two files claiming the same id is a
+  # collision (the per-file id-matches-filename check above passes for
+  # BOTH `adr-094-foo.md` and `adr-094-bar.md`). One id = one decision;
+  # the second author must take the next free number. WARN (not RED) so
+  # the resolution is the colliding ADR-owner's, never a push blocker
+  # for an unrelated change touching the ADR set.
+  if [ -n "$adr_id" ]; then
+    id_seen_file="$TMPDIR_VAL/id_${adr_id}.seen"
+    if [ -f "$id_seen_file" ]; then
+      warn "$fname: id '${adr_id}' COLLIDES with $(cat "$id_seen_file") — one id = one decision · renumber the newer ADR"
+    else
+      printf '%s' "$fname" >"$id_seen_file"
+    fi
+  fi
+
   # Check required fields
   [ -z "$adr_id" ] && error "$fname: missing required field 'id'"
   [ -z "$title" ] && error "$fname: missing required field 'title'"
