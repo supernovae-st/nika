@@ -26,6 +26,9 @@ use nika_schema::{FileId, ParseMode};
 pub mod exit {
     /// Success (run completed · check clean · verb done).
     pub const OK: u8 = 0;
+    /// A workflow RAN and FAILED (a task failed unrecovered · `nika run`
+    /// only · distinct from a static FILE finding · spec §4).
+    pub const WORKFLOW: u8 = 1;
     /// Validation findings — the FILE has errors (CI gates on this).
     pub const FILE: u8 = 2;
     /// Environment error — config · I/O · missing resource.
@@ -68,7 +71,7 @@ impl VerbOutput {
 ///
 /// Failure mapping per spec §4: unreadable = environment (`3`) · parse
 /// error = a finding in the FILE (`2`).
-fn load_checked(path: &str) -> Result<(RawWorkflow, CheckReport), VerbOutput> {
+pub(crate) fn load_checked(path: &str) -> Result<(RawWorkflow, CheckReport), VerbOutput> {
     let yaml = std::fs::read_to_string(path)
         .map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))?;
     let wf = nika_schema::parse(&yaml, FileId::new(0), ParseMode::Strict)

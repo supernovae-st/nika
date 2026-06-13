@@ -51,6 +51,20 @@ enum Command {
         #[arg(long)]
         ascii: bool,
     },
+    /// Execute a CHECKED workflow through the L3 runtime (live render).
+    Run {
+        /// Workflow file (`*.nika.yaml`).
+        file: String,
+        /// Stream NDJSON events instead of the live render (CI · agents).
+        #[arg(long)]
+        json: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+    },
     /// Static anatomy: tasks · verbs · DAG tree · cost · permits.
     Inspect {
         /// Workflow file (`*.nika.yaml`).
@@ -181,6 +195,12 @@ fn main() -> std::process::ExitCode {
             };
             emit(&out)
         }
+        Command::Run {
+            file,
+            json,
+            no_color,
+            ascii,
+        } => verbs::run::run(&file, json, term_theme(no_color, ascii)),
         Command::Inspect { file } => emit(&verbs::inspect::run(&file)),
         Command::Graph { file, format } => {
             let format = match format {

@@ -66,18 +66,25 @@ pub struct FoldSink<W: Write> {
     writer: W,
     theme: Theme,
     view: RunView,
+    /// Cursor control is only legible on a TTY — when false (piped · CI),
+    /// the sink folds silently and the caller prints ONE final frame
+    /// (no escape noise in a captured log · the plan's degrade-to-append).
+    interactive: bool,
     /// Lines painted by the previous frame (to clear before the redraw).
     last_lines: usize,
     error: Option<std::io::Error>,
 }
 
 impl<W: Write> FoldSink<W> {
-    /// Wrap a writer + the resolved theme.
-    pub fn new(writer: W, theme: Theme) -> Self {
+    /// Wrap a writer + the resolved theme. `interactive` = the writer is
+    /// a TTY (in-place repaint is legible) · false folds silently for the
+    /// caller's final-frame print.
+    pub fn new(writer: W, theme: Theme, interactive: bool) -> Self {
         Self {
             writer,
             theme,
             view: RunView::new(),
+            interactive,
             last_lines: 0,
             error: None,
         }
@@ -89,20 +96,35 @@ impl<W: Write> FoldSink<W> {
         &self.view
     }
 
+    /// Print the final frame once (the non-interactive lane · the caller
+    /// calls this after the run · a no-op buffered error stays buffered).
+    pub fn print_final(&mut self) {
+        if self.error.is_some() {
+            return;
+        }
+        let lines = frame(&self.view, &self.theme, 0);
+        for line in &lines {
+            if let Err(e) = writeln!(self.writer, "{line}") {
+                self.error = Some(e);
+                return;
+            }
+        }
+        if let Err(e) = self.writer.flush() {
+            self.error = Some(e);
+        }
+    }
+
     /// The buffered write error, if any.
     pub fn into_error(self) -> Option<std::io::Error> {
         self.error
     }
 
     fn repaint(&mut self) -> std::io::Result<()> {
-        // Move the cursor up over the previous frame and clear each line
-        // (ANSI · the same family the spinner loop uses) — a non-TTY
-        // writer still receives the escapes but they are harmless in a
-        // captured log only when colour is off; the live lane gates on
-        // IsTerminal upstream (the composer picks JsonSink for non-TTY).
+        // Move the cursor up over the previous frame and clear from there
+        // down (ANSI · the spinner family). TTY-only — `emit` gates this.
         if self.last_lines > 0 {
             write!(self.writer, "\x1b[{}A", self.last_lines)?;
-            write!(self.writer, "\x1b[0J")?; // clear from cursor down
+            write!(self.writer, "\x1b[0J")?;
         }
         let lines = frame(&self.view, &self.theme, 0);
         for line in &lines {
@@ -119,7 +141,11 @@ impl<W: Write> EventSink for FoldSink<W> {
             return;
         }
         self.view.apply(&event);
-        if let Err(e) = self.repaint() {
+        // Non-interactive folds silently (the caller prints one final
+        // frame) — never leak cursor escapes into a captured log.
+        if self.interactive
+            && let Err(e) = self.repaint()
+        {
             self.error = Some(e);
         }
     }
@@ -165,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn fold_sink_tracks_the_verdict_and_paints() {
+    fn fold_sink_non_interactive_folds_silent_then_prints_one_frame() {
         let theme = Theme {
             color: false,
             ascii: true,
@@ -173,16 +199,42 @@ mod tests {
         };
         let mut buf = Vec::new();
         {
-            let mut sink = FoldSink::new(&mut buf, theme);
+            // interactive=false: no per-event repaint · one final frame.
+            let mut sink = FoldSink::new(&mut buf, theme, false);
             for ev in demo::success() {
                 sink.emit(ev);
             }
             assert_eq!(sink.view().verdict, Some(true), "success folded");
+            sink.print_final();
             assert!(sink.into_error().is_none());
         }
-        // The final repaint carries the storyboard rows (ascii theme).
         let text = String::from_utf8(buf).expect("utf8");
+        // Exactly ONE frame · the storyboard rows · ZERO cursor escapes.
         assert!(text.contains("fetch_top"), "the run painted: {text}");
+        assert!(
+            !text.contains('\x1b'),
+            "non-interactive lane leaks no ANSI: {text}"
+        );
+    }
+
+    #[test]
+    fn fold_sink_interactive_repaints_in_place() {
+        let theme = Theme {
+            color: false,
+            ascii: false,
+            animate: false,
+        };
+        let mut buf = Vec::new();
+        {
+            let mut sink = FoldSink::new(&mut buf, theme, true);
+            for ev in demo::success() {
+                sink.emit(ev);
+            }
+            assert!(sink.into_error().is_none());
+        }
+        let text = String::from_utf8(buf).expect("utf8");
+        // The interactive lane DOES use cursor control (the live redraw).
+        assert!(text.contains('\x1b'), "interactive repaints in place");
     }
 
     #[test]
@@ -193,7 +245,7 @@ mod tests {
             animate: false,
         };
         let mut buf = Vec::new();
-        let mut sink = FoldSink::new(&mut buf, theme);
+        let mut sink = FoldSink::new(&mut buf, theme, false);
         for ev in demo::failure() {
             sink.emit(ev);
         }
