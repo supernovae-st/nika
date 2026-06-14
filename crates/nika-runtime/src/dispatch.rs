@@ -197,54 +197,8 @@ where
         };
         let note = format!("exec · {program}");
 
-        // Capability boundary (spec 01 §permits · NIKA-SEC-004): once a
-        // workflow declares `permits`, the exec sink enforces it. A program
-        // allowlist (`Programs`) governs `argv[0]` of the ARRAY form (the
-        // unambiguous program); the SHELL form is REFUSED under an allowlist
-        // because a pipeline can launch any program, so a single leading token
-        // cannot verify it (use the array form). This is STRICTER than the
-        // static `nika check` for shell-under-allowlist — the safe direction.
-        // No declared permits = today's behavior (the runner floor is the only
-        // gate). Operator policy is nika-policy's job (s8).
-        if let Some(permits) = scope.permits {
-            use nika_schema::types::ExecPermit;
-            match &permits.exec {
-                // Omitted or `false` → this workflow runs zero processes.
-                None | Some(ExecPermit::No) => {
-                    return Dispatched::security_err(
-                        &note,
-                        "exec is not permitted by the workflow `permits` boundary",
-                    );
-                }
-                // `true` → any process (still blocklist-gated at the floor).
-                Some(ExecPermit::Any) => {}
-                // A program allowlist → ARRAY form only (argv[0] must be
-                // listed); the SHELL form cannot be verified (a pipeline can
-                // launch any program), so it is refused — use the array form.
-                Some(ExecPermit::Programs(allowed)) => {
-                    if !is_argv {
-                        return Dispatched::security_err(
-                            &note,
-                            "a shell-string command cannot be verified against a \
-                             `permits.exec` program allowlist (a pipeline can launch \
-                             any program) — use the array form",
-                        );
-                    }
-                    if !allowed.iter().any(|p| p == &program) {
-                        return Dispatched::security_err(
-                            &note,
-                            format!("program {program:?} is not in the `permits.exec` allowlist"),
-                        );
-                    }
-                }
-                // #[non_exhaustive] · a future permit form fails CLOSED.
-                Some(_) => {
-                    return Dispatched::security_err(
-                        &note,
-                        "exec permit form not understood by this engine version",
-                    );
-                }
-            }
+        if let Some(denial) = check_exec_permits(scope.permits, &note, &program, is_argv) {
+            return denial;
         }
 
         match self.shell.run(input).await {
@@ -394,5 +348,60 @@ fn is_env_assignment(token: &str) -> bool {
                 && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
         }
         None => false,
+    }
+}
+
+/// The exec capability boundary (spec 01 §permits · NIKA-SEC-004): once a
+/// workflow declares `permits`, the exec sink enforces it. Returns `Some(error)`
+/// when the command is refused, `None` when permitted (or no `permits` declared
+/// — today's behavior, where the runner floor is the only gate; operator policy
+/// is nika-policy's job, s8).
+///
+/// A program allowlist (`Programs`) governs `argv[0]` of the ARRAY form (the
+/// unambiguous program); the SHELL form is REFUSED under an allowlist because a
+/// pipeline can launch any program, so a single leading token cannot verify it
+/// (use the array form). This is STRICTER than the static `nika check` for
+/// shell-under-allowlist — the safe direction.
+fn check_exec_permits(
+    permits: Option<&nika_schema::types::Permits>,
+    note: &str,
+    program: &str,
+    is_argv: bool,
+) -> Option<Dispatched> {
+    use nika_schema::types::ExecPermit;
+    let permits = permits?;
+    match &permits.exec {
+        // Omitted or `false` → this workflow runs zero processes.
+        None | Some(ExecPermit::No) => Some(Dispatched::security_err(
+            note,
+            "exec is not permitted by the workflow `permits` boundary",
+        )),
+        // `true` → any process (still blocklist-gated at the floor).
+        Some(ExecPermit::Any) => None,
+        // A program allowlist → ARRAY form only (argv[0] must be listed); the
+        // SHELL form cannot be verified (a pipeline can launch any program), so
+        // it is refused — use the array form.
+        Some(ExecPermit::Programs(allowed)) => {
+            if !is_argv {
+                return Some(Dispatched::security_err(
+                    note,
+                    "a shell-string command cannot be verified against a \
+                     `permits.exec` program allowlist (a pipeline can launch \
+                     any program) — use the array form",
+                ));
+            }
+            if !allowed.iter().any(|p| p == program) {
+                return Some(Dispatched::security_err(
+                    note,
+                    format!("program {program:?} is not in the `permits.exec` allowlist"),
+                ));
+            }
+            None
+        }
+        // #[non_exhaustive] · a future permit form fails CLOSED.
+        Some(_) => Some(Dispatched::security_err(
+            note,
+            "exec permit form not understood by this engine version",
+        )),
     }
 }

@@ -264,51 +264,18 @@ where
             }))
             .buffered(cap);
 
-        let mut outputs: Vec<Value> = Vec::with_capacity(total);
-        let mut retries: Vec<RetryStamp> = Vec::new();
-        let mut agent_events: Vec<crate::agent_events::StampedAgentEvent> = Vec::new();
-        let mut first_error: Option<TaskErrorRecord> = None;
-        // Truth accounting · per-iteration token spend SUMS onto the
-        // parent (a 50-infer fan-out must never report zero to the
-        // cost meter) · None until any iteration reports.
-        let mut tokens_sum: Option<i64> = None;
-
-        while let Some(iter_ran) = stream.next().await {
-            retries.extend(iter_ran.retries);
-            agent_events.extend(iter_ran.agent_events);
-            match iter_ran.result {
-                RunResult::Success { value, tokens } => {
-                    outputs.push(value);
-                    if let Some(n) = tokens {
-                        tokens_sum = Some(tokens_sum.unwrap_or(0).saturating_add(n));
-                    }
-                }
-                // Per-iteration `on_error: skip` contributes null at its
-                // index — positional alignment survives (spec 03).
-                RunResult::SkippedWithError { .. } => outputs.push(Value::Null),
-                RunResult::Failed { error } => {
-                    outputs.push(Value::Null);
-                    if first_error.is_none() {
-                        first_error = Some(error);
-                    }
-                    if fail_fast {
-                        // Drop the stream: in-flight iterations cancel
-                        // at their await points · unspawned never start
-                        // (spec 03 · `fail_fast: true` default).
-                        break;
-                    }
-                }
-            }
-        }
+        let acc = collect_fan_out(&mut stream, total, fail_fast).await;
         drop(stream);
 
-        let result = match first_error {
+        let result = match acc.first_error {
             None => RunResult::Success {
-                value: Value::Array(outputs),
-                tokens: tokens_sum,
+                value: Value::Array(acc.outputs),
+                tokens: acc.tokens_sum,
             },
             Some(error) => RunResult::Failed { error },
         };
+        let retries = acc.retries;
+        let agent_events = acc.agent_events;
         let mut ran = RanTask {
             note: format!("for_each · {total} items"),
             retries,
@@ -541,6 +508,66 @@ where
             .checked_duration_since(started)
             .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
     }
+}
+
+/// The settled accumulation of a `for_each` fan-out — the per-iteration
+/// results reduced in INPUT order (positions stay aligned · spec 03
+/// §null-at-index).
+struct FanOutAccum {
+    /// One value per iteration (null at a skipped/failed index).
+    outputs: Vec<Value>,
+    /// Every retry scheduled across all iterations (`TaskRetrying`).
+    retries: Vec<RetryStamp>,
+    /// The agent decisions across all iterations, in order.
+    agent_events: Vec<crate::agent_events::StampedAgentEvent>,
+    /// The FIRST iteration error (the one the task reports on failure).
+    first_error: Option<TaskErrorRecord>,
+    /// Per-iteration token spend SUMMED onto the parent (a 50-infer fan-out
+    /// must never report zero to the cost meter) · None until any reports.
+    tokens_sum: Option<i64>,
+}
+
+/// Drain the buffered iteration stream, reducing it to a [`FanOutAccum`] in
+/// INPUT order. On `fail_fast`, the FIRST failure stops the drain: dropping
+/// the stream cancels in-flight iterations at their await points and unspawned
+/// ones never start (spec 03 · `fail_fast: true` default).
+async fn collect_fan_out<S>(stream: &mut S, total: usize, fail_fast: bool) -> FanOutAccum
+where
+    S: futures_util::Stream<Item = RanTask> + Unpin,
+{
+    let mut acc = FanOutAccum {
+        outputs: Vec::with_capacity(total),
+        retries: Vec::new(),
+        agent_events: Vec::new(),
+        first_error: None,
+        tokens_sum: None,
+    };
+
+    while let Some(iter_ran) = stream.next().await {
+        acc.retries.extend(iter_ran.retries);
+        acc.agent_events.extend(iter_ran.agent_events);
+        match iter_ran.result {
+            RunResult::Success { value, tokens } => {
+                acc.outputs.push(value);
+                if let Some(n) = tokens {
+                    acc.tokens_sum = Some(acc.tokens_sum.unwrap_or(0).saturating_add(n));
+                }
+            }
+            // Per-iteration `on_error: skip` contributes null at its
+            // index — positional alignment survives (spec 03).
+            RunResult::SkippedWithError { .. } => acc.outputs.push(Value::Null),
+            RunResult::Failed { error } => {
+                acc.outputs.push(Value::Null);
+                if acc.first_error.is_none() {
+                    acc.first_error = Some(error);
+                }
+                if fail_fast {
+                    break;
+                }
+            }
+        }
+    }
+    acc
 }
 
 /// The jitter stream selector — fan-out iterations get DISTINCT

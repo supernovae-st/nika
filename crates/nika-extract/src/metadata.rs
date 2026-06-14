@@ -158,47 +158,14 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
         out.insert("lang".to_owned(), lang.into());
     }
 
-    // schema.org structured data (JSON-LD) — the highest-yield path for
-    // NON-article pages (products · listings · recipes), where the
-    // useful fields live in `<script type=ld+json>` not the visible DOM
-    // (WCXB arXiv:2605.21097 · +20-30 F1 on product pages). Surfaced as
-    // `jsonld: [...]` (the parsed blocks, schema-agnostic — the caller's
-    // jq/infer step walks `@type`). Invalid blocks are skipped, never
-    // fatal: a malformed inline script must not sink the metadata.
-    if let Some(sel) = JSONLD.as_ref() {
-        let blocks: Vec<serde_json::Value> = doc
-            .select(sel)
-            // ATTEMPT cap before the VALID cap: `take(MAX_JSONLD_BLOCKS)`
-            // alone would parse every block until 32 succeed — a page of
-            // 10 000 malformed ld+json scripts would parse all 10 000.
-            // Bound the parse attempts first (a real page has 1–3 blocks;
-            // the attempt window is generous but finite).
-            .take(MAX_JSONLD_ATTEMPTS)
-            .filter_map(|el| {
-                let raw = el.text().collect::<String>();
-                serde_json::from_str::<serde_json::Value>(raw.trim()).ok()
-            })
-            .take(MAX_JSONLD_BLOCKS)
-            .collect();
-        if !blocks.is_empty() {
-            out.insert("jsonld".to_owned(), serde_json::Value::Array(blocks));
-        }
+    // schema.org structured data (JSON-LD + microdata) — the two
+    // embedded-structured-data carriers, surfaced schema-agnostically for
+    // the caller's jq/infer step to walk. Only inserted when non-empty.
+    if let Some(blocks) = collect_jsonld(&doc) {
+        out.insert("jsonld".to_owned(), blocks);
     }
-
-    // schema.org MICRODATA (`itemscope`/`itemprop`/`itemtype`) — the OTHER
-    // embedded-structured-data carrier (26% of pages · HTTP Archive Web
-    // Almanac 2024 · legacy + recipe-heavy, where JSON-LD is absent).
-    // Surfaced as `microdata: [{type, id?, properties}]` — the W3C item
-    // model, schema-agnostic like `jsonld[]` (the caller's jq walks it).
-    if let Some(sel) = MICRODATA_ITEMS.as_ref() {
-        let items: Vec<serde_json::Value> = doc
-            .select(sel)
-            .take(MAX_MICRODATA_ITEMS)
-            .map(|item| microdata_item(item, base, 0))
-            .collect();
-        if !items.is_empty() {
-            out.insert("microdata".to_owned(), serde_json::Value::Array(items));
-        }
+    if let Some(items) = collect_microdata(&doc, base) {
+        out.insert("microdata".to_owned(), items);
     }
 
     // Fallback: a page with a missing/empty `<title>` or no
@@ -225,6 +192,47 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
     out.insert("og".to_owned(), serde_json::Value::Object(og));
     out.insert("twitter".to_owned(), serde_json::Value::Object(twitter));
     serde_json::Value::Object(out)
+}
+
+/// schema.org JSON-LD blocks — the highest-yield path for NON-article pages
+/// (products · listings · recipes), where the useful fields live in
+/// `<script type=ld+json>` not the visible DOM (WCXB arXiv:2605.21097 ·
+/// +20-30 F1 on product pages). Returns the parsed blocks as a JSON array
+/// (schema-agnostic — the caller's jq/infer step walks `@type`), or `None`
+/// when there are none. Invalid blocks are skipped, never fatal: a malformed
+/// inline script must not sink the metadata.
+fn collect_jsonld(doc: &Html) -> Option<serde_json::Value> {
+    let sel = JSONLD.as_ref()?;
+    let blocks: Vec<serde_json::Value> = doc
+        .select(sel)
+        // ATTEMPT cap before the VALID cap: `take(MAX_JSONLD_BLOCKS)`
+        // alone would parse every block until 32 succeed — a page of
+        // 10 000 malformed ld+json scripts would parse all 10 000.
+        // Bound the parse attempts first (a real page has 1–3 blocks;
+        // the attempt window is generous but finite).
+        .take(MAX_JSONLD_ATTEMPTS)
+        .filter_map(|el| {
+            let raw = el.text().collect::<String>();
+            serde_json::from_str::<serde_json::Value>(raw.trim()).ok()
+        })
+        .take(MAX_JSONLD_BLOCKS)
+        .collect();
+    (!blocks.is_empty()).then_some(serde_json::Value::Array(blocks))
+}
+
+/// schema.org MICRODATA (`itemscope`/`itemprop`/`itemtype`) — the OTHER
+/// embedded-structured-data carrier (26% of pages · HTTP Archive Web Almanac
+/// 2024 · legacy + recipe-heavy, where JSON-LD is absent). Returns
+/// `[{type, id?, properties}]` — the W3C item model, schema-agnostic like
+/// `jsonld[]` (the caller's jq walks it) — or `None` when there are none.
+fn collect_microdata(doc: &Html, base: Option<&str>) -> Option<serde_json::Value> {
+    let sel = MICRODATA_ITEMS.as_ref()?;
+    let items: Vec<serde_json::Value> = doc
+        .select(sel)
+        .take(MAX_MICRODATA_ITEMS)
+        .map(|item| microdata_item(item, base, 0))
+        .collect();
+    (!items.is_empty()).then_some(serde_json::Value::Array(items))
 }
 
 /// One microdata item → `{ type: [...]?, id: "..."?, properties: { name:

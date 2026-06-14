@@ -182,28 +182,7 @@ impl ShellRunDyn for TokioShell {
     /// CANCEL SAFETY: cancel-safe — `kill_on_drop(true)` means dropping this
     /// future SIGKILLs the child (no orphan). The PRIMARY cancellation path.
     async fn run(&self, command: ShellCommand) -> Result<ShellResult, ShellError> {
-        if !command.pre_validated {
-            if command.shell {
-                // Shell form: the whole line goes to `sh -c`, so shell-syntax
-                // metacharacters in any argument ARE parsed — the full
-                // blocklist (dangerous patterns) + the expansion-char refusal
-                // are the tripwire. The battle-tested floor, unchanged.
-                let full = format!("{} {}", command.program, command.args.join(" "));
-                blocklist::check_command(&full)?;
-                blocklist::check_shell_mode(&full)?;
-            } else {
-                // Argv form: `execve`, NO shell. The shell-SYNTAX patterns are
-                // meaningless here — a `;` or `| bash` inside an argument is a
-                // LITERAL character, so scanning the joined line would false-
-                // positive on benign args (`["echo", "a; b"]`). But the floor
-                // must stay SYMMETRIC with shell mode for the program-level
-                // dangers (review P0): `check_argv` checks the program identity
-                // AND, STRUCTURALLY, the re-exec class an interpreter / `env`
-                // re-introduces (`["sh","-c",…]`, `["python","-c",…]`, `nc -e`,
-                // `dd if=`). Richer gating is `permits.exec` + the sandbox.
-                blocklist::check_argv(&command.program, &command.args)?;
-            }
-        }
+        pre_validate(&command)?;
 
         // OS confinement (spec 01 §permits · ADR-095 Layer 6) — applied AFTER
         // the blocklist so the floor inspected the REAL command, not the
@@ -278,32 +257,80 @@ impl ShellRunDyn for TokioShell {
             self.deregister(p);
         }
 
-        match outcome {
-            Outcome::Cancelled => {
-                // Kill the WHOLE process group (not just the direct child),
-                // so detached grandchildren die too — before reporting.
-                if let Some(p) = pid {
-                    terminate_group(p).await;
-                }
-                Err(ShellError::Cancelled {
-                    id: pid.map_or_else(|| "?".to_string(), |p| p.to_string()),
-                })
+        outcome_to_result(outcome, pid, start).await
+    }
+}
+
+/// Map the `select!` [`Outcome`] to the public `Result` — the cancel/timeout
+/// arms first SIGTERM→SIGKILL the whole process group (detached grandchildren
+/// die too · `terminate_group`) before reporting; a clean exit becomes a
+/// [`ShellResult`] with the captured stdout/stderr.
+async fn outcome_to_result(
+    outcome: Outcome,
+    pid: Option<u32>,
+    start: Instant,
+) -> Result<ShellResult, ShellError> {
+    match outcome {
+        Outcome::Cancelled => {
+            // Kill the WHOLE process group (not just the direct child),
+            // so detached grandchildren die too — before reporting.
+            if let Some(p) = pid {
+                terminate_group(p).await;
             }
-            Outcome::TimedOut(ms) => {
-                if let Some(p) = pid {
-                    terminate_group(p).await;
-                }
-                Err(ShellError::Timeout { duration_ms: ms })
+            Err(ShellError::Cancelled {
+                id: pid.map_or_else(|| "?".to_string(), |p| p.to_string()),
+            })
+        }
+        Outcome::TimedOut(ms) => {
+            if let Some(p) = pid {
+                terminate_group(p).await;
             }
-            Outcome::Done(Err(e)) => Err(classify_drain_error(&e)),
-            Outcome::Done(Ok((status, stdout, stderr))) => Ok(ShellResult::new(
-                status.code().unwrap_or(-1),
-                String::from_utf8_lossy(&stdout),
-                String::from_utf8_lossy(&stderr),
-                start.elapsed(),
-            )),
+            Err(ShellError::Timeout { duration_ms: ms })
+        }
+        Outcome::Done(Err(e)) => Err(classify_drain_error(&e)),
+        Outcome::Done(Ok((status, stdout, stderr))) => Ok(ShellResult::new(
+            status.code().unwrap_or(-1),
+            String::from_utf8_lossy(&stdout),
+            String::from_utf8_lossy(&stderr),
+            start.elapsed(),
+        )),
+    }
+}
+
+/// The pre-spawn blocklist floor (skipped when the caller set `pre_validated`).
+///
+/// The two command forms gate differently. The SHELL form goes to `sh -c`, so
+/// shell-syntax metacharacters in any argument ARE parsed; the full blocklist
+/// plus the expansion-char refusal apply. The ARGV form is `execve` (NO shell),
+/// where a `;` or `| bash` inside an argument is a LITERAL character, so
+/// scanning the joined line would false-positive on benign args. There the
+/// floor uses `check_argv`, which gates the program identity AND the re-exec
+/// class an interpreter / `env` re-introduces. Symmetric on the program-level
+/// dangers (review P0).
+fn pre_validate(command: &ShellCommand) -> Result<(), ShellError> {
+    if !command.pre_validated {
+        if command.shell {
+            // Shell form: the whole line goes to `sh -c`, so shell-syntax
+            // metacharacters in any argument ARE parsed — the full
+            // blocklist (dangerous patterns) + the expansion-char refusal
+            // are the tripwire. The battle-tested floor, unchanged.
+            let full = format!("{} {}", command.program, command.args.join(" "));
+            blocklist::check_command(&full)?;
+            blocklist::check_shell_mode(&full)?;
+        } else {
+            // Argv form: `execve`, NO shell. The shell-SYNTAX patterns are
+            // meaningless here — a `;` or `| bash` inside an argument is a
+            // LITERAL character, so scanning the joined line would false-
+            // positive on benign args (`["echo", "a; b"]`). But the floor
+            // must stay SYMMETRIC with shell mode for the program-level
+            // dangers (review P0): `check_argv` checks the program identity
+            // AND, STRUCTURALLY, the re-exec class an interpreter / `env`
+            // re-introduces (`["sh","-c",…]`, `["python","-c",…]`, `nc -e`,
+            // `dd if=`). Richer gating is `permits.exec` + the sandbox.
+            blocklist::check_argv(&command.program, &command.args)?;
         }
     }
+    Ok(())
 }
 
 /// Spawn the child, classifying the io error (`NotFound` → typed
