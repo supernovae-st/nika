@@ -26,104 +26,52 @@ use BuiltinCategory::{Core, Data, File, Introspection, Network};
 /// Invariant: array MUST be sorted for `binary_search` to work.
 /// This is validated by a unit test.
 pub static ALL_BUILTINS: &[Builtin] = &[
-    Builtin {
-        name: "assert",
-        category: Core,
-    },
-    Builtin {
-        // The agent loop's self-verification intrinsic — checks a workflow
-        // draft the model wrote (`nika check`: conformance + secret-flow +
-        // permits + the AARA certificate) and never executes it. Loop-only
-        // + loop-served like `done` (rejected standalone · NIKA-BUILTIN-
-        // COMPOSE-001 · ADR-093). Introspection: it analyses workflow
-        // structure, the static sibling of `inspect`'s runtime view.
-        name: "compose",
-        category: Introspection,
-    },
-    Builtin {
-        name: "convert",
-        category: Data,
-    },
-    Builtin {
-        name: "date",
-        category: Data,
-    },
-    Builtin {
-        name: "done",
-        category: Core,
-    },
-    Builtin {
-        name: "edit",
-        category: File,
-    },
-    Builtin {
-        name: "emit",
-        category: Core,
-    },
-    Builtin {
-        name: "fetch",
-        category: Network,
-    },
-    Builtin {
-        name: "glob",
-        category: File,
-    },
-    Builtin {
-        name: "grep",
-        category: File,
-    },
-    Builtin {
-        name: "hash",
-        category: Data,
-    },
-    Builtin {
-        name: "inspect",
-        category: Introspection,
-    },
-    Builtin {
-        name: "jq",
-        category: Data,
-    },
-    Builtin {
-        name: "json_diff",
-        category: Data,
-    },
-    Builtin {
-        name: "json_merge_patch",
-        category: Data,
-    },
-    Builtin {
-        name: "log",
-        category: Core,
-    },
-    Builtin {
-        name: "notify",
-        category: Network,
-    },
-    Builtin {
-        name: "prompt",
-        category: Core,
-    },
-    Builtin {
-        name: "read",
-        category: File,
-    },
-    Builtin {
-        name: "uuid",
-        category: Data,
-    },
-    Builtin {
-        name: "validate",
-        category: Data,
-    },
-    Builtin {
-        name: "wait",
-        category: Core,
-    },
-    Builtin {
-        name: "write",
-        category: File,
-    },
+    Builtin::with_args("assert", Core, &["condition", "message"]),
+    // `compose` (the agent loop's self-verification intrinsic — checks a
+    // workflow draft the model wrote · `nika check`: conformance +
+    // secret-flow + permits + the AARA certificate · never executes it ·
+    // loop-only + loop-served like `done` · NIKA-BUILTIN-COMPOSE-001 ·
+    // ADR-093 · the static sibling of `inspect`'s runtime view).
+    Builtin::with_args("compose", Introspection, &["workflow_yaml"]),
+    Builtin::with_args("convert", Data, &["input", "from", "to", "has_header"]),
+    Builtin::with_args(
+        "date",
+        Data,
+        &[
+            "op", "tz", "base", "duration", "input", "format", "start", "end", "unit",
+        ],
+    ),
+    Builtin::with_args("done", Core, &["result"]),
+    Builtin::with_args("edit", File, &["path", "find", "replace", "count"]),
+    Builtin::with_args("emit", Core, &["event_type", "payload"]),
+    Builtin::with_args(
+        "fetch",
+        Network,
+        &["url", "method", "headers", "body", "mode", "selector", "jq"],
+    ),
+    Builtin::with_args("glob", File, &["pattern", "exclude"]),
+    Builtin::with_args("grep", File, &["pattern", "path", "case_insensitive"]),
+    Builtin::with_args("hash", Data, &["content", "algo", "encoding"]),
+    Builtin::with_args("inspect", Introspection, &["view"]),
+    Builtin::with_args("jq", Data, &["expression", "input"]),
+    Builtin::with_args("json_diff", Data, &["before", "after"]),
+    Builtin::with_args("json_merge_patch", Data, &["target", "patch"]),
+    Builtin::with_args("log", Core, &["level", "message", "data"]),
+    Builtin::with_args(
+        "notify",
+        Network,
+        &["channel", "target", "message", "severity", "data"],
+    ),
+    Builtin::with_args("prompt", Core, &["mode", "message", "choices", "default"]),
+    Builtin::with_args("read", File, &["path", "binary"]),
+    Builtin::with_args("uuid", Data, &["version"]),
+    Builtin::with_args("validate", Data, &["data", "schema", "format"]),
+    Builtin::with_args("wait", Core, &["duration", "until", "timeout"]),
+    Builtin::with_args(
+        "write",
+        File,
+        &["path", "content", "overwrite", "create_dirs"],
+    ),
 ];
 
 /// Find a builtin tool by name (case-sensitive, O(log n) binary search).
@@ -243,5 +191,29 @@ mod tests {
             23,
             "total must equal 23"
         );
+    }
+
+    #[test]
+    fn every_builtin_declares_at_least_one_arg_key_with_no_dupes() {
+        // The arg vocabulary `nika check` validates against — every builtin
+        // in stdlib v0.1 takes args, and a key listed twice would be a
+        // copy-paste slip in the table.
+        for b in ALL_BUILTINS {
+            assert!(!b.args.is_empty(), "`{}` declares no args", b.name);
+            let mut seen = b.args.to_vec();
+            seen.sort_unstable();
+            let before = seen.len();
+            seen.dedup();
+            assert_eq!(seen.len(), before, "`{}` has a duplicate arg key", b.name);
+        }
+    }
+
+    #[test]
+    fn jq_declares_input_not_data() {
+        // The footgun anchor: `nika:jq` reads `input:`, NOT `data:` — the
+        // checker leans on this row to catch the silent-null typo.
+        let jq = find_builtin("jq").expect("jq");
+        assert!(jq.args.contains(&"input"));
+        assert!(!jq.args.contains(&"data"));
     }
 }

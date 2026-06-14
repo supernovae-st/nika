@@ -3514,6 +3514,7 @@ dependencies = [
  "jiff",
  "json-patch",
  "jsonschema",
+ "nika-catalog",
  "nika-extract",
  "nika-kernel",
  "nika-kernel-mock",

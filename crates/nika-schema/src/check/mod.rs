@@ -57,7 +57,7 @@ pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::SchemaTypeFinding;
 pub use secrets::{SecretEgress, SecretLeak};
-pub use tools::UnknownTool;
+pub use tools::{UnknownArg, UnknownTool};
 
 /// The JSON contract version of [`CheckReport`] — bumped on any
 /// breaking field rename/removal so agent loops fail LOUDLY instead of
@@ -158,6 +158,11 @@ pub struct CheckReport {
     /// 22-builtin catalog) — a runtime dispatch failure moved to check
     /// time, with the « did you mean » fix attached.
     pub unknown_tools: Vec<UnknownTool>,
+    /// Every `invoke` call passing an `args:` key the named builtin does
+    /// not declare — the silent-footgun class (`nika:jq` with `data:`
+    /// instead of `input:` runs over `null` and returns `null`, no error),
+    /// surfaced at check time with the « did you mean » fix.
+    pub unknown_args: Vec<UnknownArg>,
     /// Every authored `schema:` defect that makes structured output
     /// unsatisfiable or un-compilable (required∉properties · bad `type`
     /// name · empty `enum`) — the static half of « structured output
@@ -191,6 +196,7 @@ impl CheckReport {
             && self.capability_escapes.is_empty()
             && self.schema_findings.is_empty()
             && self.unknown_tools.is_empty()
+            && self.unknown_args.is_empty()
             && self.schema_lints.is_empty()
             && self.gate_findings.is_empty()
     }
@@ -247,6 +253,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         capability_escapes: permits_fit::scan_escapes(wf),
         schema_findings: schema_typing::scan_types(wf),
         unknown_tools: tools::scan_unknown_tools(wf),
+        unknown_args: tools::scan_unknown_args(wf),
         schema_lints: schema_lint::scan_schemas(wf),
         // gate reachability shares the IFC gating: a valid wave order or
         // nothing (skipped, never wrong)

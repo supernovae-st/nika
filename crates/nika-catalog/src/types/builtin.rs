@@ -19,14 +19,40 @@ pub struct Builtin {
     pub name: &'static str,
     /// Functional category for grouping.
     pub category: BuiltinCategory,
+    /// Declared argument keys (the `args:` object the builtin reads). The
+    /// vocabulary `nika check` validates against — an `args:` key outside
+    /// this set is the `nika:jq` `data:`-vs-`input:` footgun class (an
+    /// ignored arg the runtime silently drops). Kept in lockstep with the
+    /// model-facing `ToolDef` schemas in `nika-builtin` (a drift guard
+    /// there asserts the two match). Empty `&[]` = no declared args yet.
+    pub args: &'static [&'static str],
 }
 
 impl Builtin {
     /// Explicit constructor — required because [`Builtin`] is
-    /// `#[non_exhaustive]` (invariant #19).
+    /// `#[non_exhaustive]` (invariant #19). Declares no args; prefer
+    /// [`Self::with_args`] for a builtin that takes an `args:` object.
     #[must_use]
     pub const fn new(name: &'static str, category: BuiltinCategory) -> Self {
-        Self { name, category }
+        Self {
+            name,
+            category,
+            args: &[],
+        }
+    }
+
+    /// Constructor with the declared argument-key vocabulary.
+    #[must_use]
+    pub const fn with_args(
+        name: &'static str,
+        category: BuiltinCategory,
+        args: &'static [&'static str],
+    ) -> Self {
+        Self {
+            name,
+            category,
+            args,
+        }
     }
 }
 

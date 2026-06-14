@@ -118,21 +118,14 @@ fn render(report: &CheckReport, wf: &RawWorkflow, path: &str, t: Theme) -> Strin
         t,
         "TOOLS",
         "every nika: tool names a canonical builtin",
-        report
-            .unknown_tools
-            .iter()
-            .map(|u| {
-                let fix = u
-                    .suggestion
-                    .as_deref()
-                    .map(|s| format!(" · fix: did you mean `{s}`?"))
-                    .unwrap_or_default();
-                format!(
-                    "`{}` (task `{}`) is not a canonical builtin{fix}",
-                    u.tool, u.task
-                )
-            })
-            .collect(),
+        unknown_tool_rows(report),
+    );
+    section_list(
+        &mut out,
+        t,
+        "ARGS",
+        "every invoke arg key is declared by its builtin",
+        unknown_arg_rows(report),
     );
     section_list(
         &mut out,
@@ -148,6 +141,46 @@ fn render(report: &CheckReport, wf: &RawWorkflow, path: &str, t: Theme) -> Strin
     permits(&mut out, report, wf, t);
     hints_and_verdict(&mut out, report, t);
     out
+}
+
+/// The `· fix: did you mean ___?` clause, or empty when no suggestion.
+fn fix_clause(suggestion: Option<&str>) -> String {
+    suggestion
+        .map(|s| format!(" · fix: did you mean `{s}`?"))
+        .unwrap_or_default()
+}
+
+/// One row per `nika:` tool that names no canonical builtin.
+fn unknown_tool_rows(report: &CheckReport) -> Vec<String> {
+    report
+        .unknown_tools
+        .iter()
+        .map(|u| {
+            format!(
+                "`{}` (task `{}`) is not a canonical builtin{}",
+                u.tool,
+                u.task,
+                fix_clause(u.suggestion.as_deref())
+            )
+        })
+        .collect()
+}
+
+/// One row per `invoke` arg key the named builtin does not declare.
+fn unknown_arg_rows(report: &CheckReport) -> Vec<String> {
+    report
+        .unknown_args
+        .iter()
+        .map(|u| {
+            format!(
+                "`{}` (task `{}`) has no `{}` arg{}",
+                u.tool,
+                u.task,
+                u.arg,
+                fix_clause(u.suggestion.as_deref())
+            )
+        })
+        .collect()
 }
 
 /// Advisory hints + the one-line verdict (the report's last words).

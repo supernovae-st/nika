@@ -36,6 +36,9 @@ tokio         = { workspace = true }   # spawn_blocking — jq's sync CPU eval o
 
 [dev-dependencies]
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.80.0" }
+# test-only: the drift guard pinning tool_defs() arg keys to the catalog
+# Builtin::args vocabulary nika check validates against (one source, no drift).
+nika-catalog     = { path = "../nika-catalog", version = "0.80.0" }
 proptest         = { workspace = true }
 tokio            = { workspace = true }
 

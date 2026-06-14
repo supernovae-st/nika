@@ -346,4 +346,31 @@ mod tests {
         assert_eq!(prop["type"], "string");
         assert_eq!(prop["description"], "a helpful description");
     }
+
+    #[test]
+    fn arg_keys_match_the_catalog_vocabulary_no_drift() {
+        // THE DRIFT GUARD (Finding #6): the model-facing `ToolDef`
+        // properties here and the `Builtin::args` vocabulary `nika check`
+        // validates against (nika-catalog) are two views of ONE contract.
+        // If they diverge, the checker would flag a valid arg OR miss a
+        // typo — so a mismatch fails HERE, in the crate that owns the
+        // schemas, before any release.
+        use std::collections::BTreeSet;
+        for d in tool_defs() {
+            let name = d.name.strip_prefix("nika:").expect("nika: prefix");
+            let catalog = nika_catalog::find_builtin(name)
+                .unwrap_or_else(|| panic!("`{name}` missing from the catalog"));
+            let def_keys: BTreeSet<&str> = d.parameters["properties"]
+                .as_object()
+                .expect("properties object")
+                .keys()
+                .map(String::as_str)
+                .collect();
+            let catalog_keys: BTreeSet<&str> = catalog.args.iter().copied().collect();
+            assert_eq!(
+                def_keys, catalog_keys,
+                "`nika:{name}` arg keys drifted: ToolDef vs catalog Builtin::args"
+            );
+        }
+    }
 }
