@@ -464,18 +464,7 @@ where
             verb_note_prefix(&task.action).clone_into(&mut note);
         }
 
-        let result = match outcome {
-            Ok(DispatchOk {
-                value,
-                tokens,
-                warning,
-            }) => RunResult::Success {
-                value,
-                tokens,
-                warning,
-            },
-            Err(error) => apply_on_error(task, scope, error),
-        };
+        let result = dispatch_result(task, scope, outcome);
         RanTask {
             note,
             retries,
@@ -807,6 +796,28 @@ fn eval_gate(gate: &WhenGate, scope: &Scope<'_>) -> Result<bool, RuntimeError> {
         other => Err(RuntimeError::WhenUnsupported {
             expr: format!("{other:?}"),
         }),
+    }
+}
+
+/// Map an attempt-loop outcome to the terminal [`RunResult`]: a success
+/// carries the value + token spend + the optional OBS-E diagnostic
+/// straight through · a failure runs the `on_error:` policy (spec 05).
+fn dispatch_result(
+    task: &RawTask,
+    scope: &Scope<'_>,
+    outcome: Result<DispatchOk, TaskErrorRecord>,
+) -> RunResult {
+    match outcome {
+        Ok(DispatchOk {
+            value,
+            tokens,
+            warning,
+        }) => RunResult::Success {
+            value,
+            tokens,
+            warning,
+        },
+        Err(error) => apply_on_error(task, scope, error),
     }
 }
 
