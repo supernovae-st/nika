@@ -341,6 +341,7 @@ fn adapt_node(node: &mut Value) {
     };
     obj.remove("additionalProperties");
     normalize_type_union(obj);
+    type_enum_node(obj);
     if let Some(props) = obj.get_mut("properties").and_then(Value::as_object_mut) {
         for prop in props.values_mut() {
             adapt_node(prop);
@@ -352,6 +353,55 @@ fn adapt_node(node: &mut Value) {
             Some(child) => adapt_node(child),
             None => {}
         }
+    }
+}
+
+/// Give an `enum` node a `type` inferred from its members' JSON types when
+/// it lacks one, so the enum reaches Gemini with the right proto type.
+///
+/// Gemini's `responseSchema` `enum` is interpreted against the node's
+/// `type`; a typeless enum is inferred as `STRING`, so an *integer* enum
+/// (e.g. a `const: 200` rewritten to `enum: [200]`, or an author who wrote
+/// `enum` without `type`) 400s "enum\[0\] (`TYPE_STRING`), 200". The member
+/// VALUES are never touched — an integer enum stays integers; this only
+/// supplies the missing scalar `type` (`integer`/`number`/`boolean`/
+/// `string`) when all members agree. A node that already declares `type`
+/// is left as-is (an explicit `type:integer` + numeric enum is correct).
+fn type_enum_node(obj: &mut serde_json::Map<String, Value>) {
+    if obj.contains_key("type") {
+        return;
+    }
+    let Some(members) = obj.get("enum").and_then(Value::as_array) else {
+        return;
+    };
+    if let Some(inferred) = unanimous_json_type(members) {
+        obj.insert("type".to_owned(), Value::String(inferred.to_owned()));
+    }
+}
+
+/// The single JSON-Schema scalar type all values share, or `None` if the
+/// list is empty or mixed (a mixed enum is left typeless — the caller's
+/// risk, not silently mistyped). Integers are reported as `integer`, other
+/// numbers as `number` (matching JSON-Schema's split).
+fn unanimous_json_type(values: &[Value]) -> Option<&'static str> {
+    let mut kinds = values.iter().map(json_scalar_type);
+    let first = kinds.next()??;
+    if kinds.all(|k| k == Some(first)) {
+        Some(first)
+    } else {
+        None
+    }
+}
+
+/// The JSON-Schema scalar type name of one value (`None` for null /
+/// array / object — not a scalar enum member type Gemini infers).
+fn json_scalar_type(v: &Value) -> Option<&'static str> {
+    match v {
+        Value::String(_) => Some("string"),
+        Value::Bool(_) => Some("boolean"),
+        Value::Number(n) if n.is_u64() || n.is_i64() => Some("integer"),
+        Value::Number(_) => Some("number"),
+        _ => None,
     }
 }
 
@@ -1455,6 +1505,61 @@ mod tests {
         assert_eq!(out["type"], "string", "single real type stays scalar");
         assert_eq!(out["nullable"], true);
         assert!(out.get("anyOf").is_none(), "no anyOf for a lone type");
+    }
+
+    // ── BUG#10 · integer enum value types preserved for gemini ──
+
+    #[test]
+    fn adapter_keeps_integer_enum_values_as_integers() {
+        // `{type:integer, enum:[200,404,500]}` 400s "enum[0] (TYPE_STRING),
+        // 200" when the members get stringified. The wire enum must stay
+        // integers and the explicit type be left as-is (the k10 repro).
+        let out = adapt(&json!({
+            "type": "object",
+            "required": ["status"],
+            "properties": {
+                "status": {"type": "integer", "enum": [200, 404, 500]}
+            }
+        }));
+        let status = &out["properties"]["status"];
+        assert_eq!(status["type"], "integer", "explicit type untouched");
+        assert_eq!(status["enum"], json!([200, 404, 500]), "values verbatim");
+        // every member is still a JSON number, never a string.
+        for m in status["enum"].as_array().expect("enum array") {
+            assert!(m.is_number(), "integer enum member stayed numeric: {m}");
+        }
+    }
+
+    #[test]
+    fn adapter_string_enum_is_unchanged() {
+        // a string enum keeps its (already-string) members and type.
+        let out = adapt(&json!({
+            "type": "string",
+            "enum": ["ok", "not_found", "error"]
+        }));
+        assert_eq!(out["type"], "string");
+        assert_eq!(out["enum"], json!(["ok", "not_found", "error"]));
+    }
+
+    #[test]
+    fn adapter_infers_integer_type_for_a_typeless_int_enum() {
+        // A typeless integer enum (e.g. a `const:200` rewritten to
+        // `enum:[200]`) would be inferred as TYPE_STRING and 400 on the
+        // numeric member — supply `type:integer`, leaving the values numeric.
+        let out = adapt(&json!({"enum": [200, 404]}));
+        assert_eq!(out["type"], "integer", "type inferred from members");
+        assert_eq!(out["enum"], json!([200, 404]), "values stay integers");
+    }
+
+    #[test]
+    fn adapter_infers_scalar_type_for_typeless_enums_by_member_kind() {
+        // number (non-integer) → "number"; bool → "boolean"; string →
+        // "string"; a mixed enum is left typeless (the caller's risk).
+        assert_eq!(adapt(&json!({"enum": [1.5, 2.5]}))["type"], "number");
+        assert_eq!(adapt(&json!({"enum": [true, false]}))["type"], "boolean");
+        assert_eq!(adapt(&json!({"enum": ["a", "b"]}))["type"], "string");
+        let mixed = adapt(&json!({"enum": [1, "two"]}));
+        assert!(mixed.get("type").is_none(), "mixed enum stays typeless");
     }
 
     #[test]
