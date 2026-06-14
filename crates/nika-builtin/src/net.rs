@@ -875,6 +875,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fetch_transport_failures_are_transient() {
+        // BUG-D: connection + timeout transport errors are the textbook
+        // transient case (DNS/connection-refused/reset surface as
+        // HttpError::Connection) — they must be retryable so `retry:` works.
+        use nika_kernel::io::http::HttpError;
+        for err in [
+            HttpError::Timeout { duration_ms: 5000 },
+            HttpError::Connection {
+                reason: "dns resolution failed".to_owned(),
+            },
+        ] {
+            let http = MockHttp::new().enqueue_err(err);
+            let fail = fetch(&http, &args(serde_json::json!({ "url": "https://x.test" })))
+                .await
+                .expect_err("transport failure");
+            assert_eq!(fail.code, "NIKA-BUILTIN-FETCH-001");
+            assert!(fail.transient, "a transport failure is retryable");
+        }
+        // An SSRF/scheme rejection (a deterministic refusal) is NOT transient.
+        let http = MockHttp::new().enqueue_err(HttpError::SsrfBlocked {
+            url: "http://127.0.0.1".to_owned(),
+        });
+        let fail = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "http://127.0.0.1" })),
+        )
+        .await
+        .expect_err("ssrf blocked");
+        assert!(!fail.transient, "an SSRF block is a deterministic refusal");
+    }
+
+    #[tokio::test]
     async fn fetch_failure_details_carry_the_status_code() {
         // `details.status_code` is normative (stdlib §fetch) — branching
         // on 403 vs 429 must never mean parsing the human message.

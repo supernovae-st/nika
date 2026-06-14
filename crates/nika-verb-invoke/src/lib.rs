@@ -170,7 +170,21 @@ where
             .map_err(map_dispatch_error)?;
 
         if result.is_error {
-            return Err(VerbInvokeError::tool_reported(input.tool, &result.content));
+            // Carry the tool's OWN failure metadata when it surfaced any
+            // (BUG-D): the spec code the author filters on in `on_codes:`
+            // (`NIKA-BUILTIN-FETCH-001`) + the retry class so a transient
+            // tool failure (HTTP 503/429 · DNS · connection) stays
+            // retryable. A text-only tool (no metadata) keeps the engine
+            // `NIKA-451` code, non-transient (the prior behavior).
+            return Err(match result.error_meta {
+                Some(meta) => VerbInvokeError::tool_reported_coded(
+                    input.tool,
+                    &result.content,
+                    meta.spec_code,
+                    meta.transient,
+                ),
+                None => VerbInvokeError::tool_reported(input.tool, &result.content),
+            });
         }
         // Carry the tool's typed value (when it has one) on the structured
         // plane — the engine routes it into tasks.X.output so a builtin
@@ -254,7 +268,10 @@ fn map_dispatch_error(source: nika_kernel::tool_executor::ToolExecError) -> Verb
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nika_kernel::tool_executor::{ToolCall, ToolExecError, ToolExecuteDyn, ToolResult};
+    use nika_error::traits::NikaErrorCode;
+    use nika_kernel::tool_executor::{
+        ToolCall, ToolErrorMeta, ToolExecError, ToolExecuteDyn, ToolResult,
+    };
     use std::sync::Mutex;
 
     /// A scripted tool executor recording the calls it receives. The
@@ -280,6 +297,13 @@ mod tests {
         }
         fn err_result(content: &str) -> Self {
             Self::with(Ok(ToolResult::error("tc", content)))
+        }
+        /// An error result carrying the tool's own failure metadata (spec
+        /// code + retry class · BUG-D).
+        fn err_coded(content: &str, spec_code: &str, transient: bool) -> Self {
+            Self::with(Ok(ToolResult::error("tc", content).with_error_meta(
+                ToolErrorMeta::new(Some(spec_code.to_owned()), transient),
+            )))
         }
         fn dispatch_err(e: ToolExecError) -> Self {
             Self::with(Err(e))
@@ -421,6 +445,52 @@ mod tests {
             .await
             .expect_err("is_error propagates");
         assert!(matches!(err, VerbInvokeError::ToolReportedError { .. }));
+        // A text-only tool error keeps the engine NIKA-451 code · non-transient
+        // (the prior behavior — no surfaced metadata).
+        assert_eq!(err.nika_code().to_string(), "NIKA-451");
+        assert_eq!(err.spec_code(), "NIKA-451");
+        assert!(!err.is_transient());
+    }
+
+    #[tokio::test]
+    async fn transient_tool_failure_carries_its_code_and_is_retryable() {
+        // BUG-D: a tool that surfaced its own failure metadata (a transient
+        // `nika:fetch` 503) maps to a RETRYABLE error whose user-facing
+        // spec_code is the tool's own code (`NIKA-BUILTIN-FETCH-001`) — the
+        // identifier the author filters on in `on_codes:`. Previously every
+        // tool error flattened to a non-retryable NIKA-451.
+        let err = verb(MockTool::err_coded(
+            "NIKA-BUILTIN-FETCH-001 · HTTP 503",
+            "NIKA-BUILTIN-FETCH-001",
+            true,
+        ))
+        .run(InvokeInput::new("nika:fetch"))
+        .await
+        .expect_err("is_error propagates");
+        assert!(matches!(err, VerbInvokeError::ToolReportedError { .. }));
+        assert!(err.is_transient(), "a 503 tool failure is retryable");
+        assert_eq!(
+            err.spec_code(),
+            "NIKA-BUILTIN-FETCH-001",
+            "on_codes: filters on the tool's own code"
+        );
+        // The engine numeric code is still NIKA-451 (the variant identity).
+        assert_eq!(err.nika_code().to_string(), "NIKA-451");
+    }
+
+    #[tokio::test]
+    async fn non_transient_tool_failure_carries_its_code_but_is_not_retryable() {
+        // A 404 tool failure surfaces its code but stays non-retryable.
+        let err = verb(MockTool::err_coded(
+            "NIKA-BUILTIN-FETCH-001 · HTTP 404",
+            "NIKA-BUILTIN-FETCH-001",
+            false,
+        ))
+        .run(InvokeInput::new("nika:fetch"))
+        .await
+        .expect_err("is_error propagates");
+        assert!(!err.is_transient(), "a 404 is not retryable");
+        assert_eq!(err.spec_code(), "NIKA-BUILTIN-FETCH-001");
     }
 
     #[tokio::test]

@@ -4,6 +4,7 @@ pub nika_verb_invoke::VerbInvokeError::Dispatch
 pub nika_verb_invoke::VerbInvokeError::Dispatch::source: nika_kernel_runtime::tool_executor::ToolExecError
 pub nika_verb_invoke::VerbInvokeError::ToolReportedError
 pub nika_verb_invoke::VerbInvokeError::ToolReportedError::content_tail: alloc::string::String
+pub nika_verb_invoke::VerbInvokeError::ToolReportedError::spec_code: core::option::Option<alloc::string::String>
 pub nika_verb_invoke::VerbInvokeError::ToolReportedError::tool: alloc::string::String
 pub nika_verb_invoke::VerbInvokeError::UnresolvableTool
 pub nika_verb_invoke::VerbInvokeError::UnresolvableTool::detail: alloc::string::String
@@ -19,6 +20,7 @@ pub fn nika_verb_invoke::VerbInvokeError::code(&self) -> core::option::Option<al
 impl nika_error::traits::NikaErrorCode for nika_verb_invoke::VerbInvokeError
 pub fn nika_verb_invoke::VerbInvokeError::is_transient(&self) -> bool
 pub fn nika_verb_invoke::VerbInvokeError::nika_code(&self) -> nika_error::codes::NikaCode
+pub fn nika_verb_invoke::VerbInvokeError::spec_code(&self) -> alloc::string::String
 impl<D> owo_colors::OwoColorize for nika_verb_invoke::VerbInvokeError
 impl<T, U> core::convert::Into<U> for nika_verb_invoke::VerbInvokeError where U: core::convert::From<T>
 pub fn nika_verb_invoke::VerbInvokeError::into(self) -> U

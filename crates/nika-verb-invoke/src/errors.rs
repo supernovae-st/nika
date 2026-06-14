@@ -42,6 +42,16 @@ pub enum VerbInvokeError {
         tool: String,
         /// Tail of the tool's error content (capped).
         content_tail: String,
+        /// The tool's OWN user-facing spec code when it surfaced one
+        /// (`NIKA-BUILTIN-FETCH-001` · the identifier an author writes in
+        /// `on_codes`). `None` for a tool that reported only text — then the
+        /// engine code (`NIKA-451`) is the user-facing code. Carried via the
+        /// tool-result error metadata seam (BUG-D).
+        spec_code: Option<String>,
+        /// Whether the tool deemed its failure retryable (HTTP 503/429 · DNS ·
+        /// connection reset for `nika:fetch`). `false` for a text-only tool
+        /// (no surfaced metadata) — the prior non-retryable behavior (BUG-D).
+        transient: bool,
     },
 
     /// Tool dispatch failed (timeout · execution · unavailable).
@@ -55,11 +65,33 @@ pub enum VerbInvokeError {
 }
 
 impl VerbInvokeError {
-    /// Build the tool-reported error with the content tail capped.
+    /// Build the tool-reported error with the content tail capped and no
+    /// surfaced metadata (a text-only tool — the engine `NIKA-451` is the
+    /// user-facing code, non-transient · the prior behavior).
     pub(crate) fn tool_reported(tool: impl Into<String>, content: &str) -> Self {
         Self::ToolReportedError {
             tool: tool.into(),
             content_tail: cap_tail(content),
+            spec_code: None,
+            transient: false,
+        }
+    }
+
+    /// Build the tool-reported error carrying the tool's OWN spec code +
+    /// retry class (the tool-result error metadata · BUG-D). `spec_code` is
+    /// the `NIKA-BUILTIN-…` identifier the author filters on in `on_codes:`;
+    /// `transient` lets a genuinely-transient tool failure be retried.
+    pub(crate) fn tool_reported_coded(
+        tool: impl Into<String>,
+        content: &str,
+        spec_code: Option<String>,
+        transient: bool,
+    ) -> Self {
+        Self::ToolReportedError {
+            tool: tool.into(),
+            content_tail: cap_tail(content),
+            spec_code,
+            transient,
         }
     }
 }
@@ -85,9 +117,36 @@ impl NikaErrorCode for VerbInvokeError {
         }
     }
 
+    /// The user-facing SPEC code (`spec/05-errors.md` · what `on_codes:`
+    /// filters on). `NIKA-450` → `NIKA-INVOKE-001` (unknown tool). A
+    /// tool-reported error (`NIKA-451`) carries the TOOL's own surfaced spec
+    /// code when present (e.g. `NIKA-BUILTIN-FETCH-001` · the identifier an
+    /// author writes in `on_codes` per the spec retry example), else its
+    /// numeric wire form. `Dispatch` (`NIKA-452`) is the engine-internal
+    /// `tool_error` class with no spec namespace row — numeric wire form.
+    fn spec_code(&self) -> String {
+        match self {
+            Self::UnresolvableTool { .. } => "NIKA-INVOKE-001".to_owned(),
+            // The tool's own spec code rides through when it surfaced one
+            // (the BUILTIN sub-namespace the author filters on); else the
+            // numeric wire form via the registry.
+            Self::ToolReportedError {
+                spec_code: Some(code),
+                ..
+            } => code.clone(),
+            Self::ToolReportedError { .. } | Self::Dispatch { .. } => self.nika_code().to_string(),
+        }
+    }
+
     fn is_transient(&self) -> bool {
         match self {
-            Self::UnresolvableTool { .. } | Self::ToolReportedError { .. } => false,
+            Self::UnresolvableTool { .. } => false,
+            // A tool that ran and reported an error carries its OWN retry
+            // class (BUG-D): `nika:fetch` marks HTTP 503/429 · DNS ·
+            // connection failures transient so `retry:` works; 4xx-other ·
+            // SSRF-block · bad-scheme stay false. A text-only tool surfaced
+            // no metadata → `transient: false` (the prior behavior).
+            Self::ToolReportedError { transient, .. } => *transient,
             // Inherit the dispatcher's classification (a timeout MAY be
             // transient once the kernel marks it so · terminal today).
             Self::Dispatch { source } => source.is_transient(),

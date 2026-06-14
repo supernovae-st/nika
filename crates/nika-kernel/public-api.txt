@@ -96,6 +96,7 @@ pub use nika_kernel::ToolCallId
 pub use nika_kernel::ToolCallRecord
 pub use nika_kernel::ToolChoice
 pub use nika_kernel::ToolDef
+pub use nika_kernel::ToolErrorMeta
 pub use nika_kernel::ToolErrorPolicy
 pub use nika_kernel::ToolExecError
 pub use nika_kernel::ToolExecute
@@ -114,6 +115,7 @@ pub use nika_kernel::billing
 pub use nika_kernel::blob
 pub use nika_kernel::cancel
 pub use nika_kernel::clock
+pub use nika_kernel::command_sandbox
 pub use nika_kernel::context
 pub use nika_kernel::embed_batch_sequential
 pub use nika_kernel::event_sink

@@ -42,7 +42,7 @@ use nika_kernel::io::clock::ClockDyn;
 use nika_kernel::io::fs::{FsListDyn, FsReadDyn, FsWriteDyn};
 use nika_kernel::io::http::{HttpGetDyn, HttpPostDyn};
 use nika_kernel::runtime::tool_executor::{
-    ToolBatchDyn, ToolCall, ToolExecError, ToolExecuteDyn, ToolResult,
+    ToolBatchDyn, ToolCall, ToolErrorMeta, ToolExecError, ToolExecuteDyn, ToolResult,
 };
 
 pub use defs::tool_defs;
@@ -466,7 +466,18 @@ fn render(call_id: &str, outcome: BuiltinOutcome) -> ToolResult {
             ToolResult::success(call_id, content).with_structured(value)
         }
         Err(failure) => {
+            // Carry the failure's spec code + retry class on the result's
+            // error-metadata plane (BUG-D) — the `invoke` verb reads it so a
+            // transient `nika:fetch` (HTTP 503/429 · DNS · connection) stays
+            // retryable and the author's `on_codes:` filters on the builtin's
+            // own code (`NIKA-BUILTIN-FETCH-001`), instead of every tool
+            // error flattening to a non-retryable `NIKA-451`. `content` keeps
+            // the `<code> · <message>` text view the agent loop reads.
             ToolResult::error(call_id, format!("{} · {}", failure.code, failure.message))
+                .with_error_meta(ToolErrorMeta::new(
+                    Some(failure.code.to_owned()),
+                    failure.transient,
+                ))
         }
     }
 }
@@ -756,6 +767,41 @@ mod tests {
         // A failure has no typed value — the dataflow never sees a structured
         // error (errors travel the task-error channel, not tasks.X.output).
         assert!(failed.structured.is_none());
+    }
+
+    #[test]
+    fn render_failure_carries_spec_code_and_transient_metadata() {
+        // BUG-D: the failure's spec code + retry class ride the result's
+        // error-metadata plane so the invoke verb can filter `on_codes:` on
+        // the builtin's own code and retry a transient failure — not flatten
+        // every tool error to a non-retryable NIKA-451.
+        let transient = render(
+            "t",
+            Err(BuiltinFailure::new("NIKA-BUILTIN-FETCH-001", "HTTP 503").with_transient(true)),
+        );
+        let meta = transient
+            .error_meta
+            .expect("transient failure carries metadata");
+        assert_eq!(meta.spec_code.as_deref(), Some("NIKA-BUILTIN-FETCH-001"));
+        assert!(meta.transient, "a 503 is retryable");
+
+        // A non-transient failure carries its code with transient: false.
+        let terminal = render(
+            "t",
+            Err(BuiltinFailure::new("NIKA-BUILTIN-FETCH-001", "HTTP 404")),
+        );
+        let meta = terminal
+            .error_meta
+            .expect("terminal failure carries metadata");
+        assert_eq!(meta.spec_code.as_deref(), Some("NIKA-BUILTIN-FETCH-001"));
+        assert!(!meta.transient, "a 404 is not retryable");
+
+        // A success carries no error metadata.
+        assert!(
+            render("t", Ok(serde_json::json!("ok")))
+                .error_meta
+                .is_none()
+        );
     }
 
     #[tokio::test]

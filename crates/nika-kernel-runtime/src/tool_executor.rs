@@ -91,6 +91,46 @@ pub struct ToolResult {
     pub structured: Option<serde_json::Value>,
     /// Whether the tool execution resulted in an error.
     pub is_error: bool,
+    /// On an error (`is_error == true`), the tool's OWN failure metadata —
+    /// the user-facing spec code (`NIKA-BUILTIN-FETCH-001`) + retry class.
+    /// `None` when the tool reported only text (an MCP `isError` with no
+    /// structured failure, or a success). The `invoke` verb reads it so a
+    /// genuinely-transient tool failure (HTTP 503/429 · DNS · connection)
+    /// stays retryable and the author's `on_codes:` filters on the tool's
+    /// own code — both were dropped when only `content` survived the seam
+    /// (BUG-D · the metadata-slot gap the `BuiltinFailure` doc foretold).
+    pub error_meta: Option<ToolErrorMeta>,
+}
+
+/// A failed [`ToolResult`]'s machine-readable error metadata — the
+/// spec-code + retry class a tool carries alongside the text `content`.
+///
+/// Additive companion to `is_error` (which stays the boolean an agent loop
+/// reads): the builtin/MCP failure plane sets this so the `invoke` verb can
+/// classify transience and surface the tool's own user-facing code, instead
+/// of flattening every tool error to a non-retryable `NIKA-451`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ToolErrorMeta {
+    /// The tool's user-facing spec code (`NIKA-BUILTIN-FETCH-001` ·
+    /// `NIKA-<NS>-<NNN>`), the identifier an author writes in `on_codes:`.
+    /// `None` when the tool surfaced no structured code.
+    pub spec_code: Option<String>,
+    /// Whether retrying the call may succeed (HTTP 503/429 · DNS · connection
+    /// reset are transient; 4xx-other · refusals are not).
+    pub transient: bool,
+}
+
+impl ToolErrorMeta {
+    /// Construct the error metadata (INV-019 · `new()` on every
+    /// `#[non_exhaustive]` struct).
+    #[must_use]
+    pub fn new(spec_code: Option<String>, transient: bool) -> Self {
+        Self {
+            spec_code,
+            transient,
+        }
+    }
 }
 
 impl ToolResult {
@@ -102,6 +142,7 @@ impl ToolResult {
             content: content.into(),
             structured: None,
             is_error: false,
+            error_meta: None,
         }
     }
 
@@ -115,7 +156,9 @@ impl ToolResult {
         self
     }
 
-    /// Create an error tool result.
+    /// Create an error tool result (text-only · no structured failure
+    /// metadata — the `invoke` verb falls back to its engine `NIKA-451`
+    /// code, non-transient).
     #[must_use]
     pub fn error(tool_use_id: impl Into<String>, content: impl Into<String>) -> Self {
         Self {
@@ -123,7 +166,18 @@ impl ToolResult {
             content: content.into(),
             structured: None,
             is_error: true,
+            error_meta: None,
         }
+    }
+
+    /// Attach the tool's own failure metadata (spec code + retry class) to
+    /// an error result. Builder over [`error`](Self::error): the `content`
+    /// String stays the model-facing view, `error_meta` carries the
+    /// classification the `invoke` verb reads (BUG-D).
+    #[must_use]
+    pub fn with_error_meta(mut self, meta: ToolErrorMeta) -> Self {
+        self.error_meta = Some(meta);
+        self
     }
 }
 

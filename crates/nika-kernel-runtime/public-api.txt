@@ -380,14 +380,54 @@ pub fn nika_kernel_runtime::tool_executor::ToolCallId::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_runtime::tool_executor::ToolCallId where T: 'static
 pub fn nika_kernel_runtime::tool_executor::ToolCallId::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_kernel_runtime::tool_executor::ToolCallId where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_runtime::tool_executor::ToolErrorMeta
+pub nika_kernel_runtime::tool_executor::ToolErrorMeta::spec_code: core::option::Option<alloc::string::String>
+pub nika_kernel_runtime::tool_executor::ToolErrorMeta::transient: bool
+impl nika_kernel_runtime::tool_executor::ToolErrorMeta
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::new(spec_code: core::option::Option<alloc::string::String>, transient: bool) -> Self
+impl core::clone::Clone for nika_kernel_runtime::tool_executor::ToolErrorMeta
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::clone(&self) -> nika_kernel_runtime::tool_executor::ToolErrorMeta
+impl core::cmp::Eq for nika_kernel_runtime::tool_executor::ToolErrorMeta
+impl core::cmp::PartialEq for nika_kernel_runtime::tool_executor::ToolErrorMeta
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::eq(&self, other: &nika_kernel_runtime::tool_executor::ToolErrorMeta) -> bool
+impl core::fmt::Debug for nika_kernel_runtime::tool_executor::ToolErrorMeta
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_runtime::tool_executor::ToolErrorMeta
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::tool_executor::ToolErrorMeta
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::tool_executor::ToolErrorMeta where U: core::convert::From<T>
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::tool_executor::ToolErrorMeta where U: core::convert::Into<T>
+pub type nika_kernel_runtime::tool_executor::ToolErrorMeta::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::tool_executor::ToolErrorMeta where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::tool_executor::ToolErrorMeta::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_runtime::tool_executor::ToolErrorMeta where T: core::clone::Clone
+pub type nika_kernel_runtime::tool_executor::ToolErrorMeta::Owned = T
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::clone_into(&self, target: &mut T)
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_runtime::tool_executor::ToolErrorMeta where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::tool_executor::ToolErrorMeta where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::tool_executor::ToolErrorMeta where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_runtime::tool_executor::ToolErrorMeta where T: core::clone::Clone
+pub unsafe fn nika_kernel_runtime::tool_executor::ToolErrorMeta::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_runtime::tool_executor::ToolErrorMeta
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::tool_executor::ToolErrorMeta where T: 'static
+pub fn nika_kernel_runtime::tool_executor::ToolErrorMeta::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_runtime::tool_executor::ToolResult
 pub nika_kernel_runtime::tool_executor::ToolResult::content: alloc::string::String
+pub nika_kernel_runtime::tool_executor::ToolResult::error_meta: core::option::Option<nika_kernel_runtime::tool_executor::ToolErrorMeta>
 pub nika_kernel_runtime::tool_executor::ToolResult::is_error: bool
 pub nika_kernel_runtime::tool_executor::ToolResult::structured: core::option::Option<serde_json::value::Value>
 pub nika_kernel_runtime::tool_executor::ToolResult::tool_use_id: nika_kernel_runtime::tool_executor::ToolCallId
 impl nika_kernel_runtime::tool_executor::ToolResult
 pub fn nika_kernel_runtime::tool_executor::ToolResult::error(tool_use_id: impl core::convert::Into<alloc::string::String>, content: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_runtime::tool_executor::ToolResult::success(tool_use_id: impl core::convert::Into<alloc::string::String>, content: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_runtime::tool_executor::ToolResult::with_error_meta(self, meta: nika_kernel_runtime::tool_executor::ToolErrorMeta) -> Self
 pub fn nika_kernel_runtime::tool_executor::ToolResult::with_structured(self, value: serde_json::value::Value) -> Self
 impl core::clone::Clone for nika_kernel_runtime::tool_executor::ToolResult
 pub fn nika_kernel_runtime::tool_executor::ToolResult::clone(&self) -> nika_kernel_runtime::tool_executor::ToolResult

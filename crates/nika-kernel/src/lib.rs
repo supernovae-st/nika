@@ -111,7 +111,8 @@ pub use provider::{
 pub use sandbox::{Capability, Sandbox, SandboxError};
 pub use secret::{Secret, SecretRef, SecretResolver};
 pub use tool_executor::{
-    ToolBatch, ToolCall, ToolCallId, ToolExecError, ToolExecute, ToolExecutor, ToolResult,
+    ToolBatch, ToolCall, ToolCallId, ToolErrorMeta, ToolExecError, ToolExecute, ToolExecutor,
+    ToolResult,
 };
 pub use trace::{SpanGuard, TracerProvider};
 pub use types::{TaskId, WorkflowMeta};
