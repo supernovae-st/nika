@@ -212,15 +212,39 @@ pub(crate) fn convert(args: &Args) -> BuiltinOutcome {
         .ok_or_else(|| BuiltinFailure::new(C1, "`input:` is required"))?;
 
     // Parse the input into the canonical serde_json::Value bridge.
-    let value = parse_format(from, input, args).map_err(|e| BuiltinFailure::new(C2, e))?;
+    // CSV `has_header:` is STRICT (default true) — resolved ONCE here so a
+    // non-bool (`"false"`, `0`) is a LOUD CONVERT-001 arg error · NOT the
+    // silent coercion `crate::opt_bool` would do (reading every non-bool as
+    // the default → header-AWARE output for `has_header: "false"`, the
+    // opposite of intent · the F1 silent-data-corruption footgun). It only
+    // matters for the csv direction, but validating unconditionally is the
+    // loud floor — a non-bool flag is an authoring bug regardless.
+    let has_header = strict_has_header(args, C1)?;
+
+    let value = parse_format(from, input, has_header).map_err(|e| BuiltinFailure::new(C2, e))?;
     // Emit the target format.
-    emit_format(to, &value, args).map_err(|e| BuiltinFailure::new(C1, e))
+    emit_format(to, &value, has_header).map_err(|e| BuiltinFailure::new(C1, e))
+}
+
+/// CSV `has_header:` — absent OR a real boolean (default true); anything
+/// else is a LOUD arg error. The general `crate::opt_bool` reads every
+/// non-bool as the default, which for `has_header` silently INVERTS intent
+/// (`"false"` → header-aware) — so this builtin needs the strict reading.
+fn strict_has_header(args: &Args, code: &'static str) -> Result<bool, BuiltinFailure> {
+    match args.get("has_header") {
+        None => Ok(true),
+        Some(serde_json::Value::Bool(b)) => Ok(*b),
+        Some(other) => Err(BuiltinFailure::new(
+            code,
+            format!("`has_header:` must be a boolean (true/false), not {other}"),
+        )),
+    }
 }
 
 fn parse_format(
     from: &str,
     input: &serde_json::Value,
-    args: &Args,
+    has_header: bool,
 ) -> Result<serde_json::Value, String> {
     let as_text = || {
         input
@@ -236,7 +260,7 @@ fn parse_format(
                 toml_convert::from_str(&as_text()?).map_err(|e| format!("invalid TOML: {e}"))?;
             toml_to_json(parsed)
         }
-        "csv" => parse_csv(&as_text()?, crate::opt_bool(args, "has_header", true)),
+        "csv" => parse_csv(&as_text()?, has_header),
         other => Err(format!("unknown from: {other} (json|yaml|toml|csv)")),
     }
 }
@@ -272,13 +296,13 @@ fn toml_to_json(value: toml_convert::Value) -> Result<serde_json::Value, String>
 fn emit_format(
     to: &str,
     value: &serde_json::Value,
-    args: &Args,
+    has_header: bool,
 ) -> Result<serde_json::Value, String> {
     let text = match to {
         "json" => return Ok(value.clone()),
         "yaml" => serde_yaml_bw::to_string(value).map_err(|e| format!("to YAML: {e}"))?,
         "toml" => toml_convert::to_string(value).map_err(|e| format!("to TOML: {e}"))?,
-        "csv" => emit_csv(value, crate::opt_bool(args, "has_header", true))?,
+        "csv" => emit_csv(value, has_header)?,
         other => return Err(format!("unknown to: {other} (json|yaml|toml|csv)")),
     };
     Ok(serde_json::Value::String(text))
@@ -911,6 +935,65 @@ mod tests {
             serde_json::json!({ "input": "not: : toml", "from": "toml", "to": "json" }),
         ));
         assert!(matches!(bad_parse, Err(f) if f.code == "NIKA-BUILTIN-CONVERT-002"));
+    }
+
+    #[test]
+    fn convert_has_header_is_a_strict_bool_not_silently_coerced() {
+        // F1 · the silent-data-corruption footgun: a non-bool `has_header`
+        // must be a LOUD error, never silently read as the (true) default.
+
+        // has_header: false → headerless · the first row is DATA (an array
+        // of arrays), the header is NOT consumed.
+        let headerless = convert(&args(serde_json::json!({
+            "input": "name,age\nada,36", "from": "csv", "to": "json", "has_header": false
+        })))
+        .expect("ok");
+        assert_eq!(
+            headerless,
+            serde_json::json!([["name", "age"], ["ada", "36"]]),
+            "has_header: false keeps every row as data"
+        );
+
+        // has_header: true → the first row is the header (array of objects).
+        let with_header = convert(&args(serde_json::json!({
+            "input": "name,age\nada,36", "from": "csv", "to": "json", "has_header": true
+        })))
+        .expect("ok");
+        assert_eq!(
+            with_header,
+            serde_json::json!([{"name": "ada", "age": "36"}]),
+            "has_header: true consumes the header row"
+        );
+
+        // has_header: "false" (a STRING) is a LOUD CONVERT-001 — NOT the
+        // old silent-true that produced header-aware output (the opposite
+        // of the author's intent, with no error).
+        let string_false = convert(&args(serde_json::json!({
+            "input": "name,age\nada,36", "from": "csv", "to": "json", "has_header": "false"
+        })));
+        assert!(
+            matches!(&string_false, Err(f) if f.code == "NIKA-BUILTIN-CONVERT-001"
+                && f.message.contains("must be a boolean")),
+            "string has_header is loud, not silent-true: {string_false:?}"
+        );
+
+        // has_header: 0 (a NUMBER) is likewise loud.
+        let number_zero = convert(&args(serde_json::json!({
+            "input": "name,age\nada,36", "from": "csv", "to": "json", "has_header": 0
+        })));
+        assert!(
+            matches!(&number_zero, Err(f) if f.code == "NIKA-BUILTIN-CONVERT-001"),
+            "numeric has_header is loud: {number_zero:?}"
+        );
+
+        // The strict check ALSO guards the emit direction (json → csv).
+        let emit_bad = convert(&args(serde_json::json!({
+            "input": [{"a": "1"}], "from": "json", "to": "csv", "has_header": "0"
+        })));
+        assert!(
+            matches!(&emit_bad, Err(f) if f.code == "NIKA-BUILTIN-CONVERT-001"),
+            "emit-side has_header is strict too: {emit_bad:?}"
+        );
     }
 
     #[test]
