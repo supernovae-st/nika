@@ -10,7 +10,7 @@
 //!
 //! v0.1 ships TWO rule sets · [`one_obvious_way`] — the control-flow
 //! preference rules the spec marks « normative for linters » — and
-//! [`arg_injection`] — argument-injection advisories for the array command
+//! [`arg_injection()`] — argument-injection advisories for the array command
 //! form (spec `02-verbs.md` §exec Security · the differentiator).
 
 mod arg_injection;
