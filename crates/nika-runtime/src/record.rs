@@ -87,6 +87,14 @@ pub struct TaskRecord {
     pub ended_at: Option<Timestamp>,
     /// Clock-measured execution time (None when the task never ran).
     pub duration_ms: Option<u64>,
+    /// `output:` named bindings (spec 04 §Output binding) — `<name>` →
+    /// the jq result over the raw output. Populated only on a SUCCESS
+    /// (a skipped/cancelled/failed task's bindings read defined-null per
+    /// spec 04 · so this stays empty and [`Self::field`] falls to null).
+    /// Reserved-name collisions (`output`/`status`/…) are a parse error
+    /// (the checker · spec 04 §rules), so a binding never shadows a
+    /// record field here.
+    pub named: BTreeMap<String, Value>,
 }
 
 impl TaskRecord {
@@ -100,13 +108,15 @@ impl TaskRecord {
             started_at: None,
             ended_at: None,
             duration_ms: None,
+            named: BTreeMap::new(),
         }
     }
 
-    /// Resolve one record field by name (the closed field set of spec
-    /// 04). `None` = not a record field (the reference form is out of
-    /// the v0 subset — the caller raises NIKA-1703, not 1702: the task
-    /// EXISTS, the field doesn't).
+    /// Resolve one record field by name — the closed reserved field set
+    /// (spec 04 §result record) PLUS the task's `output:` named bindings
+    /// (spec 04 §Output binding · `tasks.X.<name>`). `None` = neither a
+    /// reserved field NOR a known binding (the reference form is out of
+    /// the v0 subset).
     #[must_use]
     pub fn field(&self, name: &str) -> Option<Value> {
         Some(match name {
@@ -122,7 +132,12 @@ impl TaskRecord {
             "duration_ms" => self
                 .duration_ms
                 .map_or(Value::Null, |ms| Value::Number(ms.into())),
-            _ => return None,
+            // A declared `output:` binding (`tasks.X.<name>`). The map
+            // carries an entry for EVERY declared binding once settled
+            // (the evaluated value on success · `Null` on a non-success
+            // task · the defined-null read · spec 04). A name absent from
+            // the map is therefore neither reserved nor declared → None.
+            other => return self.named.get(other).cloned(),
         })
     }
 }

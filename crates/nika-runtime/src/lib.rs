@@ -43,6 +43,7 @@ mod agent_events;
 mod dispatch;
 mod errors;
 mod expr;
+mod jq;
 mod record;
 mod retry;
 mod stamp;
@@ -336,6 +337,10 @@ fn settle(
     sink: &mut dyn EventSink,
 ) {
     let id = finish.id;
+    // `output:` named bindings (spec 04) — the same map rides every
+    // outcome: the evaluated values on success · all-`Null` on a
+    // non-success (defined-null reads · empty when no `output:`).
+    let named = finish.named;
     match finish.settle {
         SettleAs::Cancelled { note } => {
             emit(
@@ -344,7 +349,10 @@ fn settle(
                 EventKind::TaskCancelled,
                 &[("task", s(&id)), ("note", s(note))],
             );
-            records.insert(id, TaskRecord::unran(TaskStatus::Cancelled));
+            records.insert(
+                id,
+                with_named(TaskRecord::unran(TaskStatus::Cancelled), named),
+            );
         }
         SettleAs::SkippedGate { note } => {
             emit(
@@ -353,7 +361,10 @@ fn settle(
                 EventKind::TaskSkipped,
                 &[("task", s(&id)), ("note", s(note))],
             );
-            records.insert(id, TaskRecord::unran(TaskStatus::Skipped));
+            records.insert(
+                id,
+                with_named(TaskRecord::unran(TaskStatus::Skipped), named),
+            );
         }
         SettleAs::FailedBeforeStart { stage, error } => {
             // A pre-dispatch failure (gate eval · with · for_each
@@ -371,14 +382,22 @@ fn settle(
             );
             let mut record = TaskRecord::unran(TaskStatus::Failure);
             record.error = Some(error);
-            records.insert(id, record);
+            records.insert(id, with_named(record, named));
             *ok = false;
         }
         SettleAs::Ran(run) => {
-            let record = settle_ran(&id, run, ok, stamper, sink);
+            let mut record = settle_ran(&id, run, ok, stamper, sink);
+            record.named = named;
             records.insert(id, record);
         }
     }
+}
+
+/// Attach the `output:` named bindings to a record (spec 04 · the bindings
+/// ride every outcome · null on a non-success).
+fn with_named(mut record: TaskRecord, named: BTreeMap<String, Value>) -> TaskRecord {
+    record.named = named;
+    record
 }
 
 /// Settle a task that RAN — the started frame · the retry history ·

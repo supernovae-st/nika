@@ -69,6 +69,27 @@ pub enum RuntimeError {
         /// The expression-relative message from `nika-cel`.
         message: String,
     },
+
+    /// An `output:` named-binding evaluation failure (spec 04 §binding
+    /// rules · the jq runs over the task's RAW output). The wire code is
+    /// SPEC-PLANE (resolvable via `nika_pack::error_codes()`, same plane
+    /// as [`Self::CelEval`]) ·
+    /// - `NIKA-VAR-002` · the jq program emitted zero or MORE than one
+    ///   value (a binding is single-valued · collect a stream with
+    ///   `[ … ]` or take one with an index / `first(…)`).
+    /// - `NIKA-VAR-004` · the jq program itself errored at runtime.
+    ///
+    /// A binding failure FAILS the task (it is evaluated before the
+    /// terminal frame · a `TaskCompleted` becomes `TaskFailed`) · it
+    /// never aborts the run.
+    #[error("{code} · {message}")]
+    #[diagnostic(code(nika::runtime::output_binding))]
+    OutputBinding {
+        /// The spec wire code (`NIKA-VAR-002` · `NIKA-VAR-004`).
+        code: &'static str,
+        /// The binding-relative message (which `<name>` · the jq cause).
+        message: String,
+    },
 }
 
 impl RuntimeError {
@@ -80,7 +101,7 @@ impl RuntimeError {
     #[must_use]
     pub fn spec_code(&self) -> String {
         match self {
-            Self::CelEval { code, .. } => (*code).to_owned(),
+            Self::CelEval { code, .. } | Self::OutputBinding { code, .. } => (*code).to_owned(),
             other => other.nika_code().to_string(),
         }
     }
@@ -127,12 +148,14 @@ impl NikaErrorCode for RuntimeError {
             Self::DirtyReport => codes::NIKA_1700,
             Self::WaveOutOfBounds { .. } => codes::NIKA_1701,
             Self::UnresolvedTemplate { .. } => codes::NIKA_1702,
-            // CelEval is the spec-plane TYPE class · at the engine-
-            // internal layer it shares the "expression couldn't be
-            // honored" family with WhenUnsupported (NIKA-1703 · both
-            // resolve in the nika_error registry). The user-facing wire
-            // code is `spec_code()` (NIKA-VAR-006), not this.
-            Self::WhenUnsupported { .. } | Self::CelEval { .. } => codes::NIKA_1703,
+            // CelEval + OutputBinding are spec-plane evaluation classes ·
+            // at the engine-internal layer they share the "expression
+            // couldn't be honored" family with WhenUnsupported (NIKA-1703
+            // · all resolve in the nika_error registry). The user-facing
+            // wire code is `spec_code()` (NIKA-VAR-00x), not this.
+            Self::WhenUnsupported { .. } | Self::CelEval { .. } | Self::OutputBinding { .. } => {
+                codes::NIKA_1703
+            }
         }
     }
 

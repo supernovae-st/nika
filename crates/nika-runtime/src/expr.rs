@@ -153,9 +153,13 @@ fn tasks_object(records: &BTreeMap<String, TaskRecord>) -> Value {
     )
 }
 
-/// One [`TaskRecord`] as its CEL object (the closed field set · spec
-/// 04 · defined-null: absent values are `null`, never missing keys, so
-/// `tasks.x.error` reads `null` rather than raising on a non-failure).
+/// One [`TaskRecord`] as its CEL object (the closed reserved field set ·
+/// spec 04 · defined-null: absent values are `null`, never missing keys,
+/// so `tasks.x.error` reads `null` rather than raising on a non-failure)
+/// PLUS the task's `output:` named bindings as sibling keys
+/// (`tasks.x.<name>` · spec 04 §Output binding · the dual-accessible
+/// surface). Reserved-name collisions are a parse error (the checker),
+/// so a binding never overwrites a reserved field.
 fn record_object(rec: &TaskRecord) -> Value {
     const FIELDS: [&str; 6] = [
         "output",
@@ -165,12 +169,14 @@ fn record_object(rec: &TaskRecord) -> Value {
         "ended_at",
         "duration_ms",
     ];
-    Value::Object(
-        FIELDS
-            .iter()
-            .map(|f| ((*f).to_owned(), rec.field(f).unwrap_or(Value::Null)))
-            .collect(),
-    )
+    let mut map: serde_json::Map<String, Value> = FIELDS
+        .iter()
+        .map(|f| ((*f).to_owned(), rec.field(f).unwrap_or(Value::Null)))
+        .collect();
+    for (name, value) in &rec.named {
+        map.insert(name.clone(), value.clone());
+    }
+    Value::Object(map)
 }
 
 /// Render every `${{ <ref> }}` island in `text` from the scope (spec 04

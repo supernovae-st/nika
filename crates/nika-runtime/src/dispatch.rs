@@ -18,8 +18,9 @@ use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::{RawAction, RawCommand};
+use nika_schema::types::CaptureMode as SpecCaptureMode;
 use nika_verb_agent::{AgentInput, AgentValue};
-use nika_verb_exec::{ExecInput, ExecValue};
+use nika_verb_exec::{CaptureMode, ExecInput, ExecValue};
 use nika_verb_infer::{InferInput, InferValue};
 use nika_verb_invoke::InvokeInput;
 use serde_json::Value;
@@ -178,7 +179,7 @@ where
         // form is rendered PER ELEMENT and passed as a vector (NO join, NO
         // shell), so an interpolated value can never break out of its argv
         // token. The shell form keeps `/bin/sh -c` for genuine pipelines.
-        let (input, program, is_argv) = match &action.command {
+        let (mut input, program, is_argv) = match &action.command {
             RawCommand::Shell(text) => match expr::render(&text.value, scope) {
                 Ok(line) => {
                     let program = shell_leading_program(&line);
@@ -207,6 +208,14 @@ where
                 );
             }
         };
+        // The authored `capture:` mode flows to the verb (spec 02 §exec ·
+        // default `stdout`). It selects which streams come back AND the
+        // one-obvious-way split: under `structured` a non-zero exit is
+        // DATA (the task succeeds · `exit_code` is the branch), under the
+        // text modes it fails the task — the verb owns that decision, so
+        // it MUST see the mode (omitting this ran every exec in stdout
+        // mode · `tasks.X.output.exit_code` was unresolvable).
+        input.capture = capture_mode(action.capture.as_ref().map(|c| c.value));
         let note = format!("exec · {program}");
 
         if let Some(denial) = check_exec_permits(scope.permits, &note, &program, is_argv) {
@@ -215,10 +224,27 @@ where
 
         match self.shell.run(input).await {
             Ok(out) => {
-                let text = match out.output {
-                    ExecValue::Text(text) => text,
-                    ExecValue::Structured { stdout, .. } => stdout,
-                    // #[non_exhaustive] · a future value form fails loudly.
+                // A text mode (`stdout`/`stderr`/`combined`) yields a
+                // trailing-newline-trimmed STRING (the `tasks.X.output ==
+                // '42'` ergonomic). `capture: structured` yields the
+                // `{ stdout, stderr, exit_code }` OBJECT verbatim — so
+                // `tasks.X.output.exit_code` resolves via CEL (spec 02
+                // §exec · same class as BUG#3's invoke value). The
+                // structured streams are NOT trimmed (fidelity is the
+                // whole point of the mode · the verb keeps them raw).
+                let value = match out.output {
+                    ExecValue::Text(text) => Value::String(text.trim_end().to_owned()),
+                    ExecValue::Structured {
+                        stdout,
+                        stderr,
+                        exit_code,
+                    } => serde_json::json!({
+                        "stdout": stdout,
+                        "stderr": stderr,
+                        "exit_code": exit_code,
+                    }),
+                    // #[non_exhaustive] · a future value form fails loudly
+                    // rather than dropping fields (the loud doctrine).
                     other => {
                         return Dispatched::unwired(
                             &note,
@@ -226,7 +252,7 @@ where
                         );
                     }
                 };
-                Dispatched::ok(note, Value::String(text.trim_end().to_owned()), None)
+                Dispatched::ok(note, value, None)
             }
             Err(err) => Dispatched::verb_err(note, &err),
         }
@@ -360,6 +386,23 @@ fn is_env_assignment(token: &str) -> bool {
                 && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
         }
         None => false,
+    }
+}
+
+/// Map the authored `capture:` (spec 02 §exec · schema enum) to the verb's
+/// own `CaptureMode`. Two parallel closed enums (the schema layer vs the
+/// verb layer) bridged here. `None` (omitted) is the spec default
+/// (`stdout`); a future `#[non_exhaustive]` schema variant also falls to
+/// `stdout` (the safe spec default) — the named arms below are the wired
+/// set, so when a new mode lands in BOTH enums it must be added here to
+/// stop riding the default.
+fn capture_mode(spec: Option<SpecCaptureMode>) -> CaptureMode {
+    match spec {
+        Some(SpecCaptureMode::Stderr) => CaptureMode::Stderr,
+        Some(SpecCaptureMode::Combined) => CaptureMode::Combined,
+        Some(SpecCaptureMode::Structured) => CaptureMode::Structured,
+        // `stdout`, omitted, OR an unknown future variant → the default.
+        None | Some(SpecCaptureMode::Stdout | _) => CaptureMode::Stdout,
     }
 }
 

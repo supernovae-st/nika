@@ -54,6 +54,10 @@ const CLEANUP_TIMEOUT: Duration = Duration::from_secs(30);
 pub(crate) struct Finish {
     pub id: String,
     pub settle: SettleAs,
+    /// `output:` named bindings (spec 04 §Output binding) — `<name>` →
+    /// the jq result over the raw output (or `Null` for a non-success
+    /// task · defined-null). Empty when the task declares no `output:`.
+    pub named: BTreeMap<String, Value>,
 }
 
 /// How the task settles (spec 03 §task states).
@@ -146,11 +150,14 @@ where
             // else `cancelled` (Dead-Path-Elimination · the cascade).
             None => {
                 if !default_gate_open(task, records) {
+                    // Gate-cancelled → never produced an output · every
+                    // declared binding reads defined-null (spec 04).
                     return Finish {
                         id,
                         settle: SettleAs::Cancelled {
                             note: "upstream failed",
                         },
+                        named: null_bindings(task),
                     };
                 }
             }
@@ -165,6 +172,7 @@ where
                         settle: SettleAs::SkippedGate {
                             note: "when: gate closed",
                         },
+                        named: null_bindings(task),
                     };
                 }
                 Err(err) => {
@@ -174,20 +182,29 @@ where
                             stage: "when",
                             error: runtime_error_record(&err),
                         },
+                        named: null_bindings(task),
                     };
                 }
             },
         }
 
         // ── `for_each:` fan-out or the single lane ──────────────────
-        let settle = match task.for_each.as_ref() {
+        let mut settle = match task.for_each.as_ref() {
             None => self.run_single(task, records, vars, permits).await,
             Some(spanned) => {
                 self.run_fan_out(task, &spanned.value, records, vars, permits)
                     .await
             }
         };
-        Finish { id, settle }
+        // `output:` named bindings (spec 04 §Output binding) — evaluated
+        // over the task's FINAL raw output, BEFORE settle emits the
+        // terminal frame, so a binding error (NIKA-VAR-002/004) turns a
+        // success into a failure (the cascade) rather than landing after
+        // a `TaskCompleted`. The map carries one entry per declared
+        // binding (the value on success · `Null` on a non-success ·
+        // defined-null reads).
+        let named = bind_outputs(task, &mut settle);
+        Finish { id, settle, named }
     }
 
     /// The single-execution lane (no `for_each:`).
@@ -619,6 +636,105 @@ fn resolve_collection(
             stage: "for_each",
             error: runtime_error_record(&err),
         })),
+    }
+}
+
+/// Evaluate the task's `output:` named bindings (spec 04 §Output binding)
+/// over its FINAL raw output, returning `<name>` → value.
+///
+/// - **Success** · each binding's jq runs over the success raw output. The
+///   FIRST binding that errors (NIKA-VAR-002 cardinality · NIKA-VAR-004
+///   runtime) REPLACES the success in `settle` with a failure (the
+///   binding is part of producing the output · its failure fails the task
+///   · spec 04 §binding rules + 05) and the returned map is all-`Null`.
+/// - **Non-success** (skipped · cancelled · failed · failed-before-start)
+///   · every declared binding reads defined-`Null` (spec 04 · so a
+///   downstream `tasks.X.<name>` of a skipped branch resolves to null,
+///   not a 1702). The success VALUE is never recomputed.
+///
+/// Returns an empty map when the task declares no `output:` (the common
+/// lane pays nothing).
+fn bind_outputs(task: &RawTask, settle: &mut SettleAs) -> BTreeMap<String, Value> {
+    if task.output.is_empty() {
+        return BTreeMap::new();
+    }
+    // The success raw output, if this task succeeded — bindings extract
+    // from it. Borrow it read-only first; the failure-replacement below
+    // only runs on the error path (no borrow conflict).
+    if let Some(output) = success_output(settle) {
+        match eval_all_bindings(task, output) {
+            Ok(named) => return named,
+            // A binding failed → the task fails (NIKA-VAR-002/004). The
+            // terminal frame becomes TaskFailed · bindings read null.
+            Err(error) => {
+                replace_success_with_failure(settle, error);
+            }
+        }
+    }
+    // Non-success (or just-failed-by-binding): every declared binding is
+    // defined-null (spec 04).
+    null_bindings(task)
+}
+
+/// Every declared `output:` binding mapped to defined-`Null` (spec 04 ·
+/// the read of a binding on a non-success task). Names are unique (the
+/// checker · §rules) · empty when the task declares no `output:`.
+fn null_bindings(task: &RawTask) -> BTreeMap<String, Value> {
+    task.output
+        .iter()
+        .map(|(name, _)| (name.value.clone(), Value::Null))
+        .collect()
+}
+
+/// The success raw output of a settled task (the value bindings extract
+/// from), or `None` when the task did not settle as a plain success.
+fn success_output(settle: &SettleAs) -> Option<&Value> {
+    match settle {
+        SettleAs::Ran(ran) => match &ran.result {
+            RunResult::Success { value, .. } => Some(value),
+            RunResult::SkippedWithError { .. } | RunResult::Failed { .. } => None,
+        },
+        SettleAs::Cancelled { .. }
+        | SettleAs::SkippedGate { .. }
+        | SettleAs::FailedBeforeStart { .. } => None,
+    }
+}
+
+/// Evaluate every `output:` binding over `output` (the raw success value)
+/// — returns the full map, or the FIRST binding error (spec 04 ordering:
+/// bindings are evaluated in declaration order · the first failure wins).
+///
+/// The error record carries the SPEC-PLANE wire code (`NIKA-VAR-002` /
+/// `NIKA-VAR-004` · `spec_code()`), the user-facing form a downstream
+/// `on_error.on_codes:` filters on — same convention as the `for_each`
+/// NIKA-VAR-006 site (NOT the engine-internal `nika_code()` 1703).
+fn eval_all_bindings(
+    task: &RawTask,
+    output: &Value,
+) -> Result<BTreeMap<String, Value>, TaskErrorRecord> {
+    let mut named = BTreeMap::new();
+    for (name, program) in &task.output {
+        let value =
+            crate::jq::eval_binding(&name.value, &program.value, output).map_err(|err| {
+                TaskErrorRecord {
+                    code: err.spec_code(),
+                    message: err.to_string(),
+                    transient: err.is_transient(),
+                }
+            })?;
+        named.insert(name.value.clone(), value);
+    }
+    Ok(named)
+}
+
+/// Turn a settled SUCCESS into a FAILURE in place (an `output:` binding
+/// errored · the success it would have reported is discarded). Only ever
+/// called on a `Ran(Success)` settle (see [`bind_outputs`]).
+fn replace_success_with_failure(settle: &mut SettleAs, error: TaskErrorRecord) {
+    if let SettleAs::Ran(ran) = settle
+        && matches!(ran.result, RunResult::Success { .. })
+    {
+        ran.result = RunResult::Failed { error };
     }
 }
 

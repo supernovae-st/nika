@@ -3867,6 +3867,9 @@ version = "0.80.0"
 dependencies = [
  "futures-util",
  "insta",
+ "jaq-core",
+ "jaq-json",
+ "jaq-std",
  "miette",
  "nika-cel",
  "nika-error",

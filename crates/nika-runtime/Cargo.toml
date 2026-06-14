@@ -22,6 +22,9 @@ nika-verb-exec   = { path = "../nika-verb-exec", version = "0.80.0" }
 nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.80.0" }
 nika-verb-agent  = { path = "../nika-verb-agent", version = "0.80.0" }
 futures-util     = { workspace = true }   # buffered(k) intra-wave concurrency + select (no executor · async rides the injected seams)
+jaq-core         = { workspace = true }   # output: named bindings — THE data language (the same jaq nika:jq runs · spec 04 §binding)
+jaq-std          = { workspace = true }   # jq stdlib filters (map · select · add …) over a binding's raw output
+jaq-json         = { workspace = true }   # jq Val ↔ serde_json bridge for output: bindings
 serde_json       = { workspace = true }
 thiserror        = { workspace = true }
 miette           = { workspace = true }
