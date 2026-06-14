@@ -119,6 +119,27 @@ impl NikaErrorCode for VerbAgentError {
         }
     }
 
+    /// The user-facing SPEC code (`spec/05-errors.md` · what `on_codes:`
+    /// filters on). `NIKA-460` → `NIKA-AGENT-001` (`max_turns`) · `NIKA-461`
+    /// → `NIKA-AGENT-002` (`max_tokens`) · `NIKA-462` (non-whitelisted tool)
+    /// is the security-stop `NIKA-SEC-002` (spec table `NIKA-SEC-002` ·
+    /// agent tool call outside the whitelist). The remaining variants
+    /// (`Inference` · `SchemaValidation` · `InvalidParam` · `ToolDefs` ·
+    /// `Stalled`) have no dedicated spec namespace row — they keep their
+    /// numeric wire form via the trait default.
+    fn spec_code(&self) -> String {
+        match self {
+            Self::MaxTurns { .. } => "NIKA-AGENT-001".to_owned(),
+            Self::MaxTokens { .. } => "NIKA-AGENT-002".to_owned(),
+            Self::WhitelistViolation { .. } => "NIKA-SEC-002".to_owned(),
+            Self::Inference { .. }
+            | Self::SchemaValidation { .. }
+            | Self::InvalidParam { .. }
+            | Self::ToolDefs { .. }
+            | Self::Stalled { .. } => self.nika_code().to_string(),
+        }
+    }
+
     fn is_transient(&self) -> bool {
         match self {
             // Budgets, security and validation are verdicts — rerunning

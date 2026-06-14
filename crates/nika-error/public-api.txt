@@ -543,6 +543,7 @@ impl nika_error::traits::NikaErrorCode for nika_error::core_error::CoreError
 pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
 pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
 pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
+pub fn nika_error::core_error::CoreError::spec_code(&self) -> alloc::string::String
 impl<D> owo_colors::OwoColorize for nika_error::core_error::CoreError
 impl<T, U> core::convert::Into<U> for nika_error::core_error::CoreError where U: core::convert::From<T>
 pub fn nika_error::core_error::CoreError::into(self) -> U
@@ -953,6 +954,7 @@ impl nika_error::traits::NikaErrorCode for nika_error::core_error::CoreError
 pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
 pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
 pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
+pub fn nika_error::core_error::CoreError::spec_code(&self) -> alloc::string::String
 impl<D> owo_colors::OwoColorize for nika_error::core_error::CoreError
 impl<T, U> core::convert::Into<U> for nika_error::core_error::CoreError where U: core::convert::From<T>
 pub fn nika_error::core_error::CoreError::into(self) -> U
@@ -1119,10 +1121,12 @@ pub trait nika_error::prelude::NikaErrorCode: core::error::Error + miette::proto
 pub fn nika_error::prelude::NikaErrorCode::fingerprint(&self) -> u64
 pub fn nika_error::prelude::NikaErrorCode::is_transient(&self) -> bool
 pub fn nika_error::prelude::NikaErrorCode::nika_code(&self) -> nika_error::codes::NikaCode
+pub fn nika_error::prelude::NikaErrorCode::spec_code(&self) -> alloc::string::String
 impl nika_error::traits::NikaErrorCode for nika_error::core_error::CoreError
 pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
 pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
 pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
+pub fn nika_error::core_error::CoreError::spec_code(&self) -> alloc::string::String
 pub type nika_error::prelude::NikaResult<T> = core::result::Result<T, nika_error::nika_error::NikaError>
 pub mod nika_error::traits
 pub trait nika_error::traits::AsAny: 'static
@@ -1133,10 +1137,12 @@ pub trait nika_error::traits::NikaErrorCode: core::error::Error + miette::protoc
 pub fn nika_error::traits::NikaErrorCode::fingerprint(&self) -> u64
 pub fn nika_error::traits::NikaErrorCode::is_transient(&self) -> bool
 pub fn nika_error::traits::NikaErrorCode::nika_code(&self) -> nika_error::codes::NikaCode
+pub fn nika_error::traits::NikaErrorCode::spec_code(&self) -> alloc::string::String
 impl nika_error::traits::NikaErrorCode for nika_error::core_error::CoreError
 pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
 pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
 pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
+pub fn nika_error::core_error::CoreError::spec_code(&self) -> alloc::string::String
 #[non_exhaustive] pub enum nika_error::Category
 pub nika_error::Category::A11y
 pub nika_error::Category::Audio
@@ -1224,6 +1230,7 @@ impl nika_error::traits::NikaErrorCode for nika_error::core_error::CoreError
 pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
 pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
 pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
+pub fn nika_error::core_error::CoreError::spec_code(&self) -> alloc::string::String
 impl<D> owo_colors::OwoColorize for nika_error::core_error::CoreError
 impl<T, U> core::convert::Into<U> for nika_error::core_error::CoreError where U: core::convert::From<T>
 pub fn nika_error::core_error::CoreError::into(self) -> U
@@ -1390,8 +1397,10 @@ pub trait nika_error::NikaErrorCode: core::error::Error + miette::protocol::Diag
 pub fn nika_error::NikaErrorCode::fingerprint(&self) -> u64
 pub fn nika_error::NikaErrorCode::is_transient(&self) -> bool
 pub fn nika_error::NikaErrorCode::nika_code(&self) -> nika_error::codes::NikaCode
+pub fn nika_error::NikaErrorCode::spec_code(&self) -> alloc::string::String
 impl nika_error::traits::NikaErrorCode for nika_error::core_error::CoreError
 pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
 pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
 pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
+pub fn nika_error::core_error::CoreError::spec_code(&self) -> alloc::string::String
 pub type nika_error::NikaResult<T> = core::result::Result<T, nika_error::nika_error::NikaError>

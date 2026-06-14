@@ -57,6 +57,7 @@ pub fn nika_verb_infer::VerbInferError::code(&self) -> core::option::Option<allo
 impl nika_error::traits::NikaErrorCode for nika_verb_infer::VerbInferError
 pub fn nika_verb_infer::VerbInferError::is_transient(&self) -> bool
 pub fn nika_verb_infer::VerbInferError::nika_code(&self) -> nika_error::codes::NikaCode
+pub fn nika_verb_infer::VerbInferError::spec_code(&self) -> alloc::string::String
 impl<D> owo_colors::OwoColorize for nika_verb_infer::VerbInferError
 impl<T, U> core::convert::Into<U> for nika_verb_infer::VerbInferError where U: core::convert::From<T>
 pub fn nika_verb_infer::VerbInferError::into(self) -> U

@@ -46,6 +46,26 @@ pub trait NikaErrorCode:
     /// The structured NIKA-XXX code for this error.
     fn nika_code(&self) -> NikaCode;
 
+    /// The USER-FACING **spec** code — the `NIKA-<NS>-<NNN>` form an author
+    /// writes in `retry.on_codes` / `on_error.on_codes` and reads at
+    /// `tasks.X.error.code` (spec `05-errors.md`).
+    ///
+    /// Defaults to the engine registry's numeric wire form
+    /// ([`nika_code`](Self::nika_code)`.to_string()` · `NIKA-440`). A crate
+    /// whose registry code has a DISTINCT spec namespace row (e.g. the verb
+    /// errors · `NIKA-440` → `NIKA-EXEC-001`) overrides this so the
+    /// `on_codes` matcher compares the same identifier the author is forced
+    /// (by `nika check`) to write. The two stay reconcilable: both forms
+    /// resolve through `nika explain`.
+    ///
+    /// **Why a method, not a field on [`NikaCode`]:** the mapping is
+    /// per-error-VARIANT, not per-numeric-code (a future variant could share
+    /// a numeric range yet carry a different spec row), and it keeps the
+    /// numeric registry a pure value type.
+    fn spec_code(&self) -> String {
+        self.nika_code().to_string()
+    }
+
     /// Whether retrying the same operation may succeed.
     ///
     /// Defaults to `false`. Override for transient errors (network timeout,

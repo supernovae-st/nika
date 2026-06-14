@@ -67,6 +67,20 @@ impl NikaErrorCode for VerbInferError {
         }
     }
 
+    /// The user-facing SPEC code (`spec/05-errors.md` · what `on_codes:`
+    /// filters on). `NIKA-430` → `NIKA-INFER-001` (provider call) · `NIKA-431`
+    /// → `NIKA-INFER-002` (schema validation) · `NIKA-433` (model resolution)
+    /// is the `NIKA-INFER-001` family (a provider-resolution failure). `NIKA-432`
+    /// (`InvalidParam`) has NO spec row (an upstream-reject guard) — it keeps
+    /// its numeric wire form via the trait default.
+    fn spec_code(&self) -> String {
+        match self {
+            Self::ProviderCall { .. } | Self::ModelResolution { .. } => "NIKA-INFER-001".to_owned(),
+            Self::SchemaValidation { .. } => "NIKA-INFER-002".to_owned(),
+            Self::InvalidParam { .. } => self.nika_code().to_string(),
+        }
+    }
+
     fn is_transient(&self) -> bool {
         match self {
             // Inherit the provider's own retry classification (rate limits

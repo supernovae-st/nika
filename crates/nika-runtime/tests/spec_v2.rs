@@ -618,6 +618,127 @@ tasks:
     assert!(!outcome.ok, "the unmatched failure decides the verdict");
 }
 
+// ─── 7b · on_codes selectivity over the SPEC code (BUG-C) ───────────────
+
+/// `on_error.on_codes` / `retry.on_codes` filter on the USER-FACING SPEC
+/// code (`NIKA-EXEC-001`), NOT the engine wire code (`NIKA-440`). The
+/// `nika check` regex forces the author to write the spec form
+/// (`^NIKA-[A-Z]{2,9}…`), and `tasks.X.error.code` exposes the same — so
+/// selective recovery/retry must compare against the spec code or it is
+/// inert (BUG-C: the author was forced to write `NIKA-EXEC-001` while the
+/// matcher compared `NIKA-440` → no match ever fired).
+#[tokio::test]
+async fn on_codes_matches_the_user_facing_spec_code() {
+    // 1 · on_error.on_codes:[NIKA-EXEC-001] on a non-zero exit → recovery FIRES.
+    let yaml = r#"
+nika: v1
+workflow: oncodes-catch
+tasks:
+  - id: boom
+    exec: { command: "exit 7" }
+    on_error:
+      on_codes: [NIKA-EXEC-001]
+      recover: "recovered"
+"#;
+    let shell = MockShell::new().enqueue_fail(7, "boom");
+    let (outcome, _events) = run_to_events(
+        yaml,
+        shell,
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+    assert!(outcome.ok, "the spec-code filter matched → recovery fired");
+    assert_eq!(outcome.records["boom"].status, TaskStatus::Success);
+    assert_eq!(output_str(&outcome, "boom"), "recovered");
+
+    // 2 · the SAME failure surfaces the SPEC code at tasks.X.error.code (so a
+    //     downstream `on_codes`/CEL filter reads the form it was forced to write).
+    let yaml_skip = r#"
+nika: v1
+workflow: oncodes-skip
+tasks:
+  - id: boom
+    exec: { command: "exit 7" }
+    on_error: { skip: true }
+"#;
+    let (outcome, _events) = run_to_events(
+        yaml_skip,
+        MockShell::new().enqueue_fail(7, "boom"),
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+    assert_eq!(outcome.records["boom"].status, TaskStatus::Skipped);
+    assert_eq!(
+        outcome.records["boom"]
+            .error
+            .as_ref()
+            .expect("error readable")
+            .code,
+        "NIKA-EXEC-001",
+        "the user-facing code is the spec code, not NIKA-440"
+    );
+
+    // 3 · retry.on_codes:[NIKA-EXEC-001] selectively retries a NON-transient
+    //     exit (the override's whole point) → a TaskRetrying frame is emitted.
+    let yaml_retry = r#"
+nika: v1
+workflow: oncodes-retry
+tasks:
+  - id: boom
+    retry: { max_attempts: 2, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-EXEC-001] }
+    exec: { command: "exit 7" }
+"#;
+    let shell = MockShell::new()
+        .enqueue_fail(7, "boom")
+        .enqueue_fail(7, "boom");
+    let (outcome, events) = run_to_events(
+        yaml_retry,
+        shell,
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| e.kind == EventKind::TaskRetrying)
+            .count(),
+        1,
+        "the spec-code retry filter matched a non-transient exit → one retry"
+    );
+    assert_eq!(outcome.records["boom"].status, TaskStatus::Failure);
+
+    // 4 · selectivity intact: a NON-matching code does NOT recover.
+    let yaml_miss = r#"
+nika: v1
+workflow: oncodes-miss
+tasks:
+  - id: boom
+    exec: { command: "exit 7" }
+    on_error:
+      on_codes: [NIKA-INFER-001]
+      recover: "should-not-fire"
+"#;
+    let (outcome, _events) = run_to_events(
+        yaml_miss,
+        MockShell::new().enqueue_fail(7, "boom"),
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+    assert_eq!(
+        outcome.records["boom"].status,
+        TaskStatus::Failure,
+        "an unlisted code falls through to the default fail (selectivity intact)"
+    );
+}
+
 // ─── 8 · for_each (spec 03 · the fan-out construct) ─────────────────────
 
 #[tokio::test]

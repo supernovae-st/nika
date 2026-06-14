@@ -135,6 +135,7 @@ pub fn nika_verb_exec::VerbExecError::code(&self) -> core::option::Option<alloc:
 impl nika_error::traits::NikaErrorCode for nika_verb_exec::VerbExecError
 pub fn nika_verb_exec::VerbExecError::is_transient(&self) -> bool
 pub fn nika_verb_exec::VerbExecError::nika_code(&self) -> nika_error::codes::NikaCode
+pub fn nika_verb_exec::VerbExecError::spec_code(&self) -> alloc::string::String
 impl<D> owo_colors::OwoColorize for nika_verb_exec::VerbExecError
 impl<T, U> core::convert::Into<U> for nika_verb_exec::VerbExecError where U: core::convert::From<T>
 pub fn nika_verb_exec::VerbExecError::into(self) -> U

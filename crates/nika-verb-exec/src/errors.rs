@@ -79,6 +79,19 @@ impl NikaErrorCode for VerbExecError {
         }
     }
 
+    /// The user-facing SPEC code (`spec/05-errors.md` · what `on_codes:`
+    /// filters on). `NIKA-440` → `NIKA-EXEC-001` (non-zero exit) · `NIKA-441`
+    /// → `NIKA-EXEC-002` (spawn/shell failure). `InvalidParam` has NO spec
+    /// row (an engine-side guard before the shell call) — it keeps its
+    /// numeric wire form via the trait default.
+    fn spec_code(&self) -> String {
+        match self {
+            Self::NonZeroExit { .. } => "NIKA-EXEC-001".to_owned(),
+            Self::Shell { .. } => "NIKA-EXEC-002".to_owned(),
+            Self::InvalidParam { .. } => self.nika_code().to_string(),
+        }
+    }
+
     fn is_transient(&self) -> bool {
         match self {
             // A non-zero exit is the command's verdict — rerunning the same
@@ -164,6 +177,35 @@ mod tests {
         assert_eq!(
             tail_of(VerbExecError::non_zero(1, "just this")),
             "just this"
+        );
+    }
+
+    #[test]
+    fn spec_code_maps_to_the_user_facing_form() {
+        // The on_codes:/tasks.X.error.code identifier (BUG-C) — the spec
+        // namespace form the author is forced (by `nika check`) to write,
+        // NOT the engine wire code.
+        assert_eq!(
+            VerbExecError::non_zero(2, "boom").spec_code(),
+            "NIKA-EXEC-001"
+        );
+        assert_eq!(
+            VerbExecError::Shell {
+                source: ShellError::Other {
+                    reason: "x".to_owned(),
+                },
+            }
+            .spec_code(),
+            "NIKA-EXEC-002"
+        );
+        // InvalidParam has NO spec row → numeric wire form (the default).
+        assert_eq!(
+            VerbExecError::InvalidParam {
+                param: "command",
+                detail: "empty".to_owned(),
+            }
+            .spec_code(),
+            "NIKA-442"
         );
     }
 

@@ -60,7 +60,12 @@ impl Dispatched {
         Self {
             note,
             result: Err(TaskErrorRecord {
-                code: err.nika_code().to_string(),
+                // The USER-FACING spec code (`NIKA-EXEC-001` · not the engine
+                // `NIKA-440`) — the identifier the author is forced (by `nika
+                // check`) to write in `on_codes:`, and the one `tasks.X.error
+                // .code` exposes (spec 05 §error structure). Selective
+                // recovery/retry compares against THIS (BUG-C).
+                code: err.spec_code(),
                 message: err.to_string(),
                 transient: err.is_transient(),
             }),
