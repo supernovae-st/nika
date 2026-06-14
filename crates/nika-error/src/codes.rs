@@ -981,7 +981,7 @@ fn verb_help(num: u16) -> &'static str {
             "A provider call failed mid-loop. Check the chained provider error (credentials, rate limits, connectivity)."
         }
         464 => {
-            "The agent's final message never satisfied the task `schema:`. Simplify the schema or instruct the model to answer via nika:done result."
+            "The agent's final answer never satisfied the task `schema:` — the engine constrains the final turn to the schema and re-asks on a miss, so this means the model could not produce a conforming object within the retry budget. Simplify the schema, or check it is satisfiable for this task."
         }
         465 => {
             "An `agent` parameter is invalid. Prompt must be non-empty; temperature must be within 0-2."
