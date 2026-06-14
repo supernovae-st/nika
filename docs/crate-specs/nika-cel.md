@@ -168,15 +168,18 @@ takes NO nika-error registry range (it is not an engine-internal enum).
 5. **Property** (proptest) · parse is total (never panics · Ok or
    VAR-005) · compute is total (never panics · Ok or a typed VAR error) ·
    parse stability on the canonical forms.
-6. **Mutation** · `cargo mutants -p nika-cel` · **0 missed** (measured
-   2026-06-13 · 258 mutants · 112 caught · 131 unviable · 15 timeouts).
+6. **Mutation** · `cargo mutants -p nika-cel` · **0 missed** (re-measured
+   2026-06-14 post Gate-11 fixes · 272 mutants · 111 caught · 149 unviable
+   · 12 timeouts · was 258/15 before the UTF-8 + recursion-guard fixes).
 
-### Gate 5 budget — the 15 non-termination timeouts (2026-06-13)
+### Gate 5 budget — the non-termination timeouts (2026-06-14)
 
 <!-- GATE5-EXEMPT: 15 -->
 
-The run reports **0 MISSED** (zero silent survivors). The 15 budgeted
-survivors are ONE class: scan-cursor mutations that break the lexer's
+The run reports **0 MISSED** (zero silent survivors). The budgeted
+survivors (12 observed 2026-06-14 · budget 15 keeps headroom for the
+timing-variable count) are ONE class: scan-cursor mutations that break
+the lexer's
 forward progress, so its bounded `while i < bytes.len()` loop becomes
 unbounded → **non-termination**. They ARE detected — the program hangs,
 an observable behaviour change — but cargo-mutants classifies a hang as
