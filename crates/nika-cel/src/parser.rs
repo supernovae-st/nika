@@ -15,12 +15,21 @@ use crate::ast::{Expr, Node, RelOp, Step};
 use crate::error::CelError;
 use crate::lexer::{Tok, Token, lex};
 
-/// The maximum nesting depth the parser will descend before refusing with
-/// NIKA-VAR-005. The grammar is bounded ONLY through `(...)` / `[...]` /
-/// `!` / ternary nesting; an attacker-crafted `${{ ((((…)))) }}` would
-/// otherwise overflow the native stack (a non-catchable process abort, not
-/// an `Err`). The cap is far below any real workflow expression and far
-/// below the stack budget (counts both the `ternary` and `unary` rungs).
+/// The maximum AST nesting depth the parser will build before refusing with
+/// NIKA-VAR-005. Two pathological shapes overflow the native stack (a
+/// non-catchable process abort, not an `Err`) when the COMPUTER or a host
+/// AST walker later recurses the tree:
+///
+/// 1. deep grouping — `${{ ((((…)))) }}` (the `ternary`/`unary` rungs); and
+/// 2. a wide FLAT chain — `${{ a || a || … || a }}` (30k terms), which the
+///    iterative `or`/`and` loops would build as a 30k-deep LEFT-NESTED tree.
+///
+/// Both are capped here at parse time (reached by BOTH `check` and `run`),
+/// so the AST handed downstream is never deeper than this. The cap is far
+/// below any real workflow expression and far below the stack budget. It
+/// aligns with the runtime `when:`-nesting limit (the static-subset class ·
+/// NIKA-VAR-005). The evaluator additionally bounds its own recursion as a
+/// defense-in-depth backstop (see `compute::MAX_EVAL_DEPTH`).
 const MAX_DEPTH: usize = 128;
 
 /// Parse the inside of one `${{ }}` island (trimmed) into an [`Expr`].
@@ -113,22 +122,47 @@ impl Parser<'_> {
     }
 
     // ── or = and , { "||" , and } ───────────────────────────────────
+    // The loop is ITERATIVE (no parse-stack growth), but each `||` adds one
+    // `Node::Or` nesting level — a 30k-wide chain builds a 30k-deep
+    // LEFT-NESTED tree the COMPUTER (and the host's AST walkers) then
+    // recurse, overflowing the native stack. Cap the chain depth the same
+    // way nesting is capped, so a crafted wide chain is NIKA-VAR-005 here
+    // (reached by both `check` and `run`) and the AST never gets pathological.
     fn or(&mut self) -> Result<Node, CelError> {
+        let entry = self.depth;
         let mut lhs = self.and()?;
         while self.eat(&Tok::OrOr) {
+            self.depth += 1;
+            if self.depth > MAX_DEPTH {
+                return Err(CelError::static_err(
+                    "expression nests too deeply",
+                    self.peek_span(),
+                ));
+            }
             let rhs = self.and()?;
             lhs = Node::Or(Box::new(lhs), Box::new(rhs));
         }
+        self.depth = entry; // the chain is one returned subtree · restore
         Ok(lhs)
     }
 
     // ── and = rel , { "&&" , rel } ──────────────────────────────────
+    // Same flat-chain depth cap as `or` (a wide `&&` chain is the dual DoS).
     fn and(&mut self) -> Result<Node, CelError> {
+        let entry = self.depth;
         let mut lhs = self.rel()?;
         while self.eat(&Tok::AndAnd) {
+            self.depth += 1;
+            if self.depth > MAX_DEPTH {
+                return Err(CelError::static_err(
+                    "expression nests too deeply",
+                    self.peek_span(),
+                ));
+            }
             let rhs = self.rel()?;
             lhs = Node::And(Box::new(lhs), Box::new(rhs));
         }
+        self.depth = entry; // restore — siblings get a fresh budget
         Ok(lhs)
     }
 
@@ -508,5 +542,37 @@ mod tests {
         );
         // …ordinary shallow nesting still parses.
         assert!(parse("((vars.a == 'x'))").is_ok());
+    }
+
+    #[test]
+    fn a_wide_flat_chain_is_refused_not_a_crash() {
+        // A WIDE flat boolean chain (`a || a || …`) is iterative to parse
+        // but builds a LEFT-NESTED tree that the COMPUTER recurses — a 30k
+        // chain overflowed the native stack at eval time. The parser now
+        // caps the chain depth (BUG#1b), so it REFUSES with VAR-005 here,
+        // reached by BOTH `check` and `run`, never handing eval a deep tree.
+        let wide_or = std::iter::repeat_n("vars.a", 30_000)
+            .collect::<Vec<_>>()
+            .join(" || ");
+        assert_eq!(
+            parse(&wide_or).expect_err("wide || chain").spec_code(),
+            "NIKA-VAR-005"
+        );
+        // `&&` is the dual DoS — capped identically.
+        let wide_and = std::iter::repeat_n("vars.a", 30_000)
+            .collect::<Vec<_>>()
+            .join(" && ");
+        assert_eq!(
+            parse(&wide_and).expect_err("wide && chain").spec_code(),
+            "NIKA-VAR-005"
+        );
+        // …a NORMAL-width chain (well within the cap) still parses fine.
+        let ok = std::iter::repeat_n("vars.a == 'x'", 10)
+            .collect::<Vec<_>>()
+            .join(" || ");
+        assert!(
+            parse(&ok).is_ok(),
+            "a 10-term chain is a fine real workflow"
+        );
     }
 }

@@ -16,6 +16,16 @@ use serde_json::Value;
 use crate::ast::{Node, RelOp, Step};
 use crate::error::CelError;
 
+/// The evaluator's own recursion bound — a defense-in-depth backstop to the
+/// parser's `MAX_DEPTH`. The parser already refuses an AST deeper than its
+/// cap (so a normally-parsed tree never reaches this), but `compute` is a
+/// PUBLIC entry that could be handed an `Expr` built by other means; a
+/// crafted deep tree must surface a clean `NIKA-VAR-006` instead of
+/// overflowing the native stack. Set one level ABOVE the parser cap so a
+/// legitimately-parsed maximal expression always computes — only a tree
+/// that bypassed the parser can trip it.
+const MAX_EVAL_DEPTH: usize = 256;
+
 /// The host's namespace lookup — resolves a ROOT identifier (`vars` ·
 /// `tasks` · `item` · …) to its value. The computer owns `.field` /
 /// `[index]` navigation on top. `None` ⇒ `NIKA-VAR-001`.
@@ -31,7 +41,7 @@ pub trait Resolver {
 /// `NIKA-VAR-001` (unresolved reference) · `NIKA-VAR-006` (type error /
 /// cross-type compare) per the spec typing rules.
 pub fn compute(expr: &crate::Expr, resolver: &dyn Resolver) -> Result<Value, CelError> {
-    eval_node(expr.node(), resolver)
+    eval_node(expr.node(), resolver, 0)
 }
 
 /// Compute as a boolean (the `when:` gate).
@@ -52,37 +62,47 @@ pub fn compute_bool(expr: &crate::Expr, resolver: &dyn Resolver) -> Result<bool,
     }
 }
 
-fn eval_node(node: &Node, res: &dyn Resolver) -> Result<Value, CelError> {
+fn eval_node(node: &Node, res: &dyn Resolver, depth: usize) -> Result<Value, CelError> {
+    // Defense-in-depth: a tree deeper than the parser would ever build
+    // (e.g. a wide `||` chain that bypassed the parser) must NOT overflow
+    // the native stack — it surfaces a clean NIKA-VAR-006 instead.
+    if depth > MAX_EVAL_DEPTH {
+        return Err(CelError::type_err(
+            "expression nests too deeply to evaluate",
+            (0, 0),
+        ));
+    }
+    let depth = depth + 1;
     match node {
         Node::Lit(v) => Ok(v.clone()),
         Node::List(items) => items
             .iter()
-            .map(|n| eval_node(n, res))
+            .map(|n| eval_node(n, res, depth))
             .collect::<Result<Vec<_>, _>>()
             .map(Value::Array),
         Node::Root { name, span } => res
             .resolve_root(name)
             .ok_or_else(|| CelError::unresolved(format!("unresolved reference `{name}`"), *span)),
-        Node::Postfix { base, steps } => eval_postfix(base, steps, res),
-        Node::Call { name, arg, span } => eval_call(name, arg, *span, res),
+        Node::Postfix { base, steps } => eval_postfix(base, steps, res, depth),
+        Node::Call { name, arg, span } => eval_call(name, arg, *span, res, depth),
         Node::Not(inner) => {
-            let v = eval_node(inner, res)?;
+            let v = eval_node(inner, res, depth)?;
             as_bool(&v, (0, 0)).map(|b| Value::Bool(!b))
         }
-        Node::Rel { op, lhs, rhs, span } => eval_rel(*op, lhs, rhs, *span, res),
+        Node::Rel { op, lhs, rhs, span } => eval_rel(*op, lhs, rhs, *span, res, depth),
         Node::And(a, b) => {
             // Short-circuit: a false left never computes the right.
-            if as_bool(&eval_node(a, res)?, (0, 0))? {
-                Ok(Value::Bool(as_bool(&eval_node(b, res)?, (0, 0))?))
+            if as_bool(&eval_node(a, res, depth)?, (0, 0))? {
+                Ok(Value::Bool(as_bool(&eval_node(b, res, depth)?, (0, 0))?))
             } else {
                 Ok(Value::Bool(false))
             }
         }
         Node::Or(a, b) => {
-            if as_bool(&eval_node(a, res)?, (0, 0))? {
+            if as_bool(&eval_node(a, res, depth)?, (0, 0))? {
                 Ok(Value::Bool(true))
             } else {
-                Ok(Value::Bool(as_bool(&eval_node(b, res)?, (0, 0))?))
+                Ok(Value::Bool(as_bool(&eval_node(b, res, depth)?, (0, 0))?))
             }
         }
         Node::Ternary {
@@ -90,26 +110,31 @@ fn eval_node(node: &Node, res: &dyn Resolver) -> Result<Value, CelError> {
             then,
             otherwise,
         } => {
-            if as_bool(&eval_node(cond, res)?, (0, 0))? {
-                eval_node(then, res)
+            if as_bool(&eval_node(cond, res, depth)?, (0, 0))? {
+                eval_node(then, res, depth)
             } else {
-                eval_node(otherwise, res)
+                eval_node(otherwise, res, depth)
             }
         }
     }
 }
 
 /// Navigate `.field` / `[index]` / `.method(...)` over a base value.
-fn eval_postfix(base: &Node, steps: &[Step], res: &dyn Resolver) -> Result<Value, CelError> {
-    let mut cur = eval_node(base, res)?;
+fn eval_postfix(
+    base: &Node,
+    steps: &[Step],
+    res: &dyn Resolver,
+    depth: usize,
+) -> Result<Value, CelError> {
+    let mut cur = eval_node(base, res, depth)?;
     for step in steps {
         cur = match step {
             Step::Field(name) => member(&cur, name)?,
             Step::Index(idx_node) => {
-                let idx = eval_node(idx_node, res)?;
+                let idx = eval_node(idx_node, res, depth)?;
                 index(&cur, &idx)?
             }
-            Step::Method { name, args } => eval_method(&cur, name, args, res)?,
+            Step::Method { name, args } => eval_method(&cur, name, args, res, depth)?,
         };
     }
     Ok(cur)
@@ -162,12 +187,13 @@ fn eval_method(
     name: &str,
     args: &[Node],
     res: &dyn Resolver,
+    depth: usize,
 ) -> Result<Value, CelError> {
     match name {
         "size" => size_of(recv).map(Value::from),
         "contains" | "startsWith" | "endsWith" => {
             let s = as_string(recv, "the receiver of a string test")?;
-            let arg = eval_node(&args[0], res)?;
+            let arg = eval_node(&args[0], res, depth)?;
             let needle = as_string(&arg, "the argument of a string test")?;
             let hit = match name {
                 "contains" => s.contains(needle.as_str()),
@@ -190,17 +216,18 @@ fn eval_call(
     arg: &Node,
     span: (usize, usize),
     res: &dyn Resolver,
+    depth: usize,
 ) -> Result<Value, CelError> {
     match name {
         "size" => {
-            let v = eval_node(arg, res)?;
+            let v = eval_node(arg, res, depth)?;
             size_of(&v).map(Value::from)
         }
         "has" => {
             // has(x): true iff x resolves to a defined non-null value.
             // It NEVER raises NIKA-VAR-001 (a VAR-001 → false; a VAR-006
             // stays an error · `has` only converts the *presence* class).
-            match eval_node(arg, res) {
+            match eval_node(arg, res, depth) {
                 Ok(Value::Null) => Ok(Value::Bool(false)),
                 Ok(_) => Ok(Value::Bool(true)),
                 Err(e) if e.spec_code() == "NIKA-VAR-001" => Ok(Value::Bool(false)),
@@ -221,14 +248,15 @@ fn eval_rel(
     rhs: &Node,
     span: (usize, usize),
     res: &dyn Resolver,
+    depth: usize,
 ) -> Result<Value, CelError> {
     if op == RelOp::In {
-        let needle = eval_node(lhs, res)?;
-        let haystack = eval_node(rhs, res)?;
+        let needle = eval_node(lhs, res, depth)?;
+        let haystack = eval_node(rhs, res, depth)?;
         return membership(&needle, &haystack, span).map(Value::Bool);
     }
-    let a = eval_node(lhs, res)?;
-    let b = eval_node(rhs, res)?;
+    let a = eval_node(lhs, res, depth)?;
+    let b = eval_node(rhs, res, depth)?;
     let result = match op {
         RelOp::Eq => equals(&a, &b, span)?,
         RelOp::Ne => !equals(&a, &b, span)?,
@@ -614,5 +642,40 @@ mod tests {
         assert_eq!(err.spec_code(), "NIKA-VAR-006");
         // …while an absent reference stays the swallowed false.
         assert!(!b("has(vars.missing)"));
+    }
+
+    #[test]
+    fn the_evaluator_refuses_a_too_deep_tree_instead_of_overflowing() {
+        // Defense-in-depth (BUG#1b): the parser caps AST depth, but `compute`
+        // is a PUBLIC entry that could receive a tree built by other means.
+        // A deep left-nested `Or` chain (the wide-`||` AST shape) must
+        // surface a clean NIKA-VAR-006, NEVER overflow the native stack.
+        // Build it DIRECTLY past MAX_EVAL_DEPTH (bypassing the parser cap).
+        let mut node = Node::Lit(Value::Bool(true));
+        for _ in 0..(super::MAX_EVAL_DEPTH + 50) {
+            node = Node::Or(Box::new(node), Box::new(Node::Lit(Value::Bool(false))));
+        }
+        let expr = crate::ast::Expr::new(node);
+        // (the test module allows unwrap_used, not expect_used)
+        let err = compute(&expr, &ns()).unwrap_err();
+        assert_eq!(
+            err.spec_code(),
+            "NIKA-VAR-006",
+            "the eval-depth backstop is the type/eval class"
+        );
+    }
+
+    #[test]
+    fn a_normal_width_chain_evaluates_fine() {
+        // The flip side: a chain WITHIN the cap computes correctly (the
+        // depth guard must not reject legitimate expressions). A 20-term
+        // `||` of equalities short-circuits to true on the first match.
+        let chain = std::iter::repeat_n("vars.publish == 'yes'", 20)
+            .collect::<Vec<_>>()
+            .join(" || ");
+        assert!(b(&chain), "a 20-term || chain evaluates");
+        // …and a deep-but-within-limit nested group computes too.
+        let nested = format!("{}vars.count > 0{}", "(".repeat(40), ")".repeat(40));
+        assert!(b(&nested), "40-deep grouping is within the cap");
     }
 }

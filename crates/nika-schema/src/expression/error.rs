@@ -73,6 +73,18 @@ pub enum ExprError {
         /// Byte offset of the `${{` opener.
         offset: usize,
     },
+
+    /// An expression that nests (or chains) deeper than the parser admits —
+    /// deep grouping `((((…))))` OR a wide flat `a || a || …` chain. Refused
+    /// at parse so a later AST walker cannot overflow the native stack (the
+    /// stack-overflow-`DoS` class · mirrors the runtime engine's cap).
+    #[error("expression nests too deeply at offset {offset} (limit {limit})")]
+    TooDeep {
+        /// Byte offset where the depth limit was exceeded.
+        offset: usize,
+        /// The maximum nesting depth the parser admits.
+        limit: usize,
+    },
 }
 
 #[cfg(test)]

@@ -12,16 +12,36 @@ use super::ast::{Expr, Literal, RelOp, StringPredicate};
 use super::error::ExprError;
 use super::lexer::{Token, TokenKind, tokenize};
 
+/// The maximum AST nesting depth the checker's parser will build before
+/// refusing. Mirrors the runtime engine's `nika_cel` cap (one shared limit,
+/// one shared class). Two shapes overflow the native stack when a later
+/// walker (`expr_refs` · the schema-typing pass) recurses the tree:
+///
+/// 1. deep grouping — `${{ ((((…)))) }}`; and
+/// 2. a wide FLAT chain — `${{ a || a || … }}` (30k terms), which the
+///    iterative `or`/`and` loops build as a 30k-deep LEFT-NESTED tree.
+///
+/// Both refuse at parse here, so `nika check`/`inspect`/`graph` never crash
+/// and never hand a pathological AST to the analyzers. Mirrors the runtime
+/// `nika_cel::parser::MAX_DEPTH` (the static-subset class · NIKA-VAR-005).
+const MAX_DEPTH: usize = 128;
+
 /// Parse a CEL v0.1-subset expression (the inside of a `${{ }}` island).
 ///
 /// # Errors
 ///
 /// Returns [`ExprError`] on any deviation from the `cel-subset/0.1`
 /// grammar — unknown characters · unterminated strings · chained
-/// relations · non-`size` calls · trailing input.
+/// relations · non-`size` calls · trailing input · OR an expression that
+/// nests beyond the depth cap ([`ExprError::TooDeep`] · the
+/// stack-overflow-class refusal, mirroring the runtime).
 pub fn parse_expression(src: &str) -> Result<Expr, ExprError> {
     let tokens = tokenize(src)?;
-    let mut parser = Parser { tokens, pos: 0 };
+    let mut parser = Parser {
+        tokens,
+        pos: 0,
+        depth: 0,
+    };
     if parser.peek_kind() == &TokenKind::Eof {
         return Err(ExprError::EmptyExpression);
     }
@@ -37,6 +57,10 @@ pub fn parse_expression(src: &str) -> Result<Expr, ExprError> {
 struct Parser {
     tokens: Vec<Token>,
     pos: usize,
+    /// Current recursive-descent / chain nesting depth (capped at
+    /// [`MAX_DEPTH`] so a crafted deep expression refuses instead of
+    /// overflowing the native stack downstream).
+    depth: usize,
 }
 
 impl Parser {
@@ -76,43 +100,70 @@ impl Parser {
         }
     }
 
+    /// Increment the nesting depth, refusing past [`MAX_DEPTH`]. The ONE
+    /// guard the recursive rungs + the chain loops share.
+    fn enter(&mut self) -> Result<(), ExprError> {
+        self.depth += 1;
+        if self.depth > MAX_DEPTH {
+            return Err(ExprError::TooDeep {
+                offset: self.peek_offset(),
+                limit: MAX_DEPTH,
+            });
+        }
+        Ok(())
+    }
+
     /// `ternary = or [ "?" expr ":" ternary ]` — right-associative ·
     /// loosest precedence (spec `cel-subset/0.1`). Value selection.
     fn ternary_expr(&mut self) -> Result<Expr, ExprError> {
+        self.enter()?;
         let cond = self.or_expr()?;
-        if self.peek_kind() != &TokenKind::Question {
-            return Ok(cond);
-        }
-        self.advance(); // ?
-        let then = self.ternary_expr()?;
-        self.expect_token(&TokenKind::Colon, "`:` — the ternary else-branch")?;
-        let else_ = self.ternary_expr()?;
-        Ok(Expr::Ternary {
-            cond: Box::new(cond),
-            then: Box::new(then),
-            else_: Box::new(else_),
-        })
+        let out = if self.peek_kind() == &TokenKind::Question {
+            self.advance(); // ?
+            let then = self.ternary_expr()?;
+            self.expect_token(&TokenKind::Colon, "`:` — the ternary else-branch")?;
+            let else_ = self.ternary_expr()?;
+            Expr::Ternary {
+                cond: Box::new(cond),
+                then: Box::new(then),
+                else_: Box::new(else_),
+            }
+        } else {
+            cond
+        };
+        self.depth -= 1;
+        Ok(out)
     }
 
-    /// `or = and { "||" and }` — left-associative.
+    /// `or = and { "||" and }` — left-associative. The loop is ITERATIVE
+    /// (no parse-stack growth), but each `||` adds one `Expr::Or` nesting
+    /// level a later walker recurses — so a wide flat chain is depth-capped
+    /// here, never building a stack-overflowing tree.
     fn or_expr(&mut self) -> Result<Expr, ExprError> {
+        let entry = self.depth;
         let mut lhs = self.and_expr()?;
         while self.peek_kind() == &TokenKind::OrOr {
+            self.enter()?;
             self.advance();
             let rhs = self.and_expr()?;
             lhs = Expr::Or(Box::new(lhs), Box::new(rhs));
         }
+        self.depth = entry; // the chain is one returned subtree · restore
         Ok(lhs)
     }
 
-    /// `and = rel { "&&" rel }` — left-associative.
+    /// `and = rel { "&&" rel }` — left-associative. Same flat-chain depth
+    /// cap as [`Self::or_expr`] (a wide `&&` chain is the dual `DoS`).
     fn and_expr(&mut self) -> Result<Expr, ExprError> {
+        let entry = self.depth;
         let mut lhs = self.rel_expr()?;
         while self.peek_kind() == &TokenKind::AndAnd {
+            self.enter()?;
             self.advance();
             let rhs = self.rel_expr()?;
             lhs = Expr::And(Box::new(lhs), Box::new(rhs));
         }
+        self.depth = entry; // restore — siblings get a fresh budget
         Ok(lhs)
     }
 
@@ -139,11 +190,14 @@ impl Parser {
         })
     }
 
-    /// `unary = { "!" } postfix`.
+    /// `unary = { "!" } postfix`. A `!` chain (`!!!…x`) nests `Expr::Not`,
+    /// which a walker recurses — so the rung is depth-capped too.
     fn unary_expr(&mut self) -> Result<Expr, ExprError> {
         if self.peek_kind() == &TokenKind::Bang {
+            self.enter()?;
             self.advance();
             let inner = self.unary_expr()?;
+            self.depth -= 1;
             return Ok(Expr::Not(Box::new(inner)));
         }
         self.postfix_expr()
@@ -538,6 +592,53 @@ mod tests {
     }
 
     // ── Robustness ──────────────────────────────────────────────────
+
+    #[test]
+    fn deeply_nested_input_is_refused_not_a_crash() {
+        // BUG#1a: the checker's parser had NO depth bound — deep `((((…))))`
+        // crashed `nika check`/`inspect`/`graph` (stack overflow, exit 134).
+        // It now REFUSES with TooDeep (a clean finding), never overflows.
+        let deep = format!("{}true{}", "(".repeat(6500), ")".repeat(6500));
+        assert!(
+            matches!(parse_expression(&deep), Err(ExprError::TooDeep { .. })),
+            "deep grouping must refuse, not crash"
+        );
+        // A `!` chain is bounded the same way.
+        let bangs = format!("{}vars.a", "!".repeat(6500));
+        assert!(
+            matches!(parse_expression(&bangs), Err(ExprError::TooDeep { .. })),
+            "deep ! chain must refuse"
+        );
+        // …ordinary shallow nesting still parses.
+        assert!(parse_expression("((vars.a == 'x'))").is_ok());
+    }
+
+    #[test]
+    fn a_wide_flat_chain_is_refused_not_a_crash() {
+        // BUG#1b: a wide flat `a || a || …` chain parses iteratively but
+        // builds a deep LEFT-NESTED tree the analyzers (`expr_refs`,
+        // schema-typing) recurse — overflowing the stack during `check`.
+        // The chain depth is now capped → a clean TooDeep refusal.
+        let wide = std::iter::repeat_n("vars.a", 30_000)
+            .collect::<Vec<_>>()
+            .join(" || ");
+        assert!(
+            matches!(parse_expression(&wide), Err(ExprError::TooDeep { .. })),
+            "wide || chain must refuse, not crash a downstream walker"
+        );
+        let wide_and = std::iter::repeat_n("vars.a", 30_000)
+            .collect::<Vec<_>>()
+            .join(" && ");
+        assert!(
+            matches!(parse_expression(&wide_and), Err(ExprError::TooDeep { .. })),
+            "wide && chain refuses too"
+        );
+        // …a normal-width chain (a real workflow's `when:`) still parses.
+        let ok = std::iter::repeat_n("vars.a == 'x'", 12)
+            .collect::<Vec<_>>()
+            .join(" || ");
+        assert!(parse_expression(&ok).is_ok(), "a 12-term chain is fine");
+    }
 
     proptest! {
         #[test]
