@@ -146,34 +146,7 @@ fn request_body(req: &InferRequest) -> Result<Value, ProviderError> {
         );
     }
 
-    let mut gen_config = serde_json::Map::new();
-    if let Some(t) = req.temperature {
-        gen_config.insert("temperature".to_owned(), json!(t));
-    }
-    if let Some(mt) = req.max_tokens {
-        gen_config.insert("maxOutputTokens".to_owned(), json!(mt));
-    }
-    if !req.stop_sequences.is_empty() {
-        gen_config.insert("stopSequences".to_owned(), json!(req.stop_sequences));
-    }
-    if let Some(budget) = req.thinking_budget {
-        gen_config.insert(
-            "thinkingConfig".to_owned(),
-            json!({ "thinkingBudget": budget }),
-        );
-    }
-    match &req.response_format {
-        ResponseFormat::Json => {
-            gen_config.insert("responseMimeType".to_owned(), json!("application/json"));
-        }
-        ResponseFormat::JsonSchema(schema) => {
-            gen_config.insert("responseMimeType".to_owned(), json!("application/json"));
-            // Gemini takes an OpenAPI-style subset; simple JSON Schemas pass
-            // through — complex keywords ($ref · oneOf) are the caller's risk.
-            gen_config.insert("responseSchema".to_owned(), schema.clone());
-        }
-        ResponseFormat::Text | _ => {}
-    }
+    let gen_config = generation_config(req);
     if !gen_config.is_empty() {
         obj.insert("generationConfig".to_owned(), Value::Object(gen_config));
     }
@@ -216,6 +189,109 @@ fn request_body(req: &InferRequest) -> Result<Value, ProviderError> {
         }
     }
     Ok(body)
+}
+
+/// Assemble `generationConfig` (sampling + thinking + structured-output).
+/// `responseSchema` rides the gemini schema adapter (the JSON-Schema →
+/// OpenAPI-3.0-subset rewrite · see [`adapt_gemini_schema`]).
+fn generation_config(req: &InferRequest) -> serde_json::Map<String, Value> {
+    let mut gen_config = serde_json::Map::new();
+    if let Some(t) = req.temperature {
+        gen_config.insert("temperature".to_owned(), json!(t));
+    }
+    if let Some(mt) = req.max_tokens {
+        gen_config.insert("maxOutputTokens".to_owned(), json!(mt));
+    }
+    if !req.stop_sequences.is_empty() {
+        gen_config.insert("stopSequences".to_owned(), json!(req.stop_sequences));
+    }
+    if let Some(budget) = req.thinking_budget {
+        gen_config.insert(
+            "thinkingConfig".to_owned(),
+            json!({ "thinkingBudget": budget }),
+        );
+    }
+    match &req.response_format {
+        ResponseFormat::Json => {
+            gen_config.insert("responseMimeType".to_owned(), json!("application/json"));
+        }
+        ResponseFormat::JsonSchema(schema) => {
+            gen_config.insert("responseMimeType".to_owned(), json!("application/json"));
+            gen_config.insert("responseSchema".to_owned(), adapt_gemini_schema(schema));
+        }
+        ResponseFormat::Text | _ => {}
+    }
+    gen_config
+}
+
+/// Rewrite an author JSON Schema into Gemini's `responseSchema` shape (an
+/// OpenAPI-3.0 subset). Two keywords 400 the request and are repaired
+/// recursively (the complement of the `openai` strict normalizer):
+///
+/// - `additionalProperties` — "Unknown name additionalProperties … Cannot
+///   find field" → **stripped** (Gemini has no such field).
+/// - `"type":[T,"null"]` — the JSON-Schema nullable/union form → "Proto
+///   field is not repeating" (Gemini `type` is a scalar) → rewritten to
+///   `"type":T` + `"nullable":true` (the OpenAPI-3.0 spelling).
+///
+/// `enum` · `format` · `required` · `properties` · `items` are kept as-is.
+/// The walk descends into `properties.*`, `items` (single + tuple), and
+/// `$defs`/`definitions`.
+fn adapt_gemini_schema(schema: &Value) -> Value {
+    let mut out = schema.clone();
+    adapt_node(&mut out);
+    out
+}
+
+/// In-place Gemini rewrite of one schema node and its descendants.
+fn adapt_node(node: &mut Value) {
+    let Some(obj) = node.as_object_mut() else {
+        return;
+    };
+    obj.remove("additionalProperties");
+    convert_nullable_type(obj);
+    if let Some(props) = obj.get_mut("properties").and_then(Value::as_object_mut) {
+        for prop in props.values_mut() {
+            adapt_node(prop);
+        }
+    }
+    for key in ["items", "prefixItems", "additionalItems"] {
+        match obj.get_mut(key) {
+            Some(Value::Array(items)) => items.iter_mut().for_each(adapt_node),
+            Some(child) => adapt_node(child),
+            None => {}
+        }
+    }
+    for key in ["$defs", "definitions"] {
+        if let Some(defs) = obj.get_mut(key).and_then(Value::as_object_mut) {
+            for def in defs.values_mut() {
+                adapt_node(def);
+            }
+        }
+    }
+}
+
+/// `"type":[T,"null"]` (a 2-element union with `"null"`) → `"type":T` +
+/// `"nullable":true`. A plain scalar `type` or a union without `"null"` is
+/// left untouched (Gemini accepts a scalar type; a 3-way union is the
+/// caller's risk, same as `$ref`/`oneOf`).
+fn convert_nullable_type(obj: &mut serde_json::Map<String, Value>) {
+    let Some(types) = obj.get("type").and_then(Value::as_array) else {
+        return;
+    };
+    if types.len() != 2 {
+        return;
+    }
+    let has_null = types.iter().any(|v| v.as_str() == Some("null"));
+    let non_null: Option<String> = types
+        .iter()
+        .filter_map(Value::as_str)
+        .find(|t| *t != "null")
+        .map(ToOwned::to_owned);
+    if let (true, Some(scalar)) = (has_null, non_null) {
+        obj.insert("type".to_owned(), Value::String(scalar));
+        obj.insert("nullable".to_owned(), Value::Bool(true));
+    }
 }
 
 /// One kernel message → one `contents[]` entry. Tool results become
@@ -892,5 +968,146 @@ mod tests {
         assert!(matches!(&resp.content[1],
             ContentBlock::Text { text } if text == "answer"));
         assert_eq!(resp.usage.thinking_tokens, Some(5));
+    }
+
+    // ── BUG#6 · gemini structured-output schema adapter (Gate 2 parity) ──
+
+    #[test]
+    fn adapter_strips_additional_properties() {
+        let out = adapt_gemini_schema(&json!({
+            "type": "object",
+            "additionalProperties": false,
+            "properties": { "name": {"type": "string"} }
+        }));
+        assert!(
+            out.get("additionalProperties").is_none(),
+            "additionalProperties stripped at the root"
+        );
+        // a kept keyword survives
+        assert_eq!(out["properties"]["name"]["type"], "string");
+    }
+
+    #[test]
+    fn adapter_converts_nullable_type_union() {
+        let out = adapt_gemini_schema(&json!({
+            "type": "object",
+            "properties": { "note": {"type": ["string", "null"]} }
+        }));
+        let note = &out["properties"]["note"];
+        assert_eq!(note["type"], "string", "scalar type extracted");
+        assert_eq!(note["nullable"], true, "nullable flag set");
+        // null-first order works too
+        let out2 = adapt_gemini_schema(&json!({"type": ["null", "integer"]}));
+        assert_eq!(out2["type"], "integer");
+        assert_eq!(out2["nullable"], true);
+    }
+
+    #[test]
+    fn adapter_keeps_enum_and_scalar_type() {
+        let out = adapt_gemini_schema(&json!({
+            "type": "string",
+            "enum": ["a", "b", "c"]
+        }));
+        assert_eq!(out["enum"], json!(["a", "b", "c"]), "enum preserved");
+        assert_eq!(out["type"], "string", "plain scalar type untouched");
+        assert!(out.get("nullable").is_none(), "no spurious nullable");
+    }
+
+    #[test]
+    fn adapter_recurses_into_nested_objects_and_arrays() {
+        let out = adapt_gemini_schema(&json!({
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "addr": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": { "zip": {"type": ["string", "null"]} }
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": { "v": {"type": ["integer", "null"]} }
+                    }
+                }
+            },
+            "required": ["addr"]
+        }));
+        // nested object: additionalProperties stripped, nullable converted
+        let addr = &out["properties"]["addr"];
+        assert!(addr.get("additionalProperties").is_none());
+        assert_eq!(addr["properties"]["zip"]["type"], "string");
+        assert_eq!(addr["properties"]["zip"]["nullable"], true);
+        // array element: same repairs reach inside `items`
+        let elem = &out["properties"]["tags"]["items"];
+        assert!(elem.get("additionalProperties").is_none());
+        assert_eq!(elem["properties"]["v"]["type"], "integer");
+        assert_eq!(elem["properties"]["v"]["nullable"], true);
+        // a kept keyword is intact
+        assert_eq!(out["required"], json!(["addr"]));
+    }
+
+    #[test]
+    fn adapter_recurses_into_defs() {
+        let out = adapt_gemini_schema(&json!({
+            "type": "object",
+            "properties": { "node": {"$ref": "#/$defs/Node"} },
+            "$defs": {
+                "Node": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": { "label": {"type": ["string", "null"]} }
+                }
+            }
+        }));
+        let node = &out["$defs"]["Node"];
+        assert!(node.get("additionalProperties").is_none(), "$defs repaired");
+        assert_eq!(node["properties"]["label"]["type"], "string");
+        assert_eq!(node["properties"]["label"]["nullable"], true);
+    }
+
+    #[test]
+    fn adapter_handles_an_openai_strict_output_shape() {
+        // The exact shape BUG#4 produces (additionalProperties:false on
+        // every object + optionals as `[T,"null"]`) must land legal for
+        // gemini — the complement of the openai normalizer.
+        let openai_strict = json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "note"],
+            "properties": {
+                "id": {"type": "string"},
+                "note": {"type": ["string", "null"]}
+            }
+        });
+        let out = adapt_gemini_schema(&openai_strict);
+        assert!(out.get("additionalProperties").is_none());
+        assert_eq!(out["properties"]["id"]["type"], "string");
+        assert_eq!(out["properties"]["note"]["type"], "string");
+        assert_eq!(out["properties"]["note"]["nullable"], true);
+    }
+
+    #[test]
+    fn request_body_routes_schema_through_the_adapter() {
+        let mut r = req(vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::JsonSchema(json!({
+            "type": "object",
+            "additionalProperties": false,
+            "properties": { "x": {"type": ["string", "null"]} }
+        }));
+        let body = request_body(&r).expect("body");
+        let schema = &body["generationConfig"]["responseSchema"];
+        assert!(
+            schema.get("additionalProperties").is_none(),
+            "the wire schema is adapted, not verbatim"
+        );
+        assert_eq!(schema["properties"]["x"]["type"], "string");
+        assert_eq!(schema["properties"]["x"]["nullable"], true);
+        assert_eq!(
+            body["generationConfig"]["responseMimeType"],
+            "application/json"
+        );
     }
 }
