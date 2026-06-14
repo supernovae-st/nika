@@ -379,4 +379,41 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn required_keys_match_the_catalog_required_no_drift() {
+        // The required-arg drift guard (F5): the JSON-Schema `required`
+        // array each `ToolDef` declares and the catalog `Builtin::required`
+        // set `nika check`'s missing-args scan reads are ONE contract.
+        // EXCEPTION: the two CONDITIONAL-contract builtins (`wait` ·
+        // `fetch`) keep `Builtin::required` empty by design — their `url`/
+        // XOR/mode rules live in `analyzer::builtin_shape`, not the flat
+        // set — so their ToolDef `required` (a model hint) is allowed to
+        // differ. Every OTHER builtin must match exactly.
+        use std::collections::BTreeSet;
+        const CONDITIONAL: [&str; 2] = ["wait", "fetch"];
+        for d in tool_defs() {
+            let name = d.name.strip_prefix("nika:").expect("nika: prefix");
+            let catalog = nika_catalog::find_builtin(name)
+                .unwrap_or_else(|| panic!("`{name}` missing from the catalog"));
+            let def_required: BTreeSet<&str> = d.parameters["required"]
+                .as_array()
+                .expect("required array")
+                .iter()
+                .filter_map(|v| v.as_str())
+                .collect();
+            if CONDITIONAL.contains(&name) {
+                assert!(
+                    catalog.required.is_empty(),
+                    "`nika:{name}` is conditional — Builtin::required must stay empty"
+                );
+                continue;
+            }
+            let catalog_required: BTreeSet<&str> = catalog.required.iter().copied().collect();
+            assert_eq!(
+                def_required, catalog_required,
+                "`nika:{name}` required keys drifted: ToolDef vs catalog Builtin::required"
+            );
+        }
+    }
 }

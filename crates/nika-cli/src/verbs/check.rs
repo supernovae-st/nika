@@ -124,8 +124,8 @@ fn render(report: &CheckReport, wf: &RawWorkflow, path: &str, t: Theme) -> Strin
         &mut out,
         t,
         "ARGS",
-        "every invoke arg key is declared by its builtin",
-        unknown_arg_rows(report),
+        "every invoke arg key is declared + every required arg is present",
+        arg_rows(report),
     );
     section_list(
         &mut out,
@@ -166,9 +166,10 @@ fn unknown_tool_rows(report: &CheckReport) -> Vec<String> {
         .collect()
 }
 
-/// One row per `invoke` arg key the named builtin does not declare.
-fn unknown_arg_rows(report: &CheckReport) -> Vec<String> {
-    report
+/// The ARGS section rows — undeclared arg keys (the typo class) THEN
+/// missing required args (the « passed check {} then failed at run » class).
+fn arg_rows(report: &CheckReport) -> Vec<String> {
+    let mut rows: Vec<String> = report
         .unknown_args
         .iter()
         .map(|u| {
@@ -180,7 +181,14 @@ fn unknown_arg_rows(report: &CheckReport) -> Vec<String> {
                 fix_clause(u.suggestion.as_deref())
             )
         })
-        .collect()
+        .collect();
+    rows.extend(report.missing_args.iter().map(|m| {
+        format!(
+            "`{}` (task `{}`) is missing required `{}`",
+            m.tool, m.task, m.arg
+        )
+    }));
+    rows
 }
 
 /// Advisory hints + the one-line verdict (the report's last words).

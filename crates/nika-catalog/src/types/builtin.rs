@@ -26,6 +26,15 @@ pub struct Builtin {
     /// model-facing `ToolDef` schemas in `nika-builtin` (a drift guard
     /// there asserts the two match). Empty `&[]` = no declared args yet.
     pub args: &'static [&'static str],
+    /// The UNCONDITIONALLY required argument keys (the JSON-Schema
+    /// `required` set the model-facing `ToolDef` declares). `nika check`
+    /// flags a call missing any of these at check time instead of at run
+    /// time (the « 5/22 builtins had a static required-arg check » gap).
+    /// A subset of [`Self::args`]. Builtins whose requirement is
+    /// CONDITIONAL (`nika:wait` `duration` XOR `until` · `nika:fetch`
+    /// mode-dependent `jq`/`selector`) keep `&[]` here — the
+    /// `analyzer::builtin_shape` ladder owns those non-flat contracts.
+    pub required: &'static [&'static str],
 }
 
 impl Builtin {
@@ -38,10 +47,13 @@ impl Builtin {
             name,
             category,
             args: &[],
+            required: &[],
         }
     }
 
-    /// Constructor with the declared argument-key vocabulary.
+    /// Constructor with the declared argument-key vocabulary (no
+    /// unconditionally-required keys · for builtins whose requirements are
+    /// all optional OR conditional · `nika:wait`, `nika:fetch`).
     #[must_use]
     pub const fn with_args(
         name: &'static str,
@@ -52,6 +64,26 @@ impl Builtin {
             name,
             category,
             args,
+            required: &[],
+        }
+    }
+
+    /// Constructor with the declared arg vocabulary AND the
+    /// unconditionally-required subset (the JSON-Schema `required` set).
+    /// `required` MUST be a subset of `args` (a drift guard in
+    /// `nika-builtin` pins it to the `ToolDef` schemas).
+    #[must_use]
+    pub const fn with_required(
+        name: &'static str,
+        category: BuiltinCategory,
+        args: &'static [&'static str],
+        required: &'static [&'static str],
+    ) -> Self {
+        Self {
+            name,
+            category,
+            args,
+            required,
         }
     }
 }

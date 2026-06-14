@@ -37,27 +37,18 @@ fn check_action(action: &RawAction, task: &str, errors: &mut Vec<SchemaError>) {
         matches!(args, Some(serde_json::Value::Object(map)) if map.contains_key(key))
     };
 
+    // Flat required-arg contracts (`nika:write` content · `nika:jq`
+    // expression · `nika:fetch` url · …) now live in the catalog's
+    // `Builtin::required` and are checked by `check::tools::scan_missing_args`
+    // — ONE source, no double report. This ladder keeps only the
+    // NON-FLAT contracts the catalog set cannot express.
     match tool {
-        "nika:write" if !has("content") => errors.push(shape(
-            task,
-            tool,
-            "requires a `content:` arg — a write with nothing to write \
-             (builtins-v0.1.md §nika:write)",
-            span,
-        )),
         "nika:done" => errors.push(shape(
             task,
             tool,
             "is the agent-loop completion sentinel — valid ONLY inside an \
              `agent:` tools whitelist · never a standalone invoke \
              (02-verbs.md §loop semantics · NIKA-BUILTIN-DONE-001)",
-            span,
-        )),
-        "nika:jq" if !has("expression") => errors.push(shape(
-            task,
-            tool,
-            "requires an `expression:` arg — exactly that name, never \
-             `query`/`expr` (builtins-v0.1.md §nika:jq · one name everywhere)",
             span,
         )),
         "nika:wait" if has("duration") == has("until") => errors.push(shape(
@@ -67,6 +58,10 @@ fn check_action(action: &RawAction, task: &str, errors: &mut Vec<SchemaError>) {
              (builtins-v0.1.md §nika:wait)",
             span,
         )),
+        // `nika:fetch` keeps its WHOLE contract here (incl. the required
+        // `url:`) because the mode-dependent `jq`/`selector` pairings are
+        // conditional — splitting `url` to the catalog set would double the
+        // surface for one builtin. Its `Builtin::required` stays empty.
         "nika:fetch" => check_fetch_shape(task, tool, args, span, errors),
         _ => {}
     }
@@ -199,12 +194,13 @@ mod tests {
     #[test]
     fn shape_rules_table() {
         // (args yaml · tool · violates?) — one row per contract direction.
+        // NOTE: flat required-arg contracts (`nika:write` content · `nika:jq`
+        // expression) moved to the catalog `Builtin::required` set + the
+        // `check::tools::scan_missing_args` check — they are NOT shape-rule
+        // findings anymore (tested there). This table keeps the non-flat
+        // contracts: the `done` sentinel · the `wait` XOR · `fetch` pairings.
         let cases = [
-            (r#"{ path: "./o" }"#, "nika:write", true),
-            (r#"{ path: "./o", content: "hi" }"#, "nika:write", false),
             ("{}", "nika:done", true), // standalone · always the sentinel error
-            (r#"{ input: [], query: "length" }"#, "nika:jq", true),
-            (r#"{ input: [], expression: "length" }"#, "nika:jq", false),
             (
                 r#"{ duration: "5s", until: "2026-12-01T00:00:00Z" }"#,
                 "nika:wait",
@@ -294,10 +290,13 @@ mod tests {
         let agent = "nika: v1\nworkflow: t\ntasks:\n  - id: l\n    agent:\n      \
                      prompt: \"go\"\n      tools: [\"nika:done\"]\n";
         assert!(!has_shape_error(agent, "nika:done"));
-        // …and cleanup actions face the same rules as task actions.
+        // …and cleanup actions face the same shape rules as task actions —
+        // a `nika:wait` with neither duration NOR until in an on_finally is
+        // the XOR violation (a flat-required miss like `nika:write` content
+        // is now the missing-args check's concern · tested there).
         let finally = "nika: v1\nworkflow: t\ntasks:\n  - id: w\n    \
                        exec: { command: echo }\n    on_finally:\n      - invoke:\n          \
-                       tool: \"nika:write\"\n          args: { path: \"./log\" }\n";
-        assert!(has_shape_error(finally, "nika:write"));
+                       tool: \"nika:wait\"\n          args: {}\n";
+        assert!(has_shape_error(finally, "nika:wait"));
     }
 }

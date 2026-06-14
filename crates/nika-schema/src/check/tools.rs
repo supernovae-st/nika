@@ -158,6 +158,78 @@ fn collect_args(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
     }
 }
 
+/// An `invoke` builtin call MISSING an unconditionally-required `args:`
+/// key (the `Builtin::required` set · the JSON-Schema `required` the
+/// model-facing `ToolDef` declares). Before this, only 5 builtins had a
+/// static required-arg check (the hand-coded `builtin_shape` ladder · the
+/// rest passed `check {}` and failed at run time).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+pub struct MissingArg {
+    /// Where the call is (task id · `<id> (on_finally)`).
+    pub task: String,
+    /// The builtin id as written (`nika:hash`).
+    pub tool: String,
+    /// The required arg key that is absent (`content`).
+    pub arg: String,
+}
+
+/// Scan every `invoke` call (main verbs AND `on_finally` cleanups) for a
+/// missing unconditionally-required `args:` key.
+///
+/// Only KNOWN `nika:` builtins are checked (an unknown builtin is
+/// [`scan_unknown_tools`]' finding). `mcp:` tools are the open namespace.
+/// Builtins with CONDITIONAL requirements (`nika:wait` `duration` XOR
+/// `until` · `nika:fetch` mode-dependent + `url`) carry an empty
+/// `Builtin::required` — `analyzer::builtin_shape` owns those, so the two
+/// checks never double-report. A non-object `args:` (or absent) is treated
+/// as « no keys present », so a required-arg builtin called with no args
+/// flags each required key.
+#[must_use]
+pub(super) fn scan_missing_args(wf: &RawWorkflow) -> Vec<MissingArg> {
+    let mut findings = Vec::new();
+    for task in &wf.tasks {
+        let id = &task.value.id.value;
+        collect_missing(id, &task.value.action, &mut findings);
+        for cleanup in &task.value.on_finally {
+            collect_missing(
+                &format!("{id} (on_finally)"),
+                &cleanup.value.action,
+                &mut findings,
+            );
+        }
+    }
+    findings
+}
+
+/// Check one action's `args:` for the builtin's required keys.
+fn collect_missing(site: &str, action: &RawAction, out: &mut Vec<MissingArg>) {
+    let RawAction::Invoke(a) = action else {
+        return; // only invoke carries a builtin args map
+    };
+    let Some(name) = a.tool.value.strip_prefix("nika:") else {
+        return; // mcp: args are server-defined (open namespace)
+    };
+    let Some(builtin) = find_builtin(name) else {
+        return; // unknown builtin — scan_unknown_tools owns that finding
+    };
+    if builtin.required.is_empty() {
+        return; // no flat-required keys (conditional contracts live elsewhere)
+    }
+    // Absent OR non-object args: → no keys present (each required is missing).
+    let args = a.args.as_ref().and_then(|a| a.value.as_object());
+    for &req in builtin.required {
+        let present = args.is_some_and(|map| map.contains_key(req));
+        if !present {
+            out.push(MissingArg {
+                task: site.to_owned(),
+                tool: a.tool.value.clone(),
+                arg: req.to_owned(),
+            });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,5 +385,108 @@ mod tests {
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].task, "t (on_finally)");
         assert_eq!(f[0].arg, "appnd");
+    }
+
+    // ── F5 · missing required args (extends the 5/22 static check) ───────
+
+    fn missing_of(yaml: &str) -> Vec<MissingArg> {
+        scan_missing_args(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    #[test]
+    fn every_builtin_with_a_missing_required_arg_is_caught_at_check_time() {
+        // One row per builtin that carries a flat `required` set: an empty
+        // (or absent) args: must flag EVERY required key — the « pass
+        // check {} then fail at run » gap, closed for all 22.
+        use nika_catalog::all_builtins;
+        for b in all_builtins() {
+            if b.required.is_empty() {
+                continue; // conditional contract · builtin_shape owns it
+            }
+            let yaml = format!(
+                "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: {{ tool: \"nika:{}\" }}\n",
+                b.name
+            );
+            let f = missing_of(&yaml);
+            let mut got: Vec<&str> = f.iter().map(|m| m.arg.as_str()).collect();
+            got.sort_unstable();
+            let mut want: Vec<&str> = b.required.to_vec();
+            want.sort_unstable();
+            assert_eq!(got, want, "`nika:{}` missing-required set", b.name);
+            assert!(
+                f.iter()
+                    .all(|m| m.tool == format!("nika:{}", b.name) && m.task == "t"),
+                "finding metadata for nika:{}",
+                b.name
+            );
+        }
+    }
+
+    #[test]
+    fn a_partially_filled_call_flags_only_the_absent_required_keys() {
+        // `nika:write` requires path + content · giving only `path` flags
+        // exactly `content` (not path), and nothing else.
+        let f = missing_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: { tool: \"nika:write\", args: { path: \"./o\" } }\n",
+        );
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].arg, "content");
+        assert_eq!(f[0].tool, "nika:write");
+    }
+
+    #[test]
+    fn all_required_present_is_clean() {
+        let f = missing_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: { tool: \"nika:convert\", args: { input: \"x\", from: \"csv\", to: \"json\" } }\n",
+        );
+        assert!(f.is_empty(), "every required arg present: {f:?}");
+    }
+
+    #[test]
+    fn optional_only_builtins_never_flag() {
+        // `nika:uuid` (version optional) and `nika:done` (no required) never
+        // raise a missing-required finding even with empty args.
+        for name in ["uuid", "done"] {
+            let yaml = format!(
+                "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: {{ tool: \"nika:{name}\" }}\n"
+            );
+            assert!(missing_of(&yaml).is_empty(), "nika:{name} has no required");
+        }
+    }
+
+    #[test]
+    fn conditional_builtins_are_left_to_builtin_shape() {
+        // `nika:wait` (duration XOR until) and `nika:fetch` (url + mode
+        // pairings) carry NO flat required — the missing-required scan must
+        // stay silent on them (builtin_shape owns the double-report-free
+        // contract).
+        let wait = missing_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: { tool: \"nika:wait\" }\n",
+        );
+        assert!(wait.is_empty(), "wait is conditional, not flat-required");
+        let fetch = missing_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\" }\n",
+        );
+        assert!(fetch.is_empty(), "fetch contract is builtin_shape's");
+    }
+
+    #[test]
+    fn missing_required_in_on_finally_is_checked() {
+        let f = missing_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"true\" }\n    on_finally:\n      - invoke: { tool: \"nika:hash\" }\n",
+        );
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].task, "t (on_finally)");
+        assert_eq!(f[0].arg, "content");
+    }
+
+    #[test]
+    fn unknown_builtin_missing_args_not_double_reported() {
+        // A typo'd builtin is scan_unknown_tools' finding — the
+        // missing-required scan can't know its vocabulary, stays silent.
+        let f = missing_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: { tool: \"nika:hsah\" }\n",
+        );
+        assert!(f.is_empty(), "unknown builtin owns its finding: {f:?}");
     }
 }

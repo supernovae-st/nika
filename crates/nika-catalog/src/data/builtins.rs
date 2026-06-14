@@ -26,51 +26,102 @@ use BuiltinCategory::{Core, Data, File, Introspection, Network};
 /// Invariant: array MUST be sorted for `binary_search` to work.
 /// This is validated by a unit test.
 pub static ALL_BUILTINS: &[Builtin] = &[
-    Builtin::with_args("assert", Core, &["condition", "message"]),
+    Builtin::with_required("assert", Core, &["condition", "message"], &["condition"]),
     // `compose` (the agent loop's self-verification intrinsic — checks a
     // workflow draft the model wrote · `nika check`: conformance +
     // secret-flow + permits + the AARA certificate · never executes it ·
     // loop-only + loop-served like `done` · NIKA-BUILTIN-COMPOSE-001 ·
     // ADR-093 · the static sibling of `inspect`'s runtime view).
-    Builtin::with_args("compose", Introspection, &["workflow_yaml"]),
-    Builtin::with_args("convert", Data, &["input", "from", "to", "has_header"]),
-    Builtin::with_args(
+    Builtin::with_required(
+        "compose",
+        Introspection,
+        &["workflow_yaml"],
+        &["workflow_yaml"],
+    ),
+    Builtin::with_required(
+        "convert",
+        Data,
+        &["input", "from", "to", "has_header"],
+        &["input", "from", "to"],
+    ),
+    Builtin::with_required(
         "date",
         Data,
         &[
             "op", "tz", "base", "duration", "input", "format", "start", "end", "unit",
         ],
+        &["op"],
     ),
+    // `done` (the agent-loop completion sentinel · loop-only · no required
+    // args · the builtin_shape ladder rejects it as a standalone invoke).
     Builtin::with_args("done", Core, &["result"]),
-    Builtin::with_args("edit", File, &["path", "find", "replace", "count"]),
-    Builtin::with_args("emit", Core, &["event_type", "payload"]),
+    Builtin::with_required(
+        "edit",
+        File,
+        &["path", "find", "replace", "count"],
+        &["path", "find", "replace"],
+    ),
+    Builtin::with_required("emit", Core, &["event_type", "payload"], &["event_type"]),
+    // `fetch` · `url` IS required, but `jq`/`selector` are mode-conditional —
+    // the whole fetch contract (incl. `url`) is owned by `builtin_shape`'s
+    // `check_fetch_shape` (the mode-pairing logic), so required stays `&[]`
+    // here to avoid a double finding.
     Builtin::with_args(
         "fetch",
         Network,
         &["url", "method", "headers", "body", "mode", "selector", "jq"],
     ),
-    Builtin::with_args("glob", File, &["pattern", "exclude"]),
-    Builtin::with_args("grep", File, &["pattern", "path", "case_insensitive"]),
-    Builtin::with_args("hash", Data, &["content", "algo", "encoding"]),
-    Builtin::with_args("inspect", Introspection, &["view"]),
-    Builtin::with_args("jq", Data, &["expression", "input"]),
-    Builtin::with_args("json_diff", Data, &["before", "after"]),
-    Builtin::with_args("json_merge_patch", Data, &["target", "patch"]),
-    Builtin::with_args("log", Core, &["level", "message", "data"]),
-    Builtin::with_args(
+    Builtin::with_required("glob", File, &["pattern", "exclude"], &["pattern"]),
+    Builtin::with_required(
+        "grep",
+        File,
+        &["pattern", "path", "case_insensitive"],
+        &["pattern"],
+    ),
+    Builtin::with_required("hash", Data, &["content", "algo", "encoding"], &["content"]),
+    Builtin::with_required("inspect", Introspection, &["view"], &["view"]),
+    Builtin::with_required("jq", Data, &["expression", "input"], &["expression"]),
+    Builtin::with_required(
+        "json_diff",
+        Data,
+        &["before", "after"],
+        &["before", "after"],
+    ),
+    Builtin::with_required(
+        "json_merge_patch",
+        Data,
+        &["target", "patch"],
+        &["target", "patch"],
+    ),
+    Builtin::with_required("log", Core, &["level", "message", "data"], &["message"]),
+    Builtin::with_required(
         "notify",
         Network,
         &["channel", "target", "message", "severity", "data"],
+        &["target", "message"],
     ),
-    Builtin::with_args("prompt", Core, &["mode", "message", "choices", "default"]),
-    Builtin::with_args("read", File, &["path", "binary"]),
+    Builtin::with_required(
+        "prompt",
+        Core,
+        &["mode", "message", "choices", "default"],
+        &["message"],
+    ),
+    Builtin::with_required("read", File, &["path", "binary"], &["path"]),
     Builtin::with_args("uuid", Data, &["version"]),
-    Builtin::with_args("validate", Data, &["data", "schema", "format"]),
+    Builtin::with_required(
+        "validate",
+        Data,
+        &["data", "schema", "format"],
+        &["data", "schema"],
+    ),
+    // `wait` · `duration` XOR `until` — a CONDITIONAL exactly-one-of, not a
+    // flat required set · `builtin_shape` owns it (required stays `&[]`).
     Builtin::with_args("wait", Core, &["duration", "until", "timeout"]),
-    Builtin::with_args(
+    Builtin::with_required(
         "write",
         File,
         &["path", "content", "overwrite", "create_dirs"],
+        &["path", "content"],
     ),
 ];
 
@@ -205,6 +256,45 @@ mod tests {
             let before = seen.len();
             seen.dedup();
             assert_eq!(seen.len(), before, "`{}` has a duplicate arg key", b.name);
+        }
+    }
+
+    #[test]
+    fn required_is_always_a_subset_of_args() {
+        // Every unconditionally-required key must be a DECLARED arg key —
+        // a `required` outside `args` would be an unsatisfiable contract.
+        for b in ALL_BUILTINS {
+            for req in b.required {
+                assert!(
+                    b.args.contains(req),
+                    "`{}` requires `{req}` which is not in its args",
+                    b.name
+                );
+            }
+            let mut seen = b.required.to_vec();
+            seen.sort_unstable();
+            let before = seen.len();
+            seen.dedup();
+            assert_eq!(
+                seen.len(),
+                before,
+                "`{}` has a duplicate required key",
+                b.name
+            );
+        }
+    }
+
+    #[test]
+    fn conditional_required_builtins_declare_no_flat_required() {
+        // `wait` (duration XOR until) and `fetch` (mode-dependent jq/selector
+        // + url) carry their contracts in builtin_shape, NOT the flat
+        // `required` set — so the two checks never double-report.
+        for name in ["wait", "fetch"] {
+            let b = find_builtin(name).expect("known");
+            assert!(
+                b.required.is_empty(),
+                "`{name}` must keep a flat-empty required (conditional contract)"
+            );
         }
     }
 

@@ -57,7 +57,7 @@ pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::SchemaTypeFinding;
 pub use secrets::{SecretEgress, SecretLeak};
-pub use tools::{UnknownArg, UnknownTool};
+pub use tools::{MissingArg, UnknownArg, UnknownTool};
 
 /// The JSON contract version of [`CheckReport`] — bumped on any
 /// breaking field rename/removal so agent loops fail LOUDLY instead of
@@ -163,6 +163,13 @@ pub struct CheckReport {
     /// instead of `input:` runs over `null` and returns `null`, no error),
     /// surfaced at check time with the « did you mean » fix.
     pub unknown_args: Vec<UnknownArg>,
+    /// Every `invoke` call MISSING an unconditionally-required `args:` key
+    /// (the `Builtin::required` set). Closes the « only 5/22 builtins had a
+    /// static required-arg check » gap — a required-arg builtin now fails
+    /// `nika check` instead of passing `check {}` and failing at run. The
+    /// conditional contracts (`nika:wait`, `nika:fetch`) stay in
+    /// `conformance` (the `builtin_shape` ladder) — no double report.
+    pub missing_args: Vec<MissingArg>,
     /// Every authored `schema:` defect that makes structured output
     /// unsatisfiable or un-compilable (required∉properties · bad `type`
     /// name · empty `enum`) — the static half of « structured output
@@ -197,6 +204,7 @@ impl CheckReport {
             && self.schema_findings.is_empty()
             && self.unknown_tools.is_empty()
             && self.unknown_args.is_empty()
+            && self.missing_args.is_empty()
             && self.schema_lints.is_empty()
             && self.gate_findings.is_empty()
     }
@@ -254,6 +262,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         schema_findings: schema_typing::scan_types(wf),
         unknown_tools: tools::scan_unknown_tools(wf),
         unknown_args: tools::scan_unknown_args(wf),
+        missing_args: tools::scan_missing_args(wf),
         schema_lints: schema_lint::scan_schemas(wf),
         // gate reachability shares the IFC gating: a valid wave order or
         // nothing (skipped, never wrong)
