@@ -42,17 +42,37 @@ pub(crate) struct Dispatched {
 }
 
 /// A successful dispatch — the output value + token spend when the
-/// verb reports it (infer · agent).
+/// verb reports it (infer · agent) + an optional non-fatal WARNING
+/// (OBS-E: a thinking model that ate its budget on reasoning and
+/// returned a blank answer · the task still succeeded).
 pub(crate) struct DispatchOk {
     pub value: Value,
     pub tokens: Option<i64>,
+    pub warning: Option<String>,
 }
 
 impl Dispatched {
     fn ok(note: String, value: Value, tokens: Option<i64>) -> Self {
         Self {
             note,
-            result: Ok(DispatchOk { value, tokens }),
+            result: Ok(DispatchOk {
+                value,
+                tokens,
+                warning: None,
+            }),
+        }
+    }
+
+    /// `ok` with an OBS-E diagnostic attached (infer/agent only · the
+    /// effect verbs never reason).
+    fn ok_warned(note: String, value: Value, tokens: Option<i64>, warning: Option<String>) -> Self {
+        Self {
+            note,
+            result: Ok(DispatchOk {
+                value,
+                tokens,
+                warning,
+            }),
         }
     }
 
@@ -310,7 +330,11 @@ where
                     }
                 };
                 let tokens = Some(i64::try_from(out.usage.output_tokens).unwrap_or(i64::MAX));
-                Dispatched::ok(note, value, tokens)
+                // OBS-E: surface the silent empty-answer footgun (a
+                // reasoning model that ate its budget on thinking) as a
+                // non-fatal warning · the task still succeeds.
+                let warning = empty_thinking_warning(&value, &out.usage);
+                Dispatched::ok_warned(note, value, tokens, warning)
             }
             Err(err) => Dispatched::verb_err("infer · ?".to_owned(), &err),
         }
@@ -494,6 +518,57 @@ fn check_exec_permits(
     }
 }
 
+/// OBS-E · the silent-empty-answer footgun for reasoning models.
+///
+/// A thinking model (gemini-2.5-flash · openai o-series · anthropic
+/// extended-thinking) under a tight `max_tokens` can spend the whole
+/// budget on its reasoning trace and conclude with a BLANK visible
+/// answer — the task completes rc=0 with `output == ""` and every
+/// downstream `${{ tasks.X.output }}` silently resolves to nothing.
+///
+/// The signal is the **empty visible answer paired with reasoning
+/// spend**, NOT `output_tokens == 0`: the gemini wire deliberately folds
+/// `thoughtsTokenCount` INTO `output_tokens` (so a heavy-think empty
+/// answer reports `output_tokens == thoughts > 0`, see
+/// `wire::gemini::usage_from`) — keying off `output_tokens` would never
+/// fire on the very provider this guards. `reasoning_tokens` (`OpenAI`
+/// o-series) is treated the same as `thinking_tokens` (provider-agnostic
+/// · the reasoning budget is one concept across wires).
+///
+/// Non-fatal: returns the diagnostic STRING when the footgun is detected
+/// (the caller rides it on `TaskCompleted` as a `warning` field) · the
+/// task still succeeds. Pure (no I/O) so it is `--lib`-testable.
+fn empty_thinking_warning(
+    value: &Value,
+    usage: &nika_kernel::provider::TokenUsage,
+) -> Option<String> {
+    let reasoning = usage
+        .thinking_tokens
+        .unwrap_or(0)
+        .saturating_add(usage.reasoning_tokens.unwrap_or(0));
+    if reasoning > 0 && value_is_blank(value) {
+        return Some(format!(
+            "infer produced an empty answer · max_tokens likely too low for a thinking model \
+             (reasoning consumed {reasoning} tokens)"
+        ));
+    }
+    None
+}
+
+/// A "blank" visible answer · an empty/whitespace string, JSON null, or
+/// an empty container (`""`, `null`, `[]`, `{}`). Anything with content
+/// (a non-empty string · a populated object/array · a number/bool) is a
+/// real answer, never the footgun.
+fn value_is_blank(value: &Value) -> bool {
+    match value {
+        Value::Null => true,
+        Value::String(s) => s.trim().is_empty(),
+        Value::Array(a) => a.is_empty(),
+        Value::Object(o) => o.is_empty(),
+        Value::Bool(_) | Value::Number(_) => false,
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
@@ -567,5 +642,89 @@ mod tests {
         action.cwd = Some(spanned("${{ vars.nope }}"));
         let mut input = ExecInput::shell("true");
         assert!(render_exec_io(&mut input, &action, &scope).is_err());
+    }
+
+    // ── OBS-E · the reasoning-model blank-answer footgun ────────────────
+
+    use nika_kernel::provider::TokenUsage;
+
+    use super::{empty_thinking_warning, value_is_blank};
+
+    fn usage_thinking(output: u64, thinking: u64) -> TokenUsage {
+        let mut u = TokenUsage::new(7, output);
+        u.thinking_tokens = Some(thinking);
+        u
+    }
+
+    #[test]
+    fn obs_e_fires_on_empty_answer_with_thinking_spend() {
+        // The task's footgun: a thinking model that ate its budget on
+        // reasoning and concluded with a blank visible answer.
+        let usage = usage_thinking(0, 84);
+        let warn = empty_thinking_warning(&Value::String(String::new()), &usage)
+            .expect("empty answer + thinking → warning");
+        assert!(warn.contains("empty answer"), "names the footgun: {warn}");
+        assert!(warn.contains("84"), "reports the reasoning spend: {warn}");
+        assert!(warn.contains("max_tokens"), "names the likely fix: {warn}");
+    }
+
+    #[test]
+    fn obs_e_silent_on_a_real_answer_without_thinking() {
+        // The normal path · {output:50, thinking:0} with content → no warn.
+        let usage = usage_thinking(50, 0);
+        assert!(
+            empty_thinking_warning(&Value::String("Paris".to_owned()), &usage).is_none(),
+            "a real answer is never the footgun"
+        );
+    }
+
+    #[test]
+    fn obs_e_keys_off_the_empty_visible_answer_not_output_tokens() {
+        // The gemini wire folds `thoughtsTokenCount` INTO `output_tokens`
+        // (usage_from), so a heavy-think empty answer reports
+        // output_tokens == thoughts > 0 · keying off output_tokens would
+        // MISS it. The blank visible answer is the real signal.
+        let usage = usage_thinking(84, 84); // gemini-shaped: candidates(0)+thoughts(84)
+        assert!(
+            empty_thinking_warning(&Value::String("   ".to_owned()), &usage).is_some(),
+            "whitespace-only answer + thinking fires (the gemini reality)"
+        );
+    }
+
+    #[test]
+    fn obs_e_reasoning_tokens_count_like_thinking_tokens() {
+        // OpenAI o-series reports the reasoning budget under
+        // `reasoning_tokens` · the footgun is provider-agnostic.
+        let mut usage = TokenUsage::new(7, 0);
+        usage.reasoning_tokens = Some(40);
+        assert!(
+            empty_thinking_warning(&Value::Null, &usage).is_some(),
+            "reasoning_tokens triggers the same diagnostic"
+        );
+    }
+
+    #[test]
+    fn obs_e_silent_when_no_reasoning_even_if_answer_blank() {
+        // A blank answer WITHOUT any reasoning spend is a different
+        // problem (an empty completion) · OBS-E only owns the thinking
+        // footgun, so it stays silent (no false alarm).
+        let usage = TokenUsage::new(7, 0); // no thinking, no reasoning
+        assert!(empty_thinking_warning(&Value::String(String::new()), &usage).is_none());
+        assert!(empty_thinking_warning(&Value::Null, &usage).is_none());
+    }
+
+    #[test]
+    fn value_is_blank_classifies_empty_forms() {
+        assert!(value_is_blank(&Value::Null));
+        assert!(value_is_blank(&Value::String(String::new())));
+        assert!(value_is_blank(&Value::String("  \n ".to_owned())));
+        assert!(value_is_blank(&serde_json::json!([])));
+        assert!(value_is_blank(&serde_json::json!({})));
+        // Content of any kind is NOT blank.
+        assert!(!value_is_blank(&Value::String("x".to_owned())));
+        assert!(!value_is_blank(&serde_json::json!({ "k": 1 })));
+        assert!(!value_is_blank(&serde_json::json!([1])));
+        assert!(!value_is_blank(&Value::Bool(false)));
+        assert!(!value_is_blank(&serde_json::json!(0)));
     }
 }

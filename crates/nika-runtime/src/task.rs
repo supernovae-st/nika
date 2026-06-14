@@ -110,8 +110,14 @@ pub(crate) struct RetryStamp {
 /// The task's terminal result.
 pub(crate) enum RunResult {
     /// Success — the verb's value (or the `on_error: recover` value) +
-    /// token spend when the verb reports it.
-    Success { value: Value, tokens: Option<i64> },
+    /// token spend when the verb reports it + an optional non-fatal
+    /// diagnostic (OBS-E · a reasoning model's blank-answer footgun ·
+    /// rides `TaskCompleted` as a `warning` field).
+    Success {
+        value: Value,
+        tokens: Option<i64>,
+        warning: Option<String>,
+    },
     /// `on_error: skip` — skipped with the original error readable
     /// (spec 05 · the one coexist state).
     SkippedWithError { error: TaskErrorRecord },
@@ -292,6 +298,10 @@ where
             None => RunResult::Success {
                 value: Value::Array(acc.outputs),
                 tokens: acc.tokens_sum,
+                // OBS-E is a per-CALL diagnostic; a fan-out's aggregate
+                // success carries no single warning (a per-element note
+                // would need its own channel · out of scope here).
+                warning: None,
             },
             Some(error) => RunResult::Failed { error },
         };
@@ -455,7 +465,15 @@ where
         }
 
         let result = match outcome {
-            Ok(DispatchOk { value, tokens }) => RunResult::Success { value, tokens },
+            Ok(DispatchOk {
+                value,
+                tokens,
+                warning,
+            }) => RunResult::Success {
+                value,
+                tokens,
+                warning,
+            },
             Err(error) => apply_on_error(task, scope, error),
         };
         RanTask {
@@ -572,7 +590,9 @@ where
         acc.retries.extend(iter_ran.retries);
         acc.agent_events.extend(iter_ran.agent_events);
         match iter_ran.result {
-            RunResult::Success { value, tokens } => {
+            // OBS-E `warning` is per-call · a fan-out element's diagnostic
+            // is not aggregated up (only `value` + `tokens` fold).
+            RunResult::Success { value, tokens, .. } => {
                 acc.outputs.push(value);
                 if let Some(n) = tokens {
                     acc.tokens_sum = Some(acc.tokens_sum.unwrap_or(0).saturating_add(n));
@@ -804,6 +824,8 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, error: TaskErrorRecord) -> 
             Ok(recovered) => RunResult::Success {
                 value: recovered,
                 tokens: None,
+                // A recovered value is author-supplied · no model reasoning.
+                warning: None,
             },
             // Recovery itself failed → the task fails as if
             // `on_error:` were absent (spec 05 §recover resolution).

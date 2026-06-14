@@ -466,7 +466,11 @@ fn settle_ran(
     record.started_at = Some(started_at);
     record.duration_ms = Some(run.duration_ms);
     match run.result {
-        task::RunResult::Success { value, tokens } => {
+        task::RunResult::Success {
+            value,
+            tokens,
+            warning,
+        } => {
             let mut fields = vec![
                 ("task", s(id)),
                 ("note", s(&run.note)),
@@ -474,6 +478,12 @@ fn settle_ran(
             ];
             if let Some(n) = tokens {
                 fields.push(("tokens", i(n)));
+            }
+            // OBS-E · a non-fatal diagnostic rides the success frame as a
+            // `warning` field (the reasoning-model blank-answer footgun) ·
+            // the task still completes.
+            if let Some(msg) = warning.as_deref() {
+                fields.push(("warning", s(msg)));
             }
             let ended = emit(stamper, sink, EventKind::TaskCompleted, &fields);
             record.ended_at = Some(ended);
@@ -580,5 +590,73 @@ tasks:
         assert_eq!(vars["plain"], Value::String("text".into()));
         assert_eq!(vars["urls"], serde_json::json!(["a", "b"]));
         assert_eq!(vars["topic"], Value::String("news".into()));
+    }
+
+    /// A settled success carrying an OBS-E `warning` puts it on the
+    /// `TaskCompleted` frame as a `warning` field — the wiring proof that
+    /// the dispatch's diagnostic actually reaches the event stream.
+    #[test]
+    fn obs_e_warning_rides_task_completed() {
+        let ran = task::RanTask {
+            note: "infer · gemini/flash".to_owned(),
+            retries: Vec::new(),
+            agent_events: Vec::new(),
+            duration_ms: 0,
+            result: task::RunResult::Success {
+                value: Value::String(String::new()),
+                tokens: Some(84),
+                warning: Some("infer produced an empty answer · …".to_owned()),
+            },
+        };
+        let mut ok = true;
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        settle_ran("think", ran, &mut ok, &mut stamper, &mut sink);
+
+        let completed = sink
+            .events()
+            .iter()
+            .find(|e| e.kind == EventKind::TaskCompleted)
+            .expect("a TaskCompleted frame");
+        let warning = completed
+            .fields
+            .iter()
+            .find(|f| f.key == "warning")
+            .expect("the warning field rides the success frame");
+        assert!(
+            matches!(&warning.value, FieldValue::String(s) if s.contains("empty answer")),
+            "the diagnostic text is carried verbatim"
+        );
+    }
+
+    /// The common path · a success with no OBS-E diagnostic emits NO
+    /// `warning` field (zero false-alarm noise on the happy stream).
+    #[test]
+    fn no_warning_field_on_a_clean_success() {
+        let ran = task::RanTask {
+            note: "exec · true".to_owned(),
+            retries: Vec::new(),
+            agent_events: Vec::new(),
+            duration_ms: 0,
+            result: task::RunResult::Success {
+                value: Value::String("ok".to_owned()),
+                tokens: None,
+                warning: None,
+            },
+        };
+        let mut ok = true;
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        settle_ran("t", ran, &mut ok, &mut stamper, &mut sink);
+
+        let completed = sink
+            .events()
+            .iter()
+            .find(|e| e.kind == EventKind::TaskCompleted)
+            .expect("a TaskCompleted frame");
+        assert!(
+            !completed.fields.iter().any(|f| f.key == "warning"),
+            "no warning on a clean success"
+        );
     }
 }
