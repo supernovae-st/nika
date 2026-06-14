@@ -20,7 +20,7 @@
 
 use std::sync::Arc;
 
-use nika_builtin::{BuiltinDispatcher, FsBoundary, NoWorkflow, NonInteractive, NullEmitter};
+use nika_builtin::{BuiltinDispatcher, Emitter, FsBoundary, NoWorkflow, NonInteractive};
 use nika_clock::SystemClock;
 use nika_exec_runner::TokioShell;
 use nika_fs::TokioFs;
@@ -35,11 +35,69 @@ use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
 
+/// Surfaces `nika:log` / `nika:emit` onto STDERR (the operator's
+/// diagnostic channel · NEVER stdout, which carries the `--json` event
+/// stream verbatim).
+///
+/// WHY stderr and not the `EventLog`: the `Emitter` seam is `&self`
+/// (shared · the dispatcher is composed ONCE and shared across every
+/// concurrent task), while the runtime's `EventSink` is a `&mut`
+/// threaded through the single-threaded settle pass — so a builtin
+/// `emit` cannot reach the live stamped stream without a collecting
+/// bridge + the reserved `EventKind::Extension` variant (FCI-009 · not
+/// yet implemented). Until that lands, stderr is the honest, complete
+/// surfacing the spec sanctions (« an event and/or stderr » for log ·
+/// best-effort for emit) — NOT a silent no-op (the prior `NullEmitter`
+/// dropped both on the floor). See the `production_runtime` doc for the
+/// precise remaining wiring.
+///
+/// Best-effort by contract (spec §log/§emit): a failed stderr write is
+/// swallowed — observability never changes the run's verdict.
+///
+/// `pub` only because it appears in the public [`ProdRuntime`] type
+/// spelling (the emitter generic) — not a re-export surface.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct StderrEmitter;
+
+impl Emitter for StderrEmitter {
+    fn emit(&self, kind: &str, payload: serde_json::Value) {
+        // Best-effort (spec §log/§emit): `eprintln!` swallows any write
+        // error · observability never changes the run's verdict.
+        eprintln!("{}", format_emit(kind, &payload));
+    }
+}
+
+/// Render one `Emitter` event as the stderr line (pure · the side-effect-
+/// free core `StderrEmitter` prints). `nika:log` arrives as kind "log"
+/// with `{ level, message, data }`; `nika:emit` as kind == the custom
+/// `event_type` with its payload. Each is prefixed so an operator greps
+/// them apart from the run fold.
+fn format_emit(kind: &str, payload: &serde_json::Value) -> String {
+    if kind != "log" {
+        return format!("nika:emit [{kind}] {payload}");
+    }
+    let level = payload
+        .get("level")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("info");
+    // A string message renders verbatim; a non-string (shouldn't happen ·
+    // log builds the payload) renders as compact JSON; absent → empty.
+    let message = match payload.get("message") {
+        Some(serde_json::Value::String(s)) => s.clone(),
+        Some(other) => other.to_string(),
+        None => String::new(),
+    };
+    match payload.get("data").filter(|d| !d.is_null()) {
+        Some(d) => format!("nika:log [{level}] {message} · {d}"),
+        None => format!("nika:log [{level}] {message}"),
+    }
+}
+
 /// The production dispatcher type — the builtin tool plane over real
-/// effects (fs · http · clock · the non-interactive prompter · no
-/// nested-workflow surface at v0).
+/// effects (fs · http · clock · the non-interactive prompter · stderr
+/// emitter for log/emit · no nested-workflow surface at v0).
 type ProdDispatcher =
-    BuiltinDispatcher<TokioFs, ReqwestHttp, SystemClock, NullEmitter, NonInteractive, NoWorkflow>;
+    BuiltinDispatcher<TokioFs, ReqwestHttp, SystemClock, StderrEmitter, NonInteractive, NoWorkflow>;
 
 /// The fully-resolved production runtime spelling (tames the 6 generics
 /// at the call site).
@@ -165,6 +223,37 @@ fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
 /// fails with `NIKA-SEC-004` (spec §permits · enforced statically + at
 /// runtime).
 ///
+/// # `nika:log` / `nika:emit` — observability wiring (the remaining gap)
+///
+/// Today both surface on STDERR via `StderrEmitter` (observable · not the
+/// prior silent no-op). Surfacing them on the `run --json` EVENT STREAM
+/// (so a tailing agent sees `nika:emit`'s custom event inline with the
+/// stamped frames) is deeper, and needs THREE pieces that don't exist yet:
+///
+/// 1. **`EventKind::Extension { ns, name, payload }`** — the FCI-009
+///    reserved variant (`docs/architecture/forward-compat-invariants.md`
+///    Decision 1) is NOT yet implemented in `nika-event`. Adding it is
+///    additive (the enum is `#[non_exhaustive]`) but touches `as_str`
+///    (Extension has no `&'static str` name → return a `"extension"`
+///    discriminator + carry the real name in the event `fields`), `class`,
+///    and the `nika-cli` `display::{render,state}` folds (exhaustive
+///    matches today).
+/// 2. **A collecting `Emitter` bridge** — `Arc<Mutex<Vec<(String, Value)>>>`
+///    injected here in place of `StderrEmitter`; the run verb holds the
+///    same `Arc`. (The `Emitter` seam is `&self`/shared because the
+///    dispatcher is composed ONCE for the whole run; the `EventSink` is a
+///    `&mut` threaded through the single-threaded settle pass — the two
+///    cannot meet without this bridge OR a per-task buffer like
+///    `agent_events`.)
+/// 3. **A drain at settle** — fold the buffered `(name, payload)` into
+///    `sink.emit(Extension …)` either per-task (true ordering · the
+///    `BufferingObserver`/`agent_events` precedent) or once post-run
+///    (simpler · spec says emit/log delivery is best-effort, so strict
+///    interleaving is not required).
+///
+/// Until that lands, stderr is the honest surfacing the spec sanctions
+/// (« an event and/or stderr » for `log` · best-effort for `emit`).
+///
 /// # Errors
 ///
 /// [`ReqwestHttp`] construction can fail if the TLS backend won't
@@ -189,7 +278,10 @@ pub fn production_runtime(
             Arc::new(TokioFs),
             Arc::clone(&http),
             Arc::new(SystemClock),
-            Arc::new(NullEmitter::default()),
+            // log/emit → stderr (observable · NOT a silent no-op). The
+            // `run --json` event-stream integration is the deeper wiring
+            // documented on this fn.
+            Arc::new(StderrEmitter),
             Arc::new(NonInteractive::default()),
             Arc::new(NoWorkflow::default()),
         )
@@ -232,6 +324,31 @@ mod tests {
             runtime.is_ok(),
             "the production runtime composes (TLS init is the only failure)"
         );
+    }
+
+    #[test]
+    fn stderr_emitter_renders_log_and_emit_distinctly() {
+        // F4: log/emit are OBSERVABLE (not the prior silent NullEmitter).
+        // The pure formatter is the contract the StderrEmitter prints.
+
+        // nika:log → level + message (+ data when present).
+        let log = format_emit(
+            "log",
+            &serde_json::json!({ "level": "warn", "message": "disk low", "data": null }),
+        );
+        assert_eq!(log, "nika:log [warn] disk low");
+        let log_data = format_emit(
+            "log",
+            &serde_json::json!({ "level": "info", "message": "hi", "data": { "n": 1 } }),
+        );
+        assert_eq!(log_data, r#"nika:log [info] hi · {"n":1}"#);
+        // a missing level defaults to info (matches the builtin's clamp).
+        let log_default = format_emit("log", &serde_json::json!({ "message": "x" }));
+        assert_eq!(log_default, "nika:log [info] x");
+
+        // nika:emit → the custom event_type as kind + its payload verbatim.
+        let emit = format_emit("deploy.started", &serde_json::json!({ "version": "1.2.3" }));
+        assert_eq!(emit, r#"nika:emit [deploy.started] {"version":"1.2.3"}"#);
     }
 
     #[test]
