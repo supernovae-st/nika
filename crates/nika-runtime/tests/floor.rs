@@ -697,7 +697,7 @@ async fn stress_wide_fan_in_joins_every_source() {
         .collect();
     let _ = writeln!(
         yaml,
-        "  - id: join\n    depends_on: [{}]\n    invoke:\n      tool: \"nika:write\"\n      args: {{ content: \"{}\" }}",
+        "  - id: join\n    depends_on: [{}]\n    invoke:\n      tool: \"nika:write\"\n      args: {{ path: \"./out/joined.md\", content: \"{}\" }}",
         deps.join(", "),
         parts.join("+")
     );
