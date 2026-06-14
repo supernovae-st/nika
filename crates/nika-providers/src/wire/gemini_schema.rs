@@ -13,8 +13,9 @@
 //! here close the cross-provider parity gaps where gemini 400s a schema
 //! openai accepts: `$ref`/`$defs` (inlined), `additionalProperties`
 //! (stripped), multi-type `type` arrays (→ scalar `+nullable` or `anyOf`),
-//! integer enums (typed so they are not read as strings), `const`
-//! (→ one-member `enum`), and `uniqueItems` (stripped).
+//! non-string enums (members stringified — gemini's `enum` is a repeated
+//! STRING regardless of the node's `type`), `const` (→ one-member `enum`),
+//! and `uniqueItems` (stripped).
 
 use nika_kernel::ai::provider::ProviderError;
 use serde_json::{Value, json};
@@ -34,9 +35,14 @@ use serde_json::{Value, json};
 /// - `"type":[T,"null"]` — the JSON-Schema nullable form → "Proto field is
 ///   not repeating" → `"type":T` + `"nullable":true` (the OpenAPI-3.0
 ///   spelling).
+/// - non-string `enum` members — `"enum[i] (TYPE_STRING), 200"` → every
+///   member is rewritten to its STRING form (`200` → `"200"`), since
+///   gemini's `enum` is a repeated STRING. The node's `type` is left as
+///   authored (an `integer` enum keeps `type:integer` · gemini coerces the
+///   chosen member back to that type in the response).
 ///
-/// `enum` · `format` · `required` · `properties` · `items` are kept as-is.
-/// The walk descends into `properties.*` and `items` (single + tuple).
+/// `format` · `required` · `properties` · `items` are kept as-is. The walk
+/// descends into `properties.*` and `items` (single + tuple).
 pub(super) fn adapt_gemini_schema(schema: &Value) -> Result<Value, ProviderError> {
     // Phase 1 · resolve every `$ref` against the document root, producing a
     // ref-free tree (or a typed error on a cycle). The root is the author's
@@ -135,7 +141,7 @@ fn adapt_node(node: &mut Value) {
     obj.remove("additionalProperties");
     simplify_unsupported(obj);
     normalize_type_union(obj);
-    type_enum_node(obj);
+    stringify_enum_members(obj);
     if let Some(props) = obj.get_mut("properties").and_then(Value::as_object_mut) {
         for prop in props.values_mut() {
             adapt_node(prop);
@@ -153,9 +159,9 @@ fn adapt_node(node: &mut Value) {
 /// Rewrite two keywords Gemini's `responseSchema` does not accept (both
 /// also rejected by openai strict, repaired symmetrically there):
 /// - `const: X` → `enum: [X]` (Gemini has no `const`; a one-member `enum`
-///   is the equivalent constraint). `X`'s JSON type is preserved, and the
-///   resulting typeless `enum` is typed by [`type_enum_node`] downstream
-///   (so an integer const lands `type:integer` + `enum:[N]`, not stringy).
+///   is the equivalent constraint). The member is then stringified by
+///   [`stringify_enum_members`] downstream (an integer const lands
+///   `enum:["N"]` — gemini's `enum` is a repeated STRING).
 /// - `uniqueItems` → stripped (array-validation-only; not expressible in
 ///   the structured-output dialect).
 fn simplify_unsupported(obj: &mut serde_json::Map<String, Value>) {
@@ -165,52 +171,42 @@ fn simplify_unsupported(obj: &mut serde_json::Map<String, Value>) {
     obj.remove("uniqueItems");
 }
 
-/// Give an `enum` node a `type` inferred from its members' JSON types when
-/// it lacks one, so the enum reaches Gemini with the right proto type.
+/// Rewrite every `enum` member to its STRING form, leaving the node's
+/// `type` exactly as authored.
 ///
-/// Gemini's `responseSchema` `enum` is interpreted against the node's
-/// `type`; a typeless enum is inferred as `STRING`, so an *integer* enum
-/// (e.g. a `const: 200` rewritten to `enum: [200]`, or an author who wrote
-/// `enum` without `type`) 400s "enum\[0\] (`TYPE_STRING`), 200". The member
-/// VALUES are never touched — an integer enum stays integers; this only
-/// supplies the missing scalar `type` (`integer`/`number`/`boolean`/
-/// `string`) when all members agree. A node that already declares `type`
-/// is left as-is (an explicit `type:integer` + numeric enum is correct).
-fn type_enum_node(obj: &mut serde_json::Map<String, Value>) {
-    if obj.contains_key("type") {
-        return;
-    }
-    let Some(members) = obj.get("enum").and_then(Value::as_array) else {
+/// Gemini's `responseSchema.enum` is a **repeated STRING** (proto
+/// `TYPE_STRING`) — the members must be JSON strings *regardless* of the
+/// node's declared `type`. So an `integer` enum 400s
+/// "enum\[0\] (`TYPE_STRING`), 200" until each member is stringified
+/// (`200` → `"200"`, `true` → `"true"`, `1.5` → `"1.5"`). The `type` stays
+/// as authored — gemini reads the constraint against the string members
+/// and coerces the chosen value back to that `type` in the response (an
+/// `integer` enum still yields a numeric field). A string enum is a no-op
+/// (its members are already strings). Verified against real
+/// `gemini-2.5-flash`: `{type:integer, enum:["200","404","500"]}` →
+/// `{"code":404}`.
+fn stringify_enum_members(obj: &mut serde_json::Map<String, Value>) {
+    let Some(members) = obj.get_mut("enum").and_then(Value::as_array_mut) else {
         return;
     };
-    if let Some(inferred) = unanimous_json_type(members) {
-        obj.insert("type".to_owned(), Value::String(inferred.to_owned()));
+    for m in members.iter_mut() {
+        if let Some(s) = scalar_to_string(m) {
+            *m = Value::String(s);
+        }
     }
 }
 
-/// The single JSON-Schema scalar type all values share, or `None` if the
-/// list is empty or mixed (a mixed enum is left typeless — the caller's
-/// risk, not silently mistyped). Integers are reported as `integer`, other
-/// numbers as `number` (matching JSON-Schema's split).
-fn unanimous_json_type(values: &[Value]) -> Option<&'static str> {
-    let mut kinds = values.iter().map(json_scalar_type);
-    let first = kinds.next()??;
-    if kinds.all(|k| k == Some(first)) {
-        Some(first)
-    } else {
-        None
-    }
-}
-
-/// The JSON-Schema scalar type name of one value (`None` for null /
-/// array / object — not a scalar enum member type Gemini infers).
-fn json_scalar_type(v: &Value) -> Option<&'static str> {
+/// The wire-string form of a scalar enum member: a string stays its own
+/// content (not the quoted JSON), numbers and booleans render as their JSON
+/// literal. `None` for null / array / object — those are not scalar enum
+/// members gemini can represent, so they are left untouched (the caller's
+/// risk, never silently mangled).
+fn scalar_to_string(v: &Value) -> Option<String> {
     match v {
-        Value::String(_) => Some("string"),
-        Value::Bool(_) => Some("boolean"),
-        Value::Number(n) if n.is_u64() || n.is_i64() => Some("integer"),
-        Value::Number(_) => Some("number"),
-        _ => None,
+        Value::String(s) => Some(s.clone()),
+        Value::Number(n) => Some(n.to_string()),
+        Value::Bool(b) => Some(b.to_string()),
+        Value::Null | Value::Array(_) | Value::Object(_) => None,
     }
 }
 
@@ -576,13 +572,19 @@ mod tests {
         assert!(out.get("anyOf").is_none(), "no anyOf for a lone type");
     }
 
-    // ── BUG#10 · integer enum value types preserved for gemini ──
+    // ── BUG#10 · non-string enum members stringified for gemini ──
+    //
+    // Gemini's `responseSchema.enum` is a repeated STRING — a numeric member
+    // 400s "enum[0] (TYPE_STRING), 200" until it is stringified. Verified
+    // against real gemini-2.5-flash: `{type:integer, enum:["200","404",
+    // "500"]}` → `{"code":404}` (the type is kept · gemini coerces the
+    // chosen string member back to the declared type in the response).
 
     #[test]
-    fn adapter_keeps_integer_enum_values_as_integers() {
-        // `{type:integer, enum:[200,404,500]}` 400s "enum[0] (TYPE_STRING),
-        // 200" when the members get stringified. The wire enum must stay
-        // integers and the explicit type be left as-is (the k10 repro).
+    fn adapter_stringifies_integer_enum_members_keeping_the_type() {
+        // `{type:integer, enum:[200,404,500]}` → members become STRINGS, the
+        // explicit `type:integer` is left as authored (the k10 repro · the
+        // exact shape real gemini accepted).
         let out = adapt(&json!({
             "type": "object",
             "required": ["status"],
@@ -591,17 +593,22 @@ mod tests {
             }
         }));
         let status = &out["properties"]["status"];
-        assert_eq!(status["type"], "integer", "explicit type untouched");
-        assert_eq!(status["enum"], json!([200, 404, 500]), "values verbatim");
-        // every member is still a JSON number, never a string.
+        assert_eq!(status["type"], "integer", "authored type untouched");
+        assert_eq!(
+            status["enum"],
+            json!(["200", "404", "500"]),
+            "members stringified"
+        );
+        // every member is now a JSON string (gemini's repeated-STRING enum).
         for m in status["enum"].as_array().expect("enum array") {
-            assert!(m.is_number(), "integer enum member stayed numeric: {m}");
+            assert!(m.is_string(), "enum member is a string: {m}");
         }
     }
 
     #[test]
     fn adapter_string_enum_is_unchanged() {
-        // a string enum keeps its (already-string) members and type.
+        // a string enum keeps its (already-string) members and type — the
+        // stringify is a no-op (the control case · works on both wires).
         let out = adapt(&json!({
             "type": "string",
             "enum": ["ok", "not_found", "error"]
@@ -611,33 +618,67 @@ mod tests {
     }
 
     #[test]
-    fn adapter_infers_integer_type_for_a_typeless_int_enum() {
+    fn adapter_stringifies_a_typeless_int_enum_without_inventing_a_type() {
         // A typeless integer enum (e.g. a `const:200` rewritten to
-        // `enum:[200]`) would be inferred as TYPE_STRING and 400 on the
-        // numeric member — supply `type:integer`, leaving the values numeric.
+        // `enum:[200]`) would 400 on the numeric member — stringify it. No
+        // `type` is invented (gemini reads the constraint off the strings).
         let out = adapt(&json!({"enum": [200, 404]}));
-        assert_eq!(out["type"], "integer", "type inferred from members");
-        assert_eq!(out["enum"], json!([200, 404]), "values stay integers");
+        assert!(out.get("type").is_none(), "no type invented");
+        assert_eq!(out["enum"], json!(["200", "404"]), "members stringified");
     }
 
     #[test]
-    fn adapter_infers_scalar_type_for_typeless_enums_by_member_kind() {
-        // number (non-integer) → "number"; bool → "boolean"; string →
-        // "string"; a mixed enum is left typeless (the caller's risk).
-        assert_eq!(adapt(&json!({"enum": [1.5, 2.5]}))["type"], "number");
-        assert_eq!(adapt(&json!({"enum": [true, false]}))["type"], "boolean");
-        assert_eq!(adapt(&json!({"enum": ["a", "b"]}))["type"], "string");
-        let mixed = adapt(&json!({"enum": [1, "two"]}));
-        assert!(mixed.get("type").is_none(), "mixed enum stays typeless");
+    fn adapter_stringifies_enum_members_of_every_scalar_kind() {
+        // number (non-integer), bool, and string all reach the wire as
+        // strings; a string member is left byte-identical.
+        assert_eq!(
+            adapt(&json!({"enum": [1.5, 2.5]}))["enum"],
+            json!(["1.5", "2.5"])
+        );
+        assert_eq!(
+            adapt(&json!({"enum": [true, false]}))["enum"],
+            json!(["true", "false"])
+        );
+        assert_eq!(
+            adapt(&json!({"enum": ["a", "b"]}))["enum"],
+            json!(["a", "b"])
+        );
+        // a mixed enum is fine too — each scalar member stringifies.
+        assert_eq!(
+            adapt(&json!({"enum": [1, "two"]}))["enum"],
+            json!(["1", "two"])
+        );
+    }
+
+    #[test]
+    fn enum_repr_is_the_gemini_side_of_the_parity_gap() {
+        // The cross-provider asymmetry the fix relies on: gemini's `enum`
+        // is a repeated STRING, so the SAME author schema reaches this wire
+        // with members STRINGIFIED — whereas the openai strict normalizer
+        // keeps native typed members (asserted by `openai_compat`'s
+        // `strict_rewrites_const_to_single_member_enum_preserving_type` +
+        // `strict_required_field_keeps_its_scalar_type`). Each wire owns its
+        // dialect rewrite; the two transforms never share a path.
+        let author = json!({"type": "integer", "enum": [200, 404]});
+        let gemini = adapt(&author);
+        assert_eq!(gemini["type"], "integer", "authored type kept");
+        assert_eq!(
+            gemini["enum"],
+            json!(["200", "404"]),
+            "gemini stringifies enum members"
+        );
+        for m in gemini["enum"].as_array().expect("gemini enum") {
+            assert!(m.is_string(), "gemini enum member is a string: {m}");
+        }
     }
 
     // ── const + uniqueItems · gemini (Gate 2 parity) ──
 
     #[test]
-    fn adapter_rewrites_const_to_enum_and_types_it() {
-        // `const:1` → `enum:[1]`, and the typeless enum is then typed as
-        // integer (so it doesn't 400 as TYPE_STRING) — the full chain. The
-        // value stays a JSON number, never a string (the k12 repro).
+    fn adapter_rewrites_const_to_a_stringified_enum() {
+        // `const:1` → `enum:[1]`, and the member is then stringified to
+        // `"1"` (gemini's enum is a repeated STRING) — the full chain. No
+        // `type` is invented (the k12 repro · adapted to the real shape).
         let out = adapt(&json!({
             "type": "object",
             "required": ["version", "name"],
@@ -648,17 +689,20 @@ mod tests {
         }));
         let version = &out["properties"]["version"];
         assert!(version.get("const").is_none(), "no const survives");
-        assert_eq!(version["enum"], json!([1]), "const → one-member enum");
-        assert!(version["enum"][0].is_number(), "value stays numeric");
-        assert_eq!(version["type"], "integer", "enum typed from its member");
+        assert_eq!(
+            version["enum"],
+            json!(["1"]),
+            "const → one-member string enum"
+        );
+        assert!(version["enum"][0].is_string(), "member stringified");
+        assert!(version.get("type").is_none(), "no type invented");
     }
 
     #[test]
-    fn adapter_rewrites_string_const_to_typed_enum() {
+    fn adapter_rewrites_string_const_to_a_one_member_enum() {
         let out = adapt(&json!({"const": "v1"}));
         assert!(out.get("const").is_none());
         assert_eq!(out["enum"], json!(["v1"]));
-        assert_eq!(out["type"], "string");
     }
 
     #[test]
