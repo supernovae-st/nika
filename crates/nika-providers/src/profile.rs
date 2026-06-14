@@ -38,8 +38,8 @@ impl WireFormat {
     /// json_schema` (structured output).
     ///
     /// The SINGLE source of truth for the capability — both
-    /// [`crate::ResolvedProvider::supports_response_format`] (per resolved
-    /// provider) and [`crate::ProviderRegistry::supports_response_format`]
+    /// `ResolvedProvider::supports_response_format` (per resolved
+    /// provider) and `ProviderRegistry::supports_response_format`
     /// (keyless · per model string) answer through here.
     ///
     /// v0.1 approximation, per wire family: `OpenAiCompat` (some local

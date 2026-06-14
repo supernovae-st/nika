@@ -117,7 +117,7 @@ pub type ProdRuntime = Runtime<
 /// or a missing key surfaces the registry's own typed error.
 ///
 /// Carries the workflow's `default_model` so the model-LESS
-/// [`ProviderMeta::supports_response_format`] can answer for the model
+/// `ProviderMeta::supports_response_format` can answer for the model
 /// the agent actually runs (an agent run locks ONE model · BUG#11).
 #[derive(Debug)]
 pub struct RegistryProvider<H> {
