@@ -146,7 +146,7 @@ fn request_body(req: &InferRequest) -> Result<Value, ProviderError> {
         );
     }
 
-    let gen_config = generation_config(req);
+    let gen_config = generation_config(req)?;
     if !gen_config.is_empty() {
         obj.insert("generationConfig".to_owned(), Value::Object(gen_config));
     }
@@ -193,8 +193,10 @@ fn request_body(req: &InferRequest) -> Result<Value, ProviderError> {
 
 /// Assemble `generationConfig` (sampling + thinking + structured-output).
 /// `responseSchema` rides the gemini schema adapter (the JSON-Schema →
-/// OpenAPI-3.0-subset rewrite · see [`adapt_gemini_schema`]).
-fn generation_config(req: &InferRequest) -> serde_json::Map<String, Value> {
+/// OpenAPI-3.0-subset rewrite · see [`adapt_gemini_schema`]). Fallible: a
+/// schema the adapter cannot represent (e.g. a cyclic `$ref`) is a clean
+/// typed error, not a malformed request.
+fn generation_config(req: &InferRequest) -> Result<serde_json::Map<String, Value>, ProviderError> {
     let mut gen_config = serde_json::Map::new();
     if let Some(t) = req.temperature {
         gen_config.insert("temperature".to_owned(), json!(t));
@@ -217,33 +219,122 @@ fn generation_config(req: &InferRequest) -> serde_json::Map<String, Value> {
         }
         ResponseFormat::JsonSchema(schema) => {
             gen_config.insert("responseMimeType".to_owned(), json!("application/json"));
-            gen_config.insert("responseSchema".to_owned(), adapt_gemini_schema(schema));
+            gen_config.insert("responseSchema".to_owned(), adapt_gemini_schema(schema)?);
         }
         ResponseFormat::Text | _ => {}
     }
-    gen_config
+    Ok(gen_config)
 }
 
 /// Rewrite an author JSON Schema into Gemini's `responseSchema` shape (an
-/// OpenAPI-3.0 subset). Two keywords 400 the request and are repaired
-/// recursively (the complement of the `openai` strict normalizer):
+/// OpenAPI-3.0 subset). Keywords that 400 the request are repaired (the
+/// complement of the `openai` strict normalizer):
 ///
-/// - `additionalProperties` — "Unknown name additionalProperties … Cannot
-///   find field" → **stripped** (Gemini has no such field).
-/// - `"type":[T,"null"]` — the JSON-Schema nullable/union form → "Proto
-///   field is not repeating" (Gemini `type` is a scalar) → rewritten to
-///   `"type":T` + `"nullable":true` (the OpenAPI-3.0 spelling).
+/// - `$ref`/`$defs` — "Unknown name $defs/$ref" (Gemini's `responseSchema`
+///   has no ref machinery) → every `$ref` is **inlined** (resolved against
+///   the document root by JSON Pointer) and the `$defs`/`definitions`
+///   blocks dropped. A cyclic `$ref` (a recursive type) cannot be
+///   represented in the flat proto and returns a clean typed error rather
+///   than looping forever.
+/// - `additionalProperties` — "Unknown name additionalProperties" →
+///   **stripped** (Gemini has no such field).
+/// - `"type":[T,"null"]` — the JSON-Schema nullable form → "Proto field is
+///   not repeating" → `"type":T` + `"nullable":true` (the OpenAPI-3.0
+///   spelling).
 ///
 /// `enum` · `format` · `required` · `properties` · `items` are kept as-is.
-/// The walk descends into `properties.*`, `items` (single + tuple), and
-/// `$defs`/`definitions`.
-fn adapt_gemini_schema(schema: &Value) -> Value {
+/// The walk descends into `properties.*` and `items` (single + tuple).
+fn adapt_gemini_schema(schema: &Value) -> Result<Value, ProviderError> {
+    // Phase 1 · resolve every `$ref` against the document root, producing a
+    // ref-free tree (or a typed error on a cycle). The root is the author's
+    // schema as written — `$defs`/`definitions` still present for lookup.
+    let root = schema.clone();
     let mut out = schema.clone();
+    inline_refs(&mut out, &root, &mut Vec::new())?;
+    // Drop the now-inlined definition blocks (Gemini rejects them).
+    if let Some(obj) = out.as_object_mut() {
+        obj.remove("$defs");
+        obj.remove("definitions");
+    }
+    // Phase 2 · the per-node OpenAPI-subset rewrite (ref-free tree).
     adapt_node(&mut out);
-    out
+    Ok(out)
 }
 
-/// In-place Gemini rewrite of one schema node and its descendants.
+/// In-place: replace every `$ref` node with a deep copy of its target,
+/// resolved against `root` by JSON Pointer. `path` is the stack of ref
+/// pointers currently being expanded — re-entering one is a cycle.
+///
+/// A `$ref` node is `{"$ref": "#/..."}`; per JSON-Schema it carries no
+/// sibling keywords, so the whole node is replaced by the resolved target
+/// (which is then recursively de-ref'd, so chains and nested refs resolve).
+fn inline_refs(
+    node: &mut Value,
+    root: &Value,
+    path: &mut Vec<String>,
+) -> Result<(), ProviderError> {
+    if let Some(pointer) = node.as_object().and_then(ref_pointer) {
+        if path.iter().any(|p| p == &pointer) {
+            return Err(cyclic_ref(&pointer));
+        }
+        let mut target = resolve_pointer(root, &pointer)?;
+        path.push(pointer);
+        inline_refs(&mut target, root, path)?;
+        path.pop();
+        *node = target;
+        return Ok(());
+    }
+    match node {
+        Value::Object(obj) => {
+            for child in obj.values_mut() {
+                inline_refs(child, root, path)?;
+            }
+        }
+        Value::Array(items) => {
+            for item in items.iter_mut() {
+                inline_refs(item, root, path)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// The `$ref` string if this node is a JSON-Schema reference (a local
+/// fragment pointer `#/...`). Remote refs are not resolvable here.
+fn ref_pointer(obj: &serde_json::Map<String, Value>) -> Option<String> {
+    obj.get("$ref")
+        .and_then(Value::as_str)
+        .filter(|r| r.starts_with('#'))
+        .map(ToOwned::to_owned)
+}
+
+/// Resolve a `#/...` fragment against the document root, returning a deep
+/// copy of the target. An unresolvable ref (typo / external) is a typed
+/// error — Gemini would 400 on the leftover `$ref` anyway.
+fn resolve_pointer(root: &Value, reference: &str) -> Result<Value, ProviderError> {
+    let pointer = reference.trim_start_matches('#');
+    root.pointer(pointer)
+        .cloned()
+        .ok_or_else(|| ProviderError::Other {
+            reason: format!("gemini schema adapter: unresolvable $ref '{reference}'"),
+        })
+}
+
+/// A recursive type cannot be flattened into Gemini's proto schema.
+fn cyclic_ref(pointer: &str) -> ProviderError {
+    ProviderError::Other {
+        reason: format!(
+            "gemini schema adapter: cyclic $ref '{pointer}' — a recursive \
+             type cannot be expressed in gemini's responseSchema (flat \
+             proto); use a non-recursive schema for this provider"
+        ),
+    }
+}
+
+/// In-place Gemini rewrite of one schema node and its descendants. The tree
+/// is already ref-free (see [`inline_refs`]), so there is no `$defs` to
+/// descend into.
 fn adapt_node(node: &mut Value) {
     let Some(obj) = node.as_object_mut() else {
         return;
@@ -260,13 +351,6 @@ fn adapt_node(node: &mut Value) {
             Some(Value::Array(items)) => items.iter_mut().for_each(adapt_node),
             Some(child) => adapt_node(child),
             None => {}
-        }
-    }
-    for key in ["$defs", "definitions"] {
-        if let Some(defs) = obj.get_mut(key).and_then(Value::as_object_mut) {
-            for def in defs.values_mut() {
-                adapt_node(def);
-            }
         }
     }
 }
@@ -1040,9 +1124,15 @@ mod tests {
 
     // ── BUG#6 · gemini structured-output schema adapter (Gate 2 parity) ──
 
+    /// Adapt a schema, asserting it does not error (the common case — the
+    /// fallible path is exercised by the cyclic-`$ref` test below).
+    fn adapt(input: &Value) -> Value {
+        adapt_gemini_schema(input).expect("adaptable schema")
+    }
+
     #[test]
     fn adapter_strips_additional_properties() {
-        let out = adapt_gemini_schema(&json!({
+        let out = adapt(&json!({
             "type": "object",
             "additionalProperties": false,
             "properties": { "name": {"type": "string"} }
@@ -1057,7 +1147,7 @@ mod tests {
 
     #[test]
     fn adapter_converts_nullable_type_union() {
-        let out = adapt_gemini_schema(&json!({
+        let out = adapt(&json!({
             "type": "object",
             "properties": { "note": {"type": ["string", "null"]} }
         }));
@@ -1065,14 +1155,14 @@ mod tests {
         assert_eq!(note["type"], "string", "scalar type extracted");
         assert_eq!(note["nullable"], true, "nullable flag set");
         // null-first order works too
-        let out2 = adapt_gemini_schema(&json!({"type": ["null", "integer"]}));
+        let out2 = adapt(&json!({"type": ["null", "integer"]}));
         assert_eq!(out2["type"], "integer");
         assert_eq!(out2["nullable"], true);
     }
 
     #[test]
     fn adapter_keeps_enum_and_scalar_type() {
-        let out = adapt_gemini_schema(&json!({
+        let out = adapt(&json!({
             "type": "string",
             "enum": ["a", "b", "c"]
         }));
@@ -1083,7 +1173,7 @@ mod tests {
 
     #[test]
     fn adapter_recurses_into_nested_objects_and_arrays() {
-        let out = adapt_gemini_schema(&json!({
+        let out = adapt(&json!({
             "type": "object",
             "additionalProperties": false,
             "properties": {
@@ -1117,9 +1207,126 @@ mod tests {
         assert_eq!(out["required"], json!(["addr"]));
     }
 
+    // ── BUG#8 · $ref/$defs inlined for gemini (Gate 2 parity) ──
+
     #[test]
-    fn adapter_recurses_into_defs() {
-        let out = adapt_gemini_schema(&json!({
+    fn adapter_inlines_top_level_defs_and_drops_the_block() {
+        // openai accepts $defs/$ref; gemini 400s "Unknown name $defs/$ref".
+        // The refs must be inlined into the tree and the $defs block dropped.
+        let out = adapt(&json!({
+            "type": "object",
+            "required": ["person", "location"],
+            "properties": {
+                "person": {"$ref": "#/$defs/Person"},
+                "location": {"$ref": "#/$defs/Location"}
+            },
+            "$defs": {
+                "Person": {
+                    "type": "object",
+                    "required": ["name", "age"],
+                    "properties": {
+                        "name": {"type": "string"},
+                        "age": {"type": "integer"}
+                    }
+                },
+                "Location": {
+                    "type": "object",
+                    "required": ["city"],
+                    "properties": { "city": {"type": "string"} }
+                }
+            }
+        }));
+        assert!(out.get("$defs").is_none(), "$defs block dropped");
+        // the ref nodes are replaced by their resolved targets in place.
+        let person = &out["properties"]["person"];
+        assert!(person.get("$ref").is_none(), "no $ref survives: {person}");
+        assert_eq!(person["type"], "object");
+        assert_eq!(person["properties"]["name"]["type"], "string");
+        assert_eq!(person["properties"]["age"]["type"], "integer");
+        assert_eq!(person["required"], json!(["name", "age"]));
+        assert_eq!(
+            out["properties"]["location"]["properties"]["city"]["type"],
+            "string"
+        );
+    }
+
+    #[test]
+    fn adapter_inlines_nested_refs_through_definitions() {
+        // A def that itself $refs another def (a chain), via the older
+        // `definitions` keyword. Both hops must resolve; no $ref survives.
+        let out = adapt(&json!({
+            "type": "object",
+            "properties": { "root": {"$ref": "#/definitions/Outer"} },
+            "definitions": {
+                "Outer": {
+                    "type": "object",
+                    "properties": { "inner": {"$ref": "#/definitions/Inner"} }
+                },
+                "Inner": {
+                    "type": "object",
+                    "properties": { "leaf": {"type": "string"} }
+                }
+            }
+        }));
+        assert!(
+            out.get("definitions").is_none(),
+            "definitions block dropped"
+        );
+        let leaf = &out["properties"]["root"]["properties"]["inner"]["properties"]["leaf"];
+        assert_eq!(leaf["type"], "string", "nested ref chain fully inlined");
+    }
+
+    #[test]
+    fn adapter_errors_on_a_cyclic_ref_instead_of_looping() {
+        // A recursive type ($ref pointing back up its own chain) cannot be
+        // flattened into gemini's proto schema → a clean typed error, not a
+        // stack overflow.
+        let cyclic = json!({
+            "type": "object",
+            "properties": { "node": {"$ref": "#/$defs/Node"} },
+            "$defs": {
+                "Node": {
+                    "type": "object",
+                    "properties": {
+                        "value": {"type": "string"},
+                        "next": {"$ref": "#/$defs/Node"}
+                    }
+                }
+            }
+        });
+        let err = adapt_gemini_schema(&cyclic).expect_err("cyclic must error");
+        match err {
+            ProviderError::Other { reason } => {
+                assert!(
+                    reason.contains("cyclic"),
+                    "reason names the cycle: {reason}"
+                );
+            }
+            other => panic!("expected Other for a cyclic ref, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn adapter_errors_on_an_unresolvable_ref() {
+        // A ref to a missing def is a typed error (gemini would 400 on the
+        // leftover $ref anyway) — fail loud, not silently send garbage.
+        let dangling = json!({
+            "type": "object",
+            "properties": { "x": {"$ref": "#/$defs/DoesNotExist"} }
+        });
+        let err = adapt_gemini_schema(&dangling).expect_err("dangling ref errors");
+        assert!(
+            matches!(err, ProviderError::Other { .. }),
+            "unresolvable ref → Other: {err:?}"
+        );
+    }
+
+    #[test]
+    fn adapter_inlines_then_repairs_the_resolved_target() {
+        // The inlined target still goes through the OpenAPI-subset repairs:
+        // a def carrying additionalProperties + a [T,null] union is fixed
+        // after inlining (phase 1 deref → phase 2 adapt).
+        let out = adapt(&json!({
             "type": "object",
             "properties": { "node": {"$ref": "#/$defs/Node"} },
             "$defs": {
@@ -1130,8 +1337,12 @@ mod tests {
                 }
             }
         }));
-        let node = &out["$defs"]["Node"];
-        assert!(node.get("additionalProperties").is_none(), "$defs repaired");
+        let node = &out["properties"]["node"];
+        assert!(node.get("$ref").is_none());
+        assert!(
+            node.get("additionalProperties").is_none(),
+            "inlined target's additionalProperties stripped"
+        );
         assert_eq!(node["properties"]["label"]["type"], "string");
         assert_eq!(node["properties"]["label"]["nullable"], true);
     }
@@ -1150,7 +1361,7 @@ mod tests {
                 "note": {"type": ["string", "null"]}
             }
         });
-        let out = adapt_gemini_schema(&openai_strict);
+        let out = adapt(&openai_strict);
         assert!(out.get("additionalProperties").is_none());
         assert_eq!(out["properties"]["id"]["type"], "string");
         assert_eq!(out["properties"]["note"]["type"], "string");
