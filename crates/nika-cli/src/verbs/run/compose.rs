@@ -20,7 +20,7 @@
 
 use std::sync::Arc;
 
-use nika_builtin::{BuiltinDispatcher, NoWorkflow, NonInteractive, NullEmitter};
+use nika_builtin::{BuiltinDispatcher, FsBoundary, NoWorkflow, NonInteractive, NullEmitter};
 use nika_clock::SystemClock;
 use nika_exec_runner::TokioShell;
 use nika_fs::TokioFs;
@@ -107,6 +107,26 @@ fn config_from_env() -> ProvidersConfig {
     config
 }
 
+/// Derive the runtime `permits.fs` boundary from a parsed workflow.
+///
+/// No `permits:` block → [`FsBoundary::unbounded`] (today's floor · the
+/// file builtins enforce nothing). A `permits:` block WITHOUT an `fs:`
+/// category → a DECLARED boundary with empty glob lists (default-deny ·
+/// every fs effect is refused · « once `permits:` is present every category
+/// is default-deny unless listed »). An `fs:` block → its read/write globs.
+#[must_use]
+pub fn fs_boundary_of(wf: &nika_schema::raw::RawWorkflow) -> FsBoundary {
+    let Some(permits) = wf.permits.as_ref().map(|p| &p.value) else {
+        return FsBoundary::unbounded();
+    };
+    let (read, write) = permits
+        .fs
+        .as_ref()
+        .map(|fs| (fs.read.clone(), fs.write.clone()))
+        .unwrap_or_default();
+    FsBoundary::declared(read, write)
+}
+
 /// The HTTP client for the PROVIDER path (LLM inference), distinct from
 /// the fetch/builtin client.
 ///
@@ -135,14 +155,25 @@ fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
 }
 
 /// Compose the production runtime for a workflow whose envelope default
-/// model is `default_model`.
+/// model is `default_model`, enforcing `fs_boundary` (the workflow's
+/// `permits.fs`) on the file builtins at run time.
+///
+/// `fs_boundary` is [`FsBoundary::unbounded`] when the workflow declares no
+/// `permits:` block (the pre-permits floor · enforce nothing) and a
+/// declared boundary otherwise — derived by [`fs_boundary_of`] from the
+/// parsed envelope, so a `..`/symlink path that escapes the declared roots
+/// fails with `NIKA-SEC-004` (spec §permits · enforced statically + at
+/// runtime).
 ///
 /// # Errors
 ///
 /// [`ReqwestHttp`] construction can fail if the TLS backend won't
 /// initialize (a `nika_kernel::HttpError`) — the run verb maps it to the
 /// environment exit code (3).
-pub fn production_runtime(default_model: &str) -> Result<ProdRuntime, nika_kernel::HttpError> {
+pub fn production_runtime(
+    default_model: &str,
+    fs_boundary: FsBoundary,
+) -> Result<ProdRuntime, nika_kernel::HttpError> {
     let http = Arc::new(ReqwestHttp::new()?);
     // The provider path gets its OWN client (SSRF disabled · see the
     // `provider_http` doc): the fetch/builtin plane below keeps `http`
@@ -151,15 +182,19 @@ pub fn production_runtime(default_model: &str) -> Result<ProdRuntime, nika_kerne
     let config = config_from_env();
 
     // The builtin tool plane (invoke + the agent's tools) over real
-    // effects · shared by InvokeVerb and the agent's tool-defs seam.
-    let dispatcher: Arc<ProdDispatcher> = Arc::new(BuiltinDispatcher::new(
-        Arc::new(TokioFs),
-        Arc::clone(&http),
-        Arc::new(SystemClock),
-        Arc::new(NullEmitter::default()),
-        Arc::new(NonInteractive::default()),
-        Arc::new(NoWorkflow::default()),
-    ));
+    // effects · shared by InvokeVerb and the agent's tool-defs seam. The
+    // file builtins enforce the declared permits.fs boundary (NIKA-SEC-004).
+    let dispatcher: Arc<ProdDispatcher> = Arc::new(
+        BuiltinDispatcher::new(
+            Arc::new(TokioFs),
+            Arc::clone(&http),
+            Arc::new(SystemClock),
+            Arc::new(NullEmitter::default()),
+            Arc::new(NonInteractive::default()),
+            Arc::new(NoWorkflow::default()),
+        )
+        .with_fs_boundary(fs_boundary),
+    );
     let invoke = Arc::new(InvokeVerb::new(Arc::clone(&dispatcher)));
 
     // The provider registry (real http + env keys) drives infer directly
@@ -192,7 +227,7 @@ mod tests {
         // The mock profile needs no http call + no key — composition
         // wires every seam without touching the network. (A real model's
         // missing key surfaces only at resolve time · per-workflow.)
-        let runtime = production_runtime("mock/echo");
+        let runtime = production_runtime("mock/echo", FsBoundary::unbounded());
         assert!(
             runtime.is_ok(),
             "the production runtime composes (TLS init is the only failure)"

@@ -25,7 +25,7 @@ mod compose;
 mod sink;
 mod stamp;
 
-pub use compose::{ProdRuntime, production_runtime};
+pub use compose::{ProdRuntime, fs_boundary_of, production_runtime};
 pub use sink::{FoldSink, JsonSink};
 pub use stamp::SystemStamper;
 
@@ -67,7 +67,11 @@ pub fn run(file: &str, json: bool, theme: Theme) -> u8 {
     // an exec-only workflow never resolves it (so "" is harmless until
     // an infer/agent task actually needs a model · resolve is loud then).
     let default_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
-    let runtime = match production_runtime(default_model) {
+    // The declared permits.fs boundary the file builtins enforce at run
+    // time (spec §permits · NIKA-SEC-004) — a path escaping the boundary
+    // fails before the I/O (the static check is the other half).
+    let fs_boundary = fs_boundary_of(&wf);
+    let runtime = match production_runtime(default_model, fs_boundary) {
         Ok(rt) => rt,
         Err(e) => {
             eprintln!("nika run: environment: {e}");

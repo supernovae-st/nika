@@ -315,12 +315,62 @@ fn path_allowed(permits: &Permits, path: &str, writes: bool) -> bool {
 /// Gitignore-style path glob match · supports a trailing `/**` (any
 /// descendant) and a single `*` (any tail within a segment). Conservative:
 /// when in doubt it does NOT match (default-deny favours flagging).
+///
+/// The `path` is lexically normalized (`.`/`..` folded) FIRST, so a
+/// traversal that climbs out of the glob's prefix (`./out/../etc/x` ·
+/// `/data/in/../../passwd`) no longer string-matches the literal prefix —
+/// the static mirror of the runtime's canonicalize-then-confine
+/// (`NIKA-SEC-004`). Symlink escapes still need the runtime check (a
+/// static pass cannot resolve a link), but the `..` class is caught here.
 fn path_glob_matches(glob: &str, path: &str) -> bool {
+    // Normalize BOTH sides identically (`.`/`..` folded) so an inferred
+    // grant round-trips (it admits the very path it was built from) while a
+    // traversal that climbs OUT of the literal prefix no longer string-
+    // matches it. The wildcard tail of `glob` carries no `.`/`..`, so
+    // normalizing only its literal prefix is exact.
+    let path = lexically_normalize(path);
+    let path = path.as_str();
     if let Some(prefix) = glob.strip_suffix("/**") {
         // `./out/**` matches `./out/x` and `./out/a/b` (and `./out` itself).
+        let prefix = lexically_normalize(prefix);
         return path == prefix || path.starts_with(&format!("{prefix}/"));
     }
-    glob_matches(glob, path)
+    if glob.contains('*') {
+        // A `*`-within-segment glob — normalize the path, keep the glob's
+        // wildcard intact (its literal part carries no traversal).
+        return glob_matches(glob, path);
+    }
+    // An exact path glob — normalize it too, so `/.` (grant) and `/`
+    // (normalized path) compare equal (the round-trip invariant).
+    lexically_normalize(glob) == path
+}
+
+/// Fold `.`/`..` segments textually, preserving a leading `/` or `./`
+/// (the permit globs are written either absolute or `./`-rooted, so the
+/// normalized path stays comparable to the glob's literal prefix). A `..`
+/// that would climb above the root is dropped (it cannot match an
+/// in-boundary glob anyway). Purely lexical — symlinks are the runtime's job.
+fn lexically_normalize(path: &str) -> String {
+    let absolute = path.starts_with('/');
+    let dot_rooted = path.starts_with("./");
+    let mut out: Vec<&str> = Vec::new();
+    for seg in path.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                out.pop();
+            }
+            other => out.push(other),
+        }
+    }
+    let joined = out.join("/");
+    if absolute {
+        format!("/{joined}")
+    } else if dot_rooted {
+        format!("./{joined}")
+    } else {
+        joined
+    }
 }
 
 /// The statically-known program of a command, either form. `argv[0]` for
@@ -602,6 +652,41 @@ tasks:
     invoke: { tool: "nika:write", args: { path: "./out/report.md", content: "x" } }
 "#;
         assert!(escapes(y).is_empty(), "./out/** matches ./out/report.md");
+    }
+
+    #[test]
+    fn dotdot_traversal_out_of_fs_write_is_flagged() {
+        // The static half of the permits-bypass fix: a `..` that climbs out
+        // of the boundary must NOT string-match the literal prefix. The path
+        // lexically normalizes to `./escape.txt`, which is not under
+        // `./out/` → flagged (the runtime canonicalize-then-confine is the
+        // other half · catches symlinks + dynamic paths a static pass can't).
+        let y = r#"nika: v1
+workflow: w
+permits:
+  fs: { write: ["./out/**"] }
+  tools: ["nika:write"]
+tasks:
+  - id: t
+    invoke: { tool: "nika:write", args: { path: "./out/../escape.txt", content: "pwn" } }
+"#;
+        let e = escapes(y);
+        assert_eq!(e.len(), 1, "the `..` traversal escapes fs.write");
+        assert_eq!(e[0].category, "fs");
+        // …while a `..` that stays INSIDE the boundary is still clean.
+        let clean = r#"nika: v1
+workflow: w
+permits:
+  fs: { read: ["./out/**"] }
+  tools: ["nika:read"]
+tasks:
+  - id: t
+    invoke: { tool: "nika:read", args: { path: "./out/sub/../keep.txt" } }
+"#;
+        assert!(
+            escapes(clean).is_empty(),
+            "a `..` that stays inside the boundary is clean"
+        );
     }
 
     #[test]

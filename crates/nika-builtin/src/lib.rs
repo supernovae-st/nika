@@ -33,6 +33,7 @@ pub mod defs;
 pub mod file;
 pub mod inspect;
 pub mod net;
+pub mod permits;
 
 use std::sync::Arc;
 
@@ -45,6 +46,7 @@ use nika_kernel::runtime::tool_executor::{
 };
 
 pub use defs::tool_defs;
+pub use permits::FsBoundary;
 
 /// The closed builtin namespace prefix.
 pub const NAMESPACE: &str = "nika:";
@@ -209,10 +211,16 @@ pub struct BuiltinDispatcher<F, H, C, Em, P, W> {
     emitter: Arc<Em>,
     prompter: Arc<P>,
     workflow: Arc<W>,
+    /// The declared `permits.fs` boundary the file builtins enforce at run
+    /// time (spec §permits · `NIKA-SEC-004`). Defaults to
+    /// [`FsBoundary::unbounded`] (enforce nothing · the pre-permits floor) —
+    /// the composition root injects the workflow's boundary via
+    /// [`BuiltinDispatcher::with_fs_boundary`].
+    fs_boundary: FsBoundary,
 }
 
 impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
-    /// Compose the dispatcher over its seams.
+    /// Compose the dispatcher over its seams (no fs boundary — the floor).
     #[must_use]
     pub fn new(
         fs: Arc<F>,
@@ -229,7 +237,19 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
             emitter,
             prompter,
             workflow,
+            fs_boundary: FsBoundary::unbounded(),
         }
+    }
+
+    /// Set the `permits.fs` boundary the file builtins enforce (spec
+    /// §permits · `NIKA-SEC-004`). The composition root derives it from the
+    /// workflow's `permits.fs` block; an UNDECLARED boundary leaves the
+    /// pre-permits floor in place. Builder form so the public `new`
+    /// signature (and every call site) stays unchanged.
+    #[must_use]
+    pub fn with_fs_boundary(mut self, boundary: FsBoundary) -> Self {
+        self.fs_boundary = boundary;
+        self
     }
 }
 
@@ -274,12 +294,29 @@ where
             "prompt" => Ok(core_tools::prompt(self.prompter.as_ref(), args)),
             "done" => Ok(core_tools::done()),
             "wait" => Ok(core_tools::wait(self.clock.as_ref(), args).await),
-            // file 5
-            "read" => Ok(file::read(self.fs.as_ref(), args).await),
-            "write" => Ok(file::write(self.fs.as_ref(), args).await),
-            "edit" => Ok(file::edit(self.fs.as_ref(), args).await),
-            "glob" => Ok(file::glob(self.fs.as_ref(), args).await),
-            "grep" => Ok(file::grep(self.fs.as_ref(), args).await),
+            // file 5 — each fs op is gated by the declared permits.fs
+            // boundary FIRST (spec §permits · NIKA-SEC-004): a path that
+            // resolves outside the boundary fails before any I/O. An
+            // undeclared boundary is a no-op (the pre-permits floor).
+            "read" => Ok(self
+                .guarded_fs(args, &[permits::FsAccess::Read], file::read)
+                .await),
+            "write" => Ok(self
+                .guarded_fs(args, &[permits::FsAccess::Write], file::write)
+                .await),
+            "edit" => Ok(self
+                .guarded_fs(
+                    args,
+                    &[permits::FsAccess::Read, permits::FsAccess::Write],
+                    file::edit,
+                )
+                .await),
+            // grep is a recursive READER rooted at `path:` (default `.`).
+            "grep" => Ok(self.guarded_grep(args).await),
+            // glob walks descendants of `.` (the kernel walk never crosses
+            // `..` nor follows symlinked dirs), so its results are confined
+            // to the cwd subtree by construction — gate on `.` being readable.
+            "glob" => Ok(self.guarded_glob(args).await),
             // data 8
             // jq is synchronous CPU (jaq eval) with model-controlled cost —
             // it runs on the blocking pool so a heavy expression can't
@@ -310,6 +347,54 @@ where
                 name: name.to_owned(),
             }),
         }
+    }
+
+    /// Enforce the `permits.fs` boundary for every `access` direction the
+    /// op needs on its `path:` arg, THEN run the builtin. A path that
+    /// resolves outside the boundary fails (`NIKA-SEC-004`) before the op —
+    /// the capability boundary, not the I/O, is the gate. When `path:` is
+    /// absent the op runs (its own arg ladder surfaces the missing-arg
+    /// error · the boundary has nothing to confine).
+    async fn guarded_fs<'a, Fut>(
+        &'a self,
+        args: &'a Args,
+        accesses: &[permits::FsAccess],
+        op: impl FnOnce(&'a F, &'a Args) -> Fut,
+    ) -> BuiltinOutcome
+    where
+        Fut: std::future::Future<Output = BuiltinOutcome>,
+    {
+        if let Some(path) = args.get("path").and_then(serde_json::Value::as_str) {
+            for &access in accesses {
+                self.fs_boundary
+                    .enforce(self.fs.as_ref(), path, access)
+                    .await?;
+            }
+        }
+        op(self.fs.as_ref(), args).await
+    }
+
+    /// `nika:grep` under the boundary — a recursive READ rooted at `path:`
+    /// (default `.`). Gate the root, then run.
+    async fn guarded_grep(&self, args: &Args) -> BuiltinOutcome {
+        let root = args
+            .get("path")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or(".");
+        self.fs_boundary
+            .enforce(self.fs.as_ref(), root, permits::FsAccess::Read)
+            .await?;
+        file::grep(self.fs.as_ref(), args).await
+    }
+
+    /// `nika:glob` under the boundary — the walk is rooted at `.` and never
+    /// crosses `..` nor follows symlinked dirs (kernel `glob` contract), so
+    /// its hits are confined to the cwd subtree; gate on `.` being readable.
+    async fn guarded_glob(&self, args: &Args) -> BuiltinOutcome {
+        self.fs_boundary
+            .enforce(self.fs.as_ref(), ".", permits::FsAccess::Read)
+            .await?;
+        file::glob(self.fs.as_ref(), args).await
     }
 }
 
@@ -649,5 +734,155 @@ mod tests {
         assert_eq!(names.len(), 2, "both files: {structured}");
         // And the text view is the same array rendered to compact JSON.
         assert_eq!(result.content, structured.to_string());
+    }
+}
+
+/// The boundary enforcement through the REAL dispatcher route — proves the
+/// `permits.fs` gate fires BEFORE the I/O on the production path, against a
+/// true filesystem (`TokioFs` · `MockFs::canonicalize` is a no-op, so an
+/// escape can only be demonstrated on the real impl). The DoS/security
+/// regression for the `..`/symlink permits bypass.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod boundary_dispatch_tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use nika_fs::TokioFs;
+    use nika_kernel::runtime::tool_executor::{ToolCall, ToolExecuteDyn};
+    use nika_kernel_mock::{MockClock, MockHttp};
+
+    use super::{BuiltinDispatcher, FsBoundary, NoWorkflow, NonInteractive, NullEmitter};
+
+    type RealFsDispatcher =
+        BuiltinDispatcher<TokioFs, MockHttp, MockClock, NullEmitter, NonInteractive, NoWorkflow>;
+
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+
+    fn scratch() -> std::path::PathBuf {
+        let n = SEQ.fetch_add(1, Ordering::Relaxed);
+        let root =
+            std::env::temp_dir().join(format!("nika-builtin-bnd-{}-{n}", std::process::id()));
+        std::fs::create_dir_all(root.join("allowed")).unwrap();
+        std::fs::write(root.join("allowed/in.txt"), b"inside").unwrap();
+        std::fs::write(root.join("secret.txt"), b"OUTSIDE").unwrap();
+        root
+    }
+
+    fn dispatcher_with(boundary: FsBoundary) -> RealFsDispatcher {
+        BuiltinDispatcher::new(
+            Arc::new(TokioFs),
+            Arc::new(MockHttp::new()),
+            Arc::new(MockClock::new()),
+            Arc::new(NullEmitter),
+            Arc::new(NonInteractive),
+            Arc::new(NoWorkflow),
+        )
+        .with_fs_boundary(boundary)
+    }
+
+    #[tokio::test]
+    async fn write_traversal_is_refused_before_the_io() {
+        let root = scratch();
+        let boundary = FsBoundary::declared(vec![], vec![format!("{}/allowed/**", root.display())]);
+        let dispatcher = dispatcher_with(boundary);
+        let escape = root.join("allowed/../TRAVERSED.txt");
+        let result = dispatcher
+            .execute(ToolCall::new(
+                "t",
+                "nika:write",
+                serde_json::json!({
+                    "path": escape.to_string_lossy(),
+                    "content": "pwn",
+                }),
+            ))
+            .await
+            .expect("dispatches");
+        assert!(result.is_error, "the boundary must refuse the traversal");
+        assert!(
+            result.content.starts_with("NIKA-SEC-004"),
+            "the permits-denied code: {}",
+            result.content
+        );
+        // …and the I/O never happened (the file is not on disk OUTSIDE).
+        assert!(
+            !root.join("TRAVERSED.txt").exists(),
+            "the gate is BEFORE the write — nothing escaped"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn read_inside_boundary_still_works_through_the_dispatcher() {
+        let root = scratch();
+        let boundary = FsBoundary::declared(vec![format!("{}/allowed/**", root.display())], vec![]);
+        let dispatcher = dispatcher_with(boundary);
+        let result = dispatcher
+            .execute(ToolCall::new(
+                "t",
+                "nika:read",
+                serde_json::json!({ "path": root.join("allowed/in.txt").to_string_lossy() }),
+            ))
+            .await
+            .expect("dispatches");
+        assert!(
+            !result.is_error,
+            "in-boundary read is allowed: {}",
+            result.content
+        );
+        assert_eq!(result.content, "inside");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn read_traversal_to_a_real_outside_file_is_refused() {
+        // The /etc/passwd-class leak: a `..` chain to a real file outside
+        // the boundary must NOT be read (it would otherwise succeed).
+        let root = scratch();
+        let boundary = FsBoundary::declared(vec![format!("{}/allowed/**", root.display())], vec![]);
+        let dispatcher = dispatcher_with(boundary);
+        let leak = root.join("allowed/../secret.txt");
+        let result = dispatcher
+            .execute(ToolCall::new(
+                "t",
+                "nika:read",
+                serde_json::json!({ "path": leak.to_string_lossy() }),
+            ))
+            .await
+            .expect("dispatches");
+        assert!(result.is_error, "the leak must be refused");
+        assert!(
+            result.content.starts_with("NIKA-SEC-004"),
+            "{}",
+            result.content
+        );
+        assert!(
+            !result.content.contains("OUTSIDE"),
+            "the outside file's bytes must never surface"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn no_boundary_leaves_the_pre_permits_floor() {
+        // With no boundary declared, the dispatcher does NOT gate fs ops
+        // (today's behaviour) — a read outside "allowed" still works.
+        let root = scratch();
+        let dispatcher = dispatcher_with(FsBoundary::unbounded());
+        let result = dispatcher
+            .execute(ToolCall::new(
+                "t",
+                "nika:read",
+                serde_json::json!({ "path": root.join("secret.txt").to_string_lossy() }),
+            ))
+            .await
+            .expect("dispatches");
+        assert!(
+            !result.is_error,
+            "no boundary → no gate: {}",
+            result.content
+        );
+        assert_eq!(result.content, "OUTSIDE");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

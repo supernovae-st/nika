@@ -36,6 +36,11 @@ tokio         = { workspace = true }   # spawn_blocking — jq's sync CPU eval o
 
 [dev-dependencies]
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.80.0" }
+# test-only: the REAL filesystem (TokioFs) — the permits.fs boundary tests
+# need a true `canonicalize` (resolves `..` + symlinks) against a /tmp scratch
+# dir; MockFs::canonicalize is a no-op, so the escape cases can only be proven
+# against the production impl. dev-only · L1.5→L1 downward (layering-clean).
+nika-fs          = { path = "../nika-fs", version = "0.80.0" }
 # test-only: the drift guard pinning tool_defs() arg keys to the catalog
 # Builtin::args vocabulary nika check validates against (one source, no drift).
 nika-catalog     = { path = "../nika-catalog", version = "0.80.0" }

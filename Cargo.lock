@@ -3516,6 +3516,7 @@ dependencies = [
  "jsonschema",
  "nika-catalog",
  "nika-extract",
+ "nika-fs",
  "nika-kernel",
  "nika-kernel-mock",
  "proptest",
