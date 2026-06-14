@@ -19,7 +19,8 @@ use nika_kernel::http::{HttpPostDyn, HttpRequest};
 use serde_json::{Value, json};
 
 use super::{
-    EventMapper, SseEventStream, gen_ai_system, map_http_err, status_error, str_at, u64_at,
+    EventMapper, SseEventStream, ToolNameMap, gen_ai_system, map_http_err, status_error, str_at,
+    u64_at,
 };
 use crate::registry::ResolvedProvider;
 
@@ -34,7 +35,12 @@ pub(crate) async fn infer<H>(
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
-    let http_req = build_request(rp, &request, false)?;
+    // Anthropic's function-calling rejects tool names outside
+    // `^[a-zA-Z0-9_-]{1,64}$` (NIKA-463) — Nika's `nika:read` / `mcp:git/diff`
+    // ids must be sanitized on send and restored on parse (the verb only
+    // ever sees the canonical colon form).
+    let names = ToolNameMap::from_tools(&request.tools);
+    let http_req = build_request(rp, &request, false, &names)?;
     let http = rp.http.as_ref().ok_or_else(wiring_bug)?;
     let resp = http.post(http_req).await.map_err(|e| map_http_err(&e))?;
     if !(200..300).contains(&resp.status) {
@@ -45,7 +51,7 @@ where
             &rp.wire_model,
         ));
     }
-    parse_response(rp, &resp.body)
+    parse_response(rp, &resp.body, &names)
 }
 
 /// Streaming inference.
@@ -56,7 +62,8 @@ pub(crate) async fn infer_stream<H>(
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
-    let http_req = build_request(rp, &request, true)?;
+    let names = ToolNameMap::from_tools(&request.tools);
+    let http_req = build_request(rp, &request, true, &names)?;
     let http = rp.http.as_ref().ok_or_else(wiring_bug)?;
     let resp = http
         .send_streaming(http_req)
@@ -67,7 +74,7 @@ where
     }
     Ok(Box::pin(SseEventStream::new(
         resp.body,
-        AnthropicMapper::default(),
+        AnthropicMapper::new(names),
     )))
 }
 
@@ -82,11 +89,12 @@ fn build_request(
     rp: &ResolvedProvider<impl Sized>,
     req: &InferRequest,
     stream: bool,
+    names: &ToolNameMap,
 ) -> Result<HttpRequest, ProviderError> {
     let key = rp.key.as_ref().ok_or_else(|| ProviderError::AuthFailed {
         reason: "anthropic requires an API key".to_owned(),
     })?;
-    let body = request_body(&rp.wire_model, req, stream)?;
+    let body = request_body(&rp.wire_model, req, stream, names)?;
     let bytes = serde_json::to_vec(&body).map_err(|e| ProviderError::Other {
         reason: format!("request serialization failed: {e}"),
     })?;
@@ -103,7 +111,12 @@ fn build_request(
 }
 
 /// The JSON body (pure — the unit-testable core).
-fn request_body(model: &str, req: &InferRequest, stream: bool) -> Result<Value, ProviderError> {
+fn request_body(
+    model: &str,
+    req: &InferRequest,
+    stream: bool,
+    names: &ToolNameMap,
+) -> Result<Value, ProviderError> {
     if !matches!(req.response_format, ResponseFormat::Text) {
         return Err(ProviderError::Other {
             reason: "anthropic does not support response_format at v0.1 · \
@@ -133,7 +146,7 @@ fn request_body(model: &str, req: &InferRequest, stream: bool) -> Result<Value, 
         };
         let mut content = Vec::new();
         for block in &m.content {
-            if let Some(v) = content_block(block)? {
+            if let Some(v) = content_block(block, names)? {
                 content.push(v);
             }
         }
@@ -161,25 +174,7 @@ fn request_body(model: &str, req: &InferRequest, stream: bool) -> Result<Value, 
         obj.insert("stop_sequences".to_owned(), json!(req.stop_sequences));
     }
     if !req.tools.is_empty() {
-        let tools: Vec<Value> = req
-            .tools
-            .iter()
-            .map(|t| {
-                json!({
-                    "name": t.name,
-                    "description": t.description,
-                    "input_schema": t.parameters,
-                })
-            })
-            .collect();
-        obj.insert("tools".to_owned(), Value::Array(tools));
-        let choice = match &req.tool_choice {
-            ToolChoice::Required => json!({ "type": "any" }),
-            ToolChoice::None => json!({ "type": "none" }),
-            ToolChoice::Specific(name) => json!({ "type": "tool", "name": name }),
-            ToolChoice::Auto | _ => json!({ "type": "auto" }),
-        };
-        obj.insert("tool_choice".to_owned(), choice);
+        push_tools(obj, req, names);
     }
     if let Some(budget) = req.thinking_budget {
         obj.insert(
@@ -197,9 +192,39 @@ fn request_body(model: &str, req: &InferRequest, stream: bool) -> Result<Value, 
     Ok(body)
 }
 
+/// Insert `tools` + `tool_choice`. Each tool name is sanitized to the
+/// wire-legal charset (`^[a-zA-Z0-9_-]{1,64}$` · NIKA-463); the model echoes
+/// the sanitized name in `tool_use`, restored to the canonical id on parse.
+fn push_tools(obj: &mut serde_json::Map<String, Value>, req: &InferRequest, names: &ToolNameMap) {
+    let tools: Vec<Value> = req
+        .tools
+        .iter()
+        .map(|t| {
+            json!({
+                "name": names.to_wire(&t.name),
+                "description": t.description,
+                "input_schema": t.parameters,
+            })
+        })
+        .collect();
+    obj.insert("tools".to_owned(), Value::Array(tools));
+    let choice = match &req.tool_choice {
+        ToolChoice::Required => json!({ "type": "any" }),
+        ToolChoice::None => json!({ "type": "none" }),
+        ToolChoice::Specific(name) => json!({ "type": "tool", "name": names.to_wire(name) }),
+        ToolChoice::Auto | _ => json!({ "type": "auto" }),
+    };
+    obj.insert("tool_choice".to_owned(), choice);
+}
+
 /// Kernel content block → Messages API block. `Ok(None)` = skipped
-/// (thinking blocks are model-internal; they are not resent).
-fn content_block(block: &ContentBlock) -> Result<Option<Value>, ProviderError> {
+/// (thinking blocks are model-internal; they are not resent). A re-sent
+/// `ToolUse` (the assistant's prior call, stored with its canonical id) is
+/// re-sanitized so its `name` matches the registered tool.
+fn content_block(
+    block: &ContentBlock,
+    names: &ToolNameMap,
+) -> Result<Option<Value>, ProviderError> {
     Ok(match block {
         ContentBlock::Text { text } => Some(json!({ "type": "text", "text": text })),
         ContentBlock::Image { source, .. } => {
@@ -213,7 +238,7 @@ fn content_block(block: &ContentBlock) -> Result<Option<Value>, ProviderError> {
             }
         }
         ContentBlock::ToolUse { id, name, input } => Some(json!({
-            "type": "tool_use", "id": id, "name": name, "input": input,
+            "type": "tool_use", "id": id, "name": names.to_wire(name), "input": input,
         })),
         ContentBlock::ToolResult {
             tool_use_id,
@@ -231,6 +256,7 @@ fn content_block(block: &ContentBlock) -> Result<Option<Value>, ProviderError> {
 fn parse_response(
     rp: &ResolvedProvider<impl Sized>,
     body: &[u8],
+    names: &ToolNameMap,
 ) -> Result<InferResponse, ProviderError> {
     let v: Value = serde_json::from_slice(body).map_err(|e| ProviderError::Other {
         reason: format!("anthropic response is not JSON: {e}"),
@@ -253,7 +279,7 @@ fn parse_response(
             }
             Some("tool_use") => content.push(ContentBlock::ToolUse {
                 id: str_at(block, "/id"),
-                name: str_at(block, "/name"),
+                name: names.to_canonical(&str_at(block, "/name")),
                 input: block.pointer("/input").cloned().unwrap_or(Value::Null),
             }),
             Some("thinking") => {
@@ -317,10 +343,20 @@ struct AnthropicMapper {
     stop_reason: Option<String>,
     /// `content_block` index → tool id (for `input_json_delta` routing).
     tools: BTreeMap<u64, String>,
+    /// sanitized↔canonical tool-name map (restores the canonical id the
+    /// model echoes back in its sanitized form · NIKA-463).
+    names: ToolNameMap,
     done_sent: bool,
 }
 
 impl AnthropicMapper {
+    fn new(names: ToolNameMap) -> Self {
+        Self {
+            names,
+            ..Self::default()
+        }
+    }
+
     fn done(&mut self) -> InferEvent {
         self.done_sent = true;
         InferEvent::Done {
@@ -352,7 +388,7 @@ impl EventMapper for AnthropicMapper {
                     self.tools.insert(index, id.clone());
                     out.push(Ok(InferEvent::ToolUseStart {
                         id,
-                        name: str_at(&v, "/content_block/name"),
+                        name: self.names.to_canonical(&str_at(&v, "/content_block/name")),
                     }));
                 }
             }
@@ -425,6 +461,13 @@ mod tests {
         InferRequest::new("claude-sonnet-4-20250514", messages)
     }
 
+    /// `request_body` with the tool-name map derived from the request's own
+    /// tools — exactly how `infer`/`infer_stream` build it in production.
+    fn body_of(model: &str, r: &InferRequest, stream: bool) -> Result<Value, ProviderError> {
+        let names = ToolNameMap::from_tools(&r.tools);
+        request_body(model, r, stream, &names)
+    }
+
     #[tokio::test]
     async fn infer_shapes_request_and_parses_response() {
         let fake = FakeHttp::with_json(
@@ -493,7 +536,7 @@ mod tests {
         )];
         r.tool_choice = ToolChoice::Required;
         r.thinking_budget = Some(2048);
-        let body = request_body("m", &r, true).expect("body");
+        let body = body_of("m", &r, true).expect("body");
         assert_eq!(body["tools"][0]["name"], "add");
         assert!(body["tools"][0]["input_schema"].is_object());
         assert_eq!(body["tool_choice"]["type"], "any");
@@ -521,7 +564,7 @@ mod tests {
                 }],
             ),
         ];
-        let body = request_body("m", &req(messages), false).expect("body");
+        let body = body_of("m", &req(messages), false).expect("body");
         assert_eq!(body["messages"][0]["content"][0]["type"], "tool_use");
         assert_eq!(body["messages"][1]["content"][0]["type"], "tool_result");
         assert_eq!(body["messages"][1]["content"][0]["tool_use_id"], "tu_1");
@@ -531,7 +574,7 @@ mod tests {
     fn response_format_is_an_honest_error() {
         let mut r = req(vec![Message::text(Role::User, "json")]);
         r.response_format = ResponseFormat::Json;
-        let err = request_body("m", &r, false).unwrap_err();
+        let err = body_of("m", &r, false).unwrap_err();
         assert!(err.to_string().contains("response_format"));
     }
 
@@ -597,13 +640,13 @@ mod tests {
         r.extra
             .params
             .insert("model".into(), serde_json::json!("evil-override"));
-        let body = request_body("real-model", &r, false).expect("body");
+        let body = body_of("real-model", &r, false).expect("body");
         assert!(body.get("system").is_none(), "no system message → no key");
         assert!(body.get("tools").is_none(), "no tools → no key");
         assert!(body.get("stop_sequences").is_none(), "empty stops → no key");
         let mut r2 = req(vec![Message::text(Role::User, "hi")]);
         r2.stop_sequences = vec!["END".to_owned()];
-        let body2 = request_body("m", &r2, false).expect("body");
+        let body2 = body_of("m", &r2, false).expect("body");
         assert_eq!(body2["stop_sequences"][0], "END", "stops forwarded");
         assert_eq!(body["custom_field"], 7, "extras pass through");
         assert_eq!(body["model"], "real-model", "structural keys win");
@@ -611,24 +654,34 @@ mod tests {
 
     #[test]
     fn image_blocks_http_and_https_accepted_cas_rejected() {
-        let ok = content_block(&ContentBlock::Image {
-            source: "http://example.com/i.png".into(),
-            detail: None,
-        })
+        let names = ToolNameMap::default();
+        let ok = content_block(
+            &ContentBlock::Image {
+                source: "http://example.com/i.png".into(),
+                detail: None,
+            },
+            &names,
+        )
         .expect("http URL accepted")
         .expect("emitted");
         assert_eq!(ok["type"], "image");
-        let ok2 = content_block(&ContentBlock::Image {
-            source: "https://example.com/i.png".into(),
-            detail: None,
-        })
+        let ok2 = content_block(
+            &ContentBlock::Image {
+                source: "https://example.com/i.png".into(),
+                detail: None,
+            },
+            &names,
+        )
         .expect("https URL accepted");
         assert!(ok2.is_some());
         assert!(
-            content_block(&ContentBlock::Image {
-                source: "blake3:abc".into(),
-                detail: None,
-            })
+            content_block(
+                &ContentBlock::Image {
+                    source: "blake3:abc".into(),
+                    detail: None,
+                },
+                &names,
+            )
             .is_err(),
             "CAS source rejected at v0.1"
         );
@@ -643,7 +696,7 @@ mod tests {
                        {"type":"tool_use","id":"tu1","name":"add","input":{"a":1}},
                        {"type":"thinking","thinking":"hmm"}],
             "usage":{"input_tokens":1,"output_tokens":2}}"#;
-        let resp = parse_response(&rp, body).expect("parse");
+        let resp = parse_response(&rp, body, &ToolNameMap::default()).expect("parse");
         assert_eq!(resp.content.len(), 3);
         assert!(matches!(&resp.content[1],
             ContentBlock::ToolUse { id, name, .. } if id == "tu1" && name == "add"));
@@ -654,13 +707,13 @@ mod tests {
     #[test]
     fn mapper_message_stop_thinking_and_error_arms() {
         // message_stop emits Done immediately (not just at EOF).
-        let mut m = AnthropicMapper::default();
+        let mut m = AnthropicMapper::new(ToolNameMap::default());
         let out = m.map(r#"{"type":"message_stop"}"#);
         assert!(matches!(out.first(), Some(Ok(InferEvent::Done { .. }))));
         assert!(m.finish().is_empty(), "done only once");
 
         // thinking_delta maps to Thinking.
-        let mut m = AnthropicMapper::default();
+        let mut m = AnthropicMapper::new(ToolNameMap::default());
         let out = m.map(
             r#"{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"th"}}"#,
         );
@@ -674,7 +727,7 @@ mod tests {
             ("api_error", 500, true),
             ("invalid_request_error", 400, false),
         ] {
-            let mut m = AnthropicMapper::default();
+            let mut m = AnthropicMapper::new(ToolNameMap::default());
             let payload =
                 format!(r#"{{"type":"error","error":{{"type":"{etype}","message":"x"}}}}"#);
             let out = m.map(&payload);
@@ -691,7 +744,7 @@ mod tests {
 
     #[test]
     fn tool_stream_routes_deltas_by_index_and_finish_closes() {
-        let mut m = AnthropicMapper::default();
+        let mut m = AnthropicMapper::new(ToolNameMap::default());
         m.map(r#"{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"tu_9","name":"add"}}"#);
         let deltas = m.map(
             r#"{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"a\":"}}"#,
@@ -707,5 +760,77 @@ mod tests {
         let tail = m.finish();
         assert!(matches!(tail.first(), Some(Ok(InferEvent::Done { .. }))));
         assert!(m.finish().is_empty(), "done only once");
+    }
+
+    // ── BUG#5 · tool-name sanitization on the anthropic wire (NIKA-463) ──
+
+    #[test]
+    fn tool_names_with_colons_are_sanitized_on_send() {
+        let mut r = req(vec![Message::text(Role::User, "go")]);
+        r.tools = vec![
+            ToolDef::new("nika:read", "", serde_json::json!({"type":"object"})),
+            ToolDef::new("mcp:git/diff", "", serde_json::json!({"type":"object"})),
+        ];
+        r.tool_choice = ToolChoice::Specific("mcp:git/diff".into());
+        let body = body_of("m", &r, false).expect("body");
+        assert_eq!(body["tools"][0]["name"], "nika_read");
+        assert_eq!(body["tools"][1]["name"], "mcp_git_diff");
+        assert_eq!(body["tool_choice"]["name"], "mcp_git_diff");
+    }
+
+    #[test]
+    fn resent_tool_use_name_is_sanitized() {
+        let mut r = req(vec![Message::new(
+            Role::Assistant,
+            vec![ContentBlock::ToolUse {
+                id: "tu_1".into(),
+                name: "nika:read".into(),
+                input: serde_json::json!({"path": "x"}),
+            }],
+        )]);
+        r.tools = vec![ToolDef::new(
+            "nika:read",
+            "",
+            serde_json::json!({"type":"object"}),
+        )];
+        let body = body_of("m", &r, false).expect("body");
+        assert_eq!(body["messages"][0]["content"][0]["name"], "nika_read");
+    }
+
+    #[test]
+    fn parse_reverse_maps_tool_name_to_canonical() {
+        let fake = FakeHttp::with_json(200, "{}");
+        let rp = resolved_with(&fake, "anthropic", "sk-ant-t");
+        let names = ToolNameMap::from_tools(&[ToolDef::new(
+            "mcp:git/diff",
+            "",
+            serde_json::json!({"type":"object"}),
+        )]);
+        let body = br#"{"id":"m1","model":"claude-x","stop_reason":"tool_use",
+            "content":[{"type":"tool_use","id":"tu1","name":"mcp_git_diff","input":{}}],
+            "usage":{"input_tokens":1,"output_tokens":1}}"#;
+        let resp = parse_response(&rp, body, &names).expect("parse");
+        match &resp.content[0] {
+            ContentBlock::ToolUse { name, .. } => assert_eq!(name, "mcp:git/diff"),
+            other => panic!("expected tool_use, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stream_reverse_maps_tool_use_start_name() {
+        let names = ToolNameMap::from_tools(&[ToolDef::new(
+            "nika:read",
+            "",
+            serde_json::json!({"type":"object"}),
+        )]);
+        let mut m = AnthropicMapper::new(names);
+        let out = m.map(
+            r#"{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"tu_1","name":"nika_read"}}"#,
+        );
+        assert!(
+            matches!(out.first(),
+                Some(Ok(InferEvent::ToolUseStart { name, .. })) if name == "nika:read"),
+            "ToolUseStart name reverse-mapped to canonical: {out:?}"
+        );
     }
 }

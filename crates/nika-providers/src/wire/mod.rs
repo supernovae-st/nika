@@ -137,6 +137,107 @@ pub(crate) fn u64_at(v: &serde_json::Value, ptr: &str) -> u64 {
         .unwrap_or_default()
 }
 
+/// Bijective function-name map for the wires whose function-calling API
+/// restricts tool names to `^[a-zA-Z0-9_-]+$` (`OpenAI` · Anthropic).
+///
+/// Nika's tool ids are namespaced with colons (`nika:read`) and slashes
+/// (`mcp:git/diff`), which both APIs reject with HTTP 400 (NIKA-463). This
+/// map forward-sanitizes each canonical name to a wire-legal one when the
+/// tool list is serialized, and reverse-maps the model's `tool_call` name
+/// back to the canonical id before it is handed to the executor — the verb
+/// layer only ever sees the canonical colon form (its whitelist + the
+/// closed `nika:`/`mcp:` namespace dispatch depend on it).
+///
+/// Built fresh per request from `req.tools`: the same instance threads
+/// both directions (send + the response parse), so the round-trip is
+/// internally consistent even though the router may offer a different tool
+/// subset on each turn. Collisions (two canonical names sanitizing to the
+/// same string) are broken with a deterministic `_2`/`_3`… suffix so the
+/// map stays a true bijection. Gemini accepts colons and is NOT routed
+/// through this map.
+#[derive(Debug, Default)]
+pub(crate) struct ToolNameMap {
+    /// canonical id → wire-legal name (the send direction).
+    to_wire: std::collections::BTreeMap<String, String>,
+    /// wire-legal name → canonical id (the response direction).
+    to_canonical: std::collections::BTreeMap<String, String>,
+}
+
+impl ToolNameMap {
+    /// Build the map from the request's tool ids (insertion order fixed by
+    /// the slice so the collision suffixes are deterministic).
+    pub(crate) fn from_tools(tools: &[nika_kernel::ai::provider::ToolDef]) -> Self {
+        let mut map = Self::default();
+        for tool in tools {
+            map.insert(&tool.name);
+        }
+        map
+    }
+
+    /// Register one canonical id, sanitizing + disambiguating its wire name.
+    fn insert(&mut self, canonical: &str) {
+        if self.to_wire.contains_key(canonical) {
+            return; // a duplicate id maps to its already-assigned wire name
+        }
+        let base = sanitize_tool_name(canonical);
+        let mut candidate = base.clone();
+        let mut n = 2u32;
+        // The base may already be taken by a DIFFERENT canonical id (e.g.
+        // `nika:read` and `nika/read` both sanitize to `nika_read`) — widen
+        // with a numeric suffix until the wire name is free.
+        while self.to_canonical.contains_key(&candidate) {
+            candidate = format!("{base}_{n}");
+            n += 1;
+        }
+        self.to_canonical
+            .insert(candidate.clone(), canonical.to_owned());
+        self.to_wire.insert(canonical.to_owned(), candidate);
+    }
+
+    /// Canonical id → the wire-legal name to send (falls back to the
+    /// sanitized form for an id not registered as a tool, e.g. a prior
+    /// `ToolUse` block re-sent while that tool is not in this turn's list —
+    /// it still serializes to a legal name).
+    pub(crate) fn to_wire(&self, canonical: &str) -> String {
+        self.to_wire
+            .get(canonical)
+            .cloned()
+            .unwrap_or_else(|| sanitize_tool_name(canonical))
+    }
+
+    /// Wire name from the model → canonical id (falls back to the wire name
+    /// verbatim when unknown, so a hallucinated name still surfaces for the
+    /// verb's whitelist to reject rather than being silently dropped).
+    pub(crate) fn to_canonical(&self, wire: &str) -> String {
+        self.to_canonical
+            .get(wire)
+            .cloned()
+            .unwrap_or_else(|| wire.to_owned())
+    }
+}
+
+/// Forward-sanitize one tool name to the `^[a-zA-Z0-9_-]+$` charset both
+/// `OpenAI` and Anthropic require: `:` and `/` (Nika's namespace separators)
+/// and any other out-of-charset byte become `_`. An empty result (a name
+/// of only illegal bytes) yields `_` so it is never the empty string.
+fn sanitize_tool_name(name: &str) -> String {
+    let mapped: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if mapped.is_empty() {
+        "_".to_owned()
+    } else {
+        mapped
+    }
+}
+
 /// Per-wire SSE payload → `InferEvent`s translator.
 pub(crate) trait EventMapper: Send {
     /// Map one SSE `data:` payload to zero or more events.
@@ -306,5 +407,57 @@ mod tests {
                 assert_ne!(sys, GenAiSystem::Unknown, "{id} must be attributed");
             }
         }
+    }
+
+    // ── BUG#5 · tool-name sanitization round-trip (NIKA-463) ──
+
+    use nika_kernel::ai::provider::ToolDef;
+
+    fn tool(name: &str) -> ToolDef {
+        ToolDef::new(name, "", serde_json::json!({"type": "object"}))
+    }
+
+    #[test]
+    fn sanitize_replaces_colons_and_slashes() {
+        assert_eq!(sanitize_tool_name("nika:read"), "nika_read");
+        assert_eq!(sanitize_tool_name("mcp:git/diff"), "mcp_git_diff");
+        assert_eq!(sanitize_tool_name("nika:done"), "nika_done");
+        // already-legal name is unchanged
+        assert_eq!(sanitize_tool_name("plain-name_1"), "plain-name_1");
+        // a name of only illegal bytes still yields a legal non-empty name
+        assert_eq!(sanitize_tool_name(":/"), "__");
+    }
+
+    #[test]
+    fn map_round_trips_canonical_through_wire() {
+        let map = ToolNameMap::from_tools(&[tool("nika:read"), tool("mcp:git/diff")]);
+        // forward (send) direction
+        assert_eq!(map.to_wire("nika:read"), "nika_read");
+        assert_eq!(map.to_wire("mcp:git/diff"), "mcp_git_diff");
+        // reverse (response) direction recovers the canonical id exactly
+        assert_eq!(map.to_canonical("nika_read"), "nika:read");
+        assert_eq!(map.to_canonical("mcp_git_diff"), "mcp:git/diff");
+    }
+
+    #[test]
+    fn map_disambiguates_collisions_bijectively() {
+        // `nika:read` and `nika/read` both sanitize to `nika_read`; the
+        // second gets a deterministic suffix so the map stays a bijection.
+        let map = ToolNameMap::from_tools(&[tool("nika:read"), tool("nika/read")]);
+        assert_eq!(map.to_wire("nika:read"), "nika_read");
+        assert_eq!(map.to_wire("nika/read"), "nika_read_2");
+        // both wire names reverse-map to their distinct canonical ids
+        assert_eq!(map.to_canonical("nika_read"), "nika:read");
+        assert_eq!(map.to_canonical("nika_read_2"), "nika/read");
+    }
+
+    #[test]
+    fn map_falls_back_for_unknown_names() {
+        let map = ToolNameMap::from_tools(&[tool("nika:read")]);
+        // an unknown wire name (model hallucination) surfaces verbatim so
+        // the verb's whitelist can reject it
+        assert_eq!(map.to_canonical("ghost_tool"), "ghost_tool");
+        // an unregistered canonical id still serializes to a legal name
+        assert_eq!(map.to_wire("mcp:db/query"), "mcp_db_query");
     }
 }

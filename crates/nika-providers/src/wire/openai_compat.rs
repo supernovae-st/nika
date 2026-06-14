@@ -18,7 +18,7 @@ use nika_kernel::ai::provider::{
 use nika_kernel::http::{HttpPostDyn, HttpRequest};
 use serde_json::{Value, json};
 
-use super::{EventMapper, SseEventStream, gen_ai_system, map_http_err, status_error};
+use super::{EventMapper, SseEventStream, ToolNameMap, gen_ai_system, map_http_err, status_error};
 use crate::registry::ResolvedProvider;
 
 /// Single-shot inference.
@@ -29,7 +29,12 @@ pub(crate) async fn infer<H>(
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
-    let http_req = build_request(rp, &request, false)?;
+    // Tool names carry Nika's `:`/`/` separators; the OpenAI function-calling
+    // API rejects them (NIKA-463). The same map sanitizes on the way out and
+    // restores the canonical id on the way back (the verb never sees the
+    // wire form).
+    let names = ToolNameMap::from_tools(&request.tools);
+    let http_req = build_request(rp, &request, false, &names)?;
     let http = rp.http.as_ref().ok_or_else(wiring_bug)?;
     let resp = http.post(http_req).await.map_err(|e| map_http_err(&e))?;
     if !(200..300).contains(&resp.status) {
@@ -40,7 +45,7 @@ where
             &rp.wire_model,
         ));
     }
-    parse_response(rp, &resp.body)
+    parse_response(rp, &resp.body, &names)
 }
 
 /// Streaming inference.
@@ -51,7 +56,8 @@ pub(crate) async fn infer_stream<H>(
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
-    let http_req = build_request(rp, &request, true)?;
+    let names = ToolNameMap::from_tools(&request.tools);
+    let http_req = build_request(rp, &request, true, &names)?;
     let http = rp.http.as_ref().ok_or_else(wiring_bug)?;
     let resp = http
         .send_streaming(http_req)
@@ -62,7 +68,7 @@ where
     }
     Ok(Box::pin(SseEventStream::new(
         resp.body,
-        CompatMapper::default(),
+        CompatMapper::new(names),
     )))
 }
 
@@ -77,6 +83,7 @@ fn build_request(
     rp: &ResolvedProvider<impl Sized>,
     req: &InferRequest,
     stream: bool,
+    names: &ToolNameMap,
 ) -> Result<HttpRequest, ProviderError> {
     // stream_options is an OpenAI-cloud extension; the 5 keyless local
     // servers (older llama.cpp/LocalAI builds) may 400 on unknown fields,
@@ -88,6 +95,7 @@ fn build_request(
         stream,
         rp.profile.requires_key,
         rp.profile.id,
+        names,
     )?;
     let bytes = serde_json::to_vec(&body).map_err(|e| ProviderError::Other {
         reason: format!("request serialization failed: {e}"),
@@ -121,10 +129,11 @@ fn request_body(
     stream: bool,
     cloud_extensions: bool,
     provider_id: &str,
+    names: &ToolNameMap,
 ) -> Result<Value, ProviderError> {
     let mut messages = Vec::new();
     for m in &req.messages {
-        push_message(&mut messages, m)?;
+        push_message(&mut messages, m, names)?;
     }
 
     let mut body = json!({ "model": model, "messages": messages, "stream": stream });
@@ -147,12 +156,17 @@ fn request_body(
         obj.insert("stop".to_owned(), json!(req.stop_sequences));
     }
     if !req.tools.is_empty() {
+        // Each function name is sanitized to the wire-legal charset; the
+        // model echoes the sanitized name in its tool_calls, which the
+        // parse paths reverse-map back to the canonical id.
         let tools: Vec<Value> = req
             .tools
             .iter()
             .map(|t| {
                 json!({ "type": "function", "function": {
-                    "name": t.name, "description": t.description, "parameters": t.parameters,
+                    "name": names.to_wire(&t.name),
+                    "description": t.description,
+                    "parameters": t.parameters,
                 }})
             })
             .collect();
@@ -161,7 +175,7 @@ fn request_body(
             ToolChoice::Required => json!("required"),
             ToolChoice::None => json!("none"),
             ToolChoice::Specific(name) => {
-                json!({ "type": "function", "function": { "name": name } })
+                json!({ "type": "function", "function": { "name": names.to_wire(name) } })
             }
             ToolChoice::Auto | _ => json!("auto"),
         };
@@ -325,10 +339,13 @@ fn make_nullable(prop: &mut Value) {
 }
 
 /// Kernel message → Chat Completions message(s). `ToolResult` blocks become
-/// their own `role:"tool"` messages (the dialect's shape).
+/// their own `role:"tool"` messages (the dialect's shape). A re-sent
+/// `ToolUse` (the assistant's prior call, stored with its canonical id) is
+/// re-sanitized so its `function.name` matches the registered tool.
 fn push_message(
     out: &mut Vec<Value>,
     m: &nika_kernel::ai::provider::Message,
+    names: &ToolNameMap,
 ) -> Result<(), ProviderError> {
     let role = match m.role {
         Role::System => "system",
@@ -360,7 +377,7 @@ fn push_message(
             }
             ContentBlock::ToolUse { id, name, input } => {
                 tool_calls.push(json!({ "id": id, "type": "function", "function": {
-                    "name": name, "arguments": input.to_string(),
+                    "name": names.to_wire(name), "arguments": input.to_string(),
                 }}));
             }
             ContentBlock::ToolResult {
@@ -393,6 +410,7 @@ fn push_message(
 fn parse_response(
     rp: &ResolvedProvider<impl Sized>,
     body: &[u8],
+    names: &ToolNameMap,
 ) -> Result<InferResponse, ProviderError> {
     let v: Value = serde_json::from_slice(body).map_err(|e| ProviderError::Other {
         reason: format!("openai-compat response is not JSON: {e}"),
@@ -422,7 +440,7 @@ fn parse_response(
         let input = serde_json::from_str(args).unwrap_or_else(|_| Value::String(args.to_owned()));
         content.push(ContentBlock::ToolUse {
             id: super::str_at(tc, "/id"),
-            name: super::str_at(tc, "/function/name"),
+            name: names.to_canonical(&super::str_at(tc, "/function/name")),
             input,
         });
     }
@@ -478,10 +496,20 @@ struct CompatMapper {
     finish: Option<String>,
     /// delta index → tool call id.
     tools: BTreeMap<u64, String>,
+    /// sanitized↔canonical tool-name map (restores the canonical id the
+    /// model echoes back in its sanitized form · NIKA-463).
+    names: ToolNameMap,
     done_sent: bool,
 }
 
 impl CompatMapper {
+    fn new(names: ToolNameMap) -> Self {
+        Self {
+            names,
+            ..Self::default()
+        }
+    }
+
     fn done(&mut self) -> InferEvent {
         self.done_sent = true;
         InferEvent::Done {
@@ -541,7 +569,9 @@ impl EventMapper for CompatMapper {
                 self.tools.insert(index, id.to_owned());
                 out.push(Ok(InferEvent::ToolUseStart {
                     id: id.to_owned(),
-                    name: super::str_at(tc, "/function/name"),
+                    name: self
+                        .names
+                        .to_canonical(&super::str_at(tc, "/function/name")),
                 }));
             }
             if let Some(args) = tc.pointer("/function/arguments").and_then(Value::as_str)
@@ -586,6 +616,19 @@ mod tests {
 
     fn req(messages: Vec<Message>) -> InferRequest {
         InferRequest::new("test-model", messages)
+    }
+
+    /// `request_body` with the tool-name map derived from the request's own
+    /// tools — exactly how `infer`/`infer_stream` build it in production.
+    fn body_of(
+        model: &str,
+        r: &InferRequest,
+        stream: bool,
+        cloud: bool,
+        provider: &str,
+    ) -> Result<Value, ProviderError> {
+        let names = ToolNameMap::from_tools(&r.tools);
+        request_body(model, r, stream, cloud, provider, &names)
     }
 
     #[tokio::test]
@@ -648,7 +691,7 @@ mod tests {
         r.response_format = ResponseFormat::JsonSchema(json!({"type":"object"}));
         // groq is an OpenAI-compatible peer: the author's schema is taken
         // verbatim (only `openai` runs the strict-mode normalizer below).
-        let body = request_body("m", &r, false, true, "groq").expect("body");
+        let body = body_of("m", &r, false, true, "groq").expect("body");
         assert_eq!(body["tools"][0]["type"], "function");
         assert_eq!(body["tools"][0]["function"]["name"], "add");
         assert_eq!(body["tool_choice"]["function"]["name"], "add");
@@ -681,7 +724,7 @@ mod tests {
                 }],
             ),
         ];
-        let body = request_body("m", &req(messages), false, true, "openai").expect("body");
+        let body = body_of("m", &req(messages), false, true, "openai").expect("body");
         assert_eq!(body["messages"][0]["tool_calls"][0]["id"], "call_1");
         assert_eq!(
             body["messages"][0]["tool_calls"][0]["function"]["arguments"],
@@ -700,7 +743,7 @@ mod tests {
                 "tool_calls":[{"id":"call_9","function":{"name":"add","arguments":"{\"a\":1}"}}]},
                 "finish_reason":"tool_calls"}],
             "usage":{"prompt_tokens":1,"completion_tokens":2}}"#;
-        let resp = parse_response(&rp, body).expect("parse");
+        let resp = parse_response(&rp, body, &ToolNameMap::default()).expect("parse");
         assert!(matches!(resp.stop_reason, StopReason::ToolUse));
         match &resp.content[0] {
             ContentBlock::ToolUse { id, name, input } => {
@@ -724,7 +767,7 @@ mod tests {
             Message::text(Role::User, "usr"),
             Message::text(Role::Assistant, "asst"),
         ];
-        let body = request_body("m", &req(messages), false, true, "openai").expect("body");
+        let body = body_of("m", &req(messages), false, true, "openai").expect("body");
         assert_eq!(body["messages"][0]["role"], "system");
         assert_eq!(body["messages"][1]["role"], "user");
         assert_eq!(body["messages"][2]["role"], "assistant");
@@ -734,17 +777,17 @@ mod tests {
     #[test]
     fn stream_options_gated_to_cloud_and_stream_only() {
         let r = req(vec![Message::text(Role::User, "x")]);
-        let cloud_nostream = request_body("m", &r, false, true, "openai").expect("body");
+        let cloud_nostream = body_of("m", &r, false, true, "openai").expect("body");
         assert!(
             cloud_nostream.get("stream_options").is_none(),
             "non-stream → no stream_options"
         );
-        let local_stream = request_body("m", &r, true, false, "ollama").expect("body");
+        let local_stream = body_of("m", &r, true, false, "ollama").expect("body");
         assert!(
             local_stream.get("stream_options").is_none(),
             "local profile → no stream_options"
         );
-        let cloud_stream = request_body("m", &r, true, true, "openai").expect("body");
+        let cloud_stream = body_of("m", &r, true, true, "openai").expect("body");
         assert_eq!(cloud_stream["stream_options"]["include_usage"], true);
     }
 
@@ -757,7 +800,7 @@ mod tests {
         r.extra
             .params
             .insert("model".into(), serde_json::json!("evil"));
-        let body = request_body("real", &r, false, true, "openai").expect("body");
+        let body = body_of("real", &r, false, true, "openai").expect("body");
         assert_eq!(body["custom_field"], "v");
         assert_eq!(body["model"], "real", "structural keys win");
     }
@@ -776,7 +819,7 @@ mod tests {
                 },
             ],
         );
-        let body = request_body("m", &req(vec![msg]), false, true, "openai").expect("body");
+        let body = body_of("m", &req(vec![msg]), false, true, "openai").expect("body");
         let parts = body["messages"][0]["content"]
             .as_array()
             .expect("multimodal parts array");
@@ -789,12 +832,12 @@ mod tests {
                 detail: None,
             }],
         );
-        assert!(request_body("m", &req(vec![bad]), false, true, "openai").is_err());
+        assert!(body_of("m", &req(vec![bad]), false, true, "openai").is_err());
     }
 
     #[test]
     fn mapper_tool_args_emitted_and_finish_synthesizes_done() {
-        let mut m = CompatMapper::default();
+        let mut m = CompatMapper::new(ToolNameMap::default());
         let out = m.map(
             r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"add","arguments":"{partial"}}]},"finish_reason":null}]}"#,
         );
@@ -856,7 +899,7 @@ mod tests {
     fn strict_schema(input: Value) -> Value {
         let mut r = req(vec![Message::text(Role::User, "x")]);
         r.response_format = ResponseFormat::JsonSchema(input);
-        let body = request_body("m", &r, false, true, "openai").expect("body");
+        let body = body_of("m", &r, false, true, "openai").expect("body");
         body["response_format"]["json_schema"]["schema"].clone()
     }
 
@@ -993,10 +1036,111 @@ mod tests {
         });
         let mut r = req(vec![Message::text(Role::User, "x")]);
         r.response_format = ResponseFormat::JsonSchema(nested.clone());
-        let body = request_body("m", &r, false, true, "groq").expect("body");
+        let body = body_of("m", &r, false, true, "groq").expect("body");
         assert_eq!(
             body["response_format"]["json_schema"]["schema"], nested,
             "peer schema is byte-for-byte the author's"
         );
+    }
+
+    // ── BUG#5 · tool-name sanitization on the openai-compat wire (NIKA-463) ──
+
+    #[test]
+    fn tool_names_with_colons_are_sanitized_on_send() {
+        let mut r = req(vec![Message::text(Role::User, "go")]);
+        r.tools = vec![
+            ToolDef::new("nika:read", "", json!({"type":"object"})),
+            ToolDef::new("mcp:git/diff", "", json!({"type":"object"})),
+        ];
+        r.tool_choice = ToolChoice::Specific("nika:read".into());
+        let body = body_of("m", &r, false, true, "openai").expect("body");
+        // the colon/slash names reach the wire in the legal charset
+        assert_eq!(body["tools"][0]["function"]["name"], "nika_read");
+        assert_eq!(body["tools"][1]["function"]["name"], "mcp_git_diff");
+        // tool_choice's Specific name is sanitized identically
+        assert_eq!(body["tool_choice"]["function"]["name"], "nika_read");
+    }
+
+    #[test]
+    fn resent_tool_use_name_is_sanitized() {
+        // The assistant's prior ToolUse (stored canonical) must serialize
+        // its function.name back to the sanitized form on the next turn.
+        let mut r = req(vec![Message::new(
+            Role::Assistant,
+            vec![ContentBlock::ToolUse {
+                id: "call_1".into(),
+                name: "nika:read".into(),
+                input: json!({"path": "x"}),
+            }],
+        )]);
+        r.tools = vec![ToolDef::new("nika:read", "", json!({"type":"object"}))];
+        let body = body_of("m", &r, false, true, "openai").expect("body");
+        assert_eq!(
+            body["messages"][0]["tool_calls"][0]["function"]["name"],
+            "nika_read"
+        );
+    }
+
+    #[test]
+    fn parse_reverse_maps_tool_name_to_canonical() {
+        // The model echoes the SANITIZED name; the parse path restores the
+        // canonical id the verb dispatches on.
+        let fake = FakeHttp::with_json(200, "{}");
+        let rp = resolved_with(&fake, "openai", "sk-test");
+        let names =
+            ToolNameMap::from_tools(&[ToolDef::new("mcp:git/diff", "", json!({"type":"object"}))]);
+        let body = br#"{"id":"cc_3",
+            "choices":[{"message":{"content":null,
+                "tool_calls":[{"id":"c1","function":{"name":"mcp_git_diff","arguments":"{}"}}]},
+                "finish_reason":"tool_calls"}],
+            "usage":{}}"#;
+        let resp = parse_response(&rp, body, &names).expect("parse");
+        match &resp.content[0] {
+            ContentBlock::ToolUse { name, .. } => assert_eq!(name, "mcp:git/diff"),
+            other => panic!("expected tool_use, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stream_reverse_maps_tool_use_start_name() {
+        let names =
+            ToolNameMap::from_tools(&[ToolDef::new("nika:done", "", json!({"type":"object"}))]);
+        let mut m = CompatMapper::new(names);
+        let out = m.map(
+            r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"nika_done","arguments":""}}]},"finish_reason":null}]}"#,
+        );
+        assert!(
+            out.iter().any(|e| matches!(e,
+                Ok(InferEvent::ToolUseStart { name, .. }) if name == "nika:done")),
+            "ToolUseStart name reverse-mapped to canonical: {out:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn end_to_end_round_trips_a_colon_tool_name() {
+        // A colon tool goes out sanitized; the model's sanitized echo comes
+        // back as the canonical id — the whole NIKA-463 loop in one test.
+        let fake = FakeHttp::with_json(
+            200,
+            r#"{"id":"cc_e2e","model":"gpt-4o-mini",
+                "choices":[{"message":{"content":null,
+                    "tool_calls":[{"id":"c1","function":{"name":"nika_read","arguments":"{\"path\":\"f\"}"}}]},
+                    "finish_reason":"tool_calls"}],
+                "usage":{"prompt_tokens":1,"completion_tokens":1}}"#,
+        );
+        let rp = resolved_with(&fake, "openai", "sk-test");
+        let mut request = req(vec![Message::text(Role::User, "read f")]);
+        request.tools = vec![ToolDef::new("nika:read", "reads", json!({"type":"object"}))];
+        let resp = infer(&rp, request).await.expect("infer ok");
+
+        // sent: sanitized name on the wire
+        let sent = fake.captured();
+        let body: Value = serde_json::from_slice(sent[0].body.as_ref().unwrap()).unwrap();
+        assert_eq!(body["tools"][0]["function"]["name"], "nika_read");
+        // received: canonical id restored for the executor
+        match &resp.content[0] {
+            ContentBlock::ToolUse { name, .. } => assert_eq!(name, "nika:read"),
+            other => panic!("expected tool_use, got {other:?}"),
+        }
     }
 }
