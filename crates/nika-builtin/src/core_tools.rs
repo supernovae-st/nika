@@ -88,15 +88,28 @@ pub(crate) fn prompt<P: Prompter>(prompter: &P, args: &Args) -> BuiltinOutcome {
     match mode {
         "confirm" => match prompter.confirm(message) {
             Some(answer) => Ok(serde_json::Value::Bool(answer)),
-            None => default_or_fail(args, C1, "a boolean", |d| {
-                d.as_bool().map(serde_json::Value::Bool)
-            }),
+            // The remedy NAMES the right fix (F6): a string `default:` is
+            // the `input` mode's contract — `confirm` wants a yes/no. The
+            // prior message said only "must be a boolean for this mode",
+            // which sent the author to fix the default when the real fix is
+            // `mode: input` (the misguided-DX footgun).
+            None => default_or_fail(
+                args,
+                C1,
+                "a boolean",
+                "use `mode: input` for a string default, or give a boolean `default:` for confirm",
+                |d| d.as_bool().map(serde_json::Value::Bool),
+            ),
         },
         "input" => match prompter.input(message) {
             Some(text) => Ok(serde_json::Value::String(text)),
-            None => default_or_fail(args, C1, "a string", |d| {
-                d.as_str().map(|s| serde_json::Value::String(s.to_owned()))
-            }),
+            None => default_or_fail(
+                args,
+                C1,
+                "a string",
+                "give a string `default:` (input mode answers with text)",
+                |d| d.as_str().map(|s| serde_json::Value::String(s.to_owned())),
+            ),
         },
         "choice" => {
             let choices = string_choices(args, C2)?;
@@ -119,9 +132,13 @@ pub(crate) fn prompt<P: Prompter>(prompter: &P, args: &Args) -> BuiltinOutcome {
             }
             match prompter.choice(message, &choices) {
                 Some(chosen) => Ok(serde_json::Value::String(chosen)),
-                None => default_or_fail(args, C1, "a string", |d| {
-                    d.as_str().map(|s| serde_json::Value::String(s.to_owned()))
-                }),
+                None => default_or_fail(
+                    args,
+                    C1,
+                    "a string",
+                    "give a `default:` that is one of `choices:`",
+                    |d| d.as_str().map(|s| serde_json::Value::String(s.to_owned())),
+                ),
             }
         }
         other => Err(BuiltinFailure::new(C1, format!("unknown mode `{other}`"))),
@@ -138,13 +155,14 @@ fn default_or_fail(
     args: &Args,
     code: &'static str,
     type_hint: &str,
+    remedy: &str,
     pick: impl Fn(&serde_json::Value) -> Option<serde_json::Value>,
 ) -> BuiltinOutcome {
     match args.get("default") {
         Some(raw) => pick(raw).ok_or_else(|| {
             BuiltinFailure::new(
                 code,
-                format!("`default:` must be {type_hint} for this mode (got {raw})"),
+                format!("`default:` must be {type_hint} for this mode (got {raw}) — {remedy}"),
             )
         }),
         None => Err(BuiltinFailure::new(
@@ -482,15 +500,17 @@ mod tests {
         );
 
         // confirm · a string default (wrong type for a yes/no) names the
-        // type instead of claiming none was given.
+        // type AND the right remedy (`mode: input` · F6) instead of just
+        // telling the author to fix a default that confirm can't use.
         let confirm_str = prompt(
             &NonInteractive,
             &args(serde_json::json!({ "message": "ok?", "default": "yes" })),
         );
         assert!(
             matches!(&confirm_str, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-001"
-                && f.message.contains("must be a boolean")),
-            "{confirm_str:?}"
+                && f.message.contains("must be a boolean")
+                && f.message.contains("mode: input")),
+            "the confirm-mode error names `mode: input` as the fix: {confirm_str:?}"
         );
 
         // input · a non-string default likewise names the type.
