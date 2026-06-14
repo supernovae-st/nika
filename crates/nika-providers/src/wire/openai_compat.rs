@@ -646,6 +646,10 @@ mod tests {
 
         assert!(matches!(resp.stop_reason, StopReason::EndTurn));
         assert_eq!(resp.usage.input_tokens, 9);
+        // output == completion_tokens verbatim (the openai wire does NOT
+        // fold any sub-count into output — reasoning rides its own field;
+        // the gemini wire's thoughts-fold is provider-specific, not here).
+        assert_eq!(resp.usage.output_tokens, 3);
         assert_eq!(
             resp.gen_ai.system,
             nika_kernel::genai::GenAiSystem::OpenAiCompatible

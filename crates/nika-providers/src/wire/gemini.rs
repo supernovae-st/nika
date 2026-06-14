@@ -430,18 +430,36 @@ fn collect_part(part: &Value, content: &mut Vec<ContentBlock>, call_n: &mut u32)
     }
 }
 
+/// Map Gemini's `usageMetadata` to the kernel `TokenUsage`.
+///
+/// **Spend correctness (the budget guard's input).** On this wire's
+/// endpoint (`generativelanguage.googleapis.com`) `candidatesTokenCount`
+/// is the **visible** answer only — Gemini 2.5 thinking models bill their
+/// reasoning under the SEPARATE `thoughtsTokenCount`, and `totalTokenCount`
+/// is documented as `prompt + thoughts + candidates`. Reporting just
+/// `candidatesTokenCount` as `output_tokens` therefore under-counts a
+/// thinking model's generated spend by the whole reasoning budget (a
+/// terse answer over heavy thinking reads as ~7 tokens for what billed
+/// ~90). So `output_tokens` = candidates + thoughts — the full generated
+/// count, comparable to anthropic (whose `output_tokens` already folds
+/// thinking in). `thinking_tokens` keeps the reasoning breakout and
+/// `total_tokens` keeps the provider's grand total for fine accounting.
+/// Missing fields are absent, not zero-cost — `as_u64` → 0 by default.
 fn usage_from(v: &Value) -> TokenUsage {
+    let candidates = v
+        .pointer("/usageMetadata/candidatesTokenCount")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let thoughts = v
+        .pointer("/usageMetadata/thoughtsTokenCount")
+        .and_then(Value::as_u64);
     let mut usage = TokenUsage::new(
         v.pointer("/usageMetadata/promptTokenCount")
             .and_then(Value::as_u64)
             .unwrap_or_default(),
-        v.pointer("/usageMetadata/candidatesTokenCount")
-            .and_then(Value::as_u64)
-            .unwrap_or_default(),
+        candidates.saturating_add(thoughts.unwrap_or_default()),
     );
-    usage.thinking_tokens = v
-        .pointer("/usageMetadata/thoughtsTokenCount")
-        .and_then(Value::as_u64);
+    usage.thinking_tokens = thoughts;
     usage.cache_read_tokens = v
         .pointer("/usageMetadata/cachedContentTokenCount")
         .and_then(Value::as_u64);
@@ -968,6 +986,56 @@ mod tests {
         assert!(matches!(&resp.content[1],
             ContentBlock::Text { text } if text == "answer"));
         assert_eq!(resp.usage.thinking_tokens, Some(5));
+        // The budget-guard input folds thinking into output: a thinking
+        // model's reasoning is billed under thoughtsTokenCount, so
+        // output_tokens = candidates(2) + thoughts(5) — not the visible 2.
+        assert_eq!(resp.usage.output_tokens, 7);
+    }
+
+    #[test]
+    fn output_tokens_fold_thoughts_so_the_budget_guard_is_not_blind() {
+        let fake = FakeHttp::with_json(200, "{}");
+        let rp = resolved_with(&fake, "gemini/flash-25", "g-key");
+
+        // A 2.5-flash thinking turn: a terse visible answer (candidates=7)
+        // over heavy reasoning (thoughts=84) — total billed 116. Reporting
+        // only `candidatesTokenCount` would feed the cost meter 7 for a
+        // turn that cost 116 (the ~13× under-count this fix closes).
+        let thinking = br#"{"candidates":[{"content":{"parts":[{"text":"ok"}]},
+            "finishReason":"STOP"}],
+            "usageMetadata":{"promptTokenCount":25,"candidatesTokenCount":7,
+                             "thoughtsTokenCount":84,"totalTokenCount":116}}"#;
+        let resp = parse_response(&rp, thinking).expect("parse");
+        assert_eq!(resp.usage.input_tokens, 25);
+        assert_eq!(
+            resp.usage.output_tokens, 91,
+            "output folds candidates(7) + thoughts(84) — the billed generated count"
+        );
+        assert_eq!(resp.usage.thinking_tokens, Some(84), "breakout preserved");
+        assert_eq!(resp.usage.total_tokens, Some(116), "grand total preserved");
+
+        // A non-thinking turn (no thoughtsTokenCount): output == candidates,
+        // unchanged from before — the fold is a no-op when thoughts absent.
+        let plain = br#"{"candidates":[{"content":{"parts":[{"text":"hello world"}]},
+            "finishReason":"STOP"}],
+            "usageMetadata":{"promptTokenCount":25,"candidatesTokenCount":66,
+                             "totalTokenCount":91}}"#;
+        let resp = parse_response(&rp, plain).expect("parse");
+        assert_eq!(
+            resp.usage.output_tokens, 66,
+            "no thoughts → output unchanged"
+        );
+        assert_eq!(resp.usage.thinking_tokens, None);
+        assert_eq!(resp.usage.total_tokens, Some(91));
+
+        // Absent usageMetadata entirely → graceful zeros, never a panic.
+        let bare = br#"{"candidates":[{"content":{"parts":[{"text":"x"}]},
+            "finishReason":"STOP"}]}"#;
+        let resp = parse_response(&rp, bare).expect("parse");
+        assert_eq!(resp.usage.input_tokens, 0);
+        assert_eq!(resp.usage.output_tokens, 0);
+        assert_eq!(resp.usage.thinking_tokens, None);
+        assert_eq!(resp.usage.total_tokens, None);
     }
 
     // ── BUG#6 · gemini structured-output schema adapter (Gate 2 parity) ──
