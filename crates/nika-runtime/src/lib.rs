@@ -46,6 +46,7 @@ mod expr;
 mod jq;
 mod record;
 mod retry;
+mod secret;
 mod stamp;
 mod task;
 
@@ -73,6 +74,9 @@ use serde_json::Value;
 
 pub use errors::RuntimeError;
 pub use record::{TaskErrorRecord, TaskRecord, TaskStatus};
+pub use secret::{
+    NoSecrets, SecretResolveError, WorkflowSecretResolver, source_is_runtime_resolvable,
+};
 pub use stamp::{DeterministicStamper, EventSink, Stamper, VecSink};
 
 use expr::Scope;
@@ -145,11 +149,18 @@ pub struct Runtime<S, T, H, P, D, C> {
     agent: AgentVerb<P, T, D>,
     clock: C,
     config: RuntimeConfig,
+    /// Resolves the `secrets:` namespace at run start (MINOR-B). Defaults to
+    /// [`NoSecrets`] (every `secrets.X` unbound → NIKA-1702 · fail-closed ·
+    /// the prior behavior); the composer injects an env/file resolver via
+    /// [`Self::with_secret_resolver`].
+    secrets: Arc<dyn WorkflowSecretResolver>,
 }
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     /// Assemble the runtime from its four verbs + the kernel clock
-    /// (the composer wires seams + envelope defaults · spec §2).
+    /// (the composer wires seams + envelope defaults · spec §2). Secrets are
+    /// unresolved by default ([`NoSecrets`]) — inject a resolver with
+    /// [`Self::with_secret_resolver`].
     #[must_use]
     pub fn new(
         shell: ExecVerb<S>,
@@ -166,7 +177,17 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             agent,
             clock,
             config,
+            secrets: Arc::new(secret::NoSecrets),
         }
+    }
+
+    /// Inject the workflow `secrets:` resolver (MINOR-B · the composer's
+    /// env/file boundary). Builder form — the run binds the resolved values
+    /// into the `secrets.X` namespace.
+    #[must_use]
+    pub fn with_secret_resolver(mut self, resolver: Arc<dyn WorkflowSecretResolver>) -> Self {
+        self.secrets = resolver;
+        self
     }
 }
 
@@ -274,6 +295,13 @@ where
             return Err(RuntimeError::DirtyReport);
         }
         let (vars, workflow_name) = envelope_values(wf);
+        // Resolve the `secrets:` namespace ONCE at run start (MINOR-B · the
+        // injected composer resolver reads env/file). A miss leaves that
+        // secret unbound → its `${{ secrets.X }}` reference raises NIKA-1702
+        // (fail-closed · clean typed error · no token spent on a broken
+        // secret). The resolved values flow ONLY where the IFC sanctioned
+        // them (the clean check) and are never emitted to the event stream.
+        let secrets = secret::resolve_secrets(self.secrets.as_ref(), &wf.secrets);
         // The declared capability boundary (spec 01 §permits) flows to every
         // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);
@@ -304,7 +332,7 @@ where
             let finishes: Vec<Finish> = futures_util::stream::iter(
                 members
                     .iter()
-                    .map(|&task| self.run_task_pipeline(task, &records, &vars, permits)),
+                    .map(|&task| self.run_task_pipeline(task, &records, &vars, &secrets, permits)),
             )
             .buffered(cap)
             .collect()
@@ -322,7 +350,7 @@ where
         };
         emit(stamper, sink, terminal, &[("workflow", s(&workflow_name))]);
 
-        let outputs = resolve_outputs(wf, &records, &vars);
+        let outputs = resolve_outputs(wf, &records, &vars, &secrets);
         Ok(RunOutcome::new(ok, records, outputs))
     }
 }
@@ -496,8 +524,9 @@ fn resolve_outputs(
     wf: &RawWorkflow,
     records: &BTreeMap<String, TaskRecord>,
     vars: &BTreeMap<String, Value>,
+    secrets: &BTreeMap<String, Value>,
 ) -> BTreeMap<String, Value> {
-    let scope = Scope::workflow(records, vars);
+    let scope = Scope::workflow_with_secrets(records, vars, secrets);
     wf.outputs
         .iter()
         .filter_map(|(key, decl)| {

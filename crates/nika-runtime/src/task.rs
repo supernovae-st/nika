@@ -139,10 +139,11 @@ where
         task: &RawTask,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
+        secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
     ) -> Finish {
         let id = task.id.value.clone();
-        let gate_scope = Scope::workflow(records, vars);
+        let gate_scope = Scope::workflow_with_secrets(records, vars, secrets);
 
         // ── The gate (spec 03 §task states) ─────────────────────────
         match task.when.as_ref() {
@@ -190,9 +191,9 @@ where
 
         // ── `for_each:` fan-out or the single lane ──────────────────
         let mut settle = match task.for_each.as_ref() {
-            None => self.run_single(task, records, vars, permits).await,
+            None => self.run_single(task, records, vars, secrets, permits).await,
             Some(spanned) => {
-                self.run_fan_out(task, &spanned.value, records, vars, permits)
+                self.run_fan_out(task, &spanned.value, records, vars, secrets, permits)
                     .await
             }
         };
@@ -213,10 +214,11 @@ where
         task: &RawTask,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
+        secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
     ) -> SettleAs {
         // `with:` renders ONCE here (per-iteration in the fan-out lane).
-        let with_ns = match render_with(task, records, vars, None, None) {
+        let with_ns = match render_with(task, records, vars, secrets, None, None) {
             Ok(ns) => ns,
             Err(err) => {
                 return SettleAs::FailedBeforeStart {
@@ -228,6 +230,7 @@ where
         let scope = Scope {
             records,
             vars,
+            secrets,
             with_ns: Some(&with_ns),
             item: None,
             index: None,
@@ -249,9 +252,10 @@ where
         collection: &ForEachValue,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
+        secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
     ) -> SettleAs {
-        let scope = Scope::workflow(records, vars);
+        let scope = Scope::workflow_with_secrets(records, vars, secrets);
         let items = match resolve_collection(collection, &scope) {
             Ok(items) => items,
             Err(settle) => return *settle,
@@ -277,7 +281,7 @@ where
         // waves · positions stay aligned · spec 03 §null-at-index).
         let mut stream =
             futures_util::stream::iter(items.iter().enumerate().map(|(index, item)| {
-                self.run_iteration(task, records, vars, item, index, permits)
+                self.run_iteration(task, records, vars, secrets, item, index, permits)
             }))
             .buffered(cap);
 
@@ -307,6 +311,7 @@ where
         let finally_scope = Scope {
             records,
             vars,
+            secrets,
             with_ns: None,
             item: None,
             index: None,
@@ -324,11 +329,12 @@ where
         task: &RawTask,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
+        secrets: &BTreeMap<String, Value>,
         item: &Value,
         index: usize,
         permits: Option<&Permits>,
     ) -> RanTask {
-        let with_ns = match render_with(task, records, vars, Some(item), Some(index)) {
+        let with_ns = match render_with(task, records, vars, secrets, Some(item), Some(index)) {
             Ok(ns) => ns,
             Err(err) => {
                 return RanTask {
@@ -345,6 +351,7 @@ where
         let scope = Scope {
             records,
             vars,
+            secrets,
             with_ns: Some(&with_ns),
             item: Some(item),
             index: Some(index),
@@ -481,6 +488,7 @@ where
         let cleanup_scope = Scope {
             records: &records,
             vars: scope.vars,
+            secrets: scope.secrets, // a cleanup may reference secrets.X too
             with_ns: scope.with_ns,
             item: None, // locals out of scope after the fan-out (spec 03)
             index: None,
@@ -839,12 +847,14 @@ fn render_with(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
     vars: &BTreeMap<String, Value>,
+    secrets: &BTreeMap<String, Value>,
     item: Option<&Value>,
     index: Option<usize>,
 ) -> Result<BTreeMap<String, Value>, RuntimeError> {
     let scope = Scope {
         records,
         vars,
+        secrets, // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B)
         with_ns: None,
         item,
         index,

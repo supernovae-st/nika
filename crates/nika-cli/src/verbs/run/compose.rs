@@ -29,7 +29,8 @@ use nika_kernel::ai::provider::ProviderInferDyn;
 use nika_kernel::provider::{InferRequest, InferResponse, ProviderError};
 use nika_kernel::secret::Secret;
 use nika_providers::{ProviderRegistry, ProvidersConfig};
-use nika_runtime::{Runtime, RuntimeConfig};
+use nika_runtime::{Runtime, RuntimeConfig, SecretResolveError, WorkflowSecretResolver};
+use nika_schema::types::{SecretRef, SecretSource};
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;
@@ -190,6 +191,61 @@ fn config_from_env() -> ProvidersConfig {
     config
 }
 
+/// The production workflow-`secrets:` resolver — the `env` + `file` stores
+/// (MINOR-B). This is the COMPOSITION ROOT's sanctioned secret-store
+/// boundary (the same justification as [`config_from_env`] · the runtime L3
+/// never reads env/files itself).
+///
+/// - `source: env` → reads the OS env var named by the secret's `key`.
+/// - `source: file` → reads the file at the secret's `key` path
+///   (trailing newline trimmed · the common `cat secret > file` shape).
+/// - `source: vault` → NOT yet wired · returns a typed miss so the
+///   reference fails closed (NIKA-1702) rather than silently reading null.
+///   The checker WARNs about this ahead of run (see `nika check`).
+///
+/// A resolved value is NEVER logged here (the resolver returns it straight
+/// to the runtime's in-memory `secrets` namespace · the IFC governs where it
+/// then flows · it is never emitted to the event stream).
+///
+/// Not `pub` — it is injected as `Arc<dyn WorkflowSecretResolver>` (it never
+/// appears in a public type spelling, unlike [`ProdRuntime`]'s generics).
+#[derive(Debug, Clone, Copy, Default)]
+struct EnvFileSecretResolver;
+
+impl WorkflowSecretResolver for EnvFileSecretResolver {
+    fn resolve(&self, name: &str, reference: &SecretRef) -> Result<String, SecretResolveError> {
+        let miss = |reason: &str| SecretResolveError {
+            name: name.to_owned(),
+            reason: reason.to_owned(),
+        };
+        match reference.source {
+            SecretSource::Env => {
+                // The sanctioned env→secret boundary (the registry never reads
+                // env · same `disallowed_methods` carve-out as config_from_env).
+                #[allow(clippy::disallowed_methods)]
+                let value = std::env::var(&reference.key)
+                    .map_err(|_| miss(&format!("env var `{}` is not set", reference.key)))?;
+                if value.is_empty() {
+                    return Err(miss(&format!("env var `{}` is empty", reference.key)));
+                }
+                Ok(value)
+            }
+            SecretSource::File => {
+                let raw = std::fs::read_to_string(&reference.key)
+                    .map_err(|e| miss(&format!("file `{}` unreadable: {e}", reference.key)))?;
+                let value = raw.trim_end_matches(['\n', '\r']).to_owned();
+                if value.is_empty() {
+                    return Err(miss(&format!("file `{}` is empty", reference.key)));
+                }
+                Ok(value)
+            }
+            // vault is not yet runtime-resolvable (the checker WARNs · the
+            // reference then fails closed at NIKA-1702 · never a leak).
+            _ => Err(miss("`vault` secrets are not yet runtime-resolvable")),
+        }
+    }
+}
+
 /// Derive the runtime `permits.fs` boundary from a parsed workflow.
 ///
 /// No `permits:` block → [`FsBoundary::unbounded`] (today's floor · the
@@ -331,7 +387,11 @@ pub fn production_runtime(
         ),
         SystemClock,
         RuntimeConfig::default(),
-    ))
+    )
+    // Resolve `secrets:` from env/file at run start (MINOR-B · the sanctioned
+    // store boundary). A miss leaves the secret unbound → NIKA-1702 (fail-
+    // closed); the IFC governs where a resolved value may flow.
+    .with_secret_resolver(Arc::new(EnvFileSecretResolver)))
 }
 
 #[cfg(test)]

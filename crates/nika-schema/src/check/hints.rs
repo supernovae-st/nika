@@ -47,8 +47,8 @@ use crate::types::OnErrorAction;
 pub struct Hint {
     /// The hint class — the closed set today: `cost` · `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `redundant-gate` ·
-    /// `retry-effects` · `parallel-writers` (additive · agents route on
-    /// it; the module doc describes each).
+    /// `retry-effects` · `parallel-writers` · `secrets-store` (additive ·
+    /// agents route on it; the module doc describes each).
     pub kind: &'static str,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,
@@ -129,7 +129,126 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
             "no `permits:` boundary declared — run `nika check --infer-permits` to generate the tightest one (default-deny once present)".to_owned(),
         ));
     }
+    push_unresolvable_secret_hints(&mut hints, wf);
     hints
+}
+
+/// The `secrets-store` hint (MINOR-B): a referenced `secrets.X` whose
+/// `source` the runtime cannot resolve yet (`vault`) — without this the
+/// check is GREEN but the value fails at runtime with NIKA-1702 (an
+/// unresolved reference). The hint names the gap so the author switches the
+/// store (`env`/`file`) or waits for vault wiring, rather than hitting a
+/// green-check → runtime-1702 surprise. Only fires for a REFERENCED secret
+/// (a declared-but-unused vault secret is harmless). Advisory — never fails
+/// the check.
+fn push_unresolvable_secret_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
+    use crate::types::SecretSource;
+    if wf.secrets.is_empty() {
+        return;
+    }
+    let referenced = referenced_secrets(wf);
+    for (name, secret) in &wf.secrets {
+        // `env`/`file` are wired; only the not-yet-resolvable sources warn.
+        if matches!(secret.value.source, SecretSource::Env | SecretSource::File) {
+            continue;
+        }
+        if referenced.contains(name.value.as_str()) {
+            hints.push(hint(
+                "secrets-store",
+                "-",
+                format!(
+                    "`secrets.{name}` uses source `{source}`, not yet runtime-resolvable \u{2014} the check is green but `${{{{ secrets.{name} }}}}` will fail at run with NIKA-1702; use `source: env` or `source: file` until vault resolution ships",
+                    name = name.value,
+                    source = secret.value.source,
+                ),
+            ));
+        }
+    }
+}
+
+/// Every `secrets.<name>` referenced anywhere in the workflow's `${{ }}`
+/// islands (task fields · `with:` · `outputs:`) — drives the `secrets-store`
+/// hint so it fires only for a USED secret.
+fn referenced_secrets(wf: &RawWorkflow) -> BTreeSet<String> {
+    use crate::expression::{NamespaceRef, expr_refs};
+    let mut out = BTreeSet::new();
+    let mut collect = |text: &str| {
+        if let Ok(islands) = scan_templates(text) {
+            for island in &islands {
+                for r in expr_refs(&island.expr) {
+                    if let NamespaceRef::Secrets(name) = r {
+                        out.insert(name);
+                    }
+                }
+            }
+        }
+    };
+    for task in &wf.tasks {
+        for text in task_text_fields(&task.value) {
+            collect(text);
+        }
+    }
+    for (_, decl) in &wf.outputs {
+        collect(decl.value().value.as_str());
+    }
+    out
+}
+
+/// Every authored text fragment of a task that may carry a `${{ secrets.X }}`
+/// island (effect fields · `with:` values · `when:` body) — the surface
+/// [`referenced_secrets`] scans.
+fn task_text_fields(t: &crate::raw::RawTask) -> Vec<&str> {
+    let mut fields = Vec::new();
+    match &t.action {
+        RawAction::Exec(a) => {
+            fields.extend(a.command.text_fragments());
+            if let Some(stdin) = &a.stdin {
+                fields.push(stdin.value.as_str());
+            }
+            for (_, v) in &a.env {
+                fields.push(v.value.as_str());
+            }
+        }
+        RawAction::Invoke(a) => {
+            if let Some(args) = a.args.as_ref() {
+                collect_json_strings_into(&args.value, &mut fields);
+            }
+        }
+        RawAction::Infer(a) => {
+            fields.push(a.prompt.value.as_str());
+            if let Some(s) = &a.system {
+                fields.push(s.value.as_str());
+            }
+        }
+        RawAction::Agent(a) => {
+            fields.push(a.prompt.value.as_str());
+            if let Some(s) = &a.system {
+                fields.push(s.value.as_str());
+            }
+        }
+    }
+    for (_, v) in &t.with {
+        collect_json_strings_into(&v.value, &mut fields);
+    }
+    fields
+}
+
+/// Every string leaf of a JSON value (with-values · invoke args).
+fn collect_json_strings_into<'a>(value: &'a serde_json::Value, out: &mut Vec<&'a str>) {
+    match value {
+        serde_json::Value::String(s) => out.push(s.as_str()),
+        serde_json::Value::Array(items) => {
+            for it in items {
+                collect_json_strings_into(it, out);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for v in map.values() {
+                collect_json_strings_into(v, out);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// The retry-safety hint (class `retry-effects`): `retry:` replays the

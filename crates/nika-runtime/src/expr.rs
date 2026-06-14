@@ -45,6 +45,15 @@ use serde_json::Value;
 use crate::errors::RuntimeError;
 use crate::record::{TaskRecord, render_value};
 
+/// An empty secrets namespace — the no-secrets binding used by the
+/// 2-arg [`Scope::workflow`] test constructor (production always threads the
+/// run-resolved map via [`Scope::workflow_with_secrets`]). When the composer
+/// injected no resolver the run's map is simply empty, so a `secrets.X`
+/// reference resolves to `None` → NIKA-1702 (the loud unresolved class).
+#[cfg(test)]
+static EMPTY_SECRETS: std::sync::LazyLock<BTreeMap<String, Value>> =
+    std::sync::LazyLock::new(BTreeMap::new);
+
 /// The dataflow scope one render sees (spec 04 namespaces).
 #[derive(Clone, Copy)]
 pub(crate) struct Scope<'a> {
@@ -52,6 +61,13 @@ pub(crate) struct Scope<'a> {
     pub records: &'a BTreeMap<String, TaskRecord>,
     /// `vars.<key>` — envelope defaults (typed or untyped · JSON values).
     pub vars: &'a BTreeMap<String, Value>,
+    /// `secrets.<name>` — RESOLVED secret values (spec 01 §secrets ·
+    /// MINOR-B). Empty when the composer injected no resolver — then a
+    /// `secrets.X` reference is unresolved (NIKA-1702), never a silent
+    /// empty. A resolved value flows ONLY where the IFC sanctions it (the
+    /// `nika check` secret-flow analysis · ADR-092) and is NEVER emitted to
+    /// the event stream (notes carry the program/model, not field values).
+    pub secrets: &'a BTreeMap<String, Value>,
     /// `with.<key>` — task-local injection (None outside a task body).
     pub with_ns: Option<&'a BTreeMap<String, Value>>,
     /// `item` / `index` — `for_each` locals (None outside an iteration).
@@ -66,14 +82,28 @@ pub(crate) struct Scope<'a> {
 }
 
 impl<'a> Scope<'a> {
-    /// A workflow-level scope (no task-local namespaces · no permits).
+    /// A workflow-level scope with NO secrets — the unit-test constructor
+    /// (production always threads the run-resolved secrets map via
+    /// [`Self::workflow_with_secrets`]).
+    #[cfg(test)]
     pub(crate) fn workflow(
         records: &'a BTreeMap<String, TaskRecord>,
         vars: &'a BTreeMap<String, Value>,
     ) -> Self {
+        Self::workflow_with_secrets(records, vars, &EMPTY_SECRETS)
+    }
+
+    /// A workflow-level scope carrying the resolved `secrets:` namespace
+    /// (the production gate / `outputs:` / cleanup path · MINOR-B).
+    pub(crate) fn workflow_with_secrets(
+        records: &'a BTreeMap<String, TaskRecord>,
+        vars: &'a BTreeMap<String, Value>,
+        secrets: &'a BTreeMap<String, Value>,
+    ) -> Self {
         Self {
             records,
             vars,
+            secrets,
             with_ns: None,
             item: None,
             index: None,
@@ -128,8 +158,15 @@ impl Resolver for ScopeResolver<'_, '_> {
             // `tasks.<id>` now resolves to that record object (CEL owns
             // the `.field` step), so `tasks.x.output.y` deep paths work.
             "tasks" => Some(tasks_object(scope.records)),
-            // `env` / `secrets` exist in the grammar but are unbound in
-            // the runtime today → unresolved (NIKA-VAR-001 → 1702).
+            // `secrets.<name>` → the RESOLVED secret values (MINOR-B). The
+            // composer injects them (env/file · the sanctioned boundary);
+            // when none was injected the map is empty and `.field` raises
+            // NIKA-VAR-001 → 1702 (the loud unresolved class). A resolved
+            // value is DATA bound here, never expression text (injection-safe
+            // · same boundary as every other namespace).
+            "secrets" if !scope.secrets.is_empty() => Some(ns_object(scope.secrets)),
+            // `env` exists in the grammar but is unbound in the runtime today
+            // · an unprovided `secrets` falls here too → unresolved (1702).
             _ => None,
         }
     }
@@ -359,12 +396,52 @@ mod tests {
             render("${{ tasks.ghost.output.x }}", &scope).expect_err("unknown deep"),
             RuntimeError::UnresolvedTemplate { .. }
         ));
-        // `env` / `secrets` are valid CEL roots but UNBOUND in the v0
-        // runtime → unresolved (1702 · loud), never a silent empty.
+        // `env` is a valid CEL root but UNBOUND → unresolved (1702 · loud).
+        // `secrets` with no resolver injected is unbound too (the fixture
+        // scope carries an empty secrets map · fail-closed).
         assert!(matches!(
             render("${{ env.HOME }}", &scope).expect_err("env unbound"),
             RuntimeError::UnresolvedTemplate { .. }
         ));
+        assert!(matches!(
+            render("${{ secrets.api_key }}", &scope).expect_err("secrets unbound"),
+            RuntimeError::UnresolvedTemplate { .. }
+        ));
+    }
+
+    #[test]
+    fn secrets_namespace_resolves_when_bound() {
+        // MINOR-B: when the composer resolved the `secrets:` namespace, a
+        // `${{ secrets.X }}` reference reads its value (DATA · injection-safe
+        // · the same binding boundary as every other namespace).
+        let records = BTreeMap::new();
+        let vars = BTreeMap::new();
+        let secrets = BTreeMap::from([(
+            "api_key".to_owned(),
+            Value::String("sk-resolved".to_owned()),
+        )]);
+        let scope = Scope::workflow_with_secrets(&records, &vars, &secrets);
+        assert_eq!(
+            render("Bearer ${{ secrets.api_key }}", &scope).expect("resolves"),
+            "Bearer sk-resolved"
+        );
+        // An UNDECLARED secret is still unresolved (1702 · fail-closed).
+        assert!(matches!(
+            render("${{ secrets.absent }}", &scope).expect_err("absent secret"),
+            RuntimeError::UnresolvedTemplate { .. }
+        ));
+        // A secret value that LOOKS like an expression is DATA, never
+        // re-evaluated (injection-safe · the load-bearing invariant).
+        let evil = BTreeMap::from([(
+            "x".to_owned(),
+            Value::String("${{ vars.admin == true }}".to_owned()),
+        )]);
+        let evil_scope = Scope::workflow_with_secrets(&records, &vars, &evil);
+        assert_eq!(
+            render("${{ secrets.x }}", &evil_scope).expect("data"),
+            "${{ vars.admin == true }}",
+            "a secret value is bound as data, never re-parsed"
+        );
     }
 
     #[test]
@@ -543,6 +620,7 @@ mod tests {
         let scope = Scope {
             records: &records,
             vars: &vars,
+            secrets: &EMPTY_SECRETS,
             with_ns: None,
             item: Some(&item),
             index: Some(0),
@@ -610,6 +688,7 @@ mod tests {
         let scope = Scope {
             records: &records,
             vars: &vars,
+            secrets: &EMPTY_SECRETS,
             with_ns: Some(&with_ns),
             item: Some(&item),
             index: Some(3),
