@@ -4,14 +4,62 @@
 //! Final-output shaping — `schema:` validation + JSON extraction from
 //! model text (spec §2 `infer.schema:` parity).
 //!
+//! Two distinct surfaces meet the task `schema:` here (BUG#11):
+//!
+//! - **`nika:done` carrying a `result`** — the model DELIBERATELY emitted a
+//!   structured value; [`shape_output`] validates it directly (the model
+//!   committed to that exact shape · no re-ask).
+//! - **a free-text final answer** (natural completion · `done` without a
+//!   result) — the model answered in prose; the loop must turn that into a
+//!   schema-conforming object. The wire enforcement lives in `lib.rs`
+//!   (the schema-constrained re-ask), and this module supplies its parts:
+//!   [`compile`], [`validate_text`], [`render_schema`], and [`reask_message`].
+//!
 //! Moved verbatim out of `lib.rs` (the loop file) so the loop file stays
 //! within its size budget as the ADR-093 intelligence modules land —
 //! behavior is pinned by the tests that moved with it.
 
 use crate::{AgentValue, VerbAgentError};
 
+/// Cap on the schema text re-injected into prompts (the instruction
+/// fallback) — an attacker-influenced schema must not be a token-cost
+/// amplifier across re-asks (nika-verb-infer review lens 3 · P1 parity).
+const SCHEMA_RENDER_CAP: usize = 4096;
+
+/// Compile the task `schema:` once (a schema that does not compile is a
+/// task-authoring error mapped to NIKA-464 BEFORE any provider call).
+pub(crate) fn compile(schema: &serde_json::Value) -> Result<jsonschema::Validator, VerbAgentError> {
+    jsonschema::validator_for(schema).map_err(|e| VerbAgentError::SchemaValidation {
+        detail: format!("schema does not compile: {e}"),
+    })
+}
+
+/// Extract a JSON candidate from a free-text final answer and validate it
+/// against a compiled schema in ONE step (the agent re-ask's unit · BUG#11).
+/// Returns the validated value, or the human-readable failure detail — the
+/// caller decides between a re-ask and the NIKA-464 verdict, so a missing
+/// candidate and a schema miss collapse to the same `Err(detail)` shape.
+pub(crate) fn validate_text(
+    text: &str,
+    validator: &jsonschema::Validator,
+) -> Result<serde_json::Value, String> {
+    let Some(candidate) = extract_json(text) else {
+        return Err("final message contains no extractable JSON".to_owned());
+    };
+    match validator.validate(&candidate) {
+        Ok(()) => Ok(candidate),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
 /// Validate the final value against the task `schema:` when present
 /// (spec §2: the schema validates the FINAL output · NIKA-464).
+///
+/// This is the DIRECT path — the model already committed to a value (a
+/// `nika:done` result, or a free-text answer that already parses). A
+/// failure here is a verdict, not a prompt to re-ask (the re-ask lives in
+/// `lib.rs` and is reserved for the free-text answer that does NOT yet
+/// conform · BUG#11).
 pub(crate) fn shape_output(
     value: AgentValue,
     schema: Option<&serde_json::Value>,
@@ -19,27 +67,62 @@ pub(crate) fn shape_output(
     let Some(schema) = schema else {
         return Ok(value);
     };
-    let validator =
-        jsonschema::validator_for(schema).map_err(|e| VerbAgentError::SchemaValidation {
-            detail: format!("schema does not compile: {e}"),
-        })?;
-    let candidate = match &value {
-        AgentValue::Structured(json) => json.clone(),
-        // The `infer.schema:` parity (spec §2): a final message wrapping
-        // its JSON in ``` fences or prose is the common real-model case —
-        // bare-parse first, then the first balanced span.
-        AgentValue::Text(text) => {
-            extract_json(text).ok_or_else(|| VerbAgentError::SchemaValidation {
-                detail: "final message contains no extractable JSON".to_owned(),
-            })?
-        }
-    };
+    let validator = compile(schema)?;
+    let candidate = candidate_of(value)?;
     if let Err(error) = validator.validate(&candidate) {
         return Err(VerbAgentError::SchemaValidation {
             detail: error.to_string(),
         });
     }
     Ok(AgentValue::Structured(candidate))
+}
+
+/// Pull the JSON candidate out of a final value: a structured value is
+/// already JSON; a text value is parsed leniently (`infer.schema:` parity:
+/// real models wrap JSON in code fences or prose · bare-parse first, then
+/// the first balanced span).
+pub(crate) fn candidate_of(value: AgentValue) -> Result<serde_json::Value, VerbAgentError> {
+    match value {
+        AgentValue::Structured(json) => Ok(json),
+        AgentValue::Text(text) => {
+            extract_json(&text).ok_or_else(|| VerbAgentError::SchemaValidation {
+                detail: "final message contains no extractable JSON".to_owned(),
+            })
+        }
+    }
+}
+
+/// Render the schema for prompt injection, truncated at the cap (parity
+/// with nika-verb-infer's `structured::render_schema`).
+pub(crate) fn render_schema(schema: &serde_json::Value) -> String {
+    let mut rendered = schema.to_string();
+    if rendered.len() > SCHEMA_RENDER_CAP {
+        let mut cut = SCHEMA_RENDER_CAP;
+        while !rendered.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        rendered.truncate(cut);
+        rendered.push_str("…(schema truncated)");
+    }
+    rendered
+}
+
+/// The instruction appended to the re-ask turn for providers WITHOUT
+/// native `response_format` (the anthropic wire), and as the corrective
+/// nudge when a re-ask still misses. Mirrors infer's `retry_message`.
+pub(crate) fn reask_message(detail: Option<&str>, schema: &serde_json::Value) -> String {
+    let rendered = render_schema(schema);
+    match detail {
+        Some(detail) => format!(
+            "The previous reply did not satisfy the required output schema. \
+             Validation failed with: {detail}. Reply again with ONLY a JSON value \
+             that satisfies this JSON Schema, no prose, no code fences:\n{rendered}"
+        ),
+        None => format!(
+            "Reply with ONLY a JSON value that satisfies this JSON Schema, \
+             no prose, no code fences:\n{rendered}"
+        ),
+    }
 }
 
 /// Pull the first JSON value out of model text: a bare parse, else the

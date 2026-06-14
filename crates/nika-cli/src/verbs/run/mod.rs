@@ -162,7 +162,7 @@ where
     S: nika_kernel::process::ShellRunDyn + Sync,
     T: nika_kernel::tool_executor::ToolExecuteDyn,
     H: nika_kernel::http::HttpPostDyn + Send + Sync + 'static,
-    P: nika_kernel::ai::provider::ProviderInferDyn,
+    P: nika_kernel::ai::provider::ProviderInferDyn + nika_kernel::ai::provider::ProviderMeta,
     D: nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn,
     C: nika_kernel::clock::ClockDyn + Sync,
 {

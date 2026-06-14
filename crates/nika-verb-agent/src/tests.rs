@@ -544,15 +544,244 @@ async fn schema_validates_the_final_text_into_structured() {
 
 #[tokio::test]
 async fn schema_rejects_a_nonconforming_final_message() {
+    // BUG#11: a prose final answer triggers the schema re-ask. With the
+    // default budget the loop re-asks twice; a model that NEVER produces
+    // JSON exhausts the budget and the post-hoc validation is the verdict
+    // (NIKA-464 · validation intact). 1 initial + DEFAULT_SCHEMA_RETRY_BUDGET
+    // re-asks = 3 prose responses queued.
     let r = rig(
-        MockProvider::new("mock").enqueue_response(text_response("not json at all")),
+        MockProvider::new("mock")
+            .enqueue_response(text_response("not json at all"))
+            .enqueue_response(text_response("still no json"))
+            .enqueue_response(text_response("nope, prose forever")),
         MockToolExecutor::new(),
         Vec::new(),
     );
     let mut input = AgentInput::new("rate it");
     input.schema = Some(serde_json::json!({"type": "object"}));
     let err = r.verb.run(input).await.expect_err("schema gate");
-    assert!(matches!(err, VerbAgentError::SchemaValidation { .. }));
+    assert!(
+        matches!(err, VerbAgentError::SchemaValidation { .. }),
+        "{err}"
+    );
+    // The model was re-asked WITH the schema constraint each round.
+    assert_eq!(
+        r.provider.captured_requests().len(),
+        1 + DEFAULT_SCHEMA_RETRY_BUDGET as usize,
+        "initial answer + the schema re-asks"
+    );
+}
+
+#[tokio::test]
+async fn schema_reask_rescues_a_prose_final_answer() {
+    // The BUG#11 fix proper: the model's free-text final answer ("Paris")
+    // does NOT conform; the engine re-asks WITH the schema and the model
+    // then replies with the object — no NIKA-464, no author hand-instruction.
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(text_response("Paris"))
+            .enqueue_response(text_response(r#"{"answer": "Paris"}"#)),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let mut input = AgentInput::new("capital of France?");
+    input.schema = Some(serde_json::json!({
+        "type": "object",
+        "properties": {"answer": {"type": "string"}},
+        "required": ["answer"]
+    }));
+    let out = r.verb.run(input).await.expect("the re-ask rescues it");
+    assert_eq!(
+        out.output,
+        AgentValue::Structured(serde_json::json!({"answer": "Paris"}))
+    );
+    assert_eq!(out.stop_reason, AgentStopReason::Completed);
+    // Exactly one re-ask happened (the prose answer + the structured re-ask).
+    let reqs = r.provider.captured_requests();
+    assert_eq!(reqs.len(), 2, "free answer + one schema re-ask");
+    // The re-ask carried the assistant's prose turn + a schema instruction,
+    // and offered NO tools (tools-vs-structured-output sidestep).
+    let reask = &reqs[1];
+    assert!(reask.tools.is_empty(), "the re-ask is a tools-OFF turn");
+    assert!(
+        reask.messages.iter().any(|m| matches!(m.role, Role::User)
+            && m.content.iter().any(|b| matches!(
+                b,
+                ContentBlock::Text { text } if text.contains("JSON Schema")
+            ))),
+        "the re-ask instructs the schema (instruction fallback · non-native mock)"
+    );
+}
+
+#[tokio::test]
+async fn schema_reask_wires_response_format_natively_when_supported() {
+    // On a provider that supports response_format (openai-compat · gemini ·
+    // mock-with-support), the re-ask wires the schema NATIVELY onto the
+    // request rather than relying on the prose instruction (infer parity).
+    let provider = MockProvider::new("mock")
+        .with_response_format_support(true)
+        .enqueue_response(text_response("Paris"))
+        .enqueue_response(text_response(r#"{"answer": "Paris"}"#));
+    let r = rig(provider, MockToolExecutor::new(), Vec::new());
+    let mut input = AgentInput::new("capital of France?");
+    let schema = serde_json::json!({
+        "type": "object",
+        "properties": {"answer": {"type": "string"}},
+        "required": ["answer"]
+    });
+    input.schema = Some(schema.clone());
+    let out = r.verb.run(input).await.expect("native re-ask rescues it");
+    assert_eq!(
+        out.output,
+        AgentValue::Structured(serde_json::json!({"answer": "Paris"}))
+    );
+    let reask = &r.provider.captured_requests()[1];
+    assert!(
+        matches!(&reask.response_format, ResponseFormat::JsonSchema(s) if *s == schema),
+        "native providers carry the schema on response_format, not just prose"
+    );
+}
+
+#[tokio::test]
+async fn schema_reask_runs_after_the_tool_loop_completes() {
+    // The schema enforcement is on the FINAL answer ONLY — the tool loop
+    // runs first (unconstrained · tools work), THEN the free-text answer is
+    // re-asked into shape. Proof the two phases compose (BUG#11 + the loop).
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(tool_use_response("c1", "nika:read", serde_json::json!({})))
+            .enqueue_response(text_response("the file says hello")) // prose final
+            .enqueue_response(text_response(r#"{"summary": "hello"}"#)), // re-ask
+        MockToolExecutor::new().enqueue_ok(ToolResult::success("c1", "hello")),
+        vec![def("nika:read")],
+    );
+    let mut input = AgentInput::new("read then summarize as JSON");
+    input.tools = vec!["nika:read".to_owned()];
+    input.schema = Some(serde_json::json!({
+        "type": "object",
+        "properties": {"summary": {"type": "string"}},
+        "required": ["summary"]
+    }));
+    let out = r.verb.run(input).await.expect("loop + re-ask");
+    assert_eq!(
+        out.output,
+        AgentValue::Structured(serde_json::json!({"summary": "hello"}))
+    );
+    // The tool actually ran (loop intact), then the answer was re-asked.
+    assert_eq!(
+        r.tools.captured_calls().len(),
+        1,
+        "the tool loop still runs"
+    );
+    let reqs = r.provider.captured_requests();
+    assert_eq!(reqs.len(), 3, "tool turn + prose answer + schema re-ask");
+    assert!(
+        !reqs[0].tools.is_empty(),
+        "the tool-calling turn carried tools (schema NOT on it)"
+    );
+    assert!(
+        matches!(reqs[0].response_format, ResponseFormat::Text),
+        "the tool turn never carries the schema (the conflict sidestep)"
+    );
+}
+
+#[tokio::test]
+async fn schema_already_conforming_final_answer_costs_no_reask() {
+    // A well-behaved model that already replies with the object is validated
+    // in place — NO extra round-trip (the re-ask is reserved for prose).
+    let r = rig(
+        MockProvider::new("mock").enqueue_response(text_response(r#"{"answer": "Rome"}"#)),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let mut input = AgentInput::new("capital of Italy?");
+    input.schema = Some(serde_json::json!({
+        "type": "object",
+        "properties": {"answer": {"type": "string"}},
+        "required": ["answer"]
+    }));
+    let out = r.verb.run(input).await.expect("conforms first try");
+    assert_eq!(
+        out.output,
+        AgentValue::Structured(serde_json::json!({"answer": "Rome"}))
+    );
+    assert_eq!(
+        r.provider.captured_requests().len(),
+        1,
+        "no re-ask when the answer already conforms"
+    );
+}
+
+#[tokio::test]
+async fn schema_reask_via_done_without_result_uses_last_text() {
+    // A result-LESS `nika:done` finishes on the last free text — that text
+    // gets the SAME schema re-ask (the BUG#11 path is the free-text path,
+    // however the loop reached it).
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(InferResponse::new(
+                vec![
+                    ContentBlock::Text {
+                        text: "London".to_owned(),
+                    },
+                    ContentBlock::ToolUse {
+                        id: "d".to_owned(),
+                        name: DONE_TOOL.to_owned(),
+                        input: serde_json::json!({}),
+                    },
+                ],
+                usage(10, 5),
+                StopReason::ToolUse,
+            ))
+            .enqueue_response(text_response(r#"{"answer": "London"}"#)),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let mut input = AgentInput::new("capital of the UK?");
+    input.tools = vec![DONE_TOOL.to_owned()];
+    input.schema = Some(serde_json::json!({
+        "type": "object",
+        "properties": {"answer": {"type": "string"}},
+        "required": ["answer"]
+    }));
+    let out = r
+        .verb
+        .run(input)
+        .await
+        .expect("done-without-result re-asks");
+    assert_eq!(
+        out.output,
+        AgentValue::Structured(serde_json::json!({"answer": "London"}))
+    );
+    assert_eq!(out.stop_reason, AgentStopReason::ExplicitCompletion);
+}
+
+#[tokio::test]
+async fn schema_zero_retry_budget_is_single_shot() {
+    // With the budget at 0, the final answer is validated as-is and never
+    // re-asked — a prose answer is the NIKA-464 verdict immediately.
+    let provider =
+        Arc::new(MockProvider::new("mock").enqueue_response(text_response("just prose")));
+    let tools = Arc::new(MockToolExecutor::new());
+    let verb = AgentVerb::new(
+        Arc::clone(&provider),
+        Arc::new(InvokeVerb::new(Arc::clone(&tools))),
+        Arc::new(MockToolDefinitionProvider::with_defs(Vec::new())),
+        "mock/agent",
+    )
+    .with_schema_retry_budget(0);
+    let mut input = AgentInput::new("rate it");
+    input.schema = Some(serde_json::json!({"type": "object", "required": ["x"]}));
+    let err = verb.run(input).await.expect_err("single shot");
+    assert!(
+        matches!(err, VerbAgentError::SchemaValidation { .. }),
+        "{err}"
+    );
+    assert_eq!(
+        provider.captured_requests().len(),
+        1,
+        "budget 0 = no re-ask"
+    );
 }
 
 #[tokio::test]

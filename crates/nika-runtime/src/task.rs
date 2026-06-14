@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use futures_util::StreamExt;
 use nika_error::traits::NikaErrorCode;
-use nika_kernel::ai::provider::ProviderInferDyn;
+use nika_kernel::ai::provider::{ProviderInferDyn, ProviderMeta};
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::clock::ClockDyn;
 use nika_kernel::http::HttpPostDyn;
@@ -124,7 +124,7 @@ where
     S: ShellRunDyn + Sync,
     T: ToolExecuteDyn,
     H: HttpPostDyn + Send + Sync + 'static,
-    P: ProviderInferDyn,
+    P: ProviderInferDyn + ProviderMeta,
     D: ToolDefinitionProviderDyn,
     C: ClockDyn + Sync,
 {

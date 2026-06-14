@@ -30,6 +30,29 @@
 //! are not model-negotiable. Failing TOOLS are fed back as error
 //! results (the agentic convention); the loop continues on its budgets.
 //!
+//! ## Structured output (spec §2 `infer.schema:` parity · BUG#11)
+//!
+//! When the task declares `schema:`, the engine makes the FINAL answer
+//! conform — the same guarantee `infer`+schema gives, with no author
+//! hand-instruction. The loop is two-phase by necessity:
+//!
+//! - the **tool-calling turns** run UNCONSTRAINED (tools on, no schema);
+//! - the **final answer** is the only thing the schema binds. A
+//!   deliberate `nika:done` `result:` is validated directly (the model
+//!   committed to that shape); a free-text answer (natural completion ·
+//!   result-less `done`) is validated, and if it does not yet conform the
+//!   loop RE-ASKS the provider WITH the schema wired (native
+//!   `response_format` when supported · an instruction otherwise),
+//!   bounded by [`DEFAULT_SCHEMA_RETRY_BUDGET`].
+//!
+//! The schema NEVER rides a tool-calling turn — tool-calling and
+//! structured-output do not reliably coexist in one request across
+//! providers (the anthropic wire rejects `response_format` outright;
+//! openai/gemini are fragile combining the two), so the re-ask is a
+//! tools-OFF turn and the conflict is sidestepped by construction. The
+//! post-hoc validation remains the safety net (a malformed answer that
+//! exhausts the budget is the NIKA-464 verdict).
+//!
 //! ## The intelligence layer (ADR-093 · engine-internal, zero YAML)
 //!
 //! Four orthogonal pieces ride the same loop, all deterministic and
@@ -71,7 +94,8 @@ mod shape;
 use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, Role, ToolDef,
+    ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ProviderMeta,
+    ResponseFormat, Role, ToolDef,
 };
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::runtime::agent::AgentStopReason;
@@ -89,6 +113,17 @@ pub use whitelist::Whitelist;
 
 /// Default turn budget (spec §1 · `max_turns` default 10).
 pub const DEFAULT_MAX_TURNS: u32 = 10;
+
+/// Default schema-validation retry budget for the FINAL free-text answer
+/// (BUG#11 · parity with `nika_verb_infer::DEFAULT_SCHEMA_RETRY_BUDGET`).
+///
+/// When a `schema:` task's final answer arrives as prose (not yet a
+/// conforming object), the loop re-asks it WITH the schema constrained to
+/// the provider, up to this many extra provider round-trips before the
+/// NIKA-464 verdict. `0` makes the final answer single-shot (validate the
+/// text as-is, no re-ask). Spec-sanctioned: « MAY auto-retry validation
+/// before emitting the schema-validation error ».
+pub const DEFAULT_SCHEMA_RETRY_BUDGET: u8 = 2;
 
 /// The sentinel tool the model calls to finish explicitly (spec §2).
 /// Include it in `tools:` to enable explicit completion (default-deny:
@@ -195,6 +230,11 @@ pub struct AgentVerb<P, T, D> {
     tool_defs: Arc<D>,
     default_model: String,
     config: AgentConfig,
+    // Extra provider round-trips the FINAL free-text answer may spend
+    // converging on the task `schema:` (BUG#11 · infer parity). Not part
+    // of AgentConfig: it is the schema-enforcement budget, sibling to the
+    // verb's other top-level knobs, not intelligence-layer tuning.
+    schema_retry_budget: u8,
     // dyn on purpose: a 4th OPTIONAL seam as a generic would infect every
     // embedder signature (Runtime::new already carries the verb generics);
     // the observer is telemetry, never on the data path's hot types.
@@ -226,6 +266,7 @@ impl<P, T, D> AgentVerb<P, T, D> {
             tool_defs,
             default_model: default_model.into(),
             config: AgentConfig::new(),
+            schema_retry_budget: DEFAULT_SCHEMA_RETRY_BUDGET,
             observer: Arc::new(NoopObserver),
         }
     }
@@ -234,6 +275,14 @@ impl<P, T, D> AgentVerb<P, T, D> {
     #[must_use]
     pub fn with_config(mut self, config: AgentConfig) -> Self {
         self.config = config;
+        self
+    }
+
+    /// Override the final-answer schema-validation retry budget (BUG#11).
+    /// `0` = single-shot (validate the final text as-is, never re-ask).
+    #[must_use]
+    pub fn with_schema_retry_budget(mut self, budget: u8) -> Self {
+        self.schema_retry_budget = budget;
         self
     }
 
@@ -254,7 +303,7 @@ impl<P, T, D> AgentVerb<P, T, D> {
 
 impl<P, T, D> AgentVerb<P, T, D>
 where
-    P: ProviderInferDyn,
+    P: ProviderInferDyn + ProviderMeta,
     T: nika_kernel::runtime::tool_executor::ToolExecuteDyn,
     D: ToolDefinitionProviderDyn,
 {
@@ -348,46 +397,84 @@ where
                 total_tokens,
                 last_text: &last_text,
             };
-            match classify_turn(&response, &text, &ctx)? {
-                TurnVerdict::Done(output) => {
-                    observer.on_event(&AgentEvent::Finished {
+            // Terminal verdicts return one output (a `FinalText` answer is
+            // shaped to `schema:` here · BUG#11); Dispatch feeds results
+            // back and iterates. One Finished event, one exit point.
+            let output = match classify_turn(&response, &text, &ctx)? {
+                TurnVerdict::Done(output) => output,
+                TurnVerdict::FinalText { text, stop_reason } => {
+                    self.finalize_schema(
+                        observer,
+                        &mut messages,
+                        &model,
+                        text,
+                        &response,
+                        stop_reason,
+                        &input,
+                        &mut total_tokens,
                         turns,
-                        total_tokens,
-                    });
-                    return Ok(output);
+                    )
+                    .await?
                 }
                 TurnVerdict::Dispatch(tool_uses) => {
-                    // The loop WILL iterate to feed results back. On the last
-                    // allowed turn there is no iteration left to show them —
-                    // stop NOW without spending the batch (mirrors the token
-                    // gate's "before spending more": no wasted side effects).
-                    // This is the ONLY max_turns exit.
-                    if turns >= max_turns {
-                        return Err(VerbAgentError::MaxTurns {
-                            turns,
-                            partial_output: last_text,
-                        });
-                    }
-                    // All-whitelisted, non-sentinel tools · feed results back.
-                    messages.push(Message::new(Role::Assistant, response.content.clone()));
                     last_observations = self
-                        .dispatch_turn(
+                        .dispatch_and_feed(
                             observer,
                             turns,
+                            max_turns,
                             tool_uses,
+                            response,
                             &mut router,
                             &mut guard,
                             &mut messages,
+                            &last_text,
                         )
-                        .await
-                        .map_err(|(period, repeats)| VerbAgentError::Stalled {
-                            period,
-                            repeats,
-                            partial_output: last_text.clone(),
-                        })?;
+                        .await?;
+                    continue;
                 }
-            }
+            };
+            observer.on_event(&AgentEvent::Finished {
+                turns,
+                total_tokens,
+            });
+            return Ok(output);
         }
+    }
+
+    /// One Dispatch turn within the loop: stop at the turn budget (the SOLE
+    /// `max_turns` exit · BEFORE spending the batch, mirroring the token
+    /// gate's "no wasted side effects"), else append the assistant turn and
+    /// feed the tool batch back. Returns the observations digest for the
+    /// next routing query; maps a stall to NIKA-467.
+    #[allow(clippy::too_many_arguments)] // the loop's owned state threaded
+    // once into the dispatch step; splitting only relocates the args.
+    async fn dispatch_and_feed(
+        &self,
+        observer: &dyn AgentObserver,
+        turns: u32,
+        max_turns: u32,
+        tool_uses: Vec<ToolUse>,
+        response: InferResponse,
+        router: &mut ToolRouter,
+        guard: &mut Guard,
+        messages: &mut Vec<Message>,
+        last_text: &str,
+    ) -> Result<String, VerbAgentError> {
+        if turns >= max_turns {
+            return Err(VerbAgentError::MaxTurns {
+                turns,
+                partial_output: last_text.to_owned(),
+            });
+        }
+        // All-whitelisted, non-sentinel tools · feed results back.
+        messages.push(Message::new(Role::Assistant, response.content));
+        self.dispatch_turn(observer, turns, tool_uses, router, guard, messages)
+            .await
+            .map_err(|(period, repeats)| VerbAgentError::Stalled {
+                period,
+                repeats,
+                partial_output: last_text.to_owned(),
+            })
     }
 
     /// Arm the intelligence layer for one run: build the router + the
@@ -436,6 +523,89 @@ where
             budget: input.max_tokens_total,
         });
         Ok(response)
+    }
+
+    /// Turn a free-text FINAL answer into a `schema:`-conforming object —
+    /// the same guarantee `infer`+schema gives, but for the agent's final
+    /// turn (BUG#11). The schema rides the PROVIDER (native
+    /// `response_format` when supported · an instruction otherwise) so the
+    /// model produces the object itself; the existing post-hoc validation
+    /// is the safety net that still catches a malformed answer (NIKA-464).
+    ///
+    /// Zero re-asks when the answer already conforms (a well-behaved model
+    /// · the common path). Otherwise the assistant's prose turn is appended
+    /// and the provider is re-asked WITH the schema constrained, up to the
+    /// retry budget. The tool loop never carries the schema — the re-ask is
+    /// a tools-OFF turn, so the tools-vs-structured-output provider conflict
+    /// (anthropic rejects `response_format` outright · openai/gemini are
+    /// fragile combining the two) is sidestepped by construction.
+    #[allow(clippy::too_many_arguments)] // a terminal-path helper threading
+    // the loop's owned state once; splitting it would only relocate the args.
+    async fn finalize_schema(
+        &self,
+        observer: &dyn AgentObserver,
+        messages: &mut Vec<Message>,
+        model: &str,
+        answer: String,
+        final_response: &InferResponse,
+        stop_reason: AgentStopReason,
+        input: &AgentInput,
+        total_tokens: &mut u64,
+        turn: u32,
+    ) -> Result<AgentOutput, VerbAgentError> {
+        // `FinalText` is only produced under a `schema:` task; if it is
+        // somehow absent the answer simply stands as text (no panic, no
+        // phantom error · the no-schema completion shape).
+        let Some(schema) = input.schema.as_ref() else {
+            return Ok(AgentOutput::new(
+                AgentValue::Text(answer),
+                stop_reason,
+                turn,
+                *total_tokens,
+            ));
+        };
+        let validator = shape::compile(schema)?;
+
+        // Try the answer as-is first — no wasted round-trip on a model that
+        // already replied with a conforming object (the common path · keeps
+        // structured agent tasks single-round-trip when the model complies).
+        let mut detail = match shape::validate_text(&answer, &validator) {
+            Ok(value) => {
+                return Ok(shaped(value, stop_reason, turn, *total_tokens));
+            }
+            Err(detail) => detail,
+        };
+
+        // The answer is prose · append it and re-ask WITH the schema wired.
+        // The cumulative token budget gates the TOOL loop (classify_turn);
+        // the final shaping is bounded by schema_retry_budget instead — a
+        // concluded answer is a success even over budget (spec §2 terminal).
+        messages.push(Message::new(
+            Role::Assistant,
+            final_response.content.clone(),
+        ));
+        let native = self.provider.supports_response_format();
+        for _ in 0..self.schema_retry_budget {
+            messages.push(Message::text(
+                Role::User,
+                shape::reask_message(Some(&detail), schema),
+            ));
+            let request = schema_request(model, messages.clone(), input, schema, native);
+            let response = self
+                .infer_turn(observer, turn, request, total_tokens, input)
+                .await?;
+            let text = joined_text(&response.content);
+            match shape::validate_text(&text, &validator) {
+                Ok(value) => {
+                    return Ok(shaped(value, stop_reason, turn, *total_tokens));
+                }
+                Err(d) => {
+                    detail = d;
+                    messages.push(Message::new(Role::Assistant, response.content));
+                }
+            }
+        }
+        Err(VerbAgentError::SchemaValidation { detail })
     }
 
     /// One Dispatch turn: run the batch, feed results into the
@@ -725,6 +895,42 @@ fn build_request(
     request
 }
 
+/// The FINAL schema-constrained re-ask request (BUG#11): tools OFF (the
+/// schema constraint and tool-calling do not reliably coexist in one
+/// request across providers — anthropic rejects `response_format`,
+/// openai/gemini are fragile), with the schema wired natively when the
+/// provider supports it (`infer`+schema parity · `build_request` mirror).
+fn schema_request(
+    model: &str,
+    messages: Vec<Message>,
+    input: &AgentInput,
+    schema: &serde_json::Value,
+    native: bool,
+) -> InferRequest {
+    let mut request = InferRequest::new(model, messages);
+    request.temperature = input.temperature;
+    // tools deliberately left empty (default) — see the doc comment.
+    if native {
+        request.response_format = ResponseFormat::JsonSchema(schema.clone());
+    }
+    request
+}
+
+/// Assemble a finalized structured output (INV-019 constructor reuse).
+fn shaped(
+    value: serde_json::Value,
+    stop_reason: AgentStopReason,
+    turn: u32,
+    total_tokens: u64,
+) -> AgentOutput {
+    AgentOutput::new(
+        AgentValue::Structured(value),
+        stop_reason,
+        turn,
+        total_tokens,
+    )
+}
+
 /// Per-component character budgets for the routing query — the live tail
 /// (`last_text` · `last_observations`) must always reach the ranker, so a
 /// long prompt can't evict it via a single tail-truncating cap.
@@ -784,8 +990,21 @@ struct ToolUse {
 
 /// What the loop does after one model response.
 enum TurnVerdict {
-    /// A terminal was reached (natural · sentinel) — return this output.
+    /// A terminal was reached and the output is FINALIZED — return it as
+    /// is. Covers every no-schema completion and the `nika:done` result
+    /// (a deliberate structured value · validated directly · BUG#11).
     Done(AgentOutput),
+    /// A free-text final answer under a `schema:` task — the loop must turn
+    /// it into a conforming object (validate · re-ask the provider WITH the
+    /// schema constrained if it does not yet conform · BUG#11). Carries the
+    /// answer text and the terminal reason it would close on.
+    FinalText {
+        /// The model's free-text final answer (Terminal 1 text, or the
+        /// `last_text` a result-less `nika:done` finishes on).
+        text: String,
+        /// `Completed` (natural) or `ExplicitCompletion` (`nika:done`).
+        stop_reason: AgentStopReason,
+    },
     /// Continue: dispatch these (validated, non-sentinel) tool calls.
     Dispatch(Vec<ToolUse>),
 }
@@ -817,13 +1036,11 @@ fn classify_turn(
     // Terminal 1 · a concluded answer is a SUCCESS even if it spent the
     // last token (budgets stop CONTINUING, they don't fail a finished run).
     if tool_uses.is_empty() {
-        let output = shape_output(AgentValue::Text(text.to_owned()), ctx.input.schema.as_ref())?;
-        return Ok(TurnVerdict::Done(AgentOutput::new(
-            output,
+        return Ok(final_text_verdict(
+            text.to_owned(),
             AgentStopReason::Completed,
-            ctx.turns,
-            ctx.total_tokens,
-        )));
+            ctx,
+        ));
     }
 
     // Security FIRST · validate the WHOLE batch before ANY dispatch. The
@@ -846,22 +1063,29 @@ fn classify_turn(
     // signalled completion · a side effect on a terminating turn would be
     // spent and never fed back. `done` wins, deterministically.
     if let Some(done) = tool_uses.iter().find(|u| u.name == DONE_TOOL) {
-        let value = match done.args.get("result") {
-            Some(result) => shape_output(
-                AgentValue::Structured(result.clone()),
-                ctx.input.schema.as_ref(),
-            )?,
-            None => shape_output(
-                AgentValue::Text(ctx.last_text.to_owned()),
-                ctx.input.schema.as_ref(),
-            )?,
+        // A `result:` is a DELIBERATE structured value — validate it
+        // directly (the model committed to that exact shape · a miss is a
+        // verdict, never a re-ask · BUG#11). A result-LESS done finishes on
+        // the last free text, which DOES get the schema re-ask.
+        return match done.args.get("result") {
+            Some(result) => {
+                let value = shape_output(
+                    AgentValue::Structured(result.clone()),
+                    ctx.input.schema.as_ref(),
+                )?;
+                Ok(TurnVerdict::Done(AgentOutput::new(
+                    value,
+                    AgentStopReason::ExplicitCompletion,
+                    ctx.turns,
+                    ctx.total_tokens,
+                )))
+            }
+            None => Ok(final_text_verdict(
+                ctx.last_text.to_owned(),
+                AgentStopReason::ExplicitCompletion,
+                ctx,
+            )),
         };
-        return Ok(TurnVerdict::Done(AgentOutput::new(
-            value,
-            AgentStopReason::ExplicitCompletion,
-            ctx.turns,
-            ctx.total_tokens,
-        )));
     }
 
     // The loop WILL iterate to feed tool results back · enforce the token
@@ -876,6 +1100,27 @@ fn classify_turn(
     }
 
     Ok(TurnVerdict::Dispatch(tool_uses))
+}
+
+/// Route a free-text final answer: a no-schema task closes immediately
+/// with the text; a `schema:` task defers to the loop's schema-finalize
+/// (validate · re-ask · BUG#11) — the provider call can't run from this
+/// sync classifier, so it returns [`TurnVerdict::FinalText`].
+fn final_text_verdict(
+    text: String,
+    stop_reason: AgentStopReason,
+    ctx: &TurnCtx<'_>,
+) -> TurnVerdict {
+    if ctx.input.schema.is_some() {
+        TurnVerdict::FinalText { text, stop_reason }
+    } else {
+        TurnVerdict::Done(AgentOutput::new(
+            AgentValue::Text(text),
+            stop_reason,
+            ctx.turns,
+            ctx.total_tokens,
+        ))
+    }
 }
 
 /// Verb-boundary validation BEFORE any seam call (NIKA-465).

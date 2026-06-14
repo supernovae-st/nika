@@ -139,6 +139,31 @@ where
     }
 }
 
+impl<H> nika_kernel::ai::provider::ProviderMeta for RegistryProvider<H>
+where
+    H: Send + Sync,
+{
+    // The trait signature ties the return to `&self`; this bridge's name is
+    // a fixed literal (the model — hence the provider — is per-request, so
+    // there is no per-instance name to borrow). The literal is correct.
+    #[allow(clippy::unnecessary_literal_bound)]
+    fn name(&self) -> &str {
+        "registry"
+    }
+
+    /// Reports `false` ON PURPOSE: the concrete model (and so its native
+    /// `response_format` support) isn't known on this per-call bridge. The
+    /// agent's schema enforcement (BUG#11) then takes the instruction
+    /// fallback, which is universally correct — it produces a conforming
+    /// final answer on EVERY provider (the native `response_format` path is
+    /// a per-resolved-provider optimization the registry can't promise
+    /// here). Anthropic-family models REQUIRE this path anyway (the wire
+    /// rejects `response_format`); cloud peers honour the instruction.
+    fn supports_response_format(&self) -> bool {
+        false
+    }
+}
+
 /// Read the present API keys from the environment into a config.
 ///
 /// This is the COMPOSITION ROOT's sanctioned `std::env` boundary — the
