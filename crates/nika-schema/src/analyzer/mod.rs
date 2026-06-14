@@ -294,6 +294,65 @@ tasks:
     }
 
     #[test]
+    fn dag_003_message_is_not_double_backticked() {
+        // The DAG-003 #[error] template wraps the task id (`task `{task}``);
+        // the scan used to pass the already-wrapped `task `x`` LOCATION into
+        // the id field, rendering `task `task `x```. The id field now carries
+        // the BARE id — the message reads `task `b` references …` cleanly.
+        let yaml = "\
+nika: v1
+workflow: t
+tasks:
+  - id: a
+    exec: { command: \"echo hi\" }
+  - id: b
+    exec: { command: \"echo ${{ tasks.a.output }}\" }
+";
+        let errors = analyze_yaml(yaml).expect_err("no edge");
+        let rendered = errors
+            .iter()
+            .find(|e| matches!(e, SchemaError::MissingDependsOnEdge { .. }))
+            .map(std::string::ToString::to_string)
+            .expect("a DAG-003 finding");
+        assert!(
+            rendered.contains("task `b` references"),
+            "the id renders once, cleanly: {rendered}"
+        );
+        assert!(
+            !rendered.contains("task `task"),
+            "no double-backtick wrap: {rendered}"
+        );
+    }
+
+    #[test]
+    fn loop_local_outside_for_each_message_is_not_double_backticked() {
+        // Same double-backtick class for NIKA-VAR-001's loop-local error:
+        // `loop-local `item` used in task `a` which has no `for_each:``,
+        // never `task `task `a```.
+        let yaml = "\
+nika: v1
+workflow: t
+tasks:
+  - id: a
+    exec: { command: \"echo ${{ item }}\" }
+";
+        let errors = analyze_yaml(yaml).expect_err("loop-local out of scope");
+        let rendered = errors
+            .iter()
+            .find(|e| matches!(e, SchemaError::LoopLocalOutsideForEach { .. }))
+            .map(std::string::ToString::to_string)
+            .expect("a loop-local finding");
+        assert!(
+            rendered.contains("in task `a` which has no"),
+            "the id renders once, cleanly: {rendered}"
+        );
+        assert!(
+            !rendered.contains("task `task"),
+            "no double-backtick wrap: {rendered}"
+        );
+    }
+
+    #[test]
     fn paired_ref_with_edge_is_valid() {
         // Conformance fixture dag-topology/009.
         let yaml = "\

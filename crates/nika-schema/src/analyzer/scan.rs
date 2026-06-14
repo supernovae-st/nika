@@ -92,8 +92,17 @@ impl<'a> WorkflowIndex<'a> {
 /// Where a scanned string lives — drives the edge / loop-local /
 /// `with.` resolution rules.
 struct ScanCtx<'a> {
-    /// Human location for error messages (a task label · `outputs`).
+    /// Human location for error messages (a task label · `outputs`). Used
+    /// for the `location:` field of `UnresolvedNamespaceRef`, which renders
+    /// it PLAINLY (`in {location}`).
     location: String,
+    /// The BARE owning task id (empty at workflow level). Used for the
+    /// `task:` field of errors whose thiserror template already wraps the id
+    /// in backticks ([`SchemaError::MissingDependsOnEdge`] ·
+    /// [`SchemaError::LoopLocalOutsideForEach`]) — passing the wrapped
+    /// [`Self::location`] there double-backticked the id in the rendered
+    /// message.
+    task_id: &'a str,
     /// `depends_on` of the owning task — `Some` ⟺ NIKA-DAG-003 applies.
     edge_set: Option<&'a BTreeSet<&'a str>>,
     /// The owning task's `with:` names (None at workflow level).
@@ -114,6 +123,7 @@ pub(super) fn scan_workflow(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
     // edge rule (NIKA-VAR existence only · fixture variables/001).
     let outputs_ctx = ScanCtx {
         location: "outputs".to_owned(),
+        task_id: "", // workflow level · no edge/loop-local rule fires here
         edge_set: None,
         with_names: None,
         allow_loop_locals: false,
@@ -133,6 +143,7 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
 
     let body_ctx = ScanCtx {
         location: format!("task `{id}`"),
+        task_id: id,
         edge_set: Some(&edge_set),
         with_names: Some(&with_names),
         allow_loop_locals: has_for_each,
@@ -177,6 +188,7 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
     // example 22 · fallback ref without depends_on).
     let no_edge_ctx = ScanCtx {
         location: format!("task `{id}` on_error"),
+        task_id: id,
         edge_set: None,
         with_names: Some(&with_names),
         allow_loop_locals: has_for_each,
@@ -191,6 +203,7 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
     // · resolution only · NO edge rule.
     let finally_ctx = ScanCtx {
         location: format!("task `{id}` on_finally"),
+        task_id: id,
         edge_set: None,
         with_names: Some(&with_names),
         allow_loop_locals: has_for_each,
@@ -437,7 +450,10 @@ fn check_ref(
                 };
                 errors.push(SchemaError::LoopLocalOutsideForEach {
                     local: local.to_owned(),
-                    task: ctx.location.clone(),
+                    // the bare id · the #[error] template wraps it (`task
+                    // `{task}``) — passing the wrapped `location` here would
+                    // double-backtick it.
+                    task: ctx.task_id.to_owned(),
                     span: Some(span),
                 });
             }
@@ -484,7 +500,9 @@ fn check_task_ref(
         && !edges.contains(id)
     {
         errors.push(SchemaError::MissingDependsOnEdge {
-            task: ctx.location.clone(),
+            // the bare id · the #[error] template wraps it (`task `{task}``)
+            // — the wrapped `location` here would double-backtick it.
+            task: ctx.task_id.to_owned(),
             referenced: id.to_owned(),
             span: Some(span),
         });
