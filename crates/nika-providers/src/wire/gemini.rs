@@ -340,7 +340,7 @@ fn adapt_node(node: &mut Value) {
         return;
     };
     obj.remove("additionalProperties");
-    convert_nullable_type(obj);
+    normalize_type_union(obj);
     if let Some(props) = obj.get_mut("properties").and_then(Value::as_object_mut) {
         for prop in props.values_mut() {
             adapt_node(prop);
@@ -355,26 +355,50 @@ fn adapt_node(node: &mut Value) {
     }
 }
 
-/// `"type":[T,"null"]` (a 2-element union with `"null"`) → `"type":T` +
-/// `"nullable":true`. A plain scalar `type` or a union without `"null"` is
-/// left untouched (Gemini accepts a scalar type; a 3-way union is the
-/// caller's risk, same as `$ref`/`oneOf`).
-fn convert_nullable_type(obj: &mut serde_json::Map<String, Value>) {
+/// Rewrite a `type` ARRAY (a JSON-Schema multi-type union) into Gemini's
+/// scalar-`type` proto, which rejects a repeating `type` ("Proto field is
+/// not repeating"). The `"null"` member maps to the `OpenAPI` `nullable`
+/// flag; the remaining types decide the shape:
+///
+/// - `[T]` / `[T,"null"]` → `"type":T` (+ `"nullable":true` if null) —
+///   one real type stays a scalar (the common nullable case).
+/// - `[T1,T2,…]` (+ optional `"null"`) → `"anyOf":[{"type":T1},…]`
+///   (+ `"nullable":true` if null), and the repeating `type` is removed —
+///   Gemini accepts `anyOf` of scalar-typed branches.
+///
+/// A plain scalar `type` (not an array) is left untouched. Sibling
+/// keywords on the node are preserved (an `anyOf` alongside `enum`/
+/// `description` is legal and both constraints hold).
+fn normalize_type_union(obj: &mut serde_json::Map<String, Value>) {
     let Some(types) = obj.get("type").and_then(Value::as_array) else {
         return;
     };
-    if types.len() != 2 {
-        return;
-    }
     let has_null = types.iter().any(|v| v.as_str() == Some("null"));
-    let non_null: Option<String> = types
+    let non_null: Vec<String> = types
         .iter()
         .filter_map(Value::as_str)
-        .find(|t| *t != "null")
-        .map(ToOwned::to_owned);
-    if let (true, Some(scalar)) = (has_null, non_null) {
-        obj.insert("type".to_owned(), Value::String(scalar));
-        obj.insert("nullable".to_owned(), Value::Bool(true));
+        .filter(|t| *t != "null")
+        .map(ToOwned::to_owned)
+        .collect();
+
+    match non_null.as_slice() {
+        // Nothing actionable (empty, or a single scalar already): only the
+        // null→nullable rewrite applies, and only when paired with a type.
+        [] => {}
+        [scalar] => {
+            obj.insert("type".to_owned(), Value::String(scalar.clone()));
+            if has_null {
+                obj.insert("nullable".to_owned(), Value::Bool(true));
+            }
+        }
+        many => {
+            let branches: Vec<Value> = many.iter().map(|t| json!({ "type": t })).collect();
+            obj.remove("type");
+            obj.insert("anyOf".to_owned(), Value::Array(branches));
+            if has_null {
+                obj.insert("nullable".to_owned(), Value::Bool(true));
+            }
+        }
     }
 }
 
@@ -1366,6 +1390,71 @@ mod tests {
         assert_eq!(out["properties"]["id"]["type"], "string");
         assert_eq!(out["properties"]["note"]["type"], "string");
         assert_eq!(out["properties"]["note"]["nullable"], true);
+    }
+
+    // ── BUG#9 · multi-type unions other than [T,null] for gemini ──
+
+    #[test]
+    fn adapter_maps_two_type_union_without_null_to_anyof() {
+        // `[string,integer]` 400s "type Proto field is not repeating".
+        // No null → pure anyOf of scalar branches, no nullable flag.
+        let out = adapt(&json!({
+            "type": "object",
+            "required": ["id"],
+            "properties": { "id": {"type": ["string", "integer"]} }
+        }));
+        let id = &out["properties"]["id"];
+        assert!(id.get("type").is_none(), "repeating type removed: {id}");
+        assert!(id.get("nullable").is_none(), "no null member → no nullable");
+        let branches = id["anyOf"].as_array().expect("anyOf array");
+        assert_eq!(branches.len(), 2);
+        assert_eq!(branches[0]["type"], "string");
+        assert_eq!(branches[1]["type"], "integer");
+    }
+
+    #[test]
+    fn adapter_maps_three_type_union_to_anyof() {
+        // `[string,number,boolean]` → 3-branch anyOf (the k7 repro).
+        let out = adapt(&json!({
+            "type": "object",
+            "required": ["value"],
+            "properties": { "value": {"type": ["string", "number", "boolean"]} }
+        }));
+        let value = &out["properties"]["value"];
+        assert!(value.get("type").is_none());
+        let kinds: Vec<&str> = value["anyOf"]
+            .as_array()
+            .expect("anyOf")
+            .iter()
+            .map(|b| b["type"].as_str().expect("scalar type"))
+            .collect();
+        assert_eq!(kinds, vec!["string", "number", "boolean"]);
+    }
+
+    #[test]
+    fn adapter_maps_multi_type_union_with_null_to_anyof_plus_nullable() {
+        // `[string,integer,null]` → anyOf of the two real types + nullable.
+        let out = adapt(&json!({"type": ["string", "integer", "null"]}));
+        assert!(out.get("type").is_none());
+        assert_eq!(out["nullable"], true, "null member → nullable flag");
+        let kinds: Vec<&str> = out["anyOf"]
+            .as_array()
+            .expect("anyOf")
+            .iter()
+            .map(|b| b["type"].as_str().expect("scalar type"))
+            .collect();
+        assert_eq!(kinds, vec!["string", "integer"], "null is not a branch");
+    }
+
+    #[test]
+    fn adapter_two_type_union_with_null_still_maps_to_scalar_nullable() {
+        // The [T,null] case is unchanged: one real type stays a SCALAR
+        // `type` + nullable (NOT a one-branch anyOf) — the common nullable
+        // field, the BUG#6 behavior preserved.
+        let out = adapt(&json!({"type": ["string", "null"]}));
+        assert_eq!(out["type"], "string", "single real type stays scalar");
+        assert_eq!(out["nullable"], true);
+        assert!(out.get("anyOf").is_none(), "no anyOf for a lone type");
     }
 
     #[test]
