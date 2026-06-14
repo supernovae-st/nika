@@ -109,6 +109,28 @@ impl ProviderRegistry<NoHttp> {
     }
 }
 
+// Capability queries that need only the profiles (no http · no key) —
+// the keyless surface the composition's per-call bridge consults.
+impl<H> ProviderRegistry<H> {
+    /// Whether `model`'s resolved provider supports native
+    /// `response_format: json_schema` (structured output).
+    ///
+    /// WIRE-INTRINSIC and KEYLESS: the answer is a property of the
+    /// provider's wire family (see [`WireFormat::supports_response_format`]),
+    /// not of the key or the http effect — so a caller can ask BEFORE a
+    /// `resolve()` (which would also demand a key). An unknown provider or
+    /// a malformed model string answers `false` — the SAFE default: a
+    /// caller that can't confirm native support falls back to a schema
+    /// INSTRUCTION, which is correct on every wire (anthropic REQUIRES it).
+    #[must_use]
+    pub fn supports_response_format(&self, model: &str) -> bool {
+        model
+            .split_once('/')
+            .and_then(|(provider_id, _)| self.profiles.iter().find(|p| p.id == provider_id))
+            .is_some_and(|profile| profile.wire.supports_response_format())
+    }
+}
+
 impl<H> ProviderRegistry<H>
 where
     H: HttpPostDyn + Send + Sync + 'static,
@@ -276,14 +298,10 @@ where
         self.profile.id
     }
 
-    /// v0.1 approximation: answers per wire family — some local
-    /// OpenAI-compat servers lack strict `json_schema` support; gemini
-    /// takes an OpenAPI-style schema subset via `responseSchema`.
+    /// The resolved provider's actual capability · delegates to the
+    /// wire-family source of truth ([`WireFormat::supports_response_format`]).
     fn supports_response_format(&self) -> bool {
-        matches!(
-            self.profile.wire,
-            WireFormat::OpenAiCompat | WireFormat::Mock | WireFormat::Gemini
-        )
+        self.profile.wire.supports_response_format()
     }
 }
 
@@ -315,6 +333,35 @@ mod tests {
         let err = reg.resolve("sonnet").unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("provider/name"), "guides the shape: {msg}");
+    }
+
+    #[test]
+    fn supports_response_format_is_keyless_and_per_wire() {
+        // Keyless (no `with_key`): the capability is wire-intrinsic, so a
+        // caller can ask BEFORE resolving (which would demand a key).
+        let reg = ProviderRegistry::without_http(hermetic());
+        // gemini + openai-family → native structured output (robust).
+        assert!(reg.supports_response_format("gemini/flash"));
+        assert!(reg.supports_response_format("openai/gpt-4o"));
+        assert!(reg.supports_response_format("deepseek/chat")); // openai-compat
+        assert!(reg.supports_response_format("ollama/llama3")); // openai-compat local
+        assert!(reg.supports_response_format("mock/echo"));
+        // anthropic → false (its wire rejects response_format · instruction
+        // fallback REQUIRED).
+        assert!(!reg.supports_response_format("anthropic/sonnet"));
+    }
+
+    #[test]
+    fn supports_response_format_unknown_or_malformed_is_false() {
+        // The SAFE default — a caller that can't confirm native support
+        // takes the universally-correct instruction fallback.
+        let reg = ProviderRegistry::without_http(hermetic());
+        assert!(
+            !reg.supports_response_format("acme/gpt-99"),
+            "unknown provider"
+        );
+        assert!(!reg.supports_response_format("sonnet"), "no slash");
+        assert!(!reg.supports_response_format(""), "empty model");
     }
 
     #[test]

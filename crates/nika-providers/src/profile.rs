@@ -33,6 +33,27 @@ pub enum WireFormat {
     Mock,
 }
 
+impl WireFormat {
+    /// Whether this wire family supports native `response_format:
+    /// json_schema` (structured output).
+    ///
+    /// The SINGLE source of truth for the capability — both
+    /// [`crate::ResolvedProvider::supports_response_format`] (per resolved
+    /// provider) and [`crate::ProviderRegistry::supports_response_format`]
+    /// (keyless · per model string) answer through here.
+    ///
+    /// v0.1 approximation, per wire family: `OpenAiCompat` (some local
+    /// servers lack strict `json_schema`, but the family does) and
+    /// `Gemini` (an OpenAPI-style subset via `responseSchema`) support it;
+    /// `Anthropic` does NOT (the wire rejects `response_format` outright ·
+    /// callers must fall back to a schema instruction). `Mock` answers
+    /// `true` so structured-output tests need no live provider.
+    #[must_use]
+    pub fn supports_response_format(self) -> bool {
+        matches!(self, Self::OpenAiCompat | Self::Mock | Self::Gemini)
+    }
+}
+
 /// One canonical provider profile.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -254,6 +275,19 @@ mod tests {
         let ladder = openai.env_candidates();
         assert_eq!(ladder[0], "NIKA_OPENAI_API_KEY");
         assert_eq!(ladder[1], "OPENAI_API_KEY");
+    }
+
+    #[test]
+    fn wire_response_format_capability_is_the_single_source() {
+        // The one matrix both the resolved provider and the keyless
+        // registry query answer through.
+        assert!(WireFormat::OpenAiCompat.supports_response_format());
+        assert!(WireFormat::Gemini.supports_response_format());
+        assert!(WireFormat::Mock.supports_response_format());
+        assert!(
+            !WireFormat::Anthropic.supports_response_format(),
+            "anthropic rejects response_format · instruction fallback required"
+        );
     }
 
     #[test]

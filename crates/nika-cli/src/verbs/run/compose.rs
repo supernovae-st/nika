@@ -115,14 +115,22 @@ pub type ProdRuntime = Runtime<
 /// through the registry on every call (the agent verb's single-provider
 /// seam · the infer verb wraps the registry directly). An unknown model
 /// or a missing key surfaces the registry's own typed error.
+///
+/// Carries the workflow's `default_model` so the model-LESS
+/// [`ProviderMeta::supports_response_format`] can answer for the model
+/// the agent actually runs (an agent run locks ONE model · BUG#11).
 #[derive(Debug)]
 pub struct RegistryProvider<H> {
     registry: Arc<ProviderRegistry<H>>,
+    default_model: String,
 }
 
 impl<H> RegistryProvider<H> {
-    fn new(registry: Arc<ProviderRegistry<H>>) -> Self {
-        Self { registry }
+    fn new(registry: Arc<ProviderRegistry<H>>, default_model: impl Into<String>) -> Self {
+        Self {
+            registry,
+            default_model: default_model.into(),
+        }
     }
 }
 
@@ -152,16 +160,18 @@ where
         "registry"
     }
 
-    /// Reports `false` ON PURPOSE: the concrete model (and so its native
-    /// `response_format` support) isn't known on this per-call bridge. The
-    /// agent's schema enforcement (BUG#11) then takes the instruction
-    /// fallback, which is universally correct — it produces a conforming
-    /// final answer on EVERY provider (the native `response_format` path is
-    /// a per-resolved-provider optimization the registry can't promise
-    /// here). Anthropic-family models REQUIRE this path anyway (the wire
-    /// rejects `response_format`); cloud peers honour the instruction.
+    /// Reports the RESOLVED provider's actual capability (BUG#11
+    /// robustness). The agent run locks ONE model — `input.model` or this
+    /// `default_model` — so the workflow's `default_model` is the model
+    /// the schema re-ask will use in the common path. Delegating to the
+    /// registry's keyless wire query means gemini/openai-family agents get
+    /// NATIVE structured output (robust · not model-flaky under a tight
+    /// budget) while anthropic correctly stays on the instruction fallback
+    /// (its wire rejects `response_format`). An empty/unknown default
+    /// answers `false` — the safe instruction fallback (a `model:`-less
+    /// exec-only workflow never reaches an infer/agent turn anyway).
     fn supports_response_format(&self) -> bool {
-        false
+        self.registry.supports_response_format(&self.default_model)
     }
 }
 
@@ -373,7 +383,7 @@ pub fn production_runtime(
     // The provider registry (real http + env keys) drives infer directly
     // and the agent via the per-call RegistryProvider bridge.
     let registry = Arc::new(ProviderRegistry::new(provider_http, config));
-    let agent_provider = Arc::new(RegistryProvider::new(Arc::clone(&registry)));
+    let agent_provider = Arc::new(RegistryProvider::new(Arc::clone(&registry), default_model));
 
     Ok(Runtime::new(
         ExecVerb::new(Arc::new(TokioShell::new())),
@@ -409,6 +419,29 @@ mod tests {
             runtime.is_ok(),
             "the production runtime composes (TLS init is the only failure)"
         );
+    }
+
+    #[test]
+    fn registry_provider_reports_the_resolved_models_capability() {
+        // BUG#11 robustness: the per-call bridge reports its `default_model`'s
+        // ACTUAL wire capability (was hardcoded false). gemini/openai-family
+        // → native structured output (robust under a tight budget) · anthropic
+        // → false (the instruction fallback its wire requires).
+        use nika_kernel::ai::provider::ProviderMeta;
+
+        let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::new()));
+        let gemini = RegistryProvider::new(Arc::clone(&registry), "gemini/flash");
+        assert!(gemini.supports_response_format(), "gemini → native");
+        let openai = RegistryProvider::new(Arc::clone(&registry), "openai/gpt-4o");
+        assert!(openai.supports_response_format(), "openai → native");
+        let anthropic = RegistryProvider::new(Arc::clone(&registry), "anthropic/sonnet");
+        assert!(
+            !anthropic.supports_response_format(),
+            "anthropic → instruction fallback (wire rejects response_format)"
+        );
+        // An exec-only workflow has no envelope model → safe fallback.
+        let none = RegistryProvider::new(registry, "");
+        assert!(!none.supports_response_format(), "no model → safe false");
     }
 
     #[test]
