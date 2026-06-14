@@ -424,19 +424,38 @@ fn date_now<C: ClockDyn>(clock: &C, args: &Args) -> BuiltinOutcome {
     }
 }
 
-/// `op: add|subtract { base, duration }` — ISO 8601 span arithmetic.
+/// `op: add|subtract { base, duration, tz }` — ISO 8601 span arithmetic.
+/// The span is applied through a [`jiff::Zoned`] (the `tz:` arg · default
+/// UTC) rather than the bare [`jiff::Timestamp`]: a `Timestamp` has no
+/// calendar/zone context, so its arithmetic only supports units ≤ hours
+/// and rejects weeks/days/months/years. Routing through `Zoned` makes BOTH
+/// clock and calendar units work and is DST-aware (`add 2 weeks` lands on
+/// the civil-correct instant across a DST boundary). The result converts
+/// back to a `Timestamp` for the canonical ISO 8601 (`Z`) output.
 fn date_shift(op: &str, args: &Args) -> BuiltinOutcome {
-    let ts = parse_ts(args, "base")?;
+    let zoned = date_shift_base_zoned(args)?;
     let span: jiff::Span = req_str(args, "duration", DATE_CODE)?
         .parse()
         .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("`duration:` unparseable: {e}")))?;
     let out = if op == "add" {
-        ts.checked_add(span)
+        zoned.checked_add(span)
     } else {
-        ts.checked_sub(span)
+        zoned.checked_sub(span)
     }
     .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("{op} overflow: {e}")))?;
-    Ok(serde_json::Value::String(out.to_string()))
+    Ok(serde_json::Value::String(out.timestamp().to_string()))
+}
+
+/// The `base:` instant zoned for calendar-aware shifting — `tz:` (IANA ·
+/// default UTC), mirroring [`date_format`]'s zone resolution.
+fn date_shift_base_zoned(args: &Args) -> Result<jiff::Zoned, BuiltinFailure> {
+    let ts = parse_ts(args, "base")?;
+    match opt_str(args, "tz", DATE_CODE)? {
+        None => Ok(ts.to_zoned(jiff::tz::TimeZone::UTC)),
+        Some(tz) => ts
+            .in_tz(tz)
+            .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("bad `tz:` `{tz}`: {e}"))),
+    }
 }
 
 /// `op: format { input, format, tz }` — render an instant through the
@@ -1098,6 +1117,102 @@ mod tests {
         )
         .expect("ok");
         assert_eq!(negative, serde_json::json!(-86_400));
+    }
+
+    #[test]
+    fn date_shift_handles_calendar_units() {
+        use nika_kernel_mock::MockClock;
+        let clock = MockClock::new();
+        let shift = |op: &str, duration: &str| -> serde_json::Value {
+            date(
+                &clock,
+                &args(serde_json::json!({
+                    "op": op, "base": "2026-01-01T00:00:00Z", "duration": duration
+                })),
+            )
+            .expect("ok")
+        };
+        // Calendar units (the bug): a bare Timestamp rejected these because
+        // weeks/days/months/years have no fixed length without a zone.
+        // Routing through a Zoned makes them all land.
+        assert_eq!(
+            shift("add", "2 weeks"),
+            serde_json::json!("2026-01-15T00:00:00Z")
+        );
+        assert_eq!(
+            shift("add", "14 days"),
+            serde_json::json!("2026-01-15T00:00:00Z")
+        );
+        assert_eq!(
+            shift("add", "1 month"),
+            serde_json::json!("2026-02-01T00:00:00Z")
+        );
+        // Mixed calendar + clock units.
+        assert_eq!(
+            shift("add", "1 day 2 hours"),
+            serde_json::json!("2026-01-02T02:00:00Z")
+        );
+        // Clock-only still works (the path that worked before the fix).
+        assert_eq!(
+            shift("add", "48 hours"),
+            serde_json::json!("2026-01-03T00:00:00Z")
+        );
+        assert_eq!(
+            shift("add", "PT1h"),
+            serde_json::json!("2026-01-01T01:00:00Z")
+        );
+        // Subtract symmetry — add then subtract the same span round-trips.
+        assert_eq!(
+            shift("subtract", "1 month"),
+            serde_json::json!("2025-12-01T00:00:00Z")
+        );
+        assert_eq!(
+            shift("subtract", "2 weeks"),
+            serde_json::json!("2025-12-18T00:00:00Z")
+        );
+    }
+
+    #[test]
+    fn date_shift_is_dst_aware_in_a_tz() {
+        use nika_kernel_mock::MockClock;
+        let clock = MockClock::new();
+        // 2026-03-08T05:00:00Z is 2026-03-08T00:00:00-05:00 in New York,
+        // hours before the spring-forward (DST starts 02:00 local that day).
+        // Adding ONE CALENDAR DAY lands on the next civil midnight, now in
+        // EDT (-04:00) → the instant is only 23h later: DST-correct.
+        let civil = date(
+            &clock,
+            &args(serde_json::json!({
+                "op": "add", "base": "2026-03-08T05:00:00Z",
+                "duration": "1 day", "tz": "America/New_York"
+            })),
+        )
+        .expect("ok");
+        assert_eq!(civil, serde_json::json!("2026-03-09T04:00:00Z"));
+        // Contrast: a fixed 24-CLOCK-HOUR span is a flat instant offset
+        // (DST-blind) → 24h later exactly. Proves the Zoned path is doing
+        // the calendar work, not measuring a flat duration.
+        let clockwise = date(
+            &clock,
+            &args(serde_json::json!({
+                "op": "add", "base": "2026-03-08T05:00:00Z",
+                "duration": "24 hours", "tz": "America/New_York"
+            })),
+        )
+        .expect("ok");
+        assert_eq!(clockwise, serde_json::json!("2026-03-09T05:00:00Z"));
+        // A bad tz: surfaces the canonical date code (not a silent UTC fallback).
+        let bad_tz = date(
+            &clock,
+            &args(serde_json::json!({
+                "op": "add", "base": "2026-03-08T05:00:00Z",
+                "duration": "1 day", "tz": "Mars/Olympus"
+            })),
+        );
+        assert!(
+            matches!(&bad_tz, Err(f) if f.code == "NIKA-BUILTIN-DATE-001"),
+            "{bad_tz:?}"
+        );
     }
 
     #[test]
