@@ -84,23 +84,44 @@ impl InvokeInput {
 }
 
 /// The `invoke` verb output.
+///
+/// `content` is the tool's TEXT response (what an agent loop feeds the
+/// model); `structured` is the tool's typed value when it produced one
+/// (the MCP `structuredContent` plane · `ToolResult::structured`). The
+/// engine routes `structured` into `tasks.X.output` so a `nika:glob` array
+/// stays an array for `for_each` / CEL navigation (spec 04 §`tasks.X.output`
+/// · "string · object · or bytes · per verb"); a text-only MCP tool leaves
+/// it `None` and the output stays a String.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct InvokeOutput {
-    /// The tool's response content (`.output` in spec terms).
+    /// The tool's response content (`.output` in spec terms · the TEXT view).
     pub content: String,
+    /// The tool's typed value when present (the dataflow plane · `None` for
+    /// text-only tools).
+    pub structured: Option<serde_json::Value>,
     /// The resolved tool id (echo · engine event context).
     pub tool: String,
 }
 
 impl InvokeOutput {
-    /// Construct from the tool id and its response content.
+    /// Construct from the tool id and its response content (text-only · no
+    /// structured value).
     #[must_use]
     pub fn new(tool: impl Into<String>, content: impl Into<String>) -> Self {
         Self {
             content: content.into(),
+            structured: None,
             tool: tool.into(),
         }
+    }
+
+    /// Attach the tool's typed value (the dataflow plane). Builder over
+    /// [`new`](Self::new): `content` stays the model-facing text view.
+    #[must_use]
+    pub fn with_structured(mut self, value: Option<serde_json::Value>) -> Self {
+        self.structured = value;
+        self
     }
 }
 
@@ -151,7 +172,10 @@ where
         if result.is_error {
             return Err(VerbInvokeError::tool_reported(input.tool, &result.content));
         }
-        Ok(InvokeOutput::new(input.tool, result.content))
+        // Carry the tool's typed value (when it has one) on the structured
+        // plane — the engine routes it into tasks.X.output so a builtin
+        // array/object survives as itself; `content` stays the TEXT view.
+        Ok(InvokeOutput::new(input.tool, result.content).with_structured(result.structured))
     }
 }
 
@@ -251,6 +275,9 @@ mod tests {
         fn ok(content: &str) -> Self {
             Self::with(Ok(ToolResult::success("tc", content)))
         }
+        fn ok_structured(content: &str, value: serde_json::Value) -> Self {
+            Self::with(Ok(ToolResult::success("tc", content).with_structured(value)))
+        }
         fn err_result(content: &str) -> Self {
             Self::with(Ok(ToolResult::error("tc", content)))
         }
@@ -281,6 +308,23 @@ mod tests {
             .await
             .expect("builtin resolves");
         assert_eq!(out, InvokeOutput::new("nika:read", "file contents"));
+        // A text-only tool leaves the structured plane empty → the engine
+        // keeps tasks.X.output a String (MCP-style tools without a typed value).
+        assert!(out.structured.is_none());
+    }
+
+    #[tokio::test]
+    async fn structured_tool_value_rides_the_output_structured_plane() {
+        // BUG#3: a builtin returning a typed value (here an array, as nika:glob
+        // does) must carry it on InvokeOutput.structured so the engine routes
+        // it into tasks.X.output as an array — content stays the JSON text.
+        let arr = serde_json::json!(["a.md", "b.md"]);
+        let out = verb(MockTool::ok_structured("[\"a.md\",\"b.md\"]", arr.clone()))
+            .run(InvokeInput::new("nika:glob"))
+            .await
+            .expect("builtin resolves");
+        assert_eq!(out.content, "[\"a.md\",\"b.md\"]");
+        assert_eq!(out.structured, Some(arr));
     }
 
     #[tokio::test]

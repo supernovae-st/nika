@@ -149,10 +149,22 @@ where
         let mut input = InvokeInput::new(tool);
         input.args = args;
         match self.invoke.run(input).await {
-            // Tool content stays a STRING value at v0 — never silently
-            // JSON-coerced (the loud doctrine · typed tool values are a
-            // ToolResult evolution).
-            Ok(out) => Dispatched::ok(note, Value::String(out.content), None),
+            // A tool's typed value (builtins · MCP `structuredContent`) flows
+            // to tasks.X.output AS ITSELF — an array stays an array so
+            // `for_each` / CEL navigation works (spec 04 §tasks.X.output ·
+            // "string · object · or bytes · per verb"). A text-only tool
+            // (no structured value) stays a String — never silently
+            // JSON-coerced from text.
+            Ok(out) => {
+                // Move the typed value out when present; otherwise wrap the
+                // text view — no clone, and `out.content` is only consumed on
+                // the None arm (clippy: not a lazy-eval candidate).
+                let value = match out.structured {
+                    Some(value) => value,
+                    None => Value::String(out.content),
+                };
+                Dispatched::ok(note, value, None)
+            }
             Err(err) => Dispatched::verb_err(note, &err),
         }
     }

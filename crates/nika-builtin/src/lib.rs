@@ -314,6 +314,14 @@ where
 }
 
 /// Render a builtin outcome into the wire `ToolResult`.
+///
+/// A success carries BOTH planes (the MCP `content` + `structuredContent`
+/// split · see `ToolResult`): `content` is the TEXT view an agent loop /
+/// LLM reads (string verbatim · everything else compact-JSON), and
+/// `structured` is the builtin's REAL typed value — so a `nika:glob`
+/// array reaches `tasks.X.output` as an array, not a stringified one. The
+/// two planes never disagree; `content` is just `structured` rendered to
+/// text.
 fn render(call_id: &str, outcome: BuiltinOutcome) -> ToolResult {
     match outcome {
         Ok(value) => {
@@ -323,7 +331,7 @@ fn render(call_id: &str, outcome: BuiltinOutcome) -> ToolResult {
                 serde_json::Value::String(text) => text.clone(),
                 other => other.to_string(),
             };
-            ToolResult::success(call_id, content)
+            ToolResult::success(call_id, content).with_structured(value)
         }
         Err(failure) => {
             ToolResult::error(call_id, format!("{} · {}", failure.code, failure.message))
@@ -598,14 +606,48 @@ mod tests {
 
     #[test]
     fn string_success_carries_verbatim_and_structured_serializes() {
+        // content = the TEXT view (string verbatim · everything else
+        // compact-JSON); structured = the REAL typed value (the invoke
+        // dataflow's signal · BUG#3 fix). The two planes agree.
         let text = render("t", Ok(serde_json::json!("hello")));
         assert_eq!(text.content, "hello");
+        assert_eq!(text.structured, Some(serde_json::json!("hello")));
         let value = render("t", Ok(serde_json::json!({"a": 1})));
         assert_eq!(value.content, r#"{"a":1}"#);
+        assert_eq!(value.structured, Some(serde_json::json!({"a": 1})));
         let null = render("t", Ok(serde_json::Value::Null));
         assert_eq!(null.content, "null");
+        assert_eq!(null.structured, Some(serde_json::Value::Null));
         let failed = render("t", Err(BuiltinFailure::new("NIKA-BUILTIN-X-001", "boom")));
         assert!(failed.is_error);
         assert_eq!(failed.content, "NIKA-BUILTIN-X-001 · boom");
+        // A failure has no typed value — the dataflow never sees a structured
+        // error (errors travel the task-error channel, not tasks.X.output).
+        assert!(failed.structured.is_none());
+    }
+
+    #[tokio::test]
+    async fn glob_through_the_dispatcher_carries_a_structured_array() {
+        // The BUG#3 seam: a builtin that returns Value::Array must surface
+        // its array on the STRUCTURED plane (so for_each iterates it) while
+        // content stays the JSON text (the model's view). Pins the dispatcher
+        // path end-to-end, not just render(). Files keyed under "./" so the
+        // mock's root `.` walk finds them (the file.rs glob idiom).
+        let fs = MockFs::new()
+            .with_file("./docs/a.md", "alpha")
+            .with_file("./docs/b.md", "beta");
+        let dispatcher = test_rig::dispatcher(fs, MockHttp::new(), MockClock::new());
+        let result = dispatcher
+            .execute(call("nika:glob", serde_json::json!({ "pattern": "**" })))
+            .await
+            .expect("dispatches");
+        assert!(!result.is_error, "{}", result.content);
+        let structured = result.structured.expect("glob carries a structured value");
+        let names = structured
+            .as_array()
+            .expect("structured glob output is an array");
+        assert_eq!(names.len(), 2, "both files: {structured}");
+        // And the text view is the same array rendered to compact JSON.
+        assert_eq!(result.content, structured.to_string());
     }
 }

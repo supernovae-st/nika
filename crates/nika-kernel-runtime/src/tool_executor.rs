@@ -68,26 +68,51 @@ impl ToolCall {
 }
 
 /// Result of a tool execution.
+///
+/// Mirrors the MCP tool-result split of `content` (the model-facing TEXT
+/// view) + `structuredContent` (the typed value): `content` is what the
+/// agent loop / LLM reads (always a String), `structured` carries the
+/// tool's real typed value when it has one. The `invoke` verb's task
+/// dataflow (`tasks.X.output` → CEL / `for_each`) reads `structured` so a
+/// `nika:glob` array survives the seam as an array; a String-only MCP tool
+/// leaves `structured: None` and stays a String downstream.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ToolResult {
     /// The tool call ID this result corresponds to.
     pub tool_use_id: ToolCallId,
-    /// Tool output content.
+    /// Tool output content — the model-facing TEXT view (the LLM reads
+    /// this; never the structured value).
     pub content: String,
+    /// The tool's typed value when it produced one (MCP `structuredContent`
+    /// analogue). `None` for text-only tools. ONLY the `invoke` verb's
+    /// task-output dataflow reads this — the agent loop always feeds the
+    /// model `content`.
+    pub structured: Option<serde_json::Value>,
     /// Whether the tool execution resulted in an error.
     pub is_error: bool,
 }
 
 impl ToolResult {
-    /// Create a successful tool result.
+    /// Create a successful tool result (text-only · no structured value).
     #[must_use]
     pub fn success(tool_use_id: impl Into<String>, content: impl Into<String>) -> Self {
         Self {
             tool_use_id: ToolCallId::new(tool_use_id),
             content: content.into(),
+            structured: None,
             is_error: false,
         }
+    }
+
+    /// Attach the tool's typed value (the MCP `structuredContent` plane).
+    /// Builder over [`success`](Self::success): the `content` String stays
+    /// the model-facing view, `structured` carries the real value for the
+    /// `invoke` verb's task dataflow.
+    #[must_use]
+    pub fn with_structured(mut self, value: serde_json::Value) -> Self {
+        self.structured = Some(value);
+        self
     }
 
     /// Create an error tool result.
@@ -96,6 +121,7 @@ impl ToolResult {
         Self {
             tool_use_id: ToolCallId::new(tool_use_id),
             content: content.into(),
+            structured: None,
             is_error: true,
         }
     }
@@ -196,12 +222,28 @@ mod tests {
         let result = ToolResult::success("tc_1", "file contents");
         assert!(!result.is_error);
         assert_eq!(result.content, "file contents");
+        // success() is text-only — the structured plane stays empty until a
+        // tool opts in via with_structured (the invoke dataflow's signal).
+        assert!(result.structured.is_none());
+    }
+
+    #[test]
+    fn tool_result_with_structured_keeps_content_and_carries_value() {
+        // The MCP split: content (TEXT view) is unchanged, structured carries
+        // the typed value the invoke verb's task output reads.
+        let value = serde_json::json!(["a.md", "b.md"]);
+        let result =
+            ToolResult::success("tc_1", "[\"a.md\",\"b.md\"]").with_structured(value.clone());
+        assert_eq!(result.content, "[\"a.md\",\"b.md\"]");
+        assert_eq!(result.structured, Some(value));
+        assert!(!result.is_error);
     }
 
     #[test]
     fn tool_result_error() {
         let result = ToolResult::error("tc_1", "file not found");
         assert!(result.is_error);
+        assert!(result.structured.is_none());
     }
 
     #[test]

@@ -142,6 +142,47 @@ async fn tool_use_dispatches_feeds_back_then_completes() {
     )));
 }
 
+/// BUG#3 boundary: a tool that ALSO returns a structured value still feeds
+/// the model the `content` STRING — the structured plane is invoke-dataflow
+/// only, never the LLM's view. (If the agent leaked `structured`, the model
+/// would read JSON where it expects text.)
+#[tokio::test]
+async fn agent_feeds_the_content_string_even_when_the_tool_is_structured() {
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(tool_use_response(
+                "call-1",
+                "nika:glob",
+                serde_json::json!({"pattern": "./**/*.md"}),
+            ))
+            .enqueue_response(text_response("found two files")),
+        // A glob-style structured result: content is the JSON TEXT view, the
+        // structured plane carries the real array (the invoke dataflow's signal).
+        MockToolExecutor::new().enqueue_ok(
+            ToolResult::success("call-1", r#"["a.md","b.md"]"#)
+                .with_structured(serde_json::json!(["a.md", "b.md"])),
+        ),
+        vec![def("nika:glob")],
+    );
+    let mut input = AgentInput::new("list my docs");
+    input.tools = vec!["nika:glob".to_owned()];
+    let out = r.verb.run(input).await.expect("completes");
+    assert_eq!(out.output, AgentValue::Text("found two files".to_owned()));
+
+    // The model's fed-back ToolResult block carries the CONTENT string —
+    // the rendered text, NOT the structured array.
+    let reqs = r.provider.captured_requests();
+    let turn2 = &reqs[1];
+    assert!(
+        turn2.messages[2].content.iter().any(|b| matches!(
+            b,
+            ContentBlock::ToolResult { tool_use_id, content, is_error: false }
+                if tool_use_id == "call-1" && content == r#"["a.md","b.md"]"#
+        )),
+        "the LLM reads the content String · never the structured value"
+    );
+}
+
 // ── §6 · nika:done with / without result ───────────────────────────
 
 #[tokio::test]

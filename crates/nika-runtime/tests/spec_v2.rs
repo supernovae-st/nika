@@ -1111,3 +1111,139 @@ tasks:
         "the gate failure precedes any dispatch"
     );
 }
+
+// ─── 13 · structured tool output survives the seam (BUG#3) ──────────────
+
+/// A builtin that returns a typed value (here an array, as `nika:glob`
+/// does) must reach `tasks.X.output` AS the array — so a downstream
+/// `for_each: ${{ tasks.X.output }}` iterates it instead of failing
+/// NIKA-VAR-006 ("collection must be an array · got string"). This is the
+/// localization-factory's glob→read fan-out, proven at the runtime seam
+/// with a mock tool carrying a structured value (the dispatcher-agnostic
+/// contract: ToolResult.structured → InvokeOutput.structured → output).
+#[tokio::test]
+async fn builtin_invoke_array_output_lets_for_each_iterate() {
+    let yaml = r#"
+nika: v1
+workflow: glob-fanout
+tasks:
+  - id: files
+    invoke:
+      tool: "nika:glob"
+      args: { pattern: "./docs/**/*.md" }
+  - id: texts
+    depends_on: [files]
+    for_each: ${{ tasks.files.output }}
+    max_parallel: 1
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ item }}" }
+"#;
+    // FIFO: the glob settles first (a STRUCTURED array · content is the JSON
+    // text the model would see), then the two per-item reads.
+    let tools = MockToolExecutor::new()
+        .enqueue_ok(
+            ToolResult::success("c-glob", r#"["./docs/a.md","./docs/b.md"]"#)
+                .with_structured(serde_json::json!(["./docs/a.md", "./docs/b.md"])),
+        )
+        .enqueue_ok(ToolResult::success("c-read-0", "alpha"))
+        .enqueue_ok(ToolResult::success("c-read-1", "beta"));
+    let (outcome, _events) = run_to_events(
+        yaml,
+        MockShell::new(),
+        tools,
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+
+    assert!(outcome.ok, "the glob→for_each path runs (no NIKA-VAR-006)");
+    // The glob output reached tasks.files.output AS an array (the fix) —
+    // NOT a stringified one (the bug · would be Value::String).
+    assert_eq!(
+        outcome.records["files"].output,
+        serde_json::json!(["./docs/a.md", "./docs/b.md"]),
+        "structured array survives the seam · not Value::String"
+    );
+    // …and the for_each iterated both elements, one read per item.
+    assert_eq!(outcome.records["texts"].status, TaskStatus::Success);
+    assert_eq!(
+        outcome.records["texts"].output,
+        serde_json::json!(["alpha", "beta"]),
+        "for_each fanned over the glob array · two iterations"
+    );
+}
+
+/// A structured OBJECT survives too — so CEL navigation into a binding-less
+/// tool output (`tasks.X.output.<field>`) sees the real object, not a
+/// string. (`nika:jq` · `nika:fetch`'s JSON modes return objects.)
+#[tokio::test]
+async fn structured_object_tool_output_navigates() {
+    let yaml = r#"
+nika: v1
+workflow: object-nav
+tasks:
+  - id: api
+    invoke:
+      tool: "nika:jq"
+      args: { input: { count: 2 }, expression: "." }
+  - id: use
+    depends_on: [api]
+    when: ${{ tasks.api.output.count > 1 }}
+    exec: { command: "echo ${{ tasks.api.output.count }}" }
+"#;
+    let tools = MockToolExecutor::new().enqueue_ok(
+        ToolResult::success("c-jq", r#"{"count":2}"#)
+            .with_structured(serde_json::json!({ "count": 2 })),
+    );
+    let (outcome, _events) = run_to_events(
+        yaml,
+        MockShell::new().enqueue_ok("2\n"),
+        tools,
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+
+    assert!(
+        outcome.ok,
+        "object output navigates · the when-gate resolves"
+    );
+    assert_eq!(
+        outcome.records["api"].output,
+        serde_json::json!({ "count": 2 }),
+        "structured object survives · field access works downstream"
+    );
+    assert_eq!(outcome.records["use"].status, TaskStatus::Success);
+}
+
+/// The negative half: a tool with NO structured value (an MCP-style tool
+/// returning only text · `ToolResult` default `structured: None`) keeps
+/// `tasks.X.output` a String — never silently JSON-coerced from text.
+#[tokio::test]
+async fn text_only_tool_output_stays_a_string() {
+    let yaml = r#"
+nika: v1
+workflow: text-output
+tasks:
+  - id: tool
+    invoke: { tool: "mcp:server/echo", args: {} }
+"#;
+    // A bare success — no with_structured → the MCP text path.
+    let tools = MockToolExecutor::new().enqueue_ok(ToolResult::success("c", "plain text response"));
+    let (outcome, _events) = run_to_events(
+        yaml,
+        MockShell::new(),
+        tools,
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+
+    assert!(outcome.ok);
+    assert_eq!(
+        outcome.records["tool"].output,
+        serde_json::Value::String("plain text response".to_owned()),
+        "a text-only tool stays a String · the bug fix is opt-in via structured"
+    );
+}
