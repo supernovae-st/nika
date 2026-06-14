@@ -243,9 +243,24 @@ fn normalize_node(node: &mut Value) {
     };
     descend_subschemas(obj);
     rename_oneof_to_anyof(obj);
+    simplify_unsupported(obj);
     if obj.get("type").and_then(Value::as_str) == Some("object") {
         tighten_object(obj);
     }
+}
+
+/// Rewrite two keywords `OpenAI` strict does not accept:
+/// - `const: X` → `enum: [X]` (`X`'s JSON type is preserved verbatim;
+///   `const` 400s "must have a type" / "not permitted", `enum` is
+///   supported and a one-member `enum` is the equivalent constraint).
+/// - `uniqueItems` → stripped (array-validation-only; not expressible in
+///   the structured-output dialect, so it is dropped at the wire — the
+///   model is still steered by the prompt + item schema).
+fn simplify_unsupported(obj: &mut serde_json::Map<String, Value>) {
+    if let Some(c) = obj.remove("const") {
+        obj.entry("enum").or_insert_with(|| Value::Array(vec![c]));
+    }
+    obj.remove("uniqueItems");
 }
 
 /// `oneOf` → `anyOf` (`OpenAI` strict permits `anyOf`, not `oneOf`). Runs
@@ -1139,6 +1154,50 @@ mod tests {
             3,
             "1 original anyOf + 2 folded oneOf branches"
         );
+    }
+
+    // ── const + uniqueItems · openai strict (Gate 2 parity) ──
+
+    #[test]
+    fn strict_rewrites_const_to_single_member_enum_preserving_type() {
+        // `const` 400s on openai strict; rewrite to a one-member `enum`.
+        // The integer const keeps its JSON number type (not stringified).
+        let out = strict_schema(json!({
+            "type": "object",
+            "required": ["version", "name"],
+            "properties": {
+                "version": {"const": 1},
+                "name": {"type": "string"}
+            }
+        }));
+        let version = &out["properties"]["version"];
+        assert!(version.get("const").is_none(), "no const survives");
+        assert_eq!(version["enum"], json!([1]), "const → one-member enum");
+        assert!(
+            version["enum"][0].is_number(),
+            "integer const stays a number, not a string"
+        );
+    }
+
+    #[test]
+    fn strict_strips_unique_items() {
+        // `uniqueItems` is array-only validation, not in the dialect → drop.
+        let out = strict_schema(json!({
+            "type": "object",
+            "required": ["fruits"],
+            "properties": {
+                "fruits": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {"type": "string"}
+                }
+            }
+        }));
+        let fruits = &out["properties"]["fruits"];
+        assert!(fruits.get("uniqueItems").is_none(), "uniqueItems stripped");
+        // the rest of the array schema is intact.
+        assert_eq!(fruits["type"], "array");
+        assert_eq!(fruits["items"]["type"], "string");
     }
 
     // ── BUG#5 · tool-name sanitization on the openai-compat wire (NIKA-463) ──
