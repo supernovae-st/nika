@@ -55,8 +55,13 @@
 //!    (the intersection). `host_from_self` (host unknown statically)
 //!    degrades to the runtime `permits` check.
 //!
-//! `infer`/`agent` are never reached here — flow.rs taints only
-//! `exec`/`invoke` effects (provider-bound carve-out · ADR-092).
+//! `infer`/`agent` ARE reached here (BUG#3): their `prompt:`/`system:` is a
+//! provider-egress sink, sanctioned by a sink-only rule `{ to: "infer" }` /
+//! `{ to: "agent" }` (no host clause · the provider endpoint is operator-
+//! chosen, not a workflow-controlled URL · L2/L3 vacuous, the `to:` match is
+//! the whole sanction · same shape as an `exec` egress). Only OUTPUT taint
+//! keeps the carve-out (an infer/agent response is not a verbatim echo ·
+//! flow.rs §4).
 
 use crate::raw::{RawAction, RawInvokeAction};
 use crate::types::{EgressRule, Permits};
@@ -90,8 +95,9 @@ pub(super) fn is_sanctioned(
 }
 
 /// The sink id of an effect-carrying action — the value an `egress.to:`
-/// must equal. `exec` for shells, the tool id for an invoke. (`infer` /
-/// `agent` never reach the leak edge; their arm is defensive only.)
+/// must equal. `exec` for shells, the tool id for an invoke, and `infer` /
+/// `agent` for the provider-egress sink (BUG#3 · a prompt-only egress
+/// sanctioned by `{ to: "infer" }` / `{ to: "agent" }`).
 fn sink_id(action: &RawAction) -> &str {
     match action {
         RawAction::Exec(_) => "exec",

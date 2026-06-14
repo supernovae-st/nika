@@ -79,9 +79,11 @@ impl fmt::Display for SecretSource {
 #[non_exhaustive]
 pub struct EgressRule {
     /// The sink this rule sanctions — a tool id (`nika:fetch` ·
-    /// `nika:notify` · `mcp:<server>/<tool>`) OR the literal `exec`.
-    /// SPECIFIC by design · a clearance for `nika:fetch` never
-    /// authorizes `exec` (no cross-tool laundering).
+    /// `nika:notify` · `mcp:<server>/<tool>`), the literal `exec`, or the
+    /// provider-egress sinks `infer` / `agent` (BUG#3 · a secret sent in a
+    /// prompt). SPECIFIC by design · a clearance for `nika:fetch` never
+    /// authorizes `exec`, and `infer` never authorizes `agent` (no
+    /// cross-sink laundering).
     pub to: String,
     /// A static-literal destination host (network sinks) — the egress is
     /// sanctioned only when the sink's destination arg is exactly this
@@ -137,10 +139,11 @@ impl EgressRule {
 ///
 /// **Egress (declassification).** `egress` is the secret's sanctioned-
 /// destination list. **Empty (the default) = NO egress** — a secret
-/// reaching any `exec`/`invoke` effect is a blocking leak (the current
-/// behavior, unchanged). A non-empty list sanctions exactly the named
-/// sinks (see [`EgressRule`]); `infer`/`agent` stay implicitly sanctioned
-/// for every secret (provider-bound · ADR-092 carve-out).
+/// reaching any `exec`/`invoke` effect OR an `infer`/`agent` PROMPT is a
+/// blocking leak. A non-empty list sanctions exactly the named sinks (see
+/// [`EgressRule`] · `to: "infer"` / `to: "agent"` for the provider-egress
+/// sink · BUG#3). Only the infer/agent OUTPUT keeps the carve-out (the model
+/// response never taints downstream · ADR-092).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct SecretRef {

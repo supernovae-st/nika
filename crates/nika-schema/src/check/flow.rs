@@ -297,8 +297,11 @@ fn propagate_cleanups(
         let sink = match action {
             RawAction::Exec(_) => "exec",
             RawAction::Invoke(_) => "invoke",
-            // provider-bound carve-out applies to cleanup verbs equally
-            RawAction::Infer(_) | RawAction::Agent(_) => continue,
+            // A cleanup infer/agent prompt is a provider-egress sink too
+            // (BUG#3 · sanctioned via `to: "infer"`/`"agent"`). A cleanup
+            // ALWAYS runs, so a secret in its prompt always leaves the run.
+            RawAction::Infer(_) => "infer",
+            RawAction::Agent(_) => "agent",
         };
         if let Some(trace) = action_effect_fields(action).into_iter().find_map(|text| {
             taint_of_refs_full(
@@ -329,9 +332,17 @@ fn propagate_cleanups(
 }
 
 /// The text fields of an action's EFFECT (the sink surface) — works for a
-/// task's main verb AND an `on_finally` cleanup verb. `infer`/`agent`
-/// prompts are EXCLUDED — a secret in a prompt is provider-bound by design
-/// (ADR-092 carve-out · not a leak, not a taint source for the output).
+/// task's main verb AND an `on_finally` cleanup verb.
+///
+/// The `infer:`/`agent:` `prompt:` + `system:` ARE sinks: a secret in a
+/// prompt LEAVES the run to a third-party provider (the same third-party-
+/// network exposure as an `mcp:` tool, which is already flagged). A secret
+/// reaching one with no `egress:` sanction is a leak (BUG#3 · supersedes
+/// the prior unconditional carve-out). The OUTPUT carve-out is SEPARATE and
+/// PRESERVED (see [`propagate_task`] step 4 · the model response is not a
+/// verbatim echo, so infer/agent OUTPUT is never tainted from a prompt
+/// secret · ADR-092). To send a secret to a provider, the author sanctions
+/// it explicitly (`egress: [{ to: "infer" }]` / `{ to: "agent" }`).
 fn action_effect_fields(action: &RawAction) -> Vec<&str> {
     match action {
         RawAction::Exec(a) => {
@@ -349,9 +360,25 @@ fn action_effect_fields(action: &RawAction) -> Vec<&str> {
             .as_ref()
             .map(|args| collect_json_strings(&args.value))
             .unwrap_or_default(),
-        // provider-bound by design — not an observable re-emitting sink
-        RawAction::Infer(_) | RawAction::Agent(_) => Vec::new(),
+        // The prompt (+ system) is a third-party egress sink — a secret
+        // reaching it is a leak unless the author sanctions `to: "infer"`/
+        // `"agent"` (BUG#3). Output taint stays excluded (propagate_task §4).
+        RawAction::Infer(a) => prompt_system_fields(a.prompt.value.as_str(), a.system.as_ref()),
+        RawAction::Agent(a) => prompt_system_fields(a.prompt.value.as_str(), a.system.as_ref()),
     }
+}
+
+/// The `prompt:` + optional `system:` text of an `infer:`/`agent:` action —
+/// the provider-egress sink surface (BUG#3).
+fn prompt_system_fields<'a>(
+    prompt: &'a str,
+    system: Option<&'a crate::Spanned<String>>,
+) -> Vec<&'a str> {
+    let mut fields = vec![prompt];
+    if let Some(system) = system {
+        fields.push(system.value.as_str());
+    }
+    fields
 }
 
 /// Resolve a set of refs to a taint, considering secrets + tainted upstream
@@ -550,20 +577,46 @@ mod tests {
     }
 
     #[test]
-    fn infer_prompt_secret_does_not_taint_output() {
-        // Provider-bound by design: a secret in an infer prompt is not a leak
-        // and does NOT taint the model's response (ADR-092 carve-out).
+    fn infer_prompt_is_a_sink_but_does_not_taint_output() {
+        // BUG#3: a secret in an infer prompt IS a sink (it leaves the run to
+        // a third-party provider) — but the model's RESPONSE is NOT tainted
+        // (not a verbatim echo · the OUTPUT carve-out is preserved · ADR-092).
         let y = format!(
             "nika: v1\nworkflow: w\n{S}tasks:\n  - id: a\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n  - id: b\n    depends_on: [a]\n    exec: {{ command: \"echo ${{{{ tasks.a.output }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
+        // The prompt is now a sink (an unsanctioned provider egress · leak).
         assert!(
-            f.effect_taint(idx(&wf, "a")).is_none(),
-            "infer effect is not a sink"
+            f.effect_leak(idx(&wf, "a")).is_some(),
+            "infer prompt is a provider-egress sink (no egress → leak)"
         );
+        // …but task a's OUTPUT is NOT tainted — so b consuming a.output is clean.
         assert!(
             f.effect_taint(idx(&wf, "b")).is_none(),
-            "infer output not tainted"
+            "infer output not tainted → downstream stays clean"
+        );
+    }
+
+    #[test]
+    fn sanctioned_infer_prompt_is_not_a_leak() {
+        // BUG#3: an explicit `to: "infer"` egress sanctions the prompt send.
+        let y = "\
+nika: v1
+workflow: w
+secrets:
+  api_key:
+    source: vault
+    key: x
+    egress:
+      - to: \"infer\"
+tasks:
+  - id: a
+    infer: { prompt: \"use ${{ secrets.api_key }}\", max_tokens: 10 }
+";
+        let (wf, f) = facts(y);
+        assert!(
+            f.effect_leak(idx(&wf, "a")).is_none(),
+            "a sanctioned `to: infer` egress clears the prompt send"
         );
     }
 
@@ -603,13 +656,47 @@ mod tests {
     }
 
     #[test]
-    fn clean_secret_use_in_a_provider_call_is_not_flagged() {
-        // The legitimate pattern: a secret into an infer model call only.
+    fn unsanctioned_secret_into_a_provider_call_is_a_leak() {
+        // BUG#3: an UNSANCTIONED secret into an infer prompt is a leak (it
+        // leaves the run to a third-party provider). The legitimate pattern
+        // requires an explicit `to: "infer"` egress (see
+        // `sanctioned_infer_prompt_is_not_a_leak`).
         let y = format!(
             "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    infer: {{ prompt: \"hi ${{{{ secrets.api_key }}}}\", max_tokens: 5 }}\n"
         );
         let (wf, f) = facts(&y);
-        assert!(f.effect_taint(idx(&wf, "t")).is_none());
+        let leak = f
+            .effect_leak(idx(&wf, "t"))
+            .expect("unsanctioned provider send is a leak");
+        assert_eq!(leak.secret, "api_key");
+        // No workflow `outputs:` egress (the prompt sink is the leak, not
+        // a return-value exfiltration).
         assert!(f.egresses().is_empty());
+    }
+
+    #[test]
+    fn agent_prompt_is_a_sink_too() {
+        // BUG#3: the agent verb's prompt is the same provider-egress sink.
+        let y = format!(
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    agent: {{ prompt: \"do ${{{{ secrets.api_key }}}}\", max_turns: 2 }}\n"
+        );
+        let (wf, f) = facts(&y);
+        assert!(
+            f.effect_leak(idx(&wf, "t")).is_some(),
+            "agent prompt is a provider-egress sink"
+        );
+    }
+
+    #[test]
+    fn secret_in_infer_system_field_is_a_sink() {
+        // The `system:` field is part of the prompt egress surface too.
+        let y = format!(
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    infer: {{ prompt: \"go\", system: \"key ${{{{ secrets.api_key }}}}\", max_tokens: 5 }}\n"
+        );
+        let (wf, f) = facts(&y);
+        assert!(
+            f.effect_leak(idx(&wf, "t")).is_some(),
+            "a secret in system: is a provider-egress sink"
+        );
     }
 }

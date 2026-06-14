@@ -15,8 +15,11 @@
 //! - [`SecretEgress`] — a secret reaches the workflow `outputs:` (it leaves
 //!   the run as the return value · the literal exfiltration case).
 //!
-//! `infer`/`agent` prompts are NOT sinks — a secret in a prompt is
-//! provider-bound by design (ADR-092 carve-out).
+//! `infer`/`agent` PROMPTS are provider-egress sinks (BUG#3 · a secret in a
+//! prompt leaves the run to a third-party provider · sanction with `egress:
+//! [{ to: "infer" }]` / `{ to: "agent" }`). Their OUTPUT keeps the carve-out
+//! (the model response is not a verbatim echo · never taints downstream ·
+//! ADR-092 · flow.rs §4).
 
 use super::flow::FlowFacts;
 use crate::raw::{RawAction, RawWorkflow};
@@ -65,9 +68,10 @@ pub(super) fn scan_leaks(wf: &RawWorkflow, flow: &FlowFacts) -> Vec<SecretLeak> 
                 sink: match task.value.action {
                     RawAction::Exec(_) => "exec",
                     RawAction::Invoke(_) => "invoke",
-                    // flow only taints exec/invoke effects (infer/agent are
-                    // provider-bound) — this arm is unreachable in practice.
-                    RawAction::Infer(_) | RawAction::Agent(_) => "effect",
+                    // The infer/agent prompt is a provider-egress sink (BUG#3
+                    // · a secret in a prompt leaves the run to a third party).
+                    RawAction::Infer(_) => "infer",
+                    RawAction::Agent(_) => "agent",
                 },
                 trace: trace.render(),
             });
@@ -157,11 +161,36 @@ secrets:
     }
 
     #[test]
-    fn secret_into_infer_prompt_is_not_a_leak() {
+    fn secret_into_infer_prompt_is_a_leak() {
+        // BUG#3: a secret in an infer prompt leaves the run to a third-party
+        // provider — a leak (sink "infer") unless sanctioned by `to: "infer"`.
         let yaml = format!(
-            "nika: v1\nworkflow: ok\n{SECRETS}tasks:\n  - id: t\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n"
+            "nika: v1\nworkflow: leak\n{SECRETS}tasks:\n  - id: t\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n"
         );
-        assert!(leaks_of(&yaml).is_empty(), "provider-bound by design");
+        let l = leaks_of(&yaml);
+        assert_eq!(l.len(), 1, "the provider send is a leak");
+        assert_eq!(l[0].secret, "api_key");
+        assert_eq!(l[0].sink, "infer");
+    }
+
+    #[test]
+    fn secret_into_agent_prompt_is_a_leak() {
+        // BUG#3: the agent prompt is the same provider-egress sink.
+        let yaml = format!(
+            "nika: v1\nworkflow: leak\n{SECRETS}tasks:\n  - id: t\n    agent: {{ prompt: \"do ${{{{ secrets.api_key }}}}\", max_turns: 2 }}\n"
+        );
+        let l = leaks_of(&yaml);
+        assert_eq!(l.len(), 1);
+        assert_eq!(l[0].sink, "agent");
+    }
+
+    #[test]
+    fn non_secret_prompt_is_clean() {
+        // A prompt with no secret reference is clean (no false positive).
+        let yaml = format!(
+            "nika: v1\nworkflow: ok\n{SECRETS}tasks:\n  - id: t\n    infer: {{ prompt: \"just text\", max_tokens: 10 }}\n"
+        );
+        assert!(leaks_of(&yaml).is_empty(), "no secret reference → no leak");
     }
 
     #[test]
@@ -444,9 +473,10 @@ tasks:
     }
 
     #[test]
-    fn provider_carve_out_secret_into_infer_with_no_egress_is_clean() {
-        // backward-compat: infer/agent stay implicitly sanctioned (the
-        // existing carve-out · a secret in a prompt is provider-bound).
+    fn unsanctioned_secret_into_infer_now_leaks() {
+        // BUG#3: a secret into an infer prompt with NO egress is a leak (it
+        // leaves the run to a third-party provider · supersedes the prior
+        // unconditional carve-out · same class as a secret→mcp: tool).
         let yaml = "\
 nika: v1
 workflow: w
@@ -458,10 +488,78 @@ tasks:
   - id: t
     infer: { prompt: \"use ${{ secrets.k }}\", max_tokens: 10 }
 ";
+        let l = leaks_of(yaml);
+        assert_eq!(l.len(), 1, "an unsanctioned provider send leaks");
+        assert_eq!(l[0].sink, "infer");
+    }
+
+    #[test]
+    fn sanctioned_infer_egress_is_clean() {
+        // BUG#3: `to: "infer"` sanctions the prompt send (sink-only rule · no
+        // host clause · the provider endpoint is operator-chosen, not a
+        // workflow-controlled URL — L2/L3 vacuous, same shape as an `exec`
+        // egress). The OUTPUT is never tainted regardless (flow.rs §4).
+        let yaml = "\
+nika: v1
+workflow: w
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - to: \"infer\"
+tasks:
+  - id: t
+    infer: { prompt: \"use ${{ secrets.k }}\", max_tokens: 10 }
+";
         assert!(
             leaks_of(yaml).is_empty(),
-            "provider-bound · no egress needed"
+            "an explicit `to: infer` egress clears the send"
         );
+    }
+
+    #[test]
+    fn sanctioned_agent_egress_is_clean_but_infer_clearance_does_not_cross() {
+        // `to: "agent"` clears the agent send; an `infer`-only clearance does
+        // NOT cross to an agent sink (the no-cross-tool-laundering rule).
+        let agent_ok = "\
+nika: v1
+workflow: w
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - to: \"agent\"
+tasks:
+  - id: t
+    agent: { prompt: \"do ${{ secrets.k }}\", max_turns: 2 }
+";
+        assert!(
+            leaks_of(agent_ok).is_empty(),
+            "`to: agent` clears the agent send"
+        );
+
+        let wrong_sink = "\
+nika: v1
+workflow: w
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - to: \"infer\"
+tasks:
+  - id: t
+    agent: { prompt: \"do ${{ secrets.k }}\", max_turns: 2 }
+";
+        let l = leaks_of(wrong_sink);
+        assert_eq!(
+            l.len(),
+            1,
+            "an infer clearance never authorizes an agent send"
+        );
+        assert_eq!(l[0].sink, "agent");
     }
 
     #[test]
