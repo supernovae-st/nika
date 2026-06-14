@@ -47,11 +47,14 @@ record() {
 # very "social noise" ADR-090 exists to kill. So the ceiling is generous (60s,
 # ~5x the slowest vector's ~12s baseline) and env-overridable for extreme load.
 # Still bounded so a genuinely-hung vector can't wedge the suite.
-# 120s default · the 60s floor produced false-RED timeouts on the two
-# cargo-walking vectors (adr-schema-valid · doc-private-items) whenever a
-# concurrent session compiled the workspace — three occurrences 2026-06-11
-# (stress-to-ratchet threshold). Raise per-run via HYGIENE_VECTOR_TIMEOUT_SECS.
-VECTOR_TIMEOUT_SECS="${HYGIENE_VECTOR_TIMEOUT_SECS:-120}"
+# 300s default · the 60s floor then the 120s floor both produced false-RED
+# timeouts on the cargo-walking vectors (adr-schema-valid · doc-private-items):
+# `cargo doc --document-private-items` over 37 crates is ~128s cold and exceeds
+# 120s under any concurrent compile, false-RED-ing the pre-push gate (the
+# recurring "engine red" push blocker · 2026-06-11 → 2026-06-14 stress-to-ratchet).
+# This is a HANG guard, not a perf gate, so 300s is safe. Raise per-run via
+# HYGIENE_VECTOR_TIMEOUT_SECS.
+VECTOR_TIMEOUT_SECS="${HYGIENE_VECTOR_TIMEOUT_SECS:-300}"
 TIMEOUT_CMD=""
 if command -v timeout >/dev/null 2>&1; then
   TIMEOUT_CMD="timeout $VECTOR_TIMEOUT_SECS"
