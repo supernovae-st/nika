@@ -340,6 +340,7 @@ fn adapt_node(node: &mut Value) {
         return;
     };
     obj.remove("additionalProperties");
+    simplify_unsupported(obj);
     normalize_type_union(obj);
     type_enum_node(obj);
     if let Some(props) = obj.get_mut("properties").and_then(Value::as_object_mut) {
@@ -354,6 +355,21 @@ fn adapt_node(node: &mut Value) {
             None => {}
         }
     }
+}
+
+/// Rewrite two keywords Gemini's `responseSchema` does not accept (both
+/// also rejected by openai strict, repaired symmetrically there):
+/// - `const: X` → `enum: [X]` (Gemini has no `const`; a one-member `enum`
+///   is the equivalent constraint). `X`'s JSON type is preserved, and the
+///   resulting typeless `enum` is typed by [`type_enum_node`] downstream
+///   (so an integer const lands `type:integer` + `enum:[N]`, not stringy).
+/// - `uniqueItems` → stripped (array-validation-only; not expressible in
+///   the structured-output dialect).
+fn simplify_unsupported(obj: &mut serde_json::Map<String, Value>) {
+    if let Some(c) = obj.remove("const") {
+        obj.entry("enum").or_insert_with(|| Value::Array(vec![c]));
+    }
+    obj.remove("uniqueItems");
 }
 
 /// Give an `enum` node a `type` inferred from its members' JSON types when
@@ -1560,6 +1576,56 @@ mod tests {
         assert_eq!(adapt(&json!({"enum": ["a", "b"]}))["type"], "string");
         let mixed = adapt(&json!({"enum": [1, "two"]}));
         assert!(mixed.get("type").is_none(), "mixed enum stays typeless");
+    }
+
+    // ── const + uniqueItems · gemini (Gate 2 parity) ──
+
+    #[test]
+    fn adapter_rewrites_const_to_enum_and_types_it() {
+        // `const:1` → `enum:[1]`, and the typeless enum is then typed as
+        // integer (so it doesn't 400 as TYPE_STRING) — the full chain. The
+        // value stays a JSON number, never a string (the k12 repro).
+        let out = adapt(&json!({
+            "type": "object",
+            "required": ["version", "name"],
+            "properties": {
+                "version": {"const": 1},
+                "name": {"type": "string"}
+            }
+        }));
+        let version = &out["properties"]["version"];
+        assert!(version.get("const").is_none(), "no const survives");
+        assert_eq!(version["enum"], json!([1]), "const → one-member enum");
+        assert!(version["enum"][0].is_number(), "value stays numeric");
+        assert_eq!(version["type"], "integer", "enum typed from its member");
+    }
+
+    #[test]
+    fn adapter_rewrites_string_const_to_typed_enum() {
+        let out = adapt(&json!({"const": "v1"}));
+        assert!(out.get("const").is_none());
+        assert_eq!(out["enum"], json!(["v1"]));
+        assert_eq!(out["type"], "string");
+    }
+
+    #[test]
+    fn adapter_strips_unique_items() {
+        // `uniqueItems` is array-only validation, not in the dialect → drop.
+        let out = adapt(&json!({
+            "type": "object",
+            "required": ["fruits"],
+            "properties": {
+                "fruits": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {"type": "string"}
+                }
+            }
+        }));
+        let fruits = &out["properties"]["fruits"];
+        assert!(fruits.get("uniqueItems").is_none(), "uniqueItems stripped");
+        assert_eq!(fruits["type"], "array");
+        assert_eq!(fruits["items"]["type"], "string");
     }
 
     #[test]
