@@ -218,6 +218,14 @@ where
         input.capture = capture_mode(action.capture.as_ref().map(|c| c.value));
         let note = format!("exec · {program}");
 
+        // cwd · env · stdin flow to the subprocess (spec 02 §exec). All
+        // three may carry `${{ }}` and are rendered against the scope; the
+        // parser captured them but the dispatch dropped them before this
+        // (the subprocess ran in the engine cwd with the inherited env).
+        if let Err(err) = render_exec_io(&mut input, action, scope) {
+            return Dispatched::template_err(&note, &err);
+        }
+
         if let Some(denial) = check_exec_permits(scope.permits, &note, &program, is_argv) {
             return denial;
         }
@@ -362,6 +370,26 @@ fn render_opt(
     field.map(|f| expr::render(&f.value, scope)).transpose()
 }
 
+/// Render the exec subprocess I/O (`cwd` · `env` · `stdin`) onto `input`.
+///
+/// Each field may carry `${{ }}` and is resolved against the scope. `env`
+/// keys AND values are both rendered (a value commonly forwards an envelope
+/// var · `env: { API_BASE: "${{ env.API_BASE }}" }` per spec 02 §exec).
+fn render_exec_io(
+    input: &mut ExecInput,
+    action: &nika_schema::raw::RawExecAction,
+    scope: &Scope<'_>,
+) -> Result<(), RuntimeError> {
+    input.cwd = render_opt(action.cwd.as_ref(), scope)?.map(std::path::PathBuf::from);
+    input.stdin = render_opt(action.stdin.as_ref(), scope)?;
+    for (key, value) in &action.env {
+        let k = expr::render(&key.value, scope)?;
+        let v = expr::render(&value.value, scope)?;
+        input.env.insert(k, v);
+    }
+    Ok(())
+}
+
 /// The leading program token of a shell command line (for the display note +
 /// identity), skipping leading `NAME=value` env assignments — `FOO=bar git`
 /// → `git`, matching the static `permits_fit::leading_program` so the note
@@ -458,5 +486,81 @@ fn check_exec_permits(
             note,
             "exec permit form not understood by this engine version",
         )),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use nika_schema::raw::{RawCommand, RawExecAction};
+    use nika_schema::{Span, Spanned};
+    use nika_verb_exec::ExecInput;
+    use serde_json::Value;
+
+    use super::{Scope, render_exec_io};
+
+    fn spanned(s: &str) -> Spanned<String> {
+        Spanned::new(s.to_owned(), Span::default())
+    }
+
+    #[test]
+    fn exec_cwd_env_stdin_render_onto_the_input() {
+        // The Findings #3/#4 regression: the parser captured cwd/env/stdin
+        // but dispatch dropped them. All three resolve `${{ }}` and land on
+        // the ExecInput the verb spawns from.
+        let records = BTreeMap::new();
+        let vars = BTreeMap::from([
+            ("dir".to_owned(), Value::String("./engine".to_owned())),
+            ("base".to_owned(), Value::String("https://x".to_owned())),
+            ("payload".to_owned(), Value::String("hello".to_owned())),
+        ]);
+        let scope = Scope::workflow(&records, &vars);
+
+        let mut action = RawExecAction::with_command(RawCommand::Shell(spanned("printenv")));
+        action.cwd = Some(spanned("${{ vars.dir }}"));
+        action.env = vec![
+            (spanned("API_BASE"), spanned("${{ vars.base }}")),
+            (spanned("STATIC"), spanned("lit")),
+        ];
+        action.stdin = Some(spanned("${{ vars.payload }}"));
+
+        let mut input = ExecInput::shell("printenv");
+        render_exec_io(&mut input, &action, &scope).expect("renders");
+
+        assert_eq!(input.cwd.as_deref(), Some(std::path::Path::new("./engine")));
+        assert_eq!(input.stdin.as_deref(), Some("hello"));
+        assert_eq!(
+            input.env.get("API_BASE").map(String::as_str),
+            Some("https://x")
+        );
+        assert_eq!(input.env.get("STATIC").map(String::as_str), Some("lit"));
+    }
+
+    #[test]
+    fn absent_exec_io_leaves_the_input_at_its_defaults() {
+        let records = BTreeMap::new();
+        let vars = BTreeMap::new();
+        let scope = Scope::workflow(&records, &vars);
+        let action = RawExecAction::with_command(RawCommand::Shell(spanned("true")));
+        let mut input = ExecInput::shell("true");
+        render_exec_io(&mut input, &action, &scope).expect("renders");
+        assert!(input.cwd.is_none(), "no cwd → inherited");
+        assert!(input.stdin.is_none(), "no stdin");
+        assert!(input.env.is_empty(), "no env → inherited only");
+    }
+
+    #[test]
+    fn a_bad_template_in_exec_io_is_a_loud_error() {
+        // An unresolvable reference in cwd/env/stdin must surface, not be
+        // swallowed (the loud doctrine · same class as a bad command).
+        let records = BTreeMap::new();
+        let vars = BTreeMap::new();
+        let scope = Scope::workflow(&records, &vars);
+        let mut action = RawExecAction::with_command(RawCommand::Shell(spanned("true")));
+        action.cwd = Some(spanned("${{ vars.nope }}"));
+        let mut input = ExecInput::shell("true");
+        assert!(render_exec_io(&mut input, &action, &scope).is_err());
     }
 }
