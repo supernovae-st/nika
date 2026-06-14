@@ -224,10 +224,12 @@ fn request_body(
 /// `additionalProperties:false` and (2) sets `required` to ALL declared
 /// property keys — a field the author left out of `required` is made
 /// *nullable* (`"type":[T,"null"]`, `OpenAI`'s documented optional
-/// workaround) rather than dropped, so optionality survives. The walk
-/// descends into `properties.*`, `items` (single + tuple/`prefixItems`),
-/// every `$defs`/`definitions` entry, and the `anyOf`/`allOf`/`oneOf`
-/// branches.
+/// workaround) rather than dropped, so optionality survives. On every node
+/// it also rewrites `oneOf` → `anyOf` (`OpenAI` strict rejects `oneOf` with
+/// HTTP 400 "'oneOf' is not permitted"; a well-formed `anyOf` is accepted
+/// by both `OpenAI` and gemini). The walk descends into `properties.*`,
+/// `items` (single + tuple/`prefixItems`), every `$defs`/`definitions`
+/// entry, and the `anyOf`/`allOf`/`oneOf` branches.
 fn normalize_strict_schema(schema: &Value) -> Value {
     let mut out = schema.clone();
     normalize_node(&mut out);
@@ -240,8 +242,27 @@ fn normalize_node(node: &mut Value) {
         return;
     };
     descend_subschemas(obj);
+    rename_oneof_to_anyof(obj);
     if obj.get("type").and_then(Value::as_str) == Some("object") {
         tighten_object(obj);
+    }
+}
+
+/// `oneOf` → `anyOf` (`OpenAI` strict permits `anyOf`, not `oneOf`). Runs
+/// after [`descend_subschemas`], so the branches are already normalized;
+/// this only swaps the keyword. If the node already carries an `anyOf`, the
+/// `oneOf` branches are appended to it (both forms must hold under
+/// JSON-Schema, and `anyOf`'s "at least one" is the accepted superset of
+/// `oneOf`'s "exactly one") — either way no `oneOf` survives.
+fn rename_oneof_to_anyof(obj: &mut serde_json::Map<String, Value>) {
+    let Some(Value::Array(one_of)) = obj.remove("oneOf") else {
+        return;
+    };
+    match obj.get_mut("anyOf").and_then(Value::as_array_mut) {
+        Some(any_of) => any_of.extend(one_of),
+        None => {
+            obj.insert("anyOf".to_owned(), Value::Array(one_of));
+        }
     }
 }
 
@@ -1044,6 +1065,79 @@ mod tests {
         assert_eq!(
             body["response_format"]["json_schema"]["schema"], nested,
             "peer schema is byte-for-byte the author's"
+        );
+    }
+
+    // ── BUG#7 · oneOf → anyOf for openai strict (Gate 2 parity) ──
+
+    #[test]
+    fn strict_rewrites_oneof_to_anyof_in_a_property() {
+        // gemini accepts oneOf; openai 400s "'oneOf' is not permitted". The
+        // property's oneOf must reach the wire as anyOf, with no oneOf left.
+        let out = strict_schema(json!({
+            "type": "object",
+            "required": ["result"],
+            "properties": {
+                "result": {
+                    "oneOf": [
+                        {"type": "object", "required": ["card_last4"],
+                         "properties": {"card_last4": {"type": "string"}}},
+                        {"type": "object", "required": ["bank_account"],
+                         "properties": {"bank_account": {"type": "string"}}}
+                    ]
+                }
+            }
+        }));
+        let result = &out["properties"]["result"];
+        assert!(result.get("oneOf").is_none(), "no oneOf survives: {result}");
+        let branches = result["anyOf"].as_array().expect("anyOf array");
+        assert_eq!(branches.len(), 2, "both branches preserved");
+        // the branches were normalized too: each object got tightened.
+        assert_eq!(branches[0]["additionalProperties"], false);
+        assert_eq!(branches[0]["required"], json!(["card_last4"]));
+    }
+
+    #[test]
+    fn strict_rewrites_nested_oneof_recursively() {
+        // a oneOf nested inside a oneOf branch is also rewritten.
+        let out = strict_schema(json!({
+            "type": "object",
+            "required": ["x"],
+            "properties": {
+                "x": {
+                    "oneOf": [
+                        {"oneOf": [
+                            {"type": "string"},
+                            {"type": "integer"}
+                        ]},
+                        {"type": "boolean"}
+                    ]
+                }
+            }
+        }));
+        let x = &out["properties"]["x"];
+        assert!(x.get("oneOf").is_none());
+        let inner = &x["anyOf"][0];
+        assert!(
+            inner.get("oneOf").is_none(),
+            "nested oneOf rewritten: {inner}"
+        );
+        assert!(inner["anyOf"].is_array());
+    }
+
+    #[test]
+    fn strict_merges_oneof_into_existing_anyof() {
+        // pathological author: both anyOf and oneOf on one node. The oneOf
+        // branches fold into anyOf so no oneOf reaches the wire.
+        let out = strict_schema(json!({
+            "anyOf": [{"type": "string"}],
+            "oneOf": [{"type": "integer"}, {"type": "boolean"}]
+        }));
+        assert!(out.get("oneOf").is_none(), "oneOf gone");
+        assert_eq!(
+            out["anyOf"].as_array().expect("anyOf").len(),
+            3,
+            "1 original anyOf + 2 folded oneOf branches"
         );
     }
 
