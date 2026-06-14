@@ -148,7 +148,13 @@ fn file_defs() -> Vec<ToolDef> {
             "Glob match · returns paths sorted lexicographically.",
             serde_json::json!({
                 "pattern": s("e.g. ./src/**/*.rs"),
-                "exclude": { "type": "array", "items": {"type": "string"} }
+                "exclude": {
+                    "description": "a glob pattern or a list of them to drop from the result",
+                    "oneOf": [
+                        { "type": "string" },
+                        { "type": "array", "items": {"type": "string"} }
+                    ]
+                }
             }),
             &["pattern"],
         ),
@@ -233,7 +239,7 @@ fn data_defs() -> Vec<ToolDef> {
                 "format": s("strftime grammar e.g. %Y-%m-%d (format/parse)"),
                 "start": s("ISO 8601 (diff)"),
                 "end": s("ISO 8601 (diff)"),
-                "unit": s("seconds (default) | milliseconds | minutes | hours | days (diff)")
+                "unit": s("seconds (default) | milliseconds | minutes | hours | days | weeks (diff)")
             }),
             &["op"],
         ),

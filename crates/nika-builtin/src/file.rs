@@ -168,15 +168,18 @@ pub(crate) async fn glob<F: FsListDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
     ))
 }
 
+/// Read `exclude:` as either a single pattern string OR a list of them
+/// (both spec-legal — a one-pattern exclude is the common case and was
+/// silently dropped when only arrays were read).
 fn exclude_patterns(args: &Args) -> Vec<String> {
-    args.get("exclude")
-        .and_then(serde_json::Value::as_array)
-        .map(|a| {
-            a.iter()
-                .filter_map(|v| v.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default()
+    match args.get("exclude") {
+        Some(serde_json::Value::String(s)) => vec![s.clone()],
+        Some(serde_json::Value::Array(a)) => a
+            .iter()
+            .filter_map(|v| v.as_str().map(str::to_owned))
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 /// A minimal `**`/`*` glob for the exclude filter (`**` crosses `/`,
@@ -513,14 +516,43 @@ mod tests {
         assert_eq!(paths, vec!["./keep.rs"], "drop.rs excluded");
     }
 
+    #[tokio::test]
+    async fn glob_exclude_accepts_a_bare_string() {
+        // The Finding #5 fix: a single-pattern `exclude:` string (the
+        // natural one-pattern form) was silently dropped when only arrays
+        // were read.
+        let fs = MockFs::new()
+            .with_file("./keep.rs", "")
+            .with_file("./drop.rs", "");
+        let out = glob(
+            &fs,
+            &args(serde_json::json!({ "pattern": "**", "exclude": "**drop**" })),
+        )
+        .await
+        .expect("ok");
+        let paths: Vec<&str> = out
+            .as_array()
+            .expect("array")
+            .iter()
+            .map(|v| v.as_str().expect("string"))
+            .collect();
+        assert_eq!(paths, vec!["./keep.rs"], "string exclude drops drop.rs");
+    }
+
     #[test]
-    fn exclude_patterns_reads_the_array() {
+    fn exclude_patterns_reads_string_or_array() {
         let none = exclude_patterns(&args(serde_json::json!({})));
         assert!(none.is_empty(), "absent exclude = empty");
-        let some = exclude_patterns(&args(
+        let one = exclude_patterns(&args(serde_json::json!({ "exclude": "**/target/**" })));
+        assert_eq!(
+            one,
+            vec!["**/target/**".to_owned()],
+            "bare string → one pattern"
+        );
+        let many = exclude_patterns(&args(
             serde_json::json!({ "exclude": ["**/target/**", "*.tmp"] }),
         ));
-        assert_eq!(some, vec!["**/target/**".to_owned(), "*.tmp".to_owned()]);
+        assert_eq!(many, vec!["**/target/**".to_owned(), "*.tmp".to_owned()]);
     }
 
     #[test]

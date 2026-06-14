@@ -490,10 +490,15 @@ fn date_diff(args: &Args) -> BuiltinOutcome {
         "minutes" => dur.as_secs() / 60,
         "hours" => dur.as_secs() / 3600,
         "days" => dur.as_secs() / 86_400,
+        // weeks is a fixed 7-day span (a calendar-independent unit · like
+        // days). months/years are deliberately absent — they are not a
+        // fixed Duration (a reference instant decides their length), so
+        // diff cannot answer them; `add`/`subtract` take ISO 8601 P1M/P1Y.
+        "weeks" => dur.as_secs() / 604_800,
         other => {
             return Err(BuiltinFailure::new(
                 DATE_CODE,
-                format!("unknown unit `{other}` (seconds|milliseconds|minutes|hours|days)"),
+                format!("unknown unit `{other}` (seconds|milliseconds|minutes|hours|days|weeks)"),
             ));
         }
     };
@@ -1071,7 +1076,19 @@ mod tests {
         assert_eq!(diff_in("minutes").expect("ok"), serde_json::json!(1530));
         assert_eq!(diff_in("hours").expect("ok"), serde_json::json!(25));
         assert_eq!(diff_in("days").expect("ok"), serde_json::json!(1));
+        // weeks is a fixed 7-day span (this 25h30m fixture floors to 0).
+        assert_eq!(diff_in("weeks").expect("ok"), serde_json::json!(0));
         assert!(diff_in("fortnights").is_err());
+        // A genuine multi-week span floors to whole weeks.
+        let three_weeks = date(
+            &clock,
+            &args(serde_json::json!({
+                "op": "diff", "start": "2026-01-01T00:00:00Z",
+                "end": "2026-01-23T00:00:00Z", "unit": "weeks"
+            })),
+        )
+        .expect("ok");
+        assert_eq!(three_weeks, serde_json::json!(3), "22 days = 3 whole weeks");
         // Negative when end precedes start (signed integer semantics).
         let negative = date(
             &clock,

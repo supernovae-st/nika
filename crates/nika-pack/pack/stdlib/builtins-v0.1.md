@@ -145,7 +145,9 @@ nothing is an authoring bug · `tool_error`) · `-002` (IO failure).
 invoke: { tool: "nika:glob", args: { pattern: "./src/**/*.rs", exclude: ["**/target/**"] } }
 ```
 Glob match · returns array of paths · **sorted lexicographically**
-(deterministic across engines · filesystems). Throws ·
+(deterministic across engines · filesystems). `exclude` is a glob pattern
+**or a list of them** (`exclude: "**/target/**"` and `exclude:
+["**/target/**", "*.tmp"]` both filter the result set). Throws ·
 `NIKA-BUILTIN-GLOB-001` (invalid pattern · `validation_error`).
 
 ### `nika:grep`
@@ -233,7 +235,7 @@ Generate a UUID. (Generators are not jq · jq is pure transform.) Returns the ca
 invoke: { tool: "nika:date", args: { op: now } }
 # op: now { tz } | add { base, duration } | subtract | format { input, format } | parse | diff { start, end, unit }
 ```
-Timestamp arithmetic · op-discriminated single builtin · timezone-aware (IANA · default UTC) · ISO 8601 out. `format:`/`parse` use the **strftime** field grammar (`%Y-%m-%d` · the one cross-language constant). Every op returns a string EXCEPT `diff` (integer · in `unit:`). Throws · `NIKA-BUILTIN-DATE-001` (unparseable input / unknown op / bad tz · `validation_error`).
+Timestamp arithmetic · op-discriminated single builtin · timezone-aware (IANA · default UTC) · ISO 8601 out. `format:`/`parse` use the **strftime** field grammar (`%Y-%m-%d` · the one cross-language constant). Every op returns a string EXCEPT `diff` (integer · in `unit:` · one of `seconds` (default) `milliseconds` `minutes` `hours` `days` `weeks` — all fixed spans; `months`/`years` are not fixed Durations, use `add`/`subtract` with `P1M`/`P1Y`). Throws · `NIKA-BUILTIN-DATE-001` (unparseable input / unknown op / bad tz · `validation_error`).
 
 ### `nika:hash`
 ```yaml
