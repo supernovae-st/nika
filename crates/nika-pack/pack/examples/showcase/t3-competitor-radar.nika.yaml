@@ -27,6 +27,9 @@ secrets:
   team_webhook:
     source: env
     key: TEAM_WEBHOOK_URL
+    egress:                       # sanction the one send · the secret IS the URL
+      - to: "nika:notify"
+        host_from_self: true
 
 tasks:
   - id: map

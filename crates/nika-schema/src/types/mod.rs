@@ -29,6 +29,6 @@ pub use output_decl::OutputDecl;
 pub use permits::{ExecPermit, FsPermits, NetPermits, Permits};
 pub use retry::{BackoffStrategy, RetryConfig, is_valid_error_code};
 pub use schema_version::SchemaVersion;
-pub use secret::{SecretRef, SecretSource};
+pub use secret::{EgressRule, SecretRef, SecretSource};
 pub use var_decl::{VarDecl, VarType};
 pub use when_gate::WhenGate;

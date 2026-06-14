@@ -30,7 +30,9 @@ use std::collections::BTreeMap;
 
 use crate::expression::{NamespaceRef, expr_refs, scan_templates};
 use crate::raw::{RawAction, RawTask, RawWorkflow};
-use crate::types::OutputDecl;
+use crate::types::{EgressRule, OutputDecl, Permits};
+
+use super::declass;
 
 /// How a value became `Secret` — the chain from the originating secret to
 /// the current slot, for auditable diagnostics (« via `with.tok` ← via
@@ -76,33 +78,54 @@ impl TaintTrace {
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct FlowFacts {
-    /// Task index → the taint reaching its EFFECT (`None` = clean). The
-    /// leak sink: an `exec`/`invoke` with `Some` re-emits a secret.
+    /// Task index → the taint reaching its EFFECT (`None` = clean). This
+    /// is the PROPAGATION fact — it feeds `output_taint` regardless of any
+    /// egress sanction (a sanctioned egress still lets the captured output
+    /// embed the secret · the sanction clears the SEND, not the capture).
+    /// The REPORTABLE leak is [`Self::effect_leak`] (sanction-filtered).
     effect_taint: BTreeMap<usize, TaintTrace>,
+    /// Task index → the UNSANCTIONED effect leak (what `scan_leaks`
+    /// reports). A secret reaching an `exec`/`invoke` effect whose egress
+    /// is NOT author-sanctioned (declass · ADR-092). A sanctioned egress
+    /// is in `effect_taint` (propagation) but absent here (no leak).
+    effect_leak: BTreeMap<usize, TaintTrace>,
     /// Task index → the taint of its OUTPUT (`tasks.<id>.output`).
     output_taint: BTreeMap<usize, TaintTrace>,
-    /// Owner task index → the taint reaching one of its `on_finally`
-    /// cleanup effects, with the sink kind (`exec`/`invoke`) for the
-    /// report. Cleanups run under the same boundary and ALWAYS run.
-    finally_effect_taint: BTreeMap<usize, (TaintTrace, &'static str)>,
+    /// Owner task index → the FIRST UNSANCTIONED taint reaching one of its
+    /// `on_finally` cleanup effects, with the sink kind (`exec`/`invoke`)
+    /// and the cleanup's index within `on_finally`. A cleanup whose egress
+    /// is author-sanctioned (declass · ADR-092) is skipped here exactly
+    /// like a sanctioned main effect. Cleanups run under the same boundary
+    /// and ALWAYS run.
+    finally_effect_taint: BTreeMap<usize, (TaintTrace, &'static str, usize)>,
     /// Workflow `outputs:` entry name → the taint reaching it (egress).
     egress: BTreeMap<String, TaintTrace>,
 }
 
 impl FlowFacts {
-    /// The taint reaching `task`'s effect, if any (the leak sink).
+    /// The taint reaching `task`'s effect, if any — the PROPAGATION fact
+    /// (drives output taint · independent of any egress sanction).
     #[must_use]
     pub fn effect_taint(&self, task: usize) -> Option<&TaintTrace> {
         self.effect_taint.get(&task)
     }
 
-    /// The taint reaching one of `task`'s `on_finally` cleanup effects,
-    /// with the sink kind (`exec`/`invoke`).
+    /// The UNSANCTIONED effect leak of `task`, if any — what `scan_leaks`
+    /// reports. `Some` ⇒ a secret reaches the effect AND its egress is not
+    /// author-sanctioned (declass · ADR-092).
     #[must_use]
-    pub fn finally_effect_taint(&self, task: usize) -> Option<(&TaintTrace, &'static str)> {
+    pub fn effect_leak(&self, task: usize) -> Option<&TaintTrace> {
+        self.effect_leak.get(&task)
+    }
+
+    /// The taint reaching one of `task`'s `on_finally` cleanup effects,
+    /// with the sink kind (`exec`/`invoke`) and the cleanup's index within
+    /// `on_finally` (the declassification check reads that exact action).
+    #[must_use]
+    pub fn finally_effect_taint(&self, task: usize) -> Option<(&TaintTrace, &'static str, usize)> {
         self.finally_effect_taint
             .get(&task)
-            .map(|(trace, sink)| (trace, *sink))
+            .map(|(trace, sink, cleanup_idx)| (trace, *sink, *cleanup_idx))
     }
 
     /// Every workflow-output egress (name → trace), sorted by name.
@@ -121,6 +144,14 @@ pub(super) fn analyze_flow(wf: &RawWorkflow, waves: &[Vec<usize>]) -> FlowFacts 
     if declared.is_empty() {
         return facts; // no secrets declared → nothing can be tainted
     }
+    // The per-secret egress policy (declass · ADR-092) — looked up by name
+    // at every leak edge. Empty list / absent = default-deny.
+    let egress_of: BTreeMap<&str, &[EgressRule]> = wf
+        .secrets
+        .iter()
+        .map(|(n, s)| (n.value.as_str(), s.value.egress.as_slice()))
+        .collect();
+    let permits = wf.permits.as_ref().map(|p| &p.value);
     let id_of: BTreeMap<&str, usize> = wf
         .tasks
         .iter()
@@ -132,7 +163,9 @@ pub(super) fn analyze_flow(wf: &RawWorkflow, waves: &[Vec<usize>]) -> FlowFacts 
     for wave in waves {
         for &idx in wave {
             let task = &wf.tasks[idx].value;
-            propagate_task(idx, task, &declared, &id_of, &mut facts);
+            propagate_task(
+                idx, task, &declared, &egress_of, permits, &id_of, &mut facts,
+            );
         }
     }
 
@@ -161,6 +194,8 @@ fn propagate_task(
     idx: usize,
     task: &RawTask,
     declared: &[&str],
+    egress_of: &BTreeMap<&str, &[EgressRule]>,
+    permits: Option<&Permits>,
     id_of: &BTreeMap<&str, usize>,
     facts: &mut FlowFacts,
 ) {
@@ -201,7 +236,15 @@ fn propagate_task(
             )
         });
     if let Some(trace) = &effect {
+        // Propagation fact (always · feeds output taint below).
         facts.effect_taint.insert(idx, trace.clone());
+        // Reportable leak — UNLESS this secret's egress sanctions this sink
+        // (declass · L1∧L2∧L3). A sanctioned egress propagates but is no
+        // leak (the author cleared the SEND; the capture stays tainted).
+        let egress = egress_of.get(trace.secret.as_str()).copied().unwrap_or(&[]);
+        if !declass::is_sanctioned(&trace.secret, egress, &task.action, permits) {
+            facts.effect_leak.insert(idx, trace.clone());
+        }
     }
 
     // 4. Output taint: an exec/invoke whose effect saw taint can embed it in
@@ -213,11 +256,40 @@ fn propagate_task(
             .insert(idx, trace.via(format!("tasks.{}.output", task.id.value)));
     }
 
-    // 5. `on_finally` cleanup effects are sinks too — a cleanup exec/invoke
-    //    that sees a secret re-emits it exactly like a main effect (and a
-    //    cleanup ALWAYS runs). Same env (with/item resolve identically);
-    //    cleanups have no addressable output, so no output taint from here.
-    for cleanup in &task.on_finally {
+    // 5. `on_finally` cleanup effects are sinks too (extracted for the
+    //    100-LOC fn cap · same env / same declass filter as the main effect).
+    propagate_cleanups(
+        idx,
+        task,
+        declared,
+        egress_of,
+        permits,
+        &with_taint,
+        item_taint.as_ref(),
+        id_of,
+        facts,
+    );
+}
+
+/// Record the FIRST UNSANCTIONED `on_finally` cleanup leak of a task. A
+/// cleanup `exec`/`invoke` that sees a secret re-emits it exactly like a
+/// main effect (and a cleanup ALWAYS runs). Same `with`/`item` env;
+/// cleanups have no addressable output, so no output taint here. A cleanup
+/// whose egress is author-sanctioned is skipped (declass · ADR-092), and
+/// scanning continues so a sanctioned cleanup never masks a later leak.
+#[allow(clippy::too_many_arguments)] // the IFC pass threads a wide context
+fn propagate_cleanups(
+    idx: usize,
+    task: &RawTask,
+    declared: &[&str],
+    egress_of: &BTreeMap<&str, &[EgressRule]>,
+    permits: Option<&Permits>,
+    with_taint: &BTreeMap<&str, TaintTrace>,
+    item_taint: Option<&TaintTrace>,
+    id_of: &BTreeMap<&str, usize>,
+    facts: &mut FlowFacts,
+) {
+    for (cleanup_idx, cleanup) in task.on_finally.iter().enumerate() {
         if facts.finally_effect_taint.contains_key(&idx) {
             break; // any one tainted cleanup is enough to flag the task
         }
@@ -232,15 +304,25 @@ fn propagate_task(
             taint_of_refs_full(
                 refs_in_str(text),
                 declared,
-                &with_taint,
-                item_taint.as_ref(),
+                with_taint,
+                item_taint,
                 id_of,
                 facts,
             )
         }) {
+            // A cleanup whose egress is author-sanctioned is no leak — skip
+            // it (and keep scanning later cleanups for a real one).
+            let egress = egress_of.get(trace.secret.as_str()).copied().unwrap_or(&[]);
+            if declass::is_sanctioned(&trace.secret, egress, action, permits) {
+                continue;
+            }
             facts.finally_effect_taint.insert(
                 idx,
-                (trace.via(format!("on_finally @ {}", task.id.value)), sink),
+                (
+                    trace.via(format!("on_finally @ {}", task.id.value)),
+                    sink,
+                    cleanup_idx,
+                ),
             );
         }
     }
@@ -439,7 +521,7 @@ mod tests {
             f.effect_taint(idx(&wf, "t")).is_none(),
             "the MAIN effect is clean"
         );
-        let (trace, sink) = f
+        let (trace, sink, _cleanup_idx) = f
             .finally_effect_taint(idx(&wf, "t"))
             .expect("cleanup taint caught");
         assert_eq!(sink, "exec");

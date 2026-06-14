@@ -25,7 +25,7 @@ model: ollama/llama3.1      # PII stays on the machine · the whole screen is of
 permits:                    # the file IS the blast radius · no net category at all —
   fs:                       # CVs cannot leave this machine even if a prompt is hijacked
     read: ["./hiring/inbox/**"]
-    write: ["./hiring/out/**"]
+    write: ["./hiring/out/**", "./hiring/shortlist-brief.md"]
   tools: ["nika:glob", "nika:read", "nika:jq", "nika:write"]
 
 vars:

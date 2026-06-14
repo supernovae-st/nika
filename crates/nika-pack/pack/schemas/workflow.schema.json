@@ -134,6 +134,37 @@
           "path": {
             "type": "string",
             "description": "File path · file source only · contents read at resolve time · masked."
+          },
+          "egress": {
+            "type": "array",
+            "description": "Sanctioned destinations for this secret · declassification (spec/01-envelope.md §egress) · absent/empty = default-deny (every exec:/invoke: reach is a leak).",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "to"
+              ],
+              "properties": {
+                "to": {
+                  "type": "string",
+                  "description": "The sanctioned sink · a tool id (`nika:fetch` · `nika:notify` · `mcp:<server>/<tool>`) or `exec` · SPECIFIC (no cross-tool laundering)."
+                },
+                "host": {
+                  "type": "string",
+                  "description": "Static-literal destination host · sanctions only when the sink's destination arg is exactly this host (a templated host stays the runtime check). Mutually exclusive with host_from_self."
+                },
+                "host_from_self": {
+                  "type": "boolean",
+                  "description": "The secret value IS the destination URL (host unknown statically) · sanctions only the direct-secret-URL shape with the non-occlusion guard. Mutually exclusive with host."
+                }
+              },
+              "not": {
+                "required": [
+                  "host",
+                  "host_from_self"
+                ]
+              }
+            }
           }
         },
         "allOf": [
@@ -167,7 +198,7 @@
             }
           }
         ],
-        "description": "A secret is a reference to a store · discriminated by source · vault/env require key · file requires path (spec/01-envelope.md)."
+        "description": "A secret is a reference to a store · discriminated by source · vault/env require key · file requires path · optional egress: sanctioned-destination list (spec/01-envelope.md)."
       }
     },
     "permits": {

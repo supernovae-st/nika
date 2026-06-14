@@ -247,6 +247,57 @@ config in `env:` (appears in logs), masked references in `secrets:` (never
 logged) — note `source: env` reads a *secret* from an env var and still masks
 it, which is different from the plain `env:` block.
 
+#### `egress` · *optional · sanctioned destinations (declassification)*
+
+By default, a `secrets.<name>` value reaching an `exec:` or `invoke:` effect
+is a **blocking leak** — the engine masks its own output but cannot follow a
+secret a subprocess or tool re-emits (`nika check` reports it · the workflow
+is refused). `infer:`/`agent:` prompts are the one exception: a secret there
+is **provider-bound** (you chose the provider · the model is not a verbatim
+echo), so it is never a leak.
+
+But legitimate workflows MUST send a secret to other sinks — a webhook-URL
+secret to `nika:notify`, an API key in a `nika:fetch` header. The optional
+`egress:` list on a secret **sanctions** exactly those destinations · the
+author declassifies their OWN secret, in-file, statically checkable.
+
+```yaml
+secrets:
+  stripe_key:
+    source: env
+    key: STRIPE_API_KEY
+    egress:
+      - to: "nika:fetch"        # the SPECIFIC sink · a tool id or "exec"
+        host: "api.stripe.com"  # the static-literal destination host
+  slack_webhook:
+    source: env
+    key: SLACK_WEBHOOK_URL
+    egress:
+      - to: "nika:notify"
+        host_from_self: true    # the secret value IS the URL (host unknown statically)
+```
+
+**Default-deny.** An absent / empty `egress:` is the current behavior,
+unchanged — NO sanctioned egress, every `exec:`/`invoke:` reach is a leak.
+
+**Semantics (normative) · a secret→sink edge is sanctioned iff ALL hold** ·
+
+| Layer | Rule |
+|---|---|
+| **① confidentiality** | the sink's tool id (or `exec`) equals an `egress[].to:`. `to:` is SPECIFIC — a clearance for `nika:fetch` never authorizes `exec` (no cross-tool laundering). |
+| **② integrity** | for a network sink, either `host:` equals the effect's **static-literal** destination host (a templated `${{ }}`-derived host does NOT sanction · it stays the runtime check), OR `host_from_self: true` AND the destination arg is **exactly** `${{ secrets.<this> }}` (not concatenated) AND **no other secret co-occurs** in the same effect payload. A sink with no addressable host (`{ to }` alone) clears this layer. |
+| **③ capability** | when a [`permits:`](#permits--optional--the-declared-capability-boundary) block is present and the host is statically known, the host MUST ALSO be in `permits.net.http` — `egress:` NARROWS the capability boundary, never widens it. `host_from_self` (host unknown statically) degrades to the runtime `permits` check. |
+
+`to:` is required. `host:` and `host_from_self:` are mutually exclusive (a host
+is a literal you can check OR the secret itself, never both). Sanctioning the
+egress clears the **send**, not the **capture** — a sanctioned `exec:`/tool can
+still embed the secret in its captured output, so that output stays tainted and
+re-leaks if it reaches an unsanctioned sink downstream.
+
+The general untrusted→decision integrity lattice (full taint of attacker-controlled
+inputs into security decisions) is a documented follow-up; the static guards
+above cover the main injection / laundering vectors with the existing analysis.
+
 ### `permits` · *optional · the declared capability boundary*
 
 ```yaml

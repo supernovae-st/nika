@@ -30,6 +30,9 @@ secrets:
   oncall_webhook:
     source: env
     key: ONCALL_WEBHOOK_URL
+    egress:                       # sanction the on_finally ping · the secret IS the URL
+      - to: "nika:notify"
+        host_from_self: true
 
 tasks:
   # ── the gather wave · all three run in parallel ──

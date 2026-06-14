@@ -26,6 +26,9 @@ secrets:
   alerts_webhook:
     source: env
     key: ALERTS_WEBHOOK_URL
+    egress:                       # sanction the one send · the secret IS the URL
+      - to: "nika:notify"
+        host_from_self: true
 
 tasks:
   - id: check

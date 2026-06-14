@@ -30,6 +30,7 @@
 mod analysis;
 mod certificate;
 mod cost;
+mod declass;
 mod flow;
 mod hints;
 mod infer_permits;

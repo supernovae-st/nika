@@ -45,7 +45,7 @@ showcase:
     tier: T1
     description: "Watch a product price, ping me when it drops below my target"
     constructs: [output, outputs, secrets, when]
-    sha256_16: 3c71467d94369e51
+    sha256_16: f5f4db9a30dec82f
   - file: examples/showcase/t1-social-repurpose.nika.yaml
     workflow: social-repurpose
     tier: T1
@@ -81,7 +81,7 @@ showcase:
     tier: T2
     description: "git log \u2192 typed release notes \u2192 CHANGELOG insert \u2192 team ping"
     constructs: [outputs, schema, secrets]
-    sha256_16: fd3551bbb8a4d2d0
+    sha256_16: 6920a5f9e8f6644e
   - file: examples/showcase/t2-release-radar.nika.yaml
     workflow: release-radar
     tier: T2
@@ -99,19 +99,19 @@ showcase:
     tier: T2
     description: "Ticket queue \u2192 typed triage \u2192 urgent escalation \u2192 triage board"
     constructs: [outputs, schema, secrets, when]
-    sha256_16: 42f53921166bfc33
+    sha256_16: ce4f9cf6464cb952
   - file: examples/showcase/t3-competitor-radar.nika.yaml
     workflow: competitor-radar
     tier: T3
     description: "Sitemap \u2192 parallel page reads \u2192 one competitive brief + ping"
     constructs: [fail_fast, for_each, max_parallel, on_error, output, outputs, retry, secrets, timeout]
-    sha256_16: 50c5803c438efc6b
+    sha256_16: 104f7e45765c172a
   - file: examples/showcase/t3-config-drift-sentinel.nika.yaml
     workflow: config-drift-sentinel
     tier: T3
     description: "live config vs sanctioned baseline \u2192 typed drift \u2192 explained alert"
     constructs: [on_error, outputs, retry, secrets, typed_vars, when]
-    sha256_16: 5ac8c0dffa4fdf87
+    sha256_16: 284539f24ef96388
   - file: examples/showcase/t3-localization-factory.nika.yaml
     workflow: localization-factory
     tier: T3
@@ -129,13 +129,13 @@ showcase:
     tier: T3
     description: "glob CVs \u2192 local-model rubric per candidate \u2192 deterministic shortlist"
     constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, when, with]
-    sha256_16: 8028588c35ff1c68
+    sha256_16: ecdb3c05f653bef4
   - file: examples/showcase/t4-ceo-monday-brief.nika.yaml
     workflow: ceo-monday-brief
     tier: T4
     description: "news + repo pulse + KPIs \u2192 thinking synthesis \u2192 dated brief + cost ping"
     constructs: [on_finally, output, outputs, secrets, thinking]
-    sha256_16: 59239dd8607a6f84
+    sha256_16: a006327358e1380c
   - file: examples/showcase/t4-deep-research-brief.nika.yaml
     workflow: deep-research-brief
     tier: T4
@@ -147,10 +147,10 @@ showcase:
     tier: T4
     description: "parallel evidence \u2192 typed timeline \u2192 settle + recheck \u2192 postmortem draft"
     constructs: [capture, on_finally, outputs, retry, schema, secrets, thinking, when]
-    sha256_16: 63e0a14fe6376014
+    sha256_16: 2e1a3d80ebcebb64
   - file: examples/showcase/t4-release-train.nika.yaml
     workflow: release-train
     tier: T4
     description: "parallel gates \u2192 human GO \u2192 hold until the window \u2192 ship \u00b7 verify \u00b7 record"
     constructs: [capture, on_finally, outputs, retry, secrets, timeout, typed_vars, when]
-    sha256_16: a95ba8b6b7123534
+    sha256_16: b12de28f818a65af

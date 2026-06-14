@@ -10,8 +10,8 @@ use marked_yaml::types::MarkedMappingNode;
 use crate::error::SchemaError;
 use crate::source::Spanned;
 use crate::types::{
-    ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, SecretRef, SecretSource, VarDecl,
-    VarType,
+    EgressRule, ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, SecretRef, SecretSource,
+    VarDecl, VarType,
 };
 
 use super::{Cx, value::json_value};
@@ -20,8 +20,12 @@ use super::{Cx, value::json_value};
 const TYPED_VAR_KEYS: &[&str] = &["type", "required", "default", "description"];
 
 /// Keys of a `secrets:` entry (spec 01 §secrets · `key` XOR `path` ·
-/// discriminated by `source`).
-const SECRET_KEYS: &[&str] = &["source", "key", "path"];
+/// discriminated by `source` · plus the optional `egress:` declass list).
+const SECRET_KEYS: &[&str] = &["source", "key", "path", "egress"];
+
+/// Keys of one `secrets.<name>.egress[]` entry (spec 01 §secrets · the
+/// sanctioned-egress declaration · closed).
+const EGRESS_KEYS: &[&str] = &["to", "host", "host_from_self"];
 
 /// Keys of the typed `outputs:` form (spec 01 §outputs).
 const TYPED_OUTPUT_KEYS: &[&str] = &["value", "type", "description"];
@@ -215,13 +219,131 @@ pub(super) fn parse_secrets(
                 span: cx.span(entry.span()),
             })?;
 
+        // Optional `egress:` declassification list (default-deny · absent
+        // = no sanctioned egress · the current blocking-leak behavior).
+        let egress = parse_egress(cx, entry, &name.value)?;
+
         let span = cx.span_or_zero(entry.span());
         out.push((
             name,
-            Spanned::new(SecretRef::new(source, reference.as_str()), span),
+            Spanned::new(
+                SecretRef::new(source, reference.as_str()).with_egress(egress),
+                span,
+            ),
         ));
     }
     Ok(out)
+}
+
+/// Parse one secret's optional `egress:` list (spec 01 §secrets ·
+/// declassification). Each entry sanctions ONE sink ·
+///
+/// ```yaml
+/// egress:
+///   - to: "nika:fetch"        # the SPECIFIC sink (tool id or "exec")
+///     host: "api.stripe.com"  # a static-literal destination host
+///   - to: "nika:notify"
+///     host_from_self: true    # the secret value IS the URL
+/// ```
+///
+/// `to:` is required. `host:` and `host_from_self:` are mutually exclusive
+/// (a host is either a literal OR the secret itself, never both). Both are
+/// optional — a sink with no addressable host (`exec`) carries neither.
+fn parse_egress(
+    cx: &Cx<'_>,
+    entry: &MarkedMappingNode,
+    secret_name: &str,
+) -> Result<Vec<EgressRule>, SchemaError> {
+    let Some(node) = entry.get_node("egress") else {
+        return Ok(Vec::new());
+    };
+    let Some(seq) = node.as_sequence() else {
+        return Err(SchemaError::BadSecretRef {
+            reason: format!(
+                "secret `{secret_name}` `egress:` must be a list of sanctioned destinations"
+            ),
+            span: cx.span(node.span()),
+        });
+    };
+    let mut rules = Vec::with_capacity(seq.len());
+    for item in seq.iter() {
+        rules.push(parse_egress_rule(cx, item, secret_name)?);
+    }
+    Ok(rules)
+}
+
+/// Parse one `egress[]` entry into an [`EgressRule`].
+fn parse_egress_rule(
+    cx: &Cx<'_>,
+    item: &Node,
+    secret_name: &str,
+) -> Result<EgressRule, SchemaError> {
+    let bad = |reason: String, span: &marked_yaml::Span| SchemaError::BadSecretRef {
+        reason,
+        span: cx.span(span),
+    };
+    let Some(mapping) = item.as_mapping() else {
+        return Err(bad(
+            format!("secret `{secret_name}` `egress:` entry must be a mapping `{{ to, … }}`"),
+            item.span(),
+        ));
+    };
+    cx.check_unknown_keys_always(
+        mapping,
+        EGRESS_KEYS,
+        &format!("secret `{secret_name}` egress entry"),
+    )?;
+
+    // `to:` — REQUIRED · the SPECIFIC sink (tool id or "exec").
+    let to = mapping
+        .get_scalar("to")
+        .ok_or_else(|| {
+            bad(
+                format!(
+                    "secret `{secret_name}` egress entry is missing `to:` \
+                     (the sanctioned sink · a tool id like `nika:fetch` or `exec`)"
+                ),
+                mapping.span(),
+            )
+        })?
+        .as_str()
+        .to_owned();
+
+    // `host_from_self:` — the secret value IS the URL.
+    let host_from_self = match mapping.get_node("host_from_self") {
+        None => false,
+        Some(n) => n
+            .as_scalar()
+            .and_then(marked_yaml::types::MarkedScalarNode::as_bool)
+            .ok_or_else(|| {
+                bad(
+                    format!("secret `{secret_name}` egress `host_from_self:` must be a boolean"),
+                    n.span(),
+                )
+            })?,
+    };
+
+    // `host:` — a static-literal destination host.
+    let host = mapping.get_scalar("host").map(|s| s.as_str().to_owned());
+
+    // `host:` and `host_from_self:` are mutually exclusive — a host is
+    // either a literal we can check statically OR the secret itself, never
+    // both (the two clauses sanction by different rules · §L2).
+    if host.is_some() && host_from_self {
+        return Err(bad(
+            format!(
+                "secret `{secret_name}` egress entry sets BOTH `host:` and `host_from_self:` \
+                 — a host is a literal OR the secret itself, not both"
+            ),
+            mapping.span(),
+        ));
+    }
+
+    Ok(EgressRule {
+        to,
+        host,
+        host_from_self,
+    })
 }
 
 /// Parse `outputs:` — untyped (`name: ${{ … }}`) OR typed
@@ -516,6 +638,128 @@ secrets:
     source: vault
 ";
         let err = parse_strict(yaml).expect_err("missing key");
+        assert!(matches!(err, SchemaError::BadSecretRef { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn secret_without_egress_has_empty_list() {
+        // backward-compat: a plain secret carries no sanctioned egress.
+        let yaml = "secrets:\n  k:\n    source: env\n    key: K\n";
+        let wf = parse_strict(yaml).expect("parse");
+        assert!(wf.secrets[0].1.value.egress.is_empty());
+    }
+
+    #[test]
+    fn egress_literal_host_parses() {
+        let yaml = "\
+secrets:
+  stripe:
+    source: env
+    key: STRIPE_KEY
+    egress:
+      - to: \"nika:fetch\"
+        host: \"api.stripe.com\"
+";
+        let wf = parse_strict(yaml).expect("parse");
+        let egress = &wf.secrets[0].1.value.egress;
+        assert_eq!(egress.len(), 1);
+        assert_eq!(egress[0].to, "nika:fetch");
+        assert_eq!(egress[0].host.as_deref(), Some("api.stripe.com"));
+        assert!(!egress[0].host_from_self);
+    }
+
+    #[test]
+    fn egress_host_from_self_parses() {
+        let yaml = "\
+secrets:
+  hook:
+    source: env
+    key: WEBHOOK
+    egress:
+      - to: \"nika:notify\"
+        host_from_self: true
+";
+        let wf = parse_strict(yaml).expect("parse");
+        let egress = &wf.secrets[0].1.value.egress;
+        assert_eq!(egress.len(), 1);
+        assert_eq!(egress[0].to, "nika:notify");
+        assert!(egress[0].host_from_self);
+        assert_eq!(egress[0].host, None);
+    }
+
+    #[test]
+    fn egress_sink_only_exec_parses() {
+        let yaml = "\
+secrets:
+  tok:
+    source: env
+    key: TOK
+    egress:
+      - to: exec
+";
+        let wf = parse_strict(yaml).expect("parse");
+        let egress = &wf.secrets[0].1.value.egress;
+        assert_eq!(egress[0].to, "exec");
+        assert_eq!(egress[0].host, None);
+        assert!(!egress[0].host_from_self);
+    }
+
+    #[test]
+    fn egress_missing_to_errors() {
+        let yaml = "\
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - host: \"api.x.com\"
+";
+        let err = parse_strict(yaml).expect_err("missing to");
+        assert!(matches!(err, SchemaError::BadSecretRef { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn egress_host_and_host_from_self_are_mutually_exclusive() {
+        let yaml = "\
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - to: \"nika:fetch\"
+        host: \"api.x.com\"
+        host_from_self: true
+";
+        let err = parse_strict(yaml).expect_err("both host clauses");
+        assert!(matches!(err, SchemaError::BadSecretRef { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn egress_unknown_key_errors() {
+        // strict: a typo in an egress entry must not silently widen.
+        let yaml = "\
+secrets:
+  k:
+    source: env
+    key: K
+    egress:
+      - to: \"nika:fetch\"
+        hsot: \"api.x.com\"
+";
+        let err = parse_strict(yaml).expect_err("unknown egress key");
+        assert!(err.to_string().contains("unknown"), "{err}");
+    }
+
+    #[test]
+    fn egress_non_list_errors() {
+        let yaml = "\
+secrets:
+  k:
+    source: env
+    key: K
+    egress: \"nika:fetch\"
+";
+        let err = parse_strict(yaml).expect_err("egress not a list");
         assert!(matches!(err, SchemaError::BadSecretRef { .. }), "{err:?}");
     }
 

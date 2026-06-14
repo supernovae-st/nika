@@ -31,6 +31,9 @@ secrets:
   team_webhook:
     source: env
     key: TEAM_WEBHOOK_URL
+    egress:                       # sanction the on_finally ping · the secret IS the URL
+      - to: "nika:notify"
+        host_from_self: true
 
 tasks:
   - id: t0
