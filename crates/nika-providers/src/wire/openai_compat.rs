@@ -80,8 +80,15 @@ fn build_request(
 ) -> Result<HttpRequest, ProviderError> {
     // stream_options is an OpenAI-cloud extension; the 5 keyless local
     // servers (older llama.cpp/LocalAI builds) may 400 on unknown fields,
-    // so it is gated to key-bearing (cloud) profiles.
-    let body = request_body(&rp.wire_model, req, stream, rp.profile.requires_key)?;
+    // so it is gated to key-bearing (cloud) profiles. The profile id picks
+    // the strict-schema normalization (openai's structured-output dialect).
+    let body = request_body(
+        &rp.wire_model,
+        req,
+        stream,
+        rp.profile.requires_key,
+        rp.profile.id,
+    )?;
     let bytes = serde_json::to_vec(&body).map_err(|e| ProviderError::Other {
         reason: format!("request serialization failed: {e}"),
     })?;
@@ -102,11 +109,18 @@ fn build_request(
 }
 
 /// The JSON body (pure — the unit-testable core).
+///
+/// `provider_id` selects the strict-schema dialect: only `openai` rejects
+/// (HTTP 400) a `strict:true` JSON Schema whose objects omit
+/// `additionalProperties:false` or under-specify `required`, so the
+/// normalization is gated to it (the OpenAI-compatible cloud peers and the
+/// local servers take the author's schema verbatim).
 fn request_body(
     model: &str,
     req: &InferRequest,
     stream: bool,
     cloud_extensions: bool,
+    provider_id: &str,
 ) -> Result<Value, ProviderError> {
     let mut messages = Vec::new();
     for m in &req.messages {
@@ -161,6 +175,16 @@ fn request_body(
             );
         }
         ResponseFormat::JsonSchema(schema) => {
+            // OpenAI's strict mode rejects (HTTP 400) any schema whose
+            // object nodes omit `additionalProperties:false` or whose
+            // `required` does not list every property. Normalize on that
+            // path only — the OpenAI-compatible peers + local servers take
+            // the author's schema as written (gemini has its own adapter).
+            let schema = if provider_id == "openai" {
+                normalize_strict_schema(schema)
+            } else {
+                schema.clone()
+            };
             obj.insert(
                 "response_format".to_owned(),
                 json!({ "type": "json_schema", "json_schema": {
@@ -178,6 +202,126 @@ fn request_body(
         }
     }
     Ok(body)
+}
+
+/// Recursively rewrite a JSON Schema into `OpenAI` strict-mode shape.
+///
+/// On every `"type":"object"` node it (1) injects
+/// `additionalProperties:false` and (2) sets `required` to ALL declared
+/// property keys — a field the author left out of `required` is made
+/// *nullable* (`"type":[T,"null"]`, `OpenAI`'s documented optional
+/// workaround) rather than dropped, so optionality survives. The walk
+/// descends into `properties.*`, `items` (single + tuple/`prefixItems`),
+/// every `$defs`/`definitions` entry, and the `anyOf`/`allOf`/`oneOf`
+/// branches.
+fn normalize_strict_schema(schema: &Value) -> Value {
+    let mut out = schema.clone();
+    normalize_node(&mut out);
+    out
+}
+
+/// In-place strict-mode rewrite of one schema node and its descendants.
+fn normalize_node(node: &mut Value) {
+    let Some(obj) = node.as_object_mut() else {
+        return;
+    };
+    descend_subschemas(obj);
+    if obj.get("type").and_then(Value::as_str) == Some("object") {
+        tighten_object(obj);
+    }
+}
+
+/// Recurse into every child that is itself a schema (the composition +
+/// container keywords). `properties` optionality is handled by the parent
+/// in [`tighten_object`]; here we only recurse to normalize nested objects.
+fn descend_subschemas(obj: &mut serde_json::Map<String, Value>) {
+    if let Some(props) = obj.get_mut("properties").and_then(Value::as_object_mut) {
+        for prop in props.values_mut() {
+            normalize_node(prop);
+        }
+    }
+    // `items` is a single subschema (array element) or a tuple array;
+    // `prefixItems` (2020-12) is always a tuple array.
+    for key in ["items", "prefixItems", "additionalItems"] {
+        match obj.get_mut(key) {
+            Some(Value::Array(items)) => items.iter_mut().for_each(normalize_node),
+            Some(child) => normalize_node(child),
+            None => {}
+        }
+    }
+    for key in ["$defs", "definitions"] {
+        if let Some(defs) = obj.get_mut(key).and_then(Value::as_object_mut) {
+            for def in defs.values_mut() {
+                normalize_node(def);
+            }
+        }
+    }
+    for key in ["anyOf", "allOf", "oneOf"] {
+        if let Some(branches) = obj.get_mut(key).and_then(Value::as_array_mut) {
+            branches.iter_mut().for_each(normalize_node);
+        }
+    }
+}
+
+/// Apply the two object-node invariants: `additionalProperties:false` and
+/// `required` = all property keys (optionals made nullable first).
+fn tighten_object(obj: &mut serde_json::Map<String, Value>) {
+    let all_keys: Vec<String> = obj
+        .get("properties")
+        .and_then(Value::as_object)
+        .map(|p| p.keys().cloned().collect())
+        .unwrap_or_default();
+
+    // Keys the author already marked required keep their type as written;
+    // the rest become nullable so they can stay in `required` (OpenAI's
+    // optional shape) without forcing the model to invent a value.
+    let already: std::collections::BTreeSet<String> = obj
+        .get("required")
+        .and_then(Value::as_array)
+        .map(|r| {
+            r.iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
+    if let Some(props) = obj.get_mut("properties").and_then(Value::as_object_mut) {
+        for (name, prop) in props.iter_mut() {
+            if !already.contains(name) {
+                make_nullable(prop);
+            }
+        }
+    }
+
+    obj.insert("additionalProperties".to_owned(), Value::Bool(false));
+    obj.insert(
+        "required".to_owned(),
+        Value::Array(all_keys.into_iter().map(Value::String).collect()),
+    );
+}
+
+/// Widen a schema node's `type` to include `"null"` (idempotent). A scalar
+/// `"type":"string"` becomes `["string","null"]`; an existing array gains
+/// `"null"` only if absent; a typeless node (e.g. a `$ref`/`anyOf` form) is
+/// left untouched — there is no `type` to widen.
+fn make_nullable(prop: &mut Value) {
+    let Some(obj) = prop.as_object_mut() else {
+        return;
+    };
+    match obj.get_mut("type") {
+        Some(Value::String(t)) => {
+            let widened = vec![
+                Value::String(std::mem::take(t)),
+                Value::String("null".to_owned()),
+            ];
+            obj.insert("type".to_owned(), Value::Array(widened));
+        }
+        Some(Value::Array(types)) => {
+            if !types.iter().any(|v| v.as_str() == Some("null")) {
+                types.push(Value::String("null".to_owned()));
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Kernel message → Chat Completions message(s). `ToolResult` blocks become
@@ -502,12 +646,19 @@ mod tests {
         r.tools = vec![ToolDef::new("add", "adds", json!({"type":"object"}))];
         r.tool_choice = ToolChoice::Specific("add".into());
         r.response_format = ResponseFormat::JsonSchema(json!({"type":"object"}));
-        let body = request_body("m", &r, false, true).expect("body");
+        // groq is an OpenAI-compatible peer: the author's schema is taken
+        // verbatim (only `openai` runs the strict-mode normalizer below).
+        let body = request_body("m", &r, false, true, "groq").expect("body");
         assert_eq!(body["tools"][0]["type"], "function");
         assert_eq!(body["tools"][0]["function"]["name"], "add");
         assert_eq!(body["tool_choice"]["function"]["name"], "add");
         assert_eq!(body["response_format"]["type"], "json_schema");
         assert_eq!(body["response_format"]["json_schema"]["strict"], true);
+        assert_eq!(
+            body["response_format"]["json_schema"]["schema"],
+            json!({"type":"object"}),
+            "non-openai schema passes through unmodified"
+        );
     }
 
     #[test]
@@ -530,7 +681,7 @@ mod tests {
                 }],
             ),
         ];
-        let body = request_body("m", &req(messages), false, true).expect("body");
+        let body = request_body("m", &req(messages), false, true, "openai").expect("body");
         assert_eq!(body["messages"][0]["tool_calls"][0]["id"], "call_1");
         assert_eq!(
             body["messages"][0]["tool_calls"][0]["function"]["arguments"],
@@ -573,7 +724,7 @@ mod tests {
             Message::text(Role::User, "usr"),
             Message::text(Role::Assistant, "asst"),
         ];
-        let body = request_body("m", &req(messages), false, true).expect("body");
+        let body = request_body("m", &req(messages), false, true, "openai").expect("body");
         assert_eq!(body["messages"][0]["role"], "system");
         assert_eq!(body["messages"][1]["role"], "user");
         assert_eq!(body["messages"][2]["role"], "assistant");
@@ -583,17 +734,17 @@ mod tests {
     #[test]
     fn stream_options_gated_to_cloud_and_stream_only() {
         let r = req(vec![Message::text(Role::User, "x")]);
-        let cloud_nostream = request_body("m", &r, false, true).expect("body");
+        let cloud_nostream = request_body("m", &r, false, true, "openai").expect("body");
         assert!(
             cloud_nostream.get("stream_options").is_none(),
             "non-stream → no stream_options"
         );
-        let local_stream = request_body("m", &r, true, false).expect("body");
+        let local_stream = request_body("m", &r, true, false, "ollama").expect("body");
         assert!(
             local_stream.get("stream_options").is_none(),
             "local profile → no stream_options"
         );
-        let cloud_stream = request_body("m", &r, true, true).expect("body");
+        let cloud_stream = request_body("m", &r, true, true, "openai").expect("body");
         assert_eq!(cloud_stream["stream_options"]["include_usage"], true);
     }
 
@@ -606,7 +757,7 @@ mod tests {
         r.extra
             .params
             .insert("model".into(), serde_json::json!("evil"));
-        let body = request_body("real", &r, false, true).expect("body");
+        let body = request_body("real", &r, false, true, "openai").expect("body");
         assert_eq!(body["custom_field"], "v");
         assert_eq!(body["model"], "real", "structural keys win");
     }
@@ -625,7 +776,7 @@ mod tests {
                 },
             ],
         );
-        let body = request_body("m", &req(vec![msg]), false, true).expect("body");
+        let body = request_body("m", &req(vec![msg]), false, true, "openai").expect("body");
         let parts = body["messages"][0]["content"]
             .as_array()
             .expect("multimodal parts array");
@@ -638,7 +789,7 @@ mod tests {
                 detail: None,
             }],
         );
-        assert!(request_body("m", &req(vec![bad]), false, true).is_err());
+        assert!(request_body("m", &req(vec![bad]), false, true, "openai").is_err());
     }
 
     #[test]
@@ -697,5 +848,155 @@ mod tests {
             }
             other => panic!("expected Done last, got {other:?}"),
         }
+    }
+
+    // ── BUG#4 · OpenAI strict-mode schema normalization (Gate 2 parity) ──
+
+    /// Pull the wire `schema` out of an openai `JsonSchema` request body.
+    fn strict_schema(input: Value) -> Value {
+        let mut r = req(vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::JsonSchema(input);
+        let body = request_body("m", &r, false, true, "openai").expect("body");
+        body["response_format"]["json_schema"]["schema"].clone()
+    }
+
+    #[test]
+    fn strict_flat_object_gets_additional_props_and_all_required() {
+        let out = strict_schema(json!({
+            "type": "object",
+            "properties": { "name": {"type": "string"}, "age": {"type": "integer"} }
+        }));
+        assert_eq!(out["additionalProperties"], false);
+        let req: Vec<&str> = out["required"]
+            .as_array()
+            .expect("required array")
+            .iter()
+            .map(|v| v.as_str().expect("str"))
+            .collect();
+        // both keys required (no author `required` → all become nullable +
+        // required, OpenAI's optional shape).
+        assert!(req.contains(&"name") && req.contains(&"age"), "{req:?}");
+        assert_eq!(out["properties"]["name"]["type"], json!(["string", "null"]));
+        assert_eq!(out["properties"]["age"]["type"], json!(["integer", "null"]));
+    }
+
+    #[test]
+    fn strict_required_field_keeps_its_scalar_type() {
+        let out = strict_schema(json!({
+            "type": "object",
+            "properties": { "id": {"type": "string"}, "note": {"type": "string"} },
+            "required": ["id"]
+        }));
+        // `id` was author-required → type untouched; `note` was optional →
+        // nullable; both end up in `required` (the strict invariant).
+        assert_eq!(out["properties"]["id"]["type"], "string");
+        assert_eq!(out["properties"]["note"]["type"], json!(["string", "null"]));
+        let mut req: Vec<&str> = out["required"]
+            .as_array()
+            .expect("req")
+            .iter()
+            .map(|v| v.as_str().expect("str"))
+            .collect();
+        req.sort_unstable();
+        assert_eq!(req, vec!["id", "note"]);
+    }
+
+    #[test]
+    fn strict_recurses_into_nested_objects() {
+        let out = strict_schema(json!({
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "object",
+                    "properties": { "city": {"type": "string"} }
+                }
+            },
+            "required": ["address"]
+        }));
+        let inner = &out["properties"]["address"];
+        assert_eq!(
+            inner["additionalProperties"], false,
+            "inner object tightened"
+        );
+        assert_eq!(inner["required"], json!(["city"]));
+        assert_eq!(
+            inner["properties"]["city"]["type"],
+            json!(["string", "null"])
+        );
+    }
+
+    #[test]
+    fn strict_recurses_into_array_of_objects() {
+        let out = strict_schema(json!({
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": { "sku": {"type": "string"} }
+                    }
+                }
+            },
+            "required": ["items"]
+        }));
+        let elem = &out["properties"]["items"]["items"];
+        assert_eq!(
+            elem["additionalProperties"], false,
+            "array element tightened"
+        );
+        assert_eq!(elem["required"], json!(["sku"]));
+    }
+
+    #[test]
+    fn strict_recurses_into_defs() {
+        let out = strict_schema(json!({
+            "type": "object",
+            "properties": { "node": {"$ref": "#/$defs/Node"} },
+            "required": ["node"],
+            "$defs": {
+                "Node": {
+                    "type": "object",
+                    "properties": { "label": {"type": "string"} }
+                }
+            }
+        }));
+        let node = &out["$defs"]["Node"];
+        assert_eq!(node["additionalProperties"], false, "$defs entry tightened");
+        assert_eq!(node["required"], json!(["label"]));
+    }
+
+    #[test]
+    fn strict_make_nullable_is_idempotent_on_existing_union() {
+        // An author who already wrote `["string","null"]` must not gain a
+        // second `"null"`.
+        let out = strict_schema(json!({
+            "type": "object",
+            "properties": { "maybe": {"type": ["string", "null"]} }
+        }));
+        assert_eq!(
+            out["properties"]["maybe"]["type"],
+            json!(["string", "null"])
+        );
+    }
+
+    #[test]
+    fn strict_only_fires_for_openai_not_for_peers() {
+        // The exact same nested schema reaches groq verbatim (no injected
+        // `additionalProperties`, no widened types) — the regression guard
+        // for "do not mutate non-openai providers".
+        let nested = json!({
+            "type": "object",
+            "properties": {
+                "inner": { "type": "object", "properties": { "x": {"type": "string"} } }
+            }
+        });
+        let mut r = req(vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::JsonSchema(nested.clone());
+        let body = request_body("m", &r, false, true, "groq").expect("body");
+        assert_eq!(
+            body["response_format"]["json_schema"]["schema"], nested,
+            "peer schema is byte-for-byte the author's"
+        );
     }
 }
