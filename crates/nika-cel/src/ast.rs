@@ -82,6 +82,7 @@ pub(crate) enum Node {
 /// A parsed `cel-subset/0.1` expression (the AST root + the source span
 /// it spans · the public handle).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Expr {
     pub(crate) root: Node,
 }

@@ -45,6 +45,7 @@ impl CelErrorKind {
 /// span into the source (for the host's diagnostic rendering).
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("{} · {message} (at {}..{})", kind.spec_code(), span.0, span.1)]
+#[non_exhaustive]
 pub struct CelError {
     kind: CelErrorKind,
     message: String,

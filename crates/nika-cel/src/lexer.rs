@@ -80,7 +80,7 @@ pub(crate) fn lex(src: &str) -> Result<Vec<Token>, CelError> {
             b')' => one(&mut i, Tok::RParen),
             b'[' => one(&mut i, Tok::LBrack),
             b']' => one(&mut i, Tok::RBrack),
-            b'\'' | b'"' => lex_string(bytes, &mut i)?,
+            b'\'' | b'"' => lex_string(src, &mut i)?,
             b'-' | b'0'..=b'9' => lex_number(bytes, &mut i)?,
             b if b.is_ascii_alphabetic() || b == b'_' => lex_ident_or_keyword(bytes, &mut i),
             other => {
@@ -214,7 +214,8 @@ fn lex_number(bytes: &[u8], i: &mut usize) -> Result<Tok, CelError> {
 /// A single- or double-quoted string with the closed escape set
 /// (`\\ \' \" \n \t`). An unknown escape or an unterminated string is
 /// NIKA-VAR-005.
-fn lex_string(bytes: &[u8], i: &mut usize) -> Result<Tok, CelError> {
+fn lex_string(src: &str, i: &mut usize) -> Result<Tok, CelError> {
+    let bytes = src.as_bytes();
     let start = *i;
     let quote = bytes[*i];
     *i += 1;
@@ -250,11 +251,17 @@ fn lex_string(bytes: &[u8], i: &mut usize) -> Result<Tok, CelError> {
             *i += 2;
             continue;
         }
-        // Copy one UTF-8 byte sequence verbatim (the source is valid
-        // UTF-8 · a multibyte char's continuation bytes are not quotes
-        // or backslashes, so this advance is sound).
-        out.push(c as char);
-        *i += 1;
+        // Copy one WHOLE UTF-8 char. ASCII quote/backslash were handled
+        // above, so a byte ≥ 0x80 here is a multibyte lead — decode the
+        // full char (the source is a valid-UTF-8 `&str`, and `*i` is on a
+        // char boundary) instead of casting each byte (`c as char` is a
+        // Latin-1 decode that mangles every multibyte codepoint).
+        let ch = src
+            .get(*i..)
+            .and_then(|rest| rest.chars().next())
+            .unwrap_or(char::REPLACEMENT_CHARACTER);
+        out.push(ch);
+        *i += ch.len_utf8();
     }
     Err(CelError::static_err(
         "unterminated string literal",
@@ -396,5 +403,18 @@ mod tests {
         assert_eq!(lex(r"'a\xb'").expect_err("bad escape").span(), (2, 4));
         // A trailing backslash is the single `\` byte (`(*i, *i + 1)`).
         assert_eq!(lex(r"'x\").expect_err("trailing bslash").span(), (2, 3));
+    }
+
+    #[test]
+    fn string_literals_preserve_multibyte_utf8() {
+        // Decode WHOLE UTF-8 chars, never Latin-1-mangle each byte
+        // (`'héllo ☃'` must NOT become `'hÃ©llo â☃'`).
+        assert_eq!(kinds("'héllo ☃'"), vec![Tok::Str("héllo ☃".into())]);
+        assert_eq!(
+            kinds(r#""café · 日本""#),
+            vec![Tok::Str("café · 日本".into())]
+        );
+        // Escapes still compose with multibyte content.
+        assert_eq!(kinds(r"'é\n☃'"), vec![Tok::Str("é\n☃".into())]);
     }
 }

@@ -91,8 +91,13 @@ proptest! {
         prop_assert!(expr.is_boolean_shaped());
     }
 
-    /// `has(...)` is the safe optional probe — NEVER errors, whatever the
-    /// (parseable) argument resolves to (spec §3 · the presence macro).
+    /// `has(root.field)` — the presence probe over a simple field path —
+    /// never errors: a missing root or field is `false`, not a raise. This
+    /// covers the `root.field` SUBSET of `has()` only; a VAR-006 nested
+    /// inside `has()` (e.g. `has(size(scalar))`) DOES surface by design —
+    /// see the `has_swallows_unresolved_but_propagates_type_errors` unit
+    /// test. `has` converts the *presence* class, not the *type* class
+    /// (spec §3).
     #[test]
     fn has_is_always_total(
         root in prop::sample::select(vec!["vars", "tasks", "item", "ghost"]),

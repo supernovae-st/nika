@@ -15,6 +15,14 @@ use crate::ast::{Expr, Node, RelOp, Step};
 use crate::error::CelError;
 use crate::lexer::{Tok, Token, lex};
 
+/// The maximum nesting depth the parser will descend before refusing with
+/// NIKA-VAR-005. The grammar is bounded ONLY through `(...)` / `[...]` /
+/// `!` / ternary nesting; an attacker-crafted `${{ ((((…)))) }}` would
+/// otherwise overflow the native stack (a non-catchable process abort, not
+/// an `Err`). The cap is far below any real workflow expression and far
+/// below the stack budget (counts both the `ternary` and `unary` rungs).
+const MAX_DEPTH: usize = 128;
+
 /// Parse the inside of one `${{ }}` island (trimmed) into an [`Expr`].
 ///
 /// # Errors
@@ -28,6 +36,7 @@ pub fn parse(src: &str) -> Result<Expr, CelError> {
         tokens: &tokens,
         pos: 0,
         end,
+        depth: 0,
     };
     let node = p.ternary()?;
     if p.pos < p.tokens.len() {
@@ -41,6 +50,9 @@ struct Parser<'a> {
     tokens: &'a [Token],
     pos: usize,
     end: usize,
+    /// Current recursive-descent nesting depth (capped at [`MAX_DEPTH`] to
+    /// keep a crafted deep expression from overflowing the native stack).
+    depth: usize,
 }
 
 impl Parser<'_> {
@@ -76,18 +88,28 @@ impl Parser<'_> {
 
     // ── ternary = or , [ "?" , expr , ":" , ternary ] ───────────────
     fn ternary(&mut self) -> Result<Node, CelError> {
+        self.depth += 1;
+        if self.depth > MAX_DEPTH {
+            return Err(CelError::static_err(
+                "expression nests too deeply",
+                self.peek_span(),
+            ));
+        }
         let cond = self.or()?;
-        if self.eat(&Tok::Question) {
+        let node = if self.eat(&Tok::Question) {
             let then = self.ternary()?; // the middle is a full expr (= ternary)
             self.consume(&Tok::Colon, "`:` in the conditional")?;
             let otherwise = self.ternary()?; // right-associative
-            return Ok(Node::Ternary {
+            Node::Ternary {
                 cond: Box::new(cond),
                 then: Box::new(then),
                 otherwise: Box::new(otherwise),
-            });
-        }
-        Ok(cond)
+            }
+        } else {
+            cond
+        };
+        self.depth -= 1;
+        Ok(node)
     }
 
     // ── or = and , { "||" , and } ───────────────────────────────────
@@ -149,11 +171,20 @@ impl Parser<'_> {
 
     // ── unary = { "!" } , postfix ───────────────────────────────────
     fn unary(&mut self) -> Result<Node, CelError> {
-        if self.eat(&Tok::Bang) {
-            let inner = self.unary()?;
-            return Ok(Node::Not(Box::new(inner)));
+        self.depth += 1;
+        if self.depth > MAX_DEPTH {
+            return Err(CelError::static_err(
+                "expression nests too deeply",
+                self.peek_span(),
+            ));
         }
-        self.postfix()
+        let node = if self.eat(&Tok::Bang) {
+            Node::Not(Box::new(self.unary()?))
+        } else {
+            self.postfix()?
+        };
+        self.depth -= 1;
+        Ok(node)
     }
 
     // ── postfix = primary , { "." IDENT [call] | "[" expr "]" } ─────
@@ -457,5 +488,25 @@ mod tests {
                 .unwrap()
                 .is_boolean_shaped()
         );
+    }
+
+    #[test]
+    fn deeply_nested_input_is_refused_not_a_crash() {
+        // A crafted deep `(((…)))` must REFUSE with VAR-005, never overflow
+        // the native stack (a non-catchable process abort). 2000 levels is
+        // far past MAX_DEPTH.
+        let deep = format!("{}true{}", "(".repeat(2000), ")".repeat(2000));
+        assert_eq!(
+            parse(&deep).expect_err("deep group").spec_code(),
+            "NIKA-VAR-005"
+        );
+        // The `!` chain is bounded the same way.
+        let bangs = format!("{}vars.a", "!".repeat(2000));
+        assert_eq!(
+            parse(&bangs).expect_err("deep ! chain").spec_code(),
+            "NIKA-VAR-005"
+        );
+        // …ordinary shallow nesting still parses.
+        assert!(parse("((vars.a == 'x'))").is_ok());
     }
 }
