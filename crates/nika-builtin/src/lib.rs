@@ -163,6 +163,22 @@ impl Emitter for NullEmitter {
 
 /// Answers `nika:inspect`'s 4 views from live run state. The L3 engine
 /// implements it per-run; [`NoWorkflow`] is the no-run-context stand-in.
+///
+/// # The wiring gap (F3 · why production injects [`NoWorkflow`] today)
+///
+/// A real impl needs the run's LIVE DAG (the check report's waves + the
+/// task graph), the settling `records` map, and the running cost total —
+/// all of which exist only INSIDE `nika_runtime::Runtime::run` (the
+/// `records` map is built there; cost rides the per-task token counts).
+/// The `BuiltinDispatcher` that serves `nika:inspect`, however, is
+/// composed BEFORE the run and shared (`Arc`) across every concurrent
+/// task — it holds no handle to that live state. Closing the gap means
+/// either (a) the dispatcher holding an `Arc<Mutex<RunState>>` the
+/// runtime updates as it executes (a new runtime-introspection surface),
+/// or (b) the runtime owning the dispatcher and re-injecting a per-run
+/// `WorkflowIntrospect` — both are a real subsystem, not a builtin patch.
+/// Until then [`NoWorkflow`] returns an explicit `available: false` so the
+/// builtin never serves zeros that look like a real empty run.
 pub trait WorkflowIntrospect: Send + Sync {
     /// `view: cost` → `{ total_usd, by_task, by_provider }`.
     fn cost(&self) -> serde_json::Value;
@@ -174,25 +190,47 @@ pub trait WorkflowIntrospect: Send + Sync {
     fn threads(&self) -> serde_json::Value;
 }
 
-/// The empty-run introspection (no workflow context): every view returns
-/// its shape with zero contents — honest emptiness, never an error (the
-/// VIEW argument is still validated). Construct via [`Default`].
+/// The no-run-context introspection stand-in: every view honestly reports
+/// that live run state is NOT available here, rather than zeros that look
+/// like a real (empty) run (`{ nodes: [], … }` is indistinguishable from a
+/// genuine empty DAG — the F3 misleading-empty footgun). The `view:`
+/// argument is still validated by the builtin; this seam only supplies the
+/// answer. The composition root injects a real [`WorkflowIntrospect`] once
+/// the runtime exposes its live DAG/records/cost (see the type doc).
+/// Construct via [`Default`].
 #[derive(Debug, Clone, Copy, Default)]
 #[non_exhaustive]
 pub struct NoWorkflow;
 
+impl NoWorkflow {
+    /// The honest « no live run state in this context » marker every view
+    /// returns — `available: false` is the machine-readable signal a
+    /// consumer branches on (vs a zero/empty shape it would mistake for a
+    /// real empty run).
+    fn unavailable(view: &str) -> serde_json::Value {
+        serde_json::json!({
+            "available": false,
+            "view": view,
+            "reason": "nika:inspect has no live run context here — this dispatcher \
+                       was composed without a workflow introspection source (the \
+                       runtime does not yet expose its live DAG/records/cost to the \
+                       in-workflow builtin)",
+        })
+    }
+}
+
 impl WorkflowIntrospect for NoWorkflow {
     fn cost(&self) -> serde_json::Value {
-        serde_json::json!({ "total_usd": 0.0, "by_task": {}, "by_provider": {} })
+        Self::unavailable("cost")
     }
     fn records(&self) -> serde_json::Value {
-        serde_json::json!({ "tasks": [] })
+        Self::unavailable("records")
     }
     fn dag_info(&self) -> serde_json::Value {
-        serde_json::json!({ "nodes": [], "edges": [], "waves": [] })
+        Self::unavailable("dag_info")
     }
     fn threads(&self) -> serde_json::Value {
-        serde_json::json!({ "active": 0, "queued": 0, "completed": 0 })
+        Self::unavailable("threads")
     }
 }
 

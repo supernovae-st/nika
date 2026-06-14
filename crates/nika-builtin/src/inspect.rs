@@ -34,21 +34,25 @@ mod tests {
     }
 
     #[test]
-    fn each_view_returns_its_shape() {
-        let cost = inspect(&NoWorkflow, &args(serde_json::json!({ "view": "cost" }))).expect("ok");
-        assert!(cost.get("total_usd").is_some());
-        let records =
-            inspect(&NoWorkflow, &args(serde_json::json!({ "view": "records" }))).expect("ok");
-        assert!(records.get("tasks").is_some());
-        let dag = inspect(
-            &NoWorkflow,
-            &args(serde_json::json!({ "view": "dag_info" })),
-        )
-        .expect("ok");
-        assert!(dag.get("waves").is_some());
-        let threads =
-            inspect(&NoWorkflow, &args(serde_json::json!({ "view": "threads" }))).expect("ok");
-        assert!(threads.get("active").is_some());
+    fn each_view_routes_to_its_seam_method() {
+        // Every valid view dispatches to the matching WorkflowIntrospect
+        // method (NOT an error · the seam supplies the answer). Under the
+        // NoWorkflow stand-in each view honestly reports « not available »
+        // (F3: an explicit `available: false`, never zeros that masquerade
+        // as a real empty run · `{ nodes: [] }` was indistinguishable from
+        // a genuine empty DAG).
+        for view in ["cost", "records", "dag_info", "threads"] {
+            let out = inspect(&NoWorkflow, &args(serde_json::json!({ "view": view })))
+                .unwrap_or_else(|e| panic!("{view} routes: {e:?}"));
+            assert_eq!(out["available"], false, "{view} is honestly unavailable");
+            assert_eq!(out["view"], view, "{view} echoes its view");
+            assert!(
+                out.get("reason")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some(),
+                "{view} carries a human reason"
+            );
+        }
     }
 
     #[test]
