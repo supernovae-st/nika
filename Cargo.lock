@@ -3868,6 +3868,7 @@ dependencies = [
  "futures-util",
  "insta",
  "miette",
+ "nika-cel",
  "nika-error",
  "nika-event",
  "nika-kernel",

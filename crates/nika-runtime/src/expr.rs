@@ -17,9 +17,28 @@
 //! Single-pass island scan (NOT blind textual replace): values injected
 //! from records are never re-scanned, so task output containing a
 //! literal `${{` can never trip the guard nor inject a reference.
+//!
+//! # CEL milestone (this module)
+//!
+//! `nika-cel` (the `cel-subset/0.1` engine · L0) is now bound behind
+//! the seam. Both value substitution AND `when:` evaluate the FULL
+//! `cel-subset/0.1` grammar (spec 03-dag): comparisons
+//! (`== != < <= > >=`), deep paths (`tasks.x.output.y`),
+//! booleans/numbers, `size()`, `.contains()`/`.startsWith()`, the
+//! ternary `? :`, membership `in`. The namespaces are bound as CEL
+//! variables — `vars` · `with` · `tasks` · `env` · `secrets` plus the
+//! `for_each` locals `item` / `index`.
+//!
+//! Injection safety is PRESERVED + made structural: the author's
+//! expression text is parsed ONCE; runtime values are bound as TYPED
+//! CEL VARIABLES (data returned by the [`Resolver`]), never spliced
+//! into expression text before parsing. A task output carrying literal
+//! `${{ … }}` is a string Value inside the `tasks` object — read as
+//! data, never re-evaluated.
 
 use std::collections::BTreeMap;
 
+use nika_cel::{Resolver, compute, compute_bool, parse};
 use nika_schema::types::Permits;
 use serde_json::Value;
 
@@ -62,69 +81,96 @@ impl<'a> Scope<'a> {
         }
     }
 
-    /// Resolve one island reference body to a value.
+    /// Evaluate one `${{ … }}` body (an island reference OR a richer
+    /// expression) to a value through [`nika_cel`].
+    ///
+    /// `reference` is the AUTHOR's text — parsed exactly once by
+    /// [`parse`]; the runtime values are bound as DATA by
+    /// [`ScopeResolver`], never re-parsed (the injection-safe boundary ·
+    /// see module docs).
     ///
     /// # Errors
     ///
     /// [`RuntimeError::UnresolvedTemplate`] (NIKA-1702) for an unknown
-    /// name in a known namespace · [`RuntimeError::WhenUnsupported`]
-    /// (NIKA-1703) for a form outside the v0 subset (deep paths ·
-    /// unknown namespaces · record fields beyond the closed set).
-    fn resolve(&self, reference: &str) -> Result<Value, RuntimeError> {
-        let unknown = || RuntimeError::UnresolvedTemplate {
-            reference: reference.to_owned(),
-        };
-        let out_of_subset = || RuntimeError::WhenUnsupported {
-            expr: reference.to_owned(),
-        };
-
-        if reference == "item" {
-            return self.item.cloned().ok_or_else(unknown);
-        }
-        if reference == "index" {
-            return self
-                .index
-                .map(|i| Value::Number(i.into()))
-                .ok_or_else(unknown);
-        }
-        if let Some(key) = reference.strip_prefix("vars.") {
-            return resolve_flat(self.vars, key, &unknown, &out_of_subset);
-        }
-        if let Some(key) = reference.strip_prefix("with.") {
-            let ns = self.with_ns.ok_or_else(unknown)?;
-            return resolve_flat(ns, key, &unknown, &out_of_subset);
-        }
-        if let Some(rest) = reference.strip_prefix("tasks.") {
-            // `tasks.<id>.<field>` — the record is a CEL object · the
-            // bare `tasks.<id>` alias does not exist (spec 04 · "no
-            // bare alias") and deep paths are CEL territory (1703).
-            let Some((id, field)) = rest.split_once('.') else {
-                return Err(out_of_subset());
-            };
-            if field.contains('.') {
-                return Err(out_of_subset());
-            }
-            let record = self.records.get(id).ok_or_else(unknown)?;
-            // Unknown FIELD on the closed set = a form error (1703) ·
-            // named jq bindings arrive with `output:` (post-builtin).
-            return record.field(field).ok_or_else(out_of_subset);
-        }
-        Err(out_of_subset())
+    /// reference (`NIKA-VAR-001`) · [`RuntimeError::WhenUnsupported`]
+    /// (NIKA-1703) for a static-grammar violation (`NIKA-VAR-005`) ·
+    /// [`RuntimeError::CelEval`] (`NIKA-VAR-006`) for an evaluation type
+    /// error (cross-type compare · `size()` of a scalar · …).
+    fn resolve_expr(&self, reference: &str) -> Result<Value, RuntimeError> {
+        let expr = parse(reference).map_err(|e| RuntimeError::from_cel(&e, reference))?;
+        compute(&expr, &ScopeResolver(self)).map_err(|e| RuntimeError::from_cel(&e, reference))
     }
 }
 
-/// Flat-namespace lookup · a dotted remainder is a deep path = out of
-/// the v0 subset (1703 · CEL/jq territory) · a missing key is 1702.
-fn resolve_flat(
-    ns: &BTreeMap<String, Value>,
-    key: &str,
-    unknown: &dyn Fn() -> RuntimeError,
-    out_of_subset: &dyn Fn() -> RuntimeError,
-) -> Result<Value, RuntimeError> {
-    if key.contains('.') {
-        return Err(out_of_subset());
+/// A [`Resolver`] over a [`Scope`] — resolves a CEL ROOT identifier to
+/// the WHOLE namespace value; the CEL computer owns `.field` / `[i]`
+/// navigation on top. This is the injection-safe binding: every value
+/// returned here is DATA (a `serde_json::Value`), never expression text.
+///
+/// `None` ⇒ the root is unbound ⇒ `nika-cel` raises `NIKA-VAR-001`
+/// (which the seam maps to NIKA-1702). `env` / `secrets` are valid CEL
+/// roots but carry no runtime binding in the v0 runtime — they resolve
+/// to `None` (unresolved · loud), never a silent empty value.
+struct ScopeResolver<'s, 'a>(&'s Scope<'a>);
+
+impl Resolver for ScopeResolver<'_, '_> {
+    fn resolve_root(&self, name: &str) -> Option<Value> {
+        let scope = self.0;
+        match name {
+            // The two `for_each` loop-locals (None outside an iteration).
+            "item" => scope.item.cloned(),
+            "index" => scope.index.map(|i| Value::Number(i.into())),
+            // The flat namespaces → a CEL object (the computer indexes it).
+            "vars" => Some(ns_object(scope.vars)),
+            "with" => scope.with_ns.map(ns_object),
+            // `tasks` → an object of per-id RECORD objects (the record's
+            // closed field set · defined-null reads · spec 04). The bare
+            // `tasks.<id>` now resolves to that record object (CEL owns
+            // the `.field` step), so `tasks.x.output.y` deep paths work.
+            "tasks" => Some(tasks_object(scope.records)),
+            // `env` / `secrets` exist in the grammar but are unbound in
+            // the runtime today → unresolved (NIKA-VAR-001 → 1702).
+            _ => None,
+        }
     }
-    ns.get(key).cloned().ok_or_else(unknown)
+}
+
+/// A flat namespace map (`vars` · `with`) as a CEL object value.
+fn ns_object(ns: &BTreeMap<String, Value>) -> Value {
+    Value::Object(ns.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+}
+
+/// The `tasks` namespace as a CEL object — one entry per settled task,
+/// each the record's full object (`output` · `status` · `error` ·
+/// `started_at` · `ended_at` · `duration_ms` · spec 04). A missing task
+/// id is simply absent (CEL's `.field` then raises `NIKA-VAR-001`).
+fn tasks_object(records: &BTreeMap<String, TaskRecord>) -> Value {
+    Value::Object(
+        records
+            .iter()
+            .map(|(id, rec)| (id.clone(), record_object(rec)))
+            .collect(),
+    )
+}
+
+/// One [`TaskRecord`] as its CEL object (the closed field set · spec
+/// 04 · defined-null: absent values are `null`, never missing keys, so
+/// `tasks.x.error` reads `null` rather than raising on a non-failure).
+fn record_object(rec: &TaskRecord) -> Value {
+    const FIELDS: [&str; 6] = [
+        "output",
+        "status",
+        "error",
+        "started_at",
+        "ended_at",
+        "duration_ms",
+    ];
+    Value::Object(
+        FIELDS
+            .iter()
+            .map(|f| ((*f).to_owned(), rec.field(f).unwrap_or(Value::Null)))
+            .collect(),
+    )
 }
 
 /// Render every `${{ <ref> }}` island in `text` from the scope (spec 04
@@ -149,7 +195,7 @@ pub(crate) fn render(text: &str, scope: &Scope<'_>) -> Result<String, RuntimeErr
             });
         };
         let reference = after[..end].trim();
-        out.push_str(&render_value(&scope.resolve(reference)?));
+        out.push_str(&render_value(&scope.resolve_expr(reference)?));
         rest = &after[end + 2..];
     }
     out.push_str(rest);
@@ -165,7 +211,7 @@ pub(crate) fn render(text: &str, scope: &Scope<'_>) -> Result<String, RuntimeErr
 pub(crate) fn render_json(value: &Value, scope: &Scope<'_>) -> Result<Value, RuntimeError> {
     Ok(match value {
         Value::String(text) => match single_island(text) {
-            Some(reference) => scope.resolve(reference)?,
+            Some(reference) => scope.resolve_expr(reference)?,
             None => Value::String(render(text, scope)?),
         },
         Value::Array(items) => Value::Array(
@@ -193,69 +239,35 @@ fn single_island(text: &str) -> Option<&str> {
     Some(body.trim())
 }
 
-/// Evaluate a `when:` expression body over the v0 subset (spec 03).
+/// Evaluate a `when:` expression body to a boolean (spec 03 · the full
+/// `cel-subset/0.1` gate).
 ///
-/// Bare-`<ref>` truthiness is TYPED (the CEL milestone replaces it
-/// with bool-typing · deliberately): `null`/`false` → false · numbers
-/// → `!= 0` · strings → non-empty and not `"no"`/`"false"`/`"0"` ·
-/// containers → non-empty.
+/// The body is the AUTHOR's text — parsed once, then [`compute_bool`]
+/// runs it over the [`ScopeResolver`]. A `when:` MUST evaluate to a
+/// boolean (spec 03 §when shape): a non-boolean result is `NIKA-VAR-006`
+/// (carried as [`RuntimeError::CelEval`]). Static-shape rejection of a
+/// non-boolean ROOT (`NIKA-VAR-005`) is the checker's job; the runtime
+/// is the defensive backstop and accepts any spec-valid expression.
 ///
 /// # Errors
 ///
-/// [`RuntimeError::UnresolvedTemplate`] on an unknown reference ·
-/// [`RuntimeError::WhenUnsupported`] on any form outside the subset.
+/// [`RuntimeError::UnresolvedTemplate`] (NIKA-1702) on an unknown
+/// reference · [`RuntimeError::WhenUnsupported`] (NIKA-1703) on a
+/// static-grammar violation · [`RuntimeError::CelEval`] (NIKA-VAR-006)
+/// on an evaluation type error (incl. a non-boolean result).
 pub(crate) fn eval_when(expr: &str, scope: &Scope<'_>) -> Result<bool, RuntimeError> {
-    // The analyzer enforces the single-island shape · accept both the
-    // wrapped (`${{ … }}`) and bare body forms defensively.
+    // Accept both the wrapped (`${{ … }}`) and bare body forms — the
+    // analyzer enforces the single-island shape upstream; strip the
+    // wrapper defensively so a bare body (the checker's normalized form
+    // and the test idiom) parses identically.
     let body = expr
         .trim()
         .strip_prefix("${{")
         .and_then(|s| s.strip_suffix("}}"))
         .unwrap_or(expr)
         .trim();
-
-    let (reference, literal, negated) = if let Some((l, r)) = body.split_once("==") {
-        (l.trim(), Some(r.trim()), false)
-    } else if let Some((l, r)) = body.split_once("!=") {
-        (l.trim(), Some(r.trim()), true)
-    } else {
-        (body, None, false)
-    };
-
-    if reference.contains(char::is_whitespace) {
-        return Err(RuntimeError::WhenUnsupported {
-            expr: body.to_owned(),
-        });
-    }
-    let value = scope.resolve(reference)?;
-
-    match literal {
-        None => Ok(truthy(&value)),
-        Some(lit) => {
-            let unquoted = lit
-                .strip_prefix('\'')
-                .and_then(|s| s.strip_suffix('\''))
-                .or_else(|| lit.strip_prefix('"').and_then(|s| s.strip_suffix('"')));
-            let Some(expected) = unquoted else {
-                return Err(RuntimeError::WhenUnsupported {
-                    expr: body.to_owned(),
-                });
-            };
-            Ok((render_value(&value) == expected) != negated)
-        }
-    }
-}
-
-/// v0 typed truthiness (see [`eval_when`]).
-fn truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(b) => *b,
-        Value::Number(n) => n.as_f64().is_some_and(|f| f != 0.0),
-        Value::String(s) => !s.is_empty() && !matches!(s.as_str(), "no" | "false" | "0"),
-        Value::Array(items) => !items.is_empty(),
-        Value::Object(map) => !map.is_empty(),
-    }
+    let parsed = parse(body).map_err(|e| RuntimeError::from_cel(&e, body))?;
+    compute_bool(&parsed, &ScopeResolver(scope)).map_err(|e| RuntimeError::from_cel(&e, body))
 }
 
 #[cfg(test)]
@@ -322,7 +334,9 @@ mod tests {
     }
 
     #[test]
-    fn render_unknown_reference_is_1702_and_deep_path_is_1703() {
+    fn render_unknown_reference_is_1702() {
+        // CEL milestone: an unknown reference (NIKA-VAR-001) maps to
+        // NIKA-1702 · the `reference` carried is the AUTHOR's text.
         let (records, vars) = fixture();
         let scope = Scope::workflow(&records, &vars);
         assert!(matches!(
@@ -333,22 +347,73 @@ mod tests {
             render("${{ vars.nope }}", &scope).expect_err("unknown var"),
             RuntimeError::UnresolvedTemplate { .. }
         ));
-        // Deep paths + unknown record fields + bare task alias = 1703.
-        for out_of_subset in [
-            "${{ tasks.gather.output.a }}",
-            "${{ tasks.gather.weird }}",
-            "${{ tasks.gather }}",
-            "${{ vars.urls.0 }}",
-            "${{ env.HOME }}",
-        ] {
-            assert!(
-                matches!(
-                    render(out_of_subset, &scope).expect_err(out_of_subset),
-                    RuntimeError::WhenUnsupported { .. }
-                ),
-                "{out_of_subset} must be 1703"
-            );
-        }
+        // A deep path INTO an unknown task is still 1702 (the root id
+        // doesn't resolve · CEL's `.field` then raises VAR-001).
+        assert!(matches!(
+            render("${{ tasks.ghost.output.x }}", &scope).expect_err("unknown deep"),
+            RuntimeError::UnresolvedTemplate { .. }
+        ));
+        // `env` / `secrets` are valid CEL roots but UNBOUND in the v0
+        // runtime → unresolved (1702 · loud), never a silent empty.
+        assert!(matches!(
+            render("${{ env.HOME }}", &scope).expect_err("env unbound"),
+            RuntimeError::UnresolvedTemplate { .. }
+        ));
+    }
+
+    #[test]
+    fn render_deep_paths_and_indexing_resolve() {
+        // The CEL milestone supersedes the v0 "deep path = 1703" rule:
+        // `tasks.<id>.output.<field>` and `[i]` now RESOLVE.
+        let records = BTreeMap::from([(
+            "gather".to_owned(),
+            record(
+                TaskStatus::Success,
+                serde_json::json!({"a": 1, "nested": {"b": "deep"}, "list": [10, 20]}),
+            ),
+        )]);
+        let vars = BTreeMap::from([("urls".to_owned(), serde_json::json!(["x", "y"]))]);
+        let scope = Scope::workflow(&records, &vars);
+        // Deep object path.
+        assert_eq!(
+            render("${{ tasks.gather.output.a }}", &scope).expect("deep a"),
+            "1"
+        );
+        assert_eq!(
+            render("${{ tasks.gather.output.nested.b }}", &scope).expect("deeper"),
+            "deep"
+        );
+        // Index access on a deep array + a flat var array.
+        assert_eq!(
+            render("${{ tasks.gather.output.list[1] }}", &scope).expect("deep index"),
+            "20"
+        );
+        assert_eq!(
+            render("${{ vars.urls[0] }}", &scope).expect("flat index"),
+            "x"
+        );
+    }
+
+    #[test]
+    fn render_unknown_field_and_grammar_errors_are_loud() {
+        // A missing FIELD on a resolved object is unresolved (1702 ·
+        // VAR-001) · a genuine GRAMMAR violation is 1703 (VAR-005).
+        let (records, vars) = fixture();
+        let scope = Scope::workflow(&records, &vars);
+        // `tasks.gather.output` is {"a":1}; `.weird` is absent → 1702.
+        assert!(matches!(
+            render("${{ tasks.gather.output.weird }}", &scope).expect_err("missing field"),
+            RuntimeError::UnresolvedTemplate { .. }
+        ));
+        // A genuinely malformed expression → 1703 (out of grammar).
+        assert!(matches!(
+            render("${{ vars.a && }}", &scope).expect_err("malformed"),
+            RuntimeError::WhenUnsupported { .. }
+        ));
+        assert!(matches!(
+            render("${{ vars.a @ vars.b }}", &scope).expect_err("bad token"),
+            RuntimeError::WhenUnsupported { .. }
+        ));
     }
 
     #[test]
@@ -373,6 +438,140 @@ mod tests {
         let scope = Scope::workflow(&records, &vars);
         let out = render("v=${{ tasks.t.output }}", &scope).expect("renders");
         assert_eq!(out, "v=${{ not.a.ref }}");
+    }
+
+    #[test]
+    fn injected_value_is_cel_data_never_re_evaluated() {
+        // SECURITY (the load-bearing invariant): a task output / var that
+        // CONTAINS expression-looking text is bound as a typed CEL DATA
+        // value · the author's expression is parsed once · the injected
+        // string is NEVER re-parsed as an expression. A payload that
+        // WOULD resolve to something else (or trip a guard / inject a
+        // reference) if re-evaluated must come back as the literal bytes.
+        let payload = "${{ vars.secret_admin == true }}"; // attacker-controlled
+        let records = BTreeMap::from([(
+            "evil".to_owned(),
+            record(TaskStatus::Success, Value::String(payload.into())),
+        )]);
+        let vars = BTreeMap::from([
+            (
+                "tainted".to_owned(),
+                Value::String("'; DROP ${{ x }}".into()),
+            ),
+            ("secret_admin".to_owned(), serde_json::json!(false)),
+        ]);
+        let scope = Scope::workflow(&records, &vars);
+
+        // render(): the island resolves to the OUTPUT VALUE (the payload
+        // string verbatim) · the `${{` inside is data, not re-scanned.
+        assert_eq!(
+            render("${{ tasks.evil.output }}", &scope).expect("data"),
+            payload,
+            "an injected `${{` payload renders as the literal value"
+        );
+
+        // render_json() single-island: same · the value is type-preserved
+        // and NOT re-evaluated (it does NOT become a bool from the payload).
+        let v = render_json(&serde_json::json!("${{ tasks.evil.output }}"), &scope).expect("data");
+        assert_eq!(v, Value::String(payload.to_owned()));
+
+        // eval_when(): a gate that READS the tainted/payload value as DATA
+        // (string comparison) evaluates against the literal bytes — the
+        // embedded `${{ x }}` is never resolved, so the equality is honest.
+        assert!(
+            eval_when(
+                "${{ tasks.evil.output == \"${{ vars.secret_admin == true }}\" }}",
+                &scope
+            )
+            .expect("compares the literal payload bytes"),
+            "the gate compares the payload as DATA · the inner island is never evaluated"
+        );
+        // And a tainted var compared as data is a plain (false) string compare,
+        // never a re-parse of its `${{ x }}` fragment.
+        assert!(!eval_when("${{ vars.tainted == 'admin' }}", &scope).expect("string compare"),);
+    }
+
+    #[test]
+    fn render_json_for_each_deep_path_array_resolves() {
+        // `for_each: ${{ tasks.files.output }}` over a deep-path array
+        // (the bug: a deep-path array resolved to a string → VAR-006).
+        // render_json single-island preserves the ARRAY type.
+        let records = BTreeMap::from([(
+            "files".to_owned(),
+            record(
+                TaskStatus::Success,
+                serde_json::json!({"paths": ["a.md", "b.md", "c.md"]}),
+            ),
+        )]);
+        let vars = BTreeMap::new();
+        let scope = Scope::workflow(&records, &vars);
+        // A flat task-output array.
+        let flat = BTreeMap::from([(
+            "list".to_owned(),
+            record(TaskStatus::Success, serde_json::json!(["x", "y"])),
+        )]);
+        let flat_scope = Scope::workflow(&flat, &vars);
+        assert_eq!(
+            render_json(&serde_json::json!("${{ tasks.list.output }}"), &flat_scope)
+                .expect("flat array"),
+            serde_json::json!(["x", "y"])
+        );
+        // A DEEP-path array stays an array (type-preserving · the fan-out
+        // collection relies on this).
+        assert_eq!(
+            render_json(
+                &serde_json::json!("${{ tasks.files.output.paths }}"),
+                &scope
+            )
+            .expect("deep array"),
+            serde_json::json!(["a.md", "b.md", "c.md"])
+        );
+    }
+
+    #[test]
+    fn item_field_access_resolves_in_for_each_body() {
+        // The t3-localization shape: `${{ item.path }}` / `${{ item.text }}`
+        // — for_each locals are objects too · field access works.
+        let (records, vars) = fixture();
+        let item = serde_json::json!({"path": "docs/intro.md", "text": "Hello"});
+        let scope = Scope {
+            records: &records,
+            vars: &vars,
+            with_ns: None,
+            item: Some(&item),
+            index: Some(0),
+            permits: None,
+        };
+        assert_eq!(
+            render("${{ item.path }}", &scope).expect("item.path"),
+            "docs/intro.md"
+        );
+        assert_eq!(
+            render("${{ item.text }}", &scope).expect("item.text"),
+            "Hello"
+        );
+    }
+
+    #[test]
+    fn ternary_value_substitution_resolves() {
+        // A ternary in a VALUE position (model/prompt/path selection).
+        let vars = BTreeMap::from([("env".to_owned(), Value::String("prod".into()))]);
+        let records = BTreeMap::new();
+        let scope = Scope::workflow(&records, &vars);
+        assert_eq!(
+            render(
+                "${{ vars.env == 'prod' ? 'anthropic/claude' : 'ollama/llama3' }}",
+                &scope
+            )
+            .expect("ternary value"),
+            "anthropic/claude"
+        );
+        // has() guard form (the `prompt:` default-fallback idiom).
+        assert_eq!(
+            render("${{ has(vars.style) ? vars.style : 'be concise' }}", &scope)
+                .expect("has fallback"),
+            "be concise"
+        );
     }
 
     #[test]
@@ -436,76 +635,106 @@ mod tests {
     }
 
     #[test]
-    fn when_bare_ref_typed_truthiness_table() {
-        let records = BTreeMap::from([
-            (
-                "ok".to_owned(),
-                record(TaskStatus::Success, serde_json::json!(["x"])),
+    fn when_full_cel_gate_forms_evaluate() {
+        // The CEL milestone: the gate is the full cel-subset/0.1 — not a
+        // bare-ref truthiness table. Comparisons (`<` `>=` `!=`), deep
+        // boolean paths, `size()`, `.contains()`, booleans, membership,
+        // and the ternary all evaluate.
+        let records = BTreeMap::from([(
+            "check".to_owned(),
+            record(
+                TaskStatus::Success,
+                serde_json::json!({"valid": true, "coverage": 92, "tags": ["a", "b"]}),
             ),
-            ("ghost".to_owned(), record(TaskStatus::Skipped, Value::Null)),
-        ]);
+        )]);
         let vars = BTreeMap::from([
-            ("yes_ish".to_owned(), Value::String("anything".into())),
-            ("no_word".to_owned(), Value::String("no".into())),
-            ("false_word".to_owned(), Value::String("false".into())),
-            ("zero".to_owned(), Value::String("0".into())),
-            ("empty".to_owned(), Value::String(String::new())),
-            ("zero_num".to_owned(), serde_json::json!(0)),
-            ("one_num".to_owned(), serde_json::json!(1)),
-            ("yes_bool".to_owned(), serde_json::json!(true)),
-            ("no_bool".to_owned(), serde_json::json!(false)),
-            ("empty_list".to_owned(), serde_json::json!([])),
+            ("env".to_owned(), Value::String("production".into())),
+            ("threshold".to_owned(), serde_json::json!(80)),
+            ("msg".to_owned(), Value::String("error: boom".into())),
         ]);
         let scope = Scope::workflow(&records, &vars);
-        for open in [
-            "vars.yes_ish",
-            "vars.one_num",
-            "vars.yes_bool",
-            "tasks.ok.output",
-        ] {
-            assert!(
-                eval_when(&format!("${{{{ {open} }}}}"), &scope).expect("truthy"),
-                "{open} must gate open"
-            );
-        }
-        for closed in [
-            "vars.no_word",
-            "vars.false_word",
-            "vars.zero",
-            "vars.empty",
-            "vars.zero_num",
-            "vars.no_bool",
-            "vars.empty_list",
-            "tasks.ghost.output", // defined-null → false
-        ] {
-            assert!(
-                !eval_when(&format!("${{{{ {closed} }}}}"), &scope).expect("falsy"),
-                "{closed} must gate closed"
-            );
-        }
+        // Deep-path boolean compare (the NIKA-1703 bug this fix closes).
+        assert!(eval_when("${{ tasks.check.output.valid == true }}", &scope).expect("deep bool"));
+        // Numeric comparisons.
+        assert!(eval_when("${{ tasks.check.output.coverage > 80 }}", &scope).expect("> "));
+        assert!(eval_when("${{ vars.threshold >= 80 }}", &scope).expect(">="));
+        assert!(eval_when("${{ tasks.check.output.coverage != 0 }}", &scope).expect("!="));
+        assert!(!eval_when("${{ tasks.check.output.coverage < 80 }}", &scope).expect("<"));
+        // size() + .contains() + membership + boolean ops + ternary.
+        assert!(eval_when("${{ size(tasks.check.output.tags) > 0 }}", &scope).expect("size"));
+        assert!(eval_when("${{ vars.msg.contains('error') }}", &scope).expect("contains"));
+        assert!(
+            eval_when(
+                "${{ vars.env == 'production' && tasks.check.output.valid }}",
+                &scope
+            )
+            .expect("&&")
+        );
+        assert!(eval_when("${{ vars.env in ['staging', 'production'] }}", &scope).expect("in"));
+        assert!(
+            eval_when("${{ vars.env == 'production' ? true : false }}", &scope).expect("ternary")
+        );
+        // The bare YAML-boolean idiom (a wrapped `true`/`false` literal).
+        assert!(eval_when("${{ true }}", &scope).expect("literal true"));
     }
 
     #[test]
-    fn when_out_of_subset_is_nika_1703() {
-        let (records, vars) = fixture();
+    fn when_non_boolean_value_is_var_006() {
+        // Spec 03 §when shape: a `when:` that evaluates non-boolean is
+        // NIKA-VAR-006 (carried as CelEval) — NOT a silent skip, NOT
+        // the old string-truthiness. (A non-boolean ROOT is the
+        // checker's NIKA-VAR-005; the runtime sees the eval-time class.)
+        let vars = BTreeMap::from([
+            ("count".to_owned(), serde_json::json!(3)),
+            ("name".to_owned(), Value::String("nika".into())),
+        ]);
+        let records = BTreeMap::new();
         let scope = Scope::workflow(&records, &vars);
-        for expr in [
-            "${{ vars.a && vars.b }}",
-            "${{ has(vars.publish) }}",
-            "${{ vars.publish == yes }}", // unquoted literal
-            "${{ 1 == 1 }}",
-            // a tasks.-ref WITHOUT a field is OUT of the subset · it must
-            // be 1703 (form invalid) · NOT 1702 (unknown ref).
-            "${{ tasks.gather }}",
-            // deep output path = CEL territory.
-            "${{ tasks.gather.output.a == '1' }}",
+        for non_bool in [
+            "${{ vars.count }}",
+            "${{ vars.name }}",
+            "${{ size(vars.name) }}",
         ] {
-            let err = eval_when(expr, &scope).expect_err(expr);
+            let err = eval_when(non_bool, &scope).expect_err(non_bool);
             assert!(
-                matches!(err, RuntimeError::WhenUnsupported { .. }),
-                "{expr} → {err}"
+                matches!(&err, RuntimeError::CelEval { code, .. } if *code == "NIKA-VAR-006"),
+                "{non_bool} → {err}"
             );
         }
+        // A cross-type compare is also VAR-006 (no silent `false`).
+        let err = eval_when("${{ vars.count == 'three' }}", &scope).expect_err("cross-type");
+        assert!(matches!(
+            &err,
+            RuntimeError::CelEval { code, .. } if *code == "NIKA-VAR-006"
+        ));
+    }
+
+    #[test]
+    fn when_grammar_violation_is_nika_1703() {
+        // Genuinely-out-of-grammar forms (NIKA-VAR-005) are 1703 — the
+        // runtime backstop (the checker is the primary site). Spec-VALID
+        // forms must NEVER reach here (that is the bug this fix closes).
+        let (records, vars) = fixture();
+        let scope = Scope::workflow(&records, &vars);
+        for malformed in [
+            "${{ vars.a < vars.b < vars.c }}", // chained relation
+            "${{ frobnicate(vars.x) }}",       // unknown function
+            "${{ vars.a && }}",                // dangling operator
+            "${{ vars.a @ vars.b }}",          // bad token
+        ] {
+            let err = eval_when(malformed, &scope).expect_err(malformed);
+            assert!(
+                matches!(err, RuntimeError::WhenUnsupported { .. }),
+                "{malformed} → {err}"
+            );
+        }
+        // An UNQUOTED right-hand `yes` is a valid IDENT (an unbound root)
+        // → unresolved (1702), NOT a grammar error · `yes`/`no` are not
+        // reserved words in cel-subset/0.1 (only true/false/null/in are).
+        assert!(matches!(
+            eval_when("${{ vars.publish == yes }}", &scope).expect_err("unbound rhs ident"),
+            RuntimeError::UnresolvedTemplate { .. }
+        ));
     }
 
     proptest::proptest! {

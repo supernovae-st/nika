@@ -507,14 +507,20 @@ outputs:
     assert_eq!(outcome.outputs["said"], "bonjour", "typed output resolved");
 }
 
-/// Kills the three `render_opt` mutants (Ok(None) · Some("") ·
-/// Some("xyzzy")) · a DEEP output path in `system:` is statically
-/// valid (the ladder proves it against the declared `schema:` ·
-/// ADR-092 #4) but OUT of the v0 render subset — the task must fail
-/// loudly (NIKA-1703 · CEL territory · documented divergence until
-/// the 03-dag evaluator) — every mutant silently succeeds instead.
+/// The CEL milestone SUPERSEDES the old "deep path = NIKA-1703" floor:
+/// a DEEP output path in a verb body (`system:` · `prompt:`) is
+/// statically valid (the ladder proves it against the declared
+/// `schema:` · ADR-092 #4) AND now RESOLVES at run time through
+/// `nika-cel`. The task must SUCCEED · never NIKA-1703.
+///
+/// Also exercises `render_opt` (the `system:` optional field) on a
+/// deep path: the deep reference is mirrored into the OBSERVABLE
+/// `prompt:` (the mock echoes the user message, not the system), so a
+/// `render`/`resolve_expr` mutant that drops or blanks the resolved
+/// value is caught by the output assertion — and a `render_opt` that
+/// errored would fail the task (which we assert succeeds).
 #[tokio::test]
-async fn floor_deep_path_system_template_fails_the_task_loudly() {
+async fn floor_deep_path_system_template_resolves() {
     let yaml = r#"
 nika: v1
 workflow: deep-ref
@@ -531,13 +537,13 @@ tasks:
   - id: think
     depends_on: [extract]
     infer:
-      prompt: "hello"
+      prompt: "headline is ${{ tasks.extract.output.headline }}"
       system: "${{ tasks.extract.output.headline }}"
 "#;
     let (wf, report) = parse_and_check(yaml);
     assert!(
         report.is_clean(),
-        "deep path proves against the declared schema · the v0 render owns the refusal"
+        "deep path proves against the declared schema · the evaluator owns the resolution"
     );
 
     let runtime = floor_runtime(
@@ -550,21 +556,27 @@ tasks:
     let outcome = runtime
         .run(&wf, &report, &mut stamper, &mut sink)
         .await
-        .expect("the run survives · the task fails");
+        .expect("clean run");
     let events = sink.into_events();
 
     assert!(
-        !outcome.ok,
-        "a deep-path system template fails the workflow"
+        outcome.ok,
+        "a deep-path verb body now resolves · the workflow succeeds"
     );
-    let failed = events
-        .iter()
-        .find(|e| e.kind == EventKind::TaskFailed)
-        .expect("think failed");
-    let detail = field(failed, "detail").expect("detail field");
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| e.kind == EventKind::TaskFailed)
+            .count(),
+        0,
+        "no task fails · the deep path is no longer NIKA-1703"
+    );
+    // The deep-path value flowed into the prompt (echoed) → output ·
+    // proves the resolution actually happened (not a silent skip).
     assert!(
-        detail.contains("NIKA-1703"),
-        "the out-of-subset guard names itself: {detail}"
+        output_str(&outcome, "think").contains("Rust 2.0"),
+        "the deep-path headline resolved into think · got: {}",
+        output_str(&outcome, "think")
     );
 }
 
