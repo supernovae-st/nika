@@ -150,10 +150,15 @@ pub(crate) async fn edit<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Buil
 pub(crate) async fn glob<F: FsListDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-GLOB-001";
     let pattern = req_str(args, "pattern", C)?;
-    // Glob is rooted at the project cwd; the kernel `glob(root, pattern)`
-    // walks read-only. The exclude list filters the result set.
+    // The kernel `glob(root, pattern)` matches `pattern` against the
+    // root-RELATIVE path of each entry, so a RELATIVE pattern globs the cwd
+    // subtree (the default). An ABSOLUTE pattern (`/tmp/x/**`) never matches
+    // a cwd-relative path → silent `[]` (the F2 footgun) — so it is split
+    // into its longest literal directory root + the relative remainder, and
+    // globbed FROM that root (the entries come back absolute, as written).
+    let (root, rel_pattern) = split_pattern_root(pattern);
     let matches = fs
-        .glob(Path::new("."), pattern)
+        .glob(Path::new(root), rel_pattern)
         .await
         .map_err(|e| BuiltinFailure::new(C, format!("invalid pattern: {e}")))?;
     let excludes = exclude_patterns(args);
@@ -166,6 +171,44 @@ pub(crate) async fn glob<F: FsListDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
     Ok(serde_json::Value::Array(
         paths.into_iter().map(serde_json::Value::String).collect(),
     ))
+}
+
+/// The directory a `nika:glob` of `pattern` walks FROM — the boundary the
+/// dispatcher gates on (`pub(crate)` so `guarded_glob` enforces the SAME
+/// root this fn globs, not a stale `.`). `.` for a relative pattern · the
+/// absolute literal-dir prefix for an absolute one (see [`split_pattern_root`]).
+pub(crate) fn glob_walk_root(pattern: &str) -> &str {
+    split_pattern_root(pattern).0
+}
+
+/// Split a glob `pattern` into the directory to walk FROM and the pattern
+/// to match relative to it.
+///
+/// A RELATIVE pattern keeps the cwd root: `("." , pattern)` — the historical
+/// behaviour, the kernel matches it against `.`-relative entries. An
+/// ABSOLUTE pattern is re-rooted at its longest literal directory prefix
+/// (every leading component up to the first one containing a glob meta
+/// char `*`/`?`/`[`) and the remainder becomes the relative pattern, so
+/// `/tmp/x/file.txt` → (`/tmp/x`, `file.txt`) and `/data/**/*.rs` →
+/// (`/data`, `**/*.rs`). A bare absolute file (`/etc/hosts`) → (`/etc`,
+/// `hosts`). Without this, the kernel's root-relative matcher could never
+/// see an absolute pattern match and returned `[]`.
+fn split_pattern_root(pattern: &str) -> (&str, &str) {
+    if !Path::new(pattern).is_absolute() {
+        return (".", pattern);
+    }
+    // Find the byte offset of the last `/` BEFORE the first glob meta char —
+    // everything up to and including it is the literal directory root.
+    let first_meta = pattern.find(['*', '?', '[']).unwrap_or(pattern.len());
+    let split_at = pattern[..first_meta].rfind('/').unwrap_or(0);
+    if split_at == 0 {
+        // The meta char (or the whole pattern) sits in the root segment —
+        // walk from `/` with the full path-after-root as the pattern.
+        return ("/", pattern.strip_prefix('/').unwrap_or(pattern));
+    }
+    let root = &pattern[..split_at];
+    let rel = &pattern[split_at + 1..];
+    (root, rel)
 }
 
 /// Read `exclude:` as either a single pattern string OR a list of them
@@ -264,10 +307,18 @@ pub(crate) async fn grep<F: FsReadDyn + FsListDyn>(fs: &F, args: &Args) -> Built
     let regex = build_regex(pattern, opt_bool(args, "case_insensitive", false))
         .map_err(|e| BuiltinFailure::new(C, format!("invalid pattern: {e}")))?;
 
-    let files = fs
-        .glob(Path::new(root), "**")
-        .await
-        .map_err(|e| BuiltinFailure::new(C, format!("walk failed: {e}")))?;
+    let files = fs.glob(Path::new(root), "**").await.map_err(|e| {
+        // grep is a recursive DIRECTORY walk · a `path:` that names a FILE
+        // makes `read_dir` fail with ENOTDIR ("Not a directory (os error
+        // 20)") — a cryptic OS error. Name the real contract instead.
+        match e {
+            FsError::Io { .. } if is_not_a_directory(&e) => BuiltinFailure::new(
+                C,
+                format!("`path:` `{root}` must be a directory — grep walks a tree, not a file"),
+            ),
+            other => BuiltinFailure::new(C, format!("walk failed: {other}")),
+        }
+    })?;
     let mut hits = Vec::new();
     for file in files {
         // The walk yields directories (EISDIR), binary files (InvalidData),
@@ -304,6 +355,21 @@ fn build_regex(pattern: &str, case_insensitive: bool) -> Result<regex::Regex, re
     regex::RegexBuilder::new(pattern)
         .case_insensitive(case_insensitive)
         .build()
+}
+
+/// Whether an [`FsError::Io`] is the ENOTDIR class (a `read_dir` on a
+/// file). The kernel folds ENOTDIR into the generic `Io` arm (no typed
+/// variant · adding one is a Gate-12 kernel change), so this matches the
+/// reason text — the std display (`"Not a directory"`) OR the raw unix
+/// code (`os error 20`). Friendly-message-only: a miss just falls back to
+/// the generic "walk failed", never a wrong verdict.
+fn is_not_a_directory(e: &FsError) -> bool {
+    match e {
+        FsError::Io { reason } => {
+            reason.contains("Not a directory") || reason.contains("os error 20")
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -539,6 +605,94 @@ mod tests {
         assert_eq!(paths, vec!["./keep.rs"], "string exclude drops drop.rs");
     }
 
+    #[tokio::test]
+    async fn glob_matches_an_absolute_pattern() {
+        // F2 · the silent-empty footgun: an absolute pattern matching an
+        // existing file used to return `[]` (the kernel matches the pattern
+        // against cwd-relative paths · an absolute one never matched). Now
+        // it re-roots at the literal dir prefix and matches.
+        let fs = MockFs::new()
+            .with_file("/tmp/x/file.txt", "")
+            .with_file("/tmp/x/other.md", "")
+            .with_file("/tmp/y/elsewhere.txt", "");
+
+        // An exact absolute file path returns it.
+        let exact = glob(
+            &fs,
+            &args(serde_json::json!({ "pattern": "/tmp/x/file.txt" })),
+        )
+        .await
+        .expect("ok");
+        assert_eq!(
+            exact,
+            serde_json::json!(["/tmp/x/file.txt"]),
+            "an absolute file pattern matches it (was silently [])"
+        );
+
+        // An absolute glob pattern matches under its root only.
+        let starred = glob(&fs, &args(serde_json::json!({ "pattern": "/tmp/x/*.txt" })))
+            .await
+            .expect("ok");
+        assert_eq!(
+            starred,
+            serde_json::json!(["/tmp/x/file.txt"]),
+            "absolute *.txt under /tmp/x — not /tmp/y"
+        );
+
+        // An absolute `**` recurses under its root.
+        let recursive = glob(&fs, &args(serde_json::json!({ "pattern": "/tmp/**" })))
+            .await
+            .expect("ok");
+        assert_eq!(
+            recursive,
+            serde_json::json!(["/tmp/x/file.txt", "/tmp/x/other.md", "/tmp/y/elsewhere.txt"]),
+            "absolute /tmp/** spans both subtrees"
+        );
+
+        // An absolute no-match is a clean [] (not an error).
+        let empty = glob(
+            &fs,
+            &args(serde_json::json!({ "pattern": "/tmp/x/nope.zip" })),
+        )
+        .await
+        .expect("ok");
+        assert_eq!(empty, serde_json::json!([]), "absolute no-match is []");
+    }
+
+    #[tokio::test]
+    async fn glob_relative_patterns_still_work() {
+        // The F2 fix must not regress the relative (cwd-rooted) path.
+        let fs = MockFs::new()
+            .with_file("./a.rs", "")
+            .with_file("./b.rs", "");
+        let out = glob(&fs, &args(serde_json::json!({ "pattern": "**" })))
+            .await
+            .expect("ok");
+        assert_eq!(out, serde_json::json!(["./a.rs", "./b.rs"]));
+    }
+
+    #[test]
+    fn split_pattern_root_relative_vs_absolute() {
+        // Relative → cwd root, pattern unchanged.
+        assert_eq!(split_pattern_root("src/**/*.rs"), (".", "src/**/*.rs"));
+        assert_eq!(split_pattern_root("**"), (".", "**"));
+        // Absolute exact file → the parent dir + the file name.
+        assert_eq!(
+            split_pattern_root("/tmp/x/file.txt"),
+            ("/tmp/x", "file.txt")
+        );
+        // Absolute with a meta char → split at the last `/` before it.
+        assert_eq!(split_pattern_root("/data/**/*.rs"), ("/data", "**/*.rs"));
+        assert_eq!(split_pattern_root("/var/*.log"), ("/var", "*.log"));
+        // A meta char in the first segment after root → walk from `/`.
+        assert_eq!(split_pattern_root("/*.txt"), ("/", "*.txt"));
+        // A bare absolute file under root → (`/`, name).
+        assert_eq!(split_pattern_root("/hosts"), ("/", "hosts"));
+        // The public root accessor agrees.
+        assert_eq!(glob_walk_root("/tmp/x/file.txt"), "/tmp/x");
+        assert_eq!(glob_walk_root("rel/**"), ".");
+    }
+
     #[test]
     fn exclude_patterns_reads_string_or_array() {
         let none = exclude_patterns(&args(serde_json::json!({})));
@@ -634,6 +788,39 @@ mod tests {
         let long = "x".repeat(100_000);
         assert!(!simple_glob("**Y", &long));
         assert!(simple_glob("**x", &long));
+    }
+
+    #[tokio::test]
+    async fn grep_on_a_file_path_names_the_directory_contract() {
+        // The low-priority DX fix: grep is a recursive DIRECTORY walk · a
+        // `path:` naming a FILE used to surface the cryptic "Not a directory
+        // (os error 20)". It now names the real contract. Proven on the REAL
+        // fs (MockFs is a HashMap · never raises ENOTDIR).
+        use nika_fs::TokioFs;
+        let dir = std::env::temp_dir().join(format!(
+            "nika-grep-enotdir-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("scratch");
+        let file = dir.join("a.txt");
+        std::fs::write(&file, b"hello\n").expect("write");
+        let out = grep(
+            &TokioFs,
+            &args(serde_json::json!({
+                "pattern": "hello", "path": file.to_string_lossy()
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&out, Err(f) if f.code == "NIKA-BUILTIN-GREP-001"
+                && f.message.contains("must be a directory")),
+            "grep on a file names the directory contract: {out:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]

@@ -387,12 +387,21 @@ where
         file::grep(self.fs.as_ref(), args).await
     }
 
-    /// `nika:glob` under the boundary — the walk is rooted at `.` and never
-    /// crosses `..` nor follows symlinked dirs (kernel `glob` contract), so
-    /// its hits are confined to the cwd subtree; gate on `.` being readable.
+    /// `nika:glob` under the boundary — the walk never crosses `..` nor
+    /// follows symlinked dirs (kernel `glob` contract), so its hits are
+    /// confined to the WALK ROOT's subtree. Gate on that root being readable:
+    /// `.` for a relative pattern (the cwd subtree), the absolute literal-dir
+    /// prefix for an absolute one — so an absolute glob (F2) that targets a
+    /// path OUTSIDE the declared `permits.fs` boundary is refused (NIKA-SEC-004)
+    /// before the walk, not silently honoured. When `pattern:` is absent the
+    /// gate falls to `.` and the glob's own arg ladder surfaces the error.
     async fn guarded_glob(&self, args: &Args) -> BuiltinOutcome {
+        let root = args
+            .get("pattern")
+            .and_then(serde_json::Value::as_str)
+            .map_or(".", file::glob_walk_root);
         self.fs_boundary
-            .enforce(self.fs.as_ref(), ".", permits::FsAccess::Read)
+            .enforce(self.fs.as_ref(), root, permits::FsAccess::Read)
             .await?;
         file::glob(self.fs.as_ref(), args).await
     }
@@ -883,6 +892,52 @@ mod boundary_dispatch_tests {
             result.content
         );
         assert_eq!(result.content, "OUTSIDE");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn absolute_glob_outside_the_boundary_is_refused() {
+        // F2 security pin: now that an absolute pattern globs from its real
+        // root (not silently `[]`), the boundary must gate THAT root — an
+        // absolute glob aimed OUTSIDE the declared `permits.fs` must fail
+        // before the walk, never silently leak the outside tree.
+        let root = scratch();
+        let boundary = FsBoundary::declared(vec![format!("{}/allowed/**", root.display())], vec![]);
+        let dispatcher = dispatcher_with(boundary);
+        // `<root>/**` walks `<root>` — NOT under `allowed/**` → refused.
+        let outside = dispatcher
+            .execute(ToolCall::new(
+                "t",
+                "nika:glob",
+                serde_json::json!({ "pattern": format!("{}/**", root.display()) }),
+            ))
+            .await
+            .expect("dispatches");
+        assert!(outside.is_error, "an out-of-boundary glob must be refused");
+        assert!(
+            outside.content.starts_with("NIKA-SEC-004"),
+            "{}",
+            outside.content
+        );
+        // …while an absolute glob INSIDE the boundary still works.
+        let inside = dispatcher
+            .execute(ToolCall::new(
+                "t",
+                "nika:glob",
+                serde_json::json!({ "pattern": format!("{}/allowed/**", root.display()) }),
+            ))
+            .await
+            .expect("dispatches");
+        assert!(
+            !inside.is_error,
+            "an in-boundary absolute glob is allowed: {}",
+            inside.content
+        );
+        assert!(
+            inside.content.contains("in.txt"),
+            "the in-boundary file surfaces: {}",
+            inside.content
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 }
