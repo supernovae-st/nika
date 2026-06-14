@@ -24,7 +24,7 @@ use nika_builtin::{BuiltinDispatcher, NoWorkflow, NonInteractive, NullEmitter};
 use nika_clock::SystemClock;
 use nika_exec_runner::TokioShell;
 use nika_fs::TokioFs;
-use nika_http::ReqwestHttp;
+use nika_http::{HttpConfig, ReqwestHttp, SsrfMode};
 use nika_kernel::ai::provider::ProviderInferDyn;
 use nika_kernel::provider::{InferRequest, InferResponse, ProviderError};
 use nika_kernel::secret::Secret;
@@ -107,6 +107,33 @@ fn config_from_env() -> ProvidersConfig {
     config
 }
 
+/// The HTTP client for the PROVIDER path (LLM inference), distinct from
+/// the fetch/builtin client.
+///
+/// SSRF is `Disabled` here ON PURPOSE. The fetch SSRF guard exists because
+/// `fetch:`/`nika:fetch` URLs are WORKFLOW-controlled (attacker-influenced),
+/// so loopback/private targets must be blocked. The provider path is the
+/// opposite: endpoints come from a FIXED, studio-controlled allowlist
+/// (`nika_providers::profile`), never from workflow data — and the local
+/// providers (`ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm`) bind
+/// `127.0.0.1` BY DESIGN. Enforcing the fetch guard here bricks every
+/// local/sovereign provider with `NIKA-430 · SSRF blocked 127.0.0.1`, which
+/// contradicts the local-first raison. `Disabled` is exactly the
+/// "trusted internal networks" opt-out the `nika-http` docs sanction.
+///
+/// # Errors
+///
+/// [`nika_kernel::HttpError`] when the TLS backend won't initialize.
+// `HttpConfig` is `#[non_exhaustive]`, so the struct-literal/FRU form clippy
+// would suggest is a cross-crate compile error — field assignment is the only
+// way (the same idiom nika-http's own tests use).
+#[allow(clippy::field_reassign_with_default)]
+fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
+    let mut config = HttpConfig::default();
+    config.ssrf = SsrfMode::Disabled;
+    ReqwestHttp::with_config(config)
+}
+
 /// Compose the production runtime for a workflow whose envelope default
 /// model is `default_model`.
 ///
@@ -117,6 +144,10 @@ fn config_from_env() -> ProvidersConfig {
 /// environment exit code (3).
 pub fn production_runtime(default_model: &str) -> Result<ProdRuntime, nika_kernel::HttpError> {
     let http = Arc::new(ReqwestHttp::new()?);
+    // The provider path gets its OWN client (SSRF disabled · see the
+    // `provider_http` doc): the fetch/builtin plane below keeps `http`
+    // (SSRF enforced · workflow-controlled URLs).
+    let provider_http = Arc::new(provider_http()?);
     let config = config_from_env();
 
     // The builtin tool plane (invoke + the agent's tools) over real
@@ -133,7 +164,7 @@ pub fn production_runtime(default_model: &str) -> Result<ProdRuntime, nika_kerne
 
     // The provider registry (real http + env keys) drives infer directly
     // and the agent via the per-call RegistryProvider bridge.
-    let registry = Arc::new(ProviderRegistry::new(Arc::clone(&http), config));
+    let registry = Arc::new(ProviderRegistry::new(provider_http, config));
     let agent_provider = Arc::new(RegistryProvider::new(Arc::clone(&registry)));
 
     Ok(Runtime::new(
@@ -177,5 +208,28 @@ mod tests {
         // We can't assert key absence (the dev's shell may export some),
         // but composition must succeed regardless — proven above.
         let _ = config;
+    }
+
+    /// Regression for NIKA-430: the provider HTTP path must NOT apply the
+    /// fetch SSRF guard, or every loopback-bound local provider (`ollama`,
+    /// `lmstudio`, `llamacpp`, `localai`, `vllm`) is unreachable. Whether the
+    /// socket connects or is refused, the result must NEVER be `SsrfBlocked`
+    /// — the default fetch client WOULD block `127.0.0.1` (see nika-http
+    /// `enforce_mode_blocks_loopback_end_to_end`). Mirrors nika-http's
+    /// `disabled_mode_still_builds_a_working_client`.
+    #[tokio::test]
+    async fn provider_http_does_not_ssrf_block_loopback() {
+        use nika_kernel::http::HttpPostDyn;
+        use nika_kernel::{HttpError, HttpRequest};
+        let http = provider_http().expect("provider client builds");
+        let result = http
+            .post(HttpRequest::post("http://127.0.0.1:9/v1/chat/completions"))
+            .await;
+        if let Err(e) = result {
+            assert!(
+                !matches!(e, HttpError::SsrfBlocked { .. }),
+                "the provider client must not SSRF-block loopback (got {e})"
+            );
+        }
     }
 }
