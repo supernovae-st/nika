@@ -29,10 +29,26 @@ pub fn run(wire: &str) -> VerbOutput {
         if let Some(text) = canon_row(&normalized) {
             return VerbOutput::ok(text);
         }
+        // Per-builtin runtime codes (`NIKA-BUILTIN-<NAME>-<NNN>`) are emitted
+        // by builtins at runtime and ARE valid in `on_codes:` — but they are
+        // runtime diagnostics, not spec-conformance rows, so the canon table
+        // does not carry each one. Recognize the namespace and teach what it
+        // IS (better than a flat "unknown code"), pointing to the contract.
+        if let Some(name) = builtin_code_name(&normalized) {
+            return VerbOutput::ok(format!(
+                "{normalized} · builtin · runtime error from the `nika:{name}` builtin\n\n  \
+                 A per-builtin runtime diagnostic (each builtin owns \
+                 NIKA-BUILTIN-<NAME>-001..099). Valid in `retry.on_codes:` and \
+                 `on_error.on_codes:`. The specific cause is the builtin's own \
+                 arg/runtime contract — see spec stdlib (builtins) · \
+                 docs.nika.sh/errors.\n"
+            ));
+        }
         return VerbOutput::file(format!(
             "unknown code `{wire}` — the registry knows NIKA-001..NIKA-9999 \
-             (allocated ranges) and the spec conformance codes \
-             (NIKA-DAG-* · NIKA-VAR-* · …); see docs.nika.sh/errors"
+             (allocated ranges), the spec conformance codes \
+             (NIKA-DAG-* · NIKA-VAR-* · …), and per-builtin \
+             NIKA-BUILTIN-<NAME>-NNN codes; see docs.nika.sh/errors"
         ));
     };
     // The category/severity labels are the OWNING crate's canonical
@@ -64,6 +80,17 @@ fn canon_row(code: &str) -> Option<String> {
         transient = row.transient,
         failure = row.failure,
     ))
+}
+
+/// Parse a per-builtin runtime code `NIKA-BUILTIN-<NAME>-<NNN>` to the builtin
+/// name (`write` · `fetch` · `json_merge_patch` · …), or `None` if the wire is
+/// not that shape. The generic `NIKA-BUILTIN-001` (no name) is a canon row and
+/// is resolved before this is reached.
+fn builtin_code_name(code: &str) -> Option<String> {
+    let rest = code.strip_prefix("NIKA-BUILTIN-")?;
+    let (name, num) = rest.rsplit_once('-')?;
+    (num.len() == 3 && num.bytes().all(|b| b.is_ascii_digit()) && !name.is_empty())
+        .then(|| name.to_ascii_lowercase())
 }
 
 #[cfg(test)]
@@ -129,6 +156,25 @@ mod tests {
         let out = run("NIKA-ZZZ-999");
         assert_eq!(out.code, exit::FILE);
         assert!(out.text.contains("unknown code"));
+    }
+
+    #[test]
+    fn builtin_namespace_codes_teach_not_404() {
+        // NEW-3a: the per-builtin runtime code the nika:write null-guard
+        // emits must EXPLAIN (builtin name + on_codes usability), not the
+        // flat "unknown code" — ONE voice for every emitted code.
+        let out = run("NIKA-BUILTIN-WRITE-001");
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(out.text.contains("nika:write"), "{}", out.text);
+        assert!(out.text.contains("on_codes"), "{}", out.text);
+        // underscore-named builtins normalize too (json_merge_patch).
+        assert!(
+            run("NIKA-BUILTIN-JSON_MERGE_PATCH-001")
+                .text
+                .contains("nika:json_merge_patch")
+        );
+        // a malformed builtin code (empty name) stays a finding.
+        assert_eq!(run("NIKA-BUILTIN--001").code, exit::FILE);
     }
 
     #[test]
