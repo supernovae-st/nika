@@ -223,14 +223,24 @@ fn emit_prologue(
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
+    // The run banner reflects the ACTUAL boundary: a declared `permits:` block
+    // is a default-deny boundary, so the banner must not keep saying "no
+    // boundary declared" once one is present (it misled operators into thinking
+    // permits were inert). We state only what is unconditionally true — the
+    // boundary is declared and default-deny — and DO NOT claim "(enforced)":
+    // runtime enforcement is axis-dependent (fs+exec gate at dispatch; tools+net
+    // are validated by `nika check`), so a blanket enforcement claim would
+    // over-state for a tools/net-only block (NIKA-SEC-004 · spn-nika review).
+    let permits_desc = if wf.permits.is_some() {
+        "declared boundary · default-deny"
+    } else {
+        "engine floor (no boundary declared)"
+    };
     emit(
         stamper,
         sink,
         EventKind::WorkflowStarted,
-        &[
-            ("workflow", s(workflow_name)),
-            ("permits", s("engine floor (no boundary declared)")),
-        ],
+        &[("workflow", s(workflow_name)), ("permits", s(permits_desc))],
     );
     for task in &wf.tasks {
         emit(

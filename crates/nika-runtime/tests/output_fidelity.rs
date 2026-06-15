@@ -397,3 +397,66 @@ outputs:
         "the only task succeeded — no orphan task_failed for the outputs phase"
     );
 }
+
+// ─── the run banner tells the boundary truth (WorkflowStarted permits) ───────
+
+/// A declared `permits:` block is a default-deny boundary the effects ENFORCE.
+/// The run banner reads the `WorkflowStarted` `permits` field — it must NOT
+/// keep reporting "engine floor (no boundary declared)" once a boundary is
+/// present (the misleading display the operator could not visually trust).
+#[tokio::test]
+async fn run_banner_reflects_a_declared_permits_boundary() {
+    let yaml = r#"
+nika: v1
+workflow: permits-banner
+permits:
+  tools: ["nika:jq"]
+tasks:
+  - id: t
+    invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
+"#;
+    let tools = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("t", "1").with_structured(serde_json::json!(1)));
+    let (_outcome, events) =
+        run_to_events(yaml, MockShell::new(), tools, MockProvider::new("mock")).await;
+    let started = events
+        .iter()
+        .find(|e| e.kind == EventKind::WorkflowStarted)
+        .expect("a workflow_started frame");
+    let permits = str_field(started, "permits").expect("a permits field on the frame");
+    assert!(
+        permits.contains("declared"),
+        "a declared boundary must surface as one · got: {permits}"
+    );
+    assert!(
+        !permits.contains("no boundary"),
+        "MUST NOT claim 'no boundary declared' when permits are present · got: {permits}"
+    );
+}
+
+/// The companion: with NO `permits:` block, the banner truthfully reports the
+/// engine floor (the run is bounded by the engine's own default ceilings, not
+/// a workflow-declared boundary) — the other half of the same display truth.
+#[tokio::test]
+async fn run_banner_reports_engine_floor_when_no_permits_declared() {
+    let yaml = r#"
+nika: v1
+workflow: no-permits-banner
+tasks:
+  - id: t
+    invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
+"#;
+    let tools = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("t", "1").with_structured(serde_json::json!(1)));
+    let (_outcome, events) =
+        run_to_events(yaml, MockShell::new(), tools, MockProvider::new("mock")).await;
+    let started = events
+        .iter()
+        .find(|e| e.kind == EventKind::WorkflowStarted)
+        .expect("a workflow_started frame");
+    let permits = str_field(started, "permits").expect("a permits field on the frame");
+    assert!(
+        permits.contains("engine floor"),
+        "no declared boundary → the engine-floor truth · got: {permits}"
+    );
+}
