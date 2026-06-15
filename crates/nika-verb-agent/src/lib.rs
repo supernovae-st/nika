@@ -580,10 +580,23 @@ where
         // The cumulative token budget gates the TOOL loop (classify_turn);
         // the final shaping is bounded by schema_retry_budget instead — a
         // concluded answer is a success even over budget (spec §2 terminal).
-        messages.push(Message::new(
-            Role::Assistant,
-            final_response.content.clone(),
-        ));
+        //
+        // STRIP any tool-call blocks from the final turn first: a result-less
+        // `nika:done` (or any terminal tool call) rides `final_response.content`
+        // as an UNANSWERED `ToolUse`, and the re-ask is a tools-OFF turn that
+        // never responds to it — re-sending it to a strict provider (openai)
+        // is a 400 ("tool_call_ids did not have response messages"). Only the
+        // model's prose is context here; if there is none, append nothing (the
+        // dispatched tools + their results already carry the conversation).
+        let final_prose: Vec<ContentBlock> = final_response
+            .content
+            .iter()
+            .filter(|block| !matches!(block, ContentBlock::ToolUse { .. }))
+            .cloned()
+            .collect();
+        if !final_prose.is_empty() {
+            messages.push(Message::new(Role::Assistant, final_prose));
+        }
         let native = self.provider.supports_response_format();
         for _ in 0..self.schema_retry_budget {
             messages.push(Message::text(

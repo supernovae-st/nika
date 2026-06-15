@@ -444,6 +444,65 @@ async fn done_among_siblings_completes_without_dispatching_them() {
     );
 }
 
+#[tokio::test]
+async fn done_among_siblings_under_schema_reask_strips_orphan_tool_calls() {
+    // The SCHEMA variant of the above: [nika:read, nika:done] in ONE turn,
+    // under a `schema:` task. done wins (FinalText); the prose "final words"
+    // does not conform, so the loop re-asks WITH the schema. That re-ask is a
+    // tools-OFF turn — it must NOT re-send the UNANSWERED read+done tool_calls
+    // (a strict provider 400s: "tool_call_ids did not have response messages"
+    // · the openai parallel-tool-call bug). The orphan `ToolUse` blocks must
+    // be stripped from the final assistant turn before the re-ask.
+    let mixed = InferResponse::new(
+        vec![
+            ContentBlock::Text {
+                text: "final words".to_owned(),
+            },
+            ContentBlock::ToolUse {
+                id: "r".to_owned(),
+                name: "nika:read".to_owned(),
+                input: serde_json::json!({}),
+            },
+            ContentBlock::ToolUse {
+                id: "d".to_owned(),
+                name: DONE_TOOL.to_owned(),
+                input: serde_json::json!({}),
+            },
+        ],
+        usage(10, 5),
+        StopReason::ToolUse,
+    );
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(mixed)
+            // the schema re-ask returns a conforming object.
+            .enqueue_response(text_response(r#"{"ok": true}"#)),
+        MockToolExecutor::new(),
+        vec![def("nika:read")],
+    );
+    let mut input = AgentInput::new("finish under schema");
+    input.tools = vec!["nika:read".to_owned(), DONE_TOOL.to_owned()];
+    input.schema = Some(serde_json::json!({
+        "type": "object",
+        "required": ["ok"],
+        "properties": { "ok": { "type": "boolean" } }
+    }));
+    let out = r.verb.run(input).await.expect("the schema re-ask conforms");
+    assert_eq!(out.stop_reason, AgentStopReason::ExplicitCompletion);
+    // The re-ask request (the LAST one) carries NO orphan tool_call — the
+    // unanswered read+done `ToolUse` blocks were stripped before the re-ask.
+    let reqs = r.provider.captured_requests();
+    assert!(reqs.len() >= 2, "a schema re-ask round-trip happened");
+    let reask = reqs.last().expect("the re-ask request");
+    assert!(
+        !reask.messages.iter().any(|m| m
+            .content
+            .iter()
+            .any(|b| matches!(b, ContentBlock::ToolUse { .. }))),
+        "the schema re-ask must carry NO orphan tool_call (tools-off turn)"
+    );
+}
+
 // ── mid-loop inference failure → NIKA-463 ───────────────────────────
 
 #[tokio::test]
