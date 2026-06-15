@@ -58,6 +58,11 @@ enum Command {
         /// Stream NDJSON events instead of the live render (CI · agents).
         #[arg(long)]
         json: bool,
+        /// Print the typed `outputs:` as ONE JSON object on stdout
+        /// (progress → stderr) · the export contract · powers
+        /// `exec: nika run sub.yaml --output json` + `capture: stdout`.
+        #[arg(long, value_name = "FORMAT", conflicts_with = "json")]
+        output: Option<String>,
         /// Disable colour output.
         #[arg(long)]
         no_color: bool,
@@ -200,9 +205,10 @@ fn main() -> std::process::ExitCode {
         Command::Run {
             file,
             json,
+            output,
             no_color,
             ascii,
-        } => verbs::run::run(&file, json, term_theme(no_color, ascii)),
+        } => verbs::run::run(&file, json, output.as_deref(), term_theme(no_color, ascii)),
         Command::Inspect { file } => emit(&verbs::inspect::run(&file)),
         Command::Graph { file, format } => {
             let format = match format {

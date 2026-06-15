@@ -29,7 +29,10 @@ pub use compose::{ProdRuntime, fs_boundary_of, production_runtime};
 pub use sink::{FoldSink, JsonSink};
 pub use stamp::SystemStamper;
 
+use std::collections::BTreeMap;
 use std::io::Write as _;
+
+use serde_json::Value;
 
 use nika_runtime::{EventSink, Runtime, Stamper};
 use nika_schema::check::CheckReport;
@@ -45,20 +48,37 @@ use crate::verbs::exit;
 /// findings (audit-before-run · the dirty report never executes) · `3`
 /// environment (unreadable file · TLS init · a system contract breach).
 #[must_use]
-pub fn run(file: &str, json: bool, theme: Theme) -> u8 {
+pub fn run(file: &str, json: bool, output: Option<&str>, theme: Theme) -> u8 {
+    // `--output json` selects the machine-result mode (spec 01 §"What
+    // leaves a run"): the resolved `outputs:` object as one JSON object on
+    // stdout · diagnostics/progress on stderr. Absent → the live human
+    // render. Validated up front so an unknown format fails before any work.
+    let output_json = match output {
+        None => false,
+        Some("json") => true,
+        Some(other) => {
+            eprintln!("nika run: unknown --output format `{other}` (expected `json`)");
+            return exit::ENV;
+        }
+    };
+
     // ── Audit BEFORE run (spec §3 · INV the runtime also enforces) ──
     let (wf, report) = match crate::verbs::load_checked(file) {
         Ok(pair) => pair,
         Err(out) => {
-            print!("{}", out.text);
+            // Pre-run diagnostics obey the export contract too: in machine
+            // mode they go to stderr so a `capture: stdout` consumer never
+            // mistakes the "cannot read" text for the JSON result.
+            emit_diagnostic(&out.text, output_json);
             return out.code;
         }
     };
     if !report.is_clean() {
         // The SAME findings `nika check` renders — the user must see why
-        // it won't run. Reuses the locked check rendering (exit 2).
+        // it won't run. Reuses the locked check rendering (exit 2). In
+        // machine mode the findings go to stderr (stdout stays clean JSON).
         let out = crate::verbs::check::run(file, json, theme);
-        print!("{}", out.text);
+        emit_diagnostic(&out.text, output_json);
         return out.code;
     }
 
@@ -90,7 +110,7 @@ pub fn run(file: &str, json: bool, theme: Theme) -> u8 {
             return exit::ENV;
         }
     };
-    rt.block_on(execute(&runtime, &wf, &report, json, theme))
+    rt.block_on(execute(&runtime, &wf, &report, json, output_json, theme))
 }
 
 /// `nika examples run <slug>` — execute one EMBEDDED example through the
@@ -110,7 +130,7 @@ pub fn example(slug: &str, theme: Theme) -> u8 {
         eprintln!("nika run: environment: cannot stage example `{slug}`: {e}");
         return exit::ENV;
     }
-    run(&path.to_string_lossy(), false, theme)
+    run(&path.to_string_lossy(), false, None, theme)
 }
 
 /// Drive the runtime through the chosen sink · return the exit code.
@@ -119,12 +139,31 @@ async fn execute(
     wf: &RawWorkflow,
     report: &CheckReport,
     json: bool,
+    output_json: bool,
     theme: Theme,
 ) -> u8 {
     let mut stamper = SystemStamper::new();
-    if json {
+    if output_json {
+        // Machine-result mode (spec 01 §export contract): the live fold is
+        // a DIAGNOSTIC → stderr; the resolved `outputs:` object is the ONE
+        // JSON object on stdout, never interleaved. This powers the v0.1
+        // sub-workflow composition `exec: nika run sub.yaml --output json`
+        // + `capture: stdout` (spec 08 §composition).
+        // `interactive = false` deliberately: the fold goes to stderr (a
+        // pipe in the composition path · never the live TTY redraw); the
+        // one final frame is what matters, not the animation.
+        let mut sink = FoldSink::new(std::io::stderr().lock(), theme, false);
+        let (code, outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        sink.print_final();
+        if let Some(e) = sink.into_error() {
+            eprintln!("nika run: render failed: {e}");
+            return exit::ENV;
+        }
+        println!("{}", outputs_json_line(&outputs));
+        code
+    } else if json {
         let mut sink = JsonSink::new(std::io::stdout().lock());
-        let code = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        let (code, _outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: stream write failed: {e}");
             return exit::ENV;
@@ -133,7 +172,7 @@ async fn execute(
     } else {
         let interactive = std::io::IsTerminal::is_terminal(&std::io::stdout());
         let mut sink = FoldSink::new(std::io::stdout().lock(), theme, interactive);
-        let code = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        let (code, _outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         // Non-interactive folded silently · print the ONE final frame.
         if !interactive {
             sink.print_final();
@@ -157,7 +196,7 @@ async fn drive<S, T, H, P, D, C>(
     report: &CheckReport,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
-) -> u8
+) -> (u8, BTreeMap<String, Value>)
 where
     S: nika_kernel::process::ShellRunDyn + Sync,
     T: nika_kernel::tool_executor::ToolExecuteDyn,
@@ -168,11 +207,8 @@ where
 {
     match runtime.run(wf, report, stamper, sink).await {
         Ok(outcome) => {
-            if outcome.ok {
-                exit::OK
-            } else {
-                exit::WORKFLOW
-            }
+            let code = if outcome.ok { exit::OK } else { exit::WORKFLOW };
+            (code, outcome.outputs)
         }
         Err(err) => {
             use nika_error::traits::NikaErrorCode as _;
@@ -184,7 +220,52 @@ where
                  please report it",
                 err.nika_code()
             );
-            exit::ENV
+            (exit::ENV, BTreeMap::new())
         }
+    }
+}
+
+/// The export contract's stdout payload (spec 01 §"What leaves a run"): the
+/// resolved workflow `outputs:` as ONE JSON object on a single line. An
+/// empty map (no `outputs:` declared · or references that no longer
+/// resolve) renders `{}` — stdout is ALWAYS a single JSON object in
+/// `--output json` mode, a stable machine contract for the composition
+/// path (`exec: nika run sub --output json` + `capture: stdout`).
+fn outputs_json_line(outputs: &BTreeMap<String, Value>) -> String {
+    serde_json::to_string(outputs).unwrap_or_else(|_| "{}".to_owned())
+}
+
+/// Route a human-readable diagnostic to the spec-correct stream: stderr in
+/// `--output json` mode (stdout MUST stay a clean JSON object · the export
+/// contract · `capture: stdout` composition), stdout in the human modes.
+fn emit_diagnostic(text: &str, output_json: bool) {
+    if output_json {
+        eprint!("{text}");
+    } else {
+        print!("{text}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::outputs_json_line;
+    use serde_json::{Value, json};
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn outputs_json_line_is_one_sorted_object() {
+        let mut m: BTreeMap<String, Value> = BTreeMap::new();
+        m.insert("total".to_owned(), json!(60));
+        m.insert("count".to_owned(), json!(3));
+        // BTreeMap key order → `count` before `total`: a single line,
+        // deterministic across runs (the machine consumer can jq it).
+        assert_eq!(outputs_json_line(&m), r#"{"count":3,"total":60}"#);
+        assert!(!outputs_json_line(&m).contains('\n'));
+    }
+
+    #[test]
+    fn outputs_json_line_empty_is_braces() {
+        // No `outputs:` declared → still a JSON object on stdout.
+        assert_eq!(outputs_json_line(&BTreeMap::new()), "{}");
     }
 }
