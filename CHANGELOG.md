@@ -18,6 +18,24 @@ tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 
 ## [Unreleased]
 
+### 🧩 Announce ladder s19.6 · nika-lsp L4 admission — the `nika lsp` language server (ADMITTED · 12-gate closed · 2026-06-15)
+
+- **`nika-lsp` crate** · the Nika language server (`nika lsp`, stdio) — the
+  v0.1 editor brain for `.nika.yaml`. ONE crate (nika-lsp-core collapsed in as
+  internal `analysis::*` modules · per `nika-invariants` + collapse-vs-publish ·
+  reconciles `D-2026-06-10-N6` steps 19.6/19.7). Stack: `lsp-server` 0.7 sync
+  stdio loop + `lsp-types` 0.97 · pure analysis over `nika-schema`.
+- **Diagnostics** reuse the SAME ADR-092 `nika check` ladder (one source of
+  truth · task-anchored ranges) · **hover** on the 4 verbs + keywords AND on a
+  task reference (`depends_on` item / `${{ tasks.X }}` → the target task's id +
+  verb) · **completion** (keys · verbs · `model:` providers · the workflow's own
+  task ids · auto-trigger on `.` `/` `[`) · **document symbols** ·
+  **go-to-definition** for task refs.
+- Feeds the `nika-vscode` extension, auto-detected via `caps.lsp` once
+  `nika --help` lists `lsp` — zero extension change. 124 lib tests · mutation
+  96.9% · the `nika lsp` subcommand wired into `nika-cli` (owns stdout · LSP
+  exit-code convention).
+
 ### 🤖 Announce ladder s12 · nika-verb-agent L2 admission (ADMITTED · 12-gate closed · 2026-06-11)
 
 - **`nika-verb-agent` crate** · the `agent` verb executor — the multi-turn

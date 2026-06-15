@@ -41,6 +41,21 @@ pub fn definition(uri: &Uri, text: &str, offset: usize) -> Option<Location> {
     ))
 }
 
+/// The task referenced under `offset` (a `depends_on:` item or a
+/// `${{ tasks.X }}` ref) as `(id, verb)`. Shared with [`hover`](super::hover)
+/// so it can show the target task's verb. `None` when the cursor is not on a
+/// resolvable reference or the source does not parse.
+pub(crate) fn referenced_task_at(text: &str, offset: usize) -> Option<(String, &'static str)> {
+    let wf = parse(text, FileId::new(0), ParseMode::Lenient).ok()?;
+    let id = depends_on_target(&wf, offset).or_else(|| template_task_target(text, offset))?;
+    let verb = wf
+        .tasks
+        .iter()
+        .find(|t| t.value.id.value == id)
+        .map(|t| t.value.action.verb())?;
+    Some((id, verb))
+}
+
 /// Map every task id → (its `id` span, its byte length). The length widens
 /// the parser's point span to the actual token for the jump target range.
 fn id_span_table(wf: &RawWorkflow) -> BTreeMap<String, (Span, usize)> {

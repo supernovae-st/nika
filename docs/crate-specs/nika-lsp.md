@@ -36,8 +36,8 @@ ships — zero extension change.
 | Feature | In v0.1 | Source |
 |---|:--:|---|
 | **Diagnostics** (publishDiagnostics) | ✅ | `nika_schema::check` ladder → `lsp_types::Diagnostic` (code + message + range + severity) |
-| **Hover** | ✅ | the 4-verb docs + top-level/task-field keyword docs (static, the language is LOCKED) |
-| **Completion** | ✅ | top-level keys · task fields · the 4 verbs · `model: <provider>/` providers · the workflow's own task ids |
+| **Hover** | ✅ | the 4-verb docs + top-level/task-field keyword docs (static, the language is LOCKED) · PLUS a task REFERENCE (`depends_on:` item / `${{ tasks.X }}`) → the target task's id + verb (reuses the go-to-def resolver) |
+| **Completion** | ✅ | top-level keys · task fields · the 4 verbs · `model: <provider>/` providers · the workflow's own task ids · auto-trigger on `.` `/` `[` |
 | **Document symbols** | ✅ | `RawWorkflow.tasks` → a `workflow → tasks → task(verb)` tree |
 | **Go-to-definition** | ✅ | a task ref (`depends_on:` item or `${{ tasks.X }}`) at the cursor → the task's `id` span |
 | Expression intelligence inside `${{ }}` | ❌ v0.8X | (the extension keeps its client-side intel meanwhile) |

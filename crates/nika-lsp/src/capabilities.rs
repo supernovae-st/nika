@@ -27,9 +27,9 @@ pub fn server_capabilities() -> ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         hover_provider: Some(true.into()),
         completion_provider: Some(CompletionOptions {
-            // we complete on a leading `.` (for `tasks.`) and `/` (for
-            // `provider/`) plus the normal identifier triggers
-            trigger_characters: Some(vec![".".to_owned(), "/".to_owned()]),
+            // auto-trigger on `.` (for `tasks.`), `/` (for `provider/`) and
+            // `[` (for `depends_on: [`) — plus the normal identifier triggers
+            trigger_characters: Some(vec![".".to_owned(), "/".to_owned(), "[".to_owned()]),
             ..CompletionOptions::default()
         }),
         definition_provider: Some(OneOf::Left(true)),
@@ -69,16 +69,17 @@ mod tests {
     }
 
     #[test]
-    fn completion_advertises_the_dot_and_slash_trigger_characters() {
-        // The completion provider must declare `.` and `/` as trigger
-        // characters (for `tasks.` and `provider/`). Dropping the field
-        // would silently disable trigger-character completion in clients.
+    fn completion_advertises_the_dot_slash_and_bracket_trigger_characters() {
+        // The completion provider must declare `.`, `/` and `[` as trigger
+        // characters (for `tasks.`, `provider/` and `depends_on: [`).
+        // Dropping the field would silently disable trigger-character
+        // completion in clients.
         let caps = server_capabilities();
         let completion = caps.completion_provider.expect("completion provider");
         assert_eq!(
             completion.trigger_characters,
-            Some(vec![".".to_owned(), "/".to_owned()]),
-            "exactly `.` and `/` as triggers"
+            Some(vec![".".to_owned(), "/".to_owned(), "[".to_owned()]),
+            "exactly `.`, `/` and `[` as triggers"
         );
     }
 

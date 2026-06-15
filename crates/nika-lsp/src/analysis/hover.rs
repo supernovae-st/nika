@@ -18,9 +18,16 @@ use lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, Range};
 use super::position::LineIndex;
 use super::vocab::{self, Entry};
 
-/// Compute hover for the token under `offset`, if it names a verb or key.
+/// Compute hover for the token under `offset` — a language-vocabulary token
+/// (verb / envelope / task-field key) OR a task REFERENCE (`depends_on:` item
+/// or `${{ tasks.X }}`) showing the target task's verb.
 #[must_use]
 pub fn hover(text: &str, offset: usize) -> Option<Hover> {
+    vocab_hover(text, offset).or_else(|| task_ref_hover(text, offset))
+}
+
+/// Hover for a language-vocabulary token (a verb or an envelope/task key).
+fn vocab_hover(text: &str, offset: usize) -> Option<Hover> {
     let (word, start, end) = word_at(text, offset)?;
     let (entry, category) = resolve(word)?;
     let index = LineIndex::new(text);
@@ -31,6 +38,26 @@ pub fn hover(text: &str, offset: usize) -> Option<Hover> {
             value: render(entry, category),
         }),
         range: Some(range),
+    })
+}
+
+/// Hover for a task REFERENCE (a `depends_on:` item or a `${{ tasks.X }}`
+/// ref) → the target task's id + verb, so the cursor shows what it points at
+/// without leaving the line. Reuses the go-to-definition resolver.
+fn task_ref_hover(text: &str, offset: usize) -> Option<Hover> {
+    let (id, verb) = super::definition::referenced_task_at(text, offset)?;
+    let range = word_at(text, offset).map(|(_, start, end)| {
+        let index = LineIndex::new(text);
+        Range::new(index.position(start), index.position(end))
+    });
+    Some(Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: format!(
+                "**task `{id}`** — _{verb}_\n\nReferenced task · go-to-definition jumps to its `id`."
+            ),
+        }),
+        range,
     })
 }
 
@@ -144,10 +171,42 @@ mod tests {
 
     #[test]
     fn hover_on_non_vocabulary_returns_none() {
-        // a task id is not language vocabulary → no hover
+        // a task id DEFINITION is not language vocabulary and not a reference
+        // → no hover
         let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: my_task\n    exec: { command: \"x\" }\n";
         let at = yaml.find("my_task").expect("id") + 2;
         assert!(hover(yaml, at).is_none());
+    }
+
+    #[test]
+    fn hover_on_depends_on_ref_shows_target_task_and_verb() {
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: greet\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  - id: use_it\n    depends_on: [greet]\n    exec: { command: \"x\" }\n";
+        // the LAST `greet` is the depends_on reference (the first is the id)
+        let at = yaml.rfind("greet").expect("dep ref") + 1;
+        let h = hover(yaml, at).expect("hover on the reference");
+        assert!(
+            body(&h).contains("**task `greet`**"),
+            "names the target: {}",
+            body(&h)
+        );
+        assert!(
+            body(&h).contains("infer"),
+            "shows the target verb: {}",
+            body(&h)
+        );
+    }
+
+    #[test]
+    fn hover_on_template_tasks_ref_shows_target_task_and_verb() {
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: greet\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  - id: use_it\n    exec: { command: \"echo ${{ tasks.greet.output }}\" }\n";
+        let at = yaml.find("tasks.greet").expect("tpl ref") + "tasks.gr".len();
+        let h = hover(yaml, at).expect("hover on the template reference");
+        assert!(body(&h).contains("**task `greet`**"), "{}", body(&h));
+        assert!(
+            body(&h).contains("infer"),
+            "shows the target verb: {}",
+            body(&h)
+        );
     }
 
     #[test]
