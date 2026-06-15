@@ -47,12 +47,21 @@ while i < n:
     started = False
     j = i
     while j < n:
-        # crude brace count — strings/comments mostly ignorable for a
-        # ratchet, but CHAR LITERALS ('{' · b'{' · '}') must be skipped:
-        # a brace char-literal otherwise unbalances the counter and the
-        # fn "absorbs" everything until depth accidentally rebalances
-        # (false 172-line fn over a 33-line JSON scanner · 2026-06-11).
-        row = re.sub(r"b?'(\\.|[^'\\])'", "''", lines[j])
+        # Strip literals + line comments before counting braces so their
+        # brace characters do not unbalance the depth counter.
+        # Pass 0a: plain raw r"..." (word boundary, no backslash escaping)
+        row = re.sub(r'\br"[^"]*"', 'r""', lines[j])
+        # Pass 0b: byte raw br"..."
+        row = re.sub(r'(?<!\w)br"[^"]*"', 'br""', row)
+        # Pass 1: char literals b?'(\\.|[^'\\])'
+        row = re.sub(r"b?'(\\.|[^'\\])'", "''", row)
+        # Pass 2: regular + byte strings; (?<![r#]) skips r#"..."# / br#"..."#
+        row = re.sub(r'(?<![r#])b?"(?:\\.|[^"\\])*"', '""', row)
+        # Pass 3: strip // line comments (after literals collapsed so a
+        # "//" inside a string does not prematurely truncate the line)
+        slash = row.find('//')
+        if slash >= 0:
+            row = row[:slash]
         for c in row:
             if c == '{':
                 depth += 1
@@ -97,7 +106,13 @@ while i < n:
     started = False
     j = i
     while j < n:
-        row = re.sub(r"b?'(\\.|[^'\\])'", "''", lines[j])
+        row = re.sub(r'\br"[^"]*"', 'r""', lines[j])
+        row = re.sub(r'(?<!\w)br"[^"]*"', 'br""', row)
+        row = re.sub(r"b?'(\\.|[^'\\])'", "''", row)
+        row = re.sub(r'(?<![r#])b?"(?:\\.|[^"\\])*"', '""', row)
+        slash = row.find('//')
+        if slash >= 0:
+            row = row[:slash]
         for c in row:
             if c == '{':
                 depth += 1

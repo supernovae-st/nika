@@ -59,8 +59,21 @@ def check_file(path):
                 if not re.search(r'unwrap_or(?:_else|_default)?', line):
                     prod_unwraps.append(f'  {path}:{lineno}: {s[:100]}')
 
-        # --- count braces (simplified, ignores strings/comments) ---
-        for ch in line:
+        # --- count braces (strip literals + // comments first so their brace
+        # characters do not unbalance the depth counter) ---
+        # Pass 0a: plain raw r"..." (word boundary, no backslash escaping)
+        stripped = re.sub(r'\br"[^"]*"', 'r""', line)
+        # Pass 0b: byte raw br"..."
+        stripped = re.sub(r'(?<!\w)br"[^"]*"', 'br""', stripped)
+        # Pass 1: char literals b?'(\\.|[^'\\])'
+        stripped = re.sub(r"b?'(\\.|[^'\\])'", "''", stripped)
+        # Pass 2: regular + byte string literals; (?<![r#]) skips r#"..."# / br#"..."#
+        stripped = re.sub(r'(?<![r#])b?"(?:\\.|[^"\\])*"', '""', stripped)
+        # Pass 3: strip // line comments (after literals collapsed)
+        slash = stripped.find('//')
+        if slash >= 0:
+            stripped = stripped[:slash]
+        for ch in stripped:
             if ch == '{':
                 brace_depth += 1
                 if saw_cfg_test:
