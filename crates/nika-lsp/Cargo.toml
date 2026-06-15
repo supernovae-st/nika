@@ -1,0 +1,37 @@
+[package]
+name          = "nika-lsp"
+description   = "The Nika language server (L4) — `nika lsp` (stdio). v0.1 surface: diagnostics from the ADR-092 check ladder, hover + completion from the locked language vocabulary, document symbols (tasks) and go-to-definition for task refs. Pure analysis modules over `nika-schema`; a sync `lsp-server` loop. Feeds the nika-vscode extension. Spec: docs/crate-specs/nika-lsp.md."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L4 interface crate (driven by the `nika lsp` subcommand).
+
+[dependencies]
+nika-schema = { path = "../nika-schema", version = "0.80.0" }  # parse + the ADR-092 check ladder + RawWorkflow (the analysis source)
+lsp-server  = { workspace = true }                             # sync stdio JSON-RPC message loop
+lsp-types   = { workspace = true }                             # LSP 3.17 protocol types
+serde       = { workspace = true }                             # DeserializeOwned/Serialize bounds for the request dispatch
+serde_json  = { workspace = true }                             # request/notification param (de)serialization
+thiserror   = { workspace = true }                             # LspError (transport/protocol) enum
+
+[dev-dependencies]
+proptest = { workspace = true }   # Gate 6 — position round-trip + apply_change ≡ full replace
+
+[lib]
+name = "nika_lsp"
+path = "src/lib.rs"
+
+[package.metadata.lore]
+daemon        = "scribe"
+archetype     = "kodama-scribe"
+spirit_role   = "le scribe qui guide la main de l'auteur dans l'éditeur · chaque diagnostic enseigne avant que le token ne brûle · l'audit vit dans la frappe"
+voice_pattern = "spoken"
+layer         = "L4"
+err_prefix    = "none"
+
+[lints]
+workspace = true

@@ -43,7 +43,7 @@ Cargo.lock.bak
 /crates/nika-init/
 # /crates/nika-kernel/       -- ADMITTED Step 3
 # /crates/nika-kernel-mock/  -- ADMITTED Step 3
-/crates/nika-lsp/
+# /crates/nika-lsp/         -- ADMITTED 2026-06-15 (L4 language server · `nika lsp` stdio · collapse of lsp-core · D-2026-06-10-N6)
 /crates/nika-lsp-core/
 /crates/nika-macros/
 /crates/nika-mcp/
