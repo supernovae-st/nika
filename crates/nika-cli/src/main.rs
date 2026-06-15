@@ -118,6 +118,8 @@ enum Command {
         #[command(subcommand)]
         action: TraceAction,
     },
+    /// Run the language server over stdio (drives the editor extension).
+    Lsp,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -228,6 +230,18 @@ fn main() -> std::process::ExitCode {
         Command::Trace { action } => match action {
             TraceAction::Replay(args) => trace_render(&args, true),
             TraceAction::Show(args) => trace_render(&args, false),
+        },
+        // The language server OWNS stdout (JSON-RPC) — it must not go through
+        // `emit`. It follows the LSP exit-code convention: 0 on a clean
+        // shutdown/exit, non-zero (1) otherwise (transport failure, or an
+        // `exit` without a prior `shutdown`) — the server-process
+        // convention, NOT the verb FILE/WORKFLOW/ENV taxonomy.
+        Command::Lsp => match nika_lsp::run_stdio() {
+            Ok(()) => verbs::exit::OK,
+            Err(err) => {
+                eprintln!("nika-cli: lsp: {err}");
+                1
+            }
         },
     };
     std::process::ExitCode::from(code)
