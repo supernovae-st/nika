@@ -311,6 +311,29 @@ async fn allowlist_refuses_a_host_outside_the_boundary_before_connect() {
 }
 
 #[tokio::test]
+async fn allowlist_gates_before_dns_under_enforce() {
+    // ORDER invariant: a host outside the boundary is refused with
+    // HostNotAllowed BEFORE any DNS lookup — even an UNRESOLVABLE host (which
+    // would otherwise surface a DNS Connection error from the resolve guard).
+    // SsrfMode::Enforce is on (the resolve guard is wired), so this proves the
+    // allowlist runs ahead of resolution: the engine never resolves, nor
+    // leaks the resolvability of, a host the workflow may not reach.
+    let _net = net_guard();
+    let client = mechanics_client_with(|c| {
+        c.ssrf = SsrfMode::Enforce;
+        c.net = NetBoundary::Declared(vec!["allowed.test".to_owned()]);
+    });
+    let err = client
+        .get(HttpRequest::get("https://nonexistent.invalid/x"))
+        .await
+        .expect_err("a disallowed host is refused before DNS");
+    assert!(
+        matches!(err, HttpError::HostNotAllowed { ref host } if host == "nonexistent.invalid"),
+        "must be the boundary refusal, NOT a DNS/Connection error · got {err:?}"
+    );
+}
+
+#[tokio::test]
 async fn allowlisted_host_is_reached() {
     // The positive companion: a host IN the allowlist proceeds (no false
     // block on a sanctioned destination).

@@ -261,29 +261,36 @@ impl ReqwestHttp {
         Ok(Self { inner, config })
     }
 
-    /// Vet one absolute URL per the configured [`SsrfMode`]: static
-    /// checks, then DNS-resolve every address for non-literal hosts.
+    /// Vet one absolute URL: parse + static SSRF, then the declared
+    /// `permits.net.http` boundary, then the DNS-resolve guard. The ORDER is
+    /// load-bearing — the boundary gates BEFORE any DNS so a host outside it
+    /// is refused with zero network activity (see below).
     async fn vet(&self, raw: &str) -> Result<url::Url, HttpError> {
-        // Parse + SSRF-vet FIRST so the permits check reads the SAME host
-        // the transport will connect to (the bypass class is a string
-        // parser disagreeing with the url crate · see `check_net_allowlist`).
+        // 1. Parse + STATIC SSRF (scheme · literal-IP ranges · blocked
+        //    hostnames · NO DNS yet) so the permits check reads the SAME host
+        //    the transport connects to (the bypass class is a string parser
+        //    disagreeing with the url crate · see `check_net_allowlist`).
         let parsed = match self.config.ssrf {
             SsrfMode::Disabled => url::Url::parse(raw).map_err(|e| HttpError::Other {
                 reason: format!("invalid URL: {e}"),
             })?,
-            SsrfMode::Enforce => {
-                let parsed = ssrf::check_url(raw)?;
-                resolve_guard(&parsed).await?;
-                parsed
-            }
+            SsrfMode::Enforce => ssrf::check_url(raw)?,
         };
-        // The workflow's DECLARED permits.net.http boundary (NIKA-SEC-004),
-        // checked on EVERY hop (this fn runs once per redirect) and
-        // independent of the SSRF floor: a declared boundary holds even
-        // under SsrfMode::Disabled. This is the runtime half spec §permits
-        // demands — it catches the dynamic hosts (and redirect bounces) the
-        // static `nika check` cannot see.
+        // 2. The workflow's DECLARED permits.net.http boundary (NIKA-SEC-004),
+        //    on EVERY hop (this fn runs once per redirect), holding even under
+        //    SsrfMode::Disabled. It gates BEFORE the DNS-resolve guard below:
+        //    a host outside the boundary is refused with NO network activity
+        //    AT ALL — not even a DNS lookup (the engine must not resolve, nor
+        //    leak the resolvability of, a host the workflow may not reach; and
+        //    the refusal is the precise NIKA-SEC-004, never a DNS error). This
+        //    is the runtime half spec §permits demands — it catches the
+        //    dynamic hosts (and redirect bounces) `nika check` cannot see.
         check_net_allowlist(&self.config.net, &parsed)?;
+        // 3. DNS-resolve guard (Enforce only) — every resolved address
+        //    range-checked, AFTER the host cleared the declared boundary.
+        if self.config.ssrf == SsrfMode::Enforce {
+            resolve_guard(&parsed).await?;
+        }
         Ok(parsed)
     }
 
