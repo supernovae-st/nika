@@ -217,12 +217,22 @@ fn lexical_only(path: &Path) -> PathBuf {
 /// fails to make.
 async fn confines<F: FsReadDyn>(fs: &F, glob: &str, effective: &Path) -> bool {
     let (root_lit, has_wildcard) = literal_root(glob);
-    // The literal prefix is a directory for a `**`/`*` glob; for an exact
-    // path glob it IS the target. Canonicalize it — a non-existent root
-    // grants nothing (fail-closed).
-    let Ok(canon_root) = fs.canonicalize(Path::new(&root_lit)).await else {
-        return false;
-    };
+    // Resolve the permit root the SAME way the effective path was resolved
+    // ([`resolve_effective`]: longest existing ancestor canonicalized —
+    // symlinks resolved, the security core — then the trailing non-existent
+    // components folded lexically). The literal prefix is a directory for a
+    // `**`/`*` glob; for an exact-path glob it IS the target. A raw
+    // `canonicalize` failed CLOSED on a not-yet-existing target — the common
+    // `nika:write` of a new file (and exactly what `nika check
+    // --infer-permits` emits): `nika check` passed, `nika run` then died on
+    // NIKA-SEC-004. Resolving the root like the write path admits the
+    // declared new file/dir while a fake root still resolves to a path no
+    // real (canonicalized) effective path can match — fail-closed preserved.
+    // (A `..` inside a permit literal — e.g. `out/../secret/**` — resolves
+    // here too, WIDENING the declared boundary; that is author responsibility,
+    // not an escape: the boundary only ever ADMITS on a match · authors should
+    // write canonical `permits.fs` paths.)
+    let canon_root = resolve_effective(fs, Path::new(&root_lit)).await;
     if has_wildcard {
         // `<root>/**` · `<root>/*` etc. — any descendant of the real root
         // (and the root itself, matching the static `/**`-includes-root rule).
@@ -437,6 +447,38 @@ mod fs_security_tests {
                 .await
                 .is_ok(),
             "a new file under a not-yet-created dir inside the boundary is writable"
+        );
+    }
+
+    #[tokio::test]
+    async fn exact_file_write_permit_admits_its_own_not_yet_existing_file() {
+        // `permits.fs.write: ["<root>/allowed/report.json"]` — an EXACT path
+        // (no wildcard) for a file that does NOT exist yet (the common
+        // nika:write-a-new-file case · and EXACTLY what `nika check
+        // --infer-permits` emits). It MUST admit a write to that file.
+        // Regression: the permit root was canonicalized whole, so a
+        // not-yet-existing target failed closed → NIKA-SEC-004 — `nika check`
+        // passed but `nika run` died on the tool's own inferred permit.
+        let s = Scratch::new();
+        let fs = TokioFs;
+        let target = s.path("allowed/report.json"); // inside allowed/ · uncreated
+        let boundary = FsBoundary::declared(vec![], vec![target.clone()]);
+        assert!(
+            boundary
+                .enforce(&fs, &target, FsAccess::Write)
+                .await
+                .is_ok(),
+            "an exact-file write permit must admit writing exactly that new file"
+        );
+        // The exact match is PRECISE — a sibling under allowed/ is NOT admitted
+        // by a single-file permit (no accidental directory widening).
+        let other = s.path("allowed/other.json");
+        assert!(
+            matches!(
+                boundary.enforce(&fs, &other, FsAccess::Write).await,
+                Err(ref f) if f.code == super::SEC_DENIED
+            ),
+            "an exact-file permit admits ONLY that file, not a sibling"
         );
     }
 
