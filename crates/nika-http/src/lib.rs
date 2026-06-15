@@ -100,6 +100,28 @@ pub enum SsrfMode {
     Disabled,
 }
 
+/// The workflow's declared `permits.net.http` boundary (spec `01-envelope.md`
+/// §permits) — the net analogue of `nika-builtin`'s `FsBoundary`, so the two
+/// capability axes read symmetrically at the composition root.
+///
+/// The host the boundary checks is taken from the PARSED [`url::Url`] (what
+/// the transport connects to), never a re-parse of the raw string — a string
+/// parser disagrees with WHATWG normalization (`\`, userinfo, C0 bytes) and
+/// that gap is a bypass. Enforced on EVERY redirect hop (see `check_net_allowlist`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum NetBoundary {
+    /// No declared boundary — the always-on SSRF floor is the only net guard
+    /// (today's default · a workflow with no `permits:` block).
+    #[default]
+    Unbounded,
+    /// A declared allowlist of host globs (`*.github.com`). DEFAULT-DENY: a
+    /// host outside it fails [`HttpError::HostNotAllowed`] (→ `NIKA-SEC-004`).
+    /// An EMPTY list admits nothing (a `permits:` block present but omitting
+    /// `net` = no outbound network).
+    Declared(Vec<String>),
+}
+
 /// Configuration for [`ReqwestHttp`].
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -114,19 +136,10 @@ pub struct HttpConfig {
     pub max_response_bytes: u64,
     /// SSRF enforcement mode.
     pub ssrf: SsrfMode,
-    /// The workflow's declared `permits.net.http` allowlist (host globs ·
-    /// `*.github.com`). `None` = no declared boundary (the always-on SSRF
-    /// floor is then the only net guard — today's behavior). `Some` is
-    /// DEFAULT-DENY (spec `01-envelope.md` §permits): a host outside the
-    /// list fails [`HttpError::HostNotAllowed`] (→ `NIKA-SEC-004`),
-    /// re-checked on EVERY redirect hop. An empty list admits nothing
-    /// (a `permits:` block present but omitting `net` = no outbound network).
-    ///
-    /// The host is taken from the PARSED [`url::Url`] (what the transport
-    /// connects to), never a re-parse of the raw string — a string parser
-    /// disagrees with WHATWG normalization (`\`, userinfo, C0 bytes) and
-    /// that gap is a boundary bypass.
-    pub net_allowlist: Option<Vec<String>>,
+    /// The workflow's declared `permits.net.http` boundary (default
+    /// [`NetBoundary::Unbounded`] · the SSRF floor is then the only net
+    /// guard). Re-checked on EVERY redirect hop.
+    pub net: NetBoundary,
 }
 
 impl Default for HttpConfig {
@@ -136,7 +149,7 @@ impl Default for HttpConfig {
             max_redirects: DEFAULT_MAX_REDIRECTS,
             max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
             ssrf: SsrfMode::Enforce,
-            net_allowlist: None,
+            net: NetBoundary::Unbounded,
         }
     }
 }
@@ -183,17 +196,16 @@ fn host_of(url: &url::Url) -> Option<String> {
     }
 }
 
-/// Enforce a declared `permits.net.http` allowlist on ONE already-parsed URL
-/// (one hop).
+/// Enforce a declared [`NetBoundary`] on ONE already-parsed URL (one hop).
 ///
-/// `None` = no declared boundary → `Ok` (the caller's SSRF floor is the only
-/// net guard, today's behavior). A `Some` allowlist is DEFAULT-DENY (spec
+/// [`NetBoundary::Unbounded`] → `Ok` (the caller's SSRF floor is the only net
+/// guard, today's behavior). [`NetBoundary::Declared`] is DEFAULT-DENY (spec
 /// `01-envelope.md` §permits): the host (via [`host_of`] · the parsed connect
 /// host, not the raw string) must match a glob, else
-/// [`HttpError::HostNotAllowed`]. A URL with no host under a declared
-/// boundary is DENIED (it cannot be confirmed in-bounds).
-fn check_net_allowlist(allowlist: Option<&[String]>, url: &url::Url) -> Result<(), HttpError> {
-    let Some(globs) = allowlist else {
+/// [`HttpError::HostNotAllowed`]. A URL with no host under a declared boundary
+/// is DENIED (it cannot be confirmed in-bounds).
+fn check_net_allowlist(boundary: &NetBoundary, url: &url::Url) -> Result<(), HttpError> {
+    let NetBoundary::Declared(globs) = boundary else {
         return Ok(());
     };
     let Some(host) = host_of(url) else {
@@ -271,7 +283,7 @@ impl ReqwestHttp {
         // under SsrfMode::Disabled. This is the runtime half spec §permits
         // demands — it catches the dynamic hosts (and redirect bounces) the
         // static `nika check` cannot see.
-        check_net_allowlist(self.config.net_allowlist.as_deref(), &parsed)?;
+        check_net_allowlist(&self.config.net, &parsed)?;
         Ok(parsed)
     }
 
@@ -824,25 +836,26 @@ mod tests {
     }
 
     #[test]
-    fn net_allowlist_default_is_unbounded() {
+    fn net_default_is_unbounded() {
         // No declared boundary by default — today's behavior (the SSRF
         // floor is the only net guard until a `permits.net.http` is wired).
-        assert!(HttpConfig::default().net_allowlist.is_none());
+        assert_eq!(HttpConfig::default().net, NetBoundary::Unbounded);
     }
 
     #[test]
-    fn net_allowlist_gates_on_the_parsed_connect_host() {
+    fn net_boundary_gates_on_the_parsed_connect_host() {
         // The RUNTIME half of permits.net.http (NIKA-SEC-004) — it gates on
         // the PARSED url::Url host (what reqwest connects to), so a string-
         // parser-vs-url-crate disagreement cannot bypass it.
-        let allow = vec!["allowed.com".to_owned(), "*.github.com".to_owned()];
+        let allow =
+            NetBoundary::Declared(vec!["allowed.com".to_owned(), "*.github.com".to_owned()]);
         let u = |s: &str| url::Url::parse(s).expect("valid url");
         // in-bounds (exact + `*.` subdomain)
-        assert!(check_net_allowlist(Some(&allow), &u("https://allowed.com/p")).is_ok());
-        assert!(check_net_allowlist(Some(&allow), &u("https://api.github.com/p")).is_ok());
+        assert!(check_net_allowlist(&allow, &u("https://allowed.com/p")).is_ok());
+        assert!(check_net_allowlist(&allow, &u("https://api.github.com/p")).is_ok());
         // out-of-bounds → denied
         assert!(matches!(
-            check_net_allowlist(Some(&allow), &u("https://evil.com/p")),
+            check_net_allowlist(&allow, &u("https://evil.com/p")),
             Err(HttpError::HostNotAllowed { host }) if host == "evil.com"
         ));
         // THE BYPASS (rust-security P0): `\@` — a string parser reads host
@@ -850,25 +863,32 @@ mod tests {
         // WHATWG path separator for http/https). Gating on url::Url denies it.
         assert!(
             matches!(
-                check_net_allowlist(Some(&allow), &u(r"https://evil.com\@allowed.com/p")),
+                check_net_allowlist(&allow, &u(r"https://evil.com\@allowed.com/p")),
                 Err(HttpError::HostNotAllowed { host }) if host == "evil.com"
             ),
             "the backslash-userinfo confusion must resolve to the real connect host"
         );
         // userinfo `@` — the real host is evil.com (the classic confusion).
-        assert!(check_net_allowlist(Some(&allow), &u("https://allowed.com@evil.com/p")).is_err());
+        assert!(check_net_allowlist(&allow, &u("https://allowed.com@evil.com/p")).is_err());
         // case-insensitive (the url crate lowercases) — no false block.
-        assert!(check_net_allowlist(Some(&allow), &u("https://ALLOWED.COM/p")).is_ok());
+        assert!(check_net_allowlist(&allow, &u("https://ALLOWED.COM/p")).is_ok());
         // IPv6 matched bracket-free (permits write `::1`, never `[::1]`).
-        let v6 = vec!["::1".to_owned()];
-        assert!(check_net_allowlist(Some(&v6), &u("http://[::1]:8080/p")).is_ok());
+        let v6 = NetBoundary::Declared(vec!["::1".to_owned()]);
+        assert!(check_net_allowlist(&v6, &u("http://[::1]:8080/p")).is_ok());
         // trailing-dot FQDN (`allowed.com.`) ≡ `allowed.com` — no false block.
-        assert!(check_net_allowlist(Some(&allow), &u("https://allowed.com./p")).is_ok());
-        // None = unbounded (no declared boundary → the SSRF floor guards).
-        assert!(check_net_allowlist(None, &u("https://anywhere.example/p")).is_ok());
-        // An empty allowlist (a `permits:` block that omits `net`) denies all.
-        let deny_all: Vec<String> = Vec::new();
-        assert!(check_net_allowlist(Some(&deny_all), &u("https://allowed.com/p")).is_err());
+        assert!(check_net_allowlist(&allow, &u("https://allowed.com./p")).is_ok());
+        // Unbounded = no declared boundary → the SSRF floor guards.
+        assert!(
+            check_net_allowlist(&NetBoundary::Unbounded, &u("https://anywhere.example/p")).is_ok()
+        );
+        // An empty Declared list (a `permits:` block that omits `net`) denies all.
+        assert!(
+            check_net_allowlist(
+                &NetBoundary::Declared(Vec::new()),
+                &u("https://allowed.com/p")
+            )
+            .is_err()
+        );
     }
 
     #[test]

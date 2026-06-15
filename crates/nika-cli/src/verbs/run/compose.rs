@@ -24,7 +24,7 @@ use nika_builtin::{BuiltinDispatcher, Emitter, FsBoundary, NoWorkflow, NonIntera
 use nika_clock::SystemClock;
 use nika_exec_runner::TokioShell;
 use nika_fs::TokioFs;
-use nika_http::{HttpConfig, ReqwestHttp, SsrfMode};
+use nika_http::{HttpConfig, NetBoundary, ReqwestHttp, SsrfMode};
 use nika_kernel::ai::provider::ProviderInferDyn;
 use nika_kernel::provider::{InferRequest, InferResponse, ProviderError};
 use nika_kernel::secret::Secret;
@@ -276,26 +276,52 @@ pub fn fs_boundary_of(wf: &nika_schema::raw::RawWorkflow) -> FsBoundary {
     FsBoundary::declared(read, write)
 }
 
-/// Derive the runtime `permits.net.http` allowlist from a parsed workflow.
+/// Derive the runtime `permits.net.http` boundary from a parsed workflow.
 ///
-/// No `permits:` block → `None` (today's floor · the fetch SSRF guard is the
-/// only net boundary). A `permits:` block WITHOUT a `net:` category →
-/// `Some(vec![])` (default-deny · every host refused · « once `permits:` is
-/// present every category is default-deny unless listed »). A `net:` block →
-/// `Some` of its `http:` host globs. The fetch http client enforces this on
-/// EVERY redirect hop (`NIKA-SEC-004`) — the runtime half of spec §permits,
-/// catching the dynamic hosts (`${{ }}`-built · redirect bounces) that the
-/// static `nika check` cannot see. Mirrors [`fs_boundary_of`].
+/// No `permits:` block → [`NetBoundary::Unbounded`] (today's floor · the fetch
+/// SSRF guard is the only net boundary). A `permits:` block WITHOUT a `net:`
+/// category → `Declared(vec![])` (default-deny · every host refused · « once
+/// `permits:` is present every category is default-deny unless listed »). A
+/// `net:` block → `Declared` of its `http:` host globs. The fetch http client
+/// enforces this on EVERY redirect hop (`NIKA-SEC-004`) — the runtime half of
+/// spec §permits, catching the dynamic hosts (`${{ }}`-built · redirect
+/// bounces) the static `nika check` cannot see. Mirrors [`fs_boundary_of`].
 #[must_use]
-pub fn net_allowlist_of(wf: &nika_schema::raw::RawWorkflow) -> Option<Vec<String>> {
-    let permits = wf.permits.as_ref().map(|p| &p.value)?;
-    Some(
+pub fn net_boundary_of(wf: &nika_schema::raw::RawWorkflow) -> NetBoundary {
+    let Some(permits) = wf.permits.as_ref().map(|p| &p.value) else {
+        return NetBoundary::Unbounded;
+    };
+    NetBoundary::Declared(
         permits
             .net
             .as_ref()
             .map(|net| net.http.clone())
             .unwrap_or_default(),
     )
+}
+
+/// The runtime capability boundary derived from a workflow's `permits:` —
+/// BOTH axes (fs + net) in ONE value so a composition root cannot wire one
+/// and silently forget the other. Every binary that runs a workflow derives
+/// it via [`capabilities_of`] and hands it to [`production_runtime`]; adding a
+/// future axis here propagates to all roots at once (structure over discipline
+/// · the secure path is the only path).
+pub struct RuntimeCapabilities {
+    /// `permits.fs` → the file builtins' boundary (`NIKA-SEC-004`).
+    pub fs: FsBoundary,
+    /// `permits.net.http` → the fetch client's boundary (`NIKA-SEC-004` · per-hop).
+    pub net: NetBoundary,
+}
+
+/// Derive BOTH runtime capability boundaries from a parsed workflow — the
+/// single entry every composition root uses (so net can't be forgotten while
+/// fs is wired). Composes [`fs_boundary_of`] + [`net_boundary_of`].
+#[must_use]
+pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilities {
+    RuntimeCapabilities {
+        fs: fs_boundary_of(wf),
+        net: net_boundary_of(wf),
+    }
 }
 
 /// The HTTP client for the PROVIDER path (LLM inference), distinct from
@@ -329,32 +355,32 @@ fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
 ///
 /// SSRF stays ENFORCED (these URLs are workflow-controlled · the engine
 /// floor blocks loopback/private/metadata) AND, when the workflow declares
-/// a `permits:` block, the `net_allowlist` (`permits.net.http`) is enforced
-/// on every hop — a host outside it fails `NIKA-SEC-004`. `None` =
-/// no declared boundary (the SSRF floor is the only net guard · today's
-/// behavior). This is the half the SSRF floor never covered: the workflow's
-/// OWN declared host boundary, including dynamically-built hosts.
+/// a `permits:` block, the `net` boundary (`permits.net.http`) is enforced
+/// on every hop — a host outside it fails `NIKA-SEC-004`.
+/// [`NetBoundary::Unbounded`] = no declared boundary (the SSRF floor is the
+/// only net guard · today's behavior). This is the half the SSRF floor never
+/// covered: the workflow's OWN declared host boundary, dynamic hosts included.
 // `HttpConfig` is `#[non_exhaustive]` → field assignment, not a struct literal.
 #[allow(clippy::field_reassign_with_default)]
-fn fetch_http(net_allowlist: Option<Vec<String>>) -> Result<ReqwestHttp, nika_kernel::HttpError> {
+fn fetch_http(net: NetBoundary) -> Result<ReqwestHttp, nika_kernel::HttpError> {
     let mut config = HttpConfig::default(); // ssrf: Enforce by default
-    config.net_allowlist = net_allowlist;
+    config.net = net;
     ReqwestHttp::with_config(config)
 }
 
 /// Compose the production runtime for a workflow whose envelope default
-/// model is `default_model`, enforcing `fs_boundary` (the workflow's
-/// `permits.fs`) on the file builtins AND `net_allowlist` (the workflow's
-/// `permits.net.http`) on the fetch client at run time — both halves of the
-/// runtime `NIKA-SEC-004` boundary (a `None` `net_allowlist` = no declared
-/// net boundary · derived by [`net_allowlist_of`]).
+/// model is `default_model`, enforcing `caps` — the [`RuntimeCapabilities`]
+/// derived from the workflow's `permits:` ([`capabilities_of`]) — at run time:
+/// `caps.fs` (`permits.fs`) on the file builtins AND `caps.net`
+/// (`permits.net.http`) on the fetch client, both halves of the runtime
+/// `NIKA-SEC-004` boundary.
 ///
-/// `fs_boundary` is [`FsBoundary::unbounded`] when the workflow declares no
-/// `permits:` block (the pre-permits floor · enforce nothing) and a
-/// declared boundary otherwise — derived by [`fs_boundary_of`] from the
-/// parsed envelope, so a `..`/symlink path that escapes the declared roots
-/// fails with `NIKA-SEC-004` (spec §permits · enforced statically + at
-/// runtime).
+/// A workflow with no `permits:` block yields the pre-permits floor
+/// ([`FsBoundary::unbounded`] + [`NetBoundary::Unbounded`] · enforce nothing);
+/// a declared boundary makes a `..`/symlink path or an out-of-allowlist host
+/// fail `NIKA-SEC-004` (spec §permits · enforced statically AND at runtime).
+/// Taking the whole `caps` (not the two axes separately) is deliberate — a
+/// caller cannot wire fs and forget net.
 ///
 /// # `nika:log` / `nika:emit` — observability wiring (the remaining gap)
 ///
@@ -394,12 +420,11 @@ fn fetch_http(net_allowlist: Option<Vec<String>>) -> Result<ReqwestHttp, nika_ke
 /// environment exit code (3).
 pub fn production_runtime(
     default_model: &str,
-    fs_boundary: FsBoundary,
-    net_allowlist: Option<Vec<String>>,
+    caps: RuntimeCapabilities,
 ) -> Result<ProdRuntime, nika_kernel::HttpError> {
     // The fetch/builtin client enforces SSRF (workflow URLs) AND the
     // declared permits.net.http boundary (NIKA-SEC-004 · per-hop).
-    let http = Arc::new(fetch_http(net_allowlist)?);
+    let http = Arc::new(fetch_http(caps.net)?);
     // The provider path gets its OWN client (SSRF disabled · see the
     // `provider_http` doc): the fetch/builtin plane below keeps `http`
     // (SSRF enforced · workflow-controlled URLs).
@@ -421,7 +446,7 @@ pub fn production_runtime(
             Arc::new(NonInteractive::default()),
             Arc::new(NoWorkflow::default()),
         )
-        .with_fs_boundary(fs_boundary),
+        .with_fs_boundary(caps.fs),
     );
     let invoke = Arc::new(InvokeVerb::new(Arc::clone(&dispatcher)));
 
@@ -454,12 +479,76 @@ pub fn production_runtime(
 mod tests {
     use super::*;
 
+    fn parse(yaml: &str) -> nika_schema::raw::RawWorkflow {
+        nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses")
+    }
+
+    #[test]
+    fn net_boundary_of_three_cases() {
+        // The check↔runtime derivation contract (spec §permits default-deny),
+        // the net companion to fs_boundary_of — asserted at the compose layer.
+        // (a) no permits block → Unbounded (the SSRF floor is the only guard).
+        assert_eq!(
+            net_boundary_of(&parse(
+                "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n"
+            )),
+            NetBoundary::Unbounded
+        );
+        // (b) permits present but NO net category → Declared([]) = deny-all.
+        assert_eq!(
+            net_boundary_of(&parse(
+                "nika: v1\nworkflow: w\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  - id: t\n    invoke: { tool: \"nika:jq\", args: { input: {}, expression: \".\" } }\n"
+            )),
+            NetBoundary::Declared(Vec::new())
+        );
+        // (c) net.http present → Declared([globs]).
+        assert_eq!(
+            net_boundary_of(&parse(
+                "nika: v1\nworkflow: w\npermits:\n  net: { http: [\"api.example.com\", \"*.github.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/\" } }\n"
+            )),
+            NetBoundary::Declared(vec![
+                "api.example.com".to_owned(),
+                "*.github.com".to_owned()
+            ])
+        );
+    }
+
+    #[test]
+    fn capabilities_of_bundles_both_axes() {
+        // The single derivation a composition root uses — both axes from one
+        // workflow (so net can't be forgotten while fs is wired).
+        let caps = capabilities_of(&parse(
+            "nika: v1\nworkflow: w\npermits:\n  net: { http: [\"api.example.com\"] }\n  fs: { write: [\"./out/**\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/\" } }\n",
+        ));
+        assert_eq!(
+            caps.net,
+            NetBoundary::Declared(vec!["api.example.com".to_owned()])
+        );
+        // fs is the declared boundary (not unbounded) — both axes derived.
+        assert_ne!(
+            format!("{:?}", caps.fs),
+            format!("{:?}", FsBoundary::unbounded()),
+            "fs is a declared boundary when permits.fs is present"
+        );
+    }
+
     #[test]
     fn composition_succeeds_for_a_mock_model() {
         // The mock profile needs no http call + no key — composition
         // wires every seam without touching the network. (A real model's
         // missing key surfaces only at resolve time · per-workflow.)
-        let runtime = production_runtime("mock/echo", FsBoundary::unbounded(), None);
+        let runtime = production_runtime(
+            "mock/echo",
+            RuntimeCapabilities {
+                fs: FsBoundary::unbounded(),
+                net: NetBoundary::Unbounded,
+            },
+        );
         assert!(
             runtime.is_ok(),
             "the production runtime composes (TLS init is the only failure)"

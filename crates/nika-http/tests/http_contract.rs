@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures_core::Stream;
-use nika_http::{HttpConfig, ReqwestHttp, SsrfMode};
+use nika_http::{HttpConfig, NetBoundary, ReqwestHttp, SsrfMode};
 use nika_kernel::http::{HttpGetDyn, HttpPostDyn};
 use nika_kernel::{HttpClient, HttpError, HttpRequest};
 use std::pin::pin;
@@ -298,7 +298,7 @@ async fn allowlist_refuses_a_host_outside_the_boundary_before_connect() {
     // the allowlist is the boundary under test).
     let _net = net_guard();
     let client = mechanics_client_with(|c| {
-        c.net_allowlist = Some(vec!["allowed.test".to_owned()]);
+        c.net = NetBoundary::Declared(vec!["allowed.test".to_owned()]);
     });
     let err = client
         .get(HttpRequest::get("http://127.0.0.1:1/x"))
@@ -317,7 +317,7 @@ async fn allowlisted_host_is_reached() {
     let _net = net_guard();
     let addr = serve(vec![ok_response("ok", "")]).await;
     let client = mechanics_client_with(|c| {
-        c.net_allowlist = Some(vec!["127.0.0.1".to_owned()]);
+        c.net = NetBoundary::Declared(vec!["127.0.0.1".to_owned()]);
     });
     let resp = client
         .get(HttpRequest::get(format!("http://{addr}/x")))
@@ -337,7 +337,7 @@ async fn allowlist_is_rechecked_on_every_redirect_hop() {
     let hop1 = serve(vec![redirect_response("http://evil.invalid/final")]).await;
     let client = mechanics_client_with(|c| {
         // Only the loopback initial host is sanctioned.
-        c.net_allowlist = Some(vec!["127.0.0.1".to_owned()]);
+        c.net = NetBoundary::Declared(vec!["127.0.0.1".to_owned()]);
     });
     let err = client
         .get(HttpRequest::get(format!("http://{hop1}/start")))
