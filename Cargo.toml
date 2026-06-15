@@ -41,6 +41,7 @@ layers.nika-pack = "L0"
 # nika-cli · the operator surface (D-2026-06-10-N6 first-15-min suite) · seeded
 # 2026-06-11 with the display fold + trace verbs per docs/crate-specs/nika-cli.md.
 layers.nika-cli = "L4"
+layers.nika-lsp = "L4"
 layers.nika-types = "L0"
 layers.nika-error = "L0"
 layers.nika-event = "L0"

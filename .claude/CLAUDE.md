@@ -132,8 +132,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | branch           | `main`                                      |
 | HEAD             | `3a03558d5` (`3a03558d5f7276a70606ed30e1db6c858bd578fd`)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 37                                              |
-| crates (admitted)| 32 / 42                                   |
+| crates (workspace)| 38                                              |
+| crates (admitted)| 33 / 42                                   |
 | crates (WIP)     | 5 — nika-schema nika-infer-local nika-cli nika-builtin nika-extract                                  |
 | L0               | 8                                              |
 | L0.5             | 6                                              |
@@ -141,7 +141,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
-| L4               | 2                                              |
+| L4               | 3                                              |
 | lib tests        | 2524 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 

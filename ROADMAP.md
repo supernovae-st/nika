@@ -67,8 +67,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | branch           | `main`                                      |
 | HEAD             | `e70950c04` (`e70950c04e7bce21540d793eb9a7c562982ccffa`)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 37                                              |
-| crates (admitted)| 32 / 42                                   |
+| crates (workspace)| 38                                              |
+| crates (admitted)| 33 / 42                                   |
 | crates (WIP)     | 5 — nika-schema nika-infer-local nika-cli nika-builtin nika-extract                                  |
 | L0               | 8                                              |
 | L0.5             | 6                                              |
@@ -76,7 +76,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
-| L4               | 2                                              |
+| L4               | 3                                              |
 | lib tests        | 2325 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
