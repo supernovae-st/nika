@@ -51,13 +51,21 @@ tasks:
                 task: { type: string }
                 due: { type: string }
 
-  - id: save
+  - id: actions_json
     depends_on: [extract]
+    invoke:
+      tool: "nika:jq"                 # serialize the structured array → JSON string
+      args:
+        input: "${{ tasks.extract.output.actions }}"
+        expression: "tojson"          # nika:write content: must be a string — tojson serializes
+
+  - id: save
+    depends_on: [actions_json]
     invoke:
       tool: "nika:write"
       args:
         path: "./action-items.json"
-        content: "${{ tasks.extract.output.actions }}"
+        content: "${{ tasks.actions_json.output }}"
 
   - id: trace
     depends_on: [extract]

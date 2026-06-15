@@ -83,13 +83,21 @@ tasks:
         message: "Urgent tickets in triage batch ${{ tasks.batch.output }} · ${{ tasks.urgent.output }}"
         severity: warning
 
+  - id: board_json
+    depends_on: [triage]
+    invoke:
+      tool: "nika:jq"                 # serialize the classified queue → JSON string
+      args:
+        input: "${{ tasks.triage.output.tickets }}"
+        expression: "tojson"          # nika:write content: must be a string — tojson serializes
+
   - id: board
-    depends_on: [triage, batch]
+    depends_on: [board_json, batch]
     invoke:
       tool: "nika:write"
       args:
         path: "./support/triage-${{ tasks.batch.output }}.json"
-        content: "${{ tasks.triage.output.tickets }}"
+        content: "${{ tasks.board_json.output }}"
 
 outputs:
   tickets:
