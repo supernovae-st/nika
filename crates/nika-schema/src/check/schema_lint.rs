@@ -90,6 +90,8 @@ fn lint_node(task: &str, node: &Value, path: &str, out: &mut Vec<SchemaLintFindi
     check_type_names(task, obj, path, out);
     check_required_vs_properties(task, obj, path, out);
     check_enum(task, obj, path, out);
+    check_enum_vs_type(task, obj, path, out);
+    check_numeric_bounds(task, obj, path, out);
 
     // descend
     if let Some(props) = obj.get("properties") {
@@ -217,6 +219,95 @@ fn check_enum(
     }
 }
 
+/// `type:` and a non-empty `enum:` both constrain the value (intersection in
+/// JSON Schema). If NO `enum` value matches the declared `type`, every model
+/// output fails validation — unsatisfiable (e.g. `type: string, enum: [1, 2]`).
+/// A partial mismatch is fine (the matching members keep it satisfiable · the
+/// dead ones are an author's concern, not an engine-blocking error).
+fn check_enum_vs_type(
+    task: &str,
+    obj: &serde_json::Map<String, Value>,
+    path: &str,
+    out: &mut Vec<SchemaLintFinding>,
+) {
+    let Some(values) = obj.get("enum").and_then(Value::as_array) else {
+        return;
+    };
+    if values.is_empty() {
+        return; // the empty-enum lint owns this
+    }
+    let names: Vec<&str> = match obj.get("type") {
+        Some(Value::String(s)) => vec![s.as_str()],
+        Some(Value::Array(arr)) => arr.iter().filter_map(Value::as_str).collect(),
+        _ => return, // no (valid) declared type → nothing to contradict
+    };
+    if names.is_empty() {
+        return;
+    }
+    if !values
+        .iter()
+        .any(|v| names.iter().any(|t| json_matches_type(v, t)))
+    {
+        out.push(finding(
+            task,
+            &format!("{path}/enum"),
+            format!(
+                "no `enum` value matches `type: {}` — every model output will fail validation",
+                names.join("|")
+            ),
+        ));
+    }
+}
+
+/// Whether a literal JSON value matches a JSON-Schema `type` name. `integer`
+/// is the number subtype (an integral value matches both `integer` and
+/// `number`; a fractional number matches only `number`).
+fn json_matches_type(value: &Value, type_name: &str) -> bool {
+    match type_name {
+        "string" => value.is_string(),
+        "number" => value.is_number(),
+        "integer" => {
+            value.is_i64() || value.is_u64() || value.as_f64().is_some_and(|n| n.fract() == 0.0)
+        }
+        "boolean" => value.is_boolean(),
+        "array" => value.is_array(),
+        "object" => value.is_object(),
+        "null" => value.is_null(),
+        _ => false,
+    }
+}
+
+/// A lower bound strictly above its paired upper bound is unsatisfiable — no
+/// value can be both. Covers the four JSON-Schema min/max pairs (numeric
+/// range · string length · array length · object property count).
+fn check_numeric_bounds(
+    task: &str,
+    obj: &serde_json::Map<String, Value>,
+    path: &str,
+    out: &mut Vec<SchemaLintFinding>,
+) {
+    for (lo, hi, what) in [
+        ("minimum", "maximum", "numeric range"),
+        ("minLength", "maxLength", "string length"),
+        ("minItems", "maxItems", "array length"),
+        ("minProperties", "maxProperties", "object property count"),
+    ] {
+        // Compare as f64; render from the original `Value` so the message
+        // keeps the author's own form (`10`, not `10.0`) — and no f64→int
+        // cast (clippy::cast_possible_truncation).
+        if let (Some(lv), Some(hv)) = (obj.get(lo), obj.get(hi))
+            && let (Some(l), Some(h)) = (lv.as_f64(), hv.as_f64())
+            && l > h
+        {
+            out.push(finding(
+                task,
+                path,
+                format!("`{lo}: {lv}` > `{hi}: {hv}` ({what}) — no value can satisfy both"),
+            ));
+        }
+    }
+}
+
 fn finding(task: &str, path: &str, detail: String) -> SchemaLintFinding {
     SchemaLintFinding {
         task: task.to_owned(),
@@ -294,6 +385,72 @@ mod tests {
         ));
         assert_eq!(f.len(), 1);
         assert!(f[0].detail.contains("unsatisfiable"));
+    }
+
+    #[test]
+    fn enum_values_conflicting_the_type_is_unsatisfiable() {
+        // type: string + enum: [1, 2] — no enum value is a string, so every
+        // model output fails validation (the S5 gap · now caught).
+        let f = findings_of(&infer_with_schema(
+            "        type: object\n        properties:\n          n: { type: string, enum: [1, 2] }\n",
+        ));
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].path, "/properties/n/enum");
+        assert!(f[0].detail.contains("no `enum` value matches"), "{f:?}");
+    }
+
+    #[test]
+    fn enum_partially_matching_the_type_is_clean() {
+        // type: string + enum: [1, "ok"] — "ok" satisfies both, so the schema
+        // is satisfiable (the dead `1` is the author's concern, not an error).
+        let f = findings_of(&infer_with_schema(
+            "        type: object\n        properties:\n          s: { type: string, enum: [1, \"ok\"] }\n",
+        ));
+        assert!(
+            f.is_empty(),
+            "a partially-matching enum stays satisfiable: {f:?}"
+        );
+    }
+
+    #[test]
+    fn integer_enum_matches_integer_and_number_types() {
+        // integer values satisfy both `integer` and `number` — no false flag.
+        let f = findings_of(&infer_with_schema(
+            "        type: object\n        properties:\n          a: { type: integer, enum: [1, 2] }\n          b: { type: number, enum: [3, 4] }\n",
+        ));
+        assert!(f.is_empty(), "{f:?}");
+    }
+
+    #[test]
+    fn numeric_minimum_above_maximum_is_unsatisfiable() {
+        // minimum: 10 > maximum: 5 — no value fits (the S6 gap · now caught).
+        let f = findings_of(&infer_with_schema(
+            "        type: object\n        properties:\n          n: { type: integer, minimum: 10, maximum: 5 }\n",
+        ));
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert!(f[0].detail.contains("no value can satisfy both"), "{f:?}");
+    }
+
+    #[test]
+    fn length_and_items_bound_conflicts_are_caught() {
+        // minLength > maxLength and minItems > maxItems are both unsatisfiable.
+        let f = findings_of(&infer_with_schema(
+            "        type: object\n        properties:\n          s: { type: string, minLength: 5, maxLength: 2 }\n          a: { type: array, minItems: 9, maxItems: 1 }\n",
+        ));
+        assert_eq!(f.len(), 2, "{f:?}");
+        assert!(
+            f.iter()
+                .all(|x| x.detail.contains("no value can satisfy both")),
+            "{f:?}"
+        );
+    }
+
+    #[test]
+    fn well_ordered_bounds_are_clean() {
+        let f = findings_of(&infer_with_schema(
+            "        type: object\n        properties:\n          n: { type: integer, minimum: 1, maximum: 10 }\n",
+        ));
+        assert!(f.is_empty(), "{f:?}");
     }
 
     #[test]
