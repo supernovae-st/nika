@@ -16,6 +16,27 @@ use nika_kernel::io::http::{HttpError, HttpGetDyn, HttpMethod, HttpPostDyn, Http
 
 use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str};
 
+/// Map the two NET SECURITY-BOUNDARY errors to their spec-plane codes, shared
+/// by `fetch` + `notify` (one definition · no drift between the surfaces):
+/// a declared `permits.net.http` escape → `NIKA-SEC-004`, and the always-on
+/// SSRF floor (loopback/private/link-local/metadata) → `NIKA-SEC-005`. Both
+/// are `security_error` · non-transient · never fed back to an `agent:` model
+/// (a boundary is not negotiation material). `None` for transport-plane
+/// errors — the caller maps those per its own retry contract.
+fn net_security_failure(e: &HttpError) -> Option<BuiltinFailure> {
+    match e {
+        HttpError::HostNotAllowed { host } => Some(BuiltinFailure::new(
+            crate::permits::SEC_DENIED,
+            format!("`{host}` resolves outside the declared net.http boundary"),
+        )),
+        HttpError::SsrfBlocked { url } => Some(BuiltinFailure::new(
+            crate::permits::SEC_SSRF,
+            format!("SSRF blocked · `{url}` resolves to a loopback/private/metadata target"),
+        )),
+        _ => None,
+    }
+}
+
 /// `nika:fetch` — HTTP request + content extraction (stdlib §fetch).
 /// Non-2xx is failure (`transient: true` for 5xx/408/429, `false` for
 /// other 4xx — normative). The body is decoded then run through the
@@ -69,25 +90,14 @@ pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn>(http: &H, args: &Args) ->
         HttpMethod::Get | HttpMethod::Head => http.get(request).await,
         _ => http.post(request).await,
     }
-    .map_err(|e| match e {
-        // A declared permits.net.http escape is a CAPABILITY-boundary
-        // denial (spec §permits) — surfaced as the spec-plane NIKA-SEC-004,
-        // never transient, never fed back to an `agent:` model. Mirrors the
-        // fs boundary (a path outside permits.fs is the same SEC-004 class).
-        HttpError::HostNotAllowed { host } => BuiltinFailure::new(
-            crate::permits::SEC_DENIED,
-            format!("`{host}` resolves outside the declared net.http boundary"),
-        ),
-        // Transport-plane retryability: timeouts + connection failures are
-        // the canonical transient conditions; SSRF/size/scheme rejections
-        // are deterministic.
-        other => {
-            let transient = matches!(
-                other,
-                HttpError::Timeout { .. } | HttpError::Connection { .. }
-            );
-            BuiltinFailure::new(C, format!("request failed: {other}")).with_transient(transient)
-        }
+    .map_err(|e| {
+        // A security-boundary error (permits.net.http → SEC-004 · SSRF floor
+        // → SEC-005) takes its spec-plane code; otherwise it's a transport
+        // failure whose retryability follows the spec status table.
+        net_security_failure(&e).unwrap_or_else(|| {
+            let transient = matches!(e, HttpError::Timeout { .. } | HttpError::Connection { .. });
+            BuiltinFailure::new(C, format!("request failed: {e}")).with_transient(transient)
+        })
     })?;
 
     if !(200..300).contains(&response.status) {
@@ -465,14 +475,12 @@ pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutc
         .map_err(|e| BuiltinFailure::new(C1, format!("payload serialization failed: {e}")))?;
     request.body = Some(body.into());
 
-    let response = http.post(request).await.map_err(|e| match e {
-        // Same capability-boundary denial as fetch — a webhook `target:`
-        // outside permits.net.http is NIKA-SEC-004, not a delivery error.
-        HttpError::HostNotAllowed { host } => BuiltinFailure::new(
-            crate::permits::SEC_DENIED,
-            format!("`{host}` resolves outside the declared net.http boundary"),
-        ),
-        other => BuiltinFailure::new(C2, format!("delivery failed: {other}")),
+    let response = http.post(request).await.map_err(|e| {
+        // The webhook `target:` rides the SAME net security boundary as
+        // fetch (SEC-004 permits / SEC-005 SSRF · shared helper); anything
+        // else is a delivery failure.
+        net_security_failure(&e)
+            .unwrap_or_else(|| BuiltinFailure::new(C2, format!("delivery failed: {e}")))
     })?;
     if (200..300).contains(&response.status) {
         Ok(serde_json::Value::Null)
@@ -911,7 +919,9 @@ mod tests {
             assert_eq!(fail.code, "NIKA-BUILTIN-FETCH-001");
             assert!(fail.transient, "a transport failure is retryable");
         }
-        // An SSRF/scheme rejection (a deterministic refusal) is NOT transient.
+        // An SSRF/scheme rejection (a deterministic refusal) is NOT transient,
+        // and speaks the security-plane NIKA-SEC-005 (not the generic
+        // FETCH-001) so it derives `security_error` + never reaches an agent.
         let http = MockHttp::new().enqueue_err(HttpError::SsrfBlocked {
             url: "http://127.0.0.1".to_owned(),
         });
@@ -922,6 +932,7 @@ mod tests {
         .await
         .expect_err("ssrf blocked");
         assert!(!fail.transient, "an SSRF block is a deterministic refusal");
+        assert_eq!(fail.code, "NIKA-SEC-005", "SSRF is the security-plane code");
     }
 
     #[tokio::test]
@@ -929,7 +940,7 @@ mod tests {
         // A permits.net.http escape (the kernel HostNotAllowed) is the
         // spec-plane NIKA-SEC-004 capability denial — NOT a transport
         // failure, NEVER retryable, distinct from the SSRF floor's
-        // FETCH-001. This is the user-facing half of the runtime boundary.
+        // NIKA-SEC-005. This is the user-facing half of the runtime boundary.
         let http = MockHttp::new().enqueue_err(HttpError::HostNotAllowed {
             host: "evil.com".to_owned(),
         });
@@ -957,6 +968,23 @@ mod tests {
         .await
         .expect_err("notify target outside permits.net.http");
         assert_eq!(fail.code, "NIKA-SEC-004", "notify honors the same boundary");
+    }
+
+    #[tokio::test]
+    async fn notify_ssrf_blocked_surfaces_as_nika_sec_005() {
+        // The SSRF floor on the webhook `target:` is the security-plane
+        // NIKA-SEC-005 (non-transient · never agent-fed) — same as fetch.
+        let http = MockHttp::new().enqueue_err(HttpError::SsrfBlocked {
+            url: "http://169.254.169.254".to_owned(),
+        });
+        let fail = notify(
+            &http,
+            &args(serde_json::json!({ "target": "http://169.254.169.254", "message": "x" })),
+        )
+        .await
+        .expect_err("notify target is an SSRF block");
+        assert_eq!(fail.code, "NIKA-SEC-005", "SSRF is the security floor code");
+        assert!(!fail.transient, "an SSRF block is a deterministic refusal");
     }
 
     #[tokio::test]

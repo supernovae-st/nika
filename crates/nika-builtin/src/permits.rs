@@ -35,6 +35,12 @@ use crate::BuiltinFailure;
 /// fed back to an `agent:` model).
 pub(crate) const SEC_DENIED: &str = "NIKA-SEC-004";
 
+/// The spec-canonical code for an SSRF block — a `nika:fetch`/`nika:notify`
+/// URL resolving to a loopback/private/link-local/metadata target (the
+/// always-on engine floor · `05-errors.md` · `security_error` · never
+/// retryable, never fed back to an `agent:` model · independent of `permits:`).
+pub(crate) const SEC_SSRF: &str = "NIKA-SEC-005";
+
 /// Which direction of `permits.fs` an op needs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FsAccess {
