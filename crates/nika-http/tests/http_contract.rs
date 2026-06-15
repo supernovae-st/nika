@@ -856,12 +856,17 @@ async fn authorization_kept_on_same_origin_redirect() {
 #[tokio::test]
 async fn tls_backend_initializes_and_https_reaches_transport() {
     let _net = net_guard();
-    // No network assertion: 192.0.2.1 is RFC 5737 TEST-NET-1 (public ·
-    // SSRF allows it · never routes). The point is to prove the rustls
-    // backend BUILT and an https:// URL reaches the connect path — the
-    // error must be a transport error (Timeout/Connection), NEVER the
-    // `Other{failed to build HTTP client}` that a broken TLS init gives.
-    let client = ReqwestHttp::new().expect("rustls backend initializes");
+    // Prove the rustls backend BUILT and an https:// URL reaches the connect
+    // path — the error must be a transport error (Timeout/Connection), NEVER
+    // the `Other{failed to build HTTP client}` a broken TLS init gives.
+    // 192.0.2.1 is RFC 5737 TEST-NET-1 (never routes) → a fast transport
+    // failure. SSRF is DISABLED here on purpose: the engine floor correctly
+    // BLOCKS TEST-NET as documentation space (`ssrf.rs` `is_documentation`),
+    // so under Enforce this URL is `SsrfBlocked` and never reaches the
+    // transport — but reaching the transport is exactly what this asserts
+    // (`mechanics_client` still `.expect`s the rustls build, so TLS-init is
+    // covered).
+    let client = mechanics_client(); // SsrfMode::Disabled
     let mut req = HttpRequest::get("https://192.0.2.1/x");
     req.timeout = Some(Duration::from_millis(200));
     let err = client.get(req).await.unwrap_err();
