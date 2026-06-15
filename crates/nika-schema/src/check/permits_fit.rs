@@ -426,6 +426,23 @@ mod tests {
     }
 
     #[test]
+    fn url_host_matches_the_shared_parity_vectors() {
+        // The static extractor (`url_host`) MUST agree with the runtime
+        // (`nika-http`'s `host_of`) on every shared vector — the no-drift
+        // guarantee. nika-http asserts the SAME table against its extractor;
+        // if either drifts on `\@`/userinfo/case/IPv6/trailing-dot, one of
+        // the two suites fails. This is the static HALF of the parity the
+        // whole `permits.net.http` fix rests on.
+        for (input, expected) in nika_types::net::HOST_EXTRACTION_VECTORS {
+            assert_eq!(
+                url_host(input).as_deref(),
+                *expected,
+                "url_host disagrees on {input}"
+            );
+        }
+    }
+
+    #[test]
     fn no_permits_block_no_escapes() {
         let y = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"rm -rf /\" }\n";
         assert!(

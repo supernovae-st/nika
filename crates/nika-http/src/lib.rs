@@ -161,44 +161,45 @@ pub struct ReqwestHttp {
     config: HttpConfig,
 }
 
-/// Enforce a declared `permits.net.http` allowlist on ONE already-parsed
-/// URL (one hop).
+/// The connect host of a parsed URL, normalized to how `permits.net.http`
+/// is written: bracket-free for IPv6 (`::1`, never `[::1]` — `url::Host`'s
+/// Display would add brackets, so take the inner `Ipv6Addr`) and with an
+/// absolute-FQDN trailing dot stripped (`allowed.com.` ≡ `allowed.com` · the
+/// SSRF layer normalizes this too). `None` when the URL has no host.
 ///
-/// `None` = no declared boundary → `Ok` (the caller's SSRF floor is the
-/// only net guard, today's behavior). A `Some` allowlist is DEFAULT-DENY
-/// (spec `01-envelope.md` §permits): the host must match a glob, else
+/// SHARED SEMANTICS with the static checker (`nika-schema`'s `url_host`):
+/// both take the host from the SAME `url::Url` the transport connects with —
+/// a hand-rolled string parser disagrees with WHATWG normalization (`\` is a
+/// path separator for http/https; userinfo + C0 bytes are stripped), and
+/// that gap is a bypass (`https://evil.com\@allowed.com` → string-host
+/// `allowed.com` but connect-host `evil.com`). The two extractors are pinned
+/// identical by [`nika_types::net::HOST_EXTRACTION_VECTORS`] (asserted in
+/// BOTH crates' tests) so check and runtime can never drift.
+fn host_of(url: &url::Url) -> Option<String> {
+    match url.host()? {
+        url::Host::Domain(d) => Some(d.trim_end_matches('.').to_owned()),
+        url::Host::Ipv4(a) => Some(a.to_string()),
+        url::Host::Ipv6(a) => Some(a.to_string()),
+    }
+}
+
+/// Enforce a declared `permits.net.http` allowlist on ONE already-parsed URL
+/// (one hop).
+///
+/// `None` = no declared boundary → `Ok` (the caller's SSRF floor is the only
+/// net guard, today's behavior). A `Some` allowlist is DEFAULT-DENY (spec
+/// `01-envelope.md` §permits): the host (via [`host_of`] · the parsed connect
+/// host, not the raw string) must match a glob, else
 /// [`HttpError::HostNotAllowed`]. A URL with no host under a declared
 /// boundary is DENIED (it cannot be confirmed in-bounds).
-///
-/// CRITICAL: the host comes from the PARSED [`url::Url`] — the SAME value
-/// the transport connects to — NOT a re-parse of the raw request string.
-/// A hand-rolled string parser disagrees with the `url` crate's WHATWG
-/// normalization (a `\` is a path separator for http/https; userinfo and
-/// C0 bytes are stripped), so gating on the raw string lets
-/// `https://evil.com\@allowed.com` (string-host `allowed.com`, connect-host
-/// `evil.com`) escape. Gating on `url.host()` closes that — and the glob
-/// match itself is the shared `nika_types::net` matcher (same one
-/// `nika check` uses), so the static and runtime verdicts agree.
 fn check_net_allowlist(allowlist: Option<&[String]>, url: &url::Url) -> Result<(), HttpError> {
     let Some(globs) = allowlist else {
         return Ok(());
     };
-    // The connect host, bracket-free for IPv6 (permits are written `::1`,
-    // matching `nika_types::net` — `url::Host`'s Display would add brackets,
-    // so take the inner `Ipv6Addr`).
-    let host = match url.host() {
-        // Strip an absolute-FQDN trailing dot (`allowed.com.` ≡ `allowed.com`
-        // · same DNS name) so a permit written dot-free still matches — the
-        // SSRF layer already normalizes this (`ssrf.rs`), and both extractors
-        // do it so check + runtime stay aligned.
-        Some(url::Host::Domain(d)) => d.trim_end_matches('.').to_owned(),
-        Some(url::Host::Ipv4(a)) => a.to_string(),
-        Some(url::Host::Ipv6(a)) => a.to_string(),
-        None => {
-            return Err(HttpError::HostNotAllowed {
-                host: url.as_str().to_owned(),
-            });
-        }
+    let Some(host) = host_of(url) else {
+        return Err(HttpError::HostNotAllowed {
+            host: url.as_str().to_owned(),
+        });
     };
     if nika_types::net::host_in_allowlist(globs, &host) {
         Ok(())
@@ -868,6 +869,19 @@ mod tests {
         // An empty allowlist (a `permits:` block that omits `net`) denies all.
         let deny_all: Vec<String> = Vec::new();
         assert!(check_net_allowlist(Some(&deny_all), &u("https://allowed.com/p")).is_err());
+    }
+
+    #[test]
+    fn host_of_matches_the_shared_parity_vectors() {
+        // The runtime extractor (`host_of`) MUST agree with the static
+        // checker (`nika-schema`'s `url_host`) on every shared vector — the
+        // no-drift guarantee. nika-schema asserts the SAME table against its
+        // extractor; if either drifts (`\@`, case, IPv6, trailing dot), one
+        // of the two suites fails. Single source of cases · zero drift.
+        for (input, expected) in nika_types::net::HOST_EXTRACTION_VECTORS {
+            let got = url::Url::parse(input).ok().and_then(|u| host_of(&u));
+            assert_eq!(got.as_deref(), *expected, "host_of disagrees on {input}");
+        }
     }
 
     #[test]

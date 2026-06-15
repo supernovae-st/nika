@@ -42,6 +42,36 @@ pub fn host_in_allowlist(allowlist: &[String], host: &str) -> bool {
     allowlist.iter().any(|g| host_glob_matches(g, host))
 }
 
+/// The canonical host-extraction parity vectors — `(url, expected host)`.
+///
+/// The static checker (`nika-schema`'s `url_host`) and the runtime http
+/// effect (`nika-http`'s `host_of`) each parse the host from their own
+/// `url::Url` (the `url` crate is `std`, so the extractor itself cannot live
+/// in this `no_std` leaf). They MUST agree, or `nika check` and `nika run`
+/// drift — a security bug (a host the check passes but the runtime blocks,
+/// or worse, the reverse). This table is the shared SOURCE OF TRUTH for that
+/// agreement: BOTH crates run their extractor over it and assert the same
+/// expected host. A future change to either extractor that diverges on
+/// `\`-userinfo confusion, case, IPv6 brackets, or the trailing-dot FQDN is
+/// then caught mechanically, in both test suites, against ONE list of cases.
+pub const HOST_EXTRACTION_VECTORS: &[(&str, Option<&str>)] = &[
+    // a plain host (query + fragment dropped)
+    ("https://api.example.com/p?q=1#f", Some("api.example.com")),
+    // the `\@` bypass: `\` is a WHATWG path separator for http/https, so the
+    // host is `evil.com` — NOT `allowed.com` (what a string parser would read)
+    (r"https://evil.com\@allowed.com/x", Some("evil.com")),
+    // userinfo is stripped — the real host is `evil.com`
+    ("https://user:pass@evil.com/x", Some("evil.com")),
+    // the host is lowercased by WHATWG parsing
+    ("https://ALLOWED.com/x", Some("allowed.com")),
+    // IPv6 is bracket-free (permits are written `::1`, never `[::1]`)
+    ("http://[::1]:8080/x", Some("::1")),
+    // an absolute-FQDN trailing dot is stripped (`allowed.com.` ≡ `allowed.com`)
+    ("https://allowed.com./x", Some("allowed.com")),
+    // a hostless URL has no extractable host (a declared boundary denies it)
+    ("mailto:user@example.com", None),
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
