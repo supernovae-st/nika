@@ -168,13 +168,18 @@ impl SchemaError {
             Self::Validation { .. } => parse(19, ValidationError),
 
             // Spec 05 registry · NIKA-VAR-005 = « static expression
-            // violation » — the class spans the non-boolean `when:`
-            // shape gate (the retired NIKA-PARSE-WHEN-001 folded here)
-            // AND `${{ }}` inside an output binding (04 §binding
-            // rules · deep fixtures 003/007/008 expect NIKA-VAR).
-            Self::WhenNotBoolean { .. } | Self::JqBindingContainsTemplate { .. } => {
-                var(5, ValidationError)
-            }
+            // violation — outside cel-subset/0.1 · chained relation ·
+            // unknown function · non-boolean when: root · jq compile
+            // error ». The class spans the non-boolean `when:` shape gate
+            // (the retired NIKA-PARSE-WHEN-001 folded here), `${{ }}` inside
+            // an output binding (04 §binding rules · deep fixtures 003/007/008),
+            // AND a CLOSED `${{ }}` island whose CEL is outside the subset
+            // (chained relation · unknown function · arithmetic · stray token
+            // — `ExpressionViolation`, distinct from the unclosed-opener
+            // VAR-008 below).
+            Self::WhenNotBoolean { .. }
+            | Self::JqBindingContainsTemplate { .. }
+            | Self::ExpressionViolation { .. } => var(5, ValidationError),
 
             // ── NIKA-DAG · topology ─────────────────────────────────
             Self::Cycle { .. } => dag(1),

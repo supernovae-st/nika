@@ -390,11 +390,25 @@ fn scan_json(
     walk(&value.value, value.span, ctx, index, errors);
 }
 
-/// Map an [`ExprError`] into the schema error surface.
+/// Map an [`ExprError`] into the schema error surface, splitting the two
+/// spec codes the `${{ }}` surface owns: an UNTERMINATED island (a `${{`
+/// with no closing `}}`) is `NIKA-VAR-008` ([`SchemaError::TemplateSyntax`] ·
+/// « unclosed `${{` opener »); a CLOSED island whose CEL is outside the
+/// `cel-subset/0.1` grammar (chained relation · unknown function ·
+/// arithmetic · stray token) is `NIKA-VAR-005`
+/// ([`SchemaError::ExpressionViolation`] · « static expression violation »).
+/// Conflating the two made a chained-relation report `nika explain
+/// NIKA-VAR-008` → "unclosed `${{` opener", a wrong diagnostic.
 fn template_error(e: &ExprError, span: Span) -> SchemaError {
-    SchemaError::TemplateSyntax {
-        reason: e.to_string(),
-        span: Some(span),
+    match e {
+        ExprError::UnterminatedTemplate { .. } => SchemaError::TemplateSyntax {
+            reason: e.to_string(),
+            span: Some(span),
+        },
+        _ => SchemaError::ExpressionViolation {
+            reason: e.to_string(),
+            span: Some(span),
+        },
     }
 }
 

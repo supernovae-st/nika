@@ -583,6 +583,36 @@ tasks:
     }
 
     #[test]
+    fn closed_island_grammar_error_is_expression_violation_not_template_syntax() {
+        // A CLOSED `${{ }}` whose CEL is outside cel-subset/0.1 is the
+        // NIKA-VAR-005 « static expression violation » class — NOT the
+        // NIKA-VAR-008 « unclosed `${{` opener » that an UNTERMINATED island
+        // gets. Conflating them made `nika explain` mis-teach the error.
+        for expr in [
+            "${{ vars.a < vars.b < vars.c }}", // chained relation
+            "${{ vars.s.matches('h.*o') }}",   // unknown function
+            "${{ vars.a + vars.b }}",          // arithmetic (outside the subset)
+        ] {
+            let yaml = format!(
+                "nika: v1\nworkflow: t\ntasks:\n  - id: go\n    when: {expr}\n    exec: {{ command: \"echo hi\" }}\n"
+            );
+            let errors = analyze_yaml(&yaml).expect_err("grammar error");
+            assert!(
+                errors
+                    .iter()
+                    .any(|e| matches!(e, SchemaError::ExpressionViolation { .. })),
+                "`{expr}` must be ExpressionViolation (VAR-005), got {errors:?}"
+            );
+            assert!(
+                !errors
+                    .iter()
+                    .any(|e| matches!(e, SchemaError::TemplateSyntax { .. })),
+                "`{expr}` must NOT be TemplateSyntax (VAR-008 is unclosed-only): {errors:?}"
+            );
+        }
+    }
+
+    #[test]
     fn task_record_field_and_binding_resolution() {
         let yaml = "\
 nika: v1

@@ -202,11 +202,26 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// `${{ … }}` template syntax error — unterminated island or invalid
-    /// CEL inside (spec `04-variables.md` + `03-dag.md` §CEL-subset).
+    /// `${{ … }}` template syntax error — strictly an UNTERMINATED island
+    /// (a `${{` with no closing `}}`) · spec `05-errors.md` `NIKA-VAR-008`
+    /// (« unclosed `${{` opener »). A CLOSED island whose CEL is invalid is
+    /// [`Self::ExpressionViolation`] (`NIKA-VAR-005`), not this.
     #[error("template syntax error — {reason}")]
     TemplateSyntax {
         /// Why the template was rejected.
+        reason: String,
+        /// Source span.
+        span: Option<Span>,
+    },
+
+    /// A CLOSED `${{ … }}` island whose CEL is outside the `cel-subset/0.1`
+    /// grammar — a chained relation, an unknown function, arithmetic, a
+    /// stray token. Spec `05-errors.md` `NIKA-VAR-005` (« static expression
+    /// violation »). Distinct from [`Self::TemplateSyntax`] (`NIKA-VAR-008`),
+    /// which is reserved for the unclosed-`${{` opener.
+    #[error("expression error — {reason}")]
+    ExpressionViolation {
+        /// Why the expression was rejected (the CEL-subset grammar reason).
         reason: String,
         /// Source span.
         span: Option<Span>,
@@ -447,6 +462,7 @@ impl SchemaError {
             | Self::BadSecretRef { span, .. }
             | Self::BadTypedVar { span, .. }
             | Self::TemplateSyntax { span, .. }
+            | Self::ExpressionViolation { span, .. }
             | Self::JqBindingContainsTemplate { span, .. }
             | Self::DuplicateKey { span, .. }
             | Self::MissingField { span, .. }
@@ -526,6 +542,7 @@ schema_code!(SCHEMA_306, 306, "unknown-task-field");
 schema_code!(SCHEMA_307, 307, "output-path-provably-invalid");
 schema_code!(SCHEMA_308, 308, "recover-await-deadlock");
 schema_code!(SCHEMA_309, 309, "bad-builtin-args");
+schema_code!(SCHEMA_310, 310, "expression-violation");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -546,6 +563,7 @@ impl NikaErrorCode for SchemaError {
             Self::BadSecretRef { .. } => SCHEMA_293,
             Self::BadTypedVar { .. } => SCHEMA_294,
             Self::TemplateSyntax { .. } => SCHEMA_295,
+            Self::ExpressionViolation { .. } => SCHEMA_310,
             Self::JqBindingContainsTemplate { .. } => SCHEMA_296,
             Self::DuplicateKey { .. } => SCHEMA_297,
             Self::MissingField { .. } => SCHEMA_298,
