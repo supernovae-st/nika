@@ -207,7 +207,12 @@ pub(crate) fn glob_walk_root(pattern: &str) -> &str {
 /// see an absolute pattern match and returned `[]`.
 fn split_pattern_root(pattern: &str) -> (&str, &str) {
     if !Path::new(pattern).is_absolute() {
-        return (".", pattern);
+        // Strip a leading `./` — the walker matches against the root-RELATIVE
+        // path of each entry (`strip_prefix(".")` → no `./` segment), so a
+        // retained `./` in the pattern matches NOTHING (`./**/*.rs` → silent
+        // `[]`). The spec's own example uses the `./`-prefixed form, so
+        // `./**/*.rs` MUST behave exactly like `**/*.rs`.
+        return (".", pattern.strip_prefix("./").unwrap_or(pattern));
     }
     // Find the byte offset of the last `/` BEFORE the first glob meta char —
     // everything up to and including it is the literal directory root.
@@ -733,6 +738,12 @@ mod tests {
         // Relative → cwd root, pattern unchanged.
         assert_eq!(split_pattern_root("src/**/*.rs"), (".", "src/**/*.rs"));
         assert_eq!(split_pattern_root("**"), (".", "**"));
+        // A leading `./` is stripped — the walker matches root-relative paths
+        // (no `./`), so `./**/*.rs` MUST behave as `**/*.rs` (the spec example
+        // uses the `./` form; keeping it returned a silent empty match).
+        assert_eq!(split_pattern_root("./**/*.rs"), (".", "**/*.rs"));
+        assert_eq!(split_pattern_root("./src/*.rs"), (".", "src/*.rs"));
+        assert_eq!(split_pattern_root("./file.txt"), (".", "file.txt"));
         // Absolute exact file → the parent dir + the file name.
         assert_eq!(
             split_pattern_root("/tmp/x/file.txt"),
