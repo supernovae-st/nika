@@ -22,6 +22,7 @@
 //! the floor of your *exposure*, not of the actual spend.
 
 use crate::raw::{ForEachValue, RawAction, RawWorkflow};
+use crate::types::VarDecl;
 
 /// Per-task cost envelope.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -114,7 +115,10 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
         let iterations = match task.value.for_each.as_ref().map(|f| &f.value) {
             None => Some(1),
             Some(ForEachValue::List(arr)) => Some(arr.as_array().map_or(1, Vec::len) as u64),
-            Some(ForEachValue::Expression(_)) => None,
+            // An expression source is unknown EXCEPT when it is a bare
+            // `${{ vars.<name> }}` over a literal array — that count is
+            // statically known, so the cost is bounded (parity with a List).
+            Some(ForEachValue::Expression(expr)) => static_vars_array_len(wf, expr),
         };
         // every retry attempt can spend the full per-call budget
         let attempts = task
@@ -183,6 +187,31 @@ pub(super) fn output_price_per_million(model: &str) -> Option<f64> {
     pricing.map(|p| p.output_per_million)
 }
 
+/// A `for_each:` count that is statically known: the expression is exactly
+/// `${{ vars.<name> }}` and that var declares a LITERAL array (an untyped
+/// array value, or a typed-array with a literal `default:`). Returns `None`
+/// for anything else — a task-output ref, a computed/navigated expression, a
+/// typed var with no default, or a non-array value — which stays an unknown
+/// count (`UnknownIterations`).
+fn static_vars_array_len(wf: &RawWorkflow, expr: &str) -> Option<u64> {
+    let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
+    let name = inner.strip_prefix("vars.")?;
+    // A BARE `vars.<name>` only — reject further navigation (`.field` ·
+    // `[0]`) or operators, whose runtime value is not statically known.
+    if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+        return None;
+    }
+    let (_, decl) = wf.vars.iter().find(|(k, _)| k.value == name)?;
+    let value = match decl {
+        VarDecl::Untyped(v)
+        | VarDecl::Typed {
+            default: Some(v), ..
+        } => v,
+        VarDecl::Typed { default: None, .. } => return None,
+    };
+    value.as_array().map(|a| a.len() as u64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,6 +238,74 @@ tasks:
         assert!(!c.has_unbounded, "a token-bounded priced task is bounded");
         assert!(c.bounded_total_usd > 0.0, "sonnet has a price");
         assert_eq!(c.tasks[0].max_tokens, Some(1000));
+    }
+
+    #[test]
+    fn for_each_over_a_literal_vars_array_is_bounded() {
+        // NEW-5: a static `${{ vars.items }}` over a literal array has a known
+        // count → bounded cost (parity with an inline list), not UnknownIterations.
+        let c = ceiling_of(
+            "\
+nika: v1
+workflow: fe-vars
+model: anthropic/claude-sonnet-4-6
+vars:
+  items: [\"a\", \"b\", \"c\"]
+tasks:
+  - id: fan
+    for_each: ${{ vars.items }}
+    infer: { prompt: \"x\", max_tokens: 100 }
+",
+        );
+        assert!(
+            !c.has_unbounded,
+            "literal vars-array count is statically known"
+        );
+        assert_eq!(c.tasks[0].iterations, 3);
+        assert!(c.tasks[0].usd.is_some(), "bounded → priced");
+    }
+
+    #[test]
+    fn for_each_over_a_typed_var_without_default_stays_unknown() {
+        // No literal at check time → still UnknownIterations (correct).
+        let c = ceiling_of(
+            "\
+nika: v1
+workflow: fe-typed
+model: anthropic/claude-sonnet-4-6
+vars:
+  items: { type: array, required: true }
+tasks:
+  - id: fan
+    for_each: ${{ vars.items }}
+    infer: { prompt: \"x\", max_tokens: 100 }
+",
+        );
+        assert!(c.has_unbounded);
+        assert_eq!(
+            c.tasks[0].unbounded_reason,
+            Some(UnboundedReason::UnknownIterations)
+        );
+    }
+
+    #[test]
+    fn for_each_over_a_typed_array_with_default_is_bounded() {
+        // The typed-array-with-literal-`default:` path also resolves to a count.
+        let c = ceiling_of(
+            "\
+nika: v1
+workflow: fe-typed-default
+model: anthropic/claude-sonnet-4-6
+vars:
+  items: { type: array, default: [\"a\", \"b\"] }
+tasks:
+  - id: fan
+    for_each: ${{ vars.items }}
+    infer: { prompt: \"x\", max_tokens: 100 }
+",
+        );
+        assert!(!c.has_unbounded, "typed-array default is a known count");
+        assert_eq!(c.tasks[0].iterations, 2);
     }
 
     #[test]

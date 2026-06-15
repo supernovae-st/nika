@@ -194,6 +194,11 @@ fn check_row(t: &crate::raw::RawTask, row: &TaskContribution) -> Result<(), Stri
     let fanout = match t.for_each.as_ref().map(|f| &f.value) {
         None => FanOut::Known(1),
         Some(ForEachValue::List(arr)) => FanOut::Known(arr.as_array().map_or(1, Vec::len) as u64),
+        // Intentional asymmetry with `cost::static_vars_array_len`: a static
+        // `${{ vars.<name> }}` array stays a `Collection` witness here even
+        // though cost.rs resolves it to a count. The certificate verifies
+        // STRUCTURE, not spend — `FanOut::Known` would require the certificate
+        // schema to carry the resolved count, which it does not.
         Some(ForEachValue::Expression(_)) => FanOut::Collection,
     };
     if row.fanout != fanout {
@@ -336,6 +341,11 @@ fn contribution(t: &crate::raw::RawTask, default_model: Option<&str>) -> TaskCon
     let fanout = match t.for_each.as_ref().map(|f| &f.value) {
         None => FanOut::Known(1),
         Some(ForEachValue::List(arr)) => FanOut::Known(arr.as_array().map_or(1, Vec::len) as u64),
+        // Intentional asymmetry with `cost::static_vars_array_len`: a static
+        // `${{ vars.<name> }}` array stays a `Collection` witness here even
+        // though cost.rs resolves it to a count. The certificate verifies
+        // STRUCTURE, not spend — `FanOut::Known` would require the certificate
+        // schema to carry the resolved count, which it does not.
         Some(ForEachValue::Expression(_)) => FanOut::Collection,
     };
     let (main_llm, main_effect) = action_calls(&t.action);
