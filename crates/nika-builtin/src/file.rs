@@ -83,10 +83,12 @@ pub(crate) async fn write<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Bui
     Ok(serde_json::Value::String(path.to_owned()))
 }
 
-/// Resolve `content:` to bytes — text (string) verbatim, or the binary
-/// pass-through object. Any OTHER shape is loud (numbers/arrays don't
-/// silently stringify; the binary object with a corrupt payload names
-/// the corruption).
+/// Resolve `content:` to bytes — a string is written VERBATIM; the binary
+/// pass-through object (`{ bytes_base64 }`) is decoded to its raw bytes; ANY
+/// OTHER JSON value (array · object · number · bool · null) serializes to
+/// canonical JSON. Because a string is verbatim, a JSON string you built by
+/// hand (e.g. `nika:jq … | tojson`) is NOT double-encoded — the two paths
+/// produce identical bytes.
 fn write_content(args: &Args, code: &'static str) -> Result<Vec<u8>, BuiltinFailure> {
     match args.get("content") {
         Some(serde_json::Value::String(text)) => Ok(text.clone().into_bytes()),
@@ -100,13 +102,23 @@ fn write_content(args: &Args, code: &'static str) -> Result<Vec<u8>, BuiltinFail
             crate::data::base64_decode(encoded)
                 .map_err(|e| BuiltinFailure::new(code, format!("binary `content:` corrupt: {e}")))
         }
-        Some(other) => Err(BuiltinFailure::new(
+        // `null` is almost always a missing upstream value (an unset var, a
+        // skipped task) — silently writing the bytes `null` is the silent
+        // data-corruption the no-coercion ethos forbids. Loud, with the
+        // escape hatch named (write the literal string "null" verbatim).
+        Some(serde_json::Value::Null) => Err(BuiltinFailure::new(
             code,
-            format!(
-                "`content:` must be a string or a binary `{{ bytes_base64 }}` object (got {other})"
-            ),
+            "`content:` is null — usually a missing upstream value; pass the \
+             string \"null\" to write that literal text",
         )),
-        None => Err(BuiltinFailure::new(code, "`content:` (string) is required")),
+        // Any other JSON value serializes to canonical JSON: "write
+        // structured data to a .json file" is the one step it reads as (jq
+        // and every config language serialize by default), resolved here
+        // instead of surfacing a runtime type failure that `check` cannot
+        // see statically (jq output types are not inferable).
+        Some(other) => serde_json::to_vec(other)
+            .map_err(|e| BuiltinFailure::new(code, format!("`content:` is not serializable: {e}"))),
+        None => Err(BuiltinFailure::new(code, "`content:` is required")),
     }
 }
 
@@ -443,17 +455,62 @@ mod tests {
                 && f.message.contains("corrupt")),
             "{corrupt:?}"
         );
-        // A non-string/non-binary shape is loud too (numbers never
-        // silently stringify).
-        let wrong = write(
+    }
+
+    #[tokio::test]
+    async fn write_serializes_structured_content_to_json() {
+        // A non-string JSON value serializes to canonical JSON — "write
+        // structured data to a .json file" in one step, no runtime type
+        // failure (and no `check` blind-spot, since jq output types are not
+        // statically inferable).
+        let fs = MockFs::new();
+        for (i, content) in [
+            serde_json::json!([1, 2, 3]),
+            serde_json::json!({ "a": 1, "b": "x" }),
+            serde_json::json!(42),
+            serde_json::json!(true),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let path = format!("out{i}.json");
+            write(
+                &fs,
+                &args(serde_json::json!({ "path": path, "content": content.clone() })),
+            )
+            .await
+            .expect("structured content serializes");
+            let back = read(&fs, &args(serde_json::json!({ "path": path })))
+                .await
+                .expect("read back");
+            let text = back.as_str().expect("text view");
+            let parsed: serde_json::Value = serde_json::from_str(text).expect("valid JSON written");
+            assert_eq!(parsed, content, "round-trips through canonical JSON");
+        }
+        // A hand-built JSON string is written VERBATIM (not double-encoded),
+        // so `nika:jq … | tojson` then write produces identical bytes.
+        write(
             &fs,
-            &args(serde_json::json!({ "path": "y.txt", "content": 42 })),
+            &args(serde_json::json!({ "path": "v.json", "content": "[1,2,3]" })),
+        )
+        .await
+        .expect("string verbatim");
+        let back = read(&fs, &args(serde_json::json!({ "path": "v.json" })))
+            .await
+            .expect("read back");
+        assert_eq!(back.as_str(), Some("[1,2,3]"));
+
+        // `null` content is LOUD (a missing upstream value), never a silent
+        // four-byte "null" write.
+        let null_write = write(
+            &fs,
+            &args(serde_json::json!({ "path": "n.json", "content": null })),
         )
         .await;
         assert!(
-            matches!(&wrong, Err(f) if f.code == "NIKA-BUILTIN-WRITE-001"
-                && f.message.contains("must be a string or a binary")),
-            "{wrong:?}"
+            matches!(&null_write, Err(f) if f.code == "NIKA-BUILTIN-WRITE-001"
+                && f.message.contains("null")),
+            "{null_write:?}"
         );
     }
 
