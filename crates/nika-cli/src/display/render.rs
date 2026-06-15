@@ -73,6 +73,19 @@ pub fn frame(view: &RunView, theme: &Theme, tick: usize) -> Vec<String> {
 
     // Failure card (only on a failed verdict · derives the explain hint).
     if view.verdict == Some(false) {
+        // A WORKFLOW-level reason (e.g. a run-end NIKA-VAR-009 typed-output
+        // breach) is not attached to any task row — render it first.
+        if let Some(detail) = &view.workflow_detail {
+            lines.push(String::new());
+            lines.push(format!(
+                "  {}{}",
+                theme.glyph(TaskState::Failed, 0),
+                theme.paint(Role::Strong, detail),
+            ));
+            if let Some(code) = detail.split_whitespace().find(|w| w.starts_with("NIKA-")) {
+                lines.push(theme.paint(Role::Dim, &format!("    fix: nika explain {code}")));
+            }
+        }
         for row in view.rows() {
             if row.state == TaskState::Failed && !row.detail.is_empty() {
                 lines.push(String::new());

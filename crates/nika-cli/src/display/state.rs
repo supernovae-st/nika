@@ -65,6 +65,9 @@ pub struct RunView {
     pub token_samples: Vec<u64>,
     /// Terminal verdict: `Some(true)` completed · `Some(false)` failed.
     pub verdict: Option<bool>,
+    /// A WORKFLOW-level failure reason carried on `workflow_failed` (e.g. a
+    /// run-end NIKA-VAR-009 typed-output breach) — not tied to a task row.
+    pub workflow_detail: Option<String>,
     /// Wall-clock span folded from event timestamps (ms).
     pub elapsed_ms: u64,
     first_ts_ms: Option<i64>,
@@ -132,7 +135,12 @@ impl RunView {
             // §3.1 `◼` — a decision, not a defect (dim · never red).
             EventKind::TaskCancelled => self.touch(event, TaskState::Cancelled),
             EventKind::WorkflowCompleted => self.verdict = Some(true),
-            EventKind::WorkflowFailed => self.verdict = Some(false),
+            EventKind::WorkflowFailed => {
+                self.verdict = Some(false);
+                // A workflow-level reason (run-end NIKA-VAR-009) rides the
+                // terminal frame's `detail` field, if present.
+                self.workflow_detail = str_field(event, "detail").map(str::to_owned);
+            }
             // Dispatch + checkpoint + cost/stream/permit kinds carry no
             // row state today. `#[non_exhaustive]` future kinds render
             // nothing rather than lying.

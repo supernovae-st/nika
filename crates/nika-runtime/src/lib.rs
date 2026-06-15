@@ -64,7 +64,7 @@ use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
-use nika_schema::types::{OutputDecl, VarDecl};
+use nika_schema::types::{OutputDecl, VarDecl, VarType};
 use nika_types::resource::{KeyValue, Value as FieldValue};
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
@@ -343,14 +343,13 @@ where
             }
         }
 
-        let terminal = if ok {
-            EventKind::WorkflowCompleted
-        } else {
-            EventKind::WorkflowFailed
-        };
-        emit(stamper, sink, terminal, &[("workflow", s(&workflow_name))]);
-
+        // Resolve the `outputs:` BEFORE the terminal frame so a typed output
+        // that breaks its declared `type:` can fail the run — the output half
+        // of the callable contract (spec 01 §engine-MUST rule 6 · NIKA-VAR-009 ·
+        // symmetric with the typed-`vars:` input validation).
         let outputs = resolve_outputs(wf, &records, &vars, &secrets);
+        let ok = finalize_outputs(wf, &outputs, &workflow_name, ok, stamper, sink);
+
         Ok(RunOutcome::new(ok, records, outputs))
     }
 }
@@ -552,6 +551,129 @@ fn resolve_outputs(
         .collect()
 }
 
+/// Resolve the run's verdict over the typed `outputs:` and emit the terminal
+/// frame. Returns the final `ok` (false if a typed output broke its declared
+/// `type:` · spec 01 rule 6 · NIKA-VAR-009). The reason rides the
+/// `WorkflowFailed` frame as a WORKFLOW-level `detail` (not a phantom
+/// `task_failed`) — the event model stays consistent (no orphan task event, no
+/// spurious row) and `--json`/journal consumers see a valid terminal with the
+/// code. Split out of `run()` to keep that function within its line budget.
+fn finalize_outputs(
+    wf: &RawWorkflow,
+    outputs: &BTreeMap<String, Value>,
+    workflow_name: &str,
+    mut ok: bool,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) -> bool {
+    // A typed output is checked only when every task otherwise settled (a task
+    // failure is already the verdict · the output reference is then omitted).
+    let violation = if ok {
+        first_output_type_violation(wf, outputs)
+    } else {
+        None
+    };
+    if violation.is_some() {
+        ok = false;
+    }
+    let kind = if ok {
+        EventKind::WorkflowCompleted
+    } else {
+        EventKind::WorkflowFailed
+    };
+    if let Some(v) = &violation {
+        emit(
+            stamper,
+            sink,
+            kind,
+            &[
+                ("workflow", s(workflow_name)),
+                (
+                    "detail",
+                    s(&format!(
+                        "NIKA-VAR-009 · output `{}` is {}, declared type: {}",
+                        v.name, v.actual, v.expected
+                    )),
+                ),
+            ],
+        );
+    } else {
+        emit(stamper, sink, kind, &[("workflow", s(workflow_name))]);
+    }
+    ok
+}
+
+/// One typed-`outputs:` contract violation (spec 01 rule 6 · NIKA-VAR-009).
+struct OutputTypeViolation {
+    name: String,
+    expected: String,
+    actual: &'static str,
+}
+
+/// The FIRST typed `outputs:` value whose resolved JSON type does not match
+/// its declared `type:` (spec 01 §engine-MUST rule 6 · NIKA-VAR-009 · the
+/// output half of the callable contract). An output whose `${{ }}` reference
+/// no longer resolves is OMITTED by [`resolve_outputs`] (spec §3 · not a type
+/// error). `None` ⇒ every typed output honours its declared type.
+fn first_output_type_violation(
+    wf: &RawWorkflow,
+    resolved: &BTreeMap<String, Value>,
+) -> Option<OutputTypeViolation> {
+    for (key, decl) in &wf.outputs {
+        let OutputDecl::Typed {
+            r#type: Some(ty), ..
+        } = decl
+        else {
+            continue; // untyped output OR no declared type → nothing to check
+        };
+        let Some(value) = resolved.get(key.value.as_str()) else {
+            continue; // unresolved → omitted upstream, not a type error
+        };
+        if !value_matches_vartype(value, *ty) {
+            return Some(OutputTypeViolation {
+                name: key.value.clone(),
+                expected: ty.to_string(),
+                actual: json_type_name(value),
+            });
+        }
+    }
+    None
+}
+
+/// Whether a resolved JSON value satisfies a declared [`VarType`]. Lenient
+/// where the spec is silent: any JSON number satisfies `number`, and an
+/// integer-valued number (incl. a whole float like `42.0`) satisfies
+/// `integer` — only a genuine cross-type mismatch (a string where a number
+/// is declared, an object where an array is, …) is a NIKA-VAR-009.
+fn value_matches_vartype(value: &Value, ty: VarType) -> bool {
+    match ty {
+        VarType::String => value.is_string(),
+        VarType::Number => value.is_number(),
+        VarType::Integer => {
+            value.is_i64() || value.is_u64() || value.as_f64().is_some_and(|f| f.fract() == 0.0)
+        }
+        VarType::Boolean => value.is_boolean(),
+        VarType::Array => value.is_array(),
+        VarType::Object => value.is_object(),
+        // `VarType` is `#[non_exhaustive]`: a future type this engine version
+        // does not yet model is treated leniently (no NIKA-VAR-009) rather
+        // than failing a run on a contract it cannot evaluate.
+        _ => true,
+    }
+}
+
+/// The JSON type name for a NIKA-VAR-009 diagnostic.
+fn json_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
@@ -590,6 +712,59 @@ tasks:
         assert_eq!(vars["plain"], Value::String("text".into()));
         assert_eq!(vars["urls"], serde_json::json!(["a", "b"]));
         assert_eq!(vars["topic"], Value::String("news".into()));
+    }
+
+    #[test]
+    fn typed_output_type_mismatch_is_a_var009() {
+        // `outputs.n: { type: string }` — when the resolved value is a number
+        // the callable contract is broken (spec 01 §engine-MUST rule 6).
+        let yaml = r#"
+nika: v1
+workflow: typed-out
+tasks:
+  - id: t
+    invoke: { tool: "nika:jq", args: { input: { x: 42 }, expression: ".x" } }
+outputs:
+  n:
+    value: ${{ tasks.t.output }}
+    type: string
+"#;
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("parses");
+        // A number where `string` is declared → NIKA-VAR-009.
+        let bad = BTreeMap::from([("n".to_owned(), serde_json::json!(42))]);
+        let v = first_output_type_violation(&wf, &bad)
+            .expect("number vs declared string is a violation");
+        assert_eq!(v.name, "n");
+        assert_eq!(v.expected, "string");
+        assert_eq!(v.actual, "number");
+        // The declared type → no violation.
+        let good = BTreeMap::from([("n".to_owned(), serde_json::json!("hello"))]);
+        assert!(first_output_type_violation(&wf, &good).is_none());
+        // An unresolved output (omitted upstream) is NOT a type error.
+        assert!(first_output_type_violation(&wf, &BTreeMap::new()).is_none());
+    }
+
+    #[test]
+    fn value_matches_vartype_lenient_floats_strict_cross_type() {
+        use serde_json::json;
+        // integer: whole floats OK, fractional rejected, numeric STRING rejected.
+        assert!(value_matches_vartype(&json!(42), VarType::Integer));
+        assert!(value_matches_vartype(&json!(42.0), VarType::Integer));
+        assert!(!value_matches_vartype(&json!(42.5), VarType::Integer));
+        // number: any JSON number, but NOT a numeric string.
+        assert!(value_matches_vartype(&json!(42), VarType::Number));
+        assert!(!value_matches_vartype(&json!("42"), VarType::Number));
+        // array vs object are distinct.
+        assert!(value_matches_vartype(&json!([1, 2]), VarType::Array));
+        assert!(!value_matches_vartype(&json!({}), VarType::Array));
+        assert!(value_matches_vartype(&json!({ "k": 1 }), VarType::Object));
+        assert!(value_matches_vartype(&json!("x"), VarType::String));
+        assert!(value_matches_vartype(&json!(true), VarType::Boolean));
     }
 
     /// A settled success carrying an OBS-E `warning` puts it on the

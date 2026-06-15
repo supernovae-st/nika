@@ -351,3 +351,49 @@ tasks:
     );
     assert_eq!(outcome.records["gate"].status, TaskStatus::Success);
 }
+
+// ─── typed outputs: the contract is enforced at run end (NIKA-VAR-009) ──────
+
+/// Spec 01 §engine-MUST rule 6: a typed `outputs:` value that does not match
+/// its declared `type:` FAILS the run (the output half of the callable
+/// contract). The task succeeds (a number), but the output declares `string`
+/// → the run must fail, and the terminal frame carries the VAR-009 reason as
+/// a WORKFLOW-level `detail` (no phantom `task_failed`, no spurious row).
+#[tokio::test]
+async fn typed_output_type_mismatch_fails_the_run_with_var009() {
+    let yaml = r#"
+nika: v1
+workflow: typed-out-mismatch
+tasks:
+  - id: n
+    invoke: { tool: "nika:jq", args: { input: { x: 42 }, expression: ".x" } }
+outputs:
+  result:
+    value: ${{ tasks.n.output }}
+    type: string
+"#;
+    let tools = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("n", "42").with_structured(serde_json::json!(42)));
+    let (outcome, events) =
+        run_to_events(yaml, MockShell::new(), tools, MockProvider::new("mock")).await;
+    // The one task settled OK, but the output breaks its declared type.
+    assert_eq!(outcome.records["n"].status, TaskStatus::Success);
+    assert!(
+        !outcome.ok,
+        "a number output declared `string` must fail the run (NIKA-VAR-009)"
+    );
+    // The reason rides the terminal frame — a workflow-level detail.
+    let terminal = events
+        .iter()
+        .find(|e| e.kind == EventKind::WorkflowFailed)
+        .expect("a workflow_failed terminal frame");
+    assert!(
+        str_field(terminal, "detail").is_some_and(|d| d.contains("NIKA-VAR-009")),
+        "the terminal carries the NIKA-VAR-009 reason"
+    );
+    // No phantom task failure — the event model stays consistent.
+    assert!(
+        !events.iter().any(|e| e.kind == EventKind::TaskFailed),
+        "the only task succeeded — no orphan task_failed for the outputs phase"
+    );
+}
