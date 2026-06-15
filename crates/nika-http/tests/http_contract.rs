@@ -289,6 +289,66 @@ async fn relative_location_resolved_against_current_url() {
     assert_eq!(resp.final_url, format!("http://{addr}/next"));
 }
 
+// ─── permits.net.http allowlist (the runtime NIKA-SEC-004 boundary) ──────
+
+#[tokio::test]
+async fn allowlist_refuses_a_host_outside_the_boundary_before_connect() {
+    // The dynamic-host bypass this closes: a declared allowlist that does
+    // NOT contain the target host fails BEFORE any socket (no SSRF needed —
+    // the allowlist is the boundary under test).
+    let _net = net_guard();
+    let client = mechanics_client_with(|c| {
+        c.net_allowlist = Some(vec!["allowed.test".to_owned()]);
+    });
+    let err = client
+        .get(HttpRequest::get("http://127.0.0.1:1/x"))
+        .await
+        .expect_err("a host outside the allowlist is refused");
+    assert!(
+        matches!(err, HttpError::HostNotAllowed { .. }),
+        "got {err:?}"
+    );
+}
+
+#[tokio::test]
+async fn allowlisted_host_is_reached() {
+    // The positive companion: a host IN the allowlist proceeds (no false
+    // block on a sanctioned destination).
+    let _net = net_guard();
+    let addr = serve(vec![ok_response("ok", "")]).await;
+    let client = mechanics_client_with(|c| {
+        c.net_allowlist = Some(vec!["127.0.0.1".to_owned()]);
+    });
+    let resp = client
+        .get(HttpRequest::get(format!("http://{addr}/x")))
+        .await
+        .expect("the allowlisted host is reached");
+    assert_eq!(resp.status, 200);
+}
+
+#[tokio::test]
+async fn allowlist_is_rechecked_on_every_redirect_hop() {
+    // REDIRECT SAFETY — the case a builtin-level (initial-URL-only) check
+    // would miss: the initial host IS allowed, but the 301 bounces to a
+    // host that is NOT. Because the allowlist is re-vetted on every hop
+    // (in `vet`, beside the per-hop SSRF re-check), the bounce fails
+    // NIKA-SEC-004 before the second connection.
+    let _net = net_guard();
+    let hop1 = serve(vec![redirect_response("http://evil.invalid/final")]).await;
+    let client = mechanics_client_with(|c| {
+        // Only the loopback initial host is sanctioned.
+        c.net_allowlist = Some(vec!["127.0.0.1".to_owned()]);
+    });
+    let err = client
+        .get(HttpRequest::get(format!("http://{hop1}/start")))
+        .await
+        .expect_err("the cross-host redirect must be refused");
+    assert!(
+        matches!(err, HttpError::HostNotAllowed { ref host } if host == "evil.invalid"),
+        "expected HostNotAllowed(evil.invalid), got {err:?}"
+    );
+}
+
 #[tokio::test]
 async fn follow_redirects_false_returns_the_3xx() {
     let _net = net_guard();

@@ -25,7 +25,7 @@ mod compose;
 mod sink;
 mod stamp;
 
-pub use compose::{ProdRuntime, fs_boundary_of, production_runtime};
+pub use compose::{ProdRuntime, fs_boundary_of, net_allowlist_of, production_runtime};
 pub use sink::{FoldSink, JsonSink};
 pub use stamp::SystemStamper;
 
@@ -89,9 +89,12 @@ pub fn run(file: &str, json: bool, output: Option<&str>, theme: Theme) -> u8 {
     let default_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
     // The declared permits.fs boundary the file builtins enforce at run
     // time (spec §permits · NIKA-SEC-004) — a path escaping the boundary
-    // fails before the I/O (the static check is the other half).
+    // fails before the I/O (the static check is the other half). The
+    // permits.net.http allowlist is the same boundary on the fetch client:
+    // it catches dynamically-built hosts the static check cannot see.
     let fs_boundary = fs_boundary_of(&wf);
-    let runtime = match production_runtime(default_model, fs_boundary) {
+    let net_allowlist = net_allowlist_of(&wf);
+    let runtime = match production_runtime(default_model, fs_boundary, net_allowlist) {
         Ok(rt) => rt,
         Err(e) => {
             eprintln!("nika run: environment: {e}");

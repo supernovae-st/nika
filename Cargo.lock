@@ -3754,6 +3754,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "nika-kernel",
+ "nika-types",
  "proptest",
  "reqwest 0.12.28",
  "tokio",
@@ -3976,6 +3977,7 @@ dependencies = [
  "serde-saphyr",
  "serde_json",
  "thiserror 2.0.18",
+ "url",
  "uuid",
 ]
 

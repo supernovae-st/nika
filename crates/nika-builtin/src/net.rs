@@ -69,12 +69,25 @@ pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn>(http: &H, args: &Args) ->
         HttpMethod::Get | HttpMethod::Head => http.get(request).await,
         _ => http.post(request).await,
     }
-    .map_err(|e| {
+    .map_err(|e| match e {
+        // A declared permits.net.http escape is a CAPABILITY-boundary
+        // denial (spec §permits) — surfaced as the spec-plane NIKA-SEC-004,
+        // never transient, never fed back to an `agent:` model. Mirrors the
+        // fs boundary (a path outside permits.fs is the same SEC-004 class).
+        HttpError::HostNotAllowed { host } => BuiltinFailure::new(
+            crate::permits::SEC_DENIED,
+            format!("`{host}` resolves outside the declared net.http boundary"),
+        ),
         // Transport-plane retryability: timeouts + connection failures are
         // the canonical transient conditions; SSRF/size/scheme rejections
         // are deterministic.
-        let transient = matches!(e, HttpError::Timeout { .. } | HttpError::Connection { .. });
-        BuiltinFailure::new(C, format!("request failed: {e}")).with_transient(transient)
+        other => {
+            let transient = matches!(
+                other,
+                HttpError::Timeout { .. } | HttpError::Connection { .. }
+            );
+            BuiltinFailure::new(C, format!("request failed: {other}")).with_transient(transient)
+        }
     })?;
 
     if !(200..300).contains(&response.status) {
@@ -452,10 +465,15 @@ pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutc
         .map_err(|e| BuiltinFailure::new(C1, format!("payload serialization failed: {e}")))?;
     request.body = Some(body.into());
 
-    let response = http
-        .post(request)
-        .await
-        .map_err(|e| BuiltinFailure::new(C2, format!("delivery failed: {e}")))?;
+    let response = http.post(request).await.map_err(|e| match e {
+        // Same capability-boundary denial as fetch — a webhook `target:`
+        // outside permits.net.http is NIKA-SEC-004, not a delivery error.
+        HttpError::HostNotAllowed { host } => BuiltinFailure::new(
+            crate::permits::SEC_DENIED,
+            format!("`{host}` resolves outside the declared net.http boundary"),
+        ),
+        other => BuiltinFailure::new(C2, format!("delivery failed: {other}")),
+    })?;
     if (200..300).contains(&response.status) {
         Ok(serde_json::Value::Null)
     } else {
@@ -904,6 +922,41 @@ mod tests {
         .await
         .expect_err("ssrf blocked");
         assert!(!fail.transient, "an SSRF block is a deterministic refusal");
+    }
+
+    #[tokio::test]
+    async fn host_not_allowed_surfaces_as_nika_sec_004() {
+        // A permits.net.http escape (the kernel HostNotAllowed) is the
+        // spec-plane NIKA-SEC-004 capability denial — NOT a transport
+        // failure, NEVER retryable, distinct from the SSRF floor's
+        // FETCH-001. This is the user-facing half of the runtime boundary.
+        let http = MockHttp::new().enqueue_err(HttpError::HostNotAllowed {
+            host: "evil.com".to_owned(),
+        });
+        let fail = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "https://evil.com" })),
+        )
+        .await
+        .expect_err("host outside permits.net.http");
+        assert_eq!(
+            fail.code, "NIKA-SEC-004",
+            "a declared-boundary escape is the security code"
+        );
+        assert!(!fail.transient, "a capability denial is never retryable");
+        assert!(fail.message.contains("net.http"), "{}", fail.message);
+
+        // notify's webhook `target:` rides the very same boundary.
+        let http = MockHttp::new().enqueue_err(HttpError::HostNotAllowed {
+            host: "evil.com".to_owned(),
+        });
+        let fail = notify(
+            &http,
+            &args(serde_json::json!({ "target": "https://evil.com", "message": "x" })),
+        )
+        .await
+        .expect_err("notify target outside permits.net.http");
+        assert_eq!(fail.code, "NIKA-SEC-004", "notify honors the same boundary");
     }
 
     #[tokio::test]

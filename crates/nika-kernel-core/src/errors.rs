@@ -173,6 +173,15 @@ pub const NIKA_144: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "http-unsupported",
 };
+/// Host outside the declared `permits.net.http` boundary (the kernel-plane
+/// code · the builtin surfaces it to authors as the spec-plane
+/// `NIKA-SEC-004`).
+pub const NIKA_145: NikaCode = NikaCode {
+    num: 145,
+    category: Category::Http,
+    severity: Severity::Error,
+    slug: "http-host-not-allowed",
+};
 /// HTTP other.
 pub const NIKA_149: NikaCode = NikaCode {
     num: 149,
@@ -353,6 +362,7 @@ impl NikaErrorCode for HttpError {
             Self::SsrfBlocked { .. } => NIKA_142,
             Self::TooLarge { .. } => NIKA_143,
             Self::Unsupported { .. } => NIKA_144,
+            Self::HostNotAllowed { .. } => NIKA_145,
             Self::Other { .. } => NIKA_149,
         }
     }
@@ -466,6 +476,7 @@ mod tests {
         let _ = HttpError::SsrfBlocked { url: "".into() }.nika_code();
         let _ = HttpError::TooLarge { size: 0, max: 0 }.nika_code();
         let _ = HttpError::Unsupported { reason: "".into() }.nika_code();
+        let _ = HttpError::HostNotAllowed { host: "".into() }.nika_code();
         let _ = HttpError::Other { reason: "".into() }.nika_code();
     }
 }

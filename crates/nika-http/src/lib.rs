@@ -114,6 +114,19 @@ pub struct HttpConfig {
     pub max_response_bytes: u64,
     /// SSRF enforcement mode.
     pub ssrf: SsrfMode,
+    /// The workflow's declared `permits.net.http` allowlist (host globs ·
+    /// `*.github.com`). `None` = no declared boundary (the always-on SSRF
+    /// floor is then the only net guard — today's behavior). `Some` is
+    /// DEFAULT-DENY (spec `01-envelope.md` §permits): a host outside the
+    /// list fails [`HttpError::HostNotAllowed`] (→ `NIKA-SEC-004`),
+    /// re-checked on EVERY redirect hop. An empty list admits nothing
+    /// (a `permits:` block present but omitting `net` = no outbound network).
+    ///
+    /// The host is taken from the PARSED [`url::Url`] (what the transport
+    /// connects to), never a re-parse of the raw string — a string parser
+    /// disagrees with WHATWG normalization (`\`, userinfo, C0 bytes) and
+    /// that gap is a boundary bypass.
+    pub net_allowlist: Option<Vec<String>>,
 }
 
 impl Default for HttpConfig {
@@ -123,6 +136,7 @@ impl Default for HttpConfig {
             max_redirects: DEFAULT_MAX_REDIRECTS,
             max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
             ssrf: SsrfMode::Enforce,
+            net_allowlist: None,
         }
     }
 }
@@ -145,6 +159,52 @@ impl HttpConfig {
 pub struct ReqwestHttp {
     inner: reqwest::Client,
     config: HttpConfig,
+}
+
+/// Enforce a declared `permits.net.http` allowlist on ONE already-parsed
+/// URL (one hop).
+///
+/// `None` = no declared boundary → `Ok` (the caller's SSRF floor is the
+/// only net guard, today's behavior). A `Some` allowlist is DEFAULT-DENY
+/// (spec `01-envelope.md` §permits): the host must match a glob, else
+/// [`HttpError::HostNotAllowed`]. A URL with no host under a declared
+/// boundary is DENIED (it cannot be confirmed in-bounds).
+///
+/// CRITICAL: the host comes from the PARSED [`url::Url`] — the SAME value
+/// the transport connects to — NOT a re-parse of the raw request string.
+/// A hand-rolled string parser disagrees with the `url` crate's WHATWG
+/// normalization (a `\` is a path separator for http/https; userinfo and
+/// C0 bytes are stripped), so gating on the raw string lets
+/// `https://evil.com\@allowed.com` (string-host `allowed.com`, connect-host
+/// `evil.com`) escape. Gating on `url.host()` closes that — and the glob
+/// match itself is the shared `nika_types::net` matcher (same one
+/// `nika check` uses), so the static and runtime verdicts agree.
+fn check_net_allowlist(allowlist: Option<&[String]>, url: &url::Url) -> Result<(), HttpError> {
+    let Some(globs) = allowlist else {
+        return Ok(());
+    };
+    // The connect host, bracket-free for IPv6 (permits are written `::1`,
+    // matching `nika_types::net` — `url::Host`'s Display would add brackets,
+    // so take the inner `Ipv6Addr`).
+    let host = match url.host() {
+        // Strip an absolute-FQDN trailing dot (`allowed.com.` ≡ `allowed.com`
+        // · same DNS name) so a permit written dot-free still matches — the
+        // SSRF layer already normalizes this (`ssrf.rs`), and both extractors
+        // do it so check + runtime stay aligned.
+        Some(url::Host::Domain(d)) => d.trim_end_matches('.').to_owned(),
+        Some(url::Host::Ipv4(a)) => a.to_string(),
+        Some(url::Host::Ipv6(a)) => a.to_string(),
+        None => {
+            return Err(HttpError::HostNotAllowed {
+                host: url.as_str().to_owned(),
+            });
+        }
+    };
+    if nika_types::net::host_in_allowlist(globs, &host) {
+        Ok(())
+    } else {
+        Err(HttpError::HostNotAllowed { host })
+    }
 }
 
 impl ReqwestHttp {
@@ -191,16 +251,27 @@ impl ReqwestHttp {
     /// Vet one absolute URL per the configured [`SsrfMode`]: static
     /// checks, then DNS-resolve every address for non-literal hosts.
     async fn vet(&self, raw: &str) -> Result<url::Url, HttpError> {
-        match self.config.ssrf {
+        // Parse + SSRF-vet FIRST so the permits check reads the SAME host
+        // the transport will connect to (the bypass class is a string
+        // parser disagreeing with the url crate · see `check_net_allowlist`).
+        let parsed = match self.config.ssrf {
             SsrfMode::Disabled => url::Url::parse(raw).map_err(|e| HttpError::Other {
                 reason: format!("invalid URL: {e}"),
-            }),
+            })?,
             SsrfMode::Enforce => {
                 let parsed = ssrf::check_url(raw)?;
                 resolve_guard(&parsed).await?;
-                Ok(parsed)
+                parsed
             }
-        }
+        };
+        // The workflow's DECLARED permits.net.http boundary (NIKA-SEC-004),
+        // checked on EVERY hop (this fn runs once per redirect) and
+        // independent of the SSRF floor: a declared boundary holds even
+        // under SsrfMode::Disabled. This is the runtime half spec §permits
+        // demands — it catches the dynamic hosts (and redirect bounces) the
+        // static `nika check` cannot see.
+        check_net_allowlist(self.config.net_allowlist.as_deref(), &parsed)?;
+        Ok(parsed)
     }
 
     /// Drive the request including the manual redirect loop. Every hop
@@ -749,6 +820,54 @@ mod tests {
     #[test]
     fn config_default_is_enforce() {
         assert_eq!(HttpConfig::default().ssrf, SsrfMode::Enforce);
+    }
+
+    #[test]
+    fn net_allowlist_default_is_unbounded() {
+        // No declared boundary by default — today's behavior (the SSRF
+        // floor is the only net guard until a `permits.net.http` is wired).
+        assert!(HttpConfig::default().net_allowlist.is_none());
+    }
+
+    #[test]
+    fn net_allowlist_gates_on_the_parsed_connect_host() {
+        // The RUNTIME half of permits.net.http (NIKA-SEC-004) — it gates on
+        // the PARSED url::Url host (what reqwest connects to), so a string-
+        // parser-vs-url-crate disagreement cannot bypass it.
+        let allow = vec!["allowed.com".to_owned(), "*.github.com".to_owned()];
+        let u = |s: &str| url::Url::parse(s).expect("valid url");
+        // in-bounds (exact + `*.` subdomain)
+        assert!(check_net_allowlist(Some(&allow), &u("https://allowed.com/p")).is_ok());
+        assert!(check_net_allowlist(Some(&allow), &u("https://api.github.com/p")).is_ok());
+        // out-of-bounds → denied
+        assert!(matches!(
+            check_net_allowlist(Some(&allow), &u("https://evil.com/p")),
+            Err(HttpError::HostNotAllowed { host }) if host == "evil.com"
+        ));
+        // THE BYPASS (rust-security P0): `\@` — a string parser reads host
+        // "allowed.com", but the connect host is "evil.com" (the `\` is a
+        // WHATWG path separator for http/https). Gating on url::Url denies it.
+        assert!(
+            matches!(
+                check_net_allowlist(Some(&allow), &u(r"https://evil.com\@allowed.com/p")),
+                Err(HttpError::HostNotAllowed { host }) if host == "evil.com"
+            ),
+            "the backslash-userinfo confusion must resolve to the real connect host"
+        );
+        // userinfo `@` — the real host is evil.com (the classic confusion).
+        assert!(check_net_allowlist(Some(&allow), &u("https://allowed.com@evil.com/p")).is_err());
+        // case-insensitive (the url crate lowercases) — no false block.
+        assert!(check_net_allowlist(Some(&allow), &u("https://ALLOWED.COM/p")).is_ok());
+        // IPv6 matched bracket-free (permits write `::1`, never `[::1]`).
+        let v6 = vec!["::1".to_owned()];
+        assert!(check_net_allowlist(Some(&v6), &u("http://[::1]:8080/p")).is_ok());
+        // trailing-dot FQDN (`allowed.com.`) ≡ `allowed.com` — no false block.
+        assert!(check_net_allowlist(Some(&allow), &u("https://allowed.com./p")).is_ok());
+        // None = unbounded (no declared boundary → the SSRF floor guards).
+        assert!(check_net_allowlist(None, &u("https://anywhere.example/p")).is_ok());
+        // An empty allowlist (a `permits:` block that omits `net`) denies all.
+        let deny_all: Vec<String> = Vec::new();
+        assert!(check_net_allowlist(Some(&deny_all), &u("https://allowed.com/p")).is_err());
     }
 
     #[test]

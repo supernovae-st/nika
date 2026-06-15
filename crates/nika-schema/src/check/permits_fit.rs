@@ -21,6 +21,12 @@
 
 use crate::raw::{RawAction, RawCommand, RawInvokeAction, RawWorkflow};
 use crate::types::{ExecPermit, Permits, permits::glob_matches};
+// The `*.`-subdomain allowlist glob lives in `nika_types::net` — the SINGLE
+// canonical matcher shared with the runtime http effect (`nika-http`) so the
+// check-time and run-time verdicts can't drift. The host EXTRACTION is the
+// `url` crate (below) on BOTH sides — a string parser disagrees with WHATWG
+// normalization (`\`/userinfo/case) and that gap is a boundary bypass.
+use nika_types::net::host_glob_matches;
 
 /// A statically-detectable effect outside the declared boundary.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -262,26 +268,23 @@ pub(super) fn literal_arg(a: &RawInvokeAction, key: &str) -> Option<String> {
     Some(s.to_owned())
 }
 
-/// The host of a literal URL (`https://api.x.com/p` → `api.x.com`).
-/// `None` when there is no parseable host (a relative/garbage value is
-/// the engine's problem, not a static-permits one).
-pub(super) fn url_host(url: &str) -> Option<String> {
-    let after_scheme = url.split_once("://").map_or(url, |(_, r)| r);
-    let authority = after_scheme
-        .split(['/', '?', '#'])
-        .next()
-        .unwrap_or(after_scheme);
-    // strip userinfo + port
-    let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
-    // IPv6 bracket form `[::1]:8080` — the host is the bracketed literal
-    // (a bare first-`:` split would yield `[`); permits are written and
-    // matched bracket-free (`::1`), symmetric on both sides of this fn.
-    let host = if let Some(rest) = host.strip_prefix('[') {
-        rest.split_once(']').map_or(rest, |(h, _)| h)
-    } else {
-        host.split_once(':').map_or(host, |(h, _)| h)
-    };
-    (!host.is_empty()).then(|| host.to_owned())
+/// The host of a literal URL (`https://api.x.com/p` → `api.x.com`), via the
+/// `url` crate — the SAME WHATWG normalization the runtime http effect
+/// connects with (`nika-http`). A hand-rolled string parser disagrees on
+/// `\` (a path separator for http/https), userinfo (`a@b`), case, and C0
+/// bytes; that disagreement is a boundary bypass, so check + runtime MUST
+/// share the parser. Bracket-free for IPv6 (permits write `::1`, matching
+/// `nika_types::net`). `None` when there is no parseable host (a relative /
+/// garbage value → not a static-permits concern).
+pub(super) fn url_host(raw: &str) -> Option<String> {
+    match url::Url::parse(raw).ok()?.host()? {
+        // Strip the absolute-FQDN trailing dot (`allowed.com.` ≡ `allowed.com`)
+        // — the runtime extractor (`nika-http`) + the SSRF layer do the same,
+        // so check and runtime agree.
+        url::Host::Domain(d) => Some(d.trim_end_matches('.').to_owned()),
+        url::Host::Ipv4(a) => Some(a.to_string()),
+        url::Host::Ipv6(a) => Some(a.to_string()),
+    }
 }
 
 /// Whether `host` matches the declared `permits.net.http` allowlist.
@@ -291,16 +294,6 @@ fn host_allowed(permits: &Permits, host: &str) -> bool {
         .net
         .as_ref()
         .is_some_and(|n| n.http.iter().any(|g| host_glob_matches(g, host)))
-}
-
-/// Host glob match — exact, or a LEADING `*.` subdomain wildcard
-/// (`*.github.com` matches `api.github.com` AND the bare `github.com`).
-/// Distinct from the tool-id trailing-`*` glob.
-fn host_glob_matches(glob: &str, host: &str) -> bool {
-    if let Some(suffix) = glob.strip_prefix("*.") {
-        return host == suffix || host.ends_with(&format!(".{suffix}"));
-    }
-    glob == host
 }
 
 /// Whether `path` matches the declared `permits.fs` allowlist for the

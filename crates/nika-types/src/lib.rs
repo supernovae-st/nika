@@ -49,6 +49,7 @@ pub mod compression;
 pub mod embedding;
 pub mod extract;
 pub mod memory;
+pub mod net;
 pub mod role;
 pub mod timestamp;
 pub mod token_usage;

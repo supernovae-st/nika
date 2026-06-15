@@ -276,6 +276,28 @@ pub fn fs_boundary_of(wf: &nika_schema::raw::RawWorkflow) -> FsBoundary {
     FsBoundary::declared(read, write)
 }
 
+/// Derive the runtime `permits.net.http` allowlist from a parsed workflow.
+///
+/// No `permits:` block → `None` (today's floor · the fetch SSRF guard is the
+/// only net boundary). A `permits:` block WITHOUT a `net:` category →
+/// `Some(vec![])` (default-deny · every host refused · « once `permits:` is
+/// present every category is default-deny unless listed »). A `net:` block →
+/// `Some` of its `http:` host globs. The fetch http client enforces this on
+/// EVERY redirect hop (`NIKA-SEC-004`) — the runtime half of spec §permits,
+/// catching the dynamic hosts (`${{ }}`-built · redirect bounces) that the
+/// static `nika check` cannot see. Mirrors [`fs_boundary_of`].
+#[must_use]
+pub fn net_allowlist_of(wf: &nika_schema::raw::RawWorkflow) -> Option<Vec<String>> {
+    let permits = wf.permits.as_ref().map(|p| &p.value)?;
+    Some(
+        permits
+            .net
+            .as_ref()
+            .map(|net| net.http.clone())
+            .unwrap_or_default(),
+    )
+}
+
 /// The HTTP client for the PROVIDER path (LLM inference), distinct from
 /// the fetch/builtin client.
 ///
@@ -303,9 +325,29 @@ fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
     ReqwestHttp::with_config(config)
 }
 
+/// The HTTP client for the FETCH/builtin plane (`nika:fetch` · `nika:notify`).
+///
+/// SSRF stays ENFORCED (these URLs are workflow-controlled · the engine
+/// floor blocks loopback/private/metadata) AND, when the workflow declares
+/// a `permits:` block, the `net_allowlist` (`permits.net.http`) is enforced
+/// on every hop — a host outside it fails `NIKA-SEC-004`. `None` =
+/// no declared boundary (the SSRF floor is the only net guard · today's
+/// behavior). This is the half the SSRF floor never covered: the workflow's
+/// OWN declared host boundary, including dynamically-built hosts.
+// `HttpConfig` is `#[non_exhaustive]` → field assignment, not a struct literal.
+#[allow(clippy::field_reassign_with_default)]
+fn fetch_http(net_allowlist: Option<Vec<String>>) -> Result<ReqwestHttp, nika_kernel::HttpError> {
+    let mut config = HttpConfig::default(); // ssrf: Enforce by default
+    config.net_allowlist = net_allowlist;
+    ReqwestHttp::with_config(config)
+}
+
 /// Compose the production runtime for a workflow whose envelope default
 /// model is `default_model`, enforcing `fs_boundary` (the workflow's
-/// `permits.fs`) on the file builtins at run time.
+/// `permits.fs`) on the file builtins AND `net_allowlist` (the workflow's
+/// `permits.net.http`) on the fetch client at run time — both halves of the
+/// runtime `NIKA-SEC-004` boundary (a `None` `net_allowlist` = no declared
+/// net boundary · derived by [`net_allowlist_of`]).
 ///
 /// `fs_boundary` is [`FsBoundary::unbounded`] when the workflow declares no
 /// `permits:` block (the pre-permits floor · enforce nothing) and a
@@ -353,8 +395,11 @@ fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
 pub fn production_runtime(
     default_model: &str,
     fs_boundary: FsBoundary,
+    net_allowlist: Option<Vec<String>>,
 ) -> Result<ProdRuntime, nika_kernel::HttpError> {
-    let http = Arc::new(ReqwestHttp::new()?);
+    // The fetch/builtin client enforces SSRF (workflow URLs) AND the
+    // declared permits.net.http boundary (NIKA-SEC-004 · per-hop).
+    let http = Arc::new(fetch_http(net_allowlist)?);
     // The provider path gets its OWN client (SSRF disabled · see the
     // `provider_http` doc): the fetch/builtin plane below keeps `http`
     // (SSRF enforced · workflow-controlled URLs).
@@ -414,7 +459,7 @@ mod tests {
         // The mock profile needs no http call + no key — composition
         // wires every seam without touching the network. (A real model's
         // missing key surfaces only at resolve time · per-workflow.)
-        let runtime = production_runtime("mock/echo", FsBoundary::unbounded());
+        let runtime = production_runtime("mock/echo", FsBoundary::unbounded(), None);
         assert!(
             runtime.is_ok(),
             "the production runtime composes (TLS init is the only failure)"

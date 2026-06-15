@@ -268,6 +268,20 @@ pub enum HttpError {
         url: String,
     },
 
+    /// The URL's host is outside the workflow's declared `permits.net.http`
+    /// allowlist (spec `01-envelope.md` §permits). Distinct from
+    /// [`Self::SsrfBlocked`] (the engine's always-on private-range floor):
+    /// this is the WORKFLOW's declared capability boundary, enforced on
+    /// EVERY redirect hop. The builtin maps it to `NIKA-SEC-004`
+    /// (`security_error` · non-transient · never fed back to an `agent:`
+    /// model — a capability boundary is not negotiation material).
+    #[error("host outside permits.net.http: {host}")]
+    HostNotAllowed {
+        /// The denied host (bracket-free for IPv6 · matches how permits
+        /// are written).
+        host: String,
+    },
+
     /// Response body too large.
     #[error("HTTP response too large: {size} bytes (max {max})")]
     TooLarge {
