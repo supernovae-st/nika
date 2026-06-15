@@ -87,6 +87,15 @@ impl NikaErrorCode for VerbExecError {
     fn spec_code(&self) -> String {
         match self {
             Self::NonZeroExit { .. } => "NIKA-EXEC-001".to_owned(),
+            // A blocklist hit is a SECURITY stop — spec `NIKA-SEC-001`
+            // (`security_error`), NOT a spawn/process failure. Routing it
+            // distinctly is what makes `on_error.on_codes: [NIKA-SEC-001]`
+            // and audit-by-category work (the kernel already labels the
+            // message "security blocklist"). The other `Shell` sources
+            // (spawn · timeout · cancel) stay `NIKA-EXEC-002`.
+            Self::Shell {
+                source: ShellError::Blocked { .. },
+            } => "NIKA-SEC-001".to_owned(),
             Self::Shell { .. } => "NIKA-EXEC-002".to_owned(),
             Self::InvalidParam { .. } => self.nika_code().to_string(),
         }
@@ -135,6 +144,30 @@ mod tests {
             assert_eq!(err.nika_code(), expected, "{err}");
             assert_eq!(codes::lookup(&expected.to_string()), Some(expected));
         }
+    }
+
+    #[test]
+    fn blocklist_hit_speaks_nika_sec_001_not_exec_002() {
+        // A kernel blocklist hit (`ShellError::Blocked`) is a SECURITY stop:
+        // it MUST surface as NIKA-SEC-001 (security_error · spec 05) so
+        // `on_error.on_codes: [NIKA-SEC-001]` and audit-by-category work —
+        // NOT NIKA-EXEC-002 (process_error), which conflates it with a spawn
+        // failure (the bug 3 coverage agents independently hit).
+        let blocked = VerbExecError::Shell {
+            source: ShellError::Blocked {
+                reason: "command matches security blocklist".to_owned(),
+            },
+        };
+        assert_eq!(blocked.spec_code(), "NIKA-SEC-001");
+        // A non-blocklist Shell error stays NIKA-EXEC-002 (spawn/other).
+        let other = VerbExecError::Shell {
+            source: ShellError::Other {
+                reason: "spawn failed".to_owned(),
+            },
+        };
+        assert_eq!(other.spec_code(), "NIKA-EXEC-002");
+        // A security verdict is never transient — a blind retry replays it.
+        assert!(!blocked.is_transient());
     }
 
     fn tail_of(err: VerbExecError) -> String {
