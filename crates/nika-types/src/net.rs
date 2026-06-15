@@ -25,8 +25,16 @@ use alloc::string::String;
 /// Host glob match — exact, or a LEADING `*.` subdomain wildcard
 /// (`*.github.com` matches `api.github.com` AND the bare `github.com`).
 /// Distinct from the tool-id trailing-`*` glob (`nika:*`).
+///
+/// CASE-INSENSITIVE (RFC 4343 · DNS hostnames are case-insensitive). The
+/// connect host arrives WHATWG-lowercased, so an author-written permit entry
+/// in any case (`EXAMPLE.COM` · `*.GitHub.com`) still matches — without this
+/// an uppercase permit would false-block its own lowercase host. ASCII-fold
+/// is sufficient: a host is punycode-ASCII by the time it reaches here.
 #[must_use]
 pub fn host_glob_matches(glob: &str, host: &str) -> bool {
+    let glob = glob.to_ascii_lowercase();
+    let host = host.to_ascii_lowercase();
     if let Some(suffix) = glob.strip_prefix("*.") {
         return host == suffix || host.ends_with(&format!(".{suffix}"));
     }
@@ -89,6 +97,20 @@ mod tests {
         assert!(host_glob_matches("*.github.com", "github.com"));
         assert!(!host_glob_matches("*.github.com", "github.com.evil.com"));
         assert!(!host_glob_matches("*.github.com", "notgithub.com"));
+    }
+
+    #[test]
+    fn host_glob_is_case_insensitive() {
+        // DNS hostnames are case-insensitive (RFC 4343) — an author-written
+        // permit entry in any case matches the WHATWG-lowercased connect host
+        // (else an uppercase permit false-blocks its own host).
+        assert!(host_glob_matches("EXAMPLE.COM", "example.com"));
+        assert!(host_glob_matches("example.com", "EXAMPLE.COM"));
+        assert!(host_glob_matches("*.GitHub.com", "API.github.com"));
+        assert!(host_glob_matches("*.github.com", "GITHUB.COM"));
+        // case-folding does not loosen the boundary — a different host stays out
+        assert!(!host_glob_matches("EXAMPLE.COM", "evil.com"));
+        assert!(!host_glob_matches("*.GITHUB.COM", "github.com.evil.com"));
     }
 
     #[test]
