@@ -266,32 +266,49 @@ fn eval_rel(
     Ok(Value::Bool(result))
 }
 
+/// Compare two JSON numbers on the continuous number line (CEL langdef +
+/// proposal-210: an int and a double of equal magnitude are equal · the
+/// defining identity `x == y` ⟺ `!(x < y || x > y)`). This is the ONE
+/// source of truth shared by `==`/`!=`, `<`/`<=`/`>`/`>=`, and `in` (list
+/// membership), so they can never disagree. `None` only for a
+/// non-f64-representable number (exotic for JSON · treated as incomparable,
+/// like NaN). Caveat: comparison is via `f64`, so two distinct integers above
+/// 2^53 can compare equal (the pre-existing `order` ceiling · acceptable for
+/// JSON-scale workflow values · revisit here for both ops if ever needed).
+fn numeric_cmp(x: &serde_json::Number, y: &serde_json::Number) -> Option<std::cmp::Ordering> {
+    x.as_f64()
+        .zip(y.as_f64())
+        .and_then(|(xf, yf)| xf.partial_cmp(&yf))
+}
+
 /// `==` / `!=` — cross-type is VAR-006 EXCEPT a `null` operand (the
 /// defined-null test · always typed bool · spec 04).
 fn equals(a: &Value, b: &Value, span: (usize, usize)) -> Result<bool, CelError> {
     if a.is_null() || b.is_null() {
         return Ok(a == b); // null == null → true · x == null → x is null
     }
-    if same_class(a, b) {
-        Ok(a == b)
-    } else {
-        Err(CelError::type_err(
+    match (a, b) {
+        // Numbers compare by VALUE on the continuous number line, NOT by
+        // serde_json representation: `9.0 == 9` is true. This is NOT
+        // cross-class coercion (`42 == "42"` below stays NIKA-VAR-006) —
+        // it is the correct numeric model. serde_json::Number's PartialEq
+        // distinguishes int 9 from double 9.0, which would otherwise make
+        // a comparison against a jq-produced JSON float silently false.
+        (Value::Number(x), Value::Number(y)) => {
+            Ok(matches!(numeric_cmp(x, y), Some(std::cmp::Ordering::Equal)))
+        }
+        _ if same_class(a, b) => Ok(a == b),
+        _ => Err(CelError::type_err(
             format!("cross-type compare: {} == {}", kind_of(a), kind_of(b)),
             span,
-        ))
+        )),
     }
 }
 
 /// `<` / `<=` / `>` / `>=` — only (number,number) or (string,string).
 fn order(op: RelOp, a: &Value, b: &Value, span: (usize, usize)) -> Result<bool, CelError> {
     let ord = match (a, b) {
-        (Value::Number(x), Value::Number(y)) => {
-            let (xf, yf) = (x.as_f64(), y.as_f64());
-            match (xf, yf) {
-                (Some(xf), Some(yf)) => xf.partial_cmp(&yf),
-                _ => None,
-            }
-        }
+        (Value::Number(x), Value::Number(y)) => numeric_cmp(x, y),
         (Value::String(x), Value::String(y)) => Some(x.cmp(y)),
         _ => {
             return Err(CelError::type_err(
@@ -320,7 +337,14 @@ fn order(op: RelOp, a: &Value, b: &Value, span: (usize, usize)) -> Result<bool, 
 /// `x in coll` — membership in a list, or a substring in a string.
 fn membership(needle: &Value, haystack: &Value, span: (usize, usize)) -> Result<bool, CelError> {
     match haystack {
-        Value::Array(items) => Ok(items.contains(needle)),
+        // Element-wise via `equals`, NOT `Vec::contains` (serde repr equality),
+        // so membership obeys the same continuous-number-line equality as `==`:
+        // `3.0 in [1, 2, 3]` is true. A type-mismatched element is simply not
+        // the needle (`equals` → VAR-006 → `false` for that element), never an
+        // error — `1 in ['a', 'b']` is false, as it is for `==`.
+        Value::Array(items) => Ok(items
+            .iter()
+            .any(|elem| equals(elem, needle, span).unwrap_or(false))),
         Value::String(s) => match needle {
             Value::String(sub) => Ok(s.contains(sub.as_str())),
             _ => Err(CelError::type_err(
@@ -446,6 +470,25 @@ mod tests {
         assert!(b("vars.publish == 'yes'"));
         assert!(b("vars.publish != 'no'"));
         assert!(b("vars.count == 3"));
+    }
+
+    #[test]
+    fn numeric_equality_is_value_based_continuous_line() {
+        // CEL langdef + proposal-210: numbers compare on a continuous number
+        // line — `x == y` iff `!(x < y || x > y)`. An int and a double of equal
+        // value are EQUAL (crucial for jq-produced JSON floats vs int literals;
+        // serde_json::Number's PartialEq would otherwise make `vars.count == 3.0`
+        // false because it distinguishes the int/float representation).
+        assert!(b("vars.count == 3.0")); // int 3 == double 3.0
+        assert!(!b("vars.count != 3.0"));
+        assert!(b("vars.ratio == 0.5")); // same-type float unaffected
+        // equality stays consistent with ordering (the spec's defining identity)
+        assert!(!b("vars.count < 3.0"));
+        assert!(!b("vars.count > 3.0"));
+        // membership obeys the same numeric equality (`in` ⟺ `==` per element)
+        assert!(b("3.0 in [1, 2, 3]")); // int list, float needle
+        assert!(b("3 in [1, 2, 3.0]")); // float list, int needle
+        assert!(!b("9 in [1, 2, 3]")); // true negative, unchanged
     }
 
     #[test]
