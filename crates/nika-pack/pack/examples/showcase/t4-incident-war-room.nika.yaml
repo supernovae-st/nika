@@ -19,7 +19,7 @@ nika: v1
 workflow: incident-war-room
 description: "parallel evidence → typed timeline → settle + recheck → postmortem draft"
 
-model: anthropic/claude-sonnet-4-6
+model: mistral/mistral-large
 
 vars:
   service: "checkout-api"
@@ -111,6 +111,7 @@ tasks:
   - id: postmortem
     depends_on: [timeline, confirmed]
     infer:
+      model: anthropic/claude-sonnet-4-6   # per-task override · thinking budget
       prompt: |
         Timeline · ${{ tasks.timeline.output.events }}
         Write the postmortem draft · summary · impact · root-cause

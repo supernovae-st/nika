@@ -30,7 +30,7 @@ workflow: scrape-and-summarize          # required · kebab-case · unique withi
 description: "Fetch + summarize"         # optional · human-readable
 
 # Workflow-level default model · any task may override · <provider>/<name>
-model: anthropic/claude-sonnet-4-6      # optional · ollama/llama3.1 for local
+model: ollama/llama3.1            # optional · anthropic/claude-sonnet-4-6 for cloud
 
 # Inputs · available as ${{ vars.<name> }} · untyped OR typed
 vars:
@@ -148,8 +148,8 @@ listings + LSP hover hints.
 ### `model` · *optional · default model · `<provider>/<name>`*
 
 ```yaml
-model: anthropic/claude-sonnet-4-6      # cloud
-# model: ollama/llama3.1                # local · same shape
+model: ollama/llama3.1                  # local
+# model: anthropic/claude-sonnet-4-6    # cloud · same shape
 ```
 
 Default model for any `infer:` or `agent:` verb in this workflow, as a single
@@ -249,12 +249,19 @@ it, which is different from the plain `env:` block.
 
 #### `egress` · *optional · sanctioned destinations (declassification)*
 
-By default, a `secrets.<name>` value reaching an `exec:` or `invoke:` effect
-is a **blocking leak** — the engine masks its own output but cannot follow a
-secret a subprocess or tool re-emits (`nika check` reports it · the workflow
-is refused). `infer:`/`agent:` prompts are the one exception: a secret there
-is **provider-bound** (you chose the provider · the model is not a verbatim
-echo), so it is never a leak.
+By default, a `secrets.<name>` value reaching ANY effect — an `exec:` or
+`invoke:` sink, OR an `infer:`/`agent:` **prompt** (`prompt:` + `system:`) —
+is a **blocking leak**: the engine masks its own output but cannot follow a
+secret a subprocess, a tool, or a third-party provider re-emits (`nika check`
+reports it · the workflow is refused). An `infer:`/`agent:` prompt is a
+provider-egress sink like any other — a secret in it LEAVES the run to the
+provider, so it needs an explicit sanction (`egress: [{ to: "infer" }]` /
+`{ to: "agent" }`) exactly as a tool sink does.
+
+The ONE carve-out is the infer/agent **output**, NOT the prompt: a model
+response is not a verbatim echo of its prompt, so `tasks.<id>.output` of an
+`infer:`/`agent:` task is never tainted by a prompt secret (it does not
+re-leak downstream).
 
 But legitimate workflows MUST send a secret to other sinks — a webhook-URL
 secret to `nika:notify`, an API key in a `nika:fetch` header. The optional
@@ -284,7 +291,7 @@ unchanged — NO sanctioned egress, every `exec:`/`invoke:` reach is a leak.
 
 | Layer | Rule |
 |---|---|
-| **① confidentiality** | the sink's tool id (or `exec`) equals an `egress[].to:`. `to:` is SPECIFIC — a clearance for `nika:fetch` never authorizes `exec` (no cross-tool laundering). |
+| **① confidentiality** | the sink's id equals an `egress[].to:` — a tool id (`nika:fetch` · `mcp:<server>/<tool>`), `exec`, or the provider-egress sinks `infer` / `agent` (an infer/agent prompt). `to:` is SPECIFIC — a clearance for `nika:fetch` never authorizes `exec` (no cross-tool laundering). |
 | **② integrity** | for a network sink, either `host:` equals the effect's **static-literal** destination host (a templated `${{ }}`-derived host does NOT sanction · it stays the runtime check), OR `host_from_self: true` AND the destination arg is **exactly** `${{ secrets.<this> }}` (not concatenated) AND **no other secret co-occurs** in the same effect payload. A sink with no addressable host (`{ to }` alone) clears this layer. |
 | **③ capability** | when a [`permits:`](#permits--optional--the-declared-capability-boundary) block is present and the host is statically known, the host MUST ALSO be in `permits.net.http` — `egress:` NARROWS the capability boundary, never widens it. `host_from_self` (host unknown statically) degrades to the runtime `permits` check. |
 

@@ -47,7 +47,7 @@ counts:
   extract_modes: 9
   error_namespaces: 14
   error_categories: 12
-  error_codes: 49
+  error_codes: 50
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -213,7 +213,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 49
+  count: 50
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -264,6 +264,7 @@ error_codes:
     - { code: NIKA-SEC-002, category: security_error, transient: "false", failure: "agent tool call outside the tools: whitelist" }
     - { code: NIKA-SEC-003, category: security_error, transient: "false", failure: "run-recursion bound — nested-run depth exceeded OR self-launching workflow" }
     - { code: NIKA-SEC-004, category: security_error, transient: "false", failure: "effect outside the declared permits: capability boundary (fs/net/exec/tool)" }
+    - { code: NIKA-SEC-005, category: security_error, transient: "false", failure: "SSRF block — a nika:fetch/nika:notify URL resolves to a loopback/private/link-local/metadata target (always-on engine floor · independent of permits:)" }
     - { code: NIKA-TIMEOUT-001, category: timeout_error, transient: "false", failure: "task (or for_each iteration) exceeded timeout:" }
     - { code: NIKA-CANCEL-001, category: cancelled, transient: "false", failure: "task cancelled (workflow failure gate · user cancellation)" }
     - { code: NIKA-BUILTIN-001, category: validation_error, transient: "false", failure: "builtin invoke violates its statically-checkable arg contract (e.g. nika:fetch without url: · nika:jq arg shape)" }

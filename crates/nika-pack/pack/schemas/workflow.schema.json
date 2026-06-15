@@ -147,7 +147,7 @@
               "properties": {
                 "to": {
                   "type": "string",
-                  "description": "The sanctioned sink · a tool id (`nika:fetch` · `nika:notify` · `mcp:<server>/<tool>`) or `exec` · SPECIFIC (no cross-tool laundering)."
+                  "description": "The sanctioned sink · a tool id (`nika:fetch` · `nika:notify` · `mcp:<server>/<tool>`), `exec`, or a provider-egress sink `infer` / `agent` (a secret in an infer/agent prompt) · SPECIFIC (no cross-tool laundering)."
                 },
                 "host": {
                   "type": "string",
@@ -534,9 +534,10 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "`nika:*` builtin · 22 canonical per stdlib v0.1 (Core 6 · File 5 · Data 8 · Network 2 · Introspection 1). Closed enum for `yaml-language-server` autocomplete.",
+              "description": "`nika:*` builtin · 23 canonical per stdlib v0.1 (Core 6 · File 5 · Data 8 · Network 2 · Introspection 2). Closed enum for `yaml-language-server` autocomplete.",
               "enum": [
                 "nika:assert",
+                "nika:compose",
                 "nika:convert",
                 "nika:date",
                 "nika:done",

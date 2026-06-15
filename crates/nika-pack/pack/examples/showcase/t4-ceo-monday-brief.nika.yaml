@@ -20,7 +20,7 @@ nika: v1
 workflow: ceo-monday-brief
 description: "news + repo pulse + KPIs → thinking synthesis → dated brief + cost ping"
 
-model: anthropic/claude-sonnet-4-6
+model: mistral/mistral-large
 
 vars:
   watch_query: "AI workflow engines"
@@ -77,6 +77,7 @@ tasks:
   - id: brief
     depends_on: [news, pulse, kpis, revenue]
     infer:
+      model: anthropic/claude-sonnet-4-6   # per-task override · thinking budget
       prompt: |
         Market signal · ${{ tasks.news.output }}
         Engineering pulse · ${{ tasks.pulse.output }}
