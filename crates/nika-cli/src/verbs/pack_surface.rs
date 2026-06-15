@@ -50,3 +50,41 @@ pub fn examples_show(slug: &str) -> VerbOutput {
 
 // `nika examples run <slug>` now EXECUTES — `verbs::run::example` (the
 // L3 runtime shipped · the refusal stub retired).
+
+#[cfg(test)]
+mod tests {
+    /// The embedded `canon.yaml` (what `nika spec --canon` prints) is a
+    /// vendored snapshot of the spec-repo SSOT. Its `builtins:` count MUST
+    /// equal the catalog's `all_builtins()` length — the proven 1:1 (the
+    /// catalog itself asserts `all_builtins().len() == 23`). When the embed
+    /// drifts behind the SSOT (e.g. a builtin is added but `sync-pack.sh`
+    /// wasn't re-run), this test is the structural catch: `nika spec
+    /// --canon` would otherwise report a stale count to every consumer.
+    ///
+    /// Scans the top `counts:` block for the unique `builtins: <N>` line
+    /// (the `builtins:` SECTION header below carries `count:`, not the key
+    /// `builtins:`, so the line-scan is unambiguous). A malformed/missing
+    /// line fails loudly rather than silently passing.
+    #[test]
+    fn embedded_canon_builtins_count_matches_catalog() {
+        let canon = nika_pack::canon();
+        // The unique `builtins: <N>` count line (None if the line is absent
+        // or unparseable — that case must also fail the assertion below).
+        let embedded: Option<usize> = canon.lines().find_map(|line| {
+            line.trim_start()
+                .strip_prefix("builtins:")
+                .and_then(|rest| rest.trim().parse::<usize>().ok())
+        });
+        let catalog = nika_catalog::all_builtins().len();
+        // Comparing Option<usize> to Some(catalog) catches BOTH the count
+        // mismatch (e.g. Some(22) ≠ Some(23)) AND a missing/malformed line
+        // (None ≠ Some(23)) — no unwrap/expect/panic, fails loudly either way.
+        assert_eq!(
+            embedded,
+            Some(catalog),
+            "embedded canon.yaml `builtins:` count {embedded:?} is out of sync \
+             with nika_catalog::all_builtins() ({catalog}) — re-vendor the pack \
+             from the spec SSOT (crates/nika-pack/scripts/sync-pack.sh)"
+        );
+    }
+}

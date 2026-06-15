@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtins
 
-> **<!-- canon:builtins -->22<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
+> **<!-- canon:builtins -->23<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
 > Invoked via `invoke: tool: "nika:<name>"`. Plus media builtins deferred to
 > stdlib v0.x (opt-in feature flag).
 >
@@ -9,7 +9,9 @@
 > wrappers that jq subsumes were cut (incl. `json_merge` = jq's recursive `*` ·
 > jaq source-verified 2026-05-27 · `obj_merge` impl + test corpus + corelang
 > docs) · the validators merged · `task_status`/`orchestrate`/`locale_lookup`
-> cut. Step 2 (26 → 22 · ADR-086/087/088 Rams sweep 2026-05-27) · `convert`
+> cut. Step 3 (22 → 23 · 2026-06-13) · `nika:compose` · the agent loop's
+> self-verification intrinsic (ADR-093 · loop-only like `done`). Step 2
+> (26 → 22 · ADR-086/087/088 Rams sweep 2026-05-27) · `convert`
 > replaces `csv_to_json` (multi-format · from:/to:) · `wait` unifies
 > `sleep`+`wait_until` (−1) · `inspect` unifies `cost`+`records`+`dag_info`+
 > `threads` (−3). ZERO capability loss (jq ⊇ the cuts · jaq-verified · the
@@ -24,12 +26,12 @@
 | Core | 6 | Required for execution (log · emit · assert · prompt · done · wait) |
 | File | 5 | I/O primitives (read · write · edit · glob · grep) |
 | Data | 8 | `jq` (THE data language) + 7 capabilities jq can't express (json_diff · validate · json_merge_patch · convert · uuid · date · hash) |
-| Introspection | 1 | Self-awareness (inspect · view-discriminated · 4 views · cost / records / dag_info / threads) |
+| Introspection | 2 | Self-awareness · `inspect` (runtime state · 4 views) · `compose` (static check of a drafted workflow · agent loops only) |
 | Network | 2 | fetch (HTTP+extraction) · notify (alerts out) |
 | Media | — | **Deferred to stdlib v0.x** (opt-in feature flag) |
-| **Total v0.1** | **22** | |
+| **Total v0.1** | **23** | |
 
-A Stdlib v0.1-compliant engine MUST ship these 22.
+A Stdlib v0.1-compliant engine MUST ship these 23.
 
 ---
 
@@ -145,9 +147,7 @@ nothing is an authoring bug · `tool_error`) · `-002` (IO failure).
 invoke: { tool: "nika:glob", args: { pattern: "./src/**/*.rs", exclude: ["**/target/**"] } }
 ```
 Glob match · returns array of paths · **sorted lexicographically**
-(deterministic across engines · filesystems). `exclude` is a glob pattern
-**or a list of them** (`exclude: "**/target/**"` and `exclude:
-["**/target/**", "*.tmp"]` both filter the result set). Throws ·
+(deterministic across engines · filesystems). Throws ·
 `NIKA-BUILTIN-GLOB-001` (invalid pattern · `validation_error`).
 
 ### `nika:grep`
@@ -235,7 +235,7 @@ Generate a UUID. (Generators are not jq · jq is pure transform.) Returns the ca
 invoke: { tool: "nika:date", args: { op: now } }
 # op: now { tz } | add { base, duration } | subtract | format { input, format } | parse | diff { start, end, unit }
 ```
-Timestamp arithmetic · op-discriminated single builtin · timezone-aware (IANA · default UTC) · ISO 8601 out. `format:`/`parse` use the **strftime** field grammar (`%Y-%m-%d` · the one cross-language constant). Every op returns a string EXCEPT `diff` (integer · in `unit:` · one of `seconds` (default) `milliseconds` `minutes` `hours` `days` `weeks` — all fixed spans; `months`/`years` are not fixed Durations, use `add`/`subtract` with `P1M`/`P1Y`). Throws · `NIKA-BUILTIN-DATE-001` (unparseable input / unknown op / bad tz · `validation_error`).
+Timestamp arithmetic · op-discriminated single builtin · timezone-aware (IANA · default UTC) · ISO 8601 out. `format:`/`parse` use the **strftime** field grammar (`%Y-%m-%d` · the one cross-language constant). Every op returns a string EXCEPT `diff` (integer · in `unit:`). Throws · `NIKA-BUILTIN-DATE-001` (unparseable input / unknown op / bad tz · `validation_error`).
 
 ### `nika:hash`
 ```yaml
@@ -277,7 +277,27 @@ Send notifications · `channel:` enum (`webhook`/`slack`/`email`/`discord`/`sms`
 
 ---
 
-## Introspection builtins (1)
+## Introspection builtins (2)
+
+### `nika:compose` · self-check a drafted workflow (agent loops only)
+```yaml
+agent:
+  prompt: "Draft a workflow, then check it before you finish."
+  tools: ["nika:compose"]            # the agent grants itself the self-check
+```
+The agent loop's self-verification intrinsic · the model passes a workflow
+YAML draft it wrote, and gets the FULL `nika check` verdict back as JSON —
+conformance violations (with codes + repair hints), secret-flow findings,
+permits escapes, and the termination/cost certificate. It **never executes**
+the draft (« generation is not permission » · the draft is an artifact + its
+certificate · running it stays a separate, gated decision). Iterate until
+`valid` is true, then deliver the draft.
+
+Loop-served like `nika:done`: **valid only inside an `agent:` tool whitelist**
+(a standalone `invoke: nika:compose` is rejected · `NIKA-BUILTIN-COMPOSE-001`).
+The model never sees it unless it is whitelisted (default-deny).
+
+Args · `workflow_yaml` (string · required · the complete draft).
 
 ### `nika:inspect` · workflow introspection (4 views · view-discriminated)
 ```yaml
@@ -344,8 +364,8 @@ honors task-level `timeout` · respects engine security policies.
 
 New builtins MAY enter stdlib v0.x. Builtin removal is never allowed within a
 stdlib v0.x lifetime (removal requires a new stdlib major). The v0.1 → 22
-consolidation (42 → 26 → 22) happened **pre-public** (0 external users · before the forever-clock).
+consolidation (42 → 26 → 22 · then +`compose` → 23) happened **pre-public** (0 external users · before the forever-clock).
 
 ---
 
-🦋 *<!-- canon:builtins -->22<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · clear forever.*
+🦋 *<!-- canon:builtins -->23<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · clear forever.*

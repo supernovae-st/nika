@@ -29,7 +29,7 @@ pub struct Builtin {
     /// The UNCONDITIONALLY required argument keys (the JSON-Schema
     /// `required` set the model-facing `ToolDef` declares). `nika check`
     /// flags a call missing any of these at check time instead of at run
-    /// time (the « 5/22 builtins had a static required-arg check » gap).
+    /// time (the « 5/23 builtins had a static required-arg check » gap).
     /// A subset of [`Self::args`]. Builtins whose requirement is
     /// CONDITIONAL (`nika:wait` `duration` XOR `until` · `nika:fetch`
     /// mode-dependent `jq`/`selector`) keep `&[]` here — the

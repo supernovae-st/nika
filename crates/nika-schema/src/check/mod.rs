@@ -164,7 +164,7 @@ pub struct CheckReport {
     /// surfaced at check time with the « did you mean » fix.
     pub unknown_args: Vec<UnknownArg>,
     /// Every `invoke` call MISSING an unconditionally-required `args:` key
-    /// (the `Builtin::required` set). Closes the « only 5/22 builtins had a
+    /// (the `Builtin::required` set). Closes the « only 5/23 builtins had a
     /// static required-arg check » gap — a required-arg builtin now fails
     /// `nika check` instead of passing `check {}` and failing at run. The
     /// conditional contracts (`nika:wait`, `nika:fetch`) stay in

@@ -23,8 +23,9 @@
 #   intra-canon drift · structural prevention of count-vs-items mismatch.
 #
 # v0.1 · 2026-05-27 · populated from .ttl HEAD (post atomic-language audit · the
-#   most-current canonical truth · cohort 42→27→26→25→22 builtins + NIKA-FETCH
-#   fold into NIKA-BUILTIN per "fetch is a builtin, not a verb" D-N18).
+#   most-current canonical truth · cohort 42→27→26→25→22 builtins → 23 (compose
+#   added 2026-06-13) + NIKA-FETCH fold into NIKA-BUILTIN per "fetch is a
+#   builtin, not a verb" D-N18).
 # v0.2 · 2026-05-27 evening · schema_version 1 + 6 extended dimensions
 #   (lifecycle_product · lifecycle_decision · lifecycle_risk · diamond_layers ·
 #   steal_pattern_tiers · severity) + flow-style items[] support.
@@ -41,7 +42,7 @@ schema_version: 1
 counts:
   verbs: 4
   namespaces: 5
-  builtins: 22
+  builtins: 23
   providers: 14
   extract_modes: 9
   error_namespaces: 14
@@ -85,15 +86,16 @@ namespaces:
     - secrets
 
 # ---------------------------------------------------------------- builtins
-# Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss).
-# stdlib/builtins-v0.1.md is the prose home (matches at 22 · cascade complete 2026-05-27).
+# Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-093 · agent-loop self-check intrinsic, loop-only like done).
+# stdlib/builtins-v0.1.md is the prose home (matches at 23 · cascade complete 2026-06-13).
 # Admission test · 3 razors · (1) NOT-expressible-in-jq+CEL+Schema · (2) canonical
 # interop format (RFC-6902/7396/9562 · etc.) · (3) cookbook-clarity.
 builtins:
-  count: 22
+  count: 23
   reference: stdlib/builtins-v0.1.md
   items:
     - assert
+    - compose
     - convert
     - date
     - done
@@ -122,22 +124,26 @@ builtins:
 providers:
   count: 14
   reference: stdlib/providers-v0.1.md
+  # Presentation order (operator lock 2026-06-12 · supernovae-alignment Rule 3) ·
+  # local/open-weight FIRST (sovereignty default) · then cloud with mistral (EU ·
+  # open-weight) leading · anthropic/openai never presented first. Projectors
+  # inherit this order · counts are order-independent.
   items:
-    cloud:
-      - anthropic
-      - openai
-      - gemini
-      - deepseek
-      - mistral
-      - xai
-      - groq
-      - openrouter
     local:
       - ollama
       - lmstudio
       - llamacpp
       - localai
       - vllm
+    cloud:
+      - mistral
+      - anthropic
+      - openai
+      - gemini
+      - deepseek
+      - xai
+      - groq
+      - openrouter
     test:
       - mock
 
