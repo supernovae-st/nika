@@ -16,11 +16,11 @@ separate `provider:` field** · the provider is the prefix.
 
 ```yaml
 infer:
-  model: anthropic/claude-sonnet-4-6     # cloud
+  model: ollama/llama3.1                 # local · no key
   prompt: "..."
 
 infer:
-  model: ollama/llama3.1                 # local · same shape
+  model: anthropic/claude-sonnet-4-6     # cloud · same shape
   prompt: "..."
 ```
 
@@ -36,11 +36,11 @@ against any backend ·
 
 ```yaml
 vars:
-  model: { type: string, default: "anthropic/claude-sonnet-4-6" }
+  model: { type: string, default: "ollama/llama3.1" }
 tasks:
   - id: x
     infer: { model: "${{ vars.model }}", prompt: "..." }
-# nika run flow.yaml --var model=ollama/llama3.1   ← same workflow, local
+# nika run flow.yaml --var model=mistral/mistral-large   ← same workflow, cloud
 ```
 
 ---
@@ -49,22 +49,22 @@ tasks:
 
 | Provider | Backend | Local? | Auth |
 |---|---|---|---|
-| `anthropic` | Anthropic Claude API | cloud | `${{ secrets.* }}` |
-| `openai` | OpenAI API (+ the universal OpenAI-compat escape hatch · see below) | cloud | `${{ secrets.* }}` |
-| `openrouter` | OpenRouter gateway (one key · every major model · cross-vendor fallback) | cloud | `${{ secrets.* }}` |
-| `mistral` | Mistral AI API (EU · sovereign-leaning) | cloud | `${{ secrets.* }}` |
-| `groq` | Groq Cloud (fastest open-weight) | cloud | `${{ secrets.* }}` |
-| `deepseek` | DeepSeek API (reasoning · cost-efficient) | cloud | `${{ secrets.* }}` |
-| `gemini` | Google Gemini API (long context · multimodal) | cloud | `${{ secrets.* }}` |
-| `xai` | xAI Grok API | cloud | `${{ secrets.* }}` |
 | `ollama` | Ollama daemon (`localhost:11434`) | **local** | none |
 | `lmstudio` | LM Studio (`localhost:1234/v1`) | **local** | none |
 | `llamacpp` | llama.cpp `llama-server` (`localhost:8080/v1`) | **local** | none |
 | `localai` | LocalAI (`localhost:8080/v1` · OpenAI drop-in · multi-backend) | **local** | none |
 | `vllm` | vLLM OpenAI server (`localhost:8000/v1` · high-throughput · self-hosted) | **local** | none |
+| `mistral` | Mistral AI API (EU · sovereign-leaning) | cloud | `${{ secrets.* }}` |
+| `anthropic` | Anthropic Claude API | cloud | `${{ secrets.* }}` |
+| `openai` | OpenAI API (+ the universal OpenAI-compat escape hatch · see below) | cloud | `${{ secrets.* }}` |
+| `openrouter` | OpenRouter gateway (one key · every major model · cross-vendor fallback) | cloud | `${{ secrets.* }}` |
+| `groq` | Groq Cloud (fastest open-weight) | cloud | `${{ secrets.* }}` |
+| `deepseek` | DeepSeek API (reasoning · cost-efficient) | cloud | `${{ secrets.* }}` |
+| `gemini` | Google Gemini API (long context · multimodal) | cloud | `${{ secrets.* }}` |
+| `xai` | xAI Grok API | cloud | `${{ secrets.* }}` |
 | `mock` | deterministic test fixture · no LLM call | test | none |
 
-A Stdlib v0.1-compliant engine MUST ship all **14** (8 cloud · 5 local · 1 test).
+A Stdlib v0.1-compliant engine MUST ship all **14** (5 local · 8 cloud · 1 test).
 Any *other* OpenAI-compatible local server (Jan · llamafile · KoboldCpp ·
 text-generation-webui · a custom one) routes through the **`openai` escape
 hatch** below — no new provider name needed.
@@ -136,7 +136,7 @@ Every provider supports ·
 infer:
   prompt: "..."                # required
   system: "..."                # optional
-  model: <provider>/<name>     # one field · e.g. anthropic/claude-sonnet-4-6
+  model: <provider>/<name>     # one field · e.g. ollama/llama3.1
   temperature: 0.0 to 2.0      # optional
   max_tokens: <int>            # optional
   schema: { ... }              # optional · structured output
@@ -149,159 +149,6 @@ Errors map to `NIKA-PROVIDER-NNN` codes with the provider-specific status.
 ---
 
 ## Provider-by-provider
-
-### `anthropic`
-
-```yaml
-infer:
-  model: anthropic/claude-3-5-sonnet
-  prompt: "..."
-```
-
-**Models** · `claude-3-5-sonnet` · `claude-3-5-haiku` · `claude-3-opus` · (and any newer · model name pass-through).
-
-**Auth** · `ANTHROPIC_API_KEY` env var · OR engine config.
-
-**Features** · tool use · vision · extended thinking · structured output via JSON Schema.
-
-**Specific fields** ·
-```yaml
-infer:
-  model: anthropic/claude-sonnet-4-6
-  thinking:
-    enabled: true
-    budget_tokens: 4000
-```
-
----
-
-### `openai`
-
-```yaml
-infer:
-  model: openai/gpt-4o
-  prompt: "..."
-```
-
-**Models** · `gpt-4o` · `gpt-4o-mini` · `gpt-4-turbo` · `o1` · (pass-through).
-
-**Auth** · `OPENAI_API_KEY` env var.
-
-**Features** · tool use · vision · structured output (JSON mode).
-
-**Escape hatch** · the openai provider routes ANY OpenAI-compatible endpoint via the `OPENAI_BASE_URL` engine-config override (see « The `openai` escape hatch » above). Covers the local servers without their own named provider — **Jan · llamafile · KoboldCpp · text-generation-webui** — plus cloud gateways (**Together · Fireworks**) and custom servers. Providers with their own named prefix (`openrouter` · `ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm`) don't need this.
-
----
-
-### `mistral`
-
-```yaml
-infer:
-  model: mistral/mistral-large-latest
-  prompt: "..."
-```
-
-**Models** · `mistral-large-latest` · `mistral-medium-latest` · `mistral-small-latest` · `codestral-latest` · `pixtral-large-latest` (vision) · (pass-through).
-
-**Auth** · `MISTRAL_API_KEY` env var.
-
-**Features** · tool use · vision (pixtral) · structured output.
-
----
-
-### `groq`
-
-```yaml
-infer:
-  model: groq/llama-3.3-70b-versatile
-  prompt: "..."
-```
-
-**Models** · open-weight models on Groq LPU (Llama · Mixtral · Gemma · etc.) · pass-through.
-
-**Auth** · `GROQ_API_KEY` env var.
-
-**Features** · fast inference · tool use (some models) · structured output (some models).
-
----
-
-### `deepseek`
-
-```yaml
-infer:
-  model: deepseek/deepseek-chat
-  prompt: "..."
-```
-
-**Models** · `deepseek-chat` · `deepseek-reasoner` · (pass-through).
-
-**Auth** · `DEEPSEEK_API_KEY` env var.
-
-**Features** · reasoning model · structured output.
-
----
-
-### `gemini`
-
-```yaml
-infer:
-  model: gemini/gemini-2.0-flash
-  prompt: "..."
-```
-
-**Models** · `gemini-2.0-flash` · `gemini-2.0-pro` · `gemini-1.5-pro` · (pass-through).
-
-**Auth** · `GOOGLE_API_KEY` env var · OR ADC.
-
-**Features** · long context (1M+ tokens) · multimodal native (text · image · audio · video) · structured output.
-
----
-
-### `xai`
-
-```yaml
-infer:
-  model: xai/grok-2-latest
-  prompt: "..."
-```
-
-**Models** · `grok-2-latest` · `grok-vision-latest` · (pass-through).
-
-**Auth** · `XAI_API_KEY` env var.
-
-**Features** · vision · real-time data option.
-
----
-
-### `openrouter`
-
-```yaml
-infer:
-  model: openrouter/meta-llama/llama-3.1-70b-instruct
-  prompt: "..."
-```
-
-The cross-vendor **gateway** · one API key reaches every major model
-(Anthropic · OpenAI · Meta · Mistral · Google · open-weight). Promoted from
-the `openai` escape hatch 2026-06-10 (D-2026-06-10-N2) — a named prefix means
-OpenRouter and vanilla `openai` coexist in one engine config.
-
-**Models** · OpenRouter ids are themselves `vendor/model` — the workflow form
-is `openrouter/<vendor>/<model>` (everything after the first `/` passes
-through verbatim). E.g. `openrouter/anthropic/claude-sonnet-4-6` ·
-`openrouter/meta-llama/llama-3.1-70b-instruct` · `openrouter/deepseek/deepseek-r1`.
-
-**Auth** · `OPENROUTER_API_KEY` env var.
-
-**Features** · OpenAI-compatible chat completions · streaming · tool use ·
-structured output · provider-side model fallback/routing.
-
-**When to prefer it** · cross-vendor benchmarking from ONE workflow
-(`--var model=openrouter/...`) · models with no native named provider ·
-provider-side failover. For a vendor's flagship via its own API (latency ·
-native features · billing) prefer the direct provider (`anthropic/…` etc.).
-
----
 
 ### `ollama` · **local-first sovereign**
 
@@ -393,6 +240,159 @@ infer:
 
 ---
 
+### `mistral`
+
+```yaml
+infer:
+  model: mistral/mistral-large-latest
+  prompt: "..."
+```
+
+**Models** · `mistral-large-latest` · `mistral-medium-latest` · `mistral-small-latest` · `codestral-latest` · `pixtral-large-latest` (vision) · (pass-through).
+
+**Auth** · `MISTRAL_API_KEY` env var.
+
+**Features** · tool use · vision (pixtral) · structured output.
+
+---
+
+### `anthropic`
+
+```yaml
+infer:
+  model: anthropic/claude-3-5-sonnet
+  prompt: "..."
+```
+
+**Models** · `claude-3-5-sonnet` · `claude-3-5-haiku` · `claude-3-opus` · (and any newer · model name pass-through).
+
+**Auth** · `ANTHROPIC_API_KEY` env var · OR engine config.
+
+**Features** · tool use · vision · extended thinking · structured output via JSON Schema.
+
+**Specific fields** ·
+```yaml
+infer:
+  model: anthropic/claude-sonnet-4-6
+  thinking:
+    enabled: true
+    budget_tokens: 4000
+```
+
+---
+
+### `openai`
+
+```yaml
+infer:
+  model: openai/gpt-4o
+  prompt: "..."
+```
+
+**Models** · `gpt-4o` · `gpt-4o-mini` · `gpt-4-turbo` · `o1` · (pass-through).
+
+**Auth** · `OPENAI_API_KEY` env var.
+
+**Features** · tool use · vision · structured output (JSON mode).
+
+**Escape hatch** · the openai provider routes ANY OpenAI-compatible endpoint via the `OPENAI_BASE_URL` engine-config override (see « The `openai` escape hatch » above). Covers the local servers without their own named provider — **Jan · llamafile · KoboldCpp · text-generation-webui** — plus cloud gateways (**Together · Fireworks**) and custom servers. Providers with their own named prefix (`openrouter` · `ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm`) don't need this.
+
+---
+
+### `openrouter`
+
+```yaml
+infer:
+  model: openrouter/meta-llama/llama-3.1-70b-instruct
+  prompt: "..."
+```
+
+The cross-vendor **gateway** · one API key reaches every major model
+(Anthropic · OpenAI · Meta · Mistral · Google · open-weight). Promoted from
+the `openai` escape hatch 2026-06-10 (D-2026-06-10-N2) — a named prefix means
+OpenRouter and vanilla `openai` coexist in one engine config.
+
+**Models** · OpenRouter ids are themselves `vendor/model` — the workflow form
+is `openrouter/<vendor>/<model>` (everything after the first `/` passes
+through verbatim). E.g. `openrouter/anthropic/claude-sonnet-4-6` ·
+`openrouter/meta-llama/llama-3.1-70b-instruct` · `openrouter/deepseek/deepseek-r1`.
+
+**Auth** · `OPENROUTER_API_KEY` env var.
+
+**Features** · OpenAI-compatible chat completions · streaming · tool use ·
+structured output · provider-side model fallback/routing.
+
+**When to prefer it** · cross-vendor benchmarking from ONE workflow
+(`--var model=openrouter/...`) · models with no native named provider ·
+provider-side failover. For a vendor's flagship via its own API (latency ·
+native features · billing) prefer the direct provider (`anthropic/…` etc.).
+
+---
+
+### `groq`
+
+```yaml
+infer:
+  model: groq/llama-3.3-70b-versatile
+  prompt: "..."
+```
+
+**Models** · open-weight models on Groq LPU (Llama · Mixtral · Gemma · etc.) · pass-through.
+
+**Auth** · `GROQ_API_KEY` env var.
+
+**Features** · fast inference · tool use (some models) · structured output (some models).
+
+---
+
+### `deepseek`
+
+```yaml
+infer:
+  model: deepseek/deepseek-chat
+  prompt: "..."
+```
+
+**Models** · `deepseek-chat` · `deepseek-reasoner` · (pass-through).
+
+**Auth** · `DEEPSEEK_API_KEY` env var.
+
+**Features** · reasoning model · structured output.
+
+---
+
+### `gemini`
+
+```yaml
+infer:
+  model: gemini/gemini-2.0-flash
+  prompt: "..."
+```
+
+**Models** · `gemini-2.0-flash` · `gemini-2.0-pro` · `gemini-1.5-pro` · (pass-through).
+
+**Auth** · `GOOGLE_API_KEY` env var · OR ADC.
+
+**Features** · long context (1M+ tokens) · multimodal native (text · image · audio · video) · structured output.
+
+---
+
+### `xai`
+
+```yaml
+infer:
+  model: xai/grok-2-latest
+  prompt: "..."
+```
+
+**Models** · `grok-2-latest` · `grok-vision-latest` · (pass-through).
+
+**Auth** · `XAI_API_KEY` env var.
+
+**Features** · vision · real-time data option.
+
+---
+
 ### `mock`
 
 ```yaml
@@ -438,7 +438,7 @@ When using the same workflow with different providers ·
 - The **structured output** uses JSON Schema (engine adapts to provider's native mechanism · JSON mode · function calling · etc.)
 - The **vision input** is provider-agnostic in the workflow · the engine adapts
 
-A workflow can switch providers with one line change (`model: anthropic/claude-sonnet-4-6` → `model: openai/gpt-4o`, or → `model: ollama/llama3.1` to go fully local) for most use cases.
+A workflow can switch providers with one line change (`model: ollama/llama3.1` → `model: mistral/mistral-large`, or any other `<provider>/<name>`) for most use cases.
 
 ---
 

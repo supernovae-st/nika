@@ -73,42 +73,24 @@ tasks:
         input: "${{ tasks.rows.output }}"
         expression: 'group_by(.currency) | map({currency: .[0].currency, orders: length, total: (map(.amount | tonumber) | add)})'
 
-  - id: rejected_json
-    depends_on: [check]
-    when: ${{ tasks.check.output.valid == false }}
-    invoke:
-      tool: "nika:jq"                 # serialize the validation errors → JSON string
-      args:
-        input: "${{ tasks.check.output.errors }}"
-        expression: "tojson"          # nika:write content: must be a string — tojson serializes
-
   - id: quarantine
-    depends_on: [rejected_json, check]
+    depends_on: [rows, check]
     when: ${{ tasks.check.output.valid == false }}
     invoke:
       tool: "nika:write"
       args:
         path: "./data/quarantine/orders-rejected.json"
-        content: "${{ tasks.rejected_json.output }}"
+        content: "${{ tasks.check.output.errors }}"
         create_dirs: true
 
-  - id: totals_json
-    depends_on: [good]
-    when: ${{ tasks.good.output != null && size(tasks.good.output) > 0 }}   # good is SKIPPED (null) on the quarantine path · guard before size()
-    invoke:
-      tool: "nika:jq"                 # serialize the per-currency totals → JSON string
-      args:
-        input: "${{ tasks.good.output }}"
-        expression: "tojson"          # nika:write content: must be a string — tojson serializes
-
   - id: report
-    depends_on: [totals_json, good]
+    depends_on: [good]
     when: ${{ tasks.good.output != null && size(tasks.good.output) > 0 }}   # good is SKIPPED (null) on the quarantine path · guard before size()
     invoke:
       tool: "nika:write"
       args:
         path: "./data/reports/daily-totals.json"
-        content: "${{ tasks.totals_json.output }}"
+        content: "${{ tasks.good.output }}"
         create_dirs: true
 
 outputs:

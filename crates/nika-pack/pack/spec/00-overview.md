@@ -61,7 +61,7 @@ These 5 pillars are **locked forever** at `nika: v1`. Everything else (providers
 nika: v1
 workflow: hello
 
-model: anthropic/claude-haiku-4-5
+model: ollama/llama3.1
 tasks:
   - id: greet
     infer:
@@ -76,7 +76,7 @@ tasks:
 nika: v1
 workflow: scrape-and-summarize
 
-model: anthropic/claude-sonnet-4-6
+model: mistral/mistral-large
 tasks:
   - id: fetch_page
     invoke:
@@ -123,7 +123,7 @@ outputs:                              # what the workflow returns · symmetric t
 | [07 conformance](./07-conformance.md) | What « v0.1-compliant » means |
 | [08 out of scope](./08-out-of-scope.md) | Explicit defer list (memory · macros · etc.) |
 
-**Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/) — **<!-- canon:providers -->14<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->22<!-- /canon --> builtins** (6 core · 5 file · 8 data · 1 introspection · 2 network · post ADR-086/087/088 Rams sweep 2026-05-27).
+**Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/) — **<!-- canon:providers -->14<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->23<!-- /canon --> builtins** (6 core · 5 file · 8 data · 1 introspection · 2 network · post ADR-086/087/088 Rams sweep 2026-05-27).
 
 ---
 

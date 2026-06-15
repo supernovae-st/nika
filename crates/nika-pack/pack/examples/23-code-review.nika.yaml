@@ -26,7 +26,7 @@ vars:
 tasks:
   - id: review
     agent:
-      model: anthropic/claude-sonnet-4-6
+      model: mistral/mistral-large
       system: "You are a senior Rust reviewer. Read the diff, then write findings."
       prompt: "Review the code under · ${{ vars.pr_path }} · and report bugs + style issues."
       tools:                       # default-deny · these are the ONLY tools the agent may call

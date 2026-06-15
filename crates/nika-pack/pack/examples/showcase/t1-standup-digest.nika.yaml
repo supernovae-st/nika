@@ -16,7 +16,7 @@ nika: v1
 workflow: standup-digest
 description: "Read yesterday's commits, write today's standup note"
 
-model: mock/echo            # deterministic · swap for anthropic/claude-haiku-4-5
+model: mock/echo            # deterministic · swap for ollama/llama3.1 (local · zero key)
 
 tasks:
   # No deps between these two → the engine runs them in parallel.

@@ -46,7 +46,7 @@ The stdlib has **independent versioning** ·
 
 - `stdlib/providers-v0.1.md` — the <!-- canon:providers -->14<!-- /canon --> canonical providers for v0.1
 - `stdlib/extract-modes-v0.1.md` — the <!-- canon:extract_modes -->9<!-- /canon --> canonical extract modes for v0.1
-- `stdlib/builtins-v0.1.md` — the <!-- canon:builtins -->22<!-- /canon --> canonical builtins for v0.1
+- `stdlib/builtins-v0.1.md` — the <!-- canon:builtins -->23<!-- /canon --> canonical builtins for v0.1
 
 When the stdlib evolves to v0.2 · those files become `*-v0.2.md` and new versions are published. The core language contract (`nika: v1`) is unchanged.
 
@@ -71,7 +71,7 @@ The reference engine provides these elements behind strict quality gates. Other 
 
 ### Providers (14)
 
-`anthropic` · `openai` · `openrouter` · `mistral` · `groq` · `deepseek` · `gemini` · `xai` (8 cloud) · `ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm` (5 local) · `mock` (test)
+`ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm` (5 local) · `mistral` · `anthropic` · `openai` · `openrouter` · `groq` · `deepseek` · `gemini` · `xai` (8 cloud) · `mock` (test)
 
 Selected via a single `model: <provider>/<name>` field. Any other OpenAI-compatible local/remote server routes through the `openai` + `base_url` escape hatch (no new provider name). See [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md).
 
@@ -81,7 +81,7 @@ Selected via a single `model: <provider>/<name>` field. Any other OpenAI-compati
 
 See [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md).
 
-### Builtins (22)
+### Builtins (23)
 
 6 core (log · emit · assert · prompt · done · wait)
 + 5 file (read · write · edit · glob · grep)
@@ -187,7 +187,7 @@ See [07-conformance.md](./07-conformance.md). In summary ·
 |---|---|
 | Core | None · only parse + DAG + variable + error · no execution needed |
 | Runtime | Must execute the 4 verbs · provider/tool implementations engine's choice |
-| Stdlib v0.1 | Must ship the <!-- canon:providers -->14<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->22<!-- /canon --> builtins |
+| Stdlib v0.1 | Must ship the <!-- canon:providers -->14<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->23<!-- /canon --> builtins |
 | Stdlib v0.1+media | RESERVED · enumerated when the media set publishes (stdlib v0.x · the 24 names are not yet normative) |
 
 A v0.1-compliant engine for a workflow author depends on which level they need.

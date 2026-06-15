@@ -19,7 +19,7 @@ nika: v1
 workflow: release-radar
 description: "dependency release feed → diff vs last run → only the NEW ships"
 
-model: mock/echo            # swap for anthropic/claude-haiku-4-5
+model: mock/echo            # swap for ollama/llama3.1 (local · zero key)
 
 vars:
   releases_feed: "https://github.com/tokio-rs/tokio/releases.atom"

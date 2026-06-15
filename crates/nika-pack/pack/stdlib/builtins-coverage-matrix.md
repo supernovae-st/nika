@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtin coverage matrix
 
-> The <!-- canon:builtins -->22<!-- /canon --> builtins audited **as a SET** (2026-06-10) · capability coverage ·
+> The <!-- canon:builtins -->23<!-- /canon --> builtins audited **as a SET** (2026-06-10) · capability coverage ·
 > overlap boundaries · naming grammar · deliberate absences. Per-builtin
 > specs live in [builtins-v0.1.md](./builtins-v0.1.md); this file answers
 > the set-level questions · « can it do everything? » and « is anything
@@ -70,4 +70,4 @@ reference engine define the precise shapes.
 
 ---
 
-🦋 *<!-- canon:builtins -->22<!-- /canon --> builtins · zero duplicates · every absence written.*
+🦋 *<!-- canon:builtins -->23<!-- /canon --> builtins · zero duplicates · every absence written.*

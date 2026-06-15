@@ -6,13 +6,13 @@
 # Demonstrates ·
 #   - the envelope · `nika: v1` (contract version) + `workflow:` (kebab-case id)
 #   - one task · the `infer:` verb (a single LLM call)
-#   - the `mock/echo` model · deterministic · runs in CI with no API key
+#   - the `ollama/llama3.1` model · local · no API key (mock/echo for CI)
 #
 # Run · nika run examples/01-hello.nika.yaml
 nika: v1
 workflow: hello
 
-model: mock/echo            # deterministic test fixture · swap for anthropic/claude-sonnet-4-6
+model: ollama/llama3.1      # local · zero key · swap for any cloud provider in the catalog
 
 tasks:
   - id: greet
