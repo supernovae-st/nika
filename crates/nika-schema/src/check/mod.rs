@@ -44,6 +44,7 @@ mod secrets;
 mod tools;
 
 use crate::analyzer::{self, AnalyzedWorkflow};
+use crate::error::{SpecCategory, SpecCode};
 use crate::raw::RawWorkflow;
 
 pub use analysis::{DagAnalysis, TaskBlast};
@@ -207,6 +208,31 @@ impl CheckReport {
             && self.missing_args.is_empty()
             && self.schema_lints.is_empty()
             && self.gate_findings.is_empty()
+    }
+
+    /// The spec codes from the CHECK-ONLY finding surfaces — those NOT in
+    /// [`Self::conformance`] (which the deep `analyze` tier already yields).
+    ///
+    /// The conformance suite is the `nika check` surface (the real surface an
+    /// author runs); its harness verdicts against `analyze()` (the conformance
+    /// tier) UNION this (the builtin-arg + capability-boundary tier `check()`
+    /// adds), so a fixture like « `nika:write` without `content` » (caught by
+    /// `missing_args`, not by `analyze`) is tested. Mirrors the spec's
+    /// namespace allocation: builtin arg-contract violations → `NIKA-BUILTIN`,
+    /// a body outside the declared `permits:` → `NIKA-SEC-004`.
+    #[must_use]
+    pub fn extra_conformance_codes(&self) -> Vec<SpecCode> {
+        let builtin = SpecCode::new("BUILTIN", 1, SpecCategory::ValidationError);
+        let mut codes = Vec::new();
+        codes.extend(
+            self.capability_escapes
+                .iter()
+                .map(|_| SpecCode::new("SEC", 4, SpecCategory::SecurityError)),
+        );
+        codes.extend(self.unknown_tools.iter().map(|_| builtin));
+        codes.extend(self.unknown_args.iter().map(|_| builtin));
+        codes.extend(self.missing_args.iter().map(|_| builtin));
+        codes
     }
 }
 

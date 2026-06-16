@@ -46,7 +46,7 @@ fn core_conformance_suite() {
             .unwrap_or(&dir)
             .display()
             .to_string();
-        if let Some(failure) = fixture_verdict(&dir) {
+        if let Some(failure) = fixture_verdict(&dir, false) {
             failures.push(format!("{label} · {failure}"));
         }
     }

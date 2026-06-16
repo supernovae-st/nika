@@ -14,7 +14,7 @@
 
 use std::path::{Path, PathBuf};
 
-use nika_schema::{FileId, ParseMode, SchemaError, analyze, parse};
+use nika_schema::{FileId, ParseMode, SchemaError, SpecCode, analyze, check, parse};
 
 /// Resolve the nika-spec checkout (env override · sibling default).
 pub(crate) fn spec_dir() -> PathBuf {
@@ -102,7 +102,13 @@ pub(crate) fn run_engine(yaml: &str, mode: ParseMode) -> Vec<SchemaError> {
 
 /// Protocol matching · exact `code` OR `namespace`-prefix + `category`.
 pub(crate) fn matches_expected(emitted: &SchemaError, expected: &ExpectedError) -> bool {
-    let spec = emitted.spec_code();
+    matches_code(emitted.spec_code(), expected)
+}
+
+/// The same protocol over a bare [`SpecCode`] — the check-only surfaces
+/// (builtin args · capability escapes) the analyze tier does not emit as
+/// `SchemaError`s.
+pub(crate) fn matches_code(spec: SpecCode, expected: &ExpectedError) -> bool {
     let code = spec.to_string();
     if let Some(exact) = &expected.code {
         return &code == exact;
@@ -119,23 +125,58 @@ pub(crate) fn matches_expected(emitted: &SchemaError, expected: &ExpectedError) 
     false
 }
 
+/// The check-only HARD-invalidating surface codes (builtin arg-contract
+/// violations · capability escapes) — so a fixture is verdicted against the
+/// real `nika check` surface, not just the narrow `analyze` tier (the gap
+/// that let `nika:write`-without-`content` / `nika:jq` wrong-arg pass). Only
+/// invalidating findings are returned (NOT advisory surfaces — hints ·
+/// gate/schema findings — which fire on valid workflows and must not flip a
+/// VALID fixture to invalid).
+pub(crate) fn check_extra(yaml: &str, mode: ParseMode) -> Vec<SpecCode> {
+    match parse(yaml, FileId::new(0), mode) {
+        Ok(wf) => check(&wf).extra_conformance_codes(),
+        // A parse error surfaces through `run_engine` (analyze) as a SchemaError.
+        Err(_) => Vec::new(),
+    }
+}
+
 /// One fixture's verdict against its `expected.json` (None = conformant).
-pub(crate) fn fixture_verdict(dir: &Path) -> Option<String> {
+///
+/// `deep` selects the conformance TIER (spec `07-conformance.md` §Levels):
+/// - `false` · the **Core** tier (`tests/core/`) — parse · validate · DAG ·
+///   variables · errors · the `analyze()` contract a minimal engine implements.
+/// - `true` · the **Deep-static** tier (`tests/deep/`) — Core PLUS the
+///   builtin-arg contracts + capability-boundary fit the fuller `check()`
+///   adds (`nika:write` without `content` · `nika:jq` wrong-arg · a body
+///   outside `permits:`). The deep tier verdicts against the real
+///   `nika check` surface; the core tier must not (a builtin-arg defect is a
+///   deep concern, not a Core-rules one).
+pub(crate) fn fixture_verdict(dir: &Path, deep: bool) -> Option<String> {
     let yaml = std::fs::read_to_string(dir.join("input.yaml")).expect("read input.yaml");
     let expected_raw =
         std::fs::read_to_string(dir.join("expected.json")).expect("read expected.json");
     let expected: Expected = serde_json::from_str(&expected_raw).expect("parse expected.json");
-    let emitted = run_engine(&yaml, expected.parse_mode());
+    let mode = expected.parse_mode();
+    // The Core tier is `analyze()` (rich SchemaErrors); the Deep tier adds the
+    // check-only invalidating surfaces (builtin args · capability escapes).
+    let emitted = run_engine(&yaml, mode);
+    let extra = if deep {
+        check_extra(&yaml, mode)
+    } else {
+        Vec::new()
+    };
 
     if expected.valid {
-        if !emitted.is_empty() {
+        if !emitted.is_empty() || !extra.is_empty() {
             return Some(format!(
-                "expected VALID · engine emitted {} error(s) ·\n{}",
+                "expected VALID · engine emitted {} analyze error(s) + {} check-only ·\n{}{}",
                 emitted.len(),
+                extra.len(),
                 render(&emitted),
+                render_codes(&extra),
             ));
         }
-    } else if emitted.is_empty() {
+    } else if emitted.is_empty() && extra.is_empty() {
         return Some(format!(
             "expected INVALID ({}) · engine accepted{}",
             render_expected(&expected.errors),
@@ -148,16 +189,33 @@ pub(crate) fn fixture_verdict(dir: &Path) -> Option<String> {
     } else {
         let any_match = emitted
             .iter()
-            .any(|e| expected.errors.iter().any(|x| matches_expected(e, x)));
+            .any(|e| expected.errors.iter().any(|x| matches_expected(e, x)))
+            || extra
+                .iter()
+                .any(|c| expected.errors.iter().any(|x| matches_code(*c, x)));
         if !any_match {
             return Some(format!(
-                "expected one of [{}] · engine emitted ·\n{}",
+                "expected one of [{}] · engine emitted ·\n{}{}",
                 render_expected(&expected.errors),
                 render(&emitted),
+                render_codes(&extra),
             ));
         }
     }
     None
+}
+
+/// Render the check-only surface codes for a failure diagnostic.
+fn render_codes(codes: &[SpecCode]) -> String {
+    if codes.is_empty() {
+        return String::new();
+    }
+    let list = codes
+        .iter()
+        .map(|c| format!("  {} [{}] · (check-only surface)", c, c.category.as_str()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("\n{list}")
 }
 
 /// Collect every fixture dir (any depth · a dir containing `input.yaml`).

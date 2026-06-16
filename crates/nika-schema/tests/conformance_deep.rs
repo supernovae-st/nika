@@ -33,11 +33,11 @@ const DEEP_GAPS: &[(&str, &str)] = &[
         "jq compile-checking needs a jq engine in the validator (jaq \
          dep decision pending · the Python oracle shells out to jq)",
     ),
-    (
-        "013-permits-fit-violation",
-        "PERMITS-FIT static check (body must fit the declared boundary \
-         · NIKA-SEC-004) not implemented",
-    ),
+    // 013-permits-fit-violation CLOSED 2026-06-16 — `permits_fit::scan_escapes`
+    // implements the static PERMITS-FIT check (NIKA-SEC-004) and the deep
+    // harness now verdicts against the full `check()` surface (its
+    // `capability_escapes`), so the fixture passes. Row deleted per the
+    // ratchet (« the suite fails on a stale row by design »).
 ];
 
 #[test]
@@ -64,7 +64,7 @@ fn deep_conformance_suite() {
             .display()
             .to_string();
         let gap = DEEP_GAPS.iter().find(|(name, _)| label.starts_with(name));
-        let verdict = fixture_verdict(&dir);
+        let verdict = fixture_verdict(&dir, true);
 
         match (gap, verdict) {
             // Not in the ledger · must pass.
