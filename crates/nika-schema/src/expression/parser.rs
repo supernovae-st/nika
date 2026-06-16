@@ -208,10 +208,19 @@ impl Parser {
     /// The only method form is `.size()` (0 args) — any other `.name()`
     /// is [`ExprError::UnknownFunction`].
     fn postfix_expr(&mut self) -> Result<Expr, ExprError> {
+        // Each `.field` / `[idx]` segment builds one `Expr::Member`/`Expr::Index`
+        // nesting that a later walker (`analyzer::schema_paths` · `check::reach` ·
+        // the `Box<Expr>` Drop) recurses ONE frame deep. Cap the chain length
+        // with the shared `enter()` guard — the postfix sibling of the or/and/
+        // ternary rungs — so an unbounded `a.a.a.…` (or `a['a']['a']…`) returns
+        // `TooDeep` instead of overflowing the stack. Untrusted callers reach
+        // this via `nika-mcp` `nika_check`; the cap is the trust boundary.
+        let entry = self.depth;
         let mut base = self.primary_expr()?;
         loop {
             match self.peek_kind() {
                 TokenKind::Dot => {
+                    self.enter()?;
                     self.advance();
                     let name_token = self.advance();
                     let TokenKind::Ident(name) = name_token.kind else {
@@ -231,6 +240,7 @@ impl Parser {
                     }
                 }
                 TokenKind::LBracket => {
+                    self.enter()?;
                     self.advance();
                     let index = self.ternary_expr()?;
                     self.expect_token(&TokenKind::RBracket, "`]`")?;
@@ -239,7 +249,12 @@ impl Parser {
                         index: Box::new(index),
                     };
                 }
-                _ => return Ok(base),
+                // The chain is ONE returned subtree from the caller's view ·
+                // restore the depth budget (like `or_expr`).
+                _ => {
+                    self.depth = entry;
+                    return Ok(base);
+                }
             }
         }
     }
@@ -638,6 +653,27 @@ mod tests {
             .collect::<Vec<_>>()
             .join(" || ");
         assert!(parse_expression(&ok).is_ok(), "a 12-term chain is fine");
+    }
+
+    #[test]
+    fn a_long_postfix_chain_is_refused_not_a_crash() {
+        // BUG#1c (security swarm 2026-06-16): postfix `.field`/`[idx]` chains
+        // had NO depth bound — `vars.a.a.a.…` built a deep left-nested
+        // Member/Index tree the walkers (schema_paths · reach · Box<Expr> Drop)
+        // recurse, overflowing the stack. nika-mcp `nika_check` newly exposes
+        // this to UNTRUSTED clients. Now capped → a clean TooDeep refusal.
+        let member = format!("vars{}", ".a".repeat(30_000));
+        assert!(
+            matches!(parse_expression(&member), Err(ExprError::TooDeep { .. })),
+            "a long .field chain must refuse, not crash a downstream walker"
+        );
+        let index = format!("vars{}", "[0]".repeat(30_000));
+        assert!(
+            matches!(parse_expression(&index), Err(ExprError::TooDeep { .. })),
+            "a long [idx] chain refuses too"
+        );
+        // …a real workflow's path depth still parses.
+        assert!(parse_expression("tasks.fetch.output.users").is_ok());
     }
 
     proptest! {
