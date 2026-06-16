@@ -183,7 +183,11 @@ pub(crate) fn json_merge_patch(args: &Args) -> BuiltinOutcome {
         .get("patch")
         .ok_or_else(|| BuiltinFailure::new(C, "`patch:` is required"))?;
     if !target.is_object() || !patch.is_object() {
-        return Err(BuiltinFailure::new(C, "target and patch must be objects"));
+        return Err(BuiltinFailure::new(
+            C,
+            "this builtin implements the object-patch subset of RFC 7396 — both `target:` and \
+             `patch:` must be JSON objects; use `nika:jq` for non-object patch semantics",
+        ));
     }
     let mut doc = target;
     json_patch::merge(&mut doc, patch);

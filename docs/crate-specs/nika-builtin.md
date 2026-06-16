@@ -4,8 +4,8 @@
 |---|---|
 | Status | **SPEC** (Gate 1 · authored 2026-06-11 · announce-ladder step s16) |
 | Layer | **L1.5** — the builtin tool layer · above the L1 effects it composes · below the L2 verbs that dispatch into it |
-| Design | the 22 canonical stdlib builtins behind ONE dispatcher implementing the three kernel tool seams (`ToolExecuteDyn` + `ToolBatchDyn` + `ToolDefinitionProviderDyn`) |
-| Normative source | `nika-spec stdlib/builtins-v0.1.md` (the 22 · contracts · error codes) + `stdlib/extract-modes-v0.1.md` (fetch modes) + `spec/05-errors.md` (4-segment code grammar) — **this doc never restates a contract, it cites** |
+| Design | the 23 canonical stdlib builtins behind ONE dispatcher implementing the three kernel tool seams (`ToolExecuteDyn` + `ToolBatchDyn` + `ToolDefinitionProviderDyn`) |
+| Normative source | `nika-spec stdlib/builtins-v0.1.md` (the 23 · contracts · error codes) + `stdlib/extract-modes-v0.1.md` (fetch modes) + `spec/05-errors.md` (4-segment code grammar) — **this doc never restates a contract, it cites** |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) — one module per builtin family |
 | Crate version | tracks workspace (`0.80.0`) |
 | License | `AGPL-3.0-or-later` |
@@ -17,8 +17,8 @@
 The real tool layer. `nika-verb-invoke` and `nika-verb-agent` dispatch over
 the kernel `ToolExecuteDyn` seam, and the agent enumerates definitions over
 `ToolDefinitionProviderDyn` — until now only mocks implement either. This
-crate is the production implementation: a **closed registry of the 22
-stdlib v0.1 builtins** (core 6 · file 5 · data 8 · introspection 1 ·
+crate is the production implementation: a **closed registry of the 23
+stdlib v0.1 builtins** (core 6 · file 5 · data 8 · introspection 2 ·
 network 2), each a thin composition over kernel effect seams, plus the
 model-facing `ToolDef` (name · description · JSON-Schema params) for every
 tool.
@@ -28,12 +28,12 @@ tool.
 ```text
                     ┌───────────────────────────────────────┐
  verbs (L2) ──────▶ │ BuiltinDispatcher<F, H, C, E, P, W>   │  implements
-   invoke · agent   │   the closed 22-registry              │  ToolExecuteDyn
+   invoke · agent   │   the closed 23-registry              │  ToolExecuteDyn
                     │   route(name) → the builtin fn        │  ToolBatchDyn
- agent tool-defs ─▶ │   tool_defs() → 22 × ToolDef          │  ToolDefinitionProviderDyn
+ agent tool-defs ─▶ │   tool_defs() → 23 × ToolDef          │  ToolDefinitionProviderDyn
                     └──┬────┬────┬────┬─────┬────┬──────────┘
                        │    │    │    │     │    │
-                  F: Fs │ H: HttpClient │ C: ClockDyn │ E: EventSinkDyn
+                  F: Fs │ H: HttpClient │ C: ClockDyn │ E: Emitter
                        │                │
                   P: Prompter (LOCAL)   W: WorkflowIntrospect (LOCAL)
 ```
@@ -41,7 +41,9 @@ tool.
 - **Kernel seams consumed** (all `trait_variant` Dyn · generics not
   `Box<dyn>` per house pattern): `FsReadDyn+FsWriteDyn+FsListDyn` (file 5)
   · `HttpGetDyn+HttpPostDyn` (fetch · notify) · `ClockDyn` (wait · date
-  `op:now`) · `EventSinkDyn` (log · emit).
+  `op:now`). The event seam `Emitter` (log · emit) is **LOCAL** — owned here
+  (single-consumer · alongside `Prompter`/`WorkflowIntrospect` below), NOT a
+  kernel trait (the spec earlier mislabelled it `EventSinkDyn`).
 - **Local seams owned here** (single-consumer traits live with their
   consumer, not in the kernel — the `Prompter` has exactly one call site):
   - `Prompter` — answers `nika:prompt`. Ships `NonInteractive` (the
@@ -76,7 +78,7 @@ compact JSON). One rendering, one seam.
 
 | Builtin | Composes | Notes |
 |---|---|---|
-| log · emit | `EventSinkDyn` | best-effort (log never fails) · emit shape-gates `event_type` regex → `NIKA-BUILTIN-EMIT-001` |
+| log · emit | `Emitter` | best-effort (log never fails) · emit shape-gates `event_type` regex → `NIKA-BUILTIN-EMIT-001` |
 | assert | — | `condition` arrives CEL-resolved (a boolean) · false → `NIKA-BUILTIN-ASSERT-001` |
 | prompt | `Prompter` | 3 modes · non-interactive contract normative (stdlib §prompt) · `choice` validates `default:`∈`choices:` EAGERLY (PROMPT-002 is a parse-error class — it fires even when a human would have answered) |
 | done | — | reject `NIKA-BUILTIN-DONE-001` |
@@ -114,8 +116,8 @@ compact JSON). One rendering, one seam.
 Mock-first over kernel-mock (`MockFs` · `MockHttp` · `MockClock` ·
 `NullEventSink`) + local mocks for the two owned seams. Per-builtin unit
 tests pin the spec contract lines (codes · defaults · sort orders ·
-exactly-one-output). Dispatcher tests pin: routing totality (all 22
-addressable · unknown → NotFound) · `tool_defs()` returns 22 schemas ·
+exactly-one-output). Dispatcher tests pin: routing totality (all 23
+addressable · unknown → NotFound) · `tool_defs()` returns 23 schemas ·
 done rejected · batch = sequential map. Property: jq exactly-one-output
 over arbitrary JSON · glob/grep determinism. Mutation ≥90%.
 

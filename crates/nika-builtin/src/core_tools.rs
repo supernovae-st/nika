@@ -12,7 +12,7 @@ use crate::{Args, BuiltinFailure, BuiltinOutcome, Emitter, Prompter, opt_str, re
 
 /// `nika:log` — best-effort human diagnostic onto the event stream.
 /// A log that cannot land NEVER fails the task (stdlib §log).
-#[allow(clippy::unnecessary_wraps)] // uniform BuiltinOutcome · the dispatcher matches all 22 alike
+#[allow(clippy::unnecessary_wraps)] // uniform BuiltinOutcome · the dispatcher matches all 23 alike
 pub(crate) fn log<E: Emitter>(emitter: &E, args: &Args) -> BuiltinOutcome {
     // The level NORMALIZES to the spec enum (debug|info|warn|error ·
     // stdlib §log) — log never fails, so an out-of-enum level clamps to

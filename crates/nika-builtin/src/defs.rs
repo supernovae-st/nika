@@ -291,7 +291,7 @@ fn introspection_defs() -> Vec<ToolDef> {
     vec![
         def(
             "compose",
-            "Statically check a Nika workflow draft you wrote · returns the full              `nika check` verdict as JSON (conformance + secret-flow + permits +              the termination/cost certificate) · NEVER executes it. Iterate until              valid, then deliver the draft. Agent loops only.",
+            "Statically check a Nika workflow draft you wrote · returns the full `nika check` verdict as JSON (conformance + secret-flow + permits + the termination/cost certificate) · NEVER executes it. Iterate until valid, then deliver the draft. Agent loops only.",
             serde_json::json!({ "workflow_yaml": s("the complete workflow YAML draft") }),
             &["workflow_yaml"],
         ),
