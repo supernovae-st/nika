@@ -2,10 +2,11 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The `one-obvious-way` rule set — spec `03-dag.md` §One obvious way
-//! (rules 001-007) + spec `02-verbs.md` §exec Security (rule 008).
+//! (rules 001-007) + spec `02-verbs.md` §exec Security (rule 008) + spec
+//! `04-variables.md` §binding rules (rule 009).
 //!
-//! Eight preference rules · the spec tables are « normative for linters »
-//! · emitted as warnings in table order (`one-obvious-way/001` … `/008`)
+//! Nine preference rules · the spec tables are « normative for linters »
+//! · emitted as warnings in table order (`one-obvious-way/001` … `/009`)
 //! · never hard errors.
 //!
 //! Each rule fires only on a PRECISE static signature (low
@@ -86,6 +87,7 @@ pub fn one_obvious_way(wf: &RawWorkflow) -> Vec<Lint> {
     rule_006_per_element_timing(&tasks, &mut lints);
     rule_007_manual_sharding(&tasks, &index, &mut lints);
     rule_008_interpolated_string_command(&tasks, &mut lints);
+    rule_009_stream_binding(&tasks, &mut lints);
 
     lints.sort_by(|a, b| {
         let pa = index.get(a.task_id.as_str()).copied().unwrap_or(usize::MAX);
@@ -129,6 +131,51 @@ fn rule_008_interpolated_string_command(tasks: &[&RawTask], lints: &mut Vec<Lint
                 .to_string(),
         ));
     }
+}
+
+/// `one-obvious-way/009` — an `output:` binding whose jq program ends in a
+/// bare iterator `[]` with no collecting `[ … ]` wrapper (spec
+/// `04-variables.md` §binding rules · « the reference linter additionally WARNS
+/// at check time on the statically-visible smell »). A binding resolves to
+/// exactly ONE value; a trailing `[]` emits a STREAM whose count is
+/// data-dependent → runtime `NIKA-VAR-002`. One lint per task (the first smelly
+/// binding · `break`), anchored at the offending jq island.
+fn rule_009_stream_binding(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
+    for task in tasks {
+        for (name, program) in &task.output {
+            if ends_in_bare_iterator(&program.value) {
+                lints.push(Lint::new(
+                    "one-obvious-way/009",
+                    task.id.value.clone(),
+                    program.span,
+                    format!(
+                        "the `{}` binding's jq ends in a bare iterator `[]` — it \
+                         emits a stream, but a binding resolves to exactly ONE value \
+                         (the count is data-dependent · fails at runtime · NIKA-VAR-002)",
+                        name.value
+                    ),
+                    "collect the stream with `[ … ]` (`[.users[]]` → array) or take \
+                     one with an index (`.users[0]`) / `first(…)` (spec 04 §binding rules)"
+                        .to_string(),
+                ));
+                break; // one lint per task · the first smelly binding
+            }
+        }
+    }
+}
+
+/// Whether a jq program ends in a bare ITERATOR `[]` (a stream emitter) and not
+/// an empty-array LITERAL (`.a // []`). The iterator applies to a value, so the
+/// char before the final `[` is a path/value char (`s` in `.users[]`, `.` in
+/// `.[]`, `)` in `(…)[]`) — a literal `[]` is preceded by an operator/space.
+fn ends_in_bare_iterator(program: &str) -> bool {
+    let Some(stripped) = program.trim_end().strip_suffix("[]") else {
+        return false;
+    };
+    matches!(
+        stripped.chars().last(),
+        Some(c) if c.is_alphanumeric() || c == '_' || c == ')' || c == ']' || c == '.'
+    )
 }
 
 /// Whether the LITERAL parts of `command` (the `${{ }}` islands removed)

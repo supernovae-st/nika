@@ -196,3 +196,88 @@ tasks:
         "no interpolation, nothing to steer"
     );
 }
+
+// ── rule 009 · output binding ending in a bare iterator `[]` ──────────────
+
+fn lints_009(yaml: &str) -> Vec<nika_schema::lints::Lint> {
+    lint(yaml)
+        .into_iter()
+        .filter(|l| l.rule == "one-obvious-way/009")
+        .collect()
+}
+
+#[test]
+fn rule_009_flags_a_binding_that_ends_in_a_bare_iterator() {
+    let yaml = "\
+nika: v1
+workflow: stream
+tasks:
+  - id: fetch
+    invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
+    output:
+      emails: \".users[]\"
+";
+    let nine = lints_009(yaml);
+    assert_eq!(nine.len(), 1, "exactly one /009");
+    assert_eq!(nine[0].task_id, "fetch");
+    assert!(nine[0].message.contains("emails"), "{}", nine[0].message);
+    assert!(
+        nine[0].suggestion.contains("[ … ]") || nine[0].suggestion.contains("first"),
+        "{}",
+        nine[0].suggestion
+    );
+}
+
+#[test]
+fn rule_009_silent_on_a_collected_stream() {
+    // `[.users[]]` collects into one array value — the obvious way.
+    let yaml = "\
+nika: v1
+workflow: collected
+tasks:
+  - id: fetch
+    invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
+    output:
+      emails: \"[.users[].email]\"
+";
+    assert!(
+        lints_009(yaml).is_empty(),
+        "a collected `[ … ]` stream is the safe way"
+    );
+}
+
+#[test]
+fn rule_009_silent_on_an_indexed_take() {
+    let yaml = "\
+nika: v1
+workflow: indexed
+tasks:
+  - id: fetch
+    invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
+    output:
+      first_user: \".users[0]\"
+";
+    assert!(
+        lints_009(yaml).is_empty(),
+        "an indexed take is single-valued"
+    );
+}
+
+#[test]
+fn rule_009_silent_on_an_empty_array_literal_default() {
+    // `.users // []` ends in `[]` but it is an empty-array LITERAL default,
+    // not an iterator — the low-false-positive contract must not flag it.
+    let yaml = "\
+nika: v1
+workflow: deflt
+tasks:
+  - id: fetch
+    invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
+    output:
+      users: \".users // []\"
+";
+    assert!(
+        lints_009(yaml).is_empty(),
+        "an empty-array literal default is not a bare iterator"
+    );
+}
