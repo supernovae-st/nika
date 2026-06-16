@@ -162,7 +162,7 @@ enum ExamplesAction {
         /// Example slug (from `list`).
         slug: String,
     },
-    /// Refused until the `run` verb (L3) ships.
+    /// Run an embedded example through the shipped L3 runtime (live render).
     Run {
         /// Example slug (from `list`).
         slug: String,
