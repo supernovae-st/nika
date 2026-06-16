@@ -130,7 +130,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `3a03558d5` (`3a03558d5f7276a70606ed30e1db6c858bd578fd`)             |
+| HEAD             | `0b558f7f8` (`0b558f7f8139bcbb4f96ba4b54decea702ad08f7`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 38                                              |
 | crates (admitted)| 33 / 42                                   |
@@ -142,7 +142,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 3                                              |
-| lib tests        | 2524 passed, 0 failed                              |
+| lib tests        | 2687 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
@@ -159,22 +159,28 @@ Narrative context (manually maintained):
   (`docs/architecture/l0-l05-architecture-decisions.md`).
 - 8 new ADRs (021-028 + ADR-006 amendment) lock Foundation v0.81 constellation.
 - 5 stub ADRs (029/030/031/032/035) mark Wave 4A/4B reservations — prose lands Phase C.
-- **Active arc: Phase 2 M2 (L1 computer-use effect crates).** M1 (kernel L0.5
-  sealed traits · 6 effect domains io::{screen,ocr,a11y,input,browser} +
-  ai::vision · ADR-081 7 guards · NIKA-1000..1599 reserved) COMPLETE. M2.1
-  nika-screen ADMITTED (capture · guards 6+7 · `xcap` · NIKA-1000..1009).
-  M2.2 nika-ocr ADMITTED 2026-05-25 (text extraction · pure-Rust `ocrs` 0.12
-  + `rten` 0.24 · `spawn_blocking` · NIKA-1101..1109 · mutation 93.1 % +
-  Rule-2 model-inference exemption · `with_models` sovereign local-path load).
-  M2.3 nika-a11y ADMITTED 2026-05-25 (accessibility-tree query · macOS `AXUIElement`
-  via safe `accessibility` 0.2 · `spawn_blocking` walk · NIKA-1201..1206 ·
-  MANDATORY Guard 3 AX-secure-field redaction (pure tree-transform) · mutation
-  82.9 % + Rule-2 walk exemption · `MAX_WALK_DEPTH` untrusted-input cap).
-  M2.4 nika-input ADMITTED 2026-06-10 (synthetic input write-side · `enigo` 0.6
-  cross-platform · NIKA-1301..1305 · ADR-081 Guards 1+2 MANDATORY — type-state
-  consent + monotonic fail-closed TTL + TypedText un-formattable wrapper ·
-  mutation 98.8 % + Rule-2 press_chord-executor exemption · 3-lens
-  adversarially-verified review, 9 findings folded same-session). See
-  `docs/adr/adr-081-l1-effect-crate-guard-contract.md` + `docs/crate-specs/nika-input.md`.
+- **Active spine — the announce ladder (D-2026-06-10-N6).** Sequenced
+  announce-first · a usable first-15-min vertical slice across layers, not
+  strictly bottom-up. SHIPPED · L1 effects (nika-{fs,http,blob,exec-runner} ·
+  s4-s7) + the 14-provider L1.5 (nika-providers · s8.5/s8.6) + **all 4 verbs**
+  L2 (nika-verb-{infer,exec,invoke,agent} · s9-s12 · the 4-verb tier COMPLETE).
+  Phase 2 M2 computer-use (L1) **COMPLETE** · 5 crates admitted
+  (nika-{screen,ocr,a11y,input,browser} · ADR-081 7-guard contract ·
+  NIKA-1000..1599 · detail in `docs/crate-specs/` + adr-081). **WIP toward the
+  slice** · nika-cli (operator surface · check/run/trace/explain) · nika-builtin
+  (s16 · the 22 stdlib tools behind one dispatcher · the agent's first real tool
+  source) · nika-extract · nika-infer-local (candle · ADR-091).
+- **Last stabilization — 2026-06-16** (origin/main `0b558f7f8`) · the static-check
+  layer hardened to runtime-parity. **DEEP_GAPS conformance ledger EMPTIED** ·
+  jq compile-check (jaq) + schema meta-check (jsonschema), both in L0 calling the
+  SAME crate the runtime uses (zero check↔runtime drift). Conformance harness
+  verdicts the full `check()` surface (tier-aware). CEL eval errors now carry the
+  spec wire code, never the internal NIKA-17xx (spec 05 §142). one-obvious-way/009
+  stream-binding lint. CF-1 for_each positional-null verified spec-correct (not a
+  bug · test + spec clarification). Full battery green · 2687 lib + e2e + 503-wf
+  corpus check (0 panic / 0 internal-code leak) + hygiene 0-RED.
+- **Next** · finish the WIP trio (cli + builtin + extract) to close the usable
+  announce slice · then the L0-completion crates (nika-cap · pck-contracts ·
+  binding-types) toward the **v0.81** tag (L0 foundation complete). Target 42 @ v0.90.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
