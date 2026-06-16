@@ -145,3 +145,29 @@ fn explain_known_code_exits_zero() {
         "explain names the code: {stdout}"
     );
 }
+
+#[test]
+fn doctor_diagnoses_the_environment_and_exits_zero() {
+    // `nika doctor` is informational — the canonical catalog always offers an
+    // inference path (local providers), so it exits 0. With a secret-shaped key
+    // set it must report PRESENCE only · the value never reaches stdout.
+    let out = bin()
+        .arg("doctor")
+        .env("ANTHROPIC_API_KEY", "sk-smoke-SHOULD-NOT-LEAK")
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(0), "a diagnosis is informational");
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    assert!(
+        stdout.contains("binary"),
+        "renders the binary line: {stdout}"
+    );
+    assert!(
+        stdout.contains("anthropic"),
+        "names the providers: {stdout}"
+    );
+    assert!(
+        !stdout.contains("sk-smoke"),
+        "PRESENT-NOT-PRINTED · no secret value leaks: {stdout}"
+    );
+}

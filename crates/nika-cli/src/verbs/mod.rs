@@ -11,6 +11,7 @@
 //! testable as a library call.
 
 pub mod check;
+pub mod doctor;
 pub mod explain;
 pub mod graph;
 pub mod inspect;

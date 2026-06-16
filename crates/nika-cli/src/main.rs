@@ -88,6 +88,9 @@ enum Command {
         /// The code (`NIKA-440` or bare `440`).
         code: String,
     },
+    /// Diagnose the environment (binary · config · provider keys · spec §8).
+    /// Diagnose-only — prints the exact fix command, never mutates anything.
+    Doctor,
     /// The embedded spec identity (`--canon` prints the SSOT).
     Spec {
         /// Print the canon.yaml single source of truth.
@@ -219,6 +222,7 @@ fn main() -> std::process::ExitCode {
             emit(&verbs::graph::run(&file, format))
         }
         Command::Explain { code } => emit(&verbs::explain::run(&code)),
+        Command::Doctor => emit(&verbs::doctor::run()),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
         Command::Schema => emit(&verbs::pack_surface::schema()),
         Command::Examples { action } => match action {
