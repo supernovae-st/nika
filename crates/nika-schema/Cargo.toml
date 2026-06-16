@@ -45,9 +45,14 @@ insta      = { workspace = true }
 proptest   = { workspace = true }
 rstest     = { workspace = true }
 serde_json = { workspace = true }
+criterion  = { workspace = true }  # gate-7 bench · parse + analyze hot path
+
+[[bench]]
+name = "parse_bench"
+harness = false
 
 [package.metadata.cargo-machete]
-ignored = ["insta", "proptest", "rstest", "nika-catalog", "serde-saphyr", "serde_json"]  # dev-deps + Round 3+ deps (analyzer, json_schema)
+ignored = ["insta", "proptest", "rstest", "nika-catalog", "serde-saphyr", "serde_json", "criterion"]  # dev-deps + Round 3+ deps (analyzer, json_schema)
 
 [lints]
 workspace = true
