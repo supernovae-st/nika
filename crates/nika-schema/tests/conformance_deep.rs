@@ -95,5 +95,5 @@ fn deep_conformance_suite() {
         DEEP_GAPS.len()
     );
     // Sanity floor — the deep tier ships 14+ fixtures.
-    assert!(total >= 12, "only {total} fixtures walked — layout drift?");
+    assert!(total >= 14, "only {total} fixtures walked — layout drift?");
 }

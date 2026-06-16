@@ -202,6 +202,13 @@ tasks:
         .as_ref()
         .expect("a failed task carries its error");
     assert_eq!(err.code, "NIKA-VAR-002", "the spec-plane cardinality code");
+    // The message is code-less (the code rides its own field) — no double
+    // render in tasks.X.error.message / the TaskFailed detail (wire_message).
+    assert!(
+        !err.message.contains("NIKA-VAR-002"),
+        "the wire code must not double into the message: {}",
+        err.message
+    );
     assert!(!err.transient, "a binding error is never retryable");
     // The terminal frame is TaskFailed (the success was replaced before settle).
     assert!(

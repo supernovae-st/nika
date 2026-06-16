@@ -735,7 +735,11 @@ fn eval_all_bindings(
             crate::jq::eval_binding(&name.value, &program.value, output).map_err(|err| {
                 TaskErrorRecord {
                     code: err.spec_code(),
-                    message: err.to_string(),
+                    // wire_message (not to_string) — OutputBinding's Display is
+                    // code-first (`{code} · {msg}`); the code rides its own
+                    // field, so the record message stays code-less (no double
+                    // render in tasks.X.error.message / the TaskFailed detail).
+                    message: err.wire_message(),
                     transient: err.is_transient(),
                 }
             })?;

@@ -38,7 +38,7 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
 
     let bytes = serde_json::to_vec(&input).map_err(|e| BuiltinFailure::new(C, e.to_string()))?;
     let val = read::parse_single(&bytes)
-        .map_err(|e| BuiltinFailure::new(C, format!("input is not valid JSON: {e:?}")))?;
+        .map_err(|e| BuiltinFailure::new(C, format!("input is not valid JSON: {e}")))?;
 
     let defs = jaq_core::defs()
         .chain(jaq_std::defs())
