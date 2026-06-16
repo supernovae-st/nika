@@ -9,7 +9,7 @@
 
 use nika_kernel::ai::provider::ToolDef;
 
-/// A small JSON-Schema object builder — keeps the 22 defs declarative.
+/// A small JSON-Schema object builder — keeps the 23 defs declarative.
 fn schema(properties: serde_json::Value, required: &[&str]) -> serde_json::Value {
     let mut obj = serde_json::Map::new();
     obj.insert(

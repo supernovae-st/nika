@@ -272,7 +272,8 @@ pub(crate) async fn wait<C: ClockDyn>(clock: &C, args: &Args) -> BuiltinOutcome 
         }
         _ => Err(BuiltinFailure::new(
             E3,
-            "exactly one of `duration:` or `until:` is required",
+            "set exactly one of `duration:` (relative · e.g. \"30s\") or `until:` \
+             (absolute · ISO 8601) — not zero, not both",
         )),
     }
 }
