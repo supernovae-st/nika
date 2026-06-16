@@ -20,6 +20,7 @@
 
 mod builtin_shape;
 mod dag;
+mod jq_lint;
 mod scan;
 mod schema_paths;
 
@@ -61,6 +62,7 @@ pub fn analyze(wf: &RawWorkflow) -> Result<AnalyzedWorkflow, Vec<SchemaError>> {
     dag::check_recover_acyclic(&wf.tasks, &ids, &mut errors);
     builtin_shape::check_builtin_shapes(&wf.tasks, &mut errors);
     scan::scan_workflow(wf, &mut errors);
+    jq_lint::scan_jq(wf, &mut errors);
 
     if errors.is_empty() {
         Ok(AnalyzedWorkflow::new(dag::topo_waves(&wf.tasks, &ids)))

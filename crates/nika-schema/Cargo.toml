@@ -22,6 +22,12 @@ serde-saphyr = { workspace = true }
 serde_json = { workspace = true }
 miette     = { workspace = true }
 url        = { workspace = true }   # permits.net.http host extraction — the SAME WHATWG parse the runtime http effect connects with (no check↔runtime drift · pure/sync)
+# jq COMPILE-check (static · L0-legal: pure/sync · no I/O) — the SAME jaq the
+# runtime nika:jq builtin (nika-builtin) compiles with, workspace-pinned to one
+# version, so a jq that the checker accepts the runtime also accepts (parity-tested · no drift).
+jaq-core   = { workspace = true }
+jaq-std    = { workspace = true }
+jaq-json   = { workspace = true }
 
 [dev-dependencies]
 # the verb-theater example folds REAL engine events (the telemetry truth)

@@ -7,7 +7,7 @@
 //! Every contract — codes · defaults · the exactly-one-output law — is
 //! cited from `nika-spec stdlib/builtins-v0.1.md`, never restated.
 
-use jaq_core::load::{Arena, File, Loader};
+use jaq_core::load::{Arena, Error as JqLoadError, File, Loader};
 use jaq_core::{Compiler, Ctx, Vars, data as jaq_data, unwrap_valr};
 use jaq_json::{Val, read};
 use nika_kernel::io::clock::ClockDyn;
@@ -55,11 +55,18 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
                 path: (),
             },
         )
-        .map_err(|errs| BuiltinFailure::new(C, format!("jq program error: {errs:?}")))?;
+        .map_err(|errs| {
+            BuiltinFailure::new(C, format!("jq syntax error — {}", render_jq_load(&errs)))
+        })?;
     let filter = Compiler::default()
         .with_funs(funs)
         .compile(modules)
-        .map_err(|errs| BuiltinFailure::new(C, format!("jq compile error: {errs:?}")))?;
+        .map_err(|errs| {
+            BuiltinFailure::new(
+                C,
+                format!("jq compile error — {}", render_jq_compile(&errs)),
+            )
+        })?;
 
     let ctx = Ctx::<jaq_data::JustLut<Val>>::new(&filter.lut, Vars::new([]));
     let mut single: Option<serde_json::Value> = None;
@@ -91,6 +98,48 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
             "the program emitted NO value — a binding needs exactly one (use `// default` or `first(…)`)",
         )
     })
+}
+
+/// Render a jaq LOAD error set (lex/parse/io) as one clean author-facing
+/// line — NOT the raw jaq `Debug` repr (the jq-3 finding · `nika check`'s
+/// `analyzer::jq_lint` renders the identical shape statically).
+fn render_jq_load(errs: &[(File<&str, ()>, JqLoadError<&str>)]) -> String {
+    let Some((_, first)) = errs.first() else {
+        return "does not parse".to_owned();
+    };
+    match first {
+        JqLoadError::Io(v) => v
+            .first()
+            .map_or_else(|| "io error".to_owned(), |(_, m)| format!("io: {m}")),
+        JqLoadError::Lex(v) => v.first().map_or_else(
+            || "lexing error".to_owned(),
+            |(exp, at)| jq_syntax_msg(exp.as_str(), at),
+        ),
+        JqLoadError::Parse(v) => v.first().map_or_else(
+            || "parse error".to_owned(),
+            |(exp, at)| jq_syntax_msg(exp.as_str(), at),
+        ),
+    }
+}
+
+/// Render a jaq COMPILE error set (undefined filters/variables) as one line.
+#[allow(clippy::type_complexity)] // the shape is jaq's `compile::Errors`, not ours
+fn render_jq_compile<U>(errs: &[(File<&str, ()>, Vec<(&str, U)>)]) -> String {
+    errs.first().and_then(|(_, v)| v.first()).map_or_else(
+        || "compile error".to_owned(),
+        |(name, _)| format!("undefined filter or variable `{name}`"),
+    )
+}
+
+/// One clean « expected X near Y » line (jaq `Expect::as_str` + the slice).
+fn jq_syntax_msg(expected: &str, at: &str) -> String {
+    let at = at.trim();
+    if at.is_empty() {
+        format!("expected {expected} (unexpected end of input)")
+    } else {
+        let snippet: String = at.chars().take(24).collect();
+        format!("expected {expected} near `{snippet}`")
+    }
 }
 
 /// A jq output that won't re-parse as JSON — jaq renders non-finite

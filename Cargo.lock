@@ -3964,6 +3964,9 @@ name = "nika-schema"
 version = "0.80.0"
 dependencies = [
  "insta",
+ "jaq-core",
+ "jaq-json",
+ "jaq-std",
  "marked-yaml",
  "miette",
  "nika-catalog",

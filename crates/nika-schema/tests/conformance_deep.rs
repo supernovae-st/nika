@@ -28,11 +28,11 @@ const DEEP_GAPS: &[(&str, &str)] = &[
         "schema: blocks are not meta-validated (needs a Draft 2020-12 \
          check_schema pass · jsonschema-class dep decision pending)",
     ),
-    (
-        "006-jq-compile-error",
-        "jq compile-checking needs a jq engine in the validator (jaq \
-         dep decision pending · the Python oracle shells out to jq)",
-    ),
+    // 006-jq-compile-error CLOSED 2026-06-16 — `analyzer::jq_lint` compiles
+    // every literal `nika:jq`/`nika:fetch` jq program with the runtime's exact
+    // jaq stack (parity-pinned) → `NIKA-VAR-005` on a compile error, with a
+    // clean diagnostic (not the raw jaq Debug repr · jq-3). Row deleted per
+    // the ratchet (« the suite fails on a stale row by design »).
     // 013-permits-fit-violation CLOSED 2026-06-16 — `permits_fit::scan_escapes`
     // implements the static PERMITS-FIT check (NIKA-SEC-004) and the deep
     // harness now verdicts against the full `check()` surface (its
