@@ -3649,6 +3649,7 @@ dependencies = [
  "nika-kernel",
  "nika-kernel-mock",
  "nika-lsp",
+ "nika-mcp",
  "nika-pack",
  "nika-providers",
  "nika-runtime",
@@ -3884,6 +3885,17 @@ dependencies = [
  "nika-schema",
  "proptest",
  "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "nika-mcp"
+version = "0.80.0"
+dependencies = [
+ "nika-error",
+ "nika-pack",
+ "nika-schema",
  "serde_json",
  "thiserror 2.0.18",
 ]

@@ -138,6 +138,9 @@ enum Command {
     },
     /// Run the language server over stdio (drives the editor extension).
     Lsp,
+    /// Run the MCP server over stdio (exposes check/explain to Cursor · Claude
+    /// Desktop · agents · the in-binary Model Context Protocol surface).
+    Mcp,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -261,6 +264,16 @@ fn main() -> std::process::ExitCode {
             Ok(()) => verbs::exit::OK,
             Err(err) => {
                 eprintln!("nika-cli: lsp: {err}");
+                1
+            }
+        },
+        // The MCP server OWNS stdout (JSON-RPC) — like `lsp`, it must not go
+        // through `emit`. Same server-process exit convention: 0 on a clean
+        // EOF shutdown, 1 on a transport failure.
+        Command::Mcp => match nika_mcp::run_stdio() {
+            Ok(()) => verbs::exit::OK,
+            Err(err) => {
+                eprintln!("nika-cli: mcp: {err}");
                 1
             }
         },

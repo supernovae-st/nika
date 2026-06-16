@@ -1,0 +1,22 @@
+[package]
+name          = "nika-mcp"
+description   = "MCP server — exposes Nika's static surface (check · explain) as Model Context Protocol tools over stdio (newline-delimited JSON-RPC 2.0). Layer L4 — sovereign, hand-rolled, zero SDK."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io. See ADR-017.
+
+[dependencies]
+nika-schema = { path = "../nika-schema", version = "0.80.0" }  # parse + the ADR-092 check ladder (the `nika_check` tool)
+nika-error  = { path = "../nika-error", version = "0.80.0" }   # code_help/lookup — numeric registry (the `nika_explain` tool)
+nika-pack   = { path = "../nika-pack", version = "0.80.0" }    # embedded canon error_codes — the spec codes (NIKA-VAR-* · NIKA-DAG-* …)
+
+serde_json  = { workspace = true }   # JSON-RPC 2.0 messages (the only wire format · no SDK)
+thiserror   = { workspace = true }   # the transport error enum
+
+[lints]
+workspace = true

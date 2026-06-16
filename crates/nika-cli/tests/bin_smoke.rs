@@ -194,3 +194,36 @@ fn init_scaffolds_a_repo_and_is_idempotent() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn mcp_serves_initialize_and_lists_tools() {
+    use std::process::Stdio;
+    let mut child = bin()
+        .arg("mcp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn nika mcp");
+    {
+        let mut stdin = child.stdin.take().expect("stdin");
+        stdin
+            .write_all(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}\n")
+            .expect("write initialize");
+        stdin
+            .write_all(b"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}\n")
+            .expect("write tools/list");
+        // Drop stdin → EOF → the server shuts down cleanly (exit 0).
+    }
+    let out = child.wait_with_output().expect("wait");
+    assert!(out.status.success(), "clean EOF shutdown");
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    assert!(
+        stdout.contains("\"protocolVersion\""),
+        "initialize replied: {stdout}"
+    );
+    assert!(
+        stdout.contains("nika_check") && stdout.contains("nika_explain"),
+        "tools/list named the catalog: {stdout}"
+    );
+}
