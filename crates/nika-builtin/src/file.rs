@@ -8,6 +8,7 @@ use std::path::Path;
 
 use nika_kernel::io::fs::{FsError, FsListDyn, FsReadDyn, FsWriteDyn};
 
+use crate::permits::{FsAccess, FsBoundary};
 use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_bool, req_str};
 
 /// `nika:read` — text (default) or binary. Returns the file content.
@@ -314,7 +315,11 @@ fn simple_glob(pattern: &str, text: &str) -> bool {
 
 /// `nika:grep` — recursive regex search · `{path,line,match}` sorted by
 /// `(path, line)` (stdlib §grep · RE2-class via the `regex` crate).
-pub(crate) async fn grep<F: FsReadDyn + FsListDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
+pub(crate) async fn grep<F: FsReadDyn + FsListDyn>(
+    fs: &F,
+    boundary: &FsBoundary,
+    args: &Args,
+) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-GREP-001";
     let pattern = req_str(args, "pattern", C)?;
     let root = args
@@ -338,6 +343,20 @@ pub(crate) async fn grep<F: FsReadDyn + FsListDyn>(fs: &F, args: &Args) -> Built
     })?;
     let mut hits = Vec::new();
     for file in files {
+        // Re-enforce the boundary PER MATCHED FILE. The walk yields a symlink's
+        // IN-boundary path, but `read_to_string` FOLLOWS it — canonicalize-
+        // confine refuses a link whose target escapes the declared boundary
+        // (the per-file sibling of `read`'s guard · grep was the one fs builtin
+        // missing it · symlinked-leaf read bypass). An undeclared/unbounded
+        // boundary short-circuits to Ok (the engine floor · MockFs tests are
+        // unaffected). An out-of-boundary leaf is skipped like any unreadable.
+        if boundary
+            .enforce(fs, &file.to_string_lossy(), FsAccess::Read)
+            .await
+            .is_err()
+        {
+            continue;
+        }
         // The walk yields directories (EISDIR), binary files (InvalidData),
         // raced deletions (NotFound) and unreadable entries alike — grep
         // semantics skip them all (`grep -rs`): the spec allocates only
@@ -566,6 +585,7 @@ mod tests {
             .with_file("proj/a.txt", "TODO: one\n");
         let out = grep(
             &fs,
+            &FsBoundary::unbounded(),
             &args(serde_json::json!({ "pattern": "TODO:", "path": "proj" })),
         )
         .await
@@ -579,6 +599,7 @@ mod tests {
 
         let bad = grep(
             &fs,
+            &FsBoundary::unbounded(),
             &args(serde_json::json!({ "pattern": "(unclosed", "path": "proj" })),
         )
         .await;
@@ -878,6 +899,7 @@ mod tests {
         std::fs::write(&file, b"hello\n").expect("write");
         let out = grep(
             &TokioFs,
+            &FsBoundary::unbounded(),
             &args(serde_json::json!({
                 "pattern": "hello", "path": file.to_string_lossy()
             })),

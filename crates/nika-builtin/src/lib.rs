@@ -422,7 +422,7 @@ where
         self.fs_boundary
             .enforce(self.fs.as_ref(), root, permits::FsAccess::Read)
             .await?;
-        file::grep(self.fs.as_ref(), args).await
+        file::grep(self.fs.as_ref(), &self.fs_boundary, args).await
     }
 
     /// `nika:glob` under the boundary — the walk never crosses `..` nor
@@ -952,6 +952,96 @@ mod boundary_dispatch_tests {
         assert!(
             !result.content.contains("OUTSIDE"),
             "the outside file's bytes must never surface"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn grep_through_an_escaping_symlink_is_refused() {
+        // P0 regression: `nika:grep` walks a directory, finds an IN-boundary
+        // symlink leaf, then `read_to_string` FOLLOWS it. A link whose target
+        // escapes the declared `permits.fs` must NOT leak that target's bytes
+        // (the per-file sibling of `read`'s symlink-escape guard · grep was the
+        // one fs builtin missing it · NIKA-SEC-004). Proven BOTH ways so the
+        // test is not vacuous: bounded → skipped, unbounded → leaks (the walk
+        // genuinely reaches and reads the link).
+        let root = scratch();
+        let link = root.join("allowed/leak");
+        std::os::unix::fs::symlink(root.join("secret.txt"), &link).unwrap();
+        let call = || {
+            ToolCall::new(
+                "t",
+                "nika:grep",
+                serde_json::json!({
+                    "pattern": "OUTSIDE",
+                    "path": root.join("allowed").to_string_lossy(),
+                }),
+            )
+        };
+
+        // Bounded to `allowed/**`: the escaping leaf is skipped like any
+        // unreadable entry — the grep succeeds with zero hits, the secret's
+        // bytes never surface.
+        let boundary = FsBoundary::declared(vec![format!("{}/allowed/**", root.display())], vec![]);
+        let bounded = dispatcher_with(boundary)
+            .execute(call())
+            .await
+            .expect("dispatches");
+        assert!(
+            !bounded.is_error,
+            "the in-boundary grep itself is fine: {}",
+            bounded.content
+        );
+        assert!(
+            !bounded.content.contains("OUTSIDE"),
+            "the escaping symlink's target must never leak through grep: {}",
+            bounded.content
+        );
+
+        // Unbounded (pre-permits floor): the SAME grep DOES follow the link and
+        // surface the secret — the bypass the boundary closes.
+        let leaked = dispatcher_with(FsBoundary::unbounded())
+            .execute(call())
+            .await
+            .expect("dispatches");
+        assert!(
+            leaked.content.contains("OUTSIDE"),
+            "without a boundary the link is followed (the bug the gate fixes): {}",
+            leaked.content
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn grep_does_not_descend_an_escaping_dir_symlink() {
+        // Defense-in-depth sibling of the leaf case: a symlink to a DIRECTORY
+        // outside the boundary must not leak its contents either. TWO layers
+        // stop it — (a) the kernel walk treats a symlinked dir as a
+        // non-following leaf (never recurses · the property lives a crate away
+        // in nika-fs), and (b) were it to recurse, the per-file guard would
+        // refuse each escaped leaf. Run UNBOUNDED to isolate (a): if the walk
+        // never follows even with no gate, the secret can never surface.
+        let root = scratch();
+        std::fs::create_dir_all(root.join("outside")).unwrap();
+        std::fs::write(root.join("outside/loot.txt"), b"SECRET-LOOT").unwrap();
+        std::os::unix::fs::symlink(root.join("outside"), root.join("allowed/dirlink")).unwrap();
+        let result = dispatcher_with(FsBoundary::unbounded())
+            .execute(ToolCall::new(
+                "t",
+                "nika:grep",
+                serde_json::json!({
+                    "pattern": "SECRET-LOOT",
+                    "path": root.join("allowed").to_string_lossy(),
+                }),
+            ))
+            .await
+            .expect("dispatches");
+        assert!(
+            !result.content.contains("SECRET-LOOT"),
+            "a symlinked dir outside the boundary must not be descended/leaked: {}",
+            result.content
         );
         let _ = std::fs::remove_dir_all(&root);
     }
