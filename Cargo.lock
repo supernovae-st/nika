@@ -3896,6 +3896,7 @@ dependencies = [
  "nika-error",
  "nika-pack",
  "nika-schema",
+ "proptest",
  "serde_json",
  "thiserror 2.0.18",
 ]

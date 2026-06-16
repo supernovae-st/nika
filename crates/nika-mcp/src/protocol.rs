@@ -31,8 +31,13 @@ pub(crate) const SERVER_NAME: &str = "nika";
 /// member was a notification (JSON-RPC 2.0 §6 · a batch of only notifications
 /// gets no response).
 #[must_use]
-pub fn dispatch(msg: &Value) -> Option<Value> {
+pub(crate) fn dispatch(msg: &Value) -> Option<Value> {
     if let Some(batch) = msg.as_array() {
+        // An empty batch is itself an Invalid Request — a single `-32600`
+        // reply, not silence (JSON-RPC 2.0 §6 · else a batching client hangs).
+        if batch.is_empty() {
+            return Some(err(&Value::Null, -32600, "invalid request: empty batch"));
+        }
         let replies: Vec<Value> = batch.iter().filter_map(handle).collect();
         return (!replies.is_empty()).then_some(Value::Array(replies));
     }
@@ -46,10 +51,19 @@ pub fn dispatch(msg: &Value) -> Option<Value> {
 /// `-32601` error; a `tools/call` for an unknown tool is a successful reply
 /// with `isError: true` (a TOOL error, not a PROTOCOL error · per MCP).
 #[must_use]
-pub fn handle(msg: &Value) -> Option<Value> {
+pub(crate) fn handle(msg: &Value) -> Option<Value> {
     // A notification has no `id` — never reply (JSON-RPC 2.0 §4.1).
     let id = msg.get("id")?;
-    let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
+    // `method` MUST be a present string (JSON-RPC 2.0 §4) — its absence or a
+    // non-string value is a malformed request (`-32600` Invalid Request), NOT
+    // an unknown method (`-32601`); a strict client branches on the code.
+    let Some(method) = msg.get("method").and_then(Value::as_str) else {
+        return Some(err(
+            id,
+            -32600,
+            "invalid request: `method` must be a string",
+        ));
+    };
     Some(match method {
         "initialize" => ok(id, initialize_result(msg.get("params"))),
         "tools/list" => ok(id, json!({ "tools": tools::catalog() })),
@@ -126,6 +140,8 @@ fn reply(id: &Value, slot: &'static str, payload: Value) -> Value {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
+    use proptest::prelude::*;
+
     use super::*;
 
     #[test]
@@ -192,6 +208,33 @@ mod tests {
     }
 
     #[test]
+    fn a_request_without_a_method_is_invalid_request() {
+        // Absent `method` on a request → -32600 Invalid Request, NOT -32601 (a
+        // strict MCP client branches on the code · JSON-RPC 2.0 §4).
+        let resp = handle(&json!({ "jsonrpc": "2.0", "id": 7 })).expect("reply");
+        assert_eq!(resp["error"]["code"], -32600);
+    }
+
+    #[test]
+    fn a_non_string_method_is_invalid_request() {
+        // `method` present but not a string → -32600, not "method not found: ".
+        let resp = handle(&json!({ "jsonrpc": "2.0", "id": 8, "method": 42 })).expect("reply");
+        assert_eq!(resp["error"]["code"], -32600);
+    }
+
+    #[test]
+    fn an_empty_batch_is_invalid_request() {
+        // JSON-RPC 2.0 §6 — an empty array batch gets a single -32600 reply,
+        // never silence (a batching client would otherwise hang).
+        let resp = dispatch(&json!([])).expect("a single error reply, not silence");
+        assert_eq!(resp["error"]["code"], -32600);
+        assert!(
+            resp["id"].is_null(),
+            "the id is null when it cannot be determined"
+        );
+    }
+
+    #[test]
     fn tools_call_without_params_is_invalid_params() {
         let resp =
             handle(&json!({ "jsonrpc": "2.0", "id": 6, "method": "tools/call" })).expect("reply");
@@ -252,5 +295,31 @@ mod tests {
             dispatch(&batch).is_none(),
             "no reply when every member is a notification"
         );
+    }
+
+    proptest! {
+        /// Robustness over untrusted client input: for ANY method name and id, a
+        /// request gets a well-formed JSON-RPC 2.0 reply — `id` echoed, EXACTLY
+        /// one of result/error, and never a panic (the MCP stdio surface accepts
+        /// whatever an arbitrary connecting client sends).
+        #[test]
+        fn any_request_is_a_wellformed_reply(method in "\\PC{0,32}", id in 0u64..100_000) {
+            let reply = handle(&json!({ "jsonrpc": "2.0", "id": id, "method": method }))
+                .expect("a message carrying an id always replies");
+            prop_assert_eq!(&reply["jsonrpc"], &json!("2.0"));
+            prop_assert_eq!(&reply["id"], &json!(id));
+            prop_assert!(
+                reply.get("result").is_some() ^ reply.get("error").is_some(),
+                "exactly one of result/error: {}",
+                reply
+            );
+        }
+
+        /// For ANY method, a message with no `id` is silent (JSON-RPC 2.0 §4.1).
+        #[test]
+        fn any_notification_is_silent(method in "\\PC{0,32}") {
+            let reply = handle(&json!({ "jsonrpc": "2.0", "method": method }));
+            prop_assert!(reply.is_none(), "a message with no id must be silent: {:?}", reply);
+        }
     }
 }

@@ -20,3 +20,6 @@ thiserror   = { workspace = true }   # the transport error enum
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+proptest = { workspace = true }   # Gate 6 · property tests on the JSON-RPC dispatcher (untrusted client input)
