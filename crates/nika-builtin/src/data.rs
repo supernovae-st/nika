@@ -761,10 +761,23 @@ mod tests {
         ));
         assert!(matches!(none, Err(f) if f.message.contains("NO value")));
 
-        let bad = jq(&args(
-            serde_json::json!({ "expression": "this is not jq", "input": 1 }),
+        // The error-render fns surface the CAUSE, not a stub: a syntax error
+        // renders « expected … » (render_jq_load → jq_syntax_msg) and an
+        // undefined filter is NAMED (render_jq_compile) — assert the MESSAGE.
+        let syn = jq(&args(
+            serde_json::json!({ "expression": ". |", "input": 1 }),
         ));
-        assert!(bad.is_err());
+        assert!(
+            matches!(&syn, Err(f) if f.message.contains("expected")),
+            "{syn:?}"
+        );
+        let undef = jq(&args(
+            serde_json::json!({ "expression": "undefined_func", "input": 1 }),
+        ));
+        assert!(
+            matches!(&undef, Err(f) if f.message.contains("undefined filter or variable")),
+            "{undef:?}"
+        );
     }
 
     #[test]

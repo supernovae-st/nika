@@ -137,4 +137,21 @@ impl: the catalog half of the agent's `nika:*` whitelist universe. The
 MCP half (`mcp:server/*` via live `tools/list`) arrives with `nika-mcp`
 (step 18) as a second implementor composed by the engine.
 
+## §8 · The 12 gates (readiness map)
+
+| Gate | Status |
+|---|---|
+| 1 SPEC | ✅ this file + ADR-093 (the 23rd builtin `nika:compose`) + the normative `nika-spec stdlib/builtins-v0.1.md` (23 builtins) |
+| 2 TDD | ✅ RED→GREEN · mock-first over `nika-kernel-mock` (`MockFs` · `MockHttp` · `MockClock` · `NullEmitter`) + the two local-seam mocks · per-builtin contract tests + dispatcher routing-totality (all 23 addressable · unknown → `NotFound` · `nika:done` rejected) |
+| 3 IMPL | ✅ `#![forbid(unsafe_code)]` · **0 `.unwrap()`/`.expect()` in `src/`** (`?` + `unwrap_or`/`ok_or` · `BuiltinFailure` total) |
+| 4 CLIPPY 0 | ✅ `cargo clippy -p nika-builtin --all-targets -- -D warnings` = 0 |
+| 5 MUTATION ≥90 | ⏳ the **killable** survivors are dead post-hardening — the jq error-render fns (`render_jq_load`/`render_jq_compile`/`jq_syntax_msg`) + the permits access-category projection now assert message CONTENT, not just the code (`missed` 30→21). The clean FLOOR score (`caught/viable`) is ~92%, BUT the run is **contention-sensitive**: this 457-mutant I/O-heavy crate inflates timeouts under concurrent load (`timeout` 11→31 → a bogus 86.8%). Attest with a low-contention re-run OR a `GATE5-EXEMPT` budget (sanctioned · cf `nika-screen` 15 · `nika-browser` 9). Residual `missed` = equivalent mutants (base64 disjoint-bit `\|`↔`^`) + hard byte-scanner edges. |
+| 6 PROPTEST | ✅ jq exactly-one-output over arbitrary JSON · glob/grep determinism (naive-equivalence) · base64 round-trip · `parse_go_duration` totality |
+| 7 BENCH | ➖ N/A — a thin composition over the L1 effect seams · the hot paths (fs walk · http · jq materialization) are bounded in their owning layers (exemption per ADR-003 « if applicable ») |
+| 8 DOC 0 | ✅ `RUSTDOCFLAGS="-D warnings" cargo doc -p nika-builtin --no-deps` = 0 |
+| 9 CANARY E2E | ✅ the builtins dispatch through the real `BuiltinDispatcher<TokioFs, …>` (`boundary_dispatch_tests` · real fs) + a live `nika run` exercising `invoke nika:*` over the shipped L3 runtime |
+| 10 GOLDEN PARITY | ➖ N/A — greenfield Diamond rewrite · no legacy dispatcher to match (CRAFT not extraction · ADR-001) |
+| 11 REVIEW SWARM | ✅ 3 parallel sliced reviewers — **rust-security** (file + net + permits · VERDICT **SOUND** · no bypass · the runtime fs boundary is structurally unbypassable · SSRF correctly delegated to L1) · **feature-dev** (the 8 data builtins · correct · 1 message fix) · **spn-nika** (dispatcher + conventions). Convergent findings RESOLVED: the 22↔23 count drift · the model-facing `nika:compose` whitespace · the `EventSinkDyn`→`Emitter` spec mislabel · the `json_merge_patch` RFC-subset message. |
+| 12 ATOMIC COMMIT | ⏳ this admission commit removes `nika-builtin` from `workspace.metadata.diamond.wip`. |
+
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.

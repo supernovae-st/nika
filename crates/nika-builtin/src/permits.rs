@@ -406,6 +406,31 @@ mod fs_security_tests {
         );
     }
 
+    #[tokio::test]
+    async fn the_denial_names_the_access_category() {
+        // The boundary error names the ACCESS CATEGORY (read/write · the
+        // `FsAccess::category` projection) so the author knows WHICH permit class
+        // refused — not a generic « outside the boundary ».
+        let s = Scratch::new();
+        let fs = TokioFs;
+        let read = s
+            .boundary()
+            .enforce(&fs, &s.path("allowed/../secret.txt"), FsAccess::Read)
+            .await;
+        assert!(
+            matches!(&read, Err(f) if f.message.contains("read")),
+            "the read denial names « read »: {read:?}"
+        );
+        let write = s
+            .boundary()
+            .enforce(&fs, &s.path("allowed/../X.txt"), FsAccess::Write)
+            .await;
+        assert!(
+            matches!(&write, Err(f) if f.message.contains("write")),
+            "the write denial names « write »: {write:?}"
+        );
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn symlink_escape_is_blocked() {
