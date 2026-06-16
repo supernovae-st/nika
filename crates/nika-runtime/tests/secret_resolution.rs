@@ -157,7 +157,9 @@ tasks:
     exec: { command: "deploy --auth ${{ secrets.token }}" }
 "#;
     // The resolver returns nothing (the env var is absent) → the secret is
-    // unbound → the reference is NIKA-1702 (the loud unresolved class).
+    // unbound → the reference is the loud unresolved class. Its WIRE code is
+    // the spec-plane NIKA-VAR-001, never the engine-internal NIKA-1702
+    // (spec 05 §142 · internal codes never reach tasks.X.error).
     let resolver = Arc::new(MapSecrets(BTreeMap::new()));
     let (outcome, _events) = run_with_secrets(yaml, MockShell::new(), resolver).await;
     assert!(!outcome.ok);
@@ -166,8 +168,13 @@ tasks:
         .as_ref()
         .expect("the task failed cleanly");
     assert_eq!(
-        err.code, "NIKA-1702",
-        "an unresolved secret is the loud unresolved class, not a silent null"
+        err.code, "NIKA-VAR-001",
+        "an unresolved secret is the loud unresolved class (NIKA-VAR-001), not a silent null"
+    );
+    assert!(
+        !err.code.contains("1702"),
+        "no engine-internal code leaks: {}",
+        err.code
     );
 }
 
@@ -222,6 +229,8 @@ tasks:
             .as_ref()
             .expect("typed error")
             .code,
-        "NIKA-1702"
+        "NIKA-VAR-001",
+        "an unbound secret is the unresolved-reference class · wire code \
+         NIKA-VAR-001, never the engine-internal NIKA-1702 (spec 05 §142)"
     );
 }

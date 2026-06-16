@@ -96,8 +96,13 @@ impl Dispatched {
         Self {
             note: note.to_owned(),
             result: Err(TaskErrorRecord {
-                code: err.nika_code().to_string(),
-                message: err.to_string(),
+                // The SPEC-PLANE wire code (`NIKA-VAR-001` unresolved ·
+                // `NIKA-VAR-005` out-of-subset) the author filters on — never
+                // the engine-internal `nika_code()` (spec 05 §142 · the
+                // `tasks.X.error.code` leak this closed). The message is
+                // code-less (`wire_message`) · the code rides its own field.
+                code: err.spec_code(),
+                message: err.wire_message(),
                 transient: false, // static expression class · retry never helps
             }),
         }

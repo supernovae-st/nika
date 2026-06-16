@@ -1267,10 +1267,18 @@ tasks:
     assert!(!outcome.ok, "the unresolvable gate fails the workflow");
     assert_eq!(outcome.records["fan"].status, TaskStatus::Failure);
     let err = outcome.records["fan"].error.as_ref().expect("typed error");
-    assert!(
-        err.code.contains("1702"),
-        "item out of gate scope = the unresolved-reference class: {}",
+    assert_eq!(
+        err.code, "NIKA-VAR-001",
+        "item out of gate scope = the unresolved-reference class · the wire \
+         code is the spec-plane NIKA-VAR-001, never the engine-internal \
+         NIKA-1702 (spec 05 §142): {}",
         err.code
+    );
+    assert!(
+        !err.code.contains("1702") && !err.message.contains("1702"),
+        "no engine-internal code leaks into the workflow-visible error: {} · {}",
+        err.code,
+        err.message
     );
     // LOUD before start: no TaskStarted frame · no iteration dispatched.
     assert!(

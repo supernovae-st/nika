@@ -899,11 +899,15 @@ fn render_with(
         .collect()
 }
 
-/// A `RuntimeError` as a task error record (the wire code + message).
+/// A `RuntimeError` as a task error record. The wire code is the SPEC-PLANE
+/// `spec_code()` (`NIKA-VAR-001` for an unresolved ref · `NIKA-VAR-005` for an
+/// out-of-subset form · …) — the identifier `tasks.X.error.code` exposes and
+/// `on_codes:` filters on — NEVER the engine-internal `nika_code()` (spec 05
+/// §142 · internal codes MUST NOT leak into workflow-visible errors).
 fn runtime_error_record(err: &RuntimeError) -> TaskErrorRecord {
     TaskErrorRecord {
-        code: err.nika_code().to_string(),
-        message: err.to_string(),
+        code: err.spec_code(),
+        message: err.wire_message(),
         transient: err.is_transient(),
     }
 }

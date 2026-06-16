@@ -33,17 +33,24 @@ pub enum RuntimeError {
         task_count: usize,
     },
 
-    /// NIKA-1702 · a `${{ }}` reference did not resolve (unknown task id
-    /// or var key · the silent-literal guard).
-    #[error("NIKA-1702 · unresolved template reference `{reference}`")]
+    /// A `${{ }}` reference did not resolve (unknown task id / var key ·
+    /// out-of-range index · missing map key · the silent-literal guard).
+    /// Wire code `NIKA-VAR-001` (`variable_error`, the unresolved-reference
+    /// class · spec 05) · engine-internal [`codes::NIKA_1702`] via
+    /// [`NikaErrorCode::nika_code`] for diagnostics. The wire code is what
+    /// `tasks.X.error.code` exposes — never the 1702 (spec 05 §142).
+    #[error("NIKA-VAR-001 · unresolved template reference `{reference}`")]
     #[diagnostic(code(nika::runtime::unresolved_template))]
     UnresolvedTemplate {
         /// The reference inside the island (e.g. `tasks.ghost.output`).
         reference: String,
     },
 
-    /// NIKA-1703 · a `when:` expression is outside the v0 gate subset.
-    #[error("NIKA-1703 · `when:` expression outside the v0 subset · `{expr}`")]
+    /// A `when:` (or island) expression reached the runtime outside the v0
+    /// gate subset. Wire code `NIKA-VAR-005` (`validation_error` · the
+    /// checker is the primary site, the runtime is the defensive backstop) ·
+    /// engine-internal [`codes::NIKA_1703`] for diagnostics.
+    #[error("NIKA-VAR-005 · `when:` expression outside the v0 subset · `{expr}`")]
     #[diagnostic(code(nika::runtime::when_unsupported))]
     WhenUnsupported {
         /// The raw expression body.
@@ -102,8 +109,32 @@ impl RuntimeError {
     pub fn spec_code(&self) -> String {
         match self {
             Self::CelEval { code, .. } | Self::OutputBinding { code, .. } => (*code).to_owned(),
+            // An unresolved `${{ }}` reference (unknown ns · out-of-range
+            // index · missing map key · unprovided secret) is the spec-plane
+            // NIKA-VAR-001 (variable_error) — NEVER the engine-internal
+            // NIKA-1702 (spec 05 §142: internal codes MUST NOT leak into
+            // tasks.X.error · run reports · conformance output).
+            Self::UnresolvedTemplate { .. } => "NIKA-VAR-001".to_owned(),
+            // An out-of-subset expression reaching the runtime is NIKA-VAR-005
+            // (validation_error · the checker is the primary site).
+            Self::WhenUnsupported { .. } => "NIKA-VAR-005".to_owned(),
+            // DirtyReport · WaveOutOfBounds are engine invariant breaches that
+            // abort the run before the task pipeline (never a workflow-visible
+            // record) · their engine-internal code is the only wire form.
             other => other.nika_code().to_string(),
         }
+    }
+
+    /// The human message WITHOUT the leading wire-code. `Display` is
+    /// code-first (`"{code} · {text}"`) for engine logs · a `TaskErrorRecord`
+    /// carries the code in its own field, so the record's `message` is the
+    /// text alone — a consumer rendering `"{code} · {message}"` (the run
+    /// report · the `TaskFailed` detail) then shows the code ONCE, not twice.
+    #[must_use]
+    pub fn wire_message(&self) -> String {
+        let display = self.to_string();
+        let prefix = format!("{} · ", self.spec_code());
+        display.strip_prefix(&prefix).unwrap_or(&display).to_owned()
     }
 
     /// Map a [`nika_cel::CelError`] onto the runtime's error plane —
@@ -197,11 +228,44 @@ mod tests {
 
     #[test]
     fn display_carries_wire_code() {
+        // Code-first Display leads with the WIRE code a consumer sees
+        // (`spec_code()`) — NIKA-VAR-001/005 for the eval classes, the
+        // engine-internal 1700/1701 for the never-surfacing invariant
+        // breaches (where wire == internal). NEVER the 1702/1703 internal
+        // form for the eval classes (spec 05 §142 · the leak this closed).
         for err in all() {
-            let wire = err.nika_code().to_string();
+            let wire = err.spec_code();
             assert!(
                 err.to_string().starts_with(&wire),
-                "code-first Display violated · {err}"
+                "code-first Display violated · {err} (wire {wire})"
+            );
+        }
+    }
+
+    #[test]
+    fn eval_classes_expose_the_canonical_wire_code_not_the_internal_one() {
+        // The CEL-2 leak: an unresolved ref / out-of-subset form must
+        // surface its spec-plane code, never NIKA-1702/1703.
+        let unresolved = RuntimeError::UnresolvedTemplate {
+            reference: "vars.list[99]".into(),
+        };
+        assert_eq!(unresolved.spec_code(), "NIKA-VAR-001");
+        assert_eq!(unresolved.nika_code(), codes::NIKA_1702); // internal intact
+        assert!(!unresolved.to_string().contains("1702"));
+
+        let out_of_subset = RuntimeError::WhenUnsupported {
+            expr: "a ~= 1".into(),
+        };
+        assert_eq!(out_of_subset.spec_code(), "NIKA-VAR-005");
+        assert_eq!(out_of_subset.nika_code(), codes::NIKA_1703);
+        assert!(!out_of_subset.to_string().contains("1703"));
+
+        // Both wire codes resolve in the embedded spec canon.
+        let canon = nika_pack::error_codes();
+        for code in ["NIKA-VAR-001", "NIKA-VAR-005"] {
+            assert!(
+                canon.iter().any(|row| row.code == code),
+                "{code} must resolve in the embedded spec table"
             );
         }
     }
