@@ -26,7 +26,7 @@
 //! task reads was finalized in an earlier wave. No iteration to convergence
 //! is needed; the topological order IS the fixpoint order.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use crate::expression::{NamespaceRef, expr_refs, scan_templates};
@@ -171,7 +171,7 @@ impl FlowFacts {
 /// order (reuse the analyzer's `topo_waves` — same order the engine runs).
 #[must_use]
 pub(super) fn analyze_flow(wf: &RawWorkflow, waves: &[Vec<usize>]) -> FlowFacts {
-    let declared: Vec<&str> = wf.secrets.iter().map(|(n, _)| n.value.as_str()).collect();
+    let declared: BTreeSet<&str> = wf.secrets.iter().map(|(n, _)| n.value.as_str()).collect();
     let mut facts = FlowFacts::default();
     if declared.is_empty() {
         return facts; // no secrets declared → nothing can be tainted
@@ -225,7 +225,7 @@ pub(super) fn analyze_flow(wf: &RawWorkflow, waves: &[Vec<usize>]) -> FlowFacts 
 fn propagate_task(
     idx: usize,
     task: &RawTask,
-    declared: &[&str],
+    declared: &BTreeSet<&str>,
     egress_of: &BTreeMap<&str, &[EgressRule]>,
     permits: Option<&Permits>,
     id_of: &BTreeMap<&str, usize>,
@@ -313,7 +313,7 @@ fn propagate_task(
 fn propagate_cleanups(
     idx: usize,
     task: &RawTask,
-    declared: &[&str],
+    declared: &BTreeSet<&str>,
     egress_of: &BTreeMap<&str, &[EgressRule]>,
     permits: Option<&Permits>,
     with_taint: &BTreeMap<&str, TaintTrace>,
@@ -418,7 +418,7 @@ fn prompt_system_fields<'a>(
 /// outputs (no `with`/`item` context — for envelope `outputs:` + with-values).
 fn taint_of_refs(
     refs: Vec<NamespaceRef>,
-    declared: &[&str],
+    declared: &BTreeSet<&str>,
     with_taint: Option<&BTreeMap<&str, TaintTrace>>,
     id_of: &BTreeMap<&str, usize>,
     facts: &FlowFacts,
@@ -438,7 +438,7 @@ fn taint_of_refs(
 /// reaching the slot is enough to flag it).
 fn taint_of_refs_full(
     refs: Vec<NamespaceRef>,
-    declared: &[&str],
+    declared: &BTreeSet<&str>,
     with_taint: &BTreeMap<&str, TaintTrace>,
     item_taint: Option<&TaintTrace>,
     id_of: &BTreeMap<&str, usize>,
@@ -446,7 +446,7 @@ fn taint_of_refs_full(
 ) -> Option<TaintTrace> {
     for r in refs {
         match r {
-            NamespaceRef::Secrets(name) if declared.contains(&name.as_str()) => {
+            NamespaceRef::Secrets(name) if declared.contains(name.as_str()) => {
                 return Some(TaintTrace::source(&name));
             }
             NamespaceRef::With(key) => {

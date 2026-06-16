@@ -61,6 +61,14 @@ const S_ALL: u8 = S_SUCCESS | S_FAILURE | S_SKIPPED | S_CANCELLED;
 /// is the sound direction.
 const MAX_GATE_REFS: usize = 6;
 
+/// A gate whose `in [...]` list is longer than this is not enumerated. Each
+/// of the up-to-`4^MAX_GATE_REFS` leaf evaluations re-scans the list, so a
+/// huge list is O(4096 × len) per gate (a 3.6 MiB gate ≈ 0.9 s · Gate-11 F2).
+/// A status list has ≤ 4 meaningful values, so a larger one is adversarial
+/// padding — the gate widens to satisfiable∧falsifiable (the same sound
+/// back-off as [`MAX_GATE_REFS`]).
+const MAX_GATE_LIST_ITEMS: usize = 256;
+
 /// What a gate-reachability finding is about.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -275,6 +283,18 @@ fn collect_status_refs(e: &Expr) -> Vec<&str> {
     out
 }
 
+/// The longest `Expr::List` anywhere in the gate expression — one O(n) pass,
+/// the back-off guard for [`judge_gate`] (see [`MAX_GATE_LIST_ITEMS`]).
+fn max_list_len(e: &Expr) -> usize {
+    let mut max = 0;
+    walk(e, &mut |node| {
+        if let Expr::List(items) = node {
+            max = max.max(items.len());
+        }
+    });
+    max
+}
+
 /// Collect out-of-vocabulary status literals (the `'failed'` class).
 fn collect_bad_literals(e: &Expr) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
@@ -320,6 +340,15 @@ struct GateVerdict {
 
 /// Enumerate every assignment of the referenced tasks' possible sets.
 fn judge_gate(expr: &Expr, possible: &BTreeMap<&str, u8>) -> GateVerdict {
+    // A pathologically large `in [...]` list is not enumerated: each leaf
+    // would re-scan it (O(4096 × len)). Widen to satisfiable∧falsifiable —
+    // the sound back-off (no dead/redundant claim on an un-enumerated gate).
+    if max_list_len(expr) > MAX_GATE_LIST_ITEMS {
+        return GateVerdict {
+            satisfiable: true,
+            falsifiable: true,
+        };
+    }
     let refs = collect_status_refs(expr);
     // unknown refs (not yet computed / not a dep) widen to the full set
     let domains: Vec<(&str, u8)> = refs
@@ -536,6 +565,28 @@ mod tests {
         assert_eq!(f[0].task, "b");
         assert!(f[0].detail.contains("can never run"), "{}", f[0].detail);
         assert!(f[0].span.is_some(), "the gate carries its span");
+    }
+
+    #[test]
+    fn oversized_gate_in_list_is_bounded_not_quadratic() {
+        // Gate-11 F2 regression (2026-06-16): a `when:` gate's `in [...]` list
+        // was re-scanned by each of the 4^MAX_GATE_REFS leaf evaluations →
+        // O(4096 × len) (a 3.6 MiB gate ≈ 0.9 s). `max_list_len` + the
+        // `judge_gate` back-off bound it to one O(n) pass. A list past
+        // `MAX_GATE_LIST_ITEMS` settles instantly; the gate stays live (the
+        // back-off widens to satisfiable∧falsifiable — never a false finding).
+        use std::fmt::Write as _;
+        let mut list = String::from("'success'");
+        for _ in 0..5_000 {
+            write!(list, ", 'success'").expect("write to String is infallible");
+        }
+        let f = gates(&wf(&format!(
+            "  - id: a\n    exec: {{ command: \"true\" }}\n  - id: b\n    depends_on: [a]\n    when: ${{{{ tasks.a.status in [{list}] }}}}\n    exec: {{ command: \"true\" }}\n"
+        )));
+        assert!(
+            !f.iter().any(|g| g.task == "b"),
+            "an oversized-but-live gate must not be flagged: {f:?}"
+        );
     }
 
     #[test]
