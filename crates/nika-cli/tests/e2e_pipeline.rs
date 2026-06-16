@@ -472,9 +472,12 @@ async fn e2e_failure_cascade_partial_schedule_and_card() {
             _ => None,
         })
         .expect("failure detail present");
+    // The workflow-visible code is the SPEC code (NIKA-EXEC-001 · spec 05
+    // §142 · `on_codes:`/explain filter on it) — never the engine-internal
+    // NIKA-440 (verb_err → ExecError::spec_code · nika-verb-exec errors.rs).
     assert!(
-        detail.contains("NIKA-440"),
-        "exec non-zero exit code: {detail}"
+        detail.contains("NIKA-EXEC-001"),
+        "exec non-zero exit spec code: {detail}"
     );
     assert!(
         detail.contains("status 7"),
@@ -483,9 +486,9 @@ async fn e2e_failure_cascade_partial_schedule_and_card() {
 
     let lines = frame(&view, &PLAIN, 0);
     let card = lines.join("\n");
-    assert!(card.contains("NIKA-440"), "card: {card}");
+    assert!(card.contains("NIKA-EXEC-001"), "card: {card}");
     assert!(
-        card.contains("fix: nika explain NIKA-440"),
+        card.contains("fix: nika explain NIKA-EXEC-001"),
         "explain hint: {card}"
     );
 }
