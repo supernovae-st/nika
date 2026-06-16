@@ -27,6 +27,7 @@
 //! is needed; the topological order IS the fixpoint order.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use crate::expression::{NamespaceRef, expr_refs, scan_templates};
 use crate::raw::{RawAction, RawTask, RawWorkflow};
@@ -34,16 +35,34 @@ use crate::types::{EgressRule, OutputDecl, Permits};
 
 use super::declass;
 
+/// One link in a [`TaintTrace`] hop chain — a structurally-shared cons-list.
+/// `via` prepends a link in O(1) (an `Arc` bump of the shared tail), never a
+/// copy, so carrying a length-k trace through k propagation hops stays O(k)
+/// total instead of O(k²). Materialized to a string only when a diagnostic
+/// renders a real leak (rare) — never on the propagation hot path.
+#[derive(Debug, PartialEq, Eq)]
+struct Hop {
+    label: Arc<str>,
+    /// The earlier hop (one step closer to the source); `None` at the root.
+    prev: Option<Arc<Hop>>,
+}
+
 /// How a value became `Secret` — the chain from the originating secret to
 /// the current slot, for auditable diagnostics (« via `with.tok` ← via
 /// `tasks.a.output` ← `secrets.api_key` »).
+///
+/// The hop chain is an `Arc` cons-list (the private `Hop`): extending or cloning a
+/// trace is O(1), so the IFC pass can carry one trace per tainted slot across
+/// up to `MAX_TASKS` waves without the O(n²) memory + copy blow-up a
+/// per-trace `Vec<String>` caused (a 0.89 MiB workflow → 5.2 GB · 2026-06-16
+/// Gate-11 finding). The reachable hops are unchanged; only the storage is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct TaintTrace {
     /// The originating `secrets.<name>`.
     pub secret: String,
-    /// Human hops from the source to this slot (source first).
-    pub hops: Vec<String>,
+    /// The most-recent hop; walk `prev` to reach the source.
+    head: Arc<Hop>,
 }
 
 impl TaintTrace {
@@ -51,24 +70,37 @@ impl TaintTrace {
     fn source(secret: &str) -> Self {
         Self {
             secret: secret.to_owned(),
-            hops: vec![format!("secrets.{secret}")],
+            head: Arc::new(Hop {
+                label: format!("secrets.{secret}").into(),
+                prev: None,
+            }),
         }
     }
 
-    /// Extend the chain by one hop, preserving the origin.
+    /// Extend the chain by one hop, preserving the origin — O(1): the existing
+    /// chain is shared by `Arc`, not copied.
     fn via(&self, hop: String) -> Self {
-        let mut hops = self.hops.clone();
-        hops.push(hop);
         Self {
             secret: self.secret.clone(),
-            hops,
+            head: Arc::new(Hop {
+                label: hop.into(),
+                prev: Some(Arc::clone(&self.head)),
+            }),
         }
     }
 
-    /// The chain rendered for a diagnostic (`secrets.x → with.t → ...`).
+    /// The chain rendered for a diagnostic (`secrets.x → with.t → ...`),
+    /// source-first. Walks the shared cons-list — O(depth), only on a leak.
     #[must_use]
     pub fn render(&self) -> String {
-        self.hops.join(" → ")
+        let mut labels: Vec<&str> = Vec::new();
+        let mut cur = Some(&self.head);
+        while let Some(node) = cur {
+            labels.push(&node.label);
+            cur = node.prev.as_ref();
+        }
+        labels.reverse();
+        labels.join(" → ")
     }
 }
 
@@ -516,6 +548,44 @@ mod tests {
         );
         let (wf, f) = facts(&y);
         assert!(f.effect_taint(idx(&wf, "t")).is_some());
+    }
+
+    #[test]
+    fn long_secret_chain_stays_linear_not_quadratic() {
+        // DoS regression — Gate-11 finding 2026-06-16. A length-N secret-taint
+        // chain (each task reads the prior task's tainted output) gives task k
+        // a length-k trace. With the old `Vec<String>` hops cloned 2-3× per
+        // task that was O(N²) time + memory — a 0.89 MiB workflow OOM'd at
+        // 5.2 GB. The Arc cons-list makes via()/clone() O(1), so this chain
+        // settles in milliseconds. The assertion is correctness (the secret
+        // propagates the whole way + the trace stays intact); the implicit
+        // guard is completion — a regression to O(N²) makes this test crawl.
+        use std::fmt::Write as _;
+        const N: usize = 3_000;
+        let mut y = format!("nika: v1\nworkflow: w\n{S}tasks:\n");
+        y.push_str("  - id: t0\n    exec: { command: \"echo ${{ secrets.api_key }}\" }\n");
+        for k in 1..N {
+            let p = k - 1;
+            write!(
+                y,
+                "  - id: t{k}\n    depends_on: [t{p}]\n    exec: {{ command: \"echo ${{{{ tasks.t{p}.output }}}}\" }}\n"
+            )
+            .expect("write to String is infallible");
+        }
+        let (wf, f) = facts(&y);
+        let tail = f
+            .effect_taint(idx(&wf, &format!("t{}", N - 1)))
+            .expect("the secret must propagate through the whole chain");
+        assert_eq!(tail.secret, "api_key");
+        let rendered = tail.render();
+        assert!(
+            rendered.starts_with("secrets.api_key"),
+            "trace must be source-first: {rendered:.40}"
+        );
+        assert!(
+            rendered.contains("tasks.t0.output"),
+            "the first propagation hop must be in the intact trace"
+        );
     }
 
     #[test]

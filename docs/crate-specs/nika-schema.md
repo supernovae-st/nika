@@ -808,6 +808,32 @@ custom providers).
 > *values* are a design decision deferred to that point). The inline
 > `SECURITY NOTE` in `parser/mod.rs` `CharToByte::new` cross-links this row.
 
+> **Gate-11 admission security pass · 2026-06-16 (rust-security swarm).** The
+> three pre-parse caps above are **SHIPPED** (not deferred): `MAX_SOURCE_BYTES`
+> 4 MiB + `MAX_INDENT_BYTES` + `value::MAX_VALUE_DEPTH` 128 + `tasks::MAX_TASKS`
+> 10k, all pre-`marked-yaml`, all loud — empirically re-confirmed by the swarm
+> (`[`×256 / `{a:`×256 → loud `Err`, no overflow; the expression
+> postfix/index/wide-chain depth caps hold). The swarm found **one P0** the
+> pre-parse caps did NOT cover, now **FIXED**:
+>
+> - **P0 (FIXED) · `check/flow.rs` IFC taint-trace O(n²).** A per-task
+>   `TaintTrace` carried its hop chain as a `Vec<String>` cloned 2-3× per task →
+>   O(n²) time + memory. A 0.89 MiB *valid* workflow (one secret + an ordinary
+>   output-reference chain) → 9.4 s + **5.2 GB RSS** (instant OOM), reachable via
+>   `nika check` AND the agent-facing MCP `nika_check` builtin. **Fix** · the hop
+>   chain is now an `Arc` cons-list (`Hop`), so `via()`/`clone()` are O(1) and
+>   `analyze_flow` is O(n) — the reachable hops + leak semantics unchanged (596
+>   prior tests green). Regression-guarded by
+>   `flow::tests::long_secret_chain_stays_linear_not_quadratic` (3000-task chain).
+>
+> **Fast-follow ratchets (non-blockers · the swarm classified both ship-after):**
+> - **F2 (P1) · `check/reach.rs` gate enumeration.** `MAX_GATE_REFS`=6 bounds the
+>   4096 enumerations' COUNT but not the SIZE of a `when:` gate's `in [...]` list
+>   re-scanned each pass → O(4096×list) (~0.88 s for one 3.6 MiB gate · CPU-bound,
+>   no OOM). Fix · intern each `in`-list into a `HashSet` once per gate.
+> - **P2 · `flow.rs` linear secrets scan** in the per-task loop (O(n·S)) — a
+>   lower-constant O(n²)-class scan, dominated by (now far below) the fixed P0.
+
 ---
 
 ## 11bis. `nika check` — the static pre-flight (shipped 2026-06-11)
@@ -875,9 +901,10 @@ effects, and quote-bearing paths.
 
 ## 11ter. Admission · 12-gate ledger (ADR-003)
 
-> **Status 2026-06-16** · 11/12 gates green. The one open gate is **Gate 5
-> (mutation)** — a quiet-window FLOOR run (see strategy below). Authored ahead
-> of the run so the crate admits with a single `wip`-array edit once Gate 5
+> **Status 2026-06-16** · **11/12 gates green** — the Gate-11 admission swarm
+> completed (found + **FIXED** a P0 IFC-taint O(n²) DoS · see Gate 11). The one
+> remaining gate is **Gate 5 (mutation)** — a quiet-window FLOOR run (see
+> strategy below). The crate admits with a single `wip`-array edit once Gate 5
 > lands. `nika-schema` is the **last L0 crate** — its admission closes the L0
 > foundation (the v0.81 floor).
 
@@ -893,7 +920,7 @@ effects, and quote-bearing paths.
 | 8 DOCS | ✅ `cargo doc --no-deps` 0 warnings (2026-06-16). |
 | 9 CANARY | ✅ **EXEMPT** — the parser's functional E2E IS its corpus: `examples_valid.rs` parses EVERY `nika-spec` example + the `conformance_{core,deep}` + `research_conformance` suites. Parsing is itself the parser's end-to-end; a runtime-level canary (parse → run) belongs to `nika-runtime`'s admission, not the parser's. (The §10 "no runtime yet" wording is superseded — the runtime now exists — but the golden-corpus exemption stands and is stronger.) |
 | 10 PARITY | ✅ **spec-conformance parity** — `conformance_{core,deep}.rs` + `research_conformance.rs` pin the parser+analyzer output against the `nika-spec` contract. NOT legacy parity: per ADR-001 (CRAFT, orphan rebuild) there is no legacy parser to round-trip against — the §7.4 "compare against legacy engine" framing is superseded by spec-conformance. |
-| 11 REVIEW | ⏳ **final admission swarm in progress** (rust-security on the untrusted-input / DoS / panic-freedom surface · 2026-06-16) on top of the extensive prior reviews (the 2026-06-11 inference review swarm + the ADR-092 ladder #1–#5 reviews · logged in §12). Folds land here before the `wip` edit. |
+| 11 REVIEW | ✅ **final admission swarm 2026-06-16** (rust-security · untrusted-input/DoS/panic-freedom) atop the 2026-06-11 inference swarm + ADR-092 ladder reviews. Every probed surface SOUND (zero-unwrap · YAML nesting caps · billion-laughs · pre-parse byte/indent/task/depth guards · expression depth caps · the IFC declassification correctness · the bounded read_dag/certify/cost passes) EXCEPT **one P0 found + FIXED**: `check/flow.rs` carried per-task `TaintTrace` hops as a cloned `Vec<String>` → O(n²) (a 0.89 MiB valid workflow OOM'd at 5.2 GB · reachable via `nika check` + the agent MCP `nika_check`). Fix · `Arc` cons-list → `via()`/`clone()` O(1) → `analyze_flow` O(n); pinned by `long_secret_chain_stays_linear_not_quadratic`. 2 non-blocker fast-follows tracked (§11): F2 P1 gate `in`-list, P2 secrets scan. |
 | 12 ATOMIC | 1 admission = 1 commit (the single edit removing `nika-schema` from `workspace.metadata.diamond.wip`). |
 
 ---
@@ -936,5 +963,6 @@ effects, and quote-bearing paths.
 | 2026-06-12 | the certificate becomes CERTIFYING — witness + independent checker | arXiv round 4: a certifying algorithm outputs a result WITH a witness and a checker simpler than the solver (Shokry/Elmasry/Khalafallah/Aly 2024 · arxiv.org/abs/2412.06121); the execution-side architecture is Proposal–Certification–Execution — « generation is not permission » (Liu Yanglet/Wang/Capponi 2026 · arxiv.org/abs/2605.24462 — May 2026, directly on AI-agent certified traces). `RunCertificate` gains `derivation: Vec<TaskContribution>` (per-task witness rows: attempts · fanout shape · per-run call/spend counts · per-iteration finally counts) and **`audit(&wf)`** — the catalog-free checker: (a) every row matches the workflow's declared structure by FIELD EQUALITY, (b) the rows re-fold to the claimed bounds via THE one shared `fold_rows` (certify builds bounds FROM rows through the same fold — arithmetic cannot drift between builder and checker because it exists once). A foreign certificate (marketplace artifact · CI gate input) is re-checkable locally: tampered bound → « do not match the derivation »; doctored row → named field mismatch; truncated witness → row-count reject. 3 tamper tests + the wire pin now carries the witness. |
 | 2026-06-12 | metamorphic deepened — R3-R6 | **R3 unfolding** (a literal 2-list `for_each` ≡ two duplicated plain tasks — total attempts/calls/spend equal · the certificate's fan-out semantics tested against itself) · **R4 frame** (adding an independent plain task shifts the bounds by EXACTLY its contribution — compositionality) · **R5 retry-1 identity** (`max_attempts: 1` ≡ no retry block — structural twin built by normalizing attempts then inserting explicit retry-1 after each task header; the naive string-replace died on duplicate-key, itself a parser-strictness confirmation) · **R6 audit-totality** (every honest certificate passes its own audit across the whole generator — the checker accepts what the analysis produces, 64 random workflows). 7 relations total · 483 lib. |
 | 2026-06-12 | the span axis + the research-conformance suite | `RunCertificate.span_attempts` — the longest sequential dependency chain in attempts (Brent 1974 lineage · Tassarotti 2017 · arxiv.org/abs/1704.02061): retries are SERIAL (extend span) · `for_each` fan-out is element-parallel (extends work, never span) → the CERT line prints the full Brent envelope (`terminates · span ≤ 4 · ≤ 2 + 2·\|fan\| task-attempts · …`). Witness rows gain `deps`; span computed FROM the rows by the one shared fold (iterative DFS + memo · cycle-cut defensive since `certify` runs even on conformance-failing input); `audit` re-checks deps AND re-folds span (span/dep tampering rejected). `tests/research_conformance.rs` — one executable property per arXiv claim in check/: the **AARA substitution lemma** (parametric bound @ n ≡ concretized workflow, n∈{1,2,5,9}, all three axes incl. spend) · the **Brent envelope** (span==work on chains · span<work on wide DAGs · span≤work@1 over a family) · **reachability vs a brute-force oracle** (exact agreement on the ==/!= single-dep fragment) · **certifying audit under 16 systematic tampers** (all rejected · honest accepted) · **Denning transitivity at 3 alias hops**. `fold_rows` arithmetic saturating end-to-end. |
+| 2026-06-16 | Gate-11 admission swarm + 12-gate ledger | §11ter ledger authored (11/12 green · Gate 5 mutation pending a quiet-window FLOOR run · 1711 mutants). rust-security final pass: every probed surface SOUND except **one P0 FIXED** — `check/flow.rs` IFC taint-trace was O(n²) time+memory (per-task `TaintTrace.hops` a cloned `Vec<String>`; a 0.89 MiB *valid* workflow → 5.2 GB RSS, reachable via `nika check` + the agent MCP `nika_check`). Fix · hop chain → `Arc` cons-list (`Hop`), `via()`/`clone()` O(1), `analyze_flow` O(n), leak semantics unchanged (596→597 tests); regression `long_secret_chain_stays_linear_not_quadratic`. Gate-7 `parse_bench.rs` shipped (parse/small 13µs · analyze/large 222µs). §11 reconciled (pre-parse byte/indent/task/depth caps confirmed SHIPPED). Fast-follows tracked · F2 (P1) `reach.rs` gate `in`-list O(4096×size) · P2 `flow.rs` linear secrets scan. |
 
 
