@@ -91,6 +91,16 @@ enum Command {
     /// Diagnose the environment (binary · config · provider keys · spec §8).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
     Doctor,
+    /// Scaffold a repo (`.vscode` schema wiring · `AGENTS.md`). Existing files
+    /// are skipped — `--force` overwrites.
+    Init {
+        /// Target directory (default · the current directory).
+        #[arg(default_value = ".")]
+        dir: String,
+        /// Overwrite existing files.
+        #[arg(long)]
+        force: bool,
+    },
     /// The embedded spec identity (`--canon` prints the SSOT).
     Spec {
         /// Print the canon.yaml single source of truth.
@@ -223,6 +233,7 @@ fn main() -> std::process::ExitCode {
         }
         Command::Explain { code } => emit(&verbs::explain::run(&code)),
         Command::Doctor => emit(&verbs::doctor::run()),
+        Command::Init { dir, force } => emit(&verbs::init::run(&dir, force)),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
         Command::Schema => emit(&verbs::pack_surface::schema()),
         Command::Examples { action } => match action {

@@ -171,3 +171,26 @@ fn doctor_diagnoses_the_environment_and_exits_zero() {
         "PRESENT-NOT-PRINTED · no secret value leaks: {stdout}"
     );
 }
+
+#[test]
+fn init_scaffolds_a_repo_and_is_idempotent() {
+    let dir = std::env::temp_dir().join(format!("nika-init-smoke-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    // First run · creates the schema wiring + the agent guide · exit 0.
+    let out = bin().arg("init").arg(&dir).output().expect("binary runs");
+    assert_eq!(out.status.code(), Some(0), "scaffold succeeds");
+    assert!(
+        dir.join(".vscode/settings.json").is_file(),
+        "schema wiring written"
+    );
+    assert!(dir.join("AGENTS.md").is_file(), "agent guide written");
+    // Re-run · the human keeps the hand · existing files are SKIPPED, exit 0.
+    let again = bin().arg("init").arg(&dir).output().expect("binary runs");
+    assert_eq!(again.status.code(), Some(0));
+    let stdout = String::from_utf8(again.stdout).expect("utf8");
+    assert!(
+        stdout.contains("skipped"),
+        "idempotent re-run skips: {stdout}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
