@@ -43,9 +43,11 @@ use crate::sampling::SamplingConfig;
 use crate::stop::StopController;
 use crate::template::ChatFamily;
 
-/// Hard ceiling on generated tokens when the request does not cap them —
-/// a runaway generation must not spin forever (the resource-floor posture,
-/// same spirit as the exec-runner output cap).
+/// Default generation budget when the request does not specify `max_tokens`.
+/// NOT a hard cap on its own — a request MAY ask for more. The hard bound is
+/// the model context window, applied unconditionally at the decode site by
+/// [`crate::budget::effective_max_tokens`] (a wire `max_tokens: u32::MAX` is
+/// clamped to the slots left in the window — no OOM, no past-window desync).
 const DEFAULT_MAX_TOKENS: u32 = 1024;
 
 /// The GGUF `general.architecture` this loader's `ModelWeights` can read.
@@ -217,7 +219,6 @@ impl CandleBackend {
     fn generate_blocking(&self, request: &ChatRequest) -> Result<ChatResponse, InferLocalError> {
         let cfg = SamplingConfig::from_request(request);
         let stop = StopController::new(self.eos_ids.iter().copied(), &request.stop);
-        let max_tokens = request.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS) as usize;
 
         let mut state = self.state.lock().map_err(|_| InferLocalError::Backend {
             reason: "model mutex poisoned (a prior generation panicked)".to_owned(),
@@ -247,6 +248,19 @@ impl CandleBackend {
                 limit: self.context_window,
             });
         }
+
+        // Bound generation to the slots LEFT in the context window. The check
+        // above guarantees prompt_tokens.len() < context_window, so this is
+        // ≥ 1 — and it makes a wire `max_tokens: u32::MAX` finite (no OOM, no
+        // core-pinning spin under the serialized Mutex) while preventing
+        // generation past the window (rotary / KV-cache desync). The pure
+        // arithmetic lives in `budget` so it is unit- + mutation-tested.
+        let max_tokens = crate::budget::effective_max_tokens(
+            request.max_tokens,
+            DEFAULT_MAX_TOKENS,
+            self.context_window,
+            prompt_tokens.len(),
+        );
 
         // MANDATORY between requests — stale cache positions produce garbage.
         state.model.clear_kv_cache();

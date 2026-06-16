@@ -109,7 +109,7 @@ impl BackendDyn for MockBackend {
             .messages
             .iter()
             .map(|m| Self::count_tokens(&m.content))
-            .sum();
+            .fold(0u32, u32::saturating_add);
         let completion_tokens = Self::count_tokens(&content);
 
         Ok(ChatResponse::single(

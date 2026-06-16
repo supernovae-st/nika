@@ -80,6 +80,62 @@ fn completions_round_trip_through_the_wire() {
     assert!(reply.usage.total_tokens > 0);
 }
 
+/// Gate-9 canary — the full sidecar chain end-to-end over HTTP produces output
+/// that is wire-valid at the EXACT untyped JSON pointer paths the engine's
+/// `nika-providers` OpenAiCompat parser walks (pinned identically in
+/// `wire_contract.rs`, but there against the trait — here proven on the real
+/// served bytes). This is the integration the crate exists for: a wire client
+/// POSTs, the sidecar answers, the bytes parse where the consumer looks.
+/// Asserting the untyped pointers (not our own `ChatResponse` deserialization)
+/// is the point — a serde rename would pass the typed round-trip yet silently
+/// break the external parser. The workflow-level `.nika.yaml` canary lands once
+/// a verb routes `model: local/<x>` to this sidecar.
+#[test]
+fn served_bytes_are_wire_valid_at_the_openai_compat_paths() {
+    use serde_json::Value;
+
+    let server = start();
+    let (status, body) = exchange(
+        server.addr(),
+        "POST",
+        "/v1/chat/completions",
+        &chat_json("canary"),
+    );
+    assert_eq!(status, 200, "body: {body}");
+
+    let v: Value = serde_json::from_str(&body).expect("served body is JSON");
+    assert_eq!(
+        v.pointer("/choices/0/message/content")
+            .and_then(Value::as_str),
+        Some("mock reply: canary"),
+        "/choices/0/message/content"
+    );
+    assert_eq!(
+        v.pointer("/choices/0/message/role").and_then(Value::as_str),
+        Some("assistant"),
+        "/choices/0/message/role must be the lowercase literal"
+    );
+    assert_eq!(
+        v.pointer("/choices/0/finish_reason")
+            .and_then(Value::as_str),
+        Some("stop"),
+        "/choices/0/finish_reason must be the literal \"stop\""
+    );
+    assert!(
+        v.pointer("/usage/prompt_tokens")
+            .and_then(Value::as_u64)
+            .is_some()
+            && v.pointer("/usage/completion_tokens")
+                .and_then(Value::as_u64)
+                .is_some(),
+        "/usage/{{prompt,completion}}_tokens must be u64"
+    );
+    assert!(
+        v.pointer("/id").and_then(Value::as_str).is_some(),
+        "/id (request id) must be a string"
+    );
+}
+
 #[test]
 fn malformed_json_is_a_400_invalid_request() {
     let server = start();

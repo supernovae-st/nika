@@ -47,6 +47,11 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 mod backend;
+// The generation-budget helper: consumed by the candle backend, but compiled
+// (and unit-/mutation-tested) on the pure default+test axis so the wire
+// `max_tokens` safety bound is verifiable without a GGUF model.
+#[cfg(any(feature = "local-infer", test))]
+mod budget;
 #[cfg(feature = "local-infer")]
 mod candle_backend;
 mod error;

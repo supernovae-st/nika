@@ -128,13 +128,15 @@ pub struct Usage {
 
 impl Usage {
     /// Construct from the two counted parts; the total is derived — it can
-    /// never disagree with the sum (INV-019 constructor).
+    /// never disagree with the sum (INV-019 constructor). Saturating, so a
+    /// degenerate token count can never overflow-panic — the bound is local,
+    /// not merely a consequence of the request-body size cap upstream.
     #[must_use]
     pub fn new(prompt_tokens: u32, completion_tokens: u32) -> Self {
         Self {
             prompt_tokens,
             completion_tokens,
-            total_tokens: prompt_tokens + completion_tokens,
+            total_tokens: prompt_tokens.saturating_add(completion_tokens),
         }
     }
 }

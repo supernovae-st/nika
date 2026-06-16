@@ -133,8 +133,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | HEAD             | `65d7e24fc` (`65d7e24fc1aff2658fd6df5466e322fbe78bc9d6`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 39                                              |
-| crates (admitted)| 35 / 42                                   |
-| crates (WIP)     | 4 — nika-schema nika-infer-local nika-cli nika-extract                                  |
+| crates (admitted)| 36 / 42                                   |
+| crates (WIP)     | 3 — nika-schema nika-cli nika-extract                                  |
 | L0               | 8                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |

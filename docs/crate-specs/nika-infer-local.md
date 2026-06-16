@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | **CANDLE BACKEND WIRED** 2026-06-11 (scaffold `17ef5ff35` → review-fix `ce287e8c` → candle backend behind `local-infer`). Real-model e2e (Qwen3-1.7B Q8 · CPU) — see §6. In `workspace.metadata.diamond.wip` — NOT yet 12-gate admitted (mutation + swarm + canary pending). |
+| Status | **12-GATE ADMITTED 2026-06-16** (scaffold `17ef5ff35` → review-fix `ce287e8c` → candle backend behind `local-infer` → final admission swarm + Gate-9 HTTP wire-conformance canary). Real-model e2e (Qwen3-1.7B Q8 · CPU) — see §6. Removed from `workspace.metadata.diamond.wip`. |
 | Layer | **L1.5** service (beside `nika-providers`) |
 | Decision | ADR-091 (candle-only · no rig · no mistral.rs · sidecar/subprocess · feature-gated · Metal/CPU-first · CUDA flagged) |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) |
@@ -91,6 +91,12 @@ compile feature, not a rewrite.
   variants before then · review S4).
 - **Sequential requests**: one in-flight generation per sidecar process (v1
   queue) — high-throughput fan-out stays on the `vllm/`/`llamacpp/` providers.
+- **No per-connection read timeout** (`tiny_http` exposes none): a slow-reader
+  (Slowloris-style) client can stall the single worker thread. Out of the v1
+  threat model — the sidecar is loopback-only, no auth, the supervisor owns the
+  port (ADR-093) — so there is no remote surface; tracked for the streaming /
+  `hyper` re-open where a read deadline lands. (Gate-11 security pass P2-2,
+  2026-06-16.)
 
 ## 5. Isolation (ADR-091)
 
@@ -174,13 +180,13 @@ layer (L3), not here — this crate stays the backend + the (thin) server.
 | 2 TDD | ✅ MockBackend RED→GREEN · mutant-killer tests from the Gate-5 audit |
 | 3 IMPL | ✅ candle backend wired (generation loop · min-p via `sample_f` · top-nσ + penalty pre-softmax · bounded stop-tail decode) |
 | 4 CLIPPY 0 | ✅ both feature axes (default + `local-infer`) |
-| 5 MUTATION ≥90% | ✅ pure surface ~99% (87/111 caught · every pure survivor killed 2026-06-11) · 21 remaining missed = `candle_backend.rs` **model-gated exemption** (only exercisable by the real-GGUF e2e, which the mutants harness cannot run — same class as nika-ocr's Rule-2 inference exemption) |
+| 5 MUTATION ≥90% | ✅ pure surface ~99% (87/111 caught · every pure survivor killed 2026-06-11) · 21 remaining missed = `candle_backend.rs` **model-gated exemption** (only exercisable by the real-GGUF e2e, which the mutants harness cannot run — same class as nika-ocr's Rule-2 inference exemption). 2026-06-16: the P2-1 clamp lives in the pure `budget` module (5 tests pinning the `min` / `saturating_sub` / `unwrap_or` mutants) — extends the pure tested surface, NOT the exemption. |
 | 6 PROPERTY | ✅ protocol round-trip · min-p (keeps-max + floor) · top-nσ (temperature-invariance + keeps-max) · token-mask (exact-zeroing) · repeat-penalty (never-raises) |
 | 7 BENCH | ✅ decode-loop hot path (`benches/logits_bench.rs` · criterion · vocab 151,936): min-p **~126µs** · top-nσ **~438µs** · token-mask/repeat-penalty single-pass — all negligible vs a multi-ms CPU forward step (the per-token overhead budget). Model tok/s is e2e-gated (the real-GGUF test prints it) |
 | 8 DOCS | ✅ cargo doc 0 both axes |
-| 9 CANARY | a `.nika.yaml` infer-via-local once the verb wires it |
+| 9 CANARY | ✅ end-to-end HTTP canary — `tests/server_http.rs::served_bytes_are_wire_valid_at_the_openai_compat_paths` drives a real TCP request → the live `serve()` sidecar → response, asserting the UNTYPED JSON pointer paths (`/choices/0/message/{content,role}` · `/choices/0/finish_reason` · `/usage/*` · `/id`) the engine's `nika-providers` OpenAiCompat parser walks — on the served bytes, so a serde rename can't pass silently. No verb consumes the crate yet (grep-verified), so the workflow-level `.nika.yaml` canary lands with the verb that routes `model: local/<x>` here. |
 | 10 PARITY | ✅ wire-level self-consistency (tests/wire_contract.rs pins the exact JSON paths + literals nika-providers' parser reads) · real-model e2e green (Qwen3-1.7B Q8 · CPU · EOS/Length/determinism) |
-| 11 REVIEW | ✅ scaffold 3-lens (ce287e8c) + candle-backend adversarial review folded (2 P1 + 3 P2/P3: stop-tail window made conservative · OOM phrase-match not substring · tail-decode error propagated · device stored at load · bench black_box) · final swarm at admission |
+| 11 REVIEW | ✅ scaffold 3-lens (ce287e8c) + candle-backend adversarial review folded (2 P1 + 3 P2/P3: stop-tail window made conservative · OOM phrase-match not substring · tail-decode error propagated · device stored at load · bench black_box) · **final admission swarm 2026-06-16**: rust-security PASS no-blockers (network/model/permits SOUND · 0 production unwrap clippy-enforced on default+`server`) + spn-refuter (sole gap = Gate-9, now closed). Folded — **P2-1** wire `max_tokens` clamped to remaining context (pure `budget` module · 5 unit tests · no OOM / no past-window desync · honest doc) · **P2-3** token math saturating (local invariant) · **P2-2** Slowloris noted (Known Limitations §4bis · loopback-only, out of threat model). |
 | 12 ATOMIC | 1 admission = 1 commit |
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
