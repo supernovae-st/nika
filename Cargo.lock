@@ -3967,6 +3967,7 @@ dependencies = [
  "jaq-core",
  "jaq-json",
  "jaq-std",
+ "jsonschema",
  "marked-yaml",
  "miette",
  "nika-catalog",

@@ -22,6 +22,7 @@ mod builtin_shape;
 mod dag;
 mod jq_lint;
 mod scan;
+mod schema_lint;
 mod schema_paths;
 
 use std::collections::BTreeMap;
@@ -63,6 +64,7 @@ pub fn analyze(wf: &RawWorkflow) -> Result<AnalyzedWorkflow, Vec<SchemaError>> {
     builtin_shape::check_builtin_shapes(&wf.tasks, &mut errors);
     scan::scan_workflow(wf, &mut errors);
     jq_lint::scan_jq(wf, &mut errors);
+    schema_lint::scan_schemas(wf, &mut errors);
 
     if errors.is_empty() {
         Ok(AnalyzedWorkflow::new(dag::topo_waves(&wf.tasks, &ids)))

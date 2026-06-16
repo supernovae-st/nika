@@ -23,11 +23,13 @@ use common::{fixture_dirs, fixture_verdict, skip_in_mutants_sandbox, spec_dir};
 /// does not implement the check yet. Closing a gap = implement + DELETE
 /// the row (the suite fails on a stale row by design).
 const DEEP_GAPS: &[(&str, &str)] = &[
-    (
-        "005-invalid-schema",
-        "schema: blocks are not meta-validated (needs a Draft 2020-12 \
-         check_schema pass · jsonschema-class dep decision pending)",
-    ),
+    // 005-invalid-schema CLOSED 2026-06-16 — `analyzer::schema_lint` compiles
+    // every literal infer/agent `schema:` with the runtime's exact JSON Schema
+    // compiler (`jsonschema::validator_for` · the same call nika-verb-infer's
+    // `structured::compile_schema` uses, workspace-pinned · parity-verified) →
+    // `NIKA-PARSE-019` (generic structural · validation_error) on a meta-schema
+    // violation (`type: objet`, bad `$schema` dialect, …). Row deleted per the
+    // ratchet (« the suite fails on a stale row by design »).
     // 006-jq-compile-error CLOSED 2026-06-16 — `analyzer::jq_lint` compiles
     // every literal `nika:jq`/`nika:fetch` jq program with the runtime's exact
     // jaq stack (parity-pinned) → `NIKA-VAR-005` on a compile error, with a

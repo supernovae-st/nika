@@ -28,6 +28,11 @@ url        = { workspace = true }   # permits.net.http host extraction — the S
 jaq-core   = { workspace = true }
 jaq-std    = { workspace = true }
 jaq-json   = { workspace = true }
+# JSON Schema META-check (static · L0-legal: pure/sync · default-features=false
+# compiles out the http/file retrievers, so no I/O) — the SAME jsonschema crate
+# + the SAME validator_for() the runtime nika-verb-infer compiles a schema: with,
+# workspace-pinned to one version (parity-verified · validator_for == meta).
+jsonschema = { workspace = true }
 
 [dev-dependencies]
 # the verb-theater example folds REAL engine events (the telemetry truth)
