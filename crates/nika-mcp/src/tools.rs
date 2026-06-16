@@ -9,8 +9,6 @@
 //! tool safe to expose to any connecting client (Cursor · Claude Desktop · …)
 //! and lets the whole server be unit-tested as a function.
 
-use std::fmt::Write as _;
-
 use serde_json::{Value, json};
 
 /// The tool catalog (`tools/list`): name · description · `inputSchema`
@@ -79,11 +77,16 @@ fn check(args: &Value) -> Result<String, String> {
     if report.is_clean() {
         return Ok("✔ clean — audited before a single token was spent".to_owned());
     }
-    let mut s = String::from("✖ findings:\n");
-    for c in &report.conformance {
-        let _ = writeln!(s, "  [{}] {}", c.code, c.message);
-    }
-    Ok(s)
+    // `is_clean()` checks TEN finding surfaces (conformance · secret leaks +
+    // egresses · capability escapes · schema findings + lints · unknown/missing
+    // /unknown args · gate findings) — render the FULL structured report so the
+    // MCP client sees EVERY finding (the prior code listed only `conformance`,
+    // dropping 9 classes · a model can parse the JSON + repair from it).
+    let detail = serde_json::to_string_pretty(&report)
+        .map_err(|e| format!("check report serialization failed: {e}"))?;
+    Ok(format!(
+        "✖ findings — the workflow is not clean · the full check report:\n{detail}"
+    ))
 }
 
 /// `nika_explain` — teach one error code (numeric registry or spec code).
@@ -157,6 +160,23 @@ mod tests {
     #[test]
     fn check_missing_arg_is_a_tool_error() {
         assert!(execute("nika_check", &json!({})).is_err());
+    }
+
+    #[test]
+    fn check_surfaces_non_conformance_findings_too() {
+        // A schema whose `required` key is absent from `properties` COMPILES
+        // (legal JSON Schema · no PARSE-019) but is a satisfiability smell →
+        // it lands in `schema_lints`, NOT `conformance`. The old code rendered
+        // only `conformance` → an empty "✖ findings" body for this whole class
+        // (the P1). The full-report render must surface it.
+        let wf = "nika: v1\nworkflow: t\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: x\n      max_tokens: 10\n      schema: { type: object, properties: { a: { type: string } }, required: [b] }\n";
+        let out = execute("nika_check", &json!({ "workflow": wf })).expect("ran");
+        assert!(out.contains("findings"), "flags not-clean: {out}");
+        assert!(
+            out.contains("schema_lints") && out.contains('b'),
+            "the non-conformance finding (required `b` not in properties) is rendered, \
+             not dropped: {out}"
+        );
     }
 
     #[test]

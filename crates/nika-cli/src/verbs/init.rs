@@ -50,7 +50,7 @@ or MCP tool) · `agent` (a multi-turn ReAct loop).
 
 ## Discipline
 - Every effect is gated by `permits:` (default-deny · `nika check --infer-permits`
-  writes the tightest boundary).
+  prints the tightest boundary).
 - Secrets come from the environment (`${{ secrets.X }}`) — never inline.
 - `nika check` must be clean before `nika run` (audit-before-run is enforced).
 ";

@@ -22,7 +22,7 @@
 mod protocol;
 mod tools;
 
-pub use protocol::handle;
+pub use protocol::{dispatch, handle};
 
 use std::io::{BufRead as _, Write as _};
 
@@ -56,7 +56,7 @@ pub fn run_stdio() -> Result<(), McpError> {
         }
         match serde_json::from_str::<serde_json::Value>(&line) {
             Ok(msg) => {
-                if let Some(reply) = protocol::handle(&msg) {
+                if let Some(reply) = protocol::dispatch(&msg) {
                     writeln!(stdout, "{reply}")?;
                     stdout.flush()?;
                 }

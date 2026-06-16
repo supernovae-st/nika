@@ -13,13 +13,33 @@ use serde_json::{Value, json};
 
 use crate::tools;
 
-/// The MCP protocol revision this server speaks. (The client sends its own in
-/// `initialize`; we answer with ours — a client negotiates down if it must.)
+/// The MCP protocol revision this server prefers (its own latest).
 pub(crate) const PROTOCOL_VERSION: &str = "2025-06-18";
+/// The revisions this server interoperates with — `initialize` ECHOES the
+/// client's requested version when it is one of these (spec lifecycle · version
+/// negotiation MUST · « respond with the same version »), else answers with our
+/// latest and the client decides. All three drive the identical tools/list +
+/// tools/call surface; batching (a 2024-11-05 / 2025-03-26 feature) is handled
+/// by [`dispatch`].
+pub(crate) const SUPPORTED: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 /// The advertised server name (`serverInfo.name`).
 pub(crate) const SERVER_NAME: &str = "nika";
 
-/// Dispatch one parsed JSON-RPC 2.0 message.
+/// Dispatch one INCOMING stdio message — a single request/notification (a JSON
+/// object) OR a JSON-RPC 2.0 BATCH (an array · the 2024-11-05 / 2025-03-26
+/// revs). A batch returns an array of the non-empty replies, `None` when every
+/// member was a notification (JSON-RPC 2.0 §6 · a batch of only notifications
+/// gets no response).
+#[must_use]
+pub fn dispatch(msg: &Value) -> Option<Value> {
+    if let Some(batch) = msg.as_array() {
+        let replies: Vec<Value> = batch.iter().filter_map(handle).collect();
+        return (!replies.is_empty()).then_some(Value::Array(replies));
+    }
+    handle(msg)
+}
+
+/// Dispatch one single JSON-RPC 2.0 message.
 ///
 /// Returns `Some(reply)` for a request (a message carrying an `id`), `None` for
 /// a notification (no `id` · JSON-RPC forbids replying). Unknown methods get a
@@ -29,12 +49,9 @@ pub(crate) const SERVER_NAME: &str = "nika";
 pub fn handle(msg: &Value) -> Option<Value> {
     // A notification has no `id` — never reply (JSON-RPC 2.0 §4.1).
     let id = msg.get("id")?;
-    let method = msg
-        .get("method")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
+    let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
     Some(match method {
-        "initialize" => ok(id, initialize_result()),
+        "initialize" => ok(id, initialize_result(msg.get("params"))),
         "tools/list" => ok(id, json!({ "tools": tools::catalog() })),
         "tools/call" => tools_call(id, msg.get("params")),
         "ping" => ok(id, json!({})),
@@ -42,10 +59,17 @@ pub fn handle(msg: &Value) -> Option<Value> {
     })
 }
 
-/// The `initialize` result — protocol version · the tools capability · identity.
-fn initialize_result() -> Value {
+/// The `initialize` result — the negotiated protocol version · the tools
+/// capability · identity. Version negotiation (spec lifecycle · MUST): echo the
+/// client's requested version when supported, else answer with ours.
+fn initialize_result(params: Option<&Value>) -> Value {
+    let version = params
+        .and_then(|p| p.get("protocolVersion"))
+        .and_then(Value::as_str)
+        .filter(|v| SUPPORTED.contains(v))
+        .unwrap_or(PROTOCOL_VERSION);
     json!({
-        "protocolVersion": PROTOCOL_VERSION,
+        "protocolVersion": version,
         "capabilities": { "tools": {} },
         "serverInfo": { "name": SERVER_NAME, "version": env!("CARGO_PKG_VERSION") },
     })
@@ -62,10 +86,7 @@ fn tools_call(id: &Value, params: Option<&Value>) -> Value {
             "invalid params: `tools/call` requires {name, arguments}",
         );
     };
-    let name = params
-        .get("name")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
+    let name = params.get("name").and_then(Value::as_str).unwrap_or("");
     let args = params
         .get("arguments")
         .cloned()
@@ -175,5 +196,61 @@ mod tests {
         let resp =
             handle(&json!({ "jsonrpc": "2.0", "id": 6, "method": "tools/call" })).expect("reply");
         assert_eq!(resp["error"]["code"], -32602);
+    }
+
+    #[test]
+    fn initialize_echoes_a_supported_client_version() {
+        // Spec lifecycle MUST: a client on an older supported rev gets THAT rev
+        // back (not our latest) — so it connects instead of disconnecting.
+        for v in ["2024-11-05", "2025-03-26", "2025-06-18"] {
+            let resp = handle(&json!({
+                "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                "params": { "protocolVersion": v }
+            }))
+            .expect("reply");
+            assert_eq!(
+                resp["result"]["protocolVersion"], v,
+                "echo the client's {v}"
+            );
+        }
+    }
+
+    #[test]
+    fn initialize_falls_back_to_ours_on_an_unknown_version() {
+        let resp = handle(&json!({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": { "protocolVersion": "1999-01-01" }
+        }))
+        .expect("reply");
+        assert_eq!(resp["result"]["protocolVersion"], PROTOCOL_VERSION);
+    }
+
+    #[test]
+    fn a_batch_returns_an_array_of_replies() {
+        // JSON-RPC 2.0 batch (the 2024/2025-03 revs) — an array in, an array of
+        // the non-notification replies out.
+        let batch = json!([
+            { "jsonrpc": "2.0", "id": 1, "method": "ping" },
+            { "jsonrpc": "2.0", "method": "notifications/initialized" },
+            { "jsonrpc": "2.0", "id": 2, "method": "tools/list" }
+        ]);
+        let resp = dispatch(&batch).expect("a batch with requests replies");
+        let arr = resp.as_array().expect("array reply");
+        assert_eq!(
+            arr.len(),
+            2,
+            "two requests → two replies · the notification is silent"
+        );
+        assert_eq!(arr[0]["id"], 1);
+        assert_eq!(arr[1]["id"], 2);
+    }
+
+    #[test]
+    fn a_batch_of_only_notifications_is_silent() {
+        let batch = json!([{ "jsonrpc": "2.0", "method": "notifications/initialized" }]);
+        assert!(
+            dispatch(&batch).is_none(),
+            "no reply when every member is a notification"
+        );
     }
 }
