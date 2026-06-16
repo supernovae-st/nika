@@ -874,6 +874,52 @@ tasks:
     // per-iteration array is internal. The error is the surface.
 }
 
+/// Spec 03 §null-at-index — the REAL « positional alignment survives
+/// partial failure (the zip patterns stay sound) » guarantee · delivered
+/// the documented way · a per-iteration `on_error: skip` turns a failing
+/// element into a `null` AT ITS INDEX, the parent SUCCEEDS, and `.output`
+/// is the positional array a downstream zip can read. (Contrast
+/// `for_each_fail_fast_false_nulls_at_index` · an unrecovered failure
+/// fails the parent and `.output` reads defined-null · spec 04.)
+#[tokio::test]
+async fn for_each_on_error_skip_nulls_at_index_parent_succeeds() {
+    let yaml = r#"
+nika: v1
+workflow: fan-skip
+vars:
+  items: ["one", "two", "three"]
+tasks:
+  - id: work
+    for_each: ${{ vars.items }}
+    max_parallel: 1
+    on_error: { skip: true }
+    exec: { command: "do ${{ item }}" }
+"#;
+    let shell = MockShell::new()
+        .enqueue_ok("ok-one\n")
+        .enqueue_fail(3, "two exploded")
+        .enqueue_ok("ok-three\n");
+    let (outcome, _events) = run_to_events(
+        yaml,
+        shell,
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+
+    // The parent SUCCEEDS — every iteration was handled (skip), so the
+    // fan-out has no unrecovered error.
+    assert!(outcome.ok, "per-iteration skip keeps the parent successful");
+    assert_eq!(outcome.records["work"].status, TaskStatus::Success);
+    // `.output` is the positional array · null AT the skipped index ·
+    // the zip pattern stays sound (positions align with `vars.items`).
+    assert_eq!(
+        outcome.records["work"].output,
+        serde_json::json!(["ok-one", null, "ok-three"])
+    );
+}
+
 /// `fail_fast: true` (default) stops dispatching after the first
 /// settled error — under `max_parallel: 1` later iterations never run.
 #[tokio::test]
