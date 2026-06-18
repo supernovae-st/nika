@@ -783,6 +783,49 @@ custom providers).
   documented: nika-schema is exercised indirectly via parser+analyzer
   golden tests which serve as functional E2E.
 
+- **Gate 5 (Mutation ≥90%)**: **BUDGET mode** — ADR-003 Rule-2 *documented
+  exemption*, not a skip. The whole-crate floor (1601 mutants · `--jobs 1
+  --timeout 20` · the 8 `check/analysis.rs` graph-fixpoint divergers excluded
+  via `.cargo/mutants.toml` so they cannot OOM-reboot the host) leaves only
+  survivors that are each a diverge-by-design **timeout** or a proven
+  **equivalent** mutant. `scripts/ci/check-mutation-floor.sh` enforces
+  `survivors ≤ N`:
+
+  <!-- GATE5-EXEMPT: 300 -->
+
+  - **269 timeout-divergers** — a mutation that turns a bounded loop/stride
+    into a non-terminating one. E.g. `expression/template.rs`'s byte-scanner
+    `+= → -=` / `*=` reverse or explode the index; `analyzer/dag.rs` and
+    `check/certificate.rs` accumulators `+= → *=`. The 20 s timeout IS the
+    kill signal (detected-by-divergence). Measured by the floor-v2 run
+    (2026-06-18); budget is set to 300 (not 290) to absorb the wall-clock
+    variance inherent in timing out non-terminating mutants.
+  - **21 equivalent mutants** (enumerated · each re-verified by scoped
+    `cargo mutants`):
+    - `check/reach.rs` ×14 — disjoint-bit `| ≡ ^` on the status flags
+      (`S_SUCCESS|S_FAILURE|S_SKIPPED|S_CANCELLED` = bits 1/2/4/8, so XOR and
+      OR coincide), the unreachable `parse_gate → None` arm (the analyzer
+      rejects bad `${{…}}` islands upstream — `check_single_island`), and the
+      default-gate runnable masks neutralised by the always-set `S_CANCELLED`
+      bit + the runnable-always-true induction (roots are vacuously runnable;
+      every task therefore carries success or skipped).
+    - `expression/parser.rs` ×5 — the `peek()` defensive fallback
+      (unreachable: `advance()` clamps `pos < len`, so `get(pos)` is always
+      `Some`) and the `advance` bound (an over-advanced `pos` is clamped back
+      to the `Eof` token by `peek()`, unobservable).
+    - `expression/template.rs` ×1 — the `scan_templates` loop bound `<` → `<=`
+      (one extra `bytes[len..]` empty-slice iteration, no effect).
+    - `check/schema_lint.rs` ×1 — `json_matches_type` `|| → &&` (the
+      `f64`-is-whole disjunct already subsumes `is_i64() || is_u64()`).
+
+  **Killable survivors were CLOSED, not budgeted.** Rounds 1-7 added ~190
+  tests across the analyzer/check collection + lint logic, the `read_dag`
+  cap/pinch boundaries, the default-gate runnable path, and the
+  expression-parser offset/depth/byte-scanner. Two mutants the earlier §12
+  budget had mislabelled "equivalent-by-invariant" (`reach.rs` runnable mask
+  `| → &` and `!= → ==`) were proven *killable* and pinned by
+  `default_gate_with_deps_keeps_downstream_success_reachable`.
+
 ---
 
 ## 11. Risks and mitigations
@@ -798,6 +841,7 @@ custom providers).
 | **Untrusted-input DoS · deep YAML nesting** | **High** (`nika serve`) | `value::node_to_json` recurses on `Sequence`/`Mapping` with no depth bound → a deeply-nested value overflows the stack. **Pre-admission gate**: enforce a nesting-depth cap (the parse-time analog of the spec's run-recursion depth cap in `08-out-of-scope.md` §Depth cap, which is a distinct *runtime* guard). |
 | **Untrusted-input DoS · unbounded task count** | Medium (`nika serve`) | `parser::tasks::parse_tasks` iterates the `tasks:` sequence with no count cap (output `Vec` + downstream DAG scale with it). **Pre-admission gate**: add a `MAX_TASKS` bound. |
 | Billion-laughs (YAML anchor/alias expansion) | — | **Already mitigated** by the lib choice: `marked-yaml` 0.8 does not expand anchors/aliases (config-subset YAML). No action needed; documented so the mitigation isn't lost on a future YAML-lib swap. |
+| **Untrusted-input DoS · `when:`-gate literal scan** | **Fixed 2026-06-18** | A `when:` gate `in [...]` list of distinct non-status strings drove `check/reach.rs::collect_bad_literals` into O(n²) `Vec::contains` dedup — 40k literals ≈ 3 s CPU on a 2-task workflow, bypassing every cap (the list is depth-1 so `MAX_DEPTH` never fires; the gate lives on one task so `MAX_TASKS`/`MAX_GATE_REFS` do not bound it). **Fixed** (`7312519f0`): `BTreeSet` seen-guard → O(n log n), same findings; regression test `huge_in_list_of_distinct_literals_is_not_quadratic`. Found by an adversarial review refuter + reproduced empirically. |
 
 > **Pre-admission security gate (untrusted-input resource bounds).** Before
 > `nika-schema` is wired behind `nika serve` (untrusted workflow input), the
@@ -972,3 +1016,4 @@ effects, and quote-bearing paths.
 
 
 | 2026-06-18 | Gate 5 — the whole-crate mutation FLOOR + survivor close (rounds 1-2) | First full floor: **1601 mutants, 10h, ZERO machine reboots**. ⭐ The 4 prior reboots were NOT a HW fault — `--jobs 6` on an 18 GB Mac drove specific `check/analysis.rs` graph-fixpoint fns (`downstream_adjacency·descendant_closure·set_bits·hopcroft_karp·hk_bfs·hk_dfs·koenig_witness·scan_parallel_writers`) into non-converging loops that allocate unbounded when mutated → `vm-compressor-space-shortage` jetsam → watchdog reset (no `.panic`, no nvram panic-info = not a kernel panic). FIX: `--jobs 1 --timeout 20 --exclude-re` those 8 (diverge-by-design · covered by the König/reach property suite). Result **926 caught · 86 missed · 269 timeout · 320 unviable**. Survivor close: **rounds 1-2 killed 151** real-gap survivors (`b84c48dc` 4 clusters, 68 tests · `d7cb5f84` preference_rules 49/49, 31 tests) — the gap was collection/lint detection logic exercised but never asserted (`schema_paths` output-path pipeline · `preference_rules` rules 005/006/007 + is_value_producer/is_shard_chain/leaf_paths · `certificate` accounting · `hints` secret-walk). maker≠checker re-verification caught a 50-survivor head-truncation, a bad fixture, and 6 clippy lints the no-cargo agents could not. **Budget plan** (BUDGET mode · `survivors ≤ N`): 269 timeout-divergers + 16 reach-equivalents (see 2026-06-12 row) — final `<!-- GATE5-EXEMPT: N -->` set once the ~70-mutant long tail is killed/justified. |
+| 2026-06-18 | Gate 5 close — rounds 3-7 + review swarm | Survivor close finished · §10 budget set to **300** = 269 timeout-divergers + 21 enumerated equivalents (`reach.rs` ×14 · `expression/parser.rs` ×5 · `template.rs` ×1 · `schema_lint.rs` ×1), each re-verified by scoped `cargo mutants`. **Rounds 3-7** (~190 tests) killed the real-gap tail: `read_dag` cap/pinch boundaries (round 6 · `9bcdbb1af`), the default-gate runnable path (`cb29d351e` — which ALSO killed two mutants the 2026-06-12 row had mislabelled "equivalent-by-invariant": the `reach.rs` runnable mask `\| → &` and `!= → ==`, both observably killable), and the **expression sub-language** parser/template/AST that rounds 1-6 never reached (round 7 · `58c9540c3` · 11 tests · `peek_offset` error offsets, the `MAX_DEPTH=128` boundary, the unary depth-exit leak across a relation's lhs→rhs, the quote-aware `}}` byte-scanner). **Two non-Gate-5 fixes** the 5-lens review swarm surfaced same-arc: a real O(n²) `when:`-gate DoS (`7312519f0` · §11) and 7 missing `#[non_exhaustive]` `source/` types (`c9158986f` · FCI-002, `cargo check --workspace` clean across all 6 consumers). One reviewer P2 (`declass.rs` host-glob bypass) was VERIFIED a false positive (`ends_with(".suffix")` is label-boundary-safe). Method · scoped `cargo mutants -f <glob>` reuses the cached baseline (minutes, restart-robust) vs the 10 h `--jobs 1` full floor; re-adjudicate prior "equivalent" labels rather than trusting them. |
