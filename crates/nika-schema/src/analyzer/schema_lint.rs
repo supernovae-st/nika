@@ -82,7 +82,66 @@ fn check_action(action: &RawAction, errors: &mut Vec<SchemaError>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
     use serde_json::json;
+
+    fn errors_of(yaml: &str) -> Vec<SchemaError> {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let mut errors = Vec::new();
+        scan_schemas(&wf, &mut errors);
+        errors
+    }
+
+    #[test]
+    fn first_line_returns_the_actual_first_line() {
+        // `first_line` must echo the input's first line — a mutant that
+        // returns a fixed string instead is caught here.
+        assert_eq!(first_line("real first\nsecond\nthird"), "real first");
+        // single-line input round-trips unchanged.
+        assert_eq!(first_line("only line"), "only line");
+    }
+
+    #[test]
+    fn infer_task_with_bad_schema_is_flagged() {
+        // `type: objet` does not compile → the runtime-parity meta-check
+        // (scan_schemas → check_action → the Infer arm) must push an error.
+        let errors = errors_of(
+            "nika: v1\nworkflow: wftest\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: objet\n",
+        );
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(
+            matches!(&errors[0], SchemaError::Validation { message, .. }
+                if message.contains("not a valid JSON Schema")),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
+    fn agent_task_with_bad_schema_is_flagged() {
+        // Same bad schema under an `agent:` task — the Agent arm of
+        // `check_action` must also reach the meta-check.
+        let errors = errors_of(
+            "nika: v1\nworkflow: wftest\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      schema:\n        type: objet\n",
+        );
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(
+            matches!(&errors[0], SchemaError::Validation { message, .. }
+                if message.contains("not a valid JSON Schema")),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
+    fn valid_infer_schema_pushes_no_error() {
+        // A compiling schema leaves `errors` empty — pins that the scan
+        // reaches the action AND that a good schema passes (so the
+        // bad-schema tests above prove the arm, not a blanket reject).
+        let errors = errors_of(
+            "nika: v1\nworkflow: wftest\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n",
+        );
+        assert!(errors.is_empty(), "{errors:?}");
+    }
 
     #[test]
     fn valid_schemas_compile() {

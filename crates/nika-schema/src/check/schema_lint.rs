@@ -337,6 +337,7 @@ mod tests {
     use super::*;
     use crate::parser::{ParseMode, parse};
     use crate::source::FileId;
+    use serde_json::json;
 
     fn findings_of(yaml: &str) -> Vec<SchemaLintFinding> {
         scan_schemas(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
@@ -517,5 +518,71 @@ mod tests {
             "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"true\" }\n",
         );
         assert!(f.is_empty());
+    }
+
+    #[test]
+    fn json_matches_type_recognizes_every_type_name() {
+        // One TRUE case per arm — deleting any of the boolean / array /
+        // object / null arms (or string / number / integer) makes the
+        // value stop matching its own declared type.
+        assert!(json_matches_type(&json!("hi"), "string"));
+        assert!(json_matches_type(&json!(1.5), "number"));
+        assert!(json_matches_type(&json!(7), "integer"));
+        assert!(json_matches_type(&json!(true), "boolean"));
+        assert!(json_matches_type(&json!(false), "boolean"));
+        assert!(json_matches_type(&json!([1, 2]), "array"));
+        assert!(json_matches_type(&json!({"k": 1}), "object"));
+        assert!(json_matches_type(&json!(null), "null"));
+        // A value never matches a foreign type (pins the per-arm verdict,
+        // so the TRUE cases above can only pass via the right arm).
+        assert!(!json_matches_type(&json!("hi"), "boolean"));
+        assert!(!json_matches_type(&json!(true), "string"));
+        assert!(!json_matches_type(&json!([1]), "object"));
+        assert!(!json_matches_type(&json!(null), "array"));
+        assert!(!json_matches_type(&json!({}), "null"));
+    }
+
+    #[test]
+    fn json_matches_type_integer_covers_the_fract_check() {
+        // `integer` = is_i64 || is_u64 || (whole f64). Pin the f64 arm's
+        // `n.fract() == 0.0` predicate (the `==`→`!=` mutant): a whole
+        // float matches, a fractional one does not.
+        // Negative + large-unsigned integers stay integers (both whole).
+        assert!(json_matches_type(&json!(-1), "integer"));
+        assert!(json_matches_type(
+            &json!(9_223_372_036_854_775_808_u64),
+            "integer"
+        ));
+        // Whole-valued float: is_i64 false, is_u64 false, fract == 0 → match.
+        // Flipping `==` to `!=` drops this case (0.0 != 0.0 is false).
+        assert!(json_matches_type(&json!(3.0), "integer"));
+        // Fractional float: no disjunct holds → not an integer. Flipping
+        // `==` to `!=` would wrongly let 3.5 match (0.5 != 0.0 is true).
+        assert!(!json_matches_type(&json!(3.5), "integer"));
+    }
+
+    #[test]
+    fn enum_vs_type_handles_the_array_type_form() {
+        // `type: [string]` is the array form of the declared type. With
+        // an all-non-string enum, no value matches → must flag (deleting
+        // the `Value::Array` arm makes the array-form `type` invisible
+        // and the conflict slips through silently).
+        let f = findings_of(&infer_with_schema(
+            "        type: object\n        properties:\n          n: { type: [string], enum: [1, 2] }\n",
+        ));
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].path, "/properties/n/enum");
+        assert!(f[0].detail.contains("no `enum` value matches"), "{f:?}");
+    }
+
+    #[test]
+    fn numeric_bound_equal_to_its_pair_is_satisfiable() {
+        // minimum == maximum admits exactly one value — satisfiable, so
+        // NO finding. The comparison is strictly `>`; relaxing it to `>=`
+        // would falsely flag the equal-bounds case.
+        let f = findings_of(&infer_with_schema(
+            "        type: object\n        properties:\n          n: { type: integer, minimum: 5, maximum: 5 }\n",
+        ));
+        assert!(f.is_empty(), "equal bounds are satisfiable: {f:?}");
     }
 }

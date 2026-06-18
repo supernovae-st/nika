@@ -347,6 +347,37 @@ mod tests {
     }
 
     #[test]
+    fn bad_builtin_args_done_carries_its_registered_code() {
+        // Deep fixture 010 matches `nika:done` on its REGISTERED exact code
+        // (BUILTIN-DONE-001); every other tool emits the generic BUILTIN-001.
+        // This pins both arms — killing the `tool == "nika:done"` guard
+        // (forced true/false) and the `==`→`!=` flip.
+        let done = SchemaError::BadBuiltinArgs {
+            task: "finish".into(),
+            tool: "nika:done".into(),
+            reason: "needs a `status:` arg".into(),
+            span: None,
+        }
+        .spec_code();
+        assert_eq!(done.namespace, "BUILTIN-DONE");
+        assert_eq!(done.num, 1);
+        assert_eq!(done.to_string(), "NIKA-BUILTIN-DONE-001");
+
+        // A DIFFERENT builtin must NOT borrow the nika:done code — it falls
+        // to the generic namespace (this is the arm a guard→true would steal).
+        let other = SchemaError::BadBuiltinArgs {
+            task: "fetch".into(),
+            tool: "nika:fetch".into(),
+            reason: "needs a `url:` arg".into(),
+            span: None,
+        }
+        .spec_code();
+        assert_eq!(other.namespace, "BUILTIN");
+        assert_eq!(other.num, 1);
+        assert_eq!(other.to_string(), "NIKA-BUILTIN-001");
+    }
+
+    #[test]
     fn numbers_unique_within_namespace() {
         use std::collections::BTreeSet;
         let mut seen = BTreeSet::new();

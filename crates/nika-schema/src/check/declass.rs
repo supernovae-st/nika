@@ -527,4 +527,72 @@ tasks:
         );
         assert!(!sanctioned(&y, "hook", "t"), "L1 sink id must match");
     }
+
+    #[test]
+    fn host_glob_matches_exact_and_subdomain_wildcard() {
+        // Exact host — kills the `glob == host` `==`→`!=` flip.
+        assert!(
+            host_glob_matches("api.x.com", "api.x.com"),
+            "exact host matches"
+        );
+        assert!(
+            !host_glob_matches("api.x.com", "evil.com"),
+            "a different host does not match an exact glob"
+        );
+        // `*.suffix` matches a deeper subdomain (the `ends_with` arm) AND the
+        // bare suffix (the `host == suffix` arm). The deep case and the bare
+        // case each isolate one OR-branch:
+        //  · `api.github.com` clears via `ends_with` only → kills `||`→`&&`.
+        //  · `github.com` clears via `host == suffix` only → kills `||`→`&&`
+        //    AND the `host == suffix` `==`→`!=` flip.
+        assert!(
+            host_glob_matches("*.github.com", "api.github.com"),
+            "a subdomain matches `*.` via ends_with"
+        );
+        assert!(
+            host_glob_matches("*.github.com", "github.com"),
+            "the bare suffix matches `*.` via the equality arm"
+        );
+        // A host that is neither the suffix nor a subdomain does not match —
+        // guards the wildcard against over-matching an unrelated domain.
+        assert!(
+            !host_glob_matches("*.github.com", "github.com.evil.com"),
+            "an unrelated domain does not match the `*.` wildcard"
+        );
+    }
+
+    #[test]
+    fn self_url_with_second_secret_nested_in_an_array_is_occluded() {
+        // The non-occlusion guard must descend into JSON ARRAYS: a second
+        // secret hidden inside an array-valued arg would ride out under the
+        // trusted self-URL. Deleting the `Value::Array` walk arm lets it
+        // through (wrongly sanctioned) — this asserts it stays a leak.
+        let y = "\
+nika: v1
+workflow: w
+secrets:
+  hook:
+    source: env
+    key: WEBHOOK
+    egress:
+      - to: \"nika:notify\"
+        host_from_self: true
+  leaked:
+    source: env
+    key: OTHER
+tasks:
+  - id: t
+    invoke:
+      tool: \"nika:notify\"
+      args:
+        channel: webhook
+        target: \"${{ secrets.hook }}\"
+        attachments:
+          - \"token ${{ secrets.leaked }}\"
+";
+        assert!(
+            !sanctioned(y, "hook", "t"),
+            "a second secret nested in an array still occludes the self-URL"
+        );
+    }
 }

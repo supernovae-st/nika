@@ -770,4 +770,62 @@ tasks:
             "a secret in system: is a provider-egress sink"
         );
     }
+
+    #[test]
+    fn secret_nested_in_invoke_args_array_is_a_sink() {
+        // Kills `collect_json_strings_into` 470 — delete the
+        // `Value::Array(items)` arm. The invoke args carry the secret leaf
+        // inside a JSON ARRAY (`items: ["${{ secrets.api_key }}"]`). The
+        // string collector MUST recurse into the array to surface the leaf →
+        // the effect sees `secrets.api_key` → tainted. Deleting the Array arm
+        // drops the array's strings, so the secret is invisible and the
+        // effect wrongly reads clean.
+        let y = format!(
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    invoke: {{ tool: \"mcp:srv/run\", args: {{ items: [\"${{{{ secrets.api_key }}}}\"] }} }}\n"
+        );
+        let (wf, f) = facts(&y);
+        let trace = f
+            .effect_taint(idx(&wf, "t"))
+            .expect("secret nested in the invoke args ARRAY must be seen by the effect");
+        assert_eq!(trace.secret, "api_key");
+    }
+
+    #[test]
+    fn undeclared_secret_ref_is_not_tainted() {
+        // Kills `taint_of_refs_full` 417 — forcing the guard
+        // `declared.contains(&name.as_str())` → `true`. The resolver is
+        // handed a `secrets.unknown` ref while `declared` lists only
+        // `api_key`; the guard must REJECT the undeclared name and the
+        // resolver returns `None` (no taint). The forced-true mutant would
+        // treat ANY `secrets.<name>` as a live secret and return
+        // `Some(source("unknown"))`. (Driven directly because the public
+        // `analyze` path rejects an undeclared `secrets.X` ref before the IFC
+        // pass ever runs, so the guard cannot be reached end-to-end.)
+        let declared = ["api_key"];
+        let no_facts = FlowFacts::default();
+        let id_of: BTreeMap<&str, usize> = BTreeMap::new();
+        let with_taint: BTreeMap<&str, TaintTrace> = BTreeMap::new();
+
+        // Undeclared name → the guard fails → no taint.
+        let undeclared = vec![NamespaceRef::Secrets("unknown".to_owned())];
+        assert_eq!(
+            taint_of_refs_full(undeclared, &declared, &with_taint, None, &id_of, &no_facts),
+            None,
+            "an undeclared secret name must NOT be classified as a live secret"
+        );
+
+        // Sanity anchor · the SAME resolver with the DECLARED name DOES taint,
+        // proving the test exercises the live guard (not a dead path).
+        let declared_ref = vec![NamespaceRef::Secrets("api_key".to_owned())];
+        let got = taint_of_refs_full(
+            declared_ref,
+            &declared,
+            &with_taint,
+            None,
+            &id_of,
+            &no_facts,
+        )
+        .expect("a declared secret name is tainted");
+        assert_eq!(got.secret, "api_key");
+    }
 }

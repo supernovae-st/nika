@@ -388,13 +388,32 @@ mod tests {
 
     #[test]
     fn collect_recurses_into_a_dynamic_index_subexpr() {
-        let e = parse_expression("tasks.a.output.items[tasks.b.output.idx]").expect("parse");
+        // Kills `collect_dynamic_index_subexprs` 120 — delete the
+        // `Expr::Member { base, .. }` spine arm.
+        //
+        // The dynamic index `[tasks.b.output.idx]` sits BEHIND a trailing
+        // `.name` Member: the outermost node of the whole expression is the
+        // `.name` Member, NOT the Index. So the spine walk must descend
+        // THROUGH the Member arm (`cur = base`) to even REACH the Index node
+        // that carries `tasks.b`. Deleting the Member arm makes the walk
+        // bottom out at `_ => return` on the very first node (`.name`),
+        // before the Index → `tasks.b` is never collected. (The round-1
+        // input `…items[…]` had the Index as the OUTERMOST node, so the
+        // Index arm fired first and the Member arm was never load-bearing —
+        // it could be deleted with the chain still collected. The trailing
+        // `.name` is what forces the Member walk.)
+        let e = parse_expression("tasks.a.output.items[tasks.b.output.idx].name").expect("parse");
         let mut out = Vec::new();
         collect_output_paths(&e, &mut out);
         let ids: std::collections::BTreeSet<&str> = out.iter().map(|(i, _)| i.as_str()).collect();
         assert!(
-            ids.contains("a") && ids.contains("b"),
-            "both output chains collected, got {ids:?}"
+            ids.contains("a"),
+            "the outer chain `tasks.a.output…` is collected, got {ids:?}"
+        );
+        assert!(
+            ids.contains("b"),
+            "the dynamic index behind the trailing `.name` Member must be \
+             reached by the spine walk (Member arm load-bearing), got {ids:?}"
         );
     }
 

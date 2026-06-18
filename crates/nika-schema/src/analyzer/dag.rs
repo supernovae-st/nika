@@ -281,6 +281,68 @@ mod tests {
     }
 
     #[test]
+    fn recover_deadlock_ref_nested_in_an_array() {
+        // Kills `recover_task_refs::strings` 148 — delete the
+        // `Value::Array(items)` arm. The recover value is a JSON ARRAY whose
+        // element is the `${{ tasks.report.output }}` island; `report`
+        // transitively depends on the declaring task `fetch` (report → mid →
+        // fetch). The string walker MUST descend into the array to find the
+        // ref — deleting the Array arm drops it, so no `tasks.report` is
+        // collected and the deadlock goes unreported.
+        let yaml = format!(
+            "{HEADER}tasks:
+  - id: fetch
+    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://x.example\" }} }}
+    on_error:
+      recover:
+        - \"${{{{ tasks.report.output }}}}\"
+  - id: mid
+    depends_on: [fetch]
+    exec: {{ command: echo }}
+  - id: report
+    depends_on: [mid]
+    exec: {{ command: echo }}
+"
+        );
+        let errors = analyze_yaml(&yaml).expect_err("deadlock via array-nested ref");
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                SchemaError::RecoverAwaitDeadlock { task, target, .. }
+                    if task == "fetch" && target == "report"
+            )),
+            "ref nested inside the recover ARRAY must still be collected: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn recover_independent_target_does_not_deadlock() {
+        // Kills `depends_transitively_on` 188 `==`→`!=`. `fetch` declares a
+        // recover referencing `other`, which depends on `base` but NOT on
+        // `fetch`. The transitive walk over `other`'s closure (other → base)
+        // never reaches `fetch`, so the original returns FALSE — a legal
+        // workflow, no error. With `==`→`!=`, the very first dep compare
+        // (`"base" != "fetch"` → true) returns true immediately, fabricating
+        // a spurious `RecoverAwaitDeadlock`. Asserting the workflow ANALYZES
+        // CLEAN separates the two.
+        let yaml = format!(
+            "{HEADER}tasks:
+  - id: base
+    exec: {{ command: echo }}
+  - id: other
+    depends_on: [base]
+    exec: {{ command: echo }}
+  - id: fetch
+    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://x.example\" }} }}
+    on_error:
+      recover: ${{{{ tasks.other.output }}}}
+"
+        );
+        analyze_yaml(&yaml)
+            .expect("an independent recover target is NOT a transitive-dep deadlock");
+    }
+
+    #[test]
     fn recover_independent_source_is_legal() {
         // 03 §carve-out · an independent recovery source needs NO edge
         // and passes acyclicity (the example-22 fetch-chain shape).
@@ -316,6 +378,42 @@ mod tests {
                 .iter()
                 .any(|e| matches!(e, SchemaError::Cycle { cycle } if cycle.len() >= 2)),
             "{errors:?}"
+        );
+    }
+
+    #[test]
+    fn cycle_path_is_reconstructed_from_the_gray_segment() {
+        // Kills `check_cycles` 95 `==`→`!=` in `position(|&(n, _)| n == next)`.
+        // The DFS starts at `a`, descends `a → b`, and hits the back-edge
+        // `b → a`. The cycle path is rebuilt from the gray-stack segment
+        // STARTING at the back-edge target (`a`): the slice `[a, b]` plus the
+        // re-appended target `a` ⇒ exactly `[a, b, a]`. With `==`→`!=`,
+        // `position` returns the first node ≠ `a` (index 1 = `b`), so the
+        // slice becomes `[b]` and the path degrades to `[b, a]` — a different,
+        // shorter, wrong reconstruction. Asserting the EXACT path separates
+        // the two.
+        let yaml = format!(
+            "{HEADER}tasks:
+  - id: a
+    depends_on: [b]
+    exec: {{ command: echo }}
+  - id: b
+    depends_on: [a]
+    exec: {{ command: echo }}
+"
+        );
+        let errors = analyze_yaml(&yaml).expect_err("cycle");
+        let cycle = errors
+            .iter()
+            .find_map(|e| match e {
+                SchemaError::Cycle { cycle } => Some(cycle.clone()),
+                _ => None,
+            })
+            .expect("a Cycle error");
+        assert_eq!(
+            cycle,
+            vec!["a".to_owned(), "b".to_owned(), "a".to_owned()],
+            "the gray-segment slice must start AT the back-edge target `a`"
         );
     }
 

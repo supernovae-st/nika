@@ -548,3 +548,74 @@ fn suggest_in<'a>(
 ) -> Option<String> {
     crate::suggest::did_you_mean(name, candidates).map(|s| format!("{namespace}.{s}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::analyzer::analyze;
+    use crate::error::SchemaError;
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
+
+    fn analyze_yaml(yaml: &str) -> Result<crate::analyzer::AnalyzedWorkflow, Vec<SchemaError>> {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        analyze(&wf)
+    }
+
+    const HEADER: &str = "nika: v1\nworkflow: t\n";
+
+    /// The unresolved-ref reference string carried by the first finding.
+    fn sole_unresolved(yaml: &str) -> String {
+        let errors = analyze_yaml(yaml).expect_err("unresolved ref");
+        errors
+            .iter()
+            .find_map(|e| match e {
+                SchemaError::UnresolvedNamespaceRef { reference, .. } => Some(reference.clone()),
+                _ => None,
+            })
+            .expect("an UnresolvedNamespaceRef finding")
+    }
+
+    #[test]
+    fn scan_json_descends_into_an_array_value() {
+        // Kills `scan_json::walk` 377 — delete the `Value::Array(items)` arm.
+        // The `with:` value is a JSON ARRAY whose element is an
+        // `${{ vars.ghost }}` island referencing an UNDECLARED var. The walker
+        // MUST recurse into the array element to scan it → an
+        // `UnresolvedNamespaceRef` for `vars.ghost`. Deleting the Array arm
+        // skips the nested string, so the unresolved ref goes silently
+        // unreported and the workflow wrongly analyzes clean.
+        let yaml = format!(
+            "{HEADER}tasks:
+  - id: t
+    with: {{ payload: [\"${{{{ vars.ghost }}}}\"] }}
+    exec: {{ command: echo }}
+"
+        );
+        assert_eq!(
+            sole_unresolved(&yaml),
+            "vars.ghost",
+            "a ref nested inside a `with:` ARRAY must still be resolved"
+        );
+    }
+
+    #[test]
+    fn scan_json_descends_into_an_object_value() {
+        // Kills `scan_json::walk` 382 — delete the `Value::Object(map)` arm.
+        // The `with:` value is a nested JSON OBJECT whose leaf is an
+        // `${{ vars.ghost }}` island. The walker MUST recurse through the
+        // object's values to scan it → an `UnresolvedNamespaceRef`. Deleting
+        // the Object arm skips the nested string, hiding the unresolved ref.
+        let yaml = format!(
+            "{HEADER}tasks:
+  - id: t
+    with: {{ payload: {{ inner: \"${{{{ vars.ghost }}}}\" }} }}
+    exec: {{ command: echo }}
+"
+        );
+        assert_eq!(
+            sole_unresolved(&yaml),
+            "vars.ghost",
+            "a ref nested inside a `with:` OBJECT must still be resolved"
+        );
+    }
+}

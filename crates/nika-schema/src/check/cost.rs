@@ -504,3 +504,133 @@ mod for_each_fanout {
         );
     }
 }
+
+#[cfg(test)]
+mod ceiling_arithmetic {
+    use super::*;
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
+
+    fn ceiling_of(yaml: &str) -> CostCeiling {
+        ceiling(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    fn single_task(max_tokens: u32) -> CostCeiling {
+        ceiling_of(&format!(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    infer: {{ prompt: \"x\", max_tokens: {max_tokens} }}\n",
+        ))
+    }
+
+    #[test]
+    fn per_call_cost_stays_a_small_fraction_of_a_token_budget() {
+        // per_call = tokens × price / 1e6. For a 100-token sonnet call the
+        // real figure is sub-cent. The `/`→`%` mutant (tokens×price % 1e6) and
+        // the `/`→`*` mutant (tokens×price×1e6) on line 137 both blow the
+        // figure past $1 — pinned by this upper bound.
+        let c = single_task(100);
+        assert!(c.bounded_total_usd > 0.0, "sonnet is priced");
+        assert!(
+            c.bounded_total_usd < 1.0,
+            "100 tokens ÷ 1e6 is a fraction of a cent, got {}",
+            c.bounded_total_usd
+        );
+    }
+
+    #[test]
+    fn cost_ordering_follows_price_ordering() {
+        // per_call = tokens × price / 1e6 ∝ price. The `*`→`/` mutant on line
+        // 137 (tokens ÷ price) makes per_call ∝ 1/price, INVERTING which model
+        // costs more. Compare two models at the same token budget: the cost
+        // order must match the price order. Prices are fetched live, so the
+        // test is magnitude-agnostic — it only needs the two to differ.
+        let cheap_model = "anthropic/claude-sonnet-4-6";
+        let dear_model = "openai/gpt-4o-mini";
+        let p_cheap = output_price_per_million(cheap_model).expect("sonnet priced");
+        let p_dear = output_price_per_million(dear_model).expect("gpt-4o-mini priced");
+        assert!(
+            (p_cheap - p_dear).abs() > f64::EPSILON,
+            "the two models must have distinct output prices to order them"
+        );
+
+        let cost_of = |model: &str| {
+            let yaml = format!(
+                "nika: v1\nworkflow: w\nmodel: {model}\ntasks:\n  - id: t\n    infer: {{ prompt: \"x\", max_tokens: 1000 }}\n",
+            );
+            ceiling_of(&yaml).bounded_total_usd
+        };
+        let usd_cheap = cost_of(cheap_model);
+        let usd_dear = cost_of(dear_model);
+        assert_eq!(
+            usd_cheap > usd_dear,
+            p_cheap > p_dear,
+            "cost order must follow price order ({cheap_model}={p_cheap} ${usd_cheap}, {dear_model}={p_dear} ${usd_dear})"
+        );
+    }
+
+    #[test]
+    fn ungated_unretried_fanout_has_equal_path_costs() {
+        // For an ungated, unretried task: worst = per_call × n (line 139) and
+        // cheapest = per_call × n (line 141) — equal. The `*`→`/` mutant on
+        // line 141 makes cheapest = per_call / n; with n = 2 that diverges from
+        // worst (the degenerate n = 1 case cannot see it, which is why it
+        // survived). Both ends are still priced (sonnet), so they compare.
+        let c = ceiling_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    for_each: [1, 2]\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
+        );
+        assert_eq!(c.tasks[0].iterations, 2, "two-element list = 2 iterations");
+        assert!(c.bounded_total_usd > 0.0, "priced worst path");
+        assert!(
+            (c.min_path_total_usd - c.bounded_total_usd).abs() < 1e-12,
+            "ungated unretried: cheapest == worst (both per_call × 2), got {} vs {}",
+            c.min_path_total_usd,
+            c.bounded_total_usd
+        );
+    }
+}
+
+#[cfg(test)]
+mod static_vars_array_len_unit {
+    use super::*;
+    use crate::raw::RawWorkflow;
+    use crate::source::{Span, Spanned};
+
+    fn var(name: &str, value: serde_json::Value) -> (Spanned<String>, VarDecl) {
+        (
+            Spanned::new(name.to_owned(), Span::default()),
+            VarDecl::Untyped(value),
+        )
+    }
+
+    #[test]
+    fn resolves_the_named_var_not_a_different_one() {
+        // The `==`→`!=` mutant on the `find(|(k, _)| k.value == name)` predicate
+        // would match the FIRST var whose name is NOT the target — here `other`
+        // (len 1) instead of `items` (len 3). `items` is listed first so the
+        // `!=` mutant skips it and resolves the wrong array → 1 not 3.
+        let mut wf = RawWorkflow::new();
+        wf.vars
+            .push(var("items", serde_json::json!(["a", "b", "c"])));
+        wf.vars.push(var("other", serde_json::json!(["x"])));
+        assert_eq!(
+            static_vars_array_len(&wf, "${{ vars.items }}"),
+            Some(3),
+            "must resolve `items` (len 3), never a different var"
+        );
+    }
+
+    #[test]
+    fn rejects_a_non_alphanumeric_var_name() {
+        // The `||`→`&&` mutant on the guard makes the empty/bad-char test
+        // require BOTH conditions; a non-empty name with a `-` then falls
+        // through and (because the var exists) resolves a count instead of the
+        // correct `None`. The bare-name guard must reject `bad-name` outright.
+        let mut wf = RawWorkflow::new();
+        wf.vars
+            .push(var("bad-name", serde_json::json!(["one", "two"])));
+        assert_eq!(
+            static_vars_array_len(&wf, "${{ vars.bad-name }}"),
+            None,
+            "a hyphenated name is not a bare `vars.<ident>` — reject, never count"
+        );
+    }
+}

@@ -141,6 +141,12 @@ fn check_action(action: &RawAction, errors: &mut Vec<SchemaError>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
+
+    fn wf_of(yaml: &str) -> RawWorkflow {
+        parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse")
+    }
 
     #[test]
     fn valid_jq_compiles() {
@@ -179,5 +185,116 @@ mod tests {
         // `matches` is not in the v0.1 jaq surface — a compile (undefined) error.
         let err = jq_compiles(".s | nonexistent_filter_xyz").expect_err("undefined");
         assert!(err.contains("undefined"), "{err}");
+    }
+
+    #[test]
+    fn parse_error_renders_a_positive_expected_line() {
+        // A trailing pipe is a LOAD/parse error → `render_load` → `syntax_msg`.
+        // Pin the CONTENT (not just « no Debug repr ») so a stubbed
+        // `render_load`/`syntax_msg` (body → "" / "xyzzy") is caught: the
+        // real renderer always emits an « expected … » line.
+        let err = jq_compiles(".a |").expect_err("trailing pipe is a syntax error");
+        assert!(
+            err.contains("expected"),
+            "syntax_msg/render_load must name what was expected: {err}"
+        );
+        assert!(!err.is_empty(), "the rendered reason is never empty");
+        assert_ne!(err, "xyzzy", "the reason is the real message, not a stub");
+    }
+
+    #[test]
+    fn syntax_msg_reports_unexpected_end_of_input() {
+        // `${{`-free incomplete program → the empty-`at` branch of `syntax_msg`
+        // (« unexpected end of input ») — content pinned so the "" / "xyzzy"
+        // body mutants on `syntax_msg` (line 90) cannot survive.
+        let msg = syntax_msg("a value", "");
+        assert_eq!(msg, "expected a value (unexpected end of input)");
+    }
+
+    #[test]
+    fn syntax_msg_reports_the_offending_slice() {
+        // The non-empty-`at` branch — pins the « expected … near `…` » shape.
+        let msg = syntax_msg("a closing bracket", "] rest");
+        assert_eq!(msg, "expected a closing bracket near `] rest`");
+    }
+
+    #[test]
+    fn render_load_on_empty_set_is_the_does_not_parse_fallback() {
+        // The `errs.first()` is-empty arm (line 61) — a "" / "xyzzy" body mutant
+        // on `render_load` cannot reproduce this exact fallback string.
+        assert_eq!(render_load(&[]), "does not parse");
+    }
+
+    #[test]
+    fn scan_jq_flags_a_nika_jq_task_with_a_broken_expression() {
+        // A literal `nika:jq` `expression:` that does not compile must produce
+        // a finding. Kills: `scan_jq`→(), `check_action`→(), and the deletion
+        // of the `"nika:jq"` match arm (each → no finding).
+        let wf = wf_of(
+            "\
+nika: v1
+workflow: jq-bad
+tasks:
+  - id: transform
+    invoke: { tool: \"nika:jq\", args: { expression: \".a |\" } }
+",
+        );
+        let mut errors = Vec::new();
+        scan_jq(&wf, &mut errors);
+        assert_eq!(errors.len(), 1, "the broken jq must raise one finding");
+        let SchemaError::ExpressionViolation { reason, .. } = &errors[0] else {
+            panic!("expected an ExpressionViolation, got {:?}", errors[0]);
+        };
+        assert!(
+            reason.contains("jq compile error"),
+            "the finding names the jq compile failure: {reason}"
+        );
+    }
+
+    #[test]
+    fn scan_jq_flags_a_nika_fetch_jq_mode_with_a_broken_expression() {
+        // The `nika:fetch` `mode: jq` `jq:` arm (line 123) — same broken
+        // program under the OTHER key. Deleting the `"nika:fetch"` arm → no
+        // finding → caught here (the `nika:jq` test alone would not).
+        let wf = wf_of(
+            "\
+nika: v1
+workflow: fetch-bad-jq
+tasks:
+  - id: pull
+    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com\", mode: jq, jq: \".a |\" } }
+",
+        );
+        let mut errors = Vec::new();
+        scan_jq(&wf, &mut errors);
+        assert_eq!(
+            errors.len(),
+            1,
+            "the broken fetch-jq must raise one finding"
+        );
+        assert!(
+            matches!(errors[0], SchemaError::ExpressionViolation { .. }),
+            "got {:?}",
+            errors[0]
+        );
+    }
+
+    #[test]
+    fn scan_jq_is_silent_on_valid_programs() {
+        // A well-formed `nika:jq` expression raises nothing — guards against a
+        // mutant that flags unconditionally (and pins that `scan_jq` runs the
+        // real compile, not a constant).
+        let wf = wf_of(
+            "\
+nika: v1
+workflow: jq-ok
+tasks:
+  - id: transform
+    invoke: { tool: \"nika:jq\", args: { expression: \"[.items[].name]\" } }
+",
+        );
+        let mut errors = Vec::new();
+        scan_jq(&wf, &mut errors);
+        assert!(errors.is_empty(), "a valid jq program is clean: {errors:?}");
     }
 }

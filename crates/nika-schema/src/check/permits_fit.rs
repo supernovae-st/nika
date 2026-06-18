@@ -588,6 +588,69 @@ tasks:
         let y = "nika: v1\nworkflow: w\npermits: { exec: [\"git\"] }\nvars: { cmd: \"git\" }\ntasks:\n  - id: t\n    exec: { command: \"${{ vars.cmd }} status\" }\n";
         assert!(escapes_of(y).is_empty(), "dynamic head = runtime check");
     }
+
+    #[test]
+    fn is_env_assignment_recognizes_the_name_equals_value_shape() {
+        // `VAR=value` is an assignment; a bare word and a value with no
+        // identifier name before `=` are not. These pin the recognition
+        // the leading-program skip relies on.
+        assert!(
+            is_env_assignment("FOO=bar"),
+            "identifier=value is an env assignment"
+        );
+        assert!(!is_env_assignment("plain"), "no `=` → not an assignment");
+        assert!(
+            !is_env_assignment("=noname"),
+            "empty name before `=` → not an assignment"
+        );
+        // A non-identifier name (`-`) must NOT be an assignment — kills the
+        // `&&` joining `!is_empty()` to the all-identifier-chars guard: under
+        // `||` the empty/charset checks stop gating and `fo-o=bar` reads true.
+        assert!(
+            !is_env_assignment("fo-o=bar"),
+            "`-` is not an identifier char → not an assignment"
+        );
+        // A digit-leading name must NOT be an assignment — kills the first-byte
+        // `b == b'_' || alpha` check (the `==` flip lets a leading digit pass).
+        assert!(
+            !is_env_assignment("9var=bar"),
+            "a name may not start with a digit → not an assignment"
+        );
+    }
+
+    #[test]
+    fn leading_program_skips_assignments_and_gives_up_on_dynamic_heads() {
+        // The literal head is the program; a `NAME=value` prefix is skipped.
+        assert_eq!(leading_program("git status"), Some("git"));
+        assert_eq!(
+            leading_program("FOO=bar git log"),
+            Some("git"),
+            "the assignment is skipped to the real program"
+        );
+        // A head carrying a `{` (brace expansion · not an env assignment) is
+        // dynamic → give up statically. Kills the `||`→`&&` mutant on the
+        // dynamic-head guard: under `&&` a `{`-only head is no longer dynamic
+        // and would be returned as a literal program.
+        assert_eq!(
+            leading_program("ec{ho} hi"),
+            None,
+            "a `{{`-bearing head is dynamic, not a literal program"
+        );
+    }
+
+    #[test]
+    fn non_webhook_notify_with_url_target_is_not_a_net_sink() {
+        // notify is a net egress ONLY on the `webhook` channel. An `email`
+        // channel whose `target` happens to parse as a URL must NOT be
+        // classified as a net effect — kills the channel-guard→true mutant
+        // (which would flag every notify target as a host escape). The
+        // existing webhook-positive case kills the guard→false direction.
+        let email = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:notify\"], exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:notify\", args: { channel: \"email\", target: \"https://hooks.evil.com/p\", message: \"hi\" } }\n";
+        assert!(
+            escapes_of(email).is_empty(),
+            "a non-webhook channel's URL-shaped target is not a net sink"
+        );
+    }
 }
 
 #[cfg(test)]

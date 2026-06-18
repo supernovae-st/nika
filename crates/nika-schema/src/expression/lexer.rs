@@ -423,4 +423,24 @@ mod tests {
         assert!(tokenize("a | b").is_err());
         assert!(tokenize("a & b").is_err());
     }
+
+    #[test]
+    fn describe_renders_the_human_token_kind() {
+        // Kills `TokenKind::describe -> String` replaced by `""` / `"xyzzy"`.
+        // Assert the EXACT documented description for a representative spread
+        // of kinds — the data-carrying variants (which interpolate their
+        // payload) and several fixed-string operators/keywords — so any
+        // constant-return body mismatches at least one.
+        assert_eq!(
+            TokenKind::Ident("foo".into()).describe(),
+            "identifier `foo`"
+        );
+        assert_eq!(TokenKind::Int(7).describe(), "integer `7`");
+        assert_eq!(TokenKind::Str(String::new()).describe(), "string literal");
+        assert_eq!(TokenKind::True.describe(), "`true`");
+        assert_eq!(TokenKind::EqEq.describe(), "`==`");
+        assert_eq!(TokenKind::NotEq.describe(), "`!=`");
+        assert_eq!(TokenKind::In.describe(), "`in`");
+        assert_eq!(TokenKind::Eof.describe(), "end of expression");
+    }
 }
