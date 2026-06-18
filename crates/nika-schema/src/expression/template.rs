@@ -209,4 +209,122 @@ mod tests {
         let islands = scan_templates("${{ vars.a }}${{ vars.b }}").expect("scan");
         assert_eq!(islands.len(), 2);
     }
+
+    // ── Escape-skip stride (`\${{` → `i += 3`) ──────────────────────
+
+    #[test]
+    fn escaped_opener_skip_lands_exactly_past_three_bytes() {
+        // After an escaped `\${{`, the scan must advance by EXACTLY 3 bytes
+        // (past `${{`), so a REAL island immediately following is still
+        // found. A mutant stride (`i *= 3`) overshoots far past the real
+        // island and silently drops it. The long prefix makes the `$`
+        // offset large, so `i*3` jumps clean off the end → 0 islands.
+        let s = "prefix-thirty-chars-padding!! \\${{esc}}${{ vars.real }}";
+        let islands = scan_templates(s).expect("scan");
+        assert_eq!(islands.len(), 1, "the real island after `\\${{` must scan");
+        assert_eq!(islands[0].src, "vars.real");
+    }
+
+    // ── String-escape stride inside an island (`i += 2`) ─────────────
+
+    #[test]
+    fn backslash_escape_inside_island_string_does_not_break_close() {
+        // Inside a CEL string, `\'` is an escaped quote — the close-finder
+        // must step OVER both bytes (`i += 2`) so the escaped quote does
+        // NOT prematurely end the string AND the two escape bytes are not
+        // re-interpreted. The `}}` after the `\'` (still inside the string)
+        // stays protected; the island closes on the FINAL `}}`.
+        //
+        // A forward over-stride (`i *= 2`) overshoots the real close →
+        // UnterminatedTemplate (caught by `.expect`). A backward stride
+        // (`i -= 2`) re-reads the two pre-`\` bytes `ab` (no quote there),
+        // stays "in string", marches forward, re-hits the same `\` and
+        // loops → the mutant never terminates (caught by timeout). Correct
+        // code parses cleanly.
+        let islands = scan_templates(r"${{ vars.x == 'ab\'}}cd' }}").expect("scan");
+        assert_eq!(islands.len(), 1);
+        assert_eq!(islands[0].src, r"vars.x == 'ab\'}}cd'");
+        let Expr::Relation {
+            op: RelOp::Eq, rhs, ..
+        } = &islands[0].expr
+        else {
+            panic!("Eq relation, got {:?}", islands[0].expr);
+        };
+        // The string literal: `\'` → `'`, the `}}` are literal content.
+        assert_eq!(**rhs, Expr::Lit(Literal::Str("ab'}}cd".into())));
+    }
+
+    // ── Quote-close detection (`b == q`) ─────────────────────────────
+
+    #[test]
+    fn close_braces_inside_quoted_string_do_not_close_island() {
+        // A `}}` INSIDE a CEL string literal must not close the island —
+        // the scanner stays "inside the quote" until the MATCHING close
+        // quote (`b == q`). The `}}` here sits AFTER a leading char so the
+        // quote is genuinely open across it. A mutant (`b != q`) clears the
+        // quote state on the first non-quote byte (`a`), exposing the inner
+        // `}}` as a false close → body `'a` → an unterminated-string error,
+        // not the well-formed island correct code produces.
+        let islands = scan_templates("${{ 'a}}b' == vars.x }}").expect("scan");
+        assert_eq!(islands.len(), 1);
+        assert_eq!(islands[0].src, "'a}}b' == vars.x");
+        let Expr::Relation {
+            op: RelOp::Eq, lhs, ..
+        } = &islands[0].expr
+        else {
+            panic!("Eq relation, got {:?}", islands[0].expr);
+        };
+        assert_eq!(**lhs, Expr::Lit(Literal::Str("a}}b".into())));
+
+        // Plus the canonical short form (a string that IS just `}}`): the
+        // single leading char is the quote itself, so the close quote is
+        // reached before any non-quote byte — guards the simple case too.
+        let islands = scan_templates("${{ vars.x == '}}' }}").expect("scan");
+        assert_eq!(islands.len(), 1);
+        assert_eq!(islands[0].src, "vars.x == '}}'");
+    }
+
+    // ── `}}` lookahead (`bytes.get(i + 1)`) ──────────────────────────
+
+    #[test]
+    fn a_single_brace_does_not_close_the_island() {
+        // The island closes only on a DOUBLE `}}` — the lookahead checks
+        // `bytes[i + 1]`. A mutant collapsing the lookahead to `bytes[i]`
+        // (`i * 1`) would treat a lone `}` as a close.
+        //
+        // Case A · a `}` that is genuinely lone (no second `}` anywhere
+        // after) must NOT produce a false close → the island is reported
+        // unterminated. The mutant would instead close AT the lone `}` and
+        // report a spurious, well-formed island.
+        let err = scan_templates("${{ vars.x } ").expect_err("lone brace");
+        assert_eq!(err, ExprError::UnterminatedTemplate { offset: 0 });
+
+        // Case B · a stray `}` (followed by a space) sits mid-body; the
+        // true close is the `}}` further right. Correct code scans through
+        // the stray `}`, so the body is `a } b` → an inner parse error.
+        // The mutant closes at the stray `}`, yielding a bogus `a` island.
+        let err = scan_templates("${{ a } b }}").expect_err("stray brace mid-body");
+        assert!(
+            !matches!(err, ExprError::UnterminatedTemplate { .. }),
+            "the `}}}}` does close it — the body just doesn't parse: {err:?}"
+        );
+
+        // …and the all-valid form still closes on the real `}}`.
+        let islands = scan_templates("${{ vars.x in [1, 2] }}").expect("scan");
+        assert_eq!(islands.len(), 1);
+        assert_eq!(islands[0].src, "vars.x in [1, 2]");
+    }
+
+    // ── Outer-scan bound (`while i < bytes.len()`) ───────────────────
+
+    #[test]
+    fn island_at_the_very_end_of_input_scans() {
+        // Pins the outer-scan loop bound: an island flush against the end
+        // (no trailing bytes) must be found. The opener probe `bytes[i..]`
+        // and the trailing-`}}` are all within bounds.
+        let islands = scan_templates("end:${{ vars.z }}").expect("scan");
+        assert_eq!(islands.len(), 1);
+        assert_eq!(islands[0].src, "vars.z");
+        assert_eq!(islands[0].end, "end:${{ vars.z }}".len());
+    }
 }

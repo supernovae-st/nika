@@ -363,6 +363,29 @@ mod tests {
     }
 
     #[test]
+    fn additional_properties_schema_object_is_open() {
+        // `additionalProperties: { type: string }` (an OBJECT, not `true`)
+        // ALSO opens the object — JSON Schema's value-schema form allows
+        // undeclared keys (validated against the inner schema). So an
+        // unknown key must NOT be flagged. This pins the
+        // `Some(Value::Object(_)) => true` arm of `is_open_object`, which
+        // the Bool-form test above does not exercise.
+        let yaml = "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: { type: string }\n        properties:\n          known: { type: string }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.a.output.unknown_key }}\" }\n";
+        assert!(
+            findings_of(yaml).is_empty(),
+            "a value-schema additionalProperties opens the object → no finding"
+        );
+
+        // Control: with additionalProperties ABSENT, the same unknown key
+        // IS flagged — proving the open-object arm is what suppresses it
+        // (so deleting that arm becomes observable as a spurious finding).
+        let closed = "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          known: { type: string }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.a.output.unknown_key }}\" }\n";
+        let f = findings_of(closed);
+        assert_eq!(f.len(), 1, "closed object flags the unknown key");
+        assert!(f[0].detail.contains("known"), "lists the real key");
+    }
+
+    #[test]
     fn output_bindings_rebind_the_address_space() {
         let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"cat data.json\" }\n    output:\n      first: \". | .[0]\"\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.a.output.first }} ${{ tasks.a.output.frist }}\" }\n";
         let f = findings_of(yaml);

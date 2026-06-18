@@ -208,4 +208,23 @@ mod tests {
         assert_eq!(e, cloned);
         assert!(format!("{e:?}").contains("And"));
     }
+
+    #[test]
+    fn string_predicate_as_str_names_each_method() {
+        // The method names must round-trip exactly to source spelling —
+        // they feed error/diagnostic rendering, so a silent rename (or an
+        // empty/placeholder return) is a real regression.
+        assert_eq!(StringPredicate::Contains.as_str(), "contains");
+        assert_eq!(StringPredicate::StartsWith.as_str(), "startsWith");
+        assert_eq!(StringPredicate::EndsWith.as_str(), "endsWith");
+        // And they are pairwise distinct (catches a same-string collapse).
+        assert_ne!(
+            StringPredicate::Contains.as_str(),
+            StringPredicate::StartsWith.as_str()
+        );
+        assert_ne!(
+            StringPredicate::StartsWith.as_str(),
+            StringPredicate::EndsWith.as_str()
+        );
+    }
 }

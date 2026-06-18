@@ -676,6 +676,87 @@ mod tests {
         assert!(parse_expression("tasks.fetch.output.users").is_ok());
     }
 
+    // ── Error-offset accuracy (peek_offset) ─────────────────────────
+
+    #[test]
+    fn error_offset_points_at_the_offending_byte() {
+        // `peek_offset()` returns the CURRENT token's byte offset; a
+        // constant fallback (0 or 1) would misreport where the error is.
+        // Trailing input: the leftover `c` sits at byte 7 of "a == b c".
+        let err = parse_expression("a == b c").expect_err("trailing");
+        let ExprError::TrailingInput { offset } = err else {
+            panic!("expected TrailingInput, got {err:?}");
+        };
+        assert_eq!(offset, 7, "offset must point at the trailing `c`");
+    }
+
+    #[test]
+    fn chained_relation_offset_is_the_second_operator() {
+        // The second relop in "ab == cd == ef" begins at byte 9 — not 0,
+        // not 1. Pins peek_offset to the real token position.
+        let err = parse_expression("ab == cd == ef").expect_err("chained");
+        let ExprError::ChainedRelation { offset } = err else {
+            panic!("expected ChainedRelation, got {err:?}");
+        };
+        assert_eq!(offset, 9, "offset must point at the second `==`");
+    }
+
+    // ── Depth-guard boundary (enter · `depth > MAX_DEPTH`) ───────────
+
+    #[test]
+    fn depth_guard_admits_the_limit_and_rejects_one_past() {
+        // Empirical boundary (MAX_DEPTH = 128): a grouping nested with 127
+        // `(` reaches peak depth 128 (the limit) and MUST parse Ok; 128 `(`
+        // reaches 129 and MUST refuse. This pins the comparison operator —
+        // `>=` would reject the 127-case (off-by-one early), `==` would
+        // wave the 128-case through (never tripping past the limit).
+        let at_limit = format!("{}true{}", "(".repeat(127), ")".repeat(127));
+        assert!(
+            parse_expression(&at_limit).is_ok(),
+            "127-deep grouping (peak depth = MAX_DEPTH) must parse Ok"
+        );
+
+        let one_past = format!("{}true{}", "(".repeat(128), ")".repeat(128));
+        assert!(
+            matches!(parse_expression(&one_past), Err(ExprError::TooDeep { .. })),
+            "128-deep grouping (peak depth = MAX_DEPTH + 1) must refuse"
+        );
+    }
+
+    // ── Unary depth-restore (`self.depth -= 1` in `!`) ───────────────
+
+    #[test]
+    fn flat_unary_chains_do_not_leak_depth_across_siblings() {
+        // The `!` rung MUST restore depth on exit (`self.depth -= 1`), so a
+        // `!`-chain spent on one operand does not eat the other operand's
+        // budget. `rel_expr` parses lhs then rhs WITHOUT an intervening
+        // restore — so if `unary_expr` leaks its depth (mutant `+=` / `/=`),
+        // the lhs `!`-chain inflates depth and the rhs's first `enter()`
+        // falsely trips TooDeep. Each side here is only 70 deep (well under
+        // MAX_DEPTH = 128), so correct code parses it; a leaking mutant
+        // sees ~140 by the time it reaches the rhs and refuses.
+        let lhs = "!".repeat(70);
+        let rhs = "!".repeat(70);
+        let relation = format!("{lhs}a == {rhs}b");
+        assert!(
+            parse_expression(&relation).is_ok(),
+            "two 70-deep `!`-chains across a relation must parse — \
+             unary depth must not leak into the sibling operand"
+        );
+
+        // Same leak, observed through a chain of `||` siblings: 40 `!a`
+        // terms, each shallow, the chain only 40 wide — a leaking unary
+        // rung accumulates across them and trips. (Belt-and-braces; the
+        // relation form above is the primary killer.)
+        let wide = std::iter::repeat_n("!a", 40)
+            .collect::<Vec<_>>()
+            .join(" || ");
+        assert!(
+            parse_expression(&wide).is_ok(),
+            "40 `!a` siblings must parse — unary depth must not leak"
+        );
+    }
+
     proptest! {
         #[test]
         fn parse_never_panics(src in ".{0,64}") {
