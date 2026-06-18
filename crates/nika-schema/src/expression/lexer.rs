@@ -382,6 +382,35 @@ mod tests {
     }
 
     #[test]
+    fn lex_string_backslash_and_newline_escapes() {
+        // The `\\` (→ backslash) and `\n` (→ newline) escape arms.
+        assert_eq!(
+            kinds(r"'a\\b' 'a\nb'"),
+            vec![
+                TokenKind::Str("a\\b".into()),
+                TokenKind::Str("a\nb".into()),
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn lex_int_immediately_before_member_dot() {
+        // `5.field` — a dot right after an int whose NEXT char is a non-digit
+        // is member access (Int · Dot · Ident), never a float. Pins the
+        // fraction look-AHEAD (`i + 1`), not look-behind.
+        assert_eq!(
+            kinds("5.field"),
+            vec![
+                TokenKind::Int(5),
+                TokenKind::Dot,
+                TokenKind::Ident("field".into()),
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
     fn lex_strings_both_quotes_with_escapes() {
         assert_eq!(
             kinds(r#"'success' "skip" 'it\'s' "a\"b" 'tab\there'"#),
