@@ -45,10 +45,14 @@ insta      = { workspace = true }
 proptest   = { workspace = true }
 rstest     = { workspace = true }
 serde_json = { workspace = true }
-criterion  = { workspace = true }  # gate-7 bench · parse + analyze hot path
+criterion  = { workspace = true }  # gate-7 benches · parse + check hot paths
 
 [[bench]]
 name = "parse_bench"
+harness = false
+
+[[bench]]
+name = "parser_bench"
 harness = false
 
 [package.metadata.cargo-machete]
