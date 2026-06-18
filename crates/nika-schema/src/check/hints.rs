@@ -690,4 +690,200 @@ mod tests {
         );
         assert!(!h.iter().any(|x| x.kind == "retry-effects"), "{h:?}");
     }
+
+    // ─── secrets-store hint pipeline ───────────────────────────────────
+    // push_unresolvable_secret_hints → referenced_secrets → task_text_fields
+    //   → collect_json_strings_into. These functions are exercised both
+    //   behaviorally (through scan_hints) and as units below.
+
+    fn wf_of(yaml: &str) -> RawWorkflow {
+        parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse")
+    }
+
+    #[test]
+    fn referenced_vault_secret_gets_the_secrets_store_hint() {
+        // a vault-source secret that IS referenced via `${{ secrets.FOO }}`
+        // in a task field → push_unresolvable_secret_hints must emit a
+        // `secrets-store` hint naming FOO. Kills:
+        //   - push_unresolvable_secret_hints → () (no hint at all)
+        //   - referenced_secrets → {} / {""} / {"xyzzy"} (FOO not in set →
+        //     the `referenced.contains(name)` guard fails → no hint)
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nsecrets:\n  FOO:\n    source: vault\n    key: prod/foo\ntasks:\n  - id: t\n    exec: { command: \"echo ${{ secrets.FOO }}\" }\n",
+        );
+        let hit = h
+            .iter()
+            .find(|x| x.kind == "secrets-store")
+            .expect("secrets-store hint");
+        assert_eq!(hit.task, "-");
+        assert!(hit.advice.contains("secrets.FOO"), "{hit:?}");
+    }
+
+    #[test]
+    fn unreferenced_vault_secret_gets_no_hint() {
+        // declared-but-unused vault secret is harmless — the hint fires
+        // ONLY for a referenced secret. If referenced_secrets returned a
+        // spurious {"FOO"} (the from_iter(["xyzzy"]) family with a
+        // matching name would not, but a hardcoded set could) this would
+        // also catch over-collection.
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nsecrets:\n  FOO:\n    source: vault\n    key: prod/foo\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n",
+        );
+        assert!(!h.iter().any(|x| x.kind == "secrets-store"), "{h:?}");
+    }
+
+    #[test]
+    fn referenced_secrets_collects_exactly_the_referenced_names() {
+        // Direct unit on referenced_secrets — FOO referenced in a prompt,
+        // BAR referenced in an output, BAZ declared but never referenced.
+        // The returned set must be exactly {FOO, BAR}. Kills the
+        // referenced_secrets → BTreeSet::new() / from_iter([""]) /
+        // from_iter(["xyzzy"]) mutations precisely (wrong cardinality OR
+        // wrong contents).
+        let wf = wf_of(
+            "nika: v1\nworkflow: w\nsecrets:\n  FOO:\n    source: vault\n    key: a\n  BAR:\n    source: vault\n    key: b\n  BAZ:\n    source: vault\n    key: c\ntasks:\n  - id: t\n    infer: { prompt: \"use ${{ secrets.FOO }}\", max_tokens: 10 }\noutputs:\n  r: ${{ secrets.BAR }}\n",
+        );
+        let refs = referenced_secrets(&wf);
+        let got: Vec<&str> = refs.iter().map(String::as_str).collect();
+        assert_eq!(got, vec!["BAR", "FOO"], "BTreeSet is sorted");
+    }
+
+    #[test]
+    fn referenced_secrets_empty_when_none_referenced() {
+        // No `${{ secrets.X }}` island anywhere → empty set. This is the
+        // baseline the from_iter([""]) / from_iter(["xyzzy"]) mutations
+        // violate (they would return a non-empty set here).
+        let wf = wf_of(
+            "nika: v1\nworkflow: w\nsecrets:\n  FOO:\n    source: vault\n    key: a\ntasks:\n  - id: t\n    exec: { command: \"echo plain\" }\n",
+        );
+        assert!(referenced_secrets(&wf).is_empty());
+    }
+
+    #[test]
+    fn secret_referenced_only_in_task_field_is_found() {
+        // Isolates task_text_fields: the secret appears ONLY inside a task
+        // field (the infer prompt), NEVER in outputs. If task_text_fields
+        // returns vec![] / vec![""] / vec!["xyzzy"], the prompt island is
+        // never scanned → FOO is absent → the secrets-store hint vanishes.
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\nsecrets:\n  FOO:\n    source: vault\n    key: a\ntasks:\n  - id: t\n    infer: { prompt: \"call with ${{ secrets.FOO }}\", max_tokens: 10 }\noutputs:\n  r: ${{ tasks.t.output }}\n",
+        );
+        assert!(
+            h.iter()
+                .any(|x| x.kind == "secrets-store" && x.advice.contains("secrets.FOO")),
+            "{h:?}"
+        );
+    }
+
+    #[test]
+    fn task_text_fields_collects_every_action_text_surface() {
+        // Direct unit on task_text_fields across the action variants +
+        // `with:`. Kills task_text_fields → vec![] / vec![""] /
+        // vec!["xyzzy"] (the real surfaces are none of those) and confirms
+        // the exec/invoke/infer/agent + with arms each contribute.
+
+        // exec: command + stdin + env values
+        let exec = wf_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec:\n      command: \"run CMD\"\n      stdin: \"STDIN\"\n      env: { K: \"ENVVAL\" }\n",
+        );
+        let f = task_text_fields(&exec.tasks[0].value);
+        assert!(f.contains(&"run CMD"), "{f:?}");
+        assert!(f.contains(&"STDIN"), "{f:?}");
+        assert!(f.contains(&"ENVVAL"), "{f:?}");
+
+        // infer: prompt + system
+        let infer = wf_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    infer: { prompt: \"PROMPT\", system: \"SYSTEM\", max_tokens: 10 }\n",
+        );
+        let f = task_text_fields(&infer.tasks[0].value);
+        assert!(f.contains(&"PROMPT") && f.contains(&"SYSTEM"), "{f:?}");
+
+        // agent: prompt + system
+        let agent = wf_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    agent: { prompt: \"APROMPT\", system: \"ASYSTEM\", max_tokens_total: 10 }\n",
+        );
+        let f = task_text_fields(&agent.tasks[0].value);
+        assert!(f.contains(&"APROMPT") && f.contains(&"ASYSTEM"), "{f:?}");
+
+        // invoke args JSON strings + with JSON strings
+        let invoke = wf_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    with: { wkey: \"WITHVAL\" }\n    invoke: { tool: \"nika:write\", args: { path: \"ARGVAL\" } }\n",
+        );
+        let f = task_text_fields(&invoke.tasks[0].value);
+        assert!(f.contains(&"ARGVAL"), "invoke args string: {f:?}");
+        assert!(f.contains(&"WITHVAL"), "with value string: {f:?}");
+    }
+
+    #[test]
+    fn collect_json_strings_into_gathers_all_nested_string_leaves() {
+        // Direct unit on collect_json_strings_into. Feed
+        // {"a":"x","b":["y",{"c":"z"}]} → ALL of x,y,z must be collected.
+        //   - String arm deleted → top-level "x" (and nested) dropped
+        //   - Array arm deleted → "y" and the object under it dropped
+        //   - Object arm deleted → "z" (object inside array) + "x"/"y"
+        //     (top object) dropped
+        //   - whole fn → () → nothing collected
+        let value = serde_json::json!({ "a": "x", "b": ["y", { "c": "z" }] });
+        let mut out = Vec::new();
+        collect_json_strings_into(&value, &mut out);
+        out.sort_unstable();
+        assert_eq!(out, vec!["x", "y", "z"], "all nested leaves: {out:?}");
+    }
+
+    #[test]
+    fn collect_json_strings_into_array_arm_descends() {
+        // Targeted at the Array match arm: a top-level array of strings.
+        // Deleting the Array arm drops both leaves; the String/Object arms
+        // alone cannot reach them.
+        let value = serde_json::json!(["one", "two"]);
+        let mut out = Vec::new();
+        collect_json_strings_into(&value, &mut out);
+        out.sort_unstable();
+        assert_eq!(out, vec!["one", "two"], "{out:?}");
+    }
+
+    #[test]
+    fn collect_json_strings_into_object_arm_descends() {
+        // Targeted at the Object match arm: a flat object. Deleting the
+        // Object arm drops the leaf entirely.
+        let value = serde_json::json!({ "k": "deep" });
+        let mut out = Vec::new();
+        collect_json_strings_into(&value, &mut out);
+        assert_eq!(out, vec!["deep"], "{out:?}");
+    }
+
+    #[test]
+    fn collect_json_strings_into_string_arm_pushes_the_leaf() {
+        // Targeted at the String match arm: a bare string value. Deleting
+        // the String arm drops it; the `_ => {}` catch-all would swallow it.
+        let value = serde_json::json!("bare");
+        let mut out = Vec::new();
+        collect_json_strings_into(&value, &mut out);
+        assert_eq!(out, vec!["bare"], "{out:?}");
+    }
+
+    #[test]
+    fn collect_json_strings_into_ignores_non_string_scalars() {
+        // numbers/bools/null contribute nothing (the `_ => {}` arm). This
+        // pins the boundary the deleted-arm mutants must not cross.
+        let value = serde_json::json!({ "n": 1, "b": true, "z": null, "s": "keep" });
+        let mut out = Vec::new();
+        collect_json_strings_into(&value, &mut out);
+        assert_eq!(out, vec!["keep"], "{out:?}");
+    }
+
+    #[test]
+    fn secret_referenced_inside_invoke_args_json_is_found() {
+        // End-to-end: a secret reachable ONLY through the invoke-args JSON
+        // walk (collect_json_strings_into via task_text_fields). With any
+        // of the collect arms blinded, FOO is never seen → no hint.
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nsecrets:\n  FOO:\n    source: vault\n    key: a\ntasks:\n  - id: t\n    invoke: { tool: \"nika:write\", args: { path: \"./o\", content: \"${{ secrets.FOO }}\" } }\n",
+        );
+        assert!(
+            h.iter()
+                .any(|x| x.kind == "secrets-store" && x.advice.contains("secrets.FOO")),
+            "{h:?}"
+        );
+    }
 }

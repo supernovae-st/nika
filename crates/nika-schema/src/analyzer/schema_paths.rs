@@ -267,6 +267,7 @@ fn render_path(steps: &[Step]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::expression::parse_expression;
     use serde_json::json;
 
     fn closed_schema() -> Value {
@@ -355,6 +356,284 @@ mod tests {
         assert_eq!(
             render_path(&[Step::Member("a".into()), Step::Index(2), Step::Dynamic]),
             ".a[2][…]"
+        );
+    }
+
+    // The collection pipeline (collect_output_paths · collect_dynamic_index_subexprs)
+    // was untested — only provably_invalid was. These drive it directly.
+
+    #[test]
+    fn collect_gathers_the_output_path_chain() {
+        let e = parse_expression("tasks.foo.output.entities[0]").expect("parse");
+        let mut out = Vec::new();
+        collect_output_paths(&e, &mut out);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].0, "foo");
+        assert_eq!(
+            out[0].1,
+            vec![Step::Member("entities".into()), Step::Index(0)]
+        );
+    }
+
+    #[test]
+    fn collect_skips_a_bare_output_with_no_steps() {
+        let e = parse_expression("tasks.foo.output").expect("parse");
+        let mut out = Vec::new();
+        collect_output_paths(&e, &mut out);
+        assert!(
+            out.is_empty(),
+            "bare .output (no steps) must not be collected"
+        );
+    }
+
+    #[test]
+    fn collect_recurses_into_a_dynamic_index_subexpr() {
+        let e = parse_expression("tasks.a.output.items[tasks.b.output.idx]").expect("parse");
+        let mut out = Vec::new();
+        collect_output_paths(&e, &mut out);
+        let ids: std::collections::BTreeSet<&str> = out.iter().map(|(i, _)| i.as_str()).collect();
+        assert!(
+            ids.contains("a") && ids.contains("b"),
+            "both output chains collected, got {ids:?}"
+        );
+    }
+
+    // ── decompose · the `tasks.<id>.output<suffix>` view ────────────────
+
+    #[test]
+    fn decompose_yields_the_id_and_member_suffix() {
+        // The happy path · kills `decompose -> None` / `Some(("",[]))` /
+        // `Some(("xyzzy",[]))` (134:5) AND the `field=="output"` arm
+        // (138:13) AND the `field=="output"` compare (139:26 `==`→`!=`).
+        let e = parse_expression("tasks.foo.output.entities").expect("parse");
+        assert_eq!(
+            decompose(&e),
+            Some(("foo".to_owned(), vec![Step::Member("entities".into())])),
+        );
+    }
+
+    #[test]
+    fn decompose_handles_an_index_suffix() {
+        // An `[…]` suffix step · kills the `Expr::Index` arm (148:13) AND
+        // confirms a literal int index becomes `Step::Index` (the `*i >= 0`
+        // guard true-branch · 153:51 / 153:54).
+        let e = parse_expression("tasks.foo.output.rows[3]").expect("parse");
+        assert_eq!(
+            decompose(&e),
+            Some((
+                "foo".to_owned(),
+                vec![Step::Member("rows".into()), Step::Index(3)],
+            )),
+        );
+    }
+
+    #[test]
+    fn decompose_string_index_is_a_member_step() {
+        // `['key']` → `Step::Member` · kills the
+        // `Expr::Lit(Literal::Str(s))` index arm (156:21).
+        let e = parse_expression("tasks.foo.output['key']").expect("parse");
+        assert_eq!(
+            decompose(&e),
+            Some(("foo".to_owned(), vec![Step::Member("key".into())])),
+        );
+    }
+
+    #[test]
+    fn decompose_negative_index_is_dynamic_not_index() {
+        // A NEGATIVE literal index fails the `*i >= 0` guard (153:51) and
+        // falls through to `Step::Dynamic` — NOT `Step::Index`. Kills the
+        // guard mutants `*i >= 0` → true (would keep it an Index) and
+        // `>=` → `<` (a positive int would then become Dynamic).
+        let e = parse_expression("tasks.foo.output.rows[-1]").expect("parse");
+        assert_eq!(
+            decompose(&e),
+            Some((
+                "foo".to_owned(),
+                vec![Step::Member("rows".into()), Step::Dynamic],
+            )),
+        );
+    }
+
+    #[test]
+    fn decompose_rejects_a_non_tasks_root() {
+        // No `tasks.<id>.output` spine → `None`. A `vars.` chain has no
+        // output root, so the loop bottoms out at `_ => return None` —
+        // the `decompose -> Some(("xyzzy",[]))` / `Some(("",[]))` mutants
+        // would wrongly return `Some` here.
+        let e = parse_expression("vars.topic.entities").expect("parse");
+        assert_eq!(decompose(&e), None);
+    }
+
+    #[test]
+    fn decompose_member_arm_is_load_bearing() {
+        // Deleting the `Expr::Member` arm (138:13) would stop the walk on
+        // the FIRST member, so a deeper suffix (`.a.b`) past `.output`
+        // could not be peeled. A two-deep member suffix proves the arm
+        // recurses through member steps.
+        let e = parse_expression("tasks.foo.output.a.b").expect("parse");
+        assert_eq!(
+            decompose(&e),
+            Some((
+                "foo".to_owned(),
+                vec![Step::Member("a".into()), Step::Member("b".into())],
+            )),
+        );
+    }
+
+    // ── task_root · the `tasks.<id>` / `tasks['id']` root ───────────────
+
+    #[test]
+    fn task_root_reads_the_dotted_and_indexed_forms() {
+        // `tasks.foo` (Member arm · 170:41) and `tasks['foo']` (Index arm ·
+        // 173:40) both resolve to the id `foo`. The full `decompose`
+        // covers `task_root -> None` (169:5) implicitly, but assert the
+        // index-form root end-to-end here.
+        let dotted = parse_expression("tasks.foo.output.x").expect("parse");
+        assert_eq!(
+            decompose(&dotted),
+            Some(("foo".to_owned(), vec![Step::Member("x".into())])),
+        );
+        let indexed = parse_expression("tasks['foo'].output.x").expect("parse");
+        assert_eq!(
+            decompose(&indexed),
+            Some(("foo".to_owned(), vec![Step::Member("x".into())])),
+        );
+    }
+
+    #[test]
+    fn task_root_rejects_a_non_tasks_index_root() {
+        // `vars['foo'].output` is NOT a task root — the Index-arm guard
+        // `matches!(base, Ident("tasks"))` (173:40) must reject the `vars`
+        // base, so `decompose` returns `None`. Forcing the guard `true`
+        // would wrongly accept `vars` and yield `Some(("foo", …))`.
+        let e = parse_expression("vars['foo'].output.x").expect("parse");
+        assert_eq!(decompose(&e), None);
+    }
+
+    #[test]
+    fn task_root_rejects_a_non_tasks_member_root() {
+        // `a.b.output.x` reaches `task_root` with a MEMBER base
+        // (`a.b`) whose own base is `Ident("a")` ≠ `tasks` — the Member-arm
+        // guard `matches!(base, Ident("tasks"))` (170:41) rejects it.
+        // Forcing the guard `true` would treat `b` as the task id and
+        // return `Some(("b", …))`; the correct result is `None`.
+        let e = parse_expression("a.b.output.x").expect("parse");
+        assert_eq!(decompose(&e), None);
+    }
+
+    // ── collect_dynamic_index_subexprs · the `!matches!(index, Lit)` guard
+
+    #[test]
+    fn dynamic_index_recursed_literal_index_skipped() {
+        // The `!` in `!matches!(index, Lit)` (122:20) gates recursion ONLY
+        // into NON-literal spine indices. A literal `[0]` spine index must
+        // NOT be recursed (deleting `!` would flip the gate). Build the two
+        // spines directly so the guard is exercised in isolation.
+        //
+        // Dynamic index carrying an output path → recursed → "b" collected.
+        let dynamic = parse_expression("tasks.a.output[tasks.b.output.idx]").expect("parse");
+        let mut out = Vec::new();
+        collect_dynamic_index_subexprs(&dynamic, &mut out);
+        let ids: std::collections::BTreeSet<&str> = out.iter().map(|(i, _)| i.as_str()).collect();
+        assert!(ids.contains("b"), "dynamic index recursed, got {ids:?}");
+
+        // Literal index `[0]` → NOT recursed (a literal can hold no output
+        // path; the guard must keep this branch silent regardless).
+        let literal = Expr::Index {
+            base: Box::new(Expr::Member {
+                base: Box::new(Expr::Member {
+                    base: Box::new(Expr::Ident("tasks".into())),
+                    field: "a".into(),
+                }),
+                field: "output".into(),
+            }),
+            index: Box::new(Expr::Lit(Literal::Int(0))),
+        };
+        let mut out_lit = Vec::new();
+        collect_dynamic_index_subexprs(&literal, &mut out_lit);
+        assert!(
+            out_lit.is_empty(),
+            "a literal spine index is never recursed, got {out_lit:?}"
+        );
+    }
+
+    // ── provably_invalid · the array `type:` check on an index step ─────
+
+    #[test]
+    fn index_on_array_typed_level_descends_into_items() {
+        // The `Some(Value::Array(a))` type-list arm (208:17) + its
+        // `as_str() == Some(name)` compare (208:71 `==`→`!=`): a level
+        // typed `["array","null"]` does NOT exclude array, so an index
+        // step is allowed and descends into `items` (here a scalar → a
+        // FOLLOWING member step is then provably invalid).
+        let s = json!({
+            "type": ["array", "null"],
+            "items": { "type": "string" }
+        });
+        // Index alone on an array level is valid …
+        assert_eq!(provably_invalid(&s, &[Step::Index(0)]), None);
+        // … and descends into `items` (a string) so a member past it is
+        // provably invalid — proving the array arm let the walk continue.
+        let reason = provably_invalid(&s, &[Step::Index(0), Step::Member("x".into())]);
+        assert!(
+            reason.is_some_and(|r| r.contains("excludes object")),
+            "index descended into items, then member on a string is invalid"
+        );
+    }
+
+    #[test]
+    fn index_on_type_list_excluding_array_is_invalid() {
+        // A `type:` list that does NOT contain "array" excludes it — the
+        // `Some(Value::Array(a))` arm (208:17) returns the exclusion, and
+        // `==`→`!=` (208:71) would invert the membership test.
+        let s = json!({ "type": ["object", "string"] });
+        let reason = provably_invalid(&s, &[Step::Index(0)]);
+        assert!(
+            reason.is_some_and(|r| r.contains("excludes array")),
+            "an index on a non-array type list is provably invalid"
+        );
+    }
+
+    // ── end-to-end · the analyzer wires check_expr into the scan ────────
+
+    #[test]
+    fn analyze_flags_a_provably_invalid_output_path() {
+        // Drives the PUBLIC path `parse → analyze` so `check_expr` (50:5)
+        // is reached through the real scan pipeline — replacing its body
+        // with `()` makes the OutputPathProvablyInvalid finding vanish.
+        // The producer declares a closed schema (`additionalProperties:
+        // false` · `properties` omits `nope`); the consumer references
+        // `tasks.prod.output.nope` (with the required depends_on edge).
+        let yaml = "\
+nika: v1
+workflow: t
+tasks:
+  - id: prod
+    infer:
+      prompt: \"produce\"
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          entities: { type: array }
+  - id: cons
+    depends_on: [prod]
+    infer:
+      prompt: \"use ${{ tasks.prod.output.nope }}\"
+";
+        let wf = crate::parser::parse(
+            yaml,
+            crate::source::FileId::new(0),
+            crate::parser::ParseMode::Strict,
+        )
+        .expect("parse");
+        let errors = crate::analyzer::analyze(&wf).expect_err("provably-invalid path");
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                SchemaError::OutputPathProvablyInvalid { task, .. } if task == "prod"
+            )),
+            "expected an OutputPathProvablyInvalid for `prod`, got {errors:?}"
         );
     }
 }

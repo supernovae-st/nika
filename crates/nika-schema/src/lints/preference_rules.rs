@@ -797,3 +797,474 @@ fn differing_leaf_paths(a: &Value, b: &Value) -> BTreeSet<String> {
         .cloned()
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::expression::{parse_expression, scan_templates};
+    use crate::{FileId, ParseMode, parse};
+
+    // ───────────────────────── rule-level helpers ─────────────────────────
+
+    /// Parse a workflow fixture + run all 9 preference rules.
+    fn lints_of(yaml: &str) -> Vec<Lint> {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+        one_obvious_way(&wf)
+    }
+
+    /// Only the lints for one rule id (keeps assertions immune to other rules).
+    fn lints_for(yaml: &str, rule: &str) -> Vec<Lint> {
+        lints_of(yaml)
+            .into_iter()
+            .filter(|l| l.rule == rule)
+            .collect()
+    }
+
+    // ──────────────── expression-helper grounding ────────────────
+    //
+    // The helpers borrow `&str` out of an `Expr`, so the `Expr` is bound to a
+    // local first (`task_status_ref` / `str_lit` return references into it).
+
+    /// Parse a bare CEL expression (the inside of a `${{ … }}` island).
+    fn expr(src: &str) -> Expr {
+        parse_expression(src).expect("expression parses")
+    }
+
+    /// The first `${{ … }}` island's expression, parsed from a raw string —
+    /// what `literal_parts_use_shell` consumes alongside the raw `command`.
+    fn islands_of(s: &str) -> Vec<TemplateIsland> {
+        scan_templates(s).expect("templates scan")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // rule_008_interpolated_string_command   (108:5 body→() · 118:31 ||→&&)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn rule_008_fires_on_interpolated_string_command() {
+        // 108:5 — replacing the whole fn body with `()` emits no lint.
+        let yaml = "\
+nika: v1
+workflow: interp
+tasks:
+  - id: produce
+    exec: { command: \"./gen.sh\" }
+  - id: consume
+    depends_on: [produce]
+    exec: { command: \"process ${{ tasks.produce.output }}\" }
+";
+        let eight = lints_for(yaml, "one-obvious-way/008");
+        assert_eq!(eight.len(), 1, "exactly one /008 must fire");
+        assert_eq!(eight[0].task_id, "consume");
+    }
+
+    #[test]
+    fn rule_008_silent_on_a_plain_literal_command() {
+        // 118:31 — `islands.is_empty() || literal_parts_use_shell(..)` decides
+        // « skip ». For `"cargo build"`: islands EMPTY (true) · shell-meta NONE
+        // (false). The correct `||` ⇒ true ⇒ skip ⇒ no lint. The `&&` mutant ⇒
+        // `true && false` ⇒ false ⇒ FALL THROUGH ⇒ a spurious /008 on a command
+        // that has no interpolation at all. Asserting zero kills the swap.
+        let yaml = "\
+nika: v1
+workflow: plain
+tasks:
+  - id: build
+    exec: { command: \"cargo build\" }
+";
+        assert!(
+            lints_for(yaml, "one-obvious-way/008").is_empty(),
+            "a non-interpolated command must never be flagged"
+        );
+    }
+
+    #[test]
+    fn rule_008_silent_on_a_genuine_pipeline() {
+        // The OTHER half of the 118:31 `||`: islands NON-empty but the literal
+        // parts carry a `|` ⇒ `literal_parts_use_shell` true ⇒ skip. (Also pins
+        // the `literal_parts_use_shell` true-branch reachability.)
+        let yaml = "\
+nika: v1
+workflow: pipe
+tasks:
+  - id: produce
+    exec: { command: \"./gen.sh\" }
+  - id: consume
+    depends_on: [produce]
+    exec: { command: \"cat ${{ tasks.produce.output }} | wc -l\" }
+";
+        assert!(
+            lints_for(yaml, "one-obvious-way/008").is_empty(),
+            "a genuine shell pipeline keeps the string form"
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // rule_009_stream_binding                              (144:5 body→())
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn rule_009_fires_on_a_bare_iterator_binding() {
+        // 144:5 — replacing the fn body with `()` emits no lint.
+        let yaml = "\
+nika: v1
+workflow: stream
+tasks:
+  - id: fetch
+    invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
+    output:
+      emails: \".users[]\"
+";
+        let nine = lints_for(yaml, "one-obvious-way/009");
+        assert_eq!(nine.len(), 1, "exactly one /009 must fire");
+        assert_eq!(nine[0].task_id, "fetch");
+        assert!(nine[0].message.contains("emails"), "{}", nine[0].message);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // ends_in_bare_iterator                       (172:5 →true · 172:5 →false)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn ends_in_bare_iterator_true_on_a_stream() {
+        // 172:5 `-> false` mutant: a genuine bare iterator must return TRUE.
+        assert!(ends_in_bare_iterator(".users[]"));
+        assert!(ends_in_bare_iterator(".[]"));
+        assert!(ends_in_bare_iterator("(.a)[]"));
+        assert!(ends_in_bare_iterator(".users[] ")); // trailing ws trimmed
+    }
+
+    #[test]
+    fn ends_in_bare_iterator_false_on_a_literal_or_scalar() {
+        // 172:5 `-> true` mutant: a non-iterator must return FALSE.
+        assert!(!ends_in_bare_iterator(".a // []")); // empty-array literal default
+        assert!(!ends_in_bare_iterator(".users")); // no trailing `[]`
+        assert!(!ends_in_bare_iterator(".users[0]")); // indexed take
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // literal_parts_use_shell                                (187:5 →true)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn literal_parts_use_shell_false_without_metacharacters() {
+        // 187:5 `-> true` mutant: an interpolated command whose literal parts
+        // carry NO shell metacharacter must return FALSE (so /008 fires).
+        let cmd = "process ${{ tasks.t.output }} now";
+        assert!(!literal_parts_use_shell(cmd, &islands_of(cmd)));
+    }
+
+    #[test]
+    fn literal_parts_use_shell_true_with_a_pipe() {
+        // The complementary TRUE case (a real pipeline) — also distinguishes
+        // 187:5 from a constant-false would-be mutant.
+        let cmd = "cat ${{ tasks.t.output }} | wc -l";
+        assert!(literal_parts_use_shell(cmd, &islands_of(cmd)));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // when_expr                                              (206:5 →None)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn when_expr_some_drives_rule_001() {
+        // 206:5 `-> None` mutant: rule_001 only fires when `when_expr` returns
+        // Some — a forced None silences /001 entirely.
+        let yaml = "\
+nika: v1
+workflow: redundant
+tasks:
+  - id: a
+    exec: { command: \"./a.sh\" }
+  - id: b
+    depends_on: [a]
+    when: \"${{ tasks.a.status == 'success' }}\"
+    exec: { command: \"./b.sh\" }
+";
+        let one = lints_for(yaml, "one-obvious-way/001");
+        assert_eq!(one.len(), 1, "the redundant success `when:` must fire /001");
+        assert_eq!(one[0].task_id, "b");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // task_status_ref   (220:5 →None/Some("") · 223:14 !=/== · 230/231 guard)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn task_status_ref_member_form_returns_the_id() {
+        // 220:5 (→None / →Some("")) AND 230 guard (→false): `tasks.<id>.status`
+        // must resolve to exactly the id, not None and not "".
+        let e = expr("tasks.build.status");
+        assert_eq!(task_status_ref(&e), Some("build"));
+    }
+
+    #[test]
+    fn task_status_ref_index_form_returns_the_id() {
+        // 231 guard (→false): `tasks['id'].status` must resolve to the id.
+        let e = expr("tasks['deploy'].status");
+        assert_eq!(task_status_ref(&e), Some("deploy"));
+    }
+
+    #[test]
+    fn task_status_ref_rejects_a_non_status_field() {
+        // 223:14 (`!=` → `==`): the guard rejects non-`status` fields. With the
+        // mutant the guard rejects `status` instead, so `tasks.x.status` would
+        // return None — already covered above. Here the converse: a NON-status
+        // field must be None (with `==` it would wrongly fall through).
+        let e = expr("tasks.build.output");
+        assert_eq!(task_status_ref(&e), None);
+    }
+
+    #[test]
+    fn task_status_ref_rejects_a_non_tasks_root_member() {
+        // 230 guard (→true): the Member arm must REJECT a non-`tasks` root.
+        // A forced-true guard would wrongly accept `vars.x.status`.
+        let e = expr("vars.x.status");
+        assert_eq!(task_status_ref(&e), None);
+    }
+
+    #[test]
+    fn task_status_ref_rejects_a_non_tasks_root_index() {
+        // 231 guard (→true): the Index arm must REJECT a non-`tasks` root.
+        let e = expr("vars['x'].status");
+        assert_eq!(task_status_ref(&e), None);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // str_lit                                  (244:5 →None/Some("")/Some(xyzzy))
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn str_lit_returns_the_exact_literal() {
+        // 244:5 — the three constant mutants (None / "" / "xyzzy") all die
+        // against the exact value.
+        let e = expr("'hello'");
+        assert_eq!(str_lit(&e), Some("hello"));
+        // and a non-string literal is None.
+        let n = expr("42");
+        assert_eq!(str_lit(&n), None);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // success_restatement                  (256:9 del Eq arm · 269:9 del In arm)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn success_restatement_matches_the_eq_form() {
+        // 256:9 — deleting the Eq arm drops to `_ => None`.
+        let e = expr("tasks.build.status == 'success'");
+        assert_eq!(success_restatement(&e), Some("build"));
+        // operand order is symmetric.
+        let flipped = expr("'success' == tasks.build.status");
+        assert_eq!(success_restatement(&flipped), Some("build"));
+    }
+
+    #[test]
+    fn success_restatement_matches_the_in_form() {
+        // 269:9 — deleting the In arm drops to `_ => None`.
+        let e = expr("tasks.build.status in ['success']");
+        assert_eq!(success_restatement(&e), Some("build"));
+    }
+
+    #[test]
+    fn success_restatement_silent_on_a_failure_check() {
+        // a `== 'failure'` is NOT a success restatement.
+        let e = expr("tasks.build.status == 'failure'");
+        assert_eq!(success_restatement(&e), None);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // collect_failure_checks       (291:5 →() · 316 del Or/And · 320 del Not)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn collect_failure_checks_collects_the_eq_form() {
+        // 291:5 — replacing the body with `()` leaves `out` empty.
+        let e = expr("tasks.build.status == 'failure'");
+        let mut out = Vec::new();
+        collect_failure_checks(&e, &mut out);
+        assert_eq!(out, vec!["build".to_string()]);
+        // operand order is symmetric.
+        let flipped = expr("'failure' == tasks.build.status");
+        let mut out2 = Vec::new();
+        collect_failure_checks(&flipped, &mut out2);
+        assert_eq!(out2, vec!["build".to_string()]);
+    }
+
+    #[test]
+    fn collect_failure_checks_collects_the_in_form() {
+        let e = expr("tasks.build.status in ['failure', 'cancelled']");
+        let mut out = Vec::new();
+        collect_failure_checks(&e, &mut out);
+        assert_eq!(out, vec!["build".to_string()]);
+    }
+
+    #[test]
+    fn collect_failure_checks_descends_or_and_and() {
+        // 316:9 — deleting the `Or | And` arm stops the recursion descending.
+        let or = expr("tasks.a.status == 'failure' || tasks.b.status == 'failure'");
+        let mut out = Vec::new();
+        collect_failure_checks(&or, &mut out);
+        assert_eq!(out, vec!["a".to_string(), "b".to_string()]);
+
+        let and = expr("tasks.a.status == 'failure' && tasks.b.status == 'failure'");
+        let mut out2 = Vec::new();
+        collect_failure_checks(&and, &mut out2);
+        assert_eq!(out2, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn collect_failure_checks_descends_not() {
+        // 320:9 — deleting the `Not` arm stops the recursion descending.
+        let e = expr("!(tasks.a.status == 'failure')");
+        let mut out = Vec::new();
+        collect_failure_checks(&e, &mut out);
+        assert_eq!(out, vec!["a".to_string()]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // has_permissive_status_check
+    //   (330 del In · 342 del Ne · 353 del Not · 336:17 && · 347:45 && · 348:17 ||)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn permissive_in_with_two_statuses_is_permissive() {
+        // 330:9 — deleting the In arm drops to `_ => false`.
+        let e = expr("tasks.x.status in ['success', 'failure']");
+        assert!(has_permissive_status_check(&e));
+    }
+
+    #[test]
+    fn permissive_in_with_one_status_is_not_permissive() {
+        // 336:17 (`&&` → `||`): `task_status_ref(lhs).is_some() && matches!(≥2)`.
+        // A single-status list ⇒ is_some()=true, matches(≥2)=false ⇒ `&&`=false.
+        // The `||` mutant ⇒ true. A one-status `in` is NOT permissive.
+        let e = expr("tasks.x.status in ['success']");
+        assert!(!has_permissive_status_check(&e));
+    }
+
+    #[test]
+    fn permissive_ne_against_a_status_is_permissive() {
+        // 342:9 — deleting the Ne arm drops to `_ => false`.
+        // 348:17 (`||` → `&&`): only the FIRST clause is true here
+        //   (task_status on lhs · str literal on rhs) ⇒ `||`=true · `&&`=false.
+        let e = expr("tasks.x.status != 'success'");
+        assert!(has_permissive_status_check(&e));
+        // operand order is symmetric (status on the rhs).
+        let flipped = expr("'success' != tasks.x.status");
+        assert!(has_permissive_status_check(&flipped));
+    }
+
+    #[test]
+    fn permissive_ne_between_two_task_statuses_is_not_permissive() {
+        // 347:45 (`&&` → `||`): clause 1 is
+        //   `task_status_ref(lhs).is_some() && str_lit(rhs).is_some()`.
+        // For `tasks.x.status != tasks.y.status`: lhs is a task-status (true) but
+        // rhs is NOT a string literal (false) ⇒ clause1 `&&`=false. Clause 2 is
+        // also false (rhs task-status, lhs not a literal). So the whole thing is
+        // false. The `||` mutant makes clause1 true ⇒ wrongly permissive.
+        let e = expr("tasks.x.status != tasks.y.status");
+        assert!(!has_permissive_status_check(&e));
+    }
+
+    #[test]
+    fn permissive_descends_not() {
+        // 353:9 — deleting the Not arm drops to `_ => false`. The inner Ne is
+        // permissive, so the negation must descend and report true.
+        let e = expr("!(tasks.x.status != 'success')");
+        assert!(has_permissive_status_check(&e));
+    }
+
+    #[test]
+    fn permissive_strict_eq_is_not_permissive() {
+        // a strict `== 'success'` gate is the default, NOT permissive.
+        let e = expr("tasks.x.status == 'success'");
+        assert!(!has_permissive_status_check(&e));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // rule_002_skip_for_dependents
+    //   (447:5 body→() · 448:12 del ! · 466:21 del ! · 457:61 ==→!=)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn rule_002_fires_for_an_unguarded_dependent() {
+        // 447:5 (body→()), 448:12 (del `!` ⇒ processes only NON-skip tasks),
+        // 457:61 (`==`→`!=` ⇒ the dependents set becomes the tasks that do NOT
+        // depend on the skip task ⇒ empty here ⇒ no lint). All three silence the
+        // expected single /002.
+        let yaml = "\
+nika: v1
+workflow: skipdep
+tasks:
+  - id: a
+    on_error: { skip: true }
+    exec: { command: \"./a.sh\" }
+  - id: b
+    depends_on: [a]
+    exec: { command: \"./b.sh\" }
+";
+        let two = lints_for(yaml, "one-obvious-way/002");
+        assert_eq!(
+            two.len(),
+            1,
+            "an unguarded dependent of a skip task fires /002"
+        );
+        assert_eq!(two[0].task_id, "a");
+        assert!(two[0].message.contains('b'), "{}", two[0].message);
+    }
+
+    #[test]
+    fn rule_002_silent_when_the_dependent_reads_status() {
+        // 466:21 (del `!`): `!expr_refs(..).any(reads tasks.a.status)` decides
+        // « unguarded ». The dependent HERE reads `tasks.a.status`, so it IS
+        // guarded ⇒ no /002. Deleting the `!` inverts this ⇒ the guarded
+        // dependent is wrongly treated as unguarded ⇒ a spurious /002.
+        let yaml = "\
+nika: v1
+workflow: guarded
+tasks:
+  - id: a
+    on_error: { skip: true }
+    exec: { command: \"./a.sh\" }
+  - id: b
+    depends_on: [a]
+    when: \"${{ tasks.a.status in ['success', 'failure'] }}\"
+    exec: { command: \"./b.sh\" }
+";
+        assert!(
+            lints_for(yaml, "one-obvious-way/002").is_empty(),
+            "a dependent that reads the status is guarded — no /002"
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // rule_003_004_failure_guarded_tasks                       (521:49 ==→!=)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn rule_003_fires_on_a_structural_duplicate() {
+        // 521:49 (`==`→`!=`): /003 fires when the failure-guarded task's action
+        // fingerprint EQUALS the guarded dep's. The `!=` mutant inverts this:
+        // identical actions ⇒ `!=` false ⇒ no /003 (and the exec body is not a
+        // value-producer ⇒ no /004 either) ⇒ zero lints.
+        let yaml = "\
+nika: v1
+workflow: dup
+tasks:
+  - id: build
+    exec: { command: \"./build.sh\" }
+  - id: rebuild
+    depends_on: [build]
+    when: \"${{ tasks.build.status == 'failure' }}\"
+    exec: { command: \"./build.sh\" }
+";
+        let three = lints_for(yaml, "one-obvious-way/003");
+        assert_eq!(
+            three.len(),
+            1,
+            "a failure-guarded structural copy fires /003"
+        );
+        assert_eq!(three[0].task_id, "rebuild");
+    }
+}

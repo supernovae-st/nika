@@ -725,4 +725,245 @@ mod tests {
             })
         );
     }
+
+    // ── Gate-5 mutation-gap kills ──────────────────────────────────────
+    //
+    // Each test below pins one arithmetic / boolean / comparison fact a
+    // mutant would silently flip. The accounting module's `+`/`*`/`&&`/`<`
+    // are load-bearing: a flipped operator under-counts a resource bound
+    // or wrongly accepts a tampered certificate — both are real defects in
+    // a "run certificate", never cosmetic.
+
+    // `Bound::is_zero` — the `constant == 0 && terms.is_empty()` body
+    // (certificate.rs:99). Kills `-> true` (a non-zero bound is NOT zero)
+    // and `&&`→`||` (a half-zero bound — one operand true, the other
+    // false — must read as NOT zero, which `||` would invert).
+    #[test]
+    fn is_zero_is_exactly_the_empty_bound() {
+        // fully empty → zero (the only true case)
+        assert!(Bound::default().is_zero());
+
+        // non-zero constant, empty terms → NOT zero (kills `-> true`; and
+        // kills `&&`→`||` since `false || true` would wrongly say "zero")
+        assert!(
+            !konst(1).is_zero(),
+            "a bound with constant=1 is not the zero bound"
+        );
+
+        // zero constant, non-empty terms → NOT zero (the OTHER half: kills
+        // `&&`→`||` from the other side · `true || false` would invert)
+        let only_terms = Bound {
+            constant: 0,
+            terms: vec![CertTerm {
+                task: "fan".into(),
+                coeff: 3,
+            }],
+        };
+        assert!(
+            !only_terms.is_zero(),
+            "a bound with a parametric term is not the zero bound"
+        );
+    }
+
+    // `audit` 4th `||` (certificate.rs:165, the `usd_micros !=` arm).
+    // Only the spend axis is tampered, so ONLY this disjunct is true —
+    // `||`→`&&` would short-circuit it to `false` and wrongly accept.
+    #[test]
+    fn audit_rejects_a_usd_only_mismatch() {
+        let yaml = wf("  - id: a\n    infer: { prompt: \"x\", max_tokens: 100 }\n");
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let honest = certify(&parsed);
+        assert!(honest.audit(&parsed).is_ok());
+
+        // tamper ONLY the claimed spend bound; every other axis still
+        // re-folds exactly → only the `usd_micros` disjunct fires
+        let mut spend_lie = honest.clone();
+        let lied = spend_lie.usd_micros.as_mut().expect("priced");
+        lied.constant = lied.constant.wrapping_add(1);
+        assert!(
+            spend_lie
+                .audit(&parsed)
+                .is_err_and(|e| e.contains("do not match the derivation")),
+            "a spend-only tamper must be rejected (the usd_micros disjunct)"
+        );
+    }
+
+    // `check_row` main-action `||` (certificate.rs:208). The doctored
+    // row's `main_llm` disagrees with the workflow while `main_effect`
+    // stays correct AND the claimed bounds are re-folded to stay
+    // consistent — so ONLY the structural `||` can catch it. `||`→`&&`
+    // turns `(true && false)` into a wrongful accept.
+    #[test]
+    fn check_row_rejects_a_main_llm_only_mismatch() {
+        // single infer task: workflow says main_llm=1, main_effect=0
+        let yaml = wf("  - id: a\n    infer: { prompt: \"x\", max_tokens: 50 }\n");
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let honest = certify(&parsed);
+
+        let mut doctored = honest;
+        doctored.derivation[0].main_llm = 2; // wrong; main_effect stays 0 (right)
+        // re-fold bounds to match the doctored row so the bound-equality
+        // half passes → ONLY check_row's main-action line can reject
+        let refolded = fold_rows(&doctored.derivation);
+        doctored.task_attempts = refolded.task_attempts;
+        doctored.llm_calls = refolded.llm_calls;
+        doctored.effect_calls = refolded.effect_calls;
+        doctored.usd_micros = refolded.usd_micros;
+        doctored.span_attempts = refolded.span_attempts;
+
+        assert!(
+            doctored
+                .audit(&parsed)
+                .is_err_and(|e| e.contains("main-action call counts")),
+            "a main_llm-only row lie must be caught structurally"
+        );
+    }
+
+    // `check_row` on_finally `||` (certificate.rs:217). Same isolation as
+    // the main-action case, but on the `finally_llm`/`finally_effect`
+    // pair. The doctored row's `finally_llm` is wrong while
+    // `finally_effect` is right; bounds re-folded to stay consistent.
+    #[test]
+    fn check_row_rejects_a_finally_llm_only_mismatch() {
+        // task whose cleanup is an invoke → finally_effect=1, finally_llm=0
+        let yaml = wf(
+            "  - id: a\n    exec: { command: \"true\" }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n",
+        );
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let honest = certify(&parsed);
+        assert_eq!(honest.derivation[0].finally_effect, 1);
+        assert_eq!(honest.derivation[0].finally_llm, 0);
+
+        let mut doctored = honest;
+        doctored.derivation[0].finally_llm = 7; // wrong; finally_effect right
+        let refolded = fold_rows(&doctored.derivation);
+        doctored.task_attempts = refolded.task_attempts;
+        doctored.llm_calls = refolded.llm_calls;
+        doctored.effect_calls = refolded.effect_calls;
+        doctored.usd_micros = refolded.usd_micros;
+        doctored.span_attempts = refolded.span_attempts;
+
+        assert!(
+            doctored
+                .audit(&parsed)
+                .is_err_and(|e| e.contains("on_finally call counts")),
+            "a finally_llm-only row lie must be caught structurally"
+        );
+    }
+
+    // `check_row` on_finally accumulators (certificate.rs:214-215, the
+    // `f_llm += l` / `f_effect += e`) AND `contribution`'s `finally_llm +=
+    // l` (certificate.rs:357). With TWO infer + TWO invoke cleanups the
+    // honest expected totals are finally_llm=2, finally_effect=2. `+=`→
+    // `*=` collapses both accumulators to 0 (≠ the honest row) so an
+    // HONEST certificate would FALSELY fail audit; `+=`→`-=` underflows.
+    // We pin the certified totals AND that the honest cert audits clean.
+    #[test]
+    fn finally_accumulators_sum_across_multiple_cleanups() {
+        let yaml = wf(
+            "  - id: a\n    exec: { command: \"true\" }\n    on_finally:\n      - infer: { prompt: \"p1\", max_tokens: 10 }\n      - invoke: { tool: \"nika:log\", args: { message: \"m\" } }\n      - infer: { prompt: \"p2\", max_tokens: 10 }\n      - invoke: { tool: \"nika:emit\", args: { event: \"e\" } }\n",
+        );
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let honest = certify(&parsed);
+        // contribution's accumulators: two infer cleanups → 2 llm, two
+        // invoke cleanups → 2 effect (kills `finally_llm += l` mutants)
+        assert_eq!(honest.derivation[0].finally_llm, 2);
+        assert_eq!(honest.derivation[0].finally_effect, 2);
+        // check_row recomputes the SAME totals from the workflow; the
+        // honest cert MUST audit clean (kills `f_llm += l` / `f_effect +=
+        // e` mutants — those would recompute 0 and reject the honest row)
+        assert!(
+            honest.audit(&parsed).is_ok(),
+            "honest finally counts must re-verify against the workflow"
+        );
+    }
+
+    // `contribution`'s priceable-cleanup fold arm (certificate.rs:363, the
+    // `(Some(acc), Ok(m))` match arm). Two PRICEABLE infer cleanups must
+    // accumulate their spend; deleting the arm sends every cleanup to the
+    // `_ => None` branch, collapsing the whole `usd_micros` axis to None.
+    // Asserting a priced finally spend kills the arm deletion.
+    #[test]
+    fn finally_spend_accumulates_for_priceable_cleanups() {
+        // main exec (free) + two priceable infer cleanups (100 tk each ·
+        // $15/M = 1500 µ$ each → finally spend 3000 µ$)
+        let yaml = wf(
+            "  - id: a\n    exec: { command: \"true\" }\n    on_finally:\n      - infer: { prompt: \"p1\", max_tokens: 100 }\n      - infer: { prompt: \"p2\", max_tokens: 100 }\n",
+        );
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let honest = certify(&parsed);
+        // the arm must keep `Some(acc + m)`; deletion → None
+        assert_eq!(
+            honest.derivation[0].finally_spend_micros,
+            Some(3000),
+            "two 100-tk infer cleanups · 1500 µ$ each · summed"
+        );
+        // and the rolled-up axis stays priced (free exec main + 3000 fin)
+        assert_eq!(honest.usd_micros, Some(konst(3000)));
+        assert!(honest.audit(&parsed).is_ok());
+    }
+
+    // `fold_rows` finally roll-up (certificate.rs:396 `+ row.finally_llm`,
+    // 409 `+ fin`). Main is a retried infer (3 attempts → 3 main LLM
+    // calls · 3×3000 = 9000 µ$) and the cleanup is a priceable infer
+    // (1 LLM · 1500 µ$). Correct totals: llm_calls=4, usd=10500. `+`→`-`
+    // would yield 2 and 7500 — both nonzero, no saturation masking — so
+    // the exact-total assertions catch the flip.
+    #[test]
+    fn fold_adds_finally_contributions_to_the_main() {
+        let yaml = wf(
+            "  - id: a\n    retry: { max_attempts: 3 }\n    infer: { prompt: \"x\", max_tokens: 200 }\n    on_finally:\n      - infer: { prompt: \"cleanup\", max_tokens: 100 }\n",
+        );
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let c = certify(&parsed);
+        // 396: main_llm(1)×attempts(3) + finally_llm(1) = 4
+        assert_eq!(c.llm_calls, konst(4), "3 main infer calls + 1 cleanup");
+        // 409: main_spend(3000)×attempts(3) + finally_spend(1500) = 10500
+        assert_eq!(
+            c.usd_micros,
+            Some(konst(10_500)),
+            "9000 µ$ over 3 attempts + 1500 µ$ cleanup"
+        );
+        assert!(c.audit(&parsed).is_ok());
+    }
+
+    // `span_of_rows` cursor guard `*cursor < deps.len()` (certificate.rs:
+    // 445). Tasks are declared in REVERSE dependency order (c, b, a) so
+    // the DFS MUST push dep nodes before they are memoized — `<`→`>`
+    // never enters the push branch, leaving deps un-memoized so the span
+    // collapses to 1 instead of the true chain length 3.
+    #[test]
+    fn span_traverses_deps_declared_after_their_dependents() {
+        // c → b → a, written c first: forces the push branch to matter
+        let c = cert(&wf(
+            "  - id: c\n    depends_on: [b]\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"true\" }\n  - id: a\n    exec: { command: \"true\" }\n",
+        ));
+        // chain of 3 single-attempt tasks → span = 1+1+1 = 3
+        assert_eq!(
+            c.span_attempts, 3,
+            "the longest chain is traversed even reverse-declared"
+        );
+    }
+
+    // `span_of_rows` cycle-cut guard `&& !visiting[d]` (certificate.rs:
+    // 450). A two-task cycle (a↔b) must be cut at the visiting mark so the
+    // fold terminates with a finite span; deleting the `!` would re-push
+    // an already-visiting node and either loop or over-count. We assert a
+    // finite, defined span (the certificate stays total on garbage input —
+    // conformance owns the cycle error).
+    #[test]
+    fn span_cuts_cycles_at_the_visiting_mark() {
+        // a depends on b, b depends on a — a cycle (conformance rejects it
+        // elsewhere; span must still TERMINATE with a finite value)
+        let c = cert(&wf(
+            "  - id: a\n    depends_on: [b]\n    exec: { command: \"true\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"true\" }\n",
+        ));
+        // with the cut, each node's chain stops at the visiting mark:
+        // span = 1 + 1 = 2 (one hop before the back-edge is cut). The key
+        // fact the mutant breaks is termination + this exact bound.
+        assert_eq!(
+            c.span_attempts, 2,
+            "the cycle is cut at the visiting mark · span stays finite"
+        );
+    }
 }
