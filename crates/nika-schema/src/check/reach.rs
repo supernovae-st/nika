@@ -35,7 +35,7 @@
 //!   outside the spec vocabulary (`'failed'` for `'failure'` is the
 //!   wild-caught class) — `==` never matches · `!=` always holds.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::expression::{Expr, Literal, RelOp, scan_templates};
 use crate::raw::RawWorkflow;
@@ -273,9 +273,13 @@ fn walk<'e>(e: &'e Expr, visit: &mut dyn FnMut(&'e Expr)) {
 /// Collect the distinct tasks referenced by status atoms.
 fn collect_status_refs(e: &Expr) -> Vec<&str> {
     let mut out = Vec::new();
+    // Set-based dedup keeps this O(n log n): the `when:` gate is
+    // attacker-authored and a linear `Vec::contains` scan per atom is
+    // quadratic on a hostile expression (see `collect_bad_literals`).
+    let mut seen: BTreeSet<&str> = BTreeSet::new();
     walk(e, &mut |node| {
         if let Some(id) = status_ref(node)
-            && !out.contains(&id)
+            && seen.insert(id)
         {
             out.push(id);
         }
@@ -298,6 +302,13 @@ fn max_list_len(e: &Expr) -> usize {
 /// Collect out-of-vocabulary status literals (the `'failed'` class).
 fn collect_bad_literals(e: &Expr) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
+    // The `when:` gate is attacker-authored and an `in [...]` list literal
+    // is uncapped (each element is depth-1, so MAX_DEPTH never fires). A
+    // linear `Vec::contains` dedup made this O(n²) — a 40k-literal list of
+    // distinct non-statuses burned ~3s of CPU on a 2-task workflow,
+    // bypassing every cap (MAX_TASKS · MAX_DEPTH · MAX_GATE_REFS). The
+    // `seen` set keeps dedup O(log n) per push → O(n log n) overall.
+    let mut seen: BTreeSet<(String, String)> = BTreeSet::new();
     walk(e, &mut |node| {
         let Expr::Relation { op, lhs, rhs } = node else {
             return;
@@ -307,7 +318,7 @@ fn collect_bad_literals(e: &Expr) -> Vec<(String, String)> {
         };
         let mut push = |lit: &str| {
             let pair = (id.to_owned(), lit.to_owned());
-            if !out.contains(&pair) {
+            if seen.insert(pair.clone()) {
                 out.push(pair);
             }
         };
@@ -869,5 +880,33 @@ mod tests {
         // spec 03-dag.md §Task states — the four when:-observable
         // terminal statuses, verbatim
         assert_eq!(STATUS_VOCAB, ["success", "failure", "skipped", "cancelled"]);
+    }
+
+    #[test]
+    fn bad_literals_dedup_repeated_members() {
+        // Repeated identical out-of-vocab members collapse to ONE pair —
+        // dedup is by (ref_task, literal), not by position.
+        let expr =
+            parse_gate("${{ tasks.a.status in ['nope', 'nope', 'nope'] }}").expect("gate parses");
+        assert_eq!(collect_bad_literals(&expr).len(), 1);
+    }
+
+    #[test]
+    fn huge_in_list_of_distinct_literals_is_not_quadratic() {
+        // DoS regression guard: an `in [...]` list literal is uncapped (each
+        // element is depth-1, so MAX_DEPTH never fires) and feeds
+        // collect_bad_literals. With the old `Vec::contains` dedup, 20k
+        // distinct non-status literals were O(n²) — seconds of CPU on a
+        // 2-task workflow, bypassing MAX_TASKS / MAX_DEPTH / MAX_GATE_REFS.
+        // With set-based dedup it is O(n log n): this test COMPLETING fast
+        // is the proof. All 20k distinct literals are still collected.
+        let n = 20_000usize;
+        let list = (0..n)
+            .map(|i| format!("'x{i}'"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let src = format!("${{{{ tasks.a.status in [{list}] }}}}");
+        let expr = parse_gate(&src).expect("gate parses");
+        assert_eq!(collect_bad_literals(&expr).len(), n);
     }
 }
