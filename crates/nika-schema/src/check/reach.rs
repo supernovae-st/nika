@@ -909,4 +909,25 @@ mod tests {
         let expr = parse_gate(&src).expect("gate parses");
         assert_eq!(collect_bad_literals(&expr).len(), n);
     }
+
+    #[test]
+    fn default_gate_with_deps_keeps_downstream_success_reachable() {
+        // The default gate (no `when:`) runs iff every dep can be
+        // success/skipped. A root is vacuously runnable; a default-gate
+        // task WITH deps must ALSO compute runnable from its deps' possible
+        // sets so its own success stays reachable. `b` here has no gate and
+        // depends on `a`; `c` gates on `b` being success. If the runnable
+        // mask is forced empty (`& (S_SUCCESS | S_SKIPPED)` → `&` of the two
+        // bits = 0) or the test inverted (`!= 0` → `== 0`), `b` is wrongly
+        // marked unrunnable → set stays {cancelled} → `c`'s success gate
+        // goes DEAD. Asserting `c` is alive pins the default-gate runnable
+        // path through a downstream status reference.
+        let f = gates(&wf(
+            "  - id: a\n    exec: { command: \"true\" }\n  - id: b\n    \
+             depends_on: [a]\n    exec: { command: \"true\" }\n  - id: c\n    \
+             depends_on: [b]\n    when: ${{ tasks.b.status == 'success' }}\n    \
+             exec: { command: \"true\" }\n",
+        ));
+        assert!(f.is_empty(), "{f:?}");
+    }
 }
