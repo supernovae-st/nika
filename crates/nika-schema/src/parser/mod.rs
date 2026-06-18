@@ -718,4 +718,112 @@ tasks:
             "span start must be byte offset after char→byte translation",
         );
     }
+
+    // ── check_source_bounds · the untrusted-input resource guards ───────
+    //
+    // These exercise the pre-parse guard DIRECTLY (the test module sees it
+    // via `use super::*`), so the byte/indent boundary math is exact —
+    // no YAML-envelope overhead muddies the count. They pin every `>`/`>=`
+    // boundary and the `MAX_SOURCE_BYTES = 4 * 1024 * 1024` arithmetic so a
+    // flipped operator or a `*`→`+` arithmetic mutation flips an
+    // accept/reject and FAILS here.
+
+    #[test]
+    fn max_source_bytes_constant_is_exactly_four_mib() {
+        // Pins the `4 * 1024 * 1024` arithmetic (parser:163). The two `*`
+        // operators each have a `*`→`+` mutant:
+        //   • first  `*`→`+` ⇒ 4 + 1024*1024 = 1_048_580
+        //   • second `*`→`+` ⇒ 4*1024 + 1024 = 5_120
+        // Both differ from 4_194_304, so this literal-pin kills both.
+        assert_eq!(MAX_SOURCE_BYTES, 4_194_304);
+        assert_eq!(MAX_SOURCE_BYTES, 4 * 1024 * 1024);
+    }
+
+    #[test]
+    fn source_at_exactly_max_bytes_is_accepted() {
+        // The boundary is `len > MAX_SOURCE_BYTES` (strict). A source of
+        // EXACTLY 4 MiB must pass — this is the accept side of the `>`
+        // boundary (parser:176) AND it kills the arithmetic mutants:
+        // if MAX_SOURCE_BYTES were 5_120 or 1_048_580 (the `*`→`+`
+        // products) a 4 MiB source would be > the cap and REJECTED here.
+        let source = "x".repeat(MAX_SOURCE_BYTES);
+        assert_eq!(source.len(), 4_194_304);
+        check_source_bounds(&source).expect("a source of exactly MAX_SOURCE_BYTES is accepted");
+    }
+
+    #[test]
+    fn source_one_over_max_bytes_is_rejected() {
+        // `>` boundary, reject side (parser:176). One byte over the cap
+        // rejects loud. With `>` mutated to `>=`, the exact-cap accept
+        // test above already fails; with the arithmetic mutated the cap
+        // shrinks and the accept test fails — this pins the over side.
+        let source = "x".repeat(MAX_SOURCE_BYTES + 1);
+        let err = check_source_bounds(&source).expect_err("one byte over the cap rejects");
+        assert!(
+            matches!(err, SchemaError::YamlSyntax { .. }),
+            "byte-cap breach is a YamlSyntax error: {err:?}",
+        );
+        assert!(
+            err.to_string().contains("memory-safety bound"),
+            "loud + actionable: {err}",
+        );
+    }
+
+    #[test]
+    fn indent_at_exactly_max_is_accepted() {
+        // `indent > MAX_INDENT_BYTES` boundary (parser:188), accept side.
+        // A line indented EXACTLY MAX_INDENT_BYTES spaces passes. This is
+        // the arm a `>`→`>=` mutation would break (it would reject the
+        // exact-cap line) — so this test kills the `>`→`>=` mutant.
+        let line = format!("{}k: v", " ".repeat(MAX_INDENT_BYTES));
+        check_source_bounds(&line).expect("indentation of exactly MAX_INDENT_BYTES is accepted");
+    }
+
+    #[test]
+    fn indent_one_over_max_is_rejected() {
+        // `indent > MAX_INDENT_BYTES` boundary (parser:188), reject side.
+        // One space over the cap rejects loud — pins the over side and,
+        // paired with the exact-cap accept above, locks the `>` operator
+        // (a `>`→`==` mutation would accept this over-cap line because
+        // 1025 == 1024 is false, so the accept test above stays green but
+        // 1025 > 1024 must reject HERE; a `>`→`>=` mutation rejects the
+        // exact-cap line in the accept test).
+        let line = format!("{}k: v", " ".repeat(MAX_INDENT_BYTES + 1));
+        let err = check_source_bounds(&line).expect_err("one space over the indent cap rejects");
+        assert!(
+            matches!(err, SchemaError::YamlSyntax { .. }),
+            "indent-cap breach is a YamlSyntax error: {err:?}",
+        );
+        assert!(
+            err.to_string().contains("stack-safety bound"),
+            "loud + actionable: {err}",
+        );
+    }
+
+    #[test]
+    fn indent_well_over_max_is_rejected_with_line_number() {
+        // The reject message names the 1-based line — pins the `line_no + 1`
+        // rendering (parser:193). The over-indented line is the 2nd line
+        // (0-based line_no == 1 → "line 2"); a `+`→`-` mutant renders
+        // "line 0", a `+`→`*` mutant "line 1". Also locks the `>`→`==`
+        // mutant on the indent compare: an indent of MAX+1024 is NOT
+        // EXACTLY MAX, so `==` would WRONGLY accept it and this expect_err
+        // would fail.
+        let source = format!("ok: v\n{}deep: v", " ".repeat(MAX_INDENT_BYTES + 1024));
+        let err = check_source_bounds(&source).expect_err("deep indent rejects");
+        let msg = err.to_string();
+        assert!(msg.contains("stack-safety bound"), "loud: {msg}");
+        assert!(msg.contains("line 2"), "names the offending line: {msg}");
+    }
+
+    #[test]
+    fn empty_and_shallow_sources_pass_the_guard() {
+        // The accept floor — nothing about an ordinary file trips either
+        // cap. Guards against a guard that rejects everything (a constant
+        // that collapsed to 0 via arithmetic mutation would fail here).
+        check_source_bounds("").expect("empty source passes");
+        check_source_bounds("nika: v1\nworkflow: w\n").expect("a normal file passes");
+        check_source_bounds(&format!("{}k: v", " ".repeat(MAX_INDENT_BYTES - 1)))
+            .expect("just under the indent cap passes");
+    }
 }

@@ -500,4 +500,143 @@ tasks:
         let second = serde_json::to_string(&check(&wf)).expect("serialize");
         assert_eq!(first, second, "same input → byte-identical report");
     }
+
+    // ── extra_conformance_codes · the CHECK-ONLY finding → spec-code map ─
+    //
+    // These pin every arm of `extra_conformance_codes` so the `-> vec![]`
+    // mutation (and any per-surface arm removal) fails: a report carrying
+    // findings must yield the matching codes, a clean report must yield
+    // NONE, and the count must equal the total findings (one code per
+    // finding, no surface dropped).
+
+    #[test]
+    fn extra_conformance_codes_empty_on_clean_report() {
+        // The negative anchor: a clean workflow has no CHECK-ONLY findings,
+        // so the code list is empty. Paired with the non-empty tests below
+        // this distinguishes the REAL fn (state-dependent) from the
+        // `-> vec![]` mutant (always-empty) — the mutant passes THIS test
+        // but fails the populated ones.
+        let r = check_yaml(
+            "\
+nika: v1
+workflow: clean
+tasks:
+  - id: a
+    exec: { command: \"echo hi\" }
+",
+        );
+        assert!(r.is_clean());
+        assert!(
+            r.extra_conformance_codes().is_empty(),
+            "a clean report yields no extra codes: {:?}",
+            r.extra_conformance_codes(),
+        );
+    }
+
+    #[test]
+    fn extra_conformance_codes_maps_capability_escape_to_sec_004() {
+        // A body outside the declared `permits:` → NIKA-SEC-004
+        // (the capability_escapes arm). This kills `-> vec![]` AND the
+        // capability-escape arm removal (without it the list is empty).
+        let r = check_yaml(
+            "\
+nika: v1
+workflow: escape
+permits:
+  exec: false
+tasks:
+  - id: a
+    exec: { command: [\"cargo\", \"publish\"] }
+",
+        );
+        assert!(
+            !r.capability_escapes.is_empty(),
+            "the fixture must produce a capability escape",
+        );
+        let codes = r.extra_conformance_codes();
+        assert!(
+            !codes.is_empty(),
+            "a capability escape must surface a code (not vec![])",
+        );
+        let rendered: Vec<String> = codes.iter().map(ToString::to_string).collect();
+        assert!(
+            rendered.iter().any(|c| c == "NIKA-SEC-004"),
+            "capability escape → NIKA-SEC-004: {rendered:?}",
+        );
+        // pin the category too — the arm constructs SecurityError, not the
+        // generic ValidationError the builtin arm uses
+        assert!(
+            codes
+                .iter()
+                .any(|c| c.category == SpecCategory::SecurityError),
+            "the SEC-004 arm is a SecurityError: {codes:?}",
+        );
+    }
+
+    #[test]
+    fn extra_conformance_codes_maps_unknown_tool_to_builtin_001() {
+        // A typo'd `nika:` builtin → NIKA-BUILTIN-001 (the unknown_tools
+        // arm). Conformant DAG so ONLY the builtin surface fires — pins
+        // the unknown_tools arm in isolation.
+        let r = check_yaml(
+            "\
+nika: v1
+workflow: typo
+tasks:
+  - id: a
+    invoke: { tool: \"nika:wrte\", args: { path: \"./out\", content: \"x\" } }
+",
+        );
+        assert!(
+            !r.unknown_tools.is_empty(),
+            "the fixture must produce an unknown tool",
+        );
+        let codes = r.extra_conformance_codes();
+        let rendered: Vec<String> = codes.iter().map(ToString::to_string).collect();
+        assert!(
+            rendered.iter().any(|c| c == "NIKA-BUILTIN-001"),
+            "unknown tool → NIKA-BUILTIN-001: {rendered:?}",
+        );
+        assert!(
+            codes
+                .iter()
+                .any(|c| c.category == SpecCategory::ValidationError),
+            "the BUILTIN arm is a ValidationError: {codes:?}",
+        );
+    }
+
+    #[test]
+    fn extra_conformance_codes_count_equals_total_findings() {
+        // One code PER finding, every surface counted. Pins the
+        // `extend` chain wholesale: dropping any of the four arms
+        // (capability_escapes · unknown_tools · unknown_args ·
+        // missing_args) would shrink the count below the sum and fail.
+        let r = check_yaml(
+            "\
+nika: v1
+workflow: many
+permits:
+  exec: false
+  tools: [\"nika:read\"]
+tasks:
+  - id: a
+    exec: { command: [\"cargo\"] }
+  - id: b
+    invoke: { tool: \"nika:wrte\", args: { path: \"./out\", content: \"x\" } }
+",
+        );
+        let expected = r.capability_escapes.len()
+            + r.unknown_tools.len()
+            + r.unknown_args.len()
+            + r.missing_args.len();
+        assert!(
+            expected >= 2,
+            "the fixture must produce ≥2 findings: {expected}"
+        );
+        assert_eq!(
+            r.extra_conformance_codes().len(),
+            expected,
+            "exactly one code per CHECK-ONLY finding across all four surfaces",
+        );
+    }
 }
