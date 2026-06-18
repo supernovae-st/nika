@@ -697,4 +697,35 @@ mod tests {
         );
         assert!(read.conflicts.is_empty());
     }
+
+    #[test]
+    fn exactly_at_the_cap_still_reads() {
+        // Boundary opposite to the oversized case: a workflow with EXACTLY
+        // ANALYSIS_TASK_CAP tasks is the last size the read still honours
+        // (`n > CAP` is strict). One fewer task than the skip threshold —
+        // the analysis must be present, not skipped.
+        let mut yaml = String::from(HEADER);
+        yaml.push_str(&infer_task("t0", &[]));
+        for i in 1..ANALYSIS_TASK_CAP {
+            let prev = format!("t{}", i - 1);
+            yaml.push_str(&infer_task(&format!("t{i}"), &[prev.as_str()]));
+        }
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        assert_eq!(parsed.tasks.len(), ANALYSIS_TASK_CAP);
+        let analyzed = crate::analyzer::analyze(&parsed).expect("conformant");
+        let read = read_dag(&parsed, &analyzed.topo_waves);
+        assert!(
+            read.analysis.is_some(),
+            "exactly at the cap the read still claims"
+        );
+    }
+
+    #[test]
+    fn two_task_chain_pinches_both() {
+        // The pinch guard is `n < 2`: a 2-task chain (n == 2) is the first
+        // size that computes pinch points. a→b makes both nodes articulation
+        // points of the order. A `n <= 2` guard would wrongly empty this.
+        let a = analysis(&wf(&[("a", &[]), ("b", &["a"])]));
+        assert_eq!(a.pinch_points, vec!["a", "b"]);
+    }
 }
