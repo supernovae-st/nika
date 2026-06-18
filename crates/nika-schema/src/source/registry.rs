@@ -10,6 +10,7 @@ use super::span::{ByteOffset, FileId, LineCol};
 
 /// A registered source file.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct SourceFile {
     /// The interned file identifier.
     pub id: FileId,
@@ -43,6 +44,7 @@ impl SourceFile {
 /// The registry is the single owner of source content, shared via
 /// `Arc<String>` for zero-copy references.
 #[derive(Debug, Default)]
+#[non_exhaustive]
 pub struct SourceRegistry {
     files: Vec<SourceFile>,
 }

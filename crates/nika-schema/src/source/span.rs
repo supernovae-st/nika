@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 /// An interned file identifier. Used to index into [`super::SourceRegistry`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Default, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct FileId(pub u32);
 
 impl FileId {
@@ -30,6 +31,7 @@ impl std::fmt::Display for FileId {
 #[derive(
     Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Default, Serialize, Deserialize,
 )]
+#[non_exhaustive]
 pub struct ByteOffset(pub u32);
 
 impl ByteOffset {
@@ -54,6 +56,7 @@ impl std::fmt::Display for ByteOffset {
 
 /// A span within a source file: `[start, end)` byte offsets.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Span {
     /// Source file this span belongs to.
     pub file: FileId,
@@ -121,6 +124,7 @@ impl std::fmt::Display for Span {
 
 /// A 1-based line and column position.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct LineCol {
     /// 1-based line number.
     pub line: u32,
@@ -144,6 +148,7 @@ impl std::fmt::Display for LineCol {
 
 /// A value annotated with its source span.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Spanned<T> {
     /// The wrapped value.
     pub value: T,
