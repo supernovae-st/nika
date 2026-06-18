@@ -28,4 +28,20 @@ exclude_re = [
   "atspi_role_to_ax",
   "build_node_atspi",
   "build_raw_tree_atspi",
+  # nika-schema · check/analysis.rs graph-fixpoint fns. Mutating these breaks
+  # loop convergence → unbounded allocation → vm-compressor OOM/jetsam →
+  # machine reboot (2026-06-18 floor-v2 diagnosis). They diverge-by-design;
+  # correctness is pinned by the König/reach property suite
+  # (tests/research_conformance.rs) + the metamorphic relations. Documented
+  # diverge-mutants (detected-by-divergence), NOT coverage gaps — excluding
+  # them lets `check-mutation-floor.sh` reproduce the floor-v2 measurement
+  # without OOM-rebooting the host.
+  "downstream_adjacency",
+  "descendant_closure",
+  "set_bits",
+  "hopcroft_karp",
+  "hk_bfs",
+  "hk_dfs",
+  "koenig_witness",
+  "scan_parallel_writers",
 ]
