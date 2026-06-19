@@ -22,11 +22,16 @@ while IFS= read -r manifest; do
   [ -z "$manifest" ] && continue
   crate_dir=$(dirname "$manifest")
   # P1-6 Batch H+: recurse via trailing /. Prod scope: src/ only, minus
-  # in-file #[cfg(test)] regions (counted by the python block below).
+  # in-file #[cfg(test)] regions (counted by the python block below) AND
+  # files whose basename is `tests.rs` (the rs_prod_files convention in
+  # _lib.sh — a `tests.rs` sibling/dir-module is 100% test code, already
+  # honoured by check-expect/check-unwraps). Aligned here so a test module
+  # split out of an oversized file (no in-file #[cfg(test)] marker) is not
+  # miscounted as production.
   # `|| true` keeps an src-less crate from killing the loop under pipefail
   # (grep exits 1 on zero matches); python prints 0 on empty stdin then.
   total=$(
-    { git ls-files -- "$crate_dir/src/" 2>/dev/null | grep '\.rs$' || true; } \
+    { git ls-files -- "$crate_dir/src/" 2>/dev/null | grep '\.rs$' | grep -v '/tests\.rs$' || true; } \
       | python3 -c '
 import re, sys
 total = 0

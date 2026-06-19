@@ -100,6 +100,8 @@ for root, dirs, files in os.walk('crates'):
     for fname in sorted(files):
         if not fname.endswith('.rs'):
             continue
+        if fname == 'tests.rs':   # 100% test code · the rs_prod_files convention
+            continue
         path = os.path.join(root, fname)
         if '/src/' not in path.replace(os.sep, '/'):
             continue
