@@ -18,6 +18,22 @@ tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 
 ## [Unreleased]
 
+### 🏛️ nika-schema L0 admission — parser + analyzer + static-check (ADMITTED · all 12 gates · 2026-06-18)
+
+- **`nika-schema` crate** admitted — the workflow AST, parser, analyzer, and
+  the ADR-092 `nika check` static-check ladder (the last L0 WIP crate).
+- **Gate 5** closed in BUDGET mode (`survivors ≤ 300`): 269 timeout-divergers
+  + 21 enumerated equivalents, each scoped-re-verified. Rounds 1-7 (~190 tests)
+  killed the floor's real-gap tail — analyzer/check collection + lint logic,
+  the `read_dag` cap/pinch boundaries, the default-gate runnable path, and the
+  expression-parser offset/depth/byte-scanner.
+- **Security**: two complementary `when:`-gate DoS fixes integrated — a
+  `MAX_GATE_LIST_ITEMS` cap on the leaf-evaluation re-scan and a `BTreeSet`
+  dedup in `collect_bad_literals` (an O(n²) `Vec::contains` scan that burned
+  ~3 s of CPU on a 2-task workflow before the fix). Plus 7 `#[non_exhaustive]`
+  source types (FCI-002) and a parse+check criterion benchmark (Gate 7 · parse
+  10-task 30.9 µs).
+
 ### 🧩 Announce ladder s19.6 · nika-lsp L4 admission — the `nika lsp` language server (ADMITTED · 12-gate closed · 2026-06-15)
 
 - **`nika-lsp` crate** · the Nika language server (`nika lsp`, stdio) — the

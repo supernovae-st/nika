@@ -130,11 +130,11 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `65d7e24fc` (`65d7e24fc1aff2658fd6df5466e322fbe78bc9d6`)             |
+| HEAD             | `e1127ed74` (`e1127ed747bfd53e81b836c7f9296771abf624f4`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 39                                              |
-| crates (admitted)| 36 / 42                                   |
-| crates (WIP)     | 3 — nika-schema nika-cli nika-extract                                  |
+| crates (admitted)| 37 / 42                                   |
+| crates (WIP)     | 2 — nika-cli nika-extract                                  |
 | L0               | 8                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
@@ -142,17 +142,17 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 4                                              |
-| lib tests        | 2713 passed, 0 failed                              |
+| lib tests        | 2898 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
 
-- L0 admitted: nika-types, nika-error, nika-catalog, nika-catalog-codegen, nika-event, nika-pack. WIP: nika-schema (parser scaffolding).
+- L0 admitted: nika-types, nika-error, nika-catalog, nika-catalog-codegen, nika-event, nika-pack, nika-cel, nika-schema (parser + analyzer + static-check · admitted 2026-06-18 · Gate-5 budget 290≤300 · O(n²) when-gate DoS fixed + origin's gate-list cap, both integrated).
 - L0.5 admitted: nika-kernel (facade + range-registry hub post 4-way split 2026-06-10), nika-kernel-core, nika-kernel-ai, nika-kernel-runtime, nika-kernel-plugin, nika-kernel-mock.
 - L1 admitted: nika-clock, nika-bm25, nika-screen, nika-ocr, nika-a11y, nika-input (M2.4 · Guards 1+2), nika-browser (M2.5 · Guard 5 + occlusion hit-test), nika-fs (atomic write · s4), nika-http (reqwest+rustls · 3-layer SSRF + cross-origin cred-strip · s5), nika-blob (blake3 CAS · sidecar mime · s6), nika-exec-runner (shell/process effect · s7).
-- L1.5 admitted: nika-providers (s8.5 · 14/14 providers wired across 3 wire formats incl gemini s8.6 · kernel http seam). WIP: nika-builtin (s16 · the 22 stdlib builtins behind ONE dispatcher · the 3 tool seams ToolExecuteDyn+ToolBatchDyn+ToolDefinitionProviderDyn · the agent's first real tool source).
+- L1.5 admitted: nika-providers (s8.5 · 14/14 providers wired across 3 wire formats incl gemini s8.6 · kernel http seam), nika-infer-local (sovereign local inference sidecar · ADR-091), nika-builtin (s16 · the 22 stdlib builtins behind ONE dispatcher · the 3 tool seams · the agent's first real tool source). WIP: nika-extract (the 9 fetch extract modes).
 - L2 admitted: nika-verb-infer (s9 · FIRST verb crate · one-shot infer · structured-output floor · NIKA-430..433), nika-verb-exec (s10 · shell exec · kernel ShellRunDyn seam · capture one-obvious-way split · NIKA-440..442), nika-verb-invoke (s11 · builtin/MCP tool call · kernel ToolExecuteDyn seam · closed nika:/mcp: namespace validated · NIKA-450..452), nika-verb-agent (s12 · the 4th+LAST verb · multi-turn ReAct loop · 3 injected seams ProviderInferDyn+ToolExecuteDyn+ToolDefinitionProviderDyn · default-deny whitelist · NIKA-460..466).
-- L4 admitted: nika-catalog-verify. WIP: nika-cli (operator-surface seed 2026-06-11 · display fold + trace replay|show + the e2e L3-rehearsal suite · S6 build grows the full first-15-min verb tree per D-2026-06-10-N6).
+- L4 admitted: nika-catalog-verify, nika-lsp (stdio language server · `nika lsp`), nika-mcp (in-binary MCP server · `nika mcp`). WIP: nika-cli (operator-surface seed 2026-06-11 · display fold + trace replay|show + the e2e L3-rehearsal suite · S6 build grows the full first-15-min verb tree per D-2026-06-10-N6).
 - 0 unwraps in `src/`, Gate 8 GREEN, Invariant #19 FULL.
 - 32 providers, 49 capability rules, 7-axis ModelPricing, scope.providers canonical.
 - Q1-Q13 L0/L0.5 architecture decisions LOCKED 2026-04-16

@@ -65,11 +65,11 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `65d7e24fc` (`65d7e24fc1aff2658fd6df5466e322fbe78bc9d6`)             |
+| HEAD             | `e1127ed74` (`e1127ed747bfd53e81b836c7f9296771abf624f4`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 39                                              |
-| crates (admitted)| 36 / 42                                   |
-| crates (WIP)     | 3 — nika-schema nika-cli nika-extract                                  |
+| crates (admitted)| 37 / 42                                   |
+| crates (WIP)     | 2 — nika-cli nika-extract                                  |
 | L0               | 8                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
@@ -77,7 +77,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 4                                              |
-| lib tests        | 2713 passed, 0 failed                              |
+| lib tests        | 2898 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
@@ -115,7 +115,7 @@ notes · key decisions), not a census.
   - `HttpStreamResponse::new()` (4A-stabilize, inv #19)
   - `#[non_exhaustive]` on all 20 mock structs (4A-stabilize)
   - **Q7 prelude hub** (2026-04-16, `d967f4a7a`): `nika_kernel::prelude::*` re-exports `nika_error::prelude::*` so L2+ verb crates depend on `nika-kernel` only (3 lines of impl + 3 regression tests pinning 23 symbols)
-- **nika-schema (WIP)** — workflow AST + parser (admission Round 4)
+- **nika-schema (ADMITTED · 2026-06-18)** — workflow AST + parser + analyzer + static-check · all 12 gates green (Gate-5 budget 290≤300) · the pre-Diamond rounds below are superseded history (the `nika: v1` rewrite shipped + admitted)
   - **Round 2c** (`b85b612ca`, 2026-04-16): parser scaffold, top-level scalars (`name`, `description`, `goal`, `provider`, `model`, `schema`)
   - **Round 2d** (`2480822df`): `tasks:` sequence + 5-verb action discriminator (`enum Verb` exhaustive match) + minimum required field per verb
   - **Round 2e-part-1** (`eac346c71`): optional task-level `depends_on`, `condition`, `for_each`

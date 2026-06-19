@@ -3976,6 +3976,7 @@ dependencies = [
 name = "nika-schema"
 version = "0.80.0"
 dependencies = [
+ "criterion",
  "insta",
  "jaq-core",
  "jaq-json",
