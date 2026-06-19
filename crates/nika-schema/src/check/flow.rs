@@ -801,7 +801,7 @@ tasks:
         // `Some(source("unknown"))`. (Driven directly because the public
         // `analyze` path rejects an undeclared `secrets.X` ref before the IFC
         // pass ever runs, so the guard cannot be reached end-to-end.)
-        let declared = ["api_key"];
+        let declared: BTreeSet<&str> = BTreeSet::from(["api_key"]);
         let no_facts = FlowFacts::default();
         let id_of: BTreeMap<&str, usize> = BTreeMap::new();
         let with_taint: BTreeMap<&str, TaintTrace> = BTreeMap::new();
