@@ -16,8 +16,8 @@
 use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
-    InferEvent, InferRequest, Message, ProviderError, ProviderInferDyn as _, ProviderMeta as _,
-    ProviderStreamDyn as _, ResponseFormat, Role,
+    ContentBlock, InferEvent, InferRequest, Message, ProviderError, ProviderInferDyn as _,
+    ProviderMeta as _, ProviderStreamDyn as _, ResponseFormat, Role, StopReason, ToolDef,
 };
 use nika_kernel::genai::GenAiSystem;
 use nika_kernel::secret::Secret;
@@ -56,8 +56,48 @@ const OPENAI_SSE: &str = concat!(
     "data: [DONE]\n\n",
 );
 
+// ── tool-call RESPONSE fixtures (one per wire family) ──
+// The model answers with a call to `get_weather({city:"Paris"})`. The tool
+// name is un-namespaced, so the wire name == the canonical id on every
+// dialect (the sanitize/restore round-trip is pinned per-dialect); this
+// matrix asserts the SHARED parse result instead.
+const ANTHROPIC_TOOL: &str = r#"{"id":"msg_t","model":"claude-test",
+    "content":[{"type":"tool_use","id":"tu_1","name":"get_weather","input":{"city":"Paris"}}],
+    "stop_reason":"tool_use","usage":{"input_tokens":3,"output_tokens":2}}"#;
+
+const OPENAI_TOOL: &str = r#"{"id":"cc_t","model":"compat-test","choices":[{"message":
+    {"tool_calls":[{"id":"tc_1","type":"function","function":
+    {"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}]},"finish_reason":"tool_calls"}],
+    "usage":{"prompt_tokens":3,"completion_tokens":2}}"#;
+
+const GEMINI_TOOL: &str = r#"{"responseId":"g_t","modelVersion":"gemini-test","candidates":
+    [{"content":{"parts":[{"functionCall":{"name":"get_weather","args":{"city":"Paris"}}}]},
+    "finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":2}}"#;
+
+fn tool_call_fixture(wire: WireFormat) -> &'static str {
+    match wire {
+        WireFormat::Anthropic => ANTHROPIC_TOOL,
+        WireFormat::Gemini => GEMINI_TOOL,
+        _ => OPENAI_TOOL,
+    }
+}
+
 fn request() -> InferRequest {
     InferRequest::new("ignored", vec![Message::text(Role::User, "parity check")])
+}
+
+/// A request that OFFERS one tool — so a tool-call response round-trips.
+fn request_with_tool() -> InferRequest {
+    let mut req = InferRequest::new(
+        "ignored",
+        vec![Message::text(Role::User, "weather in Paris?")],
+    );
+    req.tools = vec![ToolDef::new(
+        "get_weather",
+        "current weather for a city",
+        serde_json::json!({"type":"object","properties":{"city":{"type":"string"}}}),
+    )];
+    req
 }
 
 fn ok_fixture(wire: WireFormat) -> &'static str {
@@ -307,5 +347,45 @@ async fn json_mode_encodes_per_dialect_across_every_wired_profile() {
             // family must teach this matrix its json-mode shape.
             _ => panic!("[{id}] unhandled wire family in json-mode parity"),
         }
+    }
+}
+
+#[tokio::test]
+async fn every_wired_profile_parses_a_tool_call_consistently() {
+    // Response-side parity (the sibling of the json-mode REQUEST test): each
+    // wire family encodes a tool call differently on the wire — anthropic
+    // `tool_use` content block · openai `tool_calls[]` (arguments as a JSON
+    // STRING) · gemini `functionCall` part — but the engine MUST surface the
+    // SAME shape: a `ContentBlock::ToolUse` carrying the canonical tool name +
+    // parsed input object, and `StopReason::ToolUse`. A divergence on any one
+    // provider is an engine bug, not a provider quirk.
+    for (id, wire, requires_key) in wired_http_profiles() {
+        let fake = FakeHttp::with_json(200, tool_call_fixture(wire));
+        let rp = resolve_on(&fake, id, requires_key);
+        let resp = rp
+            .infer(request_with_tool())
+            .await
+            .unwrap_or_else(|e| panic!("[{id}] a tool-call response must parse: {e}"));
+
+        let tool_use = resp.content.iter().find_map(|b| match b {
+            ContentBlock::ToolUse { name, input, .. } => Some((name.clone(), input.clone())),
+            _ => None,
+        });
+        let (name, input) = tool_use.unwrap_or_else(|| {
+            panic!(
+                "[{id}] response carries a ToolUse block: {:?}",
+                resp.content
+            )
+        });
+        assert_eq!(name, "get_weather", "[{id}] canonical tool name surfaced");
+        assert_eq!(
+            input["city"], "Paris",
+            "[{id}] tool input parsed (args object)"
+        );
+        assert_eq!(
+            resp.stop_reason,
+            StopReason::ToolUse,
+            "[{id}] a tool call settles StopReason::ToolUse"
+        );
     }
 }
