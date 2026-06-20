@@ -51,6 +51,14 @@ tasks:
     exec: { command: "true" }
 "#;
 
+const FAILING: &str = r#"
+nika: v1
+workflow: smoke-fail
+tasks:
+  - id: boom
+    exec: { command: "exit 7" }
+"#;
+
 #[test]
 fn check_valid_exits_zero() {
     let dir = std::env::temp_dir().join("nika-bin-smoke-ok");
@@ -64,6 +72,79 @@ fn check_valid_exits_zero() {
         "spec §4 · a clean workflow checks at 0 · stderr: {}",
         String::from_utf8_lossy(&out.stderr)
     );
+}
+
+#[test]
+fn run_clean_workflow_exits_zero() {
+    // The `run` verb — the most-used one — had ZERO binary-contract
+    // coverage. A clean workflow runs through the L3 runtime and exits 0.
+    let dir = std::env::temp_dir().join(format!("nika-bin-run-ok-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let wf = write_fixture(&dir, "ok.nika.yaml", VALID);
+
+    let out = bin()
+        .arg("run")
+        .arg(&wf)
+        .arg("--json")
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "spec §4 · a clean run exits 0 · stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn run_failed_task_exits_one_not_two() {
+    // spec §4 · the run-vs-file distinction made executable: a TASK that
+    // fails (the engine is healthy · the workflow actually RAN) exits 1,
+    // NEVER 2 (a FILE finding caught before any task runs). This is the
+    // split CI/alerting depend on ("CI gates on 2, alerting gates on 1")
+    // and the one locked exit code the smoke suite never pinned.
+    let dir = std::env::temp_dir().join(format!("nika-bin-run-fail-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let wf = write_fixture(&dir, "fail.nika.yaml", FAILING);
+
+    let out = bin()
+        .arg("run")
+        .arg(&wf)
+        .arg("--json")
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "a failed task exits 1 (workflow failed), never 2 (file finding) · stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn run_invalid_dag_exits_two_not_one() {
+    // The other side of the 1-vs-2 split: `run` pre-flights the static
+    // ladder, so a FILE-level fault (a DAG cycle) is caught BEFORE any task
+    // runs and exits 2 — the same code `check` returns, distinct from the
+    // workflow-failed 1. Pins that `run` never collapses the two.
+    let dir = std::env::temp_dir().join(format!("nika-bin-run-cyc-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let wf = write_fixture(&dir, "cyc.nika.yaml", INVALID);
+
+    let out = bin()
+        .arg("run")
+        .arg(&wf)
+        .arg("--json")
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "an invalid DAG is a file finding (2), not a workflow failure (1) · stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
