@@ -173,7 +173,7 @@ What is populated TODAY vs what lands with the reference engine ·
 | **Deep-static fixtures** (`tests/deep/`) | ✅ populated · runner-executable | the expression layer the schema cannot see · the normative CEL EBNF parsed for real · jq compile · duration grammar · schema-meta · `when:` shape · binding purity |
 | **Stdlib static surface** (`tests/stdlib/`) | ✅ populated · runner-executable | the stdlib **names + shapes** layer · provider prefixes · the closed `nika:*` builtin set · extract modes · checkable with zero execution (lists derive from [`canon.yaml`](../canon.yaml)) |
 | **Examples as conformance inputs** (`examples/`) | ✅ executed by the runner `all` gate | every shipped example MUST validate at the full static level |
-| **Runtime behavioral fixtures** (`tests/runtime/`) | ⏳ **post-announce** | verb execution · task fields · events · they require an executing engine · they land with the reference engine's vertical slice (v0.81.0) |
+| **Runtime behavioral fixtures** (`tests/runtime/`) | ⏳ **post-announce** | verb execution · task fields · events · they require an executing engine · they land with the reference engine's vertical slice (1.0.0) |
 | **Stdlib behavioral fixtures** (`tests/stdlib/` · execution half) | ⏳ **post-announce** | provider/builtin/extract-mode *behavior* under the `mock` provider + HTTP mocks |
 
 Run the static gate yourself · `python conformance/runner.py all` — the

@@ -143,11 +143,11 @@ See [`08-out-of-scope.md`](./08-out-of-scope.md) for the explicit list.
 
 ---
 
-## Forever-v0.x
+## Frozen language envelope
 
-This spec follows the **forever-v0.x** discipline. No v1.0 release target. The 5 pillars are locked at the `nika: v1` contract · minor language additions are additive only (feature-detected · no minor version in the file) · breaking changes would ship as a new contract (`nika: v2`) with its own spec — and per forever-v0.x, that is effectively never.
+The **language** envelope is frozen at `nika: v1` forever. The 5 pillars are locked at the `nika: v1` contract · minor language additions are additive only (feature-detected · no minor version in the file) · breaking changes would ship as a new contract (`nika: v2`) with its own spec — and the envelope being frozen, that is effectively never. (This is the **language** version, independent of any engine version: the reference engine ships its own semver toward a 1.0 release, which does not touch `nika: v1`.)
 
-In practice · we expect v1 to last 10+ years.
+In practice · we expect `nika: v1` to last 10+ years.
 
 ---
 

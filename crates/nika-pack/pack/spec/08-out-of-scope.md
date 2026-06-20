@@ -213,7 +213,8 @@ durable-class, not finite-DAG-class.)*
 ships, recall and ingest are exposed as **builtin tools under
 `invoke:`** — `nika:connectome/recall` · `nika:connectome/ingest` — NOT as a
 new verb. The 4 verbs are absolute: a new verb would
-require a `nika: v2` contract, which forever-v0.x makes effectively never. So
+require a `nika: v2` language contract — a frozen-forever envelope, so that is
+effectively never. So
 the *shape* of cognitive access is already final today; only the *capability*
 waits on the engine.
 

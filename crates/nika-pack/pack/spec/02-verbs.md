@@ -399,7 +399,7 @@ The engine MUST ·
 
 ## Forward-compat
 
-The 4 verb names are **immutable forever** — and the count is **4, absolute**. The operation space is complete: call a model (`infer`), run a process (`exec`), call a tool (`invoke`), run an agentic loop (`agent`). Every other capability is either an **invoke-able tool** (an HTTP fetch → `invoke: nika:fetch` · a database query → `invoke: mcp:postgres/query` · a file write → `invoke: nika:write` · cognitive recall → `invoke: nika:connectome/recall`) or a **DAG control-flow construct** (iteration → `for_each` · branching → `when`). A new verb would require a `nika: v2` contract — and per forever-v0.x, that is effectively never.
+The 4 verb names are **immutable forever** — and the count is **4, absolute**. The operation space is complete: call a model (`infer`), run a process (`exec`), call a tool (`invoke`), run an agentic loop (`agent`). Every other capability is either an **invoke-able tool** (an HTTP fetch → `invoke: nika:fetch` · a database query → `invoke: mcp:postgres/query` · a file write → `invoke: nika:write` · cognitive recall → `invoke: nika:connectome/recall`) or a **DAG control-flow construct** (iteration → `for_each` · branching → `when`). A new verb would require a `nika: v2` language contract — a frozen-forever envelope, so that is effectively never (this is about the **language** version, not the engine version).
 
 ### The closure argument · why no case forces a 5th verb
 

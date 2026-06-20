@@ -103,8 +103,9 @@ Nika workflow »; the value `v1` pins the **language contract version**.
 additions to the language (a new optional field, a new builtin) are
 **additive** and never change this value. A future `nika: v2` would be a
 deliberate breaking-change generation with its own spec, not
-backward-compatible with v1 — and per `forever-v0.x`, that is
-effectively never.
+backward-compatible with v1 — the language envelope is frozen, so that is
+effectively never. (This is the **language** version, independent of any
+engine version.)
 
 **Anti-pattern** · do not write `nika: v1.0` · `nika: "1"` · or
 `nika: 1.0`. The value is exactly `v1`.

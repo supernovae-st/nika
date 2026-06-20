@@ -348,9 +348,10 @@ extraction-and-transform language (`output:` bindings + the `nika:jq` builtin).
   `.users[]` yields N separate values, NOT an array. A binding whose program
   emits zero or multiple values is an **evaluation-time error**
   (`NIKA-VAR-002` · the emission count is data-dependent · undecidable at
-  parse) — the reference linter additionally WARNS at check time on the
-  statically-visible smell (a trailing iterator `[]` with no collecting
-  `[ … ]` wrapper). A jq program that itself errors at runtime is
+  parse) — the reference linter additionally WARNS at check time
+  (`one-obvious-way/009`) on the statically-visible smell (a binding jq
+  ending in a trailing iterator `[]` with no collecting `[ … ]` wrapper).
+  A jq program that itself errors at runtime is
   `NIKA-VAR-004`. Collect a stream with `[ … ]` (`[.users[].email]` → array)
   · take one with an index (`.users[0]`) or `first(…)`. One obvious way · no
   silent first-match, no implicit array-wrap.

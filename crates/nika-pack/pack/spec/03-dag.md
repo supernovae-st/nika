@@ -396,6 +396,19 @@ fail_fast: false                # default true · false = process all even if so
   AND in every named binding) — positional alignment survives partial
   failure (the zip patterns stay sound). Per-iteration
   `on_error: { recover: … }` substitutes its recovery value instead.
+- **Where `.output` is observable** · the positional array is the
+  task's `.output` only when the **parent settles `success`** — i.e.
+  every element either succeeded, was `on_error: skip`-ped (→ `null` at
+  its index) or `on_error: recover`-ed (→ the recovery value). That is
+  the zip-sound surface a downstream task reads. An **UNRECOVERED**
+  iteration error transitions the parent to `failure` (per `fail_fast`),
+  and the failed parent's `.output` is **`null`** — NOT a partial array ·
+  the per-iteration errors surface in the failure detail, not as output
+  (a downstream task gated on the failed parent is cancelled · the
+  positional array is observable only on a `success` settle). To keep the
+  array across a partial failure, handle errors per iteration
+  (`on_error: skip` is the « process N · report which failed · don't
+  abort » idiom).
 - The collection MUST be an array (a literal list or an upstream array
   output). A non-array collection (object · string · number · `null`)
   is an evaluation error (`NIKA-VAR-006` · `variable_error`).

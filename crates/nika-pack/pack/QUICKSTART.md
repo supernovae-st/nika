@@ -6,7 +6,7 @@
 >
 > **Status** · v0.1.0-draft · authoring + static checking work TODAY (the
 > conformance oracle in this repo) · execution lands with the reference
-> engine's v0.81 milestone (`cargo install nika`) or any v0.1-compliant engine.
+> engine's 1.0 release (`cargo install nika`) or any v0.1-compliant engine.
 
 ---
 
@@ -161,7 +161,7 @@ python3) ·
 python3 conformance/runner.py validate summarize-and-translate.nika.yaml
 ```
 
-Execution lands with the reference engine's v0.81 milestone ·
+Execution lands with the reference engine's 1.0 release ·
 
 ```bash
 nika run summarize-and-translate.nika.yaml   # the engine command · same file · any conformant engine

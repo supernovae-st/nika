@@ -273,7 +273,7 @@ Redirects follow up to an engine cap · the FINAL status decides.
 ```yaml
 invoke: { tool: "nika:notify", args: { channel: webhook, target: "https://hooks.slack.com/...", message: "Done · ${{ tasks.X.status }}", severity: info, data: { run: "${{ tasks.X.output }}" } } }
 ```
-Send notifications · `channel:` enum (`webhook`/`slack`/`email`/`discord`/`sms` · one builtin not 5). v0.81 engine MUST support `webhook` · others MAY be feature-gated. `data:` (OPTIONAL · any JSON value) carries structured context alongside the human `message` — the webhook payload is `{ message, severity, data? }` (the key is absent when not given · receivers branch on machine fields, never parse the message). Returns `null` on accepted delivery. Throws · `NIKA-BUILTIN-NOTIFY-001` (channel unconfigured · `validation_error`) · `-002` (delivery failed · `network_error` · transient engine-assessed).
+Send notifications · `channel:` enum (`webhook`/`slack`/`email`/`discord`/`sms` · one builtin not 5). The 1.0 engine MUST support `webhook` · others MAY be feature-gated. `data:` (OPTIONAL · any JSON value) carries structured context alongside the human `message` — the webhook payload is `{ message, severity, data? }` (the key is absent when not given · receivers branch on machine fields, never parse the message). Returns `null` on accepted delivery. Throws · `NIKA-BUILTIN-NOTIFY-001` (channel unconfigured · `validation_error`) · `-002` (delivery failed · `network_error` · transient engine-assessed).
 
 ---
 
