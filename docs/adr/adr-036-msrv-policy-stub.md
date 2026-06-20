@@ -35,7 +35,7 @@ follow_ups:
 
 ## Context
 
-Nika Diamond is forever-v0.x (ADR-002). Every foundation crate carries
+Nika Diamond ships on real semver toward a 1.0 launch (ADR-002 · amended D-2026-06-20-N1). Every foundation crate carries
 `publish = false` (ADR-022). The workspace pins a single exact Rust
 toolchain via `rust-toolchain.toml` today, with no declared MSRV (Minimum
 Supported Rust Version) separate from the pinned toolchain.
@@ -57,9 +57,9 @@ Related ADRs + signals:
 
 - ADR-025 (per-crate semver via release-plz) — the release pipeline that
   will eventually publish `nika-sdk` + `nika` binary.
-- ADR-028 (forward-compat reservation policy) — the forever-v0.x
-  invariant that MSRV is the user-facing compatibility dial for toolchain
-  churn.
+- ADR-028 (forward-compat reservation policy) — the stable forward-compat
+  invariant (real semver toward 1.0 · amended D-2026-06-20-N1) for which
+  MSRV is the user-facing compatibility dial for toolchain churn.
 - FCI-008 (public API discipline via CI) — MSRV is a subset of public
   API: raising MSRV is a breaking change in the same sense as removing a
   trait method.
@@ -108,7 +108,8 @@ include `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin`,
 
 1. **Cadence formula — N-2 stable vs fixed version + bump PR?** Serde
    uses fixed with bumps. Tokio uses rolling N-5. Axum uses rolling N-3.
-   Forever-v0.x argues for a smooth rolling policy; packaging argues for
+   A smooth rolling policy fits the incremental-release model (real semver
+   toward 1.0 · ADR-002 · amended D-2026-06-20-N1); packaging argues for
    predictable fixed targets.
 2. **MSRV resolver behaviour**: do we opt into `resolver = "3"`
    (Rust 1.84+ MSRV-aware) the moment a published crate exists? If so,

@@ -58,8 +58,11 @@ in several docs but the file never existed.
 
 **Adopt `nika: v1` as the single canonical envelope version marker for
 every Nika user-facing workflow YAML.** The contract version is `v1`,
-locked forever (per `forever-v0.x` · a `v2` would require a breaking
-contract change · effectively never).
+locked forever — a `v2` would require a breaking LANGUAGE contract change
+· effectively never. This LANGUAGE-envelope axis is **orthogonal to the
+engine version**: the engine ships real semver toward a 1.0 launch (ADR-002
+· amended D-2026-06-20-N1), but `nika: v1` stays frozen across every engine
+major (it is the real "v1" signal adopters always saw).
 
 - The **`kind` discriminator** + multi-document rationale from ADR-021
   **survives** (9 doc kinds: Workflow · Skill · Agent · Provider · Mcp ·

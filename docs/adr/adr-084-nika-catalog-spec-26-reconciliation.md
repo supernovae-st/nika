@@ -117,8 +117,8 @@ floor.
 
 - **Public API surface change** · `BuiltinCategory` enum membership
   reshuffles · `cargo public-api` diff will show removed variants.
-  Acceptable on forever-v0.x per ADR-002 · the workspace is pre-v1.0 ·
-  MINOR ratchets are allowed.
+  Acceptable per ADR-002 (amended D-2026-06-20-N1 · real semver toward 1.0) ·
+  the workspace is pre-1.0 · breaking MINOR ratchets are allowed pre-launch.
 - **Trust.rs REFERENCE category gone** · the documentation-only split
   between PROPAGATING and REFERENCE (both passed input trust) is now
   collapsed · reintroduces when media DEFERRED builtins land. Cost ·

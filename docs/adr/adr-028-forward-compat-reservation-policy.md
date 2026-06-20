@@ -112,7 +112,7 @@ abstraction without ≥3 concrete usages is debt, not investment.
 
 | Project | Future-feature pattern | Lesson |
 |---|---|---|
-| Bevy (ECS, ~50 crates) | No reservation; deliberate breakage every 3 months. | "Break early, break often" — community accepts. Not Nika's contract (forever-v0.x). |
+| Bevy (ECS, ~50 crates) | No reservation; deliberate breakage every 3 months. | "Break early, break often" — community accepts. Not Nika's contract (stable forward-compat · real semver toward 1.0 per ADR-002 · amended D-2026-06-20-N1). |
 | tokio (~10 crates) | `#[non_exhaustive]` + feature flags. `tokio-uring`, `tokio-console` = **separate crates**, not core refactors. | Isolate innovation in opt-in satellites. |
 | Apollo Router (~40 crates) | Tower `Layer<S>` extension points + handshake-negotiated protocols (Federation 2). | Extension points = traits + negotiation, not frozen enums. |
 | rust-analyzer (~70 crates) | Salsa query traits (open) + process boundaries (`proc-macro-srv`). | Process boundary buys forward-compat for free. |
@@ -161,7 +161,7 @@ under a new `§reserved-mutability` section (P1 follow-up).
 
 ## Related decisions
 
-- **ADR-002** Forever-v0.x — context for "no v1.0 target".
+- **ADR-002** Real semver toward 1.0 (amended D-2026-06-20-N1) — context for the release model that demands reservation.
 - **ADR-006** Layered kernel ISP traits — defines what trait stubs reserve.
 - **ADR-007** Forward-compat invariants — `#[non_exhaustive]` + `::new()` discipline.
 - **ADR-014** Sealed kernel traits — prevents downstream impl, makes seam mutability safer.

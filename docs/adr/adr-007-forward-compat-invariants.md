@@ -26,7 +26,7 @@ follow_ups: []
 
 ## Context
 
-Nika is forever v0.x (ADR-002) with features shipping incrementally over years. Adding a field to a public struct after v0.90 would be a breaking change for any downstream crate using struct literal syntax. `InferRequest` flows through every provider, verb, and memory call — if Cortex memory fields aren't reserved at v0.90, every consumer must be touched at v0.95.
+Nika ships on real semver toward a 1.0 launch (ADR-002 · amended D-2026-06-20-N1) with features shipping incrementally over years. Adding a field to a public struct after 1.0 would be a breaking change for any downstream crate using struct literal syntax — and even pre-1.0, churning load-bearing DTOs every minor is costly. `InferRequest` flows through every provider, verb, and memory call — if Connectome memory fields aren't reserved now, every consumer must be touched when the Connectome lands.
 
 The 16-agent Rust Council (2026-04-13) quantified the ROI: **1.5 days of pre-planting now saves 10 days of migration later (ROI 6.7×)**. The decision was unanimous.
 
@@ -102,11 +102,11 @@ Rejected per ROI math (6.7× cost at v0.95).
 Considered. Rejected: overkill for request/response types that have reasonable defaults. Reserve for kernel-level ceremony like `WorkflowBuilder`.
 
 ### Alt C — Versioned struct types (`InferRequestV1` / `InferRequestV2`)
-Rejected: API churn at version boundaries is exactly what forever-v0.x (ADR-002) is trying to avoid.
+Rejected: API churn at version boundaries is exactly what the forward-compat discipline (ADR-002 · amended D-2026-06-20-N1 · real semver toward 1.0) is trying to avoid.
 
 ## Related
 
-- ADR-002 — forever v0.x (the release model that demands forward-compat)
+- ADR-002 — real semver toward 1.0 (amended D-2026-06-20-N1 · the release model that demands forward-compat)
 - ADR-005 — error hierarchy (error enums also `#[non_exhaustive]`)
 - ADR-006 — kernel ISP traits (where the hooks land)
 - ADR-015 — `expect-test` inline snapshots (regression coverage when `#[non_exhaustive]` types grow new variants and rendered output drifts)

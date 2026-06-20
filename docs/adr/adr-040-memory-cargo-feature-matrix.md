@@ -145,7 +145,7 @@ compile_error!("Feature `autodesc-full` requires `graph-algos`");
 
 ### Neutral
 
-- Forward-compat per ADR-007 · adding a new feature is additive (existing consumers unaffected). Removing one requires major-version bump per forever-v0.x · SemVer-strict on features per `cargo public-api`.
+- Forward-compat per ADR-007 · adding a new feature is additive (existing consumers unaffected). Removing one is a breaking change — a MINOR bump pre-1.0, a MAJOR bump post-1.0 (ADR-002 · amended D-2026-06-20-N1 · real semver toward 1.0) · SemVer-strict on features per `cargo public-api`.
 
 ## Evidence
 

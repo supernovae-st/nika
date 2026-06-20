@@ -40,7 +40,7 @@ when K=20 wastes the embedding decode + index lookup.
 
 Amend the `MemoryRecall` trait (sealed per ADR-014) with an additive
 `recall_stream()` method · default impl over existing `recall()` for backward
-compatibility within v0.x (forever-v0.x · ADR-002).
+compatibility (additive forward-compat per ADR-002 · amended D-2026-06-20-N1 · real semver toward 1.0).
 
 ```rust
 // nika-kernel/src/ai/memory.rs (additive)
@@ -102,7 +102,7 @@ Rejected · forces N-way fusion to realize all candidates · violates zero-alloc
 discipline.
 
 ### Alt B — Replace recall() with recall_stream() (breaking)
-Rejected per forever-v0.x · breaking changes ship on MINOR but pure-additive is cheaper.
+Rejected per the forward-compat discipline (ADR-002 · amended D-2026-06-20-N1) · pre-1.0 breaking changes ship on MINOR but pure-additive is cheaper.
 
 ### Alt C — Tower::Service request/response wrapper
 Rejected · adds tower dep · L2 orchestrator doesn't need middleware stack today ·

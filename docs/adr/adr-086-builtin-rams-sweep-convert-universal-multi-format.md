@@ -64,7 +64,7 @@ invoke:
 4 formats · `json` · `yaml` · `toml` · `csv` · 12 directions in scope
 (4×3 minus identity). Forward-compat · `xml` · `tsv` · `messagepack`
 etc. ADD on consumer signal per `#[non_exhaustive]` ratchet (additive
-MINOR per forever-v0.x).
+MINOR per ADR-002 · amended D-2026-06-20-N1 · real semver toward 1.0).
 
 ### Engine catalog mutation
 
@@ -140,8 +140,8 @@ L2 nika-builtin admission ceremony per Diamond Rule 2 12-gate.
   via `jq @csv`) · single canonical builtin · no « which direction
   goes through which tool » mental load.
 - **Forward extensibility** · `xml` · `tsv` · `messagepack` add via
-  enum extension (forward-compat MINOR ratchet per forever-v0.x · zero
-  new builtin slot consumed).
+  enum extension (forward-compat MINOR ratchet per ADR-002 · amended
+  D-2026-06-20-N1 · zero new builtin slot consumed).
 - **Trust class preserved** · csv_to_json was PROPAGATING · convert
   stays PROPAGATING · zero security regression.
 - **No-drift gate enforced** · ADR-085 codegen.rs test
@@ -237,7 +237,7 @@ trigger-gated per LOCK-031 spirit · don't pre-build infra ·
    operator preference signal.
 
 When all 3 land · 26 → ~21 collapse · same `nika: v1` envelope ·
-forever-v0.x discipline.
+real-semver-toward-1.0 discipline (ADR-002 · amended D-2026-06-20-N1).
 
 ## Companion artefacts
 

@@ -156,8 +156,9 @@ control-flow timer · no I/O · no data flow). Total PURE 14 → **13**.
 
 - **Public API breaking** · existing workflows using `tool: nika:sleep`
   OR `tool: nika:wait_until` fail against the spec-25 closed enum +
-  `is_known_builtin` returns false for both. Acceptable on forever-v0.x
-  per ADR-002 (NUKE-LEGACY · git is the archive · zero deprecation alias).
+  `is_known_builtin` returns false for both. Acceptable per ADR-002
+  (amended D-2026-06-20-N1 · real semver toward 1.0 · pre-1.0 breakage OK ·
+  NUKE-LEGACY · git is the archive · zero deprecation alias).
   - Mitigation · spec is pre-v1.0 GA · cookbook adoption is early ·
     breakage cost ≈ 0 today.
   - Mitigation · the trust.rs `legacy_builtins_unknown_post_d_n6` test

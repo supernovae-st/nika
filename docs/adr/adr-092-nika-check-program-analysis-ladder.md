@@ -174,7 +174,7 @@ Rejected for v1: heavyweight deps for a self-contained, sovereign L0 crate; the
 
 ## Related
 
-- ADR-002 (forever-v0.x) — the analyzable-by-construction invariants this builds on
+- ADR-002 (real semver toward 1.0 · amended D-2026-06-20-N1) — the analyzable-by-construction invariants this builds on
 - ADR-003 (12-gate admission) — `nika-schema` is admitted; this extends it
 - `docs/crate-specs/nika-schema.md` §11bis — the shipped `nika check` surface
 - Research: Denning « A Lattice Model of Secure Information Flow » (CACM 1976) ·

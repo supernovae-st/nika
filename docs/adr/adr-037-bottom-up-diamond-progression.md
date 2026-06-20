@@ -29,6 +29,18 @@ follow_ups:
 
 # ADR-037: Bottom-up diamond progression
 
+> **⚠️ AMENDED 2026-06-20 (D-2026-06-20-N1) · the VERSION-policy layer of this ADR is superseded.**
+> The **core decision is INTACT** · bottom-up layer progression · no
+> feature-milestone defer · every feature built as its layer is reached. What
+> changes · the "forever-v0.x · no v1.0 target ever" framing (ADR-002) is RETIRED
+> → real semver toward a **1.0** launch. The `v0.8X.Y` layer-tag scheme below is a
+> historical record · the engine is now **0.90.0** (RC-grade) → `1.0.0-rc.N` →
+> **1.0.0** launch → 1.x minors add the remaining crates additively toward the
+> 42-crate target → **2.0** = the Connectome era. The bottom-up *ordering* still
+> governs which crate admits next; only the public version number now CLIMBS to
+> signal maturity instead of sitting at 0.x forever. Original body preserved per
+> cross-source-validation §2.7 (zero silent rewrite).
+
 ## Status
 
 **Accepted** 2026-04-17 night post-brainstorm (Q-plan 1a/2a/3b/4b/5-both/6a). Amends ADR-028. Cascade: ROADMAP restructure, FCI-007 re-eval, crate count target revised 40-42 → 50-90 (cap 100 unchanged).
@@ -98,12 +110,12 @@ Every crate admits atomically with 12 gates. Every admission = 1 commit = 1 `v0.
    - `v0.91` → L4 complete (cli, daemon, serve, mcp, lsp, sdk)
    - `v0.92` → L5 binary first full-stack integration
    - `v0.93+` → polish, optimization, quality iterations
-   - Forever-v0.x — no v1.0 target ever.
+   - ~~Forever-v0.x — no v1.0 target ever.~~ (amended D-2026-06-20-N1 · real semver toward a 1.0 launch · this layer-tag scheme is now a historical record · see top banner)
 5. **Total crate count target** — Q-plan 1a LOCKED: 40-42 → **50-90 crates** (cap 100 unchanged). Growth driven by 14-crate memory subsystem, 4 storage backends, ~30 provider crates, own `nika-embed`, WASM host + 3 sandbox crates.
 6. **Dedicated deep-dive sessions reserved** — Q-plan 5 LOCKED both:
    - **Session nika-memory** — most-ambitious B1-B5 validated 2026-04-17 night. Design 14 crates (8 core + 6 reserved). Runs FIRST (stabilizes kernel memory traits before L1 memory admission).
    - **Session nika-registry** — backend + publishing policy. Runs after memory.
-7. **"v0.90 ship target" DROPPED** — Q-plan 6a. Versions 0.9X are just layer tags, no marketing ceremony. Forever-v0.x.
+7. **"v0.90 ship target" DROPPED** — Q-plan 6a. Versions 0.9X are just layer tags, no marketing ceremony. (Amended D-2026-06-20-N1 · the **1.0.0** launch is now the marketing moment · 0.9X stays RC-grade pre-launch · per top banner.)
 
 ### What stays the same
 
@@ -111,7 +123,7 @@ Every crate admits atomically with 12 gates. Every admission = 1 commit = 1 `v0.
 - 28+ invariants (all still binding).
 - 7 shadow zones (still pre-launch quality gates).
 - `publish = false` on foundation crates (ADR-022 unchanged).
-- Forever-v0.x (no v1.0 target).
+- The release model (ADR-002) — amended D-2026-06-20-N1 to real semver toward a 1.0 launch (was "forever-v0.x · no v1.0 target").
 
 ### Ordering within a layer
 
@@ -131,7 +143,7 @@ Example L1 candidates in topological order:
 
 ## Consequences
 
-- ✅ Forever-v0.x integrity — no fake milestones, no version-labelled residue.
+- ✅ Bottom-up integrity — no fake feature-milestones, no version-labelled residue (the anti-defer discipline survives the D-2026-06-20-N1 real-semver amendment; only the version labels changed, not the build order).
 - ✅ Every admitted crate is REAL code, not stub. No "v0.95 target design" banners in docs.
 - ✅ Linear ROADMAP — users see "what's admitted, what's coming up in this layer, what's above".
 - ✅ Tagging discipline — `v0.80.N` monotonic, no backtracking, no retroactive milestone rewrites.
@@ -158,7 +170,7 @@ Example L1 candidates in topological order:
 ## See also
 
 - ADR-001 — Diamond orphan branch.
-- ADR-002 — Forever-v0.x.
+- ADR-002 — release model (amended D-2026-06-20-N1 · real semver toward 1.0 · was "forever-v0.x").
 - ADR-003 — 12-gate admission.
 - ADR-004 — Context-window-sized crates.
 - ADR-028 — Forward-compat reservation policy (amended by this ADR).

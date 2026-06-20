@@ -158,9 +158,9 @@ trust = TRUSTED always). Total PURE · 13 → **10**.
     pattern is well-established.
 - **Public API breaking** · existing workflows using `tool: nika:cost`
   (or records · dag_info · threads) fail against the spec-22 closed
-  enum + `is_known_builtin` returns false for all 4. Acceptable on
-  forever-v0.x per ADR-002 (NUKE-LEGACY · git is the archive · zero
-  deprecation alias).
+  enum + `is_known_builtin` returns false for all 4. Acceptable per
+  ADR-002 (amended D-2026-06-20-N1 · real semver toward 1.0 · pre-1.0
+  breakage OK · NUKE-LEGACY · git is the archive · zero deprecation alias).
   - Mitigation · spec is pre-v1.0 GA · breakage cost ≈ 0 today.
   - Mitigation · trust.rs `legacy_builtins_unknown_post_d_n6` extends
     with all 4 · fail-closed regression guard.
@@ -245,7 +245,7 @@ introspection (inspect). Symmetry signal STRUCTURALLY COMPLETE.
    ratchet candidates accumulate ≥3 cross-product signals.
 
 When ADR-089 + selected crate Rams land · 22 → ~21 + workspace dep
-hygiene improvements. Same `nika: v1` envelope · forever-v0.x discipline.
+hygiene improvements. Same `nika: v1` envelope · real-semver-toward-1.0 discipline (ADR-002 · amended D-2026-06-20-N1).
 
 ## Companion artefacts
 
