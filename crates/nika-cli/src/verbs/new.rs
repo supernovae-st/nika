@@ -27,7 +27,7 @@ use crate::verbs::{VerbOutput, exit};
 
 /// The `nika new` verb.
 #[must_use]
-pub fn run(template: &str, dest: &str, force: bool) -> VerbOutput {
+pub fn run(template: &str, dest: Option<&str>, force: bool) -> VerbOutput {
     let (name, body, routed) = match nika_pack::template(template) {
         Some(body) => (template.to_owned(), body, false),
         None => match route_intent(template) {
@@ -42,6 +42,19 @@ pub fn run(template: &str, dest: &str, force: bool) -> VerbOutput {
             }
             None => return unknown(template),
         },
+    };
+    // A known template needs a destination to instantiate into. The
+    // `--from '?'` (or any unknown) discovery query already returned above
+    // WITHOUT touching `dest` — that is the editor-integration wire
+    // contract (`unknown()`), so listing the set must not require a dummy
+    // path (the help promises `nika new --from '?'` works bare).
+    let Some(dest) = dest else {
+        return VerbOutput {
+            text: format!(
+                "template `{name}` resolved — pass a destination: nika new --from {template} <dest>.nika.yaml"
+            ),
+            code: exit::ENV,
+        };
     };
     if Path::new(dest).exists() && !force {
         return VerbOutput {
@@ -175,16 +188,35 @@ mod tests {
     #[test]
     fn exact_template_name_stays_the_fast_path() {
         let d = dest("exact");
-        let out = run("chain", &d, true);
+        let out = run("chain", Some(&d), true);
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(!out.text.contains("routed"), "{}", out.text);
         std::fs::remove_file(&d).ok();
     }
 
+    /// The wire contract: `nika new --from '?'` (NO dest) names the set.
+    /// Editor integrations probe this bare; clap used to require a dummy
+    /// dest, so the documented discovery command errored.
+    #[test]
+    fn discovery_query_lists_the_set_without_a_dest() {
+        let out = run("?", None, false);
+        assert_eq!(out.code, exit::FILE, "{}", out.text);
+        assert!(out.text.contains("embedded set:"), "{}", out.text);
+    }
+
+    /// A REAL template with no dest can't be instantiated — ask for one
+    /// (don't silently no-op or panic).
+    #[test]
+    fn known_template_without_dest_asks_for_a_path() {
+        let out = run("chain", None, false);
+        assert_eq!(out.code, exit::ENV, "{}", out.text);
+        assert!(out.text.contains("pass a destination"), "{}", out.text);
+    }
+
     #[test]
     fn parallel_intent_routes_to_fanout() {
         let d = dest("par");
-        let out = run("summarize every item in parallel", &d, true);
+        let out = run("summarize every item in parallel", Some(&d), true);
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(
             out.text.contains("routed intent → template `fanout`"),
@@ -203,7 +235,7 @@ mod tests {
         let d = dest("agent");
         let out = run(
             "an autonomous budgeted agent that researches a topic",
-            &d,
+            Some(&d),
             true,
         );
         assert_eq!(out.code, exit::OK, "{}", out.text);
@@ -216,7 +248,7 @@ mod tests {
         let d = dest("gate");
         let out = run(
             "verify then wait for human approval before deploy",
-            &d,
+            Some(&d),
             true,
         );
         assert_eq!(out.code, exit::OK, "{}", out.text);
@@ -233,7 +265,7 @@ mod tests {
         // '?' is the editor probe — the `embedded set:` line is parsed
         // verbatim by integrations; gibberish shares no term either.
         for q in ["?", "zzzz qqqq xxxx"] {
-            let out = run(q, &dest("zero"), true);
+            let out = run(q, Some(&dest("zero")), true);
             assert_eq!(out.code, exit::FILE, "{}", out.text);
             assert!(out.text.contains("embedded set:"), "{}", out.text);
         }

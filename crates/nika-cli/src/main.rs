@@ -119,8 +119,9 @@ enum Command {
         /// Template name (see `nika new --from '?'` for the set).
         #[arg(long)]
         from: String,
-        /// Destination path (`*.nika.yaml`).
-        dest: String,
+        /// Destination path (`*.nika.yaml`). Optional for the `--from '?'`
+        /// discovery query; required to instantiate a template.
+        dest: Option<String>,
         /// Overwrite an existing destination.
         #[arg(long)]
         force: bool,
@@ -245,7 +246,7 @@ fn main() -> std::process::ExitCode {
             // The L3 run verb shipped — execute the embedded example for real.
             ExamplesAction::Run { slug } => verbs::run::example(&slug, term_theme(false, false)),
         },
-        Command::New { from, dest, force } => emit(&verbs::new::run(&from, &dest, force)),
+        Command::New { from, dest, force } => emit(&verbs::new::run(&from, dest.as_deref(), force)),
         Command::Completions { shell } => {
             let mut cmd = Cli::command();
             clap_complete::generate(shell, &mut cmd, "nika-cli", &mut std::io::stdout());

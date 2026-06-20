@@ -373,7 +373,7 @@ fn new_writes_a_template_that_passes_its_own_check() {
         .find(|n| n.contains("chain"))
         .unwrap_or(&names[0]);
 
-    let out = new::run(template, &dest_str, false);
+    let out = new::run(template, Some(&dest_str), false);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     assert!(
         out.text.contains("SLOT"),
@@ -391,16 +391,20 @@ fn new_writes_a_template_that_passes_its_own_check() {
     );
 
     // Refuse-overwrite is the default posture.
-    let refused = new::run(template, &dest_str, false);
+    let refused = new::run(template, Some(&dest_str), false);
     assert_eq!(refused.code, exit::ENV);
     assert!(refused.text.contains("--force"));
     // And --force is the explicit override.
-    assert_eq!(new::run(template, &dest_str, true).code, exit::OK);
+    assert_eq!(new::run(template, Some(&dest_str), true).code, exit::OK);
 }
 
 #[test]
 fn new_refuses_an_unknown_template_and_names_the_set() {
-    let out = new::run("no-such-template", "/tmp/never-written.nika.yaml", false);
+    let out = new::run(
+        "no-such-template",
+        Some("/tmp/never-written.nika.yaml"),
+        false,
+    );
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("unknown template"));
     for name in nika_pack::template_names() {
