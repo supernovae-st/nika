@@ -937,9 +937,13 @@ mod tests {
             #![proptest_config(ProptestConfig::with_cases(64))]
 
             /// Every mode is TOTAL over arbitrary input: Ok or typed Err,
-            /// never a panic, never a hang.
+            /// never a panic, never a hang. The mode range is bound to
+            /// `ExtractMode::ALL.len()` (not a hardcoded count) so a mode
+            /// added to the vocabulary can never silently escape the fuzz;
+            /// the `(?s)` dotall flag lets `.` match newlines, so multi-line
+            /// HTML/XML/feed bodies (the real shape) are exercised too.
             #[test]
-            fn extract_never_panics(body in ".{0,2000}", mode_idx in 0usize..10) {
+            fn extract_never_panics(body in "(?s).{0,2000}", mode_idx in 0usize..ExtractMode::ALL.len()) {
                 let mode = ExtractMode::ALL[mode_idx];
                 let mut opts = ExtractOptions::new();
                 opts.selector = Some("p");
@@ -947,9 +951,10 @@ mod tests {
                 let _ = extract(&body, mode, &opts);
             }
 
-            /// Link extraction never panics on hostile href/base pairs.
+            /// Link extraction never panics on hostile href/base pairs
+            /// (newlines included — a `base_url` carrying a `\n` is fair game).
             #[test]
-            fn links_total_over_hostile_bases(body in ".{0,500}", base in ".{0,80}") {
+            fn links_total_over_hostile_bases(body in "(?s).{0,500}", base in "(?s).{0,80}") {
                 let mut opts = ExtractOptions::new();
                 opts.base_url = Some(&base);
                 let _ = extract(&body, ExtractMode::Links, &opts);
