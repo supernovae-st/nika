@@ -1,13 +1,14 @@
 # Contributing to Nika
 
-Welcome. Nika is a Rust workflow engine for AI, built as a **forever-v0.x**
-diamond rewrite: 40 to 42 crates, each passing a 12-gate admission checklist
-before joining the workspace. This document explains how to contribute.
+Welcome. Nika is a Rust workflow engine for AI, built as a **diamond
+rewrite toward a 1.0 launch** (amended D-2026-06-20-N1): 40 to 42 crates,
+each passing a 12-gate admission checklist before joining the workspace.
+This document explains how to contribute.
 
 See also: [`README.md`](README.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md),
 [`SECURITY.md`](SECURITY.md), [`AGENTS.md`](AGENTS.md),
 [`DIAMOND.md`](DIAMOND.md) (strategy overview),
-[`ROADMAP.md`](ROADMAP.md) (forever-v0.x plan),
+[`ROADMAP.md`](ROADMAP.md) (real-semver plan toward 1.0),
 [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
 (10-year horizon canon · v1.3 · 42-crate target · 11/10 amplifiers).
 
@@ -18,9 +19,9 @@ See also: [`README.md`](README.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md),
 Nika is being crafted in public on the `main` orphan branch (production
 Diamond · renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives
 on `brouillon` (read-only · accessed via `git show brouillon:path`).
-External code contributions are formally welcomed once the first
-post-diamond release (**v0.90**) ships and all 7 pre-launch shadow zones
-are green. Until then:
+External code contributions are formally welcomed once the first public
+launch (**1.0.0**) ships and all 7 pre-launch shadow zones are green
+(amended D-2026-06-20-N1). Until then:
 
 - **Issues, bug reports, discussion** — always welcome, now.
 - **Documentation fixes, typos, small DX improvements** — welcome via PR.
@@ -32,7 +33,7 @@ If you are unsure whether something is in scope, open an issue first.
 
 ## Philosophy
 
-- **Forever-v0.x.** There is no v1.0 target. Each version is incremental quality.
+- **Real semver toward 1.0** (amended D-2026-06-20-N1). The engine is at 0.90.0 (release-candidate grade); the first public launch ships as 1.0.0, then 1.x minors add the remaining crates additively toward the 42-crate target. Each version is diamond-grade for its declared scope.
 - **Quality over speed.** No deadline pressure. A PR lands when it is ready.
 - **Perfect diamond.** Zero band-aid, zero residue, zero ghost reference. Every leftover gets fixed or flagged — never ignored.
 - **Craft, not extraction.** Legacy code at `main` (v0.79.3) is a read-only reference. Diamond rewrites each crate from scratch, guided by the legacy.
@@ -135,7 +136,7 @@ Format: `type(scope): lowercase description`.
 feat(nika-X): admit to workspace — all 12 gates passed
 fix(nika-Y): propagate parse error via ? instead of panic
 refactor(dx): split oversized hygiene script into modules
-docs(roadmap): refresh v0.81 current state section
+docs(roadmap): refresh current state section
 chore(deps): bump tokio 1.42 to 1.43
 ```
 

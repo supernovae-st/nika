@@ -10,7 +10,7 @@
 #   - Conventional Commits (feat/fix/docs/chore/refactor/test/perf/build/ci/revert/style)
 #   - Co-author trailer mandatory: `Co-Authored-By: Nika 🦋 <nika@supernovae.studio>` (NEVER Claude)
 #   - ADRs live at `docs/adr/NNN-*.md` (link-parsed below)
-#   - Forever v0.x — no v1.0 target. Legacy v0.79.x line abandoned (skip_tags drops it).
+#   - Real semver toward a 1.0 launch (amended D-2026-06-20-N1 · was "forever v0.x"). Legacy v0.79.x line abandoned (skip_tags drops it).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Remote — drives PR contributor enrichment + auto-link compare ranges.
@@ -24,14 +24,15 @@ repo = "nika"
 # Optional: native_tls = false  # default; bundled webpki-roots is fine for CI.
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Bump — semver propagation rules. Forever-v0.x means we deliberately do NOT
-# auto-bump major on breaking changes (no v1.0 target).
+# Bump — semver propagation rules. Pre-1.0 (engine at 0.90.0) we deliberately do
+# NOT auto-bump major on breaking changes; breaking stays in the minor until the
+# 1.0.0 launch (amended D-2026-06-20-N1). Flip to true once 1.0.0 ships.
 # src: https://git-cliff.org/docs/configuration/bump
 # src: https://github.com/oxc-project/oxc/blob/main/cliff.toml#L9
 # ─────────────────────────────────────────────────────────────────────────────
 [bump]
 features_always_bump_minor = true   # `feat:` → 0.x.y → 0.(x+1).0
-breaking_always_bump_major = false  # forever-v0.x: breaking stays in minor
+breaking_always_bump_major = false  # pre-1.0: breaking stays in minor (flip at 1.0.0 · amended D-2026-06-20-N1)
 # initial_tag = "v0.80.0"           # default — Diamond starts at 0.80.0
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -46,7 +47,7 @@ header = """
 
 All notable changes to **Nika** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Nika follows [forever-v0.x](ROADMAP.md) — incremental quality, no v1.0 target.
+Nika follows [real semver toward 1.0](ROADMAP.md) — incremental quality, diamond-grade at every release (amended D-2026-06-20-N1 · was "forever-v0.x").
 
 Nika Diamond is a ground-up rewrite on the `nika-diamond` orphan branch.
 Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
@@ -140,7 +141,7 @@ split_commits = false
 # (`feaut(...)` etc.) BEFORE they pollute the changelog. Available since v2.11.
 # src: https://git-cliff.org/docs/configuration/git#fail_on_unmatched_commit
 # src: https://github.com/orhun/git-cliff/releases/tag/v2.11.0 ("Support failing on unmatched commits" #1298)
-fail_on_unmatched_commit = false  # set true once Diamond v0.81.0 lands & legacy crosses are rare
+fail_on_unmatched_commit = false  # set true once the 1.0.0 launch lands & legacy crosses are rare (amended D-2026-06-20-N1)
 
 # Don't shield breaking commits from skip rules — we want explicit control.
 # src: https://git-cliff.org/docs/configuration/git#protect_breaking_commits
@@ -151,7 +152,7 @@ protect_breaking_commits = false
 filter_commits = false
 
 # ── Tag selection ───────────────────────────────────────────────────────────
-# Match `v0.80.0`, `v0.81.0`, `v0.90.0-alpha.1`, etc. Excludes tags with
+# Match `v0.90.0`, `v1.0.0-rc.1`, `v1.0.0`, `v1.2.0`, etc. Excludes tags with
 # no leading `v` and any non-version-shaped tag.
 # src: https://git-cliff.org/docs/configuration/git#tag_pattern
 tag_pattern = "v[0-9].*"

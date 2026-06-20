@@ -16,7 +16,7 @@ merges both at load time.
 ## 🔐 Authority hierarchy
 
 1. `~/.claude/projects/-Users-thibaut-dev-supernovae-hq/memory/POST_AUDIT_REVISIONS.md` — SUPREME AUTHORITY, overrides all other docs.
-2. `~/.claude/.../PRE_LAUNCH_GATES.md` — 7 shadow zones mandatory before v0.90.
+2. `~/.claude/.../PRE_LAUNCH_GATES.md` — 7 shadow zones mandatory before the 1.0 launch (amended D-2026-06-20-N1 · was "v0.90").
 3. `~/.claude/.../HANDOFF_PHASE_1_REVISED.md` — current execution plan.
 4. `.claude/rules/*.md` (this directory) — project-specific enforcement.
 5. `~/.claude/.../project_ai_velocity_north_star.md` — WHY diamond (decision filter).
@@ -131,7 +131,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
 | HEAD             | `e1127ed74` (`e1127ed747bfd53e81b836c7f9296771abf624f4`)             |
-| workspace        | v0.80.0                                  |
+| workspace        | v0.90.0                                  |
 | crates (workspace)| 39                                              |
 | crates (admitted)| 37 / 42                                   |
 | crates (WIP)     | 2 — nika-cli nika-extract                                  |
@@ -157,7 +157,7 @@ Narrative context (manually maintained):
 - 32 providers, 49 capability rules, 7-axis ModelPricing, scope.providers canonical.
 - Q1-Q13 L0/L0.5 architecture decisions LOCKED 2026-04-16
   (`docs/architecture/l0-l05-architecture-decisions.md`).
-- 8 new ADRs (021-028 + ADR-006 amendment) lock Foundation v0.81 constellation.
+- 8 new ADRs (021-028 + ADR-006 amendment) lock the L0-Foundation constellation.
 - 5 stub ADRs (029/030/031/032/035) mark Wave 4A/4B reservations — prose lands Phase C.
 - **Active spine — the announce ladder (D-2026-06-10-N6).** Sequenced
   announce-first · a usable first-15-min vertical slice across layers, not
@@ -181,6 +181,6 @@ Narrative context (manually maintained):
   corpus check (0 panic / 0 internal-code leak) + hygiene 0-RED.
 - **Next** · finish the WIP trio (cli + builtin + extract) to close the usable
   announce slice · then the L0-completion crates (nika-cap · pck-contracts ·
-  binding-types) toward the **v0.81** tag (L0 foundation complete). Target 42 @ v0.90.
+  binding-types) for L0-foundation completion · then design-partner `1.0.0-rc.N` → the **1.0.0** launch (amended D-2026-06-20-N1). Engine now 0.90.0 (RC-grade) · 42-crate target reached additively across the 1.x minors.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.

@@ -9,7 +9,7 @@ this repository. This is the public AGENTS counterpart to the
 | Field   | Value |
 |---------|-------|
 | Branch  | `main` (orphan, no shared history with `brouillon` · renamed 2026-05-06 from `nika-diamond` per Option C-full) |
-| Workspace | v0.80.x · forever-v0.x (no v1.0 target · ADR-002) |
+| Workspace | 0.90.0 (RC-grade) · real semver toward a 1.0 launch (amended D-2026-06-20-N1 · ADR-002) |
 
 **Live numbers live in ONE place** — the AUTO-GENERATED block in
 `.claude/CLAUDE.md` (regenerate: `bash scripts/refresh-status.sh` ·
@@ -30,7 +30,7 @@ the `NikaErrorCode` trait + `nika_error::codes` registry (one-voice ·
 2. `DIAMOND.md` — the Diamond rewrite philosophy.
 3. `docs/architecture/forward-compat-invariants.md` — 8 patterns, 10 rules, non-negotiable.
 4. `docs/architecture/crate-layer-registry.md` — L0 to L4 layer discipline.
-5. `ROADMAP.md` — forever-v0.x plan, v0.81 seams, v0.90 milestones.
+5. `ROADMAP.md` — real-semver plan toward 1.0 (amended D-2026-06-20-N1 · was "forever-v0.x"): current 0.90.0 (RC-grade) → 1.0.0 launch → 1.x adds the remaining crates.
 6. `.claude/CLAUDE.md` + `.claude/rules/` — project-specific enforcement.
 7. `docs/architecture/VISION_2040_intelligence-layer.md` — the long-horizon
    direction (LSP, workflow generator, agent-comprehension, Connectome, Nika-OS).

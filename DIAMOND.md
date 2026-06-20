@@ -13,8 +13,10 @@ the authoritative architectural decision, see
   is needed. Never copy-pasted — every crate is rewritten clean.
 
 For the project's landing page, see [`README.md`](README.md). For
-the forever-v0.x plan across v0.81 → v0.90 → v0.95 → v0.100 → v0.110+,
-see [`ROADMAP.md`](ROADMAP.md). For the **10-year architectural horizon
+the real-semver plan toward a 1.0 launch (amended D-2026-06-20-N1 · was
+"forever-v0.x") — current 0.90.0 (RC-grade) → 1.0.0 → 1.x adds the remaining
+crates → 2.0 the Connectome era — see [`ROADMAP.md`](ROADMAP.md). For the
+**10-year architectural horizon
 (2026 → 2036)** with refined 42-crate target, 4-verb stress test
 through 2036, 7-ADR queue (050-056) and per-crate detail, see
 [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
@@ -73,7 +75,8 @@ servers via `rmcp`.
 
 ## Crate architecture
 
-42 crates at v0.90 target, expanding to ~75 at v0.100, hard cap
+42-crate architecture target (reached additively across the 1.x minors ·
+amended D-2026-06-20-N1), expanding to ~75 in later minors, hard cap
 100 ever. Strict downward-only layering (L0 → L5):
 
 ```
@@ -130,7 +133,7 @@ gates are green in the same atomic commit. Full spec:
 
 ## 7 pre-launch shadow zones
 
-Before `git tag v0.90.0`, all seven must be green:
+Before `git tag v1.0.0` (the first public launch · amended D-2026-06-20-N1), all seven must be green:
 
 1. `nika serve` input trust (P0 prompt injection boundary)
 2. Cross-provider structured output parity (~35 tests)
@@ -140,20 +143,23 @@ Before `git tag v0.90.0`, all seven must be green:
 6. `NikaError` Display parity — auto-resolved by `nika-error` admission
 7. Provider parity matrix (~72 tests)
 
-## Forever v0.x
+## Real semver toward 1.0 (amended D-2026-06-20-N1)
 
-No v1.0 target. Each release is diamond-grade for its declared scope.
-SQLite stayed on 3.x for 20 years while adding WAL, FTS, JSON1,
-window functions — each release complete at that release. That is
-the model. See [ADR-002](docs/adr/adr-002-forever-v0x.md).
+Real semver toward a **1.0** public launch (was "forever-v0.x" · retired
+D-2026-06-20-N1). Each release is diamond-grade for its declared scope —
+the craft standard, not the scope list. SQLite shipped a 1.0 and kept
+adding WAL, FTS, JSON1, window functions while staying diamond-grade at
+every release — that is the model. The `nika: v1` **LANGUAGE** envelope is
+frozen forever and is orthogonal to the engine's binary version. See
+[ADR-002](docs/adr/adr-002-forever-v0x.md).
 
-Phase roadmap (no dates):
+Version ladder (no per-tag dates · quality > speed):
 
-- **v0.81** — forward-compat seams (shipped), hygiene 10 → 31 vectors (done), `tools/` → `crates/` rename (done).
-- **v0.90** — Diamond foundation: 42 crates admitted, 7 shadow zones green, pck MVP, 7 native API adapters.
-- **v0.95** — the Connectome (1 L2 orchestrator + 10 L1 satellites), agent-v2 (parallel tools, ReWOO, reflection, resume), pck full with sigstore signing.
-- **v0.100** — WASM plugins (wasmtime + extism sandbox), full observability (OpenTelemetry), full LSP, keys subsystem.
-- **v0.110+** — Ecosystem growth; hosted Nika Cloud and Nika Enterprise are demand-driven, deferred until warranted.
+- **0.90.0** — current, release-candidate grade: usable vertical slice (4 verbs, 14 providers, effects, static-check, MCP/LSP), finishing the CLI front-door.
+- **1.0.0-rc.N** — design-partner hardening, 7 shadow zones green.
+- **1.0.0** — **first public launch**: language + installable binary, validated.
+- **1.x minors** — add the remaining crates additively toward the 42-crate architecture target (pck, native API adapters, WASM plugins, full observability, full LSP, keys subsystem).
+- **2.0** — **the Connectome era**: memory + cognition (1 L2 orchestrator + 10 L1 satellites, agent-v2). The next epoch.
 
 Full breakdown: [`ROADMAP.md`](ROADMAP.md).
 
@@ -169,7 +175,8 @@ public API gets `#[non_exhaustive]`, a `new()` constructor, a spec,
 and tests before implementation.
 
 The butterfly on the logo is not what Nika is today. It is what
-Nika becomes at v0.90 emergence, when the chrysalis opens.
+Nika becomes at the 1.0 launch (amended D-2026-06-20-N1), when the
+chrysalis opens.
 
 ## License
 

@@ -3,20 +3,20 @@
 Before modifying any crate, read:
 
 - `docs/architecture/forward-compat-invariants.md` — 8 patterns + 10 rules
-  + v0.95/v0.100 reservation policy. **Non-negotiable.** Every admitted
-  crate passes Gate 12 against this document.
+  + post-1.0 reservation policy (amended D-2026-06-20-N1 · was "v0.95/v0.100").
+  **Non-negotiable.** Every admitted crate passes Gate 12 against this document.
 - `docs/architecture/crate-layer-registry.md` — L0 → L4 layer discipline,
   allowed I/O axes, enforcement by `scripts/ci/check-layering.sh`.
-- `ROADMAP.md` — forever-v0.x plan, v0.81 seams, v0.90 milestones.
+- `ROADMAP.md` — real-semver plan toward 1.0 (amended D-2026-06-20-N1 · was "forever-v0.x"). Current 0.90.0 (RC-grade) → 1.0.0 launch → 1.x adds remaining crates.
 
 ### Workspace layout
 
-Crates live under `crates/nika-*` (renamed from `tools/` at v0.81).
+Crates live under `crates/nika-*` (renamed from `tools/` during the L0-foundation phase).
 
 ### Hygiene vectors
 
 Hygiene runs via `scripts/hygiene/check-all.sh`. The vector count grows
-from **10 (v0.80) to 21 (v0.81)** once Batch C lands: layering,
+from **10 to 21** once Batch C lands: layering,
 security-axes, cargo-geiger unsafe-deps, env-example parity, license
 consistency, no-async-in-L0, catalog owned-strings, kernel-no-spawn,
 no-`Box<dyn Error>`, cancel-safety docs, and case-insensitive collisions.

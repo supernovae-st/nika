@@ -3491,7 +3491,7 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
 name = "nika-a11y"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "accessibility",
  "atspi",
@@ -3503,7 +3503,7 @@ dependencies = [
 
 [[package]]
 name = "nika-blob"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "blake3",
  "bytes",
@@ -3515,7 +3515,7 @@ dependencies = [
 
 [[package]]
 name = "nika-bm25"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "criterion",
  "insta",
@@ -3531,7 +3531,7 @@ dependencies = [
 
 [[package]]
 name = "nika-browser"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "bytes",
  "chromiumoxide",
@@ -3546,7 +3546,7 @@ dependencies = [
 
 [[package]]
 name = "nika-builtin"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "blake3",
  "bytes",
@@ -3575,7 +3575,7 @@ dependencies = [
 
 [[package]]
 name = "nika-catalog"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "criterion",
  "insta",
@@ -3594,7 +3594,7 @@ dependencies = [
 
 [[package]]
 name = "nika-catalog-codegen"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "phf_codegen",
  "phf_shared",
@@ -3608,7 +3608,7 @@ dependencies = [
 
 [[package]]
 name = "nika-catalog-verify"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "clap",
  "futures",
@@ -3624,7 +3624,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cel"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "proptest",
  "serde_json",
@@ -3633,7 +3633,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cli"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -3667,7 +3667,7 @@ dependencies = [
 
 [[package]]
 name = "nika-clock"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "nika-kernel",
  "tokio",
@@ -3675,7 +3675,7 @@ dependencies = [
 
 [[package]]
 name = "nika-error"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "expect-test",
  "insta",
@@ -3690,7 +3690,7 @@ dependencies = [
 
 [[package]]
 name = "nika-event"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "insta",
  "miette",
@@ -3706,7 +3706,7 @@ dependencies = [
 
 [[package]]
 name = "nika-exec-runner"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "nika-kernel",
  "nix",
@@ -3717,7 +3717,7 @@ dependencies = [
 
 [[package]]
 name = "nika-extract"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "dom_smoothie",
  "ego-tree",
@@ -3738,7 +3738,7 @@ dependencies = [
 
 [[package]]
 name = "nika-fs"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "bytes",
  "globset",
@@ -3750,7 +3750,7 @@ dependencies = [
 
 [[package]]
 name = "nika-http"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "bytes",
  "futures-core",
@@ -3764,7 +3764,7 @@ dependencies = [
 
 [[package]]
 name = "nika-infer-local"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "candle-core",
  "candle-transformers",
@@ -3781,7 +3781,7 @@ dependencies = [
 
 [[package]]
 name = "nika-input"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "enigo",
  "nika-kernel",
@@ -3791,7 +3791,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "nika-error",
  "nika-kernel-ai",
@@ -3803,7 +3803,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-ai"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "bytes",
  "futures-core",
@@ -3821,7 +3821,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-core"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "bytes",
  "futures-core",
@@ -3838,7 +3838,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-mock"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "bytes",
  "futures-core",
@@ -3854,7 +3854,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-plugin"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "insta",
  "miette",
@@ -3866,7 +3866,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-runtime"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "miette",
  "nika-error",
@@ -3878,7 +3878,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "lsp-server",
  "lsp-types",
@@ -3891,7 +3891,7 @@ dependencies = [
 
 [[package]]
 name = "nika-mcp"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "nika-error",
  "nika-pack",
@@ -3903,7 +3903,7 @@ dependencies = [
 
 [[package]]
 name = "nika-ocr"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "bytes",
  "nika-kernel",
@@ -3916,7 +3916,7 @@ dependencies = [
 
 [[package]]
 name = "nika-pack"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "include_dir",
  "sha2",
@@ -3924,7 +3924,7 @@ dependencies = [
 
 [[package]]
 name = "nika-providers"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "bytes",
  "futures-core",
@@ -3937,7 +3937,7 @@ dependencies = [
 
 [[package]]
 name = "nika-runtime"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "futures-util",
  "insta",
@@ -3967,14 +3967,14 @@ dependencies = [
 
 [[package]]
 name = "nika-sandbox-seatbelt"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "nika-kernel",
 ]
 
 [[package]]
 name = "nika-schema"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "criterion",
  "insta",
@@ -4001,7 +4001,7 @@ dependencies = [
 
 [[package]]
 name = "nika-screen"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4013,7 +4013,7 @@ dependencies = [
 
 [[package]]
 name = "nika-types"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "loom",
  "proptest",
@@ -4024,7 +4024,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-agent"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "futures-util",
  "jsonschema",
@@ -4043,7 +4043,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-exec"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "miette",
  "nika-error",
@@ -4056,7 +4056,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-infer"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "jsonschema",
  "miette",
@@ -4071,7 +4071,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-invoke"
-version = "0.80.0"
+version = "0.90.0"
 dependencies = [
  "miette",
  "nika-error",
