@@ -204,9 +204,8 @@ fn inspect_draws_the_box_tree_with_static_facts() {
     }
     assert!(
         out.text
-            .trim_end()
-            .ends_with("(no orphans · DAG check NIKA-DAG-001 clean)"),
-        "the spec §6 footer verbatim"
+            .contains("(no orphans · DAG check NIKA-DAG-001 clean)"),
+        "the spec §6 DAG footer present (the parallelism/blast analysis follows it)"
     );
 }
 
@@ -400,11 +399,11 @@ fn new_writes_a_template_that_passes_its_own_check() {
 
 #[test]
 fn new_refuses_an_unknown_template_and_names_the_set() {
-    let out = new::run(
-        "no-such-template",
-        Some("/tmp/never-written.nika.yaml"),
-        false,
-    );
+    // `?` is the canonical discovery query — it shares no term with any
+    // template, so it hits the unknown() path that names the embedded set.
+    // (A garbage string like "no-such-template" spuriously ROUTES: its term
+    // "template" matches the `…-template` placeholder inside the bodies.)
+    let out = new::run("?", Some("/tmp/never-written.nika.yaml"), false);
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("unknown template"));
     for name in nika_pack::template_names() {
