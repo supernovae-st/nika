@@ -44,11 +44,25 @@ pub fn run(wire: &str) -> VerbOutput {
                  docs.nika.sh/errors.\n"
             ));
         }
+        // Per-provider runtime codes (`NIKA-PROVIDER-<NNN>`) — 001-099 are
+        // allocated PER PROVIDER (spec 05-errors.md §NIKA-PROVIDER) and ARE
+        // valid in `on_codes:`. The meaning is provider-defined, so (like the
+        // per-builtin namespace) teach what it IS, not a flat "unknown code".
+        if is_provider_code(&normalized) {
+            return VerbOutput::ok(format!(
+                "{normalized} · provider · a provider-adapter runtime error\n\n  \
+                 A per-provider diagnostic (each provider adapter owns \
+                 NIKA-PROVIDER-001..099). The specific cause is provider-defined \
+                 (transport · quota · auth · response shape from that provider). \
+                 Valid in `retry.on_codes:` and `on_error.on_codes:` — see \
+                 spec/05-errors.md §NIKA-PROVIDER · docs.nika.sh/errors.\n"
+            ));
+        }
         return VerbOutput::file(format!(
             "unknown code `{wire}` — the registry knows NIKA-001..NIKA-9999 \
              (allocated ranges), the spec conformance codes \
-             (NIKA-DAG-* · NIKA-VAR-* · …), and per-builtin \
-             NIKA-BUILTIN-<NAME>-NNN codes; see docs.nika.sh/errors"
+             (NIKA-DAG-* · NIKA-VAR-* · …), per-builtin NIKA-BUILTIN-<NAME>-NNN \
+             and per-provider NIKA-PROVIDER-NNN codes; see docs.nika.sh/errors"
         ));
     };
     // The category/severity labels are the OWNING crate's canonical
@@ -91,6 +105,15 @@ fn builtin_code_name(code: &str) -> Option<String> {
     let (name, num) = rest.rsplit_once('-')?;
     (num.len() == 3 && num.bytes().all(|b| b.is_ascii_digit()) && !name.is_empty())
         .then(|| name.to_ascii_lowercase())
+}
+
+/// Recognize a per-provider runtime code `NIKA-PROVIDER-<NNN>` (001-099 are
+/// allocated PER PROVIDER per spec 05-errors.md). There is no single canon
+/// row — the meaning is provider-defined — so explain teaches the namespace
+/// rather than 404-ing a code that is valid in `on_codes:`.
+fn is_provider_code(code: &str) -> bool {
+    code.strip_prefix("NIKA-PROVIDER-")
+        .is_some_and(|num| num.len() == 3 && num.bytes().all(|b| b.is_ascii_digit()))
 }
 
 #[cfg(test)]
@@ -156,6 +179,24 @@ mod tests {
         let out = run("NIKA-ZZZ-999");
         assert_eq!(out.code, exit::FILE);
         assert!(out.text.contains("unknown code"));
+    }
+
+    #[test]
+    fn provider_namespace_codes_teach_not_404() {
+        // A per-provider code (NIKA-PROVIDER-NNN · valid in on_codes:) must
+        // EXPLAIN its namespace — symmetric with per-builtin — not flat-404.
+        let out = run("NIKA-PROVIDER-001");
+        assert_eq!(
+            out.code,
+            exit::OK,
+            "provider namespace must teach:\n{}",
+            out.text
+        );
+        assert!(out.text.contains("provider"));
+        assert!(out.text.contains("on_codes"));
+        // a non-conforming shape (not 3 digits) stays unknown
+        let bad = run("NIKA-PROVIDER-1");
+        assert_eq!(bad.code, exit::FILE, "{}", bad.text);
     }
 
     #[test]
