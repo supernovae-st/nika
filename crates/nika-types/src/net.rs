@@ -76,6 +76,18 @@ pub const HOST_EXTRACTION_VECTORS: &[(&str, Option<&str>)] = &[
     ("http://[::1]:8080/x", Some("::1")),
     // an absolute-FQDN trailing dot is stripped (`allowed.com.` ≡ `allowed.com`)
     ("https://allowed.com./x", Some("allowed.com")),
+    // the tab/newline bypass: WHATWG REMOVES ASCII tab + LF + CR from the URL
+    // before parsing, so the real host is `allowed.com.evil.com` — NOT
+    // `allowed.com` (what a parser splitting on the raw tab would read · the
+    // exact string-parser-vs-WHATWG gap this table guards). CR variant too.
+    (
+        "https://allowed.com\t.evil.com/x",
+        Some("allowed.com.evil.com"),
+    ),
+    (
+        "https://allowed.com\r\n.evil.com/x",
+        Some("allowed.com.evil.com"),
+    ),
     // a hostless URL has no extractable host (a declared boundary denies it)
     ("mailto:user@example.com", None),
 ];
