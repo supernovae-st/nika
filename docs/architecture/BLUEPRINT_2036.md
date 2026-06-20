@@ -34,8 +34,9 @@ sources:
 > this doc is SUPERSEDED by the **4-verb canon** — `infer · exec · invoke ·
 > agent`. `fetch` is **not** a verb · fetching a URL is *calling a tool*, so
 > it is the `nika:fetch` builtin reached via `invoke`. The count is locked at
-> **4, absolute, forever** (a 5th would require a `nika: v2` contract · per
-> forever-v0.x, effectively never). Public canon · `nika/spec/spec/02-verbs.md`.
+> **4, absolute, forever** (a 5th would require a `nika: v2` LANGUAGE
+> envelope · the `nika: v1` envelope is frozen forever, so effectively
+> never). Public canon · `nika/spec/spec/02-verbs.md`.
 > Prior 5-verb prose preserved below as audit trail per
 > `cross-source-validation.md` §2.7 self-application amendment cascade — the
 > stress-test logic is unchanged (`fetch` simply joins the candidates that
@@ -47,7 +48,7 @@ sources:
 2. **42-crate target HOLDS** via aggressive cluster-collapse — `nika-effects` merges 5 L1 effect crates · `nika-verbs` merges 4 verb crates · `init+lints+catalog-verify` collapse to `nika-cli` subcommands.
 3. **Memory cluster 1+9** preserves publishable-satellite discipline (per ADR-004 · external open-source value) · only place where fine-grained splits stay justified.
 4. **7-ADR queue** for 2026-2030 milestones — WASM Component Model plugin protocol · CRDT federation adapter · edge subset · multi-protocol gateway · 3 cluster-collapses.
-5. **Structural locks unchanged** — AGPL forever · forever-v0.x · RDF/SPARQL canonical · `Co-Authored-By: Nika 🦋` · 12-gate admission · zero-unwrap.
+5. **Structural locks unchanged** — AGPL forever · real semver toward 1.0 (the `nika: v1` language envelope frozen forever · amended D-2026-06-20-N1) · RDF/SPARQL canonical · `Co-Authored-By: Nika 🦋` · 12-gate admission · zero-unwrap.
 
 ## §1 · 4-verb lock validation · 2036 horizon
 
@@ -120,9 +121,9 @@ Each row · Purpose (1 line) · LOC budget · Key deps · Trait surface · Gate 
 
 ### L0 · primitives (6 crates · ~30k LOC total)
 
-- `nika-types` · shared types · 2k LOC · `serde` `chrono` · no public trait (types only) · Gate 9 EXEMPT (pure types) · ADMITTED v0.81
-- `nika-error` · error taxonomy `NikaError` enum + NIKA-XXX codes · 3k LOC · `thiserror` `miette` (opt-in) · sealed `NikaError` variant enum · Gate 9 EXEMPT · ADMITTED v0.81
-- `nika-catalog` · capability vocabulary (105 MCP · 32 LLM providers · 13 embeddings) · 8-10k LOC · `nika-types` · `Catalog` query API + `ModelPricing` 7-axis · Gate 9 via canary-catalog.yaml fixtures · ADMITTED v0.81
+- `nika-types` · shared types · 2k LOC · `serde` `chrono` · no public trait (types only) · Gate 9 EXEMPT (pure types) · ADMITTED
+- `nika-error` · error taxonomy `NikaError` enum + NIKA-XXX codes · 3k LOC · `thiserror` `miette` (opt-in) · sealed `NikaError` variant enum · Gate 9 EXEMPT · ADMITTED
+- `nika-catalog` · capability vocabulary (105 MCP · 32 LLM providers · 13 embeddings) · 8-10k LOC · `nika-types` · `Catalog` query API + `ModelPricing` 7-axis · Gate 9 via canary-catalog.yaml fixtures · ADMITTED
 - `nika-catalog-codegen` · build-time codegen of catalog rust types · 2k LOC · `nika-catalog` `quote` · proc-macro (no runtime trait) · Gate 9 EXEMPT (build-tool) · ADMITTED
 - `nika-schema` · workflow YAML parser `nika: v1` envelope · 4-6k LOC · `serde_yaml` `nika-types` · `Workflow` parsed struct · Gate 9 via canary-workflows · WIP (W2 target)
 - `nika-event-types` · canonical event envelope shape (cross-product · per `olympus-platform-canonical.md`) · 1k LOC · `nika-types` · `Event` `EventKind` enum sealed · Gate 9 EXEMPT · PLANNED L0
@@ -172,7 +173,7 @@ Each row · Purpose (1 line) · LOC budget · Key deps · Trait surface · Gate 
 
 ### L5 (1 binary · <500 LOC)
 
-- `nika` · composition root binary · <500 LOC · all L4 deps · no trait · Gate 9 via release-canary · v0.90 emergence
+- `nika` · composition root binary · <500 LOC · all L4 deps · no trait · Gate 9 via release-canary · 1.0 emergence
 
 ### Optional · pck + builtin + provider + media + edge (10-14 crates)
 
@@ -271,7 +272,7 @@ Merge `verb-{infer,exec,invoke,agent}` → single `nika-verbs` crate · sub-modu
 Default `std::alloc` for v0.x. `mimalloc` global allocator opt-in via feature flag · bench at W3+ admission. Scoped arenas for recall-fan-out hot path (Phase 2 optimization · not gating Phase 1.5).
 
 ### Profile-guided optimization
-`cargo-pgo` + `llvm-bolt` at v0.90 emergence gate · realistic perf delta 5-15% on inference hot path. PGO trace via internal benchmark suite · not user telemetry (Rule 1 sovereignty).
+`cargo-pgo` + `llvm-bolt` at the 1.0 launch gate · realistic perf delta 5-15% on inference hot path. PGO trace via internal benchmark suite · not user telemetry (Rule 1 sovereignty).
 
 ### Structured concurrency
 `tokio_util::task::TaskTracker` + `CancellationToken` mandatory for `nika-memory` orchestrator satellite fan-out · per `olympus-os-discipline.md` discipline applied to engine. Loom verification per `nika-memory` orchestrator · ADR-013 mandatory crate-by-crate.
@@ -288,8 +289,8 @@ ONLY on top-K cutoff guard (fast-path drain) NOT on N-ranker exhaustion polling.
 **Loom scope amendment** · per ADR-013 « Loom mandatory crate-by-crate » · full
 9-satellite DAG (~10⁶ interleavings × 3-thread) exceeds Loom's reach. **Minimal model
 at W3-W9 admission** · 2-thread × 2-recall-fanout + 1 cancel signal captures
-cancel-during-fanout + partial-completion merge race. For full-DAG verification at
-v0.95 emergence · **Shuttle PCT** (Probabilistic Concurrency Testing) per ADR-013
+cancel-during-fanout + partial-completion merge race. For full-DAG verification in
+the 2.0 Connectome era · **Shuttle PCT** (Probabilistic Concurrency Testing) per ADR-013
 follow-up · not Loom.
 
 **Cooperative scheduling** (per Tokio 1.40+ stable `consume_budget`) · pure-CPU
@@ -325,7 +326,7 @@ is non-breaking · ratchet as const-traits stabilize.
 Ed25519 signing of memory frames (Phase 2+ multi-device sync) · RDF-star reification carries signature triples · `ed25519-dalek` 2.x via `signature` trait abstraction. PQ migration (Dilithium · SPHINCS+) deferred to 2032+ when NIST PQC standardizes Rust ecosystem.
 
 ### Supply chain hardening
-`cargo-vet` provenance attestations · `cargo-auditable` embed Cargo.lock in binary · sigstore-signed releases · SLSA L3+ at v0.90 emergence. Reproducible builds priority gate-12 invariant.
+`cargo-vet` provenance attestations · `cargo-auditable` embed Cargo.lock in binary · sigstore-signed releases · SLSA L3+ at the 1.0 launch. Reproducible builds priority gate-12 invariant.
 
 ## §4.5 · 11/10 amplifiers · « projet Rust le mieux codé au monde 2030 » (v1.2)
 
@@ -343,11 +344,11 @@ Prusti functional-spec maturity gap · DEFER 2030+.
 ### A2 · SLSA L3 + cargo-vet + sigstore + cargo-auditable (ADR-061)
 Every release binary carries embedded SBOM + signed provenance + reproducible
 bit-exact rebuild. Tokio + uv (Astral) precedent confirmed 2026. Trigger ·
-v0.85 release pipeline. Already-shipped · `cargo-deny` config (per `deny.toml`).
+the 1.0 release pipeline. Already-shipped · `cargo-deny` config (per `deny.toml`).
 Missing · `cargo-vet` + `cargo-auditable` + sigstore + SLSA L3 GitHub Actions
 provenance + `[profile.release] strip = "symbols"` byte-determinism.
 
-### A3 · PGO + BOLT at v0.90 (ADR-062)
+### A3 · PGO + BOLT at the 1.0 launch (ADR-062)
 `cargo-pgo` (Kobzol · rust-compiler-team contributor) + LLVM BOLT post-link =
 10-25% perf delta on inference hot path (BGE-M3 cosine · BM25 scoring · RRF
 fusion). Profile via internal `nika-bench` corpus · NEVER user telemetry per
@@ -369,7 +370,7 @@ ADRs · they live in BLUEPRINT prose only · zero separate ADR file ·
 - **mimalloc-rust opt-in** · `--features mimalloc-global` on `nika` binary · `microsoft/mimalloc` 2.5× jemalloc multi-thread per `/microsoft/mimalloc` context7 75 score · trigger · bench at W3+ post-bm25 admission · config-knob not architecture
 - **`signature::Signer<T>` abstraction** for Ed25519 provenance · `ed25519-dalek 2.x` per `signature` trait · PQ migration (ML-DSA/Dilithium · SLH-DSA/SPHINCS+) DEFER 2032+ · library-choice not architecture
 - **zerocopy 0.8 for binary hot paths** · `nika-hnsw` vector ser + `nika-event-types` framing + Oxigraph embedding literals · per-crate impl choice · NOT YAML
-- **cargo-hakari workspace-hack** · evaluate at 20-crate milestone (~v0.85) · uv 50+ crates precedent · trigger-gated · zero decision today
+- **cargo-hakari workspace-hack** · evaluate at the 20-crate milestone · uv 50+ crates precedent · trigger-gated · zero decision today
 - **MIRI expansion** (post-W3 quality ratchet) · extend to `nika-kernel` + `nika-types` once W3 stabilizes · today `nika-error` + `nika-catalog` run continue-on-error · ratchet not gating
 
 Per LOCK-031 spirit · « no infra behind locked gate » · 5 items above stay
@@ -539,7 +540,7 @@ trajectory LIVABLE without vendor capture.
 2029+       Phase 6 — WASM Component Model primary plugin protocol (ADR-050 phase 2)
 2030+       Phase 7 — multi-protocol gateway shipped (ADR-053) · MCP + ACP + ...
 2032+       Phase 8 — PQ crypto migration · post-quantum signature primitives
-2036        10-yr build close — v0.90+ emergence · 42 crates admitted · all 7 shadow zones green
+2036        10-yr build close — well past 1.0 · 42 crates admitted across the 1.x line · all 7 shadow zones green · into the 2.0 Connectome era
 ```
 
 Per `time-architecture.md` Layer 1 DECENNIAL · vision immutable in spirit · amendable in detail. Annual review at anniversary 2026-04-XX.
@@ -556,7 +557,8 @@ Per `time-architecture.md` Layer 1 DECENNIAL · vision immutable in spirit · am
 
 ## §7 · Anti-fragility · what survives 10-yr stress
 
-Per `time-architecture.md` Layer 2 multi-year forever-v0.x ·
+Per `time-architecture.md` Layer 2 multi-year horizon · real semver toward 1.0 and beyond (amended D-2026-06-20-N1) ·
+- **`nika: v1` language envelope frozen forever** · the adopter contract survives every engine major · the real "v1" signal authors always saw
 - **AGPL-3.0-or-later** · forces share-alike on hosted forks · survives vendor capture attempts
 - **RDF/SPARQL canonical** · W3C standard since 2004 · still standard 2036
 - **4 verbs locked** · semantic taxonomy passes 10-yr stress test (§1)
@@ -585,7 +587,7 @@ Per `socratic-research-discipline.md` Rule 6 · grounded claims ·
 ## §10 · Related
 
 - ADR-001 — orphan branch CRAFT method
-- ADR-002 — forever v0.x
+- ADR-002 — versioning: real semver toward 1.0 (amended D-2026-06-20-N1 · ex "forever v0.x")
 - ADR-004 — context-window sized crates
 - ADR-006 — kernel ISP traits + monolithic amendment
 - ADR-014 — sealed kernel traits

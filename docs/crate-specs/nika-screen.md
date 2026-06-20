@@ -9,7 +9,7 @@
 | LOC budget | ≤1,200 src (actual ~943 · error 205 + guards 240 + capture 446 + lib 52) |
 | File cap | ≤1,500 LOC each (max `capture.rs` 446) |
 | Function cap | ≤100 lines each |
-| Crate version | tracks workspace (`0.80.0`) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L1 effect crate (not a standalone crates.io satellite) |

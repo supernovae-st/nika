@@ -7,7 +7,7 @@
 | Design | the 23 canonical stdlib builtins behind ONE dispatcher implementing the three kernel tool seams (`ToolExecuteDyn` + `ToolBatchDyn` + `ToolDefinitionProviderDyn`) |
 | Normative source | `nika-spec stdlib/builtins-v0.1.md` (the 23 · contracts · error codes) + `stdlib/extract-modes-v0.1.md` (fetch modes) + `spec/05-errors.md` (4-segment code grammar) — **this doc never restates a contract, it cites** |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) — one module per builtin family |
-| Crate version | tracks workspace (`0.80.0`) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Publish | `false` — internal L1.5 |
 | NIKA codes | spec-form 4-segment strings (`NIKA-BUILTIN-<NAME>-NNN`) carried in `ToolResult.content` — see §3 |

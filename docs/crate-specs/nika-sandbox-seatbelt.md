@@ -17,7 +17,7 @@ Confine the `exec` verb's CHILD process to the workflow's declared filesystem +
 network boundary (`permits.fs/net`). The macOS half of the per-platform sandbox
 pair the kernel's reserved `plugin::sandbox` doc names (`nika-sandbox-landlock`
 is the Linux sibling). Distinct from that reserved capability `Sandbox` (WASM /
-MCP · `enter()` self-restriction · v0.100): this implements the NEW additive
+MCP · `enter()` self-restriction · later 1.x): this implements the NEW additive
 `CommandSandbox` "transform-the-command" seam.
 
 ## 2. The wrapper model (no `unsafe`)

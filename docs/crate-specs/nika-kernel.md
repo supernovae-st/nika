@@ -41,7 +41,7 @@ cascades on `#[non_exhaustive]` structs with `::new()` constructors
 Decision D4 (ISP = Interface Segregation Principle) splits each effect into
 narrow sub-traits (e.g. FsRead + FsWrite + FsMeta + FsList → Fs) so consumers
 only depend on the capability they actually use. Memory + agent-v2 hooks
-reserved on kernel traits for the v0.95 Connectome work.
+reserved on kernel traits for the 2.0 Connectome work.
 
 ---
 

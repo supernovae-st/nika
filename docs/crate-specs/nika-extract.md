@@ -7,7 +7,7 @@
 | Design | the extraction pipeline behind `nika:fetch`'s `mode:` argument — byte→structured transformation, **zero I/O · zero async · zero locks** |
 | Normative source | `nika-spec stdlib/extract-modes-v0.1.md` (the 9 canonical modes + implicit `raw`) — **this doc cites, never restates** |
 | LOC budget | ≤4k src (legacy reference was 1,364 LOC) · ≤1500/file · ≤100/fn |
-| Crate version | tracks workspace (`0.80.0`) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Publish | `false` — internal L1.5 |
 | Error type | `ExtractError` (`thiserror` · `#[non_exhaustive]`) — `nika-builtin` maps it onto `NIKA-BUILTIN-FETCH-001` |

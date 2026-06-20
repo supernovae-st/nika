@@ -9,7 +9,7 @@
 | LOC budget | ≤800 src (target ~600 · scoring kernel ~150 + index ~200 + query ~100 + impls ~150) |
 | File cap | ≤1,500 LOC each (none expected near cap) |
 | Function cap | ≤100 lines each |
-| Crate version | tracks workspace (`0.80.0`) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `true` — publishable on crates.io per ADR-004 « 10 satellites publishable standalone » external open-source value |

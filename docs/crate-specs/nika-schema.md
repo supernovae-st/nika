@@ -955,7 +955,7 @@ effects, and quote-bearing paths.
 > remaining gate is **Gate 5 (mutation)** — a quiet-window FLOOR run (see
 > strategy below). The crate admits with a single `wip`-array edit once Gate 5
 > lands. `nika-schema` is the **last L0 crate** — its admission closes the L0
-> foundation (the v0.81 floor).
+> foundation (the 1.0 launch floor).
 
 | # Gate | Status |
 |---|---|

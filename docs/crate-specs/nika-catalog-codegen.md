@@ -15,7 +15,7 @@ status: Admitted
 | File cap | ≤1,500 LOC each |
 | Function cap | ≤100 lines each |
 | Source on `main` (ex `nika-diamond` · renamed) (reference) | `crates/nika-catalog/build.rs` (1,386 LOC) + `crates/nika-catalog/build/capabilities.rs` (978 LOC) + `crates/nika-catalog/build/pricing.rs` (200 LOC) = **2,564 LOC** to migrate |
-| Crate version | tracks workspace (`0.80.0`, forever-v0.x) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — foundation crate, never on crates.io (per ADR-017 + `feedback_publish_false_foundation_strategy.md`). Internal build-time tool only. |
@@ -341,7 +341,7 @@ Post-extraction, `nika-catalog/Cargo.toml` loses these build-dependencies
 -toml        = "1.1"
 -serde       = { workspace = true, features = ["derive"] }
 -unicase     = { workspace = true }
-+nika-catalog-codegen = { path = "../nika-catalog-codegen", version = "0.80.0" }
++nika-catalog-codegen = { path = "../nika-catalog-codegen", version = "0.90.0" }
 ```
 
 Net reduction: 5 direct build-dependencies → 1. The transitive graph is

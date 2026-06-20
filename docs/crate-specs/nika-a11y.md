@@ -8,7 +8,7 @@
 | Design | macOS-first adapter over **accessibility 0.2.0** (`AXUIElement` · `TreeWalker`/`TreeVisitor` · MIT/Apache · safe Rust API · the unsafe ApplicationServices FFI is encapsulated inside the crate, same posture `nika-screen` got from `xcap` + `nika-ocr` from `ocrs`). Sync `AXUIElement` walk runs inside `tokio::task::spawn_blocking` (the `AXUIElement` handle is `!Send` · stays worker-local · produces the `Send` `AxNode` tree · kernel CANCEL SAFETY contract · same pattern as `nika-screen`'s `xcap::Monitor`). AX tree → `AxNode` mapping → **mandatory AX-secure-field redaction (Guard 3)** → `Vec<AxNode>` |
 | LOC budget | ≤1,300 src |
 | File cap | ≤1,500 LOC each · Function cap ≤100 lines |
-| Crate version | tracks workspace (`0.80.0`) · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` |
+| Crate version | tracks workspace (`0.90.0`) · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` |
 | ADRs | ADR-003 (12-gate admission) · ADR-081 (7 L1 security guards forever · nika-a11y owns **Guard 3 · AX-secure-field redaction · MANDATORY-at-admission**) |
 | Error range | **NIKA-1200..1299** (per ADR-081 `nika_codes` matrix · **supersedes** the stale `io/a11y.rs` doc-comment "NIKA-1060..1079" which predates ADR-081 · reconciled here · same pattern as nika-ocr NIKA-1100..1199) |
 | Reference | [`accessibility`](https://docs.rs/accessibility/0.2.0) (MIT/Apache · macOS AXUIElement) · `nika-kernel::io::a11y` (L0.5 sealed `AccessibilityTree` trait + `AxNode`/`AxRole`/`AxQuery` DTOs) |

@@ -1,7 +1,7 @@
 ---
 id: ADR-002
 title: "Forever v0.x -- no v1.0 target"
-status: amended
+status: accepted
 date: "2026-04-13"
 phase: "Phase 0 (release model)"
 deciders: ["@ThibautMelen"]

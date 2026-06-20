@@ -8,7 +8,7 @@
 | LOC budget | ≤15,000 src (current: ~6,100) |
 | File cap | ≤1,500 LOC each (current max: `build.rs` 1,264) |
 | Function cap | ≤100 lines each |
-| Crate version | tracks workspace (`0.80.0`, forever-v0.x) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 
@@ -294,7 +294,7 @@ serde_json = { workspace = true }
 |---|---|---|
 | `src/data/generated.rs` `#[cfg(test)] mod tests` | cross-catalog invariants (provider ↔ embedding FK, dual-role services, tag XOR) | ~22 |
 | `src/data/models.rs` `#[cfg(test)]` | capabilities by (provider, model), pricing 2-pass, scoped pricing | ~25 |
-| `src/data/models.rs::parity_tests` | **proptest 10 000 cases** + 26 spot-checks + insta snapshot vs extracted pre-Session-2a body (DELETE at v0.90 — see module doc) | ~3 |
+| `src/data/models.rs::parity_tests` | **proptest 10 000 cases** + 26 spot-checks + insta snapshot vs extracted pre-Session-2a body (DELETE at the 1.0 launch — see module doc) | ~3 |
 | `src/types/*` `#[cfg(test)]` | constructors, Copy/Send/Sync asserts, TOML roundtrip, Tag enum count=42 | ~20 |
 | `src/suggest.rs` `#[cfg(test)]` | typo correction, case-insensitivity, namespace filtering | ~7 |
 | `src/validate.rs` `#[cfg(test)]` | cross-ref integrity | ~6 |

@@ -7,7 +7,7 @@
 | Design | `ReqwestHttp` impl of the L0.5 `nika_kernel::http` traits via the `*Dyn` (`Send`) companions · SECURITY-SENSITIVE (SSRF) |
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · doc + security-contract heavy · live count · `scripts/crate-metrics.sh nika-http` |
 | Function cap | ≤100 lines each |
-| Crate version | tracks workspace (`0.80.0`) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L1 effect crate |
@@ -137,7 +137,7 @@ defeats layer 2. Narrowed, not eliminated; per-request IP pinning is a
 `nika-builtin` (s16 · the `nika:fetch` tool composes nika-http +
 nika-extract + nika-policy SSRF), `nika-verb-infer`/`verb-agent` (L2 via
 providers), `nika-mcp` (s18 · HTTP transports). The SSRF default-Enforce
-posture is what lets `nika:fetch` be safe-by-construction at v0.81.
+posture is what lets `nika:fetch` be safe-by-construction at the 1.0 launch.
 
 ## 6. Dependencies
 

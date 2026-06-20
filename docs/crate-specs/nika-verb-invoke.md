@@ -6,7 +6,7 @@
 | Layer | **L2** — verb crate · domain executor for the `invoke` verb (3rd of the 4 verbs · D-2026-05-22-N18) |
 | Design | consumes the L0.5 kernel `runtime::ToolExecuteDyn` seam (injected · the wiring layer hands it the engine's builtin+MCP dispatcher) · zero tool implementation of its own · validates the closed `nika:`/`mcp:` tool-ref grammar BEFORE dispatch |
 | LOC budget | ≤1.5k src · caps ≤1500/file · ≤15k/crate |
-| Crate version | tracks workspace (`0.80.0`) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L2 verb crate |
@@ -120,8 +120,8 @@ L2 row exists. Remaining: `.gitignore` lift · `Cargo.toml` members +
 
 ```toml
 [dependencies]
-nika-error  = { path = "../nika-error",  version = "0.80.0" }
-nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+nika-error  = { path = "../nika-error",  version = "0.90.0" }
+nika-kernel = { path = "../nika-kernel", version = "0.90.0" }
 miette · thiserror · serde_json  # args is a JSON value
 [dev-dependencies]
 proptest · tokio (test rt)  # + an inline mock ToolExecute

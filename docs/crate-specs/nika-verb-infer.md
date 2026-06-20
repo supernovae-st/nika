@@ -6,7 +6,7 @@
 | Layer | **L2 — FIRST verb crate** · domain executor for the `infer` verb (one of the 4 verbs locked forever per D-2026-05-22-N18) |
 | Design | consumes `nika-providers` (L1.5 · s8.5 · per D-N17 the shared layer so `verb-infer` + `verb-agent` never grow a sideways verb→verb dep) + the L0.5 `nika_kernel_ai` DTOs · zero transport of its own |
 | LOC budget | ≤3k src (brouillon reference was ~1k lib.rs + emit + error) · caps ≤1500/file · ≤15k/crate (vectors 12+24) |
-| Crate version | tracks workspace (`0.80.0`) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L2 verb crate |
@@ -127,7 +127,7 @@ passthrough). Range registered in the kernel range-registry hub at admission.
   stream-capable providers; adding `run_stream` later is additive.
 - **NOT vision** — `vision:` staging couples to media (deferred §10bis).
   `InferInput` carries no vision field at v1; the spec field maps when
-  `nika-media-*` lands. (Spec allows partial conformance pre-v0.90; the
+  `nika-media-*` lands. (Spec allows partial conformance pre-1.0; the
   conformance fixture for vision is marked pending.)
 - **NOT template/CEL resolution** — `${{ }}` is resolved upstream.
 - **NOT retry-on-transport** — transport retry/backoff policy belongs to the

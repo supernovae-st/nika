@@ -6,7 +6,7 @@
 | Layer | L1.5 — service crate · the shared LLM-provider layer BOTH `nika-verb-infer` (s9) and `nika-verb-agent` depend on (no verb→verb sideways dep · D-N17) |
 | Design | impls of the EXISTING L0.5 `nika_kernel_ai::provider` ISP traits (`ProviderInferDyn` · `ProviderStreamDyn` · `ProviderMeta`) · transport via the L0.5 `nika_kernel::http` traits (injected effect · NOT its own `reqwest`) |
 | LOC budget | under the ≤1500/file + ≤15k/crate caps (vectors 12+24) · live count · `scripts/crate-metrics.sh nika-providers` |
-| Crate version | tracks workspace (`0.80.0`) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L1.5 service crate |
@@ -154,7 +154,7 @@ standing recommendation · 2026-06-11):
 
 The openai-compat adapter is the highest-leverage file in the slice (12
 profiles · the local-sovereignty story at announce) · gemini follows as a
-small PR before the v0.81.0 tag (~07-28) — its profile row + honest
+small PR before the 1.0.0 tag (~07-28) — its profile row + honest
 `s8.6` error are already in place. The announce claim « 14 providers »
 is honest at tag time.
 

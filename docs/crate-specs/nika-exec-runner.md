@@ -8,7 +8,7 @@
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · live count · `scripts/crate-metrics.sh nika-exec-runner` |
 | LOC (live) | ~1412 LOC src (live · `scripts/crate-metrics.sh nika-exec-runner`) |
 | Function cap | ≤100 lines each |
-| Crate version | tracks workspace (`0.80.0`) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L1 effect crate |
@@ -154,7 +154,7 @@ AND stderr) is therefore capped at **64 MiB** (`MAX_OUTPUT_BYTES`):
 `nika-policy` (step 8 · wraps with capability gating · may set `pre_validated`),
 `nika-verb-exec` (step 11 · the `exec:` verb · composes exec-runner + policy),
 `nika-builtin` (step 16 · exec-backed builtins). The blocklist default-on
-posture is what lets `exec:` be safe-by-construction at v0.81.
+posture is what lets `exec:` be safe-by-construction at the 1.0 launch.
 
 ## 6. Dependencies
 

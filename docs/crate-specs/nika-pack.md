@@ -6,7 +6,7 @@
 | Layer | L0 — pure data · zero I/O · zero async · no error enum (total accessors) |
 | Design | `include_dir!` snapshot of the spec pack + total accessor functions |
 | LOC budget | ≤300 src (actual ~170) |
-| Crate version | tracks workspace (`0.80.0`) · embedded `pack_version()` tracks the SPEC (`0.1.0-draft`) |
+| Crate version | tracks workspace (`0.90.0`) · embedded `pack_version()` tracks the SPEC (`0.1.0-draft`) |
 | License | `AGPL-3.0-or-later` (the embedded pack files are Apache-2.0 · spec repo) |
 | Publish | `false` |
 | NIKA codes | none — accessors return `Option`/defaults · integrity is enforced by tests |

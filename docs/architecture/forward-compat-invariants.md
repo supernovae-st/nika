@@ -1,13 +1,15 @@
 # Forward-Compatibility Invariants
 
-**Status**: LOCKED at v0.80.0. Every crate admitted to the Diamond workspace (`main` · ex `nika-diamond` renamed 2026-05) must
+**Status**: LOCKED at 0.90.0 (amended D-2026-06-20-N1 · was "v0.80.0"). Every crate admitted to the Diamond workspace (`main` · ex `nika-diamond` renamed 2026-05) must
 comply with these invariants before passing Gate 12.
 
 ## Why this document exists
 
-Nika is forever-v0.x. Features ship incrementally over many years. The
-architecture shipped in v0.90 must accommodate v0.95 (the Connectome + agent-v2),
-v0.100 (WASM plugins + observability), and features we haven't imagined yet
+Nika ships on real semver toward a 1.0 launch (amended D-2026-06-20-N1 · was
+"forever-v0.x"). Features ship incrementally over many years. The architecture
+shipped at **1.0** must accommodate the remaining crates landing across the **1.x
+minors** (WASM plugins + observability + sandbox) and the **2.0 Connectome era**
+(the Connectome + agent-v2), plus features we haven't imagined yet
 **without breaking changes to the public API**.
 
 This document codifies the patterns that make additive change safe and
@@ -20,13 +22,13 @@ Cargo, Serde (9+ years stable), Axum/Tower, Bevy.
 
 ### 1. Kernel traits upfront, implementations deferred <!-- FCI-001 -->
 
-**Pattern**: Define traits in `nika-kernel` at v0.90 for subsystems that
-ship later. Provide default method implementations that return
+**Pattern**: Define traits in `nika-kernel` now (the 0.90.0 / 1.0 baseline) for
+subsystems that ship later. Provide default method implementations that return
 `Err(Unsupported)` until real implementations land.
 
 **Example**:
 ```rust
-// nika-kernel/src/memory.rs (ships v0.90, impl lands v0.95)
+// nika-kernel/src/memory.rs (ships in the kernel today, impl lands in the 2.0 Connectome era)
 #[trait_variant::make(MemoryStoreDyn: Send)]
 pub trait MemoryStore: Send + Sync + 'static {
     async fn put(&self, frame: MemoryFrame) -> Result<MemoryFrameRef>;
@@ -40,29 +42,29 @@ pub trait MemoryStore: Send + Sync + 'static {
 **Decision A1**: `trait_variant` (not `async_trait`). Zero boxing on static dispatch;
 `MemoryStoreDyn` companion gives object-safety for dynamic dispatch when needed.
 
-**Impact**: v0.95 ships the Connectome by adding `nika-connectome` (the L2
+**Impact**: the 2.0 Connectome era ships the Connectome by adding `nika-connectome` (the L2
 orchestrator composing the 10 L1 satellites) which implements
-`MemoryStore`. Zero v0.90 code modification.
+`MemoryStore`. Zero modification to the 1.0 code.
 
-**Locked traits (v0.90)**:
-- `MemoryStore` — Connectome impl v0.95 (`nika-connectome`)
-- `EmbeddingProvider` — Connectome impl v0.95 (`nika-embed`)
-- `ToolExecutor` — real impl v0.90 (used by natives)
-- `WasmPluginHost` — impl v0.100+
-- `MetricsExporter` + `TracerProvider` — impl v0.100+ (`nika-observability-otel`)
-- `Sandbox` — impl v0.100+ (Landlock/seccomp)
+**Locked traits (kernel, today)**:
+- `MemoryStore` — Connectome impl in the 2.0 era (`nika-connectome`)
+- `EmbeddingProvider` — Connectome impl in the 2.0 era (`nika-embed`)
+- `ToolExecutor` — real impl today (used by natives)
+- `WasmPluginHost` — impl in a later 1.x minor
+- `MetricsExporter` + `TracerProvider` — impl in a later 1.x minor (`nika-observability-otel`)
+- `Sandbox` — impl in a later 1.x minor (Landlock/seccomp)
 
-**Stub traits land in kernel v0.81.** `WasmPluginHost` and `Sandbox` are
+**Stub traits land in the kernel today.** `WasmPluginHost` and `Sandbox` are
 defined as kernel traits — with their DTOs marked `#[non_exhaustive]` — in
-the v0.81 kernel files `src/plugin/wasm.rs` and `src/plugin/sandbox.rs`.
+the kernel files `src/plugin/wasm.rs` and `src/plugin/sandbox.rs`.
 Telemetry is split into the sibling traits `MetricsExporter` + `TracerProvider`
 + `AuditSink` + `EventSink` + `BillingSink` (the unified `ObservabilitySink`
 stub was dropped per Q12 rev.3 2026-04-16; the 4-channel split is already
 in-tree at `src/infra/{audit,metrics,trace,event_sink,billing}.rs`). Real
-implementations land in v0.95+ / v0.100+ crates (`nika-wasm-host`,
+implementations land in later 1.x minor / 2.0 crates (`nika-wasm-host`,
 `nika-sandbox-*`, `nika-observability-otel`). Reserving the trait shape and
-field layout **now** keeps v0.95/v0.100 strictly additive — no consumer of
-v0.8x breaks when the impls arrive. See §9 below.
+field layout **now** keeps those later releases strictly additive — no consumer of
+the 1.x line breaks when the impls arrive. See §9 below.
 
 ### 2. `#[non_exhaustive]` on every public struct, enum, error variant <!-- FCI-002 -->
 
@@ -71,7 +73,7 @@ can never construct via `MyStruct { a, b }` literal — must use
 `MyStruct::new(...)` or builder.
 
 **Impact**: Adding a field (e.g., `pub memory: Option<MemoryDirective>` to
-`InferRequest` in v0.95) is NOT a breaking change.
+`InferRequest` in the 2.0 Connectome era) is NOT a breaking change.
 
 **Rule**: If you forget `#[non_exhaustive]` on a public type, CI fails via
 `cargo public-api --diff-git-checkouts`.
@@ -89,15 +91,15 @@ version.
 pub enum WorkflowDoc {
     #[serde(rename = "v1")]
     V1(WorkflowV1),
-    // v2 reserved · forever-v0.x makes a contract break effectively never
+    // v2 reserved · the `nika: v1` envelope is frozen forever · a contract break is effectively never
 }
 ```
 
-**Locked schemas (v0.80)**:
-- `nika: v1` — current workflow envelope (single version marker · per nika-spec · supersedes the K8s `apiVersion:` + `schema: nika/workflow@X` forms)
+**Locked schemas**:
+- `nika: v1` — current workflow envelope (single version marker · frozen forever · per nika-spec · supersedes the K8s `apiVersion:` + `schema: nika/workflow@X` forms)
 - `nika/pck@1` — pck manifest TOML
 - `nika/event@1` — event log JSON
-- `nika/memory-frame@1` — memory frame JSON (v0.95)
+- `nika/memory-frame@1` — memory frame JSON (2.0 Connectome era)
 
 **Migration tooling** ships parallel to schema bumps. No silent migrations.
 
@@ -130,17 +132,17 @@ reserved even if unused, preventing collision when future subsystems ship.
 | NIKA-000..099 | Core engine | active |
 | NIKA-100..199 | MCP / catalog | active (100, 101, 107) |
 | NIKA-1600..1699 | audio L1 (stt · tts · vad · `ai::audio` seam R6) | reserved (2026-06-10 · impls stdlib v0.x) |
-| NIKA-200..299 | pck / validation | reserved v0.80, active v0.90 |
+| NIKA-200..299 | pck / validation | reserved now, active by 1.0 |
 | NIKA-300..399 | Providers + Shield | active (380-389 shield) |
 | NIKA-400..499 | Verbs (430..433 infer · 440..442 exec · 450..452 invoke · agent next) | active (`nika-error/src/codes.rs` = registry of record) |
-| NIKA-500..599 | agent-v2 | reserved v0.80, active v0.95 |
+| NIKA-500..599 | agent-v2 | reserved now, active in the 2.0 era |
 | NIKA-600..649 | Memory — the Connectome (601..604 active · per-satellite sub-ranges 610+) | active (Category::Memory) |
 | NIKA-650..699 | (unallocated) | reserved |
-| NIKA-700..749 | WASM plugin host | reserved v0.80 (Category::WasmPlugin) |
-| NIKA-750..799 | Sandbox / capabilities | reserved v0.80 (Category::Sandbox) |
-| NIKA-800..819 | Observability / telemetry | reserved v0.80 (Category::Observability) |
+| NIKA-700..749 | WASM plugin host | reserved now (Category::WasmPlugin) |
+| NIKA-750..799 | Sandbox / capabilities | reserved now (Category::Sandbox) |
+| NIKA-800..819 | Observability / telemetry | reserved now (Category::Observability) |
 | NIKA-820..899 | (unallocated) | reserved |
-| NIKA-900..999 | Community / x-* extensions | reserved v0.80 |
+| NIKA-900..999 | Community / x-* extensions | reserved now |
 
 ### 6. Sealed traits for core, open traits for extension <!-- FCI-006 -->
 
@@ -201,7 +203,7 @@ before merge.
 - `cargo deny check` — license + advisories + workspace layer rules
 - `cargo machete` — unused dependencies
 
-## The 5 architectural decisions locked at v0.80
+## The 5 architectural decisions locked in the foundation
 
 If these are wrong, we pay the breaking-change tax for the life of the
 project.
@@ -211,14 +213,14 @@ project.
 ```rust
 #[non_exhaustive]
 pub enum EventKind {
-    // Core (v0.80+)
+    // Core (today)
     Started, Completed, Failed,
     TaskStarted, TaskCompleted, TaskFailed,
-    // Reserved v0.95 the Connectome
+    // Reserved · the 2.0 Connectome era
     MemoryHit, MemoryWrite, MemoryForget,
-    // Reserved v0.95 agent-v2
+    // Reserved · 2.0 agent-v2
     AgentPlanned, AgentReflected, AgentResumed,
-    // Reserved v0.100 observability
+    // Reserved · later 1.x observability
     Trace { span_id: SpanId, kind: &'static str },
     // Extension escape hatch (community + future)
     Extension { ns: String, name: String, payload: serde_json::Value },
@@ -236,10 +238,10 @@ change.
 pub struct InferRequest {
     pub model: ModelId,
     pub messages: Vec<Message>,
-    pub memory: Option<MemoryDirective>,   // v0.95
-    pub budget: Option<BudgetDirective>,   // v0.100
-    pub replay_seed: Option<u64>,          // v0.100
-    pub agent_state: Option<AgentStateRef>,// v0.95
+    pub memory: Option<MemoryDirective>,   // 2.0 Connectome era
+    pub budget: Option<BudgetDirective>,   // later 1.x
+    pub replay_seed: Option<u64>,          // later 1.x
+    pub agent_state: Option<AgentStateRef>,// 2.0 agent-v2
 }
 
 impl InferRequest {
@@ -249,12 +251,12 @@ impl InferRequest {
 ```
 
 **Rationale**: `InferRequest` flows through every provider, every verb,
-every memory call. Adding fields in v0.95 requires them to be `Option` with
+every memory call. Adding fields in the 2.0 Connectome era requires them to be `Option` with
 `None` defaults today.
 
 ### Decision 3 — `schema:` field mandatory day-1 <!-- FCI-011 -->
 
-Every file format ships with `schema:` from v0.80. Fail-fast on missing
+Every file format ships with `schema:` from day 1. Fail-fast on missing
 schema. Never parse unversioned files.
 
 **Rationale**: Cargo's `edition = "2018"` pattern. Without this, v1.0 can't
@@ -288,16 +290,16 @@ shape locks all downstream.
 pub struct CatalogEntry {
     pub id: EntryId,
     pub kind: EntryKind,
-    pub embedding: Option<Vec<f32>>,   // v0.95 Connectome semantic search
-    pub cost: Option<CostEstimate>,    // v0.100 budget enforcement
-    pub perms: Vec<Permission>,        // v0.100 capability model
+    pub embedding: Option<Vec<f32>>,   // 2.0 Connectome semantic search
+    pub cost: Option<CostEstimate>,    // later 1.x budget enforcement
+    pub perms: Vec<Permission>,        // later 1.x capability model
     pub last_verified: Option<&'static str>,  // xtask verifier
 }
 ```
 
 **Rationale**: Catalog is queried by the Connectome (semantic search), agent-v2
 (tool selection), CLI (autocomplete), observability (cost tracking). If
-these fields aren't reserved, every consumer rewrites in v0.95/v0.100.
+these fields aren't reserved, every consumer rewrites in the 2.0 era / later 1.x.
 
 ## 10 concrete API design rules <!-- FCI-014..023 -->
 
@@ -384,87 +386,88 @@ only comments; a NEW effect trait returning `std::io::Result` goes RED.
 
 ## Per-subsystem forward-compat matrix
 
-| Subsystem | Stable v0.90 surface | Extension points | Risk | Mitigation |
+| Subsystem | Stable 1.0 surface | Extension points | Risk | Mitigation |
 |---|---|---|---|---|
 | Core engine | `Runtime::execute`, EventStream | EventKind Extension variant, new directives in InferRequest | LOW | EventKind `#[non_exhaustive]` |
 | pck | `schema:` + 9 types | `x-*` namespace, new schema versions | MED | `deny_unknown_fields` top-level only |
 | Natives | 4 verbs sealed · 22 spec-curated builtins | `ExternalVerb` registry for community | LOW | Sealed `Verb` + open `ExternalVerb` |
 | Providers | 14 canonical (spec stdlib) via wire dialects + mock | New providers as crates, `ProviderId` as newtype with `Custom(String)` | HIGH | Crate split already locked |
 | MCP | Catalog + aliases | New transports, MCP versions | MED | rmcp behind facade trait |
-| The Connectome | Trait stubs only | Real impl v0.95 | LOW | All hooks in kernel v0.90 |
-| agent-v2 | Reserved EventKinds, error codes | New crate v0.95 | LOW | InferRequest fields + default methods |
-| Shield | Permission enum stub | Landlock/seccomp impl v0.100 | MED | Define `Permission` enum now |
+| The Connectome | Trait stubs only | Real impl in the 2.0 era | LOW | All hooks in the kernel today |
+| agent-v2 | Reserved EventKinds, error codes | New crate in the 2.0 era | LOW | InferRequest fields + default methods |
+| Shield | Permission enum stub | Landlock/seccomp impl in a later 1.x | MED | Define `Permission` enum now |
 | Lints | nika-lints crate | New lints additive | LOW | Per-lint allow attribute namespace |
-| Observability | EventLog only | Tracing, OTel, replay v0.100 | MED | `EventKind::Trace` reserved |
+| Observability | EventLog only | Tracing, OTel, replay in a later 1.x | MED | `EventKind::Trace` reserved |
 
-## 9. v0.95 / v0.100 reservation policy <!-- FCI-034 -->
+## 9. Post-1.0 reservation policy (2.0 era + later 1.x) <!-- FCI-034 --> (amended D-2026-06-20-N1 · was "v0.95 / v0.100")
 
 Reserving trait shapes and DTO field layout **before** implementations exist
-is the explicit mechanism that makes v0.95 and v0.100 additive-only releases.
+is the explicit mechanism that makes the 2.0 Connectome era and the later 1.x
+minors additive-only releases.
 
 **Policy**:
 
-1. **Trait stubs land in kernel v0.81.** Every subsystem that v0.95 or v0.100
-   will ship (the Connectome, WASM plugins, observability, sandbox) has its trait
-   signature, companion `*Dyn: Send` object-safe twin, and DTO types locked
-   in `nika-kernel` at v0.81. Impls arrive later in their own crates.
+1. **Trait stubs land in the kernel today.** Every subsystem that the 2.0 era or a
+   later 1.x minor will ship (the Connectome, WASM plugins, observability, sandbox)
+   has its trait signature, companion `*Dyn: Send` object-safe twin, and DTO types locked
+   in `nika-kernel` now. Impls arrive later in their own crates.
 2. **All DTOs are `#[non_exhaustive]`.** New fields become additive in later
    releases. Callers never construct via literal — builders or `::new` only.
 3. **Reserved optional fields on load-bearing structs.** Types that flow
    through every verb and every provider (`InferRequest`, `MemoryFrame`,
-   `CatalogEntry`) carry `Option<_>` fields for v0.95/v0.100 directives
-   today. Default is `None`; v0.95 populates without breaking v0.8x.
+   `CatalogEntry`) carry `Option<_>` fields for 2.0-era / later-1.x directives
+   today. Default is `None`; the later release populates without breaking the 1.x line.
 4. **Cancellation is passed explicitly where future-drop is insufficient.**
    A `CancelCtx` module in the kernel re-exports `tokio_util::sync::CancellationToken`
    so trait methods whose futures are outlived by their outputs (streams,
    spawned compressors) take `cancel: CancelCtx` as a reserved parameter.
 5. **Capability-scoped subsets accompany broad traits.** `WasmPluginHost` ships
    alongside narrower companion traits (`PluginFs`, `PluginHttp`, …) so
-   v0.100 impls can wire capability-gated subsets without the community
+   later 1.x impls can wire capability-gated subsets without the community
    re-implementing the main trait.
 
-**Planned kernel files (v0.81)**:
+**Planned kernel files (today)**:
 
-| File | Purpose | Impl crate (v0.95+ / v0.100+) |
+| File | Purpose | Impl crate (2.0 era / later 1.x) |
 |---|---|---|
 | `src/cancel.rs` | `CancelCtx` re-export + `CancelDropGuard` | in-tree, zero-impl |
-| `src/plugin/wasm.rs` | `WasmPluginHost` + `PluginCallContext` + `WasmPluginError` + capability-scoped subsets | `nika-wasm-host` (v0.100) |
-| `src/plugin/sandbox.rs` | `Sandbox` trait + `SandboxPolicy` + `PluginCapabilities` | `nika-sandbox-linux`/`-macos`/`-windows` (v0.100) |
-| `src/infra/{metrics,trace}.rs` | `MetricsExporter` + `TracerProvider` (the unified `ObservabilitySink` stub was dropped per Q12 rev.3) | `nika-observability-otel` (v0.100) |
-| `src/infra/{audit,event_sink,billing}.rs` | `AuditSink` + `EventSink` + `BillingSink` | in-tree (v0.81+, sealed where contract-bearing) |
+| `src/plugin/wasm.rs` | `WasmPluginHost` + `PluginCallContext` + `WasmPluginError` + capability-scoped subsets | `nika-wasm-host` (later 1.x) |
+| `src/plugin/sandbox.rs` | `Sandbox` trait + `SandboxPolicy` + `PluginCapabilities` | `nika-sandbox-linux`/`-macos`/`-windows` (later 1.x) |
+| `src/infra/{metrics,trace}.rs` | `MetricsExporter` + `TracerProvider` (the unified `ObservabilitySink` stub was dropped per Q12 rev.3) | `nika-observability-otel` (later 1.x) |
+| `src/infra/{audit,event_sink,billing}.rs` | `AuditSink` + `EventSink` + `BillingSink` | in-tree (today+, sealed where contract-bearing) |
 
-**Modifications to existing kernel files (v0.81)**:
+**Modifications to existing kernel files (today)**:
 - `provider.rs` — `ProviderStream::infer_stream` gains `cancel: CancelCtx`
 - `context.rs` — `ContextCompressor::compress` gains `cancel: CancelCtx`
 - `memory.rs` — `MemoryFrame` gains reserved `Option<_>` fields
   (`cipher`, `provenance`, `retention`, `redactions`), all `#[non_exhaustive]`,
-  default `None` in v0.80
+  default `None` today
 - `lib.rs` — `pub mod cancel; pub mod plugin; pub mod sandbox; pub mod observability;`
 
 **Verification**: CI runs `cargo public-api --diff-git-checkouts` plus
 `cargo semver-checks check-release` on every PR. Any change to a reserved
 trait or DTO that is not strictly additive fails the gate.
 
-**Rationale**: once the v0.95 Connectome and v0.100 WASM plugins start landing,
+**Rationale**: once the 2.0 Connectome and the later-1.x WASM plugins start landing,
 shipping the trait surface is a mechanical crate addition rather than a
-breaking-change negotiation across every consumer of v0.8x.
+breaking-change negotiation across every consumer of the 1.x line.
 
 ### Wave 4A / 4B reservations (Batch I.b, 2026-04-17) <!-- FCI-035 -->
 
-Seven additive reservations shipped during Batch I.b lock the v0.95 Connectome and
-v0.100 observability shapes without breaking v0.8x consumers. Each landed as
+Seven additive reservations shipped during Batch I.b lock the 2.0 Connectome and
+later-1.x observability shapes without breaking the 1.x line. Each landed as
 a single atomic commit and is covered by `cargo public-api` +
 `cargo semver-checks` at Gate 12.
 
 | # | Surface | Crate / path | Target release | Commit |
 |---|---|---|---|---|
-| R1 | `EmbeddingSpec` value type (dim + provider + model + dtype + schema) | `nika-types/src/embedding.rs` | v0.95 Connectome | `001ae0b6f` |
-| R2 | `MemoryFrameRef.trust: TrustLevel` reserved field | `nika-kernel` memory re-export (`nika-types`) | v0.95 Connectome | `41e8a1467` |
-| R3 | `RecallQuery.tenant: Option<TenantId>` reserved field | `nika-kernel` memory re-export (`nika-types`) | v0.95 multi-tenant | `41e8a1467` |
-| R4 | `WasmPluginError::{OutOfFuel, Trap{kind}}` variants + `PluginCallContext{cancel, caller_trust, plugin_trust}` | `nika-kernel/src/plugin/wasm.rs` | v0.100 WASM plugins | `368820e42` |
-| R5 | `MemoryLifecycle` trait (`consolidate`, `prune` with `Unsupported` defaults) | `nika-kernel/src/ai/memory.rs` | v0.95 Connectome | `ac46b9ca5` |
-| T1 | `SpanGuard.parent_span_id: Option<SpanId>` + `SpanRef{trace_id, span_id}` | `nika-kernel/src/infra/trace.rs` | v0.100 observability | `861f09bc9` |
-| T2 | `Timestamp` + `WallDuration` value types (`_ms: u64` replacement) | `nika-types/src/timestamp.rs` | v0.95+ retrofit across 6 sites | `c5d292b6e` |
+| R1 | `EmbeddingSpec` value type (dim + provider + model + dtype + schema) | `nika-types/src/embedding.rs` | 2.0 Connectome | `001ae0b6f` |
+| R2 | `MemoryFrameRef.trust: TrustLevel` reserved field | `nika-kernel` memory re-export (`nika-types`) | 2.0 Connectome | `41e8a1467` |
+| R3 | `RecallQuery.tenant: Option<TenantId>` reserved field | `nika-kernel` memory re-export (`nika-types`) | 2.0 multi-tenant | `41e8a1467` |
+| R4 | `WasmPluginError::{OutOfFuel, Trap{kind}}` variants + `PluginCallContext{cancel, caller_trust, plugin_trust}` | `nika-kernel/src/plugin/wasm.rs` | later 1.x WASM plugins | `368820e42` |
+| R5 | `MemoryLifecycle` trait (`consolidate`, `prune` with `Unsupported` defaults) | `nika-kernel/src/ai/memory.rs` | 2.0 Connectome | `ac46b9ca5` |
+| T1 | `SpanGuard.parent_span_id: Option<SpanId>` + `SpanRef{trace_id, span_id}` | `nika-kernel/src/infra/trace.rs` | later 1.x observability | `861f09bc9` |
+| T2 | `Timestamp` + `WallDuration` value types (`_ms: u64` replacement) | `nika-types/src/timestamp.rs` | 2.0-era retrofit across 6 sites | `c5d292b6e` |
 
 **Contract**:
 - All 7 surfaces are `#[non_exhaustive]` or behind sealed defaults, so
@@ -514,7 +517,7 @@ Violating any invariant blocks admission. No exceptions.
 - ADR-019 — Retry + timeout ownership by layer (Accepted)
 - ADR-020 — WASM plugin boundary + Sandbox capability model (Accepted)
 - ADR-021 — YAML envelope convention: apiVersion + kind + metadata + spec (Accepted)
-- ADR-022 — Foundation crate layout v0.81: 14 crates, publish = false (Accepted)
+- ADR-022 — Foundation crate layout: 14 crates, publish = false (Accepted)
 - ADR-023 — File modularity discipline: 800 warn / 1500 fail / 3000 allowlist (Accepted)
 - ADR-024 — Adopt SOTA Rust patterns: bon Builder, Arc<str>, camino, sealed, strum (Accepted)
 - ADR-025 — Per-crate semver via release-plz (Accepted)

@@ -6,7 +6,7 @@
 | Layer | L1.5 — service crate · the capability/policy enforcement layer between the L1 effects and the L2 verbs |
 | Design | `PolicyEnforcer` impl of a NEW L0.5 `nika_kernel::policy::PolicyChecker` trait (operator-locked 2026-06-10) · **compose-only** — owns what the effects don't |
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · live count · `scripts/crate-metrics.sh nika-policy` |
-| Crate version | tracks workspace (`0.80.0`) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` |

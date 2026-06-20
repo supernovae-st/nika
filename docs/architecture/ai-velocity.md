@@ -72,20 +72,22 @@ A crate that fails any gate does not enter the workspace. Period. Exemptions
 (when genuinely applicable — e.g., benchmarks for pure-types crate) go in
 the spec doc with a paragraph of justification.
 
-## Forever v0.x
+## Real semver toward 1.0 (amended D-2026-06-20-N1)
 
-Because of this standard, Nika ships in v0.x releases indefinitely. Each
-release is diamond-grade for its declared scope. Features arrive as they
-pass their 12 gates.
+Because of this standard, Nika ships on real semver — each release is
+diamond-grade for its declared scope, features arrive as they pass their
+12 gates, and the version reflects that maturity honestly. The engine is at
+**0.90.0** (release-candidate grade) today.
 
 SQLite 1.0 did not have WAL, FTS, JSON1, or window functions. Those came
 across 3.x releases over 20 years. Each release was diamond-grade. The
-product was complete AT EACH RELEASE for what it claimed to do.
+product was complete AT EACH RELEASE for what it claimed to do. We follow
+the same arc: ship 1.0 complete for what it claims, then grow it.
 
-v0.90 ships when 42 crates pass 12 gates and 7 shadow zones are green.
-v0.95 ships the Connectome and agent-v2. v0.100 ships WASM plugins and keys
-subsystem. Each release is a complete chrysalis stage, not an intermediate
-build.
+**1.0.0** ships when the 7 shadow zones are green — the first public launch.
+The remaining crates toward the 42-crate architecture land additively across
+the **1.x minors**. The Connectome and agent-v2 are the **2.0** era. Each
+release is a complete chrysalis stage, not an intermediate build.
 
 ## Cost
 

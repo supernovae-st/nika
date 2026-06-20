@@ -10,7 +10,7 @@
 | File cap | ≤1,500 LOC each |
 | Function cap | ≤100 lines each |
 | Source on `main` (reference) | `tools/nika-core/src/{id,trust,hash,...}.rs` (~3,500 LOC scattered) |
-| Crate version | tracks workspace (`0.80.0`) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — foundation crate, never on crates.io (see ADR-017 + `feedback_publish_false_foundation_strategy.md`) |
@@ -108,7 +108,7 @@ pub struct CheckpointMessage { /* role + content + tool_calls */ }
 pub struct ToolCallRecord { /* id + name + args + result */ }
 
 // ── Memory (memory.rs) ─────────────────────────────────────────
-pub struct MemoryFrameRef { /* anchor for the v0.95 Connectome */ }
+pub struct MemoryFrameRef { /* anchor for the 2.0 Connectome */ }
 ```
 
 ---
@@ -128,7 +128,7 @@ crates/nika-types/
     cost.rs          Cost per request (tokens, dollars, walltime, trust)
     hash.rs          Blake3Hash, ContentDigest, BlobRef
     id.rs            All ID newtypes (RunId, EventId, …)
-    memory.rs        MemoryFrameRef (the Connectome seam, v0.95 reservation)
+    memory.rs        MemoryFrameRef (the Connectome seam, 2.0 reservation)
     resource.rs      Resource caps
     retry.rs         Retry policy
     role.rs          Role enum (System/User/Assistant/Tool)
@@ -192,7 +192,7 @@ Phase D refactor (Foundation v0.81 lock) will:
    - Make inner field of `TaskId` and `ToolCallId` private (force constructor)
    - Fix `Spanned<T>` `PartialEq` to ignore span (or document why it doesn't)
 3. **Extract** schema-related types (`Span`, `Spanned`, `LineCol`, `Templatable`) to a new sibling crate `nika-schema-ast` per ADR-022
-4. **Reserve** memory-frame fields for the v0.95 Connectome (already done partially)
+4. **Reserve** memory-frame fields for the 2.0 Connectome (already done partially)
 
 The rename + extraction is a single atomic Phase D commit — no interim state.
 

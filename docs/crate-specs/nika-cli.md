@@ -18,7 +18,7 @@ chrome ≤30%, zero decorative noise). And the human always keeps the hand.
 
 ## 2. Verb surface
 
-### v0.81 (locked · D-2026-06-10-N6 — the announce floor)
+### 1.0 launch floor (locked · D-2026-06-10-N6 · amended D-2026-06-20-N1 — was "v0.81")
 
 | Verb | Does | Exit codes |
 |---|---|---|
@@ -89,7 +89,7 @@ line (cognitive budget).
 ```
 frame 0 (T+0ms · the audit-as-greeting · BEFORE any effect)
 ┌──────────────────────────────────────────────────────────────────┐
-  🦋 nika v0.81 · veille-news · 6 tasks · ceiling ≤ $0.04
+  🦋 nika 1.0.0 · veille-news · 6 tasks · ceiling ≤ $0.04
      permits ✓ network:read(hn.algolia.com) · fs:write(./out)
 └──────────────────────────────────────────────────────────────────┘
    ↑ 2 lines · the static proof (ADR-092) shown EVERY run · the trust moment
@@ -212,7 +212,7 @@ veille-news · 6 tasks · ≤ $0.04
 Diagnose-only + **print the exact fix command** (never auto-mutate):
 
 ```
-✔ binary        v0.81.0 (self-contained · spec v1 embedded)
+✔ binary        1.0.0 (self-contained · spec v1 embedded)
 ✔ config        ~/.nika/config.toml
 ✖ provider      anthropic — ANTHROPIC_API_KEY unset
   fix: export ANTHROPIC_API_KEY=…   (or: nika doctor --explain providers)

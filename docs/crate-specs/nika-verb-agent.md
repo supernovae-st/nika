@@ -6,7 +6,7 @@
 | Layer | **L2** — verb crate · domain executor for the `agent` verb (4th of the 4 verbs · D-2026-05-22-N18) |
 | Design | the multi-turn agentic loop · consumes `nika-providers` (L1.5 · inference) **+ `nika-verb-invoke`** (L2 · tool dispatch · same-layer dep — layering-legal, §0.5) · drives infer → tool-calls → infer until a terminal condition |
 | LOC budget | ≤4k src (the most complex verb · brouillon agent loop was the largest verb) · caps ≤1500/file · ≤100/fn · ≤15k/crate |
-| Crate version | tracks workspace (`0.80.0`) |
+| Crate version | tracks workspace (`0.90.0`) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L2 verb crate |
