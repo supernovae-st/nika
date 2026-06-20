@@ -230,6 +230,22 @@ pub(crate) fn render(text: &str, scope: &Scope<'_>) -> Result<String, RuntimeErr
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = rest.find("${{") {
+        // `\${{` — the literal escape (spec 04 §Escaping · "the engine MUST
+        // honor this"): emit a LITERAL `${{`, consume the one backslash, and
+        // resume the scan AFTER the opener so the inner reference is NEVER
+        // resolved. Mirrors the static analyzer's island scan
+        // (nika-schema `expression::template`, which skips `${{` when
+        // `bytes[i-1] == '\\'`) so `check` ⇄ runtime agree — otherwise a
+        // template that checks clean would render wrong (or raise 1702 on a
+        // documentation reference). The escape only ever applies to the
+        // AUTHOR's template text walked here; resolved values are pushed
+        // out and never re-scanned, so injection safety is unchanged.
+        if start > 0 && rest.as_bytes()[start - 1] == b'\\' {
+            out.push_str(&rest[..start - 1]);
+            out.push_str("${{");
+            rest = &rest[start + 3..];
+            continue;
+        }
         out.push_str(&rest[..start]);
         let after = &rest[start + 3..];
         let Some(end) = after.find("}}") else {
@@ -521,6 +537,55 @@ mod tests {
         let scope = Scope::workflow(&records, &vars);
         let out = render("v=${{ tasks.t.output }}", &scope).expect("renders");
         assert_eq!(out, "v=${{ not.a.ref }}");
+    }
+
+    #[test]
+    fn render_honors_backslash_escape() {
+        // spec 04 §Escaping ("the engine MUST honor this") + conformance
+        // fixture core/variables/010-valid-escaped-literal: `\${{ ref }}`
+        // renders a LITERAL `${{ ref }}` (backslash consumed · the inner
+        // reference NEVER resolved). Previously the runtime kept the `\`
+        // and resolved the ref — a check⇄runtime drift, since the static
+        // analyzer already skips escaped openers (nika-schema template scan).
+        let (records, vars) = fixture();
+        let scope = Scope::workflow(&records, &vars);
+
+        // The fixture-010 documentation case: `vars.x` is UNKNOWN, but the
+        // escape means it is never looked up — so this renders cleanly
+        // (pre-fix it raised NIKA-1702 on the undefined reference).
+        assert_eq!(
+            render("The syntax \\${{ vars.x }} references variables.", &scope)
+                .expect("escaped ref is documentation text, not resolved"),
+            "The syntax ${{ vars.x }} references variables."
+        );
+
+        // The escape wins even when the reference WOULD resolve — a literal
+        // `${{` is the author's intent, never a substitution.
+        assert_eq!(
+            render("literal \\${{ vars.source }}", &scope).expect("literal"),
+            "literal ${{ vars.source }}"
+        );
+
+        // Escaped + real island mix: the escape stays literal, the real
+        // island resolves (mirrors the static analyzer's mixed-scan test).
+        assert_eq!(
+            render("esc \\${{ a }} real ${{ vars.source }}", &scope).expect("mix"),
+            "esc ${{ a }} real ./news.json"
+        );
+
+        // SECURITY: an injected value that CONTAINS `\${{` is DATA — it is
+        // pushed out, never re-scanned, so the escape is NOT applied to it
+        // (the single-pass injection-safe boundary is unchanged).
+        let injected = BTreeMap::from([(
+            "t".to_owned(),
+            record(TaskStatus::Success, Value::String("\\${{ x }}".into())),
+        )]);
+        let iscope = Scope::workflow(&injected, &vars);
+        assert_eq!(
+            render("${{ tasks.t.output }}", &iscope).expect("injected data"),
+            "\\${{ x }}",
+            "an injected backslash-opener is verbatim data, never escape-processed"
+        );
     }
 
     #[test]
@@ -840,8 +905,13 @@ mod tests {
             let records = BTreeMap::new();
             let vars = BTreeMap::from([(key, Value::String(value))]);
             let scope = Scope::workflow(&records, &vars);
+            // A `\${{` escape legitimately renders a LITERAL `${{` (spec 04
+            // §Escaping), so the no-leak invariant only holds when the
+            // template carries no escape — a real island is always resolved
+            // away or errs, so a surviving `${{` then means a silent leak.
             if let Ok(out) = render(&template, &scope)
                 && template.contains("${{")
+                && !template.contains("\\${{")
             {
                 proptest::prop_assert!(!out.contains("${{"));
             }
