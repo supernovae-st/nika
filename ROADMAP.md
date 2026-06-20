@@ -1,5 +1,13 @@
 # Nika Roadmap
 
+> **⚠️ VERSION POLICY AMENDED 2026-06-20 (D-2026-06-20-N1) · "forever-v0.x" RETIRED.**
+> Nika now follows real semver toward a **1.0** public launch. Current engine =
+> **0.90.0** (release-candidate grade) → design-partner `1.0.0-rc.N` → first public
+> launch **1.0.0** → 1.x minors add the remaining crates additively → **2.0** is
+> reserved for the Connectome era (memory + cognition). The `nika: v1` LANGUAGE
+> envelope is frozen forever and unaffected. The `v0.8X.Y` layer-tag scheme below
+> is SUPERSEDED (kept for history). See ADR-002 amendment + §Tag scheme.
+>
 > **🦋 ADR-037 — Bottom-up diamond progression (Accepted 2026-04-17, SUPREME)**
 >
 > Nika is built bottom-up, one layer at a time: **L0 → L0.5 → L1 → L2 → L3 → L4 → L5**.
@@ -17,10 +25,13 @@
 > cluster (1 L2 orchestrator + 10 L1 satellites · ratified 2026-06-11), own
 > `nika-embed`, WASM + sandbox. See §Crate sequence.
 
-**Philosophy: Forever v0.x.** Nika increments quality in v0.x releases
-indefinitely. There is no v1.0 target. Each release is diamond-grade for its
-declared scope. Unshipped features are on this roadmap — **nothing ships as a
-surprise, nothing ships half-baked**.
+**Philosophy: diamond-grade at every release, real semver toward 1.0**
+(amended D-2026-06-20-N1 · was "forever v0.x"). Nika ships a **1.0** at its first
+public launch and increments quality additively afterward (1.1, 1.2, … each
+diamond-grade for its declared scope). The version number CLIMBS to communicate
+maturity. Unshipped features are on this roadmap — **nothing ships as a surprise,
+nothing ships half-baked**. The SQLite precedent below is the model: a complete,
+diamond-grade product at each release, with features added across the X.x line.
 
 > "Diamond is a CRAFT STANDARD, not a scope list. SQLite 1.0 didn't have WAL,
 > FTS, JSON1, or window functions. Those came across 3.x releases over 20 years.
@@ -170,32 +181,28 @@ Next phases (~35 commits across B-H):
 
 The **4-verb invariant (`infer · exec · invoke · agent`)** is locked through 2036 per BLUEPRINT_2036 §1 stress-test (D-2026-05-22-N18 · `fetch` is the `nika:fetch` builtin via `invoke`, not a verb) · candidates `fetch/embed/evaluate/train/serve/stream/transform` all collapse cleanly into the 4-verb taxonomy. ADRs 050-056 queue Phase 2-7 amendments (WASM Component Model · CRDT federation · edge no_std subset · multi-protocol gateway · 3 cluster-collapses).
 
-## Tag scheme (Q-plan 3b)
+## Tag scheme (real semver · amended D-2026-06-20-N1)
 
-`v0.8X.Y` where:
+Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 
-- `X` climbs **once per layer-phase completion** — not per marketing milestone.
-- `Y` increments **per crate admission** within the active phase.
+- **MINOR** within a major = additive (new crates · builtins · providers · polish).
+- **PATCH** = bug fixes, zero contract change.
+- **MAJOR** = an architectural epoch (the language `nika: v1` envelope is frozen,
+  so a major is driven by the engine epoch, not by language breaks).
 
-| Tag       | Meaning                                                         |
-|-----------|-----------------------------------------------------------------|
-| `v0.80.N` | L0 + L0.5 in progress (current — we are here, `Y=11` 2026-04-17) |
-| `v0.81.*` | L0 foundation **complete** (all 9-10 L0 crates admitted)        |
-| `v0.82.*` | L1 phase 1a **complete** — primitives (fs/process/http-client/keys-env) |
-| `v0.83.*` | L1 phase 1b — deps-étage-1 (git/keys-keychain/catalog-sync)     |
-| `v0.84.*` | L1 phase 1c — providers ✅ **shipped early at v0.80.x** (`nika-providers` s8.5/s8.6 · announce ladder D-2026-06-10-N6) |
-| `v0.85.*` | L1 phase 1d — pck backend (registry + store)                    |
-| `v0.86.*` | L1 phase 1e — memory foundation (embed/store/autodesc/hnsw/bm25/rrf) |
-| `v0.87.*` | L1 phase 1f — memory advanced (temporal/fsrs/rdfs/graph-algos)  |
-| `v0.88.*` | L1 phase 1g — reserved satellites graduated (if pulled forward) |
-| `v0.89.*` | L2 **complete** — verbs, orchestrators, builtins                |
-| `v0.90.*` | L3 **complete** — runtime, shield, wasm-host, sandbox ×3        |
-| `v0.91.*` | L4 **complete** — cli, daemon, serve, mcp, lsp, sdk             |
-| `v0.92.*` | L5 **complete** — `nika` binary (<500 LOC composition root)     |
-| `v0.93+`  | Polish forever — new providers, new memory backends, new shields |
+| Tag        | Meaning                                                              |
+|------------|----------------------------------------------------------------------|
+| `0.90.0`   | **current** — release-candidate grade · usable vertical slice works (4 verbs · 14 providers · effects · static-check · MCP/LSP) · finishing the CLI front-door |
+| `1.0.0-rc.N` | design-partner hardening                                            |
+| `1.0.0`    | **first public launch** — language + installable binary, validated   |
+| `1.1 · 1.2 · …` | additive minors — remaining crates toward the 42-crate architecture, new builtins, new providers, polish |
+| `2.0.0`    | **the Connectome era** — memory + cognition (ADR-004) · the next epoch |
 
-No tag = "Ship". No marketing milestone. `v0.92.0` is merely "the last
-structural climb"; `v0.93+` keeps shipping diamond-grade increments forever.
+> **Superseded `v0.8X.Y` layer-tag scheme (kept for history).** Before
+> D-2026-06-20-N1 the tags climbed per layer-phase (`v0.81`=L0 complete …
+> `v0.90`=L3 complete … `v0.92`=L5 binary, "forever-v0.x"). That scheme is
+> retired · the engine re-versions `0.80.0 → 0.90.0` and the 42-crate target
+> moves to post-1.0 minors. Original table preserved in git history.
 
 ## Schema envelope — forever v1 (Q-R5 · per nika-spec)
 

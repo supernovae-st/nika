@@ -1,7 +1,7 @@
 ---
 id: ADR-002
 title: "Forever v0.x -- no v1.0 target"
-status: accepted
+status: amended
 date: "2026-04-13"
 phase: "Phase 0 (release model)"
 deciders: ["@ThibautMelen"]
@@ -23,6 +23,40 @@ follow_ups: []
 ---
 
 # ADR-002: Forever v0.x — no v1.0 target
+
+> **⚠️ AMENDED 2026-06-20 (D-2026-06-20-N1) · "forever-v0.x · no v1.0 ever" is RETIRED → real semver toward a 1.0 launch.**
+> The decision below is SUPERSEDED at the version-policy layer. Canon courant ·
+>
+> - The engine is now **0.90.0** — release-candidate grade. The usable vertical
+>   slice works today (the 4 verbs `infer`/`exec`/`invoke`/`agent` · 14 providers ·
+>   fs/http/blob effects · the static-check conformance pass · MCP + LSP in-binary).
+>   The remaining gap to "a person installs it and runs a workflow" is the
+>   operator CLI front-door (`nika-cli`) + `nika-extract` + the `nika` binary
+>   composition root.
+> - Design-partner hardening ships as **`1.0.0-rc.N`**.
+> - **First public launch = `1.0.0`** — a real major, justified by design-partner
+>   validation + a frozen language spec + a real installable binary. (The original
+>   Alt-A objection — "agent-v2 + memory need kernel evolution before 1.0" — is now
+>   largely resolved · `nika-verb-agent` is admitted and the memory kernel hooks
+>   are `#[non_exhaustive]`-reserved per ADR-007, so a 1.0 surface no longer
+>   forward-blocks the Connectome.)
+> - **Post-1.0 = real semver.** The adopter contract is (1) the `nika: v1` LANGUAGE
+>   envelope (frozen forever · unaffected by engine majors · it is the real "v1"
+>   signal adopters always saw) + (2) the CLI surface. **1.x MINORS are additive**
+>   (remaining crates toward the 42-crate architecture · new builtins · new
+>   providers · polish). **`2.0` is reserved for the Connectome era** (memory +
+>   cognition · ADR-004) — the next architectural epoch.
+> - The original rationale (freedom to break load-bearing APIs without 1.0
+>   ceremony) is PRESERVED for the pre-1.0 window (now) and continues to apply to
+>   INTERNAL Rust crate APIs post-1.0 — external adopters consume the language +
+>   CLI, not the crate API. What changes · the public version number now CLIMBS to
+>   communicate maturity instead of sitting at 0.x forever.
+>
+> The `v0.8X.Y` layer-phase tag scheme and the "42 crates @ v0.90 milestone /
+> no v1.0" framing are SUPERSEDED · 42 crates is now a post-1.0 target reached
+> across 1.x minors. The original body is preserved below per
+> cross-source-validation §2.7 (zero silent rewrite · this ADR's filename + title
+> stay frozen as historical anchors).
 
 ## Context
 
