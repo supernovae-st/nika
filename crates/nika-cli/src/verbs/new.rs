@@ -139,6 +139,17 @@ const ALIASES: &[(&str, &[&str])] = &[
     ("incremental", &["state", "diff", "delta"]),
 ];
 
+/// Function words + Nika envelope keywords that carry zero routing signal —
+/// stripped from the query so an all-boilerplate `--from` (`the` · `workflow`
+/// · `template`) lists the set instead of spuriously routing (every template
+/// shares `workflow:`/`tasks:`/… so those terms separate nothing).
+const STOPWORDS: &[&str] = &[
+    "a", "an", "and", "the", "to", "of", "in", "on", "for", "with", "that", "this", "then", "than",
+    "into", "from", "by", "as", "at", "is", "are", "be", "it", "its", "or", "i", "me", "my", "we",
+    "you", "no", "such", "nika", "workflow", "model", "vars", "tasks", "id", "template", "slot",
+    "kebab", "case",
+];
+
 /// BM25-route a free-form intent to the best embedded template.
 /// `None` when no template shares a single term with the (alias-
 /// expanded) query — routing on zero evidence would be a guess.
@@ -147,17 +158,36 @@ fn route_intent(intent: &str) -> Option<String> {
     let mut index = BmIndex::new(BmParams::default());
     for (i, name) in names.iter().enumerate() {
         let body = nika_pack::template(name).unwrap_or_default();
-        // Name + body carry the template's whole vocabulary — verbs ·
-        // tools · the description SLOT prose.
-        index.add_document(u32::try_from(i).ok()?, &format!("{name}\n{body}"));
+        // Index the template's MEANINGFUL vocabulary — verbs · tools ·
+        // structure — but STRIP `#` comments. The `# SLOT: kebab-case
+        // workflow id` scaffolding prose otherwise pollutes the index, so
+        // boilerplate/stopword queries ("slot" · "kebab" · "fill" · "the")
+        // spuriously route instead of listing the set. Real intent routes
+        // on the YAML verbs/tools + the ALIASES, not the comment prose.
+        let meaningful: String = body
+            .lines()
+            .filter(|l| !l.trim_start().starts_with('#'))
+            .map(|l| l.split_once(" #").map_or(l, |(before, _)| before))
+            .collect::<Vec<_>>()
+            .join("\n");
+        index.add_document(u32::try_from(i).ok()?, &format!("{name}\n{meaningful}"));
     }
     index.finalize();
 
-    let mut query = intent.to_owned();
-    for token in intent.split(|c: char| !c.is_ascii_alphanumeric()) {
-        let lower = token.to_ascii_lowercase();
+    // Keep only signal-bearing tokens (drop stopwords + Nika boilerplate);
+    // an all-boilerplate query routes NOWHERE → the honest unknown · list.
+    let tokens: Vec<String> = intent
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .map(str::to_ascii_lowercase)
+        .filter(|t| !t.is_empty() && !STOPWORDS.contains(&t.as_str()))
+        .collect();
+    if tokens.is_empty() {
+        return None;
+    }
+    let mut query = tokens.join(" ");
+    for token in &tokens {
         for (word, expansions) in ALIASES {
-            if lower == *word {
+            if token == *word {
                 for e in *expansions {
                     query.push(' ');
                     query.push_str(e);
@@ -269,5 +299,29 @@ mod tests {
             assert_eq!(out.code, exit::FILE, "{}", out.text);
             assert!(out.text.contains("embedded set:"), "{}", out.text);
         }
+    }
+
+    #[test]
+    fn boilerplate_and_stopwords_do_not_route() {
+        // Regression: route_intent indexed the `# SLOT:` scaffolding prose +
+        // accepted any score > 0, so envelope/stopword queries spuriously
+        // routed to a scaffold. They carry no SIGNAL → unknown · list.
+        for garbage in [
+            "the",
+            "workflow",
+            "template",
+            "slot",
+            "fill the lines",
+            "a workflow",
+        ] {
+            assert!(
+                route_intent(garbage).is_none(),
+                "`{garbage}` must not route · got {:?}",
+                route_intent(garbage)
+            );
+        }
+        // …but a real intent still routes on its signal terms.
+        assert!(route_intent("scrape a website and summarize").is_some());
+        assert!(route_intent("review and approve before deploy").is_some());
     }
 }
