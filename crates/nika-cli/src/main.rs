@@ -390,17 +390,37 @@ fn load_events(args: &TraceArgs) -> Result<Vec<Event>, String> {
         return Err("no trace given — pass a .ndjson path or --demo / --demo-fail".to_owned());
     };
     let raw = std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    recover_events(&raw, &path.display().to_string())
+}
+
+/// Parse an NDJSON trace, tolerating a truncated/corrupt TAIL — a crashed run
+/// (SIGSEGV · OOM · hard kill) leaves a half-written last line, and recovering
+/// it is the whole point of a flight recorder. Stops at the first bad line and
+/// returns the valid prefix; a bad FIRST line (nothing recovered) is a
+/// genuinely unreadable trace and errors.
+fn recover_events(raw: &str, label: &str) -> Result<Vec<Event>, String> {
     let mut events = Vec::new();
     for (lineno, line) in raw.lines().enumerate() {
         if line.trim().is_empty() {
             continue;
         }
-        let event: Event = serde_json::from_str(line)
-            .map_err(|e| format!("{}:{}: bad event: {e}", path.display(), lineno + 1))?;
-        events.push(event);
+        match serde_json::from_str::<Event>(line) {
+            Ok(event) => events.push(event),
+            Err(e) => {
+                if events.is_empty() {
+                    return Err(format!("{label}:{}: bad event: {e}", lineno + 1));
+                }
+                eprintln!(
+                    "nika-cli: {label}:{}: trace truncated ({e}) — rendering {} recovered event(s)",
+                    lineno + 1,
+                    events.len()
+                );
+                break;
+            }
+        }
     }
     if events.is_empty() {
-        return Err(format!("{}: empty trace", path.display()));
+        return Err(format!("{label}: empty trace"));
     }
     Ok(events)
 }
@@ -414,4 +434,36 @@ fn load_events(args: &TraceArgs) -> Result<Vec<Event>, String> {
 #[allow(clippy::disallowed_methods)]
 fn env_flag(name: &str) -> bool {
     std::env::var_os(name).is_some_and(|v| !v.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+    use super::*;
+
+    /// One valid serialized Event line — reuse the demo's real events.
+    fn valid_line() -> String {
+        let events = nika_cli::demo::success();
+        let first = events.first().expect("demo has events");
+        serde_json::to_string(first).expect("event serializes")
+    }
+
+    /// Flight-recorder resilience: a crashed run leaves a truncated last line.
+    /// The reader must render the valid PREFIX, not lose the whole trace.
+    #[test]
+    fn truncated_tail_recovers_the_valid_prefix() {
+        let v = valid_line();
+        // 2 valid events + a truncated 3rd line (the crash signature).
+        let raw = format!("{v}\n{v}\n{{\"id\":{{\"uuid\":\"trunc");
+        let events = recover_events(&raw, "t").expect("recovers the valid prefix");
+        assert_eq!(events.len(), 2, "both valid events recovered");
+    }
+
+    /// A bad FIRST line (nothing recovered) is genuinely unreadable → error;
+    /// an empty trace likewise.
+    #[test]
+    fn bad_first_line_and_empty_are_hard_errors() {
+        assert!(recover_events("{not json at all\n", "t").is_err());
+        assert!(recover_events("", "t").is_err(), "empty trace errors");
+    }
 }
