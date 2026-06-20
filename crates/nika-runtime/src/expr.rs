@@ -216,6 +216,43 @@ fn record_object(rec: &TaskRecord) -> Value {
     Value::Object(map)
 }
 
+/// Find the `}}` that closes an island body — QUOTE-AWARE: a `}}` inside a
+/// CEL string literal (`'…'` / `"…"`, honoring `\` escapes) does NOT close
+/// the island. Mirrors the static analyzer's scanner (nika-schema
+/// `expression::template::find_island_close`, which has its own tests) so
+/// `check` ⇄ runtime agree on island bounds. A naive `find("}}")` truncated
+/// `${{ vars.x == "}}" }}` mid-string-literal — a template that checks clean
+/// (the analyzer accepts the inner `}}`) but then failed to render.
+fn find_island_close(after: &str) -> Option<usize> {
+    let bytes = after.as_bytes();
+    let mut i = 0;
+    let mut quote: Option<u8> = None;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if let Some(q) = quote {
+            // Inside a string literal: a backslash escapes the next byte;
+            // the matching quote closes; everything else is body text.
+            if b == b'\\' {
+                i += 2;
+                continue;
+            }
+            if b == q {
+                quote = None;
+            }
+            i += 1;
+        } else if b == b'\'' || b == b'"' {
+            // Outside a string: a quote opens one; `}}` closes the island.
+            quote = Some(b);
+            i += 1;
+        } else if b == b'}' && bytes.get(i + 1) == Some(&b'}') {
+            return Some(i);
+        } else {
+            i += 1;
+        }
+    }
+    None
+}
+
 /// Render every `${{ <ref> }}` island in `text` from the scope (spec 04
 /// §value rendering · scalars natural · containers canonical JSON).
 ///
@@ -248,7 +285,7 @@ pub(crate) fn render(text: &str, scope: &Scope<'_>) -> Result<String, RuntimeErr
         }
         out.push_str(&rest[..start]);
         let after = &rest[start + 3..];
-        let Some(end) = after.find("}}") else {
+        let Some(end) = find_island_close(after) else {
             return Err(RuntimeError::UnresolvedTemplate {
                 reference: after.trim().to_owned(),
             });
@@ -585,6 +622,45 @@ mod tests {
             render("${{ tasks.t.output }}", &iscope).expect("injected data"),
             "\\${{ x }}",
             "an injected backslash-opener is verbatim data, never escape-processed"
+        );
+    }
+
+    #[test]
+    fn find_island_close_skips_quoted_braces() {
+        // Direct unit on the close-finder (mirrors nika-schema's scanner):
+        // a `}}` inside a CEL string literal is body text, not the close.
+        assert_eq!(find_island_close(" vars.x }}"), Some(8)); // plain close
+        assert_eq!(find_island_close(" '}}' }}"), Some(6)); // skip single-quoted
+        assert_eq!(find_island_close(" \"}}\" }}"), Some(6)); // skip double-quoted
+        assert_eq!(find_island_close(" no real close "), None); // unterminated
+    }
+
+    #[test]
+    fn render_close_is_quote_aware() {
+        // check⇄runtime drift (sister to render_honors_backslash_escape): a
+        // `}}` INSIDE a CEL string literal must NOT close the island early.
+        // The static analyzer scans quote-aware (nika-schema template tests);
+        // the runtime's naive `find("}}")` truncated `${{ … "}}" … }}`
+        // mid-literal → a parse error on a template that checked clean.
+        let (records, vars) = fixture(); // vars.source == "./news.json"
+        let scope = Scope::workflow(&records, &vars);
+
+        // RHS string literal carrying `}}` resolves (island not truncated).
+        assert_eq!(
+            render("${{ vars.source == '}}' }}", &scope).expect("compare vs }} literal"),
+            "false"
+        );
+        // `.contains('}}')` — the literal `}}` is method-arg data, not a close.
+        assert_eq!(
+            render("${{ vars.source.contains('}}') }}", &scope).expect("contains }}"),
+            "false"
+        );
+        // The REAL close (after the literal) is found, so a trailing real
+        // island still scans: a literal-bearing island, then a normal one.
+        assert_eq!(
+            render("${{ vars.source != '}}' }} :: ${{ vars.source }}", &scope)
+                .expect("literal-island then real island"),
+            "true :: ./news.json"
         );
     }
 
