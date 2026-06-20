@@ -77,7 +77,37 @@ pub(crate) fn load_checked(path: &str) -> Result<(RawWorkflow, CheckReport), Ver
     let yaml = std::fs::read_to_string(path)
         .map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))?;
     let wf = nika_schema::parse(&yaml, FileId::new(0), ParseMode::Strict)
-        .map_err(|e| VerbOutput::file(format!("PARSE ✗  {e}")))?;
+        .map_err(|e| VerbOutput::file(format!("PARSE ✗  [{}] {e}", e.spec_code())))?;
     let report = nika_schema::check(&wf);
     Ok((wf, report))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression · a parse-stage rejection must surface its spec wire code,
+    /// exactly like the CONFORM stage. The multiple-verbs short-circuit used
+    /// to render `PARSE ✗ <msg>` with no `[NIKA-PARSE-009]`, so an operator
+    /// could not `nika explain` the failure (every other finding shows its
+    /// code). `load_checked` now formats `e.spec_code()`.
+    #[test]
+    fn parse_error_carries_its_spec_code() {
+        let path =
+            std::env::temp_dir().join(format!("nika-parsecode-{}.nika.yaml", std::process::id(),));
+        std::fs::write(
+            &path,
+            "nika: v1\nworkflow: two-verbs\nmodel: mock/echo\ntasks:\n  - id: a\n    infer: { prompt: \"x\" }\n    exec: { run: \"echo hi\" }\n",
+        )
+        .expect("fixture written");
+        let err = load_checked(path.to_str().expect("utf-8 tmp path"))
+            .expect_err("a task with two verbs must fail to parse");
+        std::fs::remove_file(&path).ok();
+        assert_eq!(err.code, exit::FILE, "{}", err.text);
+        assert!(
+            err.text.contains("NIKA-PARSE-009"),
+            "parse error must carry its spec code · got: {}",
+            err.text
+        );
+    }
 }
