@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
     InferEvent, InferRequest, Message, ProviderError, ProviderInferDyn as _, ProviderMeta as _,
-    ProviderStreamDyn as _, Role,
+    ProviderStreamDyn as _, ResponseFormat, Role,
 };
 use nika_kernel::genai::GenAiSystem;
 use nika_kernel::secret::Secret;
@@ -236,6 +236,76 @@ fn meta_is_coherent_across_the_fourteen() {
                 assert!(supports, "[{}] response_format supported", p.id);
             }
             _ => assert!(!supports, "[{}] honest capability answer", p.id),
+        }
+    }
+}
+
+/// Structured-output (`response_format`) parity — the SAME `ResponseFormat::Json`
+/// request encodes to each wire family's documented JSON-mode shape across
+/// EVERY wired profile, not just the one per-dialect unit test. The matrix
+/// house rule extended to Gate-2's structured-output surface: a divergence on
+/// any single provider is an engine bug, not a provider quirk.
+///
+/// Scope = the plain JSON-object mode (provider-uniform · unambiguous). The
+/// `JsonSchema`/`strict` path differs per provider BY DESIGN (openai normalizes
+/// the schema + sends `strict:true`; the openai-compat peers pass the author
+/// schema through) and stays pinned in the per-dialect tests — it is NOT
+/// asserted as cross-provider here, so this test never blesses that divergence.
+#[tokio::test]
+async fn json_mode_encodes_per_dialect_across_every_wired_profile() {
+    for (id, wire, requires_key) in wired_http_profiles() {
+        let mut req = request();
+        req.response_format = ResponseFormat::Json;
+        let fake = FakeHttp::with_json(200, ok_fixture(wire));
+        let rp = resolve_on(&fake, id, requires_key);
+        let result = rp.infer(req).await;
+
+        match wire {
+            // Anthropic has no response_format at v0.1 — the HONEST refusal
+            // fires in request-build, BEFORE any HTTP call (capability == false
+            // per meta_is_coherent). The error is typed and names the field.
+            WireFormat::Anthropic => {
+                let err = result
+                    .err()
+                    .unwrap_or_else(|| panic!("[{id}] anthropic must refuse response_format"));
+                assert!(
+                    matches!(err, ProviderError::Other { .. }),
+                    "[{id}] refusal typed Other, got {err:?}"
+                );
+                assert!(
+                    err.to_string().contains("response_format"),
+                    "[{id}] refusal names the field: {err}"
+                );
+                assert!(
+                    fake.captured().is_empty(),
+                    "[{id}] no request leaves on an honest refusal"
+                );
+            }
+            WireFormat::OpenAiCompat => {
+                result.unwrap_or_else(|e| panic!("[{id}] json mode must infer: {e}"));
+                let sent = fake.captured();
+                let body: serde_json::Value =
+                    serde_json::from_slice(sent[0].body.as_ref().expect("request body"))
+                        .expect("request body is json");
+                assert_eq!(
+                    body["response_format"]["type"], "json_object",
+                    "[{id}] openai-compat json mode → response_format.type=json_object"
+                );
+            }
+            WireFormat::Gemini => {
+                result.unwrap_or_else(|e| panic!("[{id}] json mode must infer: {e}"));
+                let sent = fake.captured();
+                let body: serde_json::Value =
+                    serde_json::from_slice(sent[0].body.as_ref().expect("request body"))
+                        .expect("request body is json");
+                assert_eq!(
+                    body["generationConfig"]["responseMimeType"], "application/json",
+                    "[{id}] gemini json mode → generationConfig.responseMimeType"
+                );
+            }
+            // Mock is filtered out by wired_http_profiles(); a future wire
+            // family must teach this matrix its json-mode shape.
+            _ => panic!("[{id}] unhandled wire family in json-mode parity"),
         }
     }
 }
