@@ -15,6 +15,7 @@ use std::fmt::Write as _;
 use nika_schema::check::{CheckReport, UnboundedReason};
 use nika_schema::infer_permits;
 use nika_schema::raw::RawWorkflow;
+use nika_schema::types::VarDecl;
 
 use crate::display::theme::{Role, Theme};
 use crate::verbs::{VerbOutput, load_checked};
@@ -139,8 +140,25 @@ fn render(report: &CheckReport, wf: &RawWorkflow, path: &str, t: Theme) -> Strin
             .collect(),
     );
     permits(&mut out, report, wf, t);
-    hints_and_verdict(&mut out, report, t);
+    hints_and_verdict(&mut out, report, wf, t);
     out
+}
+
+/// Declared `vars:` that the operator MUST pass at run time — `required: true`
+/// with no `default:`. The static surface can NAME them (so `check` warns
+/// before a bare `run` hits `NIKA-VAR-001`); only the runtime binds them.
+fn required_inputs(wf: &RawWorkflow) -> Vec<&str> {
+    wf.vars
+        .iter()
+        .filter_map(|(name, decl)| match decl {
+            VarDecl::Typed {
+                required: true,
+                default: None,
+                ..
+            } => Some(name.value.as_str()),
+            _ => None,
+        })
+        .collect()
 }
 
 /// The `· fix: did you mean ___?` clause, or empty when no suggestion.
@@ -192,7 +210,7 @@ fn arg_rows(report: &CheckReport) -> Vec<String> {
 }
 
 /// Advisory hints + the one-line verdict (the report's last words).
-fn hints_and_verdict(out: &mut String, report: &CheckReport, t: Theme) {
+fn hints_and_verdict(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     for h in &report.hints {
         let _ = writeln!(
             out,
@@ -201,6 +219,21 @@ fn hints_and_verdict(out: &mut String, report: &CheckReport, t: Theme) {
             t.paint(Role::Strong, "HINT"),
             h.kind,
             h.advice
+        );
+    }
+    let inputs = required_inputs(wf);
+    if !inputs.is_empty() {
+        let pass = inputs
+            .iter()
+            .map(|n| format!("--var {n}=…"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let advice = format!("required input(s) with no default · pass at run time: {pass}");
+        let _ = writeln!(
+            out,
+            " {} {}     [inputs] {advice}",
+            t.paint(Role::Accent, "↳"),
+            t.paint(Role::Strong, "HINT"),
         );
     }
     if report.is_clean() {
@@ -425,4 +458,43 @@ pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
         }
     }
     VerbOutput::ok(text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_wf(yaml: &str) -> RawWorkflow {
+        nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses")
+    }
+
+    /// A `required: true` input with no `default:` is what the operator MUST
+    /// pass — `check` should NAME it, so a bare `run` does not surprise them
+    /// with NIKA-VAR-001.
+    #[test]
+    fn required_input_without_default_is_listed() {
+        let wf = parse_wf(
+            "nika: v1\nworkflow: needs-input\nmodel: mock/echo\nvars:\n  text:\n    type: string\n    required: true\ntasks:\n  - id: a\n    infer: { prompt: \"${{ vars.text }}\" }\n",
+        );
+        assert_eq!(required_inputs(&wf), vec!["text"]);
+    }
+
+    /// Untyped (the value IS the default) · typed-with-default · typed-optional
+    /// — none block a bare `run`, so none are listed.
+    #[test]
+    fn defaulted_or_optional_inputs_are_not_listed() {
+        let wf = parse_wf(
+            "nika: v1\nworkflow: ok\nmodel: mock/echo\nvars:\n  a: \"has default\"\n  b:\n    type: string\n    default: \"d\"\n  c:\n    type: string\n    required: false\ntasks:\n  - id: t\n    infer: { prompt: \"${{ vars.a }} ${{ vars.b }} ${{ vars.c }}\" }\n",
+        );
+        assert!(
+            required_inputs(&wf).is_empty(),
+            "{:?}",
+            required_inputs(&wf)
+        );
+    }
 }
