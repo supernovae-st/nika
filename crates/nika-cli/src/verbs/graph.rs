@@ -197,7 +197,7 @@ pub fn to_mermaid(doc: &GraphDoc) -> String {
             .tool
             .as_deref()
             .or(node.model.as_deref())
-            .map(|d| format!(" · {d}"))
+            .map(|d| format!(" · {}", mermaid_escape(d)))
             .unwrap_or_default();
         let _ = writeln!(
             out,
@@ -217,14 +217,14 @@ pub fn to_mermaid(doc: &GraphDoc) -> String {
 pub fn to_dot(doc: &GraphDoc) -> String {
     let mut out = format!(
         "digraph \"{}\" {{\n  rankdir=TB;\n  node [shape=box];\n",
-        doc.workflow
+        dot_escape(&doc.workflow)
     );
     for node in &doc.nodes {
         let detail = node
             .tool
             .as_deref()
             .or(node.model.as_deref())
-            .map(|d| format!("\\n{d}"))
+            .map(|d| format!("\\n{}", dot_escape(d)))
             .unwrap_or_default();
         let _ = writeln!(
             out,
@@ -238,6 +238,22 @@ pub fn to_dot(doc: &GraphDoc) -> String {
     }
     out.push_str("}\n");
     out
+}
+
+/// Escape a label fragment for a Graphviz dot quoted string. A `"` or `\`
+/// in the tool/model would otherwise terminate the `label="…"` and emit
+/// broken dot (e.g. a templated `model: ${{ vars.m }}` or an MCP tool name).
+fn dot_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// Escape a label fragment for a Mermaid `["…"]` node label. A literal `"`
+/// would close the label early (then a stray `]` closes the node); brackets
+/// are entity-escaped defensively. Mermaid reads `#NN;`/`#name;` HTML entities.
+fn mermaid_escape(s: &str) -> String {
+    s.replace('"', "#quot;")
+        .replace('[', "#91;")
+        .replace(']', "#93;")
 }
 
 /// Output format for the `graph` verb.
@@ -275,4 +291,42 @@ pub fn run(path: &str, format: GraphFormat) -> VerbOutput {
         GraphFormat::Dot => to_dot(&doc),
     };
     VerbOutput::ok(text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn renders(yaml: &str) -> (String, String) {
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        let doc = project(&wf, &report);
+        (to_mermaid(&doc), to_dot(&doc))
+    }
+
+    /// A model with chars special to mermaid (`"` `]`) or dot (`"`) must be
+    /// ESCAPED — an unescaped quote closed the label early and emitted broken
+    /// markup (a templated `model: ${{ vars.m }}` or an MCP tool name hits this
+    /// too). Regression: graph used to interpolate the model raw.
+    #[test]
+    fn special_chars_in_model_are_escaped_in_both_renders() {
+        // model value parses to ·  mock/echo"]x
+        let (mermaid, dot) = renders(
+            "nika: v1\nworkflow: adv\nmodel: \"mock/echo\\\"]x\"\ntasks:\n  - id: a\n    infer: { prompt: \"p\", max_tokens: 5 }\n",
+        );
+        assert!(
+            mermaid.contains("#quot;"),
+            "mermaid quote unescaped:\n{mermaid}"
+        );
+        assert!(
+            !mermaid.contains("echo\"]"),
+            "raw breaker leaked:\n{mermaid}"
+        );
+        assert!(dot.contains("echo\\\"]"), "dot quote unescaped:\n{dot}");
+    }
 }
