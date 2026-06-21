@@ -326,6 +326,17 @@ mod tests {
         assert!(lines[0].starts_with("  ok veille-news · "), "{}", lines[0]);
     }
 
+    /// The verdict line carries elapsed time as SECONDS (`ms / 1000`): a
+    /// mutated divisor (`* 1000` → `4_700_000s` · `% 1000` → `700s`) renders a
+    /// wildly wrong duration, so the exact `4.7s` pins the conversion.
+    #[test]
+    fn verdict_frame_renders_elapsed_as_seconds() {
+        let mut view = fold(&demo::success());
+        view.elapsed_ms = 4700;
+        let lines = verdict_frame(&view, &ASCII);
+        assert!(lines[0].contains("4.7s"), "elapsed → seconds: {}", lines[0]);
+    }
+
     #[test]
     fn frame_is_stable_under_ticks_when_nothing_runs() {
         let view = fold(&demo::success());

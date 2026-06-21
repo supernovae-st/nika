@@ -256,4 +256,14 @@ mod tests {
         // A zero sample floors at the bottom bar (top clamps to ≥1).
         assert_eq!(PLAIN.sparkline(&[0]), "▁");
     }
+
+    /// The scale NUMERATOR is `SPARK.len()-1` (=6), not `SPARK.len()` (=7):
+    /// a `/1`-mutated denominator (7 instead of 6) reads the same on the
+    /// ramps above but DIVERGES on a near-saturated tail. top=8: 8·6/8=6 →▇,
+    /// 7·6/8=5 →▆ — the mutant's 7·7/8=6 would draw ▇ (clamped), so only an
+    /// exact near-top sample catches the off-by-one in the scale factor.
+    #[test]
+    fn sparkline_scale_factor_is_len_minus_one() {
+        assert_eq!(PLAIN.sparkline(&[8, 7, 7]), "▇▆▆");
+    }
 }

@@ -257,4 +257,76 @@ mod tests {
         assert!(!out.text.contains("parallelism"), "{}", out.text);
         assert!(!out.text.contains("blast"), "{}", out.text);
     }
+
+    /// A fan-out of 5 nests every child under its first parent (the box-drawing
+    /// tree) and the witness antichain (width 5) truncates to 4 names + an
+    /// ellipsis. The exact rails pin the recursion (a mutated child-match or
+    /// last-detection breaks the nesting); the `· …` pins the `> 4` truncation.
+    #[test]
+    fn fan_out_nests_children_and_truncates_the_witness() {
+        let path = tmp(
+            "nika: v1\nworkflow: fan5\ntasks:\n  - id: root\n    exec: { command: \"echo r\" }\n  - id: c1\n    depends_on: [root]\n    exec: { command: \"echo 1\" }\n  - id: c2\n    depends_on: [root]\n    exec: { command: \"echo 2\" }\n  - id: c3\n    depends_on: [root]\n    exec: { command: \"echo 3\" }\n  - id: c4\n    depends_on: [root]\n    exec: { command: \"echo 4\" }\n  - id: c5\n    depends_on: [root]\n    exec: { command: \"echo 5\" }\n",
+        );
+        let out = run(path.to_str().expect("utf-8 tmp path"));
+        std::fs::remove_file(&path).ok();
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        // The tree: root on the spine, c1 the FIRST branch, c5 the LAST.
+        assert!(
+            out.text.contains("└─ root"),
+            "root on the spine: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("   ├─ c1"),
+            "c1 nested + branch rail: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("   └─ c5"),
+            "c5 nested + closing rail: {}",
+            out.text
+        );
+        // Width 5 → witness shows 4 names + the ellipsis.
+        assert!(
+            out.text
+                .contains("width 5 · can run together: c1 · c2 · c3 · c4 · …"),
+            "{}",
+            out.text
+        );
+        // One blast entry (root) ≤ 3 → NO "+N more" suffix.
+        assert!(
+            !out.text.contains("more"),
+            "single blast → no suffix: {}",
+            out.text
+        );
+    }
+
+    /// A wide diamond (4 middles · join) pins the truncation BOUNDARY: width 4
+    /// shows all 4 witness names with NO ellipsis (`> 4` is false), and the
+    /// blast report caps at 3 with a `+2 more` suffix (the `more > 0` guard).
+    #[test]
+    fn width_four_has_no_ellipsis_and_blast_caps_at_three() {
+        let path = tmp(
+            "nika: v1\nworkflow: wide-diamond\ntasks:\n  - id: root\n    exec: { command: \"echo r\" }\n  - id: m1\n    depends_on: [root]\n    exec: { command: \"echo 1\" }\n  - id: m2\n    depends_on: [root]\n    exec: { command: \"echo 2\" }\n  - id: m3\n    depends_on: [root]\n    exec: { command: \"echo 3\" }\n  - id: m4\n    depends_on: [root]\n    exec: { command: \"echo 4\" }\n  - id: join\n    depends_on: [m1, m2, m3, m4]\n    exec: { command: \"echo j\" }\n",
+        );
+        let out = run(path.to_str().expect("utf-8 tmp path"));
+        std::fs::remove_file(&path).ok();
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(
+            out.text
+                .contains("width 4 · can run together: m1 · m2 · m3 · m4"),
+            "{}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("m4 · …"),
+            "no ellipsis at the boundary: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("+2 more"),
+            "blast caps at 3 + suffix: {}",
+            out.text
+        );
+    }
 }

@@ -296,4 +296,28 @@ mod tests {
         }
         assert_eq!(sink.view().verdict, Some(false));
     }
+
+    /// The repaint clears the PRIOR frame only when one exists (`last_lines >
+    /// 0`). On the FIRST Live event there is nothing to clear, so no cursor-up
+    /// escape is written — a mutated guard (`== 0` / `>= 0`) would emit a
+    /// spurious `\x1b[0A` over an empty screen, so the first frame must be
+    /// escape-free (theme has color off · the only ANSI here would be cursor
+    /// control).
+    #[test]
+    fn fold_sink_live_first_frame_writes_no_cursor_jump() {
+        let theme = Theme {
+            color: false,
+            ascii: false,
+            animate: false,
+        };
+        let mut buf = Vec::new();
+        let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Live);
+        let events = demo::success();
+        sink.emit(events[0].clone()); // the FIRST event · last_lines was 0
+        let text = String::from_utf8(buf).expect("utf8");
+        assert!(
+            !text.contains('\x1b'),
+            "no prior frame to clear → no cursor-up escape: {text:?}"
+        );
+    }
 }

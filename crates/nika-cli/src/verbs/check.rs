@@ -497,4 +497,78 @@ mod tests {
             required_inputs(&wf)
         );
     }
+
+    /// Write a fixture + run the human `check` render over it (ascii/no-colour
+    /// so the assertions pin glyphs/text, not ANSI). The render path is what
+    /// the operator reads — these tests pin its exact words.
+    fn checked_text(name: &str, yaml: &str, ascii: bool) -> String {
+        let dir = std::env::temp_dir().join("nika-cli-killtests");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let path = dir.join(name);
+        std::fs::write(&path, yaml).expect("fixture body");
+        let theme = Theme {
+            color: false,
+            ascii,
+            animate: false,
+        };
+        run(path.to_str().expect("utf8 path"), false, theme).text
+    }
+
+    /// The COST section names a DISTINCT reason per unbounded task — a deleted
+    /// match arm collapses one of these into the bare `unbounded` fallback, so
+    /// each exact phrase pins its arm: `NoTokenLimit` · `NoPrice` · `UnknownIterations`.
+    #[test]
+    fn cost_section_names_each_unbounded_reason() {
+        let text = checked_text(
+            "cost-reasons.nika.yaml",
+            "nika: v1\nworkflow: cost-reasons\nvars:\n  items: { type: array, required: true }\ntasks:\n  - id: a\n    infer: { prompt: \"hi\", model: \"anthropic/claude-opus-4-20250514\" }\n  - id: b\n    infer: { prompt: \"hi\", model: \"ollama/llama3.1\", max_tokens: 50 }\n  - id: c\n    for_each: \"${{ vars.items }}\"\n    infer: { prompt: \"x\", model: \"anthropic/claude-opus-4-20250514\", max_tokens: 10 }\n",
+            true,
+        );
+        assert!(text.contains("no max_tokens declared"), "{text}");
+        assert!(
+            text.contains("no catalog price (local/unknown model)"),
+            "{text}"
+        );
+        assert!(
+            text.contains("for_each over an expression (unknown count)"),
+            "{text}"
+        );
+    }
+
+    /// `mark()` paints the verdict glyph on EVERY clean section — not just the
+    /// one literal verdict line. A mutated mark (returns `""` / `"xyzzy"`)
+    /// strips the section glyphs (count drops) or injects a placeholder.
+    #[test]
+    fn clean_report_marks_every_section() {
+        let text = checked_text(
+            "clean-one.nika.yaml",
+            "nika: v1\nworkflow: clean-one\ntasks:\n  - id: a\n    exec: { command: \"echo hi\" }\n",
+            false,
+        );
+        let ticks = text.matches('✔').count();
+        assert!(
+            ticks >= 5,
+            "every clean section carries ✔ (got {ticks}): {text}"
+        );
+        assert!(
+            !text.contains("xyzzy"),
+            "mark never emits a placeholder: {text}"
+        );
+    }
+
+    /// When conformance FAILS there is no valid DAG, so PLAN announces the skip
+    /// (gated on `!conformance.is_empty()`) — a deleted `!` would suppress the
+    /// line and leave the operator wondering where the plan went.
+    #[test]
+    fn plan_announces_the_skip_when_conformance_fails() {
+        let text = checked_text(
+            "plan-skip.nika.yaml",
+            "nika: v1\nworkflow: bad-ref\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ vars.nope }}\" }\n",
+            true,
+        );
+        assert!(
+            text.contains("(skipped — no valid DAG order while conformance fails)"),
+            "{text}"
+        );
+    }
 }

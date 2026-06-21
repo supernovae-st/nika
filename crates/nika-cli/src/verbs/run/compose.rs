@@ -636,4 +636,34 @@ mod tests {
             );
         }
     }
+
+    /// The production secret resolver reads BOTH stores it claims (spec
+    /// §secrets) — `env` from the OS environment, `file` from disk (newline
+    /// trimmed). Tested against real sources (PATH · a temp file) so no racy
+    /// `set_var` is needed; a deleted `Env`/`File` arm or an `Ok("…")` constant
+    /// returns the wrong value and fails the equality.
+    #[test]
+    fn secret_resolver_reads_env_and_file_stores() {
+        let resolver = EnvFileSecretResolver;
+        // env: PATH is always present + non-empty → resolves to its value.
+        // (the same sanctioned env→secret boundary the resolver itself carries)
+        #[allow(clippy::disallowed_methods)]
+        let path_value = std::env::var("PATH").expect("PATH set");
+        let got = resolver
+            .resolve("p", &SecretRef::new(SecretSource::Env, "PATH"))
+            .expect("env secret resolves");
+        assert_eq!(got, path_value);
+        // file: a temp file whose trailing newline is trimmed.
+        let dir = std::env::temp_dir().join("nika-cli-killtests");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let secret_file = dir.join("secret.txt");
+        std::fs::write(&secret_file, "s3cr3t\n").expect("write secret");
+        let got = resolver
+            .resolve(
+                "f",
+                &SecretRef::new(SecretSource::File, secret_file.to_str().expect("utf8")),
+            )
+            .expect("file secret resolves");
+        assert_eq!(got, "s3cr3t");
+    }
 }

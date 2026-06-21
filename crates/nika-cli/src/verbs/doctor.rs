@@ -351,6 +351,25 @@ mod tests {
         assert_eq!(exit_code(&f), exit::OK, "a local path is usable");
     }
 
+    /// Each severity prints a DISTINCT glyph — a `Default::default()` mutant
+    /// (the null char `'\0'`) would erase the level cue the operator scans for.
+    #[test]
+    fn level_glyphs_are_distinct() {
+        assert_eq!(Level::Ok.glyph(), '✔');
+        assert_eq!(Level::Warn.glyph(), '⚠');
+        assert_eq!(Level::Fail.glyph(), '✖');
+    }
+
+    /// `env_present` is a PRESENCE check (set + non-empty) — read against real
+    /// vars so no racy `set_var` is needed. PATH is always set + non-empty
+    /// (kills the `-> false` constant + the `!is_empty` negation); a name
+    /// nothing sets is absent (kills the `-> true` constant).
+    #[test]
+    fn env_present_reflects_the_real_environment() {
+        assert!(env_present("PATH"), "PATH is set + non-empty");
+        assert!(!env_present("NIKA_CLI_DEFINITELY_UNSET_VARIABLE_XYZZY"));
+    }
+
     #[test]
     fn the_real_catalog_has_no_fail_and_renders() {
         // The wired run() over the canonical catalog: local providers exist, so
