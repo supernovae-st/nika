@@ -77,11 +77,11 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `e1127ed74` (`e1127ed747bfd53e81b836c7f9296771abf624f4`)             |
+| HEAD             | `c43a8d0cd` (`c43a8d0cdc2401e42606f8766d9af37b52cd525c`)             |
 | workspace        | v0.90.0                                  |
 | crates (workspace)| 39                                              |
-| crates (admitted)| 37 / 42                                   |
-| crates (WIP)     | 2 — nika-cli nika-extract                                  |
+| crates (admitted)| 38 / 42                                   |
+| crates (WIP)     | 1 — nika-extract                                  |
 | L0               | 8                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
@@ -89,7 +89,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 4                                              |
-| lib tests        | 2898 passed, 0 failed                              |
+| lib tests        | 2927 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
