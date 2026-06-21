@@ -149,7 +149,9 @@ jobs:
       - uses: actions/checkout@v4
         if: steps.guard.outputs.ok == 'true'
         with:
-          repository: supernovae-st/homebrew-tap
+          # The tap repo was renamed homebrew-tap → homebrew-nika (GitHub
+          # redirects, but pin the canonical name).
+          repository: supernovae-st/homebrew-nika
           token: ${{ secrets.TAP_GITHUB_TOKEN }}
           path: tap
       - name: Update + push the formula
@@ -162,5 +164,13 @@ jobs:
           cd tap
           git config user.name "nika-release[bot]"
           git config user.email "nika@supernovae.studio"
-          git commit -am "nika ${VERSION}"
-          git push
+          # Stage ONLY the formula (no `-a` blanket-stage) + guard a re-dispatch
+          # for an already-bumped version (`git commit` exits non-zero on a
+          # clean tree, which `set -e` would turn into a job failure for a no-op).
+          git add Formula/nika.rb
+          if git diff --cached --quiet; then
+            echo "::notice::formula already at ${VERSION} — nothing to bump"
+          else
+            git commit -m "nika ${VERSION}"
+            git push
+          fi
