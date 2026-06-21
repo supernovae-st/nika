@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **SEEDED** (s17 · 2026-06-12 · admission step 12 per `crate-admission-order.md` · wired into `nika:fetch` step 13 same arc · 8 modes GREEN · full 12-gate admission at the wave close) |
+| Status | **ADMITTED** (all 12 gates · s17 · seeded 2026-06-12 · wired into `nika:fetch` step 13 · 9 modes · admitted 2026-06-21 · §7 gate table) |
 | Layer | **L1.5** — pure transformation · consumed by `nika-builtin` (`nika:fetch` step 13) · above the L0 types it shares, below nothing that does I/O |
 | Design | the extraction pipeline behind `nika:fetch`'s `mode:` argument — byte→structured transformation, **zero I/O · zero async · zero locks** |
 | Normative source | `nika-spec stdlib/extract-modes-v0.1.md` (the 9 canonical modes + implicit `raw`) — **this doc cites, never restates** |
@@ -87,5 +87,22 @@ DEAD — spec v0.1 closed set wins).
 - NOT the jq engine (`nika-builtin`'s `jaq` is — one data language).
 - NOT charset detection (the builtin decodes; v0.1 is strict UTF-8).
 - NOT media extraction (PDF/Word → `nika-media-*` · deferred stdlib v0.x).
+
+## §7 · The 12 gates (admission · 2026-06-21)
+
+| Gate | Status |
+|---|---|
+| 1 SPEC | ✅ this file |
+| 2 TDD | ✅ per-mode unit tests + the adversarial suite |
+| 3 IMPL | ✅ 9 modes · zero `.unwrap()` in `src/` · `#[forbid(unsafe_code)]` |
+| 4 CLIPPY | ✅ 0 warnings (`--all-targets -D warnings`) |
+| 5 MUTATION | ✅ 93.2% killed (373/400 viable · timeout-as-missed floor · 98% counting the depth-guard hang-kills) · residual 8 documented (3rd-party-gated cascade · author-documented sitemap no-op · niche boundaries) |
+| 6 PROPERTY | ✅ `extract_never_panics` (totality · all modes · arbitrary input) + `links_total_over_hostile_bases` |
+| 7 BENCHMARKS | N/A — the extraction LOGIC is not the hot path; the html5ever/scraper/quick-xml parse cost dominates and is the upstream libs' concern |
+| 8 DOCS | ✅ `cargo doc --no-deps --document-private-items` 0 warnings |
+| 9 CANARY E2E | ✅ `tests/adversarial.rs` (24 hostile-input cases · billion-laughs · XXE · DoS-bounding · bypass closure) + transitive coverage via the `nika:fetch` extract step in `nika-cli`'s e2e_pipeline |
+| 10 PARITY LEGACY | N/A — the v0.79 brouillon legacy modes (jsonpath/llm_txt/metadata_links) are DEAD by design (spec v0.1 closed set); the kept modes are a CRAFT rewrite (ADR-001), not a line-by-line port |
+| 11 REVIEW SWARM | ✅ 3-agent swarm (Nika-conventions · bug/logic · adversarial-refuter) · refuter SURVIVED (totality holds) · P1 og-URL absolutization fixed · 1 finding verify-before-fix rejected as W3C-correct |
+| 12 ATOMIC | ✅ this admission commit |
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
