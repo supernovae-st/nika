@@ -99,28 +99,63 @@ no cloud required · bring-your-own-LLM.
 Nika is built in the open.
 
 The **language** — the `nika: v1` envelope and its four verbs — is stable and
-won't break. The **engine** is a strict, modular Rust workspace under active
-development; the first usable ship tags as `v0.81` (language v0.1 + a
-vertical slice · summer 2026) and the first complete release as `v0.90`.
-Until then, the
-code, the [spec](https://github.com/supernovae-st/nika-spec), and the
+won't break. The **engine** is a strict, modular Rust workspace; it is
+currently **v0.90.0** (release-candidate grade), and the first public release
+ships as **1.0.0** on **2026-08-01**. The code, the
+[spec](https://github.com/supernovae-st/nika-spec), and the
 [example workflows](examples/) are all readable, and development happens on
 `main` in the open.
 
-Forever `v0.x`: every release is complete for its declared scope — no
-half-features parked behind a future major version.
+The `nika: v1` language envelope is frozen forever — a separate axis from the
+engine version. Every release is complete for its declared scope; no
+half-features parked behind a future version.
 
 ## Get started
 
-```bash
-git clone https://github.com/supernovae-st/nika.git && cd nika
-cargo test --workspace --lib
+Install (macOS · Linux):
+
+```sh
+brew install supernovae-st/nika/nika
+nika --version
 ```
 
-End-user install (Homebrew tap · `cargo install nika` · `curl | sh`) is
-documented at
-[docs.nika.sh/getting-started/installation](https://docs.nika.sh/getting-started/installation)
-as milestones tag.
+Your first workflow runs with **zero setup** — no model, no API key:
+
+```sh
+cat > hello.nika.yaml <<'YAML'
+nika: v1
+workflow: hello
+tasks:
+  - id: greet
+    exec:
+      command: "echo hello from nika"
+YAML
+
+nika check hello.nika.yaml   # static audit — before a single token is spent
+nika run hello.nika.yaml     # execute locally
+```
+
+Adding an AI step? With no provider handy, the built-in `mock/echo` model lets
+you see the shape offline — swap it for a real model when ready:
+
+```yaml
+model: mock/echo             # → ollama/llama3.1, anthropic/…, openai/… when ready
+tasks:
+  - id: greet
+    infer:
+      prompt: "Say hello in one sentence."
+```
+
+For real inference, run a local model (Ollama / LM Studio) or set a provider
+key, then see what's wired:
+
+```sh
+nika doctor                  # provider keys + local servers, with the exact fix
+nika examples list           # browse the embedded examples
+nika examples run 01-hello   # runs on ollama/llama3.1 by default
+```
+
+From source (contributors): `git clone https://github.com/supernovae-st/nika.git && cd nika && cargo test --workspace --lib`. End-user docs: [docs.nika.sh](https://docs.nika.sh).
 
 ## Documentation
 
