@@ -26,7 +26,14 @@ use nika_cli::{RunView, Theme, frame};
 use nika_event::Event;
 
 #[derive(Parser)]
-#[command(name = "nika-cli", version, about = "nika operator surface (WIP seed)")]
+// The PUBLIC binary name is `nika` (the release renames the nika-cli artifact +
+// the Homebrew formula tests `nika --version`); clap embeds THIS name, not the
+// filename, so the version/usage/errors must say `nika`, not the seed crate name.
+#[command(
+    name = "nika",
+    version,
+    about = "nika · the AI workflow engine — operator surface"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
