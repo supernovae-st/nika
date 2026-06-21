@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | **PRE-BUILD SPEC** (Gate 1 authored 2026-06-11, ahead of the S6 build — the experience contract is locked before the first line of Rust) |
+| Status | **ADMITTED** (all 12 gates · spec authored 2026-06-11 ahead of the S6 build, the experience contract locked before the first line of Rust · admitted 2026-06-21) |
 | Layer | L4 interface (composition root `nika` stays L5 · <500 LOC) |
 | Decision | D-2026-06-10-N6 (first-15-min suite · self-contained binary) · ADR-092 (check ladder) · experience contract below |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) |
@@ -239,15 +239,25 @@ a blocking card (TTY) or refuse with exit 3 (`--yes` required in CI) ·
 records `cancelled`) · budgets always visible in the footer meter. No
 surface auto-escalates permits, ever.
 
-## 11. The 12 gates (pre-build readiness)
+## 11. The 12 gates (admission · 2026-06-21)
 
 | Gate | Status |
 |---|---|
 | 1 SPEC | ✅ this file (2026-06-11 · ahead of build) |
-| 2-12 | at S6 build — TDD against §3 frames (snapshot tests pin BOTH glyph themes), property tests on the fold (event permutations → consistent terminal states), golden `--json` contract |
+| 2 TDD | ✅ RED→GREEN · render frames + verbs + the e2e pipeline |
+| 3 IMPL | ✅ compiles · the full first-15-min verb tree (check · run · trace · inspect · graph · explain · spec · schema · examples · new · doctor · pack · completions · lsp · mcp) |
+| 4 CLIPPY | ✅ 0 warnings (`--all-targets -D warnings`) |
+| 5 MUTATION | ✅ 91.0% killed (264/290 viable) · residual are equivalent (the sparkline `.min()` clamp + unreachable `unwrap_or`) or low-value (infallible-writer `into_error`, best-effort stderr, a few composition-root paths) |
+| 6 PROPERTY | ✅ `tests/fold_property.rs` — the fold's monoid invariants (cost conservation · one-row-per-task · permutation-invariance · sequential≡interleaved-wave) |
+| 7 BENCHMARKS | N/A — the CLI is not a hot path; the benched surfaces (parser · CEL · runtime) live in their own crates |
+| 8 DOCS | ✅ `cargo doc --no-deps --document-private-items` 0 warnings |
+| 9 CANARY E2E | ✅ `tests/e2e_pipeline.rs` — the L3-rehearsal suite (static audit · happy path · structured output · failure cascade · trace round-trip · agent loop/repair/whitelist) |
+| 10 PARITY LEGACY | N/A — a Diamond-only operator surface; the v0.79 brouillon had no equivalent `nika-cli` to golden against |
+| 11 REVIEW SWARM | ✅ 3-agent swarm · P1 (`--dry-run --output json` stdout corruption) fixed via clap `conflicts_with_all` · `#[non_exhaustive]` on `RenderMode` |
+| 12 ATOMIC | ✅ this admission commit |
 
-Prototype: `scripts/dev/render-trace.py` renders this exact grammar from a
-trace NDJSON today (`--demo` included) — the design is runnable before the
-Rust exists.
+Prototype: `scripts/dev/render-trace.py` rendered this exact grammar from a
+trace NDJSON before the Rust existed (`--demo` included) — the design was
+runnable ahead of the build.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.

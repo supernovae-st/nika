@@ -3659,6 +3659,7 @@ dependencies = [
  "nika-verb-exec",
  "nika-verb-infer",
  "nika-verb-invoke",
+ "proptest",
  "serde",
  "serde_json",
  "tokio",

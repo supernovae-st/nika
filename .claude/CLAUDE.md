@@ -130,11 +130,11 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `e1127ed74` (`e1127ed747bfd53e81b836c7f9296771abf624f4`)             |
+| HEAD             | `c43a8d0cd` (`c43a8d0cdc2401e42606f8766d9af37b52cd525c`)             |
 | workspace        | v0.90.0                                  |
 | crates (workspace)| 39                                              |
-| crates (admitted)| 37 / 42                                   |
-| crates (WIP)     | 2 — nika-cli nika-extract                                  |
+| crates (admitted)| 38 / 42                                   |
+| crates (WIP)     | 1 — nika-extract                                  |
 | L0               | 8                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
@@ -142,7 +142,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 4                                              |
-| lib tests        | 2898 passed, 0 failed                              |
+| lib tests        | 2927 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
@@ -152,7 +152,7 @@ Narrative context (manually maintained):
 - L1 admitted: nika-clock, nika-bm25, nika-screen, nika-ocr, nika-a11y, nika-input (M2.4 · Guards 1+2), nika-browser (M2.5 · Guard 5 + occlusion hit-test), nika-fs (atomic write · s4), nika-http (reqwest+rustls · 3-layer SSRF + cross-origin cred-strip · s5), nika-blob (blake3 CAS · sidecar mime · s6), nika-exec-runner (shell/process effect · s7).
 - L1.5 admitted: nika-providers (s8.5 · 14/14 providers wired across 3 wire formats incl gemini s8.6 · kernel http seam), nika-infer-local (sovereign local inference sidecar · ADR-091), nika-builtin (s16 · the 22 stdlib builtins behind ONE dispatcher · the 3 tool seams · the agent's first real tool source). WIP: nika-extract (the 9 fetch extract modes).
 - L2 admitted: nika-verb-infer (s9 · FIRST verb crate · one-shot infer · structured-output floor · NIKA-430..433), nika-verb-exec (s10 · shell exec · kernel ShellRunDyn seam · capture one-obvious-way split · NIKA-440..442), nika-verb-invoke (s11 · builtin/MCP tool call · kernel ToolExecuteDyn seam · closed nika:/mcp: namespace validated · NIKA-450..452), nika-verb-agent (s12 · the 4th+LAST verb · multi-turn ReAct loop · 3 injected seams ProviderInferDyn+ToolExecuteDyn+ToolDefinitionProviderDyn · default-deny whitelist · NIKA-460..466).
-- L4 admitted: nika-catalog-verify, nika-lsp (stdio language server · `nika lsp`), nika-mcp (in-binary MCP server · `nika mcp`). WIP: nika-cli (operator-surface seed 2026-06-11 · display fold + trace replay|show + the e2e L3-rehearsal suite · S6 build grows the full first-15-min verb tree per D-2026-06-10-N6).
+- L4 admitted: nika-catalog-verify, nika-lsp (stdio language server · `nika lsp`), nika-mcp (in-binary MCP server · `nika mcp`), nika-cli (the operator surface · admitted 2026-06-21 · the first-15-min verb tree check/run/trace/inspect/graph/explain/spec/schema/examples/new/doctor/pack/completions + lsp/mcp · display fold render + the --no-progress/--quiet/--dry-run reduced surfaces · Gate-5 91% · Gate-6 fold property · all 12 gates per docs/crate-specs/nika-cli.md §11).
 - 0 unwraps in `src/`, Gate 8 GREEN, Invariant #19 FULL.
 - 32 providers, 49 capability rules, 7-axis ModelPricing, scope.providers canonical.
 - Q1-Q13 L0/L0.5 architecture decisions LOCKED 2026-04-16
@@ -166,10 +166,11 @@ Narrative context (manually maintained):
   L2 (nika-verb-{infer,exec,invoke,agent} · s9-s12 · the 4-verb tier COMPLETE).
   Phase 2 M2 computer-use (L1) **COMPLETE** · 5 crates admitted
   (nika-{screen,ocr,a11y,input,browser} · ADR-081 7-guard contract ·
-  NIKA-1000..1599 · detail in `docs/crate-specs/` + adr-081). **WIP toward the
-  slice** · nika-cli (operator surface · check/run/trace/explain) · nika-builtin
-  (s16 · the 22 stdlib tools behind one dispatcher · the agent's first real tool
-  source) · nika-extract · nika-infer-local (candle · ADR-091).
+  NIKA-1000..1599 · detail in `docs/crate-specs/` + adr-081). The first-15-min
+  slice is now CLOSED at the surface · nika-cli (operator surface · admitted
+  2026-06-21) + nika-builtin (s16 · the 22 stdlib tools) + nika-infer-local
+  (candle · ADR-091) are all admitted. **WIP** · nika-extract (the 9 fetch
+  extract modes · the last WIP crate).
 - **Last stabilization — 2026-06-16** (origin/main `0b558f7f8`) · the static-check
   layer hardened to runtime-parity. **DEEP_GAPS conformance ledger EMPTIED** ·
   jq compile-check (jaq) + schema meta-check (jsonschema), both in L0 calling the
@@ -179,8 +180,8 @@ Narrative context (manually maintained):
   stream-binding lint. CF-1 for_each positional-null verified spec-correct (not a
   bug · test + spec clarification). Full battery green · 2687 lib + e2e + 503-wf
   corpus check (0 panic / 0 internal-code leak) + hygiene 0-RED.
-- **Next** · finish the WIP trio (cli + builtin + extract) to close the usable
-  announce slice · then the L0-completion crates (nika-cap · pck-contracts ·
+- **Next** · finish the LAST WIP crate (nika-extract · the 9 fetch extract modes)
+  to close the announce slice · then the L0-completion crates (nika-cap · pck-contracts ·
   binding-types) for L0-foundation completion · then design-partner `1.0.0-rc.N` → the **1.0.0** launch (amended D-2026-06-20-N1). Engine now 0.90.0 (RC-grade) · 42-crate target reached additively across the 1.x minors.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
