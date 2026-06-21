@@ -52,6 +52,7 @@ path = "src/main.rs"
 [dev-dependencies]
 # Test-only seams: the mocks the e2e pipeline + the run-verb tests inject.
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.90.0" }
+proptest = { workspace = true }   # Gate 6 · the fold's order-independence property (tests/fold_property.rs)
 
 [package.metadata.lore]
 daemon        = "messager"
