@@ -231,6 +231,37 @@ fn run_no_progress_emits_no_ansi() {
 }
 
 #[test]
+fn run_human_flags_conflict_with_machine_modes() {
+    // The render/plan flags are HUMAN surfaces · clap REFUSES them alongside
+    // the `--json`/`--output json` machine modes, so a parsed-but-ignored flag
+    // can never silently corrupt the `capture: stdout` JSON contract.
+    let dir = std::env::temp_dir().join(format!("nika-bin-conflict-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let wf = write_fixture(&dir, "ok.nika.yaml", VALID);
+
+    for human in ["--dry-run", "--quiet", "--no-progress"] {
+        let out = bin()
+            .arg("run")
+            .arg(&wf)
+            .arg(human)
+            .arg("--json")
+            .output()
+            .expect("binary runs");
+        assert!(
+            !out.status.success(),
+            "{human} + --json must be a usage error, got {:?}",
+            out.status.code()
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains("cannot be used with") || stderr.contains("conflict"),
+            "clap names the {human}/--json conflict: {stderr}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn check_cycle_exits_two_with_findings() {
     let dir = std::env::temp_dir().join("nika-bin-smoke-bad");
     std::fs::create_dir_all(&dir).expect("tmp dir");

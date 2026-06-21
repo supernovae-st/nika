@@ -71,13 +71,18 @@ enum Command {
         ascii: bool,
         /// Plain render: one final storyboard frame, no animation (the
         /// CI-stable surface · also the default when stdout is piped).
-        #[arg(long)]
+        /// A human surface — meaningless with the `--json`/`--output` machine
+        /// modes, so refused there (the machine surface owns its rendering).
+        #[arg(long, conflicts_with_all = ["json", "output"])]
         no_progress: bool,
-        /// Quiet: print only the final verdict card (errors always).
-        #[arg(long, conflicts_with = "no_progress")]
+        /// Quiet: print only the final verdict card (errors always). A human
+        /// surface · refused with `--no-progress` and the machine modes.
+        #[arg(long, conflicts_with_all = ["no_progress", "json", "output"])]
         quiet: bool,
         /// Plan only — show the static plan and execute ZERO effects (spec §10).
-        #[arg(long)]
+        /// A human plan preview · refused with the `--json`/`--output` machine
+        /// modes (no machine dry-run form yet · would silently corrupt stdout).
+        #[arg(long, conflicts_with_all = ["json", "output"])]
         dry_run: bool,
     },
     /// Static anatomy: tasks · verbs · DAG tree · cost · permits.

@@ -18,6 +18,7 @@ use crate::{RunView, Theme, frame, verdict_frame};
 
 /// How the live fold reaches the terminal (spec §3.5 reduced surfaces).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RenderMode {
     /// Rich TTY: in-place repaint per event (cursor control · the default).
     Live,
