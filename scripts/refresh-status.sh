@@ -67,7 +67,10 @@ L4_COUNT=$(count_layer "L4")
 # WIP list DERIVED from the projector (single source · [workspace.metadata.diamond]
 # wip = [...] in Cargo.toml) — no re-hardcoded list (per crate-spec-metrics ratchet).
 WIP_CRATES="$(bash scripts/crate-metrics.sh --wip | xargs)"
-WIP_COUNT=$(bash scripts/crate-metrics.sh --wip | grep -c .)
+# `grep -c` exits 1 on zero matches under `set -e` — absorb with `|| true`
+# (same as count_layer) so an EMPTY wip array (every crate admitted) returns
+# 0 instead of failing the whole script.
+WIP_COUNT=$(bash scripts/crate-metrics.sh --wip | grep -c . || true)
 ADMITTED_COUNT=$((WORKSPACE_MEMBERS - WIP_COUNT))
 
 # ── tests ──────────────────────────────────────────────────────────
