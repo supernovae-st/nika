@@ -18,6 +18,41 @@ tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 
 ## [Unreleased]
 
+### 🏁 Both WIP crates ADMITTED — the engine wip array is EMPTY (39/42 · 2026-06-21)
+
+- **`nika-cli` crate** admitted (L4 · the operator surface · the `nika` verb
+  tree: check · run · trace · inspect · graph · explain · spec · schema ·
+  examples · new · doctor · pack · completions · lsp · mcp). New this admission:
+  the spec §3.5 reduced surfaces — `--no-progress` (plain · CI default),
+  `--quiet` (the compact verdict card), `--dry-run` (plan only · zero effects) —
+  via a 3-mode `RenderMode` over a shared, drift-free failure-card render.
+  - **Gate 5** mutation 91% (264/290) · **Gate 6** the fold property battery
+    (`tests/fold_property.rs` — cost-conservation · one-row-per-task ·
+    permutation-invariance · sequential ≡ interleaved-wave).
+  - **Review swarm** caught + fixed a real P1: `--dry-run --output json` had
+    corrupted the clean-JSON lane → the human flags now `conflicts_with_all`
+    the machine modes (clap).
+- **`nika-extract` crate** admitted (L1.5 · the 9 fetch extract modes behind
+  the `nika:fetch` extract step — article Trafilatura cascade · feed · sitemap ·
+  metadata + schema.org microdata · blocks · zones · page-type · links).
+  - **Gate 5** mutation 79.7% → 93.2% (~50 boundary tests killed 73/81
+    survivors in the heuristic functions) · **Gate 6** totality over all 9 modes.
+  - **Review swarm** (3 agents): the adversarial refuter SURVIVED (totality +
+    DoS-bounding hold); fixed og:video/audio absolutization + host-only search
+    URLs; added a per-item microdata property cap (defense-in-depth). One agent
+    finding was **rejected** verify-before-fix (`<a itemprop=url>` with no href
+    → `""` is W3C-correct, not a text fallback).
+
+### 🚚 Release engineering — cross-platform binary pipeline (2026-06-21)
+
+- **`.github/workflows/release.yml`** — on a `vX.Y.Z` tag, builds the four
+  `nika` binaries (macOS arm64/x64 · Linux arm64/x64), cuts the GitHub release
+  with the exact tarballs the Homebrew formula points at, and (with a
+  `TAP_GITHUB_TOKEN` secret) bumps the tap formula. Fires only on a tag —
+  nothing publishes until you tag. `scripts/release/update-formula.sh` does the
+  version + sha256 rewrite (runnable by hand too). Unblocks the Homebrew path
+  that had no pipeline.
+
 ### 🏛️ nika-schema L0 admission — parser + analyzer + static-check (ADMITTED · all 12 gates · 2026-06-18)
 
 - **`nika-schema` crate** admitted — the workflow AST, parser, analyzer, and

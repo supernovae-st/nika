@@ -1,0 +1,166 @@
+name: release
+
+# Cross-platform binary release. On a `vX.Y.Z` tag this builds the four
+# `nika` binaries the Homebrew formula points at, cuts the GitHub release with
+# those tarballs, then (optionally) bumps the tap formula. Nothing runs until a
+# tag is pushed — shipping this file triggers nothing.
+#
+# SECURITY (cf diamond-ci.yml): every `run:` step references only `matrix.*`
+# (static literals in this file), `github.ref_name` / the `tag` input (the
+# pushed tag — a `vX.Y.Z` string, not attacker-authored free text), and values
+# passed through `env:`. No issue/PR/comment text reaches a shell.
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re)build, e.g. v0.90.0'
+        required: true
+
+permissions:
+  contents: write # create the release + upload assets
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+
+jobs:
+  build:
+    name: build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS: arm64 native + x64 cross-compiled on the same arm runner
+          # (the engine is pure-Rust + rustls — no C/OpenSSL — so the darwin
+          # cross-build is clean and avoids the deprecated macos-13 runner).
+          - { os: macos-latest, target: aarch64-apple-darwin, name: macos-arm64 }
+          - { os: macos-latest, target: x86_64-apple-darwin, name: macos-x64 }
+          # Linux: GNU on the OLDEST runners for the broadest glibc compat
+          # (switch to `*-unknown-linux-musl` + musl-tools for fully-static
+          # binaries if a glibc-version complaint ever surfaces).
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, name: linux-x64 }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, name: linux-arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add the Rust target
+        run: rustup target add ${{ matrix.target }}
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: release-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
+      - name: Build nika-cli (release · locked)
+        run: cargo build --release --locked --bin nika-cli --target ${{ matrix.target }}
+      - name: Package as `nika`
+        env:
+          ASSET_NAME: ${{ matrix.name }}
+          TARGET: ${{ matrix.target }}
+          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${REF_NAME#v}"
+          stage="$(mktemp -d)"
+          # The PUBLIC binary is `nika` (the formula does `bin.install "nika"`).
+          # nika-cli is the seed surface until the L5 `nika` composition root
+          # ships; the release renames it to its public name.
+          cp "target/${TARGET}/release/nika-cli" "${stage}/nika"
+          chmod +x "${stage}/nika"
+          tarball="nika-${ASSET_NAME}-${version}.tar.gz"
+          tar -czf "${tarball}" -C "${stage}" nika
+          shasum -a 256 "${tarball}" | tee "${tarball}.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nika-${{ matrix.name }}
+          path: |
+            nika-*.tar.gz
+            nika-*.tar.gz.sha256
+          if-no-files-found: error
+
+  release:
+    name: github release
+    needs: build
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Aggregate checksums + version
+        id: meta
+        env:
+          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          echo "version=${REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          (cd artifacts && cat ./*.tar.gz.sha256 | sort > SHA256SUMS)
+          {
+            echo "## Checksums"
+            echo '```'
+            cat artifacts/SHA256SUMS
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release create "$REF_NAME" \
+            --repo "$REPO" \
+            --title "$REF_NAME" \
+            --generate-notes \
+            --verify-tag \
+            artifacts/nika-*.tar.gz artifacts/SHA256SUMS
+
+  bump-formula:
+    name: bump homebrew tap
+    needs: release
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Guard on the tap token
+        id: guard
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${TAP_TOKEN:-}" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::TAP_GITHUB_TOKEN unset — skipping the formula bump. The release + checksums are published; run scripts/release/update-formula.sh against the tap manually."
+          fi
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.ok == 'true'
+      - uses: actions/download-artifact@v4
+        if: steps.guard.outputs.ok == 'true'
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.ok == 'true'
+        with:
+          repository: supernovae-st/homebrew-tap
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          path: tap
+      - name: Update + push the formula
+        if: steps.guard.outputs.ok == 'true'
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          bash scripts/release/update-formula.sh tap/Formula/nika.rb "$VERSION" artifacts
+          cd tap
+          git config user.name "nika-release[bot]"
+          git config user.email "nika@supernovae.studio"
+          git commit -am "nika ${VERSION}"
+          git push
