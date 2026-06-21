@@ -130,7 +130,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `d0fb8d17b` (`d0fb8d17b83240166b2d93250db4261aaab78f1a`)             |
+| HEAD             | `6e38973f9` (`6e38973f9e4afbdd9c7919ecfc989a25693926dd`)             |
 | workspace        | v0.90.0                                  |
 | crates (workspace)| 39                                              |
 | crates (admitted)| 39 / 42                                   |
