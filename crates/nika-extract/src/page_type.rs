@@ -67,7 +67,12 @@ fn classify_url(url: &str) -> Option<PageType> {
     // KEEPING the leading `/` so `/product`-style patterns match.
     let lower = url.to_ascii_lowercase();
     let after_scheme = lower.split_once("://").map_or(lower.as_str(), |(_, r)| r);
-    let tail = after_scheme.find('/').map_or("/", |i| &after_scheme[i..]);
+    // Tail = the path+query (drop the host). Start at the FIRST `/` OR `?` —
+    // a query can ride directly on the host (`example.com?q=…`, no path), and
+    // missing it dropped the type signal (a bare-host search → misclassified).
+    let tail = after_scheme
+        .find(['/', '?'])
+        .map_or("/", |i| &after_scheme[i..]);
 
     // Search — distinctive query keys.
     if tail.contains("/search")
@@ -221,7 +226,7 @@ fn matches(doc: &Html, sel: &LazyLock<Option<Selector>>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{PageType, classify};
+    use super::{PageType, classify, classify_url};
 
     fn t(url: &str) -> PageType {
         classify("<html><body></body></html>", Some(url))
@@ -280,5 +285,58 @@ mod tests {
         assert!(!PageType::Article.comments_are_content());
         assert!(!PageType::Product.comments_are_content());
         assert!(!PageType::Generic.comments_are_content());
+    }
+
+    /// Each search-query key classifies as Search ON ITS OWN — the keys are
+    /// OR-ed, so flipping any `||` to `&&` (which would demand every key at
+    /// once) is caught by a URL carrying exactly one key.
+    #[test]
+    fn each_search_key_alone_is_search() {
+        for url in [
+            "https://x.com/search",
+            "https://x.com/p?q=rust",
+            "https://x.com/p?a=1&q=rust",
+            "https://x.com/p?query=rust",
+            "https://x.com/p?s=rust",
+        ] {
+            assert_eq!(classify_url(url), Some(PageType::Search), "{url}");
+        }
+    }
+
+    /// A query riding directly on the host (no path) still classifies — the
+    /// tail starts at `/` OR `?` (regression for the host-only-query gap).
+    #[test]
+    fn host_only_query_string_is_search() {
+        assert_eq!(
+            classify_url("https://search.example.com?q=rust"),
+            Some(PageType::Search)
+        );
+    }
+
+    /// `dated_path` needs a 4-digit year AND a 1–2 digit month in 01–12 — both
+    /// conjuncts matter, so a year+non-month and a year+out-of-range-month must
+    /// NOT classify as Article (flipping either `&&` to `||` would accept them).
+    #[test]
+    fn dated_path_requires_year_and_valid_month() {
+        assert_eq!(
+            classify_url("https://x.com/2026/06/headline"),
+            Some(PageType::Article),
+            "a real /YYYY/MM/ permalink is an article"
+        );
+        assert_eq!(
+            classify_url("https://x.com/2026/headline"),
+            None,
+            "year + non-numeric next segment is not dated"
+        );
+        assert_eq!(
+            classify_url("https://x.com/2026/99/x"),
+            None,
+            "month out of 01–12 range is not dated"
+        );
+        assert_eq!(
+            classify_url("https://x.com/abcd/06/x"),
+            None,
+            "a 4-char NON-numeric segment is not a year (the year is digits AND len 4)"
+        );
     }
 }

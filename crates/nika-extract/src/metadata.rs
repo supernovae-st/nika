@@ -60,6 +60,13 @@ const MAX_MICRODATA_ITEMS: usize = 64;
 /// schema.org nests 2–3 deep · `Product` → `offers` → `priceSpecification`).
 const MAX_MICRODATA_DEPTH: usize = 16;
 
+/// Cap on properties surfaced PER item — the item cap bounds the number of
+/// roots, the depth cap bounds nesting, but a single `itemscope` with a
+/// flat flood of `itemprop` children was unbounded (work + output O(input)).
+/// 1024 is far above any real schema.org item (`Recipe`/`Product` rarely
+/// exceed ~40) while bounding a hostile flat-flood page.
+const MAX_PROPERTIES_PER_ITEM: usize = 1024;
+
 /// Fold one `<meta>` tag into the metadata maps — `og:*`/`twitter:*`
 /// prefixes route to their objects · the scalar names (`description` ·
 /// `author` · `article:published_time`) land at the top level ·
@@ -181,12 +188,14 @@ pub(crate) fn metadata(body: &str, base: Option<&str>) -> serde_json::Value {
     }
 
     // Absolutize the URL-valued og/twitter keys against the effective base
-    // — `og:image`/`og:url`/`twitter:image` are routinely relative or
-    // protocol-relative, and a social-preview consumer needs the absolute
-    // URL (consistent with how `canonical`/`favicon` are already resolved).
-    // Only the exact URL keys (NOT `image:width`/`image:alt` subkeys).
-    absolutize_url(&mut og, "image", base);
-    absolutize_url(&mut og, "url", base);
+    // — these are routinely relative or protocol-relative, and a social-
+    // preview consumer needs the absolute URL (consistent with how
+    // `canonical`/`favicon` are already resolved). Every URL-VALUED key
+    // (image · url · the secure-image variant · video · audio), NOT the
+    // dimension/text subkeys (`image:width`/`image:alt` stay verbatim).
+    for key in ["image", "image:secure_url", "url", "video", "audio"] {
+        absolutize_url(&mut og, key, base);
+    }
     absolutize_url(&mut twitter, "image", base);
 
     out.insert("og".to_owned(), serde_json::Value::Object(og));
@@ -299,6 +308,12 @@ fn property_elements(item: scraper::ElementRef<'_>) -> Vec<scraper::ElementRef<'
         let is_scope = el.value().attr("itemscope").is_some();
         if el.value().attr("itemprop").is_some() {
             results.push(el);
+            // Defense-in-depth: a single item with a flat flood of itemprop
+            // children would otherwise grow `results` (and the downstream
+            // per-property allocations) O(input). Stop at the cap.
+            if results.len() >= MAX_PROPERTIES_PER_ITEM {
+                break;
+            }
         }
         // Descend ONLY through non-item elements: an `itemscope` boundary
         // ends this item's property region (its children are its own).
@@ -422,4 +437,90 @@ fn resolve(href: &str, base: Option<&str>) -> Option<String> {
         None => url::Url::parse(href).ok()?,
     };
     matches!(url.scheme(), "http" | "https").then(|| url.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every URL-VALUED og key is absolutized against the base — not just
+    /// `image`/`url`. A relative `og:video`/`og:audio`/`og:image:secure_url`
+    /// must surface absolute (the asymmetry that leaked relative URLs).
+    #[test]
+    fn og_url_valued_keys_are_absolutized() {
+        let body = r#"<html><head>
+          <meta property="og:video" content="/v/clip.mp4">
+          <meta property="og:audio" content="/a/track.mp3">
+          <meta property="og:image:secure_url" content="/i/secure.png">
+          <meta property="og:image:width" content="640">
+        </head></html>"#;
+        let out = metadata(body, Some("https://ex.com/article"));
+        let og = out.get("og").expect("og present");
+        assert_eq!(og.get("video").expect("video"), "https://ex.com/v/clip.mp4");
+        assert_eq!(
+            og.get("audio").expect("audio"),
+            "https://ex.com/a/track.mp3"
+        );
+        assert_eq!(
+            og.get("image:secure_url").expect("secure_url"),
+            "https://ex.com/i/secure.png"
+        );
+        // NON-url subkeys stay verbatim (a dimension, not a URL).
+        assert_eq!(og.get("image:width").expect("width"), "640");
+    }
+
+    /// An empty `itemid` is dropped (the `!s.is_empty()` filter); a non-empty
+    /// one surfaces as `id`.
+    #[test]
+    fn microdata_itemid_empty_is_dropped() {
+        let with = metadata(
+            r#"<div itemscope itemtype="https://schema.org/Thing" itemid="urn:x"></div>"#,
+            None,
+        );
+        assert_eq!(with["microdata"][0].get("id").expect("id"), "urn:x");
+
+        let without = metadata(
+            r#"<div itemscope itemtype="https://schema.org/Thing" itemid=""></div>"#,
+            None,
+        );
+        assert!(
+            without["microdata"][0].get("id").is_none(),
+            "empty itemid is not surfaced"
+        );
+    }
+
+    /// `<object itemprop data=…>` resolves the `data` URL — a deleted match arm
+    /// would fall through to the text content (empty for `<object>`).
+    #[test]
+    fn microdata_object_data_url_is_resolved() {
+        let out = metadata(
+            r#"<div itemscope itemtype="https://schema.org/X"><object itemprop="u" data="/widget"></object></div>"#,
+            Some("https://ex.com/"),
+        );
+        assert_eq!(
+            out["microdata"][0]["properties"]["u"][0],
+            "https://ex.com/widget"
+        );
+    }
+
+    /// Defense-in-depth: a single item with a flat flood of `itemprop` children
+    /// is bounded at `MAX_PROPERTIES_PER_ITEM` (a normal item is unaffected).
+    #[test]
+    fn microdata_properties_are_capped_against_a_flood() {
+        use std::fmt::Write as _;
+        let mut body = String::from(r#"<div itemscope itemtype="https://schema.org/Thing">"#);
+        for i in 0..(MAX_PROPERTIES_PER_ITEM + 50) {
+            let _ = write!(body, r#"<span itemprop="p{i}">v</span>"#);
+        }
+        body.push_str("</div>");
+        let out = metadata(&body, None);
+        let props = out["microdata"][0]["properties"]
+            .as_object()
+            .expect("properties object");
+        assert!(
+            props.len() <= MAX_PROPERTIES_PER_ITEM,
+            "properties bounded at the cap (got {})",
+            props.len()
+        );
+    }
 }
