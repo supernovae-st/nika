@@ -69,6 +69,16 @@ enum Command {
         /// Force the ASCII glyph theme.
         #[arg(long)]
         ascii: bool,
+        /// Plain render: one final storyboard frame, no animation (the
+        /// CI-stable surface · also the default when stdout is piped).
+        #[arg(long)]
+        no_progress: bool,
+        /// Quiet: print only the final verdict card (errors always).
+        #[arg(long, conflicts_with = "no_progress")]
+        quiet: bool,
+        /// Plan only — show the static plan and execute ZERO effects (spec §10).
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Static anatomy: tasks · verbs · DAG tree · cost · permits.
     Inspect {
@@ -225,7 +235,17 @@ fn main() -> std::process::ExitCode {
             output,
             no_color,
             ascii,
-        } => verbs::run::run(&file, json, output.as_deref(), term_theme(no_color, ascii)),
+            no_progress,
+            quiet,
+            dry_run,
+        } => verbs::run::run(
+            &file,
+            json,
+            output.as_deref(),
+            term_theme(no_color, ascii),
+            resolve_run_mode(quiet, no_progress),
+            dry_run,
+        ),
         Command::Inspect { file } => emit(&verbs::inspect::run(&file)),
         Command::Graph { file, format } => {
             let format = match format {
@@ -292,6 +312,21 @@ fn emit(out: &VerbOutput) -> u8 {
         println!("{}", out.text.trim_end());
     }
     out.code
+}
+
+/// Resolve the live-render surface for `run` (spec §3.5 reduced surfaces):
+/// `--quiet` wins → the compact verdict card only; `--no-progress` OR a piped
+/// stdout → the plain final storyboard (no animation · CI-stable); otherwise
+/// the rich in-place repaint.
+fn resolve_run_mode(quiet: bool, no_progress: bool) -> verbs::run::RenderMode {
+    use verbs::run::RenderMode;
+    if quiet {
+        RenderMode::Quiet
+    } else if no_progress || !std::io::stdout().is_terminal() {
+        RenderMode::Plain
+    } else {
+        RenderMode::Live
+    }
 }
 
 /// Resolve the colour/glyph theme for static (non-animated) surfaces.

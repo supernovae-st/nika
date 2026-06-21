@@ -71,40 +71,82 @@ pub fn frame(view: &RunView, theme: &Theme, tick: usize) -> Vec<String> {
         theme.paint(Role::Dim, &pad_rule(&meter, 64))
     ));
 
-    // Failure card (only on a failed verdict · derives the explain hint).
+    // Failure card (only on a failed verdict · derives the explain hint) —
+    // the SAME card the compact `--quiet` surface renders (shared helper).
     if view.verdict == Some(false) {
-        // A WORKFLOW-level reason (e.g. a run-end NIKA-VAR-009 typed-output
-        // breach) is not attached to any task row — render it first.
-        if let Some(detail) = &view.workflow_detail {
+        append_failure_card(&mut lines, view, theme);
+    }
+    lines
+}
+
+/// Render the COMPACT final card (spec §3.5 `--quiet` · "final card only ·
+/// errors always") — the one-line verdict + cost, plus the failure card when
+/// the run failed. NO per-task storyboard. A run with no verdict yet (called
+/// before the terminal frame) renders the header alone.
+#[must_use]
+pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
+    let mut lines = Vec::with_capacity(4);
+    let glyph = match view.verdict {
+        Some(true) => theme.glyph(TaskState::Ok, 0),
+        Some(false) => theme.glyph(TaskState::Failed, 0),
+        None => theme.glyph(TaskState::Pending, 0),
+    };
+    let cost = match view.ceiling_usd {
+        Some(c) => format!("${:.3} of ≤${c:.2}", view.cost_usd),
+        None => format!("${:.3}", view.cost_usd),
+    };
+    #[allow(clippy::cast_precision_loss)] // display-only seconds
+    let secs = view.elapsed_ms as f64 / 1000.0;
+    lines.push(format!(
+        "  {} {} · {} tasks · {secs:.1}s · {cost}",
+        glyph,
+        theme.paint(Role::Strong, &view.workflow),
+        view.rows().len(),
+    ));
+
+    // Errors always (spec §3.5) — the same failure card the full frame emits,
+    // appended so a quiet run still surfaces WHY it failed + the explain hint.
+    if view.verdict == Some(false) {
+        append_failure_card(&mut lines, view, theme);
+    }
+    lines
+}
+
+/// The failure card (workflow-level detail + per-failed-row detail + the
+/// `nika explain` hint). Shared by the full [`frame`] and the compact
+/// [`verdict_frame`] so the two surfaces can never drift on a failure.
+// `&Theme` (not by-value) to match the `frame`/`verdict_frame` borrow that
+// threads it here — one calling convention across the render surface.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn append_failure_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
+    if let Some(detail) = &view.workflow_detail {
+        lines.push(String::new());
+        lines.push(format!(
+            "  {}{}",
+            theme.glyph(TaskState::Failed, 0),
+            theme.paint(Role::Strong, detail),
+        ));
+        if let Some(code) = detail.split_whitespace().find(|w| w.starts_with("NIKA-")) {
+            lines.push(theme.paint(Role::Dim, &format!("    fix: nika explain {code}")));
+        }
+    }
+    for row in view.rows() {
+        if row.state == TaskState::Failed && !row.detail.is_empty() {
             lines.push(String::new());
             lines.push(format!(
                 "  {}{}",
                 theme.glyph(TaskState::Failed, 0),
-                theme.paint(Role::Strong, detail),
+                theme.paint(Role::Strong, &row.detail),
             ));
-            if let Some(code) = detail.split_whitespace().find(|w| w.starts_with("NIKA-")) {
+            if let Some(code) = row
+                .detail
+                .split_whitespace()
+                .find(|w| w.starts_with("NIKA-"))
+            {
                 lines.push(theme.paint(Role::Dim, &format!("    fix: nika explain {code}")));
             }
         }
-        for row in view.rows() {
-            if row.state == TaskState::Failed && !row.detail.is_empty() {
-                lines.push(String::new());
-                lines.push(format!(
-                    "  {}{}",
-                    theme.glyph(TaskState::Failed, 0),
-                    theme.paint(Role::Strong, &row.detail),
-                ));
-                if let Some(code) = row
-                    .detail
-                    .split_whitespace()
-                    .find(|w| w.starts_with("NIKA-"))
-                {
-                    lines.push(theme.paint(Role::Dim, &format!("    fix: nika explain {code}")));
-                }
-            }
-        }
     }
-    lines
 }
 
 /// Extend a meter line with rule dashes to a stable width.
@@ -228,6 +270,60 @@ mod tests {
         // Still in flight: no terminal frame · no verdict line.
         let view = fold(&demo::retrying());
         assert_eq!(view.verdict, None, "a retrying run has no verdict yet");
+    }
+
+    /// `--quiet` compact card: the verdict line + cost, NO per-task rows.
+    #[test]
+    fn verdict_frame_is_compact_success() {
+        let lines = verdict_frame(&fold(&demo::success()), &UNICODE);
+        assert_eq!(lines.len(), 1, "success = one verdict line: {lines:?}");
+        // Glyph carries its own trailing space (§3.1) + the line's space →
+        // two, exactly the task-row convention (`✔  fetch_top`).
+        assert!(
+            lines[0].starts_with("  ✔  veille-news · 5 tasks · "),
+            "verdict line: {}",
+            lines[0]
+        );
+        assert!(lines[0].contains("$0.011 of ≤$0.04"), "cost: {}", lines[0]);
+        // NOT the storyboard — no per-task row leaks into the quiet card.
+        assert!(
+            !lines.iter().any(|l| l.contains("fetch_top")),
+            "quiet hides the per-task rows: {lines:?}"
+        );
+    }
+
+    /// `--quiet` still surfaces errors (spec §3.5 "errors always") — the
+    /// failure card + explain hint, the SAME the full frame renders.
+    #[test]
+    fn verdict_frame_keeps_the_failure_card() {
+        let lines = verdict_frame(&fold(&demo::failure()), &UNICODE);
+        assert!(
+            lines[0].starts_with("  ✖ "),
+            "failed verdict glyph: {lines:?}"
+        );
+        assert!(
+            lines.iter().any(|l| l.contains("NIKA-431")),
+            "the failure reason surfaces: {lines:?}"
+        );
+        assert!(
+            lines.iter().any(|l| l == "    fix: nika explain NIKA-431"),
+            "explain hint: {lines:?}"
+        );
+    }
+
+    /// Called before a terminal frame (no verdict): header line only, no card.
+    #[test]
+    fn verdict_frame_no_verdict_is_header_only() {
+        let lines = verdict_frame(&fold(&demo::retrying()), &UNICODE);
+        assert_eq!(lines.len(), 1, "no verdict → one line: {lines:?}");
+        assert!(lines[0].contains('○'), "pending glyph: {}", lines[0]);
+    }
+
+    /// The ASCII theme is first-class for the quiet card too.
+    #[test]
+    fn verdict_frame_ascii_theme() {
+        let lines = verdict_frame(&fold(&demo::success()), &ASCII);
+        assert!(lines[0].starts_with("  ok veille-news · "), "{}", lines[0]);
     }
 
     #[test]

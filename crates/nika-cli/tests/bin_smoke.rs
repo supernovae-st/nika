@@ -148,6 +148,89 @@ fn run_invalid_dag_exits_two_not_one() {
 }
 
 #[test]
+fn run_dry_run_executes_zero_effects() {
+    // spec §10 `--dry-run` · "plan only · zero effects". The proof: FAILING
+    // exits 1 when actually run (run_failed_task_exits_one_not_two pins that).
+    // Under --dry-run the task is NEVER executed, so the failing command can't
+    // fail the run — it exits 0 after showing the plan.
+    let dir = std::env::temp_dir().join(format!("nika-bin-dry-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let wf = write_fixture(&dir, "dry.nika.yaml", FAILING);
+
+    let out = bin()
+        .arg("run")
+        .arg(&wf)
+        .arg("--dry-run")
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "--dry-run never executes the (failing) task · exits 0 · stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    assert!(
+        stdout.contains("dry-run") && stdout.contains("no effects"),
+        "the dry-run banner shows: {stdout}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn run_quiet_is_compact_no_storyboard() {
+    // `--quiet`: the final verdict card only · NO per-task storyboard row.
+    let dir = std::env::temp_dir().join(format!("nika-bin-quiet-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let wf = write_fixture(&dir, "ok.nika.yaml", VALID);
+
+    let out = bin()
+        .arg("run")
+        .arg(&wf)
+        .arg("--quiet")
+        .arg("--no-color")
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(0), "clean run exits 0");
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    assert!(
+        stdout.contains("smoke"),
+        "the verdict names the workflow: {stdout}"
+    );
+    assert!(
+        !stdout.contains("greet"),
+        "quiet suppresses the per-task rows (no `greet`): {stdout}"
+    );
+}
+
+#[test]
+fn run_no_progress_emits_no_ansi() {
+    // `--no-progress`: the plain final storyboard · deterministic · zero ANSI
+    // cursor escapes even on a TTY (CI-stable capture).
+    let dir = std::env::temp_dir().join(format!("nika-bin-plain-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let wf = write_fixture(&dir, "ok.nika.yaml", VALID);
+
+    let out = bin()
+        .arg("run")
+        .arg(&wf)
+        .arg("--no-progress")
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(0), "clean run exits 0");
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    assert!(
+        !stdout.contains('\x1b'),
+        "--no-progress leaks no ANSI escapes: {stdout:?}"
+    );
+    assert!(
+        stdout.contains("greet"),
+        "plain shows the full storyboard: {stdout}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn check_cycle_exits_two_with_findings() {
     let dir = std::env::temp_dir().join("nika-bin-smoke-bad");
     std::fs::create_dir_all(&dir).expect("tmp dir");

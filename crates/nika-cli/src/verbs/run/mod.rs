@@ -29,7 +29,7 @@ pub use compose::{
     ProdRuntime, RuntimeCapabilities, capabilities_of, fs_boundary_of, net_boundary_of,
     production_runtime,
 };
-pub use sink::{FoldSink, JsonSink};
+pub use sink::{FoldSink, JsonSink, RenderMode};
 pub use stamp::SystemStamper;
 
 use std::collections::BTreeMap;
@@ -51,7 +51,14 @@ use crate::verbs::exit;
 /// findings (audit-before-run · the dirty report never executes) · `3`
 /// environment (unreadable file · TLS init · a system contract breach).
 #[must_use]
-pub fn run(file: &str, json: bool, output: Option<&str>, theme: Theme) -> u8 {
+pub fn run(
+    file: &str,
+    json: bool,
+    output: Option<&str>,
+    theme: Theme,
+    mode: RenderMode,
+    dry_run: bool,
+) -> u8 {
     // `--output json` selects the machine-result mode (spec 01 §"What
     // leaves a run"): the resolved `outputs:` object as one JSON object on
     // stdout · diagnostics/progress on stderr. Absent → the live human
@@ -85,6 +92,19 @@ pub fn run(file: &str, json: bool, output: Option<&str>, theme: Theme) -> u8 {
         return out.code;
     }
 
+    // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
+    // The audit passed; STOP here and show the static plan (the same anatomy
+    // `nika inspect` renders) without composing any production seam. No fs,
+    // no http, no subprocess, no provider call — the run is never reached.
+    if dry_run {
+        let plan = crate::verbs::inspect::run(file);
+        if !plan.text.is_empty() {
+            println!("{}", plan.text.trim_end());
+        }
+        println!("\n  dry-run · plan only · no effects executed");
+        return exit::OK;
+    }
+
     // ── Compose the production runtime (real seams · env keys) ──────
     // The envelope default model · a task's own `model:` overrides it ·
     // an exec-only workflow never resolves it (so "" is harmless until
@@ -115,7 +135,15 @@ pub fn run(file: &str, json: bool, output: Option<&str>, theme: Theme) -> u8 {
             return exit::ENV;
         }
     };
-    rt.block_on(execute(&runtime, &wf, &report, json, output_json, theme))
+    rt.block_on(execute(
+        &runtime,
+        &wf,
+        &report,
+        json,
+        output_json,
+        theme,
+        mode,
+    ))
 }
 
 /// `nika examples run <slug>` — execute one EMBEDDED example through the
@@ -135,7 +163,13 @@ pub fn example(slug: &str, theme: Theme) -> u8 {
         eprintln!("nika run: environment: cannot stage example `{slug}`: {e}");
         return exit::ENV;
     }
-    run(&path.to_string_lossy(), false, None, theme)
+    // The example renders live on a TTY, plain when piped (no flags here).
+    let mode = if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+        RenderMode::Live
+    } else {
+        RenderMode::Plain
+    };
+    run(&path.to_string_lossy(), false, None, theme, mode, false)
 }
 
 /// Drive the runtime through the chosen sink · return the exit code.
@@ -146,6 +180,7 @@ async fn execute(
     json: bool,
     output_json: bool,
     theme: Theme,
+    mode: RenderMode,
 ) -> u8 {
     let mut stamper = SystemStamper::new();
     if output_json {
@@ -154,10 +189,10 @@ async fn execute(
         // JSON object on stdout, never interleaved. This powers the v0.1
         // sub-workflow composition `exec: nika run sub.yaml --output json`
         // + `capture: stdout` (spec 08 §composition).
-        // `interactive = false` deliberately: the fold goes to stderr (a
-        // pipe in the composition path · never the live TTY redraw); the
-        // one final frame is what matters, not the animation.
-        let mut sink = FoldSink::new(std::io::stderr().lock(), theme, false);
+        // `Plain` deliberately: the fold goes to stderr (a pipe in the
+        // composition path · never the live TTY redraw); the one final
+        // storyboard frame is what matters, not the animation.
+        let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
         let (code, outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         sink.print_final();
         if let Some(e) = sink.into_error() {
@@ -175,11 +210,11 @@ async fn execute(
         }
         code
     } else {
-        let interactive = std::io::IsTerminal::is_terminal(&std::io::stdout());
-        let mut sink = FoldSink::new(std::io::stdout().lock(), theme, interactive);
+        let mut sink = FoldSink::new(std::io::stdout().lock(), theme, mode);
         let (code, _outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
-        // Non-interactive folded silently · print the ONE final frame.
-        if !interactive {
+        // `Live` painted in place during the run; `Plain`/`Quiet` folded
+        // silently · print the ONE final frame now.
+        if mode != RenderMode::Live {
             sink.print_final();
         }
         if let Some(e) = sink.into_error() {

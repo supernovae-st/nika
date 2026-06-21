@@ -14,7 +14,20 @@ use std::io::Write;
 use nika_event::Event;
 use nika_runtime::EventSink;
 
-use crate::{RunView, Theme, frame};
+use crate::{RunView, Theme, frame, verdict_frame};
+
+/// How the live fold reaches the terminal (spec §3.5 reduced surfaces).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenderMode {
+    /// Rich TTY: in-place repaint per event (cursor control · the default).
+    Live,
+    /// Plain: silent fold, ONE final storyboard frame (no animation · no
+    /// cursor escapes) — `--no-progress` and the piped/CI default.
+    Plain,
+    /// Quiet: silent fold, the COMPACT verdict card only (errors always) —
+    /// `--quiet`.
+    Quiet,
+}
 
 /// Writes one NDJSON line per event to the wrapped writer (the `--json`
 /// lane · "NDJSON events verbatim · CI/agents" · spec §3). Never
@@ -66,25 +79,25 @@ pub struct FoldSink<W: Write> {
     writer: W,
     theme: Theme,
     view: RunView,
-    /// Cursor control is only legible on a TTY — when false (piped · CI),
-    /// the sink folds silently and the caller prints ONE final frame
-    /// (no escape noise in a captured log · the plan's degrade-to-append).
-    interactive: bool,
+    /// The surface this sink paints (spec §3.5) — `Live` repaints in place
+    /// (TTY only · cursor control), `Plain`/`Quiet` fold silently and the
+    /// caller prints ONE final frame (no escape noise in a captured log).
+    mode: RenderMode,
     /// Lines painted by the previous frame (to clear before the redraw).
     last_lines: usize,
     error: Option<std::io::Error>,
 }
 
 impl<W: Write> FoldSink<W> {
-    /// Wrap a writer + the resolved theme. `interactive` = the writer is
-    /// a TTY (in-place repaint is legible) · false folds silently for the
-    /// caller's final-frame print.
-    pub fn new(writer: W, theme: Theme, interactive: bool) -> Self {
+    /// Wrap a writer + the resolved theme + the render mode. `Live` does the
+    /// in-place repaint (TTY); `Plain`/`Quiet` fold silently for the caller's
+    /// final-frame print.
+    pub fn new(writer: W, theme: Theme, mode: RenderMode) -> Self {
         Self {
             writer,
             theme,
             view: RunView::new(),
-            interactive,
+            mode,
             last_lines: 0,
             error: None,
         }
@@ -96,13 +109,17 @@ impl<W: Write> FoldSink<W> {
         &self.view
     }
 
-    /// Print the final frame once (the non-interactive lane · the caller
+    /// Print the final frame once (the `Plain`/`Quiet` lanes · the caller
     /// calls this after the run · a no-op buffered error stays buffered).
+    /// `Quiet` paints the compact verdict card; `Plain` the full storyboard.
     pub fn print_final(&mut self) {
         if self.error.is_some() {
             return;
         }
-        let lines = frame(&self.view, &self.theme, 0);
+        let lines = match self.mode {
+            RenderMode::Quiet => verdict_frame(&self.view, &self.theme),
+            _ => frame(&self.view, &self.theme, 0),
+        };
         for line in &lines {
             if let Err(e) = writeln!(self.writer, "{line}") {
                 self.error = Some(e);
@@ -141,9 +158,10 @@ impl<W: Write> EventSink for FoldSink<W> {
             return;
         }
         self.view.apply(&event);
-        // Non-interactive folds silently (the caller prints one final
-        // frame) — never leak cursor escapes into a captured log.
-        if self.interactive
+        // Only `Live` repaints in place; `Plain`/`Quiet` fold silently (the
+        // caller prints one final frame) — never leak cursor escapes into a
+        // captured log.
+        if self.mode == RenderMode::Live
             && let Err(e) = self.repaint()
         {
             self.error = Some(e);
@@ -199,8 +217,8 @@ mod tests {
         };
         let mut buf = Vec::new();
         {
-            // interactive=false: no per-event repaint · one final frame.
-            let mut sink = FoldSink::new(&mut buf, theme, false);
+            // Plain: no per-event repaint · one final storyboard frame.
+            let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Plain);
             for ev in demo::success() {
                 sink.emit(ev);
             }
@@ -218,6 +236,32 @@ mod tests {
     }
 
     #[test]
+    fn fold_sink_quiet_prints_only_the_verdict_card() {
+        let theme = Theme {
+            color: false,
+            ascii: true,
+            animate: false,
+        };
+        let mut buf = Vec::new();
+        {
+            let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Quiet);
+            for ev in demo::success() {
+                sink.emit(ev);
+            }
+            sink.print_final();
+            assert!(sink.into_error().is_none());
+        }
+        let text = String::from_utf8(buf).expect("utf8");
+        // Quiet = the verdict line only · NO per-task storyboard · no escapes.
+        assert!(text.contains("veille-news"), "verdict line: {text}");
+        assert!(
+            !text.contains("fetch_top"),
+            "quiet hides the per-task rows: {text}"
+        );
+        assert!(!text.contains('\x1b'), "quiet leaks no ANSI: {text}");
+    }
+
+    #[test]
     fn fold_sink_interactive_repaints_in_place() {
         let theme = Theme {
             color: false,
@@ -226,15 +270,15 @@ mod tests {
         };
         let mut buf = Vec::new();
         {
-            let mut sink = FoldSink::new(&mut buf, theme, true);
+            let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Live);
             for ev in demo::success() {
                 sink.emit(ev);
             }
             assert!(sink.into_error().is_none());
         }
         let text = String::from_utf8(buf).expect("utf8");
-        // The interactive lane DOES use cursor control (the live redraw).
-        assert!(text.contains('\x1b'), "interactive repaints in place");
+        // The Live lane DOES use cursor control (the live redraw).
+        assert!(text.contains('\x1b'), "Live repaints in place");
     }
 
     #[test]
@@ -245,7 +289,7 @@ mod tests {
             animate: false,
         };
         let mut buf = Vec::new();
-        let mut sink = FoldSink::new(&mut buf, theme, false);
+        let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Plain);
         for ev in demo::failure() {
             sink.emit(ev);
         }
