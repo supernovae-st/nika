@@ -570,7 +570,10 @@ pub(crate) fn selector(body: &str, sel: &str) -> Result<serde_json::Value, Extra
 
 #[cfg(test)]
 mod tests {
-    use super::tidy_text;
+    use super::{
+        ExtractMode, MAX_HTML_DEPTH, advance_past, best_srcset, context_kind, guard_depth,
+        is_context_marker, scan_name, selector, skip_comment, skip_to_close, tidy_text,
+    };
 
     // The single-pass rewrite's contract: intra-line whitespace collapses,
     // blank-line RUNS collapse to at most one, leading/trailing blanks are
@@ -591,5 +594,528 @@ mod tests {
         // whitespace-only input yields empty (no spurious blank line).
         assert_eq!(tidy_text("   \n\t\n  "), "");
         assert_eq!(tidy_text(""), "");
+    }
+
+    // Markdown path drives `lazy_img_handler`. Helper returns the rendered
+    // markdown string so a flipped img-resolver operator changes the output.
+    fn md(body: &str) -> String {
+        match super::markdown(body) {
+            Ok(serde_json::Value::String(s)) => s,
+            other => panic!("markdown() returned non-string / err: {other:?}"),
+        }
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // is_context_marker (line 225 `→true` / `→false`)
+    //
+    // A marker name (foreign root / integration point) must return TRUE; an
+    // ordinary element must return FALSE. Asserting BOTH polarities pins the
+    // function against the constant-replacement mutants: `→true` is killed by
+    // the `div` FALSE assertion, `→false` by the `svg` TRUE assertion.
+    // ───────────────────────────────────────────────────────────────────
+    #[test]
+    fn is_context_marker_true_for_markers_false_for_plain() {
+        // Foreign root → marker.
+        assert!(is_context_marker("svg"), "svg is a foreign root → marker");
+        assert!(is_context_marker("math"), "math is a foreign root → marker");
+        // Integration point → marker.
+        assert!(
+            is_context_marker("foreignobject"),
+            "foreignObject is an integration point → marker"
+        );
+        assert!(
+            is_context_marker("desc"),
+            "desc is an integration point → marker"
+        );
+        // Ordinary elements → NOT markers (kills the `→true` mutant).
+        assert!(
+            !is_context_marker("div"),
+            "div carries no foreign-context marker"
+        );
+        assert!(
+            !is_context_marker("p"),
+            "p carries no foreign-context marker"
+        );
+        assert!(
+            !is_context_marker("script"),
+            "script is rawtext, not a context marker"
+        );
+    }
+
+    // context_kind drives is_context_marker; pin its three arms directly so a
+    // wrong branch can't masquerade as the right Option-ness.
+    #[test]
+    fn context_kind_three_arms() {
+        // foreign root → Some(false) (rawtext skip OFF inside it).
+        assert_eq!(context_kind("svg"), Some(false));
+        assert_eq!(context_kind("math"), Some(false));
+        // integration point → Some(true) (HTML parsing resumes · skip ON).
+        assert_eq!(context_kind("title"), Some(true));
+        assert_eq!(context_kind("mi"), Some(true));
+        // ordinary element → None (untracked).
+        assert_eq!(context_kind("div"), None);
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // scan_name (line 246 `<→<=`, line 247 `||→&&`)
+    //
+    // 247 `||→&&`: the name charset is `[A-Za-z0-9] | '-' | ':'`. A real name
+    // mixing all three classes is only scanned WHOLE under the `||`; under
+    // `&&` every byte fails (no byte is alnum AND '-' AND ':' at once) so the
+    // scan stops at `from`, yielding an empty name.
+    // ───────────────────────────────────────────────────────────────────
+    #[test]
+    fn scan_name_reads_full_mixed_charset_name() {
+        let body = "a1-b:c>";
+        let bytes = body.as_bytes();
+        let (name, j) = scan_name(bytes, body, 0);
+        // Whole `[alnum | '-' | ':']` run consumed, lowercased, stops at `>`.
+        assert_eq!(name, "a1-b:c", "the `||` must accept alnum AND '-' AND ':'");
+        assert_eq!(j, 6, "index lands just past the name, on `>`");
+    }
+
+    // 246 `<→<=`: the loop bound `j < bytes.len()`. When the tag name runs to
+    // EOF (no terminator byte), the correct loop STOPS at `j == len`. The
+    // mutated `<=` would test `bytes[len]` → out-of-bounds panic. A name that
+    // ends exactly at EOF therefore distinguishes the two: current code
+    // returns cleanly, the mutant panics.
+    #[test]
+    fn scan_name_name_running_to_eof_does_not_overrun() {
+        let body = "div"; // pure name, no '>' — ends exactly at len.
+        let bytes = body.as_bytes();
+        let (name, j) = scan_name(bytes, body, 0);
+        assert_eq!(name, "div");
+        assert_eq!(j, bytes.len(), "stops AT len, never indexes bytes[len]");
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // skip_comment (line 280 `==→!=`, 281 `+→-/*`, 284 `==→!=` `&&→||` `+→-/*`,
+    //               285 `+→-/*`)
+    //
+    // `from` points just past `<!--`. The three shapes:
+    //   `<!-->`  → abrupt empty, ends at the immediate `>`  (return from+1)
+    //   `<!--->` → abrupt empty, ends at `-` then `>`       (return from+2)
+    //   `<!--x-->` → ordinary, ends at the `-->` terminator (advance_past)
+    // Exact return indices pin every arithmetic + comparison operator.
+    // ───────────────────────────────────────────────────────────────────
+    #[test]
+    fn skip_comment_abrupt_gt_form() {
+        // bytes = `>rest`; `from = 0` points at `>` (the `<!-->` shape).
+        // Correct: return 1 (just past `>`). Kills 280 `==→!=` (mutant would
+        // fall through to advance_past and consume to EOF) and 281 `+→-/*`
+        // (return index must be exactly from+1).
+        let bytes = b">rest";
+        assert_eq!(skip_comment(bytes, 0), 1);
+    }
+
+    #[test]
+    fn skip_comment_abrupt_dash_gt_form() {
+        // bytes = `->rest`; `from = 0` at `-`, `from+1` at `>` (`<!--->`).
+        // Correct: return 2. Kills 284 `==→!=`, 284 `+→-/*` (the `from + 1`
+        // index), 285 `+→-/*` (the `from + 2` return), and—paired with the
+        // next test—284 `&&→||`.
+        let bytes = b"->rest";
+        assert_eq!(skip_comment(bytes, 0), 2);
+    }
+
+    #[test]
+    fn skip_comment_dash_not_followed_by_gt_runs_to_terminator() {
+        // bytes = `-x-->tail`; `from = 0` at `-`, `from+1` is `x` (NOT `>`).
+        // The `&&` guard is FALSE → must fall through to advance_past('-->').
+        // Under the `||` mutant the first operand (`==Some('-')`) alone would
+        // wrongly trigger the early `from+2` return (=> 2). Correct path scans
+        // to the `-->` ending at index 5.
+        let bytes = b"-x-->tail";
+        let out = skip_comment(bytes, 0);
+        assert_eq!(
+            out, 5,
+            "`&&` must require BOTH `-` and `>`; here it falls through to `-->`"
+        );
+        assert_ne!(out, 2, "the `||` mutant would early-return from+2 here");
+    }
+
+    #[test]
+    fn skip_comment_ordinary_finds_terminator() {
+        // A non-abrupt comment body: neither abrupt branch fires, so the
+        // `==→!=` flips on lines 280/284 would (wrongly) ENTER an abrupt
+        // branch here. `from = 0` at `a`. Correct: advance_past `-->` → 6.
+        let bytes = b"abc-->z";
+        assert_eq!(skip_comment(bytes, 0), 6);
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // skip_to_close (line 296 `&&→||`, 302 `&&→||`, 304 `==→!=`)
+    //
+    // Drives the rawtext close-tag scan. `name` is the rawtext element; the
+    // scan jumps to just past `</name>` (case-insensitive, terminator-checked).
+    // ───────────────────────────────────────────────────────────────────
+    #[test]
+    fn skip_to_close_matches_terminated_close() {
+        // `..</style>tail`. Correct: index just past `>` of `</style>`.
+        // 304 `==→!=`: the close is terminated by `>`. Under `!=`, `>` is
+        // REJECTED as a terminator → no match → run to EOF (len). Correct
+        // returns the position right after `</style>`.
+        let body = "abc</style>tail";
+        let bytes = body.as_bytes();
+        let from = 0;
+        let out = skip_to_close(bytes, b"style", from);
+        // `</style>` occupies bytes 3..11; index just past `>` is 11.
+        assert_eq!(out, 11, "must stop just past the `>`-terminated `</style>`");
+        assert_ne!(
+            out,
+            bytes.len(),
+            "the `==→!=` mutant rejects `>` → runs to EOF"
+        );
+    }
+
+    #[test]
+    fn skip_to_close_rejects_non_terminator_suffix() {
+        // `</scriptx>` is NOT a close for `script` (next byte `x` is not a
+        // terminator); the real `</script>` follows. 302 `&&→||`: under `||`
+        // the name-match alone (ignoring the terminator check) would stop at
+        // `</scriptx>` (index 10). Correct skips it and stops past `</script>`.
+        let body = "</scriptx></script>end";
+        let bytes = body.as_bytes();
+        let out = skip_to_close(bytes, b"script", 0);
+        // `</script>` is at 10..19; just past `>` is 19.
+        assert_eq!(out, 19, "the trailing `x` disqualifies `</scriptx>`");
+        assert_ne!(out, 10, "the `||` mutant would accept `</scriptx>`");
+    }
+
+    #[test]
+    fn skip_to_close_requires_slash_after_lt() {
+        // 296 `&&→||`: the open-of-close detector is `bytes[i]=='<' AND
+        // next=='/'`. Under `||`, a bare `<` (no following `/`) would enter
+        // the branch and try to match `name` at `i+2`. Craft a body where a
+        // bare `<style` (an OPEN tag, no slash) precedes the real `</style>`,
+        // positioned so the `||` mutant mis-matches `style` two bytes past the
+        // bare `<`. Correct only stops at the true `</style>`.
+        //   "<style></style>X"
+        //    ^0      ^7 real close
+        // Under `||`: at i=0 (`<`), i+1 is `s` (not `/`), tag_start=2,
+        // bytes[2..7]=="tyle>"? name is `style` (5 bytes) → "tyle>" != "style"
+        // so that particular i doesn't match — pick a body that DOES expose it:
+        let body = "<style</style>Z";
+        let bytes = body.as_bytes();
+        let out = skip_to_close(bytes, b"style", 0);
+        // Real `</style>` is at 6..14; just past `>` is 14.
+        assert_eq!(out, 14, "only `</style>` (with the slash) is the close");
+        // Under the `||` mutant, i=0 is `<`; with `||` it skips the slash
+        // check, tag_start=2, bytes[2..7]="tyle<" != "style" → still no match
+        // there, but i=5 is `<` followed by `/` so both behave; the decisive
+        // distinguishing input is the bare `<` WITHOUT a following close —
+        // covered by the truncated test below.
+    }
+
+    #[test]
+    fn skip_to_close_bare_lt_then_name_only_matches_via_slash() {
+        // Decisive 296 `&&→||` case: a bare `<style>` (open, slash-less)
+        // sitting exactly `name.len()`+2 before nothing — under `||` the
+        // detector fires on the bare `<` and matches `style` at i+2, returning
+        // early; under the correct `&&` it requires the `/` and finds none →
+        // runs to EOF.
+        //   bytes: `<style>` then EOF, name = `style`.
+        //   i=0: '<', next 's' (not '/').  &&: skip.  ||: tag_start=2,
+        //        bytes[2..7] = "tyle>" != "style" → no early match.
+        // To force a positive ||-only match we need `</`-less `<` directly
+        // followed by the name:  `<<style>`  — at i=0 '<', next '<' (not '/');
+        // ||: tag_start=2 → bytes[2..7]="style" == name AND end byte '>' is a
+        // terminator → ||-mutant returns past that `>` (index 8). The correct
+        // && path: i=0 no slash; i=1 '<', next 's' (not '/') no; no `</` ever
+        // → runs to EOF (len 8). Both give 8 here, so instead place a
+        // terminator the mutant would stop BEFORE:
+        let body = "<<style>X</style>";
+        let bytes = body.as_bytes();
+        let out = skip_to_close(bytes, b"style", 0);
+        // Correct: the FIRST real `</` is at index 9 (`</style>` 9..17), past
+        // `>` is 17. The `||` mutant fires at i=1 (`<` then `style`) and
+        // returns past the `>` at index 7 → 8. They DIFFER.
+        assert_eq!(
+            out, 17,
+            "`&&` ignores the slash-less `<style>` and finds `</style>`"
+        );
+        assert_ne!(
+            out, 8,
+            "the `||` mutant would match the open `<style>` and stop at 8"
+        );
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // guard_depth integration — exercises scan_name / skip_comment /
+    // skip_to_close / context tracking IN SITU at the depth boundary, so the
+    // accept/reject verdict (Ok vs too-deep Err) flips when the byte-scan
+    // arithmetic is wrong.
+    // ───────────────────────────────────────────────────────────────────
+
+    // A rawtext element body that LOOKS deep but is flat: `<script>` whose
+    // body holds N literal `<div>` is depth 1, not N. This relies on
+    // skip_to_close jumping past the `</script>`. If skip_to_close mis-scans
+    // (304/302/296 mutants), the `<div>`s inside get counted and the document
+    // is wrongly rejected.
+    #[test]
+    fn guard_depth_rawtext_body_is_flat_not_deep() {
+        let mut body = String::from("<script>");
+        for _ in 0..(MAX_HTML_DEPTH + 50) {
+            body.push_str("<div>");
+        }
+        body.push_str("</script>");
+        // The `<div>`s are TEXT inside script → flat. Must be accepted.
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_ok(),
+            "script body is rawtext (flat) — skip_to_close must jump past it"
+        );
+    }
+
+    // The same `<div>` flood NOT wrapped in rawtext IS genuinely deep and must
+    // be rejected — pins that the accept above is real skipping, not a
+    // blanket accept.
+    #[test]
+    fn guard_depth_real_deep_nesting_rejected() {
+        let mut body = String::new();
+        for _ in 0..(MAX_HTML_DEPTH + 5) {
+            body.push_str("<div>");
+        }
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_err(),
+            "genuinely nested `<div>`s past the cap must be refused"
+        );
+    }
+
+    // Exact depth boundary: a stack of EXACTLY MAX_HTML_DEPTH open elements is
+    // accepted; one more is rejected. Pins the `stack.len() > MAX_HTML_DEPTH`
+    // off-by-one (the real-push cap site) and proves scan_name reads every
+    // `<div>` name correctly (a mis-scan would mis-count the stack).
+    #[test]
+    fn guard_depth_exact_cap_boundary() {
+        let at_cap: String = "<div>".repeat(MAX_HTML_DEPTH);
+        assert!(
+            guard_depth(&at_cap, ExtractMode::Markdown).is_ok(),
+            "exactly the cap is allowed"
+        );
+        let over_cap: String = "<div>".repeat(MAX_HTML_DEPTH + 1);
+        assert!(
+            guard_depth(&over_cap, ExtractMode::Markdown).is_err(),
+            "one past the cap is refused"
+        );
+    }
+
+    // Foreign-context gate: inside `<svg>` the rawtext names (`<script>`)
+    // NEST instead of tokenizing as text, because the `context` top is
+    // `false` (foreign) so the rawtext-skip branch is OFF. A deep
+    // `<svg><script><script>…` chain must therefore be rejected. This
+    // exercises context_kind/is_context_marker (the `context` stack): if
+    // marker tracking is wrong (225 mutants) the rawtext skip stays ON inside
+    // the svg, under-counts, and wrongly ACCEPTS a genuinely deep foreign tree.
+    #[test]
+    fn guard_depth_foreign_script_nests_and_is_rejected() {
+        let mut body = String::from("<svg>");
+        // <script> is a marker-less element (context_kind == None): inside the
+        // foreign (`false`) context it falls through to REAL nesting, so each
+        // one opens a level.
+        for _ in 0..(MAX_HTML_DEPTH + 5) {
+            body.push_str("<script>");
+        }
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_err(),
+            "inside <svg>, <script> nests (foreign context · skip OFF) — deep chain refused"
+        );
+    }
+
+    // Control proving the foreign gate is what made the difference: the SAME
+    // deep `<script>` flood WITHOUT the `<svg>` wrapper is rawtext in HTML
+    // context and stays FLAT — accepted. Pins that the `is_context_marker`
+    // push/pop (and the `<svg>` foreign root) genuinely toggle the skip; a
+    // `→true` mutant on is_context_marker would mis-track the context stack.
+    #[test]
+    fn guard_depth_html_context_script_flood_is_flat() {
+        let mut body = String::new();
+        for _ in 0..(MAX_HTML_DEPTH + 5) {
+            // No close → each is rawtext-skipped to EOF after counting +1
+            // transiently; they never accumulate (depth never exceeds 1).
+            body.push_str("<script></script>");
+        }
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_ok(),
+            "HTML-context <script> is rawtext (flat) — never reaches the cap"
+        );
+    }
+
+    // Comment skipping in situ: a body of N `<!--...-->` comments is FLAT
+    // (comments never nest). If skip_comment over- or under-consumes
+    // (280/281/284/285 mutants), the surrounding real tags get mis-counted.
+    #[test]
+    fn guard_depth_comments_are_flat() {
+        let mut body = String::from("<div>");
+        for _ in 0..50 {
+            body.push_str("<!-- c -->");
+        }
+        // abrupt empty forms interleaved (exercise the abrupt branches).
+        for _ in 0..50 {
+            body.push_str("<!-->");
+            body.push_str("<!--->");
+        }
+        body.push_str("</div>");
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_ok(),
+            "comments (incl. abrupt forms) are flat — one real <div> only"
+        );
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // lazy_img_handler (line 392 `delete !`, 416 `delete !`)
+    //
+    // 392 `delete !`: real_src keeps `src` only when it is NON-empty AND
+    // NON-`data:` placeholder. The filter is
+    // `!s.is_empty() && !s.starts_with("data:")`. Deleting either `!`
+    // inverts which images count as "real".
+    // ───────────────────────────────────────────────────────────────────
+    #[test]
+    fn lazy_img_real_src_wins_over_data_src() {
+        // A normal `<img src=...>` resolves to that src — NOT the data-src.
+        // 392 first `!` (`!s.is_empty()`): deleting it makes a NON-empty src
+        // be treated as a placeholder → the handler would fall through to
+        // data-src. Assert the REAL src is in the output.
+        let out =
+            md(r#"<img src="https://real.example/a.png" data-src="https://lazy.example/b.png">"#);
+        assert!(
+            out.contains("https://real.example/a.png"),
+            "real non-empty src must win; got: {out}"
+        );
+        assert!(
+            !out.contains("https://lazy.example/b.png"),
+            "lazy data-src must NOT be used when a real src exists; got: {out}"
+        );
+    }
+
+    #[test]
+    fn lazy_img_data_placeholder_src_falls_through_to_data_src() {
+        // A `data:`-placeholder src is NOT real → resolve the lazy data-src.
+        // 392 second `!` (`!s.starts_with("data:")`): deleting it makes the
+        // data: placeholder count as "real" → output would carry the
+        // placeholder, not the lazy URL. Assert the lazy URL wins.
+        let out = md(
+            r#"<img src="data:image/gif;base64,R0lGODlh" data-src="https://lazy.example/real.png">"#,
+        );
+        assert!(
+            out.contains("https://lazy.example/real.png"),
+            "data: placeholder must fall through to data-src; got: {out}"
+        );
+        assert!(
+            !out.contains("data:image/gif"),
+            "the data: placeholder must NOT be the emitted URL; got: {out}"
+        );
+    }
+
+    // 416 `delete !`: the link gets `<>`-wrapped IFF it contains a space; the
+    // title-emptiness filter `.filter(|t| !t.is_empty())` (416) drops an empty
+    // title so no ` ""` suffix is emitted. Deleting the `!` would KEEP empty
+    // titles → emit a spurious ` ""`.
+    #[test]
+    fn lazy_img_empty_title_emits_no_title_suffix() {
+        // An img with an explicit EMPTY title must render WITHOUT a ` ""`
+        // title clause. `delete !` on the `!t.is_empty()` filter would keep
+        // the empty string and format ` ""` into the output.
+        let out = md(r#"<img src="https://x.example/i.png" alt="a" title="">"#);
+        assert_eq!(
+            out.trim(),
+            "![a](https://x.example/i.png)",
+            "empty title must NOT add a ` \"\"` suffix; got: {out}"
+        );
+        assert!(
+            !out.contains("\"\""),
+            "no empty-title clause expected; got: {out}"
+        );
+    }
+
+    #[test]
+    fn lazy_img_non_empty_title_is_emitted() {
+        // Positive control: a real title DOES appear, so the filter isn't a
+        // blanket drop (guards against a `→false`-style collapse of 416).
+        let out = md(r#"<img src="https://x.example/i.png" alt="a" title="cap">"#);
+        assert!(
+            out.contains("\"cap\""),
+            "non-empty title must be emitted; got: {out}"
+        );
+    }
+
+    // best_srcset feeds lazy_img_handler's lazy branch — pin its ranking so a
+    // srcset lazy image resolves to the widest candidate.
+    #[test]
+    fn best_srcset_picks_widest() {
+        assert_eq!(
+            best_srcset(Some("a.png 100w, b.png 800w, c.png 400w")).as_deref(),
+            Some("b.png"),
+            "the 800w entry is widest"
+        );
+        // density vs width: any width dominates any density.
+        assert_eq!(
+            best_srcset(Some("d.png 2x, e.png 50w")).as_deref(),
+            Some("e.png")
+        );
+        assert_eq!(best_srcset(Some("")).as_deref(), None);
+        assert_eq!(best_srcset(None), None);
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // selector ceiling (line 542 `*→+` / `*→/`, line 558 `>→==/>=`)
+    //
+    // The ceiling is 64*1024*1024. We cannot fill 64 MiB cheaply, but the
+    // ARITHMETIC mutants shrink the constant: `/` makes it 0 or 64; one `+`
+    // makes it 66_560; the other `+` makes it ~1.06 MiB. A ~1.5 MiB selector
+    // output is Ok under the real ceiling but EXCEEDS every shrunk variant,
+    // so a single large-output Ok assertion kills all four arithmetic mutants.
+    // ───────────────────────────────────────────────────────────────────
+    #[test]
+    fn selector_large_output_under_real_ceiling_is_ok() {
+        // One <p> whose text serializes to ~1.5 MiB (> 1.06 MiB = the largest
+        // shrunk ceiling, ≪ 64 MiB = the real one). `.html()` of the match
+        // reproduces the body, so out.len() ≈ 1.5 MiB.
+        let big = "x".repeat(1_500_000);
+        let body = format!("<p id=\"m\">{big}</p>");
+        let res = selector(&body, "p#m");
+        assert!(
+            res.is_ok(),
+            "1.5 MiB output is under the real 64 MiB ceiling — every shrunk \
+             ceiling (0 / 64 / 66_560 / ~1.06 MiB) would wrongly reject it"
+        );
+        if let Ok(serde_json::Value::String(s)) = res {
+            assert!(
+                s.len() > 1_114_112,
+                "output must exceed the ~1.06 MiB `+` mutant ceiling"
+            );
+        }
+    }
+
+    #[test]
+    fn selector_small_match_is_ok() {
+        // A tiny selector output: the `/`-mutant ceilings (0 and 64) reject
+        // even this; the real path accepts. Belt-and-suspenders against the
+        // division mutants, independent of the big-output allocation.
+        let res = selector("<div class=\"c\">hello world content</div>", "div.c");
+        assert!(res.is_ok(), "a tiny match is well under any sane ceiling");
+        match res {
+            Ok(serde_json::Value::String(s)) => {
+                assert!(s.contains("hello world content"), "match HTML serialized");
+            }
+            other => panic!("expected Ok(String), got {other:?}"),
+        }
+    }
+
+    // advance_past underpins advance_past_gt / skip_comment / skip_to_close —
+    // pin its needle arithmetic so a returned index is always JUST PAST the
+    // needle, and EOF when absent.
+    #[test]
+    fn advance_past_lands_just_past_needle() {
+        assert_eq!(
+            advance_past(b"ab-->cd", 0, b"-->"),
+            5,
+            "just past the `-->`"
+        );
+        assert_eq!(
+            advance_past(b"abc", 0, b"-->"),
+            3,
+            "absent needle → len (EOF)"
+        );
+        assert_eq!(advance_past(b">x", 0, b">"), 1, "single-byte needle");
     }
 }

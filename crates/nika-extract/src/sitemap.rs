@@ -177,3 +177,45 @@ pub(crate) fn sitemap(body: &str) -> Result<serde_json::Value, ExtractError> {
     }
     Ok(serde_json::Value::Array(p.entries))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A nested element inside `<loc>` must NOT steal the field flush — `loc`
+    /// keeps accumulating until its OWN `</loc>` (the `field_name(local) ==
+    /// self.field` match). Flipping that `&&` to `||` flushes at the inner
+    /// `</b>`, truncating the URL before the trailing text.
+    #[test]
+    fn nested_element_inside_loc_does_not_truncate_the_url() {
+        let xml = concat!(
+            r#"<?xml version="1.0"?>"#,
+            r#"<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">"#,
+            r#"<url><loc>https://a.test/<b>x</b>page</loc></url>"#,
+            r#"</urlset>"#,
+        );
+        let out = sitemap(xml).expect("parses");
+        let arr = out.as_array().expect("array");
+        assert_eq!(arr.len(), 1, "one entry");
+        let loc = arr[0]["loc"].as_str().expect("loc");
+        assert!(
+            loc.contains("page"),
+            "loc accumulates the full text past the nested element: {loc}"
+        );
+    }
+
+    /// A well-formed sitemap with lastmod surfaces both fields (a behavioral
+    /// anchor + the in-entry flush path).
+    #[test]
+    fn well_formed_entry_surfaces_loc_and_lastmod() {
+        let xml = concat!(
+            r#"<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">"#,
+            r#"<url><loc>https://a.test/p</loc><lastmod>2026-06-21</lastmod></url>"#,
+            r#"</urlset>"#,
+        );
+        let out = sitemap(xml).expect("parses");
+        let e = &out.as_array().expect("array")[0];
+        assert_eq!(e["loc"], "https://a.test/p");
+        assert_eq!(e["lastmod"], "2026-06-21");
+    }
+}

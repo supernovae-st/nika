@@ -381,9 +381,31 @@ fn body_text_len(doc: &Html) -> usize {
 mod tests {
     use super::{
         ARTICLE_CASCADE, BROAD_CASCADE, DISCARD_TAGS, DISCARD_TOKENS, DISCUSSION_TOKENS,
-        FORUM_CASCADE, PageType, rule_content,
+        FORUM_CASCADE, PageType, cascade_for, discard_ids, is_link_dense, link_dense_ids,
+        rule_content,
     };
-    use scraper::Selector;
+    use scraper::{Html, Selector};
+
+    // ── Direct-unit harness for the private predicates ───────────────────
+    // The link-density / discard / cascade math lives at exact arithmetic
+    // boundaries that are far easier to pin DIRECTLY than to provoke through
+    // the full `rule_content` pipeline (where parse quirks + the THIN gate
+    // blur the operator under test). These helpers call the private fns with
+    // crafted inputs sitting ON the decision boundary, so flipping any single
+    // operator (`>`→`>=`/`==`/`<`, `+=`→`-=`/`*=`, `<`→`<=`, `&&`↔`||`)
+    // changes the boolean result and FAILS the asserting test.
+
+    /// Run `is_link_dense` on the first `sel` element of `fragment`. Keeps the
+    /// owning `Html` on the stack so the `ElementRef` never escapes.
+    fn dense(fragment: &str, sel: &str) -> bool {
+        let frag = Html::parse_fragment(fragment);
+        let selector = Selector::parse(sel).expect("test selector parses");
+        let el = frag
+            .select(&selector)
+            .next()
+            .expect("the crafted block is present");
+        is_link_dense(el)
+    }
 
     // Every cascade/discard selector MUST parse — `find_zone`/`discard_ids`
     // use `Selector::parse(..).ok()`, which would SILENTLY turn a future
@@ -534,5 +556,302 @@ mod tests {
         let thin =
             r#"<html><body><article><nav><a href="/">only nav</a></nav></article></body></html>"#;
         assert!(rule_content(thin, PageType::Article).is_none());
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  `is_link_dense` — the ratio-test boundaries (line 351 `link_len*10 >
+    //  text_len*8`). `visible_text_len` drops whitespace, so every crafted
+    //  token is a contiguous letter run with an EXACT char length.
+    // ════════════════════════════════════════════════════════════════════
+
+    // OVER the 0.8 ratio boundary by one char: link_len 9, text_len 10
+    // (90 > 80). A short single-anchor `<p>` block ⇒ DENSE (true).
+    //   · kills line 351 `>`→`<`     (90 < 80 would be false)
+    //   · kills line 337 `link_len +=`→`-=`/`*=`  (link_len would collapse to
+    //     0 ⇒ 0 > 80 false)
+    //   · kills line 338 `count +=`→`-=`/`*=`     (count would collapse to 0 ⇒
+    //     the `count == 0` guard returns false)
+    //   · kills line 343 `count == 0`→`!=`        (with count==1, `!=` is true
+    //     ⇒ early `return false`)
+    //   · kills line 325 `text_len == 0`→`!=`     (with text_len==10, `!=` is
+    //     true ⇒ early `return false`)
+    //   · kills the `is_link_dense -> bool` body-replace-with-`false` mutant.
+    #[test]
+    fn link_dense_p_over_ratio_boundary_is_dense() {
+        // plain "X" (1) + anchor "LLLLLLLLL" (9) ⇒ text_len 10, link_len 9.
+        let frag = r#"<p>X<a href="/">LLLLLLLLL</a></p>"#;
+        assert!(dense(frag, "p"), "90 > 80 ⇒ link-dense");
+    }
+
+    // EXACTLY ON the 0.8 ratio boundary: link_len 8, text_len 10 (80 == 80).
+    // Strict `>` keeps it ⇒ NOT dense (false).
+    //   · kills line 351 `>`→`>=`  (80 >= 80 would be true)
+    //   · kills line 351 `>`→`==`  (80 == 80 would be true)
+    // (count==1 so the line-352 shorts disjunct cannot rescue it.)
+    #[test]
+    fn link_dense_p_at_ratio_boundary_is_not_dense() {
+        // plain "XX" (2) + anchor "LLLLLLLL" (8) ⇒ text_len 10, link_len 8.
+        let frag = r#"<p>XX<a href="/">LLLLLLLL</a></p>"#;
+        assert!(!dense(frag, "p"), "80 > 80 is false ⇒ kept as prose");
+    }
+
+    // A block with NO anchors is prose, never dense (count==0 ⇒ false).
+    // The `is_link_dense -> bool` body-replace-with-`true` mutant returns true
+    // here and fails; also a partner for line 343 from the count==0 side.
+    #[test]
+    fn link_dense_no_anchors_is_prose() {
+        let frag = r"<p>plain running prose with no links at all here</p>";
+        assert!(!dense(frag, "p"), "zero anchors ⇒ prose, not dense");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  `is_link_dense` — the `limitlen` short-vs-long gate (lines 347-348).
+    //  `limitlen` is 60 for `<p>`, 200 otherwise. A dense-RATIO block with
+    //  60 ≤ text_len < 200 is judged DIFFERENTLY by tag.
+    // ════════════════════════════════════════════════════════════════════
+
+    // text_len 100 at a dense ratio (link 90, 900 > 800). As a `<p>`
+    // limitlen=60 ⇒ `100 >= 60` ⇒ early `return false` (long-for-a-paragraph
+    // ⇒ prose). The `name() == "p"`→`!=` mutant would pick limitlen=200 ⇒
+    // `100 >= 200` false ⇒ fall through ⇒ dense=true. So the `<p>` MUST be
+    // not-dense.
+    //   · kills line 347 `name() == "p"`→`!=`
+    //   · kills line 348 `text_len >= limitlen`→`<`  (100 < 60 false ⇒ fall
+    //     through ⇒ dense=true, but original is false)
+    #[test]
+    fn link_dense_long_paragraph_is_prose_not_dense() {
+        // plain "P"×10 (10) + anchor "L"×90 (90) ⇒ text_len 100, link_len 90.
+        let frag = format!(
+            r#"<p>{}<a href="/">{}</a></p>"#,
+            "P".repeat(10),
+            "L".repeat(90)
+        );
+        assert!(
+            !dense(&frag, "p"),
+            "text_len 100 >= p-limitlen 60 ⇒ long enough to be prose"
+        );
+    }
+
+    // The SAME dense-ratio block (text_len 100, link 90) as a `<div>`:
+    // limitlen=200 ⇒ `100 >= 200` false ⇒ fall through ⇒ `900 > 800` ⇒ DENSE.
+    // Confirms the tag genuinely swings the verdict (the other arm of the
+    // line-347 mutant: a `<div>` flipped to limitlen 60 would wrongly drop it).
+    #[test]
+    fn link_dense_div_same_ratio_is_dense() {
+        let frag = format!(
+            r#"<div>{}<a href="/">{}</a></div>"#,
+            "P".repeat(10),
+            "L".repeat(90)
+        );
+        assert!(
+            dense(&frag, "div"),
+            "text_len 100 < div-limitlen 200 ⇒ short-enough dense block"
+        );
+    }
+
+    // text_len EXACTLY at the `<p>` limitlen (60), dense ratio (link 54,
+    // 540 > 480). `>=` keeps it as prose (false). The `>=`→`<` mutant would
+    // make `60 < 60` false ⇒ fall through ⇒ dense=true.
+    //   · kills line 348 `>=`→`<` at the exact equality point.
+    #[test]
+    fn link_dense_p_text_len_exactly_at_limitlen_is_prose() {
+        // plain "P"×6 (6) + anchor "L"×54 (54) ⇒ text_len 60 == p-limitlen.
+        let frag = format!(
+            r#"<p>{}<a href="/">{}</a></p>"#,
+            "P".repeat(6),
+            "L".repeat(54)
+        );
+        assert!(
+            !dense(&frag, "p"),
+            "text_len 60 >= limitlen 60 ⇒ returns false before the ratio test"
+        );
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  `is_link_dense` — the "menu of tiny links" disjunct (line 352:
+    //  `count > 1 && shorts*10 > count*8`). Every menu below is built so the
+    //  RATIO test (line 351) is FALSE, making the shorts heuristic the SOLE
+    //  load-bearing decision — flipping any operator in line 352 (or the
+    //  `||`/`&&` joins) changes the verdict.
+    // ════════════════════════════════════════════════════════════════════
+
+    // 5 short anchors (l=5, all < 10) + plain padding ⇒ text_len 50,
+    // link_len 25 (250 > 400 is FALSE ⇒ line 351 off). count 5, shorts 5:
+    // `5>1 && 50 > 40` ⇒ TRUE ⇒ DENSE via the shorts branch only.
+    //   · kills line 351→352 `||`→`&&`   (false && true ⇒ false)
+    //   · kills line 352 inner `>`→`<`    (shorts test 50 < 40 false)
+    //   · kills line 339 `l < 10`→`==`    (5 == 10 false ⇒ shorts 0 ⇒ off)
+    //   · kills line 339 `l < 10`→`>`     (5 > 10 false ⇒ shorts 0 ⇒ off)
+    #[test]
+    fn link_dense_menu_over_shorts_boundary_is_dense() {
+        // padding "P"×25 (25) + 5×anchor "AAAAA" (5 each) ⇒ text_len 50.
+        let frag = format!(
+            r"<div>{}{}</div>",
+            "P".repeat(25),
+            r#"<a href="/">AAAAA</a>"#.repeat(5)
+        );
+        assert!(
+            dense(&frag, "div"),
+            "5 short links of 5, 5/5 shorts ⇒ menu, dense via line 352"
+        );
+    }
+
+    // count 5, shorts EXACTLY 4 (4 anchors l=5 + 1 anchor l=10) ⇒ shorts test
+    // `40 > 40` is FALSE under strict `>` ⇒ NOT dense. The padding keeps the
+    // ratio test off (link_len 30, 300 > 400 false).
+    //   · kills line 352 inner `>`→`>=`  (40 >= 40 true ⇒ dense)
+    //   · kills line 352 inner `>`→`==`  (40 == 40 true ⇒ dense)
+    #[test]
+    fn link_dense_menu_at_shorts_boundary_is_not_dense() {
+        // padding "P"×20 (20) + 4×"AAAAA" (5) + 1×"BBBBBBBBBB" (10) ⇒
+        // text_len 50, link_len 30, count 5, shorts 4.
+        let frag = format!(
+            r#"<div>{}{}<a href="/">BBBBBBBBBB</a></div>"#,
+            "P".repeat(20),
+            r#"<a href="/">AAAAA</a>"#.repeat(4)
+        );
+        assert!(
+            !dense(&frag, "div"),
+            "shorts 4/5: 40 > 40 is false ⇒ not a tiny-link menu"
+        );
+    }
+
+    // count 5 anchors of EXACTLY l=10 ⇒ none are short under `l < 10`
+    // (`10 < 10` false). shorts 0 ⇒ line 352 off ⇒ NOT dense. The `<`→`<=`
+    // mutant makes `10 <= 10` true ⇒ shorts 5 ⇒ `50 > 40` ⇒ dense.
+    //   · kills line 339 `l < 10`→`<=` (the only mutant that needs an l==10
+    //     anchor to distinguish from the original).
+    #[test]
+    fn link_dense_menu_anchors_exactly_ten_chars_is_not_dense() {
+        // padding "P"×20 (20) + 5×"CCCCCCCCCC" (10) ⇒ text_len 70,
+        // link_len 50 (500 > 560 false ⇒ ratio off), shorts 0.
+        let frag = format!(
+            r"<div>{}{}</div>",
+            "P".repeat(20),
+            r#"<a href="/">CCCCCCCCCC</a>"#.repeat(5)
+        );
+        assert!(
+            !dense(&frag, "div"),
+            "anchors of exactly 10 are NOT short (`l < 10`) ⇒ no shorts ⇒ kept"
+        );
+    }
+
+    // count 2 LONG anchors (l=11) ⇒ shorts 0; ratio test off (link_len 22,
+    // 220 > 400 false). Original line 352: `2>1 && 0 > 16` ⇒ `true && false`
+    // ⇒ false ⇒ NOT dense. The `&&`→`||` mutant gives `true || false` ⇒ true
+    // ⇒ dense, flipping the whole verdict.
+    //   · kills line 352 `&&`→`||`.
+    #[test]
+    fn link_dense_menu_long_anchors_no_shorts_is_not_dense() {
+        // padding "P"×28 (28) + 2×"DDDDDDDDDDD" (11) ⇒ text_len 50,
+        // link_len 22, count 2, shorts 0.
+        let frag = format!(
+            r"<div>{}{}</div>",
+            "P".repeat(28),
+            r#"<a href="/">DDDDDDDDDDD</a>"#.repeat(2)
+        );
+        assert!(
+            !dense(&frag, "div"),
+            "count>1 but shorts 0: `&&` keeps it; `||` would wrongly drop it"
+        );
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  `cascade_for` — the per-page-type zone profile (line 192 match arm).
+    // ════════════════════════════════════════════════════════════════════
+
+    // Listing AND Search MUST resolve to BROAD_CASCADE. Deleting the
+    // `PageType::Listing | PageType::Search` arm drops them to the `_ =>
+    // ARTICLE_CASCADE` fallback, so asserting BROAD (≠ ARTICLE) catches it.
+    //   · kills the line-192 "delete match arm" mutant.
+    #[test]
+    fn cascade_for_listing_and_search_use_broad_cascade() {
+        // Compare by content; BROAD_CASCADE and ARTICLE_CASCADE differ in
+        // length and entries, so equality to BROAD distinguishes the arms.
+        assert_eq!(
+            cascade_for(PageType::Listing),
+            BROAD_CASCADE,
+            "Listing must use the broad (link-collection) cascade"
+        );
+        assert_eq!(
+            cascade_for(PageType::Search),
+            BROAD_CASCADE,
+            "Search must use the broad (link-collection) cascade"
+        );
+        // Sanity anchor: the fallback arm is genuinely a DIFFERENT cascade,
+        // so the deleted-arm mutant truly changes the returned slice.
+        assert_ne!(
+            BROAD_CASCADE, ARTICLE_CASCADE,
+            "broad and article cascades must differ for the arm test to bite"
+        );
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  `discard_ids` — the `with_backup` over-prune guard (line 262:
+    //  `total_text > 0 && pruned_text*7 > total_text*6`). Called DIRECTLY so
+    //  `total_text` and the matched-zone text are pinned to the boundary.
+    // ════════════════════════════════════════════════════════════════════
+
+    // pruned_text/total = 6/7 EXACTLY (42 == 42). Strict `>` ⇒ guard does NOT
+    // fire ⇒ the discard ids ARE returned (the share zone is pruned).
+    //   · kills line 262 site-2 `pruned*7 > total*6`→`>=` (42 >= 42 true ⇒
+    //     guard fires ⇒ returns EMPTY).
+    #[test]
+    fn discard_ids_at_over_prune_boundary_still_prunes() {
+        // share zone text "AAAAAA" (6) + content "B" (1) ⇒ total 7, pruned 6.
+        let doc = Html::parse_document(
+            r#"<html><body><div class="share">AAAAAA</div><p>B</p></body></html>"#,
+        );
+        let ids = discard_ids(&doc, PageType::Article, 7);
+        assert!(
+            !ids.is_empty(),
+            "6/7 is exactly at the boundary: `>` keeps pruning; `>=` would revert"
+        );
+    }
+
+    // total_text == 0 short-circuits the AND ⇒ guard skipped ⇒ ids returned.
+    // The `total_text > 0`→`>=` mutant makes `0 >= 0` true, then `6*7 > 0*6`
+    // ⇒ `42 > 0` true ⇒ guard fires ⇒ returns EMPTY. Passing total_text=0
+    // with a real pruned zone (pruned 6) exercises exactly that site.
+    //   · kills line 262 site-1 `total_text > 0`→`>=`.
+    #[test]
+    fn discard_ids_total_zero_short_circuits_guard() {
+        let doc = Html::parse_document(
+            r#"<html><body><div class="share">AAAAAA</div><p>BBBB</p></body></html>"#,
+        );
+        // total_text deliberately 0: `0 > 0` is false ⇒ guard never runs ⇒
+        // the share div is still collected for discard.
+        let ids = discard_ids(&doc, PageType::Article, 0);
+        assert!(
+            !ids.is_empty(),
+            "`0 > 0` is false (short-circuit); `0 >= 0` would let the guard nuke the ids"
+        );
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  `link_dense_ids` — Phase-3 collector (line 300). A container holding a
+    //  link-dense menu MUST yield a non-empty id list; the
+    //  "replace body with vec![]" mutant returns empty and fails.
+    // ════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn link_dense_ids_finds_a_dense_block_in_the_container() {
+        // <main> wraps a `<div>` tiny-link menu (5 short anchors, ratio test
+        // off ⇒ dense via the shorts branch · same shape as the menu test
+        // above). The inner <div> IS a BLOCK_SEL match, so `link_dense_ids`
+        // descends into it and judges it dense.
+        let doc = Html::parse_document(&format!(
+            r#"<html><body><main><div class="nav">{}{}</div></main></body></html>"#,
+            "P".repeat(25),
+            r#"<a href="/">AAAAA</a>"#.repeat(5)
+        ));
+        // Resolve the <main> NodeId (the `container` argument).
+        let main_sel = Selector::parse("main").expect("main selector");
+        let container = doc.select(&main_sel).next().expect("main present").id();
+        let ids = link_dense_ids(&doc, container);
+        assert!(
+            !ids.is_empty(),
+            "the link-dense menu <div> inside <main> is collected (not vec![])"
+        );
     }
 }

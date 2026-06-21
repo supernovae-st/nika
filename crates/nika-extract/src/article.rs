@@ -97,3 +97,184 @@ fn is_thin(value: &serde_json::Value) -> bool {
         .as_str()
         .is_none_or(|s| s.trim().len() < THIN_THRESHOLD)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{Value, json};
+
+    // ── is_thin · the THIN gate (directly unit-testable) ──────────────
+    //
+    // `is_thin(v)` = v is NOT a string, OR its TRIMMED length is strictly
+    // below THIN_THRESHOLD (250). These cases pin every operator the
+    // mutation run left alive on lines 95-98.
+
+    /// `THIN_THRESHOLD` is the canonical 250-char floor — make the boundary
+    /// arithmetic explicit so a silent constant drift fails loudly here.
+    #[test]
+    fn thin_threshold_is_250() {
+        assert_eq!(THIN_THRESHOLD, 250);
+    }
+
+    #[test]
+    fn is_thin_true_for_empty_and_short_strings() {
+        // Empty string: trimmed len 0 < 250 → THIN.
+        // (Kills line-96 `is_thin → false`: a `false`-returner fails here.)
+        assert!(is_thin(&json!("")));
+
+        // Exactly THIN_THRESHOLD - 1 (249) characters → still THIN.
+        // (Boundary for line-98 `<`: 249 < 250 holds; the `==` and `>`
+        // mutants both make this case wrongly return `false`.)
+        let just_under = "x".repeat(THIN_THRESHOLD - 1);
+        assert_eq!(just_under.len(), 249);
+        assert!(is_thin(&json!(just_under)));
+    }
+
+    #[test]
+    fn is_thin_false_at_threshold_exactly() {
+        // Exactly THIN_THRESHOLD (250) characters → NOT thin.
+        // (Kills line-96 `is_thin → true`: a `true`-returner fails here.
+        //  Kills line-98 `< → <=`: 250 <= 250 would wrongly report THIN.)
+        let at_threshold = "y".repeat(THIN_THRESHOLD);
+        assert_eq!(at_threshold.len(), 250);
+        assert!(!is_thin(&json!(at_threshold)));
+    }
+
+    #[test]
+    fn is_thin_true_for_non_string_values() {
+        // A non-string value has no `as_str()` → `is_none_or` → THIN.
+        // (Kills line-96 `is_thin → false` on the non-string path, which
+        //  the string-only cases above cannot reach.)
+        assert!(is_thin(&Value::Null));
+        assert!(is_thin(&json!(42)));
+        assert!(is_thin(&json!(true)));
+        assert!(is_thin(&json!([1, 2, 3])));
+    }
+
+    #[test]
+    fn is_thin_measures_trimmed_length_not_raw() {
+        // Raw length ≥ 250 but TRIMMED length < 250 → THIN. Without the
+        // `.trim()`, the raw 260-char length would clear the floor and
+        // wrongly report NOT-thin; with it, the 240 visible chars stay
+        // below 250. Also re-pins line-98 `<` on the trimmed metric.
+        let padded = format!("{}{}{}", " ".repeat(10), "z".repeat(240), " ".repeat(10));
+        assert_eq!(padded.len(), 260);
+        assert_eq!(padded.trim().len(), 240);
+        assert!(is_thin(&json!(padded)));
+    }
+
+    // ── article · the 3-stage cascade ─────────────────────────────────
+    //
+    // Reliability lever: `readability(body, base)` forwards `base` to
+    // `dom_smoothie::Readability::new`, which returns
+    // `Err(BadDocumentURL)` when `base` is NOT an absolute URL. Passing a
+    // non-absolute base therefore makes Stage 2 deterministically ERROR —
+    // no dependence on dom_smoothie's content scoring. With Stage 2 fixed
+    // to `Err`, the Stage 3 boilerpipe fallback (our own deterministic
+    // `blocks::boilerpipe_content`) drives the observable output.
+    const NON_ABSOLUTE_BASE: Option<&str> = Some("not-an-absolute-url");
+
+    /// Stage 1 — a real `<article>` body returns the rule-cascade markdown
+    /// without ever consulting readability/boilerpipe. Anchors the happy
+    /// path: the prose survives end-to-end as a Markdown string.
+    #[test]
+    fn stage1_rich_article_returns_markdown_prose() {
+        let prose = "This is a genuine article body with plenty of running \
+             words so that the rule cascade comfortably clears the THIN \
+             floor and returns Markdown straight from stage one without \
+             ever falling through to readability or the boilerpipe recall \
+             floor underneath it all here."
+            .to_string();
+        let body =
+            format!("<html><body><article><h1>Heading</h1><p>{prose}</p></article></body></html>");
+
+        let out = article(&body, Some("https://example.com/")).expect("rich article extracts");
+        let md = out.as_str().expect("article returns a Markdown string");
+        assert!(
+            md.contains("genuine article body"),
+            "stage-1 markdown must carry the article prose, got: {md}"
+        );
+        assert!(
+            md.trim().len() >= THIN_THRESHOLD,
+            "stage-1 result is not thin"
+        );
+    }
+
+    /// Stage 3 RICH — no semantic container (Stage 1 abstains) + a
+    /// non-absolute base (Stage 2 errors) ⇒ the boilerpipe fallback owns
+    /// the result, and a ≥250-char fallback is returned verbatim. Pins the
+    /// `fallback.trim().len() >= THIN_THRESHOLD` decision (line 59) as the
+    /// gate that emits the rich recall floor.
+    #[test]
+    fn stage3_rich_boilerpipe_fallback_is_returned() {
+        // One bare <div> of long prose — no <article>/<main>/role/class, so
+        // the rule cascade finds no zone and Stage 1 abstains.
+        let prose = "the boilerpipe recall floor recovers this long running \
+             paragraph of prose because the rule cascade abstains on this \
+             markup poor div soup and readability is forced to error out by \
+             the non absolute base url we deliberately pass into the article \
+             cascade here so only the shallow text density extractor remains \
+             standing to carry the body forward in full intact";
+        let body = format!("<html><body><div>{prose}</div></body></html>");
+
+        let out = article(&body, NON_ABSOLUTE_BASE).expect("boilerpipe fallback recovers prose");
+        let md = out.as_str().expect("fallback is a string");
+        assert!(
+            md.contains("boilerpipe recall floor recovers"),
+            "rich boilerpipe fallback must be returned, got: {md}"
+        );
+        assert!(
+            md.trim().len() >= THIN_THRESHOLD,
+            "fallback cleared the rich floor"
+        );
+    }
+
+    /// Stage 3 THIN-but-non-empty — Stage 1 abstains, Stage 2 errors, and
+    /// boilerpipe yields a SHORT (<250) yet NON-EMPTY string. The correct
+    /// cascade still returns that short content (the `!fallback.is_empty()`
+    /// arm, line 70). The `delete !` / guard→`false` mutants on line 70
+    /// would instead drop to `other => other` and surface the Stage-2
+    /// error — so this asserts `Ok` + the prose, killing those mutants.
+    #[test]
+    fn stage3_short_nonempty_boilerpipe_beats_the_error() {
+        // ~11 running words in a lonely div → boilerpipe's degenerate
+        // floor keeps it (non-empty) but it is far under 250 chars.
+        let body = "<html><body>\
+             <div>eleven plain running words sit inside this lonely div block</div>\
+             </body></html>";
+
+        let out =
+            article(body, NON_ABSOLUTE_BASE).expect("short non-empty fallback wins over the error");
+        let md = out.as_str().expect("fallback is a string");
+        assert!(
+            md.contains("eleven plain running words"),
+            "short non-empty boilerpipe must be returned, not the error, got: {md}"
+        );
+        assert!(
+            md.trim().len() < THIN_THRESHOLD,
+            "this fallback is intentionally THIN"
+        );
+    }
+
+    /// All-thin terminus — an empty body: Stage 1 abstains, Stage 2 errors
+    /// (non-absolute base), and boilerpipe returns "" (empty). With an
+    /// EMPTY fallback, the correct cascade exhausts every rescue arm and
+    /// surfaces the Stage-2 error verbatim (`other => other`, line 71).
+    ///
+    /// This single assertion kills three survivors at once:
+    ///   • line 70 guard `→ true` / `delete !`  → would return `Ok("")`
+    ///   • line 79 `readability → Ok(Default::default())` → readability
+    ///     never errors, the `Null` default flows to line 66's
+    ///     `0 >= 0` arm and returns `Ok(Null)`.
+    /// All three replace the expected `Err` with an `Ok`, so `is_err()`
+    /// distinguishes the real code from every one of them.
+    #[test]
+    fn empty_body_surfaces_the_readability_error() {
+        let body = "<html><body></body></html>";
+        let out = article(body, NON_ABSOLUTE_BASE);
+        assert!(
+            out.is_err(),
+            "empty body + empty fallback must surface the stage-2 error, got: {out:?}"
+        );
+    }
+}
