@@ -130,7 +130,7 @@ jobs:
       - name: Guard on the tap token
         id: guard
         env:
-          TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           set -euo pipefail
           if [ -n "${TAP_TOKEN:-}" ]; then
@@ -152,7 +152,7 @@ jobs:
           # The tap repo was renamed homebrew-tap → homebrew-nika (GitHub
           # redirects, but pin the canonical name).
           repository: supernovae-st/homebrew-nika
-          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
       - name: Update + push the formula
         if: steps.guard.outputs.ok == 'true'
