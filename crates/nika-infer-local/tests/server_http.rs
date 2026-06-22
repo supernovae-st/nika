@@ -82,7 +82,7 @@ fn completions_round_trip_through_the_wire() {
 
 /// Gate-9 canary — the full sidecar chain end-to-end over HTTP produces output
 /// that is wire-valid at the EXACT untyped JSON pointer paths the engine's
-/// `nika-providers` OpenAiCompat parser walks (pinned identically in
+/// `nika-providers` `OpenAiCompat` parser walks (pinned identically in
 /// `wire_contract.rs`, but there against the trait — here proven on the real
 /// served bytes). This is the integration the crate exists for: a wire client
 /// POSTs, the sidecar answers, the bytes parse where the consumer looks.
