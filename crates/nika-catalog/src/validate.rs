@@ -5,6 +5,10 @@
 //!
 //! Used by xtask and unit tests to ensure static data is consistent.
 
+// Every `CatalogError`-using fn below requires at least `pricing`
+// (validate_provider_models is `all(providers, pricing)`; `pricing` implies
+// `providers`), so the import is only live under `pricing`.
+#[cfg(feature = "pricing")]
 use crate::error::CatalogError;
 
 /// Validate all catalog cross-references. Returns all errors found.

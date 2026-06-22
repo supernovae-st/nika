@@ -12,7 +12,10 @@
 
 use core::fmt;
 
-use super::model::{CostEstimate, ModelCapabilities, ModelPricing};
+#[cfg(feature = "capabilities")]
+use super::model::ModelCapabilities;
+#[cfg(feature = "pricing")]
+use super::model::{CostEstimate, ModelPricing};
 
 /// Where a catalog overlay originates.
 ///
