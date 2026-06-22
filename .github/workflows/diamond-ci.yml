@@ -133,6 +133,10 @@ jobs:
           # action's nightly when cargo runs — and 1.91 has no miri component.
           # Force the nightly toolchain (that carries miri) for this step only.
           RUSTUP_TOOLCHAIN: nightly
+          # miri is ~100-1000x slower than native; the default 256 proptest
+          # cases take >1h here. UB is structural, not input-dependent, so 1
+          # case per proptest exercises the same code paths in seconds.
+          PROPTEST_CASES: "1"
         run: cargo miri test --lib -p nika-error -p nika-catalog
 
   machete:
