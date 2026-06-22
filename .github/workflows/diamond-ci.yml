@@ -124,7 +124,11 @@ jobs:
           shared-key: diamond-miri
       - name: miri test — nika-error + nika-catalog
         env:
-          MIRIFLAGS: "-Zmiri-strict-provenance"
+          # `-Zmiri-isolation-error=warn`: a proptest in the L0 tests calls
+          # getcwd (failure-persistence file path) which miri's isolation blocks;
+          # warn-and-return-error lets proptest fall back instead of aborting,
+          # keeping strict-provenance UB detection intact.
+          MIRIFLAGS: "-Zmiri-strict-provenance -Zmiri-isolation-error=warn"
           # The repo's rust-toolchain.toml pins stable 1.91, which overrides the
           # action's nightly when cargo runs — and 1.91 has no miri component.
           # Force the nightly toolchain (that carries miri) for this step only.
