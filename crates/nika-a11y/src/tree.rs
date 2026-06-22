@@ -350,7 +350,7 @@ fn build_node_atspi<'a>(
     conn: &'a zbus::Connection,
     counter: &'a mut u32,
     depth: u16,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = AxNode> + 'a>> {
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = AxNode> + Send + 'a>> {
     use atspi::proxy::accessible::ObjectRefExt;
     use std::collections::BTreeMap;
 
