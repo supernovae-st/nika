@@ -53,7 +53,7 @@ use std::path::PathBuf;
 ///
 /// `#[non_exhaustive]` keeps the struct extensible per `no-legacy-no-
 /// back-compat.md` (NUKE-LEGACY · breaking changes ship on MINOR until
-/// forever-v0.x). Future fields land additively (e.g. `cookies` ·
+/// 1.0). Future fields land additively (e.g. `cookies` ·
 /// `viewport` · `user_agent`).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]

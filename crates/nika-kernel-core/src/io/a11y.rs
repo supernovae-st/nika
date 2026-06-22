@@ -34,7 +34,7 @@ use std::collections::BTreeMap;
 ///
 /// `#[non_exhaustive]` on the enum keeps the variant set extensible per
 /// `no-legacy-no-back-compat.md` (NUKE-LEGACY · breaking changes ship
-/// on MINOR until forever-v0.x). 13 variants cover the high-frequency
+/// on MINOR until 1.0). 13 variants cover the high-frequency
 /// AX roles · further variants land additively when an L1 impl surfaces
 /// a platform-specific role that doesn't map cleanly into `Unknown`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

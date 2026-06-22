@@ -437,7 +437,7 @@ mod tests {
     /// epoch) as the canonical timestamp field name. Cohérent cockpit
     /// `nano_now()` + nika-kernel input.rs ns canon + USER GATE EC-4 OUI
     /// ns canonical. Per `no-legacy-no-back-compat.md` · breaking-on-MINOR
-    /// during forever-v0.x · zero shim · zero `captured_at_ms` alias.
+    /// pre-1.0 · zero shim · zero `captured_at_ms` alias.
     #[test]
     fn frame_uses_captured_at_ns_canonical_field_name() {
         let frame = Frame::new(

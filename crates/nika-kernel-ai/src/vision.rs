@@ -61,7 +61,7 @@ use std::collections::BTreeMap;
 ///
 /// `#[non_exhaustive]` keeps the struct extensible per `no-legacy-no-
 /// back-compat.md` (NUKE-LEGACY · breaking changes ship on MINOR
-/// until forever-v0.x). Future fields land additively (e.g. `class_id`
+/// until 1.0). Future fields land additively (e.g. `class_id`
 /// · `track_id` for multi-frame tracking · `mask` for instance
 /// segmentation).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

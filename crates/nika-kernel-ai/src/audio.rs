@@ -10,7 +10,7 @@
 //! modality with zero trait / zero builtin / zero roadmap line while
 //! vision · screen · ocr · a11y · input all had seams). Contracts land
 //! NOW so stdlib v0.x audio impls arrive ADDITIVELY (no breaking change
-//! · forever-v0.x discipline) · L1 impls land post-announce (whisper /
+//! · additive-forward-compat discipline) · L1 impls land post-announce (whisper /
 //! kokoro / piper class via `candle` or in-process runtimes · the
 //! Olympus voice pipeline is the working prototype per the build-twice
 //! asymmetric pattern D-2026-06-01-N2 · Olympus prototypes · Nika
