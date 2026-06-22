@@ -41,6 +41,9 @@ core-foundation = { workspace = true }
 # the Linux backend is trusted. Windows UIA (`uiautomation`) lands later.
 [target.'cfg(target_os = "linux")'.dependencies]
 atspi = { workspace = true }
+# atspi 0.29 only re-exports zbus behind a feature, so depend on it directly.
+# Pin to atspi's own `zbus ^5.5` so the `Connection` types unify.
+zbus = "5.5"
 
 [dev-dependencies]
 # #[tokio::test] for the async AccessibilityTree methods · proptest pins the

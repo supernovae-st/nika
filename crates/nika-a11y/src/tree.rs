@@ -291,7 +291,7 @@ async fn build_raw_tree() -> Result<AxNode, A11yError> {
 fn atspi_role_to_ax(role: atspi::Role) -> AxRole {
     use atspi::Role;
     match role {
-        Role::PushButton | Role::ToggleButton => AxRole::Button,
+        Role::Button | Role::ToggleButton => AxRole::Button,
         Role::Link => AxRole::Link,
         // PasswordText also maps to TextField for the role; the secure marker
         // is set separately at walk time (see build_node_atspi).
@@ -345,9 +345,9 @@ async fn walk_focused_tree_async() -> Result<AxNode, A11yError> {
 #[cfg(target_os = "linux")]
 fn build_node_atspi<'a>(
     proxy: atspi::proxy::accessible::AccessibleProxy<'a>,
-    // CI-VERIFY · zbus re-export path · `atspi::zbus::Connection` (atspi
-    // re-exports zbus) · if absent on 0.29, add `zbus` as a linux-target dep.
-    conn: &'a atspi::zbus::Connection,
+    // atspi 0.29 only re-exports zbus behind its `zbus` feature, so `atspi::zbus`
+    // is absent by default — depend on `zbus` directly (matches atspi's `zbus ^5.5`).
+    conn: &'a zbus::Connection,
     counter: &'a mut u32,
     depth: u16,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AxNode> + 'a>> {
