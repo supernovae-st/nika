@@ -50,6 +50,15 @@ jobs:
       JOB: ${{ matrix.job }}
     steps:
       - uses: actions/checkout@v4
+      # The computer-use crates carry `cfg(target_os = "linux")` deps
+      # (nika-screen → wayland-sys · nika-a11y → atspi/D-Bus · nika-input →
+      # evdev/x11) that need the desktop system libs to build on the runner.
+      - name: Install Linux desktop deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwayland-dev libxkbcommon-dev libdbus-1-dev libudev-dev \
+            libx11-dev libxi-dev libxtst-dev pkg-config
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.91"
@@ -76,6 +85,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Linux desktop deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwayland-dev libxkbcommon-dev libdbus-1-dev libudev-dev \
+            libx11-dev libxi-dev libxtst-dev pkg-config
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.91"
