@@ -58,7 +58,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwayland-dev libxkbcommon-dev libdbus-1-dev libudev-dev \
-            libx11-dev libxi-dev libxtst-dev pkg-config
+            libx11-dev libxi-dev libxtst-dev libpipewire-0.3-dev pkg-config
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.91"
@@ -90,7 +90,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwayland-dev libxkbcommon-dev libdbus-1-dev libudev-dev \
-            libx11-dev libxi-dev libxtst-dev pkg-config
+            libx11-dev libxi-dev libxtst-dev libpipewire-0.3-dev pkg-config
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.91"

@@ -103,6 +103,14 @@ yanked  = "deny"
 # Document every entry: RUSTSEC ID + reason + upstream issue + review date.
 ignore = [
   # "RUSTSEC-YYYY-NNNN",  # example only — always document reason + upstream issue
+  #
+  # RUSTSEC-2024-0436 · `paste` is unmaintained (archived, no vuln). It is a
+  # COMPILE-TIME-ONLY proc-macro (token pasting) — zero runtime surface. Pulled
+  # transitively by the candle ML linalg stack (gemm/pulp/tokenizers/metal →
+  # nika-infer-local, ADR-091). No patched version exists and no removable path
+  # short of forking the entire ML ecosystem. Informational advisory, not a
+  # vulnerability. Review: 2026-06-22. Upstream: github.com/dtolnay/paste (archived).
+  "RUSTSEC-2024-0436",
 ]
 
 [sources]
