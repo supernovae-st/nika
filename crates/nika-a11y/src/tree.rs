@@ -288,7 +288,7 @@ async fn build_raw_tree() -> Result<AxNode, A11yError> {
 /// (`atspi::Role` is `#[non_exhaustive]`).
 ///
 /// CI-VERIFY · the `atspi::Role` variant names below are from the AT-SPI2
-/// `ROLE_*` standard (PascalCase) · confirm each against `atspi` 0.29 on the
+/// `ROLE_*` standard (`PascalCase`) · confirm each against `atspi` 0.29 on the
 /// Linux build (a wrong name is a compile error here, caught by Linux CI).
 #[cfg(target_os = "linux")]
 fn atspi_role_to_ax(role: atspi::Role) -> AxRole {
