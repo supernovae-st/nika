@@ -79,6 +79,7 @@ impl AxBackend {
 /// Map a platform AX role string to the canonical [`AxRole`] — **pure** ·
 /// headless-testable. Unmapped roles fall back to [`AxRole::Unknown`]
 /// (extended additively as more macOS roles surface).
+#[cfg(target_os = "macos")]
 fn ax_role_from_str(raw: &str) -> AxRole {
     match raw {
         "AXButton" => AxRole::Button,
@@ -110,6 +111,7 @@ fn find_by_id(node: &AxNode, id: &str) -> Option<AxNode> {
 /// the role, drops empty `title`/`subrole`, and records a non-empty subrole in
 /// `attributes["AXSubrole"]` (the secure-field marker Guard 3 reads). `bbox` is
 /// `None` (frame→`Rect` is a later refinement).
+#[cfg(target_os = "macos")]
 fn assemble_node(
     id: String,
     role_str: &str,
@@ -142,6 +144,7 @@ fn assemble_node(
 /// `e.to_string()`: tokio's `JoinError` Display embeds the panic PAYLOAD, which
 /// could carry a secure-field value the AX walk read (Guard 3) if a backend
 /// panicked with it. Distinguish the cause; carry no payload.
+#[cfg(target_os = "macos")]
 fn join_panic_reason(e: &tokio::task::JoinError) -> String {
     if e.is_cancelled() {
         "a11y task cancelled"
@@ -832,6 +835,7 @@ mod tests {
 
     // --- ax_role_from_str (pure · mutation-killing) ---
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn ax_role_from_str_maps_every_arm_and_unknown() {
         // Every mapped arm (pins each match arm against deletion).
@@ -884,6 +888,7 @@ mod tests {
 
     // --- assemble_node (pure node assembly · mutation-killing) ---
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn assemble_node_maps_role_filters_empty_and_records_subrole() {
         // Non-empty title + non-empty secure subrole (read succeeded).
@@ -928,6 +933,7 @@ mod tests {
 
     // --- assemble_node Guard 3 fail-closed (subrole read ERRORED) ---
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn assemble_node_fail_closed_marks_secure_when_subrole_read_failed_with_value() {
         // subrole read errored (None + read_failed) but the node HAS a value:
@@ -950,6 +956,7 @@ mod tests {
         assert_eq!(redacted.value, None, "fail-closed value is redacted");
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn assemble_node_no_overredact_when_read_failed_but_no_value() {
         // subrole read errored but the node has NO content: nothing to protect,
@@ -969,6 +976,7 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn assemble_node_proven_nonsecure_is_not_marked_even_with_value() {
         // subrole read SUCCEEDED and returned a non-secure subrole: we proved it
