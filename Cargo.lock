@@ -3499,6 +3499,7 @@ dependencies = [
  "nika-kernel",
  "proptest",
  "tokio",
+ "zbus",
 ]
 
 [[package]]
