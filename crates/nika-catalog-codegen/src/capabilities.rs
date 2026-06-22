@@ -5,7 +5,7 @@
 //!
 //! Lifted from `nika-catalog/build/capabilities.rs` (978 LOC). All TOML
 //! schema types use `#[serde(deny_unknown_fields)]` so a typo like
-//! `prefex_any` on `match.kind` produces a clear parse error at build
+//! `prefix_any` on `match.kind` produces a clear parse error at build
 //! time rather than silently deserialising into the default variant.
 
 use std::collections::HashSet;

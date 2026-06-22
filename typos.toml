@@ -22,10 +22,54 @@ Ba         = "Ba"        # Jinsheng Ba (paper author)
 # Code identifiers in helper scripts (not prose)
 lits       = "lits"      # `strip_str_lits` — string-literal stripping helper
 criticals  = "criticals" # shell variable name in an audit script
+# Typo-detection feature vocabulary — nika-schema/{check,suggest,parser} carry
+# these misspellings ON PURPOSE as test fixtures + examples (the engine detects
+# and suggests fixes for them). "Fixing" them would break the feature's tests.
+raed       = "raed"
+objet      = "objet"
+sumary     = "sumary"
+sumamry    = "sumamry"
+wrte       = "wrte"
+temperture = "temperture"
+nmae       = "nmae"
+strng      = "strng"
+frist      = "frist"
+titel      = "titel"
+requierd   = "requierd"
+filesytem  = "filesytem"
+BUIL       = "BUIL"
+# French (the studio writes franglais — these are real French words, not typos)
+raison     = "raison"
+raisons    = "raisons"
+projet     = "projet"
+mesure     = "mesure"
+correspondant = "correspondant"
+# Code identifiers / domain shorthand
+ser        = "ser"       # serde serialize shorthand (`ser`/`de`)
+numer      = "numer"     # numerator (BM25 scorer: numer/denom)
+nd         = "nd"        # binding in `Ok(nd) => …`
+anc        = "anc"       # `anc_count` (graph ancestor count)
+fo         = "fo"        # glob test pattern `fo?.rs`
+mis        = "mis"       # `mis-coding` (hyphenated prefix)
+magent     = "magent"    # ANSI SGR `\x1b[1;35m` + `agent` concatenation
+failer     = "failer"    # test mock name (a thing that fails)
+observ     = "observ"    # `unstable-observ` Cargo feature name
+# Proper nouns / library names
+ratatui    = "ratatui"   # the Ratatui TUI library
+Hashi      = "Hashi"     # HashiCorp (proper noun)
+OLY        = "OLY"       # OLY- prefix in a negative test (wrong-prefix rejection)
+YELLO      = "YELLO"     # part of YELLOW in a hygiene-color comment
+# Valid alternative spelling
+unparseable = "unparseable"
 
 [files]
 extend-exclude = [
   "target/",
+  # cargo public-api baselines — generated symbol dumps, not prose. Real
+  # source typos are still caught in the .rs files they derive from.
+  "**/public-api.txt",
+  # Fuzzing corpus — intentionally-malformed inputs for the fuzzer.
+  "fuzz/corpus/",
   "**/*.lock",
   "**/*.snap",
   "**/*.png",
