@@ -58,7 +58,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwayland-dev libxkbcommon-dev libdbus-1-dev libudev-dev \
-            libx11-dev libxi-dev libxtst-dev libpipewire-0.3-dev pkg-config
+            libx11-dev libxi-dev libxtst-dev libpipewire-0.3-dev \
+            libegl1-mesa-dev libgl1-mesa-dev libgbm-dev pkg-config
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.91"
@@ -90,7 +91,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwayland-dev libxkbcommon-dev libdbus-1-dev libudev-dev \
-            libx11-dev libxi-dev libxtst-dev libpipewire-0.3-dev pkg-config
+            libx11-dev libxi-dev libxtst-dev libpipewire-0.3-dev \
+            libegl1-mesa-dev libgl1-mesa-dev libgbm-dev pkg-config
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.91"
@@ -120,6 +122,10 @@ jobs:
       - name: miri test — nika-error + nika-catalog
         env:
           MIRIFLAGS: "-Zmiri-strict-provenance"
+          # The repo's rust-toolchain.toml pins stable 1.91, which overrides the
+          # action's nightly when cargo runs — and 1.91 has no miri component.
+          # Force the nightly toolchain (that carries miri) for this step only.
+          RUSTUP_TOOLCHAIN: nightly
         run: cargo miri test --lib -p nika-error -p nika-catalog
 
   machete:

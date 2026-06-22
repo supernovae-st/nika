@@ -16,6 +16,12 @@ diamond    = "diamond"   # part of branch name; typos may flag `dimond`
 # Rust idioms
 impl       = "impl"
 fn         = "fn"
+# Researcher / author names in academic citations (docs reference tables)
+Wil        = "Wil"       # Wil M. P. van der Aalst (process-mining researcher)
+Ba         = "Ba"        # Jinsheng Ba (paper author)
+# Code identifiers in helper scripts (not prose)
+lits       = "lits"      # `strip_str_lits` — string-literal stripping helper
+criticals  = "criticals" # shell variable name in an audit script
 
 [files]
 extend-exclude = [
