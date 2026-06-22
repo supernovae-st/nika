@@ -26,7 +26,7 @@ That tag fires **`.github/workflows/release.yml`**, which:
 2. packages each as `nika-<platform>-<version>.tar.gz` (+ a `.sha256` sidecar),
 3. creates the GitHub release with those tarballs + a `SHA256SUMS` file,
 4. **bumps the Homebrew tap** formula (version + the 4 sha256s) — *if* the
-   `TAP_GITHUB_TOKEN` secret is set (see §3); otherwise it logs a notice and you
+   `HOMEBREW_TAP_TOKEN` secret is set (see §3); otherwise it logs a notice and you
    bump the formula by hand (§2).
 
 Re-run a tag's build without re-tagging via the **workflow_dispatch** input.
@@ -49,17 +49,17 @@ scripts/release/update-formula.sh \
 
 `update-formula.sh` rewrites only the `version` line and the four `sha256` lines
 (each matched to its `url` by platform); the `url`s carry `#{version}` and don't
-change. `brew install supernovae-st/tap/nika` then pulls the new version.
+change. `brew install supernovae-st/nika/nika` then pulls the new version.
 
 ---
 
 ## 3. One-time secret for the auto-formula-bump
 
-Create a fine-grained PAT with **contents:write** on `supernovae-st/homebrew-tap`,
+Create a fine-grained PAT with **contents:write** on `supernovae-st/homebrew-nika`,
 then add it to the engine repo:
 
 ```bash
-gh secret set TAP_GITHUB_TOKEN --repo supernovae-st/nika --body "<pat>"
+gh secret set HOMEBREW_TAP_TOKEN --repo supernovae-st/nika --body "<pat>"
 ```
 
 With it set, step §1 closes the loop end-to-end (no manual formula edit).

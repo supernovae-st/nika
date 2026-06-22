@@ -24,6 +24,14 @@ follow_ups: []
 
 # ADR-002: Forever v0.x — no v1.0 target
 
+> **⚠️ AMENDED 2026-06-20 (D-2026-06-20-N1) — this doctrine is RETIRED.**
+> The "forever-v0.x · no v1.0 target" model described below is **superseded**.
+> Nika now follows **real semver toward a 1.0.0 public launch** (the engine
+> is at 0.90.0 RC-grade; 1.0.0 ships when the 7 shadow zones are green; the
+> remaining crates land additively across the 1.x minors). The `nika: v1`
+> LANGUAGE envelope is frozen forever and is unaffected (a different axis).
+> The original text is preserved below per `cross-source-validation.md` §2.7.
+
 > **⚠️ AMENDED 2026-06-20 (D-2026-06-20-N1) · "forever-v0.x · no v1.0 ever" is RETIRED → real semver toward a 1.0 launch.**
 > The decision below is SUPERSEDED at the version-policy layer. Canon courant ·
 >

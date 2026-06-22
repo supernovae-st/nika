@@ -3,16 +3,19 @@
 All notable changes to Nika are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Nika follows [forever-v0.x](ROADMAP.md) — incremental quality, no v1.0 target.
+Nika follows real semver toward a **1.0.0** public launch (amended
+D-2026-06-20-N1) — quality over speed. v0.90.0 is the first public release.
 
 Nika Diamond is a ground-up rewrite on an orphan branch (`main` ·
 renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
 `brouillon` (renamed 2026-05-06 from `main`). Diamond starts at v0.80.0.
 
-**Version history.** Nika has shipped since **v0.1.0**. The early engine
-(**v0.1.0 → v0.28.0**, 96 tags) is on this repository as historical record;
-the v0.29 → v0.79.3 legacy era is kept as a private reference; this changelog
-tracks the Diamond rebuild from **v0.80.0-alpha** onward.
+**Version history.** The pre-Diamond engine (the v0.1 → v0.79.3 legacy
+era) is preserved in the private `nikab-legacy` reference repo — its tags
+and releases were removed from this public repository in the 2026-06-21
+cleanup. This public repo carries the Diamond arc only: `v0.80.0-alpha.*`
+(the rewrite history) and `v0.90.0` (the first public release). This
+changelog tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 
 ---
 

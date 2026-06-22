@@ -137,7 +137,7 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
             echo "ok=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::TAP_GITHUB_TOKEN unset — skipping the formula bump. The release + checksums are published; run scripts/release/update-formula.sh against the tap manually."
+            echo "::notice::HOMEBREW_TAP_TOKEN unset — skipping the formula bump. The release + checksums are published; run scripts/release/update-formula.sh against the tap manually."
           fi
       - uses: actions/checkout@v4
         if: steps.guard.outputs.ok == 'true'
