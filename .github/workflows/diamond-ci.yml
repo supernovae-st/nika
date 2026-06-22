@@ -101,7 +101,10 @@ jobs:
           shared-key: diamond
       - uses: taiki-e/install-action@cargo-hack
       - name: check feature powerset (no dev deps)
-        run: cargo hack --feature-powerset --no-dev-deps check --workspace
+        # `metal` (nika-infer-local) pulls candle-core/metal → the Apple-GPU
+        # `metal` crate, which only builds on macOS/iOS. Exclude it from the
+        # Linux feature-matrix; a macOS runner would cover it if we add one.
+        run: cargo hack --feature-powerset --no-dev-deps --exclude-features metal check --workspace
 
   miri:
     name: miri (L0 UB detection)
