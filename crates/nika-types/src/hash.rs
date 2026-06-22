@@ -3,10 +3,14 @@
 
 //! Content-addressable storage hash types.
 
+#[cfg(feature = "serde")]
 use alloc::format;
-use alloc::string::{String, ToString};
+use alloc::string::String;
+#[cfg(feature = "serde")]
+use alloc::string::ToString;
 use core::fmt;
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// BLAKE3 hash (32 bytes).
@@ -41,12 +45,14 @@ impl fmt::Display for Blake3Hash {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for Blake3Hash {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.to_string())
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Blake3Hash {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
@@ -68,7 +74,8 @@ impl<'de> Deserialize<'de> for Blake3Hash {
 }
 
 /// Content digest string (algorithm-prefixed, e.g. `"sha256:abcd..."`).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct ContentDigest {
     /// The full digest string.
@@ -92,7 +99,8 @@ impl fmt::Display for ContentDigest {
 }
 
 /// Blob reference string (CAS key).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct BlobRef {
     /// The reference value.

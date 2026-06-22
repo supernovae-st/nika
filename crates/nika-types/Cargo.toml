@@ -11,9 +11,14 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See feedback_publish_false_foundation_strategy.md + ADR-017.
 
 [dependencies]
+# `serde` is the only genuinely optional dependency: the derives are
+# feature-gated so the crate compiles `--no-default-features`. `uuid` and
+# `serde_json` are STRUCTURAL — `id.rs` wraps `Uuid` in its ID newtypes and
+# `checkpoint.rs` carries a `serde_json::Value` context field — so they are
+# always present, not bundled into the serde feature.
 serde      = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
-uuid       = { workspace = true, optional = true }
+serde_json = { workspace = true }
+uuid       = { workspace = true }
 
 [features]
 default = ["std", "serde"]
@@ -21,7 +26,7 @@ default = ["std", "serde"]
 # as a feature-flag seam for WASM v0.100 (see ADR-028 + Phase F of the
 # 2026-04-16 swarm-3 audit plan).
 std     = []
-serde   = ["dep:serde", "dep:serde_json", "dep:uuid"]
+serde   = ["dep:serde"]
 
 [dev-dependencies]
 serde_json = { workspace = true }

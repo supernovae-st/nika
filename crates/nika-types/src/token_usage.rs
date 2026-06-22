@@ -3,6 +3,7 @@
 
 //! Token usage statistics — shared between provider and billing.
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// Token usage statistics.
@@ -10,7 +11,8 @@ use serde::{Deserialize, Serialize};
 /// All new fields (post-v0.80) are `Option<u64>` for backward compatibility.
 /// Producers opt in by setting individual fields. The struct is
 /// `#[non_exhaustive]` so future additions are non-breaking.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct TokenUsage {
     /// Input/prompt tokens.

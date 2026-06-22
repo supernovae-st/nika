@@ -9,6 +9,7 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// Maximum number of baggage entries.
@@ -17,7 +18,8 @@ pub const MAX_ENTRIES: usize = 64;
 pub const MAX_SIZE_BYTES: usize = 8192;
 
 /// A collection of baggage entries for context propagation.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct Baggage {
     /// Baggage entries.
@@ -72,7 +74,8 @@ impl Baggage {
 }
 
 /// A single baggage entry.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct BaggageEntry {
     /// Entry key.

@@ -15,6 +15,7 @@
 use core::fmt;
 use core::ops::{Add, Sub};
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// Cost in nano-USD (1e-9 USD). Signed to support credits/refunds.
@@ -28,7 +29,8 @@ use serde::{Deserialize, Serialize};
 /// let c = Cost::from_micro_usd(1_500_000); // $1.50
 /// assert_eq!(c.to_string(), "$1.500000");
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct Cost {
     /// Value in nano-USD.

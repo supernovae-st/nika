@@ -14,14 +14,16 @@ use alloc::string::String;
 use core::fmt;
 use core::str::FromStr;
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// One extraction mode for `nika:fetch` (the `mode:` argument).
 ///
 /// `#[non_exhaustive]`: stdlib v0.x MAY add modes (forward-compat
 /// additive per the spec) — consumers match with a wildcard arm.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 #[non_exhaustive]
 pub enum ExtractMode {
     /// HTML → cleaned Markdown (the default for content scraping).

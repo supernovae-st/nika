@@ -6,10 +6,12 @@
 //! `ErrorCategory` drives retry/alerting WITHOUT parsing NIKA-XXX string prefixes.
 //! Pattern: Tonic `Status::code()`.
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// Retry configuration for operations.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct RetryConfig {
     /// Maximum number of attempts (including the initial one).
@@ -180,7 +182,8 @@ impl Default for RetryConfig {
 /// One budget per upstream (per provider · per host), shared across that
 /// upstream's calls. Wrap in the caller's lock at L1+ (this type is
 /// deliberately `&mut self` · single-writer).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct RetryBudget {
     /// Bucket capacity in millitokens (`max_tokens × 1000`).
@@ -261,8 +264,9 @@ impl Default for RetryBudget {
 ///
 /// Drives retry/alerting WITHOUT parsing NIKA-XXX string prefixes.
 /// Pattern: Tonic `Status::code()`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[non_exhaustive]
 pub enum ErrorCategory {
     /// Transient — may succeed on retry (network timeout, 503).

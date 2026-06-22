@@ -3,11 +3,13 @@
 
 //! Message role — shared between provider and checkpoint types.
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// Message role.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 #[non_exhaustive]
 pub enum Role {
     /// System instructions.

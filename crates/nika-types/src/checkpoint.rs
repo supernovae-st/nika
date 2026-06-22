@@ -10,6 +10,7 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::cost::Cost;
@@ -17,7 +18,8 @@ use crate::id::TaskId;
 use crate::role::Role;
 
 /// A serializable snapshot of an agent loop's state.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct AgentCheckpoint {
     /// Checkpoint format version.
@@ -81,7 +83,8 @@ impl AgentCheckpoint {
 }
 
 /// A message in a checkpoint conversation history.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct CheckpointMessage {
     /// Message role.
@@ -102,7 +105,8 @@ impl CheckpointMessage {
 }
 
 /// Record of a tool call within an agent loop.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct ToolCallRecord {
     /// Tool name.

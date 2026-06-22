@@ -9,10 +9,12 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// A resource describing the telemetry-producing entity.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct Resource {
     /// Service name (e.g., `"nika-engine"`).
@@ -43,7 +45,8 @@ impl Resource {
 }
 
 /// A key-value pair for resource attributes.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct KeyValue {
     /// Attribute key.
@@ -64,8 +67,9 @@ impl KeyValue {
 }
 
 /// A typed attribute value.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(untagged))]
 #[non_exhaustive]
 pub enum Value {
     /// String value.

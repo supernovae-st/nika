@@ -14,17 +14,22 @@
 //! ## Newtype discipline
 //! Every ID is a newtype. Never raw `String` or `Uuid` in APIs.
 
+#[cfg(feature = "serde")]
 use alloc::format;
-use alloc::string::{String, ToString};
+use alloc::string::String;
+#[cfg(feature = "serde")]
+use alloc::string::ToString;
 use core::fmt;
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 // ─── UUID-based IDs (`UUIDv7`, time-ordered) ──────────────────────────
 
 /// Run identifier (`UUIDv7`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct RunId {
     /// The underlying UUID.
@@ -68,7 +73,8 @@ impl fmt::Display for RunId {
 }
 
 /// Event identifier (`UUIDv7`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct EventId {
     /// The underlying UUID.
@@ -110,7 +116,8 @@ impl fmt::Display for EventId {
 /// traces if the operation is retried. Support tickets ("what happened at
 /// 3pm?") need this. Decision T2:A: `UUIDv7`-based, not String, because it
 /// is machine-generated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct CorrelationId {
     /// The underlying UUID.
@@ -184,12 +191,14 @@ impl fmt::Display for TraceId {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for TraceId {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.to_string())
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for TraceId {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
@@ -244,12 +253,14 @@ impl fmt::Display for SpanId {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for SpanId {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.to_string())
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for SpanId {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
@@ -272,7 +283,8 @@ impl<'de> Deserialize<'de> for SpanId {
 macro_rules! string_id {
     ($(#[$meta:meta])* $name:ident) => {
         $(#[$meta])*
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
         #[non_exhaustive]
         pub struct $name {
             /// The identifier value (private — use `new()` to construct,

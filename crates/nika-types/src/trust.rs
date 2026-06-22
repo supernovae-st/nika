@@ -14,6 +14,7 @@ use alloc::string::String;
 use core::fmt;
 use core::str::FromStr;
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// Trust level as a u8 lattice value. Higher = more trusted.
@@ -24,7 +25,8 @@ use serde::{Deserialize, Serialize};
 /// - `TRUSTED` (150) — verified sources
 /// - `ELEVATED` (200) — admin-level operations
 /// - `SYSTEM` (255) — internal engine operations
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct TrustLevel {
     /// The trust value (0-255).

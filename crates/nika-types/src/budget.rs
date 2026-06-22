@@ -3,11 +3,13 @@
 
 //! Budget directives for resource-bounded operations.
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// Budget directive controlling resource limits.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "type")]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case", tag = "type"))]
 #[non_exhaustive]
 pub enum BudgetDirective {
     /// Limit by token count.

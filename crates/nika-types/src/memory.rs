@@ -6,6 +6,7 @@
 //! Contains identifiers, level hierarchy, directives, and frame references.
 //! Traits and storage types stay in `nika-kernel::memory`.
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -60,8 +61,11 @@ impl MemoryId {
     }
 }
 
+#[cfg(feature = "serde")]
 use alloc::format;
-use alloc::string::{String, ToString};
+use alloc::string::String;
+#[cfg(feature = "serde")]
+use alloc::string::ToString;
 use alloc::vec::Vec;
 
 impl core::fmt::Display for MemoryId {
@@ -70,12 +74,14 @@ impl core::fmt::Display for MemoryId {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for MemoryId {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.to_string())
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for MemoryId {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
@@ -91,8 +97,9 @@ impl<'de> Deserialize<'de> for MemoryId {
 // ─── MemoryLevel ────────────────────────────────────────────────────
 
 /// Memory level in the cognitive hierarchy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[non_exhaustive]
 pub enum MemoryLevel {
     /// Short-term working memory (current task context).
@@ -112,8 +119,9 @@ pub enum MemoryLevel {
 // ─── MemoryDirective ────────────────────────────────────────────────
 
 /// Directive for memory behavior during inference.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[non_exhaustive]
 pub enum MemoryDirective {
     /// Let the system decide (default).
@@ -152,7 +160,8 @@ pub enum MemoryDirective {
 /// Conversion to [`MemoryId`] happens at the L2 `RecallPool` boundary
 /// via the per-satellite `DocId ↔ MemoryId` map maintained by
 /// `nika-memory` (W10).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct DocId(pub u32);
 
@@ -191,7 +200,8 @@ impl core::fmt::Display for DocId {
 ///
 /// Locked at L0 to prevent 9-satellite score-shape drift per
 /// rust-architect Q2.C 2026-05-12.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct Score(pub f64);
 
@@ -238,7 +248,8 @@ impl core::fmt::Display for Score {
 ///
 /// Locked at L0 to prevent 9-satellite output-shape drift per
 /// rust-architect Q2.C 2026-05-12.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct RankedDoc {
     /// Satellite-local document identifier.
@@ -265,7 +276,8 @@ impl RankedDoc {
 /// trusted. Consumers in the v0.95 Shield path read `trust` to
 /// decide whether recalled frames are eligible to flow back into a
 /// privileged prompt slot.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct MemoryFrameRef {
     /// Memory identifier.
@@ -276,7 +288,7 @@ pub struct MemoryFrameRef {
     pub summary: String,
     /// Sticky taint from ingest — never upgrades on recall.
     /// Reserved at v0.81 for v0.95 Shield integration (ADR-030).
-    #[serde(default = "default_trust_untrusted")]
+    #[cfg_attr(feature = "serde", serde(default = "default_trust_untrusted"))]
     pub trust: crate::trust::TrustLevel,
 }
 
@@ -284,6 +296,7 @@ pub struct MemoryFrameRef {
 /// wire: conservatively treat legacy/unknown-origin frames as untrusted.
 /// This keeps new-consumer-old-producer and old-consumer-new-producer
 /// serde compat strictly fail-safe.
+#[cfg(feature = "serde")]
 fn default_trust_untrusted() -> crate::trust::TrustLevel {
     crate::trust::TrustLevel::UNTRUSTED
 }
