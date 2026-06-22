@@ -109,8 +109,11 @@ jobs:
   miri:
     name: miri (L0 UB detection)
     runs-on: ubuntu-latest
-    # Miri is nightly-only and slow. Runs against nika-error + nika-catalog
-    # (L0, pure, zero I/O). Not on kernel/kernel-mock (async + tokio not
+    # Miri is nightly-only and ~100-1000x slower than native. Runs against
+    # nika-error (L0, pure, zero I/O) — the crate with the most logic. Scoped
+    # OFF nika-catalog (232 lib tests under miri ran >40min and got cancelled
+    # before finishing); both are safe Rust (zero unsafe · Diamond forbids it)
+    # so the UB risk is minimal. Not on kernel/kernel-mock (async + tokio not
     # supported under miri) and not on catalog-verify (network I/O).
     # Non-blocking (continue-on-error) until workspace-wide miri stabilises.
     continue-on-error: true
@@ -122,7 +125,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: diamond-miri
-      - name: miri test — nika-error + nika-catalog
+      - name: miri test — nika-error
         env:
           # `-Zmiri-isolation-error=warn`: a proptest in the L0 tests calls
           # getcwd (failure-persistence file path) which miri's isolation blocks;
@@ -137,7 +140,7 @@ jobs:
           # cases take >1h here. UB is structural, not input-dependent, so 1
           # case per proptest exercises the same code paths in seconds.
           PROPTEST_CASES: "1"
-        run: cargo miri test --lib -p nika-error -p nika-catalog
+        run: cargo miri test --lib -p nika-error
 
   machete:
     name: cargo-machete (unused deps)
