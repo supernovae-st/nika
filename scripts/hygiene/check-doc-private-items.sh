@@ -31,28 +31,25 @@ if [ "${#LIB_CRATES[@]}" -eq 0 ]; then
   exit 0
 fi
 
-violations=0
-violation_log=""
-
+# Collect a `-p` flag for every lib crate (binary-only crates have no doc
+# surface). A SINGLE `cargo doc` invocation resolves the (large) dep graph
+# once; a per-crate loop re-resolves it N times and is ~10x slower on a heavy
+# dep tree (the candle ML stack) — ~19 min vs ~2 min — which false-RED-timeouts
+# the pre-push gate. Same coverage, same -D-warnings strictness, one pass.
+pkg_args=()
+checked=0
 for crate in "${LIB_CRATES[@]}"; do
-  crate_dir="crates/$crate"
-  # Skip binary-only crates (no lib.rs).
-  if [ ! -f "$crate_dir/src/lib.rs" ]; then
-    continue
-  fi
-
-  # RUSTDOCFLAGS=-D warnings promotes every warning to an error.
-  output=$(RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items -p "$crate" 2>&1 || true)
-  if echo "$output" | grep -qE '^(error|warning):'; then
-    violations=$((violations + 1))
-    violation_log+="\n  $crate: cargo doc (private) emitted warnings/errors\n"
-    violation_log+="$(echo "$output" | grep -E '^(error|warning):' | head -5 | sed 's/^/    /')\n"
+  if [ -f "crates/$crate/src/lib.rs" ]; then
+    pkg_args+=(-p "$crate")
+    checked=$((checked + 1))
   fi
 done
 
-if [ "$violations" -gt 0 ]; then
-  printf "RED: %d crate(s) with private-doc drift:\n" "$violations"
-  printf "%b\n" "$violation_log"
+# RUSTDOCFLAGS=-D warnings promotes every rustdoc warning to an error.
+output=$(RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items "${pkg_args[@]}" 2>&1 || true)
+if echo "$output" | grep -qE '^(error|warning):'; then
+  printf "RED: private-doc drift (cargo doc --document-private-items emitted warnings/errors):\n"
+  echo "$output" | grep -E '^(error|warning):' | head -20 | sed 's/^/    /'
   echo ""
   echo "Hint: run 'RUSTDOCFLAGS=\"-D warnings\" cargo doc --no-deps"
   echo "--document-private-items -p <crate>' locally to reproduce. Broken"
@@ -61,5 +58,5 @@ if [ "$violations" -gt 0 ]; then
   exit 2
 fi
 
-echo "OK: private-item rustdoc clean across ${#LIB_CRATES[@]} crate(s)"
+echo "OK: private-item rustdoc clean across ${checked} lib crate(s)"
 exit 0
