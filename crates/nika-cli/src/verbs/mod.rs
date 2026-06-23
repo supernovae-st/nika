@@ -19,6 +19,7 @@ pub mod inspect;
 pub mod new;
 pub mod pack_surface;
 pub mod run;
+pub mod wire;
 
 use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;

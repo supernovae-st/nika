@@ -49,7 +49,7 @@ scripts/release/update-formula.sh \
 
 `update-formula.sh` rewrites only the `version` line and the four `sha256` lines
 (each matched to its `url` by platform); the `url`s carry `#{version}` and don't
-change. `brew install supernovae-st/nika/nika` then pulls the new version.
+change. `brew install supernovae-st/tap/nika` then pulls the new version.
 
 ---
 
@@ -68,11 +68,11 @@ With it set, step §1 closes the loop end-to-end (no manual formula edit).
 
 ## 4. Editor extension — VS Code Marketplace + OpenVSX (Cursor)
 
-The extension lives in the monorepo at `nika/02-engineering/devex/nika-vscode`
+The extension lives in the monorepo at `nika/02-engineering/repos/vscode`
 (version-synced to the engine). Build + publish:
 
 ```bash
-cd nika/02-engineering/devex/nika-vscode
+cd nika/02-engineering/repos/vscode
 npm ci && npm run compile
 vsce package                         # → nika-lang-<version>.vsix
 
@@ -104,5 +104,10 @@ npm publish                          # needs `npm login` (or NPM_TOKEN)
 - [ ] `scripts/refresh-status.sh` block + `ROADMAP.md` block in sync (vector 23)
 - [ ] `git tag vX.Y.Z && git push origin vX.Y.Z` → release workflow green
 - [ ] Homebrew formula bumped (auto via §3, or §2 by hand) · `brew install` smoke
+- [ ] `nika mcp` smoke (`initialize` + `tools/list`) · no stale `mcp serve --stdio` docs/config
+- [ ] `nika init` creates `.vscode/settings.json`, `AGENTS.md`, `.cursor/rules/nika.mdc`
+- [ ] `nika wire cursor` migrates stale MCP config and preserves other servers
+- [ ] `nika doctor` reports editor/agent readiness without printing secrets
+- [ ] `install.sh` asset names match `release.yml` (`nika-macos-arm64-X.Y.Z.tar.gz`, etc.)
 - [ ] extension `vsce publish` + `ovsx publish` (if shipping the editor side)
 - [ ] `npm publish` the SDK (if shipping it)

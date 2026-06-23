@@ -67,15 +67,22 @@ crates_admitted_cell=$(extract_cell "crates \(admitted\)")
 crates_admitted=$(echo "$crates_admitted_cell" | awk '{print $1}')
 crates_target=$(echo "$crates_admitted_cell" | awk '{print $3}')
 wip_cell=$(extract_cell "crates \(WIP\)")
+wip_count=$(echo "$wip_cell" | awk '{print $1}')
 wip_name=$(echo "$wip_cell" | awk '{print $3}')
 lib_tests_cell=$(extract_cell "lib tests")
-lib_tests=$(echo "$lib_tests_cell" | awk '{print $1}')
+lib_tests=$(echo "$lib_tests_cell" | grep -oE '[0-9]+' | head -1 || true)
 clippy_cell=$(extract_cell "clippy")
-clippy_warnings=$(echo "$clippy_cell" | awk '{print $1}')
+clippy_warnings=$(echo "$clippy_cell" | grep -oE '[0-9]+' | head -1 || true)
 
 # Fallbacks when --quick was passed
 [[ -z "$lib_tests" || "$lib_tests" == "(skipped" ]] && lib_tests=0
 [[ -z "$clippy_warnings" || "$clippy_warnings" == "(skipped)" ]] && clippy_warnings=0
+
+if [[ -z "$wip_count" || "$wip_count" == "0" ]]; then
+  wip_json=""
+else
+  wip_json="\"$wip_name\""
+fi
 
 # Extras not emitted by refresh-status.sh — derive from repo
 adrs=$(find docs/adr -maxdepth 1 -name 'adr-*.md' | wc -l | tr -d ' ')
@@ -102,7 +109,7 @@ export const STATUS = {
   cratesWorkspace: ${crates_ws},
   cratesAdmitted: ${crates_admitted},
   cratesTarget: "${crates_target}",
-  wipCrates: ["${wip_name}"],
+  wipCrates: [${wip_json}],
   libTests: ${lib_tests},
   clippyWarnings: ${clippy_warnings},
   adrs: ${adrs},

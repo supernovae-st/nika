@@ -115,7 +115,7 @@ half-features parked behind a future version.
 Install (macOS · Linux):
 
 ```sh
-brew install supernovae-st/nika/nika
+brew install supernovae-st/tap/nika
 nika --version
 ```
 
@@ -151,6 +151,8 @@ key, then see what's wired:
 
 ```sh
 nika doctor                  # provider keys + local servers, with the exact fix
+nika init                    # schema wiring + AGENTS.md + Cursor rule for this repo
+nika wire cursor             # optional · explicit MCP wiring for Cursor agents
 nika examples list           # browse the embedded examples
 nika examples run 01-hello   # runs on ollama/llama3.1 by default
 ```

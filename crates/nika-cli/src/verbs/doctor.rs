@@ -18,8 +18,10 @@
 //! `✖`: with no workflow in hand `doctor` cannot know which provider you need.
 
 use std::fmt::Write as _;
+use std::path::{Path, PathBuf};
 
 use nika_providers::{ProviderRegistry, ProvidersConfig};
+use serde_json::Value;
 
 use crate::verbs::{VerbOutput, exit};
 
@@ -71,6 +73,18 @@ pub(crate) struct Probe {
     /// `Some(path)` when a user config file exists.
     pub config_path: Option<String>,
     pub providers: Vec<ProviderProbe>,
+    pub clients: Vec<ClientProbe>,
+}
+
+/// Agent/editor MCP wiring facts — config presence only, not file contents in
+/// the rendered report.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ClientProbe {
+    pub id: String,
+    pub path: String,
+    pub present: bool,
+    pub current: bool,
+    pub stale: bool,
 }
 
 /// Pure diagnosis → ordered findings (binary · config · cloud providers ·
@@ -98,6 +112,23 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
             },
         },
     ];
+
+    out.push(Finding {
+        level: Level::Ok,
+        label: "lsp".to_owned(),
+        detail: "available via `nika lsp` (editor language server)".to_owned(),
+        fix: None,
+    });
+    out.push(Finding {
+        level: Level::Ok,
+        label: "mcp".to_owned(),
+        detail: "available via `nika mcp` (read-only tools: nika_check · nika_explain)".to_owned(),
+        fix: None,
+    });
+
+    for client in &probe.clients {
+        out.push(client_finding(client));
+    }
 
     let mut cloud_keys = 0_usize;
     let mut local_ids: Vec<&str> = Vec::new();
@@ -151,6 +182,42 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
     }
 
     out
+}
+
+fn client_finding(client: &ClientProbe) -> Finding {
+    if client.current {
+        return Finding {
+            level: Level::Ok,
+            label: "agent".to_owned(),
+            detail: format!("{} wired at {}", client.id, client.path),
+            fix: None,
+        };
+    }
+    if client.stale {
+        return Finding {
+            level: Level::Warn,
+            label: "agent".to_owned(),
+            detail: format!(
+                "{} has stale MCP args at {} (`mcp serve --stdio`)",
+                client.id, client.path
+            ),
+            fix: Some(format!("nika wire {}", client.id)),
+        };
+    }
+    if client.present {
+        return Finding {
+            level: Level::Warn,
+            label: "agent".to_owned(),
+            detail: format!("{} config exists but Nika MCP is not wired", client.id),
+            fix: Some(format!("nika wire {}", client.id)),
+        };
+    }
+    Finding {
+        level: Level::Warn,
+        label: "agent".to_owned(),
+        detail: format!("{} not wired", client.id),
+        fix: Some(format!("nika wire {}", client.id)),
+    }
 }
 
 /// Exit code · `ENV(3)` when any `Fail`, else `OK(0)`.
@@ -207,6 +274,7 @@ pub fn run() -> VerbOutput {
         version: env!("CARGO_PKG_VERSION").to_owned(),
         config_path: config_path(),
         providers,
+        clients: client_probes(),
     };
     let findings = diagnose(&probe);
     let code = exit_code(&findings);
@@ -214,6 +282,87 @@ pub fn run() -> VerbOutput {
         text: render(&findings),
         code,
     }
+}
+
+fn client_probes() -> Vec<ClientProbe> {
+    let mut probes = Vec::new();
+    if let Some(home) = home_dir() {
+        probes.push(client_probe(
+            "cursor",
+            &home.join(".cursor").join("mcp.json"),
+            &["mcpServers", "nika"],
+        ));
+        probes.push(client_probe(
+            "windsurf",
+            &home
+                .join(".codeium")
+                .join("windsurf")
+                .join("mcp_config.json"),
+            &["mcpServers", "nika"],
+        ));
+        probes.push(client_probe(
+            "claude",
+            &home.join(".claude.json"),
+            &["mcpServers", "nika"],
+        ));
+    }
+    probes.push(client_probe(
+        "vscode",
+        &PathBuf::from(".").join(".vscode").join("mcp.json"),
+        &["servers", "nika"],
+    ));
+    probes
+}
+
+fn client_probe(id: &str, path: &Path, server_path: &[&str; 2]) -> ClientProbe {
+    let present = path.exists();
+    let server = if present {
+        read_json(path).and_then(|json| server_at(&json, server_path).cloned())
+    } else {
+        None
+    };
+    let current = server.as_ref().is_some_and(is_current_mcp_server);
+    let stale = server.as_ref().is_some_and(is_stale_mcp_server);
+    ClientProbe {
+        id: id.to_owned(),
+        path: path.display().to_string(),
+        present,
+        current,
+        stale,
+    }
+}
+
+fn server_at<'a>(value: &'a Value, path: &[&str; 2]) -> Option<&'a Value> {
+    value.get(path[0])?.get(path[1])
+}
+
+fn is_current_mcp_server(value: &Value) -> bool {
+    let Some(args) = value.get("args").and_then(Value::as_array) else {
+        return false;
+    };
+    args.len() == 1 && args[0].as_str() == Some("mcp")
+}
+
+fn is_stale_mcp_server(value: &Value) -> bool {
+    let Some(args) = value.get("args").and_then(Value::as_array) else {
+        return false;
+    };
+    args.len() == 3
+        && args[0].as_str() == Some("mcp")
+        && args[1].as_str() == Some("serve")
+        && args[2].as_str() == Some("--stdio")
+}
+
+fn read_json(path: &Path) -> Option<Value> {
+    let body = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&body).ok()
+}
+
+#[allow(clippy::disallowed_methods)]
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
 }
 
 /// Whether an env var is SET and non-empty — PRESENT-NOT-PRINTED. The value is
@@ -265,6 +414,7 @@ mod tests {
             version: "0.81.0".to_owned(),
             config_path: Some("~/.nika/config.toml".to_owned()),
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", true)],
+            clients: vec![],
         };
         let f = diagnose(&probe);
         let prov = f
@@ -287,6 +437,7 @@ mod tests {
                 cloud("anthropic", "ANTHROPIC_API_KEY", false),
                 local("ollama"),
             ],
+            clients: vec![],
         };
         let f = diagnose(&probe);
         let prov = f
@@ -314,6 +465,7 @@ mod tests {
             version: "0.81.0".to_owned(),
             config_path: None,
             providers: vec![cloud("openai", "OPENAI_API_KEY", false)],
+            clients: vec![],
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("OPENAI_API_KEY"), "names the var: {text}");
@@ -331,6 +483,7 @@ mod tests {
             version: "0.81.0".to_owned(),
             config_path: None,
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", false)],
+            clients: vec![],
         };
         let f = diagnose(&probe);
         assert!(f.iter().any(|f| f.level == Level::Fail));
@@ -343,6 +496,7 @@ mod tests {
             version: "0.81.0".to_owned(),
             config_path: None,
             providers: vec![local("ollama"), local("vllm")],
+            clients: vec![],
         };
         let f = diagnose(&probe);
         let loc = f.iter().find(|f| f.label == "local").expect("local line");
@@ -358,6 +512,25 @@ mod tests {
         assert_eq!(Level::Ok.glyph(), '✔');
         assert_eq!(Level::Warn.glyph(), '⚠');
         assert_eq!(Level::Fail.glyph(), '✖');
+    }
+
+    #[test]
+    fn client_probe_reports_stale_wiring_with_a_wire_fix() {
+        let probe = Probe {
+            version: "0.90.0".to_owned(),
+            config_path: None,
+            providers: vec![local("ollama")],
+            clients: vec![ClientProbe {
+                id: "cursor".to_owned(),
+                path: "~/.cursor/mcp.json".to_owned(),
+                present: true,
+                current: false,
+                stale: true,
+            }],
+        };
+        let text = render(&diagnose(&probe));
+        assert!(text.contains("stale MCP args"), "{text}");
+        assert!(text.contains("fix: nika wire cursor"), "{text}");
     }
 
     /// `env_present` is a PRESENCE check (set + non-empty) — read against real

@@ -68,7 +68,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 ## Current state — v0.90.0 SHIPPED (first public release · RC-grade toward 1.0)
 
-> First public release (2026-06-21 · `brew install supernovae-st/nika/nika`).
+> First public release (2026-06-21 · `brew install supernovae-st/tap/nika`).
 > 39/42 crates admitted (wip array empty) · RC-grade toward the **1.0.0** launch,
 > which the 7 shadow zones gate (D-2026-06-20-N1).
 
@@ -560,7 +560,8 @@ Per D-2026-05-22-N18.)
 - Lint: `lint` (rule IDs `L001/L010/L020/L030/L031/L050/L060/L070/L080/L090` — SEC-prefixed subset)
 - Scaffolding: `new`, `init`, `init --from <git-url>`, `showcase`, `demo`
 - Provider: `provider list`, `model list`, `switch`, `bench` (TTFT, tok/s, quality)
-- MCP: `mcp list`, `mcp install`, `mcp run`
+- MCP: shipped read-only `nika mcp` (`nika_check` · `nika_explain`);
+  future package/runtime surfaces may add `mcp list`, `mcp install`, `mcp run`
 - Keys: `keys` subsystem (10 subcommands) — see `project_nika_keys_design.md`
 - Daemon/Serve: `serve`, `daemon start|stop|status`
 - pck: `pck add`, `pck update`, `pck publish`, `pck search`

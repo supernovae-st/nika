@@ -31,6 +31,17 @@ fn write_fixture(dir: &std::path::Path, name: &str, yaml: &str) -> std::path::Pa
     path
 }
 
+fn workspace_tmp_dir(name: &str) -> std::path::PathBuf {
+    let base = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("target")
+        .join("tmp");
+    let dir = base.join(format!("{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    dir
+}
+
 const VALID: &str = r#"
 nika: v1
 workflow: smoke
@@ -369,9 +380,8 @@ fn doctor_diagnoses_the_environment_and_exits_zero() {
 
 #[test]
 fn init_scaffolds_a_repo_and_is_idempotent() {
-    let dir = std::env::temp_dir().join(format!("nika-init-smoke-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    // First run · creates the schema wiring + the agent guide · exit 0.
+    let dir = workspace_tmp_dir("nika-init-smoke");
+    // First run · creates schema wiring + agent guide + Cursor rule · exit 0.
     let out = bin().arg("init").arg(&dir).output().expect("binary runs");
     assert_eq!(out.status.code(), Some(0), "scaffold succeeds");
     assert!(
@@ -379,6 +389,10 @@ fn init_scaffolds_a_repo_and_is_idempotent() {
         "schema wiring written"
     );
     assert!(dir.join("AGENTS.md").is_file(), "agent guide written");
+    assert!(
+        dir.join(".cursor/rules/nika.mdc").is_file(),
+        "Cursor agent rule written"
+    );
     // Re-run · the human keeps the hand · existing files are SKIPPED, exit 0.
     let again = bin().arg("init").arg(&dir).output().expect("binary runs");
     assert_eq!(again.status.code(), Some(0));
@@ -388,6 +402,44 @@ fn init_scaffolds_a_repo_and_is_idempotent() {
         "idempotent re-run skips: {stdout}"
     );
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn wire_cursor_migrates_stale_mcp_config() {
+    let home = workspace_tmp_dir("nika-wire-smoke");
+    let cursor_dir = home.join(".cursor");
+    std::fs::create_dir_all(&cursor_dir).expect("cursor dir");
+    std::fs::write(
+        cursor_dir.join("mcp.json"),
+        r#"{
+  "mcpServers": {
+    "github": { "command": "gh", "args": ["mcp"] },
+    "nika": { "command": "nika", "args": ["mcp", "serve", "--stdio"] }
+  }
+}
+"#,
+    )
+    .expect("fixture");
+
+    let out = bin()
+        .arg("wire")
+        .arg("cursor")
+        .env("HOME", &home)
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(0), "wire succeeds");
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    assert!(stdout.contains("migrated"), "{stdout}");
+
+    let doc: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(cursor_dir.join("mcp.json")).expect("json"))
+            .expect("valid json");
+    assert_eq!(doc["mcpServers"]["github"]["command"], "gh");
+    assert_eq!(
+        doc["mcpServers"]["nika"]["args"],
+        serde_json::json!(["mcp"])
+    );
+    let _ = std::fs::remove_dir_all(&home);
 }
 
 #[test]

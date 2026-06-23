@@ -123,6 +123,15 @@ enum Command {
         #[arg(long)]
         force: bool,
     },
+    /// Wire Nika into editor/agent MCP clients (explicit, idempotent).
+    Wire {
+        /// Client to wire.
+        #[arg(value_enum)]
+        target: WireTargetArg,
+        /// Workspace directory for repo-local clients such as VS Code.
+        #[arg(long, default_value = ".")]
+        dir: String,
+    },
     /// The embedded spec identity (`--canon` prints the SSOT).
     Spec {
         /// Print the canon.yaml single source of truth.
@@ -174,6 +183,27 @@ enum GraphFormatArg {
     Mermaid,
     /// Graphviz dot.
     Dot,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum WireTargetArg {
+    Cursor,
+    Vscode,
+    Windsurf,
+    Claude,
+    All,
+}
+
+impl From<WireTargetArg> for verbs::wire::WireTarget {
+    fn from(value: WireTargetArg) -> Self {
+        match value {
+            WireTargetArg::Cursor => Self::Cursor,
+            WireTargetArg::Vscode => Self::Vscode,
+            WireTargetArg::Windsurf => Self::Windsurf,
+            WireTargetArg::Claude => Self::Claude,
+            WireTargetArg::All => Self::All,
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -270,6 +300,7 @@ fn main() -> std::process::ExitCode {
         Command::Explain { code } => emit(&verbs::explain::run(&code)),
         Command::Doctor => emit(&verbs::doctor::run()),
         Command::Init { dir, force } => emit(&verbs::init::run(&dir, force)),
+        Command::Wire { target, dir } => emit(&verbs::wire::run(target.into(), &dir)),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
         Command::Schema => emit(&verbs::pack_surface::schema()),
         Command::Examples { action } => match action {

@@ -5,7 +5,8 @@
 //! §2 v0.81 floor).
 //!
 //! Writes the editor schema wiring (`.vscode/settings.json` → `*.nika.yaml`
-//! validates against the embedded JSON Schema) + an `AGENTS.md` repo guide.
+//! validates against the embedded JSON Schema), a Cursor rule, and an
+//! `AGENTS.md` repo guide.
 //! The human keeps the hand: an existing file is SKIPPED, never clobbered —
 //! `--force` is the explicit override (same law as `nika new`). Diagnose-and-
 //! report: every created/skipped path is named; a write failure is the one
@@ -55,6 +56,35 @@ or MCP tool) · `agent` (a multi-turn ReAct loop).
 - `nika check` must be clean before `nika run` (audit-before-run is enforced).
 ";
 
+/// `.cursor/rules/nika.mdc` — the agent-facing authoring floor for Cursor.
+/// Generated from the same 4-verb canon as AGENTS.md; kept compact so it is
+/// cheap enough to auto-load on every `.nika.yaml` edit.
+const CURSOR_RULES: &str = r#"---
+description: Nika workflow language rules for AI assistance
+globs: ["**/*.nika.yaml", "**/*.nika.yml"]
+alwaysApply: false
+---
+
+# Nika Workflow Language
+
+Envelope: `nika: v1` (always · frozen forever). Extension: `.nika.yaml`.
+
+## 4 Verbs (locked forever)
+- `infer:` LLM call (`prompt`, `system?`, `temperature?`, `schema?`)
+- `exec:` subprocess (`command`, `cwd?`, `capture: text|structured`)
+- `invoke:` builtin/MCP tool (`tool`, `args`) — HTTP fetch = `tool: nika:fetch` (a tool, not a verb)
+- `agent:` multi-turn loop (`prompt`, `tools`, `max_turns`, `max_tokens_total`)
+
+## Authoring Discipline
+- Interpolation uses `${{ vars.x }}` · `${{ tasks.id.output }}` · `${{ env.KEY }}` · `${{ with.alias }}`.
+- Bindings use `with: { alias: ${{ tasks.id.output }} }` then `${{ with.alias }}`.
+- Models use the combined form `provider/name` (for example `mock/echo`, `openai/gpt-4o-mini`).
+- `depends_on` is always an array: `depends_on: [task_id]`.
+- Secrets come from the environment — never inline literal keys.
+- After every edit, run `nika check <file>` and repair from diagnostics.
+- Unknown code? Run `nika explain NIKA-XXXX`.
+"#;
+
 /// What `init` does (or declines to do) for one target file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Action {
@@ -66,10 +96,11 @@ pub(crate) enum Action {
 
 /// The scaffold set · (relative path, body). The ONE source of what `init`
 /// writes — `plan` and the docs both read it.
-fn targets() -> [(&'static str, &'static str); 2] {
+fn targets() -> [(&'static str, &'static str); 3] {
     [
         (".vscode/settings.json", VSCODE_SETTINGS),
         ("AGENTS.md", AGENTS_MD),
+        (".cursor/rules/nika.mdc", CURSOR_RULES),
     ]
 }
 
@@ -154,9 +185,9 @@ mod tests {
     #[test]
     fn plan_creates_both_when_nothing_exists() {
         let p = plan(".", &|_| false, false);
-        assert_eq!(p.len(), 2);
+        assert_eq!(p.len(), 3);
         assert!(p.iter().all(|a| matches!(a, Action::Create { .. })));
-        // The schema wiring + the agent guide are the two targets.
+        // The schema wiring + agent guide + Cursor rule are the targets.
         let paths: Vec<&str> = p
             .iter()
             .map(|a| match a {
@@ -165,11 +196,12 @@ mod tests {
             .collect();
         assert!(paths.iter().any(|p| p.ends_with("settings.json")));
         assert!(paths.iter().any(|p| p.ends_with("AGENTS.md")));
+        assert!(paths.iter().any(|p| p.ends_with("nika.mdc")));
     }
 
     #[test]
     fn plan_skips_an_existing_file_without_force() {
-        // AGENTS.md already there · settings.json absent → one Skip, one Create.
+        // AGENTS.md already there · settings.json/rules absent → one Skip, two Create.
         let p = plan(".", &|path| path.ends_with("AGENTS.md"), false);
         assert!(
             p.iter()
@@ -179,6 +211,10 @@ mod tests {
             p.iter().any(
                 |a| matches!(a, Action::Create { path, .. } if path.ends_with("settings.json"))
             )
+        );
+        assert!(
+            p.iter()
+                .any(|a| matches!(a, Action::Create { path, .. } if path.ends_with("nika.mdc")))
         );
     }
 
@@ -193,6 +229,8 @@ mod tests {
         let p = plan("/tmp/proj", &|_| false, false);
         assert!(p.iter().any(|a| matches!(a, Action::Create { path, .. }
                 if path == "/tmp/proj/.vscode/settings.json")));
+        assert!(p.iter().any(|a| matches!(a, Action::Create { path, .. }
+                if path == "/tmp/proj/.cursor/rules/nika.mdc")));
     }
 
     #[test]
@@ -209,6 +247,10 @@ mod tests {
         assert!(
             AGENTS_MD.contains("nika check"),
             "the guide teaches the loop"
+        );
+        assert!(
+            CURSOR_RULES.contains("4 Verbs") && CURSOR_RULES.contains("nika:fetch"),
+            "the Cursor rule teaches the locked language shape"
         );
     }
 
