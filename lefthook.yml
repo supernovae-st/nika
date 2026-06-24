@@ -1,6 +1,6 @@
-# lefthook-engine.yml — nika/engine submodule hook pipeline
+# lefthook.yml — nika engine hook pipeline
 # Separate config because the engine is a separate git repo (public submodule).
-# Install: cd nika/engine && lefthook install -c lefthook-engine.yml
+# Install: cd nika && lefthook install -c lefthook.yml
 #
 # This fixes the dangling core.hooksPath that currently points to
 # /Users/thibaut/dev/supernovae/nika/.husky (deleted path = no hooks fire).

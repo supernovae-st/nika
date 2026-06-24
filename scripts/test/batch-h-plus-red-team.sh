@@ -9,7 +9,7 @@
 # against the current tree.
 #
 # Usage:
-#   cd nika/engine && bash scripts/test/batch-h-plus-red-team.sh
+#   cd nika && bash scripts/test/batch-h-plus-red-team.sh
 #
 # Exit:
 #   0  all fixtures behaved as expected

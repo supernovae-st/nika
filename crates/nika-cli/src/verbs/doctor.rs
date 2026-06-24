@@ -286,10 +286,12 @@ pub fn run() -> VerbOutput {
 
 fn client_probes() -> Vec<ClientProbe> {
     let mut probes = Vec::new();
+    let cursor_workspace_path = PathBuf::from(".").join(".cursor").join("mcp.json");
     if let Some(home) = home_dir() {
-        probes.push(client_probe(
+        let cursor_paths = vec![home.join(".cursor").join("mcp.json"), cursor_workspace_path];
+        probes.push(client_probe_any(
             "cursor",
-            &home.join(".cursor").join("mcp.json"),
+            &cursor_paths,
             &["mcpServers", "nika"],
         ));
         probes.push(client_probe(
@@ -305,6 +307,12 @@ fn client_probes() -> Vec<ClientProbe> {
             &home.join(".claude.json"),
             &["mcpServers", "nika"],
         ));
+    } else {
+        probes.push(client_probe(
+            "cursor",
+            &cursor_workspace_path,
+            &["mcpServers", "nika"],
+        ));
     }
     probes.push(client_probe(
         "vscode",
@@ -312,6 +320,23 @@ fn client_probes() -> Vec<ClientProbe> {
         &["servers", "nika"],
     ));
     probes
+}
+
+fn client_probe_any(id: &str, paths: &[PathBuf], server_path: &[&str; 2]) -> ClientProbe {
+    let mut probes: Vec<ClientProbe> = paths
+        .iter()
+        .map(|path| client_probe(id, path, server_path))
+        .collect();
+    if let Some(current) = probes.iter().find(|probe| probe.current).cloned() {
+        return current;
+    }
+    if let Some(stale) = probes.iter().find(|probe| probe.stale).cloned() {
+        return stale;
+    }
+    if let Some(present) = probes.iter().find(|probe| probe.present).cloned() {
+        return present;
+    }
+    probes.remove(0)
 }
 
 fn client_probe(id: &str, path: &Path, server_path: &[&str; 2]) -> ClientProbe {
@@ -533,6 +558,25 @@ mod tests {
         assert!(text.contains("fix: nika wire cursor"), "{text}");
     }
 
+    #[test]
+    fn cursor_probe_accepts_workspace_config_from_extension() {
+        let dir = temp_dir("cursor-workspace");
+        let global = dir.join("home").join(".cursor").join("mcp.json");
+        let workspace = dir.join("repo").join(".cursor").join("mcp.json");
+        std::fs::create_dir_all(workspace.parent().expect("parent")).expect("mkdir");
+        std::fs::write(
+            &workspace,
+            r#"{"mcpServers":{"nika":{"command":"nika","args":["mcp"]}}}"#,
+        )
+        .expect("fixture");
+
+        let paths = vec![global, workspace.clone()];
+        let probe = client_probe_any("cursor", &paths, &["mcpServers", "nika"]);
+        assert!(probe.current);
+        assert_eq!(probe.path, workspace.display().to_string());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     /// `env_present` is a PRESENCE check (set + non-empty) — read against real
     /// vars so no racy `set_var` is needed. PATH is always set + non-empty
     /// (kills the `-> false` constant + the `!is_empty` negation); a name
@@ -551,5 +595,22 @@ mod tests {
         assert_eq!(out.code, exit::OK, "the catalog always offers a path");
         assert!(out.text.contains("binary"), "renders the binary line");
         assert!(!out.text.contains("mock"), "the test backend is hidden");
+    }
+
+    #[allow(clippy::disallowed_methods)]
+    fn temp_dir(name: &str) -> PathBuf {
+        let base = std::env::var_os("CARGO_TARGET_TMPDIR").map_or_else(
+            || {
+                std::env::current_dir()
+                    .expect("current dir")
+                    .join("target")
+                    .join("tmp")
+            },
+            PathBuf::from,
+        );
+        let dir = base.join(format!("nika-doctor-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        dir
     }
 }

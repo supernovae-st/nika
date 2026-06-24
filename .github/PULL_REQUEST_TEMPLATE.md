@@ -12,5 +12,5 @@
 - [ ] `bash scripts/hygiene/check-all.sh` green
 - [ ] Admitting a crate? All **12 gates** green in this PR (see [`CONTRIBUTING.md`](../CONTRIBUTING.md))
 
-<!-- Nika is pre-launch; external contributions open at v0.90. Until then this
-     template documents the bar every change clears. -->
+<!-- Nika has a public release-candidate. This template documents the bar every
+     change clears before it reaches users. -->

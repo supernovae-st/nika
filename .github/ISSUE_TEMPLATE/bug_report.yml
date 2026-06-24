@@ -5,8 +5,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for filing a bug. Nika is pre-launch (the Diamond rebuild) —
-        reports against the admitted crates are very welcome.
+        Thanks for filing a bug. Please include the `nika --version` output
+        or the exact `main` commit so we can distinguish tagged releases from
+        development builds.
   - type: input
     id: version
     attributes:
