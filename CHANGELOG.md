@@ -311,6 +311,7 @@ changelog tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 - **workspace** — Nika-infer-local generation-control core — template, sampling, stop ([9ef8f4a4a](https://github.com/supernovae-st/nika/commit/9ef8f4a4a6293c56a4146226cd2109dfaf7f65f4))
 
 ### 🐛 Bug Fixes
+- **release** — Bump post-0.90 development to `0.91.0-dev` and fail releases whose tag does not match the Cargo workspace version, preventing Homebrew/local binaries from sharing a version while exposing different CLI flags.
 - **adr** — Address review P0 + P1 findings from 3-agent swarm ([9a395bb6f](https://github.com/supernovae-st/nika/commit/9a395bb6ff782e4efbb35d3920418b540a6a93bb))
 - **adr** — Resolve 13 relationship asymmetries + harden scripts ([baa680cac](https://github.com/supernovae-st/nika/commit/baa680cace9e23c91ecfe590eddc6ee387c7838e))
 - **adr** — Refresh evidence paths for kernel subdir reorg ([fcbb00841](https://github.com/supernovae-st/nika/commit/fcbb008418540c50fc393051b27090af773f3b8f))

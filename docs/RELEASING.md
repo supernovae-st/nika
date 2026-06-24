@@ -101,9 +101,12 @@ npm publish                          # needs `npm login` (or NPM_TOKEN)
 ## Release checklist
 
 - [ ] workspace version bumped (`Cargo.toml`), `CHANGELOG.md` has the section
+- [ ] pushed tag matches the Cargo workspace version exactly (`release.yml` enforces it)
 - [ ] `scripts/refresh-status.sh` block + `ROADMAP.md` block in sync (vector 23)
 - [ ] `git tag vX.Y.Z && git push origin vX.Y.Z` → release workflow green
 - [ ] Homebrew formula bumped (auto via §3, or §2 by hand) · `brew install` smoke
+- [ ] `nika run --help` from the release asset contains every documented run flag
+      (`--json`, `--output`, `--no-progress`, `--quiet`, `--dry-run`)
 - [ ] `nika mcp` smoke (`initialize` + `tools/list`) · no stale `mcp serve --stdio` docs/config
 - [ ] `nika init` creates `.vscode/settings.json`, `AGENTS.md`, `.cursor/rules/nika.mdc`
 - [ ] `nika wire cursor` migrates stale MCP config and preserves other servers

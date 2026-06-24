@@ -46,6 +46,17 @@ jobs:
           - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, name: linux-arm64 }
     steps:
       - uses: actions/checkout@v4
+      - name: Verify tag matches Cargo workspace version
+        env:
+          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag_version="${REF_NAME#v}"
+          cargo_version="$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\([^"]*\)"/\1/p' Cargo.toml | head -1)"
+          if [ "$cargo_version" != "$tag_version" ]; then
+            echo "::error::release tag ${REF_NAME} does not match Cargo workspace version ${cargo_version}"
+            exit 1
+          fi
       - name: Add the Rust target
         run: rustup target add ${{ matrix.target }}
       - name: Cache cargo
