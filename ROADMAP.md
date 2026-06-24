@@ -1,8 +1,9 @@
 # Nika Roadmap
 
 > **⚠️ VERSION POLICY AMENDED 2026-06-20 (D-2026-06-20-N1) · "forever-v0.x" RETIRED.**
-> Nika now follows real semver toward a **1.0** public launch. Current engine =
-> **0.90.0** (release-candidate grade) → design-partner `1.0.0-rc.N` → first public
+> Nika now follows real semver toward a **1.0** public launch. Latest tagged
+> public release = **0.90.0** (release-candidate grade); `main` advances to the
+> next `-dev` version immediately after release → design-partner `1.0.0-rc.N` → first public
 > launch **1.0.0** → 1.x minors add the remaining crates additively → **2.0** is
 > reserved for the Connectome era (memory + cognition). The `nika: v1` LANGUAGE
 > envelope is frozen forever and unaffected. The `v0.8X.Y` layer-tag scheme below
@@ -22,8 +23,8 @@
 > nika-spec · supersedes the K8s `apiVersion:` form of ADR-021). `x-nika-alpha/beta`
 > annotations gate sub-field maturity within v1. See nika-spec spec/01-envelope.md.
 >
-> Crate count: the **Diamond architecture target is 42** (39/42 admitted as of
-> v0.90.0); the **long-term** envelope grows to **50-90** (cap 100) across the
+> Crate count: the **Diamond architecture target is 42** (39/42 admitted; see
+> the generated status block below); the **long-term** envelope grows to **50-90** (cap 100) across the
 > 1.x minors, driven by the 11-crate Connectome cluster (1 L2 orchestrator + 10
 > L1 satellites · ratified 2026-06-11), `nika-embed`, WASM + sandbox. See
 > §Crate sequence.
@@ -66,7 +67,7 @@ before it joins the workspace.
 
 See `docs/architecture/ai-velocity.md` for the full argument.
 
-## Current state — v0.90.0 SHIPPED (first public release · RC-grade toward 1.0)
+## Current state — main is v0.91.0-dev after the v0.90.0 public release
 
 > First public release (2026-06-21 · `brew install supernovae-st/tap/nika`).
 > 39/42 crates admitted (wip array empty) · RC-grade toward the **1.0.0** launch,

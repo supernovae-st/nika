@@ -183,7 +183,8 @@ Narrative context (manually maintained):
 - **Next** · the wip array is EMPTY (39/42 · every existing crate admitted) ·
   the remaining 3 toward the 42-target are the L0-completion crates (nika-cap ·
   pck-contracts · binding-types) · then design-partner `1.0.0-rc.N` → the **1.0.0**
-  launch (amended D-2026-06-20-N1). Engine now 0.90.0 (RC-grade) · 42-crate target
-  reached additively across the 1.x minors.
+  launch (amended D-2026-06-20-N1). Latest tagged release is 0.90.0; `main`
+  carries the next dev version so contributor binaries cannot masquerade as the
+  Homebrew asset. 42-crate target reached additively across the 1.x minors.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.

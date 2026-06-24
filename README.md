@@ -99,9 +99,11 @@ no cloud required · bring-your-own-LLM.
 Nika is built in the open.
 
 The **language** — the `nika: v1` envelope and its four verbs — is stable and
-won't break. The **engine** is a strict, modular Rust workspace; it is
-currently **v0.90.0** (release-candidate grade), and the first public release
-ships as **1.0.0** on **2026-08-01**. The code, the
+won't break. The **engine** is a strict, modular Rust workspace. The latest
+tagged public release is **v0.90.0**; `main` moves immediately to the next
+`-dev` version after each release so local contributor binaries cannot be
+confused with Homebrew assets. The 1.0.0 launch remains gated by the release
+checklist, not by a date. The code, the
 [spec](https://github.com/supernovae-st/nika-spec), and the
 [example workflows](examples/) are all readable, and development happens on
 `main` in the open.

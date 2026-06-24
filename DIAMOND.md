@@ -14,8 +14,8 @@ the authoritative architectural decision, see
 
 For the project's landing page, see [`README.md`](README.md). For
 the real-semver plan toward a 1.0 launch (amended D-2026-06-20-N1 · was
-"forever-v0.x") — current 0.90.0 (RC-grade) → 1.0.0 → 1.x adds the remaining
-crates → 2.0 the Connectome era — see [`ROADMAP.md`](ROADMAP.md). For the
+"forever-v0.x") — latest tagged release 0.90.0 (RC-grade), `main` on the next
+dev version → 1.0.0 → 1.x adds the remaining crates → 2.0 the Connectome era — see [`ROADMAP.md`](ROADMAP.md). For the
 **10-year architectural horizon
 (2026 → 2036)** with refined 42-crate target, 4-verb stress test
 through 2036, 7-ADR queue (050-056) and per-crate detail, see
