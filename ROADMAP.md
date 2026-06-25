@@ -2,7 +2,7 @@
 
 > **⚠️ VERSION POLICY AMENDED 2026-06-20 (D-2026-06-20-N1) · "forever-v0.x" RETIRED.**
 > Nika now follows real semver toward a **1.0** public launch. Latest tagged
-> public release = **0.90.0** (release-candidate grade); `main` advances to the
+> public release = **0.91.0** (release-candidate grade); `main` advances to the
 > next `-dev` version immediately after release → design-partner `1.0.0-rc.N` → first public
 > launch **1.0.0** → 1.x minors add the remaining crates additively → **2.0** is
 > reserved for the Connectome era (memory + cognition). The `nika: v1` LANGUAGE
@@ -67,7 +67,7 @@ before it joins the workspace.
 
 See `docs/architecture/ai-velocity.md` for the full argument.
 
-## Current state — main is v0.91.0-dev after the v0.90.0 public release
+## Current state — main is v0.92.0-dev after the v0.91.0 public release
 
 > First public release (2026-06-21 · `brew install supernovae-st/tap/nika`).
 > 39/42 crates admitted (wip array empty) · RC-grade toward the **1.0.0** launch,
@@ -200,7 +200,7 @@ Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 
 | Tag        | Meaning                                                              |
 |------------|----------------------------------------------------------------------|
-| `0.90.0`   | **current** — release-candidate grade · usable vertical slice works (4 verbs · 14 providers · effects · static-check · MCP/LSP) · finishing the CLI front-door |
+| `0.91.0`   | **current** — release-candidate grade · usable vertical slice works (4 verbs · 14 providers · effects · static-check · MCP/LSP · CLI) · headless workspace build |
 | `1.0.0-rc.N` | design-partner hardening                                            |
 | `1.0.0`    | **first public launch** — language + installable binary, validated   |
 | `1.1 · 1.2 · …` | additive minors — remaining crates toward the 42-crate architecture, new builtins, new providers, polish |

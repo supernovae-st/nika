@@ -14,7 +14,7 @@ the authoritative architectural decision, see
 
 For the project's landing page, see [`README.md`](README.md). For
 the real-semver plan toward a 1.0 launch (amended D-2026-06-20-N1 · was
-"forever-v0.x") — latest tagged release 0.90.0 (RC-grade), `main` on the next
+"forever-v0.x") — latest tagged release 0.91.0 (RC-grade), `main` on the next
 dev version → 1.0.0 → 1.x adds the remaining crates → 2.0 the Connectome era — see [`ROADMAP.md`](ROADMAP.md). For the
 **10-year architectural horizon
 (2026 → 2036)** with refined 42-crate target, 4-verb stress test
@@ -155,7 +155,7 @@ frozen forever and is orthogonal to the engine's binary version. See
 
 Version ladder (no per-tag dates · quality > speed):
 
-- **0.90.0** — current, release-candidate grade: usable vertical slice (4 verbs, 14 providers, effects, static-check, MCP/LSP), finishing the CLI front-door.
+- **0.91.0** — current, release-candidate grade: usable vertical slice (4 verbs, 14 providers, effects, static-check, MCP/LSP, CLI), headless workspace build.
 - **1.0.0-rc.N** — design-partner hardening, 7 shadow zones green.
 - **1.0.0** — **first public launch**: language + installable binary, validated.
 - **1.x minors** — add the remaining crates additively toward the 42-crate architecture target (pck, native API adapters, WASM plugins, full observability, full LSP, keys subsystem).

@@ -100,7 +100,7 @@ Nika is built in the open.
 
 The **language** — the `nika: v1` envelope and its four verbs — is stable and
 won't break. The **engine** is a strict, modular Rust workspace. The latest
-tagged public release is **v0.90.0**; `main` moves immediately to the next
+tagged public release is **v0.91.0**; `main` moves immediately to the next
 `-dev` version after each release so local contributor binaries cannot be
 confused with Homebrew assets. The 1.0.0 launch remains gated by the release
 checklist, not by a date. The code, the
