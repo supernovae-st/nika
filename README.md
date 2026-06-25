@@ -117,13 +117,14 @@ half-features parked behind a future version.
 Install (macOS · Linux):
 
 ```sh
-# Homebrew
+# Homebrew (macOS · Linux) — on your PATH immediately
 brew install supernovae-st/tap/nika
-
-# …or the install script — no Homebrew needed (downloads the verified release binary)
-curl -LsSf https://nika.sh/install.sh | sh
-
 nika --version
+
+# …or, without Homebrew: the install script. It downloads the verified release
+# binary into ~/.nika/bin and prints the single PATH line to add to your shell
+# profile (then reopen the terminal, or `source` it, and `nika --version` works).
+curl -LsSf https://nika.sh/install.sh | sh
 ```
 
 > Fully manual / air-gapped? Download the platform tarball + `SHA256SUMS` from the
