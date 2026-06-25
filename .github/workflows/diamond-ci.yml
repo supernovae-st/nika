@@ -102,6 +102,13 @@ jobs:
         # `metal` crate, which only builds on macOS/iOS. Exclude it from the
         # Linux feature-matrix; a macOS runner would cover it if we add one.
         run: cargo hack --feature-powerset --no-dev-deps --exclude-features metal check --workspace
+      - name: test the xcap-gated screen backend
+        # nika-screen's pure-logic tests (region-bounds validation · capture
+        # timestamp · stream plumbing) live behind the default-OFF `xcap` feature,
+        # so the default `tests` job doesn't run them and the powerset above only
+        # `check`s. RUN them here, where the desktop libs are installed (the
+        # OS-FFI capture tests stay `#[ignore]` — the runner has no display).
+        run: cargo test -p nika-screen --features xcap --lib
 
   miri:
     name: miri (L0 UB detection)
