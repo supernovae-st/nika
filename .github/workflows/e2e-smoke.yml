@@ -1,0 +1,245 @@
+name: e2e smoke
+
+# Validates the SHIPPED nika release binary works for a brand-new user
+# (the "first 15 minutes" onboarding path). Downloads the published release
+# asset — no building.
+#
+# SECURITY: every `run:` step uses only `matrix.*` (static literals),
+# `github.token` (via GH_TOKEN env), and values computed locally inside
+# the step. No `github.event.*` free-text reaches any shell.
+
+on:
+  workflow_dispatch: {}
+  release:
+    types: [published]
+  schedule:
+    # Every Monday at 07:00 UTC — catches asset/infra rot
+    - cron: '0 7 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: smoke ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest,  platform: macos-arm64 }
+          - { os: ubuntu-latest, platform: linux-x64   }
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      # ──────────────────────────────────────────────────────────────────
+      # 1. Resolve + download the latest release
+      # ──────────────────────────────────────────────────────────────────
+      - name: Resolve latest release tag
+        id: tag
+        run: |
+          set -euo pipefail
+          tag="$(gh release view --repo supernovae-st/nika --json tagName --jq '.tagName')"
+          version="${tag#v}"
+          printf 'tag=%s\n'     "$tag"     >> "$GITHUB_OUTPUT"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf '::notice::Resolved release: tag=%s  version=%s\n' "$tag" "$version"
+
+      - name: Download release assets
+        env:
+          TAG:      ${{ steps.tag.outputs.tag }}
+          PLATFORM: ${{ matrix.platform }}
+          VERSION:  ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dl
+          gh release download "$TAG" \
+            --repo supernovae-st/nika \
+            --pattern "nika-${PLATFORM}-${VERSION}.tar.gz" \
+            --pattern SHA256SUMS \
+            --dir dl
+
+      # ──────────────────────────────────────────────────────────────────
+      # 2. Verify checksum, extract, put `nika` on PATH
+      # ──────────────────────────────────────────────────────────────────
+      - name: Verify checksum + extract
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          VERSION:  ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          tarball="nika-${PLATFORM}-${VERSION}.tar.gz"
+
+          # Portable check: grep the matching line from SHA256SUMS, then
+          # compare manually so we need neither GNU sha256sum nor BSD
+          # shasum -c quirks around relative paths.
+          expected="$(grep "${tarball}" dl/SHA256SUMS | awk '{print $1}')"
+          if [ -z "$expected" ]; then
+            printf '::error::No checksum entry found for %s in SHA256SUMS\n' "$tarball"
+            exit 1
+          fi
+
+          # Compute the actual digest (macOS=shasum, Linux=sha256sum — both
+          # produce the same hex output on the first field).
+          if command -v sha256sum >/dev/null 2>&1; then
+            actual="$(sha256sum "dl/${tarball}" | awk '{print $1}')"
+          else
+            actual="$(shasum -a 256 "dl/${tarball}" | awk '{print $1}')"
+          fi
+
+          if [ "$actual" = "$expected" ]; then
+            printf '[PASS] checksum OK  %s\n' "$actual"
+          else
+            printf '::error::[FAIL] checksum mismatch for %s\n' "$tarball"
+            printf '  expected: %s\n' "$expected"
+            printf '  actual:   %s\n' "$actual"
+            exit 1
+          fi
+
+          # Extract; the tarball contains a single `nika` binary at root.
+          mkdir -p bin
+          tar -xzf "dl/${tarball}" -C bin
+          chmod +x bin/nika
+
+          # Make nika available for subsequent steps.
+          printf '%s/bin\n' "$GITHUB_WORKSPACE" >> "$GITHUB_PATH"
+
+      # ──────────────────────────────────────────────────────────────────
+      # 3. nika --version
+      # ──────────────────────────────────────────────────────────────────
+      - name: nika --version
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          out="$(nika --version 2>&1)"
+          printf 'output: %s\n' "$out"
+          if printf '%s' "$out" | grep -qF "$VERSION"; then
+            printf '[PASS] --version contains %s\n' "$VERSION"
+          else
+            printf '::error::[FAIL] --version output does not contain version %s\n' "$VERSION"
+            exit 1
+          fi
+
+      # ──────────────────────────────────────────────────────────────────
+      # 4. exec path (offline) — check + run a single exec task
+      # ──────────────────────────────────────────────────────────────────
+      - name: exec path (offline)
+        run: |
+          set -euo pipefail
+          cat > hello.nika.yaml <<'WORKFLOW'
+          nika: v1
+          name: hello-smoke
+          tasks:
+            - id: greet
+              exec:
+                command: echo hello-from-nika
+          WORKFLOW
+
+          # Gate: structural validity
+          if nika check hello.nika.yaml; then
+            printf '[PASS] nika check exit 0\n'
+          else
+            printf '::error::[FAIL] nika check exited non-zero\n'
+            exit 1
+          fi
+
+          # Gate: execution + expected output
+          run_out="$(nika run hello.nika.yaml 2>&1)"
+          printf 'run output:\n%s\n' "$run_out"
+          if printf '%s' "$run_out" | grep -qF 'hello-from-nika'; then
+            printf '[PASS] run output contains hello-from-nika\n'
+          else
+            printf '::error::[FAIL] run output missing hello-from-nika\n'
+            exit 1
+          fi
+
+      # ──────────────────────────────────────────────────────────────────
+      # 5. mock infer (offline) — model: mock/echo requires no provider
+      # ──────────────────────────────────────────────────────────────────
+      - name: mock infer (offline)
+        run: |
+          set -euo pipefail
+          cat > mock-infer.nika.yaml <<'WORKFLOW'
+          nika: v1
+          name: mock-infer-smoke
+          tasks:
+            - id: ping
+              infer:
+                model: mock/echo
+                prompt: hi
+          WORKFLOW
+
+          if nika run mock-infer.nika.yaml; then
+            printf '[PASS] mock infer exit 0\n'
+          else
+            printf '::error::[FAIL] mock infer exited non-zero\n'
+            exit 1
+          fi
+
+      # ──────────────────────────────────────────────────────────────────
+      # 6. examples offline UX — the audit's "first example must work offline"
+      # ──────────────────────────────────────────────────────────────────
+      - name: examples offline UX
+        run: |
+          set -euo pipefail
+          if nika examples run 01-hello --model mock/echo; then
+            printf '[PASS] examples run 01-hello exit 0\n'
+          else
+            printf '::error::[FAIL] examples run 01-hello exited non-zero\n'
+            exit 1
+          fi
+
+      # ──────────────────────────────────────────────────────────────────
+      # 7. nika doctor
+      # ──────────────────────────────────────────────────────────────────
+      - name: nika doctor
+        run: |
+          set -euo pipefail
+          if nika doctor; then
+            printf '[PASS] doctor exit 0\n'
+          else
+            printf '::error::[FAIL] doctor exited non-zero\n'
+            exit 1
+          fi
+
+      # ──────────────────────────────────────────────────────────────────
+      # 8. LSP smoke (best-effort — never fails the job)
+      # The LSP server speaks JSON-RPC over stdio with Content-Length framing.
+      # We send a minimal `initialize` request and look for `capabilities`
+      # in the response. If the framing is fragile (EOF timing, etc.) the
+      # step is allowed to fail without blocking the job.
+      # ──────────────────────────────────────────────────────────────────
+      - name: LSP smoke (best-effort)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          # Minimal LSP initialize request body (no user-controlled text).
+          body='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}'
+          body_len="${#body}"
+          request="Content-Length: ${body_len}\r\n\r\n${body}"
+
+          # Send the request over stdin; read up to 4096 bytes of the response.
+          # `timeout` is available on both macOS (via coreutils or brew) and Linux.
+          # Fall back gracefully if timeout is absent.
+          if command -v timeout >/dev/null 2>&1; then
+            response="$(printf '%b' "$request" | timeout 5s nika lsp 2>/dev/null | head -c 4096 || true)"
+          else
+            response="$(printf '%b' "$request" | nika lsp 2>/dev/null | head -c 4096 || true)"
+          fi
+
+          if printf '%s' "$response" | grep -q '"capabilities"'; then
+            printf '[PASS] LSP initialize response contains "capabilities"\n'
+          else
+            # Fallback: at minimum nika lsp should start and accept EOF cleanly.
+            printf '::warning::LSP response did not contain "capabilities" — trying EOF fallback\n'
+            if printf '' | timeout 5s nika lsp >/dev/null 2>&1; then
+              printf '[PASS] LSP EOF fallback: exited cleanly\n'
+            else
+              printf '::warning::LSP EOF fallback returned non-zero (continue-on-error)\n'
+              exit 1
+            fi
+          fi
