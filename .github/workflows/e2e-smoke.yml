@@ -146,13 +146,13 @@ jobs:
             exit 1
           fi
 
-          # Gate: execution + expected output
-          run_out="$(nika run hello.nika.yaml 2>&1)"
-          printf 'run output:\n%s\n' "$run_out"
-          if printf '%s' "$run_out" | grep -qF 'hello-from-nika'; then
-            printf '[PASS] run output contains hello-from-nika\n'
+          # Gate: execution — the exec verb runs the shell command. (`nika run`
+          # captures task stdout into the structured result rather than echoing
+          # it, so we assert a clean exit rather than grepping the human render.)
+          if nika run hello.nika.yaml; then
+            printf '[PASS] nika run (exec) exit 0\n'
           else
-            printf '::error::[FAIL] run output missing hello-from-nika\n'
+            printf '::error::[FAIL] nika run (exec) exited non-zero\n'
             exit 1
           fi
 
