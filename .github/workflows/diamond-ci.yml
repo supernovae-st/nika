@@ -50,16 +50,13 @@ jobs:
       JOB: ${{ matrix.job }}
     steps:
       - uses: actions/checkout@v4
-      # The computer-use crates carry `cfg(target_os = "linux")` deps
-      # (nika-screen → wayland-sys · nika-a11y → atspi/D-Bus · nika-input →
-      # evdev/x11) that need the desktop system libs to build on the runner.
-      - name: Install Linux desktop deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwayland-dev libxkbcommon-dev libdbus-1-dev libudev-dev \
-            libx11-dev libxi-dev libxtst-dev libpipewire-0.3-dev \
-            libegl1-mesa-dev libgl1-mesa-dev libgbm-dev pkg-config
+      # No system libs installed here ON PURPOSE: the default workspace build is
+      # pure-Rust. The only crate that links C system deps is `nika-screen`
+      # (xcap → Wayland/X11/PipeWire/DRM/EGL), and that backend now lives behind
+      # the default-OFF `xcap` feature — so this job's `cargo build --workspace`
+      # IS the headless-build proof (a missing system lib here = a regression).
+      # The `--features xcap` path is exercised by the cargo-hack job, which
+      # installs the desktop libs.
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.91"
