@@ -17,7 +17,7 @@ publish                = false  # Internal L1 effect crate (not a standalone cra
 adr = ["ADR-003", "ADR-081", "ADR-083"]
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.91.0" }
+nika-kernel = { path = "../nika-kernel", version = "0.92.0-dev" }
 # BrowserError + DTOs live in nika-kernel-core (Pattern A · FCI-023bis) —
 # nika-browser re-exports the error; no thiserror/miette dep here.
 # tokio `rt` for the per-session CDP Handler task (B.3 · chromiumoxide is

@@ -11,9 +11,9 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See feedback_publish_false_foundation_strategy.md + ADR-017.
 
 [dependencies]
-nika-error   = { path = "../nika-error", version = "0.91.0" }
-nika-catalog = { path = "../nika-catalog", version = "0.91.0" }
-nika-types   = { path = "../nika-types", version = "0.91.0" }   # ExtractMode — fetch arg-shape rules (one closed vocabulary)
+nika-error   = { path = "../nika-error", version = "0.92.0-dev" }
+nika-catalog = { path = "../nika-catalog", version = "0.92.0-dev" }
+nika-types   = { path = "../nika-types", version = "0.92.0-dev" }   # ExtractMode — fetch arg-shape rules (one closed vocabulary)
 
 thiserror  = { workspace = true }
 serde      = { workspace = true }
@@ -36,10 +36,10 @@ jsonschema = { workspace = true }
 
 [dev-dependencies]
 # the verb-theater example folds REAL engine events (the telemetry truth)
-nika-event = { path = "../nika-event", version = "0.91.0" }
+nika-event = { path = "../nika-event", version = "0.92.0-dev" }
 # the emitted⊆registered ratchet cross-checks every statically-emittable
 # spec code against the embedded canon registry (spec/05-errors.md SSOT)
-nika-pack  = { path = "../nika-pack", version = "0.91.0" }
+nika-pack  = { path = "../nika-pack", version = "0.92.0-dev" }
 uuid       = { workspace = true }
 insta      = { workspace = true }
 proptest   = { workspace = true }
