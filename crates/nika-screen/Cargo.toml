@@ -23,7 +23,9 @@ bytes       = { workspace = true }  # Frame RGBA8 zero-copy payload (B.3)
 # B.3 capture backend · xcap = cross-platform screen capture (macOS/Linux/Windows).
 # Replaces the plan's phantom `nokhwa` (a WEBCAM lib · docs.rs verbatim). xcap
 # encapsulates the OS FFI internally, so this crate stays `unsafe_code = forbid`.
-xcap        = "0.9"
+# OPTIONAL · gated behind the default-OFF `xcap` feature so the crate builds on a
+# headless box (no Wayland/X11/PipeWire/DRM/EGL system libs) with the stub backend.
+xcap        = { version = "0.9", optional = true }
 # B.3 wraps the sync xcap calls in `spawn_blocking` (rt) so a dropped future
 # surrenders the worker promptly (kernel CANCEL SAFETY contract); B.4 adds the
 # mpsc stream worker. L1 tokio is layer-legal + deny.toml-allowlisted here.
@@ -31,6 +33,14 @@ xcap        = "0.9"
 # `sync` (added here) brings the bounded `mpsc` channel for the B.4 capture stream.
 tokio        = { workspace = true, features = ["sync"] }
 futures-core = { workspace = true }  # `Stream` trait for the B.4 capture_stream adapter
+
+[features]
+# Default is EMPTY · the stub backend ships by default so `cargo build` (and a
+# headless `cargo build --workspace`) compiles without pulling xcap + its
+# Wayland/X11/PipeWire/DRM/EGL system libs. Build the real OS capture backend
+# with `--features xcap`. The ADR-081 consent + LED guards are enforced in BOTH
+# configs — the feature gates ONLY the OS-call portion.
+xcap = ["dep:xcap"]
 
 [dev-dependencies]
 # Gate 6 (PROPERTY) · proptest exercises the security state machines

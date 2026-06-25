@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Screen-capture backend — implements the L0.5 `ScreenCapture` trait via `xcap`.
+//! Screen-capture backend — implements the L0.5 `ScreenCapture` trait.
 //!
-//! **B.3 single-shot capture WIRED.** `list_displays` / `capture_full` /
-//! `capture_region` now drive the real cross-platform `xcap` backend
-//! (display enumeration + RGBA8 frame capture · macOS CoreGraphics ·
-//! Linux X11/Wayland portal · Windows DXGI). `xcap` encapsulates all OS
-//! FFI internally (objc2 / x11 / windows crates), so this crate stays
-//! `unsafe_code = forbid`-clean.
+//! **B.3 single-shot capture WIRED (behind the `xcap` feature).**
+//! `list_displays` / `capture_full` / `capture_region` drive the real
+//! cross-platform `xcap` backend (display enumeration + RGBA8 frame capture ·
+//! macOS CoreGraphics · Linux X11/Wayland portal · Windows DXGI) when built
+//! with `--features xcap`. `xcap` encapsulates all OS FFI internally (objc2 /
+//! x11 / windows crates), so this crate stays `unsafe_code = forbid`-clean.
 //!
 //! The `xcap` calls are synchronous, so each method runs them inside
 //! [`tokio::task::spawn_blocking`] — a dropped future surrenders the
@@ -22,16 +22,33 @@
 //! channel and the worker exits (drop-stop · no `CancellationToken` needed).
 //! Per `skeleton-option-a-pattern.md` §5 the B.2 `BackendNotWired` placeholder
 //! is now fully CLOSED across all four `ScreenCapture` methods.
+//!
+//! # Stub backend (default · no `xcap` feature)
+//!
+//! Without the `xcap` feature the crate compiles WITHOUT pulling `xcap` (and
+//! its Wayland/X11/PipeWire/DRM/EGL system libs), so `cargo build --workspace`
+//! works on a headless box with no display stack. The ADR-081 consent (guard 7)
+//! and LED (guard 6) guards are STILL enforced — only the OS-call portion is
+//! replaced by a [`ScreenError::BackendInit`] "backend not built" error.
+//! Rebuild with `--features xcap` for real OS capture.
 
-use std::pin::Pin;
 use std::sync::Arc;
+
+#[cfg(feature = "xcap")]
+use std::pin::Pin;
+#[cfg(feature = "xcap")]
 use std::task::{Context, Poll};
+#[cfg(feature = "xcap")]
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[cfg(feature = "xcap")]
 use bytes::Bytes;
+#[cfg(feature = "xcap")]
 use futures_core::Stream;
 use nika_kernel::io::screen::{DisplayId, DisplayInfo, Frame, FrameStream, Rect, ScreenCaptureDyn};
+#[cfg(feature = "xcap")]
 use xcap::Monitor;
+#[cfg(feature = "xcap")]
 use xcap::image::RgbaImage;
 
 use crate::error::ScreenError;
@@ -88,60 +105,106 @@ impl ScreenBackend {
 // `tokio::spawn` both work. Bodies are Send: xcap runs in `spawn_blocking`.
 impl ScreenCaptureDyn for ScreenBackend {
     async fn list_displays(&self) -> Result<Vec<DisplayInfo>, ScreenError> {
-        let infos = tokio::task::spawn_blocking(list_displays_sync)
-            .await
-            .map_err(|e| join_err(&e))??;
-        Ok(infos)
+        // No consent check (enumeration is metadata-only). The stub returns the
+        // "backend not built" error directly.
+        #[cfg(feature = "xcap")]
+        {
+            let infos = tokio::task::spawn_blocking(list_displays_sync)
+                .await
+                .map_err(|e| join_err(&e))??;
+            Ok(infos)
+        }
+        #[cfg(not(feature = "xcap"))]
+        {
+            Err(backend_unavailable())
+        }
     }
 
     async fn capture_full(&self, display: DisplayId) -> Result<Frame, ScreenError> {
         self.consent.check()?; // guard 7 · fail-closed (before any OS call)
         let _led = LedIndicator::engage(&self.led); // guard 6 · RAII · off on drop
-        let frame = tokio::task::spawn_blocking(move || capture_full_sync(display))
-            .await
-            .map_err(|e| join_err(&e))??;
-        Ok(frame)
+        #[cfg(feature = "xcap")]
+        {
+            let frame = tokio::task::spawn_blocking(move || capture_full_sync(display))
+                .await
+                .map_err(|e| join_err(&e))??;
+            Ok(frame)
+        }
+        #[cfg(not(feature = "xcap"))]
+        {
+            let _ = display;
+            Err(backend_unavailable())
+        }
     }
 
     async fn capture_region(&self, display: DisplayId, region: Rect) -> Result<Frame, ScreenError> {
         self.consent.check()?; // guard 7 · fail-closed (before any OS call)
         let _led = LedIndicator::engage(&self.led); // guard 6 · RAII · off on drop
-        let frame = tokio::task::spawn_blocking(move || capture_region_sync(display, region))
-            .await
-            .map_err(|e| join_err(&e))??;
-        Ok(frame)
+        #[cfg(feature = "xcap")]
+        {
+            let frame = tokio::task::spawn_blocking(move || capture_region_sync(display, region))
+                .await
+                .map_err(|e| join_err(&e))??;
+            Ok(frame)
+        }
+        #[cfg(not(feature = "xcap"))]
+        {
+            let _ = display;
+            let _ = region;
+            Err(backend_unavailable())
+        }
     }
 
     async fn capture_stream(&self, display: DisplayId) -> Result<FrameStream, ScreenError> {
         self.consent.check()?; // guard 7 · fail-closed (re-checked per frame below)
+        #[cfg(feature = "xcap")]
+        {
+            // Fail fast · verify the display exists before spawning the worker
+            // (keeps the !Send Monitor inside the blocking probe).
+            tokio::task::spawn_blocking(move || find_monitor_sync(display.0).map(|_| ()))
+                .await
+                .map_err(|e| join_err(&e))??;
 
-        // Fail fast · verify the display exists before spawning the worker
-        // (keeps the !Send Monitor inside the blocking probe).
-        tokio::task::spawn_blocking(move || find_monitor_sync(display.0).map(|_| ()))
-            .await
-            .map_err(|e| join_err(&e))??;
+            // Bounded channel · backpressure paces the worker to the consumer.
+            let (tx, rx) = tokio::sync::mpsc::channel::<Result<Frame, ScreenError>>(STREAM_BUFFER);
 
-        // Bounded channel · backpressure paces the worker to the consumer.
-        let (tx, rx) = tokio::sync::mpsc::channel::<Result<Frame, ScreenError>>(STREAM_BUFFER);
+            // Long-lived capture worker on the tokio blocking pool (the sanctioned
+            // tokio-first primitive · holds one pool slot for the stream's lifetime).
+            // Drop-stop cancellation · when the consumer drops the returned stream
+            // the channel closes, the next `blocking_send` fails, the worker exits
+            // and frees the slot. A `CancellationToken` would add nothing — a sync
+            // `capture_image` mid-flight cannot be interrupted regardless.
+            let consent = Arc::clone(&self.consent);
+            let led = Arc::clone(&self.led);
+            tokio::task::spawn_blocking(move || stream_worker(display, &consent, &led, &tx));
 
-        // Long-lived capture worker on the tokio blocking pool (the sanctioned
-        // tokio-first primitive · holds one pool slot for the stream's lifetime).
-        // Drop-stop cancellation · when the consumer drops the returned stream the
-        // channel closes, the next `blocking_send` fails, the worker exits and
-        // frees the slot. A `CancellationToken` would add nothing — a sync
-        // `capture_image` mid-flight cannot be interrupted regardless.
-        let consent = Arc::clone(&self.consent);
-        let led = Arc::clone(&self.led);
-        tokio::task::spawn_blocking(move || stream_worker(display, &consent, &led, &tx));
+            Ok(Box::pin(FrameRx { rx }))
+        }
+        #[cfg(not(feature = "xcap"))]
+        {
+            let _ = display;
+            Err(backend_unavailable())
+        }
+    }
+}
 
-        Ok(Box::pin(FrameRx { rx }))
+/// The "screen-capture backend not built" error returned by every stub method
+/// when the crate is compiled WITHOUT the `xcap` feature. Reached only AFTER the
+/// ADR-081 consent + LED guards (so guard behavior is identical in both configs).
+#[cfg(not(feature = "xcap"))]
+fn backend_unavailable() -> ScreenError {
+    ScreenError::BackendInit {
+        reason: "screen-capture backend not built — rebuild nika-screen with --features xcap"
+            .to_owned(),
     }
 }
 
 // --- sync xcap helpers (run inside spawn_blocking · keep !Send Monitor local) ---
+// Gated behind the `xcap` feature · the OS-coupled backend internals.
 
 /// Map a `spawn_blocking` join failure (panic / cancel) into a transient
 /// capture error.
+#[cfg(feature = "xcap")]
 fn join_err(e: &tokio::task::JoinError) -> ScreenError {
     // NEVER `format!("{e}")`: tokio's JoinError Display embeds the panic
     // PAYLOAD, which could carry captured pixel data if a backend panicked with
@@ -157,6 +220,7 @@ fn join_err(e: &tokio::task::JoinError) -> ScreenError {
 }
 
 /// Map an `xcap` backend error into a transient `CaptureFailed`.
+#[cfg(feature = "xcap")]
 fn capture_failed(e: impl std::fmt::Display) -> ScreenError {
     ScreenError::CaptureFailed {
         reason: e.to_string(),
@@ -165,6 +229,7 @@ fn capture_failed(e: impl std::fmt::Display) -> ScreenError {
 
 /// Monotonic capture timestamp — nanoseconds since the UNIX epoch
 /// (saturating · clock-skew + overflow tolerant · never panics).
+#[cfg(feature = "xcap")]
 fn now_ns() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -173,6 +238,7 @@ fn now_ns() -> u64 {
 }
 
 /// Resolve a connected `xcap::Monitor` by its kernel `DisplayId`.
+#[cfg(feature = "xcap")]
 fn find_monitor_sync(id: u32) -> Result<Monitor, ScreenError> {
     let monitors = Monitor::all().map_err(|e| ScreenError::BackendInit {
         reason: e.to_string(),
@@ -189,6 +255,7 @@ fn find_monitor_sync(id: u32) -> Result<Monitor, ScreenError> {
 }
 
 /// Enumerate connected displays into kernel `DisplayInfo` records.
+#[cfg(feature = "xcap")]
 fn list_displays_sync() -> Result<Vec<DisplayInfo>, ScreenError> {
     let monitors = Monitor::all().map_err(|e| ScreenError::BackendInit {
         reason: e.to_string(),
@@ -214,6 +281,7 @@ fn list_displays_sync() -> Result<Vec<DisplayInfo>, ScreenError> {
 }
 
 /// Convert an `xcap` RGBA image into a kernel `Frame` (zero-copy payload).
+#[cfg(feature = "xcap")]
 fn rgba_to_frame(img: RgbaImage, scale: f32, display: DisplayId) -> Frame {
     let width = img.width();
     let height = img.height();
@@ -222,6 +290,7 @@ fn rgba_to_frame(img: RgbaImage, scale: f32, display: DisplayId) -> Frame {
 }
 
 /// Capture a full-display frame (sync · runs inside `spawn_blocking`).
+#[cfg(feature = "xcap")]
 fn capture_full_sync(display: DisplayId) -> Result<Frame, ScreenError> {
     let monitor = find_monitor_sync(display.0)?;
     let scale = monitor.scale_factor().map_err(capture_failed)?;
@@ -238,6 +307,7 @@ fn capture_full_sync(display: DisplayId) -> Result<Frame, ScreenError> {
 /// Extracted from [`capture_region_sync`] so the bounds logic is unit- and
 /// mutation-tested headless — the OS-coupled capture call stays `#[ignore]`
 /// (needs a real display + TCC). ADR-003 gate 5/6 coverage of the pure path.
+#[cfg(feature = "xcap")]
 fn validate_region(
     region: Rect,
     display_w: u32,
@@ -269,6 +339,7 @@ fn validate_region(
 /// The region is validated against the display bounds by [`validate_region`]
 /// (a negative offset or an out-of-bounds extent yields
 /// [`ScreenError::RegionOutOfBounds`] · structural · non-transient).
+#[cfg(feature = "xcap")]
 fn capture_region_sync(display: DisplayId, region: Rect) -> Result<Frame, ScreenError> {
     let monitor = find_monitor_sync(display.0)?;
     let scale = monitor.scale_factor().map_err(capture_failed)?;
@@ -281,13 +352,15 @@ fn capture_region_sync(display: DisplayId, region: Rect) -> Result<Frame, Screen
     Ok(rgba_to_frame(img, scale, display))
 }
 
-// --- B.4 continuous capture stream ---
+// --- B.4 continuous capture stream (gated behind the `xcap` feature) ---
 
 /// Bounded frame buffer · backpressure paces the worker to the consumer.
+#[cfg(feature = "xcap")]
 const STREAM_BUFFER: usize = 4;
 
 /// Fixed ~30fps capture cadence for the B.4 stream. A configurable
 /// frame-rate / change-detection policy is a later-round refinement.
+#[cfg(feature = "xcap")]
 const STREAM_FRAME_INTERVAL: Duration = Duration::from_millis(33);
 
 /// Continuous capture loop · runs on a tokio blocking-pool thread.
@@ -297,6 +370,7 @@ const STREAM_FRAME_INTERVAL: Duration = Duration::from_millis(33);
 /// per-frame error surfaces WITHOUT tearing down the stream — the consumer
 /// decides whether to keep polling or drop. `blocking_send` returning `Err`
 /// means the consumer dropped the receiver → the worker exits (drop-stop).
+#[cfg(feature = "xcap")]
 fn stream_worker(
     display: DisplayId,
     consent: &Arc<ConsentGate>,
@@ -327,10 +401,12 @@ fn stream_worker(
 /// `blocking_send` fails and the capture thread exits (drop-stop · no separate
 /// cancellation token needed). `futures_core::Stream` keeps this consistent
 /// with the kernel `FrameStream` type alias.
+#[cfg(feature = "xcap")]
 struct FrameRx {
     rx: tokio::sync::mpsc::Receiver<Result<Frame, ScreenError>>,
 }
 
+#[cfg(feature = "xcap")]
 impl Stream for FrameRx {
     type Item = Result<Frame, ScreenError>;
 
@@ -427,6 +503,8 @@ mod tests {
     /// Real continuous-capture smoke test — requires a connected display AND
     /// OS screen-recording permission (macOS TCC). `#[ignore]` keeps the
     /// default `--lib` suite headless-safe; run with `-- --ignored`.
+    /// Only built with the `xcap` feature (the stub has no streaming backend).
+    #[cfg(feature = "xcap")]
     #[tokio::test]
     #[ignore = "requires a display + OS screen-recording permission (TCC)"]
     async fn capture_stream_yields_frames() {
@@ -447,7 +525,9 @@ mod tests {
     /// Real full-display capture smoke test — requires a connected display
     /// AND OS screen-recording permission (macOS TCC). `#[ignore]` so the
     /// default `cargo test --workspace --lib` suite stays headless-safe;
-    /// run locally with `cargo test -p nika-screen -- --ignored`.
+    /// run locally with `cargo test -p nika-screen --features xcap -- --ignored`.
+    /// Only built with the `xcap` feature (the stub has no capture backend).
+    #[cfg(feature = "xcap")]
     #[tokio::test]
     #[ignore = "requires a display + OS screen-recording permission (TCC)"]
     async fn capture_full_real_smoke() {
@@ -469,6 +549,8 @@ mod tests {
 
     /// `now_ns` returns a real epoch-nanosecond timestamp (not a constant) ·
     /// pins it against `-> 0` / `-> 1` mutations. Headless · no display needed.
+    /// `now_ns` is part of the xcap backend internals.
+    #[cfg(feature = "xcap")]
     #[test]
     fn now_ns_is_a_real_epoch_timestamp() {
         // 2020-01-01T00:00:00Z expressed in nanoseconds since the UNIX epoch.
@@ -482,6 +564,8 @@ mod tests {
     /// The `FrameRx` stream forwards a sent frame then ends when the channel
     /// closes · pins `poll_next` against `-> Poll::from(None)`. Headless · the
     /// channel plumbing is exercised directly without an OS capture.
+    /// `FrameRx` is part of the xcap streaming backend.
+    #[cfg(feature = "xcap")]
     #[tokio::test]
     async fn frame_rx_yields_then_ends_on_close() {
         let (tx, rx) = tokio::sync::mpsc::channel::<Result<Frame, ScreenError>>(STREAM_BUFFER);
@@ -533,60 +617,101 @@ mod tests {
         }
     }
 
+    /// Stub backend · with consent GRANTED, `capture_full` is reached PAST the
+    /// guard 7 gate and returns the "backend not built" `BackendInit` (NIKA-1009)
+    /// — NOT a consent code (1006/1007). Proves the consent/LED guards run in the
+    /// stub config and the OS-call portion is the only thing replaced.
+    #[cfg(not(feature = "xcap"))]
+    #[tokio::test]
+    async fn stub_reaches_backend_not_built_past_the_gate() {
+        let backend = ScreenBackend::new();
+        backend.grant_consent(); // guard 7 · pass the gate, exercise the backend path
+        let io = backend
+            .capture_full(DisplayId::new(0))
+            .await
+            .expect_err("stub backend is not built");
+        let se = &io;
+        assert_eq!(
+            se.nika_code(),
+            codes::NIKA_1009,
+            "stub reaches BackendInit (NIKA-1009) past the consent gate"
+        );
+        assert_ne!(
+            se.nika_code(),
+            codes::NIKA_1006,
+            "not a consent-denied code"
+        );
+        assert_ne!(
+            se.nika_code(),
+            codes::NIKA_1007,
+            "not a consent-revoked code"
+        );
+        assert!(
+            io.to_string().contains("not built"),
+            "stub error message points to the missing xcap feature"
+        );
+    }
+
     // --- validate_region · PURE bounds logic (headless · mutation-killing) ---
+    // The pure bounds logic lives behind the `xcap` feature (it backs
+    // `capture_region_sync`, which the stub config does not build).
+    #[cfg(feature = "xcap")]
+    mod validate_region_tests {
+        use super::*;
 
-    /// A well-inside region returns its unsigned origin.
-    #[test]
-    fn validate_region_accepts_in_bounds() {
-        assert_eq!(
-            validate_region(Rect::new(10, 20, 100, 50), 1920, 1080).expect("in bounds"),
-            (10, 20)
-        );
-    }
+        /// A well-inside region returns its unsigned origin.
+        #[test]
+        fn validate_region_accepts_in_bounds() {
+            assert_eq!(
+                validate_region(Rect::new(10, 20, 100, 50), 1920, 1080).expect("in bounds"),
+                (10, 20)
+            );
+        }
 
-    /// The exact boundary `rx + width == display_w` (and height) is IN bounds
-    /// (`>` not `>=`) · pins the `>` comparators against `>=` / `==`.
-    #[test]
-    fn validate_region_accepts_exact_boundary() {
-        assert_eq!(
-            validate_region(Rect::new(0, 0, 1920, 1080), 1920, 1080).expect("exact bound"),
-            (0, 0)
-        );
-        assert_eq!(
-            validate_region(Rect::new(1820, 980, 100, 100), 1920, 1080).expect("exact bound"),
-            (1820, 980)
-        );
-    }
+        /// The exact boundary `rx + width == display_w` (and height) is IN bounds
+        /// (`>` not `>=`) · pins the `>` comparators against `>=` / `==`.
+        #[test]
+        fn validate_region_accepts_exact_boundary() {
+            assert_eq!(
+                validate_region(Rect::new(0, 0, 1920, 1080), 1920, 1080).expect("exact bound"),
+                (0, 0)
+            );
+            assert_eq!(
+                validate_region(Rect::new(1820, 980, 100, 100), 1920, 1080).expect("exact bound"),
+                (1820, 980)
+            );
+        }
 
-    /// One pixel past the width bound is rejected · pins `>` against `<` / `==`.
-    #[test]
-    fn validate_region_rejects_width_overflow_by_one() {
-        assert!(validate_region(Rect::new(1, 0, 1920, 100), 1920, 1080).is_err());
-    }
+        /// One pixel past the width bound is rejected · pins `>` against `<` / `==`.
+        #[test]
+        fn validate_region_rejects_width_overflow_by_one() {
+            assert!(validate_region(Rect::new(1, 0, 1920, 100), 1920, 1080).is_err());
+        }
 
-    /// One pixel past the height bound is rejected · pins `>` against `<` / `==`.
-    #[test]
-    fn validate_region_rejects_height_overflow_by_one() {
-        assert!(validate_region(Rect::new(0, 1, 100, 1080), 1920, 1080).is_err());
-    }
+        /// One pixel past the height bound is rejected · pins `>` against `<` / `==`.
+        #[test]
+        fn validate_region_rejects_height_overflow_by_one() {
+            assert!(validate_region(Rect::new(0, 1, 100, 1080), 1920, 1080).is_err());
+        }
 
-    /// Zero width alone (every other term valid) is rejected · pins the
-    /// `width == 0` check + the first `||` against `!=` / `&&`.
-    #[test]
-    fn validate_region_rejects_zero_width_alone() {
-        assert!(validate_region(Rect::new(0, 0, 0, 50), 1920, 1080).is_err());
-    }
+        /// Zero width alone (every other term valid) is rejected · pins the
+        /// `width == 0` check + the first `||` against `!=` / `&&`.
+        #[test]
+        fn validate_region_rejects_zero_width_alone() {
+            assert!(validate_region(Rect::new(0, 0, 0, 50), 1920, 1080).is_err());
+        }
 
-    /// Zero height alone is rejected · pins `height == 0` + the second `||`.
-    #[test]
-    fn validate_region_rejects_zero_height_alone() {
-        assert!(validate_region(Rect::new(0, 0, 50, 0), 1920, 1080).is_err());
-    }
+        /// Zero height alone is rejected · pins `height == 0` + the second `||`.
+        #[test]
+        fn validate_region_rejects_zero_height_alone() {
+            assert!(validate_region(Rect::new(0, 0, 50, 0), 1920, 1080).is_err());
+        }
 
-    /// A negative offset (signed→unsigned conversion fails) is rejected.
-    #[test]
-    fn validate_region_rejects_negative_offset() {
-        assert!(validate_region(Rect::new(-1, 0, 10, 10), 1920, 1080).is_err());
-        assert!(validate_region(Rect::new(0, -5, 10, 10), 1920, 1080).is_err());
+        /// A negative offset (signed→unsigned conversion fails) is rejected.
+        #[test]
+        fn validate_region_rejects_negative_offset() {
+            assert!(validate_region(Rect::new(-1, 0, 10, 10), 1920, 1080).is_err());
+            assert!(validate_region(Rect::new(0, -5, 10, 10), 1920, 1080).is_err());
+        }
     }
 }
