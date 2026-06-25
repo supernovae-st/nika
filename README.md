@@ -117,9 +117,18 @@ half-features parked behind a future version.
 Install (macOS · Linux):
 
 ```sh
+# Homebrew
 brew install supernovae-st/tap/nika
+
+# …or the install script — no Homebrew needed (downloads the verified release binary)
+curl -LsSf https://nika.sh/install.sh | sh
+
 nika --version
 ```
+
+> Fully manual / air-gapped? Download the platform tarball + `SHA256SUMS` from the
+> [latest release](https://github.com/supernovae-st/nika/releases/latest), verify
+> with `sha256sum -c SHA256SUMS --ignore-missing`, then move `nika` onto your `PATH`.
 
 Your first workflow runs with **zero setup** — no model, no API key:
 
@@ -160,6 +169,18 @@ nika examples run 01-hello   # runs on ollama/llama3.1 by default
 ```
 
 From source (contributors): `git clone https://github.com/supernovae-st/nika.git && cd nika && cargo test --workspace --lib`. End-user docs: [docs.nika.sh](https://docs.nika.sh).
+
+## Editor support
+
+This repo is the **engine** — it ships the language server (`nika lsp`, over stdio).
+The VS Code / Cursor / Windsurf / VSCodium **extension** lives in its own repo and
+is published as [`supernovae.nika-lang`](https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang)
+(and on [Open VSX](https://open-vsx.org/extension/supernovae/nika-lang) for Cursor / Windsurf / VSCodium):
+
+- Install it from your editor's marketplace — it auto-downloads the matching `nika`
+  release binary on first use (or reuses the `nika` already on your `PATH`).
+- Source + issues: [supernovae-st/nika-vscode](https://github.com/supernovae-st/nika-vscode).
+- Any other editor: `nika lsp` speaks LSP over stdio — wire it into any LSP client.
 
 ## Documentation
 
