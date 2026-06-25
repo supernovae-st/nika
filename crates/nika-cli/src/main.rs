@@ -91,6 +91,12 @@ enum Command {
         /// modes (no machine dry-run form yet · would silently corrupt stdout).
         #[arg(long, conflicts_with_all = ["json", "output"])]
         dry_run: bool,
+        /// Override the workflow's envelope `model:` (`<provider>/<name>`).
+        /// Resolved through the SAME path as an envelope model — a bad id
+        /// fails loud when an infer/agent task resolves it. `--model
+        /// mock/echo` previews any workflow offline (zero key · zero network).
+        #[arg(long, value_name = "PROVIDER/NAME")]
+        model: Option<String>,
     },
     /// Static anatomy: tasks · verbs · DAG tree · cost · permits.
     Inspect {
@@ -219,6 +225,10 @@ enum ExamplesAction {
     Run {
         /// Example slug (from `list`).
         slug: String,
+        /// Override the example's `model:` (`<provider>/<name>`). Use
+        /// `--model mock/echo` to preview offline (zero key · zero network).
+        #[arg(long, value_name = "PROVIDER/NAME")]
+        model: Option<String>,
     },
 }
 
@@ -280,6 +290,7 @@ fn main() -> std::process::ExitCode {
             no_progress,
             quiet,
             dry_run,
+            model,
         } => verbs::run::run(
             &file,
             json,
@@ -287,6 +298,7 @@ fn main() -> std::process::ExitCode {
             term_theme(no_color, ascii),
             resolve_run_mode(quiet, no_progress),
             dry_run,
+            model.as_deref(),
         ),
         Command::Inspect { file } => emit(&verbs::inspect::run(&file)),
         Command::Graph { file, format } => {
@@ -307,7 +319,9 @@ fn main() -> std::process::ExitCode {
             ExamplesAction::List => emit(&verbs::pack_surface::examples_list()),
             ExamplesAction::Show { slug } => emit(&verbs::pack_surface::examples_show(&slug)),
             // The L3 run verb shipped — execute the embedded example for real.
-            ExamplesAction::Run { slug } => verbs::run::example(&slug, term_theme(false, false)),
+            ExamplesAction::Run { slug, model } => {
+                verbs::run::example(&slug, model.as_deref(), term_theme(false, false))
+            }
         },
         Command::New { from, dest, force } => emit(&verbs::new::run(&from, dest.as_deref(), force)),
         Command::Completions { shell } => {

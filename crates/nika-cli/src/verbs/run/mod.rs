@@ -50,6 +50,12 @@ use crate::verbs::exit;
 /// returns the exit code: `0` ok · `1` workflow failed · `2` file
 /// findings (audit-before-run · the dirty report never executes) · `3`
 /// environment (unreadable file · TLS init · a system contract breach).
+///
+/// `model_override` — when `Some(m)`, `m` REPLACES the workflow envelope's
+/// `model:` as the resolved default (so `examples run … --model mock/echo`
+/// previews offline). It travels the SAME composition path as an envelope
+/// model, so a bad id fails loud identically (the registry surfaces its
+/// typed error when an infer/agent task actually resolves it).
 #[must_use]
 pub fn run(
     file: &str,
@@ -58,6 +64,7 @@ pub fn run(
     theme: Theme,
     mode: RenderMode,
     dry_run: bool,
+    model_override: Option<&str>,
 ) -> u8 {
     // `--output json` selects the machine-result mode (spec 01 §"What
     // leaves a run"): the resolved `outputs:` object as one JSON object on
@@ -109,7 +116,11 @@ pub fn run(
     // The envelope default model · a task's own `model:` overrides it ·
     // an exec-only workflow never resolves it (so "" is harmless until
     // an infer/agent task actually needs a model · resolve is loud then).
-    let default_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
+    // A `--model` override REPLACES the envelope default through this SAME
+    // path — a bad id fails loud at resolve time exactly as a bad envelope
+    // model does (no separate, lenient validation seam).
+    let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
+    let default_model = model_override.unwrap_or(envelope_model);
     // Both runtime capability boundaries (permits.fs + permits.net.http) in
     // one value (spec §permits · NIKA-SEC-004) — derived once so neither axis
     // can be wired while the other is forgotten. fs gates the file builtins;
@@ -150,15 +161,24 @@ pub fn run(
 /// real runtime (the pack ships offline · zero network for the exec/
 /// mock-model examples). Stages the embedded YAML to a temp file (the
 /// verb reads a path) and runs it.
+///
+/// `model_override` — `Some(m)` (from `--model m`) swaps the example's
+/// envelope model for `m` (so `--model mock/echo` previews offline). On a
+/// FAILED run with NO override and a non-`mock/echo` model (the common
+/// "no local provider running" case), an actionable offline hint is
+/// printed to stderr · the original exit code is returned unchanged.
 #[must_use]
-pub fn example(slug: &str, theme: Theme) -> u8 {
+pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
     let Some(yaml) = nika_pack::example(slug) else {
         eprintln!("unknown example `{slug}` — `nika examples list` names the embedded set");
         return exit::FILE;
     };
     // The slug comes from the embedded set (path-safe) · stage it beside
-    // a stable name so a re-run overwrites rather than litters.
-    let path = std::env::temp_dir().join(format!("nika-example-{slug}.nika.yaml"));
+    // a stable name so a re-run overwrites rather than litters. A slug may
+    // carry a `showcase/` prefix — flatten the separator so the temp name
+    // stays a single path component.
+    let stem = slug.replace('/', "-");
+    let path = std::env::temp_dir().join(format!("nika-example-{stem}.nika.yaml"));
     if let Err(e) = std::fs::write(&path, yaml) {
         eprintln!("nika run: environment: cannot stage example `{slug}`: {e}");
         return exit::ENV;
@@ -169,7 +189,51 @@ pub fn example(slug: &str, theme: Theme) -> u8 {
     } else {
         RenderMode::Plain
     };
-    run(&path.to_string_lossy(), false, None, theme, mode, false)
+    let code = run(
+        &path.to_string_lossy(),
+        false,
+        None,
+        theme,
+        mode,
+        false,
+        model_override,
+    );
+    // The example's own envelope model — what we suggest overriding when a
+    // run fails offline. A parse miss leaves it empty (the tip then never
+    // fires · the run already surfaced the real finding).
+    let model = example_model(yaml);
+    if offline_tip_applies(code, model_override.is_some(), &model) {
+        eprintln!(
+            "\n  tip: no local model running? preview this example offline →\n        nika examples run {slug} --model mock/echo"
+        );
+    }
+    code
+}
+
+/// The example's envelope `model:` string (empty when the YAML has no
+/// model or won't parse). Best-effort — drives only the offline-hint
+/// decision, never the run itself.
+fn example_model(yaml: &str) -> String {
+    nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .ok()
+    .and_then(|wf| wf.model.map(|m| m.value))
+    .unwrap_or_default()
+}
+
+/// Should the offline-preview tip fire after an example run?
+///
+/// True only when ALL hold: the run FAILED (`code != exit::OK`), the user
+/// gave NO `--model` override (the tip suggests exactly that), and the
+/// example's model is NOT already `mock/echo` (which needs no provider, so
+/// a failure there is a real bug, not a missing local model). Pure · so
+/// the policy is unit-tested without staging or running anything.
+#[must_use]
+fn offline_tip_applies(exit_code: u8, override_given: bool, model: &str) -> bool {
+    exit_code != exit::OK && !override_given && model != "mock/echo"
 }
 
 /// Drive the runtime through the chosen sink · return the exit code.
@@ -287,8 +351,10 @@ fn emit_diagnostic(text: &str, output_json: bool) {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
-    use super::outputs_json_line;
+    use super::{RenderMode, exit, offline_tip_applies, outputs_json_line, run};
+    use crate::Theme;
     use serde_json::{Value, json};
     use std::collections::BTreeMap;
 
@@ -307,5 +373,100 @@ mod tests {
     fn outputs_json_line_empty_is_braces() {
         // No `outputs:` declared → still a JSON object on stdout.
         assert_eq!(outputs_json_line(&BTreeMap::new()), "{}");
+    }
+
+    /// The offline-hint policy (pure · the heart of the UX decision). The
+    /// tip fires ONLY when a non-mock example FAILED with no `--model`
+    /// override — exactly the "no local model running" case.
+    #[test]
+    fn offline_tip_policy_fires_only_when_actionable() {
+        // FAIL + no override + a local model → the tip is the right nudge.
+        assert!(offline_tip_applies(
+            exit::WORKFLOW,
+            false,
+            "ollama/llama3.1"
+        ));
+        assert!(offline_tip_applies(exit::ENV, false, "ollama/llama3.1"));
+        // A clean run never needs the tip.
+        assert!(!offline_tip_applies(exit::OK, false, "ollama/llama3.1"));
+        // The user already overrode the model · suggesting it again is noise.
+        assert!(!offline_tip_applies(
+            exit::WORKFLOW,
+            true,
+            "ollama/llama3.1"
+        ));
+        // mock/echo needs no provider · a failure there is a real bug, not a
+        // missing local model — so the offline tip would mislead.
+        assert!(!offline_tip_applies(exit::WORKFLOW, false, "mock/echo"));
+    }
+
+    /// A noiseless theme (no colour · no animation) for the run tests — they
+    /// exercise the COMPOSITION + exit code, not the render surface.
+    fn plain_theme() -> Theme {
+        Theme {
+            color: false,
+            ascii: true,
+            animate: false,
+        }
+    }
+
+    fn stage(name: &str, yaml: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join("nika-cli-run-mod-tests");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let path = dir.join(name);
+        std::fs::write(&path, yaml).expect("fixture written");
+        path
+    }
+
+    /// `--model mock/echo` on a workflow whose envelope is a LOCAL model
+    /// resolves + runs to SUCCESS offline — mock/echo needs no provider, so
+    /// the override is the offline-preview path the example tip suggests.
+    #[test]
+    fn model_override_runs_a_local_model_workflow_offline() {
+        let wf = stage(
+            "override-infer.nika.yaml",
+            "nika: v1\nworkflow: override-infer\nmodel: ollama/llama3.1\ntasks:\n  - id: think\n    infer: { prompt: \"hello\" }\n",
+        );
+        let code = run(
+            &wf.to_string_lossy(),
+            false,
+            None,
+            plain_theme(),
+            RenderMode::Plain,
+            false,
+            Some("mock/echo"),
+        );
+        assert_eq!(
+            code,
+            exit::OK,
+            "the mock/echo override runs the local-model workflow offline"
+        );
+    }
+
+    /// The override actually CHANGES the resolved model: the same workflow
+    /// that needs a provider (`ollama/llama3.1`) succeeds because the
+    /// override swapped in the keyless/networkless mock — proving the
+    /// envelope model was not the one resolved.
+    #[test]
+    fn model_override_replaces_the_resolved_model() {
+        let wf = stage(
+            "override-swap.nika.yaml",
+            "nika: v1\nworkflow: override-swap\nmodel: ollama/llama3.1\ntasks:\n  - id: ask\n    infer: { prompt: \"bonjour\" }\n",
+        );
+        // With the override → mock/echo resolves with no provider → OK.
+        let overridden = run(
+            &wf.to_string_lossy(),
+            false,
+            None,
+            plain_theme(),
+            RenderMode::Plain,
+            false,
+            Some("mock/echo"),
+        );
+        assert_eq!(
+            overridden,
+            exit::OK,
+            "the override resolved mock/echo, not the envelope's ollama model"
+        );
     }
 }
