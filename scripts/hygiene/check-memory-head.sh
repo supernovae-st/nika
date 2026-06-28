@@ -11,8 +11,12 @@ else
   MEMORY="$MEMORY_NEW" # will trigger the not-found error below
 fi
 [ -f "$MEMORY" ] || {
-  echo "MEMORY.md not found"
-  exit 2
+  # Local-only vector: MEMORY.md lives in the developer's ~/.claude tree, never
+  # in the repo. Absent ⇒ running in CI or a fresh clone, not a real drift —
+  # skip rather than false-RED (this was the dominant cause of the nightly
+  # hygiene-drift issue spam · 2026-06).
+  echo "SKIP (local-only check · MEMORY.md absent — run locally to verify the HEAD pointer)"
+  exit 0
 }
 
 actual="$(git rev-parse --short=9 HEAD 2>/dev/null)"
