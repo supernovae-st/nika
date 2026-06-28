@@ -19,6 +19,49 @@ changelog tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 
 ---
 
+## [0.91.0](https://github.com/supernovae-st/nika/compare/v0.90.0..v0.91.0) - 2026-06-25
+
+### ✨ Features
+- **cli** — Add explicit nika onboarding wiring ([fce281a1a](https://github.com/supernovae-st/nika/commit/fce281a1a031a711441804aaa0c381cf69e66dc6))
+- **nika-cli** — Examples run --model override + offline mock hint ([ede69ccfd](https://github.com/supernovae-st/nika/commit/ede69ccfd2b025af4575293742772d5c09adf3af))
+- **nika-screen** — Optional xcap backend (default-off) for headless builds ([9f2281f05](https://github.com/supernovae-st/nika/commit/9f2281f0588b124a59fa9f9a9cb4eb08c29900c4))
+
+### 🐛 Bug Fixes
+- **ci** — Clippy excludes macOS-only metal feature on the Linux runner ([93b7990a9](https://github.com/supernovae-st/nika/commit/93b7990a94d3ac71bb87c66b2b97f0c5d6d4f4dc))
+- **doctor** — Recognize workspace cursor mcp config ([723fcd9e2](https://github.com/supernovae-st/nika/commit/723fcd9e2220f42c787dfe523966768c929c8f56))
+- **nika-a11y** — Atspi 0.29 API — Role::Button + direct zbus dep ([53c19ef88](https://github.com/supernovae-st/nika/commit/53c19ef88552cb637fcbeb7fbbdee814efc28edf))
+- **nika-a11y** — Make the atspi walk future Send ([ed055d94d](https://github.com/supernovae-st/nika/commit/ed055d94dd52bc5d56e5c3133c72202170fdc256))
+- **nika-a11y** — Cfg-gate macOS-only AX helpers (Linux dead-code) ([bd9645483](https://github.com/supernovae-st/nika/commit/bd9645483fe186db1532a43c646bfa3a3977af99))
+- **nika-a11y** — Backtick PascalCase in the atspi doc comment ([6e8960f51](https://github.com/supernovae-st/nika/commit/6e8960f51180ebcc20bf5cc486873a69ba14ec07))
+- **nika-catalog** — Gate pricing/capabilities-conditional imports ([6648a389f](https://github.com/supernovae-st/nika/commit/6648a389f03b2f6dde75211ac5d885b18e01317e))
+- **nika-types** — Gate serde so the no-default-features build compiles ([05e0de2d9](https://github.com/supernovae-st/nika/commit/05e0de2d92df29c211bcf3d1cd52029045c9604f))
+- **release** — Separate dev version from brew assets ([16b9ac480](https://github.com/supernovae-st/nika/commit/16b9ac480d44f6ee110c4537eea87d07bf29a8c1))
+- **typos** — Exclude generated/fuzz + allowlist domain vocab ([33411ce7c](https://github.com/supernovae-st/nika/commit/33411ce7c78fca318d6e63c5a03e0769ff062210))
+
+### 📚 Documentation
+- **changelog** — Append v0.90.0 — auto-generated ([#133](https://github.com/supernovae-st/nika/issues/133)) ([a424d559b](https://github.com/supernovae-st/nika/commit/a424d559b05cb078fa46d6d42a68dfa095db1164)) ([#133](https://github.com/supernovae-st/nika/pull/133))
+- **coherence** — Fix stale facts post-ship + tag-cleanup ([de6fcbf49](https://github.com/supernovae-st/nika/commit/de6fcbf4942569e11db9a3258aae43ab36b48c36))
+- **kernel** — Retire forever-v0.x doc refs (real-semver cascade) ([5b60fa0aa](https://github.com/supernovae-st/nika/commit/5b60fa0aa4023c78b93e3f8c019f2ede39ad8e44))
+- **readme** — Real brew install + zero-setup quickstart; fix version residual ([b2ba50821](https://github.com/supernovae-st/nika/commit/b2ba5082140b444b40b4b8b060d7350591d1be71))
+- **readme** — Document curl install + add editor-support section ([55551e4ce](https://github.com/supernovae-st/nika/commit/55551e4ce3c984adea60040d66a2b04fde38840e))
+- **readme** — Correct the install-script PATH note ([895ce3a11](https://github.com/supernovae-st/nika/commit/895ce3a1182b3788b0e9ffcf5ecf0ed356b2f497))
+- **release** — Clarify main versus tagged binaries ([47ff5f5d5](https://github.com/supernovae-st/nika/commit/47ff5f5d581bfe77af587df96da02bd7bb3aec9d))
+- **roadmap** — Current-state reflects v0.90.0 SHIPPED (first public release) ([38218ab7c](https://github.com/supernovae-st/nika/commit/38218ab7c7dcf60f11886f05bc861941245bb68b))
+- **status** — Sync dev version projections ([60c5a7828](https://github.com/supernovae-st/nika/commit/60c5a78285711a3642a1f8ec64ba56dddb107ede))
+
+### 📦 Build
+- **diamond** — Pipewire dep + ignore unmaintained paste advisory ([450477646](https://github.com/supernovae-st/nika/commit/4504776466af1e7095828629748f0c2b59bd042e))
+- **diamond** — Egl/gl deps + miri toolchain pin + typos allowlist ([26d1cd098](https://github.com/supernovae-st/nika/commit/26d1cd098a56520e99aad0f91eab9cc02550bdb3))
+- **diamond** — Exclude xcap from clippy features (system-lib, like metal) ([bf5d91ddc](https://github.com/supernovae-st/nika/commit/bf5d91ddc128e1024874c26dbb25ffed7fa5cd70))
+
+### 🧹 Chore
+- **hooks** — Accept nika-<crate> + diamond/coherence commit scopes ([744d1202d](https://github.com/supernovae-st/nika/commit/744d1202d2d2a1ca11200823aa80bca6cd8f9d58))
+- **hooks** — Add typos to the commit-scope allowlist ([c0f7c070b](https://github.com/supernovae-st/nika/commit/c0f7c070b9e42587b12733ce1e99f95c6ee680f9))
+
+### 🦋 New Contributors
+- @github-actions[bot] made their first contribution in [#133](https://github.com/supernovae-st/nika/pull/133)
+
+
 ## [Unreleased]
 
 ### 🆕 Crates admitted
