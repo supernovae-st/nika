@@ -18,6 +18,15 @@ jobs:
           fetch-depth: 0
           ref: main   # explicit — always check main even if default branch differs (renamed from nika-diamond 2026-05-06)
 
+      # Vectors 34 (cargo-deny) + 36 (cargo-machete) hard-RED when the binary is
+      # absent. Installing them here makes the nightly actually run the
+      # supply-chain policy instead of false-RED-ing on a missing tool — one of
+      # the causes of the recurring drift-issue spam (2026-06).
+      - name: Install supply-chain tools (cargo-deny + cargo-machete)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-machete
+
       - name: Run hygiene dashboard
         id: hygiene
         env:
@@ -50,12 +59,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TITLE="hygiene-drift: ecosystem out of sync"
+          # Self-heal the dedup label. Without it, `gh issue create --label`
+          # silently fell back to a label-less issue, so the list query below
+          # never matched and the nightly opened a NEW duplicate every run
+          # (18 dupes by 2026-06-28). Creating it idempotently makes dedup work.
+          gh label create hygiene-drift --color fbca04 \
+            --description "Auto-filed by the nightly hygiene drift dashboard" \
+            --force >/dev/null 2>&1 || true
           EXISTING=$(gh issue list --label hygiene-drift --state open --json number --jq '.[0].number' 2>/dev/null)
           if [ -n "$EXISTING" ]; then
             gh issue edit "$EXISTING" --body-file /tmp/issue-body.md
           else
-            gh issue create --title "$TITLE" --body-file /tmp/issue-body.md --label hygiene-drift 2>/dev/null || \
-              gh issue create --title "$TITLE" --body-file /tmp/issue-body.md
+            gh issue create --title "$TITLE" --body-file /tmp/issue-body.md --label hygiene-drift
           fi
 
       - name: Close drift issue if all green

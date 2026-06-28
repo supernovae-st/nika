@@ -84,8 +84,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `16b9ac480` (`16b9ac480d44f6ee110c4537eea87d07bf29a8c1`)             |
-| workspace        | v0.91.0-dev                                  |
+| HEAD             | `856b5717a` (`856b5717a5feda2fcad6a214a59a94ad30faa658`)             |
+| workspace        | v0.92.0-dev                                  |
 | crates (workspace)| 39                                              |
 | crates (admitted)| 39 / 42                                   |
 | crates (WIP)     | 0 —                                   |
