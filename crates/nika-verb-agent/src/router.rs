@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Per-turn tool routing — deterministic active discovery (ADR-093).
+//! Per-turn tool routing — deterministic active discovery (ADR-096).
 //!
 //! Injecting EVERY tool definition every turn does not scale: large
 //! universes crowd the context and degrade selection quality (the

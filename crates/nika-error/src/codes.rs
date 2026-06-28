@@ -489,7 +489,7 @@ pub const NIKA_466: NikaCode = NikaCode {
 };
 /// NIKA-467: The agent loop stalled — identical actions with identical
 /// observations repeated past the stall threshold (no progress; further
-/// turns would spend budget for nothing · ADR-093).
+/// turns would spend budget for nothing · ADR-096).
 pub const NIKA_467: NikaCode = NikaCode {
     num: 467,
     category: Category::Verb,

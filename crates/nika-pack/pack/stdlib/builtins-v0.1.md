@@ -10,7 +10,7 @@
 > jaq source-verified 2026-05-27 · `obj_merge` impl + test corpus + corelang
 > docs) · the validators merged · `task_status`/`orchestrate`/`locale_lookup`
 > cut. Step 3 (22 → 23 · 2026-06-13) · `nika:compose` · the agent loop's
-> self-verification intrinsic (ADR-093 · loop-only like `done`). Step 2
+> self-verification intrinsic (ADR-096 · loop-only like `done`). Step 2
 > (26 → 22 · ADR-086/087/088 Rams sweep 2026-05-27) · `convert`
 > replaces `csv_to_json` (multi-format · from:/to:) · `wait` unifies
 > `sleep`+`wait_until` (−1) · `inspect` unifies `cost`+`records`+`dag_info`+

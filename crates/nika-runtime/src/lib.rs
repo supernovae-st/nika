@@ -465,7 +465,7 @@ fn settle_ran(
             ],
         );
     }
-    // The agent loop's decisions (ADR-093 · buffered per dispatch · in
+    // The agent loop's decisions (ADR-096 · buffered per dispatch · in
     // order across attempts) land between the attempt history and the
     // terminal frame — readers reconstruct per-attempt interleaving
     // from the `turn` field.

@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Loop intrinsics — capabilities the agent loop serves ITSELF, never
-//! dispatched to the tool executor (ADR-093).
+//! dispatched to the tool executor (ADR-096).
 //!
 //! `nika:compose` lets the model draft a Nika workflow and get the FULL
 //! static verdict back in-turn: parse + Core conformance + the
@@ -55,7 +55,7 @@ impl Intrinsic {
 /// definition of the closed two-tool set — the `nika:done` sentinel +
 /// the `nika:compose` self-check intrinsic — consumed at all three sites
 /// that used to spell it out separately (the def filter, the recency-pin,
-/// this module's `parse`). Both are `nika:` builtins (loop-only · ADR-093)
+/// this module's `parse`). Both are `nika:` builtins (loop-only · ADR-096)
 /// the loop owns rather than dispatches.
 pub(crate) fn is_loop_owned(name: &str) -> bool {
     name == crate::DONE_TOOL || name == COMPOSE_TOOL

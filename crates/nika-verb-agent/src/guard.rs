@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Stall detection — windowed cycle scan over TURN SIGNATURES (ADR-093).
+//! Stall detection — windowed cycle scan over TURN SIGNATURES (ADR-096).
 //!
 //! A turn's signature hashes its tool calls **and their observations**
 //! (key-order-canonical, so a model re-emitting `{a,b}` as `{b,a}` still

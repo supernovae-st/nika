@@ -85,7 +85,7 @@ pub(crate) struct RanTask {
     /// One entry per retry that was scheduled (`TaskRetrying`).
     pub retries: Vec<RetryStamp>,
     /// The agent loop's decisions across ALL attempts, in order,
-    /// attempt-stamped (+ iteration on fan-out lanes) — ADR-093 · empty
+    /// attempt-stamped (+ iteration on fan-out lanes) — ADR-096 · empty
     /// for non-agent verbs · the settle pass emits them between the
     /// retry frames and the terminal frame. Includes the prefix of an
     /// attempt a timeout cut short (the buffer lives OUTSIDE the

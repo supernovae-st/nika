@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! [`AgentObserver`] — the loop's telemetry seam (ADR-093).
+//! [`AgentObserver`] — the loop's telemetry seam (ADR-096).
 //!
 //! Every internal DECISION the loop takes — which tools the model was
 //! shown, a reflection injected, a stall detected, a compose draft
@@ -30,7 +30,7 @@
 ///
 /// EXACTLY the spec's closed v1 namespace set `{nika:, mcp:}` (`02-verbs`
 /// §agent) plus a defensive catch-all. `nika:compose` is a `nika:`
-/// builtin (loop-only · ADR-093) so it counts as `Builtin`, like its
+/// builtin (loop-only · ADR-096) so it counts as `Builtin`, like its
 /// sibling `nika:done`. (The earlier `Skill`/`Intrinsic` variants
 /// anticipated `skill:`/`agent:` namespaces the spec doesn't have yet —
 /// the parser now rejects them · they re-add here when those namespaces

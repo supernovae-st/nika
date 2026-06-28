@@ -432,7 +432,7 @@ fn parse_capture(
 /// legal (it matches nothing namespaced · least-privilege). But a glob
 /// that DOES name a namespace must name a v1 one — this is what catches a
 /// `agent:compose` left over from before `nika:compose` (the compose
-/// intrinsic moved into the closed `nika:` set · ADR-093).
+/// intrinsic moved into the closed `nika:` set · ADR-096).
 fn validate_whitelist_namespace(tool: &Spanned<String>) -> Result<(), SchemaError> {
     let body = tool.value.strip_prefix('!').unwrap_or(&tool.value);
     let Some((namespace, path)) = body.split_once(':') else {
@@ -862,7 +862,7 @@ tasks:
 
     #[test]
     fn agent_whitelist_rejects_an_unknown_namespace() {
-        // The closed-namespace gate (ADR-093 · the compose move): a third
+        // The closed-namespace gate (ADR-096 · the compose move): a third
         // namespace fails at parse with a pointer to nika:compose.
         let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    agent:\n      prompt: \"go\"\n      tools: [\"agent:compose\"]\n";
         let err = parse(yaml, FileId::new(0), ParseMode::Strict).expect_err("rejected");

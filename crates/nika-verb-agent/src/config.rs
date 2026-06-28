@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! [`AgentConfig`] — engine-internal tuning for the agent-loop
-//! intelligence (ADR-093).
+//! intelligence (ADR-096).
 //!
 //! Deliberately NOT a YAML surface: the spec's `agent:` field table is
 //! the public contract and stays untouched (own-corpus law — no phantom
@@ -20,7 +20,7 @@ pub struct AgentConfig {
     pub router: RouterConfig,
     /// Stall detection + bounded reflection.
     pub guard: GuardConfig,
-    /// Concurrency cap for one turn's tool batch (ADR-094 · the
+    /// Concurrency cap for one turn's tool batch (ADR-097 · the
     /// `LLMCompiler` direction, Kim et al. 2023, arxiv.org/abs/2312.04511:
     /// independent calls the model batched into ONE turn run
     /// concurrently). `1` restores strictly sequential dispatch; results

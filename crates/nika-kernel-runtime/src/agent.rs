@@ -19,9 +19,9 @@ pub use nika_error::compression::CompressionPolicy;
 /// **Forward-compat seam · consumed by nobody yet (2026-06-13).** The
 /// SHIPPED agent loop (`nika-verb-agent`) reads two types this DTO
 /// predates and overlaps: `AgentInput` (the public spec fields incl.
-/// `max_turns`) + the engine-internal `AgentConfig` (ADR-093 router/guard,
-/// ADR-094 `max_parallel_tools`). Consequence: the fields below no longer
-/// describe reality — `parallel_tools` is effectively always-on (ADR-094 ·
+/// `max_turns`) + the engine-internal `AgentConfig` (ADR-096 router/guard,
+/// ADR-097 `max_parallel_tools`). Consequence: the fields below no longer
+/// describe reality — `parallel_tools` is effectively always-on (ADR-097 ·
 /// transparently, results stay request-ordered) and `reflection` shipped
 /// as a bounded deterministic nudge, not this open `ReflectionConfig`.
 /// When the L3 composer finally wires loop config, RECONCILE with that

@@ -306,7 +306,7 @@ form; the timeout class surfaces the SPEC code `NIKA-TIMEOUT-001`.
     determinism (run twice ≡) · settle-exactly-once · event
     arithmetic · cap-equivalence over random caps.
 13. **Mutation** · `cargo mutants -p nika-runtime` · 0 missed.
-14. **Agent telemetry** (`tests/agent_telemetry.rs` · ADR-093) · an
+14. **Agent telemetry** (`tests/agent_telemetry.rs` · ADR-096) · an
     `agent:` task through the REAL runtime puts its decisions on the
     canonical stream: per-turn `agent_tools_selected` (offered ·
     universe · per-source counts) · `tool_invoked` per dispatched tool

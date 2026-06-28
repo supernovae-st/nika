@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Research-conformance suite — one executable property per research
-//! claim the ADR-093 intelligence layer implements, exercised through
+//! claim the ADR-096 intelligence layer implements, exercised through
 //! the REAL loop (public API + mock seams only).
 //!
 //! | Claim | Source | Property here |

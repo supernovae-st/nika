@@ -88,7 +88,7 @@ pub enum VerbAgentError {
 
     /// The loop stalled: an identical action+observation cycle repeated
     /// past the stall threshold after the corrective reflection was
-    /// already spent (NIKA-467 · ADR-093). Further turns would burn
+    /// already spent (NIKA-467 · ADR-096). Further turns would burn
     /// budget on a proven no-progress loop.
     #[error(
         "agent stalled: a {period}-turn action cycle repeated {repeats}× with \

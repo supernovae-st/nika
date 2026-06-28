@@ -909,7 +909,7 @@
       "affects_layers": ["L0"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-094"],
+      "related": ["ADR-093","ADR-094"],
       "requires": [],
       "enables": []
     }
@@ -945,5 +945,19 @@
       "requires": ["ADR-092"],
       "enables": []
     }
-  ]
-}
+    ,
+    {
+      "id": "ADR-095",
+      "title": "exec verb security architecture · layered defense-in-depth (permits = declaration, 3 layers enforce)",
+      "status": "accepted",
+      "date": "2026-06-12",
+      "filename": "adr-095-exec-security-architecture.md",
+      "tags": ["security","exec","injection","sandbox","permits","defense-in-depth","l1","l2","l3"],
+      "affects_crates": ["nika-verb-exec","nika-exec-runner","nika-kernel-core","nika-runtime","nika-schema","nika-sandbox-seatbelt","nika-sandbox-landlock"],
+      "affects_layers": ["L0.5","L1","L2","L3"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-001","ADR-003","ADR-016","ADR-080","ADR-081"],
+      "requires": ["ADR-003"],
+      "enables": []
+    }

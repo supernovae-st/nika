@@ -668,7 +668,7 @@ mod tests {
             let outcome = rig.execute(call(&def.name, serde_json::json!({}))).await;
             assert!(outcome.is_ok(), "{} must route (got {outcome:?})", def.name);
         }
-        // …and the count is the canonical 23 (stdlib v0.1 · +compose per ADR-093).
+        // …and the count is the canonical 23 (stdlib v0.1 · +compose per ADR-096).
         assert_eq!(tool_defs().len(), 23);
     }
 

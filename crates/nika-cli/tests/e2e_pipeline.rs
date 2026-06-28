@@ -702,7 +702,7 @@ async fn e2e_agent_loop_over_the_real_builtin_dispatcher() {
     // And the catalog the model was offered IS the dispatcher's: the
     // whitelist (`nika:*`) admitted the 23 builtins minus the source-side
     // `nika:done` + `nika:compose` (the loop owns BOTH intrinsics and
-    // re-synthesizes their defs · ADR-093) → 23 defs (21 dispatched + the
+    // re-synthesizes their defs · ADR-096) → 23 defs (21 dispatched + the
     // 2 loop-owned).
     let offered = &requests[0].tools;
     assert_eq!(offered.len(), 23, "21 dispatched + done + compose");

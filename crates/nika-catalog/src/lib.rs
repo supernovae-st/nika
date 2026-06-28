@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn all_builtins_non_empty() {
         // Spec 23 · the 22 Rams-swept stdlib builtins + nika:compose (the
-        // agent loop's self-verification intrinsic · ADR-093 · loop-only
+        // agent loop's self-verification intrinsic · ADR-096 · loop-only
         // like done). Cascade · ADR-088 inspect (4 introspection → 1) +
         // ADR-087 wait (sleep + wait_until → 1) + ADR-086 convert
         // (csv_to_json → 1) + D-2026-05-22-N6 stdlib-collapse 42→26.
