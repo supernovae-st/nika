@@ -27,6 +27,8 @@ brew install supernovae-st/tap/nika    # or: curl -LsSf https://nika.sh/install.
 nika examples run 01-hello --model mock/echo   # zero setup — no key, no model server
 ```
 
+![nika check audits the workflow — plan, cost, secrets, types — then nika run executes it locally](media/nika-hero.gif)
+
 Nika audits a workflow **before a single token is spent** — plan, cost
 ceiling, secret flows, types, tool args — then runs it:
 
