@@ -1,0 +1,47 @@
+name: Convert my workflow
+description: Describe an AI task you repeat — we convert the best ones into runnable .nika.yaml examples, credited to you.
+title: "[workflow] "
+labels: ["workflow-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do you repeat an AI task every week — in ChatGPT, Claude, Cursor,
+        Codex, or scripts? Describe it below. We convert the best ones into
+        runnable `.nika.yaml` examples in the public gallery, credited to you.
+  - type: textarea
+    id: task
+    attributes:
+      label: What do you repeat?
+      description: The task, in your own words. What triggers it, how often.
+      placeholder: "Every Monday I paste last week's support emails into ChatGPT and ask for themes + a reply plan…"
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where do you do it today?
+      placeholder: "ChatGPT / Claude / Cursor / Codex / a bash script / …"
+    validations:
+      required: true
+  - type: textarea
+    id: inputs
+    attributes:
+      label: What goes in?
+      description: The inputs — pasted text, files, URLs, a transcript, a CSV…
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: What should come out?
+      description: The output you actually use — a brief, a table, a JSON, a post…
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints
+      options:
+        - label: Must run fully local (no cloud provider)
+        - label: OK to publish as a public example (credited to me)
