@@ -310,10 +310,13 @@ fn validate_params(input: &ExecInput) -> Result<(), VerbExecError> {
         });
     }
     for (key, value) in &input.env {
-        if key.is_empty() || key.contains('=') || key.contains('\0') {
+        if !is_posix_env_name(key) {
             return Err(VerbExecError::InvalidParam {
                 param: "env",
-                detail: format!("env key {key:?} is invalid (empty, or contains '=' or NUL)"),
+                detail: format!(
+                    "env key {key:?} is not a valid name — must match [A-Za-z_][A-Za-z0-9_]* \
+                     (empty, '=', NUL, and shell-function carriers like `BASH_FUNC_x%%` are refused)"
+                ),
             });
         }
         // A NUL in the VALUE truncates the child's `KEY=VALUE` C-string just
@@ -326,6 +329,19 @@ fn validate_params(input: &ExecInput) -> Result<(), VerbExecError> {
         }
     }
     Ok(())
+}
+
+/// A POSIX environment variable name: a leading letter or underscore, then
+/// letters / digits / underscores. A strict narrowing of the prior "not
+/// empty · no `=` · no NUL" check (all three still fail here), it additionally
+/// refuses the exported-shell-function carrier — `BASH_FUNC_cp%%` and friends
+/// are NOT valid names and would smuggle a bash function into an `sh -c` child
+/// past the command scan (the payload never appears in the scanned command
+/// string). Security defense-in-depth · the input floor before `nika-policy`.
+fn is_posix_env_name(key: &str) -> bool {
+    let mut chars = key.chars();
+    matches!(chars.next(), Some(c) if c == '_' || c.is_ascii_alphabetic())
+        && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
 }
 
 /// Map the spec task surface onto the kernel `ShellCommand`.
@@ -567,7 +583,19 @@ mod tests {
 
     #[tokio::test]
     async fn malformed_env_key_is_rejected() {
-        for bad in ["FOO=BAR", "", "NU\0L"] {
+        // Prior floor (empty · `=` · NUL) PLUS the non-POSIX-name carriers:
+        // `BASH_FUNC_cp%%` is the exported-shell-function injection vector, and
+        // `.`/`-`/space/leading-digit are not valid env names.
+        for bad in [
+            "FOO=BAR",
+            "",
+            "NU\0L",
+            "BASH_FUNC_cp%%",
+            "FOO.BAR",
+            "foo-bar",
+            "1FOO",
+            "FOO BAR",
+        ] {
             let mock = MockShell::new();
             let recorder = mock.clone();
             let mut input = ExecInput::new("printenv");
@@ -578,6 +606,26 @@ mod tests {
                 "key {bad:?} rejected"
             );
             assert!(recorder.executed_commands().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn valid_posix_env_keys_pass_even_with_function_payload_value() {
+        // The KEY charset is restricted, not the VALUE: a valid name carrying a
+        // shell-function BODY as its value is fine (a plain env var, not an
+        // exported function — the carrier lives in the KEY's `%%` suffix).
+        for good in ["PATH", "MY_VAR", "_underscore", "A1", "LANG"] {
+            let mock = MockShell::new().enqueue_ok("");
+            let recorder = mock.clone();
+            let mut input = ExecInput::new("printenv");
+            input
+                .env
+                .insert(good.to_owned(), "() { echo pwned; }".to_owned());
+            verb(mock)
+                .run(input)
+                .await
+                .expect("valid POSIX key accepted");
+            assert_eq!(recorder.executed_commands().len(), 1, "key {good:?} ran");
         }
     }
 

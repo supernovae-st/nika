@@ -412,6 +412,10 @@ const DANGEROUS_ENV_VARS: &[&str] = &[
     "GIT_CONFIG_SYSTEM",
     "GIT_TEMPLATE_DIR", // attacker hooks copied into a new repo
     "LESSOPEN",         // pager-input-preprocess command injection (P2)
+    "HOSTALIASES",      // attacker file read during hostname resolution (P2)
+    "TERMINFO",         // load a crafted terminfo entry (P2)
+    "TERMINFO_DIRS",    // terminfo search-path override (P2)
+    "TERMCAP",          // crafted termcap string executed by some pagers (P2)
     // Interpreter pre-exec hooks.
     "PYTHONSTARTUP",
     "PYTHONPATH", // inject a module into any python that imports (P2)
