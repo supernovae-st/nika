@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Ask a question / share a workflow
+    url: https://github.com/supernovae-st/nika/discussions
+    about: Questions, ideas, show-and-tell — Discussions is the fastest lane.
   - name: Documentation
     url: https://docs.nika.sh
     about: End-user guides, the workflow language, and the CLI reference.
