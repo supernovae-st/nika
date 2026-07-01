@@ -1,5 +1,5 @@
 ---
-id: ADR-093
+id: ADR-096
 title: "The agent-loop intelligence layer — routing, stall guard, compose, telemetry"
 status: accepted
 date: 2026-06-12
@@ -14,7 +14,7 @@ related: ["ADR-092"]
 requires: []
 ---
 
-# ADR-093 — The agent-loop intelligence layer
+# ADR-096 — The agent-loop intelligence layer
 
 - **Status**: Accepted (2026-06-12)
 - **Layer**: L2 (`nika-verb-agent`) + L0 vocabulary (`nika-event`)

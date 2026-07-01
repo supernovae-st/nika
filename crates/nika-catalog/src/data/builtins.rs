@@ -31,7 +31,7 @@ pub static ALL_BUILTINS: &[Builtin] = &[
     // workflow draft the model wrote · `nika check`: conformance +
     // secret-flow + permits + the AARA certificate · never executes it ·
     // loop-only + loop-served like `done` · NIKA-BUILTIN-COMPOSE-001 ·
-    // ADR-093 · the static sibling of `inspect`'s runtime view).
+    // ADR-096 · the static sibling of `inspect`'s runtime view).
     Builtin::with_required(
         "compose",
         Introspection,
@@ -235,7 +235,7 @@ mod tests {
         assert_eq!(network, 2, "expected 2 network builtins");
         assert_eq!(
             intro, 2,
-            "expected 2 introspection builtins (inspect runtime · compose static · ADR-093)"
+            "expected 2 introspection builtins (inspect runtime · compose static · ADR-096)"
         );
         assert_eq!(
             core + file + data + network + intro,

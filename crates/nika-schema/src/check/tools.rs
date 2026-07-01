@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn the_two_loop_only_builtins_are_known_not_flagged() {
         // `nika:done` and `nika:compose` are loop-only `nika:` builtins
-        // (ADR-093) — granting them in an agent whitelist must NOT raise an
+        // (ADR-096) — granting them in an agent whitelist must NOT raise an
         // unknown-tool finding (the contract that keeps `nika:compose` in
         // the closed catalog rather than a separate `agent:` namespace).
         let f = findings_of(

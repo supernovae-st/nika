@@ -53,7 +53,7 @@
 //! post-hoc validation remains the safety net (a malformed answer that
 //! exhausts the budget is the NIKA-464 verdict).
 //!
-//! ## The intelligence layer (ADR-093 · engine-internal, zero YAML)
+//! ## The intelligence layer (ADR-096 · engine-internal, zero YAML)
 //!
 //! Four orthogonal pieces ride the same loop, all deterministic and
 //! all observable through the [`AgentObserver`] seam:
@@ -73,8 +73,8 @@
 //!
 //! v0.1 fences (spec §5): `ReAct` shape · cost/duration stops are
 //! engine concerns. Two fences carry ADR amendments: « no reflection »
-//! → ADR-093 (ONE bounded corrective nudge, engine-internal) ·
-//! « sequential dispatch » → ADR-094 (one turn's batch resolves
+//! → ADR-096 (ONE bounded corrective nudge, engine-internal) ·
+//! « sequential dispatch » → ADR-097 (one turn's batch resolves
 //! CONCURRENTLY, results in request order — the transcript, signature
 //! and event stream are byte-identical to sequential; no YAML surface).
 
@@ -271,7 +271,7 @@ impl<P, T, D> AgentVerb<P, T, D> {
         }
     }
 
-    /// Override the intelligence-layer tuning (ADR-093).
+    /// Override the intelligence-layer tuning (ADR-096).
     #[must_use]
     pub fn with_config(mut self, config: AgentConfig) -> Self {
         self.config = config;
@@ -335,7 +335,7 @@ where
     /// This is the L3 runtime's seam: the verb is one shared instance
     /// dispatching CONCURRENT tasks in a wave — a verb-wide observer
     /// would interleave their decision streams, while a per-call
-    /// observer keeps each run's telemetry attributable (ADR-093).
+    /// observer keeps each run's telemetry attributable (ADR-096).
     /// Same contract as [`Self::run`] otherwise.
     ///
     /// # Errors
@@ -669,7 +669,7 @@ where
     }
 
     /// Dispatch one turn's validated tool batch — CONCURRENTLY, results
-    /// in REQUEST order (ADR-094 · the `LLMCompiler` direction, Kim et al.
+    /// in REQUEST order (ADR-097 · the `LLMCompiler` direction, Kim et al.
     /// 2023, arxiv.org/abs/2312.04511: calls the model batched into ONE
     /// turn are independent by construction — interleaved sequential
     /// round-trips waste wall-clock the same way interleaved reasoning
@@ -796,7 +796,7 @@ where
     /// is sync CPU work that must not starve sibling workflows on the
     /// runtime (the `nika-ocr`/`jq` `spawn_blocking` precedent). A join
     /// failure (runtime shutdown) feeds back as an error, never fatal.
-    /// Telemetry is the FOLD's job (request order · ADR-094 phase 2).
+    /// Telemetry is the FOLD's job (request order · ADR-097 phase 2).
     async fn run_intrinsic(
         &self,
         intrinsic: intrinsic::Intrinsic,
@@ -871,7 +871,7 @@ where
     }
 }
 
-/// One resolved tool call (phase-1 output · ADR-094): the result block
+/// One resolved tool call (phase-1 output · ADR-097): the result block
 /// plus what the fold needs (name + args for the signature/router · the
 /// compose outcome for its telemetry).
 struct Resolved {

@@ -32,7 +32,7 @@
    > nobody** (defined in `kernel-runtime/src/agent.rs`, re-exported by the
    > `nika-kernel` facade, read by zero crates). The SHIPPED config is two
    > types it predates and overlaps: `AgentInput` (the public spec fields ·
-   > `max_turns`/`max_tokens_total`/…) + `AgentConfig` (ADR-093/094
+   > `max_turns`/`max_tokens_total`/…) + `AgentConfig` (ADR-096/094
    > engine-internal tuning · router/guard/`max_parallel_tools`). So
    > `AgentLoopConfig::{parallel_tools, reflection}` now read as the OPPOSITE
    > of reality (parallel is on · reflection is the bounded nudge). When the
@@ -155,12 +155,12 @@ Two of the original v0.1 fences were AMENDED by engine-internal ADRs after
 admission (each byte-transparent to the public spec §agent · zero YAML
 surface). The list below is the CURRENT reality, not the admission draft.
 
-- **Reflection** — AMENDED by **ADR-093**: the loop ships ONE bounded,
+- **Reflection** — AMENDED by **ADR-096**: the loop ships ONE bounded,
   deterministic corrective nudge on detected no-progress (cycle / error
   streak · `GuardConfig::max_reflections`, default 1). NOT the open
   `ReflectionConfig` self-evaluation loop the kernel DTO sketches — that
   stays fenced.
-- **Parallel tools** — AMENDED by **ADR-094**: one turn's batch resolves
+- **Parallel tools** — AMENDED by **ADR-097**: one turn's batch resolves
   CONCURRENTLY (`AgentConfig::max_parallel_tools`, default 8), results
   folded in REQUEST order. The transcript, guard signature, and event
   stream are byte-identical to sequential, so the public §agent contract
@@ -251,7 +251,7 @@ seam — they shipped this arc; the loop verb is gated on this one decision.
               (kernel agent.rs DTOs · spec §agent loop semantics · L2→L2
               dep resolved layering-legal · brouillon read-only reference) ·
               implementation deliberately deferred per Diamond §8.
-2026-06-12  v0.2 — ADR-093 intelligence layer (engine-internal · ZERO new
+2026-06-12  v0.2 — ADR-096 intelligence layer (engine-internal · ZERO new
               YAML · spec §agent untouched). Four deterministic mechanisms,
               each arXiv-grounded + property-proven through the REAL loop
               (tests/research_conformance.rs · 10 e2e + unit proptests):
@@ -278,7 +278,7 @@ seam — they shipped this arc; the loop verb is gated on this one decision.
               NIKA-467 registered · errors.rs Stalled terminal-not-transient ·
               config.rs AgentConfig{router, guard} embedder tuning · lib.rs
               1482 ≤ 1500 · run() 96 ≤ 100 · clippy 0 · 71 tests GREEN ·
-              full record docs/adr/adr-093-agent-loop-intelligence.md.
+              full record docs/adr/adr-096-agent-loop-intelligence.md.
 2026-06-12  v0.3 — 2-lens review fold (rust-pro + rust-security · 2×P1 +
               1×P1-sec + 6×P2, all folded same-arc):
               · REACH INVARIANT (P1) — window 16 made period-4 cycles
@@ -320,7 +320,7 @@ seam — they shipped this arc; the loop verb is gated on this one decision.
               BufferingObserver → Dispatched → RanTask → settle drain onto
               the canonical stream · e2e-proven in the runtime's
               tests/agent_telemetry.rs). API baseline +1, zero removals.
-2026-06-12  v0.5 — ADR-094 parallel intra-turn dispatch (amends the spec
+2026-06-12  v0.5 — ADR-097 parallel intra-turn dispatch (amends the spec
               §5 « sequential dispatch » fence · engine-internal · zero
               YAML). run_batch = two phases: CONCURRENT resolve
               (buffered(max_parallel_tools) · yields in INPUT order ·

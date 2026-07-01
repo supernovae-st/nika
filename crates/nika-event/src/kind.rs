@@ -74,7 +74,7 @@ pub enum EventKind {
     /// observable at runtime (ADR-092 · the auditable moat).
     PermitChecked,
     // ── additive cohort 2026-06-12 · the agent-loop telemetry vocabulary
-    //    (ADR-093) — every internal decision the `agent` verb takes is
+    //    (ADR-096) — every internal decision the `agent` verb takes is
     //    expressible as an engine event («eyes everywhere»: per AgentOps,
     //    Dong · Lu · Zhu 2024 · arxiv.org/abs/2411.05285, agent traces
     //    must expose DECISIONS, not just I/O). The L2 loop reports through
@@ -388,7 +388,7 @@ mod tests {
     fn agent_kinds_are_neither_terminal_nor_failures() {
         // The agent-loop telemetry is DIAGNOSTIC: a stall is evidence the
         // task-level failure event will carry the verdict for — the
-        // lifecycle classifiers must not double-count it (ADR-093).
+        // lifecycle classifiers must not double-count it (ADR-096).
         for k in [
             EventKind::AgentToolsSelected,
             EventKind::AgentNudge,

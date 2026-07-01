@@ -16,7 +16,7 @@
 //!   [`compile`], [`validate_text`], [`render_schema`], and [`reask_message`].
 //!
 //! Moved verbatim out of `lib.rs` (the loop file) so the loop file stays
-//! within its size budget as the ADR-093 intelligence modules land —
+//! within its size budget as the ADR-096 intelligence modules land —
 //! behavior is pinned by the tests that moved with it.
 
 use crate::{AgentValue, VerbAgentError};

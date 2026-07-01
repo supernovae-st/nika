@@ -149,7 +149,7 @@ cancellation ≠ failure. Mutation on `kind.rs`: 7 caught / 1 unviable
 
 ## 4ter. Agent-loop cohort 2026-06-12 — the loop's observable mind (additive)
 
-Five kinds + the `EventClass::Agent` class (ADR-093): every internal
+Five kinds + the `EventClass::Agent` class (ADR-096): every internal
 DECISION the `agent` verb takes is event-expressible. The L2 loop reports
 through its `AgentObserver` seam; the L3 runtime maps payloads onto these
 kinds 1:1 (INV-024 — the adapter is the ONE emission site). Per AgentOps

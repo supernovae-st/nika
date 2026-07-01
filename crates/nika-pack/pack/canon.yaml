@@ -86,7 +86,7 @@ namespaces:
     - secrets
 
 # ---------------------------------------------------------------- builtins
-# Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-093 · agent-loop self-check intrinsic, loop-only like done).
+# Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-096 · agent-loop self-check intrinsic, loop-only like done).
 # stdlib/builtins-v0.1.md is the prose home (matches at 23 · cascade complete 2026-06-13).
 # Admission test · 3 razors · (1) NOT-expressible-in-jq+CEL+Schema · (2) canonical
 # interop format (RFC-6902/7396/9562 · etc.) · (3) cookbook-clarity.

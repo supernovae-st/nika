@@ -141,7 +141,7 @@ MCP half (`mcp:server/*` via live `tools/list`) arrives with `nika-mcp`
 
 | Gate | Status |
 |---|---|
-| 1 SPEC | ✅ this file + ADR-093 (the 23rd builtin `nika:compose`) + the normative `nika-spec stdlib/builtins-v0.1.md` (23 builtins) |
+| 1 SPEC | ✅ this file + ADR-096 (the 23rd builtin `nika:compose`) + the normative `nika-spec stdlib/builtins-v0.1.md` (23 builtins) |
 | 2 TDD | ✅ RED→GREEN · mock-first over `nika-kernel-mock` (`MockFs` · `MockHttp` · `MockClock` · `NullEmitter`) + the two local-seam mocks · per-builtin contract tests + dispatcher routing-totality (all 23 addressable · unknown → `NotFound` · `nika:done` rejected) |
 | 3 IMPL | ✅ `#![forbid(unsafe_code)]` · **0 `.unwrap()`/`.expect()` in `src/`** (`?` + `unwrap_or`/`ok_or` · `BuiltinFailure` total) |
 | 4 CLIPPY 0 | ✅ `cargo clippy -p nika-builtin --all-targets -- -D warnings` = 0 |

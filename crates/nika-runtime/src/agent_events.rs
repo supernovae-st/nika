@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The agent-loop telemetry adapter — `AgentObserver` → the canonical
-//! event stream (ADR-093 · INV-024: this adapter is the ONE emission
+//! event stream (ADR-096 · INV-024: this adapter is the ONE emission
 //! site for the agent path's events).
 //!
 //! Topology: the dispatch pass is PEN-FREE (the settle pass owns the

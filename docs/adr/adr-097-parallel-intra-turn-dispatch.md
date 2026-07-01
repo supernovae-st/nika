@@ -1,5 +1,5 @@
 ---
-id: ADR-094
+id: ADR-097
 title: "Parallel intra-turn tool dispatch — concurrent resolve, request-order fold"
 status: accepted
 date: 2026-06-12
@@ -10,16 +10,16 @@ affects_crates: [nika-verb-agent]
 affects_layers: [L2]
 supersedes: []
 superseded_by: []
-related: ["ADR-093"]
+related: ["ADR-096"]
 requires: []
 ---
 
-# ADR-094 — Parallel intra-turn tool dispatch
+# ADR-097 — Parallel intra-turn tool dispatch
 
 - **Status**: Accepted (2026-06-12)
 - **Layer**: L2 (`nika-verb-agent`)
-- **Relates**: ADR-093 (the intelligence layer this rides in); amends the
-  spec §5 « sequential dispatch » fence the same way ADR-093 amended the
+- **Relates**: ADR-096 (the intelligence layer this rides in); amends the
+  spec §5 « sequential dispatch » fence the same way ADR-096 amended the
   « no reflection » fence — engine-internal, zero YAML surface.
 
 ## Context

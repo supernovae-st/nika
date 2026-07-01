@@ -202,7 +202,7 @@ pub(crate) fn done() -> BuiltinOutcome {
 /// `done`, it is LOOP-SERVED: the agent loop runs the static check and
 /// feeds the verdict back; a standalone `invoke: nika:compose` has no
 /// draft-repair loop, so it is rejected here → `NIKA-BUILTIN-COMPOSE-001`
-/// (stdlib §compose · ADR-093). The model-facing def lives in `defs.rs`.
+/// (stdlib §compose · ADR-096). The model-facing def lives in `defs.rs`.
 #[allow(clippy::unnecessary_wraps)] // uniform BuiltinOutcome · always the same rejection
 pub(crate) fn compose() -> BuiltinOutcome {
     Err(BuiltinFailure::new(

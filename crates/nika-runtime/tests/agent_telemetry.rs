@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 #![allow(clippy::expect_used, clippy::panic)]
 
-//! The agent-loop telemetry wired END-TO-END (ADR-093): an `agent:`
+//! The agent-loop telemetry wired END-TO-END (ADR-096): an `agent:`
 //! task runs through the REAL runtime and its internal decisions land
 //! on the canonical event stream — routing (`agent_tools_selected`),
 //! tool dispatches (`tool_invoked`), and per-turn budget checkpoints

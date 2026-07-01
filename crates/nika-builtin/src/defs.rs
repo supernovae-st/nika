@@ -314,7 +314,7 @@ mod tests {
         assert_eq!(
             defs.len(),
             23,
-            "stdlib v0.1 ships exactly 23 (+ nika:compose · ADR-093)"
+            "stdlib v0.1 ships exactly 23 (+ nika:compose · ADR-096)"
         );
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         names.sort_unstable();

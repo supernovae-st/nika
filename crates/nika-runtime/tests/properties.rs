@@ -46,7 +46,7 @@ enum Kind {
     /// time (`NIKA-VAR-006` · `FailedBeforeStart` · cascades).
     Fails,
     /// `agent:` over the echo provider (one text turn · no tools) —
-    /// exercises the BUFFERED telemetry path (ADR-093): the agent's
+    /// exercises the BUFFERED telemetry path (ADR-096): the agent's
     /// decisions ride the Finish to the ordered settle, so the
     /// determinism theorems must hold over them too.
     Agent,
@@ -133,7 +133,7 @@ fn prop_runtime(cap: Option<NonZeroUsize>, agent_tasks: usize) -> PropRuntime {
     // One IDENTICAL text turn per agent task: the shared FIFO queue's
     // dequeue order under concurrency becomes inconsequential — the
     // streams stay byte-comparable across caps (the determinism law
-    // must hold over the BUFFERED telemetry path too · ADR-093).
+    // must hold over the BUFFERED telemetry path too · ADR-096).
     let mut provider = MockProvider::new("mock");
     for _ in 0..agent_tasks {
         provider = provider.enqueue_text("done");
@@ -210,7 +210,7 @@ proptest! {
         prop_assert_eq!(&events_a, &events_b, "replay diverged:\n{}", yaml);
 
         // ── 2 · cap-equivalence: cap=1 ⇒ the SAME stream (the buffered
-        // agent telemetry rides the ordered settle · ADR-093 — covered).
+        // agent telemetry rides the ordered settle · ADR-096 — covered).
         let (_, events_seq) = run_once(&yaml, NonZeroUsize::new(1), agents);
         prop_assert_eq!(&events_a, &events_seq, "cap leaked:\n{}", yaml);
 
