@@ -272,10 +272,21 @@ fn eval_rel(
 /// source of truth shared by `==`/`!=`, `<`/`<=`/`>`/`>=`, and `in` (list
 /// membership), so they can never disagree. `None` only for a
 /// non-f64-representable number (exotic for JSON · treated as incomparable,
-/// like NaN). Caveat: comparison is via `f64`, so two distinct integers above
-/// 2^53 can compare equal (the pre-existing `order` ceiling · acceptable for
-/// JSON-scale workflow values · revisit here for both ops if ever needed).
+/// like NaN).
+///
+/// Integer-vs-integer is compared EXACTLY (CEL `int` is int64 · exact by
+/// spec), so two distinct integers above 2^53 no longer collapse to equal —
+/// only int-vs-double (or double-vs-double) falls to the `f64` continuous
+/// line, which keeps `9.0 == 9` true. Mixed i64/u64 extremes (a u64 past
+/// `i64::MAX` vs a negative i64) differ by a huge magnitude, so the `f64`
+/// fallback gets their sign/order right.
 fn numeric_cmp(x: &serde_json::Number, y: &serde_json::Number) -> Option<std::cmp::Ordering> {
+    if let (Some(xi), Some(yi)) = (x.as_i64(), y.as_i64()) {
+        return Some(xi.cmp(&yi));
+    }
+    if let (Some(xu), Some(yu)) = (x.as_u64(), y.as_u64()) {
+        return Some(xu.cmp(&yu));
+    }
     x.as_f64()
         .zip(y.as_f64())
         .and_then(|(xf, yf)| xf.partial_cmp(&yf))
@@ -489,6 +500,26 @@ mod tests {
         assert!(b("3.0 in [1, 2, 3]")); // int list, float needle
         assert!(b("3 in [1, 2, 3.0]")); // float list, int needle
         assert!(!b("9 in [1, 2, 3]")); // true negative, unchanged
+    }
+
+    #[test]
+    fn large_integers_compare_exactly_not_through_f64() {
+        // CEL `int` is int64 · int-vs-int is EXACT. Two distinct integers above
+        // 2^53 (9_007_199_254_740_992) must NOT collapse to equal via f64 — a
+        // `when:` gate used as a 64-bit identity check must stay correct.
+        assert!(b("9007199254740993 != 9007199254740992"));
+        assert!(!b("9007199254740993 == 9007199254740992"));
+        assert!(b("9007199254740993 > 9007199254740992"));
+        assert!(b("9007199254740992 < 9007199254740993"));
+        // membership obeys the same exact equality
+        assert!(!b(
+            "9007199254740993 in [9007199254740992, 9007199254740991]"
+        ));
+        assert!(b(
+            "9007199254740993 in [9007199254740992, 9007199254740993]"
+        ));
+        // int-vs-double still lands on the continuous line (`9.0 == 9` preserved)
+        assert!(b("vars.count == 3.0"));
     }
 
     #[test]
