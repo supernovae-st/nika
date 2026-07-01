@@ -3538,6 +3538,7 @@ dependencies = [
  "chromiumoxide",
  "futures-util",
  "nika-kernel",
+ "nika-types",
  "png",
  "proptest",
  "serde_json",

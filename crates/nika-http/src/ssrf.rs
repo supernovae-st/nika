@@ -31,7 +31,7 @@
 //! through a translation gateway. (Teredo `2001::/32` obfuscates the
 //! client v4 by XOR; it is dead in practice and not special-cased.)
 
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::IpAddr;
 
 use nika_kernel::HttpError;
 
@@ -135,77 +135,19 @@ pub(crate) fn check_url(raw: &str) -> Result<url::Url, HttpError> {
     Ok(parsed)
 }
 
-/// The single range oracle: true when `ip` is NOT a public unicast
-/// address. Every defense layer (static literal, DNS-resolved, per-hop)
-/// funnels through this predicate — see the module docs for the ranges.
-pub(crate) fn ip_is_blocked(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(v4) => v4_is_blocked(v4),
-        IpAddr::V6(v6) => v6_is_blocked(v6),
-    }
-}
-
-/// The v4 address a transition-format v6 embeds in two segments
-/// (NAT64 `64:ff9b::a.b.c.d` carries it in segments 6+7 · 6to4
-/// `2002:a.b:c.d::` in segments 1+2).
-fn embedded_v4(hi: u16, lo: u16) -> Ipv4Addr {
-    let [a, b] = hi.to_be_bytes();
-    let [c, d] = lo.to_be_bytes();
-    Ipv4Addr::new(a, b, c, d)
-}
-
-fn v6_is_blocked(v6: std::net::Ipv6Addr) -> bool {
-    let s = v6.segments();
-    v6.is_loopback()           // ::1
-        || v6.is_unspecified() // ::
-        || v6.is_multicast()   // ff00::/8
-        // fc00::/7 (unique local)
-        || (s[0] & 0xfe00) == 0xfc00
-        // fe80::/10 (link-local)
-        || (s[0] & 0xffc0) == 0xfe80
-        // fec0::/10 (site-local · deprecated but still honored by old gear)
-        || (s[0] & 0xffc0) == 0xfec0
-        // 2001:db8::/32 (documentation — never routable)
-        || (s[0] == 0x2001 && s[1] == 0x0db8)
-        // 64:ff9b:1::/48 (NAT64 local-use · RFC 8215 — internal by definition)
-        || (s[0] == 0x0064 && s[1] == 0xff9b && s[2] == 0x0001)
-        // 64:ff9b::/96 (NAT64 well-known · RFC 6052) — re-check the
-        // embedded v4: a NAT64 gateway delivers to that inner address.
-        || (s[..6] == [0x0064, 0xff9b, 0, 0, 0, 0] && v4_is_blocked(embedded_v4(s[6], s[7])))
-        // 2002::/16 (6to4 · RFC 3056) — same embedded-v4 re-check.
-        || (s[0] == 0x2002 && v4_is_blocked(embedded_v4(s[1], s[2])))
-        // IPv4-mapped/compatible — re-check the inner address. `to_ipv4()`
-        // covers BOTH IPv4-mapped (::ffff:a.b.c.d) AND the
-        // deprecated IPv4-compatible (::a.b.c.d) forms, so one
-        // arm suffices (a separate `to_ipv4_mapped()` arm would
-        // be redundant — and would mask this one under mutation
-        // testing).
-        || v6.to_ipv4().is_some_and(v4_is_blocked)
-}
-
-fn v4_is_blocked(v4: Ipv4Addr) -> bool {
-    let o = v4.octets();
-    v4.is_loopback()              // 127.0.0.0/8
-        || v4.is_private()        // 10/8 · 172.16/12 · 192.168/16
-        || v4.is_link_local()     // 169.254.0.0/16 (cloud metadata IP)
-        || v4.is_unspecified()    // 0.0.0.0
-        || v4.is_broadcast()      // 255.255.255.255
-        || v4.is_multicast()      // 224.0.0.0/4
-        || v4.is_documentation()  // TEST-NET-1/2/3 (192.0.2 · 198.51.100 · 203.0.113)
-        || o[0] == 0              // 0.0.0.0/8 — "this network" (= this host on Linux)
-        || o[0] >= 240            // 240.0.0.0/4 — reserved
-        // 100.64.0.0/10 — CGN / shared address space (Alibaba metadata)
-        || (o[0] == 100 && (64..=127).contains(&o[1]))
-        // 198.18.0.0/15 — benchmarking (RFC 2544)
-        || (o[0] == 198 && (o[1] & 0xfe) == 18)
-        // 192.0.0.0/24 — IETF protocol assignments (incl. NAT64/DNS64 discovery)
-        || (o[0] == 192 && o[1] == 0 && o[2] == 0)
-        // 192.88.99.0/24 — 6to4 relay anycast (deprecated)
-        || (o[0] == 192 && o[1] == 88 && o[2] == 99)
-}
+/// The single range oracle: true when `ip` is NOT a public unicast address.
+/// Now the ONE canonical predicate in [`nika_types::net`], shared with
+/// `nika-browser` navigate (and any future resolver) so no egress boundary
+/// can drift on the ranges — re-exported here so every `nika-http` call site
+/// (`check_url`, the `GuardedResolver`, the property tests) keeps its
+/// `ip_is_blocked(..)` spelling. See the hoisted definition's doc for the
+/// full range list.
+pub(crate) use nika_types::net::ip_is_blocked;
 
 #[cfg(test)]
 mod tests {
+    use std::net::Ipv4Addr;
+
     use super::*;
 
     // ─── brouillon parity vectors (Gate 10) ──────────────────────────

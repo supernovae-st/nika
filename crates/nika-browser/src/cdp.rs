@@ -223,10 +223,48 @@ pub(crate) fn validate_absolute_url(url: &str) -> Result<(), BrowserError> {
             ),
         });
     }
-    if parsed.host_str().is_none() {
-        return Err(BrowserError::NavigationFailed {
-            reason: format!("URL {url:?} has no host — absolute URI required"),
-        });
+    // Host gate — the ENTRY FLOOR, not a complete SSRF boundary. A literal
+    // private/loopback/metadata IP would let the browser's OWN network stack
+    // connect straight to it, bypassing every `nika-http` SSRF layer — so gate
+    // it here on the SAME canonical oracle, BEFORE any CDP navigate. This
+    // closes the direct-IP class (`169.254.169.254`, `127.0.0.1:<port>`, and
+    // the numeric/hex/short IPv4 spellings `url` folds to those) + the
+    // `localhost` family.
+    //
+    // NOT closed by this floor (Chrome does it inside its own network stack,
+    // invisible to this one-shot string check): (a) a hostname that RESOLVES to
+    // a private IP, (b) an HTTP 30x REDIRECT from a public URL to a private one,
+    // (c) a page-driven navigation (JS `window.location`, `<meta refresh>`,
+    // link-click) that pivots the open tab. Closing those needs CDP request
+    // interception (`Fetch.enable`, re-vetting every RESOLVED connection at
+    // connect time — the browser analogue of `nika-http`'s `GuardedResolver`),
+    // the deeper piece to wire ALONGSIDE this crate before it goes live.
+    match parsed.host() {
+        None => {
+            return Err(BrowserError::NavigationFailed {
+                reason: format!("URL {url:?} has no host — absolute URI required"),
+            });
+        }
+        Some(url::Host::Ipv4(v4)) if nika_types::net::ip_is_blocked(v4.into()) => {
+            return Err(BrowserError::NavigationFailed {
+                reason: format!("URL {url:?} targets non-public IP {v4} — refused (SSRF)"),
+            });
+        }
+        Some(url::Host::Ipv6(v6)) if nika_types::net::ip_is_blocked(v6.into()) => {
+            return Err(BrowserError::NavigationFailed {
+                reason: format!("URL {url:?} targets non-public IP {v6} — refused (SSRF)"),
+            });
+        }
+        Some(url::Host::Domain(d))
+            if d.eq_ignore_ascii_case("localhost")
+                || d.rsplit_once('.')
+                    .is_some_and(|(_, last)| last.eq_ignore_ascii_case("localhost")) =>
+        {
+            return Err(BrowserError::NavigationFailed {
+                reason: format!("URL {url:?} targets loopback host {d:?} — refused (SSRF)"),
+            });
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -427,7 +465,8 @@ mod tests {
     #[test]
     fn url_validation_allows_http_s_rejects_everything_else() {
         assert!(validate_absolute_url("https://example.org/login").is_ok());
-        assert!(validate_absolute_url("http://127.0.0.1:8080/x?y=1").is_ok());
+        // http with a port + path + query on a PUBLIC host is fine.
+        assert!(validate_absolute_url("http://example.org:8080/x?y=1").is_ok());
         for bad in [
             "example.org/no-scheme",
             "file:///etc/passwd",
@@ -442,6 +481,37 @@ mod tests {
                 "{bad:?} must be refused"
             );
         }
+    }
+
+    #[test]
+    fn url_validation_refuses_private_and_metadata_targets_ssrf() {
+        // The browser's own network stack would connect straight to these,
+        // bypassing every nika-http SSRF layer — refuse them at the navigate
+        // gate on the SAME canonical `nika_types::net::ip_is_blocked` oracle.
+        for ssrf in [
+            "http://127.0.0.1:8080/x?y=1", // loopback (was previously ALLOWED)
+            "http://169.254.169.254/latest/meta-data/", // cloud metadata
+            "http://[::1]/x",              // IPv6 loopback
+            "http://10.0.0.1/x",           // RFC1918
+            "http://192.168.1.1/x",        // RFC1918
+            "http://[::ffff:169.254.169.254]/x", // IPv4-mapped metadata smuggling
+            "http://localhost/x",          // loopback hostname
+            "http://api.localhost/x",      // *.localhost
+            // WHATWG normalizes these integer/short IPv4 forms to Host::Ipv4 —
+            // the classic decimal/hex/short-form SSRF encodings all fold to
+            // 127.0.0.1 and hit the oracle (would slip a naive string check).
+            "http://2130706433/x", // 127.0.0.1 as a u32 decimal
+            "http://0x7f000001/x", // 127.0.0.1 as hex
+            "http://127.1/x",      // short form → 127.0.0.1
+        ] {
+            assert!(
+                validate_absolute_url(ssrf).is_err(),
+                "{ssrf:?} must be refused (SSRF)"
+            );
+        }
+        // A public host that merely LOOKS internal by name is still allowed
+        // (name-based resolution to a private IP is the deeper wiring-time gate).
+        assert!(validate_absolute_url("https://internal.example.com/x").is_ok());
     }
 
     #[test]

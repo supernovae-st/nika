@@ -92,6 +92,74 @@ pub const HOST_EXTRACTION_VECTORS: &[(&str, Option<&str>)] = &[
     ("mailto:user@example.com", None),
 ];
 
+/// The single SSRF IP-range oracle: `true` when `ip` is NOT a public unicast
+/// address (loopback · private · link-local/metadata · CGN · documentation ·
+/// reserved · and any of those smuggled inside an IPv4-mapped / NAT64 / 6to4
+/// v6 wrapper). Every egress boundary that has a resolved/literal IP funnels
+/// through this ONE predicate — the http effect (`nika-http`), the browser
+/// effect (`nika-browser` navigate), and any future resolver — so a host the
+/// one blocks another can never reach. Pure · `no_std` (`core::net`).
+#[must_use]
+pub fn ip_is_blocked(ip: core::net::IpAddr) -> bool {
+    match ip {
+        core::net::IpAddr::V4(v4) => v4_is_blocked(v4),
+        core::net::IpAddr::V6(v6) => v6_is_blocked(v6),
+    }
+}
+
+/// The v4 address a transition-format v6 embeds in two segments (NAT64
+/// `64:ff9b::a.b.c.d` in segments 6+7 · 6to4 `2002:a.b:c.d::` in segments 1+2).
+fn embedded_v4(hi: u16, lo: u16) -> core::net::Ipv4Addr {
+    let [a, b] = hi.to_be_bytes();
+    let [c, d] = lo.to_be_bytes();
+    core::net::Ipv4Addr::new(a, b, c, d)
+}
+
+fn v6_is_blocked(v6: core::net::Ipv6Addr) -> bool {
+    let s = v6.segments();
+    v6.is_loopback()           // ::1
+        || v6.is_unspecified() // ::
+        || v6.is_multicast()   // ff00::/8
+        // fc00::/7 (unique local)
+        || (s[0] & 0xfe00) == 0xfc00
+        // fe80::/10 (link-local)
+        || (s[0] & 0xffc0) == 0xfe80
+        // fec0::/10 (site-local · deprecated but still honored by old gear)
+        || (s[0] & 0xffc0) == 0xfec0
+        // 2001:db8::/32 (documentation — never routable)
+        || (s[0] == 0x2001 && s[1] == 0x0db8)
+        // 64:ff9b:1::/48 (NAT64 local-use · RFC 8215 — internal by definition)
+        || (s[0] == 0x0064 && s[1] == 0xff9b && s[2] == 0x0001)
+        // 64:ff9b::/96 (NAT64 well-known · RFC 6052) — re-check the embedded v4.
+        || (s[..6] == [0x0064, 0xff9b, 0, 0, 0, 0] && v4_is_blocked(embedded_v4(s[6], s[7])))
+        // 2002::/16 (6to4 · RFC 3056) — same embedded-v4 re-check.
+        || (s[0] == 0x2002 && v4_is_blocked(embedded_v4(s[1], s[2])))
+        // IPv4-mapped/compatible — re-check the inner address (`to_ipv4()`
+        // covers both ::ffff:a.b.c.d and the deprecated ::a.b.c.d forms).
+        || v6.to_ipv4().is_some_and(v4_is_blocked)
+}
+
+fn v4_is_blocked(v4: core::net::Ipv4Addr) -> bool {
+    let o = v4.octets();
+    v4.is_loopback()              // 127.0.0.0/8
+        || v4.is_private()        // 10/8 · 172.16/12 · 192.168/16
+        || v4.is_link_local()     // 169.254.0.0/16 (cloud metadata IP)
+        || v4.is_unspecified()    // 0.0.0.0
+        || v4.is_broadcast()      // 255.255.255.255
+        || v4.is_multicast()      // 224.0.0.0/4
+        || v4.is_documentation()  // TEST-NET-1/2/3 (192.0.2 · 198.51.100 · 203.0.113)
+        || o[0] == 0              // 0.0.0.0/8 — "this network" (= this host on Linux)
+        || o[0] >= 240            // 240.0.0.0/4 — reserved
+        // 100.64.0.0/10 — CGN / shared address space (Alibaba metadata)
+        || (o[0] == 100 && (64..=127).contains(&o[1]))
+        // 198.18.0.0/15 — benchmarking (RFC 2544)
+        || (o[0] == 198 && (o[1] & 0xfe) == 18)
+        // 192.0.0.0/24 — IETF protocol assignments (incl. NAT64/DNS64 discovery)
+        || (o[0] == 192 && o[1] == 0 && o[2] == 0)
+        // 192.88.99.0/24 — 6to4 relay anycast (deprecated)
+        || (o[0] == 192 && o[1] == 88 && o[2] == 99)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +204,58 @@ mod tests {
         assert!(host_in_allowlist(&list, "example.com"));
         assert!(host_in_allowlist(&list, "api.github.com"));
         assert!(!host_in_allowlist(&list, "example.org"));
+    }
+
+    #[test]
+    fn ip_oracle_blocks_the_non_public_ranges() {
+        use core::net::IpAddr;
+        for s in [
+            "127.0.0.1",
+            "0.0.0.0",
+            "10.0.0.1",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.169.254", // cloud metadata
+            "100.64.0.1",
+            "100.127.255.255", // CGN boundaries
+            "198.18.0.1",
+            "192.0.0.1",
+            "192.88.99.1",
+            "240.0.0.1",
+            "255.255.255.255",
+        ] {
+            let ip: IpAddr = s.parse().expect("v4");
+            assert!(ip_is_blocked(ip), "{s} must be blocked");
+        }
+        for s in [
+            "::1",
+            "::",
+            "fc00::1",
+            "fe80::1",
+            "fec0::1",
+            "2001:db8::1",
+            "::ffff:127.0.0.1",
+            "::ffff:169.254.169.254", // IPv4-mapped smuggling
+            "64:ff9b::7f00:1",        // NAT64 well-known wrapping 127.0.0.1
+            "2002:a9fe:a9fe::1",      // 6to4 wrapping 169.254.169.254
+        ] {
+            let ip: IpAddr = s.parse().expect("v6");
+            assert!(ip_is_blocked(ip), "{s} must be blocked");
+        }
+    }
+
+    #[test]
+    fn ip_oracle_admits_public_unicast() {
+        use core::net::IpAddr;
+        for s in [
+            "1.1.1.1",
+            "8.8.8.8",
+            "100.128.0.1",
+            "93.184.216.34",
+            "2606:4700:4700::1111",
+        ] {
+            let ip: IpAddr = s.parse().expect("ip");
+            assert!(!ip_is_blocked(ip), "{s} is public, must be admitted");
+        }
     }
 }
