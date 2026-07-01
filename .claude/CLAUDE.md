@@ -150,7 +150,7 @@ Narrative context (manually maintained):
 - L0 admitted: nika-types, nika-error, nika-catalog, nika-catalog-codegen, nika-event, nika-pack, nika-cel, nika-schema (parser + analyzer + static-check · admitted 2026-06-18 · Gate-5 budget 290≤300 · O(n²) when-gate DoS fixed + origin's gate-list cap, both integrated).
 - L0.5 admitted: nika-kernel (facade + range-registry hub post 4-way split 2026-06-10), nika-kernel-core, nika-kernel-ai, nika-kernel-runtime, nika-kernel-plugin, nika-kernel-mock.
 - L1 admitted: nika-clock, nika-bm25, nika-screen, nika-ocr, nika-a11y, nika-input (M2.4 · Guards 1+2), nika-browser (M2.5 · Guard 5 + occlusion hit-test), nika-fs (atomic write · s4), nika-http (reqwest+rustls · 3-layer SSRF + cross-origin cred-strip · s5), nika-blob (blake3 CAS · sidecar mime · s6), nika-exec-runner (shell/process effect · s7).
-- L1.5 admitted: nika-providers (s8.5 · 14/14 providers wired across 3 wire formats incl gemini s8.6 · kernel http seam), nika-infer-local (sovereign local inference sidecar · ADR-091), nika-builtin (s16 · the 22 stdlib builtins behind ONE dispatcher · the 3 tool seams · the agent's first real tool source), nika-extract (the 9 fetch extract modes · article Trafilatura cascade · feed/sitemap/metadata/microdata · admitted 2026-06-21 · Gate-5 93% · totality proptest · the `nika:fetch` extract step).
+- L1.5 admitted: nika-providers (s8.5 · 14/14 providers wired across 3 wire formats incl gemini s8.6 · kernel http seam), nika-infer-local (sovereign local inference sidecar · ADR-091), nika-builtin (s16 · the 23 stdlib builtins behind ONE dispatcher · the 3 tool seams · the agent's first real tool source), nika-extract (the 9 fetch extract modes · article Trafilatura cascade · feed/sitemap/metadata/microdata · admitted 2026-06-21 · Gate-5 93% · totality proptest · the `nika:fetch` extract step).
 - L2 admitted: nika-verb-infer (s9 · FIRST verb crate · one-shot infer · structured-output floor · NIKA-430..433), nika-verb-exec (s10 · shell exec · kernel ShellRunDyn seam · capture one-obvious-way split · NIKA-440..442), nika-verb-invoke (s11 · builtin/MCP tool call · kernel ToolExecuteDyn seam · closed nika:/mcp: namespace validated · NIKA-450..452), nika-verb-agent (s12 · the 4th+LAST verb · multi-turn ReAct loop · 3 injected seams ProviderInferDyn+ToolExecuteDyn+ToolDefinitionProviderDyn · default-deny whitelist · NIKA-460..466).
 - L4 admitted: nika-catalog-verify, nika-lsp (stdio language server · `nika lsp`), nika-mcp (in-binary MCP server · `nika mcp`), nika-cli (the operator surface · admitted 2026-06-21 · the first-15-min verb tree check/run/trace/inspect/graph/explain/spec/schema/examples/new/doctor/pack/completions + lsp/mcp · display fold render + the --no-progress/--quiet/--dry-run reduced surfaces · Gate-5 91% · Gate-6 fold property · all 12 gates per docs/crate-specs/nika-cli.md §11).
 - 0 unwraps in `src/`, Gate 8 GREEN, Invariant #19 FULL.
@@ -168,7 +168,7 @@ Narrative context (manually maintained):
   (nika-{screen,ocr,a11y,input,browser} · ADR-081 7-guard contract ·
   NIKA-1000..1599 · detail in `docs/crate-specs/` + adr-081). The first-15-min
   slice is now CLOSED · nika-cli (operator surface) + nika-builtin (s16 · the
-  22 stdlib tools) + nika-infer-local (candle · ADR-091) + nika-extract (the 9
+  23 stdlib tools) + nika-infer-local (candle · ADR-091) + nika-extract (the 9
   fetch extract modes) are ALL admitted (2026-06-21) — **the wip array is empty**
   (39/42 · all existing crates admitted).
 - **Last stabilization — 2026-06-16** (origin/main `0b558f7f8`) · the static-check
@@ -183,7 +183,7 @@ Narrative context (manually maintained):
 - **Next** · the wip array is EMPTY (39/42 · every existing crate admitted) ·
   the remaining 3 toward the 42-target are the L0-completion crates (nika-cap ·
   pck-contracts · binding-types) · then design-partner `1.0.0-rc.N` → the **1.0.0**
-  launch (amended D-2026-06-20-N1). Latest tagged release is 0.90.0; `main`
+  launch (amended D-2026-06-20-N1). Latest tagged release is 0.91.0; `main`
   carries the next dev version so contributor binaries cannot masquerade as the
   Homebrew asset. 42-crate target reached additively across the 1.x minors.
 

@@ -4,8 +4,8 @@
 
 Nika is under active Diamond rebuild on `main` (renamed 2026-05-06 from
 `nika-diamond`). Security fixes ship on the active branch only — see
-[ADR-002 — Forever v0.x](docs/adr/adr-002-forever-v0x.md) for the
-release model.
+[ADR-002](docs/adr/adr-002-forever-v0x.md) for the
+release model (real semver toward 1.0 · amended D-2026-06-20-N1).
 
 | Branch       | Status     | Security fixes |
 |--------------|------------|----------------|
@@ -88,7 +88,7 @@ here once fixes ship. Anonymity respected on request.
 
 ## Related
 
-- [ADR-002 — Forever v0.x release model](docs/adr/adr-002-forever-v0x.md)
+- [ADR-002 — release model (real semver toward 1.0 · amended)](docs/adr/adr-002-forever-v0x.md)
 - [ADR-014 — Sealed kernel traits](docs/adr/adr-014-sealed-kernel-traits.md)
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution + 12-gate process
 - [`BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md) — 10-year horizon

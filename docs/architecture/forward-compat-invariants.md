@@ -1,6 +1,6 @@
 # Forward-Compatibility Invariants
 
-**Status**: LOCKED at 0.90.0 (amended D-2026-06-20-N1 · was "v0.80.0"). Every crate admitted to the Diamond workspace (`main` · ex `nika-diamond` renamed 2026-05) must
+**Status**: LOCKED at 0.91.0 (amended D-2026-06-20-N1 · was "v0.80.0"). Every crate admitted to the Diamond workspace (`main` · ex `nika-diamond` renamed 2026-05) must
 comply with these invariants before passing Gate 12.
 
 ## Why this document exists

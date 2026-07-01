@@ -129,8 +129,8 @@ And 17+ more from rust-analyzer adapted invariants in RUST_ENFORCEMENT.md §6.
 ## Timeline (real semver toward 1.0 · no hard per-phase deadlines)
 
 Real semver toward a **1.0** public launch (amended D-2026-06-20-N1 · was
-"forever-v0.x — no v1.0 target"). The engine is at **0.90.0** (release-candidate
-grade) today; the **1.0.0** launch ships when the 7 shadow zones are green, and
+"forever-v0.x — no v1.0 target"). The engine is at **0.91.0** (latest release · main on
+0.92.0-dev · release-candidate grade); the **1.0.0** launch ships when the 7 shadow zones are green, and
 the remaining crates land additively across the 1.x minors toward the 42-crate
 architecture target. The `nika: v1` LANGUAGE envelope is frozen forever
 (orthogonal to the engine version).

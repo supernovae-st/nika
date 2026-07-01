@@ -14,7 +14,7 @@ hermeticity by construction, not by discipline.
 
 ```toml
 [dev-dependencies]
-nika-kernel-mock = { version = "0.80", path = "../nika-kernel-mock" }
+nika-kernel-mock = { version = "0.92", path = "../nika-kernel-mock" }
 ```
 
 ```rust

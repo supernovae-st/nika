@@ -36,7 +36,7 @@ trait for object safety when boxing is needed.
 
 ```toml
 [dependencies]
-nika-kernel = { version = "0.80", path = "../nika-kernel" }
+nika-kernel = { version = "0.92", path = "../nika-kernel" }
 ```
 
 ```rust

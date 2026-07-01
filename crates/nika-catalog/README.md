@@ -14,7 +14,7 @@ are known, and what capability rules constrain workflows.
 
 ```toml
 [dependencies]
-nika-catalog = { version = "0.80", path = "../nika-catalog" }
+nika-catalog = { version = "0.92", path = "../nika-catalog" }
 ```
 
 ```rust

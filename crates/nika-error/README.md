@@ -13,7 +13,7 @@ variants), the `NIKA-XXX` code taxonomy (per ADR-005 hierarchy), and the
 
 ```toml
 [dependencies]
-nika-error = { version = "0.80", path = "../nika-error" }
+nika-error = { version = "0.92", path = "../nika-error" }
 ```
 
 ```rust
