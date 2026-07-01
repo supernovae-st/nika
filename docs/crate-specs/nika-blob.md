@@ -7,7 +7,7 @@
 | Design | `DiskBlobStore` impl of the L0.5 `nika_kernel::blob::BlobStore` trait via the `BlobStoreDyn` (`Send`) companion · blake3 CAS |
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · live count · `scripts/crate-metrics.sh nika-blob` |
 | Function cap | ≤100 lines each |
-| Crate version | tracks workspace (`0.90.0`) |
+| Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L1 effect crate |

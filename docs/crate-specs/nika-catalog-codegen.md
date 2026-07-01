@@ -15,7 +15,7 @@ status: Admitted
 | File cap | ≤1,500 LOC each |
 | Function cap | ≤100 lines each |
 | Source on `main` (ex `nika-diamond` · renamed) (reference) | `crates/nika-catalog/build.rs` (1,386 LOC) + `crates/nika-catalog/build/capabilities.rs` (978 LOC) + `crates/nika-catalog/build/pricing.rs` (200 LOC) = **2,564 LOC** to migrate |
-| Crate version | tracks workspace (`0.90.0`) |
+| Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — foundation crate, never on crates.io (per ADR-017 + `feedback_publish_false_foundation_strategy.md`). Internal build-time tool only. |

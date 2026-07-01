@@ -8,7 +8,7 @@
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · live count · `scripts/crate-metrics.sh nika-exec-runner` |
 | LOC (live) | ~1412 LOC src (live · `scripts/crate-metrics.sh nika-exec-runner`) |
 | Function cap | ≤100 lines each |
-| Crate version | tracks workspace (`0.90.0`) |
+| Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L1 effect crate |

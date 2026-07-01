@@ -6,7 +6,7 @@
 | Layer | **L2** — verb crate · domain executor for the `invoke` verb (3rd of the 4 verbs · D-2026-05-22-N18) |
 | Design | consumes the L0.5 kernel `runtime::ToolExecuteDyn` seam (injected · the wiring layer hands it the engine's builtin+MCP dispatcher) · zero tool implementation of its own · validates the closed `nika:`/`mcp:` tool-ref grammar BEFORE dispatch |
 | LOC budget | ≤1.5k src · caps ≤1500/file · ≤15k/crate |
-| Crate version | tracks workspace (`0.90.0`) |
+| Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L2 verb crate |

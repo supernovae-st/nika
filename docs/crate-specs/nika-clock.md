@@ -7,7 +7,7 @@
 | Design | `SystemClock` ZST impl of the L0.5 `nika_kernel::Clock` trait |
 | LOC budget | ≤200 src (actual ~62) |
 | Function cap | ≤100 lines each (all trivial wrappers) |
-| Crate version | tracks workspace (`0.90.0`) |
+| Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L1 effect crate |

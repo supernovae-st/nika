@@ -8,7 +8,7 @@
 | LOC budget | ≤15,000 src (current: ~6,100) |
 | File cap | ≤1,500 LOC each (current max: `build.rs` 1,264) |
 | Function cap | ≤100 lines each |
-| Crate version | tracks workspace (`0.90.0`) |
+| Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 

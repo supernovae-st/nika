@@ -8,7 +8,7 @@
 | LOC budget | ≤800 src (actual ~462 · kind ~103 + event ~105 + emitter ~118 + error ~71 + lib ~65) |
 | File cap | ≤1,500 LOC each (max 118 · well under) |
 | Function cap | ≤100 lines each (all small) |
-| Crate version | tracks workspace (`0.90.0`) |
+| Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — foundation crate (ADR-017) |

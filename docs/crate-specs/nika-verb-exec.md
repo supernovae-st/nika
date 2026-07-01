@@ -6,7 +6,7 @@
 | Layer | **L2** — verb crate · domain executor for the `exec` verb (4 verbs locked forever per D-2026-05-22-N18) |
 | Design | consumes the L0.5 kernel `io::process` seam (`ShellRunDyn` injected · the wiring layer hands it `nika-exec-runner::TokioShell`) · zero subprocess code of its own · `pre_validated = false` ALWAYS (the s7 effect-layer blocklist is the floor · the verb never bypasses it) |
 | LOC budget | ≤2k src (brouillon reference ~600 LOC lib.rs + error) · caps ≤1500/file · ≤15k/crate |
-| Crate version | tracks workspace (`0.90.0`) |
+| Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L2 verb crate |

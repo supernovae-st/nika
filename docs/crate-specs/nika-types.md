@@ -10,7 +10,7 @@
 | File cap | ≤1,500 LOC each |
 | Function cap | ≤100 lines each |
 | Source on `main` (reference) | `tools/nika-core/src/{id,trust,hash,...}.rs` (~3,500 LOC scattered) |
-| Crate version | tracks workspace (`0.90.0`) |
+| Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — foundation crate, never on crates.io (see ADR-017 + `feedback_publish_false_foundation_strategy.md`) |
