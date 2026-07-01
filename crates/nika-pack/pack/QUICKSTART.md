@@ -4,9 +4,10 @@
 > builds up a real workflow in 5 small steps — copy each block, run it,
 > watch it grow.
 >
-> **Status** · v0.1.0-draft · authoring + static checking work TODAY (the
-> conformance oracle in this repo) · execution lands with the reference
-> engine's 1.0 release (`cargo install nika`) or any v0.1-compliant engine.
+> **Status** · authoring, static checking AND execution all work TODAY —
+> `brew install supernovae-st/tap/nika`, then `nika check` + `nika run` on
+> any file in this page. The spec text itself is v0.1.0-draft (GA hardening
+> in progress); the language envelope `nika: v1` is already frozen.
 
 ---
 
@@ -152,19 +153,20 @@ Exactly four · `fetch` is not among them (it's the `nika:fetch` tool via
 
 ---
 
-## 5 · Check it — run it at the engine milestone
+## 5 · Check it · run it
 
-Validate the file TODAY against this repo's oracle (zero install beyond
+With the reference engine installed (`brew install supernovae-st/tap/nika`) ·
+
+```bash
+nika check summarize-and-translate.nika.yaml   # static audit — before a single token is spent
+nika run summarize-and-translate.nika.yaml     # execute — locally, today
+```
+
+No engine handy? Validate against this repo's oracle (zero install beyond
 python3) ·
 
 ```bash
 python3 conformance/runner.py validate summarize-and-translate.nika.yaml
-```
-
-Execution lands with the reference engine's 1.0 release ·
-
-```bash
-nika run summarize-and-translate.nika.yaml   # the engine command · same file · any conformant engine
 ```
 
 The same file runs on **any** v0.1-compliant engine — the language is the
