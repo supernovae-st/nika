@@ -30,9 +30,9 @@ templates:
   - file: templates/fanout.nika.yaml
     sha256_16: 32a0c6a483339247
   - file: templates/gate-and-act.nika.yaml
-    sha256_16: 1d51deb4424f24d6
+    sha256_16: e8a0c5e7f60f5e60
   - file: templates/human-gated-ship.nika.yaml
-    sha256_16: ac56070d9f39677f
+    sha256_16: 3b487f1da13cf918
 showcase:
   - file: examples/showcase/t1-meeting-actions.nika.yaml
     workflow: meeting-actions

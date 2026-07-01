@@ -22,6 +22,9 @@ secrets:
   webhook:
     source: env
     key: ALERTS_WEBHOOK_URL         # SLOT: where the act lands
+    egress:
+      - to: "nika:notify"
+        host_from_self: true        # the secret value IS the destination URL
 
 tasks:
   - id: check
