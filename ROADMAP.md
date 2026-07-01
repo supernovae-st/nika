@@ -607,9 +607,9 @@ Per D-2026-05-22-N18.)
 - `unstable-*` prefix for API surfaces not yet locked (per forward-compat-invariants)
 
 **Distribution channels**:
-- **Homebrew** — `brew tap supernovae-st/nika && brew install nika` (formula at `supernovae-st/homebrew-nika`)
-- **`curl | sh`** — `curl -LsSf https://nika.sh/install.sh | sh` (platform detection, fallback to GH release tarball)
-- **crates.io** — `cargo install nika` once L5 binary ships (tag `v0.92.0`)
+- **Homebrew** — `brew install supernovae-st/tap/nika` (formula at `supernovae-st/homebrew-tap` · SHIPPED since v0.90.0)
+- **`curl | sh`** — `curl -LsSf https://nika.sh/install.sh | sh` (platform detection, fallback to GH release tarball · SHIPPED)
+- **crates.io** — `cargo install nika` joins at the 1.0.0 launch
 - **GitHub Releases** — pre-built binaries via cargo-dist (macOS arm64/x86_64, Linux x86_64)
 
 ### Site + docs + design
@@ -849,12 +849,15 @@ Trusted reviewers may be delegated as the community grows. No DAO, no voting.
 
 ## Release cadence
 
-Per ADR-037 the cadence is **admission-driven**, not calendar-driven.
+Per ADR-037 the cadence is **admission-driven**, not calendar-driven — and
+per D-2026-06-20-N1 the tag scheme is **real semver** (`MAJOR.MINOR.PATCH` ·
+the historical `v0.8X.Y` layer-phase scheme is retired).
 
-- **Tag `v0.8X.0`** — when a layer-phase completes. No fixed interval; phases
-  take what they take. Quality > speed.
-- **Tag `v0.8X.Y`** — per crate admission within the active phase. Incremental,
-  landed the same day as the admission commit.
+- **Minor** — when a meaningful capability slice completes. No fixed
+  interval; slices take what they take. Quality > speed.
+- **Patch** — fixes on the released line.
+- `main` moves to the next `-dev` version immediately after each release so
+  contributor binaries cannot be confused with release assets.
 
 ## See also
 
@@ -868,8 +871,10 @@ Per ADR-037 the cadence is **admission-driven**, not calendar-driven.
 - [`SECURITY.md`](SECURITY.md) — vulnerability disclosure · 11-row defense layers + NIKA-390 queued
 - [`CHANGELOG.md`](CHANGELOG.md) — release log · per-crate semver entries
 - [`docs/adr/`](docs/adr/) — 38+ ADRs · architectural decisions canonical
-- **No pre-release labels** (no `-alpha.N`, no `-rc.N`). Every tag is diamond.
-  If it isn't diamond, it doesn't get tagged.
+- **Pre-release labels are reserved for the design-partner track**
+  (`1.0.0-rc.N` · per D-2026-06-20-N1). The historical `v0.80.0-alpha.*`
+  tags predate this policy. Every stable tag is diamond — if it isn't
+  diamond, it doesn't get tagged.
 
 ## Architectural forward-compatibility guarantees
 
