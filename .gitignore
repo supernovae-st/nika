@@ -24,6 +24,8 @@ Cargo.lock.bak
 
 # MCP server config (local, not in repo)
 .mcp.json
+# …but the published plugin's bundle is source, not local config
+!.agents/plugins/nika/.mcp.json
 
 # Legacy from main -- NOT part of diamond workspace.
 # Only crates/nika-error/ is admitted. Everything else is excluded.
