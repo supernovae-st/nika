@@ -1,0 +1,17 @@
+nika check · broken-pr-review.nika.yaml
+ ✖ CONFORM  [NIKA-DAG-003] task `assess` references `tasks.diff` without declaring `diff` in depends_on
+ ✖ CONFORM  [NIKA-VAR-001] unresolved reference `tasks.asses` in task `comment` — did you mean `tasks.assess`?
+ ✖ CONFORM  [NIKA-DAG-003] task `comment` references `tasks.assess` without declaring `assess` in depends_on
+ PLAN     (skipped — no valid DAG order while conformance fails)
+ ⚠  COST     $0.0000 – $0.0000 FLOOR (unbounded tasks present)
+   assess  ollama/llama3.1  UNBOUNDED — no max_tokens declared
+ ✔ SECRETS  no information-flow escapes
+ ✔ TYPES    every deep output reference fits its declared shape
+ ✔ TOOLS    every nika: tool names a canonical builtin
+ ✔ ARGS     every invoke arg key is declared + every required arg is present
+ ✔ SCHEMA   every authored schema: is satisfiable
+ ○ PERMITS  no boundary declared (engine floor only) · `--infer-permits` writes one
+ ↳ HINT     [cost] declare `max_tokens` on `assess` — the cost report becomes a hard ceiling instead of UNBOUNDED
+ ↳ HINT     [strictness] `assess`'s schema admits undeclared keys — add `additionalProperties: false` to its object nodes for a deterministic output shape across providers
+ ↳ HINT     [permits] no `permits:` boundary declared — run `nika check --infer-permits` to generate the tightest one (default-deny once present)
+ ✖ findings above

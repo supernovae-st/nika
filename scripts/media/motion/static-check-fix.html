@@ -1,0 +1,129 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>nika · static-check-fix</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .head { position: absolute; left: 48px; top: 44px; }
+  .head .headline { margin-top: 14px; }
+  #kicker, #headline, #card, .act { opacity: 0; }
+  .out1, .out3, #act2 .ln { opacity: 0; }
+  #card { left: 48px; top: 196px; width: 1504px; height: 560px; }
+  .act { position: absolute; inset: 58px 0 0 0; }
+  .term { font-size: 17.5px; padding-top: 30px; }
+  .term .ln { margin-bottom: 6px; }
+  .hl { display: inline-block; border-radius: 8px; padding: 0 6px; margin: 0 -6px; }
+  .hl.on { background: var(--err-dim); box-shadow: 0 0 0 1px var(--err); }
+  .act-label {
+    position: absolute; right: 26px; top: 16px;
+    font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--fg-faint);
+  }
+  #act2 .diffv { padding-top: 56px; font-size: 18px; }
+  .final { font-variation-settings: "wght" 560; }
+</style>
+
+<div class="stage">
+  <div class="head">
+    <div class="kicker" id="kicker">nika check · the static audit</div>
+    <div class="headline" id="headline">Check before it runs.</div>
+  </div>
+
+  <div class="card" id="card">
+    <div class="card-header">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <span class="title">pr-review.nika.yaml</span>
+      <span class="badge fail" id="badge-fail" style="position:absolute;right:20px">3 findings</span>
+      <span class="badge ok" id="badge-ok" style="position:absolute;right:20px;opacity:0">clean</span>
+    </div>
+
+    <!-- ACT 1 · the broken workflow fails, with exact diagnostics -->
+    <div class="act" id="act1">
+      <div class="term">
+        <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd1">nika check pr-review.nika.yaml</span><span class="caret" id="caret1"></span></span>
+        <span class="ln out1 dim">nika check · pr-review.nika.yaml</span>
+        <span class="ln out1"><span class="fail"> ✖ CONFORM  </span><span class="code-chip">NIKA-DAG-003</span> task <span class="accent">`assess`</span> references <span class="accent">`tasks.diff`</span> without declaring <span class="accent">`diff`</span> in depends_on</span>
+        <span class="ln out1" id="didyoumean"><span class="hl"><span class="fail"> ✖ CONFORM  </span><span class="code-chip">NIKA-VAR-001</span> unresolved reference <span class="accent">`tasks.asses`</span> in task <span class="accent">`comment`</span> — did you mean <span class="accent">`tasks.assess`</span>?</span></span>
+        <span class="ln out1"><span class="fail"> ✖ CONFORM  </span><span class="code-chip">NIKA-DAG-003</span> task <span class="accent">`comment`</span> references <span class="accent">`tasks.assess`</span> without declaring <span class="accent">`assess`</span> in depends_on</span>
+        <span class="ln out1 dim">   PLAN     (skipped — no valid DAG order while conformance fails)</span>
+        <span class="ln out1"><span class="fail"> ✖ findings above</span><span class="dim"> · before any model was called, before any token was spent</span></span>
+      </div>
+    </div>
+
+    <!-- ACT 2 · the fix is three declared lines -->
+    <div class="act" id="act2">
+      <div class="act-label">the fix — declare what each task needs</div>
+      <div class="diffv">
+<span class="ln ctx">   - id: assess</span>
+<span class="ln add">+    depends_on: [diff]</span>
+<span class="ln ctx">     infer:</span>
+<span class="ln ctx">       prompt: |</span>
+<span class="ln ctx">         Risk-assess this diff. Be terse.</span>
+<span class="ln ctx">   - id: comment</span>
+<span class="ln add">+    depends_on: [assess]</span>
+<span class="ln del">-    when: "${{ tasks.asses.output.risk == 'high' }}"</span>
+<span class="ln add">+    when: "${{ tasks.assess.output.risk == 'high' }}"</span>
+      </div>
+    </div>
+
+    <!-- ACT 3 · the fixed workflow: every vector green -->
+    <div class="act" id="act3">
+      <div class="term">
+        <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd3">nika check pr-review.nika.yaml</span><span class="caret" id="caret3"></span></span>
+        <span class="ln out3"><span class="ok"> ✔ PLAN    </span> 3 wave(s) · 3 task(s) · max parallelism 1</span>
+        <span class="ln out3"><span class="ok"> ✔ SECRETS </span> no information-flow escapes</span>
+        <span class="ln out3"><span class="ok"> ✔ TYPES   </span> every deep output reference fits its declared shape</span>
+        <span class="ln out3"><span class="ok"> ✔ TOOLS   </span> every nika: tool names a canonical builtin</span>
+        <span class="ln out3"><span class="ok"> ✔ ARGS    </span> every invoke arg key is declared + every required arg is present</span>
+        <span class="ln out3"><span class="ok"> ✔ SCHEMA  </span> every authored schema: is satisfiable</span>
+        <span class="ln out3"><span class="ok"> ✔ PERMITS </span> body fits the declared boundary</span>
+        <span class="ln out3 final"><span class="ok"> ✔ clean — audited before a single token was spent</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="plate">
+    <span>nika 0.92 · static audit · output captured from the real cli</span>
+    <span class="mark">nika.sh 🦋</span>
+  </div>
+  <div class="grain"></div>
+</div>
+
+<script src="scene.js"></script>
+<script>
+  const S = window.Scene;
+  S.define({ name: "static-check-fix", duration: 21500, fps: 30, width: 1600, height: 900, posterAt: 19800 });
+
+  // opening
+  S.fade("#kicker",   { at: 200, dur: 500, y: 10 });
+  S.fade("#headline", { at: 420, dur: 600, y: 14 });
+  S.fade("#card",     { at: 800, dur: 550, y: 22, scale: 0.985 });
+
+  // ACT 1 · broken check
+  S.fade("#act1", { at: 1100, dur: 300 });
+  S.type("#cmd1", { at: 1400, dur: 1300, caret: "#caret1" });
+  S.lines("#act1 .out1", { at: 2900, stagger: 340, dur: 340, ease: "err" });
+  S.cls("#didyoumean .hl", { at: 5600, add: ["on"] });
+
+  // ACT 1 → ACT 2
+  S.cls("#didyoumean .hl", { at: 7400, remove: ["on"] });
+  S.fade("#act1", { at: 7600, dur: 350, from: 1, to: 0 });
+  S.fade("#act2", { at: 7950, dur: 350 });
+  S.lines("#act2 .ln", { at: 8100, stagger: 200, dur: 280 });
+
+  // ACT 2 → ACT 3
+  S.fade("#act2", { at: 12300, dur: 350, from: 1, to: 0 });
+  S.fade("#act3", { at: 12650, dur: 350 });
+  S.type("#cmd3", { at: 12900, dur: 1200, caret: "#caret3" });
+  S.lines("#act3 .out3", { at: 14300, stagger: 260, dur: 300 });
+
+  // header badge flips with the clean verdict
+  S.fade("#badge-fail", { at: 16500, dur: 300, from: 1, to: 0 });
+  S.fade("#badge-ok",   { at: 16700, dur: 300 });
+
+  // gentle close for a seamless loop
+  S.fade("#card",     { at: 20800, dur: 600, from: 1, to: 0 });
+  S.fade("#headline", { at: 20950, dur: 550, from: 1, to: 0 });
+  S.fade("#kicker",   { at: 21050, dur: 450, from: 1, to: 0 });
+
+  S.ready();
+</script>

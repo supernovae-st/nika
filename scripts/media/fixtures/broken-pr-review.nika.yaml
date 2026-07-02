@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+# media fixture · deliberately BROKEN — the static-check-fix demo "before".
+# Two real defects: a task reads another task's output without depending on
+# it, and a typo'd task reference in the `when:` gate.
+nika: v1
+workflow: pr-risk-review
+model: ollama/llama3.1
+
+tasks:
+  - id: diff
+    exec:
+      command: "git diff origin/main...HEAD"
+      capture: structured
+
+  - id: assess
+    infer:
+      prompt: |
+        Risk-assess this diff. Be terse.
+        ${{ tasks.diff.output.stdout }}
+      schema:
+        type: object
+        required: [risk]
+        properties:
+          risk: { type: string, enum: [low, medium, high] }
+
+  - id: comment
+    when: "${{ tasks.asses.output.risk == 'high' }}"
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "review.md"
+        content: "${{ tasks.assess.output }}"

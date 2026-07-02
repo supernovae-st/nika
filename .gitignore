@@ -83,3 +83,6 @@ node_modules/
 .claude/skills/generated/
 .claude/scheduled_tasks.lock
 .claude/commands/dashboard.md
+
+# media pipeline scratch (scripts/media/render-motion.mjs)
+media/.frames/

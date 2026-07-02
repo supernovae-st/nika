@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# capture-transcripts.sh — refresh the REAL CLI transcripts that feed the
+# motion scenes (scripts/media/motion/*.html). Every byte shown in a Nika
+# media asset comes from these files: no fake commands, no fake output.
+#
+# Usage · bash scripts/media/capture-transcripts.sh
+# Output · media/raw/*.txt + media/raw/transcripts.json (bundle for the renderer)
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT"
+
+RAW="media/raw"
+FIX="scripts/media/fixtures"
+mkdir -p "$RAW"
+
+command -v nika >/dev/null || {
+  echo "nika binary not found on PATH" >&2
+  exit 1
+}
+nika --version | tee "$RAW/nika-version.txt"
+
+# ── static-check-fix ────────────────────────────────────────────────────
+# The broken fixture MUST fail (exit 2) · the fixed one MUST be clean.
+nika check --no-color "$FIX/broken-pr-review.nika.yaml" >"$RAW/check-broken.txt" 2>&1 && {
+  echo "FATAL: broken fixture unexpectedly passed nika check" >&2
+  exit 1
+} || true
+nika check --no-color "$FIX/fixed-pr-review.nika.yaml" >"$RAW/check-fixed.txt" 2>&1
+
+diff -u "$FIX/broken-pr-review.nika.yaml" "$FIX/fixed-pr-review.nika.yaml" \
+  >"$RAW/fix-diff.txt" 2>&1 || true # diff exits 1 when files differ
+
+# ── chat-to-workflow ────────────────────────────────────────────────────
+nika check --no-color "$FIX/meeting-actions.nika.yaml" >"$RAW/check-meeting.txt" 2>&1
+
+# The run transcript uses a REAL local model. Only refresh when an Ollama
+# server is reachable — otherwise keep the committed snapshot.
+if curl -s --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1; then
+  MODEL="ollama/llama3.2:3b"
+  curl -s http://localhost:11434/api/generate \
+    -d '{"model":"llama3.2:3b","prompt":"warm","stream":false}' >/dev/null || true
+  rm -f action-items.json
+  nika run --no-progress --no-color --model "$MODEL" \
+    "$FIX/meeting-actions.nika.yaml" >"$RAW/run-meeting.txt" 2>&1
+  cp action-items.json "$RAW/action-items.json"
+  rm -f action-items.json
+else
+  echo "ollama unreachable — keeping committed run-meeting.txt snapshot" >&2
+fi
+
+# ── dag-execution ───────────────────────────────────────────────────────
+SHOWCASE="crates/nika-pack/pack/examples/showcase/t3-pr-review-fanout.nika.yaml"
+nika graph --format mermaid "$SHOWCASE" >"$RAW/graph-fanout.mmd" 2>&1
+nika check --no-color "$SHOWCASE" >"$RAW/check-fanout.txt" 2>&1
+
+# ── bundle for the motion renderer ──────────────────────────────────────
+node - <<'NODE'
+const fs = require('fs');
+const raw = 'media/raw';
+const bundle = {};
+for (const f of fs.readdirSync(raw)) {
+  if (f === 'transcripts.json') continue;
+  bundle[f] = fs.readFileSync(`${raw}/${f}`, 'utf8');
+}
+fs.writeFileSync(`${raw}/transcripts.json`, JSON.stringify(bundle, null, 2));
+console.log(`bundled ${Object.keys(bundle).length} transcripts → ${raw}/transcripts.json`);
+NODE
+
+echo "transcripts refreshed."

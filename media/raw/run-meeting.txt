@@ -1,0 +1,7 @@
+  🦋 nika · meeting-actions · 3 tasks
+     permits ✓ engine floor (no boundary declared)
+
+  ✔  transcript  invoke · nika:read
+  ✔  extract     infer · ollama/llama3.2:3b
+  ✔  save        invoke · nika:write
+  ── 3/3 done · $0.000 · elapsed 3.9s ────────────────────────────

@@ -1,0 +1,44 @@
+--- scripts/media/fixtures/broken-pr-review.nika.yaml	2026-07-02 18:59:10
++++ scripts/media/fixtures/fixed-pr-review.nika.yaml	2026-07-02 18:59:38
+@@ -1,7 +1,6 @@
+ # SPDX-License-Identifier: Apache-2.0
+-# media fixture · deliberately BROKEN — the static-check-fix demo "before".
+-# Two real defects: a task reads another task's output without depending on
+-# it, and a typo'd task reference in the `when:` gate.
++# media fixture · the static-check-fix demo "after" — same workflow, fixed:
++# declared dependencies, fixed typo, cost ceiling, strict schema, permits.
+ nika: v1
+ workflow: pr-risk-review
+ model: ollama/llama3.1
+@@ -13,20 +12,30 @@
+       capture: structured
+ 
+   - id: assess
++    depends_on: [diff]
+     infer:
+       prompt: |
+         Risk-assess this diff. Be terse.
+         ${{ tasks.diff.output.stdout }}
++      max_tokens: 400
+       schema:
+         type: object
+         required: [risk]
++        additionalProperties: false
+         properties:
+           risk: { type: string, enum: [low, medium, high] }
+ 
+   - id: comment
+-    when: "${{ tasks.asses.output.risk == 'high' }}"
++    depends_on: [assess]
++    when: "${{ tasks.assess.output.risk == 'high' }}"
+     invoke:
+       tool: "nika:write"
+       args:
+         path: "review.md"
+         content: "${{ tasks.assess.output }}"
++
++permits:
++  fs:
++    write: ["review.md"]
++  exec: ["git"]
++  tools: ["nika:write"]

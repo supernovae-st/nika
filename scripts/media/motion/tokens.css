@@ -1,0 +1,226 @@
+/* tokens.css — Nika motion brand tokens.
+ * Palette per the Nika visual canon: engineered deep black, ONE mint
+ * accent, warm cosmic foreground, restrained semantic states.
+ * Type: Martian Grotesk (labels) + Martian Mono (code/terminal). */
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #131312;
+  --surface-raised: #191918;
+  --border: #2a2a28;
+  --border-soft: #1f1f1e;
+
+  --fg: #f3f2ef;
+  --fg-muted: #8f8e8a;
+  --fg-faint: #5a5957;
+
+  --accent: oklch(70% 0.2 145);
+  --accent-dim: oklch(70% 0.2 145 / 0.14);
+  --accent-glow: oklch(70% 0.2 145 / 0.32);
+
+  --err: #d4596b;
+  --err-dim: rgba(212, 89, 107, 0.14);
+  --warn: #c9924a;
+  --pending: #4a4a48;
+
+  --font-label: "Martian Grotesk", "Inter", system-ui, sans-serif;
+  --font-mono: "Martian Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  --radius-card: 14px;
+  --radius-chip: 8px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { background: var(--bg); }
+
+.stage {
+  position: relative;
+  width: 1600px;
+  height: 900px;
+  overflow: hidden;
+  background:
+    radial-gradient(1200px 700px at 50% 30%, rgba(255, 255, 255, 0.025), transparent 70%),
+    var(--bg);
+  color: var(--fg);
+  font-family: var(--font-label);
+}
+
+/* BRAND grain — static dither, never animated */
+.grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* museum plate — metadata-as-aesthetic */
+.plate {
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  bottom: 26px;
+  display: flex;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--fg-faint);
+  text-transform: uppercase;
+}
+.plate .mark { color: var(--fg-muted); }
+
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.headline {
+  font-family: var(--font-label);
+  font-variation-settings: "wght" 640;
+  font-size: 46px;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+
+.card {
+  position: absolute;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-soft);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+.card-header .dots { display: flex; gap: 7px; }
+.card-header .dots i {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #2e2e2c;
+}
+.card-header .title { margin-left: 6px; letter-spacing: 0.04em; }
+.card-header .badge {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  letter-spacing: 0.08em;
+}
+.card-header .badge.ok { color: var(--accent); border-color: var(--accent-glow); }
+.card-header .badge.fail { color: var(--err); border-color: var(--err); }
+
+.term {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  line-height: 1.58;
+  padding: 22px 26px;
+}
+.term .ln { display: block; min-height: 1.58em; white-space: pre-wrap; }
+.term .prompt { color: var(--fg-faint); }
+.term .cmd { color: var(--fg); }
+.term .ok { color: var(--accent); }
+.term .fail { color: var(--err); }
+.term .warn { color: var(--warn); }
+.term .dim { color: var(--fg-muted); }
+.term .faint { color: var(--fg-faint); }
+.term .code-chip {
+  color: var(--err);
+  background: var(--err-dim);
+  border-radius: 6px;
+  padding: 1px 7px;
+}
+.term .accent { color: var(--accent); }
+
+.caret {
+  display: inline-block;
+  width: 10px; height: 1.15em;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  opacity: 0;
+}
+.caret.on { opacity: 1; }
+
+/* yaml card */
+.yaml {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  line-height: 1.66;
+  padding: 20px 26px;
+}
+.yaml .ln { display: block; white-space: pre; }
+.yaml .k { color: var(--accent); }
+.yaml .s { color: var(--fg); }
+.yaml .c { color: var(--fg-faint); }
+.yaml .d { color: var(--fg-muted); }
+
+/* diff card */
+.diffv { font-family: var(--font-mono); font-size: 19px; line-height: 1.66; padding: 20px 26px; }
+.diffv .ln { display: block; white-space: pre; }
+.diffv .add { color: var(--accent); background: var(--accent-dim); }
+.diffv .del { color: var(--err); background: var(--err-dim); }
+.diffv .ctx { color: var(--fg-muted); }
+
+/* DAG nodes */
+.node {
+  position: absolute;
+  min-width: 178px;
+  padding: 13px 18px 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-card);
+  font-family: var(--font-mono);
+}
+.node .id { font-size: 18px; color: var(--fg); }
+.node .verb {
+  margin-top: 5px;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+.node .tick { position: absolute; top: 10px; right: 13px; font-size: 15px; color: var(--accent); opacity: 0; }
+.node.running { border-color: var(--accent); box-shadow: 0 0 34px var(--accent-glow); }
+.node.running .verb { color: var(--accent); }
+.node.done { border-color: color-mix(in oklab, var(--accent) 55%, var(--border)); }
+.node.done .tick { opacity: 1; }
+
+.edge { stroke: var(--border); stroke-width: 2; fill: none; }
+.edge.lit { stroke: var(--accent); opacity: 0.75; }
+
+.chip {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--fg);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-chip);
+  padding: 9px 16px;
+}
+.chip .h { color: var(--accent); }
+
+.overlay-label {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 17px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}

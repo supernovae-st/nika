@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+# media fixture · the static-check-fix demo "after" — same workflow, fixed:
+# declared dependencies, fixed typo, cost ceiling, strict schema, permits.
+nika: v1
+workflow: pr-risk-review
+model: ollama/llama3.1
+
+tasks:
+  - id: diff
+    exec:
+      command: "git diff origin/main...HEAD"
+      capture: structured
+
+  - id: assess
+    depends_on: [diff]
+    infer:
+      prompt: |
+        Risk-assess this diff. Be terse.
+        ${{ tasks.diff.output.stdout }}
+      max_tokens: 400
+      schema:
+        type: object
+        required: [risk]
+        additionalProperties: false
+        properties:
+          risk: { type: string, enum: [low, medium, high] }
+
+  - id: comment
+    depends_on: [assess]
+    when: "${{ tasks.assess.output.risk == 'high' }}"
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "review.md"
+        content: "${{ tasks.assess.output }}"
+
+permits:
+  fs:
+    write: ["review.md"]
+  exec: ["git"]
+  tools: ["nika:write"]

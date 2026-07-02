@@ -18,6 +18,10 @@ is an open [Apache-2.0 spec](https://github.com/supernovae-st/nika-spec);
 this repo is the reference engine, a single Rust binary (AGPL-3.0). The
 way SQL pairs with PostgreSQL, or the Dockerfile with Docker.
 
+<p align="center">
+  <img src="media/gifs/chat-to-workflow.optimized.gif" alt="A repeated chat prompt becomes meeting-actions.nika.yaml; nika check audits it, then a real local run (ollama/llama3.2:3b) writes typed action items" width="900" />
+</p>
+
 ## Does it run today?
 
 Yes.
@@ -80,6 +84,19 @@ tasks:
       args: { body: ${{ tasks.assess.output }} }
 ```
 
+## Check before it runs
+
+`nika check` is a static audit. It catches broken references, missing
+dependencies, schema and permission problems **before any model is called**
+— and when something is off, it points at the exact fix:
+
+![nika check catches a missing depends_on and a typo'd task reference, shows the three-line fix, then the same audit passes clean](media/gifs/static-check-fix.optimized.gif)
+
+The two fixtures behind this capture live in
+[`scripts/media/fixtures/`](scripts/media/fixtures/), gated in both
+directions by `scripts/media/validate-media.sh`: the broken one must keep
+failing `nika check`, the fixed one must stay clean.
+
 ## Pick a workflow
 
 The binary embeds a versioned pack of runnable examples. Browse with
@@ -133,6 +150,12 @@ flowchart LR
     E -->|invoke| T["tools · MCP"]
     E -->|agent| A["autonomous loop"]
 ```
+
+Dependencies make every workflow a graph: independent tasks run in
+parallel, an `agent` step fans out, joins wait for every branch — and the
+whole plan is known, costed and audited before execution starts:
+
+![The embedded pr-review-fanout workflow as its real execution graph: seven tasks, six waves, all four verbs in one file](media/gifs/dag-execution.optimized.gif)
 
 ## Why Nika
 

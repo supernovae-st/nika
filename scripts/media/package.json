@@ -1,0 +1,9 @@
+{
+  "name": "nika-media-pipeline",
+  "private": true,
+  "type": "module",
+  "description": "Nika media production pipeline — motion scene renderer (playwright + ffmpeg)",
+  "dependencies": {
+    "playwright-core": "^1.53.0"
+  }
+}

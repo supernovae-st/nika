@@ -1,0 +1,212 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>nika · chat-to-workflow</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .head { position: absolute; left: 48px; top: 44px; }
+  .head .headline { margin-top: 14px; }
+  #kicker, #headline, #headline2, #chat, .ghost, .chip, #yamlcard, #termcard, #artifact { opacity: 0; }
+  #headline2 { position: absolute; left: 0; top: 43px; }
+
+  /* phase A · chat */
+  #chatwrap { position: absolute; left: 430px; top: 220px; width: 700px; height: 480px; }
+  .ghost, #chat {
+    position: absolute; left: 0; right: 60px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 26px 30px;
+  }
+  #chat { top: 96px; }
+  .ghost.g1 { top: 48px; left: 24px; right: 36px; }
+  .ghost.g2 { top: 4px; left: 48px; right: 12px; }
+  .ghost .who, .ghost .msg { visibility: hidden; }
+  #chat .who {
+    font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--fg-faint); margin-bottom: 12px;
+  }
+  #chat .msg { font-size: 21px; line-height: 1.55; color: var(--fg); min-height: 132px; }
+  #sameTask {
+    position: absolute; left: 0; top: 330px;
+    font-family: var(--font-mono); font-size: 15px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--warn);
+  }
+
+  /* extracted step chips */
+  .chip { font-size: 17px; padding: 11px 18px; }
+  #chip1 { left: 1180px; top: 300px; }
+  #chip2 { left: 1180px; top: 360px; }
+  #chip3 { left: 1180px; top: 420px; }
+
+  /* phase B/C · file + terminal */
+  #yamlcard { left: 48px; top: 196px; width: 700px; height: 560px; }
+  #yamlcard .yaml { font-size: 16.5px; line-height: 1.6; }
+  #yamlcard .yaml .ln { opacity: 0; display: block; white-space: pre; }
+  #termcard { left: 786px; top: 196px; width: 766px; height: 560px; }
+  #termcard .term { font-size: 15.5px; padding: 18px 24px; }
+  #termcard .ln { margin-bottom: 3px; opacity: 0; }
+  #termcard .cmdln { opacity: 1; }
+  #artifact {
+    position: absolute; left: 24px; right: 24px; bottom: 20px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface-raised); padding: 14px 18px;
+  }
+  #artifact .t {
+    font-family: var(--font-mono); font-size: 13px; color: var(--fg-muted);
+    letter-spacing: 0.08em; margin-bottom: 10px;
+  }
+  #artifact .row {
+    display: flex; align-items: baseline; gap: 12px;
+    font-family: var(--font-mono); font-size: 15px; padding: 5px 0; opacity: 0;
+  }
+  #artifact .owner { color: var(--accent); min-width: 64px; }
+  #artifact .task { color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  #artifact .due {
+    color: var(--fg-muted); font-size: 13px; border: 1px solid var(--border);
+    border-radius: 999px; padding: 1px 10px;
+  }
+</style>
+
+<div class="stage">
+  <div class="head">
+    <div class="kicker" id="kicker">same task · every week</div>
+    <div class="headline" id="headline">Chat is for trying. Nika is for keeping.</div>
+    <div class="headline" id="headline2">If you do it twice, make it a workflow.</div>
+  </div>
+
+  <!-- PHASE A · the prompt you keep retyping -->
+  <div id="chatwrap">
+    <div class="ghost g2"><div class="who">you</div><div class="msg">…</div></div>
+    <div class="ghost g1"><div class="who">you</div><div class="msg">…</div></div>
+    <div id="chat">
+      <div class="who">you · monday · 09:12</div>
+      <div class="msg" id="prompt">Can you summarize this meeting, pull out every action item with its owner and deadline, and format the result as JSON for our tracker?</div>
+    </div>
+    <div id="sameTask">↺ same prompt · third monday in a row</div>
+  </div>
+
+  <div class="chip" id="chip1"><span class="h">read</span> transcript</div>
+  <div class="chip" id="chip2"><span class="h">extract</span> { owner · task · due }</div>
+  <div class="chip" id="chip3"><span class="h">save</span> action-items.json</div>
+
+  <!-- PHASE B · the workflow file (faithful excerpt of the real fixture) -->
+  <div class="card" id="yamlcard">
+    <div class="card-header">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <span class="title">meeting-actions.nika.yaml</span>
+      <span class="badge ok" id="badge-file" style="opacity:0">nika: v1</span>
+    </div>
+    <div class="yaml">
+<span class="ln"><span class="k">nika</span><span class="d">:</span> <span class="s">v1</span></span>
+<span class="ln"><span class="k">workflow</span><span class="d">:</span> <span class="s">meeting-actions</span></span>
+<span class="ln"> </span>
+<span class="ln"><span class="k">tasks</span><span class="d">:</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">transcript</span></span>
+<span class="ln">    <span class="k">invoke</span><span class="d">:</span></span>
+<span class="ln">      <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:read"</span></span>
+<span class="ln"> </span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">extract</span></span>
+<span class="ln">    <span class="k">depends_on</span><span class="d">:</span> <span class="s">[transcript]</span></span>
+<span class="ln">    <span class="k">infer</span><span class="d">:</span></span>
+<span class="ln">      <span class="k">prompt</span><span class="d">:</span> <span class="s">|</span></span>
+<span class="ln">        <span class="d">Extract every action item …</span></span>
+<span class="ln">      <span class="k">schema</span><span class="d">:</span> <span class="c"># actions: [{ owner · task · due }]</span></span>
+<span class="ln"> </span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">save</span></span>
+<span class="ln">    <span class="k">invoke</span><span class="d">:</span></span>
+<span class="ln">      <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span></span>
+    </div>
+  </div>
+
+  <!-- PHASE B/C · proof: real check, real local run, real output -->
+  <div class="card" id="termcard">
+    <div class="card-header">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <span class="title">terminal</span>
+    </div>
+    <div class="term">
+      <span class="ln cmdln"><span class="prompt">$ </span><span class="cmd" id="cmd-check">nika check meeting-actions.nika.yaml</span><span class="caret" id="caret1"></span></span>
+      <span class="ln chk"><span class="ok"> ✔ PLAN    </span> 3 wave(s) · 3 task(s) · max parallelism 1</span>
+      <span class="ln chk"><span class="ok"> ✔ SECRETS </span> no information-flow escapes</span>
+      <span class="ln chk"><span class="ok"> ✔ SCHEMA  </span> every authored schema: is satisfiable</span>
+      <span class="ln chk"><span class="ok"> ✔ clean</span><span class="dim"> — audited before a single token was spent</span></span>
+      <span class="ln"> </span>
+      <span class="ln cmdln2" style="opacity:0"><span class="prompt">$ </span><span class="cmd" id="cmd-run">nika run meeting-actions.nika.yaml --model ollama/llama3.2:3b</span><span class="caret" id="caret2"></span></span>
+      <span class="ln run">  <span class="accent">🦋 nika</span><span class="dim"> · meeting-actions · 3 tasks</span></span>
+      <span class="ln run"><span class="ok">  ✔  transcript </span><span class="dim"> invoke · nika:read</span></span>
+      <span class="ln run"><span class="ok">  ✔  extract    </span><span class="dim"> infer · ollama/llama3.2:3b</span></span>
+      <span class="ln run"><span class="ok">  ✔  save       </span><span class="dim"> invoke · nika:write</span></span>
+      <span class="ln run"><span class="dim">  ── 3/3 done · </span><span class="accent">$0.000</span><span class="dim"> · elapsed 3.9s ──────────</span></span>
+    </div>
+    <div id="artifact">
+      <div class="t">action-items.json · written by nika:write · typed by the schema</div>
+      <div class="row"><span class="owner">Marco</span><span class="task">Own the email queue fix</span><span class="due">Friday</span></div>
+      <div class="row"><span class="owner">Sam</span><span class="task">Review pricing page copy update draft</span><span class="due">Thursday</span></div>
+      <div class="row"><span class="owner">Lea</span><span class="task">Chase infra and report update by morning tomorrow</span><span class="due">Thursday</span></div>
+    </div>
+  </div>
+
+  <div class="plate">
+    <span>real run · ollama/llama3.2:3b · local · $0.000 · nika 0.92</span>
+    <span class="mark">nika.sh 🦋</span>
+  </div>
+  <div class="grain"></div>
+</div>
+
+<script src="scene.js"></script>
+<script>
+  const S = window.Scene;
+  S.define({ name: "chat-to-workflow", duration: 26000, fps: 30, width: 1600, height: 900, posterAt: 23600 });
+
+  // opening
+  S.fade("#kicker",   { at: 200, dur: 500, y: 10 });
+  S.fade("#headline", { at: 420, dur: 600, y: 14 });
+
+  // PHASE A · the repeated prompt
+  S.fade("#chatwrap .g2", { at: 900,  dur: 400, y: 10 });
+  S.fade("#chatwrap .g1", { at: 1050, dur: 400, y: 10 });
+  S.fade("#chat",         { at: 1200, dur: 450, y: 14 });
+  S.type("#prompt",       { at: 1700, dur: 2300, caret: null });
+  S.fade("#sameTask",     { at: 4300, dur: 450, y: 8 });
+
+  // the task decomposes into steps
+  S.fade("#chip1", { at: 5000, dur: 420, x: -260 });
+  S.fade("#chip2", { at: 5260, dur: 420, x: -260 });
+  S.fade("#chip3", { at: 5520, dur: 420, x: -260 });
+
+  // PHASE A → B · chat dissolves, the file materializes
+  for (const sel of ["#chat", "#chatwrap .g1", "#chatwrap .g2", "#sameTask"])
+    S.fade(sel, { at: 7000, dur: 400, from: 1, to: 0 });
+  for (const sel of ["#chip1", "#chip2", "#chip3"])
+    S.fade(sel, { at: 7150, dur: 400, from: 1, to: 0 });
+
+  S.fade("#yamlcard", { at: 7500, dur: 500, y: 20, scale: 0.985 });
+  S.lines("#yamlcard .yaml .ln", { at: 7900, stagger: 130, dur: 240 });
+  S.fade("#badge-file", { at: 10600, dur: 300 });
+
+  // PHASE B · check proof
+  S.fade("#termcard", { at: 10900, dur: 480, y: 20, scale: 0.985 });
+  S.type("#cmd-check", { at: 11500, dur: 1300, caret: "#caret1" });
+  S.lines("#termcard .chk", { at: 13000, stagger: 300, dur: 300 });
+
+  // PHASE C · real local run
+  S.fade("#termcard .cmdln2", { at: 14900, dur: 200 });
+  S.type("#cmd-run", { at: 15100, dur: 1500, caret: "#caret2" });
+  S.lines("#termcard .run", { at: 16800, stagger: 340, dur: 320 });
+
+  // the output artifact
+  S.fade("#artifact", { at: 19200, dur: 450, y: 14 });
+  S.lines("#artifact .row", { at: 19700, stagger: 380, dur: 320 });
+
+  // headline swap · the thesis
+  S.fade("#headline",  { at: 21400, dur: 400, from: 1, to: 0 });
+  S.fade("#headline2", { at: 21800, dur: 550, y: 12 });
+
+  // gentle close for a seamless loop
+  for (const sel of ["#yamlcard", "#termcard"])
+    S.fade(sel, { at: 25100, dur: 600, from: 1, to: 0 });
+  S.fade("#headline2", { at: 25250, dur: 550, from: 1, to: 0 });
+  S.fade("#kicker",    { at: 25350, dur: 450, from: 1, to: 0 });
+
+  S.ready();
+</script>

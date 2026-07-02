@@ -1,0 +1,6 @@
+[09:02] Lea: retro done. Main issue: the onboarding emails go out late.
+[09:04] Marco: I'll own the email queue fix. Realistic by Friday.
+[09:07] Lea: also we said we'd ship the pricing page copy update.
+[09:08] Sam: that's me — draft ready, needs review by Thursday.
+[09:11] Marco: blocker: staging is down again, infra ticket still open.
+[09:12] Lea: I'll chase infra today and report back tomorrow morning.

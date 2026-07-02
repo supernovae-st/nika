@@ -1,0 +1,12 @@
+nika check · meeting-actions.nika.yaml
+ ✔ PLAN     3 wave(s) · 3 task(s) · max parallelism 1
+ ⚠  COST     $0.0000 – $0.0000 FLOOR (unbounded tasks present)
+   extract  mock/echo  UNBOUNDED — no catalog price (local/unknown model)
+ ✔ SECRETS  no information-flow escapes
+ ✔ TYPES    every deep output reference fits its declared shape
+ ✔ TOOLS    every nika: tool names a canonical builtin
+ ✔ ARGS     every invoke arg key is declared + every required arg is present
+ ✔ SCHEMA   every authored schema: is satisfiable
+ ○ PERMITS  no boundary declared (engine floor only) · `--infer-permits` writes one
+ ↳ HINT     [permits] no `permits:` boundary declared — run `nika check --infer-permits` to generate the tightest one (default-deny once present)
+ ✔ clean — audited before a single token was spent

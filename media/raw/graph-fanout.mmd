@@ -1,0 +1,14 @@
+graph TD
+  changed["changed · exec"]
+  todo_sweep["todo_sweep · invoke · nika:grep"]
+  files["files · invoke · nika:jq"]
+  reviews["reviews · agent · anthropic/claude-sonnet-4-6"]
+  merged["merged · invoke · nika:jq"]
+  summary["summary · infer · anthropic/claude-sonnet-4-6"]
+  save["save · invoke · nika:write"]
+  changed --> files
+  files --> reviews
+  merged --> summary
+  reviews --> merged
+  summary --> save
+  todo_sweep --> summary

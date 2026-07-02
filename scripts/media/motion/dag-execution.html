@@ -1,0 +1,179 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>nika · dag-execution</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .head { position: absolute; left: 48px; top: 44px; }
+  .head .headline { margin-top: 14px; }
+  #kicker, #headline, #filecard, #canvas, .node, #wavechip, #tracecard, #verdict { opacity: 0; }
+
+  #filecard { left: 48px; top: 196px; width: 380px; height: 424px; }
+  #filecard .yaml { font-size: 15.5px; line-height: 1.62; }
+  #filecard .yaml .ln { opacity: 0; }
+
+  #canvas { position: absolute; left: 470px; top: 186px; width: 1090px; height: 570px; }
+  #edges { position: absolute; inset: 0; }
+  .node { width: 190px; }
+  .node .fan {
+    position: absolute; inset: 0; border-radius: var(--radius-card);
+    border: 1.5px solid var(--border); background: var(--surface); z-index: -1;
+  }
+  .node .fan.f1 { transform: translate(7px, 7px); opacity: 0.7; }
+  .node .fan.f2 { transform: translate(14px, 14px); opacity: 0.4; }
+
+  #n-changed    { left: 10px;  top: 90px; }
+  #n-todo_sweep { left: 10px;  top: 330px; }
+  #n-files      { left: 240px; top: 90px; }
+  #n-reviews    { left: 470px; top: 90px; }
+  #n-merged     { left: 700px; top: 90px; }
+  #n-summary    { left: 880px; top: 240px; }
+  #n-save       { left: 880px; top: 420px; }
+
+  #wavechip { left: 470px; top: 20px; width: 330px; height: 30px; }
+  #wavechip { position: absolute; font-family: var(--font-mono); font-size: 15px; color: var(--fg-muted); }
+  #wavechip b { color: var(--accent); font-weight: 400; }
+  #wavechip .w { position: absolute; left: 0; top: 0; opacity: 0; white-space: nowrap; }
+
+  #tracecard { left: 48px; top: 648px; width: 380px; height: 108px; }
+  #tracecard .term { font-size: 12.5px; padding: 14px 18px; line-height: 1.6; }
+  #tracecard .ln { margin-bottom: 0; white-space: nowrap; overflow: hidden; }
+
+  #verdict {
+    position: absolute; left: 470px; top: 780px;
+    font-family: var(--font-mono); font-size: 17px; color: var(--fg-muted);
+  }
+  #verdict .ok { color: var(--accent); }
+</style>
+
+<div class="stage">
+  <div class="head">
+    <div class="kicker" id="kicker">nika run · the execution model</div>
+    <div class="headline" id="headline">A workflow is a graph, not a prompt.</div>
+  </div>
+
+  <!-- the real workflow file (embedded showcase pack) -->
+  <div class="card" id="filecard">
+    <div class="card-header">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <span class="title">pr-review-fanout.nika.yaml</span>
+    </div>
+    <div class="yaml">
+<span class="ln"><span class="k">workflow</span><span class="d">:</span> <span class="s">pr-review-fanout</span></span>
+<span class="ln"> </span>
+<span class="ln"><span class="k">tasks</span><span class="d">:</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">changed</span>      <span class="c"># exec</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">todo_sweep</span>   <span class="c"># invoke</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">files</span>        <span class="c"># invoke</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">reviews</span>      <span class="c"># agent ×N</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">merged</span>       <span class="c"># invoke</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">summary</span>      <span class="c"># infer</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">save</span>         <span class="c"># invoke</span></span>
+    </div>
+  </div>
+
+  <!-- the graph · real topology from `nika graph` -->
+  <div id="canvas">
+    <svg id="edges" width="1090" height="570" viewBox="0 0 1090 570" fill="none">
+      <path class="edge" id="e-changed-files"   d="M 200 124 C 222 124, 218 124, 240 124" />
+      <path class="edge" id="e-files-reviews"   d="M 430 124 C 452 124, 448 124, 470 124" />
+      <path class="edge" id="e-reviews-merged"  d="M 660 124 C 682 124, 678 124, 700 124" />
+      <path class="edge" id="e-merged-summary"  d="M 890 138 C 940 160, 950 200, 968 240" />
+      <path class="edge" id="e-todo-summary"    d="M 200 364 C 560 364, 700 290, 872 276" />
+      <path class="edge" id="e-summary-save"    d="M 975 308 C 975 350, 975 378, 975 420" />
+    </svg>
+
+    <div class="node" id="n-changed"><div class="id">changed</div><div class="verb">exec · git diff</div><span class="tick">✔</span></div>
+    <div class="node" id="n-todo_sweep"><div class="id">todo_sweep</div><div class="verb">invoke · nika:grep</div><span class="tick">✔</span></div>
+    <div class="node" id="n-files"><div class="id">files</div><div class="verb">invoke · nika:jq</div><span class="tick">✔</span></div>
+    <div class="node" id="n-reviews"><div class="fan f2"></div><div class="fan f1"></div><div class="id">reviews</div><div class="verb">agent · one per file</div><span class="tick">✔</span></div>
+    <div class="node" id="n-merged"><div class="id">merged</div><div class="verb">invoke · nika:jq</div><span class="tick">✔</span></div>
+    <div class="node" id="n-summary"><div class="id">summary</div><div class="verb">infer · structured</div><span class="tick">✔</span></div>
+    <div class="node" id="n-save"><div class="id">save</div><div class="verb">invoke · nika:write</div><span class="tick">✔</span></div>
+
+    <div id="wavechip">
+      <span class="w w1">wave <b>1</b>/6 · parallelism 2 · <b>changed</b> + <b>todo_sweep</b></span>
+      <span class="w w2">wave <b>2</b>/6 · <b>files</b> — jq over the diff</span>
+      <span class="w w3">wave <b>3</b>/6 · <b>reviews</b> — one agent per changed file</span>
+      <span class="w w4">wave <b>4</b>/6 · <b>merged</b> — reviews folded into one</span>
+      <span class="w w5">wave <b>5</b>/6 · <b>summary</b> — waits for BOTH branches</span>
+      <span class="w w6">wave <b>6</b>/6 · <b>save</b> — REVIEW.md written</span>
+    </div>
+  </div>
+
+  <!-- trace · every step accounted for -->
+  <div class="card" id="tracecard">
+    <div class="term">
+      <span class="ln"><span class="accent">summary</span>  infer   <span class="dim">← merged, todo_sweep</span></span>
+      <span class="ln"><span class="accent">save</span>     invoke  <span class="dim">→ REVIEW.md</span></span>
+      <span class="ln"><span class="ok">✔</span> <span class="dim">trace replayable · inputs on disk</span></span>
+    </div>
+  </div>
+
+  <div id="verdict"><span class="ok">✔ PLAN</span>  6 wave(s) · 7 task(s) · max parallelism 2 <span class="dim">— from the real static audit</span></div>
+
+  <div class="plate">
+    <span>topology from `nika graph` · plan from `nika check` · states illustrative</span>
+    <span class="mark">nika.sh 🦋</span>
+  </div>
+  <div class="grain"></div>
+</div>
+
+<script src="scene.js"></script>
+<script>
+  const S = window.Scene;
+  S.define({ name: "dag-execution", duration: 23000, fps: 30, width: 1600, height: 900, posterAt: 18200 });
+
+  // opening
+  S.fade("#kicker",   { at: 200, dur: 500, y: 10 });
+  S.fade("#headline", { at: 420, dur: 600, y: 14 });
+  S.fade("#filecard", { at: 900, dur: 500, y: 20, scale: 0.985 });
+  S.lines("#filecard .yaml .ln", { at: 1300, stagger: 150, dur: 240 });
+
+  // the graph forms
+  S.fade("#canvas", { at: 2900, dur: 300 });
+  const nodes = ["changed", "todo_sweep", "files", "reviews", "merged", "summary", "save"];
+  nodes.forEach((n, i) => S.fade(`#n-${n}`, { at: 3100 + i * 160, dur: 320, y: 12, scale: 0.96 }));
+  S.draw("#e-changed-files",  { at: 4400, dur: 420 });
+  S.draw("#e-files-reviews",  { at: 4700, dur: 420 });
+  S.draw("#e-reviews-merged", { at: 5000, dur: 420 });
+  S.draw("#e-merged-summary", { at: 5300, dur: 560 });
+  S.draw("#e-todo-summary",   { at: 5450, dur: 800 });
+  S.draw("#e-summary-save",   { at: 6100, dur: 420 });
+
+  // execution · real wave order from the plan (6 waves · parallelism 2)
+  const wave = (at, ids, w, runDur = 1150) => {
+    S.fade(`#wavechip .w${w}`, { at, dur: 250 });
+    S.fade(`#wavechip .w${w}`, { at: at + runDur + 500, dur: 250, from: 1, to: 0 });
+    for (const id of ids) {
+      S.cls(`#n-${id}`, { at, add: ["running"] });
+      S.cls(`#n-${id}`, { at: at + runDur, add: ["done"], remove: ["running"] });
+    }
+  };
+  S.fade("#wavechip", { at: 7000, dur: 200 });
+  wave(7100,  ["changed", "todo_sweep"], 1);
+  wave(8800,  ["files"], 2);
+  wave(10500, ["reviews"], 3, 1600);
+  wave(12700, ["merged"], 4);
+  wave(14400, ["summary"], 5, 1400);
+  wave(16400, ["save"], 6);
+
+  // edges light up as their upstream completes
+  S.cls("#e-changed-files",  { at: 8250,  add: ["lit"] });
+  S.cls("#e-todo-summary",   { at: 8250,  add: ["lit"] });
+  S.cls("#e-files-reviews",  { at: 9950,  add: ["lit"] });
+  S.cls("#e-reviews-merged", { at: 12100, add: ["lit"] });
+  S.cls("#e-merged-summary", { at: 13850, add: ["lit"] });
+  S.cls("#e-summary-save",   { at: 15800, add: ["lit"] });
+
+  // trace + verdict
+  S.fade("#tracecard", { at: 17600, dur: 450, y: 14 });
+  S.fade("#verdict",   { at: 18300, dur: 450, y: 10 });
+
+  // gentle close for a seamless loop
+  for (const sel of ["#filecard", "#canvas", "#tracecard", "#verdict"])
+    S.fade(sel, { at: 22200, dur: 550, from: 1, to: 0 });
+  S.fade("#headline", { at: 22350, dur: 500, from: 1, to: 0 });
+  S.fade("#kicker",   { at: 22450, dur: 400, from: 1, to: 0 });
+
+  S.ready();
+</script>
