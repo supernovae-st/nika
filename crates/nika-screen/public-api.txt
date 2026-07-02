@@ -1,0 +1,338 @@
+pub mod nika_screen
+pub use nika_screen::ScreenError
+pub mod nika_screen::capture
+#[non_exhaustive] pub struct nika_screen::capture::ScreenBackend
+impl nika_screen::capture::ScreenBackend
+pub fn nika_screen::capture::ScreenBackend::grant_consent(&self)
+pub fn nika_screen::capture::ScreenBackend::led_is_engaged(&self) -> bool
+pub fn nika_screen::capture::ScreenBackend::new() -> Self
+pub fn nika_screen::capture::ScreenBackend::revoke_consent(&self)
+impl core::default::Default for nika_screen::capture::ScreenBackend
+pub fn nika_screen::capture::ScreenBackend::default() -> nika_screen::capture::ScreenBackend
+impl core::fmt::Debug for nika_screen::capture::ScreenBackend
+pub fn nika_screen::capture::ScreenBackend::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_kernel_core::io::screen::ScreenCaptureDyn for nika_screen::capture::ScreenBackend
+pub async fn nika_screen::capture::ScreenBackend::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_screen::capture::ScreenBackend::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_screen::capture::ScreenBackend::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> core::result::Result<nika_kernel_core::io::screen::FrameStream, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_screen::capture::ScreenBackend::list_displays(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>, nika_kernel_core::io::screen::ScreenError>
+impl<D> owo_colors::OwoColorize for nika_screen::capture::ScreenBackend
+impl<T, U> core::convert::Into<U> for nika_screen::capture::ScreenBackend where U: core::convert::From<T>
+pub fn nika_screen::capture::ScreenBackend::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_screen::capture::ScreenBackend where U: core::convert::Into<T>
+pub type nika_screen::capture::ScreenBackend::Error = core::convert::Infallible
+pub fn nika_screen::capture::ScreenBackend::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_screen::capture::ScreenBackend where U: core::convert::TryFrom<T>
+pub type nika_screen::capture::ScreenBackend::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_screen::capture::ScreenBackend::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_screen::capture::ScreenBackend where T: 'static + ?core::marker::Sized
+pub fn nika_screen::capture::ScreenBackend::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_screen::capture::ScreenBackend where T: ?core::marker::Sized
+pub fn nika_screen::capture::ScreenBackend::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_screen::capture::ScreenBackend where T: ?core::marker::Sized
+pub fn nika_screen::capture::ScreenBackend::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_screen::capture::ScreenBackend
+pub fn nika_screen::capture::ScreenBackend::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_screen::capture::ScreenBackend where T: 'static
+pub fn nika_screen::capture::ScreenBackend::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_screen::capture::ScreenBackend where T: ?core::marker::Sized
+impl<TraitVariantBlanketType> nika_kernel_core::io::screen::ScreenCapture for nika_screen::capture::ScreenBackend where TraitVariantBlanketType: nika_kernel_core::io::screen::ScreenCaptureDyn
+pub async fn nika_screen::capture::ScreenBackend::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_screen::capture::ScreenBackend::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_screen::capture::ScreenBackend::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>> + core::marker::Send)>>, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_screen::capture::ScreenBackend::list_displays(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>, nika_kernel_core::io::screen::ScreenError>
+pub mod nika_screen::error
+pub use nika_screen::error::ScreenError
+pub mod nika_screen::guards
+#[non_exhaustive] pub enum nika_screen::guards::Consent
+pub nika_screen::guards::Consent::Denied
+pub nika_screen::guards::Consent::Granted
+pub nika_screen::guards::Consent::Revoked
+pub nika_screen::guards::Consent::Unknown
+impl core::clone::Clone for nika_screen::guards::Consent
+pub fn nika_screen::guards::Consent::clone(&self) -> nika_screen::guards::Consent
+impl core::cmp::Eq for nika_screen::guards::Consent
+impl core::cmp::PartialEq for nika_screen::guards::Consent
+pub fn nika_screen::guards::Consent::eq(&self, other: &nika_screen::guards::Consent) -> bool
+impl core::fmt::Debug for nika_screen::guards::Consent
+pub fn nika_screen::guards::Consent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_screen::guards::Consent
+impl core::marker::StructuralPartialEq for nika_screen::guards::Consent
+impl<D> owo_colors::OwoColorize for nika_screen::guards::Consent
+impl<T, U> core::convert::Into<U> for nika_screen::guards::Consent where U: core::convert::From<T>
+pub fn nika_screen::guards::Consent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_screen::guards::Consent where U: core::convert::Into<T>
+pub type nika_screen::guards::Consent::Error = core::convert::Infallible
+pub fn nika_screen::guards::Consent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_screen::guards::Consent where U: core::convert::TryFrom<T>
+pub type nika_screen::guards::Consent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_screen::guards::Consent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_screen::guards::Consent where T: core::clone::Clone
+pub type nika_screen::guards::Consent::Owned = T
+pub fn nika_screen::guards::Consent::clone_into(&self, target: &mut T)
+pub fn nika_screen::guards::Consent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_screen::guards::Consent where T: 'static + ?core::marker::Sized
+pub fn nika_screen::guards::Consent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_screen::guards::Consent where T: ?core::marker::Sized
+pub fn nika_screen::guards::Consent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_screen::guards::Consent where T: ?core::marker::Sized
+pub fn nika_screen::guards::Consent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_screen::guards::Consent where T: core::clone::Clone
+pub unsafe fn nika_screen::guards::Consent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_screen::guards::Consent
+pub fn nika_screen::guards::Consent::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_screen::guards::Consent where T: 'static
+pub fn nika_screen::guards::Consent::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_screen::guards::Consent where T: ?core::marker::Sized
+#[non_exhaustive] pub struct nika_screen::guards::ConsentGate
+impl nika_screen::guards::ConsentGate
+pub fn nika_screen::guards::ConsentGate::check(&self) -> core::result::Result<(), nika_kernel_core::io::screen::ScreenError>
+pub fn nika_screen::guards::ConsentGate::deny(&self)
+pub fn nika_screen::guards::ConsentGate::grant(&self)
+pub fn nika_screen::guards::ConsentGate::new() -> Self
+pub fn nika_screen::guards::ConsentGate::revoke(&self)
+pub fn nika_screen::guards::ConsentGate::status(&self) -> nika_screen::guards::Consent
+impl core::default::Default for nika_screen::guards::ConsentGate
+pub fn nika_screen::guards::ConsentGate::default() -> nika_screen::guards::ConsentGate
+impl core::fmt::Debug for nika_screen::guards::ConsentGate
+pub fn nika_screen::guards::ConsentGate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_screen::guards::ConsentGate
+impl<T, U> core::convert::Into<U> for nika_screen::guards::ConsentGate where U: core::convert::From<T>
+pub fn nika_screen::guards::ConsentGate::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_screen::guards::ConsentGate where U: core::convert::Into<T>
+pub type nika_screen::guards::ConsentGate::Error = core::convert::Infallible
+pub fn nika_screen::guards::ConsentGate::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_screen::guards::ConsentGate where U: core::convert::TryFrom<T>
+pub type nika_screen::guards::ConsentGate::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_screen::guards::ConsentGate::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_screen::guards::ConsentGate where T: 'static + ?core::marker::Sized
+pub fn nika_screen::guards::ConsentGate::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_screen::guards::ConsentGate where T: ?core::marker::Sized
+pub fn nika_screen::guards::ConsentGate::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_screen::guards::ConsentGate where T: ?core::marker::Sized
+pub fn nika_screen::guards::ConsentGate::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_screen::guards::ConsentGate
+pub fn nika_screen::guards::ConsentGate::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_screen::guards::ConsentGate where T: 'static
+pub fn nika_screen::guards::ConsentGate::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_screen::guards::ConsentGate where T: ?core::marker::Sized
+#[non_exhaustive] pub struct nika_screen::guards::LedIndicator
+impl nika_screen::guards::LedIndicator
+pub fn nika_screen::guards::LedIndicator::engage(led: &alloc::sync::Arc<Self>) -> nika_screen::guards::LedScope
+pub fn nika_screen::guards::LedIndicator::is_engaged(&self) -> bool
+pub fn nika_screen::guards::LedIndicator::new() -> Self
+impl core::default::Default for nika_screen::guards::LedIndicator
+pub fn nika_screen::guards::LedIndicator::default() -> nika_screen::guards::LedIndicator
+impl core::fmt::Debug for nika_screen::guards::LedIndicator
+pub fn nika_screen::guards::LedIndicator::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_screen::guards::LedIndicator
+impl<T, U> core::convert::Into<U> for nika_screen::guards::LedIndicator where U: core::convert::From<T>
+pub fn nika_screen::guards::LedIndicator::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_screen::guards::LedIndicator where U: core::convert::Into<T>
+pub type nika_screen::guards::LedIndicator::Error = core::convert::Infallible
+pub fn nika_screen::guards::LedIndicator::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_screen::guards::LedIndicator where U: core::convert::TryFrom<T>
+pub type nika_screen::guards::LedIndicator::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_screen::guards::LedIndicator::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_screen::guards::LedIndicator where T: 'static + ?core::marker::Sized
+pub fn nika_screen::guards::LedIndicator::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_screen::guards::LedIndicator where T: ?core::marker::Sized
+pub fn nika_screen::guards::LedIndicator::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_screen::guards::LedIndicator where T: ?core::marker::Sized
+pub fn nika_screen::guards::LedIndicator::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_screen::guards::LedIndicator
+pub fn nika_screen::guards::LedIndicator::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_screen::guards::LedIndicator where T: 'static
+pub fn nika_screen::guards::LedIndicator::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_screen::guards::LedIndicator where T: ?core::marker::Sized
+#[non_exhaustive] pub struct nika_screen::guards::LedScope
+impl core::fmt::Debug for nika_screen::guards::LedScope
+pub fn nika_screen::guards::LedScope::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::drop::Drop for nika_screen::guards::LedScope
+pub fn nika_screen::guards::LedScope::drop(&mut self)
+impl<D> owo_colors::OwoColorize for nika_screen::guards::LedScope
+impl<T, U> core::convert::Into<U> for nika_screen::guards::LedScope where U: core::convert::From<T>
+pub fn nika_screen::guards::LedScope::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_screen::guards::LedScope where U: core::convert::Into<T>
+pub type nika_screen::guards::LedScope::Error = core::convert::Infallible
+pub fn nika_screen::guards::LedScope::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_screen::guards::LedScope where U: core::convert::TryFrom<T>
+pub type nika_screen::guards::LedScope::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_screen::guards::LedScope::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_screen::guards::LedScope where T: 'static + ?core::marker::Sized
+pub fn nika_screen::guards::LedScope::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_screen::guards::LedScope where T: ?core::marker::Sized
+pub fn nika_screen::guards::LedScope::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_screen::guards::LedScope where T: ?core::marker::Sized
+pub fn nika_screen::guards::LedScope::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_screen::guards::LedScope
+pub fn nika_screen::guards::LedScope::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_screen::guards::LedScope where T: 'static
+pub fn nika_screen::guards::LedScope::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_screen::guards::LedScope where T: ?core::marker::Sized
+#[non_exhaustive] pub enum nika_screen::Consent
+pub nika_screen::Consent::Denied
+pub nika_screen::Consent::Granted
+pub nika_screen::Consent::Revoked
+pub nika_screen::Consent::Unknown
+impl core::clone::Clone for nika_screen::guards::Consent
+pub fn nika_screen::guards::Consent::clone(&self) -> nika_screen::guards::Consent
+impl core::cmp::Eq for nika_screen::guards::Consent
+impl core::cmp::PartialEq for nika_screen::guards::Consent
+pub fn nika_screen::guards::Consent::eq(&self, other: &nika_screen::guards::Consent) -> bool
+impl core::fmt::Debug for nika_screen::guards::Consent
+pub fn nika_screen::guards::Consent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_screen::guards::Consent
+impl core::marker::StructuralPartialEq for nika_screen::guards::Consent
+impl<D> owo_colors::OwoColorize for nika_screen::guards::Consent
+impl<T, U> core::convert::Into<U> for nika_screen::guards::Consent where U: core::convert::From<T>
+pub fn nika_screen::guards::Consent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_screen::guards::Consent where U: core::convert::Into<T>
+pub type nika_screen::guards::Consent::Error = core::convert::Infallible
+pub fn nika_screen::guards::Consent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_screen::guards::Consent where U: core::convert::TryFrom<T>
+pub type nika_screen::guards::Consent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_screen::guards::Consent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_screen::guards::Consent where T: core::clone::Clone
+pub type nika_screen::guards::Consent::Owned = T
+pub fn nika_screen::guards::Consent::clone_into(&self, target: &mut T)
+pub fn nika_screen::guards::Consent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_screen::guards::Consent where T: 'static + ?core::marker::Sized
+pub fn nika_screen::guards::Consent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_screen::guards::Consent where T: ?core::marker::Sized
+pub fn nika_screen::guards::Consent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_screen::guards::Consent where T: ?core::marker::Sized
+pub fn nika_screen::guards::Consent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_screen::guards::Consent where T: core::clone::Clone
+pub unsafe fn nika_screen::guards::Consent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_screen::guards::Consent
+pub fn nika_screen::guards::Consent::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_screen::guards::Consent where T: 'static
+pub fn nika_screen::guards::Consent::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_screen::guards::Consent where T: ?core::marker::Sized
+#[non_exhaustive] pub struct nika_screen::ConsentGate
+impl nika_screen::guards::ConsentGate
+pub fn nika_screen::guards::ConsentGate::check(&self) -> core::result::Result<(), nika_kernel_core::io::screen::ScreenError>
+pub fn nika_screen::guards::ConsentGate::deny(&self)
+pub fn nika_screen::guards::ConsentGate::grant(&self)
+pub fn nika_screen::guards::ConsentGate::new() -> Self
+pub fn nika_screen::guards::ConsentGate::revoke(&self)
+pub fn nika_screen::guards::ConsentGate::status(&self) -> nika_screen::guards::Consent
+impl core::default::Default for nika_screen::guards::ConsentGate
+pub fn nika_screen::guards::ConsentGate::default() -> nika_screen::guards::ConsentGate
+impl core::fmt::Debug for nika_screen::guards::ConsentGate
+pub fn nika_screen::guards::ConsentGate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_screen::guards::ConsentGate
+impl<T, U> core::convert::Into<U> for nika_screen::guards::ConsentGate where U: core::convert::From<T>
+pub fn nika_screen::guards::ConsentGate::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_screen::guards::ConsentGate where U: core::convert::Into<T>
+pub type nika_screen::guards::ConsentGate::Error = core::convert::Infallible
+pub fn nika_screen::guards::ConsentGate::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_screen::guards::ConsentGate where U: core::convert::TryFrom<T>
+pub type nika_screen::guards::ConsentGate::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_screen::guards::ConsentGate::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_screen::guards::ConsentGate where T: 'static + ?core::marker::Sized
+pub fn nika_screen::guards::ConsentGate::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_screen::guards::ConsentGate where T: ?core::marker::Sized
+pub fn nika_screen::guards::ConsentGate::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_screen::guards::ConsentGate where T: ?core::marker::Sized
+pub fn nika_screen::guards::ConsentGate::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_screen::guards::ConsentGate
+pub fn nika_screen::guards::ConsentGate::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_screen::guards::ConsentGate where T: 'static
+pub fn nika_screen::guards::ConsentGate::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_screen::guards::ConsentGate where T: ?core::marker::Sized
+#[non_exhaustive] pub struct nika_screen::LedIndicator
+impl nika_screen::guards::LedIndicator
+pub fn nika_screen::guards::LedIndicator::engage(led: &alloc::sync::Arc<Self>) -> nika_screen::guards::LedScope
+pub fn nika_screen::guards::LedIndicator::is_engaged(&self) -> bool
+pub fn nika_screen::guards::LedIndicator::new() -> Self
+impl core::default::Default for nika_screen::guards::LedIndicator
+pub fn nika_screen::guards::LedIndicator::default() -> nika_screen::guards::LedIndicator
+impl core::fmt::Debug for nika_screen::guards::LedIndicator
+pub fn nika_screen::guards::LedIndicator::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_screen::guards::LedIndicator
+impl<T, U> core::convert::Into<U> for nika_screen::guards::LedIndicator where U: core::convert::From<T>
+pub fn nika_screen::guards::LedIndicator::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_screen::guards::LedIndicator where U: core::convert::Into<T>
+pub type nika_screen::guards::LedIndicator::Error = core::convert::Infallible
+pub fn nika_screen::guards::LedIndicator::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_screen::guards::LedIndicator where U: core::convert::TryFrom<T>
+pub type nika_screen::guards::LedIndicator::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_screen::guards::LedIndicator::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_screen::guards::LedIndicator where T: 'static + ?core::marker::Sized
+pub fn nika_screen::guards::LedIndicator::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_screen::guards::LedIndicator where T: ?core::marker::Sized
+pub fn nika_screen::guards::LedIndicator::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_screen::guards::LedIndicator where T: ?core::marker::Sized
+pub fn nika_screen::guards::LedIndicator::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_screen::guards::LedIndicator
+pub fn nika_screen::guards::LedIndicator::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_screen::guards::LedIndicator where T: 'static
+pub fn nika_screen::guards::LedIndicator::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_screen::guards::LedIndicator where T: ?core::marker::Sized
+#[non_exhaustive] pub struct nika_screen::LedScope
+impl core::fmt::Debug for nika_screen::guards::LedScope
+pub fn nika_screen::guards::LedScope::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::drop::Drop for nika_screen::guards::LedScope
+pub fn nika_screen::guards::LedScope::drop(&mut self)
+impl<D> owo_colors::OwoColorize for nika_screen::guards::LedScope
+impl<T, U> core::convert::Into<U> for nika_screen::guards::LedScope where U: core::convert::From<T>
+pub fn nika_screen::guards::LedScope::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_screen::guards::LedScope where U: core::convert::Into<T>
+pub type nika_screen::guards::LedScope::Error = core::convert::Infallible
+pub fn nika_screen::guards::LedScope::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_screen::guards::LedScope where U: core::convert::TryFrom<T>
+pub type nika_screen::guards::LedScope::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_screen::guards::LedScope::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_screen::guards::LedScope where T: 'static + ?core::marker::Sized
+pub fn nika_screen::guards::LedScope::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_screen::guards::LedScope where T: ?core::marker::Sized
+pub fn nika_screen::guards::LedScope::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_screen::guards::LedScope where T: ?core::marker::Sized
+pub fn nika_screen::guards::LedScope::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_screen::guards::LedScope
+pub fn nika_screen::guards::LedScope::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_screen::guards::LedScope where T: 'static
+pub fn nika_screen::guards::LedScope::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_screen::guards::LedScope where T: ?core::marker::Sized
+#[non_exhaustive] pub struct nika_screen::ScreenBackend
+impl nika_screen::capture::ScreenBackend
+pub fn nika_screen::capture::ScreenBackend::grant_consent(&self)
+pub fn nika_screen::capture::ScreenBackend::led_is_engaged(&self) -> bool
+pub fn nika_screen::capture::ScreenBackend::new() -> Self
+pub fn nika_screen::capture::ScreenBackend::revoke_consent(&self)
+impl core::default::Default for nika_screen::capture::ScreenBackend
+pub fn nika_screen::capture::ScreenBackend::default() -> nika_screen::capture::ScreenBackend
+impl core::fmt::Debug for nika_screen::capture::ScreenBackend
+pub fn nika_screen::capture::ScreenBackend::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_kernel_core::io::screen::ScreenCaptureDyn for nika_screen::capture::ScreenBackend
+pub async fn nika_screen::capture::ScreenBackend::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_screen::capture::ScreenBackend::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_screen::capture::ScreenBackend::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> core::result::Result<nika_kernel_core::io::screen::FrameStream, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_screen::capture::ScreenBackend::list_displays(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>, nika_kernel_core::io::screen::ScreenError>
+impl<D> owo_colors::OwoColorize for nika_screen::capture::ScreenBackend
+impl<T, U> core::convert::Into<U> for nika_screen::capture::ScreenBackend where U: core::convert::From<T>
+pub fn nika_screen::capture::ScreenBackend::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_screen::capture::ScreenBackend where U: core::convert::Into<T>
+pub type nika_screen::capture::ScreenBackend::Error = core::convert::Infallible
+pub fn nika_screen::capture::ScreenBackend::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_screen::capture::ScreenBackend where U: core::convert::TryFrom<T>
+pub type nika_screen::capture::ScreenBackend::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_screen::capture::ScreenBackend::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_screen::capture::ScreenBackend where T: 'static + ?core::marker::Sized
+pub fn nika_screen::capture::ScreenBackend::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_screen::capture::ScreenBackend where T: ?core::marker::Sized
+pub fn nika_screen::capture::ScreenBackend::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_screen::capture::ScreenBackend where T: ?core::marker::Sized
+pub fn nika_screen::capture::ScreenBackend::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_screen::capture::ScreenBackend
+pub fn nika_screen::capture::ScreenBackend::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_screen::capture::ScreenBackend where T: 'static
+pub fn nika_screen::capture::ScreenBackend::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_screen::capture::ScreenBackend where T: ?core::marker::Sized
+impl<TraitVariantBlanketType> nika_kernel_core::io::screen::ScreenCapture for nika_screen::capture::ScreenBackend where TraitVariantBlanketType: nika_kernel_core::io::screen::ScreenCaptureDyn
+pub async fn nika_screen::capture::ScreenBackend::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_screen::capture::ScreenBackend::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_screen::capture::ScreenBackend::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>> + core::marker::Send)>>, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_screen::capture::ScreenBackend::list_displays(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>, nika_kernel_core::io::screen::ScreenError>

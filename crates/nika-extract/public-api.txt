@@ -1,0 +1,121 @@
+pub mod nika_extract
+pub use nika_extract::EXTRACT_MODE_NAMES
+pub use nika_extract::ExtractMode
+pub use nika_extract::UnknownExtractMode
+pub mod nika_extract::link_header
+#[non_exhaustive] pub struct nika_extract::link_header::LinkEntry
+pub nika_extract::link_header::LinkEntry::href: alloc::string::String
+pub nika_extract::link_header::LinkEntry::hreflang: core::option::Option<alloc::string::String>
+pub nika_extract::link_header::LinkEntry::media_type: core::option::Option<alloc::string::String>
+pub nika_extract::link_header::LinkEntry::rel: core::option::Option<alloc::string::String>
+impl nika_extract::link_header::LinkEntry
+pub fn nika_extract::link_header::LinkEntry::has_rel(&self, relation: &str) -> bool
+impl core::clone::Clone for nika_extract::link_header::LinkEntry
+pub fn nika_extract::link_header::LinkEntry::clone(&self) -> nika_extract::link_header::LinkEntry
+impl core::cmp::Eq for nika_extract::link_header::LinkEntry
+impl core::cmp::PartialEq for nika_extract::link_header::LinkEntry
+pub fn nika_extract::link_header::LinkEntry::eq(&self, other: &nika_extract::link_header::LinkEntry) -> bool
+impl core::fmt::Debug for nika_extract::link_header::LinkEntry
+pub fn nika_extract::link_header::LinkEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_extract::link_header::LinkEntry
+impl<T, U> core::convert::Into<U> for nika_extract::link_header::LinkEntry where U: core::convert::From<T>
+pub fn nika_extract::link_header::LinkEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_extract::link_header::LinkEntry where U: core::convert::Into<T>
+pub type nika_extract::link_header::LinkEntry::Error = core::convert::Infallible
+pub fn nika_extract::link_header::LinkEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_extract::link_header::LinkEntry where U: core::convert::TryFrom<T>
+pub type nika_extract::link_header::LinkEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_extract::link_header::LinkEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_extract::link_header::LinkEntry where T: core::clone::Clone
+pub type nika_extract::link_header::LinkEntry::Owned = T
+pub fn nika_extract::link_header::LinkEntry::clone_into(&self, target: &mut T)
+pub fn nika_extract::link_header::LinkEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_extract::link_header::LinkEntry where T: 'static + ?core::marker::Sized
+pub fn nika_extract::link_header::LinkEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_extract::link_header::LinkEntry where T: ?core::marker::Sized
+pub fn nika_extract::link_header::LinkEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_extract::link_header::LinkEntry where T: ?core::marker::Sized
+pub fn nika_extract::link_header::LinkEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_extract::link_header::LinkEntry where T: core::clone::Clone
+pub unsafe fn nika_extract::link_header::LinkEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_extract::link_header::LinkEntry
+pub fn nika_extract::link_header::LinkEntry::from(t: T) -> T
+pub fn nika_extract::link_header::alternates(entries: &[nika_extract::link_header::LinkEntry]) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_extract::link_header::parse_link_header(value: &str) -> alloc::vec::Vec<nika_extract::link_header::LinkEntry>
+#[non_exhaustive] pub enum nika_extract::ExtractError
+pub nika_extract::ExtractError::Feed
+pub nika_extract::ExtractError::Feed::reason: alloc::string::String
+pub nika_extract::ExtractError::Html
+pub nika_extract::ExtractError::Html::mode: nika_types::extract::ExtractMode
+pub nika_extract::ExtractError::Html::reason: alloc::string::String
+pub nika_extract::ExtractError::MissingArg
+pub nika_extract::ExtractError::MissingArg::arg: &'static str
+pub nika_extract::ExtractError::MissingArg::mode: nika_types::extract::ExtractMode
+pub nika_extract::ExtractError::Selector
+pub nika_extract::ExtractError::Selector::reason: alloc::string::String
+pub nika_extract::ExtractError::Selector::selector: alloc::string::String
+pub nika_extract::ExtractError::Sitemap
+pub nika_extract::ExtractError::Sitemap::reason: alloc::string::String
+pub nika_extract::ExtractError::Unsupported
+pub nika_extract::ExtractError::Unsupported::hint: &'static str
+pub nika_extract::ExtractError::Unsupported::mode: nika_types::extract::ExtractMode
+impl core::error::Error for nika_extract::ExtractError
+impl core::fmt::Debug for nika_extract::ExtractError
+pub fn nika_extract::ExtractError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_extract::ExtractError
+pub fn nika_extract::ExtractError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_extract::ExtractError
+impl<T, U> core::convert::Into<U> for nika_extract::ExtractError where U: core::convert::From<T>
+pub fn nika_extract::ExtractError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_extract::ExtractError where U: core::convert::Into<T>
+pub type nika_extract::ExtractError::Error = core::convert::Infallible
+pub fn nika_extract::ExtractError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_extract::ExtractError where U: core::convert::TryFrom<T>
+pub type nika_extract::ExtractError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_extract::ExtractError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_extract::ExtractError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_extract::ExtractError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_extract::ExtractError where T: 'static + ?core::marker::Sized
+pub fn nika_extract::ExtractError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_extract::ExtractError where T: ?core::marker::Sized
+pub fn nika_extract::ExtractError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_extract::ExtractError where T: ?core::marker::Sized
+pub fn nika_extract::ExtractError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_extract::ExtractError
+pub fn nika_extract::ExtractError::from(t: T) -> T
+#[non_exhaustive] pub struct nika_extract::ExtractOptions<'a>
+pub nika_extract::ExtractOptions::base_url: core::option::Option<&'a str>
+pub nika_extract::ExtractOptions::selector: core::option::Option<&'a str>
+impl nika_extract::ExtractOptions<'_>
+pub fn nika_extract::ExtractOptions<'_>::new() -> Self
+impl<'a> core::clone::Clone for nika_extract::ExtractOptions<'a>
+pub fn nika_extract::ExtractOptions<'a>::clone(&self) -> nika_extract::ExtractOptions<'a>
+impl<'a> core::default::Default for nika_extract::ExtractOptions<'a>
+pub fn nika_extract::ExtractOptions<'a>::default() -> nika_extract::ExtractOptions<'a>
+impl<'a> core::fmt::Debug for nika_extract::ExtractOptions<'a>
+pub fn nika_extract::ExtractOptions<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_extract::ExtractOptions<'a>
+impl<T, U> core::convert::Into<U> for nika_extract::ExtractOptions<'a> where U: core::convert::From<T>
+pub fn nika_extract::ExtractOptions<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_extract::ExtractOptions<'a> where U: core::convert::Into<T>
+pub type nika_extract::ExtractOptions<'a>::Error = core::convert::Infallible
+pub fn nika_extract::ExtractOptions<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_extract::ExtractOptions<'a> where U: core::convert::TryFrom<T>
+pub type nika_extract::ExtractOptions<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_extract::ExtractOptions<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_extract::ExtractOptions<'a> where T: core::clone::Clone
+pub type nika_extract::ExtractOptions<'a>::Owned = T
+pub fn nika_extract::ExtractOptions<'a>::clone_into(&self, target: &mut T)
+pub fn nika_extract::ExtractOptions<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_extract::ExtractOptions<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_extract::ExtractOptions<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_extract::ExtractOptions<'a> where T: ?core::marker::Sized
+pub fn nika_extract::ExtractOptions<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_extract::ExtractOptions<'a> where T: ?core::marker::Sized
+pub fn nika_extract::ExtractOptions<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_extract::ExtractOptions<'a> where T: core::clone::Clone
+pub unsafe fn nika_extract::ExtractOptions<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_extract::ExtractOptions<'a>
+pub fn nika_extract::ExtractOptions<'a>::from(t: T) -> T
+pub fn nika_extract::extract(body: &str, mode: nika_types::extract::ExtractMode, opts: &nika_extract::ExtractOptions<'_>) -> core::result::Result<serde_json::value::Value, nika_extract::ExtractError>
+pub fn nika_extract::feed_from_bytes(body: &[u8]) -> core::result::Result<serde_json::value::Value, nika_extract::ExtractError>

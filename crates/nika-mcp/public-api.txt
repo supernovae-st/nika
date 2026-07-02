@@ -1,0 +1,33 @@
+pub mod nika_mcp
+#[non_exhaustive] pub enum nika_mcp::McpError
+pub nika_mcp::McpError::Transport(std::io::error::Error)
+impl core::convert::From<std::io::error::Error> for nika_mcp::McpError
+pub fn nika_mcp::McpError::from(source: std::io::error::Error) -> Self
+impl core::error::Error for nika_mcp::McpError
+pub fn nika_mcp::McpError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_mcp::McpError
+pub fn nika_mcp::McpError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_mcp::McpError
+pub fn nika_mcp::McpError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_mcp::McpError
+impl<T, U> core::convert::Into<U> for nika_mcp::McpError where U: core::convert::From<T>
+pub fn nika_mcp::McpError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::McpError where U: core::convert::Into<T>
+pub type nika_mcp::McpError::Error = core::convert::Infallible
+pub fn nika_mcp::McpError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::McpError where U: core::convert::TryFrom<T>
+pub type nika_mcp::McpError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::McpError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_mcp::McpError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_mcp::McpError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_mcp::McpError where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::McpError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::McpError where T: ?core::marker::Sized
+pub fn nika_mcp::McpError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::McpError where T: ?core::marker::Sized
+pub fn nika_mcp::McpError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_mcp::McpError
+pub fn nika_mcp::McpError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_mcp::McpError where T: 'static
+pub fn nika_mcp::McpError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_mcp::run_stdio() -> core::result::Result<(), nika_mcp::McpError>

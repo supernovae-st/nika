@@ -1,0 +1,182 @@
+pub mod nika_lsp
+pub mod nika_lsp::analysis
+pub mod nika_lsp::analysis::completion
+pub fn nika_lsp::analysis::completion::completion(text: &str, offset: usize) -> alloc::vec::Vec<lsp_types::completion::CompletionItem>
+pub mod nika_lsp::analysis::definition
+pub fn nika_lsp::analysis::definition::definition(uri: &lsp_types::uri::Uri, text: &str, offset: usize) -> core::option::Option<lsp_types::Location>
+pub mod nika_lsp::analysis::diagnostics
+pub fn nika_lsp::analysis::diagnostics::from_parse_error(index: &nika_lsp::analysis::position::LineIndex, err: &nika_schema::error::SchemaError) -> lsp_types::Diagnostic
+pub fn nika_lsp::analysis::diagnostics::from_report(index: &nika_lsp::analysis::position::LineIndex, report: &nika_schema::check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<lsp_types::Diagnostic>
+pub mod nika_lsp::analysis::document
+pub struct nika_lsp::analysis::document::Document
+impl nika_lsp::analysis::document::Document
+pub fn nika_lsp::analysis::document::Document::apply_change(&mut self, change: &lsp_types::TextDocumentContentChangeEvent)
+pub fn nika_lsp::analysis::document::Document::apply_changes(&mut self, changes: &[lsp_types::TextDocumentContentChangeEvent])
+pub fn nika_lsp::analysis::document::Document::line_index(&self) -> &nika_lsp::analysis::position::LineIndex
+pub fn nika_lsp::analysis::document::Document::new(text: &str) -> Self
+pub fn nika_lsp::analysis::document::Document::set_text(&mut self, text: &str)
+pub fn nika_lsp::analysis::document::Document::text(&self) -> &str
+impl core::clone::Clone for nika_lsp::analysis::document::Document
+pub fn nika_lsp::analysis::document::Document::clone(&self) -> nika_lsp::analysis::document::Document
+impl core::fmt::Debug for nika_lsp::analysis::document::Document
+pub fn nika_lsp::analysis::document::Document::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_lsp::analysis::document::Document
+impl<T, U> core::convert::Into<U> for nika_lsp::analysis::document::Document where U: core::convert::From<T>
+pub fn nika_lsp::analysis::document::Document::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_lsp::analysis::document::Document where U: core::convert::Into<T>
+pub type nika_lsp::analysis::document::Document::Error = core::convert::Infallible
+pub fn nika_lsp::analysis::document::Document::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_lsp::analysis::document::Document where U: core::convert::TryFrom<T>
+pub type nika_lsp::analysis::document::Document::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_lsp::analysis::document::Document::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_lsp::analysis::document::Document where T: core::clone::Clone
+pub type nika_lsp::analysis::document::Document::Owned = T
+pub fn nika_lsp::analysis::document::Document::clone_into(&self, target: &mut T)
+pub fn nika_lsp::analysis::document::Document::to_owned(&self) -> T
+impl<T> core::any::Any for nika_lsp::analysis::document::Document where T: 'static + ?core::marker::Sized
+pub fn nika_lsp::analysis::document::Document::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_lsp::analysis::document::Document where T: ?core::marker::Sized
+pub fn nika_lsp::analysis::document::Document::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_lsp::analysis::document::Document where T: ?core::marker::Sized
+pub fn nika_lsp::analysis::document::Document::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_lsp::analysis::document::Document where T: core::clone::Clone
+pub unsafe fn nika_lsp::analysis::document::Document::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_lsp::analysis::document::Document
+pub fn nika_lsp::analysis::document::Document::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_lsp::analysis::document::Document where T: core::clone::Clone
+pub fn nika_lsp::analysis::document::Document::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_lsp::analysis::document::Document where T: 'static
+pub fn nika_lsp::analysis::document::Document::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub mod nika_lsp::analysis::hover
+pub fn nika_lsp::analysis::hover::hover(text: &str, offset: usize) -> core::option::Option<lsp_types::hover::Hover>
+pub mod nika_lsp::analysis::position
+pub struct nika_lsp::analysis::position::LineIndex
+impl nika_lsp::analysis::position::LineIndex
+pub fn nika_lsp::analysis::position::LineIndex::line_count(&self) -> usize
+pub fn nika_lsp::analysis::position::LineIndex::new(text: &str) -> Self
+pub fn nika_lsp::analysis::position::LineIndex::offset(&self, pos: lsp_types::Position) -> usize
+pub fn nika_lsp::analysis::position::LineIndex::position(&self, offset: usize) -> lsp_types::Position
+pub fn nika_lsp::analysis::position::LineIndex::text(&self) -> &str
+impl core::clone::Clone for nika_lsp::analysis::position::LineIndex
+pub fn nika_lsp::analysis::position::LineIndex::clone(&self) -> nika_lsp::analysis::position::LineIndex
+impl core::fmt::Debug for nika_lsp::analysis::position::LineIndex
+pub fn nika_lsp::analysis::position::LineIndex::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_lsp::analysis::position::LineIndex
+impl<T, U> core::convert::Into<U> for nika_lsp::analysis::position::LineIndex where U: core::convert::From<T>
+pub fn nika_lsp::analysis::position::LineIndex::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_lsp::analysis::position::LineIndex where U: core::convert::Into<T>
+pub type nika_lsp::analysis::position::LineIndex::Error = core::convert::Infallible
+pub fn nika_lsp::analysis::position::LineIndex::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_lsp::analysis::position::LineIndex where U: core::convert::TryFrom<T>
+pub type nika_lsp::analysis::position::LineIndex::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_lsp::analysis::position::LineIndex::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_lsp::analysis::position::LineIndex where T: core::clone::Clone
+pub type nika_lsp::analysis::position::LineIndex::Owned = T
+pub fn nika_lsp::analysis::position::LineIndex::clone_into(&self, target: &mut T)
+pub fn nika_lsp::analysis::position::LineIndex::to_owned(&self) -> T
+impl<T> core::any::Any for nika_lsp::analysis::position::LineIndex where T: 'static + ?core::marker::Sized
+pub fn nika_lsp::analysis::position::LineIndex::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_lsp::analysis::position::LineIndex where T: ?core::marker::Sized
+pub fn nika_lsp::analysis::position::LineIndex::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_lsp::analysis::position::LineIndex where T: ?core::marker::Sized
+pub fn nika_lsp::analysis::position::LineIndex::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_lsp::analysis::position::LineIndex where T: core::clone::Clone
+pub unsafe fn nika_lsp::analysis::position::LineIndex::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_lsp::analysis::position::LineIndex
+pub fn nika_lsp::analysis::position::LineIndex::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_lsp::analysis::position::LineIndex where T: core::clone::Clone
+pub fn nika_lsp::analysis::position::LineIndex::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_lsp::analysis::position::LineIndex where T: 'static
+pub fn nika_lsp::analysis::position::LineIndex::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub mod nika_lsp::analysis::symbols
+pub fn nika_lsp::analysis::symbols::document_symbols(text: &str) -> alloc::vec::Vec<lsp_types::document_symbols::DocumentSymbol>
+pub mod nika_lsp::analysis::vocab
+pub struct nika_lsp::analysis::vocab::Entry
+pub nika_lsp::analysis::vocab::Entry::doc: &'static str
+pub nika_lsp::analysis::vocab::Entry::name: &'static str
+impl core::clone::Clone for nika_lsp::analysis::vocab::Entry
+pub fn nika_lsp::analysis::vocab::Entry::clone(&self) -> nika_lsp::analysis::vocab::Entry
+impl core::cmp::Eq for nika_lsp::analysis::vocab::Entry
+impl core::cmp::PartialEq for nika_lsp::analysis::vocab::Entry
+pub fn nika_lsp::analysis::vocab::Entry::eq(&self, other: &nika_lsp::analysis::vocab::Entry) -> bool
+impl core::fmt::Debug for nika_lsp::analysis::vocab::Entry
+pub fn nika_lsp::analysis::vocab::Entry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_lsp::analysis::vocab::Entry
+impl core::marker::StructuralPartialEq for nika_lsp::analysis::vocab::Entry
+impl<D> owo_colors::OwoColorize for nika_lsp::analysis::vocab::Entry
+impl<Q, K> equivalent::Equivalent<K> for nika_lsp::analysis::vocab::Entry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_lsp::analysis::vocab::Entry::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_lsp::analysis::vocab::Entry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_lsp::analysis::vocab::Entry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_lsp::analysis::vocab::Entry::equivalent(&self, key: &K) -> bool
+pub fn nika_lsp::analysis::vocab::Entry::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_lsp::analysis::vocab::Entry where U: core::convert::From<T>
+pub fn nika_lsp::analysis::vocab::Entry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_lsp::analysis::vocab::Entry where U: core::convert::Into<T>
+pub type nika_lsp::analysis::vocab::Entry::Error = core::convert::Infallible
+pub fn nika_lsp::analysis::vocab::Entry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_lsp::analysis::vocab::Entry where U: core::convert::TryFrom<T>
+pub type nika_lsp::analysis::vocab::Entry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_lsp::analysis::vocab::Entry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_lsp::analysis::vocab::Entry where T: core::clone::Clone
+pub type nika_lsp::analysis::vocab::Entry::Owned = T
+pub fn nika_lsp::analysis::vocab::Entry::clone_into(&self, target: &mut T)
+pub fn nika_lsp::analysis::vocab::Entry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_lsp::analysis::vocab::Entry where T: 'static + ?core::marker::Sized
+pub fn nika_lsp::analysis::vocab::Entry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_lsp::analysis::vocab::Entry where T: ?core::marker::Sized
+pub fn nika_lsp::analysis::vocab::Entry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_lsp::analysis::vocab::Entry where T: ?core::marker::Sized
+pub fn nika_lsp::analysis::vocab::Entry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_lsp::analysis::vocab::Entry where T: core::clone::Clone
+pub unsafe fn nika_lsp::analysis::vocab::Entry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_lsp::analysis::vocab::Entry
+pub fn nika_lsp::analysis::vocab::Entry::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_lsp::analysis::vocab::Entry where T: core::clone::Clone
+pub fn nika_lsp::analysis::vocab::Entry::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_lsp::analysis::vocab::Entry where T: 'static
+pub fn nika_lsp::analysis::vocab::Entry::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_lsp::analysis::vocab::Entry where T: core::marker::Copy
+pub fn nika_lsp::analysis::vocab::Entry::as_out(&mut self) -> outref::Out<'_, T>
+pub const nika_lsp::analysis::vocab::PROVIDERS: &[nika_lsp::analysis::vocab::Entry]
+pub const nika_lsp::analysis::vocab::TASK_FIELD_KEYS: &[nika_lsp::analysis::vocab::Entry]
+pub const nika_lsp::analysis::vocab::TOP_LEVEL_KEYS: &[nika_lsp::analysis::vocab::Entry]
+pub const nika_lsp::analysis::vocab::VERBS: &[nika_lsp::analysis::vocab::Entry]
+pub fn nika_lsp::analysis::vocab::lookup(table: &[nika_lsp::analysis::vocab::Entry], name: &str) -> core::option::Option<nika_lsp::analysis::vocab::Entry>
+pub mod nika_lsp::capabilities
+pub fn nika_lsp::capabilities::server_capabilities() -> lsp_types::ServerCapabilities
+pub mod nika_lsp::error
+#[non_exhaustive] pub enum nika_lsp::error::LspError
+pub nika_lsp::error::LspError::Protocol(alloc::string::String)
+pub nika_lsp::error::LspError::Serde(serde_json::error::Error)
+pub nika_lsp::error::LspError::Transport(std::io::error::Error)
+impl core::convert::From<serde_json::error::Error> for nika_lsp::error::LspError
+pub fn nika_lsp::error::LspError::from(err: serde_json::error::Error) -> Self
+impl core::error::Error for nika_lsp::error::LspError
+pub fn nika_lsp::error::LspError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_lsp::error::LspError
+pub fn nika_lsp::error::LspError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_lsp::error::LspError
+pub fn nika_lsp::error::LspError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_lsp::error::LspError
+impl<T, U> core::convert::Into<U> for nika_lsp::error::LspError where U: core::convert::From<T>
+pub fn nika_lsp::error::LspError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_lsp::error::LspError where U: core::convert::Into<T>
+pub type nika_lsp::error::LspError::Error = core::convert::Infallible
+pub fn nika_lsp::error::LspError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_lsp::error::LspError where U: core::convert::TryFrom<T>
+pub type nika_lsp::error::LspError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_lsp::error::LspError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_lsp::error::LspError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_lsp::error::LspError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_lsp::error::LspError where T: 'static + ?core::marker::Sized
+pub fn nika_lsp::error::LspError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_lsp::error::LspError where T: ?core::marker::Sized
+pub fn nika_lsp::error::LspError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_lsp::error::LspError where T: ?core::marker::Sized
+pub fn nika_lsp::error::LspError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_lsp::error::LspError
+pub fn nika_lsp::error::LspError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_lsp::error::LspError where T: 'static
+pub fn nika_lsp::error::LspError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_lsp::run_stdio() -> core::result::Result<(), nika_lsp::error::LspError>

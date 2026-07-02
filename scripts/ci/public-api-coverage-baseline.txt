@@ -65,3 +65,18 @@ nika-verb-exec
 nika-verb-infer
 nika-verb-invoke
 nika-verb-agent
+# --- 2026-07-02: the uncovered ratchet cohort closed (8 crates · 27/38 → 35/38) ---
+# The remaining L2-L4 + effect crates locked in one pass; the public-api.yml
+# diff now covers the parser/analyzer/check surface (nika-schema), the runtime,
+# both interface crates (lsp · mcp), the extract + local-inference + screen
+# effect crates, and the seatbelt sandbox. NOTE: nika-schema exposes ~4.4k pub
+# items — a future audit should review whether that L0 surface is over-broad
+# (pub → pub(crate)); the lock stops it GROWING further unaudited.
+nika-extract
+nika-infer-local
+nika-lsp
+nika-mcp
+nika-runtime
+nika-sandbox-seatbelt
+nika-schema
+nika-screen

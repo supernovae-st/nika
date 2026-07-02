@@ -1,0 +1,40 @@
+pub mod nika_sandbox_seatbelt
+pub struct nika_sandbox_seatbelt::SeatbeltSandbox
+impl nika_sandbox_seatbelt::SeatbeltSandbox
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::available() -> bool
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::new() -> Self
+impl core::clone::Clone for nika_sandbox_seatbelt::SeatbeltSandbox
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::clone(&self) -> nika_sandbox_seatbelt::SeatbeltSandbox
+impl core::default::Default for nika_sandbox_seatbelt::SeatbeltSandbox
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::default() -> nika_sandbox_seatbelt::SeatbeltSandbox
+impl core::fmt::Debug for nika_sandbox_seatbelt::SeatbeltSandbox
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_sandbox_seatbelt::SeatbeltSandbox
+impl nika_kernel_core::io::command_sandbox::CommandSandbox for nika_sandbox_seatbelt::SeatbeltSandbox
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::backend(&self) -> &'static str
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::confine(&self, spec: &nika_kernel_core::io::process::SandboxSpec, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellCommand, nika_kernel_core::io::command_sandbox::CommandSandboxError>
+impl<D> owo_colors::OwoColorize for nika_sandbox_seatbelt::SeatbeltSandbox
+impl<T, U> core::convert::Into<U> for nika_sandbox_seatbelt::SeatbeltSandbox where U: core::convert::From<T>
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_sandbox_seatbelt::SeatbeltSandbox where U: core::convert::Into<T>
+pub type nika_sandbox_seatbelt::SeatbeltSandbox::Error = core::convert::Infallible
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_sandbox_seatbelt::SeatbeltSandbox where U: core::convert::TryFrom<T>
+pub type nika_sandbox_seatbelt::SeatbeltSandbox::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_sandbox_seatbelt::SeatbeltSandbox where T: core::clone::Clone
+pub type nika_sandbox_seatbelt::SeatbeltSandbox::Owned = T
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::clone_into(&self, target: &mut T)
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::to_owned(&self) -> T
+impl<T> core::any::Any for nika_sandbox_seatbelt::SeatbeltSandbox where T: 'static + ?core::marker::Sized
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_sandbox_seatbelt::SeatbeltSandbox where T: ?core::marker::Sized
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_sandbox_seatbelt::SeatbeltSandbox where T: ?core::marker::Sized
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_sandbox_seatbelt::SeatbeltSandbox where T: core::clone::Clone
+pub unsafe fn nika_sandbox_seatbelt::SeatbeltSandbox::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_sandbox_seatbelt::SeatbeltSandbox
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_sandbox_seatbelt::SeatbeltSandbox where T: 'static
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::as_any(&self) -> &(dyn core::any::Any + 'static)
