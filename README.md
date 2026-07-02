@@ -1,6 +1,6 @@
 # Nika
 
-> **Intent as Code.** The workflow language for AI — one file, 4 verbs,
+> **Intent as Code.** The workflow language for AI: one file, 4 verbs,
 > one binary.
 
 [![License](https://img.shields.io/badge/engine-AGPL--3.0--or--later-blue.svg)](LICENSE)
@@ -9,13 +9,13 @@
 [![CI](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml/badge.svg?branch=main)](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml)
 
 Useful AI work shouldn't disappear into chats. **Nika turns repeatable AI
-work into files you can run, review, diff and share** — if you do the same
+work into files you can run, review, diff and share.** If you do the same
 AI task twice, make it a workflow.
 
-A Nika workflow is just a file — readable, portable, verifiable. It runs
+A Nika workflow is just a file: readable, portable, verifiable. It runs
 locally, on whichever LLM you choose, with no cloud required. The language
 is an open [Apache-2.0 spec](https://github.com/supernovae-st/nika-spec);
-this repo is the reference engine, a single Rust binary (AGPL-3.0) — the
+this repo is the reference engine, a single Rust binary (AGPL-3.0). The
 way SQL pairs with PostgreSQL, or the Dockerfile with Docker.
 
 ## Does it run today?
@@ -24,13 +24,13 @@ Yes.
 
 ```sh
 brew install supernovae-st/tap/nika    # or: curl -LsSf https://nika.sh/install.sh | sh
-nika examples run 01-hello --model mock/echo   # zero setup — no key, no model server
+nika examples run 01-hello --model mock/echo   # zero setup: no key, no model server
 ```
 
-![nika check audits the workflow — plan, cost, secrets, types — then nika run executes it locally](media/nika-hero.gif)
+![nika check audits the workflow (plan, cost, secrets, types), then nika run executes it locally](media/nika-hero.gif)
 
-Nika audits a workflow **before a single token is spent** — plan, cost
-ceiling, secret flows, types, tool args — then runs it:
+Nika audits a workflow **before a single token is spent** (plan, cost
+ceiling, secret flows, types, tool args), then runs it:
 
 ```text
 $ nika check brief.nika.yaml
@@ -52,18 +52,18 @@ $ nika run brief.nika.yaml
 ## What a workflow looks like
 
 ```yaml
-# review.nika.yaml — read a PR diff, judge its risk, comment only when it's high.
+# review.nika.yaml: read a PR diff, judge its risk, comment only when it's high.
 nika: v1
 workflow: pr-risk-review
-model: ollama/llama3.1               # local by default — swap to any provider
+model: ollama/llama3.1               # local by default. swap to any provider
 
 tasks:
-  - id: diff                          # exec — a read-only shell command
+  - id: diff                          # exec: a read-only shell command
     exec:
       command: "git diff origin/main...HEAD"
       capture: structured
 
-  - id: assess                        # infer — structured LLM judgment
+  - id: assess                        # infer: structured LLM judgment
     with: { patch: ${{ tasks.diff.output.stdout }} }
     infer:
       prompt: "Risk-assess this diff (secrets, breaking changes, missing tests). Be terse.\n${{ with.patch }}"
@@ -73,7 +73,7 @@ tasks:
         properties:
           risk: { type: string, enum: [low, medium, high] }
 
-  - id: comment                       # invoke — the only write, gated on the verdict
+  - id: comment                       # invoke: the only write, gated on the verdict
     when: ${{ tasks.assess.output.risk == 'high' }}
     invoke:
       tool: "mcp:github/pr-comment"
@@ -82,7 +82,7 @@ tasks:
 
 ## Pick a workflow
 
-The binary embeds a versioned pack of runnable examples — browse with
+The binary embeds a versioned pack of runnable examples. Browse with
 `nika examples list`, read one with `nika examples show <slug>`, preview any
 of them offline with `--model mock/echo`:
 
@@ -99,30 +99,30 @@ of them offline with `--model mock/echo`:
 | Build a Monday operating brief | `nika examples run showcase/t4-ceo-monday-brief` | founders |
 
 The full gallery (27 workflows + 6 templates) lives in
-[`examples/`](examples/) — foundation patterns, business showcases, and the
+[`examples/`](examples/): foundation patterns, business showcases, and the
 skeletons `nika new --from <template>` instantiates.
 
 ## The model
 
 Four verbs, and nothing else. A small core that composes into arbitrary
-real-world workflows — the Unix and SQL discipline of "small surface, large
+real-world workflows. The Unix and SQL discipline of "small surface, large
 composition."
 
 | Verb | What it does |
 |---|---|
-| `infer` | Call an LLM — any provider, local or hosted |
+| `infer` | Call an LLM. Any provider, local or hosted |
 | `exec` | Run a shell command |
 | `invoke` | Call a tool or MCP server (an HTTP fetch, GitHub, a builtin…) |
 | `agent` | Run an autonomous loop with tools, until the task is done |
 
-Everything sits under one frozen, versioned envelope — `nika: v1` — that won't
+Everything sits under one frozen, versioned envelope, `nika: v1`, that won't
 break. Three properties hold across every workflow:
 
-- **Provider-agnostic, local-first** — local Ollama or LM Studio, or any API.
+- **Provider-agnostic, local-first.** Local Ollama or LM Studio, or any API.
   Your workflow doesn't change when the model does.
-- **Safe by construction** — a read-XOR-write capability model. A step that
+- **Safe by construction.** A read-XOR-write capability model. A step that
   reads cannot silently write; every effect is explicit and gated.
-- **Reproducible** — the file and its execution trace are an auditable,
+- **Reproducible.** The file and its execution trace are an auditable,
   re-runnable record.
 
 ```mermaid
@@ -136,13 +136,13 @@ flowchart LR
 
 ## Why Nika
 
-The closest analogues aren't products — they're **standards**. SQL. The
+The closest analogues aren't products. They're **standards**. SQL. The
 Dockerfile. A portable specification with a reference engine. The language is
 the contribution, not a product to sell.
 
 As AI agents start acting on the real world, the interface where they act
 can't be free text (too vague) or raw code (too risky). It has to be a
-**verifiable action language** — one an AI writes, a human reviews and approves,
+**verifiable action language**: one an AI writes, a human reviews and approves,
 and a machine runs deterministically. Kept open and sovereign, not locked
 inside one vendor's cloud.
 
@@ -154,7 +154,7 @@ no cloud required · bring-your-own-LLM.
 
 Nika is built in the open.
 
-The **language** — the `nika: v1` envelope and its four verbs — is stable and
+The **language** (the `nika: v1` envelope and its four verbs) is stable and
 won't break. The **engine** is a strict, modular Rust workspace. The latest
 tagged public release is **v0.91.0**; `main` moves immediately to the next
 `-dev` version after each release so local contributor binaries cannot be
@@ -164,7 +164,7 @@ checklist, not by a date. The code, the
 [example workflows](examples/) are all readable, and development happens on
 `main` in the open.
 
-The `nika: v1` language envelope is frozen forever — a separate axis from the
+The `nika: v1` language envelope is frozen forever. It is a separate axis from the
 engine version. Every release is complete for its declared scope; no
 half-features parked behind a future version.
 
@@ -173,7 +173,7 @@ half-features parked behind a future version.
 Install (macOS · Linux):
 
 ```sh
-# Homebrew (macOS · Linux) — on your PATH immediately
+# Homebrew (macOS · Linux): on your PATH immediately
 brew install supernovae-st/tap/nika
 nika --version
 
@@ -187,7 +187,7 @@ curl -LsSf https://nika.sh/install.sh | sh
 > [latest release](https://github.com/supernovae-st/nika/releases/latest), verify
 > with `sha256sum -c SHA256SUMS --ignore-missing`, then move `nika` onto your `PATH`.
 
-Your first workflow runs with **zero setup** — no model, no API key:
+Your first workflow runs with **zero setup**: no model, no API key:
 
 ```sh
 cat > hello.nika.yaml <<'YAML'
@@ -199,15 +199,15 @@ tasks:
       command: "echo hello from nika"
 YAML
 
-nika check hello.nika.yaml   # static audit — before a single token is spent
+nika check hello.nika.yaml   # static audit, before a single token is spent
 nika run hello.nika.yaml     # execute locally
 ```
 
 Adding an AI step? With no provider handy, the built-in `mock/echo` model lets
-you see the shape offline — swap it for a real model when ready:
+you see the shape offline. Swap it for a real model when ready:
 
 ```yaml
-model: mock/echo             # → ollama/llama3.1, mistral/…, anthropic/… when ready
+model: mock/echo             # swap for ollama/llama3.1, mistral/..., anthropic/... when ready
 tasks:
   - id: greet
     infer:
@@ -222,7 +222,7 @@ nika doctor                  # provider keys + local servers, with the exact fix
 nika init                    # schema wiring + AGENTS.md for this repo
 nika wire cursor             # optional · explicit MCP wiring for Cursor agents
 nika examples list           # browse the embedded examples
-nika examples run 01-hello --model mock/echo   # offline · swap the model when ready
+nika examples run 01-hello --model mock/echo   # offline. swap the model when ready
 ```
 
 From source (contributors): `git clone https://github.com/supernovae-st/nika.git && cd nika && cargo test --workspace --lib`. End-user docs: [docs.nika.sh](https://docs.nika.sh).
@@ -231,37 +231,37 @@ From source (contributors): `git clone https://github.com/supernovae-st/nika.git
 
 Nika is built to be **written by agents and reviewed by you**. `nika init`
 drops the schema wiring + `AGENTS.md` into your repo so Claude Code, Cursor,
-Codex and friends author valid workflows on the first try; `nika mcp` exposes
-a read-only oracle (`nika_check` · `nika_explain`) any MCP client can call;
+Codex and friends author valid workflows on the first try. `nika mcp` exposes
+a read-only oracle (`nika_check` + `nika_explain`) any MCP client can call.
 `nika lsp` speaks LSP to every editor.
 
 ## Send us a workflow
 
-Do you repeat an AI task every week — in ChatGPT, Claude, Cursor, Codex, or
+Do you repeat an AI task every week, in ChatGPT, Claude, Cursor, Codex, or
 scripts? [Open a "convert my workflow" issue](https://github.com/supernovae-st/nika/issues/new/choose)
 describing it. We convert the best ones into runnable `.nika.yaml` examples,
 credited to you.
 
 ## Editor support
 
-This repo is the **engine** — it ships the language server (`nika lsp`, over stdio).
+This repo is the **engine**. It ships the language server (`nika lsp`, over stdio).
 The VS Code / Cursor / Windsurf / VSCodium **extension** lives in its own repo and
 is published as [`supernovae.nika-lang`](https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang)
 (and on [Open VSX](https://open-vsx.org/extension/supernovae/nika-lang) for Cursor / Windsurf / VSCodium):
 
-- Install it from your editor's marketplace — it auto-downloads the matching `nika`
+- Install it from your editor's marketplace. It auto-downloads the matching `nika`
   release binary on first use (or reuses the `nika` already on your `PATH`).
 - Source + issues: [supernovae-st/nika-vscode](https://github.com/supernovae-st/nika-vscode).
-- Any other editor: `nika lsp` speaks LSP over stdio — wire it into any LSP client.
+- Any other editor: `nika lsp` speaks LSP over stdio. Wire it into any LSP client.
 
 ## Documentation
 
-- **Language spec** — [supernovae-st/nika-spec](https://github.com/supernovae-st/nika-spec) (Apache-2.0), the runtime-agnostic Nika language.
-- **End-user docs** — [docs.nika.sh](https://docs.nika.sh).
-- **Website** — [nika.sh](https://nika.sh).
-- **Examples** — [`examples/`](examples/), the embedded gallery (also `nika examples list`).
+- **Language spec**: [supernovae-st/nika-spec](https://github.com/supernovae-st/nika-spec) (Apache-2.0), the runtime-agnostic Nika language.
+- **End-user docs**: [docs.nika.sh](https://docs.nika.sh).
+- **Website**: [nika.sh](https://nika.sh).
+- **Examples**: [`examples/`](examples/), the embedded gallery (also `nika examples list`).
 
-**Building Nika?** The engine is crafted under a strict workspace discipline —
+**Building Nika?** The engine is crafted under a strict workspace discipline:
 context-window-sized crates, a per-crate admission checklist, zero `.unwrap()`
 in `src/` (CI-enforced), downward-only layering. The design lives in
 [`docs/architecture/`](docs/architecture/) and the decisions in
@@ -269,7 +269,7 @@ in `src/` (CI-enforced), downward-only layering. The design lives in
 
 ## License
 
-The **engine** is AGPL-3.0-or-later (see [`LICENSE`](LICENSE)) — modify it and
+The **engine** is AGPL-3.0-or-later (see [`LICENSE`](LICENSE)): modify it and
 run it as a hosted service, and users of that service get the source. The
 **spec** is [Apache-2.0](https://github.com/supernovae-st/nika-spec), maximally
 permissive for a standard.
