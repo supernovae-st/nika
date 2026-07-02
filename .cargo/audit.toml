@@ -1,0 +1,22 @@
+# cargo-audit config · advisory ignores (vector 15 cargo-audit-rustsec reads this).
+# Document every entry: RUSTSEC ID + reason + upstream + review date.
+# Keep in sync with deny.toml [advisories].ignore (vector 34).
+
+[advisories]
+ignore = [
+  # RUSTSEC-2026-0194 + RUSTSEC-2026-0195 · quick-xml DoS pair (quadratic
+  # dup-attr check + unbounded NsReader namespace allocation). Two locked
+  # instances, both transitive, neither fixable by bump today (fix >=0.41.0):
+  #   · quick-xml 0.30.0 ← xcb 1.7 ← xcap 0.9.6 ← nika-screen — xcap is
+  #     FEATURE-GATED OFF by default (ADR-081 arc · headless builds) and
+  #     Linux-X11-only → the vulnerable code is not compiled in default or
+  #     release builds.
+  #   · quick-xml 0.37.5 ← feed-rs 2.3.1 ← nika-extract — feed-rs 2.3.1 is
+  #     the LATEST release (no quick-xml >=0.41 release exists upstream).
+  #     DoS-only severity (crafted-XML memory/time exhaustion · no RCE) ·
+  #     feed sources are operator-declared workflow inputs.
+  # Review: 2026-07-16 · watch https://github.com/feed-rs/feed-rs for the
+  # quick-xml bump · drop both entries the day feed-rs releases it.
+  "RUSTSEC-2026-0194",
+  "RUSTSEC-2026-0195",
+]

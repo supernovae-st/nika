@@ -111,6 +111,20 @@ ignore = [
   # short of forking the entire ML ecosystem. Informational advisory, not a
   # vulnerability. Review: 2026-06-22. Upstream: github.com/dtolnay/paste (archived).
   "RUSTSEC-2024-0436",
+  #
+  # RUSTSEC-2026-0194 + RUSTSEC-2026-0195 · quick-xml DoS pair (quadratic
+  # dup-attr check + unbounded NsReader namespace allocation · fix >=0.41.0).
+  # Two locked instances, both transitive, neither bump-fixable today:
+  #   · 0.30.0 ← xcb 1.7 ← xcap 0.9.6 ← nika-screen — xcap FEATURE-GATED OFF
+  #     by default (ADR-081 · headless) + Linux-X11-only → not compiled in
+  #     default/release builds.
+  #   · 0.37.5 ← feed-rs 2.3.1 (LATEST · no quick-xml>=0.41 release upstream)
+  #     ← nika-extract. DoS-only (crafted-XML time/memory exhaustion · no
+  #     RCE) · feed sources are operator-declared workflow inputs.
+  # Review: 2026-07-16 · watch github.com/feed-rs/feed-rs · drop both the day
+  # feed-rs releases the quick-xml bump. Mirror: .cargo/audit.toml.
+  "RUSTSEC-2026-0194",
+  "RUSTSEC-2026-0195",
 ]
 
 [sources]
