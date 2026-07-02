@@ -29,6 +29,7 @@
 
 pub mod core_tools;
 pub mod data;
+pub mod date;
 pub mod defs;
 pub mod file;
 pub mod inspect;
@@ -372,8 +373,8 @@ where
             "validate" => Ok(data::validate(args)),
             "json_merge_patch" => Ok(data::json_merge_patch(args)),
             "convert" => Ok(data::convert(args)),
-            "uuid" => Ok(data::uuid(args)),
-            "date" => Ok(data::date(self.clock.as_ref(), args)),
+            "uuid" => Ok(date::uuid(args)),
+            "date" => Ok(date::date(self.clock.as_ref(), args)),
             "hash" => Ok(data::hash(args)),
             // network 2
             "fetch" => Ok(net::fetch(self.http.as_ref(), args).await),
