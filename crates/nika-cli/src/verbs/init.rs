@@ -44,6 +44,9 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
 - **Run** · `nika run <file>` — execute · live render. Exit `0` ok · `1` failed.
 - **Diagnose** · `nika doctor` — the environment (providers · keys · config).
 - **Explain** · `nika explain NIKA-XXXX` — teach one error code.
+- **Wire** · `nika wire <cursor|vscode|windsurf|claude|codex|all>` — point an
+  agent client's MCP config at the real oracle (idempotent · preserves other
+  servers).
 
 ## The four verbs (exactly one per task)
 `infer` (an LLM call) · `exec` (a shell command) · `invoke` (a `nika:` builtin

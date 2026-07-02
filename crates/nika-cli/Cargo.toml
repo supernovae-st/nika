@@ -21,6 +21,7 @@ clap        = { workspace = true }                             # verb tree (comp
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
 serde       = { workspace = true }                             # graph projection envelope (§6)
 serde_json  = { workspace = true }                             # trace NDJSON parse · --json surfaces
+toml_edit   = { workspace = true }                             # wire codex · ~/.codex/config.toml (comment-preserving)
 uuid        = { workspace = true }                             # deterministic demo EventIds
 # The `nika run` composer (verbs/run/) wires the REAL shipped layers below
 # the CLI — all strictly downward (L4 → L3/L2/L1.5/L1/L0). Before the run

@@ -246,7 +246,7 @@ key, then see what's wired:
 ```sh
 nika doctor                  # provider keys + local servers, with the exact fix
 nika init                    # schema wiring + AGENTS.md for this repo
-nika wire cursor             # optional · explicit MCP wiring for Cursor agents
+nika wire cursor             # explicit MCP wiring · also: vscode · windsurf · claude · codex · all
 nika examples list           # browse the embedded examples
 nika examples run 01-hello --model ollama/llama3.2:3b   # a real local run
 ```
@@ -257,9 +257,14 @@ From source (contributors): `git clone https://github.com/supernovae-st/nika.git
 
 Nika is built to be **written by agents and reviewed by you**. `nika init`
 drops the schema wiring + `AGENTS.md` into your repo so Claude Code, Cursor,
-Codex and friends author valid workflows on the first try. `nika mcp` exposes
-a read-only oracle (`nika_check` + `nika_explain`) any MCP client can call.
-`nika lsp` speaks LSP to every editor.
+Codex and friends author valid workflows on the first try. `nika wire
+<cursor|vscode|windsurf|claude|codex|all>` points each client's MCP config at
+the engine — idempotent, and it preserves your other servers. `nika mcp`
+exposes a read-only oracle (`nika_check` + `nika_explain`) any MCP client can
+call. `nika lsp` speaks LSP to every editor.
+
+Agents discover a working prompt chain once; Nika keeps it as a file your
+team can check, run and replay.
 
 ## Send us a workflow
 

@@ -21,6 +21,7 @@ pub enum WireTarget {
     Vscode,
     Windsurf,
     Claude,
+    Codex,
     All,
 }
 
@@ -63,6 +64,7 @@ fn expand_target(target: WireTarget) -> Vec<WireTarget> {
             WireTarget::Vscode,
             WireTarget::Windsurf,
             WireTarget::Claude,
+            WireTarget::Codex,
         ],
         other => vec![other],
     }
@@ -89,6 +91,7 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
             "claude",
             false,
         ),
+        WireTarget::Codex => patch_codex(&home_path(&[".codex", "config.toml"])?),
         WireTarget::All => unreachable!("expanded before dispatch"),
     }
 }
@@ -152,6 +155,80 @@ fn patch_config(
     } else {
         Ok(WireAction::Created(label_path))
     }
+}
+
+/// Codex CLI reads `~/.codex/config.toml` (`[mcp_servers.nika]` · TOML, not
+/// JSON). `toml_edit` keeps the user's comments and unrelated tables intact.
+fn patch_codex(path: &Path) -> Result<WireAction, String> {
+    let existed = path.exists();
+    let body = if existed {
+        std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?
+    } else {
+        String::new()
+    };
+    let mut doc: toml_edit::DocumentMut = body
+        .parse()
+        .map_err(|e| format!("{}: malformed TOML: {e}", path.display()))?;
+
+    let servers = doc
+        .entry("mcp_servers")
+        .or_insert(toml_edit::table())
+        .as_table_mut()
+        .ok_or_else(|| "codex: mcp_servers is not a TOML table".to_owned())?;
+    servers.set_implicit(true);
+
+    let existing = servers.get("nika");
+    let current = existing.is_some_and(codex_entry_is_current);
+    let migrated = existing.is_some_and(codex_entry_is_stale);
+
+    let label_path = format!("codex: {}", path.display());
+    if current {
+        return Ok(WireAction::Current(label_path));
+    }
+
+    let mut entry = toml_edit::Table::new();
+    entry.insert("command", toml_edit::value("nika"));
+    let mut args = toml_edit::Array::new();
+    for arg in NIKA_MCP_ARGS {
+        args.push(arg);
+    }
+    entry.insert("args", toml_edit::value(args));
+    servers.insert("nika", toml_edit::Item::Table(entry));
+
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    }
+    std::fs::write(path, doc.to_string()).map_err(|e| format!("{}: {e}", path.display()))?;
+
+    if migrated {
+        Ok(WireAction::Migrated(label_path))
+    } else if existed {
+        Ok(WireAction::Updated(label_path))
+    } else {
+        Ok(WireAction::Created(label_path))
+    }
+}
+
+fn codex_args(item: &toml_edit::Item) -> Vec<String> {
+    item.get("args")
+        .and_then(toml_edit::Item::as_array)
+        .map(|args| {
+            args.iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn codex_entry_is_current(item: &toml_edit::Item) -> bool {
+    item.get("command").and_then(toml_edit::Item::as_str) == Some("nika")
+        && codex_args(item) == NIKA_MCP_ARGS
+}
+
+fn codex_entry_is_stale(item: &toml_edit::Item) -> bool {
+    codex_args(item) == ["mcp", "serve", "--stdio"]
 }
 
 fn nika_server(include_type: bool) -> Value {
@@ -263,6 +340,73 @@ mod tests {
         let doc = read_json(&path).expect("json");
         assert_eq!(doc["mcpServers"]["github"]["command"], "gh");
         assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn codex_config_toml_created_with_mcp_servers_table() {
+        let dir = temp_dir("codex-create");
+        let path = dir.join("config.toml");
+        let action = patch_codex(&path).expect("wire");
+        assert!(matches!(action, WireAction::Created(_)));
+        let body = std::fs::read_to_string(&path).expect("read");
+        let doc: toml_edit::DocumentMut = body.parse().expect("toml");
+        assert_eq!(doc["mcp_servers"]["nika"]["command"].as_str(), Some("nika"));
+        let args: Vec<&str> = doc["mcp_servers"]["nika"]["args"]
+            .as_array()
+            .expect("args array")
+            .iter()
+            .filter_map(toml_edit::Value::as_str)
+            .collect();
+        assert_eq!(args, ["mcp"]);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn codex_config_preserves_other_tables_comments_and_is_idempotent() {
+        let dir = temp_dir("codex-preserve");
+        let path = dir.join("config.toml");
+        std::fs::write(
+            &path,
+            r#"# my codex setup
+model = "gpt-5.2"
+
+[projects."/Users/me/repo"]
+trust_level = "trusted"
+
+[mcp_servers.github]
+command = "gh"
+args = ["mcp"]
+"#,
+        )
+        .expect("fixture");
+
+        let action = patch_codex(&path).expect("wire");
+        assert!(matches!(action, WireAction::Updated(_)));
+        let body = std::fs::read_to_string(&path).expect("read");
+        assert!(body.contains("# my codex setup"), "comment preserved");
+        assert!(body.contains("trust_level = \"trusted\""));
+        assert!(body.contains("[mcp_servers.github]"));
+
+        let again = patch_codex(&path).expect("wire twice");
+        assert!(matches!(again, WireAction::Current(_)));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn codex_stale_serve_args_are_migrated() {
+        let dir = temp_dir("codex-migrate");
+        let path = dir.join("config.toml");
+        std::fs::write(
+            &path,
+            "[mcp_servers.nika]\ncommand = \"nika\"\nargs = [\"mcp\", \"serve\", \"--stdio\"]\n",
+        )
+        .expect("fixture");
+
+        let action = patch_codex(&path).expect("wire");
+        assert!(matches!(action, WireAction::Migrated(_)));
+        let body = std::fs::read_to_string(&path).expect("read");
+        assert!(body.contains("args = [\"mcp\"]"));
         let _ = std::fs::remove_dir_all(dir);
     }
 
