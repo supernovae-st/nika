@@ -100,6 +100,14 @@ pub struct TokioShell {
     /// The OS-confinement backend (injected by the wiring layer · `None` =
     /// no sandbox available, today's behavior). Applied AFTER the blocklist.
     sandbox: Option<Arc<dyn CommandSandbox>>,
+    /// Env-var NAMES the child must NOT inherit from the ENGINE's ambient
+    /// environment — the provider API keys `config_from_env` loaded for the
+    /// engine's OWN inference calls (ADR-095 Layer 3 · ambient-secret scrub).
+    /// Injected by the composition root from the provider catalog. A workflow
+    /// that genuinely needs a key in its child still sets it EXPLICITLY in
+    /// `env:` (explicit intent wins over the ambient scrub · see `run`). Empty
+    /// = today's behavior (inherit all). `Arc<[…]>` for a cheap `Clone`.
+    ambient_secret_env: Arc<[String]>,
 }
 
 impl std::fmt::Debug for TokioShell {
@@ -125,9 +133,24 @@ impl TokioShell {
     #[must_use]
     pub fn with_sandbox(sandbox: Arc<dyn CommandSandbox>) -> Self {
         Self {
-            registry: Registry::default(),
             sandbox: Some(sandbox),
+            ..Self::default()
         }
+    }
+
+    /// Scrub the ENGINE's ambient provider API keys from every child's
+    /// environment (ADR-095 Layer 3 · least-privilege by default). `names` are
+    /// the provider env-var names the engine reads for its OWN inference calls
+    /// (from the provider catalog · injected by the composition root); an exec
+    /// child has no legitimate need for them via ambient inheritance, and
+    /// leaving them in lets an untrusted command exfiltrate them (`printenv`,
+    /// `cat /proc/self/environ`). A workflow that DOES need a key in its child
+    /// sets it explicitly in `env:` — that wins (only the ambient copy is
+    /// stripped · see `run`). Chainable with [`Self::with_sandbox`].
+    #[must_use]
+    pub fn with_ambient_secret_env(mut self, names: impl Into<Arc<[String]>>) -> Self {
+        self.ambient_secret_env = names.into();
+        self
     }
 
     /// Register a pid's cancel signal; returns the shared `Notify`.
@@ -191,6 +214,17 @@ impl ShellRunDyn for TokioShell {
 
         let start = Instant::now();
         let mut cmd = build_command(&command);
+        // Ambient-secret scrub (ADR-095 Layer 3): the engine loaded provider
+        // API keys from ITS env for its own inference calls; strip them from
+        // the child UNLESS the workflow set the name EXPLICITLY in `env:`
+        // (explicit intent wins · only the ambient copy is removed). Runs after
+        // build_command applied the explicit `env:` map, so an explicit set is
+        // preserved; env_remove of an absent key is a harmless no-op.
+        for name in self.ambient_secret_env.iter() {
+            if !command.env.contains_key(name) {
+                cmd.env_remove(name);
+            }
+        }
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
         cmd.stdin(if command.stdin.is_some() {
@@ -633,6 +667,46 @@ mod tests {
             .expect("echo runs");
         assert_eq!(res.stdout.trim(), "hello");
         assert!(res.success());
+    }
+
+    #[tokio::test]
+    async fn ambient_secret_env_scrubbed_unless_set_explicitly() {
+        // ADR-095 Layer 3. PATH is reliably present in the test process env
+        // AND unneeded to run an ABSOLUTE-path program — so it stands in for an
+        // ambient provider secret without the (forbidden) unsafe env::set_var.
+        let scrub = TokioShell::new().with_ambient_secret_env(vec!["PATH".to_owned()]);
+
+        // Scrubbed + not set explicitly → the child's PATH is gone (printenv
+        // prints nothing · exits non-zero, which `run` surfaces as data).
+        let out = scrub
+            .run(ShellCommand::new("/usr/bin/printenv").arg("PATH"))
+            .await
+            .expect("printenv runs");
+        assert!(
+            out.stdout.trim().is_empty(),
+            "ambient PATH must be scrubbed from the child, got {:?}",
+            out.stdout
+        );
+
+        // Explicit `env:` wins over the scrub — the child sees the declared value.
+        let mut explicit = ShellCommand::new("/usr/bin/printenv").arg("PATH");
+        explicit.env.insert("PATH".to_owned(), "/decl".to_owned());
+        let out2 = scrub.run(explicit).await.expect("printenv runs");
+        assert_eq!(
+            out2.stdout.trim(),
+            "/decl",
+            "an explicit env entry must win over the ambient scrub"
+        );
+
+        // Default (no scrub set) inherits the ambient PATH as before.
+        let out3 = TokioShell::new()
+            .run(ShellCommand::new("/usr/bin/printenv").arg("PATH"))
+            .await
+            .expect("printenv runs");
+        assert!(
+            !out3.stdout.trim().is_empty(),
+            "default TokioShell must still inherit the ambient PATH"
+        );
     }
 
     #[tokio::test]

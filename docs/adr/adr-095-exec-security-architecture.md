@@ -110,14 +110,34 @@ permit form fails CLOSED.
   leading-dash value for a known binary, and recommends the `--` end-of-options
   separator. No competing engine ships this.
 
-### Layer 3 — Env hygiene (L1 · SHIPPED partial)
+### Layer 3 — Env hygiene (L1 + L2 · SHIPPED · three sub-layers)
 
-The runner always strips a dangerous-env denylist (the injection vectors that
-grant code/library injection with no dangerous flag: `LD_PRELOAD`,
-`DYLD_INSERT_LIBRARIES`, `BASH_ENV`, `GIT_SSH_COMMAND`, `PYTHONSTARTUP`,
-`NODE_OPTIONS`, `IFS`, …). The stronger clean-slate posture (drop ALL inherited
-env + a curated PATH) ships with the sandbox, which knows the confined
-workflow's declared env needs.
+Three sub-layers, weakest-to-strongest, each independent of the OS sandbox:
+
+1. **POSIX-name validation (L2 · `nika-verb-exec`).** An `env:` key must match
+   `[A-Za-z_][A-Za-z0-9_]*` — this refuses the dynamic-name carrier class,
+   chiefly the exported-shell-function form `BASH_FUNC_x%%` that a bash `sh -c`
+   child imports and runs (the payload never appears in the scanned command
+   string). Empty / `=` / NUL keys still fail (a strict narrowing).
+2. **Dangerous-env denylist (L1 · `nika-exec-runner`).** The runner ALWAYS
+   strips the injection vectors that grant code/library injection with no
+   dangerous flag: `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, `BASH_ENV`,
+   `GIT_SSH_COMMAND`, `PYTHONSTARTUP`, `NODE_OPTIONS`, `IFS`, plus
+   `HOSTALIASES` / `TERMINFO(_DIRS)` / `TERMCAP` (file-read / crafted-entry
+   load) — independent of `pre_validated` (the floor wins over an explicit set).
+3. **Ambient-secret scrub (L1 · `nika-exec-runner` ← composed by `nika-cli`).**
+   The engine loads provider API keys from ITS env (`config_from_env`) for its
+   OWN inference calls; an exec child inherits them by ambient default and an
+   untrusted command could exfiltrate them (`printenv`, `cat /proc/self/environ`).
+   The composition root injects the provider-key NAMES (from the catalog) into
+   `TokioShell`, which strips each from every child UNLESS the workflow set it
+   EXPLICITLY in `env:` (explicit intent wins · only the ambient copy is
+   removed). Least-privilege by default; empty scrub set = legacy behavior.
+
+The stronger *full* clean-slate posture (drop ALL inherited env + a curated
+`PATH`) still ships with the sandbox (Layer 6), which knows the confined
+workflow's complete declared env needs; sub-layer 3 is the targeted
+secret-scrub floor that holds before the sandbox is composed in.
 
 ### Layer 4/5 — Process lifecycle (L1 · SHIPPED partial)
 
@@ -231,7 +251,10 @@ all enforcement (the file is the security boundary).
 | 2 permits.exec | nika-runtime | ✅ shipped |
 | 2b /008 steer | nika-schema | ✅ shipped |
 | 2b arg-injection pack | nika-schema | ✅ shipped (arg-injection/001) |
-| 3 env scrub | nika-exec-runner | ✅ shipped (denylist) · clean-slate → L6 |
+| 3 env POSIX-name validation | nika-verb-exec | ✅ shipped (kills `BASH_FUNC_x%%` carrier) |
+| 3 env dangerous-denylist | nika-exec-runner | ✅ shipped (+HOSTALIASES/TERMINFO/TERMCAP) |
+| 3 env ambient-secret scrub | nika-exec-runner ← nika-cli | ✅ shipped (provider keys · explicit `env:` wins) |
+| 3 env full clean-slate | nika-sandbox | 🔜 → L6 (drop-all + curated PATH) |
 | 4/5 process group | nika-exec-runner | ✅ shipped · rlimits → L6 |
 | 6 sandbox seam | nika-kernel-core (CommandSandbox) | ✅ shipped |
 | 6 sandbox macOS | nika-sandbox-seatbelt | ✅ shipped · adversarially verified |

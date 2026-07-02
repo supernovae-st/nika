@@ -430,6 +430,15 @@ pub fn production_runtime(
     // (SSRF enforced · workflow-controlled URLs).
     let provider_http = Arc::new(provider_http()?);
     let config = config_from_env();
+    // The provider API-key env-var names the engine reads for its OWN inference
+    // calls — scrubbed from every exec child's ambient environment so an
+    // untrusted command cannot exfiltrate them (ADR-095 Layer 3). A workflow
+    // that needs a key in its child still sets it explicitly in `env:`.
+    let provider_secret_env: Vec<String> = nika_catalog::all_providers()
+        .iter()
+        .filter(|p| !p.env_var.is_empty())
+        .map(|p| p.env_var.to_string())
+        .collect();
 
     // The builtin tool plane (invoke + the agent's tools) over real
     // effects · shared by InvokeVerb and the agent's tool-defs seam. The
@@ -456,7 +465,9 @@ pub fn production_runtime(
     let agent_provider = Arc::new(RegistryProvider::new(Arc::clone(&registry), default_model));
 
     Ok(Runtime::new(
-        ExecVerb::new(Arc::new(TokioShell::new())),
+        ExecVerb::new(Arc::new(
+            TokioShell::new().with_ambient_secret_env(provider_secret_env),
+        )),
         Arc::clone(&invoke),
         InferVerb::new(registry, default_model),
         AgentVerb::new(
