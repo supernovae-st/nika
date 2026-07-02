@@ -28,7 +28,7 @@ Yes.
 
 ```sh
 brew install supernovae-st/tap/nika    # or: curl -LsSf https://nika.sh/install.sh | sh
-nika examples run 16-exec-pipeline             # first run: no model, no key at all
+nika examples run 01-hello --model ollama/llama3.2:3b   # a real local run
 ```
 
 ![nika check audits the workflow (plan, cost, secrets, types), then nika run executes it locally](media/nika-hero.gif)
