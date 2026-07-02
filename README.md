@@ -269,12 +269,21 @@ From source (contributors): `git clone https://github.com/supernovae-st/nika.git
 ## Work with your agents
 
 Nika is built to be **written by agents and reviewed by you**. `nika init`
-drops the schema wiring + `AGENTS.md` into your repo so Claude Code, Cursor,
+drops the schema wiring, `AGENTS.md`, the Cursor rule and a repo-level
+[agent skill](https://agentskills.io) into your repo so Claude Code, Cursor,
 Codex and friends author valid workflows on the first try. `nika wire
 <cursor|vscode|windsurf|claude|codex|all>` points each client's MCP config at
 the engine — idempotent, and it preserves your other servers. `nika mcp`
 exposes a read-only oracle (`nika_check` + `nika_explain`) any MCP client can
 call. `nika lsp` speaks LSP to every editor.
+
+Or install everything as a plugin — this repo hosts one plugin (the
+`nika-authoring` skill + the MCP oracle) for both ecosystems:
+
+```sh
+codex plugin marketplace add supernovae-st/nika && codex plugin add nika@nika
+claude plugin marketplace add supernovae-st/nika && claude plugin install nika@nika
+```
 
 Agents discover a working prompt chain once; Nika keeps it as a file your
 team can check, run and replay.
