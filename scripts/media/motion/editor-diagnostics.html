@@ -1,0 +1,231 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>nika · editor-diagnostics</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* VS Code-shaped mockup · the DIAGNOSTICS are the real engine output:
+     codes, messages and positions come from `nika check --json` on
+     scripts/media/fixtures/broken-pr-review.nika.yaml (line 15 + 27). */
+  .head { position: absolute; left: 48px; top: 40px; }
+  .head .headline { margin-top: 12px; font-size: 40px; }
+  #kicker, #headline, #editor, #hovercard, .sq, .problem, #cleanbar, #code-fixed { opacity: 0; }
+
+  #editor { left: 48px; top: 168px; width: 1504px; height: 596px; }
+
+  #tabbar {
+    display: flex; align-items: center; height: 42px;
+    border-bottom: 1px solid var(--border-soft);
+    font-family: var(--font-mono); font-size: 13.5px; color: var(--fg-muted);
+  }
+  #tabbar .tab {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 18px; height: 100%;
+    border-right: 1px solid var(--border-soft);
+    background: var(--surface-raised); color: var(--fg);
+  }
+  #tabbar .dotmod { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-faint); }
+
+  #body { position: relative; height: 462px; }
+  .buf {
+    position: absolute; inset: 0; display: flex;
+  }
+  .gutter {
+    width: 56px; padding: 14px 0; text-align: right;
+    font-family: var(--font-mono); font-size: 14.5px; line-height: 1.72;
+    color: var(--fg-faint); user-select: none; white-space: pre;
+  }
+  .codecol {
+    flex: 1; padding: 14px 20px;
+    font-family: var(--font-mono); font-size: 14.5px; line-height: 1.72;
+  }
+  .codecol .cl { display: block; white-space: pre; }
+  .codecol .k { color: var(--accent); }
+  .codecol .s { color: var(--fg); }
+  .codecol .d { color: var(--fg-muted); }
+  .codecol .new { background: var(--accent-dim); border-radius: 4px; }
+
+  .sq {
+    background-image: linear-gradient(45deg, transparent 60%, var(--err) 60%, var(--err) 100%);
+    background-size: 6px 3.5px; background-repeat: repeat-x; background-position: 0 100%;
+    padding-bottom: 2px;
+  }
+
+  #hovercard {
+    position: absolute; left: 300px; top: 262px; width: 620px; z-index: 3;
+    background: var(--surface-raised); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 18px;
+    font-family: var(--font-mono); font-size: 13.5px; line-height: 1.6;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  }
+  #hovercard .code-chip { font-size: 12.5px; }
+  #hovercard .fixline { margin-top: 8px; color: var(--fg-muted); }
+  #hovercard .fixline b { color: var(--accent); font-weight: 400; }
+
+  #problems {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 92px;
+    border-top: 1px solid var(--border-soft);
+    padding: 10px 20px; font-family: var(--font-mono); font-size: 13px; line-height: 1.65;
+    background: var(--surface);
+    border-radius: 0 0 var(--radius-card) var(--radius-card);
+  }
+  #problems .ph {
+    font-size: 11.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--fg-faint); margin-bottom: 6px;
+  }
+  #problems .ph .cnt { color: var(--err); }
+  .problem .fail { margin-right: 8px; }
+  .problem .dim { color: var(--fg-muted); }
+
+  #cleanbar {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 92px;
+    display: flex; flex-direction: column; justify-content: center; gap: 6px;
+    padding: 0 20px;
+    background: color-mix(in oklab, var(--accent) 10%, var(--surface));
+    border-top: 1px solid var(--accent-glow);
+    border-radius: 0 0 var(--radius-card) var(--radius-card);
+    font-family: var(--font-mono); font-size: 13px;
+  }
+  #cleanbar .row1 { color: var(--accent); }
+  #cleanbar .row2 { color: var(--fg-muted); font-size: 12px; }
+</style>
+
+<div class="stage">
+  <div class="head">
+    <div class="kicker" id="kicker">vs code · cursor · windsurf · one extension</div>
+    <div class="headline" id="headline">The audit, as you type.</div>
+  </div>
+
+  <div class="card" id="editor">
+    <div id="tabbar"><div class="tab"><span class="dotmod"></span>pr-review.nika.yaml</div></div>
+    <div id="body">
+      <!-- BROKEN buffer · squiggles at the real span positions -->
+      <div class="buf" id="code-broken">
+        <div class="gutter">15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29</div>
+        <div class="codecol">
+<span class="cl">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">assess</span></span>
+<span class="cl">    <span class="k">infer</span><span class="d">:</span></span>
+<span class="cl">      <span class="k">prompt</span><span class="d">:</span> <span class="s">|</span></span>
+<span class="cl">        <span class="d">Risk-assess this diff. Be terse.</span></span>
+<span class="cl">        <span class="d"><span class="sq">${{ tasks.diff.output.stdout }}</span></span></span>
+<span class="cl">      <span class="k">schema</span><span class="d">:</span></span>
+<span class="cl">        <span class="k">type</span><span class="d">:</span> <span class="s">object</span></span>
+<span class="cl">        <span class="k">required</span><span class="d">:</span> <span class="s">[risk]</span></span>
+<span class="cl">        <span class="k">properties</span><span class="d">:</span></span>
+<span class="cl">          <span class="k">risk</span><span class="d">:</span> <span class="s">{ type: string, enum: [low, medium, high] }</span></span>
+<span class="cl"> </span>
+<span class="cl">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">comment</span></span>
+<span class="cl">    <span class="k">when</span><span class="d">:</span> <span class="s">"${{ <span class="sq">tasks.asses</span>.output.risk == 'high' }}"</span></span>
+<span class="cl">    <span class="k">invoke</span><span class="d">:</span></span>
+<span class="cl">      <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span></span>
+        </div>
+      </div>
+
+      <!-- FIXED buffer · the three changed lines tinted -->
+      <div class="buf" id="code-fixed">
+        <div class="gutter">15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29</div>
+        <div class="codecol">
+<span class="cl">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">assess</span></span>
+<span class="cl"><span class="new">    <span class="k">depends_on</span><span class="d">:</span> <span class="s">[diff]</span></span></span>
+<span class="cl">    <span class="k">infer</span><span class="d">:</span></span>
+<span class="cl">      <span class="k">prompt</span><span class="d">:</span> <span class="s">|</span></span>
+<span class="cl">        <span class="d">Risk-assess this diff. Be terse.</span></span>
+<span class="cl">        <span class="d">${{ tasks.diff.output.stdout }}</span></span>
+<span class="cl">      <span class="k">schema</span><span class="d">:</span> <span class="d">{ … }</span></span>
+<span class="cl"> </span>
+<span class="cl">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">comment</span></span>
+<span class="cl"><span class="new">    <span class="k">depends_on</span><span class="d">:</span> <span class="s">[assess]</span></span></span>
+<span class="cl"><span class="new">    <span class="k">when</span><span class="d">:</span> <span class="s">"${{ tasks.assess.output.risk == 'high' }}"</span></span></span>
+<span class="cl">    <span class="k">invoke</span><span class="d">:</span></span>
+<span class="cl">      <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span></span>
+        </div>
+      </div>
+
+      <div id="hovercard">
+        <span class="fail">✖</span> <span class="code-chip">NIKA-VAR-001</span>
+        unresolved reference <span class="accent">`tasks.asses`</span> in task <span class="accent">`comment`</span>
+        — did you mean <span class="accent">`tasks.assess`</span>?
+        <div class="fixline">source · <b>nika check --json</b> · painted as you type</div>
+      </div>
+
+      <div id="problems">
+        <div class="ph">problems · <span class="cnt">3</span></div>
+        <div class="problem"><span class="fail">✖</span><span class="code-chip">NIKA-DAG-003</span> <span class="dim">task `assess` references `tasks.diff` without declaring `diff` in depends_on</span></div>
+        <div class="problem"><span class="fail">✖</span><span class="code-chip">NIKA-VAR-001</span> <span class="dim">unresolved reference `tasks.asses` — did you mean `tasks.assess`?</span></div>
+        <div class="problem"><span class="fail">✖</span><span class="code-chip">NIKA-DAG-003</span> <span class="dim">task `comment` references `tasks.assess` without declaring `assess` in depends_on</span></div>
+      </div>
+
+      <div id="cleanbar">
+        <div class="row1">✔ nika check · clean — 0 problems</div>
+        <div class="row2">plan 3 waves · secrets ✓ · types ✓ · permits ✓ · audited before a single token was spent</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="plate">
+    <span>diagnostics = real `nika check --json` output · editor chrome illustrative</span>
+    <span class="mark">nika.sh 🦋</span>
+  </div>
+  <div class="grain"></div>
+</div>
+
+<script src="scene.js"></script>
+<script>
+  const S = window.Scene;
+  S.define({ name: "editor-diagnostics", duration: 16000, fps: 30, width: 1600, height: 900, posterAt: 5000 });
+
+  // opening
+  S.fade("#kicker",   { at: 200, dur: 450, y: 10 });
+  S.fade("#headline", { at: 400, dur: 550, y: 12 });
+  S.fade("#editor",   { at: 800, dur: 500, y: 20, scale: 0.985 });
+
+  // the squiggles land with the problems panel — the audit painted live
+  S.fade(".sq", { at: 1600, dur: 350, ease: "err" });
+  S.lines("#problems .problem", { at: 1900, stagger: 260, dur: 300, ease: "err" });
+
+  // hover the typo'd reference → the engine's did-you-mean
+  S.fade("#hovercard", { at: 3800, dur: 380, y: 8 });
+  S.fade("#hovercard", { at: 8000, dur: 300, from: 1, to: 0 });
+
+  // the fix lands: buffer swap, three tinted lines
+  S.fade("#code-broken", { at: 8600, dur: 400, from: 1, to: 0 });
+  S.fade("#code-fixed",  { at: 8900, dur: 400 });
+
+  // problems drain → the clean bar takes the panel's place
+  S.fade("#problems", { at: 10200, dur: 350, from: 1, to: 0 });
+  S.fade("#cleanbar", { at: 10700, dur: 420, y: 8 });
+
+  // hold, then close for loop
+  S.fade("#editor",   { at: 15100, dur: 550, from: 1, to: 0 });
+  S.fade("#headline", { at: 15250, dur: 500, from: 1, to: 0 });
+  S.fade("#kicker",   { at: 15350, dur: 400, from: 1, to: 0 });
+
+  S.ready();
+</script>
