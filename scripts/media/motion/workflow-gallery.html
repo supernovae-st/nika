@@ -1,0 +1,95 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>nika · workflow-gallery</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* The answer to "what would I even use it for?" — twelve REAL workflows
+     from the embedded pack (slugs + descriptions verbatim from
+     crates/nika-pack/pack/examples/manifest.yaml). */
+  .head { position: absolute; left: 48px; top: 40px; }
+  .head .headline { margin-top: 12px; font-size: 40px; }
+  #kicker, #headline, .wf, #footer-cta { opacity: 0; }
+
+  #grid {
+    position: absolute; left: 48px; top: 172px; width: 1504px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  .wf {
+    position: relative; min-width: 0;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-card); padding: 20px 20px 18px;
+  }
+  .wf .slug { font-family: var(--font-mono); font-size: 17.5px; color: var(--fg); }
+  .wf .desc {
+    margin-top: 9px; font-family: var(--font-mono); font-size: 13px;
+    line-height: 1.55; color: var(--fg-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .wf .tier {
+    position: absolute; top: 14px; right: 14px;
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em;
+    color: var(--fg-faint); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 9px;
+  }
+  .wf.hot { border-color: var(--accent-glow); }
+  .wf.hot .slug { color: var(--accent); }
+  .wf .who {
+    display: inline-block; margin-top: 9px;
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--fg-faint);
+  }
+
+  #footer-cta {
+    position: absolute; left: 48px; bottom: 108px;
+    font-family: var(--font-mono); font-size: 17px; color: var(--fg-muted);
+  }
+  #footer-cta b { color: var(--accent); font-weight: 400; }
+</style>
+
+<div class="stage">
+  <div class="head">
+    <div class="kicker" id="kicker">the embedded pack · 27 workflows · in the binary</div>
+    <div class="headline" id="headline">Start from a workflow, not a blank prompt.</div>
+  </div>
+
+  <div id="grid">
+    <div class="wf hot"><div class="slug">meeting-actions</div><div class="desc">transcript → typed action items {owner · task · due}</div><span class="who">everyone</span><span class="tier">T1</span></div>
+    <div class="wf"><div class="slug">standup-digest</div><div class="desc">read yesterday's commits, write today's standup note</div><span class="who">teams</span><span class="tier">T1</span></div>
+    <div class="wf"><div class="slug">social-repurpose</div><div class="desc">one post → thread + linkedin + newsletter, in parallel</div><span class="who">marketing</span><span class="tier">T1</span></div>
+    <div class="wf"><div class="slug">release-notes</div><div class="desc">git log → typed release notes → changelog insert</div><span class="who">maintainers</span><span class="tier">T2</span></div>
+    <div class="wf hot"><div class="slug">support-triage</div><div class="desc">ticket queue → typed triage → urgent escalation</div><span class="who">support · ops</span><span class="tier">T2</span></div>
+    <div class="wf"><div class="slug">invoice-chaser</div><div class="desc">ledger csv → overdue filter → reminders → human gate</div><span class="who">founders</span><span class="tier">T2</span></div>
+    <div class="wf"><div class="slug">seo-content-brief</div><div class="desc">competitor sitemap → gap analysis → typed brief</div><span class="who">marketing</span><span class="tier">T2</span></div>
+    <div class="wf"><div class="slug">competitor-radar</div><div class="desc">sitemap → parallel page reads → one competitive brief</div><span class="who">founders</span><span class="tier">T3</span></div>
+    <div class="wf hot"><div class="slug">pr-review-fanout</div><div class="desc">changed files → one read-only review agent each</div><span class="who">developers</span><span class="tier">T3</span></div>
+    <div class="wf"><div class="slug">resume-screener</div><div class="desc">glob cvs → local-model rubric → deterministic shortlist</div><span class="who">hiring</span><span class="tier">T3</span></div>
+    <div class="wf"><div class="slug">incident-war-room</div><div class="desc">parallel evidence → typed timeline → postmortem draft</div><span class="who">on-call</span><span class="tier">T4</span></div>
+    <div class="wf"><div class="slug">ceo-monday-brief</div><div class="desc">news + repo pulse + kpis → synthesis → dated brief</div><span class="who">founders</span><span class="tier">T4</span></div>
+  </div>
+
+  <div id="footer-cta">$ <b>nika examples run showcase/t1-meeting-actions</b> — every one runs today, locally</div>
+
+  <div class="plate">
+    <span>12 of the 27 embedded workflows · slugs + descriptions from the pack manifest</span>
+    <span class="mark">nika.sh 🦋</span>
+  </div>
+  <div class="grain"></div>
+</div>
+
+<script src="scene.js"></script>
+<script>
+  const S = window.Scene;
+  S.define({ name: "workflow-gallery", duration: 12000, fps: 30, width: 1600, height: 900, posterAt: 4200 });
+
+  S.fade("#kicker",   { at: 200, dur: 450, y: 10 });
+  S.fade("#headline", { at: 400, dur: 550, y: 12 });
+  S.lines("#grid .wf", { at: 900, stagger: 110, dur: 320, y: 14 });
+  S.fade("#footer-cta", { at: 2600, dur: 450, y: 8 });
+
+  // hold as a readable board, then close for loop
+  S.fade("#footer-cta", { at: 11000, dur: 400, from: 1, to: 0 });
+  for (const sel of ["#grid", "#headline", "#kicker"])
+    S.fade(sel, { at: 11100, dur: 500, from: 1, to: 0 });
+
+  S.ready();
+</script>
