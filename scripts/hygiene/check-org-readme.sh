@@ -13,7 +13,9 @@ content="$(gh api repos/supernovae-st/.github/contents/profile/README.md --jq .c
 }
 
 missing=""
-for repo in nika nika.sh nika-client nika-design-skill homebrew-tap nika-site-audit; do
+# homebrew-tap was RENAMED homebrew-nika (2026-07-02 · GitHub redirects both);
+# nika-spec/nika-docs/nika-vscode joined the canonical set with the profile refresh.
+for repo in nika nika.sh nika-client nika-spec nika-docs nika-vscode homebrew-nika nika-site-audit; do
   echo "$content" | grep -q "$repo" || missing="${missing}${repo} "
 done
 
