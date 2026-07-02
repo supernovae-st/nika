@@ -17,12 +17,12 @@ use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str};
 
 // ─── nika:jq · the transform + extraction primitive ─────────────────────
 
-/// The rendered-output ceiling for one jq value (16 MiB). Bounds the
-/// string + re-parse allocations on a model-controlled `expression:`;
-/// jaq's INTERNAL evaluation cost (a `[range(1e9)]` materializes inside
-/// the engine before any output is yielded) is the engine's task-level
-/// supervision concern — same delegation class as SSRF→L1 http (crate
-/// spec §4 honest gaps).
+/// The rendered-output ceiling for one jq value (16 MiB) — bounds the
+/// string + re-parse allocations on a model-controlled `expression:`. jaq's
+/// INTERNAL cost is NOT bounded here (jaq-core 3.1.0 has no eval-budget hook +
+/// `spawn_blocking` can't be cancelled): the streaming case is caught by the
+/// exactly-one-value law below, but `[range(1e12)]` materializes in-jaq first.
+/// Real fix = jaq step-budget or subprocess rlimit (deferred · spec §4 gaps).
 const MAX_JQ_OUTPUT_BYTES: usize = 16 * 1024 * 1024;
 
 /// Run a jq `expression:` over `input:` — and emit EXACTLY ONE output
