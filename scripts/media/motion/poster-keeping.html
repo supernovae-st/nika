@@ -1,0 +1,102 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>nika · poster-keeping</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* Static social poster · the wedge line as a before/after split.
+     Render: node render-motion.mjs poster-keeping --frame 0 */
+  .half { position: absolute; top: 244px; width: 690px; }
+  #left { left: 78px; }
+  #right { right: 78px; }
+  .half .tag {
+    font-family: var(--font-mono); font-size: 14px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--fg-faint); margin-bottom: 18px;
+  }
+  #right .tag { color: var(--accent); }
+
+  .bubble {
+    background: var(--surface-raised); border: 1px solid var(--border);
+    border-radius: 18px; padding: 20px 24px;
+    font-size: 19px; line-height: 1.5; color: var(--fg-muted);
+    margin-bottom: 12px;
+  }
+  .bubble.faded1 { opacity: 0.55; }
+  .bubble.faded2 { opacity: 0.3; }
+  .gone {
+    font-family: var(--font-mono); font-size: 14px; color: var(--fg-faint);
+    margin-top: 16px;
+  }
+
+  .filecard {
+    background: var(--surface); border: 1px solid var(--accent-glow);
+    border-radius: var(--radius-card); overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  }
+  .filecard .hdr {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 18px; border-bottom: 1px solid var(--border-soft);
+    font-family: var(--font-mono); font-size: 14px; color: var(--fg-muted);
+  }
+  .filecard .hdr .ok { margin-left: auto; color: var(--accent); font-size: 12.5px; }
+  .filecard .yaml { font-size: 16px; padding: 18px 22px; }
+  .kept {
+    font-family: var(--font-mono); font-size: 14px; color: var(--fg-muted);
+    margin-top: 16px;
+  }
+  .kept b { color: var(--accent); font-weight: 400; }
+
+  #divider {
+    position: absolute; left: 50%; top: 236px; bottom: 130px; width: 1px;
+    background: linear-gradient(180deg, transparent, var(--border), transparent);
+  }
+  #thesis {
+    position: absolute; left: 0; right: 0; top: 110px; text-align: center;
+    font-family: var(--font-label); font-variation-settings: "wght" 640;
+    font-size: 46px; color: var(--fg);
+  }
+  #thesis .acc { color: var(--accent); }
+</style>
+
+<div class="stage">
+  <div id="thesis">Chat is for trying. <span class="acc">Nika is for keeping.</span></div>
+
+  <div class="half" id="left">
+    <div class="tag">monday · again</div>
+    <div class="bubble faded2">Can you summarize this meeting, pull out the action items…</div>
+    <div class="bubble faded1">Can you summarize this meeting, pull out every action item with owners…</div>
+    <div class="bubble">Can you summarize this meeting, pull out every action item with its owner and deadline, and format it as JSON?</div>
+    <div class="gone">scrolled away · retyped · never reviewed</div>
+  </div>
+
+  <div id="divider"></div>
+
+  <div class="half" id="right">
+    <div class="tag">once · kept</div>
+    <div class="filecard">
+      <div class="hdr"><span>meeting-actions.nika.yaml</span><span class="ok">✔ checked</span></div>
+      <div class="yaml">
+<span class="ln"><span class="k">nika</span><span class="d">:</span> <span class="s">v1</span></span>
+<span class="ln"><span class="k">workflow</span><span class="d">:</span> <span class="s">meeting-actions</span></span>
+<span class="ln"> </span>
+<span class="ln"><span class="k">tasks</span><span class="d">:</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">transcript</span>   <span class="c"># nika:read</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">extract</span>      <span class="c"># infer · schema</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">save</span>         <span class="c"># nika:write</span></span>
+      </div>
+    </div>
+    <div class="kept">versioned in git · <b>checked before it runs</b> · replayable</div>
+  </div>
+
+  <div class="plate">
+    <span>a real workflow from the embedded pack · runs locally · $0.000</span>
+    <span class="mark">nika.sh 🦋</span>
+  </div>
+  <div class="grain"></div>
+</div>
+
+<script src="scene.js"></script>
+<script>
+  const S = window.Scene;
+  S.define({ name: "poster-keeping", duration: 100, fps: 1, width: 1600, height: 900, posterAt: 0 });
+  S.ready();
+</script>
