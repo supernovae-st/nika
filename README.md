@@ -206,6 +206,8 @@ nika --version
 curl -LsSf https://nika.sh/install.sh | sh
 ```
 
+Prefer a guided page? Every install path, step by step: [nika.sh/install](https://nika.sh/install).
+
 > Fully manual / air-gapped? Download the platform tarball + `SHA256SUMS` from the
 > [latest release](https://github.com/supernovae-st/nika/releases/latest), verify
 > with `sha256sum -c SHA256SUMS --ignore-missing`, then move `nika` onto your `PATH`.
@@ -261,9 +263,9 @@ a read-only oracle (`nika_check` + `nika_explain`) any MCP client can call.
 ## Send us a workflow
 
 Do you repeat an AI task every week, in ChatGPT, Claude, Cursor, Codex, or
-scripts? [Open a "convert my workflow" issue](https://github.com/supernovae-st/nika/issues/new/choose)
-describing it. We convert the best ones into runnable `.nika.yaml` examples,
-credited to you.
+scripts? Describe it at [nika.sh/convert](https://nika.sh/convert) or
+[open a "convert my workflow" issue](https://github.com/supernovae-st/nika/issues/new/choose).
+We convert the best ones into runnable `.nika.yaml` examples, credited to you.
 
 ## Editor support
 
