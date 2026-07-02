@@ -1,6 +1,9 @@
 # Diamond Health — workspace numbers dashboard
 
 Run these checks and report a clean table comparing actuals vs targets.
+The canonical parity-enforced state block comes from
+`bash scripts/refresh-status.sh` (hygiene vector 23) — run it first;
+the checks below are the raw drill-down.
 
 ## Checks to run
 
@@ -36,8 +39,8 @@ find crates -name '*.rs' -not -path '*/target/*' | xargs wc -l 2>/dev/null | sor
 ```
 💎 DIAMOND HEALTH — <date>
 
-Crates admitted:  N / 40 target
-Workspace LOC:    N (target ≤100k)
+Crates admitted:  N / 42 target (cap 100 · reached additively across the 1.x minors)
+Workspace LOC:    N (caps: ≤15k prod LOC/crate · ≤1500 LOC/file — no workspace-total target)
 Files >1500:      N (target 0)
 Unwraps src/:     N (target 0)
 Clippy:           ✅ 0 warnings | ❌ N warnings
@@ -45,6 +48,5 @@ Tests:            N passing
 Largest file:     <path> (N LOC)
 
 Per-crate LOC:
-  nika-error:  N LOC (budget ~800)
-  nika-X:      N LOC (budget ~Xk)
+  nika-X:      N LOC (budget per docs/crate-specs/nika-X.md)
 ```

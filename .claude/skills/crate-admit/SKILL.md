@@ -7,7 +7,8 @@ allowed-tools: Bash, Read, Edit, Grep
 
 # Crate admission — `$ARGUMENTS`
 
-Authority: `.claude/rules/diamond-discipline.md` §12 gates, `RUST_ENFORCEMENT.md`.
+Authority: `.claude/rules/diamond-discipline.md` §12 gates,
+`docs/adr/adr-003-12-gate-admission.md`, `docs/architecture/forward-compat-invariants.md`.
 **No exception.** If a gate genuinely does not apply, document the exemption in
 `docs/crate-specs/$ARGUMENTS.md` with a 1-paragraph rationale BEFORE running
 this skill.
@@ -49,8 +50,8 @@ If the crate parses input, handles encoding, or touches security boundaries,
 it MUST have proptest tests. Otherwise mark N/A in the spec.
 
 ### Gate 7 — BENCHMARKS
-If it's on a hot path (per `DIAMOND.md` performance section), add `benches/`
-with criterion. Otherwise N/A.
+If it's on a hot path, add `benches/` with criterion. Otherwise N/A
+(justify the exemption in the crate spec).
 
 ### Gate 8 — DOCS
 `cargo doc --no-deps -p $ARGUMENTS` must emit 0 warnings. Every `pub` item
