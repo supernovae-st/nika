@@ -28,7 +28,7 @@ Yes.
 
 ```sh
 brew install supernovae-st/tap/nika    # or: curl -LsSf https://nika.sh/install.sh | sh
-nika examples run 01-hello --model mock/echo   # zero setup: no key, no model server
+nika examples run 16-exec-pipeline             # first run: no model, no key at all
 ```
 
 ![nika check audits the workflow (plan, cost, secrets, types), then nika run executes it locally](media/nika-hero.gif)
@@ -49,8 +49,8 @@ $ nika check brief.nika.yaml
 $ nika run brief.nika.yaml
   🦋 nika · daily-brief · 2 tasks
   ✔  fetch_notes  exec · cat
-  ✔  brief        infer · mock/echo
-  ── 2/2 done · $0.000 · elapsed 0.0s ────────────────────────────
+  ✔  brief        infer · ollama/llama3.2:3b
+  ── 2/2 done · $0.000 · elapsed 16.2s ───────────────────────────
 ```
 
 ## What a workflow looks like
@@ -101,7 +101,7 @@ failing `nika check`, the fixed one must stay clean.
 
 The binary embeds a versioned pack of runnable examples. Browse with
 `nika examples list`, read one with `nika examples show <slug>`, preview any
-of them offline with `--model mock/echo`:
+of them with `--model ollama/llama3.2:3b` (or offline with `--model mock/echo`):
 
 | I want to… | Run | For |
 |---|---|---|
@@ -228,16 +228,17 @@ nika check hello.nika.yaml   # static audit, before a single token is spent
 nika run hello.nika.yaml     # execute locally
 ```
 
-Adding an AI step? With no provider handy, the built-in `mock/echo` model lets
-you see the shape offline. Swap it for a real model when ready:
+Adding an AI step? Point it at a local model and nothing leaves your machine:
 
 ```yaml
-model: mock/echo             # swap for ollama/llama3.1, mistral/..., anthropic/... when ready
+model: ollama/llama3.2:3b    # local · or mistral/..., anthropic/..., any provider
 tasks:
   - id: greet
     infer:
       prompt: "Say hello in one sentence."
 ```
+
+(No model handy? The built-in `mock/echo` previews any workflow offline.)
 
 For real inference, run a local model (Ollama / LM Studio) or set a provider
 key, then see what's wired:
@@ -247,7 +248,7 @@ nika doctor                  # provider keys + local servers, with the exact fix
 nika init                    # schema wiring + AGENTS.md for this repo
 nika wire cursor             # optional · explicit MCP wiring for Cursor agents
 nika examples list           # browse the embedded examples
-nika examples run 01-hello --model mock/echo   # offline. swap the model when ready
+nika examples run 01-hello --model ollama/llama3.2:3b   # a real local run
 ```
 
 From source (contributors): `git clone https://github.com/supernovae-st/nika.git && cd nika && cargo test --workspace --lib`. End-user docs: [docs.nika.sh](https://docs.nika.sh).
