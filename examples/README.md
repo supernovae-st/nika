@@ -22,6 +22,20 @@ when you want real inference. `nika doctor` tells you what's wired.
   and comments only when it's high. Four verbs, one readable file,
   local-first. The whole pitch in 60 lines.
 
+The plan, straight from `nika graph examples/pr-risk-review.nika.yaml --format mermaid`:
+
+```mermaid
+graph TD
+  diff["diff · exec"]
+  assess["assess · infer · ollama/llama3.1"]
+  comment["comment · invoke · mcp:github/pr-comment"]
+  diff --> assess
+  assess --> comment
+```
+
+Every workflow here checks clean — `nika check` audits the plan, the cost
+ceiling, secret flows and types **before a single token is spent**.
+
 ## The embedded gallery
 
 The versioned pack lives at
