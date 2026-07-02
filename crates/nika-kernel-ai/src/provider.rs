@@ -291,17 +291,8 @@ pub struct InferResponse {
     pub cached_tokens: Option<u32>,
     /// Provider-assigned request identifier.
     pub request_id: Option<String>,
-    /// Estimated cost in USD (f64).
-    ///
-    /// Prefer [`Self::cost`] (exact nano-USD) for billing; this field is
-    /// scheduled for removal in v0.85.
-    #[deprecated(
-        since = "0.81.0",
-        note = "use `cost: Option<Cost>` instead; `cost_usd` will be removed in v0.85"
-    )]
-    pub cost_usd: Option<f64>,
-    /// Exact cost as nano-USD `Cost`. Preferred over [`Self::cost_usd`] for
-    /// billing aggregation and ledger reconciliation (no f64 drift).
+    /// Exact cost as nano-USD `Cost` — billing aggregation and ledger
+    /// reconciliation (no f64 drift).
     pub cost: Option<Cost>,
     /// Raw finish reason from the provider.
     pub finish_reason_raw: Option<String>,
@@ -320,7 +311,6 @@ pub struct InferResponse {
 impl InferResponse {
     /// Create a new inference response.
     #[must_use]
-    #[allow(deprecated)] // cost_usd initialized for bw-compat; removal in v0.85
     pub fn new(content: Vec<ContentBlock>, usage: TokenUsage, stop_reason: StopReason) -> Self {
         Self {
             content,
@@ -329,7 +319,6 @@ impl InferResponse {
             ttft_ms: None,
             cached_tokens: None,
             request_id: None,
-            cost_usd: None,
             cost: None,
             finish_reason_raw: None,
             memory_frames: Vec::new(),
@@ -576,13 +565,11 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)] // reads cost_usd to assert None before v0.85 removal
     fn infer_response_new_defaults() {
         let resp = InferResponse::new(vec![], TokenUsage::new(10, 20), StopReason::EndTurn);
         assert!(resp.ttft_ms.is_none());
         assert!(resp.memory_frames.is_empty());
         assert!(resp.cost.is_none());
-        assert!(resp.cost_usd.is_none());
     }
 
     #[test]

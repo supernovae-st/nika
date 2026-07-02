@@ -180,7 +180,6 @@ pub fn nika_kernel_runtime::agent::AgentLoopConfig::as_any(&self) -> &(dyn core:
 #[non_exhaustive] pub struct nika_kernel_runtime::agent::AgentOutcome
 pub nika_kernel_runtime::agent::AgentOutcome::checkpoint: core::option::Option<nika_types::checkpoint::AgentCheckpoint>
 pub nika_kernel_runtime::agent::AgentOutcome::cost: core::option::Option<nika_types::cost::Cost>
-pub nika_kernel_runtime::agent::AgentOutcome::cost_usd: core::option::Option<f64>
 pub nika_kernel_runtime::agent::AgentOutcome::output: alloc::string::String
 pub nika_kernel_runtime::agent::AgentOutcome::stop_reason: nika_kernel_runtime::agent::AgentStopReason
 pub nika_kernel_runtime::agent::AgentOutcome::total_tokens: u64

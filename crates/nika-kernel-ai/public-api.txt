@@ -1116,7 +1116,6 @@ pub fn nika_kernel_ai::provider::InferRequest::as_any(&self) -> &(dyn core::any:
 pub nika_kernel_ai::provider::InferResponse::cached_tokens: core::option::Option<u32>
 pub nika_kernel_ai::provider::InferResponse::content: alloc::vec::Vec<nika_kernel_ai::provider::ContentBlock>
 pub nika_kernel_ai::provider::InferResponse::cost: core::option::Option<nika_types::cost::Cost>
-pub nika_kernel_ai::provider::InferResponse::cost_usd: core::option::Option<f64>
 pub nika_kernel_ai::provider::InferResponse::finish_reason_raw: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::provider::InferResponse::gen_ai: nika_kernel_ai::genai::GenAiAttrs
 pub nika_kernel_ai::provider::InferResponse::memory_frames: alloc::vec::Vec<nika_types::memory::MemoryFrameRef>

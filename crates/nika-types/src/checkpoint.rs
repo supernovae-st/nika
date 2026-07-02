@@ -36,17 +36,8 @@ pub struct AgentCheckpoint {
     pub turn_count: u32,
     /// Total tokens consumed.
     pub total_tokens: u64,
-    /// Accumulated cost in USD (f64).
-    ///
-    /// Prefer [`Self::cost`] (exact nano-USD) for billing; scheduled for
-    /// removal in v0.85.
-    #[deprecated(
-        since = "0.81.0",
-        note = "use `cost: Option<Cost>` instead; `cost_usd` will be removed in v0.85"
-    )]
-    pub cost_usd: Option<f64>,
-    /// Accumulated cost as nano-USD `Cost`. Preferred over `cost_usd` for
-    /// billing aggregation and ledger reconciliation.
+    /// Accumulated cost as nano-USD `Cost` — billing aggregation and ledger
+    /// reconciliation.
     pub cost: Option<Cost>,
     /// Provider name.
     pub provider: String,
@@ -59,7 +50,6 @@ pub struct AgentCheckpoint {
 impl AgentCheckpoint {
     /// Create a new checkpoint.
     #[must_use]
-    #[allow(deprecated)] // cost_usd initialized for bw-compat; removal in v0.85
     pub fn new(
         session_id: impl Into<String>,
         provider: impl Into<String>,
@@ -73,7 +63,6 @@ impl AgentCheckpoint {
             tool_records: Vec::new(),
             turn_count: 0,
             total_tokens: 0,
-            cost_usd: None,
             cost: None,
             provider: provider.into(),
             model: model.into(),
@@ -146,7 +135,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[allow(deprecated)] // reads cost_usd to assert None before v0.85 removal
     fn agent_checkpoint_new_defaults() {
         let cp = AgentCheckpoint::new("sess-1", "anthropic", "claude-sonnet");
         assert_eq!(cp.version, 1);
@@ -156,7 +144,6 @@ mod tests {
         assert!(cp.tool_records.is_empty());
         assert_eq!(cp.turn_count, 0);
         assert_eq!(cp.total_tokens, 0);
-        assert!(cp.cost_usd.is_none());
         assert!(cp.cost.is_none());
     }
 

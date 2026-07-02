@@ -106,10 +106,9 @@ impl Cost {
             .map(|nano_usd| Self { nano_usd })
     }
 
-    /// Lossy conversion to `f64` USD for bridging the `cost_usd` deprecation
-    /// window (v0.81 → v0.85). Producers that set [`Self`] should also call
-    /// this to populate the legacy `cost_usd` field so mixed-reader
-    /// deployments don't silently record zero-cost inferences.
+    /// Lossy conversion to `f64` USD — for display and the JSON `cost_usd`
+    /// event field the CLI folds into its spend meter, where a float is
+    /// expected. Never for billing math.
     ///
     /// Precision: f64 rounds at ~15 significant decimal digits, so the
     /// round-trip `Cost → f64 → Cost` is lossy below ~15 USD for deeply

@@ -178,7 +178,6 @@ pub mod nika_types::checkpoint
 #[non_exhaustive] pub struct nika_types::checkpoint::AgentCheckpoint
 pub nika_types::checkpoint::AgentCheckpoint::context: serde_json::value::Value
 pub nika_types::checkpoint::AgentCheckpoint::cost: core::option::Option<nika_types::cost::Cost>
-pub nika_types::checkpoint::AgentCheckpoint::cost_usd: core::option::Option<f64>
 pub nika_types::checkpoint::AgentCheckpoint::messages: alloc::vec::Vec<nika_types::checkpoint::CheckpointMessage>
 pub nika_types::checkpoint::AgentCheckpoint::model: alloc::string::String
 pub nika_types::checkpoint::AgentCheckpoint::provider: alloc::string::String
@@ -1981,7 +1980,6 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::resource::Value where T
 #[non_exhaustive] pub struct nika_types::prelude::AgentCheckpoint
 pub nika_types::prelude::AgentCheckpoint::context: serde_json::value::Value
 pub nika_types::prelude::AgentCheckpoint::cost: core::option::Option<nika_types::cost::Cost>
-pub nika_types::prelude::AgentCheckpoint::cost_usd: core::option::Option<f64>
 pub nika_types::prelude::AgentCheckpoint::messages: alloc::vec::Vec<nika_types::checkpoint::CheckpointMessage>
 pub nika_types::prelude::AgentCheckpoint::model: alloc::string::String
 pub nika_types::prelude::AgentCheckpoint::provider: alloc::string::String
@@ -4629,7 +4627,6 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::resource::Value where T
 #[non_exhaustive] pub struct nika_types::AgentCheckpoint
 pub nika_types::AgentCheckpoint::context: serde_json::value::Value
 pub nika_types::AgentCheckpoint::cost: core::option::Option<nika_types::cost::Cost>
-pub nika_types::AgentCheckpoint::cost_usd: core::option::Option<f64>
 pub nika_types::AgentCheckpoint::messages: alloc::vec::Vec<nika_types::checkpoint::CheckpointMessage>
 pub nika_types::AgentCheckpoint::model: alloc::string::String
 pub nika_types::AgentCheckpoint::provider: alloc::string::String

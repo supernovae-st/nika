@@ -76,17 +76,8 @@ pub struct AgentOutcome {
     pub turns: u32,
     /// Total tokens consumed.
     pub total_tokens: u64,
-    /// Accumulated cost in USD (f64).
-    ///
-    /// Prefer [`Self::cost`] (exact nano-USD) for billing; scheduled for
-    /// removal in v0.85.
-    #[deprecated(
-        since = "0.81.0",
-        note = "use `cost: Option<Cost>` instead; `cost_usd` will be removed in v0.85"
-    )]
-    pub cost_usd: Option<f64>,
-    /// Accumulated cost as nano-USD `Cost`. Preferred over `cost_usd` for
-    /// billing aggregation and ledger reconciliation.
+    /// Accumulated cost as nano-USD `Cost` — billing aggregation and ledger
+    /// reconciliation.
     pub cost: Option<Cost>,
     /// Final checkpoint (for resume/inspect).
     pub checkpoint: Option<AgentCheckpoint>,
@@ -95,7 +86,6 @@ pub struct AgentOutcome {
 impl AgentOutcome {
     /// Create a new agent outcome.
     #[must_use]
-    #[allow(deprecated)] // cost_usd initialized for bw-compat; removal in v0.85
     pub fn new(
         output: impl Into<String>,
         stop_reason: AgentStopReason,
@@ -107,7 +97,6 @@ impl AgentOutcome {
             stop_reason,
             turns,
             total_tokens,
-            cost_usd: None,
             cost: None,
             checkpoint: None,
         }
@@ -206,13 +195,11 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)] // reads cost_usd to assert None before v0.85 removal
     fn agent_outcome_new() {
         let outcome = AgentOutcome::new("done", AgentStopReason::Completed, 5, 1000);
         assert_eq!(outcome.output, "done");
         assert_eq!(outcome.stop_reason, AgentStopReason::Completed);
         assert_eq!(outcome.turns, 5);
-        assert!(outcome.cost_usd.is_none());
         assert!(outcome.cost.is_none());
         assert!(outcome.checkpoint.is_none());
     }
