@@ -120,9 +120,9 @@ fn escapes_tool(id: &str, surface: &str, tool: &str, out: &mut Vec<CapabilityEsc
 }
 
 /// An `exec:` task under a `permits:` boundary. A `false`/omitted permit
-/// denies any exec; a program allowlist applies to the program — `argv[0]`
-/// for the array form (unambiguous), the literal leading token for the
-/// shell-string form (dynamic/pipeline heads are a runtime concern).
+/// denies any exec; a program allowlist verifies `argv[0]` of the ARRAY
+/// form only — the shell-string form under an allowlist is an escape by
+/// FORM (runtime parity: dispatch refuses that pairing wholesale).
 fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<CapabilityEscape>) {
     if !permits.allows_exec() {
         out.push(CapabilityEscape {
@@ -130,22 +130,49 @@ fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<C
             category: "exec",
             detail: "exec task under a boundary that forbids shells".to_owned(),
             // same `add … to …` idiom as every other fix — applied to a
-            // denying `exec: false`, « add » means replace it with the list
-            fix: static_program(command).map(|p| format!("add \"{p}\" to permits.exec")),
+            // denying `exec: false`, « add » means replace it with the list.
+            // ARGV form only: a program allowlist never verifies a shell
+            // string (the runtime refuses that pairing), so suggesting one
+            // for a Shell command would write a self-refusing boundary.
+            fix: match command {
+                RawCommand::Argv(_) => {
+                    static_program(command).map(|p| format!("add \"{p}\" to permits.exec"))
+                }
+                RawCommand::Shell(_) => None,
+            },
         });
         return;
     }
-    let program = static_program(command);
-    if let Some(ExecPermit::Programs(_)) = permits.exec.as_ref()
-        && let Some(program) = program
-        && !permits.allows_program(program)
-    {
-        out.push(CapabilityEscape {
-            task: id.to_owned(),
-            category: "exec",
-            detail: format!("program `{program}` is outside permits.exec allowlist"),
-            fix: Some(format!("add \"{program}\" to permits.exec")),
-        });
+    if let Some(ExecPermit::Programs(_)) = permits.exec.as_ref() {
+        // Runtime parity: a program allowlist verifies argv[0] — and ONLY
+        // argv[0]. The dispatch refuses the shell-string form under an
+        // allowlist wholesale (a pipeline can launch any program), so the
+        // pairing is an escape by FORM, before any leading-token look —
+        // statically detectable, so check-time (spec 01 §permits rule 8).
+        if matches!(command, RawCommand::Shell(_)) {
+            out.push(CapabilityEscape {
+                task: id.to_owned(),
+                category: "exec",
+                detail: "a shell-string command cannot be verified against a \
+                         `permits.exec` program allowlist (a pipeline can \
+                         launch any program) — use the array form"
+                    .to_owned(),
+                // No machine fix: widening the permit would not make the
+                // string form verifiable; the fix is rewriting the command.
+                fix: None,
+            });
+            return;
+        }
+        if let Some(program) = static_program(command)
+            && !permits.allows_program(program)
+        {
+            out.push(CapabilityEscape {
+                task: id.to_owned(),
+                category: "exec",
+                detail: format!("program `{program}` is outside permits.exec allowlist"),
+                fix: Some(format!("add \"{program}\" to permits.exec")),
+            });
+        }
     }
 }
 
@@ -461,7 +488,9 @@ mod tests {
 
     #[test]
     fn exec_outside_program_allowlist_escapes() {
-        let y = "nika: v1\nworkflow: w\npermits: { exec: [\"git\", \"cargo\"] }\ntasks:\n  - id: ok\n    exec: { command: \"git status\" }\n  - id: bad\n    exec: { command: \"rm -rf x\" }\n";
+        // Argv form — the ONLY form an allowlist verifies (a shell string
+        // under an allowlist escapes by FORM · see the by-form tests).
+        let y = "nika: v1\nworkflow: w\npermits: { exec: [\"git\", \"cargo\"] }\ntasks:\n  - id: ok\n    exec: { command: [\"git\", \"status\"] }\n  - id: bad\n    exec: { command: [\"rm\", \"-rf\", \"x\"] }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1, "git allowed, rm escapes");
         assert_eq!(e[0].task, "bad");
@@ -561,32 +590,38 @@ mod tests {
     }
 
     #[test]
-    fn env_assignment_prefix_skips_to_the_real_program() {
-        // `FOO=bar git status` runs `git`, not `FOO=bar` — the allowlist
-        // check must land on git (allowed), not phantom-flag the assignment.
+    fn every_shell_string_under_an_allowlist_escapes_by_form() {
+        // Runtime parity: under a Programs allowlist the dispatch refuses
+        // the shell-string form WHOLESALE (leading token irrelevant — a
+        // pipeline can launch any program). Both tasks escape, the one
+        // whose head is allowlisted included. The env-assignment skip
+        // (`FOO=bar git …` → `git`) lives on in the `is_env_assignment`
+        // unit tests + the `exec: false` fix-hint path.
         let y = r#"nika: v1
 workflow: w
 permits: { exec: ["git"] }
 tasks:
-  - id: ok
+  - id: head_allowed
     exec: { command: "GIT_PAGER=cat git log" }
-  - id: bad
+  - id: head_denied
     exec: { command: "FOO=1 rm -rf x" }
 "#;
         let e = escapes_of(y);
-        assert_eq!(e.len(), 1, "git allowed past the assignment; rm escapes");
-        assert_eq!(e[0].task, "bad");
+        assert_eq!(e.len(), 2, "the string FORM escapes, not the head");
         assert!(
-            e[0].detail.contains("rm"),
-            "names rm, not FOO=1: {}",
-            e[0].detail
+            e.iter().all(|esc| esc.detail.contains("array form")),
+            "both route to the array form"
         );
     }
 
     #[test]
-    fn dynamic_program_is_not_statically_flagged() {
+    fn dynamic_shell_head_under_allowlist_is_flagged_by_form_first() {
+        // Before this rule the dynamic head was waved through as « a
+        // runtime concern » — but the runtime refuses the string form
+        // under an allowlist before it ever looks at the head.
         let y = "nika: v1\nworkflow: w\npermits: { exec: [\"git\"] }\nvars: { cmd: \"git\" }\ntasks:\n  - id: t\n    exec: { command: \"${{ vars.cmd }} status\" }\n";
-        assert!(escapes_of(y).is_empty(), "dynamic head = runtime check");
+        let e = escapes_of(y);
+        assert_eq!(e.len(), 1, "string form under an allowlist escapes");
     }
 
     #[test]
@@ -846,5 +881,33 @@ tasks:
     exec: { command: ["git", "${{ vars.x }}"] }
 "#;
         assert!(escapes(y).is_empty(), "git allowed; the arg is just data");
+    }
+
+    #[test]
+    fn shell_string_under_program_allowlist_escapes_by_form() {
+        // Runtime parity (dispatch refuses ANY shell string under a
+        // Programs allowlist — a pipeline can launch any program): the
+        // check reports the same escape statically (spec 01 §permits
+        // rule 8), even when the leading token IS allowlisted. The
+        // leading-token heuristic would bless `sleep 5 && rm -rf /`.
+        let y = r#"nika: v1
+workflow: w
+permits: { exec: ["sleep"] }
+tasks:
+  - id: t
+    exec: { command: "sleep 5" }
+"#;
+        let e = escapes(y);
+        assert_eq!(e.len(), 1, "string form under an allowlist escapes");
+        assert!(
+            e[0].detail.contains("array form"),
+            "the detail routes to the array form: {}",
+            e[0].detail
+        );
+        assert!(
+            e[0].fix.is_none(),
+            "no machine fix — widening the permit would not make the \
+             string form verifiable"
+        );
     }
 }

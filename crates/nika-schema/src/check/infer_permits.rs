@@ -28,7 +28,7 @@
 use std::collections::BTreeSet;
 
 use super::permits_fit::{BuiltinEffect, builtin_effect, literal_arg, static_program, url_host};
-use crate::raw::{RawAction, RawWorkflow};
+use crate::raw::{RawAction, RawCommand, RawWorkflow};
 use crate::types::{ExecPermit, FsPermits, NetPermits, Permits};
 
 /// The inferred boundary plus the honesty notes (effects too dynamic to
@@ -106,13 +106,30 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
     match action {
         RawAction::Exec(a) => {
             c.exec_used = true;
-            if let Some(p) = static_program(&a.command) {
-                c.programs.insert(p.to_owned());
-            } else {
-                c.exec_dynamic = true;
-                c.notes.push(format!(
-                    "task `{id}` runs a dynamic exec command — `exec` widened to `true`"
-                ));
+            match &a.command {
+                // argv[0] is the verifiable program — allowlist material.
+                RawCommand::Argv(_) => {
+                    if let Some(p) = static_program(&a.command) {
+                        c.programs.insert(p.to_owned());
+                    } else {
+                        c.exec_dynamic = true;
+                        c.notes.push(format!(
+                            "task `{id}` runs a dynamic exec command — `exec` widened to `true`"
+                        ));
+                    }
+                }
+                // A shell string can never satisfy a Programs allowlist
+                // (the runtime refuses that pairing wholesale) — inferring
+                // one from its leading token would write a boundary that
+                // refuses the very workflow it was inferred from.
+                RawCommand::Shell(_) => {
+                    c.exec_dynamic = true;
+                    c.notes.push(format!(
+                        "task `{id}` uses the shell-string exec form — a program \
+                         allowlist applies only to the array form; `exec` widened \
+                         to `true` (rewrite to the array form for a tighter permit)"
+                    ));
+                }
             }
         }
         RawAction::Invoke(a) => {
@@ -354,12 +371,32 @@ mod tests {
 
     #[test]
     fn dynamic_exec_widens_to_any_with_a_note() {
+        // A dynamic SHELL string rides the shell-string arm (the form
+        // decides before the head is even looked at).
         let r = infer_of(
             "nika: v1\nworkflow: w\nvars: { c: \"git\" }\ntasks:\n  - id: t\n    exec: { command: \"${{ vars.c }} status\" }\n",
         );
         assert_eq!(r.permits.exec, Some(ExecPermit::Any), "dynamic → true");
         assert_eq!(r.notes.len(), 1);
-        assert!(r.notes[0].contains("dynamic exec"));
+        assert!(r.notes[0].contains("shell-string"));
+    }
+
+    #[test]
+    fn literal_shell_string_never_infers_a_self_refusing_allowlist() {
+        // The trap this pins: `command: "git log"` used to infer
+        // `exec: ["git"]` — a boundary the runtime then REFUSES for the
+        // very task it was inferred from (shell-string under a Programs
+        // allowlist is rejected wholesale at dispatch). The sound
+        // inference is `exec: true` + a rewrite-to-argv note.
+        let r = infer_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"git log\" }\n",
+        );
+        assert_eq!(
+            r.permits.exec,
+            Some(ExecPermit::Any),
+            "shell string → true, never a leading-token allowlist"
+        );
+        assert!(r.notes.iter().any(|n| n.contains("array form")));
     }
 
     #[test]
