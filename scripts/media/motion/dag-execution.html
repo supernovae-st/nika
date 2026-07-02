@@ -5,7 +5,12 @@
 <style>
   .head { position: absolute; left: 48px; top: 44px; }
   .head .headline { margin-top: 14px; }
-  #kicker, #headline, #filecard, #canvas, .node, #wavechip, #tracecard, #verdict { opacity: 0; }
+  #kicker, #headline, #filecard, #canvas, .node, #wavechip, #tracecard, #verdict, #review-out { opacity: 0; }
+
+  #spot {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(760px 540px at var(--sx, 580px) var(--sy, 400px), rgba(243, 242, 239, 0.04), transparent 70%);
+  }
 
   #filecard { left: 48px; top: 196px; width: 380px; height: 424px; }
   #filecard .yaml { font-size: 15.5px; line-height: 1.62; }
@@ -18,8 +23,22 @@
     position: absolute; inset: 0; border-radius: var(--radius-card);
     border: 1.5px solid var(--border); background: var(--surface); z-index: -1;
   }
-  .node .fan.f1 { transform: translate(7px, 7px); opacity: 0.7; }
-  .node .fan.f2 { transform: translate(14px, 14px); opacity: 0.4; }
+  .node .fan.f1 {
+    transform: translate(calc(var(--spread, 0) * 7px), calc(var(--spread, 0) * 7px));
+    opacity: calc(var(--spread, 0) * 0.7);
+  }
+  .node .fan.f2 {
+    transform: translate(calc(var(--spread, 0) * 14px), calc(var(--spread, 0) * 14px));
+    opacity: calc(var(--spread, 0) * 0.4);
+  }
+
+  .dot {
+    position: absolute; left: 0; top: 0; width: 8px; height: 8px;
+    border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 14px var(--accent-glow);
+    opacity: 0; offset-rotate: 0deg;
+  }
+  #review-out { left: 880px; top: 508px; }
 
   #n-changed    { left: 10px;  top: 90px; }
   #n-todo_sweep { left: 10px;  top: 330px; }
@@ -46,6 +65,7 @@
 </style>
 
 <div class="stage">
+  <div id="spot"></div>
   <div class="head">
     <div class="kicker" id="kicker">nika run · the execution model</div>
     <div class="headline" id="headline">A workflow is a graph, not a prompt.</div>
@@ -98,6 +118,8 @@
       <span class="w w5">wave <b>5</b>/6 · <b>summary</b> — waits for BOTH branches</span>
       <span class="w w6">wave <b>6</b>/6 · <b>save</b> — REVIEW.md written</span>
     </div>
+
+    <div class="chip" id="review-out"><span class="h">REVIEW.md</span> · written</div>
   </div>
 
   <!-- trace · every step accounted for -->
@@ -157,6 +179,9 @@
   wave(14400, ["summary"], 5, 1400);
   wave(16400, ["save"], 6);
 
+  // the agent node fans out the moment wave 3 spawns its swarm
+  S.style("#n-reviews", "--spread", { at: 10500, dur: 450, from: 0, to: 1 });
+
   // edges light up as their upstream completes
   S.cls("#e-changed-files",  { at: 8250,  add: ["lit"] });
   S.cls("#e-todo-summary",   { at: 8250,  add: ["lit"] });
@@ -165,12 +190,42 @@
   S.cls("#e-merged-summary", { at: 13850, add: ["lit"] });
   S.cls("#e-summary-save",   { at: 15800, add: ["lit"] });
 
+  // data travels the graph: a pulse rides each edge as results land.
+  // The two join pulses (merged + todo_sweep) arrive at `summary` together.
+  const pulses = [
+    ["e-changed-files",  8300,  450],
+    ["e-files-reviews",  10000, 450],
+    ["e-reviews-merged", 12150, 450],
+    ["e-merged-summary", 13850, 550],
+    ["e-todo-summary",   13700, 700],
+    ["e-summary-save",   15900, 480],
+  ];
+  const canvas = document.getElementById("canvas");
+  pulses.forEach(([edge, at, dur], i) => {
+    const dot = document.createElement("div");
+    dot.className = "dot";
+    dot.id = `dot-${i}`;
+    dot.style.offsetPath = `path('${document.getElementById(edge).getAttribute("d")}')`;
+    canvas.appendChild(dot);
+    S.fade(`#dot-${i}`, { at, dur: 120 });
+    S.style(`#dot-${i}`, "offset-distance", { at, dur, from: 0, to: 100, unit: "%", ease: "inout" });
+    S.fade(`#dot-${i}`, { at: at + dur - 60, dur: 140, from: 1, to: 0 });
+  });
+
+  // spotlight tracks the execution front
+  S.style("#spot", "--sx", { at: 9800,  dur: 800, from: 580,  to: 1000, unit: "px" });
+  S.style("#spot", "--sx", { at: 13700, dur: 800, from: 1000, to: 1420, unit: "px" });
+  S.style("#spot", "--sy", { at: 13700, dur: 800, from: 400,  to: 540,  unit: "px" });
+
+  // the payoff: the artifact lands where the graph ends
+  S.fade("#review-out", { at: 17650, dur: 420, y: 10 });
+
   // trace + verdict
   S.fade("#tracecard", { at: 17600, dur: 450, y: 14 });
   S.fade("#verdict",   { at: 18300, dur: 450, y: 10 });
 
   // gentle close for a seamless loop
-  for (const sel of ["#filecard", "#canvas", "#tracecard", "#verdict"])
+  for (const sel of ["#filecard", "#canvas", "#tracecard", "#verdict", "#review-out"])
     S.fade(sel, { at: 22200, dur: 550, from: 1, to: 0 });
   S.fade("#headline", { at: 22350, dur: 500, from: 1, to: 0 });
   S.fade("#kicker",   { at: 22450, dur: 400, from: 1, to: 0 });

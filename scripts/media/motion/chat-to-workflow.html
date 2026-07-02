@@ -21,6 +21,17 @@
   .ghost.g1 { top: 48px; left: 24px; right: 36px; }
   .ghost.g2 { top: 4px; left: 48px; right: 12px; }
   .ghost .who, .ghost .msg { visibility: hidden; }
+  .gcap {
+    position: absolute; right: 18px; top: 10px;
+    font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--fg-faint);
+  }
+  #spot {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(720px 520px at var(--sx, 780px) 460px, rgba(243, 242, 239, 0.045), transparent 70%);
+  }
+  #yamlcard .yaml .ln.sync { background: oklch(70% 0.2 145 / var(--syncA, 0)); border-radius: 6px; }
+  #headline2 .acc { color: var(--accent); }
   #chat .who {
     font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.1em;
     text-transform: uppercase; color: var(--fg-faint); margin-bottom: 12px;
@@ -68,16 +79,17 @@
 </style>
 
 <div class="stage">
+  <div id="spot"></div>
   <div class="head">
     <div class="kicker" id="kicker">same task · every week</div>
     <div class="headline" id="headline">Chat is for trying. Nika is for keeping.</div>
-    <div class="headline" id="headline2">If you do it twice, make it a workflow.</div>
+    <div class="headline" id="headline2">If you do it <span class="acc">twice</span>, make it a workflow.</div>
   </div>
 
   <!-- PHASE A · the prompt you keep retyping -->
   <div id="chatwrap">
-    <div class="ghost g2"><div class="who">you</div><div class="msg">…</div></div>
-    <div class="ghost g1"><div class="who">you</div><div class="msg">…</div></div>
+    <div class="ghost g2"><div class="gcap">two mondays ago</div><div class="who">you</div><div class="msg">…</div></div>
+    <div class="ghost g1"><div class="gcap">last monday</div><div class="who">you</div><div class="msg">…</div></div>
     <div id="chat">
       <div class="who">you · monday · 09:12</div>
       <div class="msg" id="prompt">Can you summarize this meeting, pull out every action item with its owner and deadline, and format the result as JSON for our tracker?</div>
@@ -101,18 +113,18 @@
 <span class="ln"><span class="k">workflow</span><span class="d">:</span> <span class="s">meeting-actions</span></span>
 <span class="ln"> </span>
 <span class="ln"><span class="k">tasks</span><span class="d">:</span></span>
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">transcript</span></span>
+<span class="ln sync" id="yl-transcript">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">transcript</span></span>
 <span class="ln">    <span class="k">invoke</span><span class="d">:</span></span>
 <span class="ln">      <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:read"</span></span>
 <span class="ln"> </span>
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">extract</span></span>
+<span class="ln sync" id="yl-extract">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">extract</span></span>
 <span class="ln">    <span class="k">depends_on</span><span class="d">:</span> <span class="s">[transcript]</span></span>
 <span class="ln">    <span class="k">infer</span><span class="d">:</span></span>
 <span class="ln">      <span class="k">prompt</span><span class="d">:</span> <span class="s">|</span></span>
 <span class="ln">        <span class="d">Extract every action item …</span></span>
 <span class="ln">      <span class="k">schema</span><span class="d">:</span> <span class="c"># actions: [{ owner · task · due }]</span></span>
 <span class="ln"> </span>
-<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">save</span></span>
+<span class="ln sync" id="yl-save">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">save</span></span>
 <span class="ln">    <span class="k">invoke</span><span class="d">:</span></span>
 <span class="ln">      <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:write"</span></span>
     </div>
@@ -189,10 +201,23 @@
   S.type("#cmd-check", { at: 11500, dur: 1300, caret: "#caret1" });
   S.lines("#termcard .chk", { at: 13000, stagger: 300, dur: 300 });
 
+  // spotlight follows the action: chat → file → terminal
+  S.style("#spot", "--sx", { at: 7300,  dur: 700, from: 780, to: 400,  unit: "px" });
+  S.style("#spot", "--sx", { at: 10900, dur: 700, from: 400, to: 1170, unit: "px" });
+
   // PHASE C · real local run
   S.fade("#termcard .cmdln2", { at: 14900, dur: 200 });
   S.type("#cmd-run", { at: 15100, dur: 1500, caret: "#caret2" });
   S.lines("#termcard .run", { at: 16800, stagger: 340, dur: 320 });
+
+  // the file IS what runs: each yaml task pulses as its run line lands
+  const sync = (sel, at) => {
+    S.style(sel, "--syncA", { at, dur: 250, from: 0, to: 0.16 });
+    S.style(sel, "--syncA", { at: at + 420, dur: 450, from: 0.16, to: 0 });
+  };
+  sync("#yl-transcript", 17050);
+  sync("#yl-extract", 17390);
+  sync("#yl-save", 17730);
 
   // the output artifact
   S.fade("#artifact", { at: 19200, dur: 450, y: 14 });

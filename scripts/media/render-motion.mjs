@@ -100,7 +100,7 @@ for (const scene of scenes) {
   ff(["-y", ...input, "-c:v", "libx264", "-crf", "20", "-preset", "slow", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", mp4]);
   ff(["-y", ...input, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "40", "-row-mt", "1", "-an", webm]);
   ff(["-y", "-i", mp4, "-vf",
-    "fps=12,scale=1280:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5",
+    "fps=16,scale=1280:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=192[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4",
     gif]);
 
   // poster = the exact posterAt frame

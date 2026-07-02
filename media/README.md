@@ -38,3 +38,22 @@ bash scripts/media/validate-media.sh          # honesty + budget gate
 The motion scenes live in `scripts/media/motion/*.html` — self-contained
 HTML/SVG timelines rendered frame-by-frame in headless Chrome. Open any
 scene in a browser to preview it live.
+
+## Embedding
+
+GitHub README → use the optimized GIF:
+
+```md
+![alt text](media/gifs/<scene>.optimized.gif)
+```
+
+Docs (Mintlify) and the website → prefer video with the poster:
+
+```html
+<video autoPlay muted loop playsInline poster="/images/posters/<scene>.png">
+  <source src="/videos/<scene>.webm" type="video/webm" />
+  <source src="/videos/<scene>.mp4" type="video/mp4" />
+</video>
+```
+
+Social / OG cards → the posters are 1600×900 stills designed to work alone.
