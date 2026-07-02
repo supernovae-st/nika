@@ -1,0 +1,30 @@
+# The on-error-recover asset — the live source is GONE and the workflow
+# does not die: `on_error: recover:` degrades to the cached snapshot, the
+# sink still writes, the run exits 0. Deterministic + offline (the missing
+# file is the failure; the cache task is the fallback source).
+nika: v1
+workflow: rates-with-fallback
+
+tasks:
+  - id: cache
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { rates: { eur_usd: 1.09, updated: "yesterday" }, stale: true }
+        expression: "."
+
+  - id: live
+    depends_on: [cache]
+    exec:
+      command: ["cat", "live-rates.json"]     # the live feed is gone → exit 1
+    on_error:
+      recover: "${{ tasks.cache.output }}"    # degrade to the snapshot, loudly typed
+
+  - id: publish
+    depends_on: [live]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./out/rates.json"
+        content: "${{ tasks.live.output }}"
+        create_dirs: true

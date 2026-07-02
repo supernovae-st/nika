@@ -1,0 +1,172 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>nika · permits-audit</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .head { position: absolute; left: 48px; top: 44px; }
+  .head .headline { margin-top: 14px; }
+  #kicker, #headline, #card, .act { opacity: 0; }
+  .out1, .out3, #act0 .ln, #act2 .ln { opacity: 0; }
+  #card { left: 48px; top: 196px; width: 1504px; height: 560px; }
+  .act { position: absolute; inset: 58px 0 0 0; }
+  .term { font-size: 17px; padding-top: 26px; }
+  .term .ln { margin-bottom: 5px; }
+  .hl { display: inline-block; border-radius: 8px; padding: 0 6px; margin: 0 -6px; }
+  .hl.on { background: var(--err-dim); box-shadow: 0 0 0 1px var(--err); }
+  .hl.fix.on { background: oklch(70% 0.14 145 / 0.14); box-shadow: 0 0 0 1px oklch(70% 0.14 145 / 0.7); }
+  .act-label {
+    position: absolute; right: 26px; top: 16px;
+    font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--fg-faint);
+    opacity: 0;
+  }
+  .act-label .warn { color: var(--warn); }
+  #act0 .yaml { padding-top: 40px; font-size: 16.5px; line-height: 1.62; }
+  #act2 .diffv { padding-top: 66px; font-size: 18px; }
+  .diffv .num {
+    display: inline-block; width: 44px; color: var(--fg-faint);
+    text-align: right; padding-right: 18px; user-select: none;
+  }
+  .diffv .gap { color: var(--fg-faint); }
+  .final {
+    font-variation-settings: "wght" 560;
+    display: inline-block; border-radius: 8px; padding: 0 8px; margin: 0 -8px;
+    background: oklch(70% 0.2 145 / var(--fga, 0));
+  }
+</style>
+
+<div class="stage">
+  <div class="head">
+    <div class="kicker" id="kicker">permits · the file is the security boundary</div>
+    <div class="headline" id="headline">Declare the blast radius. The audit holds the line.</div>
+  </div>
+
+  <div class="card" id="card">
+    <div class="card-header">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <span class="title">release-brief.nika.yaml</span>
+      <span class="badge fail" id="badge-fail" style="position:absolute;right:20px;opacity:0">1 escape</span>
+      <span class="badge ok" id="badge-ok" style="position:absolute;right:20px;opacity:0">clean</span>
+    </div>
+
+    <!-- ACT 0 · the boundary is IN the file — and one task reaches past it -->
+    <div class="act" id="act0">
+      <div class="act-label" id="tease">one task reaches <span class="warn">beyond the boundary</span> — the audit will catch it</div>
+      <div class="yaml">
+<span class="ln"><span class="k">permits</span><span class="d">:</span><span class="d">                              # the workflow's entire blast radius, in the file</span></span>
+<span class="ln"><span class="k">  net</span><span class="d">:</span> <span class="d">{</span> <span class="k">http</span><span class="d">:</span> <span class="s">["api.github.com"]</span> <span class="d">}</span><span class="d">   # GitHub only — everything else is denied</span></span>
+<span class="ln"><span class="k">  fs</span><span class="d">:</span> <span class="d">{</span> <span class="k">write</span><span class="d">:</span> <span class="s">["./out/**"]</span> <span class="d">}</span></span>
+<span class="ln"> </span>
+<span class="ln"><span class="k">tasks</span><span class="d">:</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">release</span></span>
+<span class="ln">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:fetch"</span><span class="d">,</span> <span class="k">url</span><span class="d">:</span> <span class="s">api.github.com/…/releases/latest</span> <span class="d">}</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">changelog_page</span></span>
+<span class="ln" id="escape-line">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:fetch"</span><span class="d">,</span> <span class="k">url</span><span class="d">:</span> <span class="hl" id="escape-hl"><span class="s">https://nika.sh/changelog</span></span> <span class="d">}</span></span>
+<span class="ln">  <span class="d">- </span><span class="k">id</span><span class="d">:</span> <span class="s">brief</span> <span class="d">· infer · then</span> <span class="s">save</span> <span class="d">· nika:write → ./out/brief.md</span></span>
+      </div>
+    </div>
+
+    <!-- ACT 1 · the audit — captured from the real cli -->
+    <div class="act" id="act1">
+      <div class="term">
+        <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd1">nika check release-brief.nika.yaml</span><span class="caret" id="caret1"></span></span>
+        <span class="ln out1"><span class="ok"> ✔ PLAN    </span> 3 wave(s) · 4 task(s) · max parallelism 2</span>
+        <span class="ln out1"><span class="ok"> ✔ SECRETS </span> no information-flow escapes</span>
+        <span class="ln out1"><span class="ok"> ✔ TOOLS   </span> every nika: tool names a canonical builtin</span>
+        <span class="ln out1" id="escape-finding"><span class="hl"><span class="fail"> ✖ PERMITS </span> [net] task <span class="accent">`changelog_page`</span> · <span class="accent">`nika:fetch`</span> host <span class="accent">`nika.sh`</span> is outside permits.net.http</span></span>
+        <span class="ln out1" id="fix-line"><span class="hl fix">   <span class="dim">· fix:</span> add "nika.sh" to permits.net.http</span></span>
+        <span class="ln out1"><span class="fail"> ✖ findings above</span><span class="dim"> — the boundary held · nothing ran · nothing leaked</span></span>
+      </div>
+    </div>
+
+    <!-- ACT 2 · the fix is the machine-applicable line -->
+    <div class="act" id="act2">
+      <div class="act-label" id="fixlabel">the fix — widen the boundary ON PURPOSE, in review</div>
+      <div class="diffv">
+<span class="ln ctx"><span class="num">7</span>   permits:</span>
+<span class="ln del"><span class="num">·</span>-    net: { http: ["api.github.com"] }</span>
+<span class="ln add"><span class="num">8</span>+    net: { http: ["api.github.com", "nika.sh"] }</span>
+<span class="ln ctx"><span class="num">9</span>     fs: { write: ["./out/**"] }</span>
+<span class="ln gap"><span class="num">⋯</span></span>
+<span class="ln ctx"><span class="num">24</span>     infer:</span>
+<span class="ln ctx"><span class="num">25</span>       prompt: "Write a 3-line release brief …"</span>
+<span class="ln add"><span class="num">26</span>+      max_tokens: 400</span>
+      </div>
+    </div>
+
+    <!-- ACT 3 · every vector green — captured from the real cli -->
+    <div class="act" id="act3">
+      <div class="term">
+        <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd3">nika check release-brief.nika.yaml</span><span class="caret" id="caret3"></span></span>
+        <span class="ln out3"><span class="ok"> ✔ PLAN    </span> 3 wave(s) · 4 task(s) · max parallelism 2</span>
+        <span class="ln out3"><span class="ok"> ✔ SECRETS </span> no information-flow escapes</span>
+        <span class="ln out3"><span class="ok"> ✔ TYPES   </span> every deep output reference fits its declared shape</span>
+        <span class="ln out3"><span class="ok"> ✔ TOOLS   </span> every nika: tool names a canonical builtin</span>
+        <span class="ln out3"><span class="ok"> ✔ ARGS    </span> every invoke arg key is declared + every required arg is present</span>
+        <span class="ln out3"><span class="ok"> ✔ SCHEMA  </span> every authored schema: is satisfiable</span>
+        <span class="ln out3"><span class="ok"> ✔ PERMITS </span> body fits the declared boundary</span>
+        <span class="ln out3"><span class="final"><span class="ok"> ✔ clean — audited before a single token was spent</span></span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="plate">
+    <span>nika 0.92 · permits audit · output captured from the real cli</span>
+    <span class="mark">nika.sh 🦋</span>
+  </div>
+  <div class="grain"></div>
+</div>
+
+<script src="scene.js"></script>
+<script>
+  const S = window.Scene;
+  S.define({ name: "permits-audit", duration: 26200, fps: 30, width: 1600, height: 900, posterAt: 23800 });
+
+  // opening
+  S.fade("#kicker",   { at: 200, dur: 500, y: 10 });
+  S.fade("#headline", { at: 420, dur: 600, y: 14 });
+  S.fade("#card",     { at: 800, dur: 550, y: 22, scale: 0.985 });
+
+  // ACT 0 · the boundary lives in the file — one task reaches past it
+  S.fade("#act0", { at: 1100, dur: 300 });
+  S.lines("#act0 .ln", { at: 1300, stagger: 140, dur: 240 });
+  S.fade("#tease", { at: 3300, dur: 400, y: 6 });
+  S.cls("#escape-hl", { at: 4300, add: ["on"] });
+
+  // ACT 0 → ACT 1 · the audit holds the line
+  S.cls("#escape-hl", { at: 6600, remove: ["on"] });
+  S.fade("#act0", { at: 6800, dur: 350, from: 1, to: 0 });
+  S.fade("#act1", { at: 7150, dur: 300 });
+  S.type("#cmd1", { at: 7400, dur: 1300, caret: "#caret1" });
+  S.lines("#act1 .out1", { at: 8900, stagger: 330, dur: 340, ease: "err" });
+  S.fade("#badge-fail", { at: 10600, dur: 300 });
+  S.cls("#escape-finding .hl", { at: 11200, add: ["on"] });
+  S.cls("#fix-line .hl", { at: 12200, add: ["on"] });
+
+  // ACT 1 → ACT 2 · the fix is deliberate, reviewable, two lines
+  S.cls("#escape-finding .hl", { at: 13600, remove: ["on"] });
+  S.cls("#fix-line .hl", { at: 13600, remove: ["on"] });
+  S.fade("#act1", { at: 13800, dur: 350, from: 1, to: 0 });
+  S.fade("#act2", { at: 14150, dur: 350 });
+  S.fade("#fixlabel", { at: 14300, dur: 350, y: 6 });
+  S.lines("#act2 .ln", { at: 14400, stagger: 190, dur: 280 });
+
+  // ACT 2 → ACT 3 · every vector green
+  S.fade("#act2", { at: 17700, dur: 350, from: 1, to: 0 });
+  S.fade("#act3", { at: 18050, dur: 350 });
+  S.type("#cmd3", { at: 18300, dur: 1200, caret: "#caret3" });
+  S.lines("#act3 .out3", { at: 19700, stagger: 240, dur: 300 });
+
+  // verdict: badge flips + glow sweep
+  S.fade("#badge-fail", { at: 21900, dur: 300, from: 1, to: 0 });
+  S.fade("#badge-ok",   { at: 22100, dur: 300 });
+  S.style("#act3 .final", "--fga", { at: 21900, dur: 320, from: 0, to: 0.16 });
+  S.style("#act3 .final", "--fga", { at: 22500, dur: 700, from: 0.16, to: 0 });
+
+  // close for a seamless loop
+  S.fade("#card",     { at: 25300, dur: 600, from: 1, to: 0 });
+  S.fade("#headline", { at: 25450, dur: 550, from: 1, to: 0 });
+  S.fade("#kicker",   { at: 25550, dur: 450, from: 1, to: 0 });
+
+  S.ready();
+</script>

@@ -1,0 +1,12 @@
+nika check · permits-escape.nika.yaml
+ ✔ PLAN     3 wave(s) · 4 task(s) · max parallelism 2
+ ⚠  COST     $0.0000 – $0.0000 FLOOR (unbounded tasks present)
+   brief  ollama/llama3.2:3b  UNBOUNDED — no max_tokens declared
+ ✔ SECRETS  no information-flow escapes
+ ✔ TYPES    every deep output reference fits its declared shape
+ ✔ TOOLS    every nika: tool names a canonical builtin
+ ✔ ARGS     every invoke arg key is declared + every required arg is present
+ ✔ SCHEMA   every authored schema: is satisfiable
+ ✖ PERMITS  [net] task `changelog_page` · `nika:fetch` host `nika.sh` is outside permits.net.http · fix: add "nika.sh" to permits.net.http
+ ↳ HINT     [cost] declare `max_tokens` on `brief` — the cost report becomes a hard ceiling instead of UNBOUNDED
+ ✖ findings above

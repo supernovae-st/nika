@@ -1,0 +1,34 @@
+--- scripts/media/fixtures/permits-escape.nika.yaml	2026-07-02 20:39:59
++++ scripts/media/fixtures/permits-fits.nika.yaml	2026-07-02 20:40:26
+@@ -1,12 +1,12 @@
+-# The permits-audit asset · ACT 1 — this file DECLARES its blast radius,
+-# then one task quietly reaches beyond it. `nika check` catches the escape
+-# statically and prints the machine-applicable fix. Deliberately escaping.
++# The permits-audit asset · ACT 3 — the two-line fix: the host joins the
++# declared boundary, max_tokens turns the cost floor into a HARD ceiling.
++# Every vector green, before a single token is spent.
+ nika: v1
+ workflow: release-brief
+ model: ollama/llama3.2:3b
+ 
+ permits:
+-  net: { http: ["api.github.com"] }   # the declared boundary — GitHub only
++  net: { http: ["api.github.com", "nika.sh"] }   # the boundary, widened on purpose
+   fs: { write: ["./out/**"] }
+   tools: ["nika:fetch", "nika:write"]
+ 
+@@ -19,12 +19,13 @@
+   - id: changelog_page
+     invoke:
+       tool: "nika:fetch"
+-      args: { url: "https://nika.sh/changelog" }   # ← beyond the boundary
++      args: { url: "https://nika.sh/changelog" }
+ 
+   - id: brief
+     depends_on: [release, changelog_page]
+     infer:
+       prompt: "Write a 3-line release brief from this JSON and page."
++      max_tokens: 400
+ 
+   - id: save
+     depends_on: [brief]

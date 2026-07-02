@@ -54,6 +54,29 @@ SHOWCASE="crates/nika-pack/pack/examples/showcase/t3-pr-review-fanout.nika.yaml"
 nika graph --format mermaid "$SHOWCASE" >"$RAW/graph-fanout.mmd" 2>&1
 nika check --no-color "$SHOWCASE" >"$RAW/check-fanout.txt" 2>&1
 
+# ── permits-audit ───────────────────────────────────────────────────────
+# The escaping fixture MUST fail (the boundary catches it) · the widened
+# one MUST be clean with a HARD cost ceiling.
+nika check --no-color "$FIX/permits-escape.nika.yaml" >"$RAW/check-permits-escape.txt" 2>&1 && {
+  echo "FATAL: permits-escape fixture unexpectedly passed nika check" >&2
+  exit 1
+} || true
+nika check --no-color "$FIX/permits-fits.nika.yaml" >"$RAW/check-permits-fits.txt" 2>&1
+diff -u "$FIX/permits-escape.nika.yaml" "$FIX/permits-fits.nika.yaml" \
+  >"$RAW/permits-fix-diff.txt" 2>&1 || true
+
+# ── on-error-recover ────────────────────────────────────────────────────
+# Deterministic + offline: the missing live-rates.json IS the failure; the
+# cache task is the fallback. Run from a scratch dir so ./out starts clean.
+RECOVER_TMP="$(mktemp -d)"
+(
+  cd "$RECOVER_TMP"
+  nika run --no-progress --no-color "$ROOT/$FIX/recover-fallback.nika.yaml" \
+    >"$ROOT/$RAW/run-recover.txt" 2>&1
+  cp out/rates.json "$ROOT/$RAW/recover-rates.json"
+)
+rm -rf "$RECOVER_TMP"
+
 # ── bundle for the motion renderer ──────────────────────────────────────
 node - <<'NODE'
 const fs = require('fs');

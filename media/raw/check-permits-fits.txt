@@ -1,0 +1,11 @@
+nika check · permits-fits.nika.yaml
+ ✔ PLAN     3 wave(s) · 4 task(s) · max parallelism 2
+ ⚠  COST     $0.0000 – $0.0000 FLOOR (unbounded tasks present)
+   brief  ollama/llama3.2:3b  UNBOUNDED — no catalog price (local/unknown model)
+ ✔ SECRETS  no information-flow escapes
+ ✔ TYPES    every deep output reference fits its declared shape
+ ✔ TOOLS    every nika: tool names a canonical builtin
+ ✔ ARGS     every invoke arg key is declared + every required arg is present
+ ✔ SCHEMA   every authored schema: is satisfiable
+ ✔ PERMITS  body fits the declared boundary
+ ✔ clean — audited before a single token was spent

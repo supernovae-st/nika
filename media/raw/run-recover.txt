@@ -1,0 +1,7 @@
+  🦋 nika · rates-with-fallback · 3 tasks
+     permits ✓ engine floor (no boundary declared)
+
+  ✔  cache    invoke · nika:jq
+  ✔  live     exec · cat
+  ✔  publish  invoke · nika:write
+  ── 3/3 done · $0.000 · elapsed 0.0s ────────────────────────────

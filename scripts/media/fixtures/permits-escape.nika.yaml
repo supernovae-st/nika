@@ -1,0 +1,33 @@
+# The permits-audit asset · ACT 1 — this file DECLARES its blast radius,
+# then one task quietly reaches beyond it. `nika check` catches the escape
+# statically and prints the machine-applicable fix. Deliberately escaping.
+nika: v1
+workflow: release-brief
+model: ollama/llama3.2:3b
+
+permits:
+  net: { http: ["api.github.com"] }   # the declared boundary — GitHub only
+  fs: { write: ["./out/**"] }
+  tools: ["nika:fetch", "nika:write"]
+
+tasks:
+  - id: release
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://api.github.com/repos/supernovae-st/nika/releases/latest" }
+
+  - id: changelog_page
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://nika.sh/changelog" }   # ← beyond the boundary
+
+  - id: brief
+    depends_on: [release, changelog_page]
+    infer:
+      prompt: "Write a 3-line release brief from this JSON and page."
+
+  - id: save
+    depends_on: [brief]
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/brief.md", content: "${{ tasks.brief.output }}", create_dirs: true }

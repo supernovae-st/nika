@@ -9,7 +9,7 @@ model: ollama/llama3.1
 tasks:
   - id: diff
     exec:
-      command: "git diff origin/main...HEAD"
+      command: ["git", "diff", "origin/main...HEAD"]
       capture: structured
 
   - id: assess

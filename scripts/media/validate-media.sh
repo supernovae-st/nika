@@ -23,7 +23,15 @@ else
   say "✔ broken fixture fails check (as shown)"
 fi
 
+if nika check "$FIX/permits-escape.nika.yaml" >/dev/null 2>&1; then
+  say "✖ permits-escape fixture PASSES check — the permits-audit asset lies"
+  fail=1
+else
+  say "✔ permits-escape fixture fails check (as shown)"
+fi
+
 for wf in "$FIX/fixed-pr-review.nika.yaml" "$FIX/meeting-actions.nika.yaml" \
+  "$FIX/permits-fits.nika.yaml" "$FIX/recover-fallback.nika.yaml" \
   "crates/nika-pack/pack/examples/showcase/t3-pr-review-fanout.nika.yaml"; do
   if nika check "$wf" >/dev/null 2>&1; then
     say "✔ $(basename "$wf") clean (as shown)"
@@ -38,15 +46,27 @@ required=(
   media/gifs/static-check-fix.optimized.gif
   media/gifs/chat-to-workflow.optimized.gif
   media/gifs/dag-execution.optimized.gif
+  media/gifs/editor-diagnostics.optimized.gif
+  media/gifs/permits-audit.optimized.gif
+  media/gifs/on-error-recover.optimized.gif
   media/videos/static-check-fix.mp4
   media/videos/chat-to-workflow.mp4
   media/videos/dag-execution.mp4
+  media/videos/permits-audit.mp4
+  media/videos/on-error-recover.mp4
   media/videos/static-check-fix.webm
   media/videos/chat-to-workflow.webm
   media/videos/dag-execution.webm
+  media/videos/editor-diagnostics.mp4
+  media/videos/editor-diagnostics.webm
+  media/videos/permits-audit.webm
+  media/videos/on-error-recover.webm
   media/posters/static-check-fix.png
   media/posters/chat-to-workflow.png
   media/posters/dag-execution.png
+  media/posters/editor-diagnostics.png
+  media/posters/permits-audit.png
+  media/posters/on-error-recover.png
   media/raw/transcripts.json
 )
 for f in "${required[@]}"; do
