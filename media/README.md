@@ -19,9 +19,10 @@ Official visual assets for the README, docs, website and social surfaces.
 
 ```
 media/
-  gifs/      *.optimized.gif   — README embeds (1280px · 12fps · ≤8MB)
+  gifs/      *.optimized.gif   — README embeds (1280px · 16fps · ≤8MB)
   videos/    *.mp4 + *.webm    — docs + website embeds
   posters/   *.png             — static frame per animation (og:image, video poster)
+  social/    og-card + github-social-preview — share cards (scene: motion/og-card.html)
   raw/       *.txt + *.json    — captured CLI transcripts (the source of truth)
   nika-hero.gif                — real terminal capture (check + run)
 ```

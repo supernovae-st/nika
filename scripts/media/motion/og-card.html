@@ -1,0 +1,63 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>nika · og-card</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* Static social/OG card — rendered via:
+     node render-motion.mjs og-card --frame 0
+     GitHub social preview crop: 1280x640 from the 1600x800 center. */
+  .wrap { position: absolute; left: 96px; top: 250px; width: 760px; }
+  .kicker { font-size: 16px; }
+  .headline { margin-top: 22px; font-size: 58px; line-height: 1.16; }
+  .headline .acc { color: var(--accent); }
+  .sub {
+    margin-top: 28px; font-family: var(--font-mono); font-size: 17px;
+    line-height: 1.7; color: var(--fg-muted); max-width: 640px;
+  }
+  #termcard { left: 920px; top: 205px; width: 590px; height: 460px; }
+  #termcard .term { font-size: 14.5px; padding: 20px 24px; }
+  #termcard .ln { margin-bottom: 4px; }
+  .plate { bottom: 90px; }
+</style>
+
+<div class="stage">
+  <div class="wrap">
+    <div class="kicker">nika · intent as code</div>
+    <div class="headline">If you do the same AI task <span class="acc">twice</span>, make it a workflow.</div>
+    <div class="sub">one file · four verbs · one binary<br>checked before it runs · local-first · AGPL</div>
+  </div>
+
+  <div class="card" id="termcard">
+    <div class="card-header">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <span class="title">meeting-actions.nika.yaml</span>
+      <span class="badge ok">clean</span>
+    </div>
+    <div class="term">
+      <span class="ln"><span class="prompt">$ </span><span class="cmd">nika check meeting-actions.nika.yaml</span></span>
+      <span class="ln"><span class="ok"> ✔ PLAN    </span><span class="dim"> 3 wave(s) · 3 task(s)</span></span>
+      <span class="ln"><span class="ok"> ✔ SECRETS </span><span class="dim"> no information-flow escapes</span></span>
+      <span class="ln"><span class="ok"> ✔ clean</span><span class="dim"> — before a single token was spent</span></span>
+      <span class="ln"> </span>
+      <span class="ln"><span class="prompt">$ </span><span class="cmd">nika run meeting-actions.nika.yaml</span></span>
+      <span class="ln">  <span class="accent">🦋 nika</span><span class="dim"> · meeting-actions · 3 tasks</span></span>
+      <span class="ln"><span class="ok">  ✔  transcript </span><span class="dim"> invoke · nika:read</span></span>
+      <span class="ln"><span class="ok">  ✔  extract    </span><span class="dim"> infer · ollama/llama3.2:3b</span></span>
+      <span class="ln"><span class="ok">  ✔  save       </span><span class="dim"> invoke · nika:write</span></span>
+      <span class="ln"><span class="dim">  ── 3/3 done · </span><span class="accent">$0.000</span><span class="dim"> · local ──</span></span>
+    </div>
+  </div>
+
+  <div class="plate">
+    <span>github.com/supernovae-st/nika · apache-2.0 spec · agpl engine</span>
+    <span class="mark">nika.sh 🦋</span>
+  </div>
+  <div class="grain"></div>
+</div>
+
+<script src="scene.js"></script>
+<script>
+  const S = window.Scene;
+  S.define({ name: "og-card", duration: 100, fps: 1, width: 1600, height: 900, posterAt: 0 });
+  S.ready();
+</script>
