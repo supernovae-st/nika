@@ -97,6 +97,19 @@ The two fixtures behind this capture live in
 directions by `scripts/media/validate-media.sh`: the broken one must keep
 failing `nika check`, the fixed one must stay clean.
 
+The same audit holds the workflow's **declared blast radius**. A `permits:`
+block makes the file itself the security boundary — hosts, paths, programs,
+tools, all default-deny once declared. A task that reaches beyond it is
+caught statically, with the machine-applicable fix, before anything runs:
+
+![A permits block declares GitHub-only network access; one task fetches another host; nika check flags the escape with the exact fix line; the boundary widens on purpose in review and the audit passes clean](media/gifs/permits-audit.optimized.gif)
+
+And failure handling is part of the file, not an ops runbook. When a task
+dies, `on_error: recover:` degrades to a declared fallback — the run
+completes, and the output says what it is:
+
+![The live source is missing so the task fails; on_error recover degrades to the cached snapshot; the run exits 0 and the published file says stale: true](media/gifs/on-error-recover.optimized.gif)
+
 ## Pick a workflow
 
 The binary embeds a versioned pack of runnable examples. Browse with
