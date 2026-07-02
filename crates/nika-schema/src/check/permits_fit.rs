@@ -8,8 +8,9 @@
 //! escapes (`nika check` surface · the runtime `NIKA-SEC-004` catches the
 //! dynamic remainder) ·
 //!
-//! - an `exec:` task under a `false`/omitted permit, or a program outside
-//!   the allowlist
+//! - an `exec:` task under a `false`/omitted permit; an argv `command[0]`
+//!   outside the program allowlist; or ANY shell-string command under a
+//!   program allowlist (a pipeline can launch any program — runtime parity)
 //! - an `invoke:`/`agent` tool outside `permits.tools`
 //! - a builtin whose **literal** effect escapes the declared `fs`/`net`
 //!   boundary — a `nika:fetch` to an unlisted host (`permits.net.http`),
@@ -393,53 +394,17 @@ fn lexically_normalize(path: &str) -> String {
     }
 }
 
-/// The statically-known program of a command, either form. `argv[0]` for
-/// the array form WHEN it is a literal (argv is execve-direct — no shell
-/// expansion — so only a `${{ }}` island makes it dynamic); the literal
-/// leading token for the shell form. `None` when the program is dynamic —
-/// a runtime concern, not a static one.
+/// The statically-known program of an ARRAY-form command: `argv[0]` when it
+/// is a literal (argv is execve-direct — no shell expansion — so only a
+/// `${{ }}` island makes it dynamic). `None` for the shell-string form,
+/// which has no single static program to check against an allowlist — a
+/// pipeline can launch any program, so `check_exec` refuses it by FORM
+/// before ever asking for its program.
 pub(super) fn static_program(command: &RawCommand) -> Option<&str> {
     match command {
         RawCommand::Argv(_) => command.argv_program().filter(|p| !p.contains("${{")),
-        RawCommand::Shell(s) => leading_program(&s.value),
+        RawCommand::Shell(_) => None,
     }
-}
-
-/// The leading program token of a command string, when it is a literal
-/// bare program. `None` when the head is dynamic (`${{ }}`) — a runtime
-/// concern, not a static one.
-///
-/// Leading `NAME=value` environment assignments are NOT the program
-/// (`FOO=bar git status` runs `git` with `FOO=bar` in its env) — they are
-/// skipped so the allowlist check lands on the real program, not the
-/// assignment token.
-fn leading_program(command: &str) -> Option<&str> {
-    for token in command.split_whitespace() {
-        if token.contains('$') || token.contains('{') {
-            // a dynamic head/assignment → a runtime concern, give up statically
-            return None;
-        }
-        if is_env_assignment(token) {
-            continue; // `NAME=value` prefix · not the program
-        }
-        return Some(token);
-    }
-    None
-}
-
-/// Whether `token` is a shell `NAME=value` env-assignment prefix
-/// (an identifier-shaped name, then `=`). A bare `=foo` or `--flag=x`
-/// (no identifier name before `=`) is NOT an assignment.
-fn is_env_assignment(token: &str) -> bool {
-    let Some((name, _)) = token.split_once('=') else {
-        return false;
-    };
-    !name.is_empty()
-        && name.bytes().all(|b| b == b'_' || b.is_ascii_alphanumeric())
-        && name
-            .bytes()
-            .next()
-            .is_some_and(|b| b == b'_' || b.is_ascii_alphabetic())
 }
 
 #[cfg(test)]
@@ -594,9 +559,7 @@ mod tests {
         // Runtime parity: under a Programs allowlist the dispatch refuses
         // the shell-string form WHOLESALE (leading token irrelevant — a
         // pipeline can launch any program). Both tasks escape, the one
-        // whose head is allowlisted included. The env-assignment skip
-        // (`FOO=bar git …` → `git`) lives on in the `is_env_assignment`
-        // unit tests + the `exec: false` fix-hint path.
+        // whose head is allowlisted (`GIT_PAGER=cat git …`) included.
         let y = r#"nika: v1
 workflow: w
 permits: { exec: ["git"] }
@@ -622,55 +585,6 @@ tasks:
         let y = "nika: v1\nworkflow: w\npermits: { exec: [\"git\"] }\nvars: { cmd: \"git\" }\ntasks:\n  - id: t\n    exec: { command: \"${{ vars.cmd }} status\" }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1, "string form under an allowlist escapes");
-    }
-
-    #[test]
-    fn is_env_assignment_recognizes_the_name_equals_value_shape() {
-        // `VAR=value` is an assignment; a bare word and a value with no
-        // identifier name before `=` are not. These pin the recognition
-        // the leading-program skip relies on.
-        assert!(
-            is_env_assignment("FOO=bar"),
-            "identifier=value is an env assignment"
-        );
-        assert!(!is_env_assignment("plain"), "no `=` → not an assignment");
-        assert!(
-            !is_env_assignment("=noname"),
-            "empty name before `=` → not an assignment"
-        );
-        // A non-identifier name (`-`) must NOT be an assignment — kills the
-        // `&&` joining `!is_empty()` to the all-identifier-chars guard: under
-        // `||` the empty/charset checks stop gating and `fo-o=bar` reads true.
-        assert!(
-            !is_env_assignment("fo-o=bar"),
-            "`-` is not an identifier char → not an assignment"
-        );
-        // A digit-leading name must NOT be an assignment — kills the first-byte
-        // `b == b'_' || alpha` check (the `==` flip lets a leading digit pass).
-        assert!(
-            !is_env_assignment("9var=bar"),
-            "a name may not start with a digit → not an assignment"
-        );
-    }
-
-    #[test]
-    fn leading_program_skips_assignments_and_gives_up_on_dynamic_heads() {
-        // The literal head is the program; a `NAME=value` prefix is skipped.
-        assert_eq!(leading_program("git status"), Some("git"));
-        assert_eq!(
-            leading_program("FOO=bar git log"),
-            Some("git"),
-            "the assignment is skipped to the real program"
-        );
-        // A head carrying a `{` (brace expansion · not an env assignment) is
-        // dynamic → give up statically. Kills the `||`→`&&` mutant on the
-        // dynamic-head guard: under `&&` a `{`-only head is no longer dynamic
-        // and would be returned as a literal program.
-        assert_eq!(
-            leading_program("ec{ho} hi"),
-            None,
-            "a `{{`-bearing head is dynamic, not a literal program"
-        );
     }
 
     #[test]
