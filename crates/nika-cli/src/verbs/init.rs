@@ -97,13 +97,24 @@ pub(crate) enum Action {
     Skip { path: String },
 }
 
+/// `.agents/skills/nika-authoring/SKILL.md` — the repo-level agent skill
+/// (agentskills.io shape · discovered by Codex and every `.agents`-aware
+/// client). Canonical copy: the engine's own Codex plugin at
+/// `.agents/plugins/nika/skills/nika-authoring/SKILL.md` — a test enforces
+/// byte parity so the two surfaces cannot drift.
+const AGENT_SKILL: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/skills/nika-authoring/SKILL.md"
+));
+
 /// The scaffold set · (relative path, body). The ONE source of what `init`
 /// writes — `plan` and the docs both read it.
-fn targets() -> [(&'static str, &'static str); 3] {
+fn targets() -> [(&'static str, &'static str); 4] {
     [
         (".vscode/settings.json", VSCODE_SETTINGS),
         ("AGENTS.md", AGENTS_MD),
         (".cursor/rules/nika.mdc", CURSOR_RULES),
+        (".agents/skills/nika-authoring/SKILL.md", AGENT_SKILL),
     ]
 }
 
@@ -188,9 +199,9 @@ mod tests {
     #[test]
     fn plan_creates_both_when_nothing_exists() {
         let p = plan(".", &|_| false, false);
-        assert_eq!(p.len(), 3);
+        assert_eq!(p.len(), 4);
         assert!(p.iter().all(|a| matches!(a, Action::Create { .. })));
-        // The schema wiring + agent guide + Cursor rule are the targets.
+        // Schema wiring + agent guide + Cursor rule + agent skill are the targets.
         let paths: Vec<&str> = p
             .iter()
             .map(|a| match a {
@@ -200,6 +211,27 @@ mod tests {
         assert!(paths.iter().any(|p| p.ends_with("settings.json")));
         assert!(paths.iter().any(|p| p.ends_with("AGENTS.md")));
         assert!(paths.iter().any(|p| p.ends_with("nika.mdc")));
+        assert!(
+            paths
+                .iter()
+                .any(|p| p.ends_with(".agents/skills/nika-authoring/SKILL.md"))
+        );
+    }
+
+    #[test]
+    fn the_agent_skill_has_the_agentskills_frontmatter() {
+        // The skill is embedded from the repo's own Codex plugin (SSOT) —
+        // assert the contract survives edits over there: frontmatter with
+        // name + trigger-loaded description, and the loop's oracle commands.
+        assert!(AGENT_SKILL.starts_with("---\n"), "yaml frontmatter opens");
+        assert!(AGENT_SKILL.contains("name: nika-authoring"));
+        assert!(
+            AGENT_SKILL.contains("description: Author, check and repair"),
+            "description front-loads the trigger"
+        );
+        assert!(AGENT_SKILL.contains("nika check"));
+        assert!(AGENT_SKILL.contains("nika explain NIKA-XXXX"));
+        assert!(AGENT_SKILL.contains("--infer-permits"));
     }
 
     #[test]

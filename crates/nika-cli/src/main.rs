@@ -119,8 +119,9 @@ enum Command {
     /// Diagnose the environment (binary · config · provider keys · spec §8).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
     Doctor,
-    /// Scaffold a repo (`.vscode` schema wiring · `AGENTS.md`). Existing files
-    /// are skipped — `--force` overwrites.
+    /// Scaffold a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule ·
+    /// `.agents/skills` authoring skill). Existing files are skipped —
+    /// `--force` overwrites.
     Init {
         /// Target directory (default · the current directory).
         #[arg(default_value = ".")]

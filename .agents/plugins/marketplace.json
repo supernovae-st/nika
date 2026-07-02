@@ -1,0 +1,20 @@
+{
+  "name": "nika",
+  "interface": {
+    "displayName": "Nika · the workflow language for AI"
+  },
+  "plugins": [
+    {
+      "name": "nika",
+      "source": {
+        "source": "local",
+        "path": "./.agents/plugins/nika"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
