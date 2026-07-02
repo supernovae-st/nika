@@ -531,6 +531,106 @@ pub unsafe fn nika_types::embedding::EmbeddingSpec::clone_to_uninit(&self, dest:
 impl<T> core::convert::From<T> for nika_types::embedding::EmbeddingSpec
 pub fn nika_types::embedding::EmbeddingSpec::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::embedding::EmbeddingSpec where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_types::extract
+#[non_exhaustive] pub enum nika_types::extract::ExtractMode
+pub nika_types::extract::ExtractMode::Article
+pub nika_types::extract::ExtractMode::Feed
+pub nika_types::extract::ExtractMode::Jq
+pub nika_types::extract::ExtractMode::Links
+pub nika_types::extract::ExtractMode::Markdown
+pub nika_types::extract::ExtractMode::Metadata
+pub nika_types::extract::ExtractMode::Raw
+pub nika_types::extract::ExtractMode::Selector
+pub nika_types::extract::ExtractMode::Sitemap
+pub nika_types::extract::ExtractMode::Text
+impl nika_types::extract::ExtractMode
+pub const nika_types::extract::ExtractMode::ALL: [Self; 10]
+pub const fn nika_types::extract::ExtractMode::as_str(self) -> &'static str
+impl core::clone::Clone for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::clone(&self) -> nika_types::extract::ExtractMode
+impl core::cmp::Eq for nika_types::extract::ExtractMode
+impl core::cmp::PartialEq for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::eq(&self, other: &nika_types::extract::ExtractMode) -> bool
+impl core::default::Default for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::default() -> nika_types::extract::ExtractMode
+impl core::fmt::Debug for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::extract::ExtractMode
+impl core::marker::StructuralPartialEq for nika_types::extract::ExtractMode
+impl core::str::traits::FromStr for nika_types::extract::ExtractMode
+pub type nika_types::extract::ExtractMode::Err = nika_types::extract::UnknownExtractMode
+pub fn nika_types::extract::ExtractMode::from_str(s: &str) -> core::result::Result<Self, Self::Err>
+impl serde_core::ser::Serialize for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::extract::ExtractMode where U: core::convert::From<T>
+pub fn nika_types::extract::ExtractMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::extract::ExtractMode where U: core::convert::Into<T>
+pub type nika_types::extract::ExtractMode::Error = core::convert::Infallible
+pub fn nika_types::extract::ExtractMode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::extract::ExtractMode where U: core::convert::TryFrom<T>
+pub type nika_types::extract::ExtractMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::extract::ExtractMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::extract::ExtractMode where T: core::clone::Clone
+pub type nika_types::extract::ExtractMode::Owned = T
+pub fn nika_types::extract::ExtractMode::clone_into(&self, target: &mut T)
+pub fn nika_types::extract::ExtractMode::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::extract::ExtractMode where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::extract::ExtractMode::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::extract::ExtractMode where T: 'static + ?core::marker::Sized
+pub fn nika_types::extract::ExtractMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::extract::ExtractMode where T: ?core::marker::Sized
+pub fn nika_types::extract::ExtractMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::extract::ExtractMode where T: ?core::marker::Sized
+pub fn nika_types::extract::ExtractMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::extract::ExtractMode where T: core::clone::Clone
+pub unsafe fn nika_types::extract::ExtractMode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::extract::ExtractMode where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::extract::UnknownExtractMode
+pub nika_types::extract::UnknownExtractMode::input: alloc::string::String
+impl core::clone::Clone for nika_types::extract::UnknownExtractMode
+pub fn nika_types::extract::UnknownExtractMode::clone(&self) -> nika_types::extract::UnknownExtractMode
+impl core::cmp::Eq for nika_types::extract::UnknownExtractMode
+impl core::cmp::PartialEq for nika_types::extract::UnknownExtractMode
+pub fn nika_types::extract::UnknownExtractMode::eq(&self, other: &nika_types::extract::UnknownExtractMode) -> bool
+impl core::error::Error for nika_types::extract::UnknownExtractMode
+impl core::fmt::Debug for nika_types::extract::UnknownExtractMode
+pub fn nika_types::extract::UnknownExtractMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::extract::UnknownExtractMode
+pub fn nika_types::extract::UnknownExtractMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::extract::UnknownExtractMode
+impl<T, U> core::convert::Into<U> for nika_types::extract::UnknownExtractMode where U: core::convert::From<T>
+pub fn nika_types::extract::UnknownExtractMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::extract::UnknownExtractMode where U: core::convert::Into<T>
+pub type nika_types::extract::UnknownExtractMode::Error = core::convert::Infallible
+pub fn nika_types::extract::UnknownExtractMode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::extract::UnknownExtractMode where U: core::convert::TryFrom<T>
+pub type nika_types::extract::UnknownExtractMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::extract::UnknownExtractMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::extract::UnknownExtractMode where T: core::clone::Clone
+pub type nika_types::extract::UnknownExtractMode::Owned = T
+pub fn nika_types::extract::UnknownExtractMode::clone_into(&self, target: &mut T)
+pub fn nika_types::extract::UnknownExtractMode::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::extract::UnknownExtractMode where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::extract::UnknownExtractMode::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::extract::UnknownExtractMode where T: 'static + ?core::marker::Sized
+pub fn nika_types::extract::UnknownExtractMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::extract::UnknownExtractMode where T: ?core::marker::Sized
+pub fn nika_types::extract::UnknownExtractMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::extract::UnknownExtractMode where T: ?core::marker::Sized
+pub fn nika_types::extract::UnknownExtractMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::extract::UnknownExtractMode where T: core::clone::Clone
+pub unsafe fn nika_types::extract::UnknownExtractMode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::extract::UnknownExtractMode
+pub fn nika_types::extract::UnknownExtractMode::from(t: T) -> T
+pub const nika_types::extract::EXTRACT_MODE_NAMES: &str
 pub mod nika_types::hash
 #[non_exhaustive] pub struct nika_types::hash::Blake3Hash
 pub nika_types::hash::Blake3Hash::bytes: [u8; 32]
@@ -1452,6 +1552,11 @@ pub unsafe fn nika_types::memory::Score::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::memory::Score
 pub fn nika_types::memory::Score::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::memory::Score where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_types::net
+pub const nika_types::net::HOST_EXTRACTION_VECTORS: &[(&str, core::option::Option<&str>)]
+pub fn nika_types::net::host_glob_matches(glob: &str, host: &str) -> bool
+pub fn nika_types::net::host_in_allowlist(allowlist: &[alloc::string::String], host: &str) -> bool
+pub fn nika_types::net::ip_is_blocked(ip: core::net::ip_addr::IpAddr) -> bool
 pub mod nika_types::prelude
 #[non_exhaustive] pub enum nika_types::prelude::BudgetDirective
 pub nika_types::prelude::BudgetDirective::Cost
@@ -1639,6 +1744,67 @@ pub unsafe fn nika_types::retry::ErrorCategory::clone_to_uninit(&self, dest: *mu
 impl<T> core::convert::From<T> for nika_types::retry::ErrorCategory
 pub fn nika_types::retry::ErrorCategory::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::retry::ErrorCategory where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::prelude::ExtractMode
+pub nika_types::prelude::ExtractMode::Article
+pub nika_types::prelude::ExtractMode::Feed
+pub nika_types::prelude::ExtractMode::Jq
+pub nika_types::prelude::ExtractMode::Links
+pub nika_types::prelude::ExtractMode::Markdown
+pub nika_types::prelude::ExtractMode::Metadata
+pub nika_types::prelude::ExtractMode::Raw
+pub nika_types::prelude::ExtractMode::Selector
+pub nika_types::prelude::ExtractMode::Sitemap
+pub nika_types::prelude::ExtractMode::Text
+impl nika_types::extract::ExtractMode
+pub const nika_types::extract::ExtractMode::ALL: [Self; 10]
+pub const fn nika_types::extract::ExtractMode::as_str(self) -> &'static str
+impl core::clone::Clone for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::clone(&self) -> nika_types::extract::ExtractMode
+impl core::cmp::Eq for nika_types::extract::ExtractMode
+impl core::cmp::PartialEq for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::eq(&self, other: &nika_types::extract::ExtractMode) -> bool
+impl core::default::Default for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::default() -> nika_types::extract::ExtractMode
+impl core::fmt::Debug for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::extract::ExtractMode
+impl core::marker::StructuralPartialEq for nika_types::extract::ExtractMode
+impl core::str::traits::FromStr for nika_types::extract::ExtractMode
+pub type nika_types::extract::ExtractMode::Err = nika_types::extract::UnknownExtractMode
+pub fn nika_types::extract::ExtractMode::from_str(s: &str) -> core::result::Result<Self, Self::Err>
+impl serde_core::ser::Serialize for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::extract::ExtractMode where U: core::convert::From<T>
+pub fn nika_types::extract::ExtractMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::extract::ExtractMode where U: core::convert::Into<T>
+pub type nika_types::extract::ExtractMode::Error = core::convert::Infallible
+pub fn nika_types::extract::ExtractMode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::extract::ExtractMode where U: core::convert::TryFrom<T>
+pub type nika_types::extract::ExtractMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::extract::ExtractMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::extract::ExtractMode where T: core::clone::Clone
+pub type nika_types::extract::ExtractMode::Owned = T
+pub fn nika_types::extract::ExtractMode::clone_into(&self, target: &mut T)
+pub fn nika_types::extract::ExtractMode::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::extract::ExtractMode where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::extract::ExtractMode::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::extract::ExtractMode where T: 'static + ?core::marker::Sized
+pub fn nika_types::extract::ExtractMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::extract::ExtractMode where T: ?core::marker::Sized
+pub fn nika_types::extract::ExtractMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::extract::ExtractMode where T: ?core::marker::Sized
+pub fn nika_types::extract::ExtractMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::extract::ExtractMode where T: core::clone::Clone
+pub unsafe fn nika_types::extract::ExtractMode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::extract::ExtractMode where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_types::prelude::MemoryDirective
 pub nika_types::prelude::MemoryDirective::Auto
 pub nika_types::prelude::MemoryDirective::Disabled
@@ -2657,12 +2823,59 @@ pub unsafe fn nika_types::resource::Resource::clone_to_uninit(&self, dest: *mut 
 impl<T> core::convert::From<T> for nika_types::resource::Resource
 pub fn nika_types::resource::Resource::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::resource::Resource where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::prelude::RetryBudget
+impl nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::grpc_default() -> Self
+pub fn nika_types::retry::RetryBudget::new(max_tokens: u32, token_ratio: f32) -> Self
+pub fn nika_types::retry::RetryBudget::record_failure(&mut self)
+pub fn nika_types::retry::RetryBudget::record_success(&mut self)
+pub fn nika_types::retry::RetryBudget::retry_allowed(&self) -> bool
+pub fn nika_types::retry::RetryBudget::tokens(&self) -> u32
+impl core::clone::Clone for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::clone(&self) -> nika_types::retry::RetryBudget
+impl core::cmp::Eq for nika_types::retry::RetryBudget
+impl core::cmp::PartialEq for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::eq(&self, other: &nika_types::retry::RetryBudget) -> bool
+impl core::default::Default for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::default() -> Self
+impl core::fmt::Debug for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::retry::RetryBudget
+impl serde_core::ser::Serialize for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::retry::RetryBudget where U: core::convert::From<T>
+pub fn nika_types::retry::RetryBudget::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::retry::RetryBudget where U: core::convert::Into<T>
+pub type nika_types::retry::RetryBudget::Error = core::convert::Infallible
+pub fn nika_types::retry::RetryBudget::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::retry::RetryBudget where U: core::convert::TryFrom<T>
+pub type nika_types::retry::RetryBudget::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::retry::RetryBudget::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::retry::RetryBudget where T: core::clone::Clone
+pub type nika_types::retry::RetryBudget::Owned = T
+pub fn nika_types::retry::RetryBudget::clone_into(&self, target: &mut T)
+pub fn nika_types::retry::RetryBudget::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::retry::RetryBudget where T: 'static + ?core::marker::Sized
+pub fn nika_types::retry::RetryBudget::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::retry::RetryBudget where T: ?core::marker::Sized
+pub fn nika_types::retry::RetryBudget::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::retry::RetryBudget where T: ?core::marker::Sized
+pub fn nika_types::retry::RetryBudget::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::retry::RetryBudget where T: core::clone::Clone
+pub unsafe fn nika_types::retry::RetryBudget::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::retry::RetryBudget where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::prelude::RetryConfig
 pub nika_types::prelude::RetryConfig::backoff_base_ms: u64
 pub nika_types::prelude::RetryConfig::backoff_max_ms: u64
 pub nika_types::prelude::RetryConfig::jitter_ratio: f32
 pub nika_types::prelude::RetryConfig::max_attempts: u32
 impl nika_types::retry::RetryConfig
+pub fn nika_types::retry::RetryConfig::delay_for_ms(&self, attempt: u32, rand_unit: f64) -> u64
+pub fn nika_types::retry::RetryConfig::delay_with_hint_ms(&self, attempt: u32, rand_unit: f64, retry_after_ms: core::option::Option<u64>) -> u64
 pub fn nika_types::retry::RetryConfig::new(max_attempts: u32) -> Self
 pub fn nika_types::retry::RetryConfig::none() -> Self
 impl core::clone::Clone for nika_types::retry::RetryConfig
@@ -3481,12 +3694,59 @@ pub unsafe fn nika_types::retry::ErrorCategory::clone_to_uninit(&self, dest: *mu
 impl<T> core::convert::From<T> for nika_types::retry::ErrorCategory
 pub fn nika_types::retry::ErrorCategory::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::retry::ErrorCategory where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::retry::RetryBudget
+impl nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::grpc_default() -> Self
+pub fn nika_types::retry::RetryBudget::new(max_tokens: u32, token_ratio: f32) -> Self
+pub fn nika_types::retry::RetryBudget::record_failure(&mut self)
+pub fn nika_types::retry::RetryBudget::record_success(&mut self)
+pub fn nika_types::retry::RetryBudget::retry_allowed(&self) -> bool
+pub fn nika_types::retry::RetryBudget::tokens(&self) -> u32
+impl core::clone::Clone for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::clone(&self) -> nika_types::retry::RetryBudget
+impl core::cmp::Eq for nika_types::retry::RetryBudget
+impl core::cmp::PartialEq for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::eq(&self, other: &nika_types::retry::RetryBudget) -> bool
+impl core::default::Default for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::default() -> Self
+impl core::fmt::Debug for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::retry::RetryBudget
+impl serde_core::ser::Serialize for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::retry::RetryBudget where U: core::convert::From<T>
+pub fn nika_types::retry::RetryBudget::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::retry::RetryBudget where U: core::convert::Into<T>
+pub type nika_types::retry::RetryBudget::Error = core::convert::Infallible
+pub fn nika_types::retry::RetryBudget::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::retry::RetryBudget where U: core::convert::TryFrom<T>
+pub type nika_types::retry::RetryBudget::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::retry::RetryBudget::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::retry::RetryBudget where T: core::clone::Clone
+pub type nika_types::retry::RetryBudget::Owned = T
+pub fn nika_types::retry::RetryBudget::clone_into(&self, target: &mut T)
+pub fn nika_types::retry::RetryBudget::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::retry::RetryBudget where T: 'static + ?core::marker::Sized
+pub fn nika_types::retry::RetryBudget::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::retry::RetryBudget where T: ?core::marker::Sized
+pub fn nika_types::retry::RetryBudget::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::retry::RetryBudget where T: ?core::marker::Sized
+pub fn nika_types::retry::RetryBudget::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::retry::RetryBudget where T: core::clone::Clone
+pub unsafe fn nika_types::retry::RetryBudget::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::retry::RetryBudget where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::retry::RetryConfig
 pub nika_types::retry::RetryConfig::backoff_base_ms: u64
 pub nika_types::retry::RetryConfig::backoff_max_ms: u64
 pub nika_types::retry::RetryConfig::jitter_ratio: f32
 pub nika_types::retry::RetryConfig::max_attempts: u32
 impl nika_types::retry::RetryConfig
+pub fn nika_types::retry::RetryConfig::delay_for_ms(&self, attempt: u32, rand_unit: f64) -> u64
+pub fn nika_types::retry::RetryConfig::delay_with_hint_ms(&self, attempt: u32, rand_unit: f64, retry_after_ms: core::option::Option<u64>) -> u64
 pub fn nika_types::retry::RetryConfig::new(max_attempts: u32) -> Self
 pub fn nika_types::retry::RetryConfig::none() -> Self
 impl core::clone::Clone for nika_types::retry::RetryConfig
@@ -4132,6 +4392,67 @@ pub unsafe fn nika_types::retry::ErrorCategory::clone_to_uninit(&self, dest: *mu
 impl<T> core::convert::From<T> for nika_types::retry::ErrorCategory
 pub fn nika_types::retry::ErrorCategory::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::retry::ErrorCategory where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::ExtractMode
+pub nika_types::ExtractMode::Article
+pub nika_types::ExtractMode::Feed
+pub nika_types::ExtractMode::Jq
+pub nika_types::ExtractMode::Links
+pub nika_types::ExtractMode::Markdown
+pub nika_types::ExtractMode::Metadata
+pub nika_types::ExtractMode::Raw
+pub nika_types::ExtractMode::Selector
+pub nika_types::ExtractMode::Sitemap
+pub nika_types::ExtractMode::Text
+impl nika_types::extract::ExtractMode
+pub const nika_types::extract::ExtractMode::ALL: [Self; 10]
+pub const fn nika_types::extract::ExtractMode::as_str(self) -> &'static str
+impl core::clone::Clone for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::clone(&self) -> nika_types::extract::ExtractMode
+impl core::cmp::Eq for nika_types::extract::ExtractMode
+impl core::cmp::PartialEq for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::eq(&self, other: &nika_types::extract::ExtractMode) -> bool
+impl core::default::Default for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::default() -> nika_types::extract::ExtractMode
+impl core::fmt::Debug for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::extract::ExtractMode
+impl core::marker::StructuralPartialEq for nika_types::extract::ExtractMode
+impl core::str::traits::FromStr for nika_types::extract::ExtractMode
+pub type nika_types::extract::ExtractMode::Err = nika_types::extract::UnknownExtractMode
+pub fn nika_types::extract::ExtractMode::from_str(s: &str) -> core::result::Result<Self, Self::Err>
+impl serde_core::ser::Serialize for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::extract::ExtractMode where U: core::convert::From<T>
+pub fn nika_types::extract::ExtractMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::extract::ExtractMode where U: core::convert::Into<T>
+pub type nika_types::extract::ExtractMode::Error = core::convert::Infallible
+pub fn nika_types::extract::ExtractMode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::extract::ExtractMode where U: core::convert::TryFrom<T>
+pub type nika_types::extract::ExtractMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::extract::ExtractMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::extract::ExtractMode where T: core::clone::Clone
+pub type nika_types::extract::ExtractMode::Owned = T
+pub fn nika_types::extract::ExtractMode::clone_into(&self, target: &mut T)
+pub fn nika_types::extract::ExtractMode::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::extract::ExtractMode where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::extract::ExtractMode::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::extract::ExtractMode where T: 'static + ?core::marker::Sized
+pub fn nika_types::extract::ExtractMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::extract::ExtractMode where T: ?core::marker::Sized
+pub fn nika_types::extract::ExtractMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::extract::ExtractMode where T: ?core::marker::Sized
+pub fn nika_types::extract::ExtractMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::extract::ExtractMode where T: core::clone::Clone
+pub unsafe fn nika_types::extract::ExtractMode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::extract::ExtractMode
+pub fn nika_types::extract::ExtractMode::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::extract::ExtractMode where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_types::MemoryDirective
 pub nika_types::MemoryDirective::Auto
 pub nika_types::MemoryDirective::Disabled
@@ -5150,12 +5471,59 @@ pub unsafe fn nika_types::resource::Resource::clone_to_uninit(&self, dest: *mut 
 impl<T> core::convert::From<T> for nika_types::resource::Resource
 pub fn nika_types::resource::Resource::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::resource::Resource where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::RetryBudget
+impl nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::grpc_default() -> Self
+pub fn nika_types::retry::RetryBudget::new(max_tokens: u32, token_ratio: f32) -> Self
+pub fn nika_types::retry::RetryBudget::record_failure(&mut self)
+pub fn nika_types::retry::RetryBudget::record_success(&mut self)
+pub fn nika_types::retry::RetryBudget::retry_allowed(&self) -> bool
+pub fn nika_types::retry::RetryBudget::tokens(&self) -> u32
+impl core::clone::Clone for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::clone(&self) -> nika_types::retry::RetryBudget
+impl core::cmp::Eq for nika_types::retry::RetryBudget
+impl core::cmp::PartialEq for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::eq(&self, other: &nika_types::retry::RetryBudget) -> bool
+impl core::default::Default for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::default() -> Self
+impl core::fmt::Debug for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::retry::RetryBudget
+impl serde_core::ser::Serialize for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::retry::RetryBudget where U: core::convert::From<T>
+pub fn nika_types::retry::RetryBudget::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::retry::RetryBudget where U: core::convert::Into<T>
+pub type nika_types::retry::RetryBudget::Error = core::convert::Infallible
+pub fn nika_types::retry::RetryBudget::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::retry::RetryBudget where U: core::convert::TryFrom<T>
+pub type nika_types::retry::RetryBudget::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::retry::RetryBudget::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::retry::RetryBudget where T: core::clone::Clone
+pub type nika_types::retry::RetryBudget::Owned = T
+pub fn nika_types::retry::RetryBudget::clone_into(&self, target: &mut T)
+pub fn nika_types::retry::RetryBudget::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::retry::RetryBudget where T: 'static + ?core::marker::Sized
+pub fn nika_types::retry::RetryBudget::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::retry::RetryBudget where T: ?core::marker::Sized
+pub fn nika_types::retry::RetryBudget::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::retry::RetryBudget where T: ?core::marker::Sized
+pub fn nika_types::retry::RetryBudget::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::retry::RetryBudget where T: core::clone::Clone
+pub unsafe fn nika_types::retry::RetryBudget::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::retry::RetryBudget
+pub fn nika_types::retry::RetryBudget::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::retry::RetryBudget where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::RetryConfig
 pub nika_types::RetryConfig::backoff_base_ms: u64
 pub nika_types::RetryConfig::backoff_max_ms: u64
 pub nika_types::RetryConfig::jitter_ratio: f32
 pub nika_types::RetryConfig::max_attempts: u32
 impl nika_types::retry::RetryConfig
+pub fn nika_types::retry::RetryConfig::delay_for_ms(&self, attempt: u32, rand_unit: f64) -> u64
+pub fn nika_types::retry::RetryConfig::delay_with_hint_ms(&self, attempt: u32, rand_unit: f64, retry_after_ms: core::option::Option<u64>) -> u64
 pub fn nika_types::retry::RetryConfig::new(max_attempts: u32) -> Self
 pub fn nika_types::retry::RetryConfig::none() -> Self
 impl core::clone::Clone for nika_types::retry::RetryConfig
