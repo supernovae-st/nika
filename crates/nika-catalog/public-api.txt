@@ -48,10 +48,14 @@ impl<T> nika_error::traits::AsAny for nika_catalog::builtin::BuiltinCategory whe
 pub fn nika_catalog::builtin::BuiltinCategory::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_catalog::builtin::BuiltinCategory where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_catalog::builtin::Builtin
+pub nika_catalog::builtin::Builtin::args: &'static [&'static str]
 pub nika_catalog::builtin::Builtin::category: nika_catalog::builtin::BuiltinCategory
 pub nika_catalog::builtin::Builtin::name: &'static str
+pub nika_catalog::builtin::Builtin::required: &'static [&'static str]
 impl nika_catalog::builtin::Builtin
 pub const fn nika_catalog::builtin::Builtin::new(name: &'static str, category: nika_catalog::builtin::BuiltinCategory) -> Self
+pub const fn nika_catalog::builtin::Builtin::with_args(name: &'static str, category: nika_catalog::builtin::BuiltinCategory, args: &'static [&'static str]) -> Self
+pub const fn nika_catalog::builtin::Builtin::with_required(name: &'static str, category: nika_catalog::builtin::BuiltinCategory, args: &'static [&'static str], required: &'static [&'static str]) -> Self
 impl core::clone::Clone for nika_catalog::builtin::Builtin
 pub fn nika_catalog::builtin::Builtin::clone(&self) -> nika_catalog::builtin::Builtin
 impl core::cmp::Eq for nika_catalog::builtin::Builtin
@@ -2311,10 +2315,14 @@ impl<T> nika_error::traits::AsAny for nika_catalog::builtin::BuiltinCategory whe
 pub fn nika_catalog::builtin::BuiltinCategory::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_catalog::builtin::BuiltinCategory where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_catalog::types::builtin::Builtin
+pub nika_catalog::types::builtin::Builtin::args: &'static [&'static str]
 pub nika_catalog::types::builtin::Builtin::category: nika_catalog::builtin::BuiltinCategory
 pub nika_catalog::types::builtin::Builtin::name: &'static str
+pub nika_catalog::types::builtin::Builtin::required: &'static [&'static str]
 impl nika_catalog::builtin::Builtin
 pub const fn nika_catalog::builtin::Builtin::new(name: &'static str, category: nika_catalog::builtin::BuiltinCategory) -> Self
+pub const fn nika_catalog::builtin::Builtin::with_args(name: &'static str, category: nika_catalog::builtin::BuiltinCategory, args: &'static [&'static str]) -> Self
+pub const fn nika_catalog::builtin::Builtin::with_required(name: &'static str, category: nika_catalog::builtin::BuiltinCategory, args: &'static [&'static str], required: &'static [&'static str]) -> Self
 impl core::clone::Clone for nika_catalog::builtin::Builtin
 pub fn nika_catalog::builtin::Builtin::clone(&self) -> nika_catalog::builtin::Builtin
 impl core::cmp::Eq for nika_catalog::builtin::Builtin
@@ -5350,10 +5358,14 @@ impl<T> nika_error::traits::AsAny for nika_catalog::distribution::Transport wher
 pub fn nika_catalog::distribution::Transport::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_catalog::distribution::Transport where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_catalog::types::Builtin
+pub nika_catalog::types::Builtin::args: &'static [&'static str]
 pub nika_catalog::types::Builtin::category: nika_catalog::builtin::BuiltinCategory
 pub nika_catalog::types::Builtin::name: &'static str
+pub nika_catalog::types::Builtin::required: &'static [&'static str]
 impl nika_catalog::builtin::Builtin
 pub const fn nika_catalog::builtin::Builtin::new(name: &'static str, category: nika_catalog::builtin::BuiltinCategory) -> Self
+pub const fn nika_catalog::builtin::Builtin::with_args(name: &'static str, category: nika_catalog::builtin::BuiltinCategory, args: &'static [&'static str]) -> Self
+pub const fn nika_catalog::builtin::Builtin::with_required(name: &'static str, category: nika_catalog::builtin::BuiltinCategory, args: &'static [&'static str], required: &'static [&'static str]) -> Self
 impl core::clone::Clone for nika_catalog::builtin::Builtin
 pub fn nika_catalog::builtin::Builtin::clone(&self) -> nika_catalog::builtin::Builtin
 impl core::cmp::Eq for nika_catalog::builtin::Builtin
@@ -7418,10 +7430,14 @@ impl<T> nika_error::traits::AsAny for nika_catalog::distribution::Transport wher
 pub fn nika_catalog::distribution::Transport::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_catalog::distribution::Transport where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_catalog::Builtin
+pub nika_catalog::Builtin::args: &'static [&'static str]
 pub nika_catalog::Builtin::category: nika_catalog::builtin::BuiltinCategory
 pub nika_catalog::Builtin::name: &'static str
+pub nika_catalog::Builtin::required: &'static [&'static str]
 impl nika_catalog::builtin::Builtin
 pub const fn nika_catalog::builtin::Builtin::new(name: &'static str, category: nika_catalog::builtin::BuiltinCategory) -> Self
+pub const fn nika_catalog::builtin::Builtin::with_args(name: &'static str, category: nika_catalog::builtin::BuiltinCategory, args: &'static [&'static str]) -> Self
+pub const fn nika_catalog::builtin::Builtin::with_required(name: &'static str, category: nika_catalog::builtin::BuiltinCategory, args: &'static [&'static str], required: &'static [&'static str]) -> Self
 impl core::clone::Clone for nika_catalog::builtin::Builtin
 pub fn nika_catalog::builtin::Builtin::clone(&self) -> nika_catalog::builtin::Builtin
 impl core::cmp::Eq for nika_catalog::builtin::Builtin
