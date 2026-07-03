@@ -282,8 +282,8 @@ Or install everything as a plugin — this repo hosts one plugin (the
 `nika-authoring` skill + the MCP oracle) for both ecosystems:
 
 ```sh
-codex plugin marketplace add supernovae-st/nika && codex plugin add nika@nika
-claude plugin marketplace add supernovae-st/nika && claude plugin install nika@nika
+codex plugin marketplace add supernovae-st/nika-agents && codex plugin add nika@nika
+claude plugin marketplace add supernovae-st/nika-agents && claude plugin install nika@nika
 ```
 
 Agents discover a working prompt chain once; Nika keeps it as a file your
