@@ -168,7 +168,9 @@ mod tests {
         let resp =
             handle(&json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" })).expect("reply");
         let tools = resp["result"]["tools"].as_array().expect("array");
-        assert_eq!(tools.len(), 2);
+        // 2 validate (check · explain) + 4 learn (schema · examples ·
+        // template · canon).
+        assert_eq!(tools.len(), 6);
     }
 
     #[test]

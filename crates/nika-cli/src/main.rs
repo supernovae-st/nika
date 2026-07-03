@@ -177,8 +177,9 @@ enum Command {
     },
     /// Run the language server over stdio (drives the editor extension).
     Lsp,
-    /// Run the MCP server over stdio (exposes check/explain to Cursor · Claude
-    /// Desktop · agents · the in-binary Model Context Protocol surface).
+    /// Run the MCP server over stdio (validate: check/explain · learn:
+    /// schema/examples/templates/canon — the in-binary Model Context Protocol
+    /// surface for Cursor · Claude Desktop · agents).
     Mcp,
 }
 

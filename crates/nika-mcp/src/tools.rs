@@ -2,12 +2,20 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The MCP tool catalog — Nika's STATIC, read-only surface exposed as Model
-//! Context Protocol tools. Every tool here is PURE static analysis over its
-//! arguments (parse · check · code lookup) — zero effects, zero network, no
-//! workflow ever RUNS through MCP (running needs the effect-permits boundary ·
-//! out of scope for the read-only server surface). That purity is what makes a
-//! tool safe to expose to any connecting client (Cursor · Claude Desktop · …)
-//! and lets the whole server be unit-tested as a function.
+//! Context Protocol tools. Every tool here is PURE over its arguments — static
+//! analysis (parse · check · code lookup) or embedded pack data (schema ·
+//! examples · templates · canon) — zero effects, zero network, no workflow
+//! ever RUNS through MCP (running needs the effect-permits boundary · out of
+//! scope for the read-only server surface). That purity is what makes a tool
+//! safe to expose to any connecting client (Cursor · Claude Desktop · …) and
+//! lets the whole server be unit-tested as a function.
+//!
+//! Two tool families:
+//! - **validate** (`nika_check` · `nika_explain`) — the repair oracle.
+//! - **learn** (`nika_schema` · `nika_examples` · `nika_template` ·
+//!   `nika_canon`) — the authoring surface, so a wired agent follows the
+//!   deterministic template→fill→check→repair protocol instead of guessing
+//!   structure (the spec's §Writing-a-workflow path, reachable over MCP).
 
 use serde_json::{Value, json};
 
@@ -45,6 +53,50 @@ pub(crate) fn catalog() -> Value {
                 },
                 "required": ["code"]
             }
+        },
+        {
+            "name": "nika_schema",
+            "description": "The embedded JSON Schema for *.nika.yaml — the structural \
+                            contract (verbs · fields · shapes) an agent authors against.",
+            "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "nika_examples",
+            "description": "Browse the embedded runnable examples. Without `slug`: the \
+                            list. With `slug`: that example's full workflow source — read \
+                            the canonical example instead of guessing a construct.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "slug": {
+                        "type": "string",
+                        "description": "An example slug from the list (e.g. `pr-risk-review`)."
+                    }
+                }
+            }
+        },
+        {
+            "name": "nika_template",
+            "description": "The 6 canonical workflow skeletons (chain · gate-and-act · \
+                            fanout · …). Without `name`: the list. With `name`: that \
+                            skeleton's source — copy it, fill the SLOT lines, never \
+                            invent structure.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "A template name from the list (e.g. `chain`)."
+                    }
+                }
+            }
+        },
+        {
+            "name": "nika_canon",
+            "description": "The spec canon SSOT (canon.yaml) — the locked counts and \
+                            names: verbs, builtins, providers, extract modes. Cite it, \
+                            never a remembered number.",
+            "inputSchema": { "type": "object", "properties": {} }
         }
     ])
 }
@@ -55,8 +107,13 @@ pub(crate) fn execute(name: &str, args: &Value) -> Result<String, String> {
     match name {
         "nika_check" => check(args),
         "nika_explain" => explain(args),
+        "nika_schema" => Ok(nika_pack::schema_json().to_owned()),
+        "nika_examples" => examples(args),
+        "nika_template" => template(args),
+        "nika_canon" => Ok(nika_pack::canon().to_owned()),
         other => Err(format!(
-            "unknown tool `{other}` — nika exposes `nika_check` and `nika_explain`"
+            "unknown tool `{other}` — nika exposes nika_check · nika_explain · \
+             nika_schema · nika_examples · nika_template · nika_canon"
         )),
     }
 }
@@ -87,6 +144,35 @@ fn check(args: &Value) -> Result<String, String> {
     Ok(format!(
         "✖ findings — the workflow is not clean · the full check report:\n{detail}"
     ))
+}
+
+/// `nika_examples` — list the embedded example slugs, or return one example's
+/// full workflow source (the LEARNING surface: read the canonical example for
+/// a construct instead of guessing).
+fn examples(args: &Value) -> Result<String, String> {
+    match args.get("slug").and_then(Value::as_str) {
+        None => Ok(nika_pack::example_slugs().join("\n")),
+        Some(slug) => nika_pack::example(slug).map(str::to_owned).ok_or_else(|| {
+            format!(
+                "unknown example `{slug}` — call nika_examples without arguments \
+                 for the list"
+            )
+        }),
+    }
+}
+
+/// `nika_template` — list the canonical skeleton names, or return one
+/// skeleton's source (copy · fill the `# SLOT:` lines · never invent shape).
+fn template(args: &Value) -> Result<String, String> {
+    match args.get("name").and_then(Value::as_str) {
+        None => Ok(nika_pack::template_names().join("\n")),
+        Some(name) => nika_pack::template(name).map(str::to_owned).ok_or_else(|| {
+            format!(
+                "unknown template `{name}` — call nika_template without arguments \
+                 for the list"
+            )
+        }),
+    }
 }
 
 /// `nika_explain` — teach one error code (numeric registry or spec code).
@@ -127,7 +213,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_lists_the_two_static_tools() {
+    fn catalog_lists_the_validate_and_learn_tools() {
         let c = catalog();
         let names: Vec<&str> = c
             .as_array()
@@ -135,7 +221,17 @@ mod tests {
             .iter()
             .filter_map(|t| t.get("name").and_then(Value::as_str))
             .collect();
-        assert_eq!(names, ["nika_check", "nika_explain"]);
+        assert_eq!(
+            names,
+            [
+                "nika_check",
+                "nika_explain",
+                "nika_schema",
+                "nika_examples",
+                "nika_template",
+                "nika_canon"
+            ]
+        );
         // Each tool carries a JSON-Schema inputSchema (the client validates args).
         for t in c.as_array().expect("array") {
             assert_eq!(t["inputSchema"]["type"], "object");
@@ -195,5 +291,89 @@ mod tests {
     #[test]
     fn unknown_tool_is_an_error() {
         assert!(execute("nika_nonexistent", &json!({})).is_err());
+    }
+
+    // ── the LEARNING surface (agents can learn, not just validate) ──────
+
+    #[test]
+    fn catalog_lists_the_learning_tools_too() {
+        let c = catalog();
+        let names: Vec<&str> = c
+            .as_array()
+            .expect("array")
+            .iter()
+            .filter_map(|t| t.get("name").and_then(Value::as_str))
+            .collect();
+        for expected in [
+            "nika_check",
+            "nika_explain",
+            "nika_schema",
+            "nika_examples",
+            "nika_template",
+            "nika_canon",
+        ] {
+            assert!(names.contains(&expected), "{expected} missing: {names:?}");
+        }
+    }
+
+    #[test]
+    fn schema_returns_the_embedded_json_schema() {
+        let out = execute("nika_schema", &json!({})).expect("ran");
+        // The real schema: parses as JSON and declares the canonical $id.
+        let v: Value = serde_json::from_str(&out).expect("valid JSON");
+        assert_eq!(
+            v["$id"], "https://nika.sh/spec/v1/workflow.schema.json",
+            "the canonical $id travels with the schema"
+        );
+    }
+
+    #[test]
+    fn examples_without_slug_lists_slugs() {
+        let out = execute("nika_examples", &json!({})).expect("ran");
+        // The list is exactly the pack's slugs, one per line.
+        let listed: Vec<&str> = out.lines().collect();
+        assert_eq!(listed, nika_pack::example_slugs());
+        assert!(!listed.is_empty(), "the pack ships examples");
+    }
+
+    #[test]
+    fn examples_with_slug_returns_the_source() {
+        let slug = nika_pack::example_slugs()
+            .first()
+            .cloned()
+            .expect("pack has examples");
+        let out = execute("nika_examples", &json!({ "slug": slug })).expect("ran");
+        assert!(out.contains("nika: v1"), "a real workflow source: {out}");
+    }
+
+    #[test]
+    fn examples_with_unknown_slug_is_a_tool_error_naming_the_list() {
+        let err = execute("nika_examples", &json!({ "slug": "no-such-example" }))
+            .expect_err("unknown slug");
+        assert!(err.contains("unknown example"), "{err}");
+    }
+
+    #[test]
+    fn template_without_name_lists_the_skeletons() {
+        let out = execute("nika_template", &json!({})).expect("ran");
+        assert!(out.contains("chain"), "the chain skeleton is listed: {out}");
+    }
+
+    #[test]
+    fn template_with_name_returns_the_skeleton() {
+        let out = execute("nika_template", &json!({ "name": "chain" })).expect("ran");
+        assert!(
+            out.contains("nika: v1") && out.contains("SLOT"),
+            "a fillable skeleton with SLOT markers: {out}"
+        );
+    }
+
+    #[test]
+    fn canon_returns_the_ssot() {
+        let out = execute("nika_canon", &json!({})).expect("ran");
+        assert!(
+            out.contains("verbs") && out.contains("builtins"),
+            "the canon SSOT covers verbs + builtins: {out}"
+        );
     }
 }

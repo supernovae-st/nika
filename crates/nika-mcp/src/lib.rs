@@ -3,10 +3,12 @@
 
 //! `nika-mcp` — the in-binary **MCP server** (Model Context Protocol).
 //!
-//! Exposes Nika's STATIC, read-only surface (`nika_check` · `nika_explain`) as
-//! MCP tools so any connecting client — Cursor · Claude Desktop · Zed · an
-//! agent — can audit a workflow BEFORE running it, without a network round-trip
-//! to a hosted service (alignment Rule 1 · the binary is self-contained).
+//! Exposes Nika's STATIC, read-only surface as MCP tools — validate
+//! (`nika_check` · `nika_explain`) and learn (`nika_schema` · `nika_examples`
+//! · `nika_template` · `nika_canon`) — so any connecting client — Cursor ·
+//! Claude Desktop · Zed · an agent — can author against the real contract and
+//! audit a workflow BEFORE running it, without a network round-trip to a
+//! hosted service (alignment Rule 1 · the binary is self-contained).
 //!
 //! **Sovereign, zero-SDK** · the transport is hand-rolled newline-delimited
 //! JSON-RPC 2.0 over stdio (the MCP stdio framing · one compact JSON message
