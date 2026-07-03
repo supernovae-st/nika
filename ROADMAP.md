@@ -200,10 +200,14 @@ Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 
 | Tag        | Meaning                                                              |
 |------------|----------------------------------------------------------------------|
-| `0.91.0`   | **current** — release-candidate grade · usable vertical slice works (4 verbs · 14 providers · effects · static-check · MCP/LSP · CLI) · headless workspace build |
+| `0.91.0`   | **current release** — release-candidate grade · usable vertical slice works (4 verbs · 14 providers · effects · static-check · MCP/LSP · CLI) · headless workspace build |
+| `0.92.0`   | **agent-native** — `nika wire codex` · `nika init` ships the repo-level agent skill (`.agents/skills/nika-authoring`) · the plugin marketplaces (Codex + Claude Code · `supernovae-st/nika-agents`) · MCP learning tools (schema · examples · template · canon) · cold-first-run fixes |
+| `0.93.0`   | `nika-cap` admitted (capability tokens · L0) — 40/42                  |
+| `0.94.0`   | `nika-pck-contracts` admitted (manifest DTO · L0) — 41/42             |
+| `0.95.0`   | `nika-binding-types` admitted (L0) — **42/42 · architecture complete** |
 | `1.0.0-rc.N` | design-partner hardening                                            |
 | `1.0.0`    | **first public launch** — language + installable binary, validated   |
-| `1.1 · 1.2 · …` | additive minors — remaining crates toward the 42-crate architecture, new builtins, new providers, polish |
+| `1.1 · 1.2 · …` | additive minors — new builtins, new providers, polish            |
 | `2.0.0`    | **the Connectome era** — memory + cognition (ADR-004) · the next epoch |
 
 > **Superseded `v0.8X.Y` layer-tag scheme (kept for history).** Before
