@@ -80,3 +80,4 @@ nika-runtime
 nika-sandbox-seatbelt
 nika-schema
 nika-screen
+nika-cap

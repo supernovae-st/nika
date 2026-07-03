@@ -130,24 +130,24 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `45668958f` (`45668958fea7e4313054c99ddf6728ddce2589a2`)             |
+| HEAD             | `8ef43dddc` (`8ef43dddc1c0633a1156ef0eff9f2d10e51595fa`)             |
 | workspace        | v0.93.0-dev                                  |
-| crates (workspace)| 39                                              |
-| crates (admitted)| 39 / 42                                   |
+| crates (workspace)| 40                                              |
+| crates (admitted)| 40 / 42                                   |
 | crates (WIP)     | 0 —                                   |
-| L0               | 8                                              |
+| L0               | 9                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 4                                              |
-| lib tests        | 3005 passed, 0 failed                              |
+| lib tests        | 3023 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
 
-- L0 admitted: nika-types, nika-error, nika-catalog, nika-catalog-codegen, nika-event, nika-pack, nika-cel, nika-schema (parser + analyzer + static-check · admitted 2026-06-18 · Gate-5 budget 290≤300 · O(n²) when-gate DoS fixed + origin's gate-list cap, both integrated).
+- L0 admitted: nika-types, nika-error, nika-catalog, nika-catalog-codegen, nika-event, nika-pack, nika-cel, nika-schema (parser + analyzer + static-check · admitted 2026-06-18 · Gate-5 budget 290≤300 · O(n²) when-gate DoS fixed + origin's gate-list cap, both integrated), nika-cap (the permits: capability boundary as pure data + fits predicate + set-algebra · extracted from nika-schema · admitted 2026-07-03 · Gate-5 100% · the ONE host matcher consolidated, third copy removed).
 - L0.5 admitted: nika-kernel (facade + range-registry hub post 4-way split 2026-06-10), nika-kernel-core, nika-kernel-ai, nika-kernel-runtime, nika-kernel-plugin, nika-kernel-mock.
 - L1 admitted: nika-clock, nika-bm25, nika-screen, nika-ocr, nika-a11y, nika-input (M2.4 · Guards 1+2), nika-browser (M2.5 · Guard 5 + occlusion hit-test), nika-fs (atomic write · s4), nika-http (reqwest+rustls · 3-layer SSRF + cross-origin cred-strip · s5), nika-blob (blake3 CAS · sidecar mime · s6), nika-exec-runner (shell/process effect · s7).
 - L1.5 admitted: nika-providers (s8.5 · 14/14 providers wired across 3 wire formats incl gemini s8.6 · kernel http seam), nika-infer-local (sovereign local inference sidecar · ADR-091), nika-builtin (s16 · the 23 stdlib builtins behind ONE dispatcher · the 3 tool seams · the agent's first real tool source), nika-extract (the 9 fetch extract modes · article Trafilatura cascade · feed/sitemap/metadata/microdata · admitted 2026-06-21 · Gate-5 93% · totality proptest · the `nika:fetch` extract step).
@@ -180,9 +180,9 @@ Narrative context (manually maintained):
   stream-binding lint. CF-1 for_each positional-null verified spec-correct (not a
   bug · test + spec clarification). Full battery green · 2687 lib + e2e + 503-wf
   corpus check (0 panic / 0 internal-code leak) + hygiene 0-RED.
-- **Next** · the wip array is EMPTY (39/42 · every existing crate admitted) ·
-  the remaining 3 toward the 42-target are the L0-completion crates (nika-cap ·
-  pck-contracts · binding-types) · then design-partner `1.0.0-rc.N` → the **1.0.0**
+- **Next** · the wip array is EMPTY (40/42 · every workspace crate admitted) ·
+  the remaining 2 toward the 42-target are the L0-completion crates
+  (nika-pck-contracts · nika-binding-types) · then design-partner `1.0.0-rc.N` → the **1.0.0**
   launch (amended D-2026-06-20-N1). Latest tagged release is 0.91.0; `main`
   carries the next dev version so contributor binaries cannot masquerade as the
   Homebrew asset. 42-crate target reached additively across the 1.x minors.

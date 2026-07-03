@@ -438,3 +438,16 @@ should be a single pass given the crate's size (~490 LOC).
 | 2026-07-03 | Gate 1 (architect pass) | Initial spec. Extraction scope locked: the 4 permits DTOs + the pure fits predicate + the NEW union/intersect lattice. AST-coupled escapes diagnostics stay in `nika-schema`. Runtime enforcement untouched. Zero NIKA-CAP codes (infallible algebra). Non-breaking migration via same-path re-export. |
 
 🦋
+
+
+## ADR-027 fan-out consequence (extraction cost)
+
+Extracting `nika-cap` adds a **4th** L0 sibling-dep to `nika-schema` (it now
+depends on `nika-cap` for the permits vocabulary it used to define inline),
+crossing the ADR-027 3-sibling-dep cap for that one crate. This is exempted at
+`crates/nika-schema/Cargo.toml` (`# L0-DEP-FANOUT-EXEMPT`) because `nika-schema`
+is the schema/parser/analyzer **assembler** — a legitimate high-fan-in point for
+the workflow vocabulary leaves (types · error · catalog · cap). The exemption is
+the conscious DAG decision ADR-027 requires; the alternative (keeping permits
+inline) would deny `nika-policy`/runtime the lean, parser-free reuse that is the
+whole reason to extract `nika-cap`.

@@ -1,0 +1,29 @@
+[package]
+name          = "nika-cap"
+description   = "The declared capability boundary (permits:) as pure data + the fits predicate + set-algebra. Layer L0 — pure, zero I/O, zero async."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io. See ADR-017.
+
+[dependencies]
+nika-types = { path = "../nika-types", version = "0.93.0-dev" }  # host_glob_matches — the same matcher nika-http enforces at runtime (zero drift)
+serde      = { workspace = true }
+
+[dev-dependencies]
+proptest    = { workspace = true }
+serde_json  = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "gardien"
+archetype     = "threshold-warden"
+spirit_role   = "garde la frontière déclarée · rien ne passe qui n'est pas nommé"
+voice_pattern = "silent"
+layer         = "L0"
+
+[lints]
+workspace = true

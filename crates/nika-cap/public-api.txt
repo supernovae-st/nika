@@ -1,0 +1,176 @@
+pub mod nika_cap
+#[non_exhaustive] pub enum nika_cap::ExecPermit
+pub nika_cap::ExecPermit::Any
+pub nika_cap::ExecPermit::No
+pub nika_cap::ExecPermit::Programs(alloc::vec::Vec<alloc::string::String>)
+impl core::clone::Clone for nika_cap::ExecPermit
+pub fn nika_cap::ExecPermit::clone(&self) -> nika_cap::ExecPermit
+impl core::cmp::Eq for nika_cap::ExecPermit
+impl core::cmp::PartialEq for nika_cap::ExecPermit
+pub fn nika_cap::ExecPermit::eq(&self, other: &nika_cap::ExecPermit) -> bool
+impl core::fmt::Debug for nika_cap::ExecPermit
+pub fn nika_cap::ExecPermit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::ExecPermit
+impl serde_core::ser::Serialize for nika_cap::ExecPermit
+pub fn nika_cap::ExecPermit::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_cap::ExecPermit
+pub fn nika_cap::ExecPermit::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_cap::ExecPermit where U: core::convert::From<T>
+pub fn nika_cap::ExecPermit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::ExecPermit where U: core::convert::Into<T>
+pub type nika_cap::ExecPermit::Error = core::convert::Infallible
+pub fn nika_cap::ExecPermit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::ExecPermit where U: core::convert::TryFrom<T>
+pub type nika_cap::ExecPermit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::ExecPermit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::ExecPermit where T: core::clone::Clone
+pub type nika_cap::ExecPermit::Owned = T
+pub fn nika_cap::ExecPermit::clone_into(&self, target: &mut T)
+pub fn nika_cap::ExecPermit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::ExecPermit where T: 'static + ?core::marker::Sized
+pub fn nika_cap::ExecPermit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::ExecPermit where T: ?core::marker::Sized
+pub fn nika_cap::ExecPermit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::ExecPermit where T: ?core::marker::Sized
+pub fn nika_cap::ExecPermit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::ExecPermit where T: core::clone::Clone
+pub unsafe fn nika_cap::ExecPermit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::ExecPermit
+pub fn nika_cap::ExecPermit::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_cap::ExecPermit where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_cap::FsPermits
+pub nika_cap::FsPermits::read: alloc::vec::Vec<alloc::string::String>
+pub nika_cap::FsPermits::write: alloc::vec::Vec<alloc::string::String>
+impl nika_cap::FsPermits
+pub fn nika_cap::FsPermits::new(read: alloc::vec::Vec<alloc::string::String>, write: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_cap::FsPermits
+pub fn nika_cap::FsPermits::clone(&self) -> nika_cap::FsPermits
+impl core::cmp::Eq for nika_cap::FsPermits
+impl core::cmp::PartialEq for nika_cap::FsPermits
+pub fn nika_cap::FsPermits::eq(&self, other: &nika_cap::FsPermits) -> bool
+impl core::default::Default for nika_cap::FsPermits
+pub fn nika_cap::FsPermits::default() -> nika_cap::FsPermits
+impl core::fmt::Debug for nika_cap::FsPermits
+pub fn nika_cap::FsPermits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::FsPermits
+impl serde_core::ser::Serialize for nika_cap::FsPermits
+pub fn nika_cap::FsPermits::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_cap::FsPermits
+pub fn nika_cap::FsPermits::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_cap::FsPermits where U: core::convert::From<T>
+pub fn nika_cap::FsPermits::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::FsPermits where U: core::convert::Into<T>
+pub type nika_cap::FsPermits::Error = core::convert::Infallible
+pub fn nika_cap::FsPermits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::FsPermits where U: core::convert::TryFrom<T>
+pub type nika_cap::FsPermits::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::FsPermits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::FsPermits where T: core::clone::Clone
+pub type nika_cap::FsPermits::Owned = T
+pub fn nika_cap::FsPermits::clone_into(&self, target: &mut T)
+pub fn nika_cap::FsPermits::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::FsPermits where T: 'static + ?core::marker::Sized
+pub fn nika_cap::FsPermits::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::FsPermits where T: ?core::marker::Sized
+pub fn nika_cap::FsPermits::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::FsPermits where T: ?core::marker::Sized
+pub fn nika_cap::FsPermits::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::FsPermits where T: core::clone::Clone
+pub unsafe fn nika_cap::FsPermits::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::FsPermits
+pub fn nika_cap::FsPermits::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_cap::FsPermits where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_cap::NetPermits
+pub nika_cap::NetPermits::http: alloc::vec::Vec<alloc::string::String>
+impl nika_cap::NetPermits
+pub fn nika_cap::NetPermits::new(http: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_cap::NetPermits
+pub fn nika_cap::NetPermits::clone(&self) -> nika_cap::NetPermits
+impl core::cmp::Eq for nika_cap::NetPermits
+impl core::cmp::PartialEq for nika_cap::NetPermits
+pub fn nika_cap::NetPermits::eq(&self, other: &nika_cap::NetPermits) -> bool
+impl core::default::Default for nika_cap::NetPermits
+pub fn nika_cap::NetPermits::default() -> nika_cap::NetPermits
+impl core::fmt::Debug for nika_cap::NetPermits
+pub fn nika_cap::NetPermits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::NetPermits
+impl serde_core::ser::Serialize for nika_cap::NetPermits
+pub fn nika_cap::NetPermits::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_cap::NetPermits
+pub fn nika_cap::NetPermits::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_cap::NetPermits where U: core::convert::From<T>
+pub fn nika_cap::NetPermits::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::NetPermits where U: core::convert::Into<T>
+pub type nika_cap::NetPermits::Error = core::convert::Infallible
+pub fn nika_cap::NetPermits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::NetPermits where U: core::convert::TryFrom<T>
+pub type nika_cap::NetPermits::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::NetPermits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::NetPermits where T: core::clone::Clone
+pub type nika_cap::NetPermits::Owned = T
+pub fn nika_cap::NetPermits::clone_into(&self, target: &mut T)
+pub fn nika_cap::NetPermits::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::NetPermits where T: 'static + ?core::marker::Sized
+pub fn nika_cap::NetPermits::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::NetPermits where T: ?core::marker::Sized
+pub fn nika_cap::NetPermits::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::NetPermits where T: ?core::marker::Sized
+pub fn nika_cap::NetPermits::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::NetPermits where T: core::clone::Clone
+pub unsafe fn nika_cap::NetPermits::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::NetPermits
+pub fn nika_cap::NetPermits::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_cap::NetPermits where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_cap::Permits
+pub nika_cap::Permits::exec: core::option::Option<nika_cap::ExecPermit>
+pub nika_cap::Permits::fs: core::option::Option<nika_cap::FsPermits>
+pub nika_cap::Permits::net: core::option::Option<nika_cap::NetPermits>
+pub nika_cap::Permits::tools: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+impl nika_cap::Permits
+pub fn nika_cap::Permits::allows_exec(&self) -> bool
+pub fn nika_cap::Permits::allows_program(&self, program: &str) -> bool
+pub fn nika_cap::Permits::allows_tool(&self, tool: &str) -> bool
+pub fn nika_cap::Permits::new() -> Self
+impl nika_cap::Permits
+pub fn nika_cap::Permits::allows_host(&self, host: &str) -> bool
+pub fn nika_cap::Permits::allows_path(&self, path: &str, write: bool) -> bool
+impl nika_cap::Permits
+pub fn nika_cap::Permits::intersect(&self, other: &Self) -> Self
+pub fn nika_cap::Permits::union(&self, other: &Self) -> Self
+impl core::clone::Clone for nika_cap::Permits
+pub fn nika_cap::Permits::clone(&self) -> nika_cap::Permits
+impl core::cmp::Eq for nika_cap::Permits
+impl core::cmp::PartialEq for nika_cap::Permits
+pub fn nika_cap::Permits::eq(&self, other: &nika_cap::Permits) -> bool
+impl core::default::Default for nika_cap::Permits
+pub fn nika_cap::Permits::default() -> nika_cap::Permits
+impl core::fmt::Debug for nika_cap::Permits
+pub fn nika_cap::Permits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::Permits
+impl serde_core::ser::Serialize for nika_cap::Permits
+pub fn nika_cap::Permits::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_cap::Permits
+pub fn nika_cap::Permits::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_cap::Permits where U: core::convert::From<T>
+pub fn nika_cap::Permits::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::Permits where U: core::convert::Into<T>
+pub type nika_cap::Permits::Error = core::convert::Infallible
+pub fn nika_cap::Permits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::Permits where U: core::convert::TryFrom<T>
+pub type nika_cap::Permits::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::Permits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::Permits where T: core::clone::Clone
+pub type nika_cap::Permits::Owned = T
+pub fn nika_cap::Permits::clone_into(&self, target: &mut T)
+pub fn nika_cap::Permits::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::Permits where T: 'static + ?core::marker::Sized
+pub fn nika_cap::Permits::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::Permits where T: ?core::marker::Sized
+pub fn nika_cap::Permits::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::Permits where T: ?core::marker::Sized
+pub fn nika_cap::Permits::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::Permits where T: core::clone::Clone
+pub unsafe fn nika_cap::Permits::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::Permits
+pub fn nika_cap::Permits::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_cap::Permits where T: for<'de> serde_core::de::Deserialize<'de>

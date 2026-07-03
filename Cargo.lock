@@ -3576,6 +3576,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-cap"
+version = "0.93.0-dev"
+dependencies = [
+ "nika-types",
+ "proptest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "nika-catalog"
 version = "0.93.0-dev"
 dependencies = [
@@ -3988,6 +3998,7 @@ dependencies = [
  "jsonschema",
  "marked-yaml",
  "miette",
+ "nika-cap",
  "nika-catalog",
  "nika-error",
  "nika-event",

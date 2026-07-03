@@ -21,13 +21,12 @@
 //!   stays the runtime `NIKA-SEC-004` check.
 
 use crate::raw::{RawAction, RawCommand, RawInvokeAction, RawWorkflow};
-use crate::types::{ExecPermit, Permits, permits::glob_matches};
+use crate::types::{ExecPermit, Permits};
 // The `*.`-subdomain allowlist glob lives in `nika_types::net` — the SINGLE
 // canonical matcher shared with the runtime http effect (`nika-http`) so the
 // check-time and run-time verdicts can't drift. The host EXTRACTION is the
 // `url` crate (below) on BOTH sides — a string parser disagrees with WHATWG
 // normalization (`\`/userinfo/case) and that gap is a boundary bypass.
-use nika_types::net::host_glob_matches;
 
 /// A statically-detectable effect outside the declared boundary.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -256,7 +255,7 @@ fn check_builtin_effect(
     match builtin_effect(a) {
         Some(BuiltinEffect::Net { url_arg }) => {
             if let Some(host) = literal_arg(a, url_arg).as_deref().and_then(url_host)
-                && !host_allowed(permits, &host)
+                && !permits.allows_host(&host)
             {
                 out.push(CapabilityEscape {
                     task: id.to_owned(),
@@ -272,7 +271,7 @@ fn check_builtin_effect(
             };
             for (active, dir_writes, cat) in [(reads, false, "fs.read"), (writes, true, "fs.write")]
             {
-                if active && !path_allowed(permits, &path, dir_writes) {
+                if active && !permits.allows_path(&path, dir_writes) {
                     out.push(CapabilityEscape {
                         task: id.to_owned(),
                         category: "fs",
@@ -312,85 +311,6 @@ pub(super) fn url_host(raw: &str) -> Option<String> {
         url::Host::Domain(d) => Some(d.trim_end_matches('.').to_owned()),
         url::Host::Ipv4(a) => Some(a.to_string()),
         url::Host::Ipv6(a) => Some(a.to_string()),
-    }
-}
-
-/// Whether `host` matches the declared `permits.net.http` allowlist.
-/// Default-deny: an omitted `net` block forbids all hosts.
-fn host_allowed(permits: &Permits, host: &str) -> bool {
-    permits
-        .net
-        .as_ref()
-        .is_some_and(|n| n.http.iter().any(|g| host_glob_matches(g, host)))
-}
-
-/// Whether `path` matches the declared `permits.fs` allowlist for the
-/// direction. Default-deny: an omitted `fs` block forbids all paths.
-fn path_allowed(permits: &Permits, path: &str, writes: bool) -> bool {
-    permits.fs.as_ref().is_some_and(|fs| {
-        let globs = if writes { &fs.write } else { &fs.read };
-        globs.iter().any(|g| path_glob_matches(g, path))
-    })
-}
-
-/// Gitignore-style path glob match · supports a trailing `/**` (any
-/// descendant) and a single `*` (any tail within a segment). Conservative:
-/// when in doubt it does NOT match (default-deny favours flagging).
-///
-/// The `path` is lexically normalized (`.`/`..` folded) FIRST, so a
-/// traversal that climbs out of the glob's prefix (`./out/../etc/x` ·
-/// `/data/in/../../passwd`) no longer string-matches the literal prefix —
-/// the static mirror of the runtime's canonicalize-then-confine
-/// (`NIKA-SEC-004`). Symlink escapes still need the runtime check (a
-/// static pass cannot resolve a link), but the `..` class is caught here.
-fn path_glob_matches(glob: &str, path: &str) -> bool {
-    // Normalize BOTH sides identically (`.`/`..` folded) so an inferred
-    // grant round-trips (it admits the very path it was built from) while a
-    // traversal that climbs OUT of the literal prefix no longer string-
-    // matches it. The wildcard tail of `glob` carries no `.`/`..`, so
-    // normalizing only its literal prefix is exact.
-    let path = lexically_normalize(path);
-    let path = path.as_str();
-    if let Some(prefix) = glob.strip_suffix("/**") {
-        // `./out/**` matches `./out/x` and `./out/a/b` (and `./out` itself).
-        let prefix = lexically_normalize(prefix);
-        return path == prefix || path.starts_with(&format!("{prefix}/"));
-    }
-    if glob.contains('*') {
-        // A `*`-within-segment glob — normalize the path, keep the glob's
-        // wildcard intact (its literal part carries no traversal).
-        return glob_matches(glob, path);
-    }
-    // An exact path glob — normalize it too, so `/.` (grant) and `/`
-    // (normalized path) compare equal (the round-trip invariant).
-    lexically_normalize(glob) == path
-}
-
-/// Fold `.`/`..` segments textually, preserving a leading `/` or `./`
-/// (the permit globs are written either absolute or `./`-rooted, so the
-/// normalized path stays comparable to the glob's literal prefix). A `..`
-/// that would climb above the root is dropped (it cannot match an
-/// in-boundary glob anyway). Purely lexical — symlinks are the runtime's job.
-fn lexically_normalize(path: &str) -> String {
-    let absolute = path.starts_with('/');
-    let dot_rooted = path.starts_with("./");
-    let mut out: Vec<&str> = Vec::new();
-    for seg in path.split('/') {
-        match seg {
-            "" | "." => {}
-            ".." => {
-                out.pop();
-            }
-            other => out.push(other),
-        }
-    }
-    let joined = out.join("/");
-    if absolute {
-        format!("/{joined}")
-    } else if dot_rooted {
-        format!("./{joined}")
-    } else {
-        joined
     }
 }
 

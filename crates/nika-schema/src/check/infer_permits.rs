@@ -88,12 +88,11 @@ pub(super) fn infer(wf: &RawWorkflow) -> InferredPermits {
         Some(ExecPermit::Programs(c.programs.into_iter().collect()))
     };
 
-    let permits = Permits {
-        fs: build_fs(c.reads, c.writes),
-        net: build_net(c.hosts),
-        exec,
-        tools: (!c.tools.is_empty()).then(|| c.tools.into_iter().collect()),
-    };
+    let mut permits = Permits::new();
+    permits.fs = build_fs(c.reads, c.writes);
+    permits.net = build_net(c.hosts);
+    permits.exec = exec;
+    permits.tools = (!c.tools.is_empty()).then(|| c.tools.into_iter().collect());
     InferredPermits {
         permits,
         notes: c.notes,
@@ -192,16 +191,14 @@ fn build_fs(reads: BTreeSet<String>, writes: BTreeSet<String>) -> Option<FsPermi
     if reads.is_empty() && writes.is_empty() {
         return None;
     }
-    Some(FsPermits {
-        read: reads.into_iter().collect(),
-        write: writes.into_iter().collect(),
-    })
+    Some(FsPermits::new(
+        reads.into_iter().collect(),
+        writes.into_iter().collect(),
+    ))
 }
 
 fn build_net(hosts: BTreeSet<String>) -> Option<NetPermits> {
-    (!hosts.is_empty()).then(|| NetPermits {
-        http: hosts.into_iter().collect(),
-    })
+    (!hosts.is_empty()).then(|| NetPermits::new(hosts.into_iter().collect()))
 }
 
 /// Render an inferred `Permits` as a spec-shaped YAML block (the
@@ -231,7 +228,8 @@ fn render_yaml(p: &Permits) -> String {
         Some(ExecPermit::No) => out.push_str("  exec: false\n"),
         Some(ExecPermit::Any) => out.push_str("  exec: true\n"),
         Some(ExecPermit::Programs(ps)) => push_field(&mut out, "  exec: ", ps),
-        None => {}
+        // None + any future non_exhaustive variant render nothing here.
+        _ => {}
     }
     if let Some(tools) = &p.tools {
         push_field(&mut out, "  tools: ", tools);
@@ -510,12 +508,7 @@ mod tests {
     #[test]
     fn empty_permits_renders_the_explicit_empty_mapping() {
         // A bare `permits:` is YAML null and the parser rejects it.
-        let rendered = render_yaml(&Permits {
-            fs: None,
-            net: None,
-            exec: None,
-            tools: None,
-        });
+        let rendered = render_yaml(&Permits::new());
         assert_eq!(rendered, "permits: {}\n");
         let full = format!(
             "nika: v1\nworkflow: w\n{rendered}tasks:\n  - id: t\n    infer: {{ prompt: \"hi\", max_tokens: 5 }}\n"

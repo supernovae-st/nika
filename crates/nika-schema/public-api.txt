@@ -650,7 +650,7 @@ impl<T> nika_error::traits::AsAny for nika_schema::Hint where T: 'static
 pub fn nika_schema::Hint::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::check::InferredPermits
 pub nika_schema::check::InferredPermits::notes: alloc::vec::Vec<alloc::string::String>
-pub nika_schema::check::InferredPermits::permits: nika_schema::types::permits::Permits
+pub nika_schema::check::InferredPermits::permits: nika_cap::permits::Permits
 impl nika_schema::InferredPermits
 pub fn nika_schema::InferredPermits::to_yaml(&self) -> alloc::string::String
 impl core::clone::Clone for nika_schema::InferredPermits
@@ -2466,7 +2466,7 @@ pub nika_schema::raw::workflow::RawWorkflow::env: alloc::vec::Vec<(nika_schema::
 pub nika_schema::raw::workflow::RawWorkflow::model: core::option::Option<nika_schema::Spanned<alloc::string::String>>
 pub nika_schema::raw::workflow::RawWorkflow::nika: core::option::Option<nika_schema::Spanned<nika_schema::types::schema_version::SchemaVersion>>
 pub nika_schema::raw::workflow::RawWorkflow::outputs: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::types::output_decl::OutputDecl)>
-pub nika_schema::raw::workflow::RawWorkflow::permits: core::option::Option<nika_schema::Spanned<nika_schema::types::permits::Permits>>
+pub nika_schema::raw::workflow::RawWorkflow::permits: core::option::Option<nika_schema::Spanned<nika_cap::permits::Permits>>
 pub nika_schema::raw::workflow::RawWorkflow::secrets: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<nika_schema::types::secret::SecretRef>)>
 pub nika_schema::raw::workflow::RawWorkflow::tasks: alloc::vec::Vec<nika_schema::Spanned<nika_schema::raw::task::RawTask>>
 pub nika_schema::raw::workflow::RawWorkflow::vars: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::types::var_decl::VarDecl)>
@@ -2915,7 +2915,7 @@ pub nika_schema::raw::RawWorkflow::env: alloc::vec::Vec<(nika_schema::Spanned<al
 pub nika_schema::raw::RawWorkflow::model: core::option::Option<nika_schema::Spanned<alloc::string::String>>
 pub nika_schema::raw::RawWorkflow::nika: core::option::Option<nika_schema::Spanned<nika_schema::types::schema_version::SchemaVersion>>
 pub nika_schema::raw::RawWorkflow::outputs: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::types::output_decl::OutputDecl)>
-pub nika_schema::raw::RawWorkflow::permits: core::option::Option<nika_schema::Spanned<nika_schema::types::permits::Permits>>
+pub nika_schema::raw::RawWorkflow::permits: core::option::Option<nika_schema::Spanned<nika_cap::permits::Permits>>
 pub nika_schema::raw::RawWorkflow::secrets: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::Spanned<nika_schema::types::secret::SecretRef>)>
 pub nika_schema::raw::RawWorkflow::tasks: alloc::vec::Vec<nika_schema::Spanned<nika_schema::raw::task::RawTask>>
 pub nika_schema::raw::RawWorkflow::vars: alloc::vec::Vec<(nika_schema::Spanned<alloc::string::String>, nika_schema::types::var_decl::VarDecl)>
@@ -3426,6 +3426,10 @@ pub fn nika_schema::trust::InvocationSource::as_out(&mut self) -> outref::Out<'_
 pub fn nika_schema::trust::builtin_output_trust(tool: &str, input_trust: nika_types::trust::TrustLevel) -> nika_types::trust::TrustLevel
 pub fn nika_schema::trust::is_categorized_builtin(tool: &str) -> bool
 pub mod nika_schema::types
+pub use nika_schema::types::ExecPermit
+pub use nika_schema::types::FsPermits
+pub use nika_schema::types::NetPermits
+pub use nika_schema::types::Permits
 pub mod nika_schema::types::capture
 #[non_exhaustive] pub enum nika_schema::types::capture::CaptureMode
 pub nika_schema::types::capture::CaptureMode::Combined
@@ -3795,215 +3799,10 @@ pub fn nika_schema::types::output_decl::OutputDecl::__clone_box(&self, _: dyn_cl
 impl<T> nika_error::traits::AsAny for nika_schema::types::output_decl::OutputDecl where T: 'static
 pub fn nika_schema::types::output_decl::OutputDecl::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_schema::types::permits
-#[non_exhaustive] pub enum nika_schema::types::permits::ExecPermit
-pub nika_schema::types::permits::ExecPermit::Any
-pub nika_schema::types::permits::ExecPermit::No
-pub nika_schema::types::permits::ExecPermit::Programs(alloc::vec::Vec<alloc::string::String>)
-impl core::clone::Clone for nika_schema::types::permits::ExecPermit
-pub fn nika_schema::types::permits::ExecPermit::clone(&self) -> nika_schema::types::permits::ExecPermit
-impl core::cmp::Eq for nika_schema::types::permits::ExecPermit
-impl core::cmp::PartialEq for nika_schema::types::permits::ExecPermit
-pub fn nika_schema::types::permits::ExecPermit::eq(&self, other: &nika_schema::types::permits::ExecPermit) -> bool
-impl core::fmt::Debug for nika_schema::types::permits::ExecPermit
-pub fn nika_schema::types::permits::ExecPermit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_schema::types::permits::ExecPermit
-impl serde_core::ser::Serialize for nika_schema::types::permits::ExecPermit
-pub fn nika_schema::types::permits::ExecPermit::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::types::permits::ExecPermit
-pub fn nika_schema::types::permits::ExecPermit::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::types::permits::ExecPermit
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::permits::ExecPermit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::ExecPermit::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::ExecPermit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::ExecPermit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::ExecPermit::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::types::permits::ExecPermit::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::types::permits::ExecPermit where U: core::convert::From<T>
-pub fn nika_schema::types::permits::ExecPermit::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::types::permits::ExecPermit where U: core::convert::Into<T>
-pub type nika_schema::types::permits::ExecPermit::Error = core::convert::Infallible
-pub fn nika_schema::types::permits::ExecPermit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::types::permits::ExecPermit where U: core::convert::TryFrom<T>
-pub type nika_schema::types::permits::ExecPermit::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::types::permits::ExecPermit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::types::permits::ExecPermit where T: core::clone::Clone
-pub type nika_schema::types::permits::ExecPermit::Owned = T
-pub fn nika_schema::types::permits::ExecPermit::clone_into(&self, target: &mut T)
-pub fn nika_schema::types::permits::ExecPermit::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::types::permits::ExecPermit where T: 'static + ?core::marker::Sized
-pub fn nika_schema::types::permits::ExecPermit::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::types::permits::ExecPermit where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::ExecPermit::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::types::permits::ExecPermit where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::ExecPermit::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::types::permits::ExecPermit where T: core::clone::Clone
-pub unsafe fn nika_schema::types::permits::ExecPermit::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::types::permits::ExecPermit
-pub fn nika_schema::types::permits::ExecPermit::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::types::permits::ExecPermit where T: core::clone::Clone
-pub fn nika_schema::types::permits::ExecPermit::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::types::permits::ExecPermit where T: 'static
-pub fn nika_schema::types::permits::ExecPermit::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> serde_core::de::DeserializeOwned for nika_schema::types::permits::ExecPermit where T: for<'de> serde_core::de::Deserialize<'de>
-#[non_exhaustive] pub struct nika_schema::types::permits::FsPermits
-pub nika_schema::types::permits::FsPermits::read: alloc::vec::Vec<alloc::string::String>
-pub nika_schema::types::permits::FsPermits::write: alloc::vec::Vec<alloc::string::String>
-impl core::clone::Clone for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::clone(&self) -> nika_schema::types::permits::FsPermits
-impl core::cmp::Eq for nika_schema::types::permits::FsPermits
-impl core::cmp::PartialEq for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::eq(&self, other: &nika_schema::types::permits::FsPermits) -> bool
-impl core::default::Default for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::default() -> nika_schema::types::permits::FsPermits
-impl core::fmt::Debug for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_schema::types::permits::FsPermits
-impl serde_core::ser::Serialize for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::types::permits::FsPermits
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::permits::FsPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::FsPermits::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::FsPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::FsPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::FsPermits::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::types::permits::FsPermits::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::types::permits::FsPermits where U: core::convert::From<T>
-pub fn nika_schema::types::permits::FsPermits::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::types::permits::FsPermits where U: core::convert::Into<T>
-pub type nika_schema::types::permits::FsPermits::Error = core::convert::Infallible
-pub fn nika_schema::types::permits::FsPermits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::types::permits::FsPermits where U: core::convert::TryFrom<T>
-pub type nika_schema::types::permits::FsPermits::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::types::permits::FsPermits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::types::permits::FsPermits where T: core::clone::Clone
-pub type nika_schema::types::permits::FsPermits::Owned = T
-pub fn nika_schema::types::permits::FsPermits::clone_into(&self, target: &mut T)
-pub fn nika_schema::types::permits::FsPermits::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::types::permits::FsPermits where T: 'static + ?core::marker::Sized
-pub fn nika_schema::types::permits::FsPermits::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::types::permits::FsPermits where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::FsPermits::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::types::permits::FsPermits where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::FsPermits::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::types::permits::FsPermits where T: core::clone::Clone
-pub unsafe fn nika_schema::types::permits::FsPermits::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::types::permits::FsPermits where T: core::clone::Clone
-pub fn nika_schema::types::permits::FsPermits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::types::permits::FsPermits where T: 'static
-pub fn nika_schema::types::permits::FsPermits::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> serde_core::de::DeserializeOwned for nika_schema::types::permits::FsPermits where T: for<'de> serde_core::de::Deserialize<'de>
-#[non_exhaustive] pub struct nika_schema::types::permits::NetPermits
-pub nika_schema::types::permits::NetPermits::http: alloc::vec::Vec<alloc::string::String>
-impl core::clone::Clone for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::clone(&self) -> nika_schema::types::permits::NetPermits
-impl core::cmp::Eq for nika_schema::types::permits::NetPermits
-impl core::cmp::PartialEq for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::eq(&self, other: &nika_schema::types::permits::NetPermits) -> bool
-impl core::default::Default for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::default() -> nika_schema::types::permits::NetPermits
-impl core::fmt::Debug for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_schema::types::permits::NetPermits
-impl serde_core::ser::Serialize for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::types::permits::NetPermits
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::permits::NetPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::NetPermits::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::NetPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::NetPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::NetPermits::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::types::permits::NetPermits::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::types::permits::NetPermits where U: core::convert::From<T>
-pub fn nika_schema::types::permits::NetPermits::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::types::permits::NetPermits where U: core::convert::Into<T>
-pub type nika_schema::types::permits::NetPermits::Error = core::convert::Infallible
-pub fn nika_schema::types::permits::NetPermits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::types::permits::NetPermits where U: core::convert::TryFrom<T>
-pub type nika_schema::types::permits::NetPermits::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::types::permits::NetPermits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::types::permits::NetPermits where T: core::clone::Clone
-pub type nika_schema::types::permits::NetPermits::Owned = T
-pub fn nika_schema::types::permits::NetPermits::clone_into(&self, target: &mut T)
-pub fn nika_schema::types::permits::NetPermits::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::types::permits::NetPermits where T: 'static + ?core::marker::Sized
-pub fn nika_schema::types::permits::NetPermits::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::types::permits::NetPermits where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::NetPermits::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::types::permits::NetPermits where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::NetPermits::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::types::permits::NetPermits where T: core::clone::Clone
-pub unsafe fn nika_schema::types::permits::NetPermits::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::types::permits::NetPermits where T: core::clone::Clone
-pub fn nika_schema::types::permits::NetPermits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::types::permits::NetPermits where T: 'static
-pub fn nika_schema::types::permits::NetPermits::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> serde_core::de::DeserializeOwned for nika_schema::types::permits::NetPermits where T: for<'de> serde_core::de::Deserialize<'de>
-#[non_exhaustive] pub struct nika_schema::types::permits::Permits
-pub nika_schema::types::permits::Permits::exec: core::option::Option<nika_schema::types::permits::ExecPermit>
-pub nika_schema::types::permits::Permits::fs: core::option::Option<nika_schema::types::permits::FsPermits>
-pub nika_schema::types::permits::Permits::net: core::option::Option<nika_schema::types::permits::NetPermits>
-pub nika_schema::types::permits::Permits::tools: core::option::Option<alloc::vec::Vec<alloc::string::String>>
-impl nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::allows_exec(&self) -> bool
-pub fn nika_schema::types::permits::Permits::allows_program(&self, program: &str) -> bool
-pub fn nika_schema::types::permits::Permits::allows_tool(&self, tool: &str) -> bool
-pub fn nika_schema::types::permits::Permits::new() -> Self
-impl core::clone::Clone for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::clone(&self) -> nika_schema::types::permits::Permits
-impl core::cmp::Eq for nika_schema::types::permits::Permits
-impl core::cmp::PartialEq for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::eq(&self, other: &nika_schema::types::permits::Permits) -> bool
-impl core::default::Default for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::default() -> nika_schema::types::permits::Permits
-impl core::fmt::Debug for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_schema::types::permits::Permits
-impl serde_core::ser::Serialize for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::types::permits::Permits
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::permits::Permits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::Permits::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::Permits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::Permits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::Permits::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::types::permits::Permits::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::types::permits::Permits where U: core::convert::From<T>
-pub fn nika_schema::types::permits::Permits::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::types::permits::Permits where U: core::convert::Into<T>
-pub type nika_schema::types::permits::Permits::Error = core::convert::Infallible
-pub fn nika_schema::types::permits::Permits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::types::permits::Permits where U: core::convert::TryFrom<T>
-pub type nika_schema::types::permits::Permits::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::types::permits::Permits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::types::permits::Permits where T: core::clone::Clone
-pub type nika_schema::types::permits::Permits::Owned = T
-pub fn nika_schema::types::permits::Permits::clone_into(&self, target: &mut T)
-pub fn nika_schema::types::permits::Permits::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::types::permits::Permits where T: 'static + ?core::marker::Sized
-pub fn nika_schema::types::permits::Permits::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::types::permits::Permits where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::Permits::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::types::permits::Permits where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::Permits::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::types::permits::Permits where T: core::clone::Clone
-pub unsafe fn nika_schema::types::permits::Permits::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::types::permits::Permits where T: core::clone::Clone
-pub fn nika_schema::types::permits::Permits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::types::permits::Permits where T: 'static
-pub fn nika_schema::types::permits::Permits::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> serde_core::de::DeserializeOwned for nika_schema::types::permits::Permits where T: for<'de> serde_core::de::Deserialize<'de>
+pub use nika_schema::types::permits::ExecPermit
+pub use nika_schema::types::permits::FsPermits
+pub use nika_schema::types::permits::NetPermits
+pub use nika_schema::types::permits::Permits
 pub mod nika_schema::types::retry
 #[non_exhaustive] pub enum nika_schema::types::retry::BackoffStrategy
 pub nika_schema::types::retry::BackoffStrategy::Exponential
@@ -4637,56 +4436,6 @@ pub fn nika_schema::types::capture::CaptureMode::as_any(&self) -> &(dyn core::an
 impl<T> outref::AsOut<T> for nika_schema::types::capture::CaptureMode where T: core::marker::Copy
 pub fn nika_schema::types::capture::CaptureMode::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> serde_core::de::DeserializeOwned for nika_schema::types::capture::CaptureMode where T: for<'de> serde_core::de::Deserialize<'de>
-#[non_exhaustive] pub enum nika_schema::types::ExecPermit
-pub nika_schema::types::ExecPermit::Any
-pub nika_schema::types::ExecPermit::No
-pub nika_schema::types::ExecPermit::Programs(alloc::vec::Vec<alloc::string::String>)
-impl core::clone::Clone for nika_schema::types::permits::ExecPermit
-pub fn nika_schema::types::permits::ExecPermit::clone(&self) -> nika_schema::types::permits::ExecPermit
-impl core::cmp::Eq for nika_schema::types::permits::ExecPermit
-impl core::cmp::PartialEq for nika_schema::types::permits::ExecPermit
-pub fn nika_schema::types::permits::ExecPermit::eq(&self, other: &nika_schema::types::permits::ExecPermit) -> bool
-impl core::fmt::Debug for nika_schema::types::permits::ExecPermit
-pub fn nika_schema::types::permits::ExecPermit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_schema::types::permits::ExecPermit
-impl serde_core::ser::Serialize for nika_schema::types::permits::ExecPermit
-pub fn nika_schema::types::permits::ExecPermit::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::types::permits::ExecPermit
-pub fn nika_schema::types::permits::ExecPermit::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::types::permits::ExecPermit
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::permits::ExecPermit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::ExecPermit::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::ExecPermit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::ExecPermit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::ExecPermit::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::types::permits::ExecPermit::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::types::permits::ExecPermit where U: core::convert::From<T>
-pub fn nika_schema::types::permits::ExecPermit::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::types::permits::ExecPermit where U: core::convert::Into<T>
-pub type nika_schema::types::permits::ExecPermit::Error = core::convert::Infallible
-pub fn nika_schema::types::permits::ExecPermit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::types::permits::ExecPermit where U: core::convert::TryFrom<T>
-pub type nika_schema::types::permits::ExecPermit::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::types::permits::ExecPermit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::types::permits::ExecPermit where T: core::clone::Clone
-pub type nika_schema::types::permits::ExecPermit::Owned = T
-pub fn nika_schema::types::permits::ExecPermit::clone_into(&self, target: &mut T)
-pub fn nika_schema::types::permits::ExecPermit::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::types::permits::ExecPermit where T: 'static + ?core::marker::Sized
-pub fn nika_schema::types::permits::ExecPermit::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::types::permits::ExecPermit where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::ExecPermit::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::types::permits::ExecPermit where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::ExecPermit::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::types::permits::ExecPermit where T: core::clone::Clone
-pub unsafe fn nika_schema::types::permits::ExecPermit::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::types::permits::ExecPermit
-pub fn nika_schema::types::permits::ExecPermit::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::types::permits::ExecPermit where T: core::clone::Clone
-pub fn nika_schema::types::permits::ExecPermit::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::types::permits::ExecPermit where T: 'static
-pub fn nika_schema::types::permits::ExecPermit::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> serde_core::de::DeserializeOwned for nika_schema::types::permits::ExecPermit where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_schema::types::ExtractMode
 pub nika_schema::types::ExtractMode::Full
 pub nika_schema::types::ExtractMode::Jmespath
@@ -5275,107 +5024,6 @@ pub fn nika_schema::types::secret::EgressRule::__clone_box(&self, _: dyn_clone::
 impl<T> nika_error::traits::AsAny for nika_schema::types::secret::EgressRule where T: 'static
 pub fn nika_schema::types::secret::EgressRule::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_schema::types::secret::EgressRule where T: for<'de> serde_core::de::Deserialize<'de>
-#[non_exhaustive] pub struct nika_schema::types::FsPermits
-pub nika_schema::types::FsPermits::read: alloc::vec::Vec<alloc::string::String>
-pub nika_schema::types::FsPermits::write: alloc::vec::Vec<alloc::string::String>
-impl core::clone::Clone for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::clone(&self) -> nika_schema::types::permits::FsPermits
-impl core::cmp::Eq for nika_schema::types::permits::FsPermits
-impl core::cmp::PartialEq for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::eq(&self, other: &nika_schema::types::permits::FsPermits) -> bool
-impl core::default::Default for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::default() -> nika_schema::types::permits::FsPermits
-impl core::fmt::Debug for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_schema::types::permits::FsPermits
-impl serde_core::ser::Serialize for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::types::permits::FsPermits
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::permits::FsPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::FsPermits::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::FsPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::FsPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::FsPermits::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::types::permits::FsPermits::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::types::permits::FsPermits where U: core::convert::From<T>
-pub fn nika_schema::types::permits::FsPermits::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::types::permits::FsPermits where U: core::convert::Into<T>
-pub type nika_schema::types::permits::FsPermits::Error = core::convert::Infallible
-pub fn nika_schema::types::permits::FsPermits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::types::permits::FsPermits where U: core::convert::TryFrom<T>
-pub type nika_schema::types::permits::FsPermits::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::types::permits::FsPermits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::types::permits::FsPermits where T: core::clone::Clone
-pub type nika_schema::types::permits::FsPermits::Owned = T
-pub fn nika_schema::types::permits::FsPermits::clone_into(&self, target: &mut T)
-pub fn nika_schema::types::permits::FsPermits::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::types::permits::FsPermits where T: 'static + ?core::marker::Sized
-pub fn nika_schema::types::permits::FsPermits::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::types::permits::FsPermits where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::FsPermits::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::types::permits::FsPermits where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::FsPermits::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::types::permits::FsPermits where T: core::clone::Clone
-pub unsafe fn nika_schema::types::permits::FsPermits::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::types::permits::FsPermits
-pub fn nika_schema::types::permits::FsPermits::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::types::permits::FsPermits where T: core::clone::Clone
-pub fn nika_schema::types::permits::FsPermits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::types::permits::FsPermits where T: 'static
-pub fn nika_schema::types::permits::FsPermits::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> serde_core::de::DeserializeOwned for nika_schema::types::permits::FsPermits where T: for<'de> serde_core::de::Deserialize<'de>
-#[non_exhaustive] pub struct nika_schema::types::NetPermits
-pub nika_schema::types::NetPermits::http: alloc::vec::Vec<alloc::string::String>
-impl core::clone::Clone for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::clone(&self) -> nika_schema::types::permits::NetPermits
-impl core::cmp::Eq for nika_schema::types::permits::NetPermits
-impl core::cmp::PartialEq for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::eq(&self, other: &nika_schema::types::permits::NetPermits) -> bool
-impl core::default::Default for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::default() -> nika_schema::types::permits::NetPermits
-impl core::fmt::Debug for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_schema::types::permits::NetPermits
-impl serde_core::ser::Serialize for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::types::permits::NetPermits
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::permits::NetPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::NetPermits::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::NetPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::NetPermits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::NetPermits::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::types::permits::NetPermits::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::types::permits::NetPermits where U: core::convert::From<T>
-pub fn nika_schema::types::permits::NetPermits::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::types::permits::NetPermits where U: core::convert::Into<T>
-pub type nika_schema::types::permits::NetPermits::Error = core::convert::Infallible
-pub fn nika_schema::types::permits::NetPermits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::types::permits::NetPermits where U: core::convert::TryFrom<T>
-pub type nika_schema::types::permits::NetPermits::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::types::permits::NetPermits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::types::permits::NetPermits where T: core::clone::Clone
-pub type nika_schema::types::permits::NetPermits::Owned = T
-pub fn nika_schema::types::permits::NetPermits::clone_into(&self, target: &mut T)
-pub fn nika_schema::types::permits::NetPermits::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::types::permits::NetPermits where T: 'static + ?core::marker::Sized
-pub fn nika_schema::types::permits::NetPermits::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::types::permits::NetPermits where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::NetPermits::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::types::permits::NetPermits where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::NetPermits::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::types::permits::NetPermits where T: core::clone::Clone
-pub unsafe fn nika_schema::types::permits::NetPermits::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::types::permits::NetPermits
-pub fn nika_schema::types::permits::NetPermits::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::types::permits::NetPermits where T: core::clone::Clone
-pub fn nika_schema::types::permits::NetPermits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::types::permits::NetPermits where T: 'static
-pub fn nika_schema::types::permits::NetPermits::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> serde_core::de::DeserializeOwned for nika_schema::types::permits::NetPermits where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_schema::types::OnError
 pub nika_schema::types::OnError::action: nika_schema::types::on_error::OnErrorAction
 pub nika_schema::types::OnError::on_codes: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
@@ -5415,64 +5063,6 @@ impl<T> dyn_clone::DynClone for nika_schema::types::on_error::OnError where T: c
 pub fn nika_schema::types::on_error::OnError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::types::on_error::OnError where T: 'static
 pub fn nika_schema::types::on_error::OnError::as_any(&self) -> &(dyn core::any::Any + 'static)
-#[non_exhaustive] pub struct nika_schema::types::Permits
-pub nika_schema::types::Permits::exec: core::option::Option<nika_schema::types::permits::ExecPermit>
-pub nika_schema::types::Permits::fs: core::option::Option<nika_schema::types::permits::FsPermits>
-pub nika_schema::types::Permits::net: core::option::Option<nika_schema::types::permits::NetPermits>
-pub nika_schema::types::Permits::tools: core::option::Option<alloc::vec::Vec<alloc::string::String>>
-impl nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::allows_exec(&self) -> bool
-pub fn nika_schema::types::permits::Permits::allows_program(&self, program: &str) -> bool
-pub fn nika_schema::types::permits::Permits::allows_tool(&self, tool: &str) -> bool
-pub fn nika_schema::types::permits::Permits::new() -> Self
-impl core::clone::Clone for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::clone(&self) -> nika_schema::types::permits::Permits
-impl core::cmp::Eq for nika_schema::types::permits::Permits
-impl core::cmp::PartialEq for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::eq(&self, other: &nika_schema::types::permits::Permits) -> bool
-impl core::default::Default for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::default() -> nika_schema::types::permits::Permits
-impl core::fmt::Debug for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_schema::types::permits::Permits
-impl serde_core::ser::Serialize for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<D> owo_colors::OwoColorize for nika_schema::types::permits::Permits
-impl<Q, K> equivalent::Equivalent<K> for nika_schema::types::permits::Permits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::Permits::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::Permits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-impl<Q, K> hashbrown::Equivalent<K> for nika_schema::types::permits::Permits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_schema::types::permits::Permits::equivalent(&self, key: &K) -> bool
-pub fn nika_schema::types::permits::Permits::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_schema::types::permits::Permits where U: core::convert::From<T>
-pub fn nika_schema::types::permits::Permits::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_schema::types::permits::Permits where U: core::convert::Into<T>
-pub type nika_schema::types::permits::Permits::Error = core::convert::Infallible
-pub fn nika_schema::types::permits::Permits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_schema::types::permits::Permits where U: core::convert::TryFrom<T>
-pub type nika_schema::types::permits::Permits::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_schema::types::permits::Permits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_schema::types::permits::Permits where T: core::clone::Clone
-pub type nika_schema::types::permits::Permits::Owned = T
-pub fn nika_schema::types::permits::Permits::clone_into(&self, target: &mut T)
-pub fn nika_schema::types::permits::Permits::to_owned(&self) -> T
-impl<T> core::any::Any for nika_schema::types::permits::Permits where T: 'static + ?core::marker::Sized
-pub fn nika_schema::types::permits::Permits::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_schema::types::permits::Permits where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::Permits::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_schema::types::permits::Permits where T: ?core::marker::Sized
-pub fn nika_schema::types::permits::Permits::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_schema::types::permits::Permits where T: core::clone::Clone
-pub unsafe fn nika_schema::types::permits::Permits::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_schema::types::permits::Permits
-pub fn nika_schema::types::permits::Permits::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_schema::types::permits::Permits where T: core::clone::Clone
-pub fn nika_schema::types::permits::Permits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_schema::types::permits::Permits where T: 'static
-pub fn nika_schema::types::permits::Permits::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> serde_core::de::DeserializeOwned for nika_schema::types::permits::Permits where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_schema::types::RetryConfig
 pub nika_schema::types::RetryConfig::backoff_max_ms: u64
 pub nika_schema::types::RetryConfig::backoff_ms: u64
@@ -7062,7 +6652,7 @@ impl<T> nika_error::traits::AsAny for nika_schema::Hint where T: 'static
 pub fn nika_schema::Hint::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::InferredPermits
 pub nika_schema::InferredPermits::notes: alloc::vec::Vec<alloc::string::String>
-pub nika_schema::InferredPermits::permits: nika_schema::types::permits::Permits
+pub nika_schema::InferredPermits::permits: nika_cap::permits::Permits
 impl nika_schema::InferredPermits
 pub fn nika_schema::InferredPermits::to_yaml(&self) -> alloc::string::String
 impl core::clone::Clone for nika_schema::InferredPermits

@@ -271,24 +271,11 @@ fn literal_dest_host(action: &RawAction) -> Option<String> {
 /// is no boundary to intersect). The egress narrows permits; it cannot
 /// widen it, so a host absent from a declared `net` list is NOT sanctioned.
 fn host_within_permits(permits: Option<&Permits>, host: &str) -> bool {
-    match permits {
-        None => true, // no boundary declared → L3 vacuous
-        Some(p) => p
-            .net
-            .as_ref()
-            .is_some_and(|n| n.http.iter().any(|g| host_glob_matches(g, host))),
-    }
-}
-
-/// Host glob match — exact, or a LEADING `*.` subdomain wildcard
-/// (`*.github.com` matches `api.github.com` AND the bare `github.com`).
-/// Mirrors the permits-fit host matcher (same semantics on both sides of
-/// the intersection).
-fn host_glob_matches(glob: &str, host: &str) -> bool {
-    if let Some(suffix) = glob.strip_prefix("*.") {
-        return host == suffix || host.ends_with(&format!(".{suffix}"));
-    }
-    glob == host
+    // No boundary declared → L3 vacuous. Otherwise defer to the ONE canonical
+    // host matcher (`Permits::allows_host` → `nika_types::net::host_glob_matches`,
+    // case-insensitive) — the third local copy is gone, so nothing to drift
+    // (spec §6 Step 4b · the divergence this crate extraction set out to remove).
+    permits.is_none_or(|p| p.allows_host(host))
 }
 
 #[cfg(test)]
@@ -529,35 +516,43 @@ tasks:
     }
 
     #[test]
-    fn host_glob_matches_exact_and_subdomain_wildcard() {
-        // Exact host — kills the `glob == host` `==`→`!=` flip.
+    fn host_within_permits_exact_subdomain_and_vacuous() {
+        use crate::types::NetPermits;
+        let mut boundary = Permits::new();
+        boundary.net = Some(NetPermits::new(vec![
+            "api.x.com".into(),
+            "*.github.com".into(),
+        ]));
+        let p = Some(&boundary);
+        // Exact host in the allowlist is within; an unrelated host is not.
+        assert!(host_within_permits(p, "api.x.com"), "exact host is within");
         assert!(
-            host_glob_matches("api.x.com", "api.x.com"),
-            "exact host matches"
+            !host_within_permits(p, "evil.com"),
+            "a host absent from the net allowlist is NOT sanctioned"
+        );
+        // `*.suffix` matches a deeper subdomain AND the bare suffix.
+        assert!(
+            host_within_permits(p, "api.github.com"),
+            "a subdomain is within via the `*.` wildcard"
         );
         assert!(
-            !host_glob_matches("api.x.com", "evil.com"),
-            "a different host does not match an exact glob"
+            host_within_permits(p, "github.com"),
+            "the bare suffix is within via the `*.` wildcard"
         );
-        // `*.suffix` matches a deeper subdomain (the `ends_with` arm) AND the
-        // bare suffix (the `host == suffix` arm). The deep case and the bare
-        // case each isolate one OR-branch:
-        //  · `api.github.com` clears via `ends_with` only → kills `||`→`&&`.
-        //  · `github.com` clears via `host == suffix` only → kills `||`→`&&`
-        //    AND the `host == suffix` `==`→`!=` flip.
+        // Suffix-attack: neither the suffix nor a subdomain → not within.
         assert!(
-            host_glob_matches("*.github.com", "api.github.com"),
-            "a subdomain matches `*.` via ends_with"
-        );
-        assert!(
-            host_glob_matches("*.github.com", "github.com"),
-            "the bare suffix matches `*.` via the equality arm"
-        );
-        // A host that is neither the suffix nor a subdomain does not match —
-        // guards the wildcard against over-matching an unrelated domain.
-        assert!(
-            !host_glob_matches("*.github.com", "github.com.evil.com"),
+            !host_within_permits(p, "github.com.evil.com"),
             "an unrelated domain does not match the `*.` wildcard"
+        );
+        // Host comparison is case-insensitive (DNS is · the canonical matcher folds).
+        assert!(
+            host_within_permits(p, "API.GitHub.com"),
+            "host match is case-insensitive"
+        );
+        // No declared net boundary → L3 vacuous (permits do not narrow the host).
+        assert!(
+            host_within_permits(None, "anything.example"),
+            "no boundary declared → vacuously within"
         );
     }
 

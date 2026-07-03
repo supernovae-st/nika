@@ -822,18 +822,16 @@ pub(super) fn parse_permits(
     if let Some(fs_node) = mapping.get_node("fs") {
         let fs_map = require_mapping(cx, fs_node, "permits.fs")?;
         cx.check_unknown_keys_always(fs_map, PERMITS_FS_KEYS, "`permits.fs`")?;
-        permits.fs = Some(FsPermits {
-            read: string_list_values(cx, fs_map, "read")?,
-            write: string_list_values(cx, fs_map, "write")?,
-        });
+        permits.fs = Some(FsPermits::new(
+            string_list_values(cx, fs_map, "read")?,
+            string_list_values(cx, fs_map, "write")?,
+        ));
     }
 
     if let Some(net_node) = mapping.get_node("net") {
         let net_map = require_mapping(cx, net_node, "permits.net")?;
         cx.check_unknown_keys_always(net_map, PERMITS_NET_KEYS, "`permits.net`")?;
-        permits.net = Some(NetPermits {
-            http: string_list_values(cx, net_map, "http")?,
-        });
+        permits.net = Some(NetPermits::new(string_list_values(cx, net_map, "http")?));
     }
 
     if let Some(exec_node) = mapping.get_node("exec") {
