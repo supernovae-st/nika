@@ -74,7 +74,12 @@ jobs:
           mkdir -p /tmp/public-api-actual
           crates=$(grep -vE '^[[:space:]]*#' scripts/ci/public-api-coverage-baseline.txt | grep -E '^nika-')
           for crate in $crates; do
-            actual=$(cargo public-api -p "$crate" --all-features --omit auto-trait-impls)
+            # DEFAULT features (not --all-features): platform-exclusive features
+            # (metal · xcap) cannot compile on this runner and killed the loop
+            # (observed: nika-infer-local's metal on ubuntu). The gate locks the
+            # default-feature surface every consumer gets; feature-gated
+            # platform surfaces are intentionally not baseline-locked.
+            actual=$(cargo public-api -p "$crate" --omit auto-trait-impls)
             printf '%s\n' "$actual" > "/tmp/public-api-actual/$crate.txt"
             expected=$(cat "crates/$crate/public-api.txt")
             if [ "$actual" != "$expected" ]; then

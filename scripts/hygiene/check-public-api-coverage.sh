@@ -20,7 +20,10 @@
 #     coverage rises and can't fall back).
 #
 # Generate a baseline:
-#   cargo public-api -p <crate> --all-features --omit auto-trait-impls > crates/<crate>/public-api.txt
+#   cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt
+# (DEFAULT features + ubuntu-canonical: --all-features breaks on platform-
+#  exclusive features (metal · xcap) and macOS renders platform-cfg'd crates
+#  differently — regenerate from the public-api-actual CI artifact when in doubt)
 #
 # Exit: 0 green (all lib crates covered) · 1 yellow (uncovered lib crates remain
 # · informational, ratcheting) · 2 red (a baseline-floor crate lost its lock,
