@@ -52,6 +52,22 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
 `infer` (an LLM call) · `exec` (a shell command) · `invoke` (a `nika:` builtin
 or MCP tool) · `agent` (a multi-turn ReAct loop).
 
+## Hard rules (the validator enforces these — they catch ~90% of LLM errors)
+- One verb per task · the verb IS the task key (never a `verb:` field).
+- Any `${{ tasks.X }}` reference needs `depends_on: [X]` (arrays always).
+- Quote any YAML scalar that STARTS with `${{` (an unquoted leading `${{`
+  breaks the parse).
+- `invoke` arguments live under `args:` (not `input:` / `params:`).
+- `when:` is a `${{ }}` CEL boolean or the literal `true`/`false` — a bare
+  string is rejected. `size()` is the only CEL function.
+- `nika:write` needs `content:` · `nika:done` is valid only inside `agent.tools`.
+- snake_case task ids · kebab-case `workflow:`.
+
+## Don't invent structure — route to a skeleton
+`nika new --from '?'` lists the 6 skeletons · `nika examples list` / `show
+<slug>` reads a runnable example that exercises a construct · `nika schema`
+is the JSON Schema · `nika spec --canon` is the SSOT. Copy, fill, check.
+
 ## Discipline
 - Every effect is gated by `permits:` (default-deny · `nika check --infer-permits`
   prints the tightest boundary).
@@ -287,6 +303,37 @@ mod tests {
             CURSOR_RULES.contains("4 Verbs") && CURSOR_RULES.contains("nika:fetch"),
             "the Cursor rule teaches the locked language shape"
         );
+    }
+
+    #[test]
+    fn agents_md_carries_the_hard_rules_that_catch_llm_errors() {
+        // The 6 syntax rules the validator enforces (spec AGENTS.md
+        // §Writing-a-workflow) that catch ~90% of LLM authoring errors —
+        // beyond the permits/secrets discipline already present.
+        for needle in [
+            "args:",      // invoke args under args:, not input:/params:
+            "quote",      // quote any scalar that starts with ${{
+            "size()",     // the only CEL function in the v0.1 subset
+            "content:",   // nika:write needs content:
+            "depends_on", // required for any ${{ tasks.X }} reference
+        ] {
+            assert!(
+                AGENTS_MD.contains(needle),
+                "the guide teaches the hard rule `{needle}`"
+            );
+        }
+    }
+
+    #[test]
+    fn agents_md_points_at_the_learning_surface() {
+        // A wired agent must know the embedded surfaces exist, or it
+        // improvises structure instead of routing to a template.
+        for needle in ["nika new --from", "nika examples", "nika schema"] {
+            assert!(
+                AGENTS_MD.contains(needle),
+                "the guide names the discovery command `{needle}`"
+            );
+        }
     }
 
     #[test]
