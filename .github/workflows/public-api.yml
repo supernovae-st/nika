@@ -27,9 +27,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - name: install nightly rustdoc (required by cargo-public-api)
+        # cargo-public-api shells out to `cargo +nightly rustdoc` for JSON
+        # output — with only stable installed every run died in ~1m40s on
+        # `toolchain 'nightly' is not installed` BEFORE diffing anything,
+        # leaving the API-freeze gate silently blind (observed on every run
+        # through 2026-07-01). Same pattern as fuzz-nightly.yml.
+        run: rustup toolchain install nightly --profile minimal
       - uses: Swatinem/rust-cache@v2
       - name: install cargo-public-api
-        run: cargo install --locked cargo-public-api
+        # Pinned to the version the committed public-api.txt baselines were
+        # generated with (scripts/hygiene/check-public-api-coverage.sh uses
+        # the same local tool). An unpinned latest can render the same API
+        # differently (auto-trait/blanket-impl formatting changed across
+        # releases — the historical baselines carry that skew) and would
+        # false-RED every crate at once. Bump tool + regenerate all
+        # baselines in ONE commit.
+        run: cargo install --locked cargo-public-api --version 0.51.0
       - name: diff each covered lib crate
         # The crate list is PROJECTED from the coverage floor (ADR-090: one SSOT,
         # three consumers — this job, semver-checks.yml, and hygiene vector 38).
