@@ -6,6 +6,12 @@ on:
       - 'crates/**/src/**'
       - 'crates/**/Cargo.toml'
       - 'Cargo.toml'
+      # A baseline or floor change MUST re-run the gate — otherwise a snapshot
+      # regeneration ships unverified (a regen-only push carries no src/** and
+      # matched nothing · observed 2026-07-03 on the gate-repair branch itself).
+      - 'crates/**/public-api.txt'
+      - 'scripts/ci/public-api-coverage-baseline.txt'
+      - '.github/workflows/public-api.yml'
   # Also run on direct pushes to non-main branches. The Diamond rebuild commits
   # straight to its feature branch, so a PR-only trigger let the committed
   # baselines drift silently (caught only when a PR finally opened). main stays
@@ -16,6 +22,11 @@ on:
       - 'crates/**/src/**'
       - 'crates/**/Cargo.toml'
       - 'Cargo.toml'
+      - 'crates/**/public-api.txt'
+      - 'scripts/ci/public-api-coverage-baseline.txt'
+      - '.github/workflows/public-api.yml'
+  # Manual re-verification (e.g. after a tool-version bump + mass regen).
+  workflow_dispatch:
 
 permissions:
   contents: read
