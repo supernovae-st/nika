@@ -149,7 +149,7 @@ pub mod nika_lsp::error
 #[non_exhaustive] pub enum nika_lsp::error::LspError
 pub nika_lsp::error::LspError::Protocol(alloc::string::String)
 pub nika_lsp::error::LspError::Serde(serde_json::error::Error)
-pub nika_lsp::error::LspError::Transport(std::io::error::Error)
+pub nika_lsp::error::LspError::Transport(core::io::error::Error)
 impl core::convert::From<serde_json::error::Error> for nika_lsp::error::LspError
 pub fn nika_lsp::error::LspError::from(err: serde_json::error::Error) -> Self
 impl core::error::Error for nika_lsp::error::LspError

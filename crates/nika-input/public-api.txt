@@ -44,6 +44,5 @@ impl<T> core::convert::From<T> for nika_input::EnigoInputDevice<S>
 pub fn nika_input::EnigoInputDevice<S>::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_input::EnigoInputDevice<S> where T: 'static
 pub fn nika_input::EnigoInputDevice<S>::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_input::EnigoInputDevice<S> where T: ?core::marker::Sized
 pub fn nika_input::consent_valid(proof: &nika_kernel_core::io::input::ConsentProof, now_ns: u64) -> bool
 pub fn nika_input::redact_typed_text(text: &str) -> alloc::string::String

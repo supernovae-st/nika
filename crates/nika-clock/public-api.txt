@@ -7,7 +7,7 @@ pub fn nika_clock::SystemClock::default() -> nika_clock::SystemClock
 impl core::fmt::Debug for nika_clock::SystemClock
 pub fn nika_clock::SystemClock::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_clock::SystemClock
-impl nika_kernel_core::io::clock::Clock for nika_clock::SystemClock
+impl nika_kernel_core::io::clock::ClockDyn for nika_clock::SystemClock
 pub fn nika_clock::SystemClock::now(&self) -> std::time::Instant
 pub async fn nika_clock::SystemClock::sleep(&self, duration: core::time::Duration)
 pub fn nika_clock::SystemClock::system_now(&self) -> std::time::SystemTime
@@ -36,3 +36,8 @@ impl<T> core::convert::From<T> for nika_clock::SystemClock
 pub fn nika_clock::SystemClock::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_clock::SystemClock where T: 'static
 pub fn nika_clock::SystemClock::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_core::io::clock::Clock for nika_clock::SystemClock where TraitVariantBlanketType: nika_kernel_core::io::clock::ClockDyn
+pub fn nika_clock::SystemClock::elapsed(&self, since: std::time::Instant) -> core::time::Duration
+pub fn nika_clock::SystemClock::now(&self) -> std::time::Instant
+pub async fn nika_clock::SystemClock::sleep(&self, duration: core::time::Duration)
+pub fn nika_clock::SystemClock::system_now(&self) -> std::time::SystemTime

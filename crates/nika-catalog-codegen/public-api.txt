@@ -8,7 +8,7 @@ pub nika_catalog_codegen::CodegenError::ForeignKey::context: alloc::string::Stri
 pub nika_catalog_codegen::CodegenError::ForeignKey::reason: alloc::string::String
 pub nika_catalog_codegen::CodegenError::Io
 pub nika_catalog_codegen::CodegenError::Io::path: std::path::PathBuf
-pub nika_catalog_codegen::CodegenError::Io::source: std::io::error::Error
+pub nika_catalog_codegen::CodegenError::Io::source: core::io::error::Error
 pub nika_catalog_codegen::CodegenError::SchemaMismatch
 pub nika_catalog_codegen::CodegenError::SchemaMismatch::expected: &'static str
 pub nika_catalog_codegen::CodegenError::SchemaMismatch::got: alloc::string::String

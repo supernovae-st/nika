@@ -6,6 +6,7 @@ pub const nika_kernel_core::errors::NIKA_050: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_051: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_052: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_053: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_054: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_059: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_100: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_101: nika_error::codes::NikaCode
@@ -20,6 +21,7 @@ pub const nika_kernel_core::errors::NIKA_141: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_142: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_143: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_144: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_145: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_149: nika_error::codes::NikaCode
 pub mod nika_kernel_core::infra
 pub mod nika_kernel_core::infra::audit
@@ -922,6 +924,81 @@ pub fn nika_kernel_core::io::clock::ClockDyn::elapsed(&self, since: std::time::I
 pub fn nika_kernel_core::io::clock::ClockDyn::now(&self) -> std::time::Instant
 pub fn nika_kernel_core::io::clock::ClockDyn::sleep(&self, duration: core::time::Duration) -> impl core::future::future::Future<Output = ()> + core::marker::Send
 pub fn nika_kernel_core::io::clock::ClockDyn::system_now(&self) -> std::time::SystemTime
+pub mod nika_kernel_core::io::command_sandbox
+#[non_exhaustive] pub enum nika_kernel_core::io::command_sandbox::CommandSandboxError
+pub nika_kernel_core::io::command_sandbox::CommandSandboxError::Profile
+pub nika_kernel_core::io::command_sandbox::CommandSandboxError::Profile::reason: alloc::string::String
+pub nika_kernel_core::io::command_sandbox::CommandSandboxError::Unavailable
+pub nika_kernel_core::io::command_sandbox::CommandSandboxError::Unavailable::reason: alloc::string::String
+impl core::error::Error for nika_kernel_core::io::command_sandbox::CommandSandboxError
+impl core::fmt::Debug for nika_kernel_core::io::command_sandbox::CommandSandboxError
+pub fn nika_kernel_core::io::command_sandbox::CommandSandboxError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::io::command_sandbox::CommandSandboxError
+pub fn nika_kernel_core::io::command_sandbox::CommandSandboxError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_core::io::command_sandbox::CommandSandboxError
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::command_sandbox::CommandSandboxError
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::command_sandbox::CommandSandboxError where U: core::convert::From<T>
+pub fn nika_kernel_core::io::command_sandbox::CommandSandboxError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::command_sandbox::CommandSandboxError where U: core::convert::Into<T>
+pub type nika_kernel_core::io::command_sandbox::CommandSandboxError::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::command_sandbox::CommandSandboxError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::command_sandbox::CommandSandboxError where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::command_sandbox::CommandSandboxError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::command_sandbox::CommandSandboxError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_core::io::command_sandbox::CommandSandboxError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::io::command_sandbox::CommandSandboxError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::io::command_sandbox::CommandSandboxError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::command_sandbox::CommandSandboxError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::command_sandbox::CommandSandboxError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::command_sandbox::CommandSandboxError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::command_sandbox::CommandSandboxError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::command_sandbox::CommandSandboxError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::io::command_sandbox::CommandSandboxError
+pub fn nika_kernel_core::io::command_sandbox::CommandSandboxError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::command_sandbox::CommandSandboxError where T: 'static
+pub fn nika_kernel_core::io::command_sandbox::CommandSandboxError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_kernel_core::io::command_sandbox::NoopSandbox
+impl core::clone::Clone for nika_kernel_core::io::command_sandbox::NoopSandbox
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::clone(&self) -> nika_kernel_core::io::command_sandbox::NoopSandbox
+impl core::default::Default for nika_kernel_core::io::command_sandbox::NoopSandbox
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::default() -> nika_kernel_core::io::command_sandbox::NoopSandbox
+impl core::fmt::Debug for nika_kernel_core::io::command_sandbox::NoopSandbox
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_kernel_core::io::command_sandbox::NoopSandbox
+impl nika_kernel_core::io::command_sandbox::CommandSandbox for nika_kernel_core::io::command_sandbox::NoopSandbox
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::backend(&self) -> &'static str
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::confine(&self, _spec: &nika_kernel_core::io::process::SandboxSpec, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellCommand, nika_kernel_core::io::command_sandbox::CommandSandboxError>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::command_sandbox::NoopSandbox
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::command_sandbox::NoopSandbox where U: core::convert::From<T>
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::command_sandbox::NoopSandbox where U: core::convert::Into<T>
+pub type nika_kernel_core::io::command_sandbox::NoopSandbox::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::command_sandbox::NoopSandbox where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::command_sandbox::NoopSandbox::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::command_sandbox::NoopSandbox where T: core::clone::Clone
+pub type nika_kernel_core::io::command_sandbox::NoopSandbox::Owned = T
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::command_sandbox::NoopSandbox where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::command_sandbox::NoopSandbox where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::command_sandbox::NoopSandbox where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::command_sandbox::NoopSandbox where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::command_sandbox::NoopSandbox::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::command_sandbox::NoopSandbox
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::command_sandbox::NoopSandbox where T: 'static
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_kernel_core::io::command_sandbox::CommandSandbox: core::marker::Send + core::marker::Sync
+pub fn nika_kernel_core::io::command_sandbox::CommandSandbox::backend(&self) -> &'static str
+pub fn nika_kernel_core::io::command_sandbox::CommandSandbox::confine(&self, spec: &nika_kernel_core::io::process::SandboxSpec, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellCommand, nika_kernel_core::io::command_sandbox::CommandSandboxError>
+impl nika_kernel_core::io::command_sandbox::CommandSandbox for nika_kernel_core::io::command_sandbox::NoopSandbox
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::backend(&self) -> &'static str
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::confine(&self, _spec: &nika_kernel_core::io::process::SandboxSpec, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellCommand, nika_kernel_core::io::command_sandbox::CommandSandboxError>
 pub mod nika_kernel_core::io::fs
 #[non_exhaustive] pub enum nika_kernel_core::io::fs::FsError
 pub nika_kernel_core::io::fs::FsError::AlreadyExists
@@ -936,7 +1013,7 @@ pub nika_kernel_core::io::fs::FsError::NotFound::path: alloc::string::String
 pub nika_kernel_core::io::fs::FsError::PermissionDenied
 pub nika_kernel_core::io::fs::FsError::PermissionDenied::path: alloc::string::String
 impl nika_kernel_core::io::fs::FsError
-pub fn nika_kernel_core::io::fs::FsError::from_io(err: &std::io::error::Error, path: &std::path::Path) -> Self
+pub fn nika_kernel_core::io::fs::FsError::from_io(err: &core::io::error::Error, path: &std::path::Path) -> Self
 impl core::error::Error for nika_kernel_core::io::fs::FsError
 impl core::fmt::Debug for nika_kernel_core::io::fs::FsError
 pub fn nika_kernel_core::io::fs::FsError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -1053,6 +1130,8 @@ pub mod nika_kernel_core::io::http
 #[non_exhaustive] pub enum nika_kernel_core::io::http::HttpError
 pub nika_kernel_core::io::http::HttpError::Connection
 pub nika_kernel_core::io::http::HttpError::Connection::reason: alloc::string::String
+pub nika_kernel_core::io::http::HttpError::HostNotAllowed
+pub nika_kernel_core::io::http::HttpError::HostNotAllowed::host: alloc::string::String
 pub nika_kernel_core::io::http::HttpError::Other
 pub nika_kernel_core::io::http::HttpError::Other::reason: alloc::string::String
 pub nika_kernel_core::io::http::HttpError::SsrfBlocked
@@ -1823,6 +1902,8 @@ pub nika_kernel_core::io::process::ShellError::NotFound
 pub nika_kernel_core::io::process::ShellError::NotFound::program: alloc::string::String
 pub nika_kernel_core::io::process::ShellError::Other
 pub nika_kernel_core::io::process::ShellError::Other::reason: alloc::string::String
+pub nika_kernel_core::io::process::ShellError::OutputTooLarge
+pub nika_kernel_core::io::process::ShellError::OutputTooLarge::limit_bytes: usize
 pub nika_kernel_core::io::process::ShellError::Timeout
 pub nika_kernel_core::io::process::ShellError::Timeout::duration_ms: u64
 impl core::error::Error for nika_kernel_core::io::process::ShellError
@@ -1854,6 +1935,47 @@ impl<T> core::convert::From<T> for nika_kernel_core::io::process::ShellError
 pub fn nika_kernel_core::io::process::ShellError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_core::io::process::ShellError where T: 'static
 pub fn nika_kernel_core::io::process::ShellError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_core::io::process::SandboxSpec
+pub nika_kernel_core::io::process::SandboxSpec::allow_network: bool
+pub nika_kernel_core::io::process::SandboxSpec::fs_read: alloc::vec::Vec<alloc::string::String>
+pub nika_kernel_core::io::process::SandboxSpec::fs_write: alloc::vec::Vec<alloc::string::String>
+impl nika_kernel_core::io::process::SandboxSpec
+pub fn nika_kernel_core::io::process::SandboxSpec::new() -> Self
+impl core::clone::Clone for nika_kernel_core::io::process::SandboxSpec
+pub fn nika_kernel_core::io::process::SandboxSpec::clone(&self) -> nika_kernel_core::io::process::SandboxSpec
+impl core::cmp::Eq for nika_kernel_core::io::process::SandboxSpec
+impl core::cmp::PartialEq for nika_kernel_core::io::process::SandboxSpec
+pub fn nika_kernel_core::io::process::SandboxSpec::eq(&self, other: &nika_kernel_core::io::process::SandboxSpec) -> bool
+impl core::default::Default for nika_kernel_core::io::process::SandboxSpec
+pub fn nika_kernel_core::io::process::SandboxSpec::default() -> nika_kernel_core::io::process::SandboxSpec
+impl core::fmt::Debug for nika_kernel_core::io::process::SandboxSpec
+pub fn nika_kernel_core::io::process::SandboxSpec::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::process::SandboxSpec
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::process::SandboxSpec
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::process::SandboxSpec where U: core::convert::From<T>
+pub fn nika_kernel_core::io::process::SandboxSpec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::process::SandboxSpec where U: core::convert::Into<T>
+pub type nika_kernel_core::io::process::SandboxSpec::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::process::SandboxSpec::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::process::SandboxSpec where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::process::SandboxSpec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::process::SandboxSpec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::process::SandboxSpec where T: core::clone::Clone
+pub type nika_kernel_core::io::process::SandboxSpec::Owned = T
+pub fn nika_kernel_core::io::process::SandboxSpec::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::process::SandboxSpec::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::process::SandboxSpec where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::process::SandboxSpec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::process::SandboxSpec where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::process::SandboxSpec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::process::SandboxSpec where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::process::SandboxSpec::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::process::SandboxSpec where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::process::SandboxSpec::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::process::SandboxSpec
+pub fn nika_kernel_core::io::process::SandboxSpec::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::process::SandboxSpec where T: 'static
+pub fn nika_kernel_core::io::process::SandboxSpec::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_core::io::process::ShellCommand
 pub nika_kernel_core::io::process::ShellCommand::args: alloc::vec::Vec<alloc::string::String>
 pub nika_kernel_core::io::process::ShellCommand::cwd: core::option::Option<std::path::PathBuf>
@@ -1861,6 +1983,7 @@ pub nika_kernel_core::io::process::ShellCommand::env: alloc::collections::btree:
 pub nika_kernel_core::io::process::ShellCommand::env_remove: alloc::vec::Vec<alloc::string::String>
 pub nika_kernel_core::io::process::ShellCommand::pre_validated: bool
 pub nika_kernel_core::io::process::ShellCommand::program: alloc::string::String
+pub nika_kernel_core::io::process::ShellCommand::sandbox: core::option::Option<nika_kernel_core::io::process::SandboxSpec>
 pub nika_kernel_core::io::process::ShellCommand::shell: bool
 pub nika_kernel_core::io::process::ShellCommand::stdin: core::option::Option<alloc::string::String>
 pub nika_kernel_core::io::process::ShellCommand::timeout: core::option::Option<core::time::Duration>

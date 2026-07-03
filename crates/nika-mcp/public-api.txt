@@ -1,8 +1,8 @@
 pub mod nika_mcp
 #[non_exhaustive] pub enum nika_mcp::McpError
-pub nika_mcp::McpError::Transport(std::io::error::Error)
-impl core::convert::From<std::io::error::Error> for nika_mcp::McpError
-pub fn nika_mcp::McpError::from(source: std::io::error::Error) -> Self
+pub nika_mcp::McpError::Transport(core::io::error::Error)
+impl core::convert::From<core::io::error::Error> for nika_mcp::McpError
+pub fn nika_mcp::McpError::from(source: core::io::error::Error) -> Self
 impl core::error::Error for nika_mcp::McpError
 pub fn nika_mcp::McpError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 impl core::fmt::Debug for nika_mcp::McpError

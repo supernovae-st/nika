@@ -6,6 +6,7 @@ pub nika_verb_invoke::VerbInvokeError::ToolReportedError
 pub nika_verb_invoke::VerbInvokeError::ToolReportedError::content_tail: alloc::string::String
 pub nika_verb_invoke::VerbInvokeError::ToolReportedError::spec_code: core::option::Option<alloc::string::String>
 pub nika_verb_invoke::VerbInvokeError::ToolReportedError::tool: alloc::string::String
+pub nika_verb_invoke::VerbInvokeError::ToolReportedError::transient: bool
 pub nika_verb_invoke::VerbInvokeError::UnresolvableTool
 pub nika_verb_invoke::VerbInvokeError::UnresolvableTool::detail: alloc::string::String
 pub nika_verb_invoke::VerbInvokeError::UnresolvableTool::tool: alloc::string::String

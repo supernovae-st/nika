@@ -347,6 +347,7 @@ pub mod nika_kernel_mock::http
 impl nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::enqueue_err(self, error: nika_kernel_core::io::http::HttpError) -> Self
 pub fn nika_kernel_mock::http::MockHttp::enqueue_ok(self, status: u16, body: impl core::convert::Into<bytes::bytes::Bytes>) -> Self
+pub fn nika_kernel_mock::http::MockHttp::enqueue_ok_with_headers<K, V>(self, status: u16, headers: impl core::iter::traits::collect::IntoIterator<Item = (K, V)>, body: impl core::convert::Into<bytes::bytes::Bytes>) -> Self where K: core::convert::Into<alloc::string::String>, V: core::convert::Into<alloc::string::String>
 pub fn nika_kernel_mock::http::MockHttp::new() -> Self
 pub fn nika_kernel_mock::http::MockHttp::remaining(&self) -> usize
 pub fn nika_kernel_mock::http::MockHttp::sent_requests(&self) -> alloc::vec::Vec<nika_kernel_core::io::http::HttpRequest>
@@ -1183,6 +1184,7 @@ pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path
 impl nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::enqueue_err(self, error: nika_kernel_core::io::http::HttpError) -> Self
 pub fn nika_kernel_mock::http::MockHttp::enqueue_ok(self, status: u16, body: impl core::convert::Into<bytes::bytes::Bytes>) -> Self
+pub fn nika_kernel_mock::http::MockHttp::enqueue_ok_with_headers<K, V>(self, status: u16, headers: impl core::iter::traits::collect::IntoIterator<Item = (K, V)>, body: impl core::convert::Into<bytes::bytes::Bytes>) -> Self where K: core::convert::Into<alloc::string::String>, V: core::convert::Into<alloc::string::String>
 pub fn nika_kernel_mock::http::MockHttp::new() -> Self
 pub fn nika_kernel_mock::http::MockHttp::remaining(&self) -> usize
 pub fn nika_kernel_mock::http::MockHttp::sent_requests(&self) -> alloc::vec::Vec<nika_kernel_core::io::http::HttpRequest>

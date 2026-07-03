@@ -16,10 +16,6 @@ impl serde_core::ser::Serialize for nika_infer_local::protocol::FinishReason
 pub fn nika_infer_local::protocol::FinishReason::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_infer_local::protocol::FinishReason
 pub fn nika_infer_local::protocol::FinishReason::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<Q, K> equivalent::Equivalent<K> for nika_infer_local::protocol::FinishReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_infer_local::protocol::FinishReason::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_infer_local::protocol::FinishReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_infer_local::protocol::FinishReason::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_infer_local::protocol::FinishReason where U: core::convert::From<T>
 pub fn nika_infer_local::protocol::FinishReason::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_infer_local::protocol::FinishReason where U: core::convert::Into<T>
@@ -42,22 +38,7 @@ impl<T> core::clone::CloneToUninit for nika_infer_local::protocol::FinishReason 
 pub unsafe fn nika_infer_local::protocol::FinishReason::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_infer_local::protocol::FinishReason
 pub fn nika_infer_local::protocol::FinishReason::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::protocol::FinishReason
-pub type nika_infer_local::protocol::FinishReason::Init = T
-pub const nika_infer_local::protocol::FinishReason::ALIGN: usize
-pub unsafe fn nika_infer_local::protocol::FinishReason::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::protocol::FinishReason::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::protocol::FinishReason::drop(ptr: usize)
-pub unsafe fn nika_infer_local::protocol::FinishReason::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::protocol::FinishReason
-impl<T> gemm_common::simd::Boilerplate for nika_infer_local::protocol::FinishReason where T: core::marker::Copy + core::marker::Send + core::marker::Sync + core::fmt::Debug + core::cmp::PartialEq + 'static
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::protocol::FinishReason where T: ?core::marker::Sized
 impl<T> serde_core::de::DeserializeOwned for nika_infer_local::protocol::FinishReason where T: for<'de> serde_core::de::Deserialize<'de>
-impl<T> tracing::instrument::Instrument for nika_infer_local::protocol::FinishReason
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::protocol::FinishReason
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::protocol::FinishReason where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::protocol::FinishReason where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::protocol::FinishReason::vzip(self) -> V
 #[non_exhaustive] pub enum nika_infer_local::protocol::Role
 pub nika_infer_local::protocol::Role::Assistant
 pub nika_infer_local::protocol::Role::System
@@ -76,10 +57,6 @@ impl serde_core::ser::Serialize for nika_infer_local::protocol::Role
 pub fn nika_infer_local::protocol::Role::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_infer_local::protocol::Role
 pub fn nika_infer_local::protocol::Role::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<Q, K> equivalent::Equivalent<K> for nika_infer_local::protocol::Role where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_infer_local::protocol::Role::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_infer_local::protocol::Role where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_infer_local::protocol::Role::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_infer_local::protocol::Role where U: core::convert::From<T>
 pub fn nika_infer_local::protocol::Role::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_infer_local::protocol::Role where U: core::convert::Into<T>
@@ -102,22 +79,7 @@ impl<T> core::clone::CloneToUninit for nika_infer_local::protocol::Role where T:
 pub unsafe fn nika_infer_local::protocol::Role::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_infer_local::protocol::Role
 pub fn nika_infer_local::protocol::Role::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::protocol::Role
-pub type nika_infer_local::protocol::Role::Init = T
-pub const nika_infer_local::protocol::Role::ALIGN: usize
-pub unsafe fn nika_infer_local::protocol::Role::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::protocol::Role::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::protocol::Role::drop(ptr: usize)
-pub unsafe fn nika_infer_local::protocol::Role::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::protocol::Role
-impl<T> gemm_common::simd::Boilerplate for nika_infer_local::protocol::Role where T: core::marker::Copy + core::marker::Send + core::marker::Sync + core::fmt::Debug + core::cmp::PartialEq + 'static
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::protocol::Role where T: ?core::marker::Sized
 impl<T> serde_core::de::DeserializeOwned for nika_infer_local::protocol::Role where T: for<'de> serde_core::de::Deserialize<'de>
-impl<T> tracing::instrument::Instrument for nika_infer_local::protocol::Role
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::protocol::Role
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::protocol::Role where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::protocol::Role where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::protocol::Role::vzip(self) -> V
 #[non_exhaustive] pub struct nika_infer_local::protocol::ChatRequest
 pub nika_infer_local::protocol::ChatRequest::max_tokens: core::option::Option<u32>
 pub nika_infer_local::protocol::ChatRequest::messages: alloc::vec::Vec<nika_infer_local::protocol::Message>
@@ -161,21 +123,7 @@ impl<T> core::clone::CloneToUninit for nika_infer_local::protocol::ChatRequest w
 pub unsafe fn nika_infer_local::protocol::ChatRequest::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_infer_local::protocol::ChatRequest
 pub fn nika_infer_local::protocol::ChatRequest::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::protocol::ChatRequest
-pub type nika_infer_local::protocol::ChatRequest::Init = T
-pub const nika_infer_local::protocol::ChatRequest::ALIGN: usize
-pub unsafe fn nika_infer_local::protocol::ChatRequest::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::protocol::ChatRequest::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::protocol::ChatRequest::drop(ptr: usize)
-pub unsafe fn nika_infer_local::protocol::ChatRequest::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::protocol::ChatRequest
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::protocol::ChatRequest where T: ?core::marker::Sized
 impl<T> serde_core::de::DeserializeOwned for nika_infer_local::protocol::ChatRequest where T: for<'de> serde_core::de::Deserialize<'de>
-impl<T> tracing::instrument::Instrument for nika_infer_local::protocol::ChatRequest
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::protocol::ChatRequest
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::protocol::ChatRequest where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::protocol::ChatRequest where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::protocol::ChatRequest::vzip(self) -> V
 #[non_exhaustive] pub struct nika_infer_local::protocol::ChatResponse
 pub nika_infer_local::protocol::ChatResponse::choices: alloc::vec::Vec<nika_infer_local::protocol::Choice>
 pub nika_infer_local::protocol::ChatResponse::id: alloc::string::String
@@ -214,21 +162,7 @@ impl<T> core::clone::CloneToUninit for nika_infer_local::protocol::ChatResponse 
 pub unsafe fn nika_infer_local::protocol::ChatResponse::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_infer_local::protocol::ChatResponse
 pub fn nika_infer_local::protocol::ChatResponse::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::protocol::ChatResponse
-pub type nika_infer_local::protocol::ChatResponse::Init = T
-pub const nika_infer_local::protocol::ChatResponse::ALIGN: usize
-pub unsafe fn nika_infer_local::protocol::ChatResponse::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::protocol::ChatResponse::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::protocol::ChatResponse::drop(ptr: usize)
-pub unsafe fn nika_infer_local::protocol::ChatResponse::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::protocol::ChatResponse
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::protocol::ChatResponse where T: ?core::marker::Sized
 impl<T> serde_core::de::DeserializeOwned for nika_infer_local::protocol::ChatResponse where T: for<'de> serde_core::de::Deserialize<'de>
-impl<T> tracing::instrument::Instrument for nika_infer_local::protocol::ChatResponse
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::protocol::ChatResponse
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::protocol::ChatResponse where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::protocol::ChatResponse where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::protocol::ChatResponse::vzip(self) -> V
 #[non_exhaustive] pub struct nika_infer_local::protocol::Choice
 pub nika_infer_local::protocol::Choice::finish_reason: nika_infer_local::protocol::FinishReason
 pub nika_infer_local::protocol::Choice::index: u32
@@ -263,21 +197,7 @@ impl<T> core::clone::CloneToUninit for nika_infer_local::protocol::Choice where 
 pub unsafe fn nika_infer_local::protocol::Choice::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_infer_local::protocol::Choice
 pub fn nika_infer_local::protocol::Choice::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::protocol::Choice
-pub type nika_infer_local::protocol::Choice::Init = T
-pub const nika_infer_local::protocol::Choice::ALIGN: usize
-pub unsafe fn nika_infer_local::protocol::Choice::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::protocol::Choice::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::protocol::Choice::drop(ptr: usize)
-pub unsafe fn nika_infer_local::protocol::Choice::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::protocol::Choice
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::protocol::Choice where T: ?core::marker::Sized
 impl<T> serde_core::de::DeserializeOwned for nika_infer_local::protocol::Choice where T: for<'de> serde_core::de::Deserialize<'de>
-impl<T> tracing::instrument::Instrument for nika_infer_local::protocol::Choice
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::protocol::Choice
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::protocol::Choice where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::protocol::Choice where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::protocol::Choice::vzip(self) -> V
 pub struct nika_infer_local::protocol::Message
 pub nika_infer_local::protocol::Message::content: alloc::string::String
 pub nika_infer_local::protocol::Message::role: nika_infer_local::protocol::Role
@@ -295,10 +215,6 @@ impl serde_core::ser::Serialize for nika_infer_local::protocol::Message
 pub fn nika_infer_local::protocol::Message::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_infer_local::protocol::Message
 pub fn nika_infer_local::protocol::Message::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<Q, K> equivalent::Equivalent<K> for nika_infer_local::protocol::Message where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_infer_local::protocol::Message::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_infer_local::protocol::Message where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_infer_local::protocol::Message::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_infer_local::protocol::Message where U: core::convert::From<T>
 pub fn nika_infer_local::protocol::Message::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_infer_local::protocol::Message where U: core::convert::Into<T>
@@ -321,21 +237,7 @@ impl<T> core::clone::CloneToUninit for nika_infer_local::protocol::Message where
 pub unsafe fn nika_infer_local::protocol::Message::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_infer_local::protocol::Message
 pub fn nika_infer_local::protocol::Message::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::protocol::Message
-pub type nika_infer_local::protocol::Message::Init = T
-pub const nika_infer_local::protocol::Message::ALIGN: usize
-pub unsafe fn nika_infer_local::protocol::Message::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::protocol::Message::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::protocol::Message::drop(ptr: usize)
-pub unsafe fn nika_infer_local::protocol::Message::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::protocol::Message
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::protocol::Message where T: ?core::marker::Sized
 impl<T> serde_core::de::DeserializeOwned for nika_infer_local::protocol::Message where T: for<'de> serde_core::de::Deserialize<'de>
-impl<T> tracing::instrument::Instrument for nika_infer_local::protocol::Message
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::protocol::Message
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::protocol::Message where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::protocol::Message where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::protocol::Message::vzip(self) -> V
 #[non_exhaustive] pub struct nika_infer_local::protocol::Usage
 pub nika_infer_local::protocol::Usage::completion_tokens: u32
 pub nika_infer_local::protocol::Usage::prompt_tokens: u32
@@ -357,10 +259,6 @@ impl serde_core::ser::Serialize for nika_infer_local::protocol::Usage
 pub fn nika_infer_local::protocol::Usage::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_infer_local::protocol::Usage
 pub fn nika_infer_local::protocol::Usage::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<Q, K> equivalent::Equivalent<K> for nika_infer_local::protocol::Usage where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_infer_local::protocol::Usage::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_infer_local::protocol::Usage where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_infer_local::protocol::Usage::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_infer_local::protocol::Usage where U: core::convert::From<T>
 pub fn nika_infer_local::protocol::Usage::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_infer_local::protocol::Usage where U: core::convert::Into<T>
@@ -383,22 +281,7 @@ impl<T> core::clone::CloneToUninit for nika_infer_local::protocol::Usage where T
 pub unsafe fn nika_infer_local::protocol::Usage::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_infer_local::protocol::Usage
 pub fn nika_infer_local::protocol::Usage::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::protocol::Usage
-pub type nika_infer_local::protocol::Usage::Init = T
-pub const nika_infer_local::protocol::Usage::ALIGN: usize
-pub unsafe fn nika_infer_local::protocol::Usage::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::protocol::Usage::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::protocol::Usage::drop(ptr: usize)
-pub unsafe fn nika_infer_local::protocol::Usage::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::protocol::Usage
-impl<T> gemm_common::simd::Boilerplate for nika_infer_local::protocol::Usage where T: core::marker::Copy + core::marker::Send + core::marker::Sync + core::fmt::Debug + core::cmp::PartialEq + 'static
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::protocol::Usage where T: ?core::marker::Sized
 impl<T> serde_core::de::DeserializeOwned for nika_infer_local::protocol::Usage where T: for<'de> serde_core::de::Deserialize<'de>
-impl<T> tracing::instrument::Instrument for nika_infer_local::protocol::Usage
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::protocol::Usage
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::protocol::Usage where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::protocol::Usage where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::protocol::Usage::vzip(self) -> V
 #[non_exhaustive] pub enum nika_infer_local::ChatFamily
 pub nika_infer_local::ChatFamily::Llama3
 pub nika_infer_local::ChatFamily::Phi3
@@ -414,10 +297,6 @@ impl core::fmt::Debug for nika_infer_local::ChatFamily
 pub fn nika_infer_local::ChatFamily::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_infer_local::ChatFamily
 impl core::marker::StructuralPartialEq for nika_infer_local::ChatFamily
-impl<Q, K> equivalent::Equivalent<K> for nika_infer_local::ChatFamily where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_infer_local::ChatFamily::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_infer_local::ChatFamily where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_infer_local::ChatFamily::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_infer_local::ChatFamily where U: core::convert::From<T>
 pub fn nika_infer_local::ChatFamily::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_infer_local::ChatFamily where U: core::convert::Into<T>
@@ -440,21 +319,6 @@ impl<T> core::clone::CloneToUninit for nika_infer_local::ChatFamily where T: cor
 pub unsafe fn nika_infer_local::ChatFamily::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_infer_local::ChatFamily
 pub fn nika_infer_local::ChatFamily::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::ChatFamily
-pub type nika_infer_local::ChatFamily::Init = T
-pub const nika_infer_local::ChatFamily::ALIGN: usize
-pub unsafe fn nika_infer_local::ChatFamily::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::ChatFamily::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::ChatFamily::drop(ptr: usize)
-pub unsafe fn nika_infer_local::ChatFamily::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::ChatFamily
-impl<T> gemm_common::simd::Boilerplate for nika_infer_local::ChatFamily where T: core::marker::Copy + core::marker::Send + core::marker::Sync + core::fmt::Debug + core::cmp::PartialEq + 'static
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::ChatFamily where T: ?core::marker::Sized
-impl<T> tracing::instrument::Instrument for nika_infer_local::ChatFamily
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::ChatFamily
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::ChatFamily where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::ChatFamily where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::ChatFamily::vzip(self) -> V
 #[non_exhaustive] pub enum nika_infer_local::InferLocalError
 pub nika_infer_local::InferLocalError::Backend
 pub nika_infer_local::InferLocalError::Backend::reason: alloc::string::String
@@ -484,8 +348,6 @@ pub type nika_infer_local::InferLocalError::Error = <U as core::convert::TryFrom
 pub fn nika_infer_local::InferLocalError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
 impl<T> alloc::string::ToString for nika_infer_local::InferLocalError where T: core::fmt::Display + ?core::marker::Sized
 pub fn nika_infer_local::InferLocalError::to_string(&self) -> alloc::string::String
-impl<T> compact_str::traits::ToCompactString for nika_infer_local::InferLocalError where T: core::fmt::Display
-pub fn nika_infer_local::InferLocalError::try_to_compact_string(&self) -> core::result::Result<compact_str::CompactString, compact_str::ToCompactStringError>
 impl<T> core::any::Any for nika_infer_local::InferLocalError where T: 'static + ?core::marker::Sized
 pub fn nika_infer_local::InferLocalError::type_id(&self) -> core::any::TypeId
 impl<T> core::borrow::Borrow<T> for nika_infer_local::InferLocalError where T: ?core::marker::Sized
@@ -494,57 +356,6 @@ impl<T> core::borrow::BorrowMut<T> for nika_infer_local::InferLocalError where T
 pub fn nika_infer_local::InferLocalError::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_infer_local::InferLocalError
 pub fn nika_infer_local::InferLocalError::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::InferLocalError
-pub type nika_infer_local::InferLocalError::Init = T
-pub const nika_infer_local::InferLocalError::ALIGN: usize
-pub unsafe fn nika_infer_local::InferLocalError::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::InferLocalError::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::InferLocalError::drop(ptr: usize)
-pub unsafe fn nika_infer_local::InferLocalError::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::InferLocalError
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::InferLocalError where T: ?core::marker::Sized
-impl<T> tracing::instrument::Instrument for nika_infer_local::InferLocalError
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::InferLocalError
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::InferLocalError where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::InferLocalError where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::InferLocalError::vzip(self) -> V
-pub struct nika_infer_local::CandleBackend
-impl nika_infer_local::CandleBackend
-pub fn nika_infer_local::CandleBackend::load_qwen3(gguf_path: &std::path::Path, tokenizer_path: &std::path::Path, model_id: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_infer_local::InferLocalError>
-impl nika_infer_local::BackendDyn for nika_infer_local::CandleBackend
-pub async fn nika_infer_local::CandleBackend::generate(&self, request: &nika_infer_local::protocol::ChatRequest) -> core::result::Result<nika_infer_local::protocol::ChatResponse, nika_infer_local::InferLocalError>
-impl<T, U> core::convert::Into<U> for nika_infer_local::CandleBackend where U: core::convert::From<T>
-pub fn nika_infer_local::CandleBackend::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_infer_local::CandleBackend where U: core::convert::Into<T>
-pub type nika_infer_local::CandleBackend::Error = core::convert::Infallible
-pub fn nika_infer_local::CandleBackend::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_infer_local::CandleBackend where U: core::convert::TryFrom<T>
-pub type nika_infer_local::CandleBackend::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_infer_local::CandleBackend::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_infer_local::CandleBackend where T: 'static + ?core::marker::Sized
-pub fn nika_infer_local::CandleBackend::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_infer_local::CandleBackend where T: ?core::marker::Sized
-pub fn nika_infer_local::CandleBackend::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_infer_local::CandleBackend where T: ?core::marker::Sized
-pub fn nika_infer_local::CandleBackend::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_infer_local::CandleBackend
-pub fn nika_infer_local::CandleBackend::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::CandleBackend
-pub type nika_infer_local::CandleBackend::Init = T
-pub const nika_infer_local::CandleBackend::ALIGN: usize
-pub unsafe fn nika_infer_local::CandleBackend::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::CandleBackend::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::CandleBackend::drop(ptr: usize)
-pub unsafe fn nika_infer_local::CandleBackend::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::CandleBackend
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::CandleBackend where T: ?core::marker::Sized
-impl<T> tracing::instrument::Instrument for nika_infer_local::CandleBackend
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::CandleBackend
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::CandleBackend where T: 'static
-impl<TraitVariantBlanketType> nika_infer_local::Backend for nika_infer_local::CandleBackend where TraitVariantBlanketType: nika_infer_local::BackendDyn
-pub async fn nika_infer_local::CandleBackend::generate(&self, request: &nika_infer_local::protocol::ChatRequest) -> core::result::Result<nika_infer_local::protocol::ChatResponse, nika_infer_local::InferLocalError>
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::CandleBackend where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::CandleBackend::vzip(self) -> V
 pub struct nika_infer_local::GenerationChunk
 pub nika_infer_local::GenerationChunk::delta: alloc::string::String
 pub nika_infer_local::GenerationChunk::finish_reason: core::option::Option<nika_infer_local::protocol::FinishReason>
@@ -556,10 +367,6 @@ pub fn nika_infer_local::GenerationChunk::eq(&self, other: &nika_infer_local::Ge
 impl core::fmt::Debug for nika_infer_local::GenerationChunk
 pub fn nika_infer_local::GenerationChunk::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_infer_local::GenerationChunk
-impl<Q, K> equivalent::Equivalent<K> for nika_infer_local::GenerationChunk where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_infer_local::GenerationChunk::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_infer_local::GenerationChunk where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_infer_local::GenerationChunk::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_infer_local::GenerationChunk where U: core::convert::From<T>
 pub fn nika_infer_local::GenerationChunk::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_infer_local::GenerationChunk where U: core::convert::Into<T>
@@ -582,20 +389,6 @@ impl<T> core::clone::CloneToUninit for nika_infer_local::GenerationChunk where T
 pub unsafe fn nika_infer_local::GenerationChunk::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_infer_local::GenerationChunk
 pub fn nika_infer_local::GenerationChunk::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::GenerationChunk
-pub type nika_infer_local::GenerationChunk::Init = T
-pub const nika_infer_local::GenerationChunk::ALIGN: usize
-pub unsafe fn nika_infer_local::GenerationChunk::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::GenerationChunk::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::GenerationChunk::drop(ptr: usize)
-pub unsafe fn nika_infer_local::GenerationChunk::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::GenerationChunk
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::GenerationChunk where T: ?core::marker::Sized
-impl<T> tracing::instrument::Instrument for nika_infer_local::GenerationChunk
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::GenerationChunk
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::GenerationChunk where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::GenerationChunk where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::GenerationChunk::vzip(self) -> V
 pub struct nika_infer_local::MockBackend
 impl nika_infer_local::MockBackend
 pub const nika_infer_local::MockBackend::MODEL: &str
@@ -629,22 +422,8 @@ impl<T> core::clone::CloneToUninit for nika_infer_local::MockBackend where T: co
 pub unsafe fn nika_infer_local::MockBackend::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_infer_local::MockBackend
 pub fn nika_infer_local::MockBackend::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::MockBackend
-pub type nika_infer_local::MockBackend::Init = T
-pub const nika_infer_local::MockBackend::ALIGN: usize
-pub unsafe fn nika_infer_local::MockBackend::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::MockBackend::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::MockBackend::drop(ptr: usize)
-pub unsafe fn nika_infer_local::MockBackend::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::MockBackend
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::MockBackend where T: ?core::marker::Sized
-impl<T> tracing::instrument::Instrument for nika_infer_local::MockBackend
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::MockBackend
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::MockBackend where T: 'static
 impl<TraitVariantBlanketType> nika_infer_local::Backend for nika_infer_local::MockBackend where TraitVariantBlanketType: nika_infer_local::BackendDyn
 pub async fn nika_infer_local::MockBackend::generate(&self, request: &nika_infer_local::protocol::ChatRequest) -> core::result::Result<nika_infer_local::protocol::ChatResponse, nika_infer_local::InferLocalError>
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::MockBackend where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::MockBackend::vzip(self) -> V
 pub struct nika_infer_local::SamplingConfig
 pub nika_infer_local::SamplingConfig::min_p: core::option::Option<f32>
 pub nika_infer_local::SamplingConfig::repeat_last_n: usize
@@ -688,56 +467,6 @@ impl<T> core::clone::CloneToUninit for nika_infer_local::SamplingConfig where T:
 pub unsafe fn nika_infer_local::SamplingConfig::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_infer_local::SamplingConfig
 pub fn nika_infer_local::SamplingConfig::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::SamplingConfig
-pub type nika_infer_local::SamplingConfig::Init = T
-pub const nika_infer_local::SamplingConfig::ALIGN: usize
-pub unsafe fn nika_infer_local::SamplingConfig::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::SamplingConfig::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::SamplingConfig::drop(ptr: usize)
-pub unsafe fn nika_infer_local::SamplingConfig::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::SamplingConfig
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::SamplingConfig where T: ?core::marker::Sized
-impl<T> tracing::instrument::Instrument for nika_infer_local::SamplingConfig
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::SamplingConfig
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::SamplingConfig where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::SamplingConfig where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::SamplingConfig::vzip(self) -> V
-pub struct nika_infer_local::ServerHandle
-impl nika_infer_local::ServerHandle
-pub fn nika_infer_local::ServerHandle::addr(&self) -> core::net::socket_addr::SocketAddr
-pub fn nika_infer_local::ServerHandle::shutdown(self)
-impl core::ops::drop::Drop for nika_infer_local::ServerHandle
-pub fn nika_infer_local::ServerHandle::drop(&mut self)
-impl<T, U> core::convert::Into<U> for nika_infer_local::ServerHandle where U: core::convert::From<T>
-pub fn nika_infer_local::ServerHandle::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_infer_local::ServerHandle where U: core::convert::Into<T>
-pub type nika_infer_local::ServerHandle::Error = core::convert::Infallible
-pub fn nika_infer_local::ServerHandle::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_infer_local::ServerHandle where U: core::convert::TryFrom<T>
-pub type nika_infer_local::ServerHandle::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_infer_local::ServerHandle::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_infer_local::ServerHandle where T: 'static + ?core::marker::Sized
-pub fn nika_infer_local::ServerHandle::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_infer_local::ServerHandle where T: ?core::marker::Sized
-pub fn nika_infer_local::ServerHandle::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_infer_local::ServerHandle where T: ?core::marker::Sized
-pub fn nika_infer_local::ServerHandle::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_infer_local::ServerHandle
-pub fn nika_infer_local::ServerHandle::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::ServerHandle
-pub type nika_infer_local::ServerHandle::Init = T
-pub const nika_infer_local::ServerHandle::ALIGN: usize
-pub unsafe fn nika_infer_local::ServerHandle::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::ServerHandle::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::ServerHandle::drop(ptr: usize)
-pub unsafe fn nika_infer_local::ServerHandle::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::ServerHandle
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::ServerHandle where T: ?core::marker::Sized
-impl<T> tracing::instrument::Instrument for nika_infer_local::ServerHandle
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::ServerHandle
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::ServerHandle where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::ServerHandle where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::ServerHandle::vzip(self) -> V
 pub struct nika_infer_local::StopController
 impl nika_infer_local::StopController
 pub fn nika_infer_local::StopController::has_stop_strings(&self) -> bool
@@ -774,20 +503,6 @@ impl<T> core::clone::CloneToUninit for nika_infer_local::StopController where T:
 pub unsafe fn nika_infer_local::StopController::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_infer_local::StopController
 pub fn nika_infer_local::StopController::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_infer_local::StopController
-pub type nika_infer_local::StopController::Init = T
-pub const nika_infer_local::StopController::ALIGN: usize
-pub unsafe fn nika_infer_local::StopController::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_infer_local::StopController::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_infer_local::StopController::drop(ptr: usize)
-pub unsafe fn nika_infer_local::StopController::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_infer_local::StopController
-impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_infer_local::StopController where T: ?core::marker::Sized
-impl<T> tracing::instrument::Instrument for nika_infer_local::StopController
-impl<T> tracing::instrument::WithSubscriber for nika_infer_local::StopController
-impl<T> yoke::erased::ErasedDestructor for nika_infer_local::StopController where T: 'static
-impl<V, T> ppv_lite86::types::VZip<V> for nika_infer_local::StopController where V: ppv_lite86::types::MultiLane<T>
-pub fn nika_infer_local::StopController::vzip(self) -> V
 pub const nika_infer_local::DEFAULT_REPEAT_LAST_N: usize
 pub const nika_infer_local::DEFAULT_SEED: u64
 pub trait nika_infer_local::Backend
@@ -796,12 +511,9 @@ impl<TraitVariantBlanketType: nika_infer_local::BackendDyn> nika_infer_local::Ba
 pub async fn TraitVariantBlanketType::generate(&self, request: &nika_infer_local::protocol::ChatRequest) -> core::result::Result<nika_infer_local::protocol::ChatResponse, nika_infer_local::InferLocalError>
 pub trait nika_infer_local::BackendDyn: core::marker::Send
 pub fn nika_infer_local::BackendDyn::generate(&self, request: &nika_infer_local::protocol::ChatRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_infer_local::protocol::ChatResponse, nika_infer_local::InferLocalError>> + core::marker::Send
-impl nika_infer_local::BackendDyn for nika_infer_local::CandleBackend
-pub async fn nika_infer_local::CandleBackend::generate(&self, request: &nika_infer_local::protocol::ChatRequest) -> core::result::Result<nika_infer_local::protocol::ChatResponse, nika_infer_local::InferLocalError>
 impl nika_infer_local::BackendDyn for nika_infer_local::MockBackend
 pub async fn nika_infer_local::MockBackend::generate(&self, request: &nika_infer_local::protocol::ChatRequest) -> core::result::Result<nika_infer_local::protocol::ChatResponse, nika_infer_local::InferLocalError>
 pub fn nika_infer_local::apply_min_p(probs: &mut [f32], p_base: f32) -> usize
 pub fn nika_infer_local::apply_repeat_penalty(logits: &mut [f32], penalty: f32, recent: &[u32])
 pub fn nika_infer_local::apply_token_mask(probs: &mut [f32], mask: &[bool]) -> usize
 pub fn nika_infer_local::apply_top_n_sigma(logits: &mut [f32], n: f32) -> usize
-pub fn nika_infer_local::serve<B>(backend: alloc::sync::Arc<B>, addr: core::net::socket_addr::SocketAddr) -> core::result::Result<nika_infer_local::ServerHandle, nika_infer_local::InferLocalError> where B: nika_infer_local::BackendDyn + core::marker::Send + core::marker::Sync + 'static

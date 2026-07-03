@@ -34,8 +34,8 @@ pub fn nika_browser::ChromiumBrowser::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_browser::ChromiumBrowser where T: 'static
 pub fn nika_browser::ChromiumBrowser::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_browser::ChromiumBrowser where T: ?core::marker::Sized
-pub fn nika_browser::ChromiumBrowser::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_browser::ChromiumBrowser::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_browser::ChromiumBrowser::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_browser::ChromiumBrowser::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_browser::ChromiumBrowser
 impl<T> tracing::instrument::WithSubscriber for nika_browser::ChromiumBrowser
 impl<T> typenum::type_operators::Same for nika_browser::ChromiumBrowser
@@ -91,8 +91,8 @@ pub fn nika_browser::SelectorExpectation::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_browser::SelectorExpectation where T: 'static
 pub fn nika_browser::SelectorExpectation::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_browser::SelectorExpectation where T: ?core::marker::Sized
-pub fn nika_browser::SelectorExpectation::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_browser::SelectorExpectation::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_browser::SelectorExpectation::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_browser::SelectorExpectation::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_browser::SelectorExpectation
 impl<T> tracing::instrument::WithSubscriber for nika_browser::SelectorExpectation
 impl<T> typenum::type_operators::Same for nika_browser::SelectorExpectation
