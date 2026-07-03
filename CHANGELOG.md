@@ -19,6 +19,70 @@ changelog tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 
 ---
 
+## [0.92.0](https://github.com/supernovae-st/nika/compare/v0.91.0..v0.92.0) - 2026-07-03
+
+### ✨ Features
+- **media** — Permits-audit + on-error-recover motion scenes ([5ea0658bb](https://github.com/supernovae-st/nika/commit/5ea0658bbb18f9376324dd441b945ca02fdda21e))
+- **nika-browser** — Guard navigate against private/loopback SSRF ([e81720031](https://github.com/supernovae-st/nika/commit/e81720031543554aa02050640e4ebbb9084fd517))
+- **nika-cli** — Wire codex — mcp wiring for the codex cli ([b8246605c](https://github.com/supernovae-st/nika/commit/b8246605cfb31b92ab32972e616e7980eeb8d523))
+- **nika-cli** — Codex plugin + repo-level agent skill ([4db87a89a](https://github.com/supernovae-st/nika/commit/4db87a89a7e4590b3509a8b70af4b3918634b0e3))
+- **nika-cli** — Nika init scaffolds the AGENTS.md hard rules + learning surface ([45668958f](https://github.com/supernovae-st/nika/commit/45668958fea7e4313054c99ddf6728ddce2589a2))
+- **nika-mcp** — Add the learning tools — schema · examples · template · canon ([0b38d3b28](https://github.com/supernovae-st/nika/commit/0b38d3b28514e3dc96190e59edefbdb5ff67e8c7))
+- **nika-verb-exec** — Scrub the engine's provider API keys from exec children ([fa7a503dd](https://github.com/supernovae-st/nika/commit/fa7a503dd4b7ce4afacb2b1c78acd6e39ab17282))
+- **workspace** — Claude code marketplace — one plugin dir, two ecosystems ([7e4a0b800](https://github.com/supernovae-st/nika/commit/7e4a0b80025f3a304c3bf8d84bb77dddf8351db2))
+
+### 🐛 Bug Fixes
+- **nika-cel** — Compare int64 exactly, not through f64 ([406af0072](https://github.com/supernovae-st/nika/commit/406af0072500c4f48c6c9e003274544be099e333))
+- **nika-cli** — Cold-first-run truth — readme dual-line + tip guard ([484ca318b](https://github.com/supernovae-st/nika/commit/484ca318b91268233b90069e225deb15d162303b))
+- **nika-pack** — Vendor the egress-sanctioned templates from nika-spec ([ede60533c](https://github.com/supernovae-st/nika/commit/ede60533c62a9e49c181b654963c811a0752856e))
+- **nika-schema** — Flag the shell-string + permits.exec allowlist pairing at check ([d096698b8](https://github.com/supernovae-st/nika/commit/d096698b8d63bdfa339924d1abc470683cd8e44f))
+- **nika-verb-exec** — Restrict exec env keys to POSIX names ([e33384543](https://github.com/supernovae-st/nika/commit/e33384543793c5b65ec653774d1253f6c08a55de))
+- **security** — Quick-xml advisory pair · xcap bump + documented ignores ([1c7faed69](https://github.com/supernovae-st/nika/commit/1c7faed695c9204ace1c819e9066d284caa2d89f))
+- **workspace** — The hero one-liner is verified-real now ([1855ada6b](https://github.com/supernovae-st/nika/commit/1855ada6bcb39c6e0486f779fae531234f9ab756))
+- **workspace** — The plugin's .mcp.json was gitignored out of the publish ([4af2f2d68](https://github.com/supernovae-st/nika/commit/4af2f2d68a045f0a9823d004aa44bd5ac70fd71a))
+
+### 🔨 Refactors
+- **kernel** — Remove the deprecated cost_usd field ([2b3c33edc](https://github.com/supernovae-st/nika/commit/2b3c33edc2c40c36e0c94b9627d3ef0ae994ab9b))
+- **nika-builtin** — Split date/uuid out of data.rs before the LOC cap ([a0753e716](https://github.com/supernovae-st/nika/commit/a0753e716116c0deb26d316a3d97cd6415545dec))
+- **nika-schema** — Drop the now-dead shell-form program lookup ([d664944dd](https://github.com/supernovae-st/nika/commit/d664944ddd9f5f442a77818730f9d4cc18aeb95d))
+
+### 📚 Documentation
+- **adr** — Resolve ADR-093/094 id collisions — agent ADRs to 096/097 ([#144](https://github.com/supernovae-st/nika/issues/144)) ([fb01a4966](https://github.com/supernovae-st/nika/commit/fb01a4966736335a40f8e5cb5e53009afbb36995)) ([#144](https://github.com/supernovae-st/nika/pull/144))
+- **changelog** — Append v0.91.0 ([#139](https://github.com/supernovae-st/nika/issues/139)) ([12a60b3b1](https://github.com/supernovae-st/nika/commit/12a60b3b162f04e631f5593863382da369bf5c08)) ([#139](https://github.com/supernovae-st/nika/pull/139))
+- **clarity** — Kill stale maturity claims across visitor-reachable files ([eaa966a16](https://github.com/supernovae-st/nika/commit/eaa966a16054019453ce6f893f421bf09f2b9585))
+- **crate-specs** — Drop hardcoded workspace version (anti-drift) ([4133ac0ce](https://github.com/supernovae-st/nika/commit/4133ac0cea6fc9359e4779fed98414f1af6a2882))
+- **crate-specs** — Nika-cap gate-1 spec — the capability boundary as L0 ([20740b3fc](https://github.com/supernovae-st/nika/commit/20740b3fc41d723f8852574f38df5bb45e64266b))
+- **dx** — De-drift the .claude commands + crate-admit skill ([6c203d6d0](https://github.com/supernovae-st/nika/commit/6c203d6d040ac9de5743a3fe2dd06c463766c7d2))
+- **examples** — Real mermaid plan from nika graph + checks-clean line ([0f166dba9](https://github.com/supernovae-st/nika/commit/0f166dba924ca11d577f937676e0d24cd7e6dfb6))
+- **media** — Motion media pipeline + 3 real-capture brand assets ([1a257ba98](https://github.com/supernovae-st/nika/commit/1a257ba98846097293f622e6a1f3107b5874ed39))
+- **media** — V2 polish — narrative beats, data-flow pulses, 16fps gifs ([c319ae1d6](https://github.com/supernovae-st/nika/commit/c319ae1d6b07e6b909ddb5786e4c678b2f044954))
+- **media** — Og + github social-preview cards from the motion pipeline ([c622dd39a](https://github.com/supernovae-st/nika/commit/c622dd39a132684fdc7f979928ac4828a764a7ba))
+- **media** — Editor-diagnostics asset — the audit as you type ([3f1cb9e09](https://github.com/supernovae-st/nika/commit/3f1cb9e09d058bf454788c6435373e6fa2be3fe7))
+- **media** — Workflow-gallery asset — start from a workflow ([ec089cbf8](https://github.com/supernovae-st/nika/commit/ec089cbf81b6e48b9a3e7028641dfd62171ba3a0))
+- **media** — Social poster pair — the wedge + the audit ([6630f8a78](https://github.com/supernovae-st/nika/commit/6630f8a78dee134fe382efd641f78c4820bda1b7))
+- **nika-builtin** — Correct the nika:jq internal-cost comment ([7f00faf3e](https://github.com/supernovae-st/nika/commit/7f00faf3e653e3ca55c3a2de395d14cd12ea6a41))
+- **nika-pack** — Vendor the em-dash-swept quickstart from nika-spec ([ecc69c37a](https://github.com/supernovae-st/nika/commit/ecc69c37a316240048edff9bb27bc6f42f1a02f5))
+- **readme** — Wedge-first rewrite — run-today proof + example gallery surfaced ([e4ee6f08a](https://github.com/supernovae-st/nika/commit/e4ee6f08a0c3f7ff5ff0cd1d9f2ea96c37b76962))
+- **readme** — Real terminal gif — check audits, run executes (96KB) ([2ed5520ce](https://github.com/supernovae-st/nika/commit/2ed5520ce30034904f3803f958e6a70c4c756a72))
+- **readme** — Embed the permits-audit + on-error-recover captures ([9e047ae85](https://github.com/supernovae-st/nika/commit/9e047ae85799268988511cca21e69a9859de3e65))
+- **readme** — Plugin install block in work-with-your-agents ([e3b6f3155](https://github.com/supernovae-st/nika/commit/e3b6f31559a30fc1e55c5d7a29fd8c6565aa5acc))
+- **readme** — Plugin marketplace → the lean nika-agents repo ([76a1cf8ef](https://github.com/supernovae-st/nika/commit/76a1cf8ef7375664c836241c8ff5c063cdd40160))
+- **roadmap** — Fix self-contradicting release scars ([5e4c13990](https://github.com/supernovae-st/nika/commit/5e4c13990ad3c5a6e9c07cfd67b42c72f289e4ce))
+- **roadmap** — The 0.92→0.95 ladder — three admissions to 42/42 ([71aa58db4](https://github.com/supernovae-st/nika/commit/71aa58db4b63ce8d4a79b80a1048141356e63f11))
+- **workspace** — Prose em-dash sweep in the readme ([3f20694e8](https://github.com/supernovae-st/nika/commit/3f20694e87a2d0f6697c591106c010efd015e1d6))
+- **workspace** — Join the readme to the new site pages ([587ad053e](https://github.com/supernovae-st/nika/commit/587ad053ec5ef1291a4b5d4584240df169a52c56))
+- **workspace** — The hero run is real — local model register everywhere ([b5e7fecec](https://github.com/supernovae-st/nika/commit/b5e7fececa1f184e0f0494816e926a6fd7f17f1b))
+- Refresh version pointers to v0.91.0 / main 0.92.0-dev ([95962d5cd](https://github.com/supernovae-st/nika/commit/95962d5cdca68b0a7992acc0f5bab6f4fce20af0))
+- Fix stale version + builtin-count drift across engine docs ([4092a87de](https://github.com/supernovae-st/nika/commit/4092a87ded4e14aad92acac72b7fbec37f7b343f))
+
+### 📦 Build
+- **hygiene** — Stop nightly drift-issue spam + resync status block ([#143](https://github.com/supernovae-st/nika/issues/143)) ([c64082276](https://github.com/supernovae-st/nika/commit/c640822766a89dc8d79a5a5509fb2a552392ce52)) ([#143](https://github.com/supernovae-st/nika/pull/143))
+
+### 🧹 Chore
+- **catalog** — Refresh nika-types public-api baseline ([4a59e2551](https://github.com/supernovae-st/nika/commit/4a59e2551860b20d4a5fde14f6121c2424c0baef))
+- **ci** — Lock 8 more public-api surfaces — vector 38 ratchet 27/38 → 35/38 ([1f398ef9f](https://github.com/supernovae-st/nika/commit/1f398ef9fef4ec27593c1c5baceca3e6d39d33c9))
+
+
 ## [0.91.0](https://github.com/supernovae-st/nika/compare/v0.90.0..v0.91.0) - 2026-06-25
 
 ### ✨ Features
