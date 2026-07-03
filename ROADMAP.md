@@ -2,7 +2,7 @@
 
 > **⚠️ VERSION POLICY AMENDED 2026-06-20 (D-2026-06-20-N1) · "forever-v0.x" RETIRED.**
 > Nika now follows real semver toward a **1.0** public launch. Latest tagged
-> public release = **0.91.0** (release-candidate grade); `main` advances to the
+> public release = **0.92.0** (release-candidate grade); `main` advances to the
 > next `-dev` version immediately after release → design-partner `1.0.0-rc.N` → first public
 > launch **1.0.0** → 1.x minors add the remaining crates additively → **2.0** is
 > reserved for the Connectome era (memory + cognition). The `nika: v1` LANGUAGE
@@ -67,7 +67,7 @@ before it joins the workspace.
 
 See `docs/architecture/ai-velocity.md` for the full argument.
 
-## Current state — main is v0.92.0-dev after the v0.91.0 public release
+## Current state — main is v0.93.0-dev after the v0.92.0 public release
 
 > First public release (2026-06-21 · `brew install supernovae-st/tap/nika`).
 > 39/42 crates admitted (wip array empty) · RC-grade toward the **1.0.0** launch,
@@ -85,7 +85,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
 | HEAD             | `45668958f` (`45668958fea7e4313054c99ddf6728ddce2589a2`)             |
-| workspace        | v0.92.0                                  |
+| workspace        | v0.93.0-dev                                  |
 | crates (workspace)| 39                                              |
 | crates (admitted)| 39 / 42                                   |
 | crates (WIP)     | 0 —                                   |
