@@ -353,6 +353,36 @@ mod tests {
         assert!(err.contains("unknown example"), "{err}");
     }
 
+    /// The slug/name is a KEY into the compile-time embedded pack
+    /// (`nika_pack` · `include_dir!`), never a filesystem path — so path
+    /// traversal, absolute paths, null bytes and injection are structurally
+    /// impossible to turn into a read, not merely defended. This guards that
+    /// invariant: any refactor that makes `example()`/`template()` touch the
+    /// fs from the argument fails here. (Backed by the 2026-07-03 adversarial
+    /// MCP e2e: 10/10 abusive slugs → clean errors, 0 leaks.)
+    #[test]
+    fn examples_and_templates_reject_adversarial_keys_as_plain_lookups() {
+        let evil = [
+            "../../../etc/passwd",
+            "/etc/passwd",
+            "%2e%2e%2f",
+            "01-hello/../../secret",
+            "inject\n\rion",
+            "01-hello\0x",
+        ];
+        for key in evil {
+            let e = execute("nika_examples", &json!({ "slug": key }))
+                .expect_err("adversarial slug must be an unknown-key error");
+            assert!(
+                e.contains("unknown example") && !e.contains("root:"),
+                "traversal leaked or crashed for {key:?}: {e}"
+            );
+            let t = execute("nika_template", &json!({ "name": key }))
+                .expect_err("adversarial template name must be an unknown-key error");
+            assert!(t.contains("unknown template"), "for {key:?}: {t}");
+        }
+    }
+
     #[test]
     fn template_without_name_lists_the_skeletons() {
         let out = execute("nika_template", &json!({})).expect("ran");
