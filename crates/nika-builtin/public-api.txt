@@ -1,0 +1,334 @@
+pub mod nika_builtin
+pub mod nika_builtin::core_tools
+pub mod nika_builtin::data
+pub mod nika_builtin::date
+pub mod nika_builtin::defs
+pub fn nika_builtin::defs::tool_defs() -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
+pub mod nika_builtin::file
+pub mod nika_builtin::inspect
+pub mod nika_builtin::net
+pub mod nika_builtin::permits
+pub struct nika_builtin::permits::FsBoundary
+impl nika_builtin::permits::FsBoundary
+pub fn nika_builtin::permits::FsBoundary::declared(read: alloc::vec::Vec<alloc::string::String>, write: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_builtin::permits::FsBoundary::is_declared(&self) -> bool
+pub fn nika_builtin::permits::FsBoundary::unbounded() -> Self
+impl core::clone::Clone for nika_builtin::permits::FsBoundary
+pub fn nika_builtin::permits::FsBoundary::clone(&self) -> nika_builtin::permits::FsBoundary
+impl core::default::Default for nika_builtin::permits::FsBoundary
+pub fn nika_builtin::permits::FsBoundary::default() -> nika_builtin::permits::FsBoundary
+impl core::fmt::Debug for nika_builtin::permits::FsBoundary
+pub fn nika_builtin::permits::FsBoundary::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_builtin::permits::FsBoundary
+impl<T, U> core::convert::Into<U> for nika_builtin::permits::FsBoundary where U: core::convert::From<T>
+pub fn nika_builtin::permits::FsBoundary::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::permits::FsBoundary where U: core::convert::Into<T>
+pub type nika_builtin::permits::FsBoundary::Error = core::convert::Infallible
+pub fn nika_builtin::permits::FsBoundary::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::permits::FsBoundary where U: core::convert::TryFrom<T>
+pub type nika_builtin::permits::FsBoundary::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::permits::FsBoundary::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_builtin::permits::FsBoundary where T: core::clone::Clone
+pub type nika_builtin::permits::FsBoundary::Owned = T
+pub fn nika_builtin::permits::FsBoundary::clone_into(&self, target: &mut T)
+pub fn nika_builtin::permits::FsBoundary::to_owned(&self) -> T
+impl<T> core::any::Any for nika_builtin::permits::FsBoundary where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::permits::FsBoundary::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::permits::FsBoundary where T: ?core::marker::Sized
+pub fn nika_builtin::permits::FsBoundary::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::permits::FsBoundary where T: ?core::marker::Sized
+pub fn nika_builtin::permits::FsBoundary::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_builtin::permits::FsBoundary where T: core::clone::Clone
+pub unsafe fn nika_builtin::permits::FsBoundary::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_builtin::permits::FsBoundary
+pub fn nika_builtin::permits::FsBoundary::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_builtin::permits::FsBoundary where T: core::clone::Clone
+pub fn nika_builtin::permits::FsBoundary::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_builtin::permits::FsBoundary where T: 'static
+pub fn nika_builtin::permits::FsBoundary::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_builtin::permits::FsBoundary
+pub type nika_builtin::permits::FsBoundary::Output = T
+pub struct nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>
+impl<F, H, C, Em, P, W> nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::new(fs: alloc::sync::Arc<F>, http: alloc::sync::Arc<H>, clock: alloc::sync::Arc<C>, emitter: alloc::sync::Arc<Em>, prompter: alloc::sync::Arc<P>, workflow: alloc::sync::Arc<W>) -> Self
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::with_fs_boundary(self, boundary: nika_builtin::permits::FsBoundary) -> Self
+impl<F, H, C, Em, P, W> nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsListDyn + core::marker::Send + core::marker::Sync, H: nika_kernel_core::io::http::HttpGetDyn + nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Send + core::marker::Sync, Em: nika_builtin::Emitter, P: nika_builtin::Prompter, W: nika_builtin::WorkflowIntrospect
+pub async fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::tool_defs(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>, nika_kernel_ai::tool_defs::ToolDefsError>
+impl<F, H, C, Em, P, W> nika_kernel_runtime::tool_executor::ToolBatchDyn for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsListDyn + core::marker::Send + core::marker::Sync, H: nika_kernel_core::io::http::HttpGetDyn + nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Send + core::marker::Sync, Em: nika_builtin::Emitter, P: nika_builtin::Prompter, W: nika_builtin::WorkflowIntrospect
+pub async fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
+impl<F, H, C, Em, P, W> nika_kernel_runtime::tool_executor::ToolExecuteDyn for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsListDyn + core::marker::Send + core::marker::Sync, H: nika_kernel_core::io::http::HttpGetDyn + nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Send + core::marker::Sync, Em: nika_builtin::Emitter, P: nika_builtin::Prompter, W: nika_builtin::WorkflowIntrospect
+pub async fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
+impl<F: core::fmt::Debug, H: core::fmt::Debug, C: core::fmt::Debug, Em: core::fmt::Debug, P: core::fmt::Debug, W: core::fmt::Debug> core::fmt::Debug for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>
+impl<T, U> core::convert::Into<U> for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where U: core::convert::From<T>
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where U: core::convert::Into<T>
+pub type nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::Error = core::convert::Infallible
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where U: core::convert::TryFrom<T>
+pub type nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where T: ?core::marker::Sized
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where T: ?core::marker::Sized
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where T: 'static
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> nika_kernel_runtime::tool_executor::ToolExecutor for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where T: nika_kernel_runtime::tool_executor::ToolExecute + nika_kernel_runtime::tool_executor::ToolBatch
+impl<T> typenum::type_operators::Same for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>
+pub type nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::Output = T
+impl<TraitVariantBlanketType> nika_kernel_ai::tool_defs::ToolDefinitionProvider for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where TraitVariantBlanketType: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn
+pub async fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::tool_defs(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>, nika_kernel_ai::tool_defs::ToolDefsError>
+impl<TraitVariantBlanketType> nika_kernel_runtime::tool_executor::ToolBatch for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolBatchDyn
+pub async fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
+impl<TraitVariantBlanketType> nika_kernel_runtime::tool_executor::ToolExecute for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolExecuteDyn
+pub async fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
+#[non_exhaustive] pub struct nika_builtin::BuiltinFailure
+pub nika_builtin::BuiltinFailure::code: &'static str
+pub nika_builtin::BuiltinFailure::details: core::option::Option<serde_json::value::Value>
+pub nika_builtin::BuiltinFailure::message: alloc::string::String
+pub nika_builtin::BuiltinFailure::transient: bool
+impl nika_builtin::BuiltinFailure
+pub fn nika_builtin::BuiltinFailure::new(code: &'static str, message: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_builtin::BuiltinFailure::with_details(self, details: serde_json::value::Value) -> Self
+pub fn nika_builtin::BuiltinFailure::with_transient(self, transient: bool) -> Self
+impl core::clone::Clone for nika_builtin::BuiltinFailure
+pub fn nika_builtin::BuiltinFailure::clone(&self) -> nika_builtin::BuiltinFailure
+impl core::cmp::Eq for nika_builtin::BuiltinFailure
+impl core::cmp::PartialEq for nika_builtin::BuiltinFailure
+pub fn nika_builtin::BuiltinFailure::eq(&self, other: &nika_builtin::BuiltinFailure) -> bool
+impl core::fmt::Debug for nika_builtin::BuiltinFailure
+pub fn nika_builtin::BuiltinFailure::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_builtin::BuiltinFailure
+impl<D> owo_colors::OwoColorize for nika_builtin::BuiltinFailure
+impl<Q, K> equivalent::Equivalent<K> for nika_builtin::BuiltinFailure where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_builtin::BuiltinFailure::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_builtin::BuiltinFailure where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_builtin::BuiltinFailure::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_builtin::BuiltinFailure where U: core::convert::From<T>
+pub fn nika_builtin::BuiltinFailure::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::BuiltinFailure where U: core::convert::Into<T>
+pub type nika_builtin::BuiltinFailure::Error = core::convert::Infallible
+pub fn nika_builtin::BuiltinFailure::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::BuiltinFailure where U: core::convert::TryFrom<T>
+pub type nika_builtin::BuiltinFailure::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::BuiltinFailure::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_builtin::BuiltinFailure where T: core::clone::Clone
+pub type nika_builtin::BuiltinFailure::Owned = T
+pub fn nika_builtin::BuiltinFailure::clone_into(&self, target: &mut T)
+pub fn nika_builtin::BuiltinFailure::to_owned(&self) -> T
+impl<T> core::any::Any for nika_builtin::BuiltinFailure where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::BuiltinFailure::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::BuiltinFailure where T: ?core::marker::Sized
+pub fn nika_builtin::BuiltinFailure::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::BuiltinFailure where T: ?core::marker::Sized
+pub fn nika_builtin::BuiltinFailure::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_builtin::BuiltinFailure where T: core::clone::Clone
+pub unsafe fn nika_builtin::BuiltinFailure::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_builtin::BuiltinFailure
+pub fn nika_builtin::BuiltinFailure::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_builtin::BuiltinFailure where T: core::clone::Clone
+pub fn nika_builtin::BuiltinFailure::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_builtin::BuiltinFailure where T: 'static
+pub fn nika_builtin::BuiltinFailure::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_builtin::BuiltinFailure
+pub type nika_builtin::BuiltinFailure::Output = T
+pub struct nika_builtin::FsBoundary
+impl nika_builtin::permits::FsBoundary
+pub fn nika_builtin::permits::FsBoundary::declared(read: alloc::vec::Vec<alloc::string::String>, write: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_builtin::permits::FsBoundary::is_declared(&self) -> bool
+pub fn nika_builtin::permits::FsBoundary::unbounded() -> Self
+impl core::clone::Clone for nika_builtin::permits::FsBoundary
+pub fn nika_builtin::permits::FsBoundary::clone(&self) -> nika_builtin::permits::FsBoundary
+impl core::default::Default for nika_builtin::permits::FsBoundary
+pub fn nika_builtin::permits::FsBoundary::default() -> nika_builtin::permits::FsBoundary
+impl core::fmt::Debug for nika_builtin::permits::FsBoundary
+pub fn nika_builtin::permits::FsBoundary::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_builtin::permits::FsBoundary
+impl<T, U> core::convert::Into<U> for nika_builtin::permits::FsBoundary where U: core::convert::From<T>
+pub fn nika_builtin::permits::FsBoundary::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::permits::FsBoundary where U: core::convert::Into<T>
+pub type nika_builtin::permits::FsBoundary::Error = core::convert::Infallible
+pub fn nika_builtin::permits::FsBoundary::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::permits::FsBoundary where U: core::convert::TryFrom<T>
+pub type nika_builtin::permits::FsBoundary::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::permits::FsBoundary::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_builtin::permits::FsBoundary where T: core::clone::Clone
+pub type nika_builtin::permits::FsBoundary::Owned = T
+pub fn nika_builtin::permits::FsBoundary::clone_into(&self, target: &mut T)
+pub fn nika_builtin::permits::FsBoundary::to_owned(&self) -> T
+impl<T> core::any::Any for nika_builtin::permits::FsBoundary where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::permits::FsBoundary::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::permits::FsBoundary where T: ?core::marker::Sized
+pub fn nika_builtin::permits::FsBoundary::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::permits::FsBoundary where T: ?core::marker::Sized
+pub fn nika_builtin::permits::FsBoundary::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_builtin::permits::FsBoundary where T: core::clone::Clone
+pub unsafe fn nika_builtin::permits::FsBoundary::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_builtin::permits::FsBoundary
+pub fn nika_builtin::permits::FsBoundary::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_builtin::permits::FsBoundary where T: core::clone::Clone
+pub fn nika_builtin::permits::FsBoundary::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_builtin::permits::FsBoundary where T: 'static
+pub fn nika_builtin::permits::FsBoundary::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_builtin::permits::FsBoundary
+pub type nika_builtin::permits::FsBoundary::Output = T
+#[non_exhaustive] pub struct nika_builtin::NoWorkflow
+impl core::clone::Clone for nika_builtin::NoWorkflow
+pub fn nika_builtin::NoWorkflow::clone(&self) -> nika_builtin::NoWorkflow
+impl core::default::Default for nika_builtin::NoWorkflow
+pub fn nika_builtin::NoWorkflow::default() -> nika_builtin::NoWorkflow
+impl core::fmt::Debug for nika_builtin::NoWorkflow
+pub fn nika_builtin::NoWorkflow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_builtin::NoWorkflow
+impl nika_builtin::WorkflowIntrospect for nika_builtin::NoWorkflow
+pub fn nika_builtin::NoWorkflow::cost(&self) -> serde_json::value::Value
+pub fn nika_builtin::NoWorkflow::dag_info(&self) -> serde_json::value::Value
+pub fn nika_builtin::NoWorkflow::records(&self) -> serde_json::value::Value
+pub fn nika_builtin::NoWorkflow::threads(&self) -> serde_json::value::Value
+impl<D> owo_colors::OwoColorize for nika_builtin::NoWorkflow
+impl<T, U> core::convert::Into<U> for nika_builtin::NoWorkflow where U: core::convert::From<T>
+pub fn nika_builtin::NoWorkflow::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::NoWorkflow where U: core::convert::Into<T>
+pub type nika_builtin::NoWorkflow::Error = core::convert::Infallible
+pub fn nika_builtin::NoWorkflow::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::NoWorkflow where U: core::convert::TryFrom<T>
+pub type nika_builtin::NoWorkflow::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::NoWorkflow::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_builtin::NoWorkflow where T: core::clone::Clone
+pub type nika_builtin::NoWorkflow::Owned = T
+pub fn nika_builtin::NoWorkflow::clone_into(&self, target: &mut T)
+pub fn nika_builtin::NoWorkflow::to_owned(&self) -> T
+impl<T> core::any::Any for nika_builtin::NoWorkflow where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::NoWorkflow::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::NoWorkflow where T: ?core::marker::Sized
+pub fn nika_builtin::NoWorkflow::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::NoWorkflow where T: ?core::marker::Sized
+pub fn nika_builtin::NoWorkflow::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_builtin::NoWorkflow where T: core::clone::Clone
+pub unsafe fn nika_builtin::NoWorkflow::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_builtin::NoWorkflow
+pub fn nika_builtin::NoWorkflow::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_builtin::NoWorkflow where T: core::clone::Clone
+pub fn nika_builtin::NoWorkflow::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_builtin::NoWorkflow where T: 'static
+pub fn nika_builtin::NoWorkflow::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_builtin::NoWorkflow where T: core::marker::Copy
+pub fn nika_builtin::NoWorkflow::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_builtin::NoWorkflow
+pub type nika_builtin::NoWorkflow::Output = T
+#[non_exhaustive] pub struct nika_builtin::NonInteractive
+impl core::clone::Clone for nika_builtin::NonInteractive
+pub fn nika_builtin::NonInteractive::clone(&self) -> nika_builtin::NonInteractive
+impl core::default::Default for nika_builtin::NonInteractive
+pub fn nika_builtin::NonInteractive::default() -> nika_builtin::NonInteractive
+impl core::fmt::Debug for nika_builtin::NonInteractive
+pub fn nika_builtin::NonInteractive::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_builtin::NonInteractive
+impl nika_builtin::Prompter for nika_builtin::NonInteractive
+pub fn nika_builtin::NonInteractive::choice(&self, _message: &str, _choices: &[alloc::string::String]) -> core::option::Option<alloc::string::String>
+pub fn nika_builtin::NonInteractive::confirm(&self, _message: &str) -> core::option::Option<bool>
+pub fn nika_builtin::NonInteractive::input(&self, _message: &str) -> core::option::Option<alloc::string::String>
+impl<D> owo_colors::OwoColorize for nika_builtin::NonInteractive
+impl<T, U> core::convert::Into<U> for nika_builtin::NonInteractive where U: core::convert::From<T>
+pub fn nika_builtin::NonInteractive::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::NonInteractive where U: core::convert::Into<T>
+pub type nika_builtin::NonInteractive::Error = core::convert::Infallible
+pub fn nika_builtin::NonInteractive::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::NonInteractive where U: core::convert::TryFrom<T>
+pub type nika_builtin::NonInteractive::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::NonInteractive::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_builtin::NonInteractive where T: core::clone::Clone
+pub type nika_builtin::NonInteractive::Owned = T
+pub fn nika_builtin::NonInteractive::clone_into(&self, target: &mut T)
+pub fn nika_builtin::NonInteractive::to_owned(&self) -> T
+impl<T> core::any::Any for nika_builtin::NonInteractive where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::NonInteractive::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::NonInteractive where T: ?core::marker::Sized
+pub fn nika_builtin::NonInteractive::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::NonInteractive where T: ?core::marker::Sized
+pub fn nika_builtin::NonInteractive::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_builtin::NonInteractive where T: core::clone::Clone
+pub unsafe fn nika_builtin::NonInteractive::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_builtin::NonInteractive
+pub fn nika_builtin::NonInteractive::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_builtin::NonInteractive where T: core::clone::Clone
+pub fn nika_builtin::NonInteractive::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_builtin::NonInteractive where T: 'static
+pub fn nika_builtin::NonInteractive::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_builtin::NonInteractive where T: core::marker::Copy
+pub fn nika_builtin::NonInteractive::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_builtin::NonInteractive
+pub type nika_builtin::NonInteractive::Output = T
+#[non_exhaustive] pub struct nika_builtin::NullEmitter
+impl core::clone::Clone for nika_builtin::NullEmitter
+pub fn nika_builtin::NullEmitter::clone(&self) -> nika_builtin::NullEmitter
+impl core::default::Default for nika_builtin::NullEmitter
+pub fn nika_builtin::NullEmitter::default() -> nika_builtin::NullEmitter
+impl core::fmt::Debug for nika_builtin::NullEmitter
+pub fn nika_builtin::NullEmitter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_builtin::NullEmitter
+impl nika_builtin::Emitter for nika_builtin::NullEmitter
+pub fn nika_builtin::NullEmitter::emit(&self, _kind: &str, _payload: serde_json::value::Value)
+impl<D> owo_colors::OwoColorize for nika_builtin::NullEmitter
+impl<T, U> core::convert::Into<U> for nika_builtin::NullEmitter where U: core::convert::From<T>
+pub fn nika_builtin::NullEmitter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::NullEmitter where U: core::convert::Into<T>
+pub type nika_builtin::NullEmitter::Error = core::convert::Infallible
+pub fn nika_builtin::NullEmitter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::NullEmitter where U: core::convert::TryFrom<T>
+pub type nika_builtin::NullEmitter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::NullEmitter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_builtin::NullEmitter where T: core::clone::Clone
+pub type nika_builtin::NullEmitter::Owned = T
+pub fn nika_builtin::NullEmitter::clone_into(&self, target: &mut T)
+pub fn nika_builtin::NullEmitter::to_owned(&self) -> T
+impl<T> core::any::Any for nika_builtin::NullEmitter where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::NullEmitter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::NullEmitter where T: ?core::marker::Sized
+pub fn nika_builtin::NullEmitter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::NullEmitter where T: ?core::marker::Sized
+pub fn nika_builtin::NullEmitter::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_builtin::NullEmitter where T: core::clone::Clone
+pub unsafe fn nika_builtin::NullEmitter::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_builtin::NullEmitter
+pub fn nika_builtin::NullEmitter::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_builtin::NullEmitter where T: core::clone::Clone
+pub fn nika_builtin::NullEmitter::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_builtin::NullEmitter where T: 'static
+pub fn nika_builtin::NullEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_builtin::NullEmitter where T: core::marker::Copy
+pub fn nika_builtin::NullEmitter::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_builtin::NullEmitter
+pub type nika_builtin::NullEmitter::Output = T
+pub const nika_builtin::NAMESPACE: &str
+pub trait nika_builtin::Emitter: core::marker::Send + core::marker::Sync
+pub fn nika_builtin::Emitter::emit(&self, kind: &str, payload: serde_json::value::Value)
+impl nika_builtin::Emitter for nika_builtin::NullEmitter
+pub fn nika_builtin::NullEmitter::emit(&self, _kind: &str, _payload: serde_json::value::Value)
+pub trait nika_builtin::Prompter: core::marker::Send + core::marker::Sync
+pub fn nika_builtin::Prompter::choice(&self, message: &str, choices: &[alloc::string::String]) -> core::option::Option<alloc::string::String>
+pub fn nika_builtin::Prompter::confirm(&self, message: &str) -> core::option::Option<bool>
+pub fn nika_builtin::Prompter::input(&self, message: &str) -> core::option::Option<alloc::string::String>
+impl nika_builtin::Prompter for nika_builtin::NonInteractive
+pub fn nika_builtin::NonInteractive::choice(&self, _message: &str, _choices: &[alloc::string::String]) -> core::option::Option<alloc::string::String>
+pub fn nika_builtin::NonInteractive::confirm(&self, _message: &str) -> core::option::Option<bool>
+pub fn nika_builtin::NonInteractive::input(&self, _message: &str) -> core::option::Option<alloc::string::String>
+pub trait nika_builtin::WorkflowIntrospect: core::marker::Send + core::marker::Sync
+pub fn nika_builtin::WorkflowIntrospect::cost(&self) -> serde_json::value::Value
+pub fn nika_builtin::WorkflowIntrospect::dag_info(&self) -> serde_json::value::Value
+pub fn nika_builtin::WorkflowIntrospect::records(&self) -> serde_json::value::Value
+pub fn nika_builtin::WorkflowIntrospect::threads(&self) -> serde_json::value::Value
+impl nika_builtin::WorkflowIntrospect for nika_builtin::NoWorkflow
+pub fn nika_builtin::NoWorkflow::cost(&self) -> serde_json::value::Value
+pub fn nika_builtin::NoWorkflow::dag_info(&self) -> serde_json::value::Value
+pub fn nika_builtin::NoWorkflow::records(&self) -> serde_json::value::Value
+pub fn nika_builtin::NoWorkflow::threads(&self) -> serde_json::value::Value
+pub fn nika_builtin::tool_defs() -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
+pub type nika_builtin::BuiltinOutcome = core::result::Result<nika_builtin::BuiltinValue, nika_builtin::BuiltinFailure>
+pub type nika_builtin::BuiltinValue = serde_json::value::Value

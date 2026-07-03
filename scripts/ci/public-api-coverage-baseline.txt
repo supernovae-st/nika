@@ -81,3 +81,6 @@ nika-sandbox-seatbelt
 nika-schema
 nika-screen
 nika-cap
+nika-builtin
+nika-cel
+nika-cli

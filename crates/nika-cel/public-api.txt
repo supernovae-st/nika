@@ -1,0 +1,125 @@
+pub mod nika_cel
+#[non_exhaustive] pub enum nika_cel::CelErrorKind
+pub nika_cel::CelErrorKind::Static
+pub nika_cel::CelErrorKind::Type
+pub nika_cel::CelErrorKind::Unresolved
+impl nika_cel::CelErrorKind
+pub const fn nika_cel::CelErrorKind::spec_code(self) -> &'static str
+impl core::clone::Clone for nika_cel::CelErrorKind
+pub fn nika_cel::CelErrorKind::clone(&self) -> nika_cel::CelErrorKind
+impl core::cmp::Eq for nika_cel::CelErrorKind
+impl core::cmp::PartialEq for nika_cel::CelErrorKind
+pub fn nika_cel::CelErrorKind::eq(&self, other: &nika_cel::CelErrorKind) -> bool
+impl core::fmt::Debug for nika_cel::CelErrorKind
+pub fn nika_cel::CelErrorKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_cel::CelErrorKind
+pub fn nika_cel::CelErrorKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cel::CelErrorKind
+impl core::marker::StructuralPartialEq for nika_cel::CelErrorKind
+impl<T, U> core::convert::Into<U> for nika_cel::CelErrorKind where U: core::convert::From<T>
+pub fn nika_cel::CelErrorKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cel::CelErrorKind where U: core::convert::Into<T>
+pub type nika_cel::CelErrorKind::Error = core::convert::Infallible
+pub fn nika_cel::CelErrorKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cel::CelErrorKind where U: core::convert::TryFrom<T>
+pub type nika_cel::CelErrorKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cel::CelErrorKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cel::CelErrorKind where T: core::clone::Clone
+pub type nika_cel::CelErrorKind::Owned = T
+pub fn nika_cel::CelErrorKind::clone_into(&self, target: &mut T)
+pub fn nika_cel::CelErrorKind::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_cel::CelErrorKind where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_cel::CelErrorKind::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_cel::CelErrorKind where T: 'static + ?core::marker::Sized
+pub fn nika_cel::CelErrorKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cel::CelErrorKind where T: ?core::marker::Sized
+pub fn nika_cel::CelErrorKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cel::CelErrorKind where T: ?core::marker::Sized
+pub fn nika_cel::CelErrorKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cel::CelErrorKind where T: core::clone::Clone
+pub unsafe fn nika_cel::CelErrorKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cel::CelErrorKind
+pub fn nika_cel::CelErrorKind::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cel::CelError
+impl nika_cel::CelError
+pub const fn nika_cel::CelError::kind(&self) -> nika_cel::CelErrorKind
+pub fn nika_cel::CelError::message(&self) -> &str
+pub const fn nika_cel::CelError::span(&self) -> (usize, usize)
+pub fn nika_cel::CelError::spec_code(&self) -> &'static str
+pub fn nika_cel::CelError::static_err(message: impl core::convert::Into<alloc::string::String>, span: (usize, usize)) -> Self
+pub fn nika_cel::CelError::type_err(message: impl core::convert::Into<alloc::string::String>, span: (usize, usize)) -> Self
+pub fn nika_cel::CelError::unresolved(message: impl core::convert::Into<alloc::string::String>, span: (usize, usize)) -> Self
+impl core::clone::Clone for nika_cel::CelError
+pub fn nika_cel::CelError::clone(&self) -> nika_cel::CelError
+impl core::cmp::Eq for nika_cel::CelError
+impl core::cmp::PartialEq for nika_cel::CelError
+pub fn nika_cel::CelError::eq(&self, other: &nika_cel::CelError) -> bool
+impl core::error::Error for nika_cel::CelError
+impl core::fmt::Debug for nika_cel::CelError
+pub fn nika_cel::CelError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_cel::CelError
+pub fn nika_cel::CelError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cel::CelError
+impl<T, U> core::convert::Into<U> for nika_cel::CelError where U: core::convert::From<T>
+pub fn nika_cel::CelError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cel::CelError where U: core::convert::Into<T>
+pub type nika_cel::CelError::Error = core::convert::Infallible
+pub fn nika_cel::CelError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cel::CelError where U: core::convert::TryFrom<T>
+pub type nika_cel::CelError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cel::CelError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cel::CelError where T: core::clone::Clone
+pub type nika_cel::CelError::Owned = T
+pub fn nika_cel::CelError::clone_into(&self, target: &mut T)
+pub fn nika_cel::CelError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_cel::CelError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_cel::CelError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_cel::CelError where T: 'static + ?core::marker::Sized
+pub fn nika_cel::CelError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cel::CelError where T: ?core::marker::Sized
+pub fn nika_cel::CelError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cel::CelError where T: ?core::marker::Sized
+pub fn nika_cel::CelError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cel::CelError where T: core::clone::Clone
+pub unsafe fn nika_cel::CelError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cel::CelError
+pub fn nika_cel::CelError::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cel::Expr
+impl nika_cel::Expr
+pub fn nika_cel::Expr::is_boolean_shaped(&self) -> bool
+pub fn nika_cel::Expr::roots(&self) -> alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_cel::Expr
+pub fn nika_cel::Expr::clone(&self) -> nika_cel::Expr
+impl core::cmp::PartialEq for nika_cel::Expr
+pub fn nika_cel::Expr::eq(&self, other: &nika_cel::Expr) -> bool
+impl core::fmt::Debug for nika_cel::Expr
+pub fn nika_cel::Expr::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cel::Expr
+impl<T, U> core::convert::Into<U> for nika_cel::Expr where U: core::convert::From<T>
+pub fn nika_cel::Expr::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cel::Expr where U: core::convert::Into<T>
+pub type nika_cel::Expr::Error = core::convert::Infallible
+pub fn nika_cel::Expr::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cel::Expr where U: core::convert::TryFrom<T>
+pub type nika_cel::Expr::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cel::Expr::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cel::Expr where T: core::clone::Clone
+pub type nika_cel::Expr::Owned = T
+pub fn nika_cel::Expr::clone_into(&self, target: &mut T)
+pub fn nika_cel::Expr::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cel::Expr where T: 'static + ?core::marker::Sized
+pub fn nika_cel::Expr::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cel::Expr where T: ?core::marker::Sized
+pub fn nika_cel::Expr::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cel::Expr where T: ?core::marker::Sized
+pub fn nika_cel::Expr::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cel::Expr where T: core::clone::Clone
+pub unsafe fn nika_cel::Expr::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cel::Expr
+pub fn nika_cel::Expr::from(t: T) -> T
+pub const nika_cel::GRAMMAR_VERSION: &str
+pub trait nika_cel::Resolver
+pub fn nika_cel::Resolver::resolve_root(&self, name: &str) -> core::option::Option<serde_json::value::Value>
+pub fn nika_cel::compute(expr: &nika_cel::Expr, resolver: &dyn nika_cel::Resolver) -> core::result::Result<serde_json::value::Value, nika_cel::CelError>
+pub fn nika_cel::compute_bool(expr: &nika_cel::Expr, resolver: &dyn nika_cel::Resolver) -> core::result::Result<bool, nika_cel::CelError>
+pub fn nika_cel::parse(src: &str) -> core::result::Result<nika_cel::Expr, nika_cel::CelError>
