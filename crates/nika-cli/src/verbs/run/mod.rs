@@ -233,7 +233,10 @@ fn example_model(yaml: &str) -> String {
 /// the policy is unit-tested without staging or running anything.
 #[must_use]
 fn offline_tip_applies(exit_code: u8, override_given: bool, model: &str) -> bool {
-    exit_code != exit::OK && !override_given && model != "mock/echo"
+    // No envelope model → the failure cannot be "no local model running"
+    // (a pure-exec example failing on a missing program would get a
+    // misleading nudge — the mock override wouldn't change its outcome).
+    exit_code != exit::OK && !override_given && !model.is_empty() && model != "mock/echo"
 }
 
 /// Drive the runtime through the chosen sink · return the exit code.
@@ -398,6 +401,10 @@ mod tests {
         // mock/echo needs no provider · a failure there is a real bug, not a
         // missing local model — so the offline tip would mislead.
         assert!(!offline_tip_applies(exit::WORKFLOW, false, "mock/echo"));
+        // No envelope model (a pure-exec example, or a parse miss) · the
+        // failure cannot be model-related — the nudge would mislead (the
+        // cold-user e2e hit exactly this on 16-exec-pipeline).
+        assert!(!offline_tip_applies(exit::WORKFLOW, false, ""));
     }
 
     /// A noiseless theme (no colour · no animation) for the run tests — they
