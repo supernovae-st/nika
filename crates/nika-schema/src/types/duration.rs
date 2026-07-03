@@ -207,9 +207,19 @@ fn take_unit(rest: &str) -> Result<(&str, &str), GoDurationError> {
         }
     }
     // Anything else up to the next digit is an unknown unit (e.g. `d` · `w`).
-    let unit_len = rest.chars().take_while(|c| !c.is_ascii_digit()).count();
+    // Measure the prefix in BYTES (`len_utf8`), not chars — a multibyte char
+    // in the garbage (`→` = 3 bytes) would otherwise make the slice cut
+    // mid-char and panic (fuzz regression · nightly 2026-07-03).
+    let unit_len: usize = rest
+        .chars()
+        .take_while(|c| !c.is_ascii_digit())
+        .map(char::len_utf8)
+        .sum();
+    // `rest` is non-empty (checked above); if it somehow starts with a digit,
+    // still surface one whole char in the error, sliced on a boundary.
+    let end = unit_len.max(rest.chars().next().map_or(0, char::len_utf8));
     Err(GoDurationError::UnknownUnit {
-        unit: rest[..unit_len.max(1)].to_owned(),
+        unit: rest[..end].to_owned(),
     })
 }
 
@@ -301,5 +311,61 @@ mod tests {
     fn unicode_micro_alias_boundary_is_char_safe() {
         // `µ` is multi-byte — ensure slicing never panics mid-char.
         assert_eq!(parse_go_duration("1µs2ns"), Ok(Duration::from_nanos(1_002)));
+    }
+
+    #[test]
+    fn unknown_unit_multibyte_garbage_is_char_safe() {
+        // Fuzz regression (nightly 2026-07-03 · crash-21af10d1): the unknown-unit
+        // error path measured the garbage prefix in CHARS but sliced in BYTES —
+        // a multibyte char (`→` = 3 bytes) made `rest[..n]` cut mid-char and
+        // panic. The sibling test above covers the KNOWN-unit µ path; this one
+        // covers the error path the fuzzer actually hit.
+        assert!(matches!(
+            parse_go_duration("1→"),
+            Err(GoDurationError::UnknownUnit { .. })
+        ));
+        assert!(matches!(
+            parse_go_duration("1 →5"),
+            Err(GoDurationError::UnknownUnit { .. })
+        ));
+        // the full crash-shaped value: huge fractional number + unicode garbage
+        let crash = "15555555555555.5555555555555555555555555  - # %    `      \u{2192}5";
+        assert!(matches!(
+            parse_go_duration(crash),
+            Err(GoDurationError::UnknownUnit { .. })
+        ));
+        // the reported unit prefix is char-boundary-clean (whole arrow, not a
+        // truncated byte prefix of it)
+        match parse_go_duration("1→") {
+            Err(GoDurationError::UnknownUnit { unit }) => assert_eq!(unit, "→"),
+            other => panic!("expected UnknownUnit, got {other:?}"),
+        }
+        // the WHOLE garbage prefix is reported (up to the next digit), not just
+        // its first char — kills the take_while-condition-flip mutant.
+        match parse_go_duration("1xy2s") {
+            Err(GoDurationError::UnknownUnit { unit }) => assert_eq!(unit, "xy"),
+            other => panic!("expected UnknownUnit, got {other:?}"),
+        }
+        match parse_go_duration("1 →5") {
+            Err(GoDurationError::UnknownUnit { unit }) => assert_eq!(unit, " →"),
+            other => panic!("expected UnknownUnit, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn error_display_renders_the_violation() {
+        // Display carries the actionable detail (kills the fmt→Ok(()) mutant).
+        let unknown = GoDurationError::UnknownUnit { unit: "d".into() };
+        let msg = unknown.to_string();
+        assert!(msg.contains('d'), "message names the offending unit: {msg}");
+        assert!(
+            !GoDurationError::Empty.to_string().is_empty(),
+            "every variant renders a non-empty message"
+        );
+        assert_ne!(
+            GoDurationError::Zero.to_string(),
+            GoDurationError::TooLarge.to_string(),
+            "distinct violations render distinct messages"
+        );
     }
 }

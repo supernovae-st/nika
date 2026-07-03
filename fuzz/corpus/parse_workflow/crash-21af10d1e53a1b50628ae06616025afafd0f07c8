@@ -1,0 +1,7 @@
+# 
+nika: v1
+workf|ow: lo
+tasks:
+  - id: long_task
+    timeout: "15555555555555.5555555555555555555555555  - # %    `      →5"
+    exec: { command: ".nning.sh" }
