@@ -203,8 +203,8 @@ Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 | `0.91.0`   | **current release** — release-candidate grade · usable vertical slice works (4 verbs · 14 providers · effects · static-check · MCP/LSP · CLI) · headless workspace build |
 | `0.92.0`   | **agent-native** — `nika wire codex` · `nika init` ships the repo-level agent skill (`.agents/skills/nika-authoring`) · the plugin marketplaces (Codex + Claude Code · `supernovae-st/nika-agents`) · MCP learning tools (schema · examples · template · canon) · cold-first-run fixes |
 | `0.93.0`   | `nika-cap` admitted (capability tokens · L0) — 40/42                  |
-| `0.94.0`   | `nika-pck-contracts` admitted (manifest DTO · L0) — 41/42             |
-| `0.95.0`   | `nika-binding-types` admitted (L0) — **42/42 · architecture complete** |
+| `0.94.0`   | `nika-pck-manifest` admitted (manifest DTO · L0) — 41/42              |
+| `0.95.0`   | `nika-binding` types-first slice admitted — **42/42 · complete**       |
 | `1.0.0-rc.N` | design-partner hardening                                            |
 | `1.0.0`    | **first public launch** — language + installable binary, validated   |
 | `1.1 · 1.2 · …` | additive minors — new builtins, new providers, polish            |
@@ -247,8 +247,8 @@ No defer, no feature-milestone ceremony. Strictly downward dependencies.
 
 Plan: `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`,
 `nika-schema`, `nika-event`, `nika-pack`, then `nika-cap` (capability
-tokens, proposal A from swarm-1), `nika-pck-contracts` (manifest DTO
-scaffold, proposal B), `nika-binding-types`.
+tokens, proposal A from swarm-1), `nika-pck-manifest` (manifest DTO
+scaffold, proposal B), `nika-binding` (types-first slice).
 
 ### L0.5 — kernel traits (6 crates post 4-way split 2026-06-10, sealed, ISP)
 

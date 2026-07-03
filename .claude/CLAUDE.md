@@ -182,7 +182,7 @@ Narrative context (manually maintained):
   corpus check (0 panic / 0 internal-code leak) + hygiene 0-RED.
 - **Next** · the wip array is EMPTY (40/42 · every workspace crate admitted) ·
   the remaining 2 toward the 42-target are the L0-completion crates
-  (nika-pck-contracts · nika-binding-types) · then design-partner `1.0.0-rc.N` → the **1.0.0**
+  (nika-pck-manifest · nika-binding) · then design-partner `1.0.0-rc.N` → the **1.0.0**
   launch (amended D-2026-06-20-N1). Latest tagged release is 0.91.0; `main`
   carries the next dev version so contributor binaries cannot masquerade as the
   Homebrew asset. 42-crate target reached additively across the 1.x minors.
