@@ -64,12 +64,18 @@ jobs:
         # nika-catalog-verify is binary-only (no lib target) so it is never floored.
         # Foundation crates are publish=false (ADR-022); snapshots live in-repo to
         # enforce Gate 12 (FCI) locally and in CI.
+        # Baselines are CANONICAL ON THIS RUNNER'S PLATFORM (ubuntu): crates
+        # with platform-cfg'd surfaces (a11y · input · browser) render
+        # differently on macOS, so regenerate snapshots FROM THE ARTIFACT this
+        # job uploads on failure (public-api-actual), not from a local mac run.
         run: |
           set -euo pipefail
           fail=0
+          mkdir -p /tmp/public-api-actual
           crates=$(grep -vE '^[[:space:]]*#' scripts/ci/public-api-coverage-baseline.txt | grep -E '^nika-')
           for crate in $crates; do
             actual=$(cargo public-api -p "$crate" --all-features --omit auto-trait-impls)
+            printf '%s\n' "$actual" > "/tmp/public-api-actual/$crate.txt"
             expected=$(cat "crates/$crate/public-api.txt")
             if [ "$actual" != "$expected" ]; then
               echo "::error::public API drift in $crate — regenerate snapshot or revert"
@@ -78,3 +84,10 @@ jobs:
             fi
           done
           exit $fail
+      - name: upload canonical renderings (drift repair source)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-api-actual
+          path: /tmp/public-api-actual/
+          if-no-files-found: ignore
