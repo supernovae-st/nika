@@ -418,30 +418,72 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn structured_happy_path_through_the_noisy_echo() {
-        // mock echoes `mock(echo) · {prompt}` — the prompt IS the JSON, the
-        // balanced-span extraction digs it out of the prefix noise.
-        let mut input = InferInput::new(r#"{"name":"Ada","age":36}"#);
+    async fn structured_mock_synthesizes_a_conformant_instance() {
+        // F3: mock + `schema:` returns a SYNTHESIZED conformant instance
+        // (the echo could never satisfy a schema — every structured
+        // workflow on mock/echo died NIKA-INFER-002 · no offline CI).
+        let mut input = InferInput::new("extract the person");
         input.schema = Some(json!({
             "type": "object",
             "properties": {
                 "name": { "type": "string" },
-                "age": { "type": "integer" }
+                "age": { "type": "integer", "minimum": 0 }
             },
             "required": ["name", "age"]
         }));
         let out = mock_verb().run(input).await.expect("valid structured");
         match out.output {
-            InferValue::Structured(v) => assert_eq!(v["age"], 36),
+            InferValue::Structured(v) => {
+                assert_eq!(v["name"], "mock");
+                assert_eq!(v["age"], 0);
+            }
+            other => panic!("expected structured, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn structured_mock_handles_atlas_style_schemas() {
+        // The field-report class (payload-review · geo-audit): enum
+        // severity + bounded integers + arrays of typed objects must
+        // dry-run green offline — the F3 acceptance shape.
+        let mut input = InferInput::new("review the payload");
+        input.schema = Some(json!({
+            "type": "object",
+            "required": ["verdict", "score", "findings"],
+            "properties": {
+                "verdict": { "type": "string", "enum": ["P0", "P1", "P2", "P3"] },
+                "score": { "type": "integer", "minimum": 0, "maximum": 12 },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["severity", "detail"],
+                        "properties": {
+                            "severity": { "type": "string", "enum": ["P0", "P1"] },
+                            "detail": { "type": "string" }
+                        }
+                    }
+                }
+            }
+        }));
+        let out = mock_verb().run(input).await.expect("dry-runs offline");
+        match out.output {
+            InferValue::Structured(v) => {
+                assert_eq!(v["verdict"], "P0", "enum → first entry");
+                assert_eq!(v["score"], 0, "bounded integer → minimum");
+                assert_eq!(v["findings"][0]["severity"], "P0");
+            }
             other => panic!("expected structured, got {other:?}"),
         }
     }
 
     #[tokio::test]
     async fn schema_retry_exhaustion_reports_attempts() {
-        // The echo of a prose prompt never validates → budget exhausted.
-        let mut input = InferInput::new("just prose, no json here");
-        input.schema = Some(json!({ "type": "object", "required": ["x"] }));
+        // A `pattern` is outside the mock generator's vocabulary — the
+        // synthesized "mock" never validates → budget exhausted (the
+        // retry loop itself stays covered post-F3).
+        let mut input = InferInput::new("give me a year");
+        input.schema = Some(json!({ "type": "string", "pattern": "^\\d{4}$" }));
         let err = mock_verb().run(input).await.expect_err("never validates");
         match err {
             VerbInferError::SchemaValidation { attempts, .. } => {
@@ -454,8 +496,8 @@ mod tests {
 
     #[tokio::test]
     async fn zero_retry_budget_is_single_shot() {
-        let mut input = InferInput::new("prose");
-        input.schema = Some(json!({ "type": "object", "required": ["x"] }));
+        let mut input = InferInput::new("give me a year");
+        input.schema = Some(json!({ "type": "string", "pattern": "^\\d{4}$" }));
         let err = mock_verb()
             .with_schema_retry_budget(0)
             .run(input)

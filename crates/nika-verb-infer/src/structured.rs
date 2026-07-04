@@ -186,8 +186,10 @@ mod tests {
 
     #[test]
     fn json_embedded_in_prose_is_extracted() {
-        // The mock provider echoes `mock(model) · {prompt}` — the balanced-span
-        // layer is what makes the deterministic happy path work end-to-end.
+        // Real models wrap JSON in prose (`Here's the data: {...}`) — the
+        // balanced-span layer digs it out. (The mock provider synthesizes
+        // pure JSON for schema requests since F3; this layer serves the
+        // REAL providers' noisy replies.)
         let text = r#"mock(echo) · {"name":"Ada","age":36}"#;
         assert!(matches!(
             extract_and_validate(text, &validator(&person_schema())),

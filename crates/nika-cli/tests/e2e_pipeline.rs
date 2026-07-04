@@ -381,8 +381,10 @@ async fn e2e_structured_output_validates_real_dataflow() {
     let (wf, report) = parse_and_check(WORKFLOW_OK);
     assert!(report.is_clean());
 
-    // Drive ONLY the extract lane: gather's mocked JSON rides the echo
-    // provider's reply and must come back schema-validated and typed.
+    // Drive ONLY the extract lane: the prompt carries gather's mocked
+    // JSON through real interpolation, and the schema'd mock SYNTHESIZES
+    // a conformant instance (F3 · mock-from-schema) that must come back
+    // schema-validated and typed.
     let shell = MockShell::new().enqueue_ok("42\n");
     let tools = MockToolExecutor::new()
         .enqueue_ok(ToolResult::success("call-gather", GATHER_JSON))
@@ -415,8 +417,10 @@ async fn e2e_structured_output_validates_real_dataflow() {
             out.output
         );
     };
-    assert_eq!(value["headline"], "Rust 2.0");
-    assert_eq!(value["score"], 9);
+    // The synthesized minimal instance of the extract schema (F3): the
+    // required string sits on "mock", the bounded integer on its floor.
+    assert_eq!(value["headline"], "mock");
+    assert_eq!(value["score"], 0);
     assert_eq!(out.model_resolved, "mock/echo");
     assert!(out.usage.output_tokens > 0, "usage flows back");
 }
