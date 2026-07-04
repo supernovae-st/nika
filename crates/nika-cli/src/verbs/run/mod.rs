@@ -372,6 +372,21 @@ fn offline_tip_applies(exit_code: u8, override_given: bool, model: &str) -> bool
     exit_code != exit::OK && !override_given && !model.is_empty() && model != "mock/echo"
 }
 
+/// The static wave plan as task ids (the check report's schedule) —
+/// injected into the display fold so the ∥ lane markers and the DAG-shape
+/// glyph speak the scheduler's truth, not a reconstruction.
+fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
+    report
+        .waves
+        .iter()
+        .map(|wave| {
+            wave.iter()
+                .filter_map(|&i| wf.tasks.get(i).map(|t| t.value.id.value.clone()))
+                .collect()
+        })
+        .collect()
+}
+
 /// Drive the runtime through the chosen sink · return the exit code.
 async fn execute(
     runtime: &ProdRuntime,
@@ -393,6 +408,7 @@ async fn execute(
         // composition path · never the live TTY redraw); the one final
         // storyboard frame is what matters, not the animation.
         let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
+        sink.set_plan(plan_waves(wf, report));
         let (code, outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         sink.print_final();
         // Built BEFORE the sink is consumed — the failure envelope reads
@@ -423,6 +439,7 @@ async fn execute(
         code
     } else {
         let mut sink = FoldSink::new(std::io::stdout().lock(), theme, mode);
+        sink.set_plan(plan_waves(wf, report));
         let (code, _outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         // `Live` painted in place during the run; `Plain`/`Quiet` folded
         // silently · print the ONE final frame now.

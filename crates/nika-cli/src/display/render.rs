@@ -5,8 +5,13 @@
 //! lines`. No I/O here: the replay loop owns the terminal, this module owns
 //! the truth-to-text mapping. Snapshot tests pin BOTH glyph themes.
 
-use crate::display::state::{RunView, TaskState};
+use crate::display::flow::{fmt_wall_ms, lane_marks};
+use crate::display::state::{RunView, TaskRow, TaskState};
 use crate::display::theme::{Role, Theme};
+
+/// Widest the note column grows before the time column floats free —
+/// keeps a typical frame graceful under 80 columns.
+const NOTE_COL_CAP: usize = 40;
 
 /// Render one frame of the run card.
 #[must_use]
@@ -36,21 +41,36 @@ pub fn frame(view: &RunView, theme: &Theme, tick: usize) -> Vec<String> {
     }
     lines.push(String::new());
 
-    // Task rows — stable order, aligned ids, notes dimmed.
+    // Task rows — stable order, aligned ids, notes dimmed. Time and cost
+    // are first-class columns: a settled row carries its REAL wall time
+    // (+ per-task spend when the stream reported one), a running row its
+    // live elapsed, and `∥` marks wave-siblings that actually overlapped.
     let width = view.rows().iter().map(|r| r.id.len()).max().unwrap_or(8);
-    for row in view.rows() {
-        let mut note = row.note.clone();
-        if row.state == TaskState::Running && !view.token_samples.is_empty() {
-            let spark = theme.sparkline(&view.token_samples);
-            if !spark.is_empty() {
-                note = format!("{note} {spark}");
-            }
-        }
-        lines.push(format!(
-            "  {} {:<width$}  {}",
-            theme.glyph(row.state, tick),
-            row.id,
-            theme.paint(Role::Dim, &note),
+    let marks = lane_marks(view);
+    let times: Vec<Option<String>> = view.rows().iter().map(|r| row_wall(r, view)).collect();
+    let note_w = view
+        .rows()
+        .iter()
+        .map(|r| r.note.chars().count())
+        .max()
+        .unwrap_or(0)
+        .min(NOTE_COL_CAP);
+    let time_w = times
+        .iter()
+        .flatten()
+        .map(|t| t.chars().count())
+        .max()
+        .unwrap_or(0);
+    for (i, row) in view.rows().iter().enumerate() {
+        let mark = marks.get(i).copied().unwrap_or(false);
+        lines.push(task_line(
+            row,
+            view,
+            theme,
+            tick,
+            (width, note_w, time_w),
+            times[i].as_deref(),
+            mark,
         ));
     }
 
@@ -77,6 +97,70 @@ pub fn frame(view: &RunView, theme: &Theme, tick: usize) -> Vec<String> {
         append_failure_card(&mut lines, view, theme);
     }
     lines
+}
+
+/// The wall-time cell for one row: a settled row's REAL duration (the
+/// runtime-measured `duration_ms` · else the stamp span), a running or
+/// retrying row's LIVE elapsed against the latest stamp the fold has
+/// seen. Rows that never ran show nothing — never an invented number.
+fn row_wall(row: &TaskRow, view: &RunView) -> Option<String> {
+    match row.state {
+        TaskState::Ok | TaskState::Failed => row.wall_ms().map(fmt_wall_ms),
+        TaskState::Running | TaskState::Retrying => {
+            let start = row.started_ms?;
+            let now = view.last_ts_ms()?;
+            Some(fmt_wall_ms(u64::try_from(now.saturating_sub(start)).ok()?))
+        }
+        TaskState::Pending | TaskState::Skipped | TaskState::Cancelled => None,
+    }
+}
+
+/// Assemble one storyboard row: glyph · id · dimmed note · then the
+/// time/cost/lane suffix, column-aligned on RAW (pre-paint) widths so
+/// ANSI escapes never skew the layout. Rows with no suffix keep the
+/// legacy shape exactly (no trailing padding).
+// `&Theme` to match the `frame` borrow that threads it here — the same
+// one-calling-convention rationale as `append_failure_card`.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn task_line(
+    row: &TaskRow,
+    view: &RunView,
+    theme: &Theme,
+    tick: usize,
+    (id_w, note_w, time_w): (usize, usize, usize),
+    time: Option<&str>,
+    mark: bool,
+) -> String {
+    let mut note = row.note.clone();
+    if row.state == TaskState::Running && !view.token_samples.is_empty() {
+        let spark = theme.sparkline(&view.token_samples);
+        if !spark.is_empty() {
+            note = format!("{note} {spark}");
+        }
+    }
+    let mut line = format!(
+        "  {} {:<id_w$}  {}",
+        theme.glyph(row.state, tick),
+        row.id,
+        theme.paint(Role::Dim, &note),
+    );
+    let cost = row.cost_usd.map(|c| format!(" · ${c:.4}"));
+    if time.is_none() && cost.is_none() && !mark {
+        return line;
+    }
+    // Column pad computed on the RAW note (paint added escapes, the
+    // sparkline may ride a running row — transient shift accepted).
+    let pad = note_w.saturating_sub(row.note.chars().count());
+    line.push_str(&" ".repeat(pad + 2));
+    let cell = format!("{:>time_w$}", time.unwrap_or(""));
+    line.push_str(&theme.paint(Role::Dim, cell.trim_end()));
+    if let Some(cost) = cost {
+        line.push_str(&theme.paint(Role::Dim, &cost));
+    }
+    if mark {
+        line.push_str(&theme.paint(Role::Accent, if theme.ascii { " ||" } else { " ∥" }));
+    }
+    line
 }
 
 /// Render the COMPACT final card (spec §3.5 `--quiet` · "final card only ·
@@ -186,6 +270,9 @@ mod tests {
     };
 
     /// Golden frame — the unicode theme, colour off (the exact spec story).
+    /// Time is a first-class column now: each settled row carries its wall
+    /// time right-aligned after the note column, per-task spend follows on
+    /// the rows whose completion reported one; the skipped row stays bare.
     #[test]
     fn golden_success_frame_unicode() {
         let lines = frame(&fold(&demo::success()), &UNICODE, 0);
@@ -193,10 +280,10 @@ mod tests {
             "  🦋 nika · veille-news · 5 tasks · ceiling ≤ $0.04",
             "     permits ✓ network:read(hn.algolia.com) · fs:write(./out)",
             "",
-            "  ✔  fetch_top     http 200 · 1.2s · 34 KB",
-            "  ✔  extract_ai    jq · 0.1s · 12 items",
-            "  ✔  summarize     claude-sonnet · 3.1s · $0.011",
-            "  ✔  write_md      2.1 KB written",
+            "  ✔  fetch_top     http 200 · 1.2s · 34 KB         1.2s",
+            "  ✔  extract_ai    jq · 0.1s · 12 items           130ms",
+            "  ✔  summarize     claude-sonnet · 3.1s · $0.011   3.0s · $0.0110",
+            "  ✔  write_md      2.1 KB written                 290ms",
             "  ⊘  notify_slack  when: env.CI != 'true'",
         ];
         assert_eq!(&lines[..8], &expected[..]);
@@ -217,7 +304,10 @@ mod tests {
             lines[0],
             "  [nika] nika · veille-news · 5 tasks · ceiling ≤ $0.04"
         );
-        assert_eq!(lines[3], "  ok fetch_top     http 200 · 1.2s · 34 KB");
+        assert_eq!(
+            lines[3],
+            "  ok fetch_top     http 200 · 1.2s · 34 KB         1.2s"
+        );
     }
 
     #[test]
@@ -341,6 +431,49 @@ mod tests {
     fn frame_is_stable_under_ticks_when_nothing_runs() {
         let view = fold(&demo::success());
         assert_eq!(frame(&view, &UNICODE, 0), frame(&view, &UNICODE, 9));
+    }
+
+    /// The running row shows a LIVE elapsed (now − started) and `∥` marks
+    /// the wave-siblings that actually overlapped — with `||` parity under
+    /// the ASCII theme (never a unicode leak).
+    #[test]
+    fn lanes_and_live_elapsed_render_in_both_themes() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+
+        let mut view = RunView::new();
+        let task = |name: &str| KeyValue::new("task", Value::String(name.to_owned()));
+        view.apply(&demo::bare_event(EventKind::TaskStarted, 100).with_field(task("a")));
+        view.apply(&demo::bare_event(EventKind::TaskStarted, 150).with_field(task("b")));
+        // a settles at 1000 with a REAL measured duration (900ms) → its
+        // reconstructed interval [100, 1000] overlaps b's [150, now].
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 1000)
+                .with_field(task("a"))
+                .with_field(KeyValue::new("duration_ms", Value::Int(900))),
+        );
+
+        let lines = frame(&view, &UNICODE, 0);
+        let a = lines.iter().find(|l| l.contains(" a ")).expect("a row");
+        assert!(
+            a.contains("900ms") && a.ends_with('∥'),
+            "settled sibling: duration + lane marker: {a}"
+        );
+        let b = lines.iter().find(|l| l.contains(" b ")).expect("b row");
+        assert!(
+            b.contains("850ms") && b.ends_with('∥'),
+            "running sibling: LIVE elapsed (1000−150) + marker: {b}"
+        );
+
+        let ascii = frame(&view, &ASCII, 0);
+        assert!(
+            ascii.iter().any(|l| l.ends_with("900ms ||")),
+            "ascii parity ∥→||: {ascii:?}"
+        );
+        assert!(
+            !ascii.iter().any(|l| l.contains('∥')),
+            "no unicode leaks into --ascii: {ascii:?}"
+        );
     }
 
     /// The sparkline rides the RUNNING row exactly when samples exist —
