@@ -75,10 +75,13 @@ enum Command {
         #[arg(long)]
         ascii: bool,
     },
-    /// Static anatomy: tasks · verbs · DAG tree · cost · permits.
+    /// Static anatomy: tasks · verbs · wave groups · cost · permits.
     Inspect {
         /// Workflow file (`*.nika.yaml`).
         file: String,
+        /// Force the ASCII glyph theme (CI logs · legacy terminals).
+        #[arg(long)]
+        ascii: bool,
     },
     /// The ONE graph projector (json canonical · mermaid/dot derived).
     Graph {
@@ -319,7 +322,7 @@ fn main() -> std::process::ExitCode {
             no_color,
             ascii,
         } => verbs::test::run(&file, update, term_theme(no_color, ascii)),
-        Command::Inspect { file } => emit(&verbs::inspect::run(&file)),
+        Command::Inspect { file, ascii } => emit(&verbs::inspect::run(&file, ascii)),
         Command::Graph { file, format } => {
             let format = match format {
                 GraphFormatArg::Json => verbs::graph::GraphFormat::Json,

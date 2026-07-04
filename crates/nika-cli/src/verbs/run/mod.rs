@@ -116,7 +116,7 @@ pub fn run(
 
     // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
     if dry_run {
-        return render_dry_run(file);
+        return render_dry_run(file, theme.ascii);
     }
 
     // ── Compose the production runtime (real seams · env keys) ──────
@@ -236,8 +236,8 @@ fn output_mode(output: Option<&str>) -> Result<bool, u8> {
 /// render the static plan (the same anatomy `nika inspect` renders) without
 /// composing any production seam. No fs, no http, no subprocess, no
 /// provider call — the run is never reached.
-fn render_dry_run(file: &str) -> u8 {
-    let plan = crate::verbs::inspect::run(file);
+fn render_dry_run(file: &str, ascii: bool) -> u8 {
+    let plan = crate::verbs::inspect::run(file, ascii);
     if !plan.text.is_empty() {
         println!("{}", plan.text.trim_end());
     }

@@ -175,21 +175,36 @@ fn graph_refuses_a_dag_broken_file_with_exit_2() {
 // ─── inspect · the terminal anatomy ─────────────────────────────────────
 
 #[test]
-fn inspect_draws_the_box_tree_with_static_facts() {
+fn inspect_draws_the_wave_groups_with_static_facts() {
     let path = fixture_path("inspect.nika.yaml", WORKFLOW);
-    let out = inspect::run(&path);
+    let out = inspect::run(&path, false);
     assert_eq!(out.code, exit::OK, "{}", out.text);
 
     // Header: identity + counts + the honest cost bound.
     let header = out.text.lines().next().expect("header");
     assert!(
-        header.contains("static-suite · 5 task(s)"),
+        header.contains("static-suite · 5 tasks"),
         "header: {header}"
     );
     assert!(header.contains("floor"), "mock/echo is unpriced: {header}");
 
-    // Tree rows: box glyphs + verb facts + gate + fan-out.
-    assert!(out.text.contains("├─") || out.text.contains("└─"));
+    // Waves as bordered groups: {gather,probe} · {fan,think} · notify.
+    assert!(
+        out.text.contains("╭ wave 1 ── 2 in parallel "),
+        "{}",
+        out.text
+    );
+    assert!(
+        out.text.contains("╭ wave 2 ── 2 in parallel "),
+        "{}",
+        out.text
+    );
+    assert_eq!(
+        out.text.matches("    ↓").count(),
+        2,
+        "two flow arrows join three waves: {}",
+        out.text
+    );
     assert!(out.text.contains("invoke · nika:read"), "{}", out.text);
     assert!(out.text.contains("for_each ×3"), "{}", out.text);
     assert!(
