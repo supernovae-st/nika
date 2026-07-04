@@ -34,6 +34,7 @@ uuid             = { workspace = true }
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.93.0-dev" }  # MockClock · MockShell · MockToolExecutor · MockToolDefinitionProvider
 nika-providers   = { path = "../nika-providers", version = "0.93.0-dev" }    # ProviderRegistry mock/echo (the tests' InferVerb seam · the composer owns it in prod)
 nika-pack        = { path = "../nika-pack", version = "0.93.0-dev" }          # error_codes() — the spec-plane codes the runtime emits pin to the embedded canon
+bytes            = { workspace = true }   # canned HttpResponse bodies (the F1 capturing http seam)
 insta            = { workspace = true }
 proptest         = { workspace = true }
 tokio            = { workspace = true }

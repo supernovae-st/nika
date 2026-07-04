@@ -87,6 +87,7 @@ pub nika_verb_infer::InferInput::schema: core::option::Option<serde_json::value:
 pub nika_verb_infer::InferInput::system: core::option::Option<alloc::string::String>
 pub nika_verb_infer::InferInput::temperature: core::option::Option<f32>
 pub nika_verb_infer::InferInput::thinking_budget: core::option::Option<u32>
+pub nika_verb_infer::InferInput::timeout: core::option::Option<core::time::Duration>
 impl nika_verb_infer::InferInput
 pub fn nika_verb_infer::InferInput::new(prompt: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_verb_infer::InferInput

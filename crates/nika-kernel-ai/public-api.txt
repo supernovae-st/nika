@@ -1079,6 +1079,7 @@ pub nika_kernel_ai::provider::InferRequest::stop_sequences: alloc::vec::Vec<allo
 pub nika_kernel_ai::provider::InferRequest::temperature: core::option::Option<f32>
 pub nika_kernel_ai::provider::InferRequest::tenant: core::option::Option<nika_types::id::TenantId>
 pub nika_kernel_ai::provider::InferRequest::thinking_budget: core::option::Option<u32>
+pub nika_kernel_ai::provider::InferRequest::timeout: core::option::Option<core::time::Duration>
 pub nika_kernel_ai::provider::InferRequest::tool_choice: nika_kernel_ai::provider::ToolChoice
 pub nika_kernel_ai::provider::InferRequest::tools: alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
 impl nika_kernel_ai::provider::InferRequest

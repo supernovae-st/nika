@@ -83,6 +83,12 @@ pub struct InferInput {
     pub schema: Option<serde_json::Value>,
     /// Extended-thinking token budget (spec `thinking.budget_tokens`).
     pub thinking_budget: Option<u32>,
+    /// The task-level `timeout:` budget (spec 03) — plumbed to the
+    /// provider transport deadline so the HTTP effect's fixed default
+    /// cannot undercut a longer task budget (F1 · a local model
+    /// routinely needs minutes). `None` → the adapter's per-provider
+    /// default governs.
+    pub timeout: Option<std::time::Duration>,
 }
 
 impl InferInput {
@@ -97,6 +103,7 @@ impl InferInput {
             max_tokens: None,
             schema: None,
             thinking_budget: None,
+            timeout: None,
         }
     }
 }
@@ -309,6 +316,10 @@ fn build_request(
     request.temperature = input.temperature;
     request.max_tokens = input.max_tokens;
     request.thinking_budget = input.thinking_budget;
+    // The task `timeout:` rides every round-trip of this task (schema
+    // retries included) — the OUTER attempt-loop budget still enforces
+    // the real total; this only stops the transport from undercutting it.
+    request.timeout = input.timeout;
     if let Some(schema) = &input.schema
         && native_schema
     {
@@ -561,6 +572,22 @@ mod tests {
             InferValue::Text(t) => assert!(t.contains("capital of France")),
             other => panic!("expected text, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn request_carries_the_task_timeout() {
+        // F1: the task `timeout:` must reach the provider transport
+        // deadline — unset stays None (the adapter's per-provider
+        // default governs).
+        let budget = std::time::Duration::from_secs(420);
+        let mut input = InferInput::new("q");
+        input.timeout = Some(budget);
+        let req = build_request(&input, "m", base_messages(&input, true), true);
+        assert_eq!(req.timeout, Some(budget));
+
+        let unset = InferInput::new("q");
+        let req = build_request(&unset, "m", base_messages(&unset, true), true);
+        assert_eq!(req.timeout, None, "no budget → adapter default governs");
     }
 
     #[test]

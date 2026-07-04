@@ -3953,6 +3953,7 @@ dependencies = [
 name = "nika-runtime"
 version = "0.93.0-dev"
 dependencies = [
+ "bytes",
  "futures-util",
  "insta",
  "jaq-core",

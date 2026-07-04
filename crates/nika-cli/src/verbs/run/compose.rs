@@ -324,6 +324,21 @@ pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilitie
     }
 }
 
+/// The provider client's transport ceiling — `HttpConfig::timeout` on the
+/// PROVIDER client, which reqwest applies as the client-level idle-read
+/// guard (armed even while AWAITING RESPONSE HEADERS) and as the fallback
+/// total deadline for a request without an explicit one.
+///
+/// Every buffered provider call sets its OWN total deadline (the task
+/// `timeout:` · else the wire layer's per-provider default — 30s cloud ·
+/// 300s local), so this ceiling never governs a well-formed call; it only
+/// reaps sockets that stopped delivering. It MUST comfortably exceed the
+/// longest silent local-model wait (a non-streaming completion delivers
+/// ZERO bytes while the model computes — the default 30s guard killed every
+/// `timeout: 7m` ollama task at 30s · F1). A task `timeout:` beyond this
+/// ceiling is capped by it on a fully-silent connection.
+const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::from_secs(600);
+
 /// The HTTP client for the PROVIDER path (LLM inference), distinct from
 /// the fetch/builtin client.
 ///
@@ -338,6 +353,11 @@ pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilitie
 /// contradicts the local-first raison. `Disabled` is exactly the
 /// "trusted internal networks" opt-out the `nika-http` docs sanction.
 ///
+/// The config `timeout` is raised to [`PROVIDER_TRANSPORT_CEILING`]: the
+/// per-REQUEST deadline is owned by the wire layer (task `timeout:` else
+/// the per-provider default), and the 30s client default would undercut
+/// any longer budget via the idle-read guard (see the ceiling's doc).
+///
 /// # Errors
 ///
 /// [`nika_kernel::HttpError`] when the TLS backend won't initialize.
@@ -348,6 +368,7 @@ pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilitie
 fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
     let mut config = HttpConfig::default();
     config.ssrf = SsrfMode::Disabled;
+    config.timeout = PROVIDER_TRANSPORT_CEILING;
     ReqwestHttp::with_config(config)
 }
 

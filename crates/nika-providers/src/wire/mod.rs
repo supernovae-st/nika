@@ -23,7 +23,44 @@ use nika_kernel::ai::provider::{InferEvent, ProviderError};
 use nika_kernel::genai::GenAiSystem;
 use nika_kernel::http::HttpError;
 
+use crate::profile::Profile;
 use crate::sse::SseParser;
+
+/// Default transport deadline for CLOUD providers when the task declares
+/// no `timeout:` — matches the HTTP effect's historical 30s default (the
+/// pre-plumb behavior · cloud completions comfortably fit it).
+pub(crate) const CLOUD_DEFAULT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Default transport deadline for the 5 LOCAL servers (`ollama` ·
+/// `lmstudio` · `llamacpp` · `localai` · `vllm`) when the task declares
+/// no `timeout:` — a local model routinely needs minutes for one
+/// completion on consumer hardware; the 30s cloud default killed every
+/// serious local-first workflow with a 408 (F1 field report 2026-07-04).
+pub(crate) const LOCAL_DEFAULT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// The per-request transport deadline for one provider round-trip.
+///
+/// BUFFERED calls always get a total deadline: the task-level `timeout:`
+/// (plumbed via `InferRequest::timeout`) when declared, else the
+/// per-provider default (local ≫ cloud — the sovereignty story breaks
+/// when a 14B model gets 30s). STREAMING requests carry only an EXPLICIT
+/// task timeout (else `None`): an SSE generation legitimately outlives
+/// any fixed total budget — the http effect's idle-read guard reaps a
+/// STALLED stream instead (`nika-http` streaming timeout semantics).
+pub(crate) fn transport_deadline(
+    profile: &Profile,
+    req: &nika_kernel::ai::provider::InferRequest,
+    stream: bool,
+) -> Option<std::time::Duration> {
+    if stream {
+        return req.timeout;
+    }
+    Some(req.timeout.unwrap_or(if profile.is_local() {
+        LOCAL_DEFAULT_TIMEOUT
+    } else {
+        CLOUD_DEFAULT_TIMEOUT
+    }))
+}
 
 /// Transport-layer failure → provider error (no HTTP status yet).
 pub(crate) fn map_http_err(e: &HttpError) -> ProviderError {
@@ -396,6 +433,42 @@ mod tests {
             }
             other => panic!("expected Api, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn transport_deadline_matrix() {
+        use nika_kernel::ai::provider::{InferRequest, Message, Role};
+        use std::time::Duration;
+
+        let profiles = crate::profile::seed();
+        let ollama = profiles.iter().find(|p| p.id == "ollama").expect("ollama");
+        let openai = profiles.iter().find(|p| p.id == "openai").expect("openai");
+        let req = |t: Option<Duration>| {
+            let mut r = InferRequest::new("m", vec![Message::text(Role::User, "q")]);
+            r.timeout = t;
+            r
+        };
+
+        // Buffered · no task budget → the per-class default.
+        assert_eq!(
+            transport_deadline(ollama, &req(None), false),
+            Some(LOCAL_DEFAULT_TIMEOUT),
+            "local default is the generous one"
+        );
+        assert_eq!(
+            transport_deadline(openai, &req(None), false),
+            Some(CLOUD_DEFAULT_TIMEOUT),
+            "cloud keeps the historical 30s"
+        );
+        // Buffered · task budget → it wins on BOTH classes.
+        let budget = Some(Duration::from_secs(420));
+        assert_eq!(transport_deadline(ollama, &req(budget), false), budget);
+        assert_eq!(transport_deadline(openai, &req(budget), false), budget);
+        // Streaming → explicit-only (None = idle guard governs).
+        assert_eq!(transport_deadline(openai, &req(None), true), None);
+        assert_eq!(transport_deadline(openai, &req(budget), true), budget);
+        // The local default honours the ≥300s floor (F1 acceptance).
+        assert!(LOCAL_DEFAULT_TIMEOUT >= Duration::from_secs(300));
     }
 
     #[test]
