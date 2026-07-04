@@ -109,6 +109,7 @@ pub fn run(
         Ok(map) => map,
         Err(message) => {
             eprintln!("nika run: {message}");
+            emit_error_envelope(&message, output_json);
             return exit::ENV;
         }
     };
@@ -139,6 +140,7 @@ pub fn run(
         Ok(rt) => rt.with_var_overrides(overrides),
         Err(e) => {
             eprintln!("nika run: environment: {e}");
+            emit_error_envelope(&e.to_string(), output_json);
             return exit::ENV;
         }
     };
@@ -150,7 +152,9 @@ pub fn run(
     {
         Ok(rt) => rt,
         Err(e) => {
-            eprintln!("nika run: environment: cannot start the async executor: {e}");
+            let message = format!("cannot start the async executor: {e}");
+            eprintln!("nika run: environment: {message}");
+            emit_error_envelope(&message, output_json);
             return exit::ENV;
         }
     };
@@ -370,11 +374,23 @@ async fn execute(
         let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
         let (code, outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         sink.print_final();
+        // Built BEFORE the sink is consumed — the failure envelope reads
+        // the folded view (the failed row's detail carries the wire code).
+        let failure_line = (code != exit::OK).then(|| run_failure_envelope(sink.view()));
         if let Some(e) = sink.into_error() {
-            eprintln!("nika run: render failed: {e}");
+            let message = format!("render failed: {e}");
+            eprintln!("nika run: {message}");
+            println!("{}", error_envelope_line(&message));
             return exit::ENV;
         }
-        println!("{}", outputs_json_line(&outputs));
+        // stdout is ALWAYS one self-sufficient JSON object (F6): the
+        // resolved `outputs:` on success · the `{"error":{…}}` envelope on
+        // failure (it used to stay empty/`{}` — a machine consumer had to
+        // scrape stderr to learn WHY).
+        match failure_line {
+            Some(line) => println!("{line}"),
+            None => println!("{}", outputs_json_line(&outputs)),
+        }
         code
     } else if json {
         let mut sink = JsonSink::new(std::io::stdout().lock());
@@ -453,12 +469,80 @@ fn outputs_json_line(outputs: &BTreeMap<String, Value>) -> String {
 /// Route a human-readable diagnostic to the spec-correct stream: stderr in
 /// `--output json` mode (stdout MUST stay a clean JSON object · the export
 /// contract · `capture: stdout` composition), stdout in the human modes.
+/// In machine mode the failure ALSO lands on stdout as the `{"error":{…}}`
+/// envelope (F6) — the machine surface is self-sufficient, success or not.
 fn emit_diagnostic(text: &str, output_json: bool) {
     if output_json {
         eprint!("{text}");
+        println!("{}", error_envelope_line(envelope_message(text)));
     } else {
         print!("{text}");
     }
+}
+
+/// Print the machine failure envelope when in `--output json` mode (the
+/// ENV-class exits inside `run` share this one seam).
+fn emit_error_envelope(message: &str, output_json: bool) {
+    if output_json {
+        println!("{}", error_envelope_line(message));
+    }
+}
+
+/// ONE `{"error":{"code":…,"message":…}}` line — the machine failure
+/// contract (F6). `code` is the first NIKA wire code found in the message
+/// (`null` when the failure class carries none, e.g. an unreadable file).
+fn error_envelope_line(message: &str) -> String {
+    serde_json::json!({
+        "error": { "code": first_nika_code(message), "message": message }
+    })
+    .to_string()
+}
+
+/// Best-effort wire-code extraction: the first `NIKA-…` token in a
+/// diagnostic (findings render `[NIKA-PARSE-009]` · run details lead with
+/// `NIKA-431 · …`). Never invents — no token, no code.
+fn first_nika_code(text: &str) -> Option<&str> {
+    let start = text.find("NIKA-")?;
+    let rest = &text[start..];
+    let end = rest
+        .find(|c: char| !(c.is_ascii_uppercase() || c.is_ascii_digit() || c == '-'))
+        .unwrap_or(rest.len());
+    let code = rest[..end].trim_end_matches('-');
+    // A bare `NIKA-` prefix with no digits is prose, not a code.
+    (code.len() > "NIKA-".len() && code.bytes().any(|b| b.is_ascii_digit())).then_some(code)
+}
+
+/// The one-line message for a findings-render envelope: the first line
+/// carrying a wire code (the render wraps it in section noise), else the
+/// first non-empty line.
+fn envelope_message(text: &str) -> &str {
+    let mut lines = text.lines().filter(|l| !l.trim().is_empty());
+    let first = lines.next().unwrap_or(text);
+    std::iter::once(first)
+        .chain(lines)
+        .find(|l| l.contains("NIKA-"))
+        .unwrap_or(first)
+        .trim()
+}
+
+/// The failure envelope for a run that EXECUTED and failed: the first
+/// failed task row's detail (it carries the wire code), else the
+/// workflow-level detail (run-end typed-output breaches), else a stable
+/// fallback — stdout never goes silent on a machine consumer.
+fn run_failure_envelope(view: &crate::RunView) -> String {
+    let failed = view
+        .rows()
+        .iter()
+        .find(|r| r.state == crate::TaskState::Failed);
+    let message = match failed {
+        Some(row) if row.detail.is_empty() => format!("task `{}` failed", row.id),
+        Some(row) => format!("task `{}` failed — {}", row.id, row.detail),
+        None => view
+            .workflow_detail
+            .clone()
+            .unwrap_or_else(|| "workflow failed".to_owned()),
+    };
+    error_envelope_line(&message)
 }
 
 #[cfg(test)]
@@ -638,6 +722,91 @@ mod tests {
             exit::ENV,
             "malformed --var pair is refused"
         );
+    }
+
+    // ── F6 · the `--output json` machine failure envelope ────────────
+
+    /// The envelope is ONE JSON object with the `{"error":{code,message}}`
+    /// shape · the code is extracted, never invented.
+    #[test]
+    fn error_envelope_is_one_object_with_extracted_code() {
+        let line = super::error_envelope_line("task failed — NIKA-VAR-001 · unresolved reference");
+        let v: Value = serde_json::from_str(&line).expect("envelope is JSON");
+        assert_eq!(v["error"]["code"], json!("NIKA-VAR-001"));
+        assert!(
+            v["error"]["message"]
+                .as_str()
+                .expect("message is a string")
+                .contains("unresolved"),
+        );
+        assert!(!line.contains('\n'), "one line — the machine contract");
+
+        // No wire code in the failure class (unreadable file) → null, not
+        // a hallucinated code.
+        let env_line = super::error_envelope_line("cannot read wf.yaml: No such file");
+        let v: Value = serde_json::from_str(&env_line).expect("envelope is JSON");
+        assert!(v["error"]["code"].is_null());
+    }
+
+    /// Wire-code extraction: bracketed findings, leading run details,
+    /// per-builtin long codes — and NO false positive on bare prose.
+    #[test]
+    fn first_nika_code_finds_real_codes_only() {
+        assert_eq!(
+            super::first_nika_code("PARSE ✗  [NIKA-PARSE-009] two verbs"),
+            Some("NIKA-PARSE-009")
+        );
+        assert_eq!(
+            super::first_nika_code("NIKA-431 · provider API error"),
+            Some("NIKA-431")
+        );
+        assert_eq!(
+            super::first_nika_code("x NIKA-BUILTIN-JQ-001 y"),
+            Some("NIKA-BUILTIN-JQ-001")
+        );
+        assert_eq!(super::first_nika_code("the NIKA- prefix alone"), None);
+        assert_eq!(super::first_nika_code("no code here"), None);
+    }
+
+    /// A findings render condenses to the line that carries the code.
+    #[test]
+    fn envelope_message_prefers_the_code_line() {
+        let text =
+            "nika check · wf.yaml\n X CONFORM  [NIKA-CEL-001] bad when\n  verdict: 1 finding\n";
+        assert_eq!(
+            super::envelope_message(text),
+            "X CONFORM  [NIKA-CEL-001] bad when"
+        );
+        // No code anywhere → the first non-empty line.
+        assert_eq!(
+            super::envelope_message("\ncannot read x: gone\ndetail\n"),
+            "cannot read x: gone"
+        );
+    }
+
+    /// The run-failure envelope reads the folded view: the failed row's
+    /// detail (which carries the wire code) becomes the machine message.
+    #[test]
+    fn run_failure_envelope_carries_the_failed_task_detail() {
+        let mut view = crate::RunView::new();
+        for ev in crate::demo::failure() {
+            view.apply(&ev);
+        }
+        let line = super::run_failure_envelope(&view);
+        let v: Value = serde_json::from_str(&line).expect("envelope is JSON");
+        assert_eq!(v["error"]["code"], json!("NIKA-431"), "{line}");
+        assert!(
+            v["error"]["message"]
+                .as_str()
+                .expect("message present")
+                .contains("task `"),
+            "{line}"
+        );
+
+        // An empty view (nothing folded) still yields a stable envelope.
+        let empty = super::run_failure_envelope(&crate::RunView::new());
+        let v: Value = serde_json::from_str(&empty).expect("fallback is JSON");
+        assert_eq!(v["error"]["message"], json!("workflow failed"));
     }
 
     #[test]

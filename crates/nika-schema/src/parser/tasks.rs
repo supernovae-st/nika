@@ -307,8 +307,20 @@ pub(super) fn parse_timeout(
     // trap the spec forbids · « `30` unquoted parses as integer ·
     // ambiguous · forbidden ».
     if scalar.may_coerce() && (text.parse::<i64>().is_ok() || text.parse::<f64>().is_ok()) {
+        // The fix-form shows the author's OWN number quoted with a unit
+        // (`420` → `"420s"`) so the correction is a copy-paste, not a
+        // doc hunt; a fractional value falls back to canonical examples
+        // (the Go-duration grammar here takes integer counts).
+        let example = if text.parse::<i64>().is_ok() {
+            format!("`\"{text}s\"` for seconds · `\"7m\"` for minutes")
+        } else {
+            "`\"30s\"` · `\"7m\"` · `\"1h30m\"`".to_owned()
+        };
         return Err(SchemaError::BadTimeout {
-            reason: format!("bare number `{text}` is ambiguous — use a quoted Go-duration string"),
+            reason: format!(
+                "bare number `{text}` is ambiguous — use a quoted Go-duration \
+                 string (e.g. {example})"
+            ),
             span: cx.span(scalar.span()),
         });
     }
@@ -827,6 +839,12 @@ tasks:
         assert!(
             matches!(&err, SchemaError::BadTimeout { reason, .. } if reason.contains("ambiguous")),
             "{err:?}"
+        );
+        // F6a · the fix-form is the author's own number, quoted (`"30s"`)
+        // — the field report hit `timeout: 420` and had to hunt the spec.
+        assert!(
+            matches!(&err, SchemaError::BadTimeout { reason, .. } if reason.contains("\"30s\"")),
+            "the error shows the concrete quoted form: {err:?}"
         );
     }
 
