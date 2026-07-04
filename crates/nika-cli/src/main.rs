@@ -97,6 +97,12 @@ enum Command {
         /// mock/echo` previews any workflow offline (zero key · zero network).
         #[arg(long, value_name = "PROVIDER/NAME")]
         model: Option<String>,
+        /// Set a workflow `vars:` value (repeatable). Overrides a declared
+        /// `default:` and satisfies a `required: true` var. The value is
+        /// parsed as JSON when it parses (numbers · booleans · arrays),
+        /// else taken as a string. Unknown keys are refused.
+        #[arg(long = "var", value_name = "KEY=VALUE")]
+        var: Vec<String>,
     },
     /// Static anatomy: tasks · verbs · DAG tree · cost · permits.
     Inspect {
@@ -295,6 +301,7 @@ fn main() -> std::process::ExitCode {
             quiet,
             dry_run,
             model,
+            var,
         } => verbs::run::run(
             &file,
             json,
@@ -303,6 +310,7 @@ fn main() -> std::process::ExitCode {
             resolve_run_mode(quiet, no_progress),
             dry_run,
             model.as_deref(),
+            &var,
         ),
         Command::Inspect { file } => emit(&verbs::inspect::run(&file)),
         Command::Graph { file, format } => {

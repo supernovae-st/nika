@@ -154,6 +154,11 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// the prior behavior); the composer injects an env/file resolver via
     /// [`Self::with_secret_resolver`].
     secrets: Arc<dyn WorkflowSecretResolver>,
+    /// Operator-supplied `vars:` values (`nika run --var key=value` · F4)
+    /// — merged OVER the envelope defaults at run start, so an override
+    /// wins and a `required: true` var without a default becomes
+    /// runnable. Empty by default (envelope defaults only).
+    var_overrides: BTreeMap<String, Value>,
 }
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
@@ -178,6 +183,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             clock,
             config,
             secrets: Arc::new(secret::NoSecrets),
+            var_overrides: BTreeMap::new(),
         }
     }
 
@@ -187,6 +193,18 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_secret_resolver(mut self, resolver: Arc<dyn WorkflowSecretResolver>) -> Self {
         self.secrets = resolver;
+        self
+    }
+
+    /// Inject operator-supplied `vars:` values (`nika run --var key=value`
+    /// · F4). Builder form — merged OVER the envelope defaults at run
+    /// start: an override wins against a declared `default:`, and a
+    /// `required: true` var without one becomes runnable from the CLI.
+    /// Keys are the composer's concern (the CLI validates them against
+    /// the workflow's declared `vars:` before composing).
+    #[must_use]
+    pub fn with_var_overrides(mut self, overrides: BTreeMap<String, Value>) -> Self {
+        self.var_overrides = overrides;
         self
     }
 }
@@ -304,7 +322,12 @@ where
         if !report.is_clean() {
             return Err(RuntimeError::DirtyReport);
         }
-        let (vars, workflow_name) = envelope_values(wf);
+        let (mut vars, workflow_name) = envelope_values(wf);
+        // Operator `--var` overrides win over the envelope defaults (F4) —
+        // and give a `required: true` var without a default its value.
+        for (key, value) in &self.var_overrides {
+            vars.insert(key.clone(), value.clone());
+        }
         // Resolve the `secrets:` namespace ONCE at run start (MINOR-B · the
         // injected composer resolver reads env/file). A miss leaves that
         // secret unbound → its `${{ secrets.X }}` reference raises NIKA-1702
@@ -842,6 +865,110 @@ outputs:
         assert!(
             !completed.fields.iter().any(|f| f.key == "warning"),
             "no warning on a clean success"
+        );
+    }
+}
+
+/// F4 — operator `--var` overrides through the REAL parse → check → run
+/// chain: an override wins over a declared `default:`, and a
+/// `required: true` var without one becomes runnable (before: the run
+/// could only die NIKA-VAR-001 at first reference).
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod var_override_tests {
+    use std::collections::BTreeMap;
+    use std::sync::Arc;
+
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+    use nika_verb_agent::AgentVerb;
+    use nika_verb_exec::ExecVerb;
+    use nika_verb_infer::InferVerb;
+    use nika_verb_invoke::InvokeVerb;
+    use serde_json::Value;
+
+    use crate::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, VecSink};
+
+    const WORKFLOW: &str = r#"
+nika: v1
+workflow: var-override
+vars:
+  topic:
+    type: string
+    required: true
+  lang: { type: string, default: "en" }
+tasks:
+  - id: say
+    exec: { command: "echo ${{ vars.topic }}" }
+outputs:
+  topic_out: ${{ vars.topic }}
+  lang_out: ${{ vars.lang }}
+"#;
+
+    async fn run_with(overrides: BTreeMap<String, Value>) -> RunOutcome {
+        let wf = nika_schema::parse(
+            WORKFLOW,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        assert!(report.is_clean(), "fixture passes the ladder");
+
+        let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+        let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new().enqueue_ok("said\n"))),
+            Arc::clone(&invoke),
+            InferVerb::new(registry, "mock/echo"),
+            AgentVerb::new(
+                Arc::new(MockProvider::new("mock")),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "mock/echo",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default(),
+        )
+        .with_var_overrides(overrides);
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("clean run")
+    }
+
+    #[tokio::test]
+    async fn override_satisfies_a_required_var_and_beats_the_default() {
+        let overrides = BTreeMap::from([
+            ("topic".to_owned(), Value::String("rust".to_owned())),
+            ("lang".to_owned(), Value::String("fr".to_owned())),
+        ]);
+        let outcome = run_with(overrides).await;
+        assert!(outcome.ok, "the required var is satisfied → green run");
+        assert_eq!(outcome.outputs["topic_out"], "rust");
+        assert_eq!(
+            outcome.outputs["lang_out"], "fr",
+            "an override wins over the declared default"
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_required_var_still_fails_var001_at_reference() {
+        // No override → the pre-F4 behavior is intact: the task's
+        // `${{ vars.topic }}` fails NIKA-VAR-001 (with the --var hint).
+        let outcome = run_with(BTreeMap::new()).await;
+        assert!(!outcome.ok, "unbound required var fails the task");
+        let record = &outcome.records["say"];
+        let error = record.error.as_ref().expect("task carries its error");
+        assert_eq!(error.code, "NIKA-VAR-001");
+        assert!(
+            error.message.contains("--var"),
+            "the message teaches the CLI fix: {}",
+            error.message
         );
     }
 }

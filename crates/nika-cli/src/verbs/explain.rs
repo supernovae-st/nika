@@ -86,14 +86,32 @@ fn canon_row(code: &str) -> Option<String> {
     let row = nika_pack::error_codes()
         .into_iter()
         .find(|r| r.code == code)?;
+    let fix = cli_fix_hint(code)
+        .map(|h| format!("  fix: {h}\n\n"))
+        .unwrap_or_default();
     Some(format!(
-        "{code} · {category} · transient: {transient}\n\n  {failure}\n\n\
+        "{code} · {category} · transient: {transient}\n\n  {failure}\n\n{fix}\
          spec conformance code — emitted by `nika check`; prose home: \
          spec/05-errors.md (embedded canon `error_codes` is the SSOT row).\n",
         category = row.category,
         transient = row.transient,
         failure = row.failure,
     ))
+}
+
+/// The ENGINE-side actionable fix for a spec code, when this binary
+/// ships one (the canon row states the FAILURE — the SSOT never carries
+/// per-CLI affordances, so the flag lives here with the flag itself).
+fn cli_fix_hint(code: &str) -> Option<&'static str> {
+    match code {
+        // F4: the unresolved-vars class is fixable from the CLI.
+        "NIKA-VAR-001" => Some(
+            "an unbound workflow var is supplied on the CLI — `nika run <file> \
+             --var <key>=<value>` (repeatable) — or given a `default:` in the \
+             workflow `vars:` block",
+        ),
+        _ => None,
+    }
 }
 
 /// Parse a per-builtin runtime code `NIKA-BUILTIN-<NAME>-<NNN>` to the builtin
@@ -141,6 +159,20 @@ mod tests {
         assert!(out.text.contains("NIKA-DAG-003"));
         assert!(out.text.contains("validation_error"));
         assert!(out.text.contains("spec/05-errors.md"));
+    }
+
+    #[test]
+    fn var001_teaches_the_var_flag() {
+        // F4: `nika explain NIKA-VAR-001` must say HOW to supply a var
+        // from the CLI, not just that the reference is unresolved.
+        let out = run("NIKA-VAR-001");
+        assert_eq!(out.code, exit::OK);
+        assert!(out.text.contains("--var"), "names the flag:\n{}", out.text);
+        assert!(
+            out.text.contains("default:"),
+            "names the workflow-side fix too:\n{}",
+            out.text
+        );
     }
 
     #[test]
