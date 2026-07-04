@@ -59,51 +59,7 @@ enum Command {
         ascii: bool,
     },
     /// Execute a CHECKED workflow through the L3 runtime (live render).
-    Run {
-        /// Workflow file (`*.nika.yaml`).
-        file: String,
-        /// Stream NDJSON events instead of the live render (CI · agents).
-        #[arg(long)]
-        json: bool,
-        /// Print the typed `outputs:` as ONE JSON object on stdout
-        /// (progress → stderr) · the export contract · powers
-        /// `exec: nika run sub.yaml --output json` + `capture: stdout`.
-        #[arg(long, value_name = "FORMAT", conflicts_with = "json")]
-        output: Option<String>,
-        /// Disable colour output.
-        #[arg(long)]
-        no_color: bool,
-        /// Force the ASCII glyph theme.
-        #[arg(long)]
-        ascii: bool,
-        /// Plain render: one final storyboard frame, no animation (the
-        /// CI-stable surface · also the default when stdout is piped).
-        /// A human surface — meaningless with the `--json`/`--output` machine
-        /// modes, so refused there (the machine surface owns its rendering).
-        #[arg(long, conflicts_with_all = ["json", "output"])]
-        no_progress: bool,
-        /// Quiet: print only the final verdict card (errors always). A human
-        /// surface · refused with `--no-progress` and the machine modes.
-        #[arg(long, conflicts_with_all = ["no_progress", "json", "output"])]
-        quiet: bool,
-        /// Plan only — show the static plan and execute ZERO effects (spec §10).
-        /// A human plan preview · refused with the `--json`/`--output` machine
-        /// modes (no machine dry-run form yet · would silently corrupt stdout).
-        #[arg(long, conflicts_with_all = ["json", "output"])]
-        dry_run: bool,
-        /// Override the workflow's envelope `model:` (`<provider>/<name>`).
-        /// Resolved through the SAME path as an envelope model — a bad id
-        /// fails loud when an infer/agent task resolves it. `--model
-        /// mock/echo` previews any workflow offline (zero key · zero network).
-        #[arg(long, value_name = "PROVIDER/NAME")]
-        model: Option<String>,
-        /// Set a workflow `vars:` value (repeatable). Overrides a declared
-        /// `default:` and satisfies a `required: true` var. The value is
-        /// parsed as JSON when it parses (numbers · booleans · arrays),
-        /// else taken as a string. Unknown keys are refused.
-        #[arg(long = "var", value_name = "KEY=VALUE")]
-        var: Vec<String>,
-    },
+    Run(RunArgs),
     /// Golden test: run under the MOCK provider (offline · deterministic)
     /// and compare the typed `outputs:` against `<file>.golden.json`.
     Test {
@@ -266,6 +222,56 @@ enum TraceAction {
 }
 
 #[derive(Args)]
+// Five independent CLI flags ARE five bools — the clap-surface idiom
+// (same as TraceArgs), not a state machine to encode.
+#[allow(clippy::struct_excessive_bools)]
+struct RunArgs {
+    /// Workflow file (`*.nika.yaml`).
+    file: String,
+    /// Stream NDJSON events instead of the live render (CI · agents).
+    #[arg(long)]
+    json: bool,
+    /// Print the typed `outputs:` as ONE JSON object on stdout
+    /// (progress → stderr) · the export contract · powers
+    /// `exec: nika run sub.yaml --output json` + `capture: stdout`.
+    #[arg(long, value_name = "FORMAT", conflicts_with = "json")]
+    output: Option<String>,
+    /// Disable colour output.
+    #[arg(long)]
+    no_color: bool,
+    /// Force the ASCII glyph theme.
+    #[arg(long)]
+    ascii: bool,
+    /// Plain render: one final storyboard frame, no animation (the
+    /// CI-stable surface · also the default when stdout is piped).
+    /// A human surface — meaningless with the `--json`/`--output` machine
+    /// modes, so refused there (the machine surface owns its rendering).
+    #[arg(long, conflicts_with_all = ["json", "output"])]
+    no_progress: bool,
+    /// Quiet: print only the final verdict card (errors always). A human
+    /// surface · refused with `--no-progress` and the machine modes.
+    #[arg(long, conflicts_with_all = ["no_progress", "json", "output"])]
+    quiet: bool,
+    /// Plan only — show the static plan and execute ZERO effects (spec §10).
+    /// A human plan preview · refused with the `--json`/`--output` machine
+    /// modes (no machine dry-run form yet · would silently corrupt stdout).
+    #[arg(long, conflicts_with_all = ["json", "output"])]
+    dry_run: bool,
+    /// Override the workflow's envelope `model:` (`<provider>/<name>`).
+    /// Resolved through the SAME path as an envelope model — a bad id
+    /// fails loud when an infer/agent task resolves it. `--model
+    /// mock/echo` previews any workflow offline (zero key · zero network).
+    #[arg(long, value_name = "PROVIDER/NAME")]
+    model: Option<String>,
+    /// Set a workflow `vars:` value (repeatable). Overrides a declared
+    /// `default:` and satisfies a `required: true` var. The value is
+    /// parsed as JSON when it parses (numbers · booleans · arrays),
+    /// else taken as a string. Unknown keys are refused.
+    #[arg(long = "var", value_name = "KEY=VALUE")]
+    var: Vec<String>,
+}
+
+#[derive(Args)]
 // Four independent CLI flags ARE four bools — the clap-surface idiom, not
 // a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
@@ -306,27 +312,7 @@ fn main() -> std::process::ExitCode {
             };
             emit(&out)
         }
-        Command::Run {
-            file,
-            json,
-            output,
-            no_color,
-            ascii,
-            no_progress,
-            quiet,
-            dry_run,
-            model,
-            var,
-        } => verbs::run::run(
-            &file,
-            json,
-            output.as_deref(),
-            term_theme(no_color, ascii),
-            resolve_run_mode(quiet, no_progress),
-            dry_run,
-            model.as_deref(),
-            &var,
-        ),
+        Command::Run(args) => run_verb(&args),
         Command::Test {
             file,
             update,
@@ -402,6 +388,20 @@ fn emit(out: &VerbOutput) -> u8 {
         println!("{}", out.text.trim_end());
     }
     out.code
+}
+
+/// Unpack the `run` clap surface into the library verb call.
+fn run_verb(args: &RunArgs) -> u8 {
+    verbs::run::run(
+        &args.file,
+        args.json,
+        args.output.as_deref(),
+        term_theme(args.no_color, args.ascii),
+        resolve_run_mode(args.quiet, args.no_progress),
+        args.dry_run,
+        args.model.as_deref(),
+        &args.var,
+    )
 }
 
 /// Resolve the live-render surface for `run` (spec §3.5 reduced surfaces):

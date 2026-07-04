@@ -120,29 +120,9 @@ pub fn run(
     }
 
     // ── Compose the production runtime (real seams · env keys) ──────
-    // The envelope default model · a task's own `model:` overrides it ·
-    // an exec-only workflow never resolves it (so "" is harmless until
-    // an infer/agent task actually needs a model · resolve is loud then).
-    // A `--model` override REPLACES the envelope default through this SAME
-    // path — a bad id fails loud at resolve time exactly as a bad envelope
-    // model does (no separate, lenient validation seam).
-    let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
-    let default_model = model_override.unwrap_or(envelope_model);
-    // Both runtime capability boundaries (permits.fs + permits.net.http) in
-    // one value (spec §permits · NIKA-SEC-004) — derived once so neither axis
-    // can be wired while the other is forgotten. fs gates the file builtins;
-    // net gates the fetch client per-hop (catching dynamic/redirect hosts the
-    // static check cannot see). The static check is the other half of each.
-    let caps = capabilities_of(&wf);
-    let runtime = match production_runtime(default_model, caps) {
-        // The validated `--var` overrides ride the runtime builder — they
-        // merge OVER the envelope defaults at run start (F4).
-        Ok(rt) => rt.with_var_overrides(overrides),
-        Err(e) => {
-            eprintln!("nika run: environment: {e}");
-            emit_error_envelope(&e.to_string(), output_json);
-            return exit::ENV;
-        }
+    let runtime = match composed_runtime(&wf, model_override, overrides, output_json) {
+        Ok(rt) => rt,
+        Err(code) => return code,
     };
 
     // ── Execute (block the async run on a current-thread executor) ──
@@ -298,6 +278,47 @@ fn parse_var_overrides(
         overrides.insert(key.to_owned(), value);
     }
     Ok(overrides)
+}
+
+/// Compose the production runtime for one run — extracted so `run` stays
+/// under the fn-length cap without losing the composition story.
+///
+/// The envelope default model · a task's own `model:` overrides it · an
+/// exec-only workflow never resolves it (so "" is harmless until an
+/// infer/agent task actually needs a model · resolve is loud then). A
+/// `--model` override REPLACES the envelope default through this SAME
+/// path — a bad id fails loud at resolve time exactly as a bad envelope
+/// model does (no separate, lenient validation seam).
+///
+/// Both runtime capability boundaries (permits.fs + permits.net.http)
+/// ride in one value (spec §permits · NIKA-SEC-004) — derived once so
+/// neither axis can be wired while the other is forgotten. fs gates the
+/// file builtins; net gates the fetch client per-hop (catching dynamic/
+/// redirect hosts the static check cannot see). The static check is the
+/// other half of each. The validated `--var` overrides merge OVER the
+/// envelope defaults at run start (F4).
+///
+/// # Errors
+///
+/// The ENV-class composition failure prints + envelopes itself here;
+/// the caller returns the exit code untouched.
+fn composed_runtime(
+    wf: &RawWorkflow,
+    model_override: Option<&str>,
+    overrides: BTreeMap<String, Value>,
+    output_json: bool,
+) -> Result<ProdRuntime, u8> {
+    let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
+    let default_model = model_override.unwrap_or(envelope_model);
+    let caps = capabilities_of(wf);
+    match production_runtime(default_model, caps) {
+        Ok(rt) => Ok(rt.with_var_overrides(overrides)),
+        Err(e) => {
+            eprintln!("nika run: environment: {e}");
+            emit_error_envelope(&e.to_string(), output_json);
+            Err(exit::ENV)
+        }
+    }
 }
 
 /// Execute a CHECKED workflow with the MOCK provider and capture the typed
