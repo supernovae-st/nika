@@ -104,6 +104,21 @@ enum Command {
         #[arg(long = "var", value_name = "KEY=VALUE")]
         var: Vec<String>,
     },
+    /// Golden test: run under the MOCK provider (offline · deterministic)
+    /// and compare the typed `outputs:` against `<file>.golden.json`.
+    Test {
+        /// Workflow file (`*.nika.yaml`).
+        file: String,
+        /// (Re)write the golden from this run instead of comparing.
+        #[arg(long)]
+        update: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+    },
     /// Static anatomy: tasks · verbs · DAG tree · cost · permits.
     Inspect {
         /// Workflow file (`*.nika.yaml`).
@@ -312,6 +327,12 @@ fn main() -> std::process::ExitCode {
             model.as_deref(),
             &var,
         ),
+        Command::Test {
+            file,
+            update,
+            no_color,
+            ascii,
+        } => verbs::test::run(&file, update, term_theme(no_color, ascii)),
         Command::Inspect { file } => emit(&verbs::inspect::run(&file)),
         Command::Graph { file, format } => {
             let format = match format {

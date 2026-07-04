@@ -296,6 +296,42 @@ fn parse_var_overrides(
     Ok(overrides)
 }
 
+/// Execute a CHECKED workflow with the MOCK provider and capture the typed
+/// `outputs:` — the `nika test` seam (F7). The envelope model is replaced
+/// by `mock/echo` through the SAME composition path as `--model` (offline ·
+/// zero key · deterministic + schema-conformant since F3). The fold is a
+/// DIAGNOSTIC here — it goes to stderr (verdict card on failure only), so
+/// the caller owns stdout for its own verdict/diff surface.
+///
+/// # Errors
+///
+/// A composition/executor failure (environment class) as a human-readable
+/// message — the caller maps it to `exit::ENV`.
+pub(crate) fn capture_mock_outputs(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    theme: Theme,
+) -> Result<(u8, BTreeMap<String, Value>), String> {
+    let caps = capabilities_of(wf);
+    let runtime = production_runtime("mock/echo", caps).map_err(|e| e.to_string())?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| format!("cannot start the async executor: {e}"))?;
+    Ok(rt.block_on(async {
+        let mut stamper = SystemStamper::new();
+        let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Quiet);
+        let (code, outputs) = drive(&runtime, wf, report, &mut stamper, &mut sink).await;
+        // Success is silent (the caller prints the test verdict); a failed
+        // mock run surfaces its compact verdict card so the operator sees
+        // WHY before the caller's exit.
+        if code != exit::OK {
+            sink.print_final();
+        }
+        (code, outputs)
+    }))
+}
+
 /// Should the offline-preview tip fire after an example run?
 ///
 /// True only when ALL hold: the run FAILED (`code != exit::OK`), the user
