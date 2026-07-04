@@ -397,9 +397,8 @@ where
         let outcome = {
             // The attempt loop borrows the accumulators; the borrow ends
             // when the loop future is consumed/dropped (both arms below).
-            // The task's ONE `timeout:` budget — enforced below as the
-            // attempt-loop total AND handed to the dispatch so the infer
-            // transport deadline cannot undercut it (F1).
+            // `budget` = the task's ONE `timeout:` — the total enforced
+            // below AND handed to dispatch (the infer transport · F1).
             let budget = task.timeout.as_ref().map(|t| t.value);
             let attempts = async {
                 let mut attempt = 1_u32;

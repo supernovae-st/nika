@@ -74,17 +74,11 @@ pub fn run(
     model_override: Option<&str>,
     vars: &[String],
 ) -> u8 {
-    // `--output json` selects the machine-result mode (spec 01 §"What
-    // leaves a run"): the resolved `outputs:` object as one JSON object on
-    // stdout · diagnostics/progress on stderr. Absent → the live human
-    // render. Validated up front so an unknown format fails before any work.
-    let output_json = match output {
-        None => false,
-        Some("json") => true,
-        Some(other) => {
-            eprintln!("nika run: unknown --output format `{other}` (expected `json`)");
-            return exit::ENV;
-        }
+    // `--output` validated up front so an unknown format fails before any
+    // work (machine-result mode · see `output_mode`).
+    let output_json = match output_mode(output) {
+        Ok(flag) => flag,
+        Err(code) => return code,
     };
 
     // ── Audit BEFORE run (spec §3 · INV the runtime also enforces) ──
@@ -120,16 +114,8 @@ pub fn run(
     };
 
     // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
-    // The audit passed; STOP here and show the static plan (the same anatomy
-    // `nika inspect` renders) without composing any production seam. No fs,
-    // no http, no subprocess, no provider call — the run is never reached.
     if dry_run {
-        let plan = crate::verbs::inspect::run(file);
-        if !plan.text.is_empty() {
-            println!("{}", plan.text.trim_end());
-        }
-        println!("\n  dry-run · plan only · no effects executed");
-        return exit::OK;
+        return render_dry_run(file);
     }
 
     // ── Compose the production runtime (real seams · env keys) ──────
@@ -245,6 +231,34 @@ fn example_model(yaml: &str) -> String {
     .ok()
     .and_then(|wf| wf.model.map(|m| m.value))
     .unwrap_or_default()
+}
+
+/// Validate `--output` up front — `Ok(true)` selects the machine-result
+/// mode (spec 01 §"What leaves a run": the resolved `outputs:` object as
+/// ONE JSON object on stdout · diagnostics/progress on stderr) · `Ok(false)`
+/// the live human render · `Err(exit)` an unknown format (already printed).
+fn output_mode(output: Option<&str>) -> Result<bool, u8> {
+    match output {
+        None => Ok(false),
+        Some("json") => Ok(true),
+        Some(other) => {
+            eprintln!("nika run: unknown --output format `{other}` (expected `json`)");
+            Err(exit::ENV)
+        }
+    }
+}
+
+/// `--dry-run` (spec §10 · "plan only · zero effects"): the audit passed —
+/// render the static plan (the same anatomy `nika inspect` renders) without
+/// composing any production seam. No fs, no http, no subprocess, no
+/// provider call — the run is never reached.
+fn render_dry_run(file: &str) -> u8 {
+    let plan = crate::verbs::inspect::run(file);
+    if !plan.text.is_empty() {
+        println!("{}", plan.text.trim_end());
+    }
+    println!("\n  dry-run · plan only · no effects executed");
+    exit::OK
 }
 
 /// Parse the repeatable `--var KEY=VALUE` overrides and validate every
