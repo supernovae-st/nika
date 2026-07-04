@@ -39,7 +39,7 @@ tasks:
         url: "${{ vars.competitor_sitemap }}"
         mode: sitemap
     output:
-      recent: ".urls[:8]"             # cap the radar at the 8 freshest pages
+      recent: ".[:8] | map(.loc)"     # sitemap = the root array of {loc, …} · cap at 8, keep the URLs
 
   - id: pages
     depends_on: [map]

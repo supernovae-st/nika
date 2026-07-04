@@ -644,7 +644,7 @@ tasks:
         url: "https://example.com/sitemap.xml"
         mode: sitemap
     output:
-      pages: ".urls[]"
+      pages: "map(.loc)"   # sitemap output IS the root array of {loc, …} · a binding is single-valued, so collect the URLs into one array
 
   - id: summarize
     depends_on: [discover]
