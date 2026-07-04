@@ -11,6 +11,11 @@
 //! from that one reconstruction.
 
 use crate::display::state::{RunView, TaskRow, TaskState};
+use crate::display::theme::{Role, Theme};
+
+/// Bar-region width of the waterfall (cells) — with the id + duration
+/// columns a typical frame stays graceful under 80 columns.
+const BAR_WIDTH: usize = 34;
 
 /// One task's reconstructed wall interval on the run's timeline (unix ms).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,6 +89,90 @@ pub(crate) fn lane_marks(view: &RunView) -> Vec<bool> {
             })
         })
         .collect()
+}
+
+/// The post-run waterfall (design §2c): one wall-time-scaled bar per task
+/// that RAN, offsets showing the REAL overlap — a pure fold of the trace
+/// (the same interval reconstruction as the lane markers · zero new
+/// instrumentation). A time axis closes the chart. Fewer than two ran
+/// tasks render nothing (a solo bar is noise, same law as the anatomy's
+/// analysis footer).
+#[must_use]
+pub fn waterfall(view: &RunView, theme: &Theme) -> Vec<String> {
+    let now = view.last_ts_ms();
+    let ran: Vec<(&TaskRow, Interval)> = view
+        .rows()
+        .iter()
+        .filter_map(|r| interval_of(r, now).map(|iv| (r, iv)))
+        .collect();
+    if ran.len() < 2 {
+        return Vec::new();
+    }
+    let Some(t0) = ran.iter().map(|(_, iv)| iv.start).min() else {
+        return Vec::new();
+    };
+    let Some(t1) = ran.iter().map(|(_, iv)| iv.end).max() else {
+        return Vec::new();
+    };
+    let span = t1.saturating_sub(t0).max(1);
+    let (edge_l, edge_r, bar, dot) = if theme.ascii {
+        ('[', ']', '#', '.')
+    } else {
+        ('▕', '▏', '█', '·')
+    };
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
+    // display geometry — ±1 cell is invisible, the tests pin the rounding
+    let cell = |ts: i64| -> usize {
+        ((ts.saturating_sub(t0)) as f64 / span as f64 * BAR_WIDTH as f64).round() as usize
+    };
+
+    let id_w = ran
+        .iter()
+        .map(|(r, _)| r.id.chars().count())
+        .max()
+        .unwrap_or(0);
+    let durs: Vec<String> = ran
+        .iter()
+        .map(|(_, iv)| fmt_wall_ms(u64::try_from(iv.end.saturating_sub(iv.start)).unwrap_or(0)))
+        .collect();
+    let time_w = durs.iter().map(|d| d.chars().count()).max().unwrap_or(0);
+
+    let mut lines = Vec::with_capacity(ran.len() + 1);
+    for ((row, iv), dur) in ran.iter().zip(&durs) {
+        let off = cell(iv.start).min(BAR_WIDTH - 1);
+        let len = cell(iv.end).saturating_sub(off).clamp(1, BAR_WIDTH - off);
+        let role = match row.state {
+            TaskState::Failed => Role::Bad,
+            TaskState::Running | TaskState::Retrying => Role::Accent,
+            _ => Role::Good,
+        };
+        let mut line = format!(
+            "  {:<id_w$}  {edge_l}{}{}{edge_r}",
+            row.id,
+            " ".repeat(off),
+            theme.paint(role, &bar.to_string().repeat(len)),
+        );
+        line.push_str(&" ".repeat(BAR_WIDTH - off - len));
+        line.push_str("  ");
+        line.push_str(&theme.paint(Role::Dim, &format!("{dur:>time_w$}")));
+        if let Some(cost) = row.cost_usd {
+            line.push_str(&theme.paint(Role::Dim, &format!(" · ${cost:.4}")));
+        }
+        lines.push(line);
+    }
+    // The axis: `0s` under the id column, dots to the bar region's close,
+    // the run's total span at the end.
+    let total = fmt_wall_ms(u64::try_from(span).unwrap_or(0));
+    let dots = (id_w + BAR_WIDTH).saturating_sub(total.chars().count());
+    lines.push(theme.paint(
+        Role::Dim,
+        &format!("  0s {} {total}", dot.to_string().repeat(dots)),
+    ));
+    lines
 }
 
 /// A wall duration for humans: `12ms` · `3.2s` · `2m04s`. Sub-second
@@ -216,6 +305,100 @@ mod tests {
         );
         let marks = lane_marks(&view);
         assert!(marks[2] && marks[3], "running ∥ settled sibling: {marks:?}");
+    }
+
+    const PLAIN: Theme = Theme {
+        color: false,
+        ascii: false,
+        animate: false,
+    };
+    const ASCII: Theme = Theme {
+        color: false,
+        ascii: true,
+        animate: false,
+    };
+
+    /// Golden waterfall — bars scale to wall time, offsets carry the real
+    /// sequencing, the axis closes the chart (design §2c geometry pinned:
+    /// a mutated scale factor draws a wrong-but-plausible chart).
+    #[test]
+    fn waterfall_scales_bars_and_offsets() {
+        let mut view = RunView::new();
+        // a ran [0, 1000] (stamp span) · b ran [1000, 1500] after it.
+        view.apply(&ev(EventKind::TaskStarted, 0, &[("task", s("a"))]));
+        view.apply(&ev(EventKind::TaskCompleted, 1000, &[("task", s("a"))]));
+        view.apply(&ev(EventKind::TaskStarted, 1000, &[("task", s("b"))]));
+        view.apply(&ev(EventKind::TaskCompleted, 1500, &[("task", s("b"))]));
+
+        let lines = waterfall(&view, &PLAIN);
+        assert_eq!(lines.len(), 3, "two bars + the axis: {lines:?}");
+        // span 1500 over 34 cells: a = cells 0..23 · b = cells 23..34.
+        assert_eq!(
+            lines[0],
+            format!("  a  ▕{}▏{}   1.0s", "█".repeat(23), " ".repeat(11)),
+        );
+        assert_eq!(
+            lines[1],
+            format!("  b  ▕{}{}▏  500ms", " ".repeat(23), "█".repeat(11)),
+        );
+        assert_eq!(lines[2], format!("  0s {} 1.5s", "·".repeat(31)));
+    }
+
+    /// ASCII parity for every waterfall glyph (▕█▏ → [#] · axis dots → .)
+    /// and the solo-run silence (a single bar is noise, not insight).
+    #[test]
+    fn waterfall_ascii_parity_and_solo_silence() {
+        let mut view = RunView::new();
+        view.apply(&ev(EventKind::TaskStarted, 0, &[("task", s("only"))]));
+        view.apply(&ev(EventKind::TaskCompleted, 100, &[("task", s("only"))]));
+        assert!(
+            waterfall(&view, &PLAIN).is_empty(),
+            "one ran task → no waterfall"
+        );
+
+        view.apply(&ev(EventKind::TaskStarted, 100, &[("task", s("next"))]));
+        view.apply(&ev(EventKind::TaskCompleted, 400, &[("task", s("next"))]));
+        let lines = waterfall(&view, &ASCII);
+        assert_eq!(lines.len(), 3);
+        assert!(
+            lines[0].contains('[') && lines[0].contains('#'),
+            "{lines:?}"
+        );
+        assert!(lines[2].starts_with("  0s ."), "{lines:?}");
+        for line in &lines {
+            for glyph in ['▕', '▏', '█', '·'] {
+                assert!(
+                    !line.contains(glyph),
+                    "unicode {glyph} leaked into --ascii: {line}"
+                );
+            }
+        }
+    }
+
+    /// Skipped/cancelled rows never bar (they did not run) and a failed
+    /// row keeps its per-task spend on the chart.
+    #[test]
+    fn waterfall_charts_only_ran_rows() {
+        let mut view = RunView::new();
+        view.apply(&ev(EventKind::TaskStarted, 0, &[("task", s("work"))]));
+        view.apply(&ev(
+            EventKind::TaskFailed,
+            800,
+            &[("task", s("work")), ("cost_usd", Value::Float(0.002))],
+        ));
+        view.apply(&ev(EventKind::TaskStarted, 800, &[("task", s("more"))]));
+        view.apply(&ev(EventKind::TaskCompleted, 900, &[("task", s("more"))]));
+        view.apply(&ev(EventKind::TaskCancelled, 900, &[("task", s("late"))]));
+        let lines = waterfall(&view, &PLAIN);
+        assert_eq!(lines.len(), 3, "two ran bars + axis (no cancelled bar)");
+        assert!(
+            lines[0].contains("work") && lines[0].ends_with("· $0.0020"),
+            "failed row bars + keeps its spend: {lines:?}"
+        );
+        assert!(
+            !lines.iter().any(|l| l.contains("late")),
+            "cancelled never bars: {lines:?}"
+        );
     }
 
     #[test]

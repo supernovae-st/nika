@@ -440,17 +440,60 @@ async fn execute(
     } else {
         let mut sink = FoldSink::new(std::io::stdout().lock(), theme, mode);
         sink.set_plan(plan_waves(wf, report));
-        let (code, _outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        let (code, outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         // `Live` painted in place during the run; `Plain`/`Quiet` folded
         // silently · print the ONE final frame now.
         if mode != RenderMode::Live {
             sink.print_final();
+        }
+        // The Live (TTY) final frame carries the flow epilogue: the wall-
+        // time waterfall + the outputs pointer (design §2c). The sober
+        // registers (piped `Plain` · `--quiet` · machine modes) stay
+        // untouched — CI logs never grow chart art.
+        if mode == RenderMode::Live {
+            print_flow_epilogue(sink.view(), &outputs, theme);
         }
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: render failed: {e}");
             return exit::ENV;
         }
         code
+    }
+}
+
+/// The TTY final-frame epilogue: the post-run waterfall (real durations ·
+/// real overlap · pure fold of the run's own event stream) and the
+/// `outputs → key (type)` pointer.
+fn print_flow_epilogue(view: &crate::RunView, outputs: &BTreeMap<String, Value>, theme: Theme) {
+    for line in crate::display::flow::waterfall(view, &theme) {
+        println!("{line}");
+    }
+    if outputs.is_empty() {
+        return;
+    }
+    let parts: Vec<String> = outputs
+        .iter()
+        .map(|(key, value)| format!("{key} ({})", json_type_name(value)))
+        .collect();
+    println!(
+        "  {}",
+        theme.paint(
+            crate::Role::Dim,
+            &format!("outputs → {}", parts.join(" · "))
+        )
+    );
+}
+
+/// The JSON type vocabulary for the outputs pointer — names only, never
+/// values (a summary line, not a data leak into the scrollback).
+fn json_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
     }
 }
 
