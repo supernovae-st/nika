@@ -17,7 +17,8 @@
 //!   [`nika_kernel::ai::provider::InferRequest`] from already-resolved
 //!   task fields (`${{ }}` CEL binding happens upstream).
 //! - **Structured output floor** — when the task carries a `schema:`,
-//!   picks the wire per [`SchemaWire`]: fully-specified schemas forward as
+//!   picks the wire per the internal `SchemaWire` decision: fully-specified
+//!   schemas forward as
 //!   `ResponseFormat::JsonSchema`; an UNDERSPECIFIED schema on a strict
 //!   wire falls back to the provider's native JSON mode + LOCAL validation
 //!   (F2 · ADR-098); profiles without native support get the instruction
