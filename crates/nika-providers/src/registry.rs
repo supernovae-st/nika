@@ -255,6 +255,16 @@ impl<H> ResolvedProvider<H> {
     pub fn wire_model(&self) -> &str {
         &self.wire_model
     }
+
+    /// Does this provider's STRICT structured mode reject UNDERSPECIFIED
+    /// schemas (an object without `properties` · an array without
+    /// `items`)? Delegates to the wire-family source of truth
+    /// ([`WireFormat::strict_rejects_underspecified`]) — the F2 fallback
+    /// decision seam (native JSON mode + local validation instead).
+    #[must_use]
+    pub fn strict_schema_rejects_underspecified(&self) -> bool {
+        self.profile.wire.strict_rejects_underspecified()
+    }
 }
 
 // Soft-seal opt-in (workspace crate): with the ISP Dyn impls below, the
