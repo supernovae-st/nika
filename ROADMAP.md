@@ -67,7 +67,7 @@ before it joins the workspace.
 
 See `docs/architecture/ai-velocity.md` for the full argument.
 
-## Current state — main is v0.93.0-dev after the v0.92.0 public release
+## Current state — main is v0.93.0 (release in flight this arc)
 
 > First public release (2026-06-21 · `brew install supernovae-st/tap/nika`).
 > 39/42 crates admitted (wip array empty) · RC-grade toward the **1.0.0** launch,
@@ -85,7 +85,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
 | HEAD             | `8ef43dddc` (`8ef43dddc1c0633a1156ef0eff9f2d10e51595fa`)             |
-| workspace        | v0.93.0-dev                                  |
+| workspace        | v0.93.0                                  |
 | crates (workspace)| 40                                              |
 | crates (admitted)| 40 / 42                                   |
 | crates (WIP)     | 0 —                                   |
