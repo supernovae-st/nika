@@ -33,6 +33,7 @@ pub(crate) fn build(
     saved: &[SavedImage],
     usage: Usage,
     cost_usd: Option<f64>,
+    content_credentials: Option<&str>,
     warnings: &[String],
     created_at: &str,
     revised_prompt: Option<&str>,
@@ -57,6 +58,15 @@ pub(crate) fn build(
         "images": saved.iter().map(image_entry).collect::<Vec<_>>(),
         "usage": usage.to_json(),
         "cost_usd": cost_usd,
+        "content_credentials": content_credentials,
+        // Provider-DECLARED watermarking (catalog fact, never byte-verified:
+        // SynthID detection is Google-hosted only). OpenAI + Google both
+        // declare SynthID on image outputs as of mid-2026.
+        "watermark_declared": match args.provider {
+            super::types::Provider::Openai | super::types::Provider::Gemini =>
+                Some("synthid (provider-declared · not byte-verified)"),
+            _ => None,
+        },
         "warnings": warnings,
         "metadata": args.metadata,
     })
@@ -206,6 +216,7 @@ mod tests {
                 thoughts_tokens: None,
             },
             Some(0.02),
+            None,
             &["seed_best_effort: x".to_owned()],
             "2026-07-05T12:00:00Z",
             None,
@@ -247,6 +258,7 @@ mod tests {
             &[],
             Usage::default(),
             None,
+            None,
             &[],
             "t",
             None,
@@ -257,6 +269,7 @@ mod tests {
             &args,
             &[],
             Usage::default(),
+            None,
             None,
             &[],
             "t",
@@ -271,6 +284,7 @@ mod tests {
             &other,
             &[],
             Usage::default(),
+            None,
             None,
             &[],
             "t",
@@ -307,6 +321,7 @@ mod tests {
             &args,
             &saved,
             Usage::default(),
+            None,
             None,
             &[],
             "t",
