@@ -190,8 +190,9 @@ pub(crate) fn plan(
 }
 
 /// The newest trace of each workflow (ANY state) — the standing resume
-/// candidate. Tie-break by name so the pick is deterministic.
-fn newest_per_workflow(traces: &[TraceMeta]) -> BTreeSet<usize> {
+/// candidate. Tie-break by name so the pick is deterministic. Shared
+/// with `trace ls` (the ★ marker paints exactly this set).
+pub(crate) fn newest_per_workflow(traces: &[TraceMeta]) -> BTreeSet<usize> {
     let mut newest: BTreeMap<&str, usize> = BTreeMap::new();
     for (i, trace) in traces.iter().enumerate() {
         let slot = newest.entry(trace.workflow.as_str()).or_insert(i);

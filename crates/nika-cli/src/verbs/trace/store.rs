@@ -43,6 +43,17 @@ pub(crate) enum TraceState {
 }
 
 impl TraceState {
+    /// The state word `trace ls` prints (the report vocabulary).
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Completed => "completed",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+            Self::Paused => "paused",
+            Self::Running => "running",
+        }
+    }
+
     /// A finished run (either verdict) — the population the keep-last-N
     /// observability window rotates over (ADR-100 D1: "completed-run
     /// traces"). Paused runs are obligations; running ones aren't done.
@@ -155,6 +166,21 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
             None
         }
     })
+}
+
+/// A compact age cell (`42s` · `5m` · `3h` · `12d`) — the `trace ls`
+/// column (durations elsewhere speak `fmt_wall_ms`).
+pub(crate) fn fmt_age(elapsed: std::time::Duration) -> String {
+    let s = elapsed.as_secs();
+    if s < 60 {
+        format!("{s}s")
+    } else if s < 3_600 {
+        format!("{}m", s / 60)
+    } else if s < 86_400 {
+        format!("{}h", s / 3_600)
+    } else {
+        format!("{}d", s / 86_400)
+    }
 }
 
 #[cfg(test)]
@@ -327,5 +353,14 @@ pub(crate) mod tests {
         assert!(TraceState::Cancelled.is_finished());
         assert!(!TraceState::Paused.is_finished());
         assert!(!TraceState::Running.is_finished());
+    }
+
+    /// The age cell speaks the compact unit ladder.
+    #[test]
+    fn age_cell_speaks_compact_units() {
+        assert_eq!(fmt_age(Duration::from_secs(42)), "42s");
+        assert_eq!(fmt_age(Duration::from_secs(5 * 60)), "5m");
+        assert_eq!(fmt_age(Duration::from_secs(3 * 3_600)), "3h");
+        assert_eq!(fmt_age(Duration::from_secs(12 * 86_400)), "12d");
     }
 }

@@ -278,6 +278,18 @@ enum TraceAction {
     Replay(TraceArgs),
     /// Print the final card only.
     Show(TraceArgs),
+    /// List the workspace trace store (`.nika/traces/`): age · size ·
+    /// workflow · terminal state (completed/failed/paused) · the
+    /// resume-candidate marker (★ — the newest of each workflow, the
+    /// trace retention never collects · ADR-100).
+    Ls {
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+    },
     /// Browse per-task outputs: verb · duration · tokens · bounded
     /// preview (full value: `trace peek`).
     Outputs {
@@ -542,6 +554,11 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
     match action {
         TraceAction::Replay(args) => trace_render(&args, true, color, link_when),
         TraceAction::Show(args) => trace_render(&args, false, color, link_when),
+        TraceAction::Ls { ascii, no_color } => emit(&verbs::trace::manage::ls(term_theme(
+            color.with_no_color(no_color),
+            ascii,
+            link_when,
+        ))),
         TraceAction::Outputs {
             trace,
             ascii,
