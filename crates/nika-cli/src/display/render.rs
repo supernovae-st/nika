@@ -6,6 +6,7 @@
 //! the truth-to-text mapping. Snapshot tests pin BOTH glyph themes.
 
 use crate::display::flow::{fmt_wall_ms, lane_marks};
+use crate::display::format::fmt_cost_usd;
 use crate::display::state::{RunView, TaskRow, TaskState};
 use crate::display::theme::{Role, Theme};
 
@@ -38,7 +39,7 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
     // Header: identity + the statically-proven ceiling.
     let ceiling = view
         .ceiling_usd
-        .map(|c| format!(" · ceiling ≤ ${c:.2}"))
+        .map(|c| format!(" · ceiling ≤ {}", fmt_cost_usd(c)))
         .unwrap_or_default();
     lines.push(format!(
         "  {} nika · {} · {} tasks{ceiling}",
@@ -99,10 +100,12 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
         ));
     }
 
-    // Footer meter: progress · live cost vs ceiling · wall clock.
+    // Footer meter: progress · live cost vs ceiling · wall clock. The
+    // spend speaks the ONE cost formatter (format.rs) — the meter and the
+    // verdict card can never again disagree on the same run's dollars.
     let cost = match view.ceiling_usd {
-        Some(c) => format!("${:.3} of ≤${c:.2}", view.cost_usd),
-        None => format!("${:.3}", view.cost_usd),
+        Some(c) => format!("{} of ≤{}", fmt_cost_usd(view.cost_usd), fmt_cost_usd(c)),
+        None => fmt_cost_usd(view.cost_usd),
     };
     #[allow(clippy::cast_precision_loss)] // display-only seconds
     let secs = view.elapsed_ms as f64 / 1000.0;
@@ -215,7 +218,7 @@ fn task_line(
         row.id,
         theme.paint(Role::Dim, &note),
     );
-    let cost = row.cost_usd.map(|c| format!(" · ${c:.4}"));
+    let cost = row.cost_usd.map(|c| format!(" · {}", fmt_cost_usd(c)));
     if time.is_none() && cost.is_none() && !mark && tail.is_none() {
         return line;
     }
@@ -223,8 +226,14 @@ fn task_line(
     // sparkline may ride a running row — transient shift accepted).
     let pad = note_w.saturating_sub(display_note.chars().count());
     line.push_str(&" ".repeat(pad + 2));
-    let cell = format!("{:>time_w$}", time.unwrap_or(""));
-    line.push_str(&theme.paint(Role::Dim, cell.trim_end()));
+    let slow = theme.accents && is_slow(row, view);
+    let cell = duration_cell(theme, time, time_w);
+    let cell_role = if slow { Role::Warn } else { Role::Dim };
+    line.push_str(&theme.paint(cell_role, cell.trim_end()));
+    if slow {
+        line.push(' ');
+        line.push_str(&theme.paint(Role::Warn, "slow"));
+    }
     if let Some(cost) = cost {
         line.push_str(&theme.paint(Role::Dim, &cost));
     }
@@ -237,6 +246,52 @@ fn task_line(
         line.push_str(&theme.paint(Role::Accent, if theme.ascii { " ||" } else { " ∥" }));
     }
     line
+}
+
+/// The SLOW threshold (nextest school · design §1.4): a settled task
+/// whose wall time exceeds `max(2 × median settled duration, 30s)`
+/// self-identifies. `None` until at least TWO tasks settled — a median
+/// of one can only compare the task to itself. The 30s floor keeps
+/// fast runs (mock demos · sub-second pipelines) accent-free: nothing
+/// moves that doesn't inform.
+fn slow_threshold_ms(view: &RunView) -> Option<u64> {
+    let mut walls: Vec<u64> = view
+        .rows()
+        .iter()
+        .filter(|r| matches!(r.state, TaskState::Ok | TaskState::Failed))
+        .filter_map(TaskRow::wall_ms)
+        .collect();
+    if walls.len() < 2 {
+        return None;
+    }
+    walls.sort_unstable();
+    let median = walls[walls.len() / 2];
+    Some(median.saturating_mul(2).max(30_000))
+}
+
+/// Does this row's REAL wall time cross the run's SLOW threshold?
+/// Settled rows only — a running row's elapsed is still moving, its
+/// verdict can wait for the terminal frame.
+fn is_slow(row: &TaskRow, view: &RunView) -> bool {
+    matches!(row.state, TaskState::Ok | TaskState::Failed)
+        && slow_threshold_ms(view)
+            .zip(row.wall_ms())
+            .is_some_and(|(threshold, wall)| wall > threshold)
+}
+
+/// The duration cell: bare right-aligned (`  2.7s` · the sober
+/// registers) or the nextest bracket form (`[  2.7s]`) under the
+/// interactive accents. Width math happens on RAW text (paint comes
+/// after) — ANSI never skews the column; a row without a duration
+/// stays empty in both forms.
+// `&Theme` to match the `task_line` borrow that threads it here.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn duration_cell(theme: &Theme, time: Option<&str>, time_w: usize) -> String {
+    match (theme.accents, time) {
+        (true, Some(t)) => format!("[{t:>time_w$}]"),
+        (true, None) => String::new(),
+        (false, t) => format!("{:>time_w$}", t.unwrap_or("")),
+    }
 }
 
 /// Render the COMPACT final card (spec §3.5 `--quiet` · "final card only ·
@@ -252,8 +307,8 @@ pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
         None => theme.glyph(TaskState::Pending, 0),
     };
     let cost = match view.ceiling_usd {
-        Some(c) => format!("${:.3} of ≤${c:.2}", view.cost_usd),
-        None => format!("${:.3}", view.cost_usd),
+        Some(c) => format!("{} of ≤{}", fmt_cost_usd(view.cost_usd), fmt_cost_usd(c)),
+        None => fmt_cost_usd(view.cost_usd),
     };
     #[allow(clippy::cast_precision_loss)] // display-only seconds
     let secs = view.elapsed_ms as f64 / 1000.0;
@@ -340,16 +395,8 @@ mod tests {
         view
     }
 
-    const UNICODE: Theme = Theme {
-        color: false,
-        ascii: false,
-        animate: false,
-    };
-    const ASCII: Theme = Theme {
-        color: false,
-        ascii: true,
-        animate: false,
-    };
+    const UNICODE: Theme = Theme::new(false, false, false);
+    const ASCII: Theme = Theme::new(false, true, false);
 
     /// Golden frame — the unicode theme, colour off (the exact spec story).
     /// Time is a first-class column now: each settled row carries its wall
@@ -364,14 +411,14 @@ mod tests {
             "",
             "  ✔  fetch_top     http 200 · 1.2s · 34 KB         1.2s",
             "  ✔  extract_ai    jq · 0.1s · 12 items           130ms",
-            "  ✔  summarize     claude-sonnet · 3.1s · $0.011   3.0s · $0.0110",
+            "  ✔  summarize     claude-sonnet · 3.1s · $0.011   3.0s · $0.01",
             "  ✔  write_md      2.1 KB written                 290ms",
             "  ↷  notify_slack  when: env.CI != 'true'",
         ];
         assert_eq!(&lines[..8], &expected[..]);
         // The meter line: pinned prefix + rule-padded to a stable width.
         assert!(
-            lines[8].starts_with("  ── 5/5 done · $0.011 of ≤$0.04 · elapsed 4.7s "),
+            lines[8].starts_with("  ── 5/5 done · $0.01 of ≤$0.04 · elapsed 4.7s "),
             "meter: {}",
             lines[8]
         );
@@ -525,7 +572,7 @@ mod tests {
             "verdict line: {}",
             lines[0]
         );
-        assert!(lines[0].contains("$0.011 of ≤$0.04"), "cost: {}", lines[0]);
+        assert!(lines[0].contains("$0.01 of ≤$0.04"), "cost: {}", lines[0]);
         // NOT the storyboard — no per-task row leaks into the quiet card.
         assert!(
             !lines.iter().any(|l| l.contains("fetch_top")),
@@ -582,6 +629,112 @@ mod tests {
     fn frame_is_stable_under_ticks_when_nothing_runs() {
         let view = fold(&demo::success());
         assert_eq!(frame(&view, &UNICODE, 0), frame(&view, &UNICODE, 9));
+    }
+
+    /// The interactive accents bracket the duration column (nextest
+    /// school · `[  1.2s]`), right-aligned inside the SAME width the
+    /// sober form uses — and rows without a duration (the skipped row)
+    /// grow no brackets. The sober frame stays byte-identical to the
+    /// golden above by construction (accents default OFF).
+    #[test]
+    fn accents_bracket_the_duration_column_tty_only() {
+        let mut accented = UNICODE;
+        accented.accents = true;
+        let lines = frame(&fold(&demo::success()), &accented, 0);
+        assert!(
+            lines[3].ends_with("[ 1.2s]"),
+            "bracketed right-aligned cell: {}",
+            lines[3]
+        );
+        assert!(
+            lines[4].ends_with("[130ms]"),
+            "the widest cell sets the width: {}",
+            lines[4]
+        );
+        assert!(
+            !lines[7].contains('['),
+            "the skipped row grows no brackets: {}",
+            lines[7]
+        );
+        // Cost still rides AFTER the bracketed cell on the row that has one.
+        assert!(
+            lines[5].contains("[ 3.0s] · $0.01"),
+            "cost follows the cell: {}",
+            lines[5]
+        );
+        // The demo runs sub-second — under the 30s SLOW floor, so even
+        // the accented frame carries no accidental `slow` marker.
+        assert!(
+            !lines.iter().any(|l| l.contains("slow")),
+            "fast runs stay marker-free: {lines:?}"
+        );
+    }
+
+    /// The SLOW accent (design §1.4): a settled task past
+    /// `max(2 × median, 30s)` renders its duration YELLOW + the `slow`
+    /// word — interactive accents only, and the threshold floor keeps
+    /// mid-scale tasks quiet.
+    #[test]
+    fn slow_tasks_self_identify_under_accents() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let task = |n: &str| KeyValue::new("task", Value::String(n.to_owned()));
+        let dur = |ms: i64| KeyValue::new("duration_ms", Value::Int(ms));
+
+        let mut view = RunView::new();
+        for (name, ms, at) in [
+            ("a", 1_000, 1_000u64),
+            ("b", 1_200, 2_000),
+            ("c", 100_000, 5_000),
+        ] {
+            view.apply(&demo::bare_event(EventKind::TaskStarted, 0).with_field(task(name)));
+            view.apply(
+                &demo::bare_event(EventKind::TaskCompleted, at)
+                    .with_field(task(name))
+                    .with_field(dur(ms)),
+            );
+        }
+
+        // Sober register: never the marker, whatever the durations.
+        let sober = frame(&view, &UNICODE, 0);
+        assert!(!sober.iter().any(|l| l.contains("slow")), "{sober:?}");
+
+        // Accents + colour: the 100s task (median 1.2s → floor 30s)
+        // carries the yellow cell + the word; its siblings stay dim.
+        let mut accented = Theme::new(true, false, false);
+        accented.accents = true;
+        let lines = frame(&view, &accented, 0);
+        let c_row = lines.iter().find(|l| l.contains(" c ")).expect("c row");
+        assert!(
+            c_row.contains("\x1b[33m") && c_row.contains("slow"),
+            "the slow task self-identifies in yellow: {c_row:?}"
+        );
+        let a_row = lines.iter().find(|l| l.contains(" a ")).expect("a row");
+        assert!(
+            !a_row.contains("slow") && !a_row.contains("\x1b[33m"),
+            "median-scale siblings stay quiet: {a_row:?}"
+        );
+
+        // The floor: 25s over a 20s median is NOT slow (2×median = 40s
+        // wins the max) — no marker.
+        let mut mid = RunView::new();
+        for (name, ms, at) in [
+            ("x", 10_000, 1_000u64),
+            ("y", 20_000, 2_000),
+            ("z", 25_000, 3_000),
+        ] {
+            mid.apply(&demo::bare_event(EventKind::TaskStarted, 0).with_field(task(name)));
+            mid.apply(
+                &demo::bare_event(EventKind::TaskCompleted, at)
+                    .with_field(task(name))
+                    .with_field(dur(ms)),
+            );
+        }
+        let quiet = frame(&mid, &accented, 0);
+        assert!(
+            !quiet.iter().any(|l| l.contains("slow")),
+            "2x-median dominates the floor: {quiet:?}"
+        );
     }
 
     /// A view with output-carrying completions: `frame_with_outputs`

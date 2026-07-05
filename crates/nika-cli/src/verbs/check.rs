@@ -525,11 +525,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("tmp dir");
         let path = dir.join(name);
         std::fs::write(&path, yaml).expect("fixture body");
-        let theme = Theme {
-            color: false,
-            ascii,
-            animate: false,
-        };
+        let theme = Theme::new(false, ascii, false);
         run(path.to_str().expect("utf8 path"), false, theme).text
     }
 

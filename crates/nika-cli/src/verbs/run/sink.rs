@@ -160,7 +160,18 @@ impl<W: Write> FoldSink<W> {
     fn repaint(&mut self) -> std::io::Result<()> {
         // Move the cursor up over the previous frame and clear from there
         // down (ANSI · the spinner family). TTY-only — `emit` gates this.
-        if self.last_lines > 0 {
+        // A REDRAW rides inside a DEC-2026 synchronized-output frame
+        // (`CSI ?2026h … ?2026l`): kitty/WezTerm/Ghostty/Rio hold the
+        // screen until the frame closes (no clear-then-paint flicker);
+        // every other terminal ignores the pair (zero-cost no-op). The
+        // FIRST paint appends without clearing — nothing can tear, so it
+        // stays escape-free (the first-frame law the tests pin). A write
+        // error mid-frame leaves the pair unclosed once, harmlessly: the
+        // sink goes silent (buffered error) and DEC-2026 terminals
+        // time the frame out on their own.
+        let redraw = self.last_lines > 0;
+        if redraw {
+            write!(self.writer, "\x1b[?2026h")?;
             write!(self.writer, "\x1b[{}A", self.last_lines)?;
             write!(self.writer, "\x1b[0J")?;
         }
@@ -171,6 +182,9 @@ impl<W: Write> FoldSink<W> {
         };
         for line in &lines {
             writeln!(self.writer, "{line}")?;
+        }
+        if redraw {
+            write!(self.writer, "\x1b[?2026l")?;
         }
         self.last_lines = lines.len();
         self.writer.flush()
@@ -235,11 +249,7 @@ mod tests {
 
     #[test]
     fn fold_sink_non_interactive_folds_silent_then_prints_one_frame() {
-        let theme = Theme {
-            color: false,
-            ascii: true,
-            animate: false,
-        };
+        let theme = Theme::new(false, true, false);
         let mut buf = Vec::new();
         {
             // Plain: no per-event repaint · one final storyboard frame.
@@ -262,11 +272,7 @@ mod tests {
 
     #[test]
     fn fold_sink_quiet_prints_only_the_verdict_card() {
-        let theme = Theme {
-            color: false,
-            ascii: true,
-            animate: false,
-        };
+        let theme = Theme::new(false, true, false);
         let mut buf = Vec::new();
         {
             let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Quiet);
@@ -288,11 +294,7 @@ mod tests {
 
     #[test]
     fn fold_sink_interactive_repaints_in_place() {
-        let theme = Theme {
-            color: false,
-            ascii: false,
-            animate: false,
-        };
+        let theme = Theme::new(false, false, false);
         let mut buf = Vec::new();
         {
             let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Live);
@@ -308,11 +310,7 @@ mod tests {
 
     #[test]
     fn fold_sink_failure_keeps_the_false_verdict() {
-        let theme = Theme {
-            color: false,
-            ascii: false,
-            animate: false,
-        };
+        let theme = Theme::new(false, false, false);
         let mut buf = Vec::new();
         let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Plain);
         for ev in demo::failure() {
@@ -329,11 +327,7 @@ mod tests {
     fn fold_sink_tails_are_opt_in() {
         use nika_event::EventKind;
         use nika_types::resource::{KeyValue, Value};
-        let theme = Theme {
-            color: false,
-            ascii: true,
-            animate: false,
-        };
+        let theme = Theme::new(false, true, false);
         let completed = demo::bare_event(EventKind::TaskCompleted, 5)
             .with_field(KeyValue::new("task", Value::String("audit".into())))
             .with_field(KeyValue::new("output", Value::String("[1,2]".into())));
@@ -361,11 +355,7 @@ mod tests {
     /// control).
     #[test]
     fn fold_sink_live_first_frame_writes_no_cursor_jump() {
-        let theme = Theme {
-            color: false,
-            ascii: false,
-            animate: false,
-        };
+        let theme = Theme::new(false, false, false);
         let mut buf = Vec::new();
         let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Live);
         let events = demo::success();
@@ -374,6 +364,41 @@ mod tests {
         assert!(
             !text.contains('\x1b'),
             "no prior frame to clear → no cursor-up escape: {text:?}"
+        );
+    }
+
+    /// Every Live REDRAW rides inside one DEC-2026 synchronized-output
+    /// frame: `?2026h` opens BEFORE the cursor-up + clear, `?2026l`
+    /// closes AFTER the last repainted line — the flicker-free contract
+    /// on kitty/WezTerm/Ghostty (a no-op pair everywhere else). The
+    /// FIRST paint (append-only) carries no pair.
+    #[test]
+    fn fold_sink_live_redraws_inside_synchronized_frames() {
+        let theme = Theme::new(false, false, false);
+        let mut buf = Vec::new();
+        {
+            let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Live);
+            for ev in demo::success() {
+                sink.emit(ev);
+            }
+            assert!(sink.into_error().is_none());
+        }
+        let text = String::from_utf8(buf).expect("utf8");
+        let opens = text.matches("\x1b[?2026h").count();
+        let closes = text.matches("\x1b[?2026l").count();
+        let frames = demo::success().len();
+        assert_eq!(opens, frames - 1, "every redraw opens a frame: {text:?}");
+        assert_eq!(opens, closes, "every open closes");
+        // The pair BRACKETS the redraw: the open is IMMEDIATELY followed
+        // by the cursor-up escape (h before any clearing), and the very
+        // last write closes the final frame (l after the repaint).
+        assert!(
+            text.contains("\x1b[?2026h\x1b["),
+            "h opens before the cursor-up: {text:?}"
+        );
+        assert!(
+            text.ends_with("\x1b[?2026l"),
+            "the last write closes the frame"
         );
     }
 }

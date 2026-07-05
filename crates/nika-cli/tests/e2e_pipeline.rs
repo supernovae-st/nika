@@ -221,11 +221,7 @@ fn states(view: &RunView) -> BTreeMap<String, TaskState> {
         .collect()
 }
 
-const PLAIN: Theme = Theme {
-    color: false,
-    ascii: false,
-    animate: false,
-};
+const PLAIN: Theme = Theme::new(false, false, false);
 
 // ─── test 1 · the static audit (the run's precondition) ─────────────────
 

@@ -78,6 +78,44 @@ impl VerbOutput {
     }
 }
 
+/// Best-effort hostname for `file://` links (iTerm2 opens them only when
+/// the host names this machine). Env-only — no libc, no subprocess; an
+/// empty host degrades to RFC 8089 localhost. The read is presentation
+/// state, not a secret — the same scoped exemption as `env_flag` in
+/// `main.rs` (the workspace `disallowed_methods` ban routes SECRET reads
+/// through the kernel vault seam, which has no business here).
+#[allow(clippy::disallowed_methods)]
+pub(crate) fn link_host() -> String {
+    std::env::var("HOSTNAME")
+        .or_else(|_| std::env::var("HOST"))
+        .unwrap_or_default()
+}
+
+/// Did the terminal PROVE truecolor (`COLORTERM=truecolor|24bit`)?
+/// Presentation env — the same scoped exemption as [`link_host`].
+#[allow(clippy::disallowed_methods)]
+pub(crate) fn truecolor_env() -> bool {
+    std::env::var("COLORTERM").is_ok_and(|v| v == "truecolor" || v == "24bit")
+}
+
+/// Render one on-disk path as an OSC-8 `file://` hyperlink when the
+/// theme's `links` capability resolved on — the TEXT stays the path the
+/// verb already prints (byte-identical registers when links are off).
+/// A path that will not canonicalize (deleted mid-run · unsaved) stays
+/// plain: a link that cannot open is worse than no link.
+pub(crate) fn linked_path(theme: crate::Theme, path: &str) -> String {
+    if !theme.links {
+        return path.to_owned();
+    }
+    match std::fs::canonicalize(path) {
+        Ok(abs) => {
+            let url = crate::display::format::file_url(&link_host(), &abs.to_string_lossy());
+            theme.link(&url, path)
+        }
+        Err(_) => path.to_owned(),
+    }
+}
+
 /// Read + strict-parse + ladder-check one workflow file.
 ///
 /// Failure mapping per spec §4: unreadable = environment (`3`) · parse
@@ -94,6 +132,36 @@ pub(crate) fn load_checked(path: &str) -> Result<(RawWorkflow, CheckReport), Ver
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The pipe-parity pin: with the `links` capability OFF (every sober
+    /// register), `linked_path` returns the path VERBATIM — zero escapes.
+    /// With it on, the OSC-8 wrapper carries a `file://` URL and keeps
+    /// the printed text unchanged; a path that will not canonicalize
+    /// stays plain (a dead link is worse than no link).
+    #[test]
+    fn linked_path_is_byte_identical_when_links_are_off() {
+        let dir = std::env::temp_dir().join("nika-cli-linkedpath-tests");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let file = dir.join("wf.nika.yaml");
+        std::fs::write(&file, "nika: v1\n").expect("fixture");
+        let path = file.to_str().expect("utf8 path");
+
+        let plain = crate::Theme::new(false, false, false);
+        assert_eq!(linked_path(plain, path), path, "sober register: verbatim");
+
+        let mut linked = crate::Theme::new(false, false, false);
+        linked.links = true;
+        let out = linked_path(linked, path);
+        assert!(
+            out.starts_with("\x1b]8;;file://") && out.ends_with("\x1b]8;;\x1b\\"),
+            "OSC-8 wrapper: {out:?}"
+        );
+        assert!(out.contains(path), "the printed text stays the path");
+
+        let ghost = dir.join("never-written.yaml");
+        let ghost = ghost.to_str().expect("utf8 path");
+        assert_eq!(linked_path(linked, ghost), ghost, "no file → no link");
+    }
 
     /// Regression · a parse-stage rejection must surface its spec wire code,
     /// exactly like the CONFORM stage. The multiple-verbs short-circuit used
