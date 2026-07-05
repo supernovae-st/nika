@@ -110,6 +110,13 @@ impl<W: Write> FoldSink<W> {
         &self.view
     }
 
+    /// Inject the static wave plan (task ids per wave · from the check
+    /// report) — feeds the ∥ lane markers + the DAG-shape glyph. Side
+    /// information only: the fold itself never changes.
+    pub fn set_plan(&mut self, waves: Vec<Vec<String>>) {
+        self.view.set_plan(waves);
+    }
+
     /// Print the final frame once (the `Plain`/`Quiet` lanes · the caller
     /// calls this after the run · a no-op buffered error stays buffered).
     /// `Quiet` paints the compact verdict card; `Plain` the full storyboard.

@@ -116,7 +116,7 @@ pub fn run(
 
     // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
     if dry_run {
-        return render_dry_run(file);
+        return render_dry_run(file, theme.ascii);
     }
 
     // ── Compose the production runtime (real seams · env keys) ──────
@@ -236,8 +236,8 @@ fn output_mode(output: Option<&str>) -> Result<bool, u8> {
 /// render the static plan (the same anatomy `nika inspect` renders) without
 /// composing any production seam. No fs, no http, no subprocess, no
 /// provider call — the run is never reached.
-fn render_dry_run(file: &str) -> u8 {
-    let plan = crate::verbs::inspect::run(file);
+fn render_dry_run(file: &str, ascii: bool) -> u8 {
+    let plan = crate::verbs::inspect::run(file, ascii);
     if !plan.text.is_empty() {
         println!("{}", plan.text.trim_end());
     }
@@ -372,6 +372,21 @@ fn offline_tip_applies(exit_code: u8, override_given: bool, model: &str) -> bool
     exit_code != exit::OK && !override_given && !model.is_empty() && model != "mock/echo"
 }
 
+/// The static wave plan as task ids (the check report's schedule) —
+/// injected into the display fold so the ∥ lane markers and the DAG-shape
+/// glyph speak the scheduler's truth, not a reconstruction.
+fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
+    report
+        .waves
+        .iter()
+        .map(|wave| {
+            wave.iter()
+                .filter_map(|&i| wf.tasks.get(i).map(|t| t.value.id.value.clone()))
+                .collect()
+        })
+        .collect()
+}
+
 /// Drive the runtime through the chosen sink · return the exit code.
 async fn execute(
     runtime: &ProdRuntime,
@@ -393,6 +408,7 @@ async fn execute(
         // composition path · never the live TTY redraw); the one final
         // storyboard frame is what matters, not the animation.
         let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
+        sink.set_plan(plan_waves(wf, report));
         let (code, outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         sink.print_final();
         // Built BEFORE the sink is consumed — the failure envelope reads
@@ -423,17 +439,69 @@ async fn execute(
         code
     } else {
         let mut sink = FoldSink::new(std::io::stdout().lock(), theme, mode);
-        let (code, _outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        sink.set_plan(plan_waves(wf, report));
+        let (code, outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         // `Live` painted in place during the run; `Plain`/`Quiet` folded
         // silently · print the ONE final frame now.
         if mode != RenderMode::Live {
             sink.print_final();
+        }
+        // The Live (TTY) final frame carries the flow epilogue: the wall-
+        // time waterfall + the outputs pointer (design §2c). The sober
+        // registers (piped `Plain` · `--quiet` · machine modes) stay
+        // untouched — CI logs never grow chart art.
+        if mode == RenderMode::Live {
+            print_flow_epilogue(sink.view(), &outputs, theme);
         }
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: render failed: {e}");
             return exit::ENV;
         }
         code
+    }
+}
+
+/// The TTY final-frame epilogue: the post-run waterfall (real durations ·
+/// real overlap · pure fold of the run's own event stream) then the
+/// shareable verdict card, its outputs note naming what left the run.
+fn print_flow_epilogue(view: &crate::RunView, outputs: &BTreeMap<String, Value>, theme: Theme) {
+    for line in crate::display::flow::waterfall(view, &theme) {
+        println!("{line}");
+    }
+    let note = outputs_note(outputs);
+    for line in crate::display::flow::verdict_card(view, &theme, note.as_deref()) {
+        println!("{line}");
+    }
+}
+
+/// The card's outputs note: `outputs → key (type) · key2 (type)` — the
+/// export contract's shape at a glance (types only, never a data dump).
+/// Two keys shown, the rest counted.
+fn outputs_note(outputs: &BTreeMap<String, Value>) -> Option<String> {
+    if outputs.is_empty() {
+        return None;
+    }
+    let mut parts: Vec<String> = outputs
+        .iter()
+        .take(2)
+        .map(|(key, value)| format!("{key} ({})", json_type_name(value)))
+        .collect();
+    if outputs.len() > 2 {
+        parts.push(format!("+{} more", outputs.len() - 2));
+    }
+    Some(format!("outputs → {}", parts.join(" · ")))
+}
+
+/// The JSON type vocabulary for the outputs pointer — names only, never
+/// values (a summary line, not a data leak into the scrollback).
+fn json_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
     }
 }
 

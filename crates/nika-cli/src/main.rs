@@ -75,10 +75,13 @@ enum Command {
         #[arg(long)]
         ascii: bool,
     },
-    /// Static anatomy: tasks · verbs · DAG tree · cost · permits.
+    /// Static anatomy: tasks · verbs · wave groups · cost · permits.
     Inspect {
         /// Workflow file (`*.nika.yaml`).
         file: String,
+        /// Force the ASCII glyph theme (CI logs · legacy terminals).
+        #[arg(long)]
+        ascii: bool,
     },
     /// The ONE graph projector (json canonical · mermaid/dot derived).
     Graph {
@@ -319,7 +322,7 @@ fn main() -> std::process::ExitCode {
             no_color,
             ascii,
         } => verbs::test::run(&file, update, term_theme(no_color, ascii)),
-        Command::Inspect { file } => emit(&verbs::inspect::run(&file)),
+        Command::Inspect { file, ascii } => emit(&verbs::inspect::run(&file, ascii)),
         Command::Graph { file, format } => {
             let format = match format {
                 GraphFormatArg::Json => verbs::graph::GraphFormat::Json,
@@ -455,6 +458,11 @@ fn trace_render(args: &TraceArgs, replay: bool) -> u8 {
         }
         print_lines(&frame(&view, &theme, 0));
     }
+    // The trace surface owns the run overlays (replay = re-render, never
+    // re-execute): the waterfall + the verdict card close the read, from
+    // any past trace — the same final frame a live TTY run ends on.
+    print_lines(&nika_cli::display::flow::waterfall(&view, &theme));
+    print_lines(&nika_cli::display::flow::verdict_card(&view, &theme, None));
     // The locked exit contract: 0 = run ok · 1 = workflow failed.
     u8::from(view.verdict != Some(true))
 }
@@ -500,6 +508,9 @@ fn redraw(view: &RunView, theme: Theme, tick: usize, drawn: usize) -> usize {
 }
 
 fn print_lines(lines: &[String]) {
+    if lines.is_empty() {
+        return; // an empty overlay (solo-task waterfall · no verdict) prints nothing
+    }
     let mut out = std::io::stdout().lock();
     let _ = writeln!(out, "{}", lines.join("\n"));
 }
