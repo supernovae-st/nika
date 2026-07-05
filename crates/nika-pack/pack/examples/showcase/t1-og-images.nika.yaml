@@ -12,8 +12,10 @@
 #   - `nika:image_generate` · the stdlib §Media builtin (24th)
 #   - `provider: mock` · deterministic, offline, zero keys — the honest
 #     dry-run default; flip ONE line for production:
-#       provider: gemini    (GEMINI_API_KEY)  · or
+#       provider: local     (sovereign · your LocalAI/Ollama/sd.cpp server)
+#       provider: gemini    (GEMINI_API_KEY)
 #       provider: openai    (OPENAI_API_KEY)
+#       provider: xai       (XAI_API_KEY)
 #   - `permits.fs.write` · the asset dir is a DECLARED boundary
 #   - `metadata:` · provenance fields ride into the manifest
 #
