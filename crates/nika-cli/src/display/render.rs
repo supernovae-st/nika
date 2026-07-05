@@ -226,8 +226,14 @@ fn task_line(
     // sparkline may ride a running row — transient shift accepted).
     let pad = note_w.saturating_sub(display_note.chars().count());
     line.push_str(&" ".repeat(pad + 2));
+    let slow = theme.accents && is_slow(row, view);
     let cell = duration_cell(theme, time, time_w);
-    line.push_str(&theme.paint(Role::Dim, cell.trim_end()));
+    let cell_role = if slow { Role::Warn } else { Role::Dim };
+    line.push_str(&theme.paint(cell_role, cell.trim_end()));
+    if slow {
+        line.push(' ');
+        line.push_str(&theme.paint(Role::Warn, "slow"));
+    }
     if let Some(cost) = cost {
         line.push_str(&theme.paint(Role::Dim, &cost));
     }
@@ -240,6 +246,37 @@ fn task_line(
         line.push_str(&theme.paint(Role::Accent, if theme.ascii { " ||" } else { " ∥" }));
     }
     line
+}
+
+/// The SLOW threshold (nextest school · design §1.4): a settled task
+/// whose wall time exceeds `max(2 × median settled duration, 30s)`
+/// self-identifies. `None` until at least TWO tasks settled — a median
+/// of one can only compare the task to itself. The 30s floor keeps
+/// fast runs (mock demos · sub-second pipelines) accent-free: nothing
+/// moves that doesn't inform.
+fn slow_threshold_ms(view: &RunView) -> Option<u64> {
+    let mut walls: Vec<u64> = view
+        .rows()
+        .iter()
+        .filter(|r| matches!(r.state, TaskState::Ok | TaskState::Failed))
+        .filter_map(TaskRow::wall_ms)
+        .collect();
+    if walls.len() < 2 {
+        return None;
+    }
+    walls.sort_unstable();
+    let median = walls[walls.len() / 2];
+    Some(median.saturating_mul(2).max(30_000))
+}
+
+/// Does this row's REAL wall time cross the run's SLOW threshold?
+/// Settled rows only — a running row's elapsed is still moving, its
+/// verdict can wait for the terminal frame.
+fn is_slow(row: &TaskRow, view: &RunView) -> bool {
+    matches!(row.state, TaskState::Ok | TaskState::Failed)
+        && slow_threshold_ms(view)
+            .zip(row.wall_ms())
+            .is_some_and(|(threshold, wall)| wall > threshold)
 }
 
 /// The duration cell: bare right-aligned (`  2.7s` · the sober
@@ -624,6 +661,79 @@ mod tests {
             lines[5].contains("[ 3.0s] · $0.01"),
             "cost follows the cell: {}",
             lines[5]
+        );
+        // The demo runs sub-second — under the 30s SLOW floor, so even
+        // the accented frame carries no accidental `slow` marker.
+        assert!(
+            !lines.iter().any(|l| l.contains("slow")),
+            "fast runs stay marker-free: {lines:?}"
+        );
+    }
+
+    /// The SLOW accent (design §1.4): a settled task past
+    /// `max(2 × median, 30s)` renders its duration YELLOW + the `slow`
+    /// word — interactive accents only, and the threshold floor keeps
+    /// mid-scale tasks quiet.
+    #[test]
+    fn slow_tasks_self_identify_under_accents() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let task = |n: &str| KeyValue::new("task", Value::String(n.to_owned()));
+        let dur = |ms: i64| KeyValue::new("duration_ms", Value::Int(ms));
+
+        let mut view = RunView::new();
+        for (name, ms, at) in [
+            ("a", 1_000, 1_000u64),
+            ("b", 1_200, 2_000),
+            ("c", 100_000, 5_000),
+        ] {
+            view.apply(&demo::bare_event(EventKind::TaskStarted, 0).with_field(task(name)));
+            view.apply(
+                &demo::bare_event(EventKind::TaskCompleted, at)
+                    .with_field(task(name))
+                    .with_field(dur(ms)),
+            );
+        }
+
+        // Sober register: never the marker, whatever the durations.
+        let sober = frame(&view, &UNICODE, 0);
+        assert!(!sober.iter().any(|l| l.contains("slow")), "{sober:?}");
+
+        // Accents + colour: the 100s task (median 1.2s → floor 30s)
+        // carries the yellow cell + the word; its siblings stay dim.
+        let mut accented = Theme::new(true, false, false);
+        accented.accents = true;
+        let lines = frame(&view, &accented, 0);
+        let c_row = lines.iter().find(|l| l.contains(" c ")).expect("c row");
+        assert!(
+            c_row.contains("\x1b[33m") && c_row.contains("slow"),
+            "the slow task self-identifies in yellow: {c_row:?}"
+        );
+        let a_row = lines.iter().find(|l| l.contains(" a ")).expect("a row");
+        assert!(
+            !a_row.contains("slow") && !a_row.contains("\x1b[33m"),
+            "median-scale siblings stay quiet: {a_row:?}"
+        );
+
+        // The floor: 25s over a 20s median is NOT slow (2×median = 40s
+        // wins the max) — no marker.
+        let mut mid = RunView::new();
+        for (name, ms, at) in [
+            ("x", 10_000, 1_000u64),
+            ("y", 20_000, 2_000),
+            ("z", 25_000, 3_000),
+        ] {
+            mid.apply(&demo::bare_event(EventKind::TaskStarted, 0).with_field(task(name)));
+            mid.apply(
+                &demo::bare_event(EventKind::TaskCompleted, at)
+                    .with_field(task(name))
+                    .with_field(dur(ms)),
+            );
+        }
+        let quiet = frame(&mid, &accented, 0);
+        assert!(
+            !quiet.iter().any(|l| l.contains("slow")),
+            "2x-median dominates the floor: {quiet:?}"
         );
     }
 
