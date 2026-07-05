@@ -7,7 +7,7 @@
 #   - assets, not blobs · `nika:image_generate` SAVES files under a DECLARED
 #     `permits.fs` boundary and returns paths + dimensions + sha256 — image
 #     bytes never ride workflow outputs, logs or traces.
-#   - offline-first · `provider: mock` renders real, decodable PNGs with
+#   - offline-first · `provider: mock` renders real, decodable PNG files with
 #     zero network and zero keys · the pipeline is testable in CI as-is.
 #     Production is a one-line flip · `provider: gemini` (GEMINI_API_KEY)
 #     or `provider: openai` (OPENAI_API_KEY).

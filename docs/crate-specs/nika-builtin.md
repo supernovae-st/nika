@@ -129,7 +129,7 @@ done rejected · batch = sequential map. Property: jq exactly-one-output
 over arbitrary JSON · glob/grep determinism · sniff totality on arbitrary
 bytes (+ magic-prefixed tails) · sanitize_component traversal-freedom.
 Image adapters: MockHttp wire fixtures (request-shape pins · error-plane
-tables · the-key-never-leaks sweeps) · mock PNGs decoded by the
+tables · the-key-never-leaks sweeps) · mock PNG files decoded by the
 independent `png` dev-dep. Mutation ≥90%.
 
 ## §6 · Wiring pass (at admission)
