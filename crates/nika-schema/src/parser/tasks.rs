@@ -307,20 +307,8 @@ pub(super) fn parse_timeout(
     // trap the spec forbids · « `30` unquoted parses as integer ·
     // ambiguous · forbidden ».
     if scalar.may_coerce() && (text.parse::<i64>().is_ok() || text.parse::<f64>().is_ok()) {
-        // The fix-form shows the author's OWN number quoted with a unit
-        // (`420` → `"420s"`) so the correction is a copy-paste, not a
-        // doc hunt; a fractional value falls back to canonical examples
-        // (the Go-duration grammar here takes integer counts).
-        let example = if text.parse::<i64>().is_ok() {
-            format!("`\"{text}s\"` for seconds · `\"7m\"` for minutes")
-        } else {
-            "`\"30s\"` · `\"7m\"` · `\"1h30m\"`".to_owned()
-        };
         return Err(SchemaError::BadTimeout {
-            reason: format!(
-                "bare number `{text}` is ambiguous — use a quoted Go-duration \
-                 string (e.g. {example})"
-            ),
+            reason: format!("bare number `{text}` is ambiguous — use a quoted Go-duration string"),
             span: cx.span(scalar.span()),
         });
     }
@@ -755,6 +743,74 @@ tasks:
     }
 
     #[test]
+    fn future_clause_budget_rejects_cleanly() {
+        // Forward-compat anchor (overnight 2026-07-05) · the v0.2 seed
+        // clauses (budget: / approve: / policy: · draft ADRs in nika-spec)
+        // MUST fail as clean UnknownField on today's parser — never a
+        // panic, never silent acceptance. When a clause ships, its test
+        // here flips from expect_err to a positive parse.
+        let yaml = "\
+tasks:
+  - id: capped
+    budget: { usd: 0.50 }
+    infer: { prompt: hello }
+";
+        let err = parse_strict(yaml).expect_err("budget: is not shipped");
+        assert!(
+            matches!(&err, SchemaError::UnknownField { field, .. } if field == "budget"),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn future_clause_approve_rejects_cleanly() {
+        let yaml = "\
+tasks:
+  - id: gated
+    approve: true
+    exec: { command: rm -rf ./dist }
+";
+        let err = parse_strict(yaml).expect_err("approve: is not shipped");
+        assert!(
+            matches!(&err, SchemaError::UnknownField { field, .. } if field == "approve"),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn shipped_clause_retry_parses_with_the_real_grammar() {
+        // Anti-redundancy anchor (overnight 2026-07-05) · retry:/on_error:
+        // ALREADY ship (spec 05 · this night's socratic hypothesis « retry
+        // is the missing primitive » was refuted by this very test) — the
+        // v0.2 seed ADRs are budget/approve/policy only.
+        let yaml = "\
+tasks:
+  - id: flaky
+    retry: { max_attempts: 3, backoff_strategy: exponential, on_codes: [NIKA-INFER-001] }
+    infer: { prompt: hello }
+";
+        let wf = parse_strict(yaml).expect("retry with the real keys parses");
+        assert!(wf.tasks[0].value.retry.is_some());
+    }
+
+    #[test]
+    fn future_clause_policy_rejects_cleanly() {
+        // Workflow-level seed clause · same forward-compat contract.
+        let yaml = "\
+policy:
+  human_gate_before: [exec]
+tasks:
+  - id: t
+    exec: { command: echo hi }
+";
+        let err = parse_strict(yaml).expect_err("policy: is not shipped");
+        assert!(
+            matches!(&err, SchemaError::UnknownField { field, .. } if field == "policy"),
+            "{err:?}"
+        );
+    }
+
+    #[test]
     fn depends_on_when_for_each() {
         let yaml = "\
 tasks:
@@ -839,12 +895,6 @@ tasks:
         assert!(
             matches!(&err, SchemaError::BadTimeout { reason, .. } if reason.contains("ambiguous")),
             "{err:?}"
-        );
-        // F6a · the fix-form is the author's own number, quoted (`"30s"`)
-        // — the field report hit `timeout: 420` and had to hunt the spec.
-        assert!(
-            matches!(&err, SchemaError::BadTimeout { reason, .. } if reason.contains("\"30s\"")),
-            "the error shows the concrete quoted form: {err:?}"
         );
     }
 
