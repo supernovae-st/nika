@@ -81,8 +81,9 @@ pub static ALL_BUILTINS: &[Builtin] = &[
     ),
     Builtin::with_required("hash", Data, &["content", "algo", "encoding"], &["content"]),
     // `image_generate` (stdlib §Media · the first deferred-media graduate ·
-    // openai/gemini/mock · assets land on disk, outputs carry paths+hashes,
-    // never base64 · NIKA-BUILTIN-IMAGE_GENERATE-001..007).
+    // local/openai/gemini/xai/mock — local-first per sovereignty Rule 3 ·
+    // assets land on disk, outputs carry paths+hashes, never base64 ·
+    // NIKA-BUILTIN-IMAGE_GENERATE-001..007).
     Builtin::with_required(
         "image_generate",
         Media,

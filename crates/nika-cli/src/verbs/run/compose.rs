@@ -223,6 +223,21 @@ fn image_keys_from_env() -> ImageKeys {
     if let Some(key) = read(["NIKA_GEMINI_API_KEY", "GEMINI_API_KEY"]) {
         keys = keys.with_gemini(key);
     }
+    if let Some(key) = read(["NIKA_XAI_API_KEY", "XAI_API_KEY"]) {
+        keys = keys.with_xai(key);
+    }
+    // The LOCAL image server: base URL + optional key (both engine config
+    // — the base URL is deliberately NOT a secret, but it crosses the env
+    // at the same sanctioned boundary).
+    #[allow(clippy::disallowed_methods)] // the sanctioned env boundary (see doc)
+    if let Ok(url) = std::env::var("NIKA_IMAGE_LOCAL_URL")
+        && !url.is_empty()
+    {
+        keys = keys.with_local_base_url(url);
+    }
+    if let Some(key) = read(["NIKA_IMAGE_LOCAL_API_KEY", "NIKA_IMAGE_LOCAL_API_KEY"]) {
+        keys = keys.with_local_api_key(key);
+    }
     keys
 }
 
@@ -711,6 +726,9 @@ mod tests {
             "OPENAI_API_KEY",
             "NIKA_GEMINI_API_KEY",
             "GEMINI_API_KEY",
+            "NIKA_XAI_API_KEY",
+            "XAI_API_KEY",
+            "NIKA_IMAGE_LOCAL_API_KEY",
         ] {
             #[allow(clippy::disallowed_methods)] // reading, in a test, what the fn read
             if let Ok(value) = std::env::var(env)

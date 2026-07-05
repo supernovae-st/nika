@@ -23,14 +23,21 @@ pub(crate) const C_SAVE: &str = "NIKA-BUILTIN-IMAGE_GENERATE-006";
 /// 007 — decoded image failed validation (magic bytes · dimensions · size).
 pub(crate) const C_VALIDATE: &str = "NIKA-BUILTIN-IMAGE_GENERATE-007";
 
-/// The V1 image providers — a closed set (D4 · openai + gemini perfected
-/// before anything else · mock for offline CI/docs).
+/// The v1.1 image providers — a closed set (local + xai joined 2026-07-05
+/// per the Rule-3 sovereignty review · mock for offline CI/docs).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Provider {
+    /// A user-run LOCAL `OpenAI`-images-compatible server (`LocalAI` · Ollama
+    /// · sd.cpp server · SGLang/vLLM-Omni — one wire covers them all). The
+    /// sovereign path: the base URL is ENGINE CONFIG, never workflow data.
+    Local,
     /// `OpenAI` Images API (`POST /v1/images/generations`).
     Openai,
     /// Google Gemini image output (`POST …/models/{model}:generateContent`).
     Gemini,
+    /// xAI Imagine API (`POST /v1/images/generations` · `aspect_ratio` +
+    /// `resolution` classes instead of exact sizes).
+    Xai,
     /// Deterministic in-process mock — zero network, zero key.
     Mock,
 }
@@ -39,8 +46,10 @@ impl Provider {
     /// The canonical lowercase id (output + filenames + manifest).
     pub(crate) const fn id(self) -> &'static str {
         match self {
+            Self::Local => "local",
             Self::Openai => "openai",
             Self::Gemini => "gemini",
+            Self::Xai => "xai",
             Self::Mock => "mock",
         }
     }
@@ -49,8 +58,16 @@ impl Provider {
     /// ids with no scheduled shutdown; overridable via `model:`).
     pub(crate) const fn default_model(self) -> &'static str {
         match self {
+            // The LocalAI custom-YAML convention (the default base URL is
+            // LocalAI's :8080 — a zero-config pair). Other compat servers
+            // (Ollama · sd.cpp · SGLang) name models differently: set
+            // `model:` explicitly alongside your base URL.
+            Self::Local => "stablediffusion",
             Self::Openai => "gpt-image-2",
             Self::Gemini => "gemini-3.1-flash-image",
+            // The workhorse tier ($0.02/image) — the `-quality` tier is
+            // the `model:` knob (grok-imagine-image-quality).
+            Self::Xai => "grok-imagine-image",
             Self::Mock => "mock-image-1",
         }
     }
@@ -265,6 +282,10 @@ pub(crate) struct RawImage {
 pub(crate) struct ProviderBatch {
     pub(crate) images: Vec<RawImage>,
     pub(crate) usage: Usage,
+    /// The host the render actually came from (provenance — matters once
+    /// the `local` provider makes the endpoint engine-configurable).
+    /// `None` for the in-process mock.
+    pub(crate) endpoint_host: Option<String>,
     /// Interleaved text parts (gemini) — surfaced as `provider_text`.
     pub(crate) provider_text: Option<String>,
     /// Adapter-level warnings (e.g. « gemini returned 2 images for 1 »).
@@ -331,10 +352,14 @@ mod tests {
 
     #[test]
     fn provider_ids_and_defaults_are_the_locked_canon() {
+        assert_eq!(Provider::Local.id(), "local");
+        assert_eq!(Provider::Local.default_model(), "stablediffusion");
         assert_eq!(Provider::Openai.id(), "openai");
         assert_eq!(Provider::Openai.default_model(), "gpt-image-2");
         assert_eq!(Provider::Gemini.id(), "gemini");
         assert_eq!(Provider::Gemini.default_model(), "gemini-3.1-flash-image");
+        assert_eq!(Provider::Xai.id(), "xai");
+        assert_eq!(Provider::Xai.default_model(), "grok-imagine-image");
         assert_eq!(Provider::Mock.id(), "mock");
     }
 

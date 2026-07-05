@@ -234,6 +234,7 @@ fn parse_response(
         })?;
 
     let mut images = Vec::with_capacity(data.len());
+    let mut warnings = Vec::new();
     for entry in data {
         let b64 = entry
             .get("b64_json")
@@ -248,14 +249,25 @@ fn parse_response(
         let bytes = crate::data::base64_decode(b64).map_err(|e| {
             BuiltinFailure::new(C_NO_IMAGE, format!("openai base64 payload is corrupt: {e}"))
         })?;
+        let revised_prompt = entry
+            .get("revised_prompt")
+            .and_then(serde_json::Value::as_str)
+            .map(|s| {
+                // Capped at the source: a revised prompt is a caption, not
+                // a payload channel — outputs/manifest inherit the bound,
+                // and the clamp is LOUD (the honest-degradation contract).
+                let total = s.chars().count();
+                if total > 2_000 && warnings.is_empty() {
+                    warnings.push(format!(
+                        "revised_prompt_clamped: the provider's revised prompt ran \
+                         {total} chars — clamped to 2000"
+                    ));
+                }
+                s.chars().take(2_000).collect::<String>()
+            });
         images.push(RawImage {
             bytes,
-            // Capped at the source: a revised prompt is a caption, not a
-            // payload channel — outputs/manifest inherit the bound.
-            revised_prompt: entry
-                .get("revised_prompt")
-                .and_then(serde_json::Value::as_str)
-                .map(|s| s.chars().take(2_000).collect()),
+            revised_prompt,
             seed: None, // no seed on the OpenAI Images API
         });
     }
@@ -281,8 +293,9 @@ fn parse_response(
     Ok(ProviderBatch {
         images,
         usage,
+        endpoint_host: Some("api.openai.com".to_owned()),
         provider_text: None,
-        warnings: Vec::new(),
+        warnings,
         raw_debug,
     })
 }
