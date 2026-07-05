@@ -87,6 +87,19 @@ impl RetentionConfig {
         (cfg, notes)
     }
 
+    /// The one-line active-values summary `nika doctor` reports (D4):
+    /// `keep 10 per workflow · max age 30d · budget 256MB`. Units render
+    /// exactly as the knobs speak them (whole days · decimal MB), so the
+    /// report round-trips what the operator set.
+    pub(crate) fn summary(&self) -> String {
+        format!(
+            "keep {} per workflow · max age {}d · budget {}MB",
+            self.keep_last,
+            self.max_age.as_secs() / 86_400,
+            self.budget_bytes / 1_000_000,
+        )
+    }
+
     /// Read the knobs from the environment (the `NIKA_TRACE_*` family).
     ///
     /// Config knobs are presentation/behavior state, not secrets — the
@@ -600,6 +613,15 @@ mod tests {
         assert_eq!(cfg.max_age, Duration::from_secs(7 * DAY));
         assert_eq!(cfg.budget_bytes, 64_000_000);
         assert!(notes.is_empty());
+        // The doctor line (D4) round-trips the knob units exactly.
+        assert_eq!(
+            cfg.summary(),
+            "keep 5 per workflow · max age 7d · budget 64MB"
+        );
+        assert_eq!(
+            RetentionConfig::default().summary(),
+            "keep 10 per workflow · max age 30d · budget 256MB"
+        );
 
         let (cfg, notes) = RetentionConfig::resolve(Some("ten"), None, None);
         assert_eq!(cfg, RetentionConfig::default(), "typo → default");

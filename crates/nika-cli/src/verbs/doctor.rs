@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 use nika_providers::{ProviderRegistry, ProvidersConfig};
 use serde_json::Value;
 
+use crate::verbs::trace::retention::RetentionConfig;
 use crate::verbs::{VerbOutput, exit};
 
 /// Severity of one diagnosis line.
@@ -74,6 +75,12 @@ pub(crate) struct Probe {
     pub config_path: Option<String>,
     pub providers: Vec<ProviderProbe>,
     pub clients: Vec<ClientProbe>,
+    /// The active trace-retention knobs (ADR-100 D4 — doctor reports the
+    /// values GC actually enforces).
+    pub retention: RetentionConfig,
+    /// Knob values that would not parse (each fell back LOUDLY to its
+    /// default — a typo'd knob silently doing nothing is hidden magic).
+    pub retention_notes: Vec<String>,
 }
 
 /// Agent/editor MCP wiring facts — config presence only, not file contents in
@@ -112,6 +119,8 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
             },
         },
     ];
+
+    out.extend(retention_findings(&probe.retention, &probe.retention_notes));
 
     out.push(Finding {
         level: Level::Ok,
@@ -181,6 +190,31 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
         });
     }
 
+    out
+}
+
+/// ADR-100 D4 — the trace-retention knobs ride the env config surface;
+/// doctor reports the ACTIVE values (what the run-start GC enforces) and
+/// speaks when a typo'd knob fell back to its default (a knob silently
+/// doing nothing would be hidden magic).
+fn retention_findings(retention: &RetentionConfig, notes: &[String]) -> Vec<Finding> {
+    let mut out = vec![Finding {
+        level: Level::Ok,
+        label: "traces".to_owned(),
+        detail: format!(
+            "{} (NIKA_TRACE_KEEP · NIKA_TRACE_MAX_AGE_DAYS · NIKA_TRACE_BUDGET_MB)",
+            retention.summary()
+        ),
+        fix: None,
+    }];
+    for note in notes {
+        out.push(Finding {
+            level: Level::Warn,
+            label: "traces".to_owned(),
+            detail: note.clone(),
+            fix: Some("set a whole number · or unset to keep the default".to_owned()),
+        });
+    }
     out
 }
 
@@ -276,11 +310,14 @@ pub fn run() -> VerbOutput {
             }
         })
         .collect();
+    let (retention, retention_notes) = RetentionConfig::from_env();
     let probe = Probe {
         version: env!("CARGO_PKG_VERSION").to_owned(),
         config_path: config_path(),
         providers,
         clients: client_probes(),
+        retention,
+        retention_notes,
     };
     let findings = diagnose(&probe);
     let code = exit_code(&findings);
@@ -446,6 +483,8 @@ mod tests {
             config_path: Some("~/.nika/config.toml".to_owned()),
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", true)],
             clients: vec![],
+            retention: RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let f = diagnose(&probe);
         let prov = f
@@ -469,6 +508,8 @@ mod tests {
                 local("ollama"),
             ],
             clients: vec![],
+            retention: RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let f = diagnose(&probe);
         let prov = f
@@ -497,6 +538,8 @@ mod tests {
             config_path: None,
             providers: vec![cloud("openai", "OPENAI_API_KEY", false)],
             clients: vec![],
+            retention: RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("OPENAI_API_KEY"), "names the var: {text}");
@@ -515,6 +558,8 @@ mod tests {
             config_path: None,
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", false)],
             clients: vec![],
+            retention: RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let f = diagnose(&probe);
         assert!(f.iter().any(|f| f.level == Level::Fail));
@@ -528,12 +573,87 @@ mod tests {
             config_path: None,
             providers: vec![local("ollama"), local("vllm")],
             clients: vec![],
+            retention: RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let f = diagnose(&probe);
         let loc = f.iter().find(|f| f.label == "local").expect("local line");
         assert_eq!(loc.level, Level::Ok);
         assert!(loc.detail.contains("ollama") && loc.detail.contains("vllm"));
         assert_eq!(exit_code(&f), exit::OK, "a local path is usable");
+    }
+
+    /// ADR-100 D4 — doctor reports the ACTIVE retention values (the ones
+    /// the run-start GC enforces) and names the three knobs.
+    #[test]
+    fn doctor_reports_the_retention_knobs() {
+        let mut probe = Probe {
+            version: "0.93.0".to_owned(),
+            config_path: None,
+            providers: vec![local("ollama")],
+            clients: vec![],
+            retention: RetentionConfig::default(),
+            retention_notes: vec![],
+        };
+        let f = diagnose(&probe);
+        let traces = f.iter().find(|f| f.label == "traces").expect("traces line");
+        assert_eq!(traces.level, Level::Ok);
+        assert!(
+            traces
+                .detail
+                .contains("keep 10 per workflow · max age 30d · budget 256MB"),
+            "the active defaults render: {}",
+            traces.detail
+        );
+        assert!(
+            traces.detail.contains("NIKA_TRACE_KEEP")
+                && traces.detail.contains("NIKA_TRACE_MAX_AGE_DAYS")
+                && traces.detail.contains("NIKA_TRACE_BUDGET_MB"),
+            "the three knobs are named: {}",
+            traces.detail
+        );
+
+        // Overridden knobs report THEIR values, not the defaults.
+        let (cfg, notes) = RetentionConfig::resolve(Some("5"), Some("7"), Some("64"));
+        assert!(notes.is_empty());
+        probe.retention = cfg;
+        let f = diagnose(&probe);
+        let traces = f.iter().find(|f| f.label == "traces").expect("traces line");
+        assert!(
+            traces
+                .detail
+                .contains("keep 5 per workflow · max age 7d · budget 64MB"),
+            "{}",
+            traces.detail
+        );
+    }
+
+    /// A typo'd knob fell back to its default — doctor says so (a Warn
+    /// with the fix) instead of letting the knob silently do nothing.
+    #[test]
+    fn typoed_retention_knob_warns_and_never_exits_nonzero() {
+        let (cfg, notes) = RetentionConfig::resolve(Some("ten"), None, None);
+        assert_eq!(notes.len(), 1);
+        let probe = Probe {
+            version: "0.93.0".to_owned(),
+            config_path: None,
+            providers: vec![local("ollama")],
+            clients: vec![],
+            retention: cfg,
+            retention_notes: notes,
+        };
+        let f = diagnose(&probe);
+        let warn = f
+            .iter()
+            .find(|f| f.label == "traces" && f.level == Level::Warn)
+            .expect("the note surfaces");
+        assert!(
+            warn.detail.contains("NIKA_TRACE_KEEP=ten is not a number"),
+            "{}",
+            warn.detail
+        );
+        assert!(warn.fix.is_some(), "a fix line rides the warn");
+        assert_eq!(exit_code(&f), exit::OK, "a knob typo is advisory");
     }
 
     /// Each severity prints a DISTINCT glyph — a `Default::default()` mutant
@@ -558,6 +678,8 @@ mod tests {
                 current: false,
                 stale: true,
             }],
+            retention: RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("stale MCP args"), "{text}");
@@ -601,6 +723,11 @@ mod tests {
         assert_eq!(out.code, exit::OK, "the catalog always offers a path");
         assert!(out.text.contains("binary"), "renders the binary line");
         assert!(!out.text.contains("mock"), "the test backend is hidden");
+        assert!(
+            out.text.contains("traces") && out.text.contains("NIKA_TRACE_KEEP"),
+            "the retention knobs report (ADR-100 D4): {}",
+            out.text
+        );
     }
 
     /// The report opens on the ONE verdict line — level counts first,
