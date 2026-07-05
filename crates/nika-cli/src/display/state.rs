@@ -192,6 +192,14 @@ impl RunView {
                     self.token_samples.push(u64::try_from(tokens).unwrap_or(0));
                 }
             }
+            // ADR-099 `--resume` — a rehydrated success: the row reads Ok
+            // with the "cache hit" note the frame carries (VISIBLE, never
+            // silent); zero duration/spend (the task never ran here).
+            EventKind::TaskCacheHit => {
+                if let Some(i) = self.touch(event, TaskState::Ok) {
+                    self.rows[i].ended_ms = Some(ts);
+                }
+            }
             EventKind::TaskFailed => {
                 let usd = float_field(event, "cost_usd");
                 if let Some(i) = self.touch(event, TaskState::Failed) {
@@ -221,6 +229,13 @@ impl RunView {
                 // A workflow-level reason (run-end NIKA-VAR-009) rides the
                 // terminal frame's `detail` field, if present.
                 self.workflow_detail = str_field(event, "detail").map(str::to_owned);
+            }
+            // ADR-099 rider — the run paused on a human gate: no verdict
+            // (neither success nor failure) · the detail names the
+            // awaiting task so a replayed trace reads honestly.
+            EventKind::WorkflowPaused => {
+                let task = str_field(event, "task").unwrap_or("a prompt");
+                self.workflow_detail = Some(format!("paused · awaiting an answer for `{task}`"));
             }
             // Dispatch + checkpoint + cost/stream/permit kinds carry no
             // row state today. `#[non_exhaustive]` future kinds render

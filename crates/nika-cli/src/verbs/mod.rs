@@ -37,6 +37,12 @@ pub mod exit {
     pub const FILE: u8 = 2;
     /// Environment error — config · I/O · missing resource.
     pub const ENV: u8 = 3;
+    /// The run PAUSED on a blocking `nika:prompt` (ADR-099 rider · run
+    /// state `paused` · additive per the locked contract). NOT a
+    /// failure — but non-zero on purpose: `nika run … && next` must not
+    /// proceed past an unanswered human gate. Resume with
+    /// `--resume <trace> --answer <task>=<value>`.
+    pub const PAUSED: u8 = 4;
 }
 
 /// One verb invocation's outcome: the text to print + the exit code.

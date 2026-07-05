@@ -26,6 +26,8 @@ jaq-core         = { workspace = true }   # output: named bindings — THE data 
 jaq-std          = { workspace = true }   # jq stdlib filters (map · select · add …) over a binding's raw output
 jaq-json         = { workspace = true }   # jq Val ↔ serde_json bridge for output: bindings
 serde_json       = { workspace = true }
+blake3           = { workspace = true }   # ADR-099 resume keys — hash of the JCS key payloads (content, never mtimes)
+serde_json_canonicalizer = { workspace = true }   # ADR-099 resume keys — RFC 8785 canonical bytes (trap 5 · map order + whitespace)
 thiserror        = { workspace = true }
 miette           = { workspace = true }
 uuid             = { workspace = true }

@@ -272,6 +272,24 @@ struct RunArgs {
     /// else taken as a string. Unknown keys are refused.
     #[arg(long = "var", value_name = "KEY=VALUE")]
     var: Vec<String>,
+    /// Resume from a prior run's NDJSON trace (`nika run … --json >
+    /// trace.ndjson`): every task whose identity matches a journaled
+    /// success is skipped with a visible `task_cache_hit` — an edited
+    /// task or a changed input always re-runs (ADR-099). A trace without
+    /// resume keys runs everything live (a notice, never an error).
+    #[arg(long, value_name = "TRACE", conflicts_with = "dry_run")]
+    resume: Option<PathBuf>,
+    /// Force this task AND its transitive downstream to re-run even on an
+    /// identity match (the lever for changes the hashes cannot see —
+    /// rotated secret · external state · an infer output to re-roll).
+    #[arg(long, value_name = "TASK_ID", requires = "resume")]
+    from: Option<String>,
+    /// Answer a paused `nika:prompt` at resume (repeatable · ADR-099
+    /// rider): binds as the named task's answer — `--answer ok=true` for
+    /// confirm, a string for input, one of the choices for choice. The
+    /// value parses as JSON when it parses, else rides as a string.
+    #[arg(long = "answer", value_name = "TASK=VALUE", requires = "resume")]
+    answer: Vec<String>,
 }
 
 #[derive(Args)]
@@ -395,6 +413,11 @@ fn emit(out: &VerbOutput) -> u8 {
 
 /// Unpack the `run` clap surface into the library verb call.
 fn run_verb(args: &RunArgs) -> u8 {
+    let resume = args.resume.as_ref().map(|trace| verbs::run::ResumeRequest {
+        trace: trace.clone(),
+        from: args.from.clone(),
+        answers: args.answer.clone(),
+    });
     verbs::run::run(
         &args.file,
         args.json,
@@ -404,6 +427,7 @@ fn run_verb(args: &RunArgs) -> u8 {
         args.dry_run,
         args.model.as_deref(),
         &args.var,
+        resume.as_ref(),
     )
 }
 
@@ -531,34 +555,15 @@ fn load_events(args: &TraceArgs) -> Result<Vec<Event>, String> {
 
 /// Parse an NDJSON trace, tolerating a truncated/corrupt TAIL — a crashed run
 /// (SIGSEGV · OOM · hard kill) leaves a half-written last line, and recovering
-/// it is the whole point of a flight recorder. Stops at the first bad line and
-/// returns the valid prefix; a bad FIRST line (nothing recovered) is a
-/// genuinely unreadable trace and errors.
+/// it is the whole point of a flight recorder. Delegates to the library's
+/// tolerant reader (the SAME one `nika run --resume` folds through — one
+/// recovery contract, two consumers) and surfaces the truncation note here.
 fn recover_events(raw: &str, label: &str) -> Result<Vec<Event>, String> {
-    let mut events = Vec::new();
-    for (lineno, line) in raw.lines().enumerate() {
-        if line.trim().is_empty() {
-            continue;
-        }
-        match serde_json::from_str::<Event>(line) {
-            Ok(event) => events.push(event),
-            Err(e) => {
-                if events.is_empty() {
-                    return Err(format!("{label}:{}: bad event: {e}", lineno + 1));
-                }
-                eprintln!(
-                    "nika-cli: {label}:{}: trace truncated ({e}) — rendering {} recovered event(s)",
-                    lineno + 1,
-                    events.len()
-                );
-                break;
-            }
-        }
+    let recovered = verbs::run::recover_events(raw, label)?;
+    if let Some(note) = &recovered.truncated_note {
+        eprintln!("nika-cli: {note} — rendering the recovered prefix");
     }
-    if events.is_empty() {
-        return Err(format!("{label}: empty trace"));
-    }
-    Ok(events)
+    Ok(recovered.events)
 }
 
 /// Read a boolean presentation flag from the environment.
