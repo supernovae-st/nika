@@ -397,10 +397,15 @@ where
         let outcome = {
             // The attempt loop borrows the accumulators; the borrow ends
             // when the loop future is consumed/dropped (both arms below).
+            // `budget` = the task's ONE `timeout:` — the total enforced
+            // below AND handed to dispatch (the infer transport · F1).
+            let budget = task.timeout.as_ref().map(|t| t.value);
             let attempts = async {
                 let mut attempt = 1_u32;
                 loop {
-                    let dispatched = self.dispatch(&task.action, scope, &agent_buffer).await;
+                    let dispatched = self
+                        .dispatch(&task.action, scope, &agent_buffer, budget)
+                        .await;
                     note.clone_from(&dispatched.note);
                     attempt_marks.push(agent_buffer.len());
                     match dispatched.result {
@@ -432,7 +437,7 @@ where
                 }
             };
 
-            match task.timeout.as_ref().map(|t| t.value) {
+            match budget {
                 None => attempts.await,
                 Some(limit) => {
                     let attempts = std::pin::pin!(attempts);
@@ -522,7 +527,8 @@ where
         // outcome dropped by design) — a throwaway buffer satisfies the
         // dispatch seam; collecting it is a trigger-gated ratchet.
         let cleanup_buffer = crate::agent_events::BufferingObserver::new();
-        let attempt = std::pin::pin!(self.dispatch(&mini.action, scope, &cleanup_buffer));
+        let attempt =
+            std::pin::pin!(self.dispatch(&mini.action, scope, &cleanup_buffer, Some(limit)));
         let timer = std::pin::pin!(self.clock.sleep(limit));
         // Either way the outcome is dropped — cleanup observability is
         // the cleanup's own effects (e.g. `nika:emit` · spec 03).

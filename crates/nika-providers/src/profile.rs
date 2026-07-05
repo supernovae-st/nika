@@ -87,6 +87,17 @@ impl Profile {
         v
     }
 
+    /// Whether this profile is one of the 5 LOCAL servers (`ollama` ·
+    /// `lmstudio` · `llamacpp` · `localai` · `vllm`) — keyed on the
+    /// canonical id (the [`LOCAL`] seed rows), so an operator
+    /// `with_base_url` override never flips the classification. Local
+    /// servers get the generous transport-deadline default (a local
+    /// model routinely needs minutes for one completion — see
+    /// `wire::transport_deadline`).
+    pub(crate) fn is_local(&self) -> bool {
+        LOCAL.iter().any(|(id, _)| *id == self.id)
+    }
+
     /// Resolve a model nickname through the catalog row (`"sonnet"` →
     /// `"claude-sonnet-4-20250514"`). Unknown names pass through verbatim —
     /// the wire model namespace is the provider's, not ours.
@@ -257,6 +268,17 @@ mod tests {
                 assert_eq!(p.wire, WireFormat::OpenAiCompat);
                 assert!(p.base_url.starts_with("http://127.0.0.1"), "{}", p.id);
             }
+        }
+    }
+
+    #[test]
+    fn is_local_classifies_exactly_the_five_local_servers() {
+        // F1: the classification drives the transport-deadline default
+        // (local ≫ cloud) — keyed on the id so a base_url override can
+        // never flip it.
+        for p in seed() {
+            let expected = ["ollama", "lmstudio", "llamacpp", "localai", "vllm"].contains(&p.id);
+            assert_eq!(p.is_local(), expected, "{} classification", p.id);
         }
     }
 

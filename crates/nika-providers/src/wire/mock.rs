@@ -8,6 +8,11 @@
 //! usage arithmetic, and a 3-delta synthetic stream. Determinism is the
 //! contract — engine tests and conformance fixtures rely on byte-stable
 //! output for identical input.
+//!
+//! A request carrying `response_format: JsonSchema` does NOT echo — it
+//! returns a SYNTHESIZED schema-conformant instance (`mock_schema` · F3),
+//! so every structured workflow dry-runs offline instead of dying
+//! NIKA-INFER-002 after burning its retry budget.
 
 use std::collections::VecDeque;
 use std::pin::Pin;
@@ -15,16 +20,23 @@ use std::task::{Context, Poll};
 
 use futures_core::Stream;
 use nika_kernel::ai::provider::{
-    ContentBlock, InferEvent, InferEventStream, InferRequest, InferResponse, ProviderError, Role,
-    StopReason, TokenUsage,
+    ContentBlock, InferEvent, InferEventStream, InferRequest, InferResponse, ProviderError,
+    ResponseFormat, Role, StopReason, TokenUsage,
 };
 
+use super::mock_schema;
 use crate::registry::ResolvedProvider;
 
-/// Deterministic single-shot response.
+/// Deterministic single-shot response — the echo, or (schema attached) a
+/// synthesized conformant instance as PURE JSON (no prefix noise: the
+/// schema instruction demands "ONLY a JSON value", and the mock complies
+/// exactly like a well-behaved model).
 pub(crate) fn infer<H>(rp: &ResolvedProvider<H>, request: &InferRequest) -> InferResponse {
     let echo = last_user_text(request);
-    let text = format!("mock({model}) · {echo}", model = rp.wire_model());
+    let text = match &request.response_format {
+        ResponseFormat::JsonSchema(schema) => mock_schema::synthesize(schema).to_string(),
+        _ => format!("mock({model}) · {echo}", model = rp.wire_model()),
+    };
     let usage = usage_for(&echo, &text);
 
     let mut resp = InferResponse::new(
@@ -129,6 +141,41 @@ mod tests {
 
     fn req(text: &str) -> InferRequest {
         InferRequest::new("echo", vec![Message::text(Role::User, text)])
+    }
+
+    #[test]
+    fn schema_request_synthesizes_pure_json() {
+        // F3: a JsonSchema request returns ONLY a conformant JSON value —
+        // no `mock(model) ·` prefix (the schema instruction says "ONLY a
+        // JSON value" and the mock behaves like a well-behaved model).
+        let rp = resolved();
+        let mut request = req("extract the fields");
+        request.response_format =
+            nika_kernel::ai::provider::ResponseFormat::JsonSchema(serde_json::json!({
+                "type": "object",
+                "required": ["headline", "score"],
+                "properties": {
+                    "headline": { "type": "string" },
+                    "score": { "type": "integer", "minimum": 0 }
+                }
+            }));
+        let a = infer(&rp, &request);
+        let b = infer(&rp, &request);
+        let (ContentBlock::Text { text: ta }, ContentBlock::Text { text: tb }) =
+            (&a.content[0], &b.content[0])
+        else {
+            panic!("expected text blocks");
+        };
+        assert_eq!(ta, tb, "byte-stable under a schema too");
+        let parsed: serde_json::Value = serde_json::from_str(ta).expect("pure JSON · no prefix");
+        assert_eq!(parsed["headline"], "mock");
+        assert_eq!(parsed["score"], 0);
+        // the plain-echo contract is untouched
+        let plain = infer(&rp, &req("hello"));
+        let ContentBlock::Text { text } = &plain.content[0] else {
+            panic!("expected text");
+        };
+        assert!(text.starts_with("mock(echo) · "), "{text}");
     }
 
     #[test]

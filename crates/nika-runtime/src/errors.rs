@@ -39,7 +39,12 @@ pub enum RuntimeError {
     /// class · spec 05) · engine-internal [`codes::NIKA_1702`] via
     /// [`NikaErrorCode::nika_code`] for diagnostics. The wire code is what
     /// `tasks.X.error.code` exposes — never the 1702 (spec 05 §142).
-    #[error("NIKA-VAR-001 · unresolved template reference `{reference}`")]
+    /// A `vars.*` reference carries the CLI fix (`--var key=value` · F4)
+    /// — the first thing a user with an unbound required var needs.
+    #[error(
+        "NIKA-VAR-001 · unresolved template reference `{reference}`{}",
+        var_cli_hint(.reference)
+    )]
     #[diagnostic(code(nika::runtime::unresolved_template))]
     UnresolvedTemplate {
         /// The reference inside the island (e.g. `tasks.ghost.output`).
@@ -97,6 +102,18 @@ pub enum RuntimeError {
         /// The binding-relative message (which `<name>` · the jq cause).
         message: String,
     },
+}
+
+/// The actionable suffix for an unresolved `vars.*` reference — the CLI
+/// is the fix a user can apply WITHOUT editing the workflow (`--var` ·
+/// F4). Non-`vars` references (tasks · secrets · env) get no suffix:
+/// their fixes are different classes.
+fn var_cli_hint(reference: &str) -> &'static str {
+    if reference.trim_start().starts_with("vars.") {
+        " — supply it with `nika run <file> --var <key>=<value>` or declare a `default:`"
+    } else {
+        ""
+    }
 }
 
 impl RuntimeError {
@@ -268,6 +285,24 @@ mod tests {
                 "{code} must resolve in the embedded spec table"
             );
         }
+    }
+
+    #[test]
+    fn vars_reference_carries_the_cli_fix_hint() {
+        // F4: an unbound `vars.*` reference must TEACH the fix the user
+        // can apply without editing the workflow (`--var key=value`).
+        let err = RuntimeError::UnresolvedTemplate {
+            reference: "vars.topic".into(),
+        };
+        let msg = err.to_string();
+        assert!(msg.starts_with("NIKA-VAR-001"), "{msg}");
+        assert!(msg.contains("--var"), "the CLI fix is named: {msg}");
+        // Non-vars references get no suffix — their fixes are different
+        // classes (a ghost task id is a workflow bug, not a CLI miss).
+        let task = RuntimeError::UnresolvedTemplate {
+            reference: "tasks.ghost.output".into(),
+        };
+        assert!(!task.to_string().contains("--var"), "{task}");
     }
 
     #[test]

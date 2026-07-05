@@ -56,6 +56,13 @@ use crate::verbs::exit;
 /// previews offline). It travels the SAME composition path as an envelope
 /// model, so a bad id fails loud identically (the registry surfaces its
 /// typed error when an infer/agent task actually resolves it).
+///
+/// `vars` — the repeatable `--var KEY=VALUE` overrides (F4): each key must
+/// be a declared workflow var (unknown keys are refused · exit 3); values
+/// override a `default:` and satisfy a `required: true` var.
+// Eight independent CLI parameters ARE the clap surface — the same idiom
+// as TraceArgs' four bools, not a state machine to encode in a struct.
+#[allow(clippy::too_many_arguments)]
 #[must_use]
 pub fn run(
     file: &str,
@@ -65,18 +72,13 @@ pub fn run(
     mode: RenderMode,
     dry_run: bool,
     model_override: Option<&str>,
+    vars: &[String],
 ) -> u8 {
-    // `--output json` selects the machine-result mode (spec 01 §"What
-    // leaves a run"): the resolved `outputs:` object as one JSON object on
-    // stdout · diagnostics/progress on stderr. Absent → the live human
-    // render. Validated up front so an unknown format fails before any work.
-    let output_json = match output {
-        None => false,
-        Some("json") => true,
-        Some(other) => {
-            eprintln!("nika run: unknown --output format `{other}` (expected `json`)");
-            return exit::ENV;
-        }
+    // `--output` validated up front so an unknown format fails before any
+    // work (machine-result mode · see `output_mode`).
+    let output_json = match output_mode(output) {
+        Ok(flag) => flag,
+        Err(code) => return code,
     };
 
     // ── Audit BEFORE run (spec §3 · INV the runtime also enforces) ──
@@ -99,17 +101,21 @@ pub fn run(
         return out.code;
     }
 
-    // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
-    // The audit passed; STOP here and show the static plan (the same anatomy
-    // `nika inspect` renders) without composing any production seam. No fs,
-    // no http, no subprocess, no provider call — the run is never reached.
-    if dry_run {
-        let plan = crate::verbs::inspect::run(file);
-        if !plan.text.is_empty() {
-            println!("{}", plan.text.trim_end());
+    // ── `--var` overrides (F4) — parse + validate BEFORE any work ────
+    // An unknown key is refused loudly (a typo'd override silently doing
+    // nothing would be the worst outcome) · same exit class as an unknown
+    // `--output` format (operator input · exit 3).
+    let overrides = match parse_var_overrides(vars, &wf) {
+        Ok(map) => map,
+        Err(message) => {
+            eprintln!("nika run: {message}");
+            return exit::ENV;
         }
-        println!("\n  dry-run · plan only · no effects executed");
-        return exit::OK;
+    };
+
+    // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
+    if dry_run {
+        return render_dry_run(file);
     }
 
     // ── Compose the production runtime (real seams · env keys) ──────
@@ -128,7 +134,9 @@ pub fn run(
     // static check cannot see). The static check is the other half of each.
     let caps = capabilities_of(&wf);
     let runtime = match production_runtime(default_model, caps) {
-        Ok(rt) => rt,
+        // The validated `--var` overrides ride the runtime builder — they
+        // merge OVER the envelope defaults at run start (F4).
+        Ok(rt) => rt.with_var_overrides(overrides),
         Err(e) => {
             eprintln!("nika run: environment: {e}");
             return exit::ENV;
@@ -197,6 +205,7 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         mode,
         false,
         model_override,
+        &[],
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the tip then never
@@ -222,6 +231,69 @@ fn example_model(yaml: &str) -> String {
     .ok()
     .and_then(|wf| wf.model.map(|m| m.value))
     .unwrap_or_default()
+}
+
+/// Validate `--output` up front — `Ok(true)` selects the machine-result
+/// mode (spec 01 §"What leaves a run": the resolved `outputs:` object as
+/// ONE JSON object on stdout · diagnostics/progress on stderr) · `Ok(false)`
+/// the live human render · `Err(exit)` an unknown format (already printed).
+fn output_mode(output: Option<&str>) -> Result<bool, u8> {
+    match output {
+        None => Ok(false),
+        Some("json") => Ok(true),
+        Some(other) => {
+            eprintln!("nika run: unknown --output format `{other}` (expected `json`)");
+            Err(exit::ENV)
+        }
+    }
+}
+
+/// `--dry-run` (spec §10 · "plan only · zero effects"): the audit passed —
+/// render the static plan (the same anatomy `nika inspect` renders) without
+/// composing any production seam. No fs, no http, no subprocess, no
+/// provider call — the run is never reached.
+fn render_dry_run(file: &str) -> u8 {
+    let plan = crate::verbs::inspect::run(file);
+    if !plan.text.is_empty() {
+        println!("{}", plan.text.trim_end());
+    }
+    println!("\n  dry-run · plan only · no effects executed");
+    exit::OK
+}
+
+/// Parse the repeatable `--var KEY=VALUE` overrides and validate every
+/// key against the workflow's declared `vars:` — an unknown key is
+/// refused with the declared set (a typo'd override silently doing
+/// nothing would be the worst outcome). Values parse as JSON when they
+/// parse (numbers · booleans · arrays · quoted strings), else ride as
+/// plain strings: `--var topic=news` is the string `"news"`,
+/// `--var limit=5` the number `5`.
+fn parse_var_overrides(
+    pairs: &[String],
+    wf: &RawWorkflow,
+) -> Result<BTreeMap<String, Value>, String> {
+    let declared: Vec<&str> = wf.vars.iter().map(|(k, _)| k.value.as_str()).collect();
+    let mut overrides = BTreeMap::new();
+    for pair in pairs {
+        let (key, raw) = match pair.split_once('=') {
+            Some((k, v)) if !k.trim().is_empty() => (k.trim(), v),
+            _ => return Err(format!("--var expects KEY=VALUE, got `{pair}`")),
+        };
+        if !declared.contains(&key) {
+            return Err(if declared.is_empty() {
+                format!("--var {key}: this workflow declares no `vars:`")
+            } else {
+                format!(
+                    "--var {key}: unknown var — the workflow declares: {}",
+                    declared.join(" · ")
+                )
+            });
+        }
+        let value =
+            serde_json::from_str::<Value>(raw).unwrap_or_else(|_| Value::String(raw.to_owned()));
+        overrides.insert(key.to_owned(), value);
+    }
+    Ok(overrides)
 }
 
 /// Should the offline-preview tip fire after an example run?
@@ -442,6 +514,7 @@ mod tests {
             RenderMode::Plain,
             false,
             Some("mock/echo"),
+            &[],
         );
         assert_eq!(
             code,
@@ -469,11 +542,100 @@ mod tests {
             RenderMode::Plain,
             false,
             Some("mock/echo"),
+            &[],
         );
         assert_eq!(
             overridden,
             exit::OK,
             "the override resolved mock/echo, not the envelope's ollama model"
         );
+    }
+
+    // ── `--var` (F4) — the required-var class was UNRUNNABLE from the CLI ──
+
+    /// The workflow of the field repro: a `required: true` var with no
+    /// default. Before F4 there was NO way to run it from the CLI.
+    const REQUIRED_VAR_WF: &str = "nika: v1\nworkflow: needs-var\nmodel: mock/echo\nvars:\n  topic:\n    type: string\n    required: true\ntasks:\n  - id: ask\n    infer: { prompt: \"about ${{ vars.topic }}\" }\n";
+
+    fn run_with_vars(name: &str, vars: &[String]) -> u8 {
+        let wf = stage(name, REQUIRED_VAR_WF);
+        run(
+            &wf.to_string_lossy(),
+            false,
+            None,
+            plain_theme(),
+            RenderMode::Plain,
+            false,
+            None,
+            vars,
+        )
+    }
+
+    #[test]
+    fn var_flag_satisfies_a_required_var() {
+        // Without the flag the first `${{ vars.topic }}` reference fails
+        // the task (NIKA-VAR-001) → workflow failed.
+        assert_eq!(
+            run_with_vars("var-missing.nika.yaml", &[]),
+            exit::WORKFLOW,
+            "an unbound required var still fails the run"
+        );
+        // With `--var topic=rust` the SAME workflow runs green.
+        assert_eq!(
+            run_with_vars("var-provided.nika.yaml", &["topic=rust".to_owned()]),
+            exit::OK,
+            "--var makes the required-var workflow runnable"
+        );
+    }
+
+    #[test]
+    fn var_flag_refuses_unknown_keys_and_bad_shapes() {
+        // A typo'd key must refuse LOUDLY (exit 3 · never silently ignored).
+        assert_eq!(
+            run_with_vars("var-unknown.nika.yaml", &["topik=rust".to_owned()]),
+            exit::ENV,
+            "unknown --var key is refused"
+        );
+        // A pair without `=` is an operator input error, same class.
+        assert_eq!(
+            run_with_vars("var-shape.nika.yaml", &["topic".to_owned()]),
+            exit::ENV,
+            "malformed --var pair is refused"
+        );
+    }
+
+    #[test]
+    fn parse_var_overrides_types_json_else_string() {
+        let wf = nika_schema::parse(
+            "nika: v1\nworkflow: t\nvars:\n  topic: { type: string, required: true }\n  limit: { type: integer, default: 3 }\n  flags: [\"a\"]\ntasks:\n  - id: t\n    exec: { command: \"true\" }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+
+        // JSON-if-parses: numbers · arrays land typed; bare words as strings.
+        let overrides = super::parse_var_overrides(
+            &[
+                "topic=quantum news".to_owned(),
+                "limit=5".to_owned(),
+                "flags=[\"x\",\"y\"]".to_owned(),
+            ],
+            &wf,
+        )
+        .expect("valid overrides");
+        assert_eq!(overrides["topic"], json!("quantum news"));
+        assert_eq!(overrides["limit"], json!(5));
+        assert_eq!(overrides["flags"], json!(["x", "y"]));
+
+        // The unknown-key refusal NAMES the declared set (actionable).
+        let err = super::parse_var_overrides(&["ghost=1".to_owned()], &wf)
+            .expect_err("unknown key refused");
+        assert!(err.contains("ghost"), "{err}");
+        assert!(err.contains("topic"), "lists the declared vars: {err}");
+
+        // `=` in the VALUE is preserved (split_once · key=v=w).
+        let eq = super::parse_var_overrides(&["topic=a=b".to_owned()], &wf)
+            .expect("value may carry '='");
+        assert_eq!(eq["topic"], json!("a=b"));
     }
 }

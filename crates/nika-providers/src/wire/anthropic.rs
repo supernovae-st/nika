@@ -107,6 +107,9 @@ fn build_request(
     let mut http_req = HttpRequest::post(rp.base_url.clone());
     http_req.headers = headers;
     http_req.body = Some(Bytes::from(bytes));
+    // The task `timeout:` governs the transport deadline (F1) — see
+    // `wire::transport_deadline` for the buffered-vs-streaming split.
+    http_req.timeout = super::transport_deadline(&rp.profile, req, stream);
     Ok(http_req)
 }
 

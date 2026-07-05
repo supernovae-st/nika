@@ -83,6 +83,12 @@ pub struct InferInput {
     pub schema: Option<serde_json::Value>,
     /// Extended-thinking token budget (spec `thinking.budget_tokens`).
     pub thinking_budget: Option<u32>,
+    /// The task-level `timeout:` budget (spec 03) — plumbed to the
+    /// provider transport deadline so the HTTP effect's fixed default
+    /// cannot undercut a longer task budget (F1 · a local model
+    /// routinely needs minutes). `None` → the adapter's per-provider
+    /// default governs.
+    pub timeout: Option<std::time::Duration>,
 }
 
 impl InferInput {
@@ -97,6 +103,7 @@ impl InferInput {
             max_tokens: None,
             schema: None,
             thinking_budget: None,
+            timeout: None,
         }
     }
 }
@@ -309,6 +316,10 @@ fn build_request(
     request.temperature = input.temperature;
     request.max_tokens = input.max_tokens;
     request.thinking_budget = input.thinking_budget;
+    // The task `timeout:` rides every round-trip of this task (schema
+    // retries included) — the OUTER attempt-loop budget still enforces
+    // the real total; this only stops the transport from undercutting it.
+    request.timeout = input.timeout;
     if let Some(schema) = &input.schema
         && native_schema
     {
@@ -407,30 +418,72 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn structured_happy_path_through_the_noisy_echo() {
-        // mock echoes `mock(echo) · {prompt}` — the prompt IS the JSON, the
-        // balanced-span extraction digs it out of the prefix noise.
-        let mut input = InferInput::new(r#"{"name":"Ada","age":36}"#);
+    async fn structured_mock_synthesizes_a_conformant_instance() {
+        // F3: mock + `schema:` returns a SYNTHESIZED conformant instance
+        // (the echo could never satisfy a schema — every structured
+        // workflow on mock/echo died NIKA-INFER-002 · no offline CI).
+        let mut input = InferInput::new("extract the person");
         input.schema = Some(json!({
             "type": "object",
             "properties": {
                 "name": { "type": "string" },
-                "age": { "type": "integer" }
+                "age": { "type": "integer", "minimum": 0 }
             },
             "required": ["name", "age"]
         }));
         let out = mock_verb().run(input).await.expect("valid structured");
         match out.output {
-            InferValue::Structured(v) => assert_eq!(v["age"], 36),
+            InferValue::Structured(v) => {
+                assert_eq!(v["name"], "mock");
+                assert_eq!(v["age"], 0);
+            }
+            other => panic!("expected structured, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn structured_mock_handles_atlas_style_schemas() {
+        // The field-report class (payload-review · geo-audit): enum
+        // severity + bounded integers + arrays of typed objects must
+        // dry-run green offline — the F3 acceptance shape.
+        let mut input = InferInput::new("review the payload");
+        input.schema = Some(json!({
+            "type": "object",
+            "required": ["verdict", "score", "findings"],
+            "properties": {
+                "verdict": { "type": "string", "enum": ["P0", "P1", "P2", "P3"] },
+                "score": { "type": "integer", "minimum": 0, "maximum": 12 },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["severity", "detail"],
+                        "properties": {
+                            "severity": { "type": "string", "enum": ["P0", "P1"] },
+                            "detail": { "type": "string" }
+                        }
+                    }
+                }
+            }
+        }));
+        let out = mock_verb().run(input).await.expect("dry-runs offline");
+        match out.output {
+            InferValue::Structured(v) => {
+                assert_eq!(v["verdict"], "P0", "enum → first entry");
+                assert_eq!(v["score"], 0, "bounded integer → minimum");
+                assert_eq!(v["findings"][0]["severity"], "P0");
+            }
             other => panic!("expected structured, got {other:?}"),
         }
     }
 
     #[tokio::test]
     async fn schema_retry_exhaustion_reports_attempts() {
-        // The echo of a prose prompt never validates → budget exhausted.
-        let mut input = InferInput::new("just prose, no json here");
-        input.schema = Some(json!({ "type": "object", "required": ["x"] }));
+        // A `pattern` is outside the mock generator's vocabulary — the
+        // synthesized "mock" never validates → budget exhausted (the
+        // retry loop itself stays covered post-F3).
+        let mut input = InferInput::new("give me a year");
+        input.schema = Some(json!({ "type": "string", "pattern": "^\\d{4}$" }));
         let err = mock_verb().run(input).await.expect_err("never validates");
         match err {
             VerbInferError::SchemaValidation { attempts, .. } => {
@@ -443,8 +496,8 @@ mod tests {
 
     #[tokio::test]
     async fn zero_retry_budget_is_single_shot() {
-        let mut input = InferInput::new("prose");
-        input.schema = Some(json!({ "type": "object", "required": ["x"] }));
+        let mut input = InferInput::new("give me a year");
+        input.schema = Some(json!({ "type": "string", "pattern": "^\\d{4}$" }));
         let err = mock_verb()
             .with_schema_retry_budget(0)
             .run(input)
@@ -561,6 +614,22 @@ mod tests {
             InferValue::Text(t) => assert!(t.contains("capital of France")),
             other => panic!("expected text, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn request_carries_the_task_timeout() {
+        // F1: the task `timeout:` must reach the provider transport
+        // deadline — unset stays None (the adapter's per-provider
+        // default governs).
+        let budget = std::time::Duration::from_secs(420);
+        let mut input = InferInput::new("q");
+        input.timeout = Some(budget);
+        let req = build_request(&input, "m", base_messages(&input, true), true);
+        assert_eq!(req.timeout, Some(budget));
+
+        let unset = InferInput::new("q");
+        let req = build_request(&unset, "m", base_messages(&unset, true), true);
+        assert_eq!(req.timeout, None, "no budget → adapter default governs");
     }
 
     #[test]

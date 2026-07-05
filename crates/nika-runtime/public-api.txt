@@ -200,6 +200,7 @@ pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schem
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecVerb<S>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, infer: nika_verb_infer::InferVerb<H>, agent: nika_verb_agent::AgentVerb<P, T, D>, clock: C, config: nika_runtime::RuntimeConfig) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_secret_resolver(self, resolver: alloc::sync::Arc<dyn nika_runtime::WorkflowSecretResolver>) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_var_overrides(self, overrides: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
 impl<D> owo_colors::OwoColorize for nika_runtime::Runtime<S, T, H, P, D, C>
 impl<T, U> core::convert::Into<U> for nika_runtime::Runtime<S, T, H, P, D, C> where U: core::convert::From<T>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::into(self) -> U
