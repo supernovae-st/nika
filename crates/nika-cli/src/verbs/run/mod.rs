@@ -154,17 +154,9 @@ pub fn run(
     };
 
     // ── Execute (block the async run on a current-thread executor) ──
-    let rt = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
+    let rt = match executor(output_json) {
         Ok(rt) => rt,
-        Err(e) => {
-            let message = format!("cannot start the async executor: {e}");
-            eprintln!("nika run: environment: {message}");
-            emit_error_envelope(&message, output_json);
-            return exit::ENV;
-        }
+        Err(code) => return code,
     };
     rt.block_on(execute(
         &runtime,
@@ -176,6 +168,24 @@ pub fn run(
         mode,
         resume.is_some(),
     ))
+}
+
+/// Build the current-thread executor the run blocks on — an executor
+/// that will not start is the environment class (printed + enveloped).
+///
+/// # Errors
+///
+/// The exit code to return unchanged.
+fn executor(output_json: bool) -> Result<tokio::runtime::Runtime, u8> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| {
+            let message = format!("cannot start the async executor: {e}");
+            eprintln!("nika run: environment: {message}");
+            emit_error_envelope(&message, output_json);
+            exit::ENV
+        })
 }
 
 /// The validated `--resume`/`--answer` inputs the composition consumes.
