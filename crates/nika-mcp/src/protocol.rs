@@ -14,14 +14,26 @@ use serde_json::{Value, json};
 use crate::tools;
 
 /// The MCP protocol revision this server prefers (its own latest).
-pub(crate) const PROTOCOL_VERSION: &str = "2025-06-18";
+///
+/// 2026-07-28 (FINAL of the RC locked 2026-05-21) is a STATELESS-core
+/// revision: over HTTP the handshake + `Mcp-Session-Id` disappear in favor
+/// of per-request `Mcp-Method`/`Mcp-Name` headers — over STDIO (this
+/// server's only transport) nothing structural changes: a 2026-07-28
+/// client may simply START with `tools/list` (no `initialize` first), which
+/// this dispatcher has always accepted (every method is handled statelessly ·
+/// no session object exists to require). Tool inputSchemas are full JSON
+/// Schema 2020-12 (`oneOf`/`$ref` allowed — ours already conform as plain
+/// object schemas). The 2025-era `-32002` code is not emitted here (unknown
+/// method = `-32601` · malformed = `-32600` · both unchanged).
+pub(crate) const PROTOCOL_VERSION: &str = "2026-07-28";
 /// The revisions this server interoperates with — `initialize` ECHOES the
 /// client's requested version when it is one of these (spec lifecycle · version
 /// negotiation MUST · « respond with the same version »), else answers with our
-/// latest and the client decides. All three drive the identical tools/list +
+/// latest and the client decides. All four drive the identical tools/list +
 /// tools/call surface; batching (a 2024-11-05 / 2025-03-26 feature) is handled
-/// by [`dispatch`].
-pub(crate) const SUPPORTED: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
+/// by [`dispatch`]; statelessness (2026-07-28) is the dispatcher's native
+/// shape. SUPPORTED stays additive — no client ever breaks (no flag-day).
+pub(crate) const SUPPORTED: [&str; 4] = ["2026-07-28", "2025-06-18", "2025-03-26", "2024-11-05"];
 /// The advertised server name (`serverInfo.name`).
 pub(crate) const SERVER_NAME: &str = "nika";
 
@@ -153,6 +165,31 @@ mod tests {
         assert_eq!(resp["result"]["protocolVersion"], PROTOCOL_VERSION);
         assert_eq!(resp["result"]["serverInfo"]["name"], "nika");
         assert!(resp["result"]["capabilities"]["tools"].is_object());
+    }
+
+    #[test]
+    fn negotiates_2026_07_28_by_echo() {
+        // The FINAL rev (RC locked 2026-05-21) is in SUPPORTED — a client
+        // requesting it gets it echoed back (spec lifecycle MUST).
+        let resp = handle(&json!({ "jsonrpc": "2.0", "id": 9, "method": "initialize",
+            "params": { "protocolVersion": "2026-07-28" } }))
+        .expect("reply");
+        assert_eq!(resp["result"]["protocolVersion"], "2026-07-28");
+    }
+
+    #[test]
+    fn stateless_client_may_start_without_initialize() {
+        // 2026-07-28 stateless core: a client may open with tools/list —
+        // no handshake first. This dispatcher has always been stateless;
+        // this test PINS that property against a future session object.
+        let resp =
+            handle(&json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list" })).expect("reply");
+        assert!(
+            resp["result"]["tools"]
+                .as_array()
+                .is_some_and(|t| !t.is_empty()),
+            "tools/list answers cold · no initialize required"
+        );
     }
 
     #[test]
