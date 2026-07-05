@@ -143,6 +143,18 @@ impl Theme {
         if self.ascii { "[nika]" } else { "🦋" }
     }
 
+    /// Wrap `text` as an OSC-8 hyperlink to `url` — a no-op unless the
+    /// `links` capability resolved on (TTY + `--hyperlink` chain), so
+    /// every sober register keeps its exact bytes.
+    #[must_use]
+    pub fn link(&self, url: &str, text: &str) -> String {
+        if self.links {
+            crate::display::format::osc8(url, text, None)
+        } else {
+            text.to_owned()
+        }
+    }
+
     /// Render a 3-sample sparkline from token-arrival counts.
     #[must_use]
     pub fn sparkline(&self, samples: &[u64]) -> String {

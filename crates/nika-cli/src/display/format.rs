@@ -76,6 +76,64 @@ pub fn color_enabled(choice: ColorChoice, env: ColorEnv, tty: bool) -> bool {
     }
 }
 
+/// The `--hyperlink <WHEN>` tri-state (fd · ls convention) — OSC-8
+/// terminal hyperlinks on the paths we print.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkChoice {
+    /// Force links on (pagers that pass escapes · captured demos).
+    Always,
+    /// Force links off.
+    Never,
+    /// TTY + `TERM != dumb` — links NEVER reach a pipe (the default).
+    Auto,
+}
+
+/// Resolve the hyperlink decision. `auto` is strictly TTY-gated (a
+/// machine surface must never grow OSC escapes by default); `always`
+/// is the operator's explicit override for escape-passing pagers.
+#[must_use]
+pub fn links_enabled(choice: LinkChoice, tty: bool, term_dumb: bool) -> bool {
+    match choice {
+        LinkChoice::Always => true,
+        LinkChoice::Never => false,
+        LinkChoice::Auto => tty && !term_dumb,
+    }
+}
+
+/// One OSC-8 hyperlink: `ESC]8;params;URL ST text ESC]8;; ST` — raw
+/// escapes, no crate (the mainstream-2026 form every relevant emulator
+/// speaks). `id` groups fragments of ONE link across wrapped/multi-line
+/// renders (the spec's `id=` param) — pass it whenever the same target
+/// repeats so the pointer highlights as one unit.
+#[must_use]
+pub fn osc8(url: &str, text: &str, id: Option<&str>) -> String {
+    let params = id.map(|i| format!("id={i}")).unwrap_or_default();
+    format!("\x1b]8;{params};{url}\x1b\\{text}\x1b]8;;\x1b\\")
+}
+
+/// A `file://` URL for one ABSOLUTE path: `file://{host}{path}`,
+/// percent-encoded. The hostname matters — iTerm2 opens file links only
+/// when the host names this machine (GNU ls does the same); an empty
+/// host reads as localhost (RFC 8089) and degrades gracefully.
+#[must_use]
+pub fn file_url(host: &str, abs_path: &str) -> String {
+    let mut url = String::with_capacity(7 + host.len() + abs_path.len());
+    url.push_str("file://");
+    url.push_str(host);
+    for b in abs_path.bytes() {
+        // RFC 3986 unreserved + the path separator stay literal; every
+        // other byte (space · unicode · quotes) rides percent-encoded.
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~' | b'/') {
+            url.push(b as char);
+        } else {
+            let _ = write!(url, "%{b:02X}");
+        }
+    }
+    url
+}
+
+use std::fmt::Write as _;
+
 /// Widest a sub-cent cost may grow (decimal places) before it honestly
 /// rounds to the flat zero form.
 const COST_MAX_PLACES: usize = 6;
@@ -152,6 +210,45 @@ mod tests {
     fn cost_formatter_survives_non_finite() {
         assert_eq!(fmt_cost_usd(f64::NAN), "$0.00");
         assert_eq!(fmt_cost_usd(f64::INFINITY), "$0.00");
+    }
+
+    /// The hyperlink decision: `always`/`never` are absolute · `auto`
+    /// fires ONLY on a TTY with a capable TERM (never to pipes).
+    #[test]
+    fn link_resolution_is_tty_gated_under_auto() {
+        assert!(links_enabled(LinkChoice::Always, false, true), "forced on");
+        assert!(!links_enabled(LinkChoice::Never, true, false), "forced off");
+        assert!(links_enabled(LinkChoice::Auto, true, false));
+        assert!(!links_enabled(LinkChoice::Auto, false, false), "pipe");
+        assert!(!links_enabled(LinkChoice::Auto, true, true), "TERM=dumb");
+    }
+
+    /// The OSC-8 wire form, byte-exact: `ESC]8;;URL ST text ESC]8;; ST`
+    /// — and the `id=` param rides when a multi-line link needs to
+    /// highlight as one unit.
+    #[test]
+    fn osc8_emits_the_exact_escape_form() {
+        assert_eq!(
+            osc8("file://mac/tmp/a.yaml", "a.yaml", None),
+            "\x1b]8;;file://mac/tmp/a.yaml\x1b\\a.yaml\x1b]8;;\x1b\\"
+        );
+        assert_eq!(
+            osc8("https://nika.sh", "spec", Some("s1")),
+            "\x1b]8;id=s1;https://nika.sh\x1b\\spec\x1b]8;;\x1b\\"
+        );
+    }
+
+    /// `file://` URLs carry the host (iTerm2 requirement) and percent-
+    /// encode everything outside unreserved+`/` — bytes, not chars, so
+    /// unicode paths ride as UTF-8 %-sequences.
+    #[test]
+    fn file_url_encodes_the_path_and_keeps_the_host() {
+        assert_eq!(
+            file_url("mac.local", "/tmp/demo file.yaml"),
+            "file://mac.local/tmp/demo%20file.yaml"
+        );
+        assert_eq!(file_url("", "/a/b_c-d.~e/f"), "file:///a/b_c-d.~e/f");
+        assert_eq!(file_url("h", "/é"), "file://h/%C3%A9");
     }
 
     /// The full priority chain (module doc order) — each rung beats

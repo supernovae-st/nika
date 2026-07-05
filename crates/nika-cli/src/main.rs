@@ -21,7 +21,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
-use nika_cli::display::format::{ColorChoice, ColorEnv, color_enabled};
+use nika_cli::display::format::{ColorChoice, ColorEnv, LinkChoice, color_enabled, links_enabled};
 use nika_cli::verbs::{self, VerbOutput};
 use nika_cli::{RunView, Theme, frame};
 use nika_event::Event;
@@ -40,8 +40,33 @@ struct Cli {
     /// `CLICOLOR_FORCE` · `NO_COLOR` · `CLICOLOR=0` in that order).
     #[arg(long, global = true, value_enum, default_value_t = ColorWhenArg::Auto)]
     color: ColorWhenArg,
+    /// When to emit OSC-8 hyperlinks on printed paths (auto = TTY +
+    /// `TERM != dumb` · never to pipes; always = force them, for pagers
+    /// that pass escapes — tmux/screen may render them as plain text).
+    #[arg(long, global = true, value_enum, default_value_t = LinkWhenArg::Auto)]
+    hyperlink: LinkWhenArg,
     #[command(subcommand)]
     command: Command,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum LinkWhenArg {
+    /// Force hyperlinks on (escape-passing pagers · captured demos).
+    Always,
+    /// Force hyperlinks off.
+    Never,
+    /// TTY + `TERM != dumb` — never to pipes (the default).
+    Auto,
+}
+
+impl LinkWhenArg {
+    fn choice(self) -> LinkChoice {
+        match self {
+            Self::Always => LinkChoice::Always,
+            Self::Never => LinkChoice::Never,
+            Self::Auto => LinkChoice::Auto,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -404,6 +429,7 @@ struct TraceArgs {
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     let color = cli.color;
+    let link_when = cli.hyperlink.choice();
     let code = match cli.command {
         Command::Check {
             file,
@@ -418,12 +444,12 @@ fn main() -> std::process::ExitCode {
                 verbs::check::run(
                     &file,
                     json,
-                    term_theme(color.with_no_color(no_color), ascii),
+                    term_theme(color.with_no_color(no_color), ascii, link_when),
                 )
             };
             emit(&out)
         }
-        Command::Run(args) => run_verb(&args, color),
+        Command::Run(args) => run_verb(&args, color, link_when),
         Command::Test {
             file,
             update,
@@ -432,7 +458,7 @@ fn main() -> std::process::ExitCode {
         } => verbs::test::run(
             &file,
             update,
-            term_theme(color.with_no_color(no_color), ascii),
+            term_theme(color.with_no_color(no_color), ascii, link_when),
         ),
         Command::Inspect { file, ascii } => emit(&verbs::inspect::run(&file, ascii)),
         Command::Graph { file, format } => {
@@ -456,7 +482,7 @@ fn main() -> std::process::ExitCode {
             ExamplesAction::Run { slug, model } => verbs::run::example(
                 &slug,
                 model.as_deref(),
-                term_theme(color.with_no_color(false), false),
+                term_theme(color.with_no_color(false), false, link_when),
             ),
         },
         Command::New { from, dest, force } => emit(&verbs::new::run(&from, dest.as_deref(), force)),
@@ -465,7 +491,7 @@ fn main() -> std::process::ExitCode {
             clap_complete::generate(shell, &mut cmd, "nika-cli", &mut std::io::stdout());
             0
         }
-        Command::Trace { action } => trace_verb(action, color),
+        Command::Trace { action } => trace_verb(action, color, link_when),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
@@ -506,17 +532,17 @@ fn emit(out: &VerbOutput) -> u8 {
 
 /// Dispatch the `trace` verb family: the live renders (replay · show)
 /// plus the static readers (outputs · peek · flow).
-fn trace_verb(action: TraceAction, color: ColorWhenArg) -> u8 {
+fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
     match action {
-        TraceAction::Replay(args) => trace_render(&args, true, color),
-        TraceAction::Show(args) => trace_render(&args, false, color),
+        TraceAction::Replay(args) => trace_render(&args, true, color, link_when),
+        TraceAction::Show(args) => trace_render(&args, false, color, link_when),
         TraceAction::Outputs {
             trace,
             ascii,
             no_color,
         } => emit(&verbs::trace::outputs(
             &trace.to_string_lossy(),
-            term_theme(color.with_no_color(no_color), ascii),
+            term_theme(color.with_no_color(no_color), ascii, link_when),
         )),
         TraceAction::Peek {
             trace,
@@ -528,7 +554,7 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg) -> u8 {
             &trace.to_string_lossy(),
             &task,
             raw,
-            term_theme(color.with_no_color(no_color), ascii),
+            term_theme(color.with_no_color(no_color), ascii, link_when),
         )),
         TraceAction::Flow {
             trace,
@@ -538,13 +564,13 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg) -> u8 {
         } => emit(&verbs::trace::flow(
             &trace.to_string_lossy(),
             &workflow,
-            term_theme(color.with_no_color(no_color), ascii),
+            term_theme(color.with_no_color(no_color), ascii, link_when),
         )),
     }
 }
 
 /// Unpack the `run` clap surface into the library verb call.
-fn run_verb(args: &RunArgs, color: ColorWhenArg) -> u8 {
+fn run_verb(args: &RunArgs, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
     let resume = args.resume.as_ref().map(|trace| verbs::run::ResumeRequest {
         trace: trace.clone(),
         from: args.from.clone(),
@@ -554,7 +580,7 @@ fn run_verb(args: &RunArgs, color: ColorWhenArg) -> u8 {
         &args.file,
         args.json,
         args.output.as_deref(),
-        term_theme(color.with_no_color(args.no_color), args.ascii),
+        term_theme(color.with_no_color(args.no_color), args.ascii, link_when),
         resolve_run_mode(args.quiet, args.no_progress),
         args.dry_run,
         args.model.as_deref(),
@@ -590,14 +616,19 @@ fn color_env() -> ColorEnv {
     }
 }
 
-/// Resolve the colour/glyph theme for static (non-animated) surfaces.
-fn term_theme(choice: ColorChoice, ascii: bool) -> Theme {
+/// Resolve the colour/glyph/link theme for static (non-animated)
+/// surfaces — colour and hyperlinks each ride their own capability
+/// chain over the SAME environment facts.
+fn term_theme(choice: ColorChoice, ascii: bool, link_when: LinkChoice) -> Theme {
     let tty = std::io::stdout().is_terminal();
-    Theme::new(color_enabled(choice, color_env(), tty), ascii, false)
+    let env = color_env();
+    let mut theme = Theme::new(color_enabled(choice, env, tty), ascii, false);
+    theme.links = links_enabled(link_when, tty, env.term_dumb);
+    theme
 }
 
 /// Load events, fold, render — live replay or final card.
-fn trace_render(args: &TraceArgs, replay: bool, color: ColorWhenArg) -> u8 {
+fn trace_render(args: &TraceArgs, replay: bool, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
     let events = match load_events(args) {
         Ok(events) => events,
         Err(message) => {
@@ -607,7 +638,7 @@ fn trace_render(args: &TraceArgs, replay: bool, color: ColorWhenArg) -> u8 {
     };
 
     let tty = std::io::stdout().is_terminal();
-    let mut theme = term_theme(color.with_no_color(args.no_color), args.ascii);
+    let mut theme = term_theme(color.with_no_color(args.no_color), args.ascii, link_when);
     theme.animate = tty && replay && !env_flag("NIKA_REDUCED_MOTION");
 
     // The shape tails ride the interactive surface only: a TTY render

@@ -131,7 +131,12 @@ fn totals_line(view: &RunView, trace: &str, theme: Theme) -> String {
     if tokens > 0 {
         let _ = write!(line, " · {tokens} tok");
     }
-    let _ = write!(line, " · full value: nika trace peek {trace} <task>");
+    // The trace path is CLICKABLE on link-capable terminals (OSC-8).
+    let _ = write!(
+        line,
+        " · full value: nika trace peek {} <task>",
+        crate::verbs::linked_path(theme, trace)
+    );
     theme.paint(Role::Dim, &line)
 }
 

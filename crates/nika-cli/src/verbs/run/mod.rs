@@ -669,7 +669,12 @@ fn print_flow_epilogue(
     for line in crate::display::flow::verdict_card(view, &theme, note.as_deref()) {
         println!("{line}");
     }
-    let record = format!("nika run {file} --json > run.ndjson · nika trace outputs run.ndjson");
+    // The workflow path is CLICKABLE on link-capable terminals (OSC-8 ·
+    // file:// — the one real file in the hint; the ndjson names are the
+    // suggested two-step, not files that exist yet).
+    let file_cell = crate::verbs::linked_path(theme, file);
+    let record =
+        format!("nika run {file_cell} --json > run.ndjson · nika trace outputs run.ndjson");
     println!(
         "  {}",
         crate::display::vocab::hint(theme, "explore", &record)
