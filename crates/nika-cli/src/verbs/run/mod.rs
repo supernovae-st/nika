@@ -117,43 +117,16 @@ pub fn run(
         }
     };
 
-    // ── `--task` scope (the regenerate-one-block move) ──
-    // The FULL workflow audited above (whole-file spans · findings) — the
-    // sub-DAG re-checks below so the plan/waves/cost describe exactly
-    // what will run. Scoping happens before any effect.
-    let (wf, report) = match task_filter {
-        None => (wf, report),
-        Some(target) => match scope_to_task(wf, target) {
-            Ok(sub) => {
-                let sub_report = nika_schema::check(&sub);
-                (sub, sub_report)
-            }
-            Err(msg) => {
-                emit_diagnostic(&msg, output_json);
-                return exit::ENV;
-            }
-        },
-    };
-    if !report.is_clean() {
-        // The SAME findings `nika check` renders — the user must see why
-        // it won't run. Reuses the locked check rendering (exit 2). In
-        // machine mode the findings go to stderr (stdout stays clean JSON).
-        let out = crate::verbs::check::run(file, json, theme);
-        emit_diagnostic(&out.text, output_json);
-        return out.code;
-    }
-
-    // ── `--var` overrides (F4) — parse + validate BEFORE any work ────
-    // An unknown key is refused loudly (a typo'd override silently doing
-    // nothing would be the worst outcome) · same exit class as an unknown
-    // `--output` format (operator input · exit 3).
-    let overrides = match parse_var_overrides(vars, &wf) {
+    // ── `--task` scope + clean gate + `--var` overrides (all before
+    //    any effect — the whole operator-input preflight) ──
+    let (wf, report) =
+        match scoped_clean_gate(wf, report, task_filter, file, json, theme, output_json) {
+            Ok(pair) => pair,
+            Err(code) => return code,
+        };
+    let overrides = match validated_var_overrides(vars, &wf, output_json) {
         Ok(map) => map,
-        Err(message) => {
-            eprintln!("nika run: {message}");
-            emit_error_envelope(&message, output_json);
-            return exit::ENV;
-        }
+        Err(code) => return code,
     };
 
     // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
@@ -578,6 +551,71 @@ fn offline_tip_applies(exit_code: u8, override_given: bool, model: &str) -> bool
 /// The static wave plan as task ids (the check report's schedule) —
 /// injected into the display fold so the ∥ lane markers and the DAG-shape
 /// glyph speak the scheduler's truth, not a reconstruction.
+/// `--var` overrides (F4), parsed + validated BEFORE any work: an
+/// unknown key refuses loudly (a typo'd override silently doing nothing
+/// would be the worst outcome) · the operator-input exit class (3).
+fn validated_var_overrides(
+    vars: &[String],
+    wf: &RawWorkflow,
+    output_json: bool,
+) -> Result<std::collections::BTreeMap<String, serde_json::Value>, u8> {
+    parse_var_overrides(vars, wf).map_err(|message| {
+        eprintln!("nika run: {message}");
+        emit_error_envelope(&message, output_json);
+        exit::ENV
+    })
+}
+
+/// The `--task` scope + the clean gate, fused (both run before any
+/// effect): scope to the target's ancestor cone when requested (the
+/// sub-DAG re-checks so plan/waves/cost describe exactly what runs) ·
+/// then refuse a dirty report with the SAME findings `nika check`
+/// renders (locked rendering · exit 2 · stderr in machine mode).
+#[allow(clippy::too_many_arguments)]
+fn scoped_clean_gate(
+    wf: RawWorkflow,
+    report: CheckReport,
+    task_filter: Option<&str>,
+    file: &str,
+    json: bool,
+    theme: Theme,
+    output_json: bool,
+) -> Result<(RawWorkflow, CheckReport), u8> {
+    let (wf, report) = apply_task_scope(wf, report, task_filter, output_json)?;
+    if !report.is_clean() {
+        let out = crate::verbs::check::run(file, json, theme);
+        emit_diagnostic(&out.text, output_json);
+        return Err(out.code);
+    }
+    Ok((wf, report))
+}
+
+/// Apply the `--task` scope when requested (the regenerate-one-block
+/// move). The FULL workflow audited already (whole-file spans · faithful
+/// findings) — the sub-DAG RE-CHECKS here so the plan/waves/cost describe
+/// exactly what will run. Scoping happens before any effect; an unknown
+/// id refuses on the diagnostic surface with the environment exit class.
+fn apply_task_scope(
+    wf: RawWorkflow,
+    report: CheckReport,
+    task_filter: Option<&str>,
+    output_json: bool,
+) -> Result<(RawWorkflow, CheckReport), u8> {
+    let Some(target) = task_filter else {
+        return Ok((wf, report));
+    };
+    match scope_to_task(wf, target) {
+        Ok(sub) => {
+            let sub_report = nika_schema::check(&sub);
+            Ok((sub, sub_report))
+        }
+        Err(msg) => {
+            emit_diagnostic(&msg, output_json);
+            Err(exit::ENV)
+        }
+    }
+}
+
 /// Scope a workflow to ONE task + its transitive upstream (`--task`).
 ///
 /// Ancestors must run — their outputs feed the target's bindings; nothing
@@ -724,47 +762,78 @@ async fn execute(
         print_resume_summary(&outcome, resumed, true);
         code
     } else {
-        let mut fold = FoldSink::new(std::io::stdout().lock(), theme, mode);
-        fold.set_plan(plan_waves(wf, report));
-        // The shape tails ride the INTERACTIVE surface only (`Live` =
-        // TTY): the piped/`--no-progress`/`--quiet` registers keep their
-        // exact bytes — CI logs and scripts never grow tails.
-        if mode == RenderMode::Live && outputs {
-            fold.show_outputs(true);
-        }
-        let mut tee = Tee::new(fold, trace);
-        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
-        let (mut sink, trace) = tee.into_parts();
-        // `Live` painted in place during the run; `Plain`/`Quiet` folded
-        // silently · print the ONE final frame now.
-        if mode != RenderMode::Live {
-            sink.print_final();
-        }
-        // The Live (TTY) final frame carries the flow epilogue: the wall-
-        // time waterfall + the outputs pointer (design §2c). The sober
-        // registers (piped `Plain` · `--quiet` · machine modes) stay
-        // untouched — CI logs never grow chart art.
-        if mode == RenderMode::Live {
-            print_flow_epilogue(sink.view(), &outcome.outputs, theme, file);
-        }
-        // The spec §3.3 final-frame pointer (`trace: …`) — under the frame
-        // on the storytelling surfaces; `--quiet` keeps its compact-card
-        // promise (the file still exists · errors still reach stderr).
-        surface_trace(
+        execute_fold_lane(
+            runtime,
+            wf,
+            report,
+            &mut stamper,
+            file,
+            theme,
+            mode,
+            resumed,
             trace,
-            if mode == RenderMode::Quiet {
-                TraceNote::Silent
-            } else {
-                TraceNote::Stdout
-            },
-        );
-        print_resume_summary(&outcome, resumed, false);
-        if let Some(e) = sink.into_error() {
-            eprintln!("nika run: render failed: {e}");
-            return exit::ENV;
-        }
-        code
+            outputs,
+        )
+        .await
     }
+}
+
+/// The human fold lane (`Live` · `Plain` · `Quiet`) — extracted whole so
+/// `execute` stays a lane DISPATCHER (fn-length ratchet · the three lanes
+/// are peers, not one long body). Storytelling surfaces get the flow
+/// epilogue + the spec §3.3 `trace:` pointer; `--quiet` keeps its
+/// compact-card promise.
+#[allow(clippy::too_many_arguments)]
+async fn execute_fold_lane(
+    runtime: &ProdRuntime,
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    stamper: &mut SystemStamper,
+    file: &str,
+    theme: Theme,
+    mode: RenderMode,
+    resumed: bool,
+    trace: TraceFileSink,
+    outputs: bool,
+) -> u8 {
+    let mut fold = FoldSink::new(std::io::stdout().lock(), theme, mode);
+    fold.set_plan(plan_waves(wf, report));
+    // The shape tails ride the INTERACTIVE surface only (`Live` = TTY):
+    // the piped/`--no-progress`/`--quiet` registers keep their exact
+    // bytes — CI logs and scripts never grow tails.
+    if mode == RenderMode::Live && outputs {
+        fold.show_outputs(true);
+    }
+    let mut tee = Tee::new(fold, trace);
+    let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
+    let (mut sink, trace) = tee.into_parts();
+    // `Live` painted in place during the run; `Plain`/`Quiet` folded
+    // silently · print the ONE final frame now.
+    if mode != RenderMode::Live {
+        sink.print_final();
+    }
+    // The Live (TTY) final frame carries the flow epilogue: the wall-
+    // time waterfall + the outputs pointer (design §2c). The sober
+    // registers stay untouched — CI logs never grow chart art.
+    if mode == RenderMode::Live {
+        print_flow_epilogue(sink.view(), &outcome.outputs, theme, file);
+    }
+    // The spec §3.3 final-frame pointer (`trace: …`) — under the frame
+    // on the storytelling surfaces.
+    surface_trace(
+        trace,
+        if mode == RenderMode::Quiet {
+            TraceNote::Silent
+        } else {
+            TraceNote::Stdout
+        },
+    );
+    print_resume_summary(&outcome, resumed, false);
+    if let Some(e) = sink.into_error() {
+        eprintln!("nika run: render failed: {e}");
+        return exit::ENV;
+    }
+    code
 }
 
 /// Where the run journal's `trace:` pointer lands (per lane).
