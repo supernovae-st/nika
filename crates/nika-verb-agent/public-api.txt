@@ -820,10 +820,12 @@ pub fn nika_verb_agent::AgentInput::as_any(&self) -> &(dyn core::any::Any + 'sta
 #[non_exhaustive] pub struct nika_verb_agent::AgentOutput
 pub nika_verb_agent::AgentOutput::output: nika_verb_agent::AgentValue
 pub nika_verb_agent::AgentOutput::stop_reason: nika_kernel_runtime::agent::AgentStopReason
+pub nika_verb_agent::AgentOutput::tools_cost_usd: core::option::Option<f64>
 pub nika_verb_agent::AgentOutput::total_tokens: u64
 pub nika_verb_agent::AgentOutput::turns: u32
 impl nika_verb_agent::AgentOutput
 pub fn nika_verb_agent::AgentOutput::new(output: nika_verb_agent::AgentValue, stop_reason: nika_kernel_runtime::agent::AgentStopReason, turns: u32, total_tokens: u64) -> Self
+pub fn nika_verb_agent::AgentOutput::with_tools_cost_usd(self, cost: core::option::Option<f64>) -> Self
 impl core::fmt::Debug for nika_verb_agent::AgentOutput
 pub fn nika_verb_agent::AgentOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_verb_agent::AgentOutput

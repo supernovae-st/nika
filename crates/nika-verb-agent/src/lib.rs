@@ -202,6 +202,12 @@ pub struct AgentOutput {
     pub turns: u32,
     /// Cumulative tokens across all turns (input + output).
     pub total_tokens: u64,
+    /// Real spend reported by the loop's TOOLS (a tool whose structured
+    /// output carries a top-level numeric `cost_usd` — the image builtin
+    /// on tick-billed providers · future paid tools). `None` when no tool
+    /// reported spend — never a fake zero. The LLM turns' own cost is a
+    /// separate (documented) seam.
+    pub tools_cost_usd: Option<f64>,
 }
 
 impl AgentOutput {
@@ -219,7 +225,16 @@ impl AgentOutput {
             stop_reason,
             turns,
             total_tokens,
+            tools_cost_usd: None,
         }
+    }
+
+    /// Attach the loop's accumulated tool spend (builder — `new()` stays
+    /// stable for existing callers).
+    #[must_use]
+    pub fn with_tools_cost_usd(mut self, cost: Option<f64>) -> Self {
+        self.tools_cost_usd = cost;
+        self
     }
 }
 
@@ -346,19 +361,13 @@ where
         input: AgentInput,
         observer: &dyn AgentObserver,
     ) -> Result<AgentOutput, VerbAgentError> {
-        validate_params(&input)?;
-        let whitelist = Whitelist::new(&input.tools);
-        let defs = self.whitelisted_defs(&whitelist).await?;
-        let model = input
-            .model
-            .clone()
-            .unwrap_or_else(|| self.default_model.clone());
-        let max_turns = input.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
+        let (whitelist, defs, model, max_turns) = self.arm_run(&input).await?;
         let (mut router, mut guard) = self.arm_loop(observer, &model, &defs);
 
         let mut messages = opening_messages(&input);
         let mut turns: u32 = 0;
         let mut total_tokens: u64 = 0;
+        let mut tools_cost_usd = 0.0_f64;
         let mut last_text = String::new();
         let mut last_observations = String::new();
 
@@ -417,7 +426,7 @@ where
                     .await?
                 }
                 TurnVerdict::Dispatch(tool_uses) => {
-                    last_observations = self
+                    let (digest, batch_cost) = self
                         .dispatch_and_feed(
                             observer,
                             turns,
@@ -430,6 +439,8 @@ where
                             &last_text,
                         )
                         .await?;
+                    tools_cost_usd += batch_cost;
+                    last_observations = digest;
                     continue;
                 }
             };
@@ -437,7 +448,9 @@ where
                 turns,
                 total_tokens,
             });
-            return Ok(output);
+            // The loop's accumulated TOOL spend rides the output — absent
+            // (never zero) when no tool reported real cost.
+            return Ok(output.with_tools_cost_usd((tools_cost_usd > 0.0).then_some(tools_cost_usd)));
         }
     }
 
@@ -459,7 +472,7 @@ where
         guard: &mut Guard,
         messages: &mut Vec<Message>,
         last_text: &str,
-    ) -> Result<String, VerbAgentError> {
+    ) -> Result<(String, f64), VerbAgentError> {
         if turns >= max_turns {
             return Err(VerbAgentError::MaxTurns {
                 turns,
@@ -475,6 +488,24 @@ where
                 repeats,
                 partial_output: last_text.to_owned(),
             })
+    }
+
+    /// Validate + resolve one run's fixed parameters (params · whitelist ·
+    /// tool universe · model · turn budget) — the preamble `run_observed`
+    /// executes before the loop arms.
+    async fn arm_run(
+        &self,
+        input: &AgentInput,
+    ) -> Result<(Whitelist, Vec<ToolDef>, String, u32), VerbAgentError> {
+        validate_params(input)?;
+        let whitelist = Whitelist::new(&input.tools);
+        let defs = self.whitelisted_defs(&whitelist).await?;
+        let model = input
+            .model
+            .clone()
+            .unwrap_or_else(|| self.default_model.clone());
+        let max_turns = input.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
+        Ok((whitelist, defs, model, max_turns))
     }
 
     /// Arm the intelligence layer for one run: build the router + the
@@ -634,7 +665,7 @@ where
         router: &mut ToolRouter,
         guard: &mut Guard,
         messages: &mut Vec<Message>,
-    ) -> Result<String, (u32, u32)> {
+    ) -> Result<(String, f64), (u32, u32)> {
         let batch = self.run_batch(observer, turn, tool_uses, router).await;
         // Consult the guard BEFORE pushing, so a nudge rides INSIDE the
         // same user message as the tool results — never a second adjacent
@@ -665,7 +696,7 @@ where
             }
         }
         messages.push(Message::new(Role::User, content));
-        Ok(batch.observations_digest)
+        Ok((batch.observations_digest, batch.tools_cost_usd))
     }
 
     /// Dispatch one turn's validated tool batch — CONCURRENTLY, results
@@ -716,7 +747,11 @@ where
         // repair). Tracked separately from the per-block is_error.
         let mut all_dispatch_errors = true;
         let mut had_dispatch = false;
+        let mut tools_cost_usd = 0.0_f64;
         for r in resolved {
+            if let Some(cost) = r.cost_usd {
+                tools_cost_usd += cost;
+            }
             // An intrinsic reports ComposeChecked; a real dispatch reports
             // ToolCompleted. They are NOT both — `nika:compose` is
             // loop-served, never a tool invocation, so it must not surface
@@ -760,6 +795,7 @@ where
         BatchOutcome {
             signature: guard::turn_signature(&sig_calls, &sig_results),
             results,
+            tools_cost_usd,
             observations_digest,
             // No real dispatch this turn (compose-only) ⇒ no error streak.
             all_errors: had_dispatch && all_dispatch_errors,
@@ -779,13 +815,16 @@ where
                 },
                 name: u.name,
                 args: u.args,
+                cost_usd: None,
                 compose: Some(outcome),
             }
         } else {
+            let (block, cost_usd) = self.dispatch(&u.id, &u.name, u.args.clone()).await;
             Resolved {
-                block: self.dispatch(&u.id, &u.name, u.args.clone()).await,
+                block,
                 name: u.name,
                 args: u.args,
+                cost_usd,
                 compose: None,
             }
         }
@@ -852,21 +891,43 @@ where
     /// Dispatch one whitelisted tool call; a failing tool is FED BACK
     /// (`is_error: true`), never fatal (spec §2 · the ONE exception is
     /// the whitelist, handled before dispatch).
-    async fn dispatch(&self, id: &str, name: &str, args: serde_json::Value) -> ContentBlock {
+    async fn dispatch(
+        &self,
+        id: &str,
+        name: &str,
+        args: serde_json::Value,
+    ) -> (ContentBlock, Option<f64>) {
         let mut call = InvokeInput::new(name);
         call.args = args;
         call.call_id = Some(id.to_owned());
         match self.invoke.run(call).await {
-            Ok(output) => ContentBlock::ToolResult {
-                tool_use_id: id.to_owned(),
-                content: output.content,
-                is_error: false,
-            },
-            Err(err) => ContentBlock::ToolResult {
-                tool_use_id: id.to_owned(),
-                content: feedback_text(&err),
-                is_error: true,
-            },
+            Ok(output) => {
+                // The honest-spend channel (the same filter the runtime's
+                // invoke path applies): a top-level finite non-negative
+                // `cost_usd` in the tool's structured output is REAL spend.
+                let cost_usd = output
+                    .structured
+                    .as_ref()
+                    .and_then(|v| v.get("cost_usd"))
+                    .and_then(serde_json::Value::as_f64)
+                    .filter(|c| c.is_finite() && *c >= 0.0);
+                (
+                    ContentBlock::ToolResult {
+                        tool_use_id: id.to_owned(),
+                        content: output.content,
+                        is_error: false,
+                    },
+                    cost_usd,
+                )
+            }
+            Err(err) => (
+                ContentBlock::ToolResult {
+                    tool_use_id: id.to_owned(),
+                    content: feedback_text(&err),
+                    is_error: true,
+                },
+                None,
+            ),
         }
     }
 }
@@ -878,6 +939,9 @@ struct Resolved {
     block: ContentBlock,
     name: String,
     args: serde_json::Value,
+    /// Real spend the tool reported (top-level `cost_usd` in its
+    /// structured output) — summed into the batch.
+    cost_usd: Option<f64>,
     compose: Option<intrinsic::ComposeOutcome>,
 }
 
@@ -885,6 +949,8 @@ struct Resolved {
 struct BatchOutcome {
     /// The tool-result blocks, in dispatch order.
     results: Vec<ContentBlock>,
+    /// Σ of the batch's tool-reported real spend (0.0 = none reported).
+    tools_cost_usd: f64,
     /// Turn signature over actions + observations (see `guard`).
     signature: u64,
     /// A bounded digest of the observations, for the next routing query.

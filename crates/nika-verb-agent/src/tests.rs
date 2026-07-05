@@ -168,6 +168,10 @@ async fn agent_feeds_the_content_string_even_when_the_tool_is_structured() {
     input.tools = vec!["nika:glob".to_owned()];
     let out = r.verb.run(input).await.expect("completes");
     assert_eq!(out.output, AgentValue::Text("found two files".to_owned()));
+    assert_eq!(
+        out.tools_cost_usd, None,
+        "no tool reported spend — absent, never a fake zero"
+    );
 
     // The model's fed-back ToolResult block carries the CONTENT string —
     // the rendered text, NOT the structured array.
@@ -181,6 +185,43 @@ async fn agent_feeds_the_content_string_even_when_the_tool_is_structured() {
         )),
         "the LLM reads the content String · never the structured value"
     );
+}
+
+/// The honest-spend channel through the LOOP: a tool whose structured
+/// output carries a top-level `cost_usd` (the image builtin on
+/// tick-billed providers) accumulates into `tools_cost_usd` — an
+/// agent-driven $0.02 render must never surface as $0.00.
+#[tokio::test]
+async fn agent_accumulates_tool_reported_cost() {
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(tool_use_response(
+                "call-1",
+                "nika:image_generate",
+                serde_json::json!({"prompt": "logo", "output_dir": "./out"}),
+            ))
+            .enqueue_response(tool_use_response(
+                "call-2",
+                "nika:image_generate",
+                serde_json::json!({"prompt": "logo v2", "output_dir": "./out"}),
+            ))
+            .enqueue_response(text_response("both rendered")),
+        MockToolExecutor::new()
+            .enqueue_ok(
+                ToolResult::success("call-1", r#"{"images":[]}"#)
+                    .with_structured(serde_json::json!({"images": [], "cost_usd": 0.02})),
+            )
+            .enqueue_ok(
+                ToolResult::success("call-2", r#"{"images":[]}"#)
+                    .with_structured(serde_json::json!({"images": [], "cost_usd": 0.07})),
+            ),
+        vec![def("nika:image_generate")],
+    );
+    let mut input = AgentInput::new("render the logo twice");
+    input.tools = vec!["nika:image_generate".to_owned()];
+    let out = r.verb.run(input).await.expect("completes");
+    let cost = out.tools_cost_usd.expect("spend accumulated");
+    assert!((cost - 0.09).abs() < 1e-9, "0.02 + 0.07 → {cost}");
 }
 
 // ── §6 · nika:done with / without result ───────────────────────────
