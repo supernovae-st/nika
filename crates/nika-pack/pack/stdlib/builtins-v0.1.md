@@ -1,8 +1,8 @@
 # Stdlib v0.1 · Builtins
 
-> **<!-- canon:builtins -->23<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
-> Invoked via `invoke: tool: "nika:<name>"`. Plus media builtins deferred to
-> stdlib v0.x (opt-in feature flag).
+> **<!-- canon:builtins -->24<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
+> Invoked via `invoke: tool: "nika:<name>"`. Plus the remaining media
+> builtins deferred to stdlib v0.x (opt-in feature flag).
 >
 > **Consolidation (« less but better »)** · was 42 → 26 (D-N6) →
 > **22**. Step 1 (42 → 26 · D-N6) · `nika:jq` is THE data language · 13 thin
@@ -16,6 +16,9 @@
 > `sleep`+`wait_until` (−1) · `inspect` unifies `cost`+`records`+`dag_info`+
 > `threads` (−3). ZERO capability loss (jq ⊇ the cuts · jaq-verified · the
 > collapses preserve every behavior via mode args). See §"What jq subsumes".
+> Step 4 (23 → 24 · 2026-07-05) · `nika:image_generate` · the FIRST §Media
+> graduate (openai `gpt-image-2` · gemini `gemini-3.1-flash-image` · `mock`
+> for offline runs · assets land on disk, never inline base64).
 
 ---
 
@@ -28,10 +31,10 @@
 | Data | 8 | `jq` (THE data language) + 7 capabilities jq can't express (json_diff · validate · json_merge_patch · convert · uuid · date · hash) |
 | Introspection | 2 | Self-awareness · `inspect` (runtime state · 4 views) · `compose` (static check of a drafted workflow · agent loops only) |
 | Network | 2 | fetch (HTTP+extraction) · notify (alerts out) |
-| Media | — | **Deferred to stdlib v0.x** (opt-in feature flag) |
-| **Total v0.1** | **23** | |
+| Media | 1 | `image_generate` (the first §Media graduate · 2026-07-05) — the REST of the media class stays deferred to stdlib v0.x |
+| **Total v0.1** | **24** | |
 
-A Stdlib v0.1-compliant engine MUST ship these 23.
+A Stdlib v0.1-compliant engine MUST ship these 24.
 
 ---
 
@@ -319,6 +322,107 @@ Throws · `NIKA-BUILTIN-INSPECT-001` if `view:` value not in the canonical enum.
 
 ---
 
+## Media builtins (1)
+
+### `nika:image_generate` · provider-backed image asset generation
+
+```yaml
+invoke:
+  tool: "nika:image_generate"
+  args:
+    provider: mock                # mock (offline · deterministic) | gemini | openai — inferable from model:
+    prompt: "OG hero — a monarch butterfly over a nebula, editorial photo"
+    aspect_ratio: "16:9"
+    output_dir: "./assets/og"
+    filename_prefix: "launch-hero"
+    metadata: { campaign: "spring", page_slug: "qr-menu" }
+```
+
+Text-to-image generation as an *asset pipeline*, not a blob pipe: images are
+**saved to `output_dir:`** and the output carries `paths + dimensions +
+sha256 (+ a provenance manifest)` — **image bytes NEVER ride workflow
+outputs** (no base64 in `tasks.X.output`, logs, or traces · normative).
+
+| Arg | Notes |
+|---|---|
+| `provider` | `openai` · `gemini` · `mock` — optional when inferable from `model:` (`gpt-image*`→openai · `gemini-*`→gemini · `mock*`→mock) |
+| `model` | per-provider default (reference engine 2026-07: `gpt-image-2` · `gemini-3.1-flash-image` · `mock-image-1`) |
+| `prompt` | **required** · the creative brief · may use `${{ … }}` |
+| `mode` | `generate` (default) · `edit` is RESERVED (rejected loudly in v0.1 · media roadmap) |
+| `n` | 1..=10 variants (engines MAY satisfy n via sequential provider calls · documented per adapter) |
+| `aspect_ratio` | closed set `1:1 · 16:9 · 9:16 · 4:3 · 3:4 · 3:2 · 2:3 · 21:9` |
+| `size` | exact `WIDTHxHEIGHT` or `auto` · an exact size WINS over `aspect_ratio:` (with a warning) · providers that render size CLASSES fold it (loudly) |
+| `quality` | `auto · low · medium · high · ultra` — folded per provider capability, never silently |
+| `format` | `png` (default) · `jpeg` · `webp` — **magic bytes are the authority**: what actually landed decides mime/extension, a mismatch is a warning |
+| `compression` | 0..=100 · jpeg/webp only |
+| `background` | `auto · transparent · opaque` · transparent REQUIRES an alpha-capable format (png/webp) and a supporting provider/model |
+| `seed` | best-effort (providers without seed support warn + drop) |
+| `reference_images` | RESERVED (rejected loudly in v0.1 · media roadmap) |
+| `provider_options` | vetted pass-through (unknown keys warn, never crash) |
+| `output_dir` | **required** · rides the declared `permits.fs` boundary (`NIKA-SEC-004` · gated per final path BEFORE any I/O) |
+| `filename_prefix` | filename stem (else `metadata.page_slug`, else `image`) — sanitized `[a-z0-9._-]`, traversal-free by construction |
+| `save` | `true` (v0.1 contract · `save: false` is RESERVED — rejected loudly) |
+| `manifest` | write the provenance manifest JSON beside the assets (default `true`) |
+| `metadata` | free provenance object (campaign · page_slug · locale · …) echoed into output + manifest |
+| `timeout_ms` | per-request deadline · default 180000 · 1000..=600000 (image renders routinely run 30–120s) |
+| `debug` | echo the sanitized raw provider response (base64 payloads STRIPPED · headers never included) |
+
+**Filenames (normative grammar)** ·
+`{stem}-{provider}-{modelslug}-{index}-{sha8}.{ext}` · every component
+sanitized to `[a-z0-9._-]` with no separators; name collisions probe
+`-2..-99`; an IDENTICAL payload already on disk is an idempotent re-run
+(no duplicate). The manifest lands beside the assets as
+`{stem}-{provider}-{modelslug}-{batchsha8}.manifest.json`
+(`manifest_version: 1` · resolved request echo · per-image
+paths/dimensions/sha256 · usage · warnings · caller `metadata:` — and
+NEVER a credential: keys live a composition layer away by construction).
+
+**Output (normalized · both providers + mock)** · `{ provider, model, mode,
+prompt, revised_prompt, provider_text, created_at, count, images: [{ index,
+path, filename, mime_type, format, width, height, size_bytes, sha256,
+provider, model, seed, variant_id, warnings, metadata }], usage:
+{ input_tokens, output_tokens, total_tokens, thoughts_tokens }, warnings,
+manifest_path, output_dir }` — absent usage axes are `null`, never
+zero-that-looks-real.
+
+**Security (engine MUST)** · provider endpoints are ENGINE-FIXED constants
+(never workflow data — the provider egress is engine transport, exactly like
+`infer:`; `permits.net.http` does not govern it, `permits.tools` +
+`permits.fs` DO) · decode validation is HEADER-ONLY (magic bytes + PNG
+IHDR / JPEG SOF / WebP VP8-VP8L-VP8X dimensions · no pixel decode → no
+decompression-bomb surface · declared-vs-actual mismatch is a warning, a
+non-image payload is a hard error) · atomic writes (temp+rename) · API keys
+are engine-configured (env/config at the composition root), never workflow
+args, never logged, never echoed.
+
+**Warnings (normative shape)** · every tolerated-but-lossy mapping lands a
+stable `code: message` warning string (`size_conflict:` ·
+`compression_ignored:` · `seed_unsupported:` · `quality_folded:` ·
+`format_mismatch:` · `gemini_size_class:` · `provider_option_unknown:` ·
+`provider_text_clamped:` · …) in `warnings` — silent degradation is
+non-conformant.
+
+**`provider_text`/`revised_prompt` are captions, not payload channels
+(normative)** · a provider's accompanying text MUST be bounded by the
+engine (the reference engine clamps at 2 000 chars with a
+`provider_text_clamped:` warning) — a multimodal response interleaving
+megabytes of text (or base64-shaped junk) must never ride workflow
+outputs, the manifest, or the `debug:` echo unbounded.
+
+Throws · `NIKA-BUILTIN-IMAGE_GENERATE-001` invalid arguments (incl. the v0.1
+RESERVED options · `validation_error`) · `-002` provider unavailable
+(missing credentials / image plane unwired · `validation_error`) · `-003`
+provider request failed (`network_error` · `transient: true` for
+5xx/408/429 + timeout/connection · `details.status_code`) · `-004` no
+image / malformed response (`tool_error`) · `-005` content policy block
+(moderation / safety finish reasons · `security_error` · never transient ·
+`details {finish_reason? · moderation_details?}`) · `-006` save/manifest
+write failed (`tool_error`) · `-007` image validation failed (magic
+mismatch · dimension/byte bounds · `tool_error`). Plus the boundary
+`NIKA-SEC-004` (an `output_dir:` outside `permits.fs.write`).
+
+---
+
 ## What jq subsumes (cut from v0.1)
 
 These 13 former builtins are **expressible in `nika:jq`** (jaq-verified) · cut to
@@ -345,10 +449,13 @@ Also cut · `nika:task_status` (use `${{ tasks.X.status }}`) · `nika:orchestrat
 
 ---
 
-## Media builtins · DEFERRED to stdlib v0.x
+## Media builtins · the REST stays DEFERRED (stdlib v0.x)
 
-Not enumerated in v0.1 (feature-flag in the reference engine · MAY graduate as a
-separate doc). Deliberate « less but better » (Rams 10).
+`image_generate` graduated 2026-07-05 (above). The remaining media class
+(pdf_extract · svg_render · chart · phash · provenance · image *editing* ·
+…) is NOT enumerated in v0.1 (feature-flag in the reference engine · MAY
+graduate builtin-by-builtin per the 3-razor admission test). Deliberate
+« less but better » (Rams 10).
 
 ---
 
@@ -364,8 +471,10 @@ honors task-level `timeout` · respects engine security policies.
 
 New builtins MAY enter stdlib v0.x. Builtin removal is never allowed within a
 stdlib v0.x lifetime (removal requires a new stdlib major). The v0.1 → 22
-consolidation (42 → 26 → 22 · then +`compose` → 23) happened **pre-public** (0 external users · before the forever-clock).
+consolidation (42 → 26 → 22 · then +`compose` → 23 · then +`image_generate`
+→ 24 · the additive §Media graduation path) happened **pre-public** (0
+external users · before the forever-clock).
 
 ---
 
-🦋 *<!-- canon:builtins -->23<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · clear forever.*
+🦋 *<!-- canon:builtins -->24<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*
