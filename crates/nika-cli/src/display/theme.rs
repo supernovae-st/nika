@@ -68,12 +68,19 @@ pub struct Theme {
     /// Emit OSC-8 hyperlinks (`--hyperlink` · auto = TTY + `TERM≠dumb` ·
     /// never to pipes).
     pub links: bool,
+    /// The interactive duration accents (nextest school): bracketed
+    /// right-aligned duration cells (`[  2.7s]`) + the `slow` marker.
+    /// TTY comfort ONLY — these are TEXT, so every sober register
+    /// (pipes · CI · `--no-progress` · machine modes) keeps its exact
+    /// bytes by leaving this off.
+    pub accents: bool,
 }
 
 impl Theme {
     /// The 3-knob constructor every call site speaks — capability tiers
-    /// (`heat` · `links`) default OFF so a bare theme is exactly the
-    /// pre-round-8 surface (pipes · CI · tests stay byte-identical).
+    /// (`heat` · `links` · `accents`) default OFF so a bare theme is
+    /// exactly the pre-round-8 surface (pipes · CI · tests stay
+    /// byte-identical).
     #[must_use]
     pub const fn new(color: bool, ascii: bool, animate: bool) -> Self {
         Self {
@@ -82,6 +89,7 @@ impl Theme {
             animate,
             heat: false,
             links: false,
+            accents: false,
         }
     }
     /// Paint `text` in a semantic role (no-op when colour is off).

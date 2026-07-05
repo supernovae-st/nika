@@ -540,10 +540,12 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
             trace,
             ascii,
             no_color,
-        } => emit(&verbs::trace::outputs(
-            &trace.to_string_lossy(),
-            term_theme(color.with_no_color(no_color), ascii, link_when),
-        )),
+        } => {
+            let mut theme = term_theme(color.with_no_color(no_color), ascii, link_when);
+            // The dur column's bracket accents: TTY comfort only.
+            theme.accents = std::io::stdout().is_terminal();
+            emit(&verbs::trace::outputs(&trace.to_string_lossy(), theme))
+        }
         TraceAction::Peek {
             trace,
             task,
@@ -576,12 +578,18 @@ fn run_verb(args: &RunArgs, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
         from: args.from.clone(),
         answers: args.answer.clone(),
     });
+    let mode = resolve_run_mode(args.quiet, args.no_progress);
+    let mut theme = term_theme(color.with_no_color(args.no_color), args.ascii, link_when);
+    // The duration accents ride the interactive surface ONLY — the
+    // sober registers (piped · --no-progress · --quiet) keep their
+    // exact bytes.
+    theme.accents = mode == verbs::run::RenderMode::Live;
     verbs::run::run(
         &args.file,
         args.json,
         args.output.as_deref(),
-        term_theme(color.with_no_color(args.no_color), args.ascii, link_when),
-        resolve_run_mode(args.quiet, args.no_progress),
+        theme,
+        mode,
         args.dry_run,
         args.model.as_deref(),
         &args.var,
@@ -640,6 +648,9 @@ fn trace_render(args: &TraceArgs, replay: bool, color: ColorWhenArg, link_when: 
     let tty = std::io::stdout().is_terminal();
     let mut theme = term_theme(color.with_no_color(args.no_color), args.ascii, link_when);
     theme.animate = tty && replay && !env_flag("NIKA_REDUCED_MOTION");
+    // The duration accents ride the interactive surface only — a piped
+    // `trace show` keeps its exact legacy bytes.
+    theme.accents = tty;
 
     // The shape tails ride the interactive surface only: a TTY render
     // (show OR replay) carries them unless `--no-outputs`; a piped

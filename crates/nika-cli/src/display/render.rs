@@ -226,7 +226,7 @@ fn task_line(
     // sparkline may ride a running row — transient shift accepted).
     let pad = note_w.saturating_sub(display_note.chars().count());
     line.push_str(&" ".repeat(pad + 2));
-    let cell = format!("{:>time_w$}", time.unwrap_or(""));
+    let cell = duration_cell(theme, time, time_w);
     line.push_str(&theme.paint(Role::Dim, cell.trim_end()));
     if let Some(cost) = cost {
         line.push_str(&theme.paint(Role::Dim, &cost));
@@ -240,6 +240,21 @@ fn task_line(
         line.push_str(&theme.paint(Role::Accent, if theme.ascii { " ||" } else { " ∥" }));
     }
     line
+}
+
+/// The duration cell: bare right-aligned (`  2.7s` · the sober
+/// registers) or the nextest bracket form (`[  2.7s]`) under the
+/// interactive accents. Width math happens on RAW text (paint comes
+/// after) — ANSI never skews the column; a row without a duration
+/// stays empty in both forms.
+// `&Theme` to match the `task_line` borrow that threads it here.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn duration_cell(theme: &Theme, time: Option<&str>, time_w: usize) -> String {
+    match (theme.accents, time) {
+        (true, Some(t)) => format!("[{t:>time_w$}]"),
+        (true, None) => String::new(),
+        (false, t) => format!("{:>time_w$}", t.unwrap_or("")),
+    }
 }
 
 /// Render the COMPACT final card (spec §3.5 `--quiet` · "final card only ·
@@ -577,6 +592,39 @@ mod tests {
     fn frame_is_stable_under_ticks_when_nothing_runs() {
         let view = fold(&demo::success());
         assert_eq!(frame(&view, &UNICODE, 0), frame(&view, &UNICODE, 9));
+    }
+
+    /// The interactive accents bracket the duration column (nextest
+    /// school · `[  1.2s]`), right-aligned inside the SAME width the
+    /// sober form uses — and rows without a duration (the skipped row)
+    /// grow no brackets. The sober frame stays byte-identical to the
+    /// golden above by construction (accents default OFF).
+    #[test]
+    fn accents_bracket_the_duration_column_tty_only() {
+        let mut accented = UNICODE;
+        accented.accents = true;
+        let lines = frame(&fold(&demo::success()), &accented, 0);
+        assert!(
+            lines[3].ends_with("[ 1.2s]"),
+            "bracketed right-aligned cell: {}",
+            lines[3]
+        );
+        assert!(
+            lines[4].ends_with("[130ms]"),
+            "the widest cell sets the width: {}",
+            lines[4]
+        );
+        assert!(
+            !lines[7].contains('['),
+            "the skipped row grows no brackets: {}",
+            lines[7]
+        );
+        // Cost still rides AFTER the bracketed cell on the row that has one.
+        assert!(
+            lines[5].contains("[ 3.0s] · $0.01"),
+            "cost follows the cell: {}",
+            lines[5]
+        );
     }
 
     /// A view with output-carrying completions: `frame_with_outputs`

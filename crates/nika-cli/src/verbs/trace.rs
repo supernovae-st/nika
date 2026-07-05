@@ -97,19 +97,36 @@ fn render_outputs(view: &RunView, trace: &str, theme: Theme) -> String {
     };
     let (w0, w1, w2, w3) = (width(0), width(1), width(2), width(3));
 
+    // The dur column speaks the nextest bracket form (`[  2.7s]`) under
+    // the interactive accents (TTY) — sober registers keep the bare
+    // right-aligned cell. Empty cells and the header pad to the same
+    // width in both forms so the tok column never drifts.
+    let dur_cell = |d: &str, bare: bool| -> String {
+        if !theme.accents {
+            format!("{d:>w2$}")
+        } else if bare {
+            format!(" {d:>w2$} ")
+        } else {
+            format!("[{d:>w2$}]")
+        }
+    };
+
     let mut out = String::new();
     let head = format!(
-        "  {:<w0$}  {:<w1$}  {:>w2$}  {:>w3$}  output",
-        header[0], header[1], header[2], header[3],
+        "  {:<w0$}  {:<w1$}  {}  {:>w3$}  output",
+        header[0],
+        header[1],
+        dur_cell(header[2], true),
+        header[3],
     );
     let _ = writeln!(out, "{}", theme.paint(Role::Dim, &head));
     for (row, c) in rows.iter().zip(&cells) {
         let _ = writeln!(
             out,
-            "  {:<w0$}  {}  {:>w2$}  {:>w3$}  {}",
+            "  {:<w0$}  {}  {}  {:>w3$}  {}",
             c[0],
             theme.paint(Role::Dim, &format!("{:<w1$}", c[1])),
-            c[2],
+            dur_cell(&c[2], c[2].is_empty()),
             c[3],
             preview_cell(row, theme),
         );
@@ -503,6 +520,38 @@ mod tests {
         let out = outputs("/nonexistent/trace.ndjson", plain());
         assert_eq!(out.code, exit::ENV);
         assert!(out.text.contains("cannot read"), "{}", out.text);
+    }
+
+    /// The interactive accents bracket the dur column (`[38ms]` ·
+    /// nextest school) while the sober register (accents off · every
+    /// pipe) keeps the bare right-aligned cell — pinned on the SAME
+    /// staged trace.
+    #[test]
+    fn outputs_table_brackets_durations_under_accents_only() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let events = vec![
+            demo::bare_event(EventKind::TaskStarted, 0)
+                .with_field(KeyValue::new("task", Value::String("audit".into()))),
+            demo::bare_event(EventKind::TaskCompleted, 40)
+                .with_field(KeyValue::new("task", Value::String("audit".into())))
+                .with_field(KeyValue::new("duration_ms", Value::Int(38))),
+        ];
+        let path = stage("outputs-accents.ndjson", &events);
+        let sober = outputs(&path.to_string_lossy(), plain());
+        assert!(
+            !sober.text.contains("[38ms]"),
+            "sober register: no brackets: {}",
+            sober.text
+        );
+        let mut accented = plain();
+        accented.accents = true;
+        let rich = outputs(&path.to_string_lossy(), accented);
+        assert!(
+            rich.text.contains("[38ms]"),
+            "accents bracket the dur cell: {}",
+            rich.text
+        );
     }
 
     /// A trace with the ADR-099 checkpoint trio for one task.
