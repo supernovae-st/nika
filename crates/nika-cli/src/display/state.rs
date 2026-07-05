@@ -70,6 +70,11 @@ pub struct TaskRow {
     pub output_json: Option<String>,
     /// Per-task token usage (`tokens` on the terminal frame).
     pub tokens: Option<u64>,
+    /// The FIRST `task_started` note (`infer · <model>` · `invoke ·
+    /// nika:fetch` — the runtime's verb vocabulary), kept verbatim: the
+    /// terminal note overwrites `note`, this survives for the per-task
+    /// trace readers (`trace outputs`' verb column).
+    pub started_note: Option<String>,
 }
 
 impl TaskRow {
@@ -185,7 +190,11 @@ impl RunView {
             }
             EventKind::TaskStarted => {
                 if let Some(i) = self.touch(event, TaskState::Running) {
-                    self.rows[i].started_ms = Some(ts);
+                    let row = &mut self.rows[i];
+                    row.started_ms = Some(ts);
+                    if row.started_note.is_none() && !row.note.is_empty() {
+                        row.started_note = Some(row.note.clone());
+                    }
                 }
             }
             EventKind::TaskCompleted => {
@@ -304,6 +313,7 @@ impl RunView {
                 model: None,
                 output_json: None,
                 tokens: None,
+                started_note: None,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);
@@ -546,6 +556,23 @@ mod tests {
         assert_eq!(view.rows()[1].output_json, None, "no field → None");
         assert_eq!(view.rows()[1].tokens, None);
         assert_eq!(view.rows()[2].output_json.as_deref(), Some("\"hi\""));
+    }
+
+    /// The FIRST started note (the verb vocabulary — `invoke ·
+    /// nika:fetch`) survives the terminal-note overwrite — the trace
+    /// readers' verb column depends on it.
+    #[test]
+    fn started_note_survives_the_terminal_overwrite() {
+        let mut view = RunView::new();
+        for ev in demo::success() {
+            view.apply(&ev);
+        }
+        let fetch = &view.rows()[0];
+        assert_eq!(fetch.started_note.as_deref(), Some("invoke · nika:fetch"));
+        assert_eq!(fetch.note, "http 200 · 1.2s · 34 KB", "terminal note won");
+        // A row that never started (skipped) keeps None.
+        let skipped = view.rows().iter().find(|r| r.id == "notify_slack");
+        assert_eq!(skipped.and_then(|r| r.started_note.as_deref()), None);
     }
 
     /// The retry counter folds every `task_retrying` frame (feeds the

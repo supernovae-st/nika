@@ -222,6 +222,18 @@ enum TraceAction {
     Replay(TraceArgs),
     /// Print the final card only.
     Show(TraceArgs),
+    /// Browse per-task outputs: verb · duration · tokens · bounded
+    /// preview (full value: `trace peek`).
+    Outputs {
+        /// Trace NDJSON path (one `nika-event` Event per line).
+        trace: PathBuf,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+    },
 }
 
 #[derive(Args)]
@@ -382,6 +394,14 @@ fn main() -> std::process::ExitCode {
         Command::Trace { action } => match action {
             TraceAction::Replay(args) => trace_render(&args, true),
             TraceAction::Show(args) => trace_render(&args, false),
+            TraceAction::Outputs {
+                trace,
+                ascii,
+                no_color,
+            } => emit(&verbs::trace::outputs(
+                &trace.to_string_lossy(),
+                term_theme(no_color, ascii),
+            )),
         },
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean

@@ -20,6 +20,7 @@ pub mod new;
 pub mod pack_surface;
 pub mod run;
 pub mod test;
+pub mod trace;
 pub mod wire;
 
 use nika_schema::check::CheckReport;
