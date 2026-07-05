@@ -3565,6 +3565,7 @@ dependencies = [
  "nika-fs",
  "nika-kernel",
  "nika-kernel-mock",
+ "png",
  "proptest",
  "regex",
  "serde_json",

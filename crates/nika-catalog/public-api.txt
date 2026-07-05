@@ -5,6 +5,7 @@ pub nika_catalog::builtin::BuiltinCategory::Core
 pub nika_catalog::builtin::BuiltinCategory::Data
 pub nika_catalog::builtin::BuiltinCategory::File
 pub nika_catalog::builtin::BuiltinCategory::Introspection
+pub nika_catalog::builtin::BuiltinCategory::Media
 pub nika_catalog::builtin::BuiltinCategory::Network
 impl core::clone::Clone for nika_catalog::builtin::BuiltinCategory
 pub fn nika_catalog::builtin::BuiltinCategory::clone(&self) -> nika_catalog::builtin::BuiltinCategory
@@ -1052,10 +1053,12 @@ impl<T> nika_error::traits::AsAny for nika_catalog::json_mode::ParseJsonModeErro
 pub fn nika_catalog::json_mode::ParseJsonModeError::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_catalog::lookup
 pub fn nika_catalog::lookup::estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
+pub fn nika_catalog::lookup::estimate_cost_for(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
 pub fn nika_catalog::lookup::find_builtin(name: &str) -> core::option::Option<&'static nika_catalog::builtin::Builtin>
 pub fn nika_catalog::lookup::find_embedding(id: &str) -> core::option::Option<&'static nika_catalog::embedding::Embedding>
 pub fn nika_catalog::lookup::find_mcp_server(name: &str) -> core::option::Option<&'static nika_catalog::mcp_server::McpServer>
 pub fn nika_catalog::lookup::find_pricing(model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
+pub fn nika_catalog::lookup::find_pricing_for(model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
 pub fn nika_catalog::lookup::find_pricing_scoped(provider: &str, model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
 pub fn nika_catalog::lookup::find_provider(name: &str) -> core::option::Option<&'static nika_catalog::provider::Provider>
 pub fn nika_catalog::lookup::find_transform(name: &str) -> core::option::Option<&'static nika_catalog::transform::TransformDef>
@@ -2272,6 +2275,7 @@ pub nika_catalog::types::builtin::BuiltinCategory::Core
 pub nika_catalog::types::builtin::BuiltinCategory::Data
 pub nika_catalog::types::builtin::BuiltinCategory::File
 pub nika_catalog::types::builtin::BuiltinCategory::Introspection
+pub nika_catalog::types::builtin::BuiltinCategory::Media
 pub nika_catalog::types::builtin::BuiltinCategory::Network
 impl core::clone::Clone for nika_catalog::builtin::BuiltinCategory
 pub fn nika_catalog::builtin::BuiltinCategory::clone(&self) -> nika_catalog::builtin::BuiltinCategory
@@ -4416,6 +4420,7 @@ pub nika_catalog::types::BuiltinCategory::Core
 pub nika_catalog::types::BuiltinCategory::Data
 pub nika_catalog::types::BuiltinCategory::File
 pub nika_catalog::types::BuiltinCategory::Introspection
+pub nika_catalog::types::BuiltinCategory::Media
 pub nika_catalog::types::BuiltinCategory::Network
 impl core::clone::Clone for nika_catalog::builtin::BuiltinCategory
 pub fn nika_catalog::builtin::BuiltinCategory::clone(&self) -> nika_catalog::builtin::BuiltinCategory
@@ -6378,6 +6383,7 @@ pub nika_catalog::BuiltinCategory::Core
 pub nika_catalog::BuiltinCategory::Data
 pub nika_catalog::BuiltinCategory::File
 pub nika_catalog::BuiltinCategory::Introspection
+pub nika_catalog::BuiltinCategory::Media
 pub nika_catalog::BuiltinCategory::Network
 impl core::clone::Clone for nika_catalog::builtin::BuiltinCategory
 pub fn nika_catalog::builtin::BuiltinCategory::clone(&self) -> nika_catalog::builtin::BuiltinCategory
@@ -8441,10 +8447,12 @@ pub fn nika_catalog::all_pricing() -> &'static [nika_catalog::model::ModelPricin
 pub fn nika_catalog::all_providers() -> &'static [nika_catalog::provider::Provider]
 pub fn nika_catalog::all_transforms() -> &'static [nika_catalog::transform::TransformDef]
 pub fn nika_catalog::estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
+pub fn nika_catalog::estimate_cost_for(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
 pub fn nika_catalog::find_builtin(name: &str) -> core::option::Option<&'static nika_catalog::builtin::Builtin>
 pub fn nika_catalog::find_embedding(id: &str) -> core::option::Option<&'static nika_catalog::embedding::Embedding>
 pub fn nika_catalog::find_mcp_server(name: &str) -> core::option::Option<&'static nika_catalog::mcp_server::McpServer>
 pub fn nika_catalog::find_pricing(model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
+pub fn nika_catalog::find_pricing_for(model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
 pub fn nika_catalog::find_pricing_scoped(provider: &str, model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
 pub fn nika_catalog::find_provider(name: &str) -> core::option::Option<&'static nika_catalog::provider::Provider>
 pub fn nika_catalog::find_transform(name: &str) -> core::option::Option<&'static nika_catalog::transform::TransformDef>

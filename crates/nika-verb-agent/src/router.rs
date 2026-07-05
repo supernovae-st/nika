@@ -184,8 +184,8 @@ mod tests {
     }
 
     fn big_universe() -> Vec<ToolDef> {
-        // 26 defs ≥ default min_universe (24) → routing active.
-        let mut defs: Vec<ToolDef> = (0..24)
+        // 34 defs ≥ default min_universe (32) → routing active.
+        let mut defs: Vec<ToolDef> = (0..32)
             .map(|i| {
                 def(
                     &format!("mcp:srv/tool{i}"),

@@ -63,6 +63,7 @@ fn check_action(action: &RawAction, task: &str, errors: &mut Vec<SchemaError>) {
         // conditional — splitting `url` to the catalog set would double the
         // surface for one builtin. Its `Builtin::required` stays empty.
         "nika:fetch" => check_fetch_shape(task, tool, args, span, errors),
+        "nika:image_generate" => check_image_generate_shape(task, tool, args, span, errors),
         _ => {}
     }
 }
@@ -161,6 +162,155 @@ fn check_fetch_shape(
             tool,
             "`mode: selector` requires the `selector:` CSS selector \
              (extract-modes-v0.1.md §selector)",
+            span,
+        ));
+    }
+}
+
+/// `nika:image_generate` static contracts (stdlib §Media): the V1
+/// reservations are refused loudly, the closed literal enums + numeric
+/// ranges mirror the runtime parser (`nika-builtin::image::args` — same
+/// values, caught at check time instead of after a spent request), and
+/// the transparent-background × jpeg conflict dies here too. A templated
+/// value (`${{ … }}`) is runtime business — statically silent. The flat
+/// required args (`prompt:` · `output_dir:`) live in the catalog
+/// `Builtin::required` set (checked by `check::tools::scan_missing_args`).
+fn check_image_generate_shape(
+    task: &str,
+    tool: &str,
+    args: Option<&serde_json::Value>,
+    span: Span,
+    errors: &mut Vec<SchemaError>,
+) {
+    let object = args.and_then(serde_json::Value::as_object);
+    let literal = |key: &str| -> Option<&str> {
+        let value = object?.get(key)?.as_str()?;
+        (!value.contains("${{")).then_some(value)
+    };
+
+    check_image_v1_reservations(task, tool, object, span, errors);
+
+    // Closed literal enums (builtins-v0.1.md §nika:image_generate).
+    let enums: [(&str, &[&str]); 5] = [
+        ("provider", &["openai", "gemini", "mock"]),
+        ("format", &["png", "jpeg", "jpg", "webp"]),
+        ("quality", &["auto", "low", "medium", "high", "ultra"]),
+        ("background", &["auto", "transparent", "opaque"]),
+        (
+            "aspect_ratio",
+            &["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "21:9"],
+        ),
+    ];
+    for (key, allowed) in enums {
+        if let Some(value) = literal(key)
+            && !allowed.contains(&value)
+        {
+            errors.push(shape(
+                task,
+                tool,
+                &format!(
+                    "`{key}: {value}` is not in the closed set — {}",
+                    allowed.join(" · ")
+                ),
+                span,
+            ));
+        }
+    }
+
+    // Literal numeric ranges (same bounds as the runtime parser).
+    let ranges: [(&str, i64, i64); 3] = [
+        ("n", 1, 10),
+        ("compression", 0, 100),
+        ("timeout_ms", 1_000, 600_000),
+    ];
+    for (key, min, max) in ranges {
+        if let Some(value) = object.and_then(|map| map.get(key))
+            && let Some(n) = value.as_i64()
+            && !(min..=max).contains(&n)
+        {
+            errors.push(shape(
+                task,
+                tool,
+                &format!("`{key}: {n}` is out of range — {min}..={max}"),
+                span,
+            ));
+        }
+    }
+
+    // `size:` grammar — `auto` or `WIDTHxHEIGHT`.
+    if let Some(value) = literal("size")
+        && value != "auto"
+        && !value
+            .split_once('x')
+            .is_some_and(|(w, h)| w.parse::<u32>().is_ok() && h.parse::<u32>().is_ok())
+    {
+        errors.push(shape(
+            task,
+            tool,
+            &format!("`size: {value}` must be `WIDTHxHEIGHT` (e.g. 1024x1024) or `auto`"),
+            span,
+        ));
+    }
+
+    // Transparency needs an alpha-capable format — the one cross-arg
+    // conflict decidable statically (provider/model support is runtime).
+    if literal("background") == Some("transparent")
+        && matches!(literal("format"), Some("jpeg" | "jpg"))
+    {
+        errors.push(shape(
+            task,
+            tool,
+            "`background: transparent` needs an alpha-capable `format:` — png or webp \
+             (builtins-v0.1.md §nika:image_generate)",
+            span,
+        ));
+    }
+}
+
+/// The V1 reservations — structurally parsed, loudly refused, never
+/// silently ignored (the mission's honest-boundary contract).
+fn check_image_v1_reservations(
+    task: &str,
+    tool: &str,
+    object: Option<&serde_json::Map<String, serde_json::Value>>,
+    span: Span,
+    errors: &mut Vec<SchemaError>,
+) {
+    let literal = |key: &str| -> Option<&str> {
+        let value = object?.get(key)?.as_str()?;
+        (!value.contains("${{")).then_some(value)
+    };
+    match literal("mode") {
+        None | Some("generate") => {}
+        Some("edit") => errors.push(shape(
+            task,
+            tool,
+            "`mode: edit` is not in V1 — `generate` only; image editing \
+             (reference-image edits) is on the media roadmap",
+            span,
+        )),
+        Some(other) => errors.push(shape(
+            task,
+            tool,
+            &format!("`mode: {other}` is not a mode — V1 supports `generate`"),
+            span,
+        )),
+    }
+    if object.is_some_and(|map| map.contains_key("reference_images")) {
+        errors.push(shape(
+            task,
+            tool,
+            "`reference_images:` is not in V1 — text-to-image only; reference-image \
+             composition is on the media roadmap",
+            span,
+        ));
+    }
+    if object.and_then(|map| map.get("save")) == Some(&serde_json::Value::Bool(false)) {
+        errors.push(shape(
+            task,
+            tool,
+            "`save: false` is not in V1 — assets always land in `output_dir:` \
+             (image bytes never ride workflow outputs)",
             span,
         ));
     }
@@ -270,6 +420,145 @@ mod tests {
                 false, // templated mode — runtime business, statically silent
             ),
             (r#"{ url: "https://x.test", mode: 5 }"#, "nika:fetch", true), // not a string
+        ];
+        for (args, tool, violates) in cases {
+            let yaml = format!(
+                "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    invoke:\n      \
+                 tool: \"{tool}\"\n      args: {args}\n"
+            );
+            assert_eq!(
+                has_shape_error(&yaml, tool),
+                violates,
+                "{tool} · args {args}"
+            );
+        }
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)] // a truth table — each row IS one contract direction
+    fn image_generate_shape_rules_table() {
+        // Split from shape_rules_table — same harness.
+        let cases = [
+            // nika:image_generate — V1 reservations · closed enums ·
+            // ranges · size grammar · the transparent×jpeg conflict
+            // (stdlib §Media). Flat required args (prompt/output_dir) are
+            // the catalog missing-args check's concern — silent here.
+            ("{}", "nika:image_generate", false),
+            (
+                r#"{ prompt: "x", output_dir: "./o", mode: edit }"#,
+                "nika:image_generate",
+                true, // V1: generate only
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", mode: remix }"#,
+                "nika:image_generate",
+                true, // not a mode at all
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", mode: "${{ inputs.m }}" }"#,
+                "nika:image_generate",
+                false, // templated — runtime business
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", save: false }"#,
+                "nika:image_generate",
+                true, // V1: assets always land on disk
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", save: true }"#,
+                "nika:image_generate",
+                false,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", reference_images: ["a.png"] }"#,
+                "nika:image_generate",
+                true, // V1: text-to-image only
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", provider: midjourney }"#,
+                "nika:image_generate",
+                true,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", provider: mock }"#,
+                "nika:image_generate",
+                false,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", format: gif }"#,
+                "nika:image_generate",
+                true,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", quality: hd }"#,
+                "nika:image_generate",
+                true,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", background: clear }"#,
+                "nika:image_generate",
+                true,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", aspect_ratio: "5:4" }"#,
+                "nika:image_generate",
+                true, // not in the closed common set
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", aspect_ratio: "16:9" }"#,
+                "nika:image_generate",
+                false,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", n: 0 }"#,
+                "nika:image_generate",
+                true,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", n: 11 }"#,
+                "nika:image_generate",
+                true,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", n: 3 }"#,
+                "nika:image_generate",
+                false,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", compression: 101 }"#,
+                "nika:image_generate",
+                true,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", timeout_ms: 999 }"#,
+                "nika:image_generate",
+                true,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", size: "1024" }"#,
+                "nika:image_generate",
+                true, // not WxH
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", size: auto }"#,
+                "nika:image_generate",
+                false,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", size: "1536x864" }"#,
+                "nika:image_generate",
+                false,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", background: transparent, format: jpeg }"#,
+                "nika:image_generate",
+                true, // jpeg carries no alpha
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", background: transparent, format: webp }"#,
+                "nika:image_generate",
+                false, // provider/model support is runtime business
+            ),
         ];
         for (args, tool, violates) in cases {
             let yaml = format!(

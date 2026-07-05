@@ -466,7 +466,7 @@ pub(crate) fn hash(args: &Args) -> BuiltinOutcome {
     Ok(serde_json::Value::String(encoded))
 }
 
-fn hex_encode(bytes: &[u8]) -> String {
+pub(crate) fn hex_encode(bytes: &[u8]) -> String {
     use std::fmt::Write as _;
     let mut out = String::with_capacity(bytes.len() * 2);
     for b in bytes {
