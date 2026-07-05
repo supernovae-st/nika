@@ -140,6 +140,28 @@ pub static ALL_BUILTINS: &[Builtin] = &[
         &["message"],
     ),
     Builtin::with_required("read", File, &["path", "binary"], &["path"]),
+    // `tts_generate` (stdlib §Audio · the second Media-class builtin ·
+    // local/openai/elevenlabs/mock — sovereign-first · ONE audio file on
+    // disk, output carries path+sha256+duration, never bytes ·
+    // NIKA-BUILTIN-TTS_GENERATE-001..007).
+    Builtin::with_required(
+        "tts_generate",
+        Media,
+        &[
+            "provider",
+            "model",
+            "text",
+            "voice",
+            "format",
+            "speed",
+            "output_dir",
+            "filename_prefix",
+            "manifest",
+            "metadata",
+            "timeout_ms",
+        ],
+        &["text", "output_dir"],
+    ),
     Builtin::with_args("uuid", Data, &["version"]),
     Builtin::with_required(
         "validate",
@@ -179,7 +201,7 @@ mod tests {
 
     #[test]
     fn builtin_count() {
-        assert_eq!(ALL_BUILTINS.len(), 24);
+        assert_eq!(ALL_BUILTINS.len(), 25);
     }
 
     #[test]
@@ -272,12 +294,12 @@ mod tests {
             "expected 2 introspection builtins (inspect runtime · compose static · ADR-096)"
         );
         assert_eq!(
-            media, 1,
-            "expected 1 media builtin (image_generate · the first §Media graduate)"
+            media, 2,
+            "expected 2 media builtins (image_generate §Media · tts_generate §Audio)"
         );
         assert_eq!(
             core + file + data + network + intro + media,
-            24,
+            25,
             "total must equal 24"
         );
     }

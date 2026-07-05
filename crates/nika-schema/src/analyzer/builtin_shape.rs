@@ -64,7 +64,67 @@ fn check_action(action: &RawAction, task: &str, errors: &mut Vec<SchemaError>) {
         // surface for one builtin. Its `Builtin::required` stays empty.
         "nika:fetch" => check_fetch_shape(task, tool, args, span, errors),
         "nika:image_generate" => check_image_generate_shape(task, tool, args, span, errors),
+        "nika:tts_generate" => check_tts_generate_shape(task, tool, args, span, errors),
         _ => {}
+    }
+}
+
+/// `nika:tts_generate` static contracts (stdlib §Audio): closed enums +
+/// literal numeric ranges, mirroring the runtime parser — templated
+/// values are runtime business (statically silent).
+fn check_tts_generate_shape(
+    task: &str,
+    tool: &str,
+    args: Option<&serde_json::Value>,
+    span: Span,
+    errors: &mut Vec<SchemaError>,
+) {
+    let object = args.and_then(serde_json::Value::as_object);
+    let literal = |key: &str| -> Option<&str> {
+        let value = object?.get(key)?.as_str()?;
+        (!value.contains("${{")).then_some(value)
+    };
+
+    let enums: [(&str, &[&str]); 2] = [
+        ("provider", &["local", "openai", "elevenlabs", "mock"]),
+        ("format", &["mp3", "wav", "auto"]),
+    ];
+    for (key, allowed) in enums {
+        if let Some(value) = literal(key)
+            && !allowed.contains(&value)
+        {
+            errors.push(shape(
+                task,
+                tool,
+                &format!(
+                    "`{key}: {value}` is not in the closed set — {}",
+                    allowed.join(" · ")
+                ),
+                span,
+            ));
+        }
+    }
+    if let Some(value) = object.and_then(|map| map.get("speed"))
+        && let Some(s) = value.as_f64()
+        && !(0.25..=4.0).contains(&s)
+    {
+        errors.push(shape(
+            task,
+            tool,
+            &format!("`speed: {s}` out of range — 0.25..=4.0"),
+            span,
+        ));
+    }
+    if let Some(value) = object.and_then(|map| map.get("timeout_ms"))
+        && let Some(n) = value.as_i64()
+        && !(1_000..=600_000).contains(&n)
+    {
+        errors.push(shape(
+            task,
+            tool,
+            &format!("`timeout_ms: {n}` out of range — 1000..=600000"),
+            span,
+        ));
     }
 }
 

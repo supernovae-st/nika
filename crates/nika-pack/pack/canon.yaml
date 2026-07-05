@@ -25,6 +25,7 @@
 # v0.1 · 2026-05-27 · populated from .ttl HEAD (post atomic-language audit · the
 #   most-current canonical truth · cohort 42→27→26→25→22 builtins → 23 (compose
 #   added 2026-06-13) → 24 (image_generate · first §Media graduate · 2026-07-05)
+#   → 25 (tts_generate · §Audio · 2026-07-05)
 #   + NIKA-FETCH fold into NIKA-BUILTIN per "fetch is a
 #   builtin, not a verb" D-N18).
 # v0.2 · 2026-05-27 evening · schema_version 1 + 6 extended dimensions
@@ -43,7 +44,7 @@ schema_version: 1
 counts:
   verbs: 4
   namespaces: 5
-  builtins: 24
+  builtins: 25
   providers: 16
   extract_modes: 9
   error_namespaces: 14
@@ -87,12 +88,12 @@ namespaces:
     - secrets
 
 # ---------------------------------------------------------------- builtins
-# Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-093 · agent-loop self-check intrinsic, loop-only like done) → 24 (image_generate added 2026-07-05 · the first stdlib §Media graduate · openai/gemini/mock · assets land on disk, never inline).
+# Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-093 · agent-loop self-check intrinsic, loop-only like done) → 24 (image_generate added 2026-07-05 · the first stdlib §Media graduate · openai/gemini/mock · assets land on disk, never inline) → 25 (tts_generate added 2026-07-05 · §Audio · local/openai/elevenlabs/mock · sovereign-first).
 # stdlib/builtins-v0.1.md is the prose home (matches at 24 · cascade complete 2026-07-05 · image providers v1.1 local-first + xai same day).
 # Admission test · 3 razors · (1) NOT-expressible-in-jq+CEL+Schema · (2) canonical
 # interop format (RFC-6902/7396/9562 · etc.) · (3) cookbook-clarity.
 builtins:
-  count: 24
+  count: 25
   reference: stdlib/builtins-v0.1.md
   items:
     - assert
@@ -115,6 +116,7 @@ builtins:
     - notify
     - prompt
     - read
+    - tts_generate
     - uuid
     - validate
     - wait

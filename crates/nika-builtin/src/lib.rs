@@ -36,6 +36,7 @@ pub mod image;
 pub mod inspect;
 pub mod net;
 pub mod permits;
+pub mod tts;
 
 use std::sync::Arc;
 
@@ -50,6 +51,7 @@ use nika_kernel::runtime::tool_executor::{
 pub use defs::{TOOLS_EXPORT_VERSION, tool_defs, tools_json};
 pub use image::ImageKeys;
 pub use permits::FsBoundary;
+pub use tts::TtsKeys;
 
 /// The closed builtin namespace prefix.
 pub const NAMESPACE: &str = "nika:";
@@ -267,9 +269,13 @@ pub struct BuiltinDispatcher<F, H, C, Em, P, W> {
     /// correct carrier — the fetch client's 30s idle guard would kill
     /// 60–120s image renders.
     image_http: Option<Arc<H>>,
+    /// The TTS plane — the same provider-plane philosophy (SSRF-disabled
+    /// client · const/config endpoints · wired via [`Self::with_tts_plane`]).
+    tts_http: Option<Arc<H>>,
     /// Image-provider credentials (composition-root resolved · never read
     /// from the environment here).
     image_keys: image::ImageKeys,
+    tts_keys: tts::TtsKeys,
 }
 
 impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
@@ -292,7 +298,9 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
             workflow,
             fs_boundary: FsBoundary::unbounded(),
             image_http: None,
+            tts_http: None,
             image_keys: image::ImageKeys::new(),
+            tts_keys: tts::TtsKeys::new(),
         }
     }
 
@@ -318,6 +326,15 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
     pub fn with_image_plane(mut self, http: Arc<H>, keys: image::ImageKeys) -> Self {
         self.image_http = Some(http);
         self.image_keys = keys;
+        self
+    }
+
+    /// Wire the TTS plane (provider-plane client + composition-root keys)
+    /// — `nika:tts_generate` cloud/local providers need it; mock never does.
+    #[must_use]
+    pub fn with_tts_plane(mut self, http: Arc<H>, keys: tts::TtsKeys) -> Self {
+        self.tts_http = Some(http);
+        self.tts_keys = keys;
         self
     }
 }
@@ -422,6 +439,7 @@ where
                 args,
             )
             .await),
+            "tts_generate" => Ok(self.route_tts(args).await),
             // introspection 2
             "compose" => Ok(core_tools::compose()),
             "inspect" => Ok(inspect::inspect(self.workflow.as_ref(), args)),
@@ -437,6 +455,21 @@ where
     /// the capability boundary, not the I/O, is the gate. When `path:` is
     /// absent the op runs (its own arg ladder surfaces the missing-arg
     /// error · the boundary has nothing to confine).
+    /// The `nika:tts_generate` plumbing (kept out of `route`'s match for
+    /// the fn-length budget — pure delegation).
+    async fn route_tts(&self, args: &Args) -> BuiltinOutcome {
+        tts::generate(
+            self.fs.as_ref(),
+            self.tts_http.as_deref(),
+            &self.tts_keys,
+            self.clock.as_ref(),
+            self.emitter.as_ref(),
+            &self.fs_boundary,
+            args,
+        )
+        .await
+    }
+
     async fn guarded_fs<'a, Fut>(
         &'a self,
         args: &'a Args,
@@ -712,9 +745,9 @@ mod tests {
             let outcome = rig.execute(call(&def.name, serde_json::json!({}))).await;
             assert!(outcome.is_ok(), "{} must route (got {outcome:?})", def.name);
         }
-        // …and the count is the canonical 24 (stdlib v0.1 · +compose per
-        // ADR-096 · +image_generate stdlib §Media).
-        assert_eq!(tool_defs().len(), 24);
+        // …and the count is the canonical 25 (stdlib v0.1 · +compose per
+        // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio).
+        assert_eq!(tool_defs().len(), 25);
     }
 
     #[tokio::test]
@@ -774,7 +807,7 @@ mod tests {
         let defs = ToolDefinitionProviderDyn::tool_defs(&rig())
             .await
             .expect("enumerates");
-        assert_eq!(defs.len(), 24);
+        assert_eq!(defs.len(), 25);
         assert!(defs.iter().all(|d| d.name.starts_with(NAMESPACE)));
         assert!(defs.iter().all(|d| !d.description.is_empty()));
         assert!(
