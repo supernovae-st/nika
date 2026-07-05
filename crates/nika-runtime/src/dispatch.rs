@@ -433,7 +433,11 @@ where
                     }
                 };
                 let tokens = Some(i64::try_from(out.total_tokens).unwrap_or(i64::MAX));
-                Dispatched::ok(note, value, tokens)
+                // The loop's TOOL spend (exact · tool-reported) rides the
+                // ledger — an agent-driven $0.02 render must never show as
+                // $0.00. The LLM turns' own cost stays the documented
+                // follow-up seam (the loop keeps no input/output split).
+                Dispatched::ok_metered(note, value, tokens, None, out.tools_cost_usd)
             }
             Err(err) => Dispatched::verb_err("agent · ?".to_owned(), &err),
         }
