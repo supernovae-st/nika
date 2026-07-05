@@ -24,7 +24,7 @@ when you want real inference. `nika doctor` tells you what's wired.
 - [`image-og-pipeline.nika.yaml`](image-og-pipeline.nika.yaml) — the media
   pipeline. One task: brief in → OG image variants on disk + a provenance
   manifest (paths + sha256, never inline bytes). Runs OFFLINE as-is
-  (`provider: mock` renders real PNG files) · one-line flip to gemini/openai.
+  (`provider: mock` renders real PNG files) · one-line flip to local (sovereign) / gemini / openai / xai.
 
 The plan, straight from `nika graph examples/pr-risk-review.nika.yaml --format mermaid`:
 

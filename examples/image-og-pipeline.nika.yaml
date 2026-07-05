@@ -34,7 +34,7 @@ tasks:
     invoke:
       tool: "nika:image_generate"
       args:
-        provider: mock                # offline + deterministic · flip to gemini/openai for real renders
+        provider: mock                # offline + deterministic · flip to local/gemini/openai/xai for real renders
         prompt: "${{ vars.brief }}"
         aspect_ratio: "16:9"
         n: 2                          # two variants to A/B
