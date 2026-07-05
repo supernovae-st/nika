@@ -162,13 +162,16 @@ pub enum RmTarget {
 pub fn parse_older_than(raw: &str) -> Result<Duration, String> {
     let raw = raw.trim();
     let refuse = || format!("--older-than expects <N><unit> (s · m · h · d) — got `{raw}`");
-    let (digits, unit) = raw.split_at(raw.len().saturating_sub(1));
-    let n: u64 = digits.parse().map_err(|_| refuse())?;
+    // Split on CHARS, not bytes — a multi-byte trailing unit (`7é`) must
+    // refuse, never panic on a char boundary.
+    let mut digits = raw.chars();
+    let unit = digits.next_back().ok_or_else(refuse)?;
+    let n: u64 = digits.as_str().parse().map_err(|_| refuse())?;
     let seconds = match unit {
-        "s" => n,
-        "m" => n.saturating_mul(60),
-        "h" => n.saturating_mul(3_600),
-        "d" => n.saturating_mul(86_400),
+        's' => n,
+        'm' => n.saturating_mul(60),
+        'h' => n.saturating_mul(3_600),
+        'd' => n.saturating_mul(86_400),
         _ => return Err(refuse()),
     };
     Ok(Duration::from_secs(seconds))
@@ -513,7 +516,9 @@ mod tests {
         assert_eq!(parse_older_than("30m"), Ok(Duration::from_secs(1_800)));
         assert_eq!(parse_older_than("12h"), Ok(Duration::from_secs(43_200)));
         assert_eq!(parse_older_than("7d"), Ok(Duration::from_secs(604_800)));
-        for junk in ["", "7", "d", "7w", "sept-jours", "-3d"] {
+        // `7é` / `3µ` end on multi-byte chars — a byte-index split would
+        // panic on the char boundary; the char split refuses calmly.
+        for junk in ["", "7", "d", "7w", "sept-jours", "-3d", "7é", "3µ"] {
             let err = parse_older_than(junk).expect_err("refused");
             assert!(err.contains("--older-than expects"), "{err}");
         }
