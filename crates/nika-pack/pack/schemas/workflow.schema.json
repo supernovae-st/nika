@@ -534,7 +534,7 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "`nika:*` builtin · 23 canonical per stdlib v0.1 (Core 6 · File 5 · Data 8 · Network 2 · Introspection 2). Closed enum for `yaml-language-server` autocomplete.",
+              "description": "`nika:*` builtin · 24 canonical per stdlib v0.1 (Core 6 · File 5 · Data 8 · Network 2 · Introspection 2 · Media 1). Closed enum for `yaml-language-server` autocomplete.",
               "enum": [
                 "nika:assert",
                 "nika:compose",
@@ -547,6 +547,7 @@
                 "nika:glob",
                 "nika:grep",
                 "nika:hash",
+                "nika:image_generate",
                 "nika:inspect",
                 "nika:jq",
                 "nika:json_diff",

@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T1 starter · marketing / content
+#
+# Every landing page needs an OG image · this is the whole pipeline in
+# one task: brief in → PNG on disk + provenance manifest out. Outputs
+# carry PATHS + sha256, never image bytes (assets live on disk ·
+# workflows pass references).
+#
+# Demonstrates ·
+#   - `nika:image_generate` · the stdlib §Media builtin (24th)
+#   - `provider: mock` · deterministic, offline, zero keys — the honest
+#     dry-run default; flip ONE line for production:
+#       provider: gemini    (GEMINI_API_KEY)  · or
+#       provider: openai    (OPENAI_API_KEY)
+#   - `permits.fs.write` · the asset dir is a DECLARED boundary
+#   - `metadata:` · provenance fields ride into the manifest
+#
+# Run · nika run examples/showcase/t1-og-images.nika.yaml
+nika: v1
+workflow: og-images
+description: "Generate the launch OG hero image set into ./assets/og"
+
+permits:
+  fs: { write: ["./assets/og/**"] }   # the ONLY place assets may land
+  tools: ["nika:image_generate"]
+
+tasks:
+  - id: hero
+    invoke:
+      tool: "nika:image_generate"
+      args:
+        provider: mock                # offline + deterministic · flip to gemini/openai to render for real
+        prompt: "OG hero — a monarch butterfly over a deep-blue nebula, editorial photo, negative space left"
+        aspect_ratio: "16:9"          # exact WxH is an openai gpt-image-2 feature · gemini folds to a size class
+        n: 2                          # two variants to A/B
+        output_dir: "./assets/og"
+        filename_prefix: "launch-hero"
+        metadata: { campaign: "launch", page_slug: "home" }
+
+outputs:
+  paths: ${{ tasks.hero.output.images }}
+  manifest: ${{ tasks.hero.output.manifest_path }}

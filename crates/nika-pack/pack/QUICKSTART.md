@@ -208,7 +208,7 @@ a caller receives).
 - **[templates/](./templates/)**: writing your own? Instantiate a
   skeleton (6 valid, slot-marked) instead of starting blank, the
   deterministic path agents follow ([protocol](AGENTS.md))
-- **[stdlib/](./stdlib/)**: the <!-- canon:providers -->14<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->23<!-- /canon --> builtins
+- **[stdlib/](./stdlib/)**: the <!-- canon:providers -->14<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->24<!-- /canon --> builtins
 - **[examples/](./examples/)**: 7 foundation + 20 showcase workflows, all shipped and CI-gated
 - **[README.md](./README.md)**: why a language · repo layout · governance
 

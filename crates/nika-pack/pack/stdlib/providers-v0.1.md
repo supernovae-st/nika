@@ -45,7 +45,7 @@ tasks:
 
 ---
 
-## The 14 canonical providers
+## The 16 canonical providers
 
 | Provider | Backend | Local? | Auth |
 |---|---|---|---|
@@ -58,13 +58,15 @@ tasks:
 | `anthropic` | Anthropic Claude API | cloud | `${{ secrets.* }}` |
 | `openai` | OpenAI API (+ the universal OpenAI-compat escape hatch · see below) | cloud | `${{ secrets.* }}` |
 | `openrouter` | OpenRouter gateway (one key · every major model · cross-vendor fallback) | cloud | `${{ secrets.* }}` |
+| `huggingface` | HF Inference Providers router (100+ open-weights · 18 backends · zero markup) | cloud | `${{ secrets.* }}` |
+| `nvidia` | NVIDIA API (Nemotron 3 · Open Model License · NIM self-hostable) | cloud | `${{ secrets.* }}` |
 | `groq` | Groq Cloud (fastest open-weight) | cloud | `${{ secrets.* }}` |
 | `deepseek` | DeepSeek API (reasoning · cost-efficient) | cloud | `${{ secrets.* }}` |
 | `gemini` | Google Gemini API (long context · multimodal) | cloud | `${{ secrets.* }}` |
 | `xai` | xAI Grok API | cloud | `${{ secrets.* }}` |
 | `mock` | deterministic test fixture · no LLM call | test | none |
 
-A Stdlib v0.1-compliant engine MUST ship all **14** (5 local · 8 cloud · 1 test).
+A Stdlib v0.1-compliant engine MUST ship all **16** (5 local · 10 cloud · 1 test).
 Any *other* OpenAI-compatible local server (Jan · llamafile · KoboldCpp ·
 text-generation-webui · a custom one) routes through the **`openai` escape
 hatch** below (no new provider name needed).
@@ -366,6 +368,75 @@ structured output · provider-side model fallback/routing.
 (`--var model=openrouter/...`) · models with no native named provider ·
 provider-side failover. For a vendor's flagship via its own API (latency ·
 native features · billing) prefer the direct provider (`anthropic/…` etc.).
+
+---
+
+### `huggingface`
+
+```yaml
+infer:
+  model: huggingface/Qwen/Qwen3.5-9B:cheapest
+  prompt: "..."
+```
+
+The **open-weight house** · one `HF_TOKEN` reaches 100+ top open models
+across 18 backend providers (Groq · Cerebras · Together · Fireworks ·
+Scaleway · OVHcloud · …) at provider passthrough prices (zero markup).
+Promoted 2026-07-05 (ADR-104 · the openrouter precedent applied to the
+hub-router access category).
+
+**Models** · Hub ids are `org/model` with an optional ROUTING suffix: the
+workflow form is `huggingface/<org>/<model>[:<provider>|:fastest|:cheapest]`
+(everything after the first `/` passes through verbatim — inner slash AND
+colon included). E.g. `huggingface/Qwen/Qwen3.5-397B-A17B:fastest` ·
+`huggingface/openai/gpt-oss-120b:groq` ·
+`huggingface/deepseek-ai/DeepSeek-V4-Flash`.
+
+**Auth** · `HF_TOKEN` env var (fine-grained token · « Make calls to
+Inference Providers » permission).
+
+**Features** · OpenAI-compatible chat completions · streaming · tool use ·
+structured output (per backend) · `:fastest`/`:cheapest` policy routing ·
+org billing.
+
+**When to prefer it** · running OPEN-WEIGHT models serverless without
+picking a backend vendor · cost/latency policy routing · the sovereignty
+ladder's middle rung (open weights · swappable backends · EU providers
+available). For a fully local run prefer `ollama/…`; the same GGUFs pull
+locally via `ollama run hf.co/<org>/<repo>`.
+
+---
+
+### `nvidia`
+
+```yaml
+infer:
+  model: nvidia/nvidia/nemotron-3-super-120b-a12b
+  prompt: "..."
+```
+
+The **NVIDIA API** (`integrate.api.nvidia.com`) · the Nemotron 3 family
+(Nano 30B-A3B · Super 120B-A12B · Ultra 550B-A55B · NVIDIA Open Model
+License · agentic-first) plus hosted open models (121 live). Promoted
+2026-07-05 (ADR-104): self-hosted **NIM containers expose the exact same
+OpenAI-compatible surface**, so one provider name covers cloud AND
+sovereign self-host (engine-config `base_url` override points at your
+NIM).
+
+**Models** · catalog ids are `org/model`: the workflow form is
+`nvidia/<org>/<model>`. E.g. `nvidia/nvidia/nemotron-3-super-120b-a12b` ·
+`nvidia/nvidia/nemotron-3-nano-30b-a3b` · `nvidia/deepseek-ai/deepseek-r1`.
+
+**Auth** · `NVIDIA_API_KEY` env var (`nvapi-…` from build.nvidia.com ·
+free developer tier · ~40 RPM baseline).
+
+**Features** · OpenAI-compatible chat completions · streaming · tool use ·
+JSON mode · NVFP4-served flagships.
+
+**When to prefer it** · the Nemotron family at full size · enterprise GPU
+serving with a self-host path (NIM) that keeps workflows byte-identical
+between cloud and sovereign deployments. Nemotron Nano GGUFs also run
+fully local via `ollama/…`.
 
 ---
 

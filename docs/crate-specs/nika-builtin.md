@@ -4,8 +4,8 @@
 |---|---|
 | Status | **SPEC** (Gate 1 · authored 2026-06-11 · announce-ladder step s16) |
 | Layer | **L1.5** — the builtin tool layer · above the L1 effects it composes · below the L2 verbs that dispatch into it |
-| Design | the 23 canonical stdlib builtins behind ONE dispatcher implementing the three kernel tool seams (`ToolExecuteDyn` + `ToolBatchDyn` + `ToolDefinitionProviderDyn`) |
-| Normative source | `nika-spec stdlib/builtins-v0.1.md` (the 23 · contracts · error codes) + `stdlib/extract-modes-v0.1.md` (fetch modes) + `spec/05-errors.md` (4-segment code grammar) — **this doc never restates a contract, it cites** |
+| Design | the 24 canonical stdlib builtins behind ONE dispatcher implementing the three kernel tool seams (`ToolExecuteDyn` + `ToolBatchDyn` + `ToolDefinitionProviderDyn`) |
+| Normative source | `nika-spec stdlib/builtins-v0.1.md` (the 24 · contracts · error codes) + `stdlib/extract-modes-v0.1.md` (fetch modes) + `spec/05-errors.md` (4-segment code grammar) — **this doc never restates a contract, it cites** |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) — one module per builtin family |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
@@ -17,9 +17,9 @@
 The real tool layer. `nika-verb-invoke` and `nika-verb-agent` dispatch over
 the kernel `ToolExecuteDyn` seam, and the agent enumerates definitions over
 `ToolDefinitionProviderDyn` — until now only mocks implement either. This
-crate is the production implementation: a **closed registry of the 23
+crate is the production implementation: a **closed registry of the 24
 stdlib v0.1 builtins** (core 6 · file 5 · data 8 · introspection 2 ·
-network 2), each a thin composition over kernel effect seams, plus the
+network 2 · media 1), each a thin composition over kernel effect seams, plus the
 model-facing `ToolDef` (name · description · JSON-Schema params) for every
 tool.
 
@@ -28,14 +28,20 @@ tool.
 ```text
                     ┌───────────────────────────────────────┐
  verbs (L2) ──────▶ │ BuiltinDispatcher<F, H, C, E, P, W>   │  implements
-   invoke · agent   │   the closed 23-registry              │  ToolExecuteDyn
+   invoke · agent   │   the closed 24-registry              │  ToolExecuteDyn
                     │   route(name) → the builtin fn        │  ToolBatchDyn
- agent tool-defs ─▶ │   tool_defs() → 23 × ToolDef          │  ToolDefinitionProviderDyn
+ agent tool-defs ─▶ │   tool_defs() → 24 × ToolDef          │  ToolDefinitionProviderDyn
                     └──┬────┬────┬────┬─────┬────┬──────────┘
                        │    │    │    │     │    │
                   F: Fs │ H: HttpClient │ C: ClockDyn │ E: Emitter
                        │                │
                   P: Prompter (LOCAL)   W: WorkflowIntrospect (LOCAL)
+                       │
+                  image plane (OPTIONAL) · image_http: Option<Arc<H>> +
+                  ImageKeys · with_image_plane() at the composition root
+                  (the PROVIDER client · SSRF-disabled const endpoints ·
+                  600s ceiling · ADR-105) — unwired ⇒ mock-only, real
+                  providers fail the precise -002
 ```
 
 - **Kernel seams consumed** (all `trait_variant` Dyn · generics not
@@ -95,6 +101,7 @@ compact JSON). One rendering, one seam.
 | fetch | `HttpGetDyn`/`HttpPostDyn` + `nika-extract` (8 modes) + `data::jq` (mode jq) | non-2xx → `-001` with `BuiltinFailure.transient` per the normative status table (5xx/408/429 true · other 4xx false) · transport timeouts/connection failures transient too · SSRF lives in the L1 http effect (3-layer · s5 · verified) — this layer does NOT re-implement it · **the `mode:` surface is WIRED (step 13)**: 8 modes via `nika-extract` (default markdown) · `mode: jq` composes `data::jq` (the one jq engine · one-output law reused not re-implemented) · `raw`/`jq` strict-UTF-8 (non-UTF-8 → `-001` per spec raw contract) · extraction modes charset-aware decode from `Content-Type` (encoding_rs) · the whole parse runs on `spawn_blocking` (a 64 MiB HTML parse must not starve the executor · the `data::jq` precedent) |
 | notify | `HttpPostDyn` | `webhook` MUST · other channels `-001` unconfigured · non-2xx `-002` carries `transient` per the same status table |
 | inspect | `WorkflowIntrospect` | 4 views · `-001` unknown view |
+| image_generate | the image plane (`HttpPostDyn` · OPTIONAL) + `Fs*Dyn` + `ClockDyn` + `Emitter` + `FsBoundary` | stdlib §Media (ADR-105) · module family `src/image/` (args · sniff · mock · save · manifest · openai · gemini) · openai `gpt-image-2` native `n` / gemini `gemini-3.1-flash-image` n-sequential / deterministic mock (hand-rolled stored-deflate PNG · validated by the independent `png` dev-dep) · header-only decode validation (magic authority · no pixel decode) · boundary-gated atomic saves + collision probing + idempotent re-runs · `manifest_version: 1` provenance · base64 never rides outputs (`debug:` echo sanitized) · keys = composition-root `ImageKeys` (env ladder · zeroizing) · codes `-001..-007` |
 
 ### Honest gaps (delegations, not omissions)
 
@@ -116,10 +123,14 @@ compact JSON). One rendering, one seam.
 Mock-first over kernel-mock (`MockFs` · `MockHttp` · `MockClock` ·
 `NullEventSink`) + local mocks for the two owned seams. Per-builtin unit
 tests pin the spec contract lines (codes · defaults · sort orders ·
-exactly-one-output). Dispatcher tests pin: routing totality (all 23
-addressable · unknown → NotFound) · `tool_defs()` returns 23 schemas ·
+exactly-one-output). Dispatcher tests pin: routing totality (all 24
+addressable · unknown → NotFound) · `tool_defs()` returns 24 schemas ·
 done rejected · batch = sequential map. Property: jq exactly-one-output
-over arbitrary JSON · glob/grep determinism. Mutation ≥90%.
+over arbitrary JSON · glob/grep determinism · sniff totality on arbitrary
+bytes (+ magic-prefixed tails) · sanitize_component traversal-freedom.
+Image adapters: MockHttp wire fixtures (request-shape pins · error-plane
+tables · the-key-never-leaks sweeps) · mock PNG files decoded by the
+independent `png` dev-dep. Mutation ≥90%.
 
 ## §6 · Wiring pass (at admission)
 
@@ -141,8 +152,8 @@ MCP half (`mcp:server/*` via live `tools/list`) arrives with `nika-mcp`
 
 | Gate | Status |
 |---|---|
-| 1 SPEC | ✅ this file + ADR-096 (the 23rd builtin `nika:compose`) + the normative `nika-spec stdlib/builtins-v0.1.md` (23 builtins) |
-| 2 TDD | ✅ RED→GREEN · mock-first over `nika-kernel-mock` (`MockFs` · `MockHttp` · `MockClock` · `NullEmitter`) + the two local-seam mocks · per-builtin contract tests + dispatcher routing-totality (all 23 addressable · unknown → `NotFound` · `nika:done` rejected) |
+| 1 SPEC | ✅ this file + ADR-096 (the 23rd builtin `nika:compose`) + ADR-105 (the 24th · `nika:image_generate` · stdlib §Media graduate) + the normative `nika-spec stdlib/builtins-v0.1.md` (24 builtins) |
+| 2 TDD | ✅ RED→GREEN · mock-first over `nika-kernel-mock` (`MockFs` · `MockHttp` · `MockClock` · `NullEmitter`) + the two local-seam mocks · per-builtin contract tests + dispatcher routing-totality (all 24 addressable · unknown → `NotFound` · `nika:done` rejected) |
 | 3 IMPL | ✅ `#![forbid(unsafe_code)]` · **0 `.unwrap()`/`.expect()` in `src/`** (`?` + `unwrap_or`/`ok_or` · `BuiltinFailure` total) |
 | 4 CLIPPY 0 | ✅ `cargo clippy -p nika-builtin --all-targets -- -D warnings` = 0 |
 | 5 MUTATION ≥90 | ✅ **FLOOR 91.3%** — `cargo-mutants -p nika-builtin` clean low-load run (2026-06-16): **359 caught / 393 viable** (22 `missed` · 12 `timeout` · 64 unviable excluded · `caught/viable` ≥ 90 → FLOOR mode, no exemption). The killable survivors are dead post-hardening (the jq error-render fns + the permits access-category projection assert message CONTENT · `missed` 30→22). The residual ~34 are **equivalent mutants** (base64 disjoint-bit `\|`↔`^` · `\|`==`^` on disjoint bits), **hard byte-scanner edges** (charset detection · `is_not_a_directory` non-ENOTDIR), **permits defensive guards** (`parent != cur` · `unbounded()`↔`Default` — never diverge for a real path), and **I/O-bound `timeout` mutants** the harness can't distinguish from real hangs — **none an exploitable bypass** (rust-security verdict **SOUND** on file/net/permits · the `request.method` mapping IS pinned). The earlier 86.8% was contention-inflated timeouts (31 under concurrent load); this low-load run is the true FLOOR. |

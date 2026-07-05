@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Static builtin tool catalog — 23 `nika:*` tools in a sorted array.
+//! Static builtin tool catalog — 24 `nika:*` tools in a sorted array.
 //!
 //! Case-sensitive lookup via binary search. Tool names are engine-controlled,
 //! always lowercase.
@@ -13,15 +13,16 @@
 //! `sleep` + `wait_until` → `wait` + ADR-088 `cost`+`records`+`dag_info`+
 //! `threads` → `inspect` view-discriminated (`jaq` source-verified ·
 //! `nika:json_merge_patch` stays for RFC-7396 null-delete which `jq *` cannot
-//! express).
+//! express) + `nika:compose` (ADR-096) + `nika:image_generate` (stdlib
+//! §Media · the first deferred-media graduate).
 //!
-//! 5 categories · Core 6 · File 5 · Data 8 · Network 2 · Introspection 2 = 23.
+//! 6 categories · Core 6 · File 5 · Data 8 · Network 2 · Introspection 2 · Media 1 = 24.
 
 use crate::types::builtin::{Builtin, BuiltinCategory};
 
-use BuiltinCategory::{Core, Data, File, Introspection, Network};
+use BuiltinCategory::{Core, Data, File, Introspection, Media, Network};
 
-/// All 23 builtin tools, **sorted alphabetically by name**.
+/// All 24 builtin tools, **sorted alphabetically by name**.
 ///
 /// Invariant: array MUST be sorted for `binary_search` to work.
 /// This is validated by a unit test.
@@ -79,6 +80,37 @@ pub static ALL_BUILTINS: &[Builtin] = &[
         &["pattern"],
     ),
     Builtin::with_required("hash", Data, &["content", "algo", "encoding"], &["content"]),
+    // `image_generate` (stdlib §Media · the first deferred-media graduate ·
+    // openai/gemini/mock · assets land on disk, outputs carry paths+hashes,
+    // never base64 · NIKA-BUILTIN-IMAGE_GENERATE-001..007).
+    Builtin::with_required(
+        "image_generate",
+        Media,
+        &[
+            "provider",
+            "model",
+            "prompt",
+            "mode",
+            "n",
+            "aspect_ratio",
+            "size",
+            "quality",
+            "format",
+            "compression",
+            "background",
+            "seed",
+            "reference_images",
+            "provider_options",
+            "output_dir",
+            "filename_prefix",
+            "save",
+            "manifest",
+            "metadata",
+            "timeout_ms",
+            "debug",
+        ],
+        &["prompt", "output_dir"],
+    ),
     Builtin::with_required("inspect", Introspection, &["view"], &["view"]),
     Builtin::with_required("jq", Data, &["expression", "input"], &["expression"]),
     Builtin::with_required(
@@ -146,7 +178,7 @@ mod tests {
 
     #[test]
     fn builtin_count() {
-        assert_eq!(ALL_BUILTINS.len(), 23);
+        assert_eq!(ALL_BUILTINS.len(), 24);
     }
 
     #[test]
@@ -163,8 +195,8 @@ mod tests {
 
     #[test]
     fn find_known_builtins() {
-        // Sample across all 5 categories.
-        let names = ["wait", "read", "jq", "fetch", "inspect"];
+        // Sample across all 6 categories.
+        let names = ["wait", "read", "jq", "fetch", "inspect", "image_generate"];
         for name in names {
             assert!(find_builtin(name).is_some(), "builtin `{name}` not found");
         }
@@ -226,6 +258,7 @@ mod tests {
             .iter()
             .filter(|b| b.category == Introspection)
             .count();
+        let media = ALL_BUILTINS.iter().filter(|b| b.category == Media).count();
         assert_eq!(
             core, 6,
             "expected 6 core builtins (post-ADR-087 wait merge)"
@@ -238,9 +271,13 @@ mod tests {
             "expected 2 introspection builtins (inspect runtime · compose static · ADR-096)"
         );
         assert_eq!(
-            core + file + data + network + intro,
-            23,
-            "total must equal 23"
+            media, 1,
+            "expected 1 media builtin (image_generate · the first §Media graduate)"
+        );
+        assert_eq!(
+            core + file + data + network + intro + media,
+            24,
+            "total must equal 24"
         );
     }
 

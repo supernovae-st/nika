@@ -62,6 +62,15 @@ impl AgentConfig {
 pub struct RouterConfig {
     /// Route only when the whitelisted universe is at least this large;
     /// smaller universes ship whole (prompt-cache stability wins).
+    ///
+    /// Kept strictly ABOVE the full `nika:*` builtin catalog (24 as of
+    /// stdlib §Media · ADR-105) so a plain-builtin whitelist always ships
+    /// whole — routing pays for itself on genuinely large (MCP-heavy)
+    /// universes, never on the stdlib alone. A composition-root test in
+    /// `nika-cli` pins `tool_defs().len() < min_universe` so a future
+    /// builtin addition cannot silently flip full-catalog agents from
+    /// deterministic passthrough to BM25 narrowing (the 23→24 near-miss
+    /// of 2026-07-05).
     pub min_universe: usize,
     /// How many ranked definitions to offer per turn (pinned tools ride
     /// on top of this budget, they never crowd it).
@@ -74,7 +83,7 @@ pub struct RouterConfig {
 impl Default for RouterConfig {
     fn default() -> Self {
         Self {
-            min_universe: 24,
+            min_universe: 32,
             top_k: 12,
             recency_turns: 2,
         }

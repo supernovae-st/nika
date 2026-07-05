@@ -4,10 +4,10 @@
 # Consumers · the reference engine embeds this pack (nika examples ·
 # nika docs) · docs + website render projections of the same files.
 pack_version: 0.1.0-draft
-workflow_count: 27
+workflow_count: 28
 foundation:
   - file: examples/01-hello.nika.yaml
-    sha256_16: f2f6af40906bdfcf
+    sha256_16: 91fc4a92dfeedafb
   - file: examples/06-parallel-fanout.nika.yaml
     sha256_16: 728605e34575d6d4
   - file: examples/16-exec-pipeline.nika.yaml
@@ -22,13 +22,13 @@ foundation:
     sha256_16: 187904d14bb2e430
 templates:
   - file: templates/agent-loop.nika.yaml
-    sha256_16: 48976c5e6a0b7c6c
+    sha256_16: 305b7b4b04c2beaf
   - file: templates/chain.nika.yaml
-    sha256_16: 850080f98e115a8b
+    sha256_16: 8f4cfd3538943b22
   - file: templates/etl-state.nika.yaml
     sha256_16: cba8dcdc952eedc0
   - file: templates/fanout.nika.yaml
-    sha256_16: 11762d6f2a2d0f09
+    sha256_16: 004fccc3dd92f4a5
   - file: templates/gate-and-act.nika.yaml
     sha256_16: e8a0c5e7f60f5e60
   - file: templates/human-gated-ship.nika.yaml
@@ -39,7 +39,13 @@ showcase:
     tier: T1
     description: "Transcript \u2192 typed action items {owner, task, due}"
     constructs: [local_model, outputs, schema, typed_vars]
-    sha256_16: 379a7c308babd800
+    sha256_16: 2288f1282f20ef5d
+  - file: examples/showcase/t1-og-images.nika.yaml
+    workflow: og-images
+    tier: T1
+    description: "Generate the launch OG hero image set into ./assets/og"
+    constructs: [outputs]
+    sha256_16: 725a8e197160dacb
   - file: examples/showcase/t1-price-watch.nika.yaml
     workflow: price-watch
     tier: T1
@@ -51,19 +57,19 @@ showcase:
     tier: T1
     description: "One post \u2192 thread + LinkedIn + newsletter, in parallel"
     constructs: [local_model, outputs, with]
-    sha256_16: 2dcf80168fe991dd
+    sha256_16: 5bd67e53474c1e45
   - file: examples/showcase/t1-standup-digest.nika.yaml
     workflow: standup-digest
     tier: T1
     description: "Read yesterday's commits, write today's standup note"
     constructs: [local_model, outputs]
-    sha256_16: d5b3d3251cecd249
+    sha256_16: 7eb94164ea5e1930
   - file: examples/showcase/t2-contract-guard.nika.yaml
     workflow: contract-guard
     tier: T2
     description: "Local-model clause extraction \u2192 schema gate \u2192 risk memo"
     constructs: [local_model, outputs, schema, typed_vars]
-    sha256_16: 8e88657f06a10f13
+    sha256_16: 9b938cf8d061f2f0
   - file: examples/showcase/t2-etl-quarantine.nika.yaml
     workflow: etl-quarantine
     tier: T2
@@ -75,79 +81,79 @@ showcase:
     tier: T2
     description: "Ledger CSV \u2192 overdue filter \u2192 drafted reminders \u2192 human gate \u2192 drafts file"
     constructs: [local_model, outputs, when]
-    sha256_16: 45c16e8d428551e0
+    sha256_16: 4591dea823c838cc
   - file: examples/showcase/t2-release-notes.nika.yaml
     workflow: release-notes
     tier: T2
     description: "git log \u2192 typed release notes \u2192 CHANGELOG insert \u2192 team ping"
     constructs: [local_model, outputs, schema, secrets]
-    sha256_16: 977ec0d0c59235d1
+    sha256_16: a80ccd181ba72b31
   - file: examples/showcase/t2-release-radar.nika.yaml
     workflow: release-radar
     tier: T2
     description: "dependency release feed \u2192 diff vs last run \u2192 only the NEW ships"
     constructs: [local_model, on_error, output, outputs, when]
-    sha256_16: be07b2ce1defe966
+    sha256_16: 66aea6c68dc959f1
   - file: examples/showcase/t2-seo-content-brief.nika.yaml
     workflow: seo-content-brief
     tier: T2
     description: "Competitor sitemap \u2192 top page \u2192 gap analysis \u2192 typed brief"
     constructs: [local_model, output, outputs, schema, typed_vars]
-    sha256_16: 0d5f0230fe9fd77a
+    sha256_16: 914d9f650121ecde
   - file: examples/showcase/t2-support-triage.nika.yaml
     workflow: support-triage
     tier: T2
     description: "Ticket queue \u2192 typed triage \u2192 urgent escalation \u2192 triage board"
     constructs: [local_model, outputs, schema, secrets, when]
-    sha256_16: dc7cf4a0b94e3d81
+    sha256_16: dc4243685c90c3e7
   - file: examples/showcase/t3-competitor-radar.nika.yaml
     workflow: competitor-radar
     tier: T3
     description: "Sitemap \u2192 parallel page reads \u2192 one competitive brief + ping"
     constructs: [fail_fast, for_each, local_model, max_parallel, on_error, output, outputs, retry, secrets, timeout]
-    sha256_16: 810901774b8007cd
+    sha256_16: 3bb556ba5d000f42
   - file: examples/showcase/t3-config-drift-sentinel.nika.yaml
     workflow: config-drift-sentinel
     tier: T3
     description: "live config vs sanctioned baseline \u2192 typed drift \u2192 explained alert"
     constructs: [local_model, on_error, outputs, retry, secrets, typed_vars, when]
-    sha256_16: 20c0ee73e8d42310
+    sha256_16: 2b06abcd2c7195f5
   - file: examples/showcase/t3-localization-factory.nika.yaml
     workflow: localization-factory
     tier: T3
     description: "glob docs \u2192 parallel read \u2192 parallel translate \u2192 mirror tree"
     constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs]
-    sha256_16: 2f2d57a92eb2847f
+    sha256_16: ef212443347265b1
   - file: examples/showcase/t3-pr-review-fanout.nika.yaml
     workflow: pr-review-fanout
     tier: T3
     description: "changed files \u2192 one read-only review agent each \u2192 merged REVIEW.md"
     constructs: [agent_tools, fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema]
-    sha256_16: 190345ec10312ae7
+    sha256_16: 3eb68d7fb1e810cb
   - file: examples/showcase/t3-resume-screener.nika.yaml
     workflow: resume-screener
     tier: T3
     description: "glob CVs \u2192 local-model rubric per candidate \u2192 deterministic shortlist"
     constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, when, with]
-    sha256_16: 524a09c40c8a95b2
+    sha256_16: f96c8d3d87e20c67
   - file: examples/showcase/t4-ceo-monday-brief.nika.yaml
     workflow: ceo-monday-brief
     tier: T4
     description: "news + repo pulse + KPIs \u2192 thinking synthesis \u2192 dated brief + cost ping"
     constructs: [local_model, on_finally, output, outputs, secrets, thinking]
-    sha256_16: 8f97593a3521570b
+    sha256_16: 15d83ec84f5ae4ec
   - file: examples/showcase/t4-deep-research-brief.nika.yaml
     workflow: deep-research-brief
     tier: T4
     description: "plan \u2192 budgeted research agent \u2192 thinking synthesis \u2192 brief on disk"
     constructs: [agent_tools, local_model, outputs, schema, thinking, typed_vars]
-    sha256_16: 1c5bb32552234427
+    sha256_16: 7d936fcaba313752
   - file: examples/showcase/t4-incident-war-room.nika.yaml
     workflow: incident-war-room
     tier: T4
     description: "parallel evidence \u2192 typed timeline \u2192 settle + recheck \u2192 postmortem draft"
     constructs: [capture, local_model, on_finally, outputs, retry, schema, secrets, thinking, when]
-    sha256_16: ea3838c93e19a3d8
+    sha256_16: 566efa883a452e5d
   - file: examples/showcase/t4-release-train.nika.yaml
     workflow: release-train
     tier: T4
