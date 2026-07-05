@@ -305,9 +305,11 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
     } else {
         RenderMode::Plain
     };
-    // The interactive duration accents follow the same TTY gate.
+    // The interactive duration accents follow the same TTY gate; heat
+    // additionally needs colour + the truecolor proof.
     let mut theme = theme;
     theme.accents = mode == RenderMode::Live;
+    theme.heat = theme.accents && theme.color && crate::verbs::truecolor_env();
     let code = run(
         &path.to_string_lossy(),
         false,

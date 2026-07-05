@@ -14,6 +14,21 @@ use crate::display::state::TaskState;
 /// Braille spinner frames (80ms cadence at the call site).
 pub const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
+/// The duration-heat ramp (design §1.5): ONE hue (azure ≈ 200°), five
+/// quantized LIGHTNESS steps — short bars pale, the long pole bright.
+/// Perceptual single-hue by design: never red→green (deuteranopia) ·
+/// never a second semantic hue (red stays the failure verdict alone).
+/// Truecolor ONLY — the caller gates on `Theme.heat` (`COLORTERM` said
+/// truecolor/24bit); the 256-colour fallback is the FLAT bar, never an
+/// approximated ramp. A const table, no colour crate.
+pub(crate) const HEAT_RAMP: [(u8, u8, u8); 5] = [
+    (96, 125, 139),
+    (86, 143, 163),
+    (74, 162, 189),
+    (58, 183, 217),
+    (38, 205, 247),
+];
+
 /// Token-arrival sparkline ramp (low → high).
 pub const SPARK: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
 
@@ -161,6 +176,20 @@ impl Theme {
         } else {
             text.to_owned()
         }
+    }
+
+    /// Paint a DATA run in one heat step (truecolor SGR · [`HEAT_RAMP`])
+    /// — the ONLY truecolor seam in the binary: chrome (borders · labels
+    /// · verdicts) stays on the ANSI-16 `Role` slots forever (the user's
+    /// terminal theme decides those hues). Plain text when colour is
+    /// off; the CALLER gates on `self.heat` (the `COLORTERM` capability).
+    #[must_use]
+    pub(crate) fn heat_step(self, step: usize, text: &str) -> String {
+        if !self.color {
+            return text.to_owned();
+        }
+        let (r, g, b) = HEAT_RAMP[step.min(HEAT_RAMP.len() - 1)];
+        format!("\x1b[38;2;{r};{g};{b}m{text}\x1b[0m")
     }
 
     /// Render a 3-sample sparkline from token-arrival counts.

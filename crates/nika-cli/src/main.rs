@@ -584,6 +584,8 @@ fn run_verb(args: &RunArgs, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
     // sober registers (piped · --no-progress · --quiet) keep their
     // exact bytes.
     theme.accents = mode == verbs::run::RenderMode::Live;
+    // Duration heat additionally needs colour + the truecolor PROOF.
+    theme.heat = theme.accents && theme.color && truecolor_env();
     verbs::run::run(
         &args.file,
         args.json,
@@ -651,6 +653,8 @@ fn trace_render(args: &TraceArgs, replay: bool, color: ColorWhenArg, link_when: 
     // The duration accents ride the interactive surface only — a piped
     // `trace show` keeps its exact legacy bytes.
     theme.accents = tty;
+    // Duration heat additionally needs colour + the truecolor PROOF.
+    theme.heat = tty && theme.color && truecolor_env();
 
     // The shape tails ride the interactive surface only: a TTY render
     // (show OR replay) carries them unless `--no-outputs`; a piped
@@ -767,6 +771,13 @@ fn recover_events(raw: &str, label: &str) -> Result<Vec<Event>, String> {
 #[allow(clippy::disallowed_methods)]
 fn env_flag(name: &str) -> bool {
     std::env::var_os(name).is_some_and(|v| !v.is_empty())
+}
+
+/// Did the terminal PROVE truecolor (`COLORTERM=truecolor|24bit`)?
+/// The duration-heat ramp fires only on proof — 256-colour terminals
+/// get the flat fallback, never an approximated ramp (design §1.5).
+fn truecolor_env() -> bool {
+    env_value("COLORTERM").is_some_and(|v| v == "truecolor" || v == "24bit")
 }
 
 /// Read a presentation variable's VALUE (`CLICOLOR` · `TERM` ·

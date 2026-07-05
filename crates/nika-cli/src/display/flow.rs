@@ -142,6 +142,10 @@ pub fn waterfall(view: &RunView, theme: &Theme) -> Vec<String> {
         .collect();
     let time_w = durs.iter().map(|d| d.chars().count()).max().unwrap_or(0);
 
+    // The heat scale anchors on the run's own long pole (max wall time).
+    let wall_of = |iv: &Interval| u64::try_from(iv.end.saturating_sub(iv.start)).unwrap_or(0);
+    let wall_max = ran.iter().map(|(_, iv)| wall_of(iv)).max().unwrap_or(1);
+
     let mut lines = Vec::with_capacity(ran.len() + 1);
     for ((row, iv), dur) in ran.iter().zip(&durs) {
         let off = cell(iv.start).min(BAR_WIDTH - 1);
@@ -151,11 +155,20 @@ pub fn waterfall(view: &RunView, theme: &Theme) -> Vec<String> {
             TaskState::Running | TaskState::Retrying => Role::Accent,
             _ => Role::Good,
         };
+        // Duration heat rides SUCCESS bars only (design §1.5): the
+        // verdict hues (failed red · running accent) always win — heat
+        // is data, never a verdict. Off (flat Good) unless COLORTERM
+        // proved truecolor (`theme.heat`).
+        let bar_raw = bar.to_string().repeat(len);
+        let painted = if theme.heat && role == Role::Good {
+            theme.heat_step(heat_bucket(wall_of(iv), wall_max), &bar_raw)
+        } else {
+            theme.paint(role, &bar_raw)
+        };
         let mut line = format!(
-            "  {:<id_w$}  {edge_l}{}{}{edge_r}",
+            "  {:<id_w$}  {edge_l}{}{painted}{edge_r}",
             row.id,
             " ".repeat(off),
-            theme.paint(role, &bar.to_string().repeat(len)),
         );
         line.push_str(&" ".repeat(BAR_WIDTH - off - len));
         line.push_str("  ");
@@ -174,6 +187,15 @@ pub fn waterfall(view: &RunView, theme: &Theme) -> Vec<String> {
         &format!("  0s {} {total}", dot.to_string().repeat(dots)),
     ));
     lines
+}
+
+/// Quantize one duration onto the 5-step heat ramp: 0 (the fastest
+/// band) … 4 (the run's long pole). The run's own max anchors the
+/// scale — heat compares tasks WITHIN a run, never across runs.
+pub(crate) fn heat_bucket(wall_ms: u64, max_ms: u64) -> usize {
+    usize::try_from(wall_ms.saturating_mul(4) / max_ms.max(1))
+        .unwrap_or(4)
+        .min(4)
 }
 
 /// Widest the verdict card grows (inner cells) — 2-indent + corners keeps
@@ -678,5 +700,63 @@ mod tests {
         assert_eq!(fmt_wall_ms(3_200), "3.2s");
         assert_eq!(fmt_wall_ms(59_949), "59.9s");
         assert_eq!(fmt_wall_ms(124_000), "2m04s");
+    }
+
+    /// The heat quantizer: 5 bands anchored on the run's long pole —
+    /// zero-length lands in band 0, the max in band 4, and the scale is
+    /// linear in between (the exact boundaries pin the `*4/max` math
+    /// against off-by-one mutations).
+    #[test]
+    fn heat_bucket_quantizes_five_bands() {
+        assert_eq!(heat_bucket(0, 1_000), 0);
+        assert_eq!(heat_bucket(249, 1_000), 0);
+        assert_eq!(heat_bucket(250, 1_000), 1);
+        assert_eq!(heat_bucket(500, 1_000), 2);
+        assert_eq!(heat_bucket(750, 1_000), 3);
+        assert_eq!(heat_bucket(1_000, 1_000), 4);
+        // Degenerate scales stay in range (a zero-max run · overshoot).
+        assert_eq!(heat_bucket(5, 0), 4, "max clamps · never a panic");
+        assert_eq!(heat_bucket(2_000, 1_000), 4, "overshoot clamps to 4");
+    }
+
+    /// Duration heat rides SUCCESS bars only, truecolor only: with
+    /// `theme.heat` the ok bars carry `38;2;r;g;b` SGRs (the long pole
+    /// in the ramp's deepest step · the failed bar KEEPS its red) — and
+    /// without it the same view renders zero truecolor bytes (the
+    /// 256-colour fallback is flat, never approximated).
+    #[test]
+    fn waterfall_heat_is_truecolor_gated_and_success_only() {
+        let mut view = RunView::new();
+        view.apply(&ev(EventKind::TaskStarted, 0, &[("task", s("fast"))]));
+        view.apply(&ev(EventKind::TaskCompleted, 250, &[("task", s("fast"))]));
+        view.apply(&ev(EventKind::TaskStarted, 250, &[("task", s("long"))]));
+        view.apply(&ev(EventKind::TaskCompleted, 1_250, &[("task", s("long"))]));
+        view.apply(&ev(EventKind::TaskStarted, 1_250, &[("task", s("bad"))]));
+        view.apply(&ev(EventKind::TaskFailed, 1_500, &[("task", s("bad"))]));
+
+        let mut heat = Theme::new(true, false, false);
+        heat.heat = true;
+        let lines = waterfall(&view, &heat);
+        let ramp_top = crate::display::theme::HEAT_RAMP[4];
+        let deepest = format!("\x1b[38;2;{};{};{}m", ramp_top.0, ramp_top.1, ramp_top.2);
+        assert!(
+            lines[1].contains(&deepest),
+            "the long pole wears the deepest step: {lines:?}"
+        );
+        assert!(
+            lines[0].contains("\x1b[38;2;"),
+            "the fast bar wears a paler step: {lines:?}"
+        );
+        assert!(
+            lines[2].contains("\x1b[31m") && !lines[2].contains("38;2;"),
+            "the failed bar stays RED — verdict beats heat: {lines:?}"
+        );
+
+        // COLORTERM absent → theme.heat off → flat bars, zero truecolor.
+        let flat = waterfall(&view, &Theme::new(true, false, false));
+        assert!(
+            !flat.iter().any(|l| l.contains("38;2;")),
+            "no COLORTERM proof → no truecolor: {flat:?}"
+        );
     }
 }

@@ -91,6 +91,13 @@ pub(crate) fn link_host() -> String {
         .unwrap_or_default()
 }
 
+/// Did the terminal PROVE truecolor (`COLORTERM=truecolor|24bit`)?
+/// Presentation env — the same scoped exemption as [`link_host`].
+#[allow(clippy::disallowed_methods)]
+pub(crate) fn truecolor_env() -> bool {
+    std::env::var("COLORTERM").is_ok_and(|v| v == "truecolor" || v == "24bit")
+}
+
 /// Render one on-disk path as an OSC-8 `file://` hyperlink when the
 /// theme's `links` capability resolved on — the TEXT stays the path the
 /// verb already prints (byte-identical registers when links are off).
