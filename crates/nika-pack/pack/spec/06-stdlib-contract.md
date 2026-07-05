@@ -44,9 +44,9 @@ Three reasons ·
 
 The stdlib has **independent versioning** ·
 
-- `stdlib/providers-v0.1.md` — the <!-- canon:providers -->14<!-- /canon --> canonical providers for v0.1
-- `stdlib/extract-modes-v0.1.md` — the <!-- canon:extract_modes -->9<!-- /canon --> canonical extract modes for v0.1
-- `stdlib/builtins-v0.1.md` — the <!-- canon:builtins -->23<!-- /canon --> canonical builtins for v0.1
+- `stdlib/providers-v0.1.md`, the <!-- canon:providers -->14<!-- /canon --> canonical providers for v0.1
+- `stdlib/extract-modes-v0.1.md`, the <!-- canon:extract_modes -->9<!-- /canon --> canonical extract modes for v0.1
+- `stdlib/builtins-v0.1.md`, the <!-- canon:builtins -->23<!-- /canon --> canonical builtins for v0.1
 
 When the stdlib evolves to v0.2 · those files become `*-v0.2.md` and new versions are published. The core language contract (`nika: v1`) is unchanged.
 
@@ -114,7 +114,7 @@ When these mature · they enter stdlib v0.x. The core language doesn't need to c
 
 ```yaml
 model: anthropic/claude-sonnet-4-6   # <provider>/<name> · see stdlib/providers-v0.1.md
-# model: ollama/llama3.1             # local · same shape
+# model: ollama/llama3.2:3b          # local · same shape
 ```
 
 ### Extract mode
@@ -153,7 +153,7 @@ These are not stdlib · they depend on the engine's MCP server registry being co
 
 ## Namespace ownership · `nika:` · `mcp:` (closed at v1)
 
-The namespace set is **CLOSED at v1** — `nika:` and `mcp:` are the only two
+The namespace set is **CLOSED at v1**: `nika:` and `mcp:` are the only two
 ([02 §tool reference grammar](./02-verbs.md#tool-reference-grammar-canonical) ·
 any other prefix is rejected at parse time) ·
 
@@ -166,7 +166,7 @@ The `nika:*` namespace is **spec-owned**. A custom engine MUST NOT add tools
 to the `nika:*` namespace · it would violate portability (a workflow using a
 vendor's `nika:custom` builtin would not run on a different engine).
 
-**Engine-specific tools route through `mcp:`** — an engine that ships custom
+**Engine-specific tools route through `mcp:`**: an engine that ships custom
 capabilities exposes them as an MCP server it hosts (`mcp:myengine/research`).
 That is exactly what the protocol is for · the tool is then *declared* in the
 engine's MCP registry like any other (portability semantics intact · any
@@ -174,7 +174,7 @@ engine with that server configured runs the workflow) · and no third
 namespace appears silently.
 
 (An OpenAPI-style `x-<vendor>:` prefix was considered and is **reserved as a
-possible future additive minor** — it does NOT exist in v0.1 · a parser that
+possible future additive minor**: it does NOT exist in v0.1 · a parser that
 accepts `x-anything:tool` today is non-conformant.)
 
 ---

@@ -2,12 +2,12 @@
 
 > Every task in a Nika workflow binds to **exactly one** of 4 verbs.
 > A verb is a **distinct native execution model** the engine itself
-> implements — call a model, run a process, dispatch a tool, drive an
+> implements: call a model, run a process, dispatch a tool, drive an
 > agentic loop. That is the whole operation space.
 >
-> Everything *callable* — fetching a URL, a database query, a file
-> write, cognitive recall — is a **tool** reached through `invoke:`.
-> Everything about *ordering* — iteration, branching — is a **DAG**
+> Everything *callable* (fetching a URL, a database query, a file
+> write, cognitive recall) is a **tool** reached through `invoke:`.
+> Everything about *ordering* (iteration, branching) is a **DAG**
 > construct (`for_each` · `when`). The 4 verbs never change; tools and
 > the stdlib grow freely.
 
@@ -25,7 +25,7 @@
 A task **must** specify exactly one of these. Multiple verbs on a single task is a validation error.
 
 > **Where did `fetch` go?** Fetching a URL is *calling a tool*, not a
-> distinct execution model — so it is the `nika:fetch` builtin, reached
+> distinct execution model, so it is the `nika:fetch` builtin, reached
 > through `invoke:` (the extract modes become its `mode` argument). Same
 > reason a DB query (`invoke: mcp:postgres/query`) or a file write
 > (`invoke: nika:write`) is not its own verb. See
@@ -142,35 +142,35 @@ Run a shell command. The result is the command's stdout (default) or a structure
 | `stdin` | no | string | Stdin data · may use `${{ ... }}` |
 | `capture` | no | enum | `stdout` (default) · `stderr` · `combined` · `structured` (= `{ stdout, stderr, exit_code }`) |
 
-> **`exec.env` ≠ the envelope `env:`** — different scopes, same word (the one
+> **`exec.env` ≠ the envelope `env:`**: different scopes, same word (the one
 > overlap to know). The envelope `env:` is *workflow config* read via
 > `${{ env.* }}`; `exec.env` is the *OS environment of this subprocess*. They
-> are NOT auto-connected — to pass a workflow value into the process, do it
+> are NOT auto-connected. To pass a workflow value into the process, do it
 > explicitly: `env: { API_BASE: "${{ env.API_BASE }}" }`.
 
-> `timeout` and `retry` are **task-level** fields (see [03-dag.md](./03-dag.md)) — they apply uniformly to every verb, so they are not repeated inside `exec:`.
+> `timeout` and `retry` are **task-level** fields (see [03-dag.md](./03-dag.md)): they apply uniformly to every verb, so they are not repeated inside `exec:`.
 
 ### Security
 
 A v0.1-compliant engine MUST ·
 
-- **Honor the two `command` forms** · a **string** runs through `/bin/sh -c` (the shell-feature path · pipes · redirects); an **array** runs through `execve` with NO shell — `command[0]` is the program, the rest are argv passed verbatim, each element substituted independently.
+- **Honor the two `command` forms** · a **string** runs through `/bin/sh -c` (the shell-feature path · pipes · redirects); an **array** runs through `execve` with NO shell: `command[0]` is the program, the rest are argv passed verbatim, each element substituted independently.
 - Implement a shell **blocklist** for dangerous commands on the STRING form (see reference impl `nika-policy` for canonical list · 100+ patterns including `rm -rf /` · `chmod 777` · `curl … | sh` · etc.)
 - Reject blocklist matches with a clear error
 - Honor `timeout` with a hard kill (Go-duration string · see 03-dag)
 - Sandbox `cwd` if configured (engine-specific)
 
-> **The argv form is the STRUCTURAL fix for command injection — prefer it.**
+> **The argv form is the STRUCTURAL fix for command injection: prefer it.**
 > A `${{ }}`-interpolated value in the STRING form is shell-parsed:
 > `command: "process ${{ item }}"` with `item == "; rm -rf /"` is a classic
 > injection, and the blocklist is a *detector* (best-effort), not a guarantee.
-> The ARRAY form removes the shell entirely — `command: ["process", "${{ item }}"]`
+> The ARRAY form removes the shell entirely: `command: ["process", "${{ item }}"]`
 > passes `item` as ONE argv element no matter what it contains; there is no
 > shell to parse it. **Rule of thumb · any command carrying a task output, a
 > `var`, or any value not authored inline → use the array form.** `nika check`
 > warns (`one-obvious-way`) when an interpolated value lands in a string
 > `command`. The string form stays first-class for genuine shell pipelines
-> (`"cat x | grep y > z"`) — that is what `/bin/sh -c` is for.
+> (`"cat x | grep y > z"`). That is what `/bin/sh -c` is for.
 
 ### Conformance
 
@@ -181,7 +181,7 @@ The engine MUST ·
 - Return exit code in `structured` capture mode
 - **Fail the task on non-zero exit** (`NIKA-EXEC-001` · `process_error`) in
   `stdout` / `stderr` / `combined` capture modes (unless `on_error:` recovers ·
-  [05](./05-errors.md)) — **EXCEPT `capture: structured`**, where a non-zero
+  [05](./05-errors.md)), **EXCEPT `capture: structured`**, where a non-zero
   exit is **data, not failure** · the task succeeds and `exit_code` is the
   workflow's to branch on (`when: ${{ tasks.test.output.exit_code != 0 }}`) ·
   the one-obvious-way split · default modes for « must succeed » · structured
@@ -206,7 +206,7 @@ mcp:postgres/query          MCP · server `postgres` · tool `query`
 mcp:my-server/do_thing      MCP · server names admit kebab-case · tools admit snake_case
 ```
 
-The `mcp:` form **requires the slash** — `mcp:postgres` alone (no tool) is a
+The `mcp:` form **requires the slash**: `mcp:postgres` alone (no tool) is a
 parse error (`NIKA-PARSE` · `validation_error`) · server segment
 `[a-z][a-z0-9-]*` · tool segment `[A-Za-z0-9_-]+` (tool names are the MCP
 server's to define).
@@ -218,7 +218,7 @@ clean · `nika:*` · `nika:connectome/*` · `mcp:browser/*`.
 **The namespace set is CLOSED at v1** · `nika:` and `mcp:` are the only two ·
 any other namespace (`custom:thing` · `x:tool`) is rejected at parse time
 (`NIKA-PARSE` · `validation_error`). A third namespace would be an additive
-spec minor — it never appears silently.
+spec minor. It never appears silently.
 
 ### Builtin call
 
@@ -234,7 +234,7 @@ See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) for the canonical buil
 
 > **Grouped paths are grammar-legal · v0.1 ships none.** The reference
 > grammar admits `nika:<group>/<tool>` (the `nika:connectome/recall`
-> illustration above is the reserved FUTURE shape) — but the v0.1 builtin
+> illustration above is the reserved FUTURE shape), but the v0.1 builtin
 > set contains only flat names · a grouped `nika:` path is rejected against
 > the closed 23 set today (`NIKA-INVOKE-001`). The seam exists so the
 > Connectome tools land additively · zero workflow-shape change.
@@ -328,7 +328,7 @@ The agent loops · model response → if tool calls present, execute tools → f
 3. `max_tokens_total` exhausted, OR
 4. A tool returns the canonical completion sentinel `nika:done` (the builtin tool · see [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md))
 
-`nika:done` is **valid only inside an `agent:` loop's tool whitelist** — it is
+`nika:done` is **valid only inside an `agent:` loop's tool whitelist**: it is
 the loop-completion sentinel. Calling `nika:done` from a standalone `invoke:`
 task (outside any agent loop) is an error (`NIKA-BUILTIN-DONE-001`). The
 sentinel has no meaning without a loop to terminate. `nika:done` accepts an
@@ -336,12 +336,12 @@ optional **`result:`** arg (any JSON value) · when present the task's
 `.output` is that value (and `schema:` validates IT) · when absent `.output`
 is the final assistant message (string).
 
-The agent may also grant itself **`nika:compose`** — a second loop-only
+The agent may also grant itself **`nika:compose`**, a second loop-only
 builtin (also valid ONLY inside an `agent:` whitelist · standalone is
 `NIKA-BUILTIN-COMPOSE-001`). It lets the model **self-check a workflow it is
 drafting**: pass a `workflow_yaml` string, get the full `nika check` verdict
 back (conformance + secret-flow + permits + the termination/cost certificate)
-as the tool result. It **never executes** the draft — verification yields an
+as the tool result. It **never executes** the draft: verification yields an
 artifact + its certificate, and running it stays a separate, gated decision.
 See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) §`nika:compose`.
 
@@ -351,16 +351,16 @@ See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) §`nika:compose`.
 - Case 2 (`max_turns` reached) → **`status: failure`** · `NIKA-AGENT-001` ·
   `budget_error` · the last assistant message is preserved at
   `error.details.partial_output` (a budget that runs out did NOT produce the
-  asked-for result — failing loudly beats returning an unfinished answer ·
+  asked-for result: failing loudly beats returning an unfinished answer ·
   recover the partial explicitly via `on_error:` if it is acceptable).
 - Case 3 (`max_tokens_total` exhausted) → same shape · `NIKA-AGENT-002`.
 
 **Tool-call errors inside the loop are fed back, not fatal** · a failing tool
 call returns its typed error to the MODEL as the tool result (the standard
-agentic convention — the model sees the failure and adapts) · the loop
+agentic convention: the model sees the failure and adapts) · the loop
 continues against its budgets. The ONE exception · a `security_error`
 (whitelist violation `NIKA-SEC-002` · blocklist) **fails the task
-immediately** — security boundaries are not negotiation material for a model.
+immediately**: security boundaries are not negotiation material for a model.
 
 ### Tool whitelist · glob semantics
 
@@ -399,34 +399,34 @@ The engine MUST ·
 
 ## Forward-compat
 
-The 4 verb names are **immutable forever** — and the count is **4, absolute**. The operation space is complete: call a model (`infer`), run a process (`exec`), call a tool (`invoke`), run an agentic loop (`agent`). Every other capability is either an **invoke-able tool** (an HTTP fetch → `invoke: nika:fetch` · a database query → `invoke: mcp:postgres/query` · a file write → `invoke: nika:write` · cognitive recall → `invoke: nika:connectome/recall`) or a **DAG control-flow construct** (iteration → `for_each` · branching → `when`). A new verb would require a `nika: v2` language contract — a frozen-forever envelope, so that is effectively never (this is about the **language** version, not the engine version).
+The 4 verb names are **immutable forever**, and the count is **4, absolute**. The operation space is complete: call a model (`infer`), run a process (`exec`), call a tool (`invoke`), run an agentic loop (`agent`). Every other capability is either an **invoke-able tool** (an HTTP fetch → `invoke: nika:fetch` · a database query → `invoke: mcp:postgres/query` · a file write → `invoke: nika:write` · cognitive recall → `invoke: nika:connectome/recall`) or a **DAG control-flow construct** (iteration → `for_each` · branching → `when`). A new verb would require a `nika: v2` language contract (a frozen-forever envelope), so that is effectively never (this is about the **language** version, not the engine version).
 
 ### The closure argument · why no case forces a 5th verb
 
 Every candidate operation decomposes along **two orthogonal axes** ·
 
-- **WHO executes** — the execution model. There are exactly four · model
+- **WHO executes**: the execution model. There are exactly four · model
   inference (`infer`) · OS process (`exec`) · dispatch-a-call-and-await-its-
   result (`invoke`) · model-driven loop over tools (`agent`). Anything with a
-  request/response shape — however exotic the backend — is by construction
+  request/response shape (however exotic the backend) is by construction
   the `invoke` model.
-- **WHEN it runs** — ordering. Edges (`depends_on`) · conditions (`when`) ·
+- **WHEN it runs**: ordering. Edges (`depends_on`) · conditions (`when`) ·
   iteration (`for_each`) · time-bounds (`timeout`) · recovery (`retry` ·
-  `on_error` · `on_finally`). Ordering never executes anything — it is
+  `on_error` · `on_finally`). Ordering never executes anything: it is
   DAG-side, or host-side when it concerns *starting* a run at all.
 
 The recurring « doesn't X need a verb? » cases, stress-tested ·
 
 | Candidate | Axis | Resolution |
 |---|---|---|
-| **wait-for-human** (approval gate) | WHO · a call that resolves when a human answers | a **tool** · request/response with a long latency · `invoke:` model — **already shipped** as `nika:prompt` (blocking confirm · [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md)) |
-| **sleep / delay** inside a run | WHO · a call that resolves after a duration | a **tool** — **already shipped** as `nika:wait` (relative `duration:` XOR absolute `until:`) · NOT a verb — nothing is executed, a result (elapsed) is awaited |
+| **wait-for-human** (approval gate) | WHO · a call that resolves when a human answers | a **tool** · request/response with a long latency · `invoke:` model · **already shipped** as `nika:prompt` (blocking confirm · [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md)) |
+| **sleep / delay** inside a run | WHO · a call that resolves after a duration | a **tool** · **already shipped** as `nika:wait` (relative `duration:` XOR absolute `until:`) · NOT a verb · nothing is executed, a result (elapsed) is awaited |
 | **cron / schedule** (start a run at time T) | neither · it precedes the run | **host concern** · a workflow describes a run, not its triggering · explicitly out-of-scope ([08](./08-out-of-scope.md)) |
 | **streaming between tasks** | WHEN · changes what an *edge* delivers | a **DAG-edge semantic**, not an execution model · out-of-scope v0.1 · an additive edge attribute later · never a verb |
 | **sub-workflow call** | WHO · dispatch-and-await a run | a **tool** (workflow-as-tool · see [08](./08-out-of-scope.md) §composition) · the `invoke` model again |
 
 A 5th verb would have to name an execution model that is none of
-call-with-result, process, inference, or loop — and every concrete candidate
+call-with-result, process, inference, or loop, and every concrete candidate
 inspected since the 4-verb lock (D-2026-05-22-N18) has resolved to a tool
 (WHO · request/response) or an ordering construct (WHEN). That is the
 closure: **the verb set is closed under decomposition into WHO × WHEN.**

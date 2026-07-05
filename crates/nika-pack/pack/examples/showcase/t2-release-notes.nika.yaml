@@ -9,7 +9,7 @@
 # Demonstrates ·
 #   - `exec:` with vars · the git range is an input, not a hardcode
 #   - `infer.schema:` · highlights/breaking/body as a typed object
-#   - `nika:edit` · in-place find/replace — the changelog INSERT pattern
+#   - `nika:edit` · in-place find/replace: the changelog INSERT pattern
 #   - `nika:notify` · webhook ping with fields from the structured output
 #
 # Run · nika run examples/showcase/t2-release-notes.nika.yaml
@@ -17,7 +17,7 @@ nika: v1
 workflow: release-notes
 description: "git log → typed release notes → CHANGELOG insert → team ping"
 
-model: mock/echo            # swap for mistral/mistral-large
+model: ollama/llama3.2:3b   # local · zero key · swap for mistral/mistral-large
 
 vars:
   since_tag: "v0.80.0"
