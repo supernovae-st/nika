@@ -6,6 +6,7 @@ pub nika_providers::profile::WireFormat::Gemini
 pub nika_providers::profile::WireFormat::Mock
 pub nika_providers::profile::WireFormat::OpenAiCompat
 impl nika_providers::profile::WireFormat
+pub fn nika_providers::profile::WireFormat::strict_rejects_underspecified(self) -> bool
 pub fn nika_providers::profile::WireFormat::supports_response_format(self) -> bool
 impl core::clone::Clone for nika_providers::profile::WireFormat
 pub fn nika_providers::profile::WireFormat::clone(&self) -> nika_providers::profile::WireFormat
@@ -79,7 +80,7 @@ impl<T> core::convert::From<T> for nika_providers::profile::Profile
 pub fn nika_providers::profile::Profile::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::profile::Profile where T: 'static
 pub fn nika_providers::profile::Profile::as_any(&self) -> &(dyn core::any::Any + 'static)
-pub const nika_providers::profile::CANONICAL_IDS: [&str; 14]
+pub const nika_providers::profile::CANONICAL_IDS: [&str; 16]
 pub fn nika_providers::profile::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
 pub mod nika_providers::registry
 pub struct nika_providers::registry::NoHttp
@@ -189,6 +190,7 @@ impl<T> nika_error::traits::AsAny for nika_providers::registry::ProvidersConfig 
 pub fn nika_providers::registry::ProvidersConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_providers::registry::ResolvedProvider<H>
 impl<H> nika_providers::registry::ResolvedProvider<H>
+pub fn nika_providers::registry::ResolvedProvider<H>::strict_schema_rejects_underspecified(&self) -> bool
 pub fn nika_providers::registry::ResolvedProvider<H>::wire_model(&self) -> &str
 impl<H: core::fmt::Debug> core::fmt::Debug for nika_providers::registry::ResolvedProvider<H>
 pub fn nika_providers::registry::ResolvedProvider<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -231,6 +233,7 @@ pub nika_providers::WireFormat::Gemini
 pub nika_providers::WireFormat::Mock
 pub nika_providers::WireFormat::OpenAiCompat
 impl nika_providers::profile::WireFormat
+pub fn nika_providers::profile::WireFormat::strict_rejects_underspecified(self) -> bool
 pub fn nika_providers::profile::WireFormat::supports_response_format(self) -> bool
 impl core::clone::Clone for nika_providers::profile::WireFormat
 pub fn nika_providers::profile::WireFormat::clone(&self) -> nika_providers::profile::WireFormat
@@ -411,6 +414,7 @@ impl<T> nika_error::traits::AsAny for nika_providers::registry::ProvidersConfig 
 pub fn nika_providers::registry::ProvidersConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_providers::ResolvedProvider<H>
 impl<H> nika_providers::registry::ResolvedProvider<H>
+pub fn nika_providers::registry::ResolvedProvider<H>::strict_schema_rejects_underspecified(&self) -> bool
 pub fn nika_providers::registry::ResolvedProvider<H>::wire_model(&self) -> &str
 impl<H: core::fmt::Debug> core::fmt::Debug for nika_providers::registry::ResolvedProvider<H>
 pub fn nika_providers::registry::ResolvedProvider<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -446,5 +450,5 @@ impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_p
 pub async fn nika_providers::registry::ResolvedProvider<H>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderStream for nika_providers::registry::ResolvedProvider<H> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderStreamDyn
 pub async fn nika_providers::registry::ResolvedProvider<H>::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::provider::InferEvent, nika_kernel_ai::provider::ProviderError>> + core::marker::Send)>>, nika_kernel_ai::provider::ProviderError>
-pub const nika_providers::CANONICAL_IDS: [&str; 14]
+pub const nika_providers::CANONICAL_IDS: [&str; 16]
 pub fn nika_providers::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
