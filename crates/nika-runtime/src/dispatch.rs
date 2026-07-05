@@ -214,7 +214,17 @@ where
                     Some(value) => value,
                     None => Value::String(out.content),
                 };
-                Dispatched::ok(note, value, None)
+                // A tool that reports its REAL spend as a top-level numeric
+                // `cost_usd` in its structured output is metered into the
+                // run ledger (`nika:image_generate` on tick-billed
+                // providers · future paid tools/MCP) — the same honest-
+                // spend channel infer rides. Absent/invalid → unmetered,
+                // never a guess.
+                let cost_usd = value
+                    .get("cost_usd")
+                    .and_then(Value::as_f64)
+                    .filter(|c| c.is_finite() && *c >= 0.0);
+                Dispatched::ok_metered(note, value, None, None, cost_usd)
             }
             Err(err) => Dispatched::verb_err(note, &err),
         }
@@ -622,6 +632,39 @@ mod tests {
 
     fn spanned(s: &str) -> Spanned<String> {
         Spanned::new(s.to_owned(), Span::default())
+    }
+
+    #[test]
+    fn invoke_meters_a_top_level_cost_usd_from_structured_output() {
+        // The honest-spend channel: a tool reporting real spend as a
+        // top-level numeric `cost_usd` is metered; junk shapes never are.
+        let extract = |v: serde_json::Value| {
+            v.get("cost_usd")
+                .and_then(Value::as_f64)
+                .filter(|c| c.is_finite() && *c >= 0.0)
+        };
+        assert_eq!(
+            extract(serde_json::json!({ "cost_usd": 0.02, "images": [] })),
+            Some(0.02)
+        );
+        assert_eq!(extract(serde_json::json!({ "cost_usd": null })), None);
+        assert_eq!(
+            extract(serde_json::json!({ "cost_usd": -1.0 })),
+            None,
+            "negative refused"
+        );
+        assert_eq!(
+            extract(serde_json::json!({ "cost_usd": "0.02" })),
+            None,
+            "strings refused"
+        );
+        assert_eq!(extract(serde_json::json!({ "other": 1 })), None);
+        assert_eq!(extract(serde_json::json!("just text")), None);
+        assert_eq!(
+            extract(serde_json::json!({ "cost_usd": f64::NAN })),
+            None,
+            "non-finite refused"
+        );
     }
 
     #[test]

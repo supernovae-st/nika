@@ -282,6 +282,10 @@ pub(crate) struct RawImage {
 pub(crate) struct ProviderBatch {
     pub(crate) images: Vec<RawImage>,
     pub(crate) usage: Usage,
+    /// REAL spend in USD when the provider reports it exactly (xai bills
+    /// `cost_in_usd_ticks` in the response body) — `None` = unpriced,
+    /// honest (never an estimate that looks real).
+    pub(crate) cost_usd: Option<f64>,
     /// The host the render actually came from (provenance — matters once
     /// the `local` provider makes the endpoint engine-configurable).
     /// `None` for the in-process mock.

@@ -81,6 +81,8 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     }
 
     batch.warnings.splice(0..0, warnings.drain(..));
+    // cost_usd stays None (Default): gemini bills image output in tokens,
+    // and the image model ids are unpriced in the catalog (roadmap).
     batch.endpoint_host = Some("generativelanguage.googleapis.com".to_owned());
     batch.provider_text = (!texts.is_empty()).then(|| texts.join("\n"));
     clamp_provider_text(&mut batch);

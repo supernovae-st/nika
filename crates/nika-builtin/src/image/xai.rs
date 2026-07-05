@@ -254,7 +254,14 @@ fn parse_response(
     }
 
     // Billed in cost ticks, not tokens — the normalized usage axes stay
-    // honestly null; the tick count rides the debug echo only.
+    // honestly null; the EXACT spend maps from the documented tick unit
+    // (1 US cent = 100,000,000 ticks → $1 = 1e10) into `cost_usd`.
+    #[allow(clippy::cast_precision_loss)] // real tick counts ≪ 2^53 — exact in f64
+    let cost_usd = parsed
+        .get("usage")
+        .and_then(|u| u.get("cost_in_usd_ticks"))
+        .and_then(serde_json::Value::as_u64)
+        .map(|ticks| ticks as f64 / 1e10);
     let raw_debug = args.debug.then(|| {
         let mut raw = parsed.clone();
         sanitize_raw(&mut raw);
@@ -263,6 +270,7 @@ fn parse_response(
     Ok(ProviderBatch {
         images,
         usage: Usage::default(),
+        cost_usd,
         endpoint_host: Some("api.x.ai".to_owned()),
         provider_text: None,
         warnings: Vec::new(),
@@ -335,7 +343,8 @@ mod tests {
     async fn happy_path_builds_the_documented_request_and_decodes_b64() {
         let (b64, bytes) = wire_png_b64();
         let response = serde_json::json!({
-            "data": [{ "b64_json": b64, "revised_prompt": "" }]
+            "data": [{ "b64_json": b64, "revised_prompt": "" }],
+            "usage": { "cost_in_usd_ticks": 200_000_000u64 }
         });
         let http = MockHttp::new().enqueue_ok(200, response.to_string().into_bytes());
         let args = parsed(serde_json::json!({
@@ -350,6 +359,11 @@ mod tests {
             "vestigial empty revised_prompt is not provenance"
         );
         assert_eq!(batch.usage.input_tokens, None, "ticks are not tokens");
+        assert_eq!(
+            batch.cost_usd,
+            Some(0.02),
+            "ticks map exactly (1 cent = 1e8 ticks)"
+        );
         assert_eq!(batch.endpoint_host.as_deref(), Some("api.x.ai"));
 
         let sent = http.sent_requests();

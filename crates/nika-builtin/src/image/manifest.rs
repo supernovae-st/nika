@@ -32,6 +32,7 @@ pub(crate) fn build(
     args: &ImageArgs,
     saved: &[SavedImage],
     usage: Usage,
+    cost_usd: Option<f64>,
     warnings: &[String],
     created_at: &str,
     revised_prompt: Option<&str>,
@@ -55,6 +56,7 @@ pub(crate) fn build(
         "input_hash": input_hash,
         "images": saved.iter().map(image_entry).collect::<Vec<_>>(),
         "usage": usage.to_json(),
+        "cost_usd": cost_usd,
         "warnings": warnings,
         "metadata": args.metadata,
     })
@@ -203,12 +205,14 @@ mod tests {
                 total_tokens: Some(1130),
                 thoughts_tokens: None,
             },
+            Some(0.02),
             &["seed_best_effort: x".to_owned()],
             "2026-07-05T12:00:00Z",
             None,
             None,
             Some("api.openai.com"),
         );
+        assert_eq!(manifest["cost_usd"], 0.02, "real spend rides provenance");
         assert_eq!(manifest["manifest_version"], 1);
         assert_eq!(manifest["nika_version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(manifest["provider"], "mock");
@@ -238,12 +242,42 @@ mod tests {
     fn input_hash_is_deterministic_and_request_sensitive() {
         let root = scratch();
         let args = parsed(&root);
-        let a = build(&args, &[], Usage::default(), &[], "t", None, None, None);
-        let b = build(&args, &[], Usage::default(), &[], "t", None, None, None);
+        let a = build(
+            &args,
+            &[],
+            Usage::default(),
+            None,
+            &[],
+            "t",
+            None,
+            None,
+            None,
+        );
+        let b = build(
+            &args,
+            &[],
+            Usage::default(),
+            None,
+            &[],
+            "t",
+            None,
+            None,
+            None,
+        );
         assert_eq!(a["input_hash"], b["input_hash"], "same request → same hash");
         let mut other = parsed(&root);
         other.prompt = "different".into();
-        let c = build(&other, &[], Usage::default(), &[], "t", None, None, None);
+        let c = build(
+            &other,
+            &[],
+            Usage::default(),
+            None,
+            &[],
+            "t",
+            None,
+            None,
+            None,
+        );
         assert_ne!(a["input_hash"], c["input_hash"], "prompt changes the hash");
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -269,7 +303,17 @@ mod tests {
         let root = scratch();
         let args = parsed(&root);
         let saved = vec![saved_fixture()];
-        let manifest = build(&args, &saved, Usage::default(), &[], "t", None, None, None);
+        let manifest = build(
+            &args,
+            &saved,
+            Usage::default(),
+            None,
+            &[],
+            "t",
+            None,
+            None,
+            None,
+        );
         let path = write(&TokioFs, &FsBoundary::unbounded(), &args, &saved, &manifest)
             .await
             .expect("writes");
