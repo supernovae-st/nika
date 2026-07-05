@@ -13,7 +13,7 @@
 //! The verb set + the envelope/task keys mirror the strict parser's own
 //! tables (`nika_schema::parser` `TOP_LEVEL_KEYS` + the closed task shape
 //! of spec `03-dag.md`). The provider list is mirrored-from-canon (the
-//! canonical 14-provider LLM catalog · spec `stdlib/providers-v0.1.md` +
+//! canonical 16-provider LLM catalog · spec `stdlib/providers-v0.1.md` +
 //! `spec/canon.yaml` SSOT); it is presented local/open-weight-first per
 //! the studio's vendor-agnostic ordering. A drift between this mirror and
 //! the catalog is caught the day `nika-lsp` grows a `nika-catalog` dep
@@ -161,7 +161,7 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
 
 /// The canonical LLM provider names for `model: <provider>/<name>`.
 ///
-/// MIRRORED-FROM-CANON: the 14-provider catalog (spec `canon.yaml` SSOT ·
+/// MIRRORED-FROM-CANON: the 16-provider catalog (spec `canon.yaml` SSOT ·
 /// `stdlib/providers-v0.1.md`). Ordered local/open-weight-first per the
 /// studio's vendor-agnostic presentation convention (the TEACHING surface
 /// leads with sovereign options). Keep in sync with the catalog when the
@@ -218,6 +218,14 @@ pub const PROVIDERS: &[Entry] = &[
     Entry {
         name: "openrouter",
         doc: "OpenRouter (cloud router across many providers/models).",
+    },
+    Entry {
+        name: "huggingface",
+        doc: "Hugging Face Inference Providers router (open-weight catalog · 18 backends · :provider or :fastest/:cheapest suffix).",
+    },
+    Entry {
+        name: "nvidia",
+        doc: "NVIDIA API (Nemotron 3 family · Open Model License · NIM self-hostable).",
     },
     Entry {
         name: "mock",
@@ -278,7 +286,7 @@ mod tests {
     #[test]
     fn providers_are_local_first_and_complete() {
         let names: Vec<&str> = PROVIDERS.iter().map(|e| e.name).collect();
-        assert_eq!(names.len(), 14, "the canonical 14-provider catalog");
+        assert_eq!(names.len(), 16, "the canonical 16-provider catalog");
         // local/open-weight first (vendor-agnostic teaching order)
         assert_eq!(names[0], "ollama");
         assert!(names.contains(&"anthropic"));

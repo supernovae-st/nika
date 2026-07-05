@@ -185,6 +185,31 @@ context_window_tokens = 131072
 max_output_tokens = 8192
 
 [[providers]]
+id = "huggingface"
+name = "Hugging Face"
+aliases = ["hf"]
+env_var = "HF_TOKEN"
+key_prefixes = ["hf_"]
+default_model = "Qwen/Qwen3.5-397B-A17B:fastest"
+cheap_model = "Qwen/Qwen3.5-9B:cheapest"
+requires_key = true
+description = "Inference Providers router · 100+ open-weight models across 18 providers (Groq · Cerebras · Together · Scaleway · OVHcloud · …) · zero markup · :provider or :fastest/:cheapest routing suffix."
+api_dialect = "openai-chat"
+tags = ["function-calling", "open-source", "streaming"]
+
+[[providers.models]]
+id = "default"
+model = "Qwen/Qwen3.5-397B-A17B:fastest"
+context_window_tokens = 262144
+max_output_tokens = 32768
+
+[[providers.models]]
+id = "cheap"
+model = "Qwen/Qwen3.5-9B:cheapest"
+context_window_tokens = 262144
+max_output_tokens = 16384
+
+[[providers]]
 id = "openrouter"
 name = "OpenRouter"
 aliases = ["or"]
@@ -588,26 +613,33 @@ max_output_tokens = 4096
 # ─── Session 4b additions (8 new providers) ────────────────────────────
 
 [[providers]]
-id = "nvidia-nim"
-name = "NVIDIA NIM"
-aliases = ["nim"]
+id = "nvidia"
+name = "NVIDIA"
+aliases = ["nim", "nvidia-nim"]
 env_var = "NVIDIA_API_KEY"
-default_model = "meta/llama-3.1-70b-instruct"
-cheap_model = "meta/llama-3.1-8b-instruct"
+key_prefixes = ["nvapi-"]
+default_model = "nvidia/nemotron-3-super-120b-a12b"
+cheap_model = "nvidia/nemotron-3-nano-30b-a3b"
 requires_key = true
-description = "NVIDIA NIM inference microservices. Nemotron, Llama, Mistral on NVIDIA GPUs."
+description = "NVIDIA API (integrate.api.nvidia.com) · Nemotron 3 family (Open Model License · agentic-first) + hosted open models · self-hosted NIM containers expose the same surface."
 api_dialect = "openai-chat"
-tags = ["function-calling", "local", "streaming"]
+tags = ["function-calling", "open-source", "streaming"]
+
+[[providers.models]]
+id = "default"
+model = "nvidia/nemotron-3-super-120b-a12b"
+context_window_tokens = 262144
+max_output_tokens = 32768
+
+[[providers.models]]
+id = "cheap"
+model = "nvidia/nemotron-3-nano-30b-a3b"
+context_window_tokens = 262144
+max_output_tokens = 16384
 
 [[providers.models]]
 id = "llama-70b"
 model = "meta/llama-3.1-70b-instruct"
-context_window_tokens = 128000
-max_output_tokens = 4096
-
-[[providers.models]]
-id = "llama-8b"
-model = "meta/llama-3.1-8b-instruct"
 context_window_tokens = 128000
 max_output_tokens = 4096
 
