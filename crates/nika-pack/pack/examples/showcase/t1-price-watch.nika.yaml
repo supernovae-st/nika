@@ -3,7 +3,7 @@
 #
 # showcase · T1 starter · e-commerce / personal
 #
-# A price-drop alert in ~20 lines — and ZERO model calls. Not every
+# A price-drop alert in ~20 lines, and ZERO model calls. Not every
 # workflow needs an LLM · the DAG, the tools and one CEL comparison
 # do the whole job deterministically.
 #

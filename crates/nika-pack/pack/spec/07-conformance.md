@@ -53,7 +53,7 @@ An engine claims « Core v0.1-compliant » if it ·
    - `${{ with.x }}` resolves to a declared task `with:` key
    - `${{ tasks.X.field }}` resolves to a declared upstream task + a valid field name
    - `${{ env.X }}` · `${{ secrets.X }}` resolve to declared namespaces
-   - `when:` and `for_each:` expressions are valid **CEL** (the v0.1 subset · see 03-dag) and their references **resolve to known namespaces** — Core parses but does NOT *evaluate* them (no execution = no `tasks.X.status` to compare against · that is Runtime's job)
+   - `when:` and `for_each:` expressions are valid **CEL** (the v0.1 subset · see 03-dag) and their references **resolve to known namespaces**: Core parses but does NOT *evaluate* them (no execution = no `tasks.X.status` to compare against · that is Runtime's job)
    - `output:` bindings are valid **jq** expressions (the one data language · see 04-variables) · `${{ }}` never appears inside a binding
    - Reports undefined references with `NIKA-VAR-001` · static expression violations with `NIKA-VAR-005` (the deep-static layer · CEL subset parse · jq compile · `when:` boolean shape)
 
@@ -68,9 +68,9 @@ A Core-compliant engine does NOT execute verbs and does NOT evaluate `when:` / `
 
 ### `nika check` · the static pre-flight (the audit-before-it-runs surface)
 
-Because the language is **statically analyzable by construction** — the DAG
+Because the language is **statically analyzable by construction** (the DAG
 is acyclic, `for_each` is bounded, CEL is non-Turing, and effects are
-declared — a conformant engine can answer « what will this workflow do, cost,
+declared), a conformant engine can answer « what will this workflow do, cost,
 and touch? » with **zero API calls and zero tokens spent**. `nika check` is
 the canonical CLI surface for that (Core conformance + the four static
 guarantees below) ·
@@ -80,14 +80,14 @@ guarantees below) ·
 | **Plan** | the wave topology · which tasks run in parallel · the critical path | DAG waves (Core §2) |
 | **Cost ceiling** | the worst-case spend · `Σ (max_tokens × provider price)` across `infer:`/`agent:` tasks · before one token is spent | the `nika:inspect view: cost` model, run statically |
 | **Secret leak** | every `secrets.X` that flows into an `exec` capture or a tool whose output is bound (the masking boundary · [04 §secrets](./04-variables.md)) | reference graph |
-| **Capability escape** | any effect outside a declared `permits:` block — a write outside `fs.write`, a fetch to an unlisted host, an `exec` under `exec: false`, an unlisted tool | `permits:` ([01](./01-envelope.md)) |
+| **Capability escape** | any effect outside a declared `permits:` block: a write outside `fs.write`, a fetch to an unlisted host, an `exec` under `exec: false`, an unlisted tool | `permits:` ([01](./01-envelope.md)) |
 | **Provider parity** | (`--providers`) that the workflow uses zero provider-specific fields → the same `schema:` runs identically on all 14 providers (incl. the 5 local) | the closed verb-field set |
 
 This is the property no other AI workflow runner gives: **GitHub Actions,
-Temporal, and LangGraph tell you nothing — and charge you nothing back —
+Temporal, and LangGraph tell you nothing (and charge you nothing back)
 until you run.** A Nika workflow is auditable for cost, capabilities,
 secrets, and portability *as a static fact about the file*. `nika check` is
-an engine CLI surface (not a separate conformance level — it composes Core
+an engine CLI surface (not a separate conformance level: it composes Core
 validation with the cost/secret/permits/parity reports); the guarantees it
 surfaces ARE normative (they derive from Core conformance + the `permits:`
 and `secrets:` MUSTs), the CLI ergonomics around them are the engine's.
@@ -101,8 +101,16 @@ this prose spec (kept in sync · the prose is normative on conflict).
 
 Editors (VS Code · Zed · JetBrains · Neovim) pick it up via the standard
 `yaml.schemas` association (or a `# yaml-language-server: $schema=…` modeline)
-to give **autocomplete + inline validation** as you type — the same DX as
-GitHub Actions and Docker Compose. This is also what makes a Nika file
+to give **autocomplete + inline validation** as you type, the same DX as
+GitHub Actions and Docker Compose. A working modeline today:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/supernovae-st/nika-spec/main/schemas/workflow.schema.json
+nika: v1
+```
+
+(The short `https://nika.sh/spec/v1/workflow.schema.json` form goes live
+with the site launch · both will resolve to the same schema.) This is also what makes a Nika file
 pleasant (and trap-free) for an AI to author: the schema constrains the shape
 before the engine ever runs. CEL expressions and jq expressions inside string
 fields are validated by the engine (Core level), not the JSON Schema.
@@ -154,7 +162,7 @@ An engine claims « Stdlib v0.1-compliant » if it satisfies Runtime conformance
 
 1. **Ships all 14 canonical providers** (per [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md))
 2. **Ships all 9 canonical extract modes** (per [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md))
-3. **Ships at least all 23 canonical builtins** (core 6 + file 5 + data 8 + introspection 2 + network 2 · the 24 media builtins are optional)
+3. **Ships at least all 23 canonical builtins** (core 6 + file 5 + data 8 + introspection 1 + network 2 · the 24 media builtins are optional)
 4. **Passes** all tests in `conformance/tests/stdlib/`
 
 A Stdlib-compliant engine is functionally equivalent to the reference implementation for any workflow that uses only the canonical stdlib elements.
@@ -176,7 +184,7 @@ What is populated TODAY vs what lands with the reference engine ·
 | **Runtime behavioral fixtures** (`tests/runtime/`) | ⏳ **post-announce** | verb execution · task fields · events · they require an executing engine · they land with the reference engine's vertical slice (1.0.0) |
 | **Stdlib behavioral fixtures** (`tests/stdlib/` · execution half) | ⏳ **post-announce** | provider/builtin/extract-mode *behavior* under the `mock` provider + HTTP mocks |
 
-Run the static gate yourself · `python conformance/runner.py all` — the
+Run the static gate yourself · `python conformance/runner.py all`: the
 runner output is the live count (counts in prose drift · the suite is the
 source). A « Core v0.1-compliant » claim is FULLY testable today. « Runtime »
 and « Stdlib v0.1 » claims are testable on their static halves today · their

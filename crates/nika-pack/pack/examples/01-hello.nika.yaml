@@ -6,13 +6,13 @@
 # Demonstrates ·
 #   - the envelope · `nika: v1` (contract version) + `workflow:` (kebab-case id)
 #   - one task · the `infer:` verb (a single LLM call)
-#   - the `ollama/llama3.1` model · local · no API key (mock/echo for CI)
+#   - the `ollama/llama3.2:3b` model · local · no API key (mock/echo for CI)
 #
 # Run · nika run examples/01-hello.nika.yaml
 nika: v1
 workflow: hello
 
-model: ollama/llama3.1      # local · zero key · swap for any cloud provider in the catalog
+model: ollama/llama3.2:3b   # local · zero key · swap for any cloud provider in the catalog
 
 tasks:
   - id: greet

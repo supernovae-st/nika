@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# TEMPLATE · etl-state — incremental data job with a state file.
+# TEMPLATE · etl-state · incremental data job with a state file.
 # The default shape for « only the NEW » jobs (feeds · exports · syncs)
 # and for batch pipelines that must survive bad input.
 #
@@ -34,7 +34,7 @@ tasks:
 
   - id: fresh
     invoke:
-      tool: "nika:fetch"            # SLOT: fetch / read / exec — the fresh data
+      tool: "nika:fetch"            # SLOT: fetch / read / exec · the fresh data
       args:
         url: "${{ vars.source_url }}"
         mode: jq

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# TEMPLATE · gate-and-act — check a condition, act only when it holds.
+# TEMPLATE · gate-and-act: check a condition, act only when it holds.
 # The default shape for monitors, alerts and threshold jobs. Often
 # needs ZERO model calls (pattern 1 · deterministic core).
 #

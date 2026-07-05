@@ -4,7 +4,7 @@
 # showcase · T1 starter · marketing / creators
 #
 # One blog post becomes a tweet thread, a LinkedIn post and a newsletter
-# blurb — three rewrites running IN PARALLEL, merged into one bundle.
+# blurb: three rewrites running IN PARALLEL, merged into one bundle.
 #
 # Demonstrates ·
 #   - the diamond DAG · read → 3 parallel infers → merge
@@ -16,7 +16,7 @@ nika: v1
 workflow: social-repurpose
 description: "One post → thread + LinkedIn + newsletter, in parallel"
 
-model: mock/echo            # swap for mistral/mistral-large or any provider
+model: ollama/llama3.2:3b   # local · zero key · swap for mistral/mistral-large or any provider
 
 vars:
   post_path: "./blog/launch-post.md"
