@@ -142,8 +142,8 @@ const COST_MAX_PLACES: usize = 6;
 ///
 /// Two regimes: an amount that survives 2-place rounding is plain money
 /// (`$1.50` · `$0.01` — the dollars-and-cents baseline); a sub-cent
-/// amount renders at the [`COST_MAX_PLACES`] cap with trailing zeros
-/// stripped (`$0.002` · `$0.000284` — every digit shown is real).
+/// amount renders at the 6-place cap (`COST_MAX_PLACES`) with trailing
+/// zeros stripped (`$0.002` · `$0.000284` — every digit shown is real).
 /// `$0.00` for zero and for dust below the 6-place floor — a cost the
 /// engine cannot render honestly is a cost of zero cents, not a lie of
 /// trailing zeros. Non-finite input (a corrupt trace float) renders the
