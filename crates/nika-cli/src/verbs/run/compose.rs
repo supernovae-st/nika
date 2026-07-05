@@ -20,7 +20,9 @@
 
 use std::sync::Arc;
 
-use nika_builtin::{BuiltinDispatcher, Emitter, FsBoundary, ImageKeys, NoWorkflow, NonInteractive};
+use nika_builtin::{
+    BuiltinDispatcher, Emitter, FsBoundary, ImageKeys, NoWorkflow, NonInteractive, TtsKeys,
+};
 use nika_clock::SystemClock;
 use nika_exec_runner::TokioShell;
 use nika_fs::TokioFs;
@@ -238,6 +240,35 @@ fn image_keys_from_env() -> ImageKeys {
     // Single-name read (no conventional fallback exists for a local key —
     // the array shape just reuses the ladder helper).
     if let Some(key) = read(["NIKA_IMAGE_LOCAL_API_KEY", "NIKA_IMAGE_LOCAL_API_KEY"]) {
+        keys = keys.with_local_api_key(key);
+    }
+    keys
+}
+
+/// The TTS plane's composition-root env resolution — the exact sibling of
+/// [`image_keys_from_env`] (same sanctioned boundary · same laddering).
+fn tts_keys_from_env() -> TtsKeys {
+    let read = |ladder: [&str; 2]| {
+        ladder.into_iter().find_map(|name| {
+            #[allow(clippy::disallowed_methods)] // the sanctioned env→secret boundary (see doc)
+            let value = std::env::var(name).ok()?;
+            (!value.is_empty()).then(|| Secret::new(value))
+        })
+    };
+    let mut keys = TtsKeys::new();
+    if let Some(key) = read(["NIKA_OPENAI_API_KEY", "OPENAI_API_KEY"]) {
+        keys = keys.with_openai(key);
+    }
+    if let Some(key) = read(["NIKA_ELEVENLABS_API_KEY", "ELEVENLABS_API_KEY"]) {
+        keys = keys.with_elevenlabs(key);
+    }
+    #[allow(clippy::disallowed_methods)] // the sanctioned env boundary (see doc)
+    if let Ok(url) = std::env::var("NIKA_TTS_LOCAL_URL")
+        && !url.is_empty()
+    {
+        keys = keys.with_local_base_url(url);
+    }
+    if let Some(key) = read(["NIKA_TTS_LOCAL_API_KEY", "NIKA_TTS_LOCAL_API_KEY"]) {
         keys = keys.with_local_api_key(key);
     }
     keys
@@ -528,7 +559,8 @@ pub fn production_runtime(
         // the 600s transport ceiling image renders need — the fetch
         // client's idle guard would kill them), with keys resolved at THIS
         // boundary only.
-        .with_image_plane(Arc::clone(&provider_http), image_keys_from_env()),
+        .with_image_plane(Arc::clone(&provider_http), image_keys_from_env())
+        .with_tts_plane(Arc::clone(&provider_http), tts_keys_from_env()),
     );
     let invoke = Arc::new(InvokeVerb::new(Arc::clone(&dispatcher)));
 
@@ -722,8 +754,12 @@ mod tests {
         // whatever the shell exports, and the Debug rendering can never
         // spell a credential (Secret is Debug-redacted by construction).
         let keys = image_keys_from_env();
-        let rendered = format!("{keys:?}");
+        let tts = tts_keys_from_env();
+        let rendered = format!("{keys:?} {tts:?}");
         for env in [
+            "NIKA_ELEVENLABS_API_KEY",
+            "ELEVENLABS_API_KEY",
+            "NIKA_TTS_LOCAL_API_KEY",
             "NIKA_OPENAI_API_KEY",
             "OPENAI_API_KEY",
             "NIKA_GEMINI_API_KEY",

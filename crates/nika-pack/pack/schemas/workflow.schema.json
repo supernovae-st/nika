@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nika.sh/spec/v1/workflow.schema.json",
-  "title": "Nika workflow · v1",
-  "description": "Structural contract for a Nika v1 workflow file. Hand-derived from the prose spec (spec/01-08) at v0.1 · to be superseded by the engine-generated `nika-schema` (schemars) output at engine GA · both derive from the same prose source of truth. Strict on structure (envelope · exactly-one-verb-per-task · enums · id patterns · unknown-key rejection) · permissive on leaf value types where a `${{ }}` CEL template may appear in place of a literal.",
-  "$comment": "INTERIM hand-derived schema · prose spec is the single source of truth · regenerate + diff against engine `nika-schema` at GA.",
+  "title": "Nika workflow \u00b7 v1",
+  "description": "Structural contract for a Nika v1 workflow file. Hand-derived from the prose spec (spec/01-08) at v0.1 \u00b7 to be superseded by the engine-generated `nika-schema` (schemars) output at engine GA \u00b7 both derive from the same prose source of truth. Strict on structure (envelope \u00b7 exactly-one-verb-per-task \u00b7 enums \u00b7 id patterns \u00b7 unknown-key rejection) \u00b7 permissive on leaf value types where a `${{ }}` CEL template may appear in place of a literal.",
+  "$comment": "INTERIM hand-derived schema \u00b7 prose spec is the single source of truth \u00b7 regenerate + diff against engine `nika-schema` at GA.",
   "type": "object",
   "required": [
     "nika",
@@ -14,23 +14,23 @@
   "properties": {
     "nika": {
       "const": "v1",
-      "description": "Language contract version · exactly `v1` for the v1 lifetime. NOT `v1.0` · `1` · `1.0`."
+      "description": "Language contract version \u00b7 exactly `v1` for the v1 lifetime. NOT `v1.0` \u00b7 `1` \u00b7 `1.0`."
     },
     "workflow": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$",
-      "description": "Workflow id · kebab-case · unique within file · the document-type discriminator."
+      "description": "Workflow id \u00b7 kebab-case \u00b7 unique within file \u00b7 the document-type discriminator."
     },
     "description": {
       "type": "string"
     },
     "model": {
       "type": "string",
-      "description": "Default model · `<provider>/<name>` (e.g. anthropic/claude-sonnet-4-6 · ollama/qwen3.5:9b · mock/echo)."
+      "description": "Default model \u00b7 `<provider>/<name>` (e.g. anthropic/claude-sonnet-4-6 \u00b7 ollama/qwen3.5:9b \u00b7 mock/echo)."
     },
     "vars": {
       "type": "object",
-      "description": "Workflow inputs · `${{ vars.X }}`. Each value is untyped (the literal default) OR a typed declaration object.",
+      "description": "Workflow inputs \u00b7 `${{ vars.X }}`. Each value is untyped (the literal default) OR a typed declaration object.",
       "additionalProperties": {
         "anyOf": [
           {
@@ -94,13 +94,13 @@
               ]
             }
           },
-          "$comment": "A typed-var declaration (an object carrying a string `type:`) MUST use the closed type enum per spec/01-envelope.md §vars · the untyped-object default form (no `type:` key) is untouched."
+          "$comment": "A typed-var declaration (an object carrying a string `type:`) MUST use the closed type enum per spec/01-envelope.md \u00a7vars \u00b7 the untyped-object default form (no `type:` key) is untouched."
         }
       }
     },
     "env": {
       "type": "object",
-      "description": "Non-sensitive runtime config · `${{ env.X }}` · may appear in logs.",
+      "description": "Non-sensitive runtime config \u00b7 `${{ env.X }}` \u00b7 may appear in logs.",
       "additionalProperties": {
         "type": [
           "string",
@@ -111,7 +111,7 @@
     },
     "secrets": {
       "type": "object",
-      "description": "Vault-backed masked references · `${{ secrets.X }}` · never inline literals.",
+      "description": "Vault-backed masked references \u00b7 `${{ secrets.X }}` \u00b7 never inline literals.",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
@@ -125,7 +125,7 @@
               "env",
               "file"
             ],
-            "description": "Where the secret lives · never an inline value (spec/01-envelope.md §secrets)."
+            "description": "Where the secret lives \u00b7 never an inline value (spec/01-envelope.md \u00a7secrets)."
           },
           "key": {
             "type": "string",
@@ -133,11 +133,11 @@
           },
           "path": {
             "type": "string",
-            "description": "File path · file source only · contents read at resolve time · masked."
+            "description": "File path \u00b7 file source only \u00b7 contents read at resolve time \u00b7 masked."
           },
           "egress": {
             "type": "array",
-            "description": "Sanctioned destinations for this secret · declassification (spec/01-envelope.md §egress) · absent/empty = default-deny (every exec:/invoke: reach is a leak).",
+            "description": "Sanctioned destinations for this secret \u00b7 declassification (spec/01-envelope.md \u00a7egress) \u00b7 absent/empty = default-deny (every exec:/invoke: reach is a leak).",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -147,15 +147,15 @@
               "properties": {
                 "to": {
                   "type": "string",
-                  "description": "The sanctioned sink · a tool id (`nika:fetch` · `nika:notify` · `mcp:<server>/<tool>`), `exec`, or a provider-egress sink `infer` / `agent` (a secret in an infer/agent prompt) · SPECIFIC (no cross-tool laundering)."
+                  "description": "The sanctioned sink \u00b7 a tool id (`nika:fetch` \u00b7 `nika:notify` \u00b7 `mcp:<server>/<tool>`), `exec`, or a provider-egress sink `infer` / `agent` (a secret in an infer/agent prompt) \u00b7 SPECIFIC (no cross-tool laundering)."
                 },
                 "host": {
                   "type": "string",
-                  "description": "Static-literal destination host · sanctions only when the sink's destination arg is exactly this host (a templated host stays the runtime check). Mutually exclusive with host_from_self."
+                  "description": "Static-literal destination host \u00b7 sanctions only when the sink's destination arg is exactly this host (a templated host stays the runtime check). Mutually exclusive with host_from_self."
                 },
                 "host_from_self": {
                   "type": "boolean",
-                  "description": "The secret value IS the destination URL (host unknown statically) · sanctions only the direct-secret-URL shape with the non-occlusion guard. Mutually exclusive with host."
+                  "description": "The secret value IS the destination URL (host unknown statically) \u00b7 sanctions only the direct-secret-URL shape with the non-occlusion guard. Mutually exclusive with host."
                 }
               },
               "not": {
@@ -198,40 +198,64 @@
             }
           }
         ],
-        "description": "A secret is a reference to a store · discriminated by source · vault/env require key · file requires path · optional egress: sanctioned-destination list (spec/01-envelope.md)."
+        "description": "A secret is a reference to a store \u00b7 discriminated by source \u00b7 vault/env require key \u00b7 file requires path \u00b7 optional egress: sanctioned-destination list (spec/01-envelope.md)."
       }
     },
     "permits": {
       "type": "object",
       "additionalProperties": false,
-      "description": "The declared capability boundary · once present every category is default-deny unless listed (spec/01-envelope.md §permits · NIKA-SEC-004).",
+      "description": "The declared capability boundary \u00b7 once present every category is default-deny unless listed (spec/01-envelope.md \u00a7permits \u00b7 NIKA-SEC-004).",
       "properties": {
         "fs": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "read": { "type": "array", "items": { "type": "string" } },
-            "write": { "type": "array", "items": { "type": "string" } }
+            "read": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "write": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         },
         "net": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "http": { "type": "array", "items": { "type": "string" } }
+            "http": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         },
         "exec": {
-          "description": "false = no shells · true = any (blocklist-gated) · array = allowed program names.",
+          "description": "false = no shells \u00b7 true = any (blocklist-gated) \u00b7 array = allowed program names.",
           "oneOf": [
-            { "type": "boolean" },
-            { "type": "array", "items": { "type": "string" } }
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           ]
         },
         "tools": {
           "type": "array",
-          "items": { "type": "string" },
-          "description": "Allowed nika:/mcp: tool ids · globs ok."
+          "items": {
+            "type": "string"
+          },
+          "description": "Allowed nika:/mcp: tool ids \u00b7 globs ok."
         }
       }
     },
@@ -244,7 +268,7 @@
     },
     "outputs": {
       "type": "object",
-      "description": "The workflow's return value · symmetric to vars. Each entry is a `${{ tasks.X.output }}` reference (untyped form · string) OR a typed declaration { value · type · description }. Powers `nika run` result + the output half of the callable-workflow schema.",
+      "description": "The workflow's return value \u00b7 symmetric to vars. Each entry is a `${{ tasks.X.output }}` reference (untyped form \u00b7 string) OR a typed declaration { value \u00b7 type \u00b7 description }. Powers `nika run` result + the output half of the callable-workflow schema.",
       "additionalProperties": {
         "anyOf": [
           {
@@ -287,7 +311,7 @@
         "id"
       ],
       "additionalProperties": false,
-      "description": "A DAG node. MUST bind exactly one of the 4 verbs (infer · exec · invoke · agent).",
+      "description": "A DAG node. MUST bind exactly one of the 4 verbs (infer \u00b7 exec \u00b7 invoke \u00b7 agent).",
       "allOf": [
         {
           "oneOf": [
@@ -318,7 +342,7 @@
         "id": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$",
-          "description": "Task id · snake_case (CEL-safe · no hyphens) · unique within workflow."
+          "description": "Task id \u00b7 snake_case (CEL-safe \u00b7 no hyphens) \u00b7 unique within workflow."
         },
         "depends_on": {
           "type": "array",
@@ -331,18 +355,18 @@
           "oneOf": [
             {
               "type": "boolean",
-              "description": "YAML boolean literal · the always/never pattern (when: true runs regardless of upstream outcome · spec/03-dag.md §Task states)."
+              "description": "YAML boolean literal \u00b7 the always/never pattern (when: true runs regardless of upstream outcome \u00b7 spec/03-dag.md \u00a7Task states)."
             },
             {
               "type": "string",
               "format": "cel-expression",
-              "description": "A ${{ }} CEL boolean expression (cel-subset/0.1 · spec/03-dag.md). Statically non-boolean-shaped roots are rejected (NIKA-VAR-005)."
+              "description": "A ${{ }} CEL boolean expression (cel-subset/0.1 \u00b7 spec/03-dag.md). Statically non-boolean-shaped roots are rejected (NIKA-VAR-005)."
             }
           ],
-          "description": "Conditional execution gate · a ${{ }} CEL boolean OR the YAML literal true/false. An explicit when: replaces the default success-gate (spec/03-dag.md §Task states)."
+          "description": "Conditional execution gate \u00b7 a ${{ }} CEL boolean OR the YAML literal true/false. An explicit when: replaces the default success-gate (spec/03-dag.md \u00a7Task states)."
         },
         "for_each": {
-          "description": "Map this task over a collection · `${{ ... }}` reference OR a literal array.",
+          "description": "Map this task over a collection \u00b7 `${{ ... }}` reference OR a literal array.",
           "type": [
             "string",
             "array"
@@ -351,11 +375,11 @@
         "max_parallel": {
           "type": "integer",
           "minimum": 1,
-          "description": "Cap concurrent for_each iterations · default unbounded · 1 = sequential."
+          "description": "Cap concurrent for_each iterations \u00b7 default unbounded \u00b7 1 = sequential."
         },
         "fail_fast": {
           "type": "boolean",
-          "description": "for_each abort-on-error · default true."
+          "description": "for_each abort-on-error \u00b7 default true."
         },
         "retry": {
           "$ref": "#/$defs/retry"
@@ -365,23 +389,23 @@
         },
         "timeout": {
           "type": "string",
-          "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))*$",
-          "description": "Go-duration string · quoted · e.g. \"30s\" \"5m\" \"1h30m\" \"2.5s\". Max 24h."
+          "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|\u00b5s|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|\u00b5s|ms|s|m|h))*$",
+          "description": "Go-duration string \u00b7 quoted \u00b7 e.g. \"30s\" \"5m\" \"1h30m\" \"2.5s\". Max 24h."
         },
         "on_finally": {
           "type": "array",
-          "description": "Cleanup mini-tasks · ALWAYS run (success/fail/timeout/cancel) · sequential · best-effort.",
+          "description": "Cleanup mini-tasks \u00b7 ALWAYS run (success/fail/timeout/cancel) \u00b7 sequential \u00b7 best-effort.",
           "items": {
             "$ref": "#/$defs/finallyStep"
           }
         },
         "with": {
           "type": "object",
-          "description": "Task-level scope injection · `${{ with.X }}`."
+          "description": "Task-level scope injection \u00b7 `${{ with.X }}`."
         },
         "output": {
           "type": "object",
-          "description": "Named jq-expression bindings · `${{ tasks.X.<name> }}`. jq is the single data extraction-and-transform language (the former RFC 9535 JSONPath was dropped · jq is a superset · per spec/04-variables.md §216-225). Reserved names forbidden at parse time (spec/04-variables.md §Rules): output · status · error · started_at · ended_at · duration_ms — enforced via propertyNames.",
+          "description": "Named jq-expression bindings \u00b7 `${{ tasks.X.<name> }}`. jq is the single data extraction-and-transform language (the former RFC 9535 JSONPath was dropped \u00b7 jq is a superset \u00b7 per spec/04-variables.md \u00a7216-225). Reserved names forbidden at parse time (spec/04-variables.md \u00a7Rules): output \u00b7 status \u00b7 error \u00b7 started_at \u00b7 ended_at \u00b7 duration_ms \u2014 enforced via propertyNames.",
           "propertyNames": {
             "not": {
               "enum": [
@@ -434,7 +458,7 @@
             "number",
             "string"
           ],
-          "description": "0-2 · number or `${{ }}`."
+          "description": "0-2 \u00b7 number or `${{ }}`."
         },
         "max_tokens": {
           "type": [
@@ -444,7 +468,7 @@
         },
         "schema": {
           "type": "object",
-          "description": "JSON Schema · structured output contract."
+          "description": "JSON Schema \u00b7 structured output contract."
         },
         "thinking": {
           "type": "object",
@@ -491,10 +515,14 @@
         "command": {
           "description": "String -> /bin/sh -c (shell). Array -> execve, no shell (the injection-safe form).",
           "oneOf": [
-            { "type": "string" },
+            {
+              "type": "string"
+            },
             {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
               "minItems": 1
             }
           ]
@@ -530,11 +558,11 @@
       "additionalProperties": false,
       "properties": {
         "tool": {
-          "description": "Tool reference · nika:<path> (closed v0.1 builtin set) OR mcp:<server>/<tool> (requires the slash). The namespace set is CLOSED at v1 (spec/02-verbs.md) — an x-<vendor>: prefix is RESERVED, not valid (engine-specific tools route through mcp: · spec/06-stdlib-contract.md §Namespace ownership).",
+          "description": "Tool reference \u00b7 nika:<path> (closed v0.1 builtin set) OR mcp:<server>/<tool> (requires the slash). The namespace set is CLOSED at v1 (spec/02-verbs.md) \u2014 an x-<vendor>: prefix is RESERVED, not valid (engine-specific tools route through mcp: \u00b7 spec/06-stdlib-contract.md \u00a7Namespace ownership).",
           "oneOf": [
             {
               "type": "string",
-              "description": "`nika:*` builtin · 24 canonical per stdlib v0.1 (Core 6 · File 5 · Data 8 · Network 2 · Introspection 2 · Media 1). Closed enum for `yaml-language-server` autocomplete.",
+              "description": "`nika:*` builtin \u00b7 24 canonical per stdlib v0.1 (Core 6 \u00b7 File 5 \u00b7 Data 8 \u00b7 Network 2 \u00b7 Introspection 2 \u00b7 Media 1). Closed enum for `yaml-language-server` autocomplete.",
               "enum": [
                 "nika:assert",
                 "nika:compose",
@@ -556,6 +584,7 @@
                 "nika:notify",
                 "nika:prompt",
                 "nika:read",
+                "nika:tts_generate",
                 "nika:uuid",
                 "nika:validate",
                 "nika:wait",
@@ -564,7 +593,7 @@
             },
             {
               "type": "string",
-              "description": "`mcp:<server>/<tool>` external MCP tool · open (pattern · `/` separates path). · mcp: requires the slash (mcp:<server>/<tool> · server kebab-case · spec/02-verbs.md §tool reference grammar)",
+              "description": "`mcp:<server>/<tool>` external MCP tool \u00b7 open (pattern \u00b7 `/` separates path). \u00b7 mcp: requires the slash (mcp:<server>/<tool> \u00b7 server kebab-case \u00b7 spec/02-verbs.md \u00a7tool reference grammar)",
               "pattern": "^mcp:[a-z][a-z0-9-]*/[A-Za-z0-9_/-]+$"
             }
           ]
@@ -592,7 +621,7 @@
         },
         "tools": {
           "type": "array",
-          "description": "Whitelist · DEFAULT-DENY (no tools if absent) · gitignore-style globs · `!` negation.",
+          "description": "Whitelist \u00b7 DEFAULT-DENY (no tools if absent) \u00b7 gitignore-style globs \u00b7 `!` negation.",
           "items": {
             "type": "string"
           }
@@ -617,7 +646,7 @@
         },
         "schema": {
           "type": "object",
-          "description": "JSON Schema · validate the agent's final message as structured output."
+          "description": "JSON Schema \u00b7 validate the agent's final message as structured output."
         }
       }
     },
@@ -661,10 +690,10 @@
     "onError": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Error recovery · exactly ONE action (recover / skip / fail_workflow · the oneOf enforces it) + optional on_codes filter (spec/05-errors.md §Fields · catch-side mirror of retry.on_codes · skip preserves the original error at tasks.X.error).",
+      "description": "Error recovery \u00b7 exactly ONE action (recover / skip / fail_workflow \u00b7 the oneOf enforces it) + optional on_codes filter (spec/05-errors.md \u00a7Fields \u00b7 catch-side mirror of retry.on_codes \u00b7 skip preserves the original error at tasks.X.error).",
       "properties": {
         "recover": {
-          "description": "Recovery output · a `${{ }}` ref OR a literal (merges the former fallback/value per spec/05-errors.md)."
+          "description": "Recovery output \u00b7 a `${{ }}` ref OR a literal (merges the former fallback/value per spec/05-errors.md)."
         },
         "skip": {
           "type": "boolean"
@@ -679,7 +708,7 @@
             "type": "string",
             "pattern": "^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$"
           },
-          "description": "Optional catch-side filter (mirror of retry.on_codes · same regex) · the action applies ONLY when the final error code is listed · unlisted codes fall through to the default fail (spec/05-errors.md §Fields)."
+          "description": "Optional catch-side filter (mirror of retry.on_codes \u00b7 same regex) \u00b7 the action applies ONLY when the final error code is listed \u00b7 unlisted codes fall through to the default fail (spec/05-errors.md \u00a7Fields)."
         }
       },
       "oneOf": [
@@ -708,15 +737,15 @@
           "oneOf": [
             {
               "type": "boolean",
-              "description": "YAML boolean literal · the always/never pattern (when: true runs regardless of upstream outcome · spec/03-dag.md §Task states)."
+              "description": "YAML boolean literal \u00b7 the always/never pattern (when: true runs regardless of upstream outcome \u00b7 spec/03-dag.md \u00a7Task states)."
             },
             {
               "type": "string",
               "format": "cel-expression",
-              "description": "A ${{ }} CEL boolean expression (cel-subset/0.1 · spec/03-dag.md). Statically non-boolean-shaped roots are rejected (NIKA-VAR-005)."
+              "description": "A ${{ }} CEL boolean expression (cel-subset/0.1 \u00b7 spec/03-dag.md). Statically non-boolean-shaped roots are rejected (NIKA-VAR-005)."
             }
           ],
-          "description": "Conditional execution gate · a ${{ }} CEL boolean OR the YAML literal true/false. An explicit when: replaces the default success-gate (spec/03-dag.md §Task states)."
+          "description": "Conditional execution gate \u00b7 a ${{ }} CEL boolean OR the YAML literal true/false. An explicit when: replaces the default success-gate (spec/03-dag.md \u00a7Task states)."
         },
         "timeout": {
           "type": "string"

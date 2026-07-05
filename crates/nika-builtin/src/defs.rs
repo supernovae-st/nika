@@ -344,34 +344,54 @@ fn introspection_defs() -> Vec<ToolDef> {
 }
 
 fn media_defs() -> Vec<ToolDef> {
-    vec![def(
-        "image_generate",
-        "Generate image assets (local compat servers · openai gpt-image-2 · gemini gemini-3.1-flash-image · xai grok-imagine-image · mock for offline runs) — saves files under output_dir and returns paths + dimensions + sha256 (+ a provenance manifest); image bytes never ride outputs.",
-        serde_json::json!({
-            "provider": s("local | openai | gemini | xai | mock (inferred from model: when omitted · local is never inferred)"),
-            "model": s("provider model id · defaults: stablediffusion (local · LocalAI convention) · gpt-image-2 · gemini-3.1-flash-image · grok-imagine-image · mock-image-1"),
-            "prompt": s("the creative brief the provider renders"),
-            "mode": s("generate (default) — `edit` is on the media roadmap, rejected loudly"),
-            "n": { "type": "integer", "description": "variant count 1..=10 (gemini runs n sequential calls)" },
-            "aspect_ratio": s("1:1 | 16:9 | 9:16 | 4:3 | 3:4 | 3:2 | 2:3 | 21:9"),
-            "size": s("exact WIDTHxHEIGHT (gpt-image-2 arbitrary /16 sizes · gemini folds to a size class) or auto — an exact size wins over aspect_ratio"),
-            "quality": s("auto (default) | low | medium | high | ultra (folds to high on openai · model-tier on gemini)"),
-            "format": s("png (default) | jpeg | webp — magic bytes are the authority on what lands"),
-            "compression": { "type": "integer", "description": "0..=100 · jpeg/webp only (openai output_compression)" },
-            "background": s("auto (default) | transparent (needs png/webp and a supporting model) | opaque"),
-            "seed": { "type": "integer", "description": "gemini best-effort · openai has no seed (warned + dropped)" },
-            "reference_images": { "type": "array", "items": {"type": "string"}, "description": "media roadmap — rejected loudly in V1" },
-            "provider_options": { "type": "object", "description": "vetted pass-through · openai {moderation, user} · gemini {thinking_level, image_size} · xai {user, resolution}" },
-            "output_dir": s("directory the assets land in (rides the declared permits.fs boundary)"),
-            "filename_prefix": s("filename stem (else metadata.page_slug, else `image`) — sanitized, traversal-free"),
-            "save": { "type": "boolean", "description": "V1 contract: stays true — assets land on disk, never inline" },
-            "manifest": { "type": "boolean", "description": "write the provenance manifest JSON beside the assets (default true)" },
-            "metadata": { "type": "object", "description": "free provenance fields (campaign · page_slug · locale …) echoed to output + manifest" },
-            "timeout_ms": { "type": "integer", "description": "per-request deadline · default 180000 · 1000..=600000" },
-            "debug": { "type": "boolean", "description": "echo the sanitized raw provider response (base64 stripped)" }
-        }),
-        &["prompt", "output_dir"],
-    )]
+    vec![
+        def(
+            "tts_generate",
+            "Synthesize speech audio (local compat servers · openai gpt-4o-mini-tts · elevenlabs · mock for offline runs) — saves ONE audio file under output_dir and returns path + format + sha256 + duration (+ a provenance manifest); audio bytes never ride outputs.",
+            serde_json::json!({
+                "provider": s("local | openai | elevenlabs | mock (inferred from model: when omitted · local is never inferred)"),
+                "model": s("provider model id · defaults: tts-1 (local · LocalAI convention) · gpt-4o-mini-tts · eleven_multilingual_v2 · mock-tts-1"),
+                "text": s("the text to speak · ≤4096 chars (fan long scripts out with for_each)"),
+                "voice": s("provider voice · defaults: alloy (openai/local) · Rachel's id (elevenlabs) · sine (mock)"),
+                "format": s("mp3 | wav | auto (default · provider-native · the saved extension follows the bytes)"),
+                "speed": { "type": "number", "description": "0.25..=4.0 (openai/local · warned-dropped elsewhere)" },
+                "output_dir": s("directory the audio lands in (created if missing · fs-permit gated)"),
+                "filename_prefix": s("filename stem (default: metadata.page_slug, else `speech`)"),
+                "metadata": { "type": "object", "description": "free-form provenance echoed into output + manifest" },
+                "manifest": { "type": "boolean", "description": "write the sidecar provenance manifest (default true)" },
+                "timeout_ms": { "type": "integer", "description": "per-request cap · default 120000 (local 300000) · max 600000" },
+            }),
+            &["text", "output_dir"],
+        ),
+        def(
+            "image_generate",
+            "Generate image assets (local compat servers · openai gpt-image-2 · gemini gemini-3.1-flash-image · xai grok-imagine-image · mock for offline runs) — saves files under output_dir and returns paths + dimensions + sha256 (+ a provenance manifest); image bytes never ride outputs.",
+            serde_json::json!({
+                "provider": s("local | openai | gemini | xai | mock (inferred from model: when omitted · local is never inferred)"),
+                "model": s("provider model id · defaults: stablediffusion (local · LocalAI convention) · gpt-image-2 · gemini-3.1-flash-image · grok-imagine-image · mock-image-1"),
+                "prompt": s("the creative brief the provider renders"),
+                "mode": s("generate (default) — `edit` is on the media roadmap, rejected loudly"),
+                "n": { "type": "integer", "description": "variant count 1..=10 (gemini runs n sequential calls)" },
+                "aspect_ratio": s("1:1 | 16:9 | 9:16 | 4:3 | 3:4 | 3:2 | 2:3 | 21:9"),
+                "size": s("exact WIDTHxHEIGHT (gpt-image-2 arbitrary /16 sizes · gemini folds to a size class) or auto — an exact size wins over aspect_ratio"),
+                "quality": s("auto (default) | low | medium | high | ultra (folds to high on openai · model-tier on gemini)"),
+                "format": s("png (default) | jpeg | webp — magic bytes are the authority on what lands"),
+                "compression": { "type": "integer", "description": "0..=100 · jpeg/webp only (openai output_compression)" },
+                "background": s("auto (default) | transparent (needs png/webp and a supporting model) | opaque"),
+                "seed": { "type": "integer", "description": "gemini best-effort · openai has no seed (warned + dropped)" },
+                "reference_images": { "type": "array", "items": {"type": "string"}, "description": "media roadmap — rejected loudly in V1" },
+                "provider_options": { "type": "object", "description": "vetted pass-through · openai {moderation, user} · gemini {thinking_level, image_size} · xai {user, resolution}" },
+                "output_dir": s("directory the assets land in (rides the declared permits.fs boundary)"),
+                "filename_prefix": s("filename stem (else metadata.page_slug, else `image`) — sanitized, traversal-free"),
+                "save": { "type": "boolean", "description": "V1 contract: stays true — assets land on disk, never inline" },
+                "manifest": { "type": "boolean", "description": "write the provenance manifest JSON beside the assets (default true)" },
+                "metadata": { "type": "object", "description": "free provenance fields (campaign · page_slug · locale …) echoed to output + manifest" },
+                "timeout_ms": { "type": "integer", "description": "per-request deadline · default 180000 · 1000..=600000" },
+                "debug": { "type": "boolean", "description": "echo the sanitized raw provider response (base64 stripped)" }
+            }),
+            &["prompt", "output_dir"],
+        ),
+    ]
 }
 
 #[cfg(test)]
@@ -437,13 +457,13 @@ mod tests {
     }
 
     #[test]
-    fn the_catalog_is_the_canonical_24_with_no_dupes() {
+    fn the_catalog_is_the_canonical_25_with_no_dupes() {
         let defs = tool_defs();
         assert_eq!(
             defs.len(),
-            24,
-            "stdlib ships exactly 24 (22 Rams-swept + nika:compose ADR-096 + \
-             nika:image_generate stdlib §Media)"
+            25,
+            "stdlib ships exactly 25 (22 Rams-swept + nika:compose ADR-096 + \
+             nika:image_generate stdlib §Media + nika:tts_generate stdlib §Audio)"
         );
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         names.sort_unstable();
