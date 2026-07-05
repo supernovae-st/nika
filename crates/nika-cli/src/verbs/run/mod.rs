@@ -462,26 +462,34 @@ async fn execute(
 }
 
 /// The TTY final-frame epilogue: the post-run waterfall (real durations ·
-/// real overlap · pure fold of the run's own event stream) and the
-/// `outputs → key (type)` pointer.
+/// real overlap · pure fold of the run's own event stream) then the
+/// shareable verdict card, its outputs note naming what left the run.
 fn print_flow_epilogue(view: &crate::RunView, outputs: &BTreeMap<String, Value>, theme: Theme) {
     for line in crate::display::flow::waterfall(view, &theme) {
         println!("{line}");
     }
-    if outputs.is_empty() {
-        return;
+    let note = outputs_note(outputs);
+    for line in crate::display::flow::verdict_card(view, &theme, note.as_deref()) {
+        println!("{line}");
     }
-    let parts: Vec<String> = outputs
+}
+
+/// The card's outputs note: `outputs → key (type) · key2 (type)` — the
+/// export contract's shape at a glance (types only, never a data dump).
+/// Two keys shown, the rest counted.
+fn outputs_note(outputs: &BTreeMap<String, Value>) -> Option<String> {
+    if outputs.is_empty() {
+        return None;
+    }
+    let mut parts: Vec<String> = outputs
         .iter()
+        .take(2)
         .map(|(key, value)| format!("{key} ({})", json_type_name(value)))
         .collect();
-    println!(
-        "  {}",
-        theme.paint(
-            crate::Role::Dim,
-            &format!("outputs → {}", parts.join(" · "))
-        )
-    );
+    if outputs.len() > 2 {
+        parts.push(format!("+{} more", outputs.len() - 2));
+    }
+    Some(format!("outputs → {}", parts.join(" · ")))
 }
 
 /// The JSON type vocabulary for the outputs pointer — names only, never

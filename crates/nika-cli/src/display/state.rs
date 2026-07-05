@@ -57,6 +57,11 @@ pub struct TaskRow {
     pub duration_ms: Option<u64>,
     /// Per-task spend (`cost_usd` on the terminal frame).
     pub cost_usd: Option<f64>,
+    /// The model an inference note named (`infer · <model>` / `agent ·
+    /// <model>` — the runtime's note vocabulary), kept once seen: the
+    /// terminal note overwrites `note`, this survives for the verdict
+    /// surface.
+    pub model: Option<String>,
 }
 
 impl TaskRow {
@@ -255,6 +260,7 @@ impl RunView {
                 ended_ms: None,
                 duration_ms: None,
                 cost_usd: None,
+                model: None,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);
@@ -263,6 +269,17 @@ impl RunView {
         let row = &mut self.rows[idx];
         row.state = state;
         if let Some(note) = str_field(event, "note") {
+            // The runtime's inference notes name the model (`infer ·
+            // <model>`) — keep it once seen: the terminal note replaces
+            // `note`, the verdict surface still wants the model.
+            let model = note
+                .strip_prefix("infer · ")
+                .or_else(|| note.strip_prefix("agent · "));
+            if let Some(m) = model
+                && !m.is_empty()
+            {
+                row.model = Some(m.to_owned());
+            }
             note.clone_into(&mut row.note);
         }
         if let Some(detail) = str_field(event, "detail") {

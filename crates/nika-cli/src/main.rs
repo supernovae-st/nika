@@ -458,6 +458,11 @@ fn trace_render(args: &TraceArgs, replay: bool) -> u8 {
         }
         print_lines(&frame(&view, &theme, 0));
     }
+    // The trace surface owns the run overlays (replay = re-render, never
+    // re-execute): the waterfall + the verdict card close the read, from
+    // any past trace — the same final frame a live TTY run ends on.
+    print_lines(&nika_cli::display::flow::waterfall(&view, &theme));
+    print_lines(&nika_cli::display::flow::verdict_card(&view, &theme, None));
     // The locked exit contract: 0 = run ok · 1 = workflow failed.
     u8::from(view.verdict != Some(true))
 }
@@ -503,6 +508,9 @@ fn redraw(view: &RunView, theme: Theme, tick: usize, drawn: usize) -> usize {
 }
 
 fn print_lines(lines: &[String]) {
+    if lines.is_empty() {
+        return; // an empty overlay (solo-task waterfall · no verdict) prints nothing
+    }
     let mut out = std::io::stdout().lock();
     let _ = writeln!(out, "{}", lines.join("\n"));
 }

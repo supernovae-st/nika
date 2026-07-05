@@ -175,6 +175,168 @@ pub fn waterfall(view: &RunView, theme: &Theme) -> Vec<String> {
     lines
 }
 
+/// Widest the verdict card grows (inner cells) — 2-indent + corners keeps
+/// the line ≤ 64, comfortably shareable.
+const CARD_INNER_CAP: usize = 58;
+
+/// The wave sizes the shape glyph speaks: the injected plan when the run
+/// provided one (the scheduler's truth), else reconstructed by chaining
+/// overlapping intervals in start order (a replayed trace's best honest
+/// read — only tasks that RAN count).
+fn wave_sizes(view: &RunView) -> Vec<usize> {
+    if let Some(plan) = view.plan() {
+        return plan.iter().map(Vec::len).collect();
+    }
+    let now = view.last_ts_ms();
+    let mut ivs: Vec<Interval> = view
+        .rows()
+        .iter()
+        .filter_map(|r| interval_of(r, now))
+        .collect();
+    ivs.sort_by_key(|iv| (iv.start, iv.end));
+    let mut sizes = Vec::new();
+    let mut group_end: Option<i64> = None;
+    for iv in ivs {
+        match (group_end, sizes.last_mut()) {
+            (Some(end), Some(last)) if iv.start <= end => {
+                *last += 1;
+                group_end = Some(end.max(iv.end));
+            }
+            _ => {
+                sizes.push(1);
+                group_end = Some(iv.end);
+            }
+        }
+    }
+    sizes
+}
+
+/// The mini DAG-shape glyph (design §2d): wave sizes as diamond runs
+/// joined by flow arrows — `◆◆◆ ⇉ ◆` (`###` ` => ` `#` in ASCII).
+/// Unique per workflow shape, instantly recognizable. Wide waves cap at
+/// five diamonds (`◆◆◆◆◆+`), long chains at six waves (`… `-tailed).
+#[must_use]
+pub fn dag_shape(view: &RunView, theme: &Theme) -> String {
+    let (diamond, arrow, plus, tail) = if theme.ascii {
+        ("#", " => ", "+", "...")
+    } else {
+        ("◆", " ⇉ ", "+", "…")
+    };
+    let sizes = wave_sizes(view);
+    let mut runs: Vec<String> = sizes
+        .iter()
+        .take(6)
+        .map(|&n| {
+            let mut run = diamond.repeat(n.min(5));
+            if n > 5 {
+                run.push_str(plus);
+            }
+            run
+        })
+        .collect();
+    if sizes.len() > 6 {
+        runs.push(tail.to_owned());
+    }
+    runs.join(arrow)
+}
+
+/// The shareable verdict card (design §2d) — the run's signature frame:
+/// the DAG-shape glyph, the totals (tasks · waves · retries · wall ·
+/// spend · models), and the caller's outputs note when one applies.
+/// Renders nothing before a verdict (a card mid-run would lie).
+#[must_use]
+pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -> Vec<String> {
+    let Some(ok) = view.verdict else {
+        return Vec::new();
+    };
+    let (tl, tr, bl, br, h, v) = if theme.ascii {
+        ('+', '+', '+', '+', '-', '|')
+    } else {
+        ('╭', '╮', '╰', '╯', '─', '│')
+    };
+    let mark_raw = match (ok, theme.ascii) {
+        (true, false) => "✓",
+        (true, true) => "OK",
+        (false, false) => "✖",
+        (false, true) => "X",
+    };
+    let title_raw = format!("{h} nika {mark_raw} {} ", view.workflow);
+
+    let waves = wave_sizes(view).len();
+    let mut rows = vec![
+        format!(
+            "{}    {} tasks · {waves} waves · {} retries",
+            dag_shape(view, theme),
+            view.rows().len(),
+            view.retries,
+        ),
+        totals_row(view),
+    ];
+    if let Some(note) = outputs_note {
+        rows.push(note.to_owned());
+    }
+
+    let inner = rows
+        .iter()
+        .map(|r| r.chars().count() + 4)
+        .chain(std::iter::once(title_raw.chars().count() + 1))
+        .max()
+        .unwrap_or(0)
+        .min(CARD_INNER_CAP);
+    let ellipsis = if theme.ascii { "~" } else { "…" };
+    let fill: String =
+        std::iter::repeat_n(h, inner.saturating_sub(title_raw.chars().count())).collect();
+    let mark_role = if ok { Role::Good } else { Role::Bad };
+    let title = format!(
+        "{h} nika {} {} ",
+        theme.paint(mark_role, mark_raw),
+        theme.paint(Role::Strong, &view.workflow),
+    );
+    let mut lines = vec![format!("  {tl}{title}{fill}{tr}")];
+    for row in &rows {
+        let fitted = fit_cells(row, inner.saturating_sub(4), ellipsis);
+        let pad = inner
+            .saturating_sub(4)
+            .saturating_sub(fitted.chars().count());
+        lines.push(format!("  {v}  {fitted}{}  {v}", " ".repeat(pad)));
+    }
+    let bottom: String = std::iter::repeat_n(h, inner).collect();
+    lines.push(format!("  {bl}{bottom}{br}"));
+    lines
+}
+
+/// The card's totals row: wall time · spend · the models the stream
+/// named (the fold kept them off the `infer · <model>` / `agent ·
+/// <model>` notes — rendered only when the stream actually said them).
+fn totals_row(view: &RunView) -> String {
+    let mut row = format!("{} · ${:.4}", fmt_wall_ms(view.elapsed_ms), view.cost_usd);
+    let mut models: Vec<&str> = Vec::new();
+    for r in view.rows() {
+        if let Some(m) = r.model.as_deref()
+            && !models.contains(&m)
+        {
+            models.push(m);
+        }
+    }
+    for m in models.iter().take(2) {
+        row.push_str(" · ");
+        row.push_str(m);
+    }
+    row
+}
+
+/// Truncate to `width` display cells with a theme-true mark — the card
+/// border never breaks on an overlong outputs note.
+fn fit_cells(s: &str, width: usize, ellipsis: &str) -> String {
+    if s.chars().count() <= width {
+        return s.to_owned();
+    }
+    let keep = width.saturating_sub(ellipsis.chars().count());
+    let mut out: String = s.chars().take(keep).collect();
+    out.push_str(ellipsis);
+    out
+}
+
 /// A wall duration for humans: `12ms` · `3.2s` · `2m04s`. Sub-second
 /// stays in milliseconds (the mock-run scale), minutes keep the seconds.
 #[must_use]
@@ -399,6 +561,111 @@ mod tests {
             !lines.iter().any(|l| l.contains("late")),
             "cancelled never bars: {lines:?}"
         );
+    }
+
+    /// The card speaks the plan's shape when one was injected: wave sizes
+    /// become diamond runs joined by flow arrows — the signature glyph.
+    #[test]
+    fn dag_shape_reads_the_plan_first() {
+        let mut view = RunView::new();
+        for e in demo::success() {
+            view.apply(&e);
+        }
+        // Reconstructed (no plan): the demo ran strictly sequentially.
+        assert_eq!(dag_shape(&view, &PLAIN), "◆ ⇉ ◆ ⇉ ◆ ⇉ ◆");
+        // The scheduler's truth: 3 parallel sources then the join.
+        view.set_plan(vec![
+            vec!["a".into(), "b".into(), "c".into()],
+            vec!["join".into()],
+        ]);
+        assert_eq!(dag_shape(&view, &PLAIN), "◆◆◆ ⇉ ◆");
+        assert_eq!(dag_shape(&view, &ASCII), "### => #");
+    }
+
+    /// Wide waves cap at five diamonds (+), long chains at six waves (…).
+    #[test]
+    fn dag_shape_caps_width_and_length() {
+        let mut view = RunView::new();
+        view.apply(&ev(EventKind::WorkflowCompleted, 0, &[]));
+        view.set_plan(vec![vec!["t".into(); 8], vec!["x".into()]]);
+        assert_eq!(dag_shape(&view, &PLAIN), "◆◆◆◆◆+ ⇉ ◆");
+        view.set_plan(vec![vec!["t".into()]; 8]);
+        assert_eq!(dag_shape(&view, &PLAIN), "◆ ⇉ ◆ ⇉ ◆ ⇉ ◆ ⇉ ◆ ⇉ ◆ ⇉ …");
+    }
+
+    /// Golden verdict card — the shareable frame: shape glyph · totals ·
+    /// the models the stream named · the caller's outputs note. Borders
+    /// stay intact (padded to one inner width) in both themes.
+    #[test]
+    fn verdict_card_is_the_shareable_frame() {
+        let mut view = RunView::new();
+        for e in demo::success() {
+            view.apply(&e);
+        }
+        view.set_plan(vec![
+            vec!["fetch_top".into(), "extract_ai".into(), "summarize".into()],
+            vec!["write_md".into()],
+            vec!["notify_slack".into()],
+        ]);
+        let lines = verdict_card(&view, &PLAIN, Some("outputs → review (object)"));
+        assert_eq!(lines.len(), 5, "top + 3 rows + bottom: {lines:?}");
+        assert!(
+            lines[0].starts_with("  ╭─ nika ✓ veille-news ─"),
+            "{lines:?}"
+        );
+        assert!(lines[0].ends_with('╮'), "{lines:?}");
+        assert!(
+            lines[1].contains("◆◆◆ ⇉ ◆ ⇉ ◆") && lines[1].contains("5 tasks · 3 waves · 0 retries"),
+            "{lines:?}"
+        );
+        assert!(
+            lines[2].contains("4.7s · $0.0110 · claude-sonnet"),
+            "totals + the model the stream named: {lines:?}"
+        );
+        assert!(lines[3].contains("outputs → review (object)"), "{lines:?}");
+        assert!(
+            lines[4].starts_with("  ╰─") && lines[4].ends_with('╯'),
+            "{lines:?}"
+        );
+        // Every border row closes at the SAME column (the box holds).
+        let widths: Vec<usize> = lines.iter().map(|l| l.chars().count()).collect();
+        assert!(
+            widths.iter().all(|w| *w == widths[0]),
+            "aligned card: {widths:?} {lines:?}"
+        );
+
+        // ASCII parity: corners + mark + shape glyph, zero unicode leaks.
+        let ascii = verdict_card(&view, &ASCII, None);
+        assert!(
+            ascii[0].starts_with("  +- nika OK veille-news -"),
+            "{ascii:?}"
+        );
+        assert!(ascii[1].contains("### => # => #"), "{ascii:?}");
+        for glyph in ['╭', '╮', '╰', '╯', '─', '│', '◆', '⇉', '✓'] {
+            assert!(
+                !ascii.iter().any(|l| l.contains(glyph)),
+                "unicode {glyph} leaked into --ascii: {ascii:?}"
+            );
+        }
+    }
+
+    /// A failed run cards the ✖ mark; a run with no verdict cards nothing
+    /// (mid-run frames must never carry a verdict card).
+    #[test]
+    fn verdict_card_marks_failure_and_stays_silent_mid_run() {
+        let mut view = RunView::new();
+        for e in demo::failure() {
+            view.apply(&e);
+        }
+        let lines = verdict_card(&view, &PLAIN, None);
+        assert!(lines[0].contains("✖ veille-news"), "{lines:?}");
+
+        let mut mid = RunView::new();
+        for e in demo::retrying() {
+            mid.apply(&e);
+        }
+        assert!(mid.verdict.is_none());
+        assert!(verdict_card(&mid, &PLAIN, None).is_empty());
     }
 
     #[test]
