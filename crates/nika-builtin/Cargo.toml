@@ -11,8 +11,8 @@ homepage.workspace     = true
 publish                = false  # Internal L1.5 tool layer.
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.93.0" }   # the 3 tool seams + fs/http/clock/event effect seams
-nika-extract = { path = "../nika-extract", version = "0.93.0" }  # nika:fetch — the 8 extract modes (L1.5→L1.5 same-layer)
+nika-kernel = { path = "../nika-kernel", version = "0.93.1" }   # the 3 tool seams + fs/http/clock/event effect seams
+nika-extract = { path = "../nika-extract", version = "0.93.1" }  # nika:fetch — the 8 extract modes (L1.5→L1.5 same-layer)
 # data wave
 jaq-core      = { workspace = true }   # nika:jq — THE data language
 jaq-std       = { workspace = true }
@@ -35,15 +35,15 @@ serde_json    = { workspace = true }
 tokio         = { workspace = true }   # spawn_blocking — jq's sync CPU eval off the async executor
 
 [dev-dependencies]
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.93.0" }
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.93.1" }
 # test-only: the REAL filesystem (TokioFs) — the permits.fs boundary tests
 # need a true `canonicalize` (resolves `..` + symlinks) against a /tmp scratch
 # dir; MockFs::canonicalize is a no-op, so the escape cases can only be proven
 # against the production impl. dev-only · L1.5→L1 downward (layering-clean).
-nika-fs          = { path = "../nika-fs", version = "0.93.0" }
+nika-fs          = { path = "../nika-fs", version = "0.93.1" }
 # test-only: the drift guard pinning tool_defs() arg keys to the catalog
 # Builtin::args vocabulary nika check validates against (one source, no drift).
-nika-catalog     = { path = "../nika-catalog", version = "0.93.0" }
+nika-catalog     = { path = "../nika-catalog", version = "0.93.1" }
 proptest         = { workspace = true }
 tokio            = { workspace = true }
 
