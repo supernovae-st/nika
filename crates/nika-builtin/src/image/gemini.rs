@@ -383,27 +383,7 @@ fn parse_response(status: u16, body: &[u8]) -> Result<CallResult, BuiltinFailure
     }
 
     if images.is_empty() {
-        let finish = candidate
-            .get("finishReason")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("UNKNOWN");
-        let details = serde_json::json!({ "finish_reason": finish });
-        return Err(if POLICY_FINISH.contains(&finish) {
-            BuiltinFailure::new(
-                C_POLICY,
-                format!("gemini declined the generation ({finish}) — adjust the prompt"),
-            )
-            .with_details(details)
-        } else {
-            BuiltinFailure::new(
-                C_NO_IMAGE,
-                format!(
-                    "gemini returned no image parts (finishReason: {finish}) — nothing \
-                     to save"
-                ),
-            )
-            .with_details(details)
-        });
+        return Err(no_image_failure(candidate));
     }
 
     let meta = parsed.get("usageMetadata");
@@ -425,6 +405,29 @@ fn parse_response(status: u16, body: &[u8]) -> Result<CallResult, BuiltinFailure
         text: (!texts.is_empty()).then(|| texts.join("\n")),
         raw,
     })
+}
+
+/// Map an image-less candidate to the right plane — safety finish reasons
+/// are the policy plane (never retried), everything else is `-004`.
+fn no_image_failure(candidate: &serde_json::Value) -> BuiltinFailure {
+    let finish = candidate
+        .get("finishReason")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("UNKNOWN");
+    let details = serde_json::json!({ "finish_reason": finish });
+    if POLICY_FINISH.contains(&finish) {
+        BuiltinFailure::new(
+            C_POLICY,
+            format!("gemini declined the generation ({finish}) — adjust the prompt"),
+        )
+        .with_details(details)
+    } else {
+        BuiltinFailure::new(
+            C_NO_IMAGE,
+            format!("gemini returned no image parts (finishReason: {finish}) — nothing to save"),
+        )
+        .with_details(details)
+    }
 }
 
 /// Map a non-2xx envelope (`{error: {code, message, status}}` — live-probed

@@ -341,6 +341,22 @@ mod tests {
             .any(|e| matches!(e, SchemaError::BadBuiltinArgs { tool: t, .. } if t == tool))
     }
 
+    /// Run one `(args · tool · violates?)` truth table — each row is one
+    /// contract direction.
+    fn assert_shape_cases(cases: &[(&str, &str, bool)]) {
+        for (args, tool, violates) in cases {
+            let yaml = format!(
+                "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    invoke:\n      \
+                 tool: \"{tool}\"\n      args: {args}\n"
+            );
+            assert_eq!(
+                has_shape_error(&yaml, tool),
+                *violates,
+                "{tool} · args {args}"
+            );
+        }
+    }
+
     #[test]
     fn shape_rules_table() {
         // (args yaml · tool · violates?) — one row per contract direction.
@@ -435,10 +451,8 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::too_many_lines)] // a truth table — each row IS one contract direction
-    fn image_generate_shape_rules_table() {
-        // Split from shape_rules_table — same harness.
-        let cases = [
+    fn image_generate_v1_reservations_and_enum_rules() {
+        assert_shape_cases(&[
             // nika:image_generate — V1 reservations · closed enums ·
             // ranges · size grammar · the transparent×jpeg conflict
             // (stdlib §Media). Flat required args (prompt/output_dir) are
@@ -509,6 +523,12 @@ mod tests {
                 "nika:image_generate",
                 false,
             ),
+        ]);
+    }
+
+    #[test]
+    fn image_generate_range_size_and_conflict_rules() {
+        assert_shape_cases(&[
             (
                 r#"{ prompt: "x", output_dir: "./o", n: 0 }"#,
                 "nika:image_generate",
@@ -559,18 +579,7 @@ mod tests {
                 "nika:image_generate",
                 false, // provider/model support is runtime business
             ),
-        ];
-        for (args, tool, violates) in cases {
-            let yaml = format!(
-                "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    invoke:\n      \
-                 tool: \"{tool}\"\n      args: {args}\n"
-            );
-            assert_eq!(
-                has_shape_error(&yaml, tool),
-                violates,
-                "{tool} · args {args}"
-            );
-        }
+        ]);
     }
 
     #[test]

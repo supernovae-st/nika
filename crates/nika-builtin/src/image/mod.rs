@@ -155,6 +155,114 @@ where
     warnings.extend(batch_warnings);
 
     // ── decode validation (header-only · magic authority) ───────────────
+    let decoded = validate_decoded(images, &args, emitter, &mut warnings)?;
+
+    // ── save (boundary-gated · atomic · cleanup on partial failure) ─────
+    let saved = save::save_all(fs, boundary, &args, decoded).await?;
+    for image in &saved {
+        emitter.emit(
+            "image_generation.saved",
+            serde_json::json!({
+                "path": image.path, "sha256_8": &image.sha256[..8],
+                "size_bytes": image.size_bytes,
+            }),
+        );
+    }
+
+    // ── manifest ─────────────────────────────────────────────────────────
+    let created_at = rfc3339_now(clock);
+    let revised_prompt = saved.iter().find_map(|s| s.revised_prompt.clone());
+    let manifest_path = write_manifest(
+        fs,
+        boundary,
+        &args,
+        &saved,
+        usage,
+        &warnings,
+        &created_at,
+        revised_prompt.as_deref(),
+        provider_text.as_deref(),
+        emitter,
+    )
+    .await?;
+
+    for warning in &warnings {
+        emitter.emit(
+            "image_generation.warning",
+            serde_json::json!({ "message": warning }),
+        );
+    }
+    emitter.emit(
+        "image_generation.completed",
+        serde_json::json!({
+            "count": saved.len(),
+            "total_bytes": saved.iter().map(|s| s.size_bytes).sum::<u64>(),
+            "duration_ms":
+                u64::try_from(clock.elapsed(started).as_millis()).unwrap_or(u64::MAX),
+        }),
+    );
+
+    Ok(output_json(
+        &args,
+        &saved,
+        usage,
+        &warnings,
+        &created_at,
+        revised_prompt.as_deref(),
+        provider_text.as_deref(),
+        manifest_path.as_deref(),
+        raw_debug,
+    ))
+}
+
+/// Build + write the provenance manifest beside the assets (when
+/// `manifest:` is on) and land its event — `None` when disabled.
+#[allow(clippy::too_many_arguments)] // a pure projection of the pipeline's products
+async fn write_manifest<F, Em>(
+    fs: &F,
+    boundary: &FsBoundary,
+    args: &ImageArgs,
+    saved: &[SavedImage],
+    usage: types::Usage,
+    warnings: &[String],
+    created_at: &str,
+    revised_prompt: Option<&str>,
+    provider_text: Option<&str>,
+    emitter: &Em,
+) -> Result<Option<String>, BuiltinFailure>
+where
+    F: FsReadDyn + FsWriteDyn,
+    Em: Emitter,
+{
+    if !args.manifest {
+        return Ok(None);
+    }
+    let document = manifest::build(
+        args,
+        saved,
+        usage,
+        warnings,
+        created_at,
+        revised_prompt,
+        provider_text,
+    );
+    let path = manifest::write(fs, boundary, args, saved, &document).await?;
+    emitter.emit(
+        "image_generation.manifest_written",
+        serde_json::json!({ "path": path }),
+    );
+    Ok(Some(path))
+}
+
+/// Header-only decode validation over a provider batch — magic bytes are
+/// the authority (a mislabel warns ONCE · a non-image payload hard-fails
+/// `-007`), and each accepted image lands a `decoded` event.
+fn validate_decoded<Em: Emitter>(
+    images: Vec<types::RawImage>,
+    args: &ImageArgs,
+    emitter: &Em,
+    warnings: &mut Vec<String>,
+) -> Result<Vec<(types::RawImage, sniff::Sniffed, Vec<String>)>, BuiltinFailure> {
     let mut decoded = Vec::with_capacity(images.len());
     let mut format_mismatch_seen = false;
     for (index, image) in images.into_iter().enumerate() {
@@ -178,68 +286,7 @@ where
         );
         decoded.push((image, sniffed, Vec::new()));
     }
-
-    // ── save (boundary-gated · atomic · cleanup on partial failure) ─────
-    let saved = save::save_all(fs, boundary, &args, decoded).await?;
-    for image in &saved {
-        emitter.emit(
-            "image_generation.saved",
-            serde_json::json!({
-                "path": image.path, "sha256_8": &image.sha256[..8],
-                "size_bytes": image.size_bytes,
-            }),
-        );
-    }
-
-    // ── manifest ─────────────────────────────────────────────────────────
-    let created_at = rfc3339_now(clock);
-    let revised_prompt = saved.iter().find_map(|s| s.revised_prompt.clone());
-    let manifest_path = if args.manifest {
-        let document = manifest::build(
-            &args,
-            &saved,
-            usage,
-            &warnings,
-            &created_at,
-            revised_prompt.as_deref(),
-            provider_text.as_deref(),
-        );
-        let path = manifest::write(fs, boundary, &args, &saved, &document).await?;
-        emitter.emit(
-            "image_generation.manifest_written",
-            serde_json::json!({ "path": path }),
-        );
-        Some(path)
-    } else {
-        None
-    };
-
-    for warning in &warnings {
-        emitter.emit(
-            "image_generation.warning",
-            serde_json::json!({ "message": warning }),
-        );
-    }
-    let duration_ms = u64::try_from(clock.elapsed(started).as_millis()).unwrap_or(u64::MAX);
-    let total_bytes: u64 = saved.iter().map(|s| s.size_bytes).sum();
-    emitter.emit(
-        "image_generation.completed",
-        serde_json::json!({
-            "count": saved.len(), "total_bytes": total_bytes, "duration_ms": duration_ms,
-        }),
-    );
-
-    Ok(output_json(
-        &args,
-        &saved,
-        usage,
-        &warnings,
-        &created_at,
-        revised_prompt.as_deref(),
-        provider_text.as_deref(),
-        manifest_path.as_deref(),
-        raw_debug,
-    ))
+    Ok(decoded)
 }
 
 /// The cloud subset of [`Provider`] — bound by the SAME match that
