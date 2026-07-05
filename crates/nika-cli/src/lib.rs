@@ -22,6 +22,6 @@ pub mod demo;
 pub mod display;
 pub mod verbs;
 
-pub use display::render::{frame, verdict_frame};
+pub use display::render::{frame, frame_with_outputs, verdict_frame};
 pub use display::state::{RunView, TaskRow, TaskState};
 pub use display::theme::{Role, Theme};

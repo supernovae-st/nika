@@ -62,6 +62,14 @@ pub struct TaskRow {
     /// terminal note overwrites `note`, this survives for the verdict
     /// surface.
     pub model: Option<String>,
+    /// The task's output as ONE compact JSON text — the ADR-099 `output`
+    /// trace field on `task_completed` / `task_cache_hit`. `None` when
+    /// the frame carried none: a skip · a failure · an older engine's
+    /// trace · the runtime's secret-drop (an output text leaking a
+    /// resolved secret value never reaches the stream — ADR-099 §1).
+    pub output_json: Option<String>,
+    /// Per-task token usage (`tokens` on the terminal frame).
+    pub tokens: Option<u64>,
 }
 
 impl TaskRow {
@@ -184,6 +192,10 @@ impl RunView {
                 let usd = float_field(event, "cost_usd");
                 if let Some(i) = self.touch(event, TaskState::Ok) {
                     self.stamp_terminal(i, ts, event, usd);
+                    self.keep_output(i, event);
+                    if let Some(tokens) = int_field(event, "tokens") {
+                        self.rows[i].tokens = u64::try_from(tokens).ok();
+                    }
                 }
                 if let Some(usd) = usd {
                     self.cost_usd += usd;
@@ -194,10 +206,13 @@ impl RunView {
             }
             // ADR-099 `--resume` — a rehydrated success: the row reads Ok
             // with the "cache hit" note the frame carries (VISIBLE, never
-            // silent); zero duration/spend (the task never ran here).
+            // silent); zero duration/spend (the task never ran here). The
+            // rehydrated output rides the frame — the shape tail and the
+            // trace readers see the SAME value a live run would carry.
             EventKind::TaskCacheHit => {
                 if let Some(i) = self.touch(event, TaskState::Ok) {
                     self.rows[i].ended_ms = Some(ts);
+                    self.keep_output(i, event);
                 }
             }
             EventKind::TaskFailed => {
@@ -257,6 +272,17 @@ impl RunView {
         }
     }
 
+    /// Keep the ADR-099 `output` field (the task's value as ONE compact
+    /// JSON text) when the frame carried one. A frame without it folds
+    /// to `None` — the honest no-data arm every downstream summary
+    /// respects (notably the runtime's secret-drop: a leaking output
+    /// never rides the stream, so no preview can ever see it).
+    fn keep_output(&mut self, i: usize, event: &Event) {
+        if let Some(text) = str_field(event, "output") {
+            self.rows[i].output_json = Some(text.to_owned());
+        }
+    }
+
     /// Upsert the row a task event addresses, updating state + notes.
     /// Returns the row index so the caller can stamp kind-specific facts.
     fn touch(&mut self, event: &Event, state: TaskState) -> Option<usize> {
@@ -276,6 +302,8 @@ impl RunView {
                 duration_ms: None,
                 cost_usd: None,
                 model: None,
+                output_json: None,
+                tokens: None,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);
@@ -480,6 +508,44 @@ mod tests {
         );
         assert_eq!(measured.rows()[0].wall_ms(), Some(40), "measured wins");
         assert_eq!(measured.last_ts_ms(), Some(5000), "now = latest stamp");
+    }
+
+    /// The fold keeps the ADR-099 per-task payload fields verbatim —
+    /// `output` (compact JSON text) + `tokens` land on the row; a frame
+    /// WITHOUT an `output` field folds to `None` (older engines · skips
+    /// · the runtime's secret-drop, ADR-099 §1: an output text leaking a
+    /// resolved secret never reaches the stream — so every preview
+    /// surface inherits the invariant structurally).
+    #[test]
+    fn completed_rows_keep_output_text_and_tokens() {
+        use nika_types::resource::{KeyValue, Value};
+        let mut view = RunView::new();
+        let task = |name: &str| KeyValue::new("task", Value::String(name.to_owned()));
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 10)
+                .with_field(task("audit"))
+                .with_field(KeyValue::new(
+                    "output",
+                    Value::String(r#"{"total":9}"#.to_owned()),
+                ))
+                .with_field(KeyValue::new("tokens", Value::Int(90))),
+        );
+        // The secret-drop / older-engine arm: no `output` field at all.
+        view.apply(&demo::bare_event(EventKind::TaskCompleted, 20).with_field(task("bare")));
+        // A cache hit rehydrates its output onto the row too (ADR-099).
+        view.apply(
+            &demo::bare_event(EventKind::TaskCacheHit, 30)
+                .with_field(task("cached"))
+                .with_field(KeyValue::new("output", Value::String("\"hi\"".to_owned()))),
+        );
+        assert_eq!(
+            view.rows()[0].output_json.as_deref(),
+            Some(r#"{"total":9}"#)
+        );
+        assert_eq!(view.rows()[0].tokens, Some(90));
+        assert_eq!(view.rows()[1].output_json, None, "no field → None");
+        assert_eq!(view.rows()[1].tokens, None);
+        assert_eq!(view.rows()[2].output_json.as_deref(), Some("\"hi\""));
     }
 
     /// The retry counter folds every `task_retrying` frame (feeds the

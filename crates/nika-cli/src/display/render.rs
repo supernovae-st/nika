@@ -16,6 +16,23 @@ const NOTE_COL_CAP: usize = 40;
 /// Render one frame of the run card.
 #[must_use]
 pub fn frame(view: &RunView, theme: &Theme, tick: usize) -> Vec<String> {
+    frame_impl(view, theme, tick, false)
+}
+
+/// Render one frame WITH the shape tails — completed rows carry their
+/// bounded output summary + tokens (`→ {…} · 312B · 90 tok`). The
+/// interactive-TTY surface only: `frame` (no tails) stays the byte-exact
+/// register for pipes · CI logs · `--no-outputs`.
+#[must_use]
+pub fn frame_with_outputs(view: &RunView, theme: &Theme, tick: usize) -> Vec<String> {
+    frame_impl(view, theme, tick, true)
+}
+
+/// The one frame assembler behind both public forms.
+// `&Theme` to match the public `frame` borrow that threads it here — the
+// same one-calling-convention rationale as `task_line`.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<String> {
     let mut lines = Vec::with_capacity(view.rows().len() + 6);
 
     // Header: identity + the statically-proven ceiling.
@@ -63,6 +80,11 @@ pub fn frame(view: &RunView, theme: &Theme, tick: usize) -> Vec<String> {
         .unwrap_or(0);
     for (i, row) in view.rows().iter().enumerate() {
         let mark = marks.get(i).copied().unwrap_or(false);
+        let tail = if outputs {
+            crate::display::shape::output_tail(row.output_json.as_deref(), row.tokens, theme)
+        } else {
+            None
+        };
         lines.push(task_line(
             row,
             view,
@@ -71,6 +93,7 @@ pub fn frame(view: &RunView, theme: &Theme, tick: usize) -> Vec<String> {
             (width, note_w, time_w),
             times[i].as_deref(),
             mark,
+            tail.as_deref(),
         ));
     }
 
@@ -116,12 +139,14 @@ fn row_wall(row: &TaskRow, view: &RunView) -> Option<String> {
 }
 
 /// Assemble one storyboard row: glyph · id · dimmed note · then the
-/// time/cost/lane suffix, column-aligned on RAW (pre-paint) widths so
-/// ANSI escapes never skew the layout. Rows with no suffix keep the
+/// time/cost/tail/lane suffix, column-aligned on RAW (pre-paint) widths
+/// so ANSI escapes never skew the layout. Rows with no suffix keep the
 /// legacy shape exactly (no trailing padding).
 // `&Theme` to match the `frame` borrow that threads it here — the same
-// one-calling-convention rationale as `append_failure_card`.
-#[allow(clippy::trivially_copy_pass_by_ref)]
+// one-calling-convention rationale as `append_failure_card`. The 8th
+// parameter is the optional output tail — the same clap-surface idiom
+// the run verb carries.
+#[allow(clippy::trivially_copy_pass_by_ref, clippy::too_many_arguments)]
 fn task_line(
     row: &TaskRow,
     view: &RunView,
@@ -130,6 +155,7 @@ fn task_line(
     (id_w, note_w, time_w): (usize, usize, usize),
     time: Option<&str>,
     mark: bool,
+    tail: Option<&str>,
 ) -> String {
     let mut note = row.note.clone();
     if row.state == TaskState::Running && !view.token_samples.is_empty() {
@@ -145,7 +171,7 @@ fn task_line(
         theme.paint(Role::Dim, &note),
     );
     let cost = row.cost_usd.map(|c| format!(" · ${c:.4}"));
-    if time.is_none() && cost.is_none() && !mark {
+    if time.is_none() && cost.is_none() && !mark && tail.is_none() {
         return line;
     }
     // Column pad computed on the RAW note (paint added escapes, the
@@ -156,6 +182,11 @@ fn task_line(
     line.push_str(&theme.paint(Role::Dim, cell.trim_end()));
     if let Some(cost) = cost {
         line.push_str(&theme.paint(Role::Dim, &cost));
+    }
+    if let Some(tail) = tail {
+        // Already painted by the shape module — one metadata unit.
+        line.push_str("  ");
+        line.push_str(tail);
     }
     if mark {
         line.push_str(&theme.paint(Role::Accent, if theme.ascii { " ||" } else { " ∥" }));
@@ -431,6 +462,56 @@ mod tests {
     fn frame_is_stable_under_ticks_when_nothing_runs() {
         let view = fold(&demo::success());
         assert_eq!(frame(&view, &UNICODE, 0), frame(&view, &UNICODE, 9));
+    }
+
+    /// A view with output-carrying completions: `frame_with_outputs`
+    /// appends the bounded shape tail (+ tokens) on those rows while
+    /// `frame` stays BYTE-IDENTICAL to today — the piped/CI register
+    /// never grows tails.
+    #[test]
+    fn frame_with_outputs_adds_tails_and_frame_stays_bare() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+
+        let mut view = RunView::new();
+        let task = |n: &str| KeyValue::new("task", Value::String(n.to_owned()));
+        view.apply(&demo::bare_event(EventKind::TaskStarted, 0).with_field(task("audit")));
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 100)
+                .with_field(task("audit"))
+                .with_field(KeyValue::new(
+                    "output",
+                    Value::String(r#"{"verdict":"P0","fixes":[1,2]}"#.to_owned()),
+                ))
+                .with_field(KeyValue::new("tokens", Value::Int(90))),
+        );
+        let with = frame_with_outputs(&view, &UNICODE, 0);
+        let audit = with.iter().find(|l| l.contains("audit")).expect("row");
+        assert!(
+            audit.contains("→ {fixes[2], verdict} · 30B · 90 tok"),
+            "tail rides the completed row: {audit}"
+        );
+        let bare = frame(&view, &UNICODE, 0);
+        assert!(
+            !bare.iter().any(|l| l.contains('→')),
+            "the bare frame never grows tails: {bare:?}"
+        );
+
+        // ASCII parity — the arrow degrades, nothing unicode leaks.
+        let ascii = frame_with_outputs(&view, &ASCII, 0);
+        assert!(
+            ascii.iter().any(|l| l.contains("-> {fixes[2], verdict}")),
+            "{ascii:?}"
+        );
+
+        // The demo storyboard carries no output fields — with-outputs
+        // renders byte-identically to the bare frame (no invented data).
+        let demo_view = fold(&demo::success());
+        assert_eq!(
+            frame_with_outputs(&demo_view, &UNICODE, 0),
+            frame(&demo_view, &UNICODE, 0),
+            "no output fields → no tails, ever"
+        );
     }
 
     /// The running row shows a LIVE elapsed (now − started) and `∥` marks

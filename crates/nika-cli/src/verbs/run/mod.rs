@@ -68,8 +68,13 @@ use crate::verbs::exit;
 /// journal into a skip plan; the runtime recomputes each task's identity
 /// and skips iff BOTH hashes match (visible `task_cache_hit` · never
 /// silent). `--from <task_id>` forces a subtree to re-run.
-// Nine independent CLI parameters ARE the clap surface — the same idiom
-// as TraceArgs' four bools, not a state machine to encode in a struct.
+///
+/// `no_outputs` — `--no-outputs` (the comprehension pass): suppress the
+/// shape tails on the Live storyboard. Only the interactive TTY surface
+/// ever grows tails — pipes · CI · the machine modes stay byte-unchanged
+/// with or without the flag.
+// Ten independent CLI parameters ARE the clap surface — the same idiom
+// as TraceArgs' bools, not a state machine to encode in a struct.
 #[allow(clippy::too_many_arguments)]
 #[must_use]
 pub fn run(
@@ -82,6 +87,7 @@ pub fn run(
     model_override: Option<&str>,
     vars: &[String],
     resume: Option<&ResumeRequest>,
+    no_outputs: bool,
 ) -> u8 {
     // `--output` validated up front so an unknown format fails before any
     // work (machine-result mode · see `output_mode`).
@@ -167,6 +173,7 @@ pub fn run(
         theme,
         mode,
         resume.is_some(),
+        !no_outputs,
     ))
 }
 
@@ -308,6 +315,7 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         model_override,
         &[],
         None,
+        false,
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the tip then never
@@ -521,9 +529,10 @@ fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
 }
 
 /// Drive the runtime through the chosen sink · return the exit code.
-// The 9th parameter is the `--resume` summary switch — same clap-surface
-// idiom as `run` itself.
-#[allow(clippy::too_many_arguments)]
+// The 9th/10th parameters are the `--resume` summary switch + the
+// outputs-tail switch — same clap-surface idiom as `run` itself (four
+// independent flags ARE four bools, not a state machine).
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 async fn execute(
     runtime: &ProdRuntime,
     wf: &RawWorkflow,
@@ -533,6 +542,7 @@ async fn execute(
     theme: Theme,
     mode: RenderMode,
     resumed: bool,
+    outputs: bool,
 ) -> u8 {
     let mut stamper = SystemStamper::new();
     if output_json {
@@ -588,6 +598,12 @@ async fn execute(
     } else {
         let mut sink = FoldSink::new(std::io::stdout().lock(), theme, mode);
         sink.set_plan(plan_waves(wf, report));
+        // The shape tails ride the INTERACTIVE surface only (`Live` =
+        // TTY): the piped/`--no-progress`/`--quiet` registers keep their
+        // exact bytes — CI logs and scripts never grow tails.
+        if mode == RenderMode::Live && outputs {
+            sink.show_outputs(true);
+        }
         let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         // `Live` painted in place during the run; `Plain`/`Quiet` folded
         // silently · print the ONE final frame now.
@@ -923,6 +939,7 @@ mod tests {
             Some("mock/echo"),
             &[],
             None,
+            false,
         );
         assert_eq!(
             code,
@@ -952,6 +969,7 @@ mod tests {
             Some("mock/echo"),
             &[],
             None,
+            false,
         );
         assert_eq!(
             overridden,
@@ -978,6 +996,7 @@ mod tests {
             None,
             vars,
             None,
+            false,
         )
     }
 
