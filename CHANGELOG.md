@@ -10,6 +10,15 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [0.93.1](https://github.com/supernovae-st/nika/compare/v0.93.0..v0.93.1) - 2026-07-05
 
+### 📚 Documentation
+- **readme** — Daily commands — the full 0.93 user loop in one block ([#162](https://github.com/supernovae-st/nika/issues/162)) ([8356df6f7](https://github.com/supernovae-st/nika/commit/8356df6f7e481c089bb86f6efd907a1b1f3240a0)) ([#162](https://github.com/supernovae-st/nika/pull/162))
+
+### 🧹 Chore
+- **pack** — Vendor the qwen3.5 teach-cascade from spec main ([#161](https://github.com/supernovae-st/nika/issues/161)) ([e8f500f73](https://github.com/supernovae-st/nika/commit/e8f500f7362b02cb44a649f861d1228fde16d0cc)) ([#161](https://github.com/supernovae-st/nika/pull/161))
+
+
+## [0.93.1](https://github.com/supernovae-st/nika/compare/v0.93.0..v0.93.1) - 2026-07-05
+
 ### ✨ Highlights
 
 - **The embedded pack teaches 2026 models** — `nika examples` /
