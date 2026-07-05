@@ -76,6 +76,17 @@ pub(crate) struct Probe {
     pub clients: Vec<ClientProbe>,
     /// The `nika:image_generate` plane — key/URL PRESENCE only.
     pub image: ImageProbe,
+    /// The `nika:tts_generate` plane — key/URL PRESENCE only.
+    pub tts: TtsProbe,
+}
+
+/// The TTS-plane environment facts (presence only, never values).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct TtsProbe {
+    pub openai_key: bool,
+    pub elevenlabs_key: bool,
+    /// `Some(url)` when `NIKA_TTS_LOCAL_URL` is set (config, displayable).
+    pub local_url: Option<String>,
 }
 
 /// The image-plane environment facts (presence only, never values).
@@ -180,6 +191,7 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
     }
 
     out.push(image_finding(&probe.image));
+    out.push(tts_finding(&probe.tts));
 
     // The ONE Fail that drives exit 3 · no inference path AT ALL (a broken or
     // empty catalog). A merely-unset cloud key is a ⚠ above, never fatal.
@@ -225,6 +237,37 @@ fn image_finding(img: &ImageProbe) -> Finding {
         label: "image".to_owned(),
         detail: if wired.is_empty() {
             format!("mock ready · {local_part} · no cloud image key set")
+        } else {
+            format!(
+                "mock ready · {} key(s) present · {local_part}",
+                wired.join(" · ")
+            )
+        },
+        fix: None,
+    }
+}
+
+/// The TTS plane (`nika:tts_generate`) — the image line's exact sibling.
+fn tts_finding(tts: &TtsProbe) -> Finding {
+    let mut wired: Vec<&str> = Vec::new();
+    if tts.openai_key {
+        wired.push("openai");
+    }
+    if tts.elevenlabs_key {
+        wired.push("elevenlabs");
+    }
+    let local_part = tts.local_url.as_deref().map_or_else(
+        || {
+            "local → http://localhost:8080 default (set NIKA_TTS_LOCAL_URL to point elsewhere)"
+                .to_owned()
+        },
+        |url| format!("local → {url}"),
+    );
+    Finding {
+        level: Level::Ok,
+        label: "tts".to_owned(),
+        detail: if wired.is_empty() {
+            format!("mock ready · {local_part} · no cloud speech key set")
         } else {
             format!(
                 "mock ready · {} key(s) present · {local_part}",
@@ -341,6 +384,13 @@ pub fn run() -> VerbOutput {
             local_url: std::env::var("NIKA_IMAGE_LOCAL_URL")
                 .ok()
                 .filter(|u| !u.is_empty()),
+        },
+        tts: TtsProbe {
+            openai_key: env_present("NIKA_OPENAI_API_KEY") || env_present("OPENAI_API_KEY"),
+            elevenlabs_key: env_present("NIKA_ELEVENLABS_API_KEY")
+                || env_present("ELEVENLABS_API_KEY"),
+            #[allow(clippy::disallowed_methods)] // presence+value of a NON-secret config var
+            local_url: std::env::var("NIKA_TTS_LOCAL_URL").ok().filter(|u| !u.is_empty()),
         },
     };
     let findings = diagnose(&probe);
@@ -508,6 +558,7 @@ mod tests {
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", true)],
             clients: vec![],
             image: ImageProbe::default(),
+            tts: TtsProbe::default(),
         };
         let f = diagnose(&probe);
         let prov = f
@@ -532,6 +583,7 @@ mod tests {
             ],
             clients: vec![],
             image: ImageProbe::default(),
+            tts: TtsProbe::default(),
         };
         let f = diagnose(&probe);
         let prov = f
@@ -561,6 +613,7 @@ mod tests {
             providers: vec![cloud("openai", "OPENAI_API_KEY", false)],
             clients: vec![],
             image: ImageProbe::default(),
+            tts: TtsProbe::default(),
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("OPENAI_API_KEY"), "names the var: {text}");
@@ -580,6 +633,7 @@ mod tests {
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", false)],
             clients: vec![],
             image: ImageProbe::default(),
+            tts: TtsProbe::default(),
         };
         let f = diagnose(&probe);
         assert!(f.iter().any(|f| f.level == Level::Fail));
@@ -594,6 +648,7 @@ mod tests {
             providers: vec![local("ollama"), local("vllm")],
             clients: vec![],
             image: ImageProbe::default(),
+            tts: TtsProbe::default(),
         };
         let f = diagnose(&probe);
         let loc = f.iter().find(|f| f.label == "local").expect("local line");
@@ -625,6 +680,7 @@ mod tests {
                 stale: true,
             }],
             image: ImageProbe::default(),
+            tts: TtsProbe::default(),
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("stale MCP args"), "{text}");
@@ -675,6 +731,7 @@ mod tests {
             "the LLM test backend is hidden"
         );
         assert!(out.text.contains("image"), "the image plane renders");
+        assert!(out.text.contains("tts"), "the tts plane renders");
     }
 
     /// The report opens on the ONE verdict line — level counts first,
