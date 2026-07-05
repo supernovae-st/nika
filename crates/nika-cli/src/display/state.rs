@@ -75,6 +75,12 @@ pub struct TaskRow {
     /// terminal note overwrites `note`, this survives for the per-task
     /// trace readers (`trace outputs`' verb column).
     pub started_note: Option<String>,
+    /// The ADR-099 task-definition hash (`def_hash` · blake3 hex) when
+    /// the terminal frame carried the checkpoint trio — the identity
+    /// half `trace peek` surfaces beside the value.
+    pub def_hash: Option<String>,
+    /// The ADR-099 resolved-input hash (`input_hash` · blake3 hex).
+    pub input_hash: Option<String>,
 }
 
 impl TaskRow {
@@ -281,14 +287,22 @@ impl RunView {
         }
     }
 
-    /// Keep the ADR-099 `output` field (the task's value as ONE compact
-    /// JSON text) when the frame carried one. A frame without it folds
-    /// to `None` — the honest no-data arm every downstream summary
-    /// respects (notably the runtime's secret-drop: a leaking output
-    /// never rides the stream, so no preview can ever see it).
+    /// Keep the ADR-099 checkpoint trio (the `output` value as ONE
+    /// compact JSON text + the `def_hash`/`input_hash` identity) when
+    /// the frame carried it. A frame without it folds to `None` — the
+    /// honest no-data arm every downstream summary respects (notably
+    /// the runtime's secret-drop: a leaking output never rides the
+    /// stream, so no preview can ever see it).
     fn keep_output(&mut self, i: usize, event: &Event) {
+        let row = &mut self.rows[i];
         if let Some(text) = str_field(event, "output") {
-            self.rows[i].output_json = Some(text.to_owned());
+            row.output_json = Some(text.to_owned());
+        }
+        if let Some(hash) = str_field(event, "def_hash") {
+            row.def_hash = Some(hash.to_owned());
+        }
+        if let Some(hash) = str_field(event, "input_hash") {
+            row.input_hash = Some(hash.to_owned());
         }
     }
 
@@ -314,6 +328,8 @@ impl RunView {
                 output_json: None,
                 tokens: None,
                 started_note: None,
+                def_hash: None,
+                input_hash: None,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);

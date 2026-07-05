@@ -234,6 +234,23 @@ enum TraceAction {
         #[arg(long)]
         no_color: bool,
     },
+    /// Read ONE task's full output + its identity (hashes · duration ·
+    /// tokens). `--raw` prints the exact value only (pipe it to jq).
+    Peek {
+        /// Trace NDJSON path (one `nika-event` Event per line).
+        trace: PathBuf,
+        /// The task id whose output to read.
+        task: String,
+        /// Print the exact recorded value only (machine-friendly).
+        #[arg(long)]
+        raw: bool,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+    },
 }
 
 #[derive(Args)]
@@ -400,6 +417,18 @@ fn main() -> std::process::ExitCode {
                 no_color,
             } => emit(&verbs::trace::outputs(
                 &trace.to_string_lossy(),
+                term_theme(no_color, ascii),
+            )),
+            TraceAction::Peek {
+                trace,
+                task,
+                raw,
+                ascii,
+                no_color,
+            } => emit(&verbs::trace::peek(
+                &trace.to_string_lossy(),
+                &task,
+                raw,
                 term_theme(no_color, ascii),
             )),
         },
