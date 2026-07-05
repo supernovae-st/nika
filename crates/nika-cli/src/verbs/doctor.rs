@@ -230,9 +230,15 @@ pub(crate) fn exit_code(findings: &[Finding]) -> u8 {
 }
 
 /// Render findings as the `nika doctor` report (spec §8 layout · glyph · label
-/// padded · detail · an indented `fix:` line under a problem).
+/// padded · detail · an indented `fix:` line under a problem) — opened by the
+/// ONE verdict line (`✔ 6 ok · 4 warn · 0 fail`) so the state of the
+/// environment reads before the sections do. Sections stay unchanged.
 pub(crate) fn render(findings: &[Finding]) -> String {
     let mut s = String::new();
+    let count = |level: Level| findings.iter().filter(|f| f.level == level).count();
+    let (ok, warn, fail) = (count(Level::Ok), count(Level::Warn), count(Level::Fail));
+    let verdict = if fail > 0 { Level::Fail } else { Level::Ok };
+    let _ = writeln!(s, "{} {ok} ok · {warn} warn · {fail} fail", verdict.glyph());
     for f in findings {
         let _ = writeln!(s, "{} {:<10} {}", f.level.glyph(), f.label, f.detail);
         if let Some(fix) = &f.fix {
@@ -595,6 +601,41 @@ mod tests {
         assert_eq!(out.code, exit::OK, "the catalog always offers a path");
         assert!(out.text.contains("binary"), "renders the binary line");
         assert!(!out.text.contains("mock"), "the test backend is hidden");
+    }
+
+    /// The report opens on the ONE verdict line — level counts first,
+    /// sections unchanged below. The glyph tracks the WORST level (✔
+    /// with warns · ✖ only on a fail).
+    #[test]
+    fn render_opens_with_the_verdict_count_line() {
+        let ok = Finding {
+            level: Level::Ok,
+            label: "binary".to_owned(),
+            detail: "v0 · self-contained".to_owned(),
+            fix: None,
+        };
+        let warn = Finding {
+            level: Level::Warn,
+            label: "provider".to_owned(),
+            detail: "x — KEY unset".to_owned(),
+            fix: Some("export KEY=…".to_owned()),
+        };
+        let text = render(&[ok.clone(), ok.clone(), warn.clone()]);
+        let first = text.lines().next().expect("verdict line");
+        assert_eq!(first, "✔ 2 ok · 1 warn · 0 fail");
+        assert!(text.contains("binary"), "sections unchanged: {text}");
+
+        let fail = Finding {
+            level: Level::Fail,
+            label: "providers".to_owned(),
+            detail: "no path".to_owned(),
+            fix: None,
+        };
+        let red = render(&[ok, warn, fail]);
+        assert!(
+            red.starts_with("✖ 1 ok · 1 warn · 1 fail"),
+            "a fail flips the verdict glyph: {red}"
+        );
     }
 
     #[allow(clippy::disallowed_methods)]

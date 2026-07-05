@@ -305,11 +305,19 @@ pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -
     lines
 }
 
-/// The card's totals row: wall time · spend · the models the stream
-/// named (the fold kept them off the `infer · <model>` / `agent ·
-/// <model>` notes — rendered only when the stream actually said them).
+/// The card's totals row: wall time · total tokens (when any task
+/// reported usage — tokens are real TODAY, dollars stay honest-zero
+/// until the engine prices them) · spend · the models the stream named
+/// (the fold kept them off the `infer · <model>` / `agent · <model>`
+/// notes — rendered only when the stream actually said them).
 fn totals_row(view: &RunView) -> String {
-    let mut row = format!("{} · ${:.4}", fmt_wall_ms(view.elapsed_ms), view.cost_usd);
+    use std::fmt::Write as _;
+    let mut row = fmt_wall_ms(view.elapsed_ms);
+    let tokens: u64 = view.token_samples.iter().sum();
+    if tokens > 0 {
+        let _ = write!(row, " · {tokens} tok");
+    }
+    let _ = write!(row, " · ${:.4}", view.cost_usd);
     let mut models: Vec<&str> = Vec::new();
     for r in view.rows() {
         if let Some(m) = r.model.as_deref()
@@ -619,8 +627,8 @@ mod tests {
             "{lines:?}"
         );
         assert!(
-            lines[2].contains("4.7s · $0.0110 · claude-sonnet"),
-            "totals + the model the stream named: {lines:?}"
+            lines[2].contains("4.7s · 710 tok · $0.0110 · claude-sonnet"),
+            "totals (wall · tokens · spend) + the model the stream named: {lines:?}"
         );
         assert!(lines[3].contains("outputs → review (object)"), "{lines:?}");
         assert!(

@@ -107,8 +107,13 @@ pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
     };
 
     if expected == actual {
+        // The match verdict says WHAT was pinned, not just that it holds:
+        // top-level output keys + the canonical document's byte size.
+        let keys = actual.as_object().map_or(0, serde_json::Map::len);
+        let bytes = crate::display::shape::fmt_bytes(canonical_json(&actual).len());
+        let key_word = if keys == 1 { "key" } else { "keys" };
         println!(
-            "{} outputs match the golden {}",
+            "{} golden match · {keys} {key_word} · {bytes} {}",
             theme.paint(Role::Good, if theme.ascii { "ok" } else { "✔" }),
             theme.paint(Role::Dim, &format!("· {golden_path}"))
         );
@@ -181,7 +186,13 @@ fn render_mismatch(
     for line in diff_lines(expected, actual) {
         let _ = writeln!(out, "  {line}");
     }
-    let _ = writeln!(out, "\n  intended? re-pin with: nika test {file} --update");
+    // The ONE hint vocabulary (`label: command`) — same form as the
+    // failure card's fix hint and the run epilogue's explore hint.
+    let _ = writeln!(
+        out,
+        "\n  intended? {}",
+        crate::display::vocab::hint(theme, "re-baseline", &format!("nika test {file} --update"))
+    );
     out
 }
 
