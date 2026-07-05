@@ -111,6 +111,22 @@ completes, and the output says what it is:
 
 ![The live source is missing so the task fails; on_error recover degrades to the cached snapshot; the run exits 0 and the published file says stale: true](media/gifs/on-error-recover.optimized.gif)
 
+## Daily commands
+
+```sh
+nika inspect flow.nika.yaml          # anatomy · tasks · waves · cost floor
+nika check flow.nika.yaml            # the audit · exit 0 clean · 2 findings
+nika explain NIKA-VAR-001            # any code · cause · category · fix-form
+nika run flow.nika.yaml --var topic=rust   # launch inputs · repeatable
+nika test flow.nika.yaml --update    # pin the golden · then `nika test` = offline CI
+nika run flow.nika.yaml --resume .nika/traces/<run>.ndjson   # skip journaled successes
+nika run flow.nika.yaml --resume <trace> --answer approve=true  # re-arm a paused gate
+nika trace show .nika/traces/<run>.ndjson   # re-render any past run
+```
+
+A paused run exits `4` (a blocking `nika:prompt` journals its question);
+cache hits on resume are always visible — nothing is skipped silently.
+
 ## Pick a workflow
 
 The binary embeds a versioned pack of runnable examples. Browse with
