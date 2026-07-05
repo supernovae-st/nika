@@ -251,6 +251,22 @@ enum TraceAction {
         #[arg(long)]
         no_color: bool,
     },
+    /// The data waterfall: which output fed which task, with recorded
+    /// sizes (plan bindings from the workflow file × sizes from the
+    /// trace).
+    Flow {
+        /// Trace NDJSON path (one `nika-event` Event per line).
+        trace: PathBuf,
+        /// The workflow file the run executed (`*.nika.yaml`) — the
+        /// trace records values, the definition records the bindings.
+        workflow: String,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+    },
 }
 
 #[derive(Args)]
@@ -408,30 +424,7 @@ fn main() -> std::process::ExitCode {
             clap_complete::generate(shell, &mut cmd, "nika-cli", &mut std::io::stdout());
             0
         }
-        Command::Trace { action } => match action {
-            TraceAction::Replay(args) => trace_render(&args, true),
-            TraceAction::Show(args) => trace_render(&args, false),
-            TraceAction::Outputs {
-                trace,
-                ascii,
-                no_color,
-            } => emit(&verbs::trace::outputs(
-                &trace.to_string_lossy(),
-                term_theme(no_color, ascii),
-            )),
-            TraceAction::Peek {
-                trace,
-                task,
-                raw,
-                ascii,
-                no_color,
-            } => emit(&verbs::trace::peek(
-                &trace.to_string_lossy(),
-                &task,
-                raw,
-                term_theme(no_color, ascii),
-            )),
-        },
+        Command::Trace { action } => trace_verb(action),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
@@ -468,6 +461,45 @@ fn emit(out: &VerbOutput) -> u8 {
         println!("{}", out.text.trim_end());
     }
     out.code
+}
+
+/// Dispatch the `trace` verb family: the live renders (replay · show)
+/// plus the static readers (outputs · peek · flow).
+fn trace_verb(action: TraceAction) -> u8 {
+    match action {
+        TraceAction::Replay(args) => trace_render(&args, true),
+        TraceAction::Show(args) => trace_render(&args, false),
+        TraceAction::Outputs {
+            trace,
+            ascii,
+            no_color,
+        } => emit(&verbs::trace::outputs(
+            &trace.to_string_lossy(),
+            term_theme(no_color, ascii),
+        )),
+        TraceAction::Peek {
+            trace,
+            task,
+            raw,
+            ascii,
+            no_color,
+        } => emit(&verbs::trace::peek(
+            &trace.to_string_lossy(),
+            &task,
+            raw,
+            term_theme(no_color, ascii),
+        )),
+        TraceAction::Flow {
+            trace,
+            workflow,
+            ascii,
+            no_color,
+        } => emit(&verbs::trace::flow(
+            &trace.to_string_lossy(),
+            &workflow,
+            term_theme(no_color, ascii),
+        )),
+    }
 }
 
 /// Unpack the `run` clap surface into the library verb call.

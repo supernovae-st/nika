@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The static trace readers — `nika trace outputs` (per-task browser)
-//! + `nika trace peek` (full fidelity).
+//! The static trace readers — `nika trace outputs` (per-task browser) ·
+//! `nika trace peek` (full fidelity) · `nika trace flow` (the data
+//! waterfall: which output fed which task, with real sizes).
 //!
 //! Pure reads over a recorded NDJSON trace: load (the SAME tolerant
 //! recovery `--resume` and `trace show` fold through) → fold into the
 //! ONE [`RunView`] truth → render. Three densities, one source: the
 //! storyboard shows SHAPE tails, the table shows bounded previews,
-//! `peek` shows the whole value + its ADR-099 identity.
+//! `peek` shows the whole value + its ADR-099 identity. `flow` joins
+//! the plan (the checked definition's bindings) with the trace (the
+//! recorded sizes) — a fold over two existing truths, zero new
+//! analysis.
 
 use std::fmt::Write as _;
 
@@ -238,6 +242,169 @@ fn clip_hash(hash: &str, theme: Theme) -> String {
     format!("{head}{}", if theme.ascii { ".." } else { "…" })
 }
 
+/// One data edge: `from` fed `to` — `bytes` is the SOURCE task's
+/// recorded output size when the trace carries it (the honest measure
+/// of what flowed; a consumer may read a subpath of it).
+struct FlowEdge {
+    from: String,
+    to: String,
+    bytes: Option<usize>,
+}
+
+/// `nika trace flow <trace> <workflow>` — the data waterfall: edges
+/// from the checked definition's bindings (`depends_on` + `${{ tasks.X
+/// }}` references · the SAME over-collecting scan `--resume --from`
+/// walks) × output sizes from the trace, plus the `outputs.<name>`
+/// terminal edges. The time-waterfall shows WHEN; this shows WHY.
+#[must_use]
+pub fn flow(trace: &str, workflow: &str, theme: Theme) -> VerbOutput {
+    let view = match load_view(trace) {
+        Ok(view) => view,
+        Err(out) => return out,
+    };
+    let (wf, _report) = match super::load_checked(workflow) {
+        Ok(pair) => pair,
+        Err(out) => return out,
+    };
+    let mut out = String::new();
+    // Honesty header when the two inputs disagree on the workflow name.
+    let declared = wf.workflow.as_ref().map(|w| w.value.as_str());
+    if let Some(name) = declared
+        && !view.workflow.is_empty()
+        && view.workflow != name
+    {
+        let note = format!(
+            "note: the trace records workflow `{}` · {workflow} declares `{name}`",
+            view.workflow
+        );
+        let _ = writeln!(out, "  {}", theme.paint(Role::Warn, &note));
+    }
+    out.push_str(&render_flow(&flow_edges(&wf, &view), theme));
+    VerbOutput::ok(out)
+}
+
+/// Join plan bindings × trace sizes into the edge list (task edges in
+/// definition order, then the `outputs.<name>` terminal edges).
+fn flow_edges(wf: &nika_schema::raw::RawWorkflow, view: &RunView) -> Vec<FlowEdge> {
+    let ids: Vec<&str> = wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect();
+    let size_of = |task: &str| -> Option<usize> {
+        view.rows()
+            .iter()
+            .find(|r| r.id == task)
+            .and_then(|r| r.output_json.as_deref())
+            .map(str::len)
+    };
+    let mut edges = Vec::new();
+    for task in &wf.tasks {
+        let to = task.value.id.value.as_str();
+        for from in nika_runtime::resume::referenced_upstreams(&task.value) {
+            // The scan over-collects by design — keep only edges from a
+            // REAL sibling task (never self).
+            if from != to && ids.contains(&from.as_str()) {
+                edges.push(FlowEdge {
+                    bytes: size_of(&from),
+                    from,
+                    to: to.to_owned(),
+                });
+            }
+        }
+    }
+    for (key, decl) in &wf.outputs {
+        let template = match decl {
+            nika_schema::types::OutputDecl::Untyped(v) => &v.value,
+            nika_schema::types::OutputDecl::Typed { value, .. } => &value.value,
+            // #[non_exhaustive] future forms carry no v0 template.
+            _ => continue,
+        };
+        let mut refs = std::collections::BTreeSet::new();
+        scan_task_refs(template, &mut refs);
+        for from in refs {
+            if ids.contains(&from.as_str()) {
+                edges.push(FlowEdge {
+                    bytes: size_of(&from),
+                    from,
+                    to: format!("outputs.{}", key.value),
+                });
+            }
+        }
+    }
+    edges
+}
+
+/// Collect every `tasks.<snake_case_id>` token — the SAME boundary scan
+/// the runtime's `referenced_upstreams` applies to task definitions
+/// (task ids are checker-enforced `snake_case`; over-collection is
+/// safe, the caller filters to real task ids).
+fn scan_task_refs(text: &str, out: &mut std::collections::BTreeSet<String>) {
+    let mut rest = text;
+    while let Some(at) = rest.find("tasks.") {
+        let after = &rest[at + "tasks.".len()..];
+        let end = after
+            .find(|c: char| !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'))
+            .unwrap_or(after.len());
+        if end > 0 {
+            out.insert(after[..end].to_owned());
+        }
+        rest = &after[end..];
+    }
+}
+
+/// Render the waterfall: one `from ─size→ to` line per edge (a source
+/// the trace never sized keeps the bare arrow — never an invented
+/// number), then the totals line naming the widest edge.
+fn render_flow(edges: &[FlowEdge], theme: Theme) -> String {
+    let mut out = String::new();
+    if edges.is_empty() {
+        let _ = writeln!(
+            out,
+            "  {}",
+            theme.paint(
+                Role::Dim,
+                "no data edges — no task references another task's output"
+            )
+        );
+        return out;
+    }
+    let from_w = edges
+        .iter()
+        .map(|e| e.from.chars().count())
+        .max()
+        .unwrap_or(0);
+    for edge in edges {
+        let rail = match edge.bytes {
+            Some(n) => {
+                let size = shape::fmt_bytes(n);
+                if theme.ascii {
+                    format!("-{size}->")
+                } else {
+                    format!("─{size}→")
+                }
+            }
+            None => (if theme.ascii { "->" } else { "→" }).to_owned(),
+        };
+        let _ = writeln!(
+            out,
+            "  {:<from_w$} {} {}",
+            edge.from,
+            theme.paint(Role::Dim, &rail),
+            edge.to
+        );
+    }
+    let arrow = if theme.ascii { "->" } else { "→" };
+    let join = if theme.ascii { "x" } else { "×" };
+    let mut totals = format!("  {} edge(s)", edges.len());
+    if let Some(widest) = edges
+        .iter()
+        .filter(|e| e.bytes.is_some())
+        .max_by_key(|e| e.bytes)
+    {
+        let _ = write!(totals, " · widest: {}{arrow}{}", widest.from, widest.to);
+    }
+    let _ = write!(totals, " · derived from plan bindings {join} trace sizes");
+    let _ = writeln!(out, "{}", theme.paint(Role::Dim, &totals));
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -428,6 +595,128 @@ mod tests {
         let out = peek(&path.to_string_lossy(), "audit", true, plain());
         assert_eq!(out.code, exit::OK);
         assert_eq!(out.text, r#"{"fixes":["a"],"total":9}"#);
+    }
+
+    /// Stage a workflow file whose bindings draw the mockup DAG:
+    /// `read_payload` → `audit` → `outputs.geo_score`.
+    fn flow_workflow(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join("nika-cli-trace-verb");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let path = dir.join(name);
+        std::fs::write(
+            &path,
+            "nika: v1\nworkflow: geo-audit\nmodel: mock/echo\ntasks:\n  - id: read_payload\n    invoke: { tool: \"nika:read\", args: { path: \"x.json\" } }\n  - id: audit\n    depends_on: [read_payload]\n    infer: { prompt: \"score ${{ tasks.read_payload.output }}\" }\noutputs:\n  geo_score: ${{ tasks.audit.output }}\n",
+        )
+        .expect("workflow staged");
+        path
+    }
+
+    /// A trace with recorded outputs for both tasks (real sizes).
+    fn flow_trace(name: &str) -> std::path::PathBuf {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let s = |k: &str, v: &str| KeyValue::new(k, Value::String(v.to_owned()));
+        let events = vec![
+            demo::bare_event(EventKind::WorkflowStarted, 0).with_field(s("workflow", "geo-audit")),
+            demo::bare_event(EventKind::TaskCompleted, 10)
+                .with_field(s("task", "read_payload"))
+                .with_field(s("output", &format!("\"{}\"", "p".repeat(3598)))),
+            demo::bare_event(EventKind::TaskCompleted, 40)
+                .with_field(s("task", "audit"))
+                .with_field(s("output", r#"{"total":9}"#)),
+        ];
+        stage(name, &events)
+    }
+
+    /// The waterfall: plan-binding edges × trace sizes + the
+    /// outputs.<name> terminal edge + the totals line naming the widest.
+    #[test]
+    fn flow_joins_plan_edges_with_trace_sizes() {
+        let wf = flow_workflow("flow.nika.yaml");
+        let tr = flow_trace("flow.ndjson");
+        let out = flow(&tr.to_string_lossy(), &wf.to_string_lossy(), plain());
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        let text = &out.text;
+        assert!(
+            text.contains("read_payload ─3.6KB→ audit"),
+            "sized task edge: {text}"
+        );
+        assert!(
+            text.contains("audit        ─11B→ outputs.geo_score"),
+            "terminal outputs edge (aligned): {text}"
+        );
+        assert!(
+            text.contains("2 edge(s) · widest: read_payload→audit"),
+            "totals + widest: {text}"
+        );
+        assert!(
+            text.contains("derived from plan bindings × trace sizes"),
+            "honesty label: {text}"
+        );
+        // No mismatch note when the names agree.
+        assert!(!text.contains("note:"), "{text}");
+
+        // ASCII parity — rails, arrows and the join glyph all degrade.
+        let ascii = flow(
+            &tr.to_string_lossy(),
+            &wf.to_string_lossy(),
+            Theme {
+                color: false,
+                ascii: true,
+                animate: false,
+            },
+        );
+        assert!(
+            ascii.text.contains("read_payload -3.6KB-> audit"),
+            "{}",
+            ascii.text
+        );
+        assert!(
+            ascii.text.contains("plan bindings x trace sizes"),
+            "{}",
+            ascii.text
+        );
+        for glyph in ['─', '→', '×'] {
+            assert!(
+                !ascii.text.contains(glyph),
+                "unicode {glyph} leaked into --ascii: {}",
+                ascii.text
+            );
+        }
+    }
+
+    /// A trace from an older engine (no output fields): the STRUCTURE
+    /// still renders (bare arrows · never an invented size), and a
+    /// name mismatch between trace and file says so.
+    #[test]
+    fn flow_degrades_honestly_without_sizes_and_flags_mismatch() {
+        use nika_types::resource::{KeyValue, Value};
+        let wf = flow_workflow("flow-bare.nika.yaml");
+        let events = vec![
+            demo::bare_event(nika_event::EventKind::WorkflowStarted, 0)
+                .with_field(KeyValue::new("workflow", Value::String("other-run".into()))),
+            demo::bare_event(nika_event::EventKind::TaskCompleted, 10)
+                .with_field(KeyValue::new("task", Value::String("read_payload".into()))),
+        ];
+        let tr = stage("flow-bare.ndjson", &events);
+        let out = flow(&tr.to_string_lossy(), &wf.to_string_lossy(), plain());
+        assert_eq!(out.code, exit::OK);
+        assert!(
+            out.text.contains("read_payload → audit"),
+            "structure without sizes: {}",
+            out.text
+        );
+        assert!(
+            out.text
+                .contains("note: the trace records workflow `other-run`"),
+            "mismatch surfaces: {}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("widest"),
+            "no sized edge → no widest claim: {}",
+            out.text
+        );
     }
 
     /// Errors teach: an unknown task lists what the trace records; a
