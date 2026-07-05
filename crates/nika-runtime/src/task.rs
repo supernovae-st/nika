@@ -79,6 +79,11 @@ pub(crate) enum SettleAs {
         stage: &'static str,
         error: TaskErrorRecord,
     },
+    /// ADR-099 `--resume` cache hit — the task's identity matched a
+    /// journaled success: its output is REHYDRATED (never re-executed ·
+    /// no `TaskStarted` · no `on_finally:` — the original run already
+    /// ran its cleanup). Settles as a plain success downstream.
+    CacheHit { output: Value },
     /// The task ran (dispatched at least once).
     Ran(RanTask),
 }
@@ -208,6 +213,12 @@ where
         //    `--json` trace is later resumable · None = never skips) ──
         let resume = crate::resume::stamp(task, records, vars, resume_ctx);
 
+        // ── ADR-099 `--resume` skip — BOTH hashes must match a journaled
+        //    success (an edited task or a changed input re-runs · §1) ──
+        if let Some(finish) = self.cache_hit_finish(task, &id, resume.as_ref()) {
+            return finish;
+        }
+
         // ── `for_each:` fan-out or the single lane ──────────────────
         let mut settle = match task.for_each.as_ref() {
             None => self.run_single(task, records, vars, secrets, permits).await,
@@ -238,6 +249,35 @@ where
             named,
             resume,
         }
+    }
+
+    /// The ADR-099 skip check — `Some(finish)` iff a resume plan is
+    /// present AND this task's recomputed identity matches its journaled
+    /// success (both hashes · §1). The hit settles as a rehydrated
+    /// success (`task_cache_hit` at the pens — VISIBLE, never silent);
+    /// its `output:` bindings re-evaluate over the rehydrated value
+    /// (pure jq · same programs, same input · spec 04).
+    fn cache_hit_finish(
+        &self,
+        task: &RawTask,
+        id: &str,
+        resume: Option<&crate::resume::ResumeStamp>,
+    ) -> Option<Finish> {
+        let stamp = resume?;
+        let prior = self.resume_plan.get(id)?;
+        if prior.def_hash != stamp.def_hash || prior.input_hash != stamp.input_hash {
+            return None;
+        }
+        let mut settle = SettleAs::CacheHit {
+            output: prior.output.clone(),
+        };
+        let named = bind_outputs(task, &mut settle);
+        Some(Finish {
+            id: id.to_owned(),
+            settle,
+            named,
+            resume: Some(stamp.clone()),
+        })
     }
 
     /// The single-execution lane (no `for_each:`).
@@ -743,6 +783,9 @@ fn success_output(settle: &SettleAs) -> Option<&Value> {
             RunResult::Success { value, .. } => Some(value),
             RunResult::SkippedWithError { .. } | RunResult::Failed { .. } => None,
         },
+        // A cache hit IS a success — bindings extract from the
+        // rehydrated output (ADR-099 · downstream parity with live).
+        SettleAs::CacheHit { output } => Some(output),
         SettleAs::Cancelled { .. }
         | SettleAs::SkippedGate { .. }
         | SettleAs::FailedBeforeStart { .. } => None,
@@ -782,12 +825,21 @@ fn eval_all_bindings(
 
 /// Turn a settled SUCCESS into a FAILURE in place (an `output:` binding
 /// errored · the success it would have reported is discarded). Only ever
-/// called on a `Ran(Success)` settle (see [`bind_outputs`]).
+/// called on a success-shaped settle (see [`bind_outputs`]).
 fn replace_success_with_failure(settle: &mut SettleAs, error: TaskErrorRecord) {
-    if let SettleAs::Ran(ran) = settle
-        && matches!(ran.result, RunResult::Success { .. })
-    {
-        ran.result = RunResult::Failed { error };
+    match settle {
+        SettleAs::Ran(ran) if matches!(ran.result, RunResult::Success { .. }) => {
+            ran.result = RunResult::Failed { error };
+        }
+        // A binding that fails over a REHYDRATED output fails the task
+        // the same way (it never started — the pre-start failure shape).
+        SettleAs::CacheHit { .. } => {
+            *settle = SettleAs::FailedBeforeStart {
+                stage: "output",
+                error,
+            };
+        }
+        _ => {}
     }
 }
 

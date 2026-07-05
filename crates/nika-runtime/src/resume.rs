@@ -185,6 +185,70 @@ pub(crate) struct ResumeStamp {
     pub input_hash: String,
 }
 
+/// One journaled success read back from a trace — the skip candidate
+/// `--resume` folds per task id (ADR-099 §1: a task skips iff BOTH
+/// hashes match what THIS run recomputes).
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct PriorSuccess {
+    /// The journaled task-definition hash.
+    pub def_hash: String,
+    /// The journaled resolved-input hash.
+    pub input_hash: String,
+    /// The journaled output (rehydrated on a hit — downstream observes
+    /// `status: success` and this value exactly as if it ran live).
+    pub output: Value,
+}
+
+impl PriorSuccess {
+    /// Construct (INV-019 · `new()` on every `#[non_exhaustive]` struct).
+    #[must_use]
+    pub fn new(def_hash: String, input_hash: String, output: Value) -> Self {
+        Self {
+            def_hash,
+            input_hash,
+            output,
+        }
+    }
+}
+
+/// The fold of a prior trace — task id → its journaled success identity.
+/// Built by the composer (the CLI reads the NDJSON trace); consumed via
+/// [`crate::Runtime::with_resume_plan`].
+pub type ResumePlan = BTreeMap<String, PriorSuccess>;
+
+/// The task ids a task's definition can observe — `depends_on` plus every
+/// `tasks.<id>` token in its raw template text. The `--from <task_id>`
+/// override walks this REVERSED to force the transitive downstream to
+/// re-run even on a hash match (ADR-099 §3). Over-collection is the safe
+/// direction (more re-runs, never a wrong skip).
+#[must_use]
+pub fn referenced_upstreams(task: &RawTask) -> std::collections::BTreeSet<String> {
+    let mut out: std::collections::BTreeSet<String> =
+        task.depends_on.iter().map(|d| d.value.clone()).collect();
+    if let Some(def) = definition_value(task) {
+        scan_task_refs(&def.to_string(), &mut out);
+    }
+    out
+}
+
+/// Collect every `tasks.<snake_case_id>` token in `text` (task ids are
+/// checker-enforced `snake_case`, so the boundary scan is exact enough —
+/// and a false positive only ever forces an extra re-run).
+fn scan_task_refs(text: &str, out: &mut std::collections::BTreeSet<String>) {
+    let mut rest = text;
+    while let Some(at) = rest.find("tasks.") {
+        let after = &rest[at + "tasks.".len()..];
+        let end = after
+            .find(|c: char| !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'))
+            .unwrap_or(after.len());
+        if end > 0 {
+            out.insert(after[..end].to_owned());
+        }
+        rest = &after[end..];
+    }
+}
+
 /// Per-run resume context — derived ONCE at run start from the envelope.
 pub(crate) struct ResumeContext {
     /// `secrets.<name>` → its by-reference marker (every DECLARED secret,
@@ -880,5 +944,142 @@ mod trace_carry_tests {
             .expect("eligible");
         assert_eq!(stamp.def_hash, def);
         assert_eq!(stamp.input_hash, input);
+    }
+
+    const TWO_TASKS: &str = "nika: v1\nworkflow: resume\ntasks:\n  - id: a\n    exec: { command: \"echo one\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo two ${{ tasks.a.output }}\" }\n";
+
+    /// Run [`TWO_TASKS`] over mock seams with an optional resume plan —
+    /// returns the outcome + the emitted stream.
+    async fn run_two_tasks(
+        shell: MockShell,
+        plan: Option<super::ResumePlan>,
+    ) -> (crate::RunOutcome, VecSink) {
+        let wf = nika_schema::parse(
+            TWO_TASKS,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        assert!(report.is_clean());
+        let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+        let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+        let mut runtime = Runtime::new(
+            ExecVerb::new(Arc::new(shell)),
+            Arc::clone(&invoke),
+            InferVerb::new(registry, "mock/echo"),
+            AgentVerb::new(
+                Arc::new(MockProvider::new("mock")),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "mock/echo",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default(),
+        );
+        if let Some(plan) = plan {
+            runtime = runtime.with_resume_plan(plan);
+        }
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("clean run");
+        (outcome, sink)
+    }
+
+    /// The full ADR-099 fold: run → read the journaled identity → resume
+    /// with a plan → the matched task CACHE-HITS (visible `task_cache_hit`
+    /// · rehydrated output · no `task_started`) and the rest runs live.
+    #[tokio::test]
+    async fn resume_plan_skips_matching_tasks_and_runs_the_rest() {
+        // First run — both tasks execute; harvest a's journaled identity.
+        let (first, sink) = run_two_tasks(
+            MockShell::new().enqueue_ok("one\n").enqueue_ok("two\n"),
+            None,
+        )
+        .await;
+        assert!(first.ok);
+        assert!(first.cache_hits.is_empty(), "a fresh run never cache-hits");
+        let completed_a = sink
+            .events()
+            .iter()
+            .find(|e| e.kind == EventKind::TaskCompleted && str_field(e, "task") == Some("a"))
+            .expect("a completed");
+        let plan = super::ResumePlan::from([(
+            "a".to_owned(),
+            super::PriorSuccess::new(
+                str_field(completed_a, super::fields::DEF_HASH)
+                    .expect("def_hash")
+                    .to_owned(),
+                str_field(completed_a, super::fields::INPUT_HASH)
+                    .expect("input_hash")
+                    .to_owned(),
+                serde_json::from_str(
+                    str_field(completed_a, super::fields::OUTPUT).expect("output"),
+                )
+                .expect("output parses"),
+            ),
+        )]);
+
+        // Resume — ONLY b's shell response is queued: a must never dispatch.
+        let (resumed, sink) =
+            run_two_tasks(MockShell::new().enqueue_ok("two\n"), Some(plan.clone())).await;
+        assert!(resumed.ok);
+        assert_eq!(resumed.cache_hits, vec!["a".to_owned()]);
+        let kinds_for = |task: &str| {
+            sink.events()
+                .iter()
+                .filter(|e| str_field(e, "task") == Some(task))
+                .map(|e| e.kind)
+                .collect::<Vec<_>>()
+        };
+        assert!(
+            kinds_for("a").contains(&EventKind::TaskCacheHit),
+            "the skip is VISIBLE"
+        );
+        assert!(
+            !kinds_for("a").contains(&EventKind::TaskStarted),
+            "a never re-executed"
+        );
+        assert!(
+            kinds_for("b").contains(&EventKind::TaskStarted),
+            "b ran live"
+        );
+        // Rehydration parity: a's record output matches the first run's.
+        assert_eq!(resumed.records["a"].output, first.records["a"].output);
+
+        // A stale identity (input hash mismatch) refuses the skip — both
+        // hashes MUST match (ADR-099 §1).
+        let mut stale = plan;
+        if let Some(entry) = stale.get_mut("a") {
+            entry.input_hash = "0".repeat(64);
+        }
+        let (rerun, _) = run_two_tasks(
+            MockShell::new().enqueue_ok("one\n").enqueue_ok("two\n"),
+            Some(stale),
+        )
+        .await;
+        assert!(
+            rerun.cache_hits.is_empty(),
+            "hash mismatch → re-run, never skip"
+        );
+    }
+
+    /// `referenced_upstreams` sees BOTH edge kinds — explicit
+    /// `depends_on` and `${{ tasks.<id> }}` template references (the
+    /// `--from` transitive-downstream walk rides it).
+    #[test]
+    fn referenced_upstreams_collects_explicit_and_template_edges() {
+        let wf = nika_schema::parse(
+            TWO_TASKS,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let ups = super::referenced_upstreams(&wf.tasks[1].value);
+        assert!(ups.contains("a"), "depends_on + template ref both seen");
+        assert!(super::referenced_upstreams(&wf.tasks[0].value).is_empty());
     }
 }

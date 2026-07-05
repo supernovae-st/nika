@@ -22,6 +22,7 @@
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
 mod compose;
+mod resume;
 mod sink;
 mod stamp;
 
@@ -29,6 +30,7 @@ pub use compose::{
     ProdRuntime, RuntimeCapabilities, capabilities_of, fs_boundary_of, net_boundary_of,
     production_runtime,
 };
+pub use resume::{RecoveredTrace, ResumeRequest, recover_events};
 pub use sink::{FoldSink, JsonSink, RenderMode};
 pub use stamp::SystemStamper;
 
@@ -37,7 +39,8 @@ use std::io::Write as _;
 
 use serde_json::Value;
 
-use nika_runtime::{EventSink, Runtime, Stamper};
+use nika_runtime::resume::ResumePlan;
+use nika_runtime::{EventSink, RunOutcome, Runtime, Stamper};
 use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 
@@ -60,7 +63,12 @@ use crate::verbs::exit;
 /// `vars` — the repeatable `--var KEY=VALUE` overrides (F4): each key must
 /// be a declared workflow var (unknown keys are refused · exit 3); values
 /// override a `default:` and satisfy a `required: true` var.
-// Eight independent CLI parameters ARE the clap surface — the same idiom
+///
+/// `resume` — `--resume <trace>` (ADR-099): fold the prior run's NDJSON
+/// journal into a skip plan; the runtime recomputes each task's identity
+/// and skips iff BOTH hashes match (visible `task_cache_hit` · never
+/// silent). `--from <task_id>` forces a subtree to re-run.
+// Nine independent CLI parameters ARE the clap surface — the same idiom
 // as TraceArgs' four bools, not a state machine to encode in a struct.
 #[allow(clippy::too_many_arguments)]
 #[must_use]
@@ -73,6 +81,7 @@ pub fn run(
     dry_run: bool,
     model_override: Option<&str>,
     vars: &[String],
+    resume: Option<&ResumeRequest>,
 ) -> u8 {
     // `--output` validated up front so an unknown format fails before any
     // work (machine-result mode · see `output_mode`).
@@ -119,8 +128,17 @@ pub fn run(
         return render_dry_run(file, theme.ascii);
     }
 
+    // ── `--resume` (ADR-099) — fold the prior trace into a skip plan ─
+    let resume_plan = match resume {
+        None => None,
+        Some(req) => match load_resume_plan(req, &wf, output_json) {
+            Ok(plan) => Some(plan),
+            Err(code) => return code,
+        },
+    };
+
     // ── Compose the production runtime (real seams · env keys) ──────
-    let runtime = match composed_runtime(&wf, model_override, overrides, output_json) {
+    let runtime = match composed_runtime(&wf, model_override, overrides, resume_plan, output_json) {
         Ok(rt) => rt,
         Err(code) => return code,
     };
@@ -146,7 +164,53 @@ pub fn run(
         output_json,
         theme,
         mode,
+        resume.is_some(),
     ))
+}
+
+/// Read + fold the `--resume` trace into the runtime skip plan (ADR-099).
+/// Honest degradation is the contract: a keyless trace (older engine)
+/// yields an EMPTY plan + a notice — never an error; an unreadable file
+/// or an unknown `--from` id is refused loudly (environment class).
+///
+/// # Errors
+///
+/// The exit code (already printed + enveloped) — ENV for every refusal.
+fn load_resume_plan(
+    req: &ResumeRequest,
+    wf: &RawWorkflow,
+    output_json: bool,
+) -> Result<ResumePlan, u8> {
+    let label = req.trace.display().to_string();
+    let refuse = |message: String| {
+        eprintln!("nika run: {message}");
+        emit_error_envelope(&message, output_json);
+        exit::ENV
+    };
+    let raw = std::fs::read_to_string(&req.trace)
+        .map_err(|e| refuse(format!("--resume: cannot read {label}: {e}")))?;
+    let recovered = resume::recover_events(&raw, &label)
+        .map_err(|message| refuse(format!("--resume: {message}")))?;
+    if let Some(note) = &recovered.truncated_note {
+        eprintln!("nika run: {note}");
+    }
+    let fold = resume::fold_plan(&recovered.events);
+    if fold.plan.is_empty() {
+        // Nothing skippable — an older engine's trace or a run with no
+        // journaled successes. The run proceeds fully live (never an error).
+        eprintln!("nika run: --resume: {label} carries no resume keys — running everything live");
+    } else if fold.keyless + fold.unreadable > 0 {
+        eprintln!(
+            "nika run: --resume: {} record(s) without a usable resume key — those tasks run live",
+            fold.keyless + fold.unreadable
+        );
+    }
+    let mut plan = fold.plan;
+    if let Some(from) = &req.from {
+        resume::apply_from(&mut plan, wf, from)
+            .map_err(|message| refuse(format!("--resume: {message}")))?;
+    }
+    Ok(plan)
 }
 
 /// `nika examples run <slug>` — execute one EMBEDDED example through the
@@ -190,6 +254,7 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         false,
         model_override,
         &[],
+        None,
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the tip then never
@@ -306,13 +371,20 @@ fn composed_runtime(
     wf: &RawWorkflow,
     model_override: Option<&str>,
     overrides: BTreeMap<String, Value>,
+    resume_plan: Option<ResumePlan>,
     output_json: bool,
 ) -> Result<ProdRuntime, u8> {
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
     let default_model = model_override.unwrap_or(envelope_model);
     let caps = capabilities_of(wf);
     match production_runtime(default_model, caps) {
-        Ok(rt) => Ok(rt.with_var_overrides(overrides)),
+        Ok(rt) => {
+            let rt = rt.with_var_overrides(overrides);
+            Ok(match resume_plan {
+                Some(plan) => rt.with_resume_plan(plan),
+                None => rt,
+            })
+        }
         Err(e) => {
             eprintln!("nika run: environment: {e}");
             emit_error_envelope(&e.to_string(), output_json);
@@ -346,14 +418,14 @@ pub(crate) fn capture_mock_outputs(
     Ok(rt.block_on(async {
         let mut stamper = SystemStamper::new();
         let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Quiet);
-        let (code, outputs) = drive(&runtime, wf, report, &mut stamper, &mut sink).await;
+        let (code, outcome) = drive(&runtime, wf, report, &mut stamper, &mut sink).await;
         // Success is silent (the caller prints the test verdict); a failed
         // mock run surfaces its compact verdict card so the operator sees
         // WHY before the caller's exit.
         if code != exit::OK {
             sink.print_final();
         }
-        (code, outputs)
+        (code, outcome.outputs)
     }))
 }
 
@@ -388,6 +460,9 @@ fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
 }
 
 /// Drive the runtime through the chosen sink · return the exit code.
+// The 9th parameter is the `--resume` summary switch — same clap-surface
+// idiom as `run` itself.
+#[allow(clippy::too_many_arguments)]
 async fn execute(
     runtime: &ProdRuntime,
     wf: &RawWorkflow,
@@ -396,6 +471,7 @@ async fn execute(
     output_json: bool,
     theme: Theme,
     mode: RenderMode,
+    resumed: bool,
 ) -> u8 {
     let mut stamper = SystemStamper::new();
     if output_json {
@@ -409,8 +485,9 @@ async fn execute(
         // storyboard frame is what matters, not the animation.
         let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
         sink.set_plan(plan_waves(wf, report));
-        let (code, outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         sink.print_final();
+        print_resume_summary(&outcome, resumed, true);
         // Built BEFORE the sink is consumed — the failure envelope reads
         // the folded view (the failed row's detail carries the wire code).
         let failure_line = (code != exit::OK).then(|| run_failure_envelope(sink.view()));
@@ -426,21 +503,22 @@ async fn execute(
         // scrape stderr to learn WHY).
         match failure_line {
             Some(line) => println!("{line}"),
-            None => println!("{}", outputs_json_line(&outputs)),
+            None => println!("{}", outputs_json_line(&outcome.outputs)),
         }
         code
     } else if json {
         let mut sink = JsonSink::new(std::io::stdout().lock());
-        let (code, _outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: stream write failed: {e}");
             return exit::ENV;
         }
+        print_resume_summary(&outcome, resumed, true);
         code
     } else {
         let mut sink = FoldSink::new(std::io::stdout().lock(), theme, mode);
         sink.set_plan(plan_waves(wf, report));
-        let (code, outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         // `Live` painted in place during the run; `Plain`/`Quiet` folded
         // silently · print the ONE final frame now.
         if mode != RenderMode::Live {
@@ -451,13 +529,35 @@ async fn execute(
         // registers (piped `Plain` · `--quiet` · machine modes) stay
         // untouched — CI logs never grow chart art.
         if mode == RenderMode::Live {
-            print_flow_epilogue(sink.view(), &outputs, theme);
+            print_flow_epilogue(sink.view(), &outcome.outputs, theme);
         }
+        print_resume_summary(&outcome, resumed, false);
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: render failed: {e}");
             return exit::ENV;
         }
         code
+    }
+}
+
+/// The `--resume` post-run summary (`resumed · N skipped · M ran live`) —
+/// printed ONLY when a resume was requested (a fresh run's surfaces stay
+/// byte-identical). Machine modes route it to stderr (stdout is the
+/// contract surface); human modes print it under the final frame.
+fn print_resume_summary(outcome: &RunOutcome, resumed: bool, to_stderr: bool) {
+    if !resumed {
+        return;
+    }
+    let ran_live = outcome
+        .records
+        .values()
+        .filter(|r| r.started_at.is_some())
+        .count();
+    let line = resume::summary_line(outcome.cache_hits.len(), ran_live);
+    if to_stderr {
+        eprintln!("{line}");
+    } else {
+        println!("\n  {line}");
     }
 }
 
@@ -516,7 +616,7 @@ async fn drive<S, T, H, P, D, C>(
     report: &CheckReport,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
-) -> (u8, BTreeMap<String, Value>)
+) -> (u8, RunOutcome)
 where
     S: nika_kernel::process::ShellRunDyn + Sync,
     T: nika_kernel::tool_executor::ToolExecuteDyn,
@@ -528,7 +628,7 @@ where
     match runtime.run(wf, report, stamper, sink).await {
         Ok(outcome) => {
             let code = if outcome.ok { exit::OK } else { exit::WORKFLOW };
-            (code, outcome.outputs)
+            (code, outcome)
         }
         Err(err) => {
             use nika_error::traits::NikaErrorCode as _;
@@ -540,7 +640,10 @@ where
                  please report it",
                 err.nika_code()
             );
-            (exit::ENV, BTreeMap::new())
+            (
+                exit::ENV,
+                RunOutcome::new(false, BTreeMap::new(), BTreeMap::new()),
+            )
         }
     }
 }
@@ -724,6 +827,7 @@ mod tests {
             false,
             Some("mock/echo"),
             &[],
+            None,
         );
         assert_eq!(
             code,
@@ -752,6 +856,7 @@ mod tests {
             false,
             Some("mock/echo"),
             &[],
+            None,
         );
         assert_eq!(
             overridden,
@@ -777,6 +882,7 @@ mod tests {
             false,
             None,
             vars,
+            None,
         )
     }
 

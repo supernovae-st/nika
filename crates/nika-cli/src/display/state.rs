@@ -192,6 +192,14 @@ impl RunView {
                     self.token_samples.push(u64::try_from(tokens).unwrap_or(0));
                 }
             }
+            // ADR-099 `--resume` — a rehydrated success: the row reads Ok
+            // with the "cache hit" note the frame carries (VISIBLE, never
+            // silent); zero duration/spend (the task never ran here).
+            EventKind::TaskCacheHit => {
+                if let Some(i) = self.touch(event, TaskState::Ok) {
+                    self.rows[i].ended_ms = Some(ts);
+                }
+            }
             EventKind::TaskFailed => {
                 let usd = float_field(event, "cost_usd");
                 if let Some(i) = self.touch(event, TaskState::Failed) {

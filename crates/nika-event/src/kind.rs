@@ -100,6 +100,16 @@ pub enum EventKind {
     /// `budget` fields — the spend curve is observable while the loop
     /// runs, not just at its end).
     AgentBudgetCheckpoint,
+    // ── additive cohort 2026-07-05 · ADR-099 durable-lite resume —
+    //    the skip is VISIBLE, never silent. MINOR-bump additive per
+    //    the header law. ──
+    /// A task was skipped under `--resume` because its identity matched
+    /// a journaled success (`task` + `def_hash` + `input_hash` +
+    /// `output` fields — the rehydration record · spec vocabulary
+    /// `task.cache_hit` · ADR-099 §2). Downstream observes `status:
+    /// success` exactly as if it ran live; the task-state enum stays
+    /// CLOSED — the cache/live distinction rides the event stream only.
+    TaskCacheHit,
 }
 
 impl EventKind {
@@ -134,6 +144,7 @@ impl EventKind {
             Self::AgentStalled => "agent_stalled",
             Self::AgentComposeChecked => "agent_compose_checked",
             Self::AgentBudgetCheckpoint => "agent_budget_checkpoint",
+            Self::TaskCacheHit => "task_cache_hit",
         }
     }
 
@@ -193,7 +204,8 @@ impl EventKind {
             | Self::TaskFailed
             | Self::TaskSkipped
             | Self::TaskRetrying
-            | Self::TaskCancelled => EventClass::Task,
+            | Self::TaskCancelled
+            | Self::TaskCacheHit => EventClass::Task,
             Self::VerbInvoked | Self::ToolInvoked => EventClass::Dispatch,
             Self::CheckpointWritten => EventClass::Durability,
             Self::CostIncurred => EventClass::Cost,
@@ -274,6 +286,7 @@ mod tests {
         EventKind::AgentStalled,
         EventKind::AgentComposeChecked,
         EventKind::AgentBudgetCheckpoint,
+        EventKind::TaskCacheHit,
     ];
 
     #[test]
@@ -304,10 +317,11 @@ mod tests {
                 | EventKind::AgentNudge
                 | EventKind::AgentStalled
                 | EventKind::AgentComposeChecked
-                | EventKind::AgentBudgetCheckpoint => {}
+                | EventKind::AgentBudgetCheckpoint
+                | EventKind::TaskCacheHit => {}
             }
         }
-        assert_eq!(ALL.len(), 22, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 23, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
@@ -361,6 +375,10 @@ mod tests {
         // the TASK has not).
         assert!(!EventKind::TaskRetrying.is_failure());
         assert!(!EventKind::TaskRetrying.is_terminal());
+        // A cache hit is a SUCCESS-shaped task event (ADR-099): never a
+        // failure, never terminal for the run.
+        assert!(!EventKind::TaskCacheHit.is_failure());
+        assert!(!EventKind::TaskCacheHit.is_terminal());
     }
 
     #[test]

@@ -124,6 +124,9 @@ pub struct RunOutcome {
     /// whose reference no longer resolves is omitted · the verdict is
     /// unchanged · spec §3).
     pub outputs: BTreeMap<String, Value>,
+    /// The task ids that settled as ADR-099 cache hits, in settle order
+    /// (empty on a fresh run — feeds the `--resume` summary line).
+    pub cache_hits: Vec<String>,
 }
 
 impl RunOutcome {
@@ -138,6 +141,7 @@ impl RunOutcome {
             ok,
             records,
             outputs,
+            cache_hits: Vec::new(),
         }
     }
 }
@@ -160,6 +164,10 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// wins and a `required: true` var without a default becomes
     /// runnable. Empty by default (envelope defaults only).
     var_overrides: BTreeMap<String, Value>,
+    /// ADR-099 `--resume` skip plan — task id → the journaled success it
+    /// may match (BOTH hashes · §1). Empty by default (a fresh run
+    /// executes every task — `task.cache_hit` fires only under resume).
+    resume_plan: resume::ResumePlan,
 }
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
@@ -185,6 +193,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             config,
             secrets: Arc::new(secret::NoSecrets),
             var_overrides: BTreeMap::new(),
+            resume_plan: resume::ResumePlan::new(),
         }
     }
 
@@ -206,6 +215,18 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_var_overrides(mut self, overrides: BTreeMap<String, Value>) -> Self {
         self.var_overrides = overrides;
+        self
+    }
+
+    /// Inject the ADR-099 `--resume` skip plan (the composer folds a
+    /// prior NDJSON trace into task id → [`resume::PriorSuccess`]).
+    /// Builder form — a task skips iff BOTH its recomputed hashes match
+    /// its journaled success; everything else runs live (§1). An entry
+    /// the composer removed (`--from` + transitive downstream) simply
+    /// re-runs.
+    #[must_use]
+    pub fn with_resume_plan(mut self, plan: resume::ResumePlan) -> Self {
+        self.resume_plan = plan;
         self
     }
 }
@@ -347,6 +368,7 @@ where
 
         let mut records: BTreeMap<String, TaskRecord> = BTreeMap::new();
         let mut ok = true;
+        let mut cache_hits: Vec<String> = Vec::new();
 
         for wave in &report.waves {
             // Resolve indices up front — a bad index is a schedule
@@ -375,7 +397,14 @@ where
             .await;
 
             for finish in finishes {
-                settle(finish, &mut records, &mut ok, stamper, sink);
+                settle(
+                    finish,
+                    &mut records,
+                    &mut ok,
+                    &mut cache_hits,
+                    stamper,
+                    sink,
+                );
             }
         }
 
@@ -386,7 +415,9 @@ where
         let outputs = resolve_outputs(wf, &records, &vars, &secrets);
         let ok = finalize_outputs(wf, &outputs, &workflow_name, ok, stamper, sink);
 
-        Ok(RunOutcome::new(ok, records, outputs))
+        let mut outcome = RunOutcome::new(ok, records, outputs);
+        outcome.cache_hits = cache_hits;
+        Ok(outcome)
     }
 }
 
@@ -396,6 +427,7 @@ fn settle(
     finish: Finish,
     records: &mut BTreeMap<String, TaskRecord>,
     ok: &mut bool,
+    cache_hits: &mut Vec<String>,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
@@ -448,6 +480,26 @@ fn settle(
             record.error = Some(error);
             records.insert(id, with_named(record, named));
             *ok = false;
+        }
+        SettleAs::CacheHit { output } => {
+            // ADR-099 §2 — the skip is VISIBLE: one `task_cache_hit`
+            // frame carrying the matched identity + the rehydrated
+            // output (so a resumed run's own trace stays resumable).
+            // No `TaskStarted` · no duration — the task never ran here.
+            let mut fields = vec![("task", s(&id)), ("note", s("cache hit"))];
+            let output_text = serde_json::to_string(&output).unwrap_or_else(|_| "null".to_owned());
+            if let Some(stamp) = resume.as_ref() {
+                fields.push((resume::fields::DEF_HASH, s(&stamp.def_hash)));
+                fields.push((resume::fields::INPUT_HASH, s(&stamp.input_hash)));
+                fields.push((resume::fields::OUTPUT, s(&output_text)));
+            }
+            let ended = emit(stamper, sink, EventKind::TaskCacheHit, &fields);
+            let mut record = TaskRecord::unran(TaskStatus::Success);
+            record.output = output;
+            record.ended_at = Some(ended);
+            record.named = named;
+            records.insert(id.clone(), record);
+            cache_hits.push(id);
         }
         SettleAs::Ran(run) => {
             let mut record = settle_ran(&id, run, resume.as_ref(), ok, stamper, sink);
