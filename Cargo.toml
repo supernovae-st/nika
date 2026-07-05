@@ -186,6 +186,11 @@ panic          = "deny"
 todo           = "warn"
 unimplemented  = "warn"
 dbg_macro      = "deny"
+# Iterating a HashMap/HashSet is ordering-nondeterminism by construction —
+# poison for an engine whose outputs, manifests and goldens must be
+# byte-stable. BTree/sorted structures everywhere (measured: 0 violations
+# across 40 crates when adopted · the ruff workspace carries the same lint).
+iter_over_hash_type = "deny"
 print_stdout   = "warn"
 print_stderr   = "warn"
 # Per-function 100-LOC soft cap (ADR-023). Function modularity discipline.
