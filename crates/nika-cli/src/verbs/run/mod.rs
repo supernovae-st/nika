@@ -103,7 +103,7 @@ pub fn run(
             // Pre-run diagnostics obey the export contract too: in machine
             // mode they go to stderr so a `capture: stdout` consumer never
             // mistakes the "cannot read" text for the JSON result.
-            emit_diagnostic(&out.text, output_json);
+            emit_diagnostic(&refusal_text(&out), output_json);
             return out.code;
         }
     };
@@ -346,6 +346,22 @@ fn example_model(yaml: &str) -> String {
     .ok()
     .and_then(|wf| wf.model.map(|m| m.value))
     .unwrap_or_default()
+}
+
+/// House-voice a pre-run refusal (the empty-state audit · design §3):
+/// the ENV class (an unreadable/missing file) gains the `nika run:`
+/// prefix, ONE `fix:` line and a closing newline — a bare
+/// `cannot read …(os error 2)` glued to the prompt taught nothing.
+/// FILE findings pass through untouched (the check renderer's card is
+/// already the teaching surface).
+fn refusal_text(out: &crate::verbs::VerbOutput) -> String {
+    if out.code != exit::ENV {
+        return out.text.clone();
+    }
+    format!(
+        "nika run: {}\n  fix: check the path — `nika examples list` names runnable demos\n",
+        out.text.trim_end()
+    )
 }
 
 /// Validate `--output` up front — `Ok(true)` selects the machine-result
@@ -926,6 +942,30 @@ mod tests {
         // failure cannot be model-related — the nudge would mislead (the
         // cold-user e2e hit exactly this on 16-exec-pipeline).
         assert!(!offline_tip_applies(exit::WORKFLOW, false, ""));
+    }
+
+    /// The empty-state voice (design §3 rider): an ENV refusal (missing
+    /// file) carries the house prefix + ONE fix line + a closing
+    /// newline; FILE findings pass through to the check card untouched.
+    #[test]
+    fn refusal_text_teaches_only_the_env_class() {
+        let env = crate::verbs::VerbOutput {
+            text: "cannot read demo.yaml: No such file or directory (os error 2)".to_owned(),
+            code: exit::ENV,
+        };
+        let voiced = super::refusal_text(&env);
+        assert!(
+            voiced.starts_with("nika run: cannot read demo.yaml"),
+            "{voiced}"
+        );
+        assert!(voiced.contains("fix: check the path"), "{voiced}");
+        assert!(voiced.ends_with('\n'), "closes its own line: {voiced:?}");
+
+        let findings = crate::verbs::VerbOutput {
+            text: "PARSE X  [NIKA-PARSE-009] two verbs".to_owned(),
+            code: exit::FILE,
+        };
+        assert_eq!(super::refusal_text(&findings), findings.text);
     }
 
     /// A noiseless theme (no colour · no animation) for the run tests — they

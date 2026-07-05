@@ -32,6 +32,7 @@ use nika_event::Event;
 // filename, so the version/usage/errors must say `nika`, not the seed crate name.
 #[command(
     name = "nika",
+    bin_name = "nika",
     version,
     about = "nika · the AI workflow engine — operator surface"
 )]
@@ -487,8 +488,7 @@ fn main() -> std::process::ExitCode {
         },
         Command::New { from, dest, force } => emit(&verbs::new::run(&from, dest.as_deref(), force)),
         Command::Completions { shell } => {
-            let mut cmd = Cli::command();
-            clap_complete::generate(shell, &mut cmd, "nika-cli", &mut std::io::stdout());
+            write_completions(shell, &mut std::io::stdout());
             0
         }
         Command::Trace { action } => trace_verb(action, color, link_when),
@@ -615,6 +615,14 @@ fn resolve_run_mode(quiet: bool, no_progress: bool) -> verbs::run::RenderMode {
     }
 }
 
+/// Write shell completions attached to the PUBLIC binary name — `nika`,
+/// never the seed crate's file name (`#compdef nika-cli` would wire
+/// completions to a command users never type · found live 2026-07-05).
+fn write_completions(shell: clap_complete::Shell, out: &mut dyn std::io::Write) {
+    let mut cmd = Cli::command();
+    clap_complete::generate(shell, &mut cmd, "nika", out);
+}
+
 /// Collect the colour-relevant environment facts once (the pure priority
 /// chain lives in `display::format::color_enabled` — this is its I/O half).
 fn color_env() -> ColorEnv {
@@ -642,8 +650,11 @@ fn trace_render(args: &TraceArgs, replay: bool, color: ColorWhenArg, link_when: 
     let events = match load_events(args) {
         Ok(events) => events,
         Err(message) => {
-            eprintln!("nika-cli: {message}");
-            return 3; // environment error (spec §4)
+            eprintln!("nika trace: {message}");
+            eprintln!(
+                "  fix: a trace is the NDJSON a run records — nika run <wf> --json > run.ndjson"
+            );
+            return verbs::exit::ENV; // environment error (spec §4)
         }
     };
 
@@ -791,6 +802,36 @@ fn env_value(name: &str) -> Option<String> {
 mod tests {
     #![allow(clippy::expect_used)]
     use super::*;
+
+    /// The public name is `nika` EVERYWHERE clap speaks (found live
+    /// 2026-07-05): the Usage line (`bin_name`) and the generated shell
+    /// completions — `#compdef nika-cli` attached completions to a
+    /// command users never type, dead on arrival.
+    #[test]
+    fn clap_surfaces_speak_the_public_binary_name() {
+        let help = Cli::command().render_help().to_string();
+        assert!(help.contains("Usage: nika "), "usage speaks `nika`: {help}");
+        assert!(!help.contains("nika-cli"), "the seed name never leaks");
+
+        let mut zsh = Vec::new();
+        write_completions(clap_complete::Shell::Zsh, &mut zsh);
+        let zsh = String::from_utf8(zsh).expect("utf8");
+        assert!(
+            zsh.starts_with("#compdef nika\n"),
+            "zsh attaches to `nika`: {}",
+            zsh.lines().next().unwrap_or_default()
+        );
+
+        let mut bash = Vec::new();
+        write_completions(clap_complete::Shell::Bash, &mut bash);
+        let bash = String::from_utf8(bash).expect("utf8");
+        assert!(
+            bash.contains("complete -F _nika -o nosort -o bashdefault -o default nika")
+                || (bash.contains("default nika") && !bash.contains("nika-cli")),
+            "bash completes `nika`, never nika-cli: {bash}"
+        );
+        assert!(!bash.contains("nika-cli"), "the seed name never leaks");
+    }
 
     /// One valid serialized Event line — reuse the demo's real events.
     fn valid_line() -> String {
