@@ -921,11 +921,7 @@ mod tests {
     /// A noiseless theme (no colour · no animation) for the run tests — they
     /// exercise the COMPOSITION + exit code, not the render surface.
     fn plain_theme() -> Theme {
-        Theme {
-            color: false,
-            ascii: true,
-            animate: false,
-        }
+        Theme::new(false, true, false)
     }
 
     fn stage(name: &str, yaml: &str) -> std::path::PathBuf {

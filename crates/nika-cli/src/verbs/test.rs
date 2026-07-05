@@ -262,11 +262,7 @@ mod tests {
 
     /// A noiseless theme — the tests exercise verdicts, not paint.
     fn plain_theme() -> Theme {
-        Theme {
-            color: false,
-            ascii: true,
-            animate: false,
-        }
+        Theme::new(false, true, false)
     }
 
     /// A deterministic mock workflow with a typed `outputs:` block.

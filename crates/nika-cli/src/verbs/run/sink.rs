@@ -235,11 +235,7 @@ mod tests {
 
     #[test]
     fn fold_sink_non_interactive_folds_silent_then_prints_one_frame() {
-        let theme = Theme {
-            color: false,
-            ascii: true,
-            animate: false,
-        };
+        let theme = Theme::new(false, true, false);
         let mut buf = Vec::new();
         {
             // Plain: no per-event repaint · one final storyboard frame.
@@ -262,11 +258,7 @@ mod tests {
 
     #[test]
     fn fold_sink_quiet_prints_only_the_verdict_card() {
-        let theme = Theme {
-            color: false,
-            ascii: true,
-            animate: false,
-        };
+        let theme = Theme::new(false, true, false);
         let mut buf = Vec::new();
         {
             let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Quiet);
@@ -288,11 +280,7 @@ mod tests {
 
     #[test]
     fn fold_sink_interactive_repaints_in_place() {
-        let theme = Theme {
-            color: false,
-            ascii: false,
-            animate: false,
-        };
+        let theme = Theme::new(false, false, false);
         let mut buf = Vec::new();
         {
             let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Live);
@@ -308,11 +296,7 @@ mod tests {
 
     #[test]
     fn fold_sink_failure_keeps_the_false_verdict() {
-        let theme = Theme {
-            color: false,
-            ascii: false,
-            animate: false,
-        };
+        let theme = Theme::new(false, false, false);
         let mut buf = Vec::new();
         let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Plain);
         for ev in demo::failure() {
@@ -329,11 +313,7 @@ mod tests {
     fn fold_sink_tails_are_opt_in() {
         use nika_event::EventKind;
         use nika_types::resource::{KeyValue, Value};
-        let theme = Theme {
-            color: false,
-            ascii: true,
-            animate: false,
-        };
+        let theme = Theme::new(false, true, false);
         let completed = demo::bare_event(EventKind::TaskCompleted, 5)
             .with_field(KeyValue::new("task", Value::String("audit".into())))
             .with_field(KeyValue::new("output", Value::String("[1,2]".into())));
@@ -361,11 +341,7 @@ mod tests {
     /// control).
     #[test]
     fn fold_sink_live_first_frame_writes_no_cursor_jump() {
-        let theme = Theme {
-            color: false,
-            ascii: false,
-            animate: false,
-        };
+        let theme = Theme::new(false, false, false);
         let mut buf = Vec::new();
         let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Live);
         let events = demo::success();

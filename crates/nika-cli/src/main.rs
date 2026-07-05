@@ -21,6 +21,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
+use nika_cli::display::format::{ColorChoice, ColorEnv, color_enabled};
 use nika_cli::verbs::{self, VerbOutput};
 use nika_cli::{RunView, Theme, frame};
 use nika_event::Event;
@@ -35,8 +36,37 @@ use nika_event::Event;
     about = "nika · the AI workflow engine — operator surface"
 )]
 struct Cli {
+    /// When to colour the output (auto = TTY + `TERM != dumb` · honours
+    /// `CLICOLOR_FORCE` · `NO_COLOR` · `CLICOLOR=0` in that order).
+    #[arg(long, global = true, value_enum, default_value_t = ColorWhenArg::Auto)]
+    color: ColorWhenArg,
     #[command(subcommand)]
     command: Command,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum ColorWhenArg {
+    /// Force colour on (pagers accepting escapes · captured demos).
+    Always,
+    /// Force colour off (the `--no-color` flags fold here).
+    Never,
+    /// Resolve from the environment chain + TTY (the default).
+    Auto,
+}
+
+impl ColorWhenArg {
+    /// Fold a verb's legacy `--no-color` sugar into the tri-state: an
+    /// explicit off wins (both flags together = the conservative read).
+    fn with_no_color(self, no_color: bool) -> ColorChoice {
+        if no_color {
+            return ColorChoice::Never;
+        }
+        match self {
+            Self::Always => ColorChoice::Always,
+            Self::Never => ColorChoice::Never,
+            Self::Auto => ColorChoice::Auto,
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -373,6 +403,7 @@ struct TraceArgs {
 
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
+    let color = cli.color;
     let code = match cli.command {
         Command::Check {
             file,
@@ -384,17 +415,25 @@ fn main() -> std::process::ExitCode {
             let out = if infer_permits {
                 verbs::check::run_infer_permits(&file, json)
             } else {
-                verbs::check::run(&file, json, term_theme(no_color, ascii))
+                verbs::check::run(
+                    &file,
+                    json,
+                    term_theme(color.with_no_color(no_color), ascii),
+                )
             };
             emit(&out)
         }
-        Command::Run(args) => run_verb(&args),
+        Command::Run(args) => run_verb(&args, color),
         Command::Test {
             file,
             update,
             no_color,
             ascii,
-        } => verbs::test::run(&file, update, term_theme(no_color, ascii)),
+        } => verbs::test::run(
+            &file,
+            update,
+            term_theme(color.with_no_color(no_color), ascii),
+        ),
         Command::Inspect { file, ascii } => emit(&verbs::inspect::run(&file, ascii)),
         Command::Graph { file, format } => {
             let format = match format {
@@ -414,9 +453,11 @@ fn main() -> std::process::ExitCode {
             ExamplesAction::List => emit(&verbs::pack_surface::examples_list()),
             ExamplesAction::Show { slug } => emit(&verbs::pack_surface::examples_show(&slug)),
             // The L3 run verb shipped — execute the embedded example for real.
-            ExamplesAction::Run { slug, model } => {
-                verbs::run::example(&slug, model.as_deref(), term_theme(false, false))
-            }
+            ExamplesAction::Run { slug, model } => verbs::run::example(
+                &slug,
+                model.as_deref(),
+                term_theme(color.with_no_color(false), false),
+            ),
         },
         Command::New { from, dest, force } => emit(&verbs::new::run(&from, dest.as_deref(), force)),
         Command::Completions { shell } => {
@@ -424,7 +465,7 @@ fn main() -> std::process::ExitCode {
             clap_complete::generate(shell, &mut cmd, "nika-cli", &mut std::io::stdout());
             0
         }
-        Command::Trace { action } => trace_verb(action),
+        Command::Trace { action } => trace_verb(action, color),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
@@ -465,17 +506,17 @@ fn emit(out: &VerbOutput) -> u8 {
 
 /// Dispatch the `trace` verb family: the live renders (replay · show)
 /// plus the static readers (outputs · peek · flow).
-fn trace_verb(action: TraceAction) -> u8 {
+fn trace_verb(action: TraceAction, color: ColorWhenArg) -> u8 {
     match action {
-        TraceAction::Replay(args) => trace_render(&args, true),
-        TraceAction::Show(args) => trace_render(&args, false),
+        TraceAction::Replay(args) => trace_render(&args, true, color),
+        TraceAction::Show(args) => trace_render(&args, false, color),
         TraceAction::Outputs {
             trace,
             ascii,
             no_color,
         } => emit(&verbs::trace::outputs(
             &trace.to_string_lossy(),
-            term_theme(no_color, ascii),
+            term_theme(color.with_no_color(no_color), ascii),
         )),
         TraceAction::Peek {
             trace,
@@ -487,7 +528,7 @@ fn trace_verb(action: TraceAction) -> u8 {
             &trace.to_string_lossy(),
             &task,
             raw,
-            term_theme(no_color, ascii),
+            term_theme(color.with_no_color(no_color), ascii),
         )),
         TraceAction::Flow {
             trace,
@@ -497,13 +538,13 @@ fn trace_verb(action: TraceAction) -> u8 {
         } => emit(&verbs::trace::flow(
             &trace.to_string_lossy(),
             &workflow,
-            term_theme(no_color, ascii),
+            term_theme(color.with_no_color(no_color), ascii),
         )),
     }
 }
 
 /// Unpack the `run` clap surface into the library verb call.
-fn run_verb(args: &RunArgs) -> u8 {
+fn run_verb(args: &RunArgs, color: ColorWhenArg) -> u8 {
     let resume = args.resume.as_ref().map(|trace| verbs::run::ResumeRequest {
         trace: trace.clone(),
         from: args.from.clone(),
@@ -513,7 +554,7 @@ fn run_verb(args: &RunArgs) -> u8 {
         &args.file,
         args.json,
         args.output.as_deref(),
-        term_theme(args.no_color, args.ascii),
+        term_theme(color.with_no_color(args.no_color), args.ascii),
         resolve_run_mode(args.quiet, args.no_progress),
         args.dry_run,
         args.model.as_deref(),
@@ -538,18 +579,25 @@ fn resolve_run_mode(quiet: bool, no_progress: bool) -> verbs::run::RenderMode {
     }
 }
 
-/// Resolve the colour/glyph theme for static (non-animated) surfaces.
-fn term_theme(no_color: bool, ascii: bool) -> Theme {
-    let tty = std::io::stdout().is_terminal();
-    Theme {
-        color: tty && !no_color && !env_flag("NO_COLOR"),
-        ascii,
-        animate: false,
+/// Collect the colour-relevant environment facts once (the pure priority
+/// chain lives in `display::format::color_enabled` — this is its I/O half).
+fn color_env() -> ColorEnv {
+    ColorEnv {
+        force: env_value("CLICOLOR_FORCE").is_some_and(|v| !v.is_empty() && v != "0"),
+        no_color: env_flag("NO_COLOR"),
+        clicolor_zero: env_value("CLICOLOR").is_some_and(|v| v == "0"),
+        term_dumb: env_value("TERM").is_some_and(|v| v == "dumb"),
     }
 }
 
+/// Resolve the colour/glyph theme for static (non-animated) surfaces.
+fn term_theme(choice: ColorChoice, ascii: bool) -> Theme {
+    let tty = std::io::stdout().is_terminal();
+    Theme::new(color_enabled(choice, color_env(), tty), ascii, false)
+}
+
 /// Load events, fold, render — live replay or final card.
-fn trace_render(args: &TraceArgs, replay: bool) -> u8 {
+fn trace_render(args: &TraceArgs, replay: bool, color: ColorWhenArg) -> u8 {
     let events = match load_events(args) {
         Ok(events) => events,
         Err(message) => {
@@ -559,11 +607,8 @@ fn trace_render(args: &TraceArgs, replay: bool) -> u8 {
     };
 
     let tty = std::io::stdout().is_terminal();
-    let theme = Theme {
-        color: tty && !args.no_color && !env_flag("NO_COLOR"),
-        ascii: args.ascii,
-        animate: tty && replay && !env_flag("NIKA_REDUCED_MOTION"),
-    };
+    let mut theme = term_theme(color.with_no_color(args.no_color), args.ascii);
+    theme.animate = tty && replay && !env_flag("NIKA_REDUCED_MOTION");
 
     // The shape tails ride the interactive surface only: a TTY render
     // (show OR replay) carries them unless `--no-outputs`; a piped
@@ -680,6 +725,13 @@ fn recover_events(raw: &str, label: &str) -> Result<Vec<Event>, String> {
 #[allow(clippy::disallowed_methods)]
 fn env_flag(name: &str) -> bool {
     std::env::var_os(name).is_some_and(|v| !v.is_empty())
+}
+
+/// Read a presentation variable's VALUE (`CLICOLOR` · `TERM` ·
+/// `COLORTERM`) — the same non-secret seam as [`env_flag`].
+#[allow(clippy::disallowed_methods)]
+fn env_value(name: &str) -> Option<String> {
+    std::env::var(name).ok()
 }
 
 #[cfg(test)]

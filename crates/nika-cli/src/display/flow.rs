@@ -10,6 +10,7 @@
 //! honest overlap. Everything here (lane markers · durations) derives
 //! from that one reconstruction.
 
+use crate::display::format::fmt_cost_usd;
 use crate::display::state::{RunView, TaskRow, TaskState};
 use crate::display::theme::{Role, Theme};
 
@@ -160,7 +161,7 @@ pub fn waterfall(view: &RunView, theme: &Theme) -> Vec<String> {
         line.push_str("  ");
         line.push_str(&theme.paint(Role::Dim, &format!("{dur:>time_w$}")));
         if let Some(cost) = row.cost_usd {
-            line.push_str(&theme.paint(Role::Dim, &format!(" · ${cost:.4}")));
+            line.push_str(&theme.paint(Role::Dim, &format!(" · {}", fmt_cost_usd(cost))));
         }
         lines.push(line);
     }
@@ -317,7 +318,7 @@ fn totals_row(view: &RunView) -> String {
     if tokens > 0 {
         let _ = write!(row, " · {tokens} tok");
     }
-    let _ = write!(row, " · ${:.4}", view.cost_usd);
+    let _ = write!(row, " · {}", fmt_cost_usd(view.cost_usd));
     let mut models: Vec<&str> = Vec::new();
     for r in view.rows() {
         if let Some(m) = r.model.as_deref()
@@ -477,16 +478,8 @@ mod tests {
         assert!(marks[2] && marks[3], "running ∥ settled sibling: {marks:?}");
     }
 
-    const PLAIN: Theme = Theme {
-        color: false,
-        ascii: false,
-        animate: false,
-    };
-    const ASCII: Theme = Theme {
-        color: false,
-        ascii: true,
-        animate: false,
-    };
+    const PLAIN: Theme = Theme::new(false, false, false);
+    const ASCII: Theme = Theme::new(false, true, false);
 
     /// Golden waterfall — bars scale to wall time, offsets carry the real
     /// sequencing, the axis closes the chart (design §2c geometry pinned:
@@ -562,7 +555,7 @@ mod tests {
         let lines = waterfall(&view, &PLAIN);
         assert_eq!(lines.len(), 3, "two ran bars + axis (no cancelled bar)");
         assert!(
-            lines[0].contains("work") && lines[0].ends_with("· $0.0020"),
+            lines[0].contains("work") && lines[0].ends_with("· $0.002"),
             "failed row bars + keeps its spend: {lines:?}"
         );
         assert!(
@@ -627,7 +620,7 @@ mod tests {
             "{lines:?}"
         );
         assert!(
-            lines[2].contains("4.7s · 710 tok · $0.0110 · claude-sonnet"),
+            lines[2].contains("4.7s · 710 tok · $0.01 · claude-sonnet"),
             "totals (wall · tokens · spend) + the model the stream named: {lines:?}"
         );
         assert!(lines[3].contains("outputs → review (object)"), "{lines:?}");

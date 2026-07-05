@@ -37,11 +37,7 @@ pub(crate) fn hint(theme: Theme, label: &str, command: &str) -> String {
 mod tests {
     use super::*;
 
-    const PLAIN: Theme = Theme {
-        color: false,
-        ascii: false,
-        animate: false,
-    };
+    const PLAIN: Theme = Theme::new(false, false, false);
 
     /// Every vocabulary glyph carries its ASCII twin — the parity law.
     #[test]

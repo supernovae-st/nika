@@ -117,16 +117,8 @@ pub fn output_tail(
 mod tests {
     use super::*;
 
-    const PLAIN: Theme = Theme {
-        color: false,
-        ascii: false,
-        animate: false,
-    };
-    const ASCII: Theme = Theme {
-        color: false,
-        ascii: true,
-        animate: false,
-    };
+    const PLAIN: Theme = Theme::new(false, false, false);
+    const ASCII: Theme = Theme::new(false, true, false);
 
     /// Objects read as their key set — array-valued keys carry `[N]`,
     /// values never leak into the shape (the design's one law).

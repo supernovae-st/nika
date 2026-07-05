@@ -47,18 +47,43 @@ impl Role {
     }
 }
 
-/// One theme = colour on/off × glyph family × motion.
+/// One theme = colour on/off × glyph family × motion × capability tier.
+// Five INDEPENDENT render knobs, not a state machine — the same
+// flags-are-flags exemption the clap arg structs carry (main.rs).
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {
-    /// Emit ANSI colour (resolved from `--color`/`NO_COLOR`/TTY upstream).
+    /// Emit ANSI colour (resolved through the ONE priority chain —
+    /// `display::format::color_enabled` · `--color` > `CLICOLOR_FORCE` >
+    /// `NO_COLOR` > `CLICOLOR=0` > TTY+`TERM≠dumb`).
     pub color: bool,
     /// Use the ASCII glyph column (CI logs · legacy conhost · `--ascii`).
     pub ascii: bool,
     /// Animate the running glyph (TTY + motion allowed).
     pub animate: bool,
+    /// Truecolor DATA ramps allowed (`COLORTERM` said truecolor/24bit ·
+    /// the duration-heat waterfall). Chrome NEVER rides this — the
+    /// ANSI-16 `Role` slots stay the chrome vocabulary (format.rs doc).
+    pub heat: bool,
+    /// Emit OSC-8 hyperlinks (`--hyperlink` · auto = TTY + `TERM≠dumb` ·
+    /// never to pipes).
+    pub links: bool,
 }
 
 impl Theme {
+    /// The 3-knob constructor every call site speaks — capability tiers
+    /// (`heat` · `links`) default OFF so a bare theme is exactly the
+    /// pre-round-8 surface (pipes · CI · tests stay byte-identical).
+    #[must_use]
+    pub const fn new(color: bool, ascii: bool, animate: bool) -> Self {
+        Self {
+            color,
+            ascii,
+            animate,
+            heat: false,
+            links: false,
+        }
+    }
     /// Paint `text` in a semantic role (no-op when colour is off).
     #[must_use]
     pub fn paint(&self, role: Role, text: &str) -> String {
@@ -144,16 +169,8 @@ impl Theme {
 mod tests {
     use super::*;
 
-    const PLAIN: Theme = Theme {
-        color: false,
-        ascii: false,
-        animate: false,
-    };
-    const ASCII: Theme = Theme {
-        color: false,
-        ascii: true,
-        animate: false,
-    };
+    const PLAIN: Theme = Theme::new(false, false, false);
+    const ASCII: Theme = Theme::new(false, true, false);
 
     #[test]
     fn every_state_has_a_two_cell_glyph_in_both_themes() {
@@ -191,11 +208,7 @@ mod tests {
             ASCII.glyph(TaskState::Failed, 0),
             ASCII.glyph(TaskState::Cancelled, 0)
         );
-        let coloured = Theme {
-            color: true,
-            ascii: false,
-            animate: false,
-        };
+        let coloured = Theme::new(true, false, false);
         assert!(
             coloured.glyph(TaskState::Retrying, 0).contains("\x1b[33m"),
             "retrying paints yellow (Warn)"

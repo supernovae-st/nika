@@ -410,11 +410,7 @@ mod tests {
     use crate::verbs::exit;
 
     fn plain() -> Theme {
-        Theme {
-            color: false,
-            ascii: false,
-            animate: false,
-        }
+        Theme::new(false, false, false)
     }
 
     /// Stage a real NDJSON trace from the demo storyboard events.
@@ -491,14 +487,7 @@ mod tests {
         );
         assert!(out.text.contains("38ms"), "measured duration: {}", out.text);
         // ASCII parity: the dash cell + no unicode leak.
-        let ascii = outputs(
-            &path.to_string_lossy(),
-            Theme {
-                color: false,
-                ascii: true,
-                animate: false,
-            },
-        );
+        let ascii = outputs(&path.to_string_lossy(), Theme::new(false, true, false));
         assert!(!ascii.text.contains('—'), "ascii dash: {}", ascii.text);
     }
 
@@ -571,11 +560,7 @@ mod tests {
             &path.to_string_lossy(),
             "audit",
             false,
-            Theme {
-                color: false,
-                ascii: true,
-                animate: false,
-            },
+            Theme::new(false, true, false),
         );
         assert!(
             ascii.text.contains("5b2fa9e9232e.."),
@@ -658,11 +643,7 @@ mod tests {
         let ascii = flow(
             &tr.to_string_lossy(),
             &wf.to_string_lossy(),
-            Theme {
-                color: false,
-                ascii: true,
-                animate: false,
-            },
+            Theme::new(false, true, false),
         );
         assert!(
             ascii.text.contains("read_payload -3.6KB-> audit"),

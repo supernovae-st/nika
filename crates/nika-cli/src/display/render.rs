@@ -6,6 +6,7 @@
 //! the truth-to-text mapping. Snapshot tests pin BOTH glyph themes.
 
 use crate::display::flow::{fmt_wall_ms, lane_marks};
+use crate::display::format::fmt_cost_usd;
 use crate::display::state::{RunView, TaskRow, TaskState};
 use crate::display::theme::{Role, Theme};
 
@@ -38,7 +39,7 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
     // Header: identity + the statically-proven ceiling.
     let ceiling = view
         .ceiling_usd
-        .map(|c| format!(" · ceiling ≤ ${c:.2}"))
+        .map(|c| format!(" · ceiling ≤ {}", fmt_cost_usd(c)))
         .unwrap_or_default();
     lines.push(format!(
         "  {} nika · {} · {} tasks{ceiling}",
@@ -99,10 +100,12 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
         ));
     }
 
-    // Footer meter: progress · live cost vs ceiling · wall clock.
+    // Footer meter: progress · live cost vs ceiling · wall clock. The
+    // spend speaks the ONE cost formatter (format.rs) — the meter and the
+    // verdict card can never again disagree on the same run's dollars.
     let cost = match view.ceiling_usd {
-        Some(c) => format!("${:.3} of ≤${c:.2}", view.cost_usd),
-        None => format!("${:.3}", view.cost_usd),
+        Some(c) => format!("{} of ≤{}", fmt_cost_usd(view.cost_usd), fmt_cost_usd(c)),
+        None => fmt_cost_usd(view.cost_usd),
     };
     #[allow(clippy::cast_precision_loss)] // display-only seconds
     let secs = view.elapsed_ms as f64 / 1000.0;
@@ -215,7 +218,7 @@ fn task_line(
         row.id,
         theme.paint(Role::Dim, &note),
     );
-    let cost = row.cost_usd.map(|c| format!(" · ${c:.4}"));
+    let cost = row.cost_usd.map(|c| format!(" · {}", fmt_cost_usd(c)));
     if time.is_none() && cost.is_none() && !mark && tail.is_none() {
         return line;
     }
@@ -252,8 +255,8 @@ pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
         None => theme.glyph(TaskState::Pending, 0),
     };
     let cost = match view.ceiling_usd {
-        Some(c) => format!("${:.3} of ≤${c:.2}", view.cost_usd),
-        None => format!("${:.3}", view.cost_usd),
+        Some(c) => format!("{} of ≤{}", fmt_cost_usd(view.cost_usd), fmt_cost_usd(c)),
+        None => fmt_cost_usd(view.cost_usd),
     };
     #[allow(clippy::cast_precision_loss)] // display-only seconds
     let secs = view.elapsed_ms as f64 / 1000.0;
@@ -340,16 +343,8 @@ mod tests {
         view
     }
 
-    const UNICODE: Theme = Theme {
-        color: false,
-        ascii: false,
-        animate: false,
-    };
-    const ASCII: Theme = Theme {
-        color: false,
-        ascii: true,
-        animate: false,
-    };
+    const UNICODE: Theme = Theme::new(false, false, false);
+    const ASCII: Theme = Theme::new(false, true, false);
 
     /// Golden frame — the unicode theme, colour off (the exact spec story).
     /// Time is a first-class column now: each settled row carries its wall
@@ -364,14 +359,14 @@ mod tests {
             "",
             "  ✔  fetch_top     http 200 · 1.2s · 34 KB         1.2s",
             "  ✔  extract_ai    jq · 0.1s · 12 items           130ms",
-            "  ✔  summarize     claude-sonnet · 3.1s · $0.011   3.0s · $0.0110",
+            "  ✔  summarize     claude-sonnet · 3.1s · $0.011   3.0s · $0.01",
             "  ✔  write_md      2.1 KB written                 290ms",
             "  ↷  notify_slack  when: env.CI != 'true'",
         ];
         assert_eq!(&lines[..8], &expected[..]);
         // The meter line: pinned prefix + rule-padded to a stable width.
         assert!(
-            lines[8].starts_with("  ── 5/5 done · $0.011 of ≤$0.04 · elapsed 4.7s "),
+            lines[8].starts_with("  ── 5/5 done · $0.01 of ≤$0.04 · elapsed 4.7s "),
             "meter: {}",
             lines[8]
         );
@@ -525,7 +520,7 @@ mod tests {
             "verdict line: {}",
             lines[0]
         );
-        assert!(lines[0].contains("$0.011 of ≤$0.04"), "cost: {}", lines[0]);
+        assert!(lines[0].contains("$0.01 of ≤$0.04"), "cost: {}", lines[0]);
         // NOT the storyboard — no per-task row leaks into the quiet card.
         assert!(
             !lines.iter().any(|l| l.contains("fetch_top")),
