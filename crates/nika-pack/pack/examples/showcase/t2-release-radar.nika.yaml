@@ -19,7 +19,7 @@ nika: v1
 workflow: release-radar
 description: "dependency release feed → diff vs last run → only the NEW ships"
 
-model: ollama/llama3.2:3b   # local · zero key · swap for any of the 14 providers
+model: ollama/qwen3.5:4b   # local · zero key · swap for any of the 14 providers
 
 vars:
   releases_feed: "https://github.com/tokio-rs/tokio/releases.atom"

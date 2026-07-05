@@ -204,7 +204,7 @@ the meaning of an expression that parses today. The conditional `?:`, the
 
 ```yaml
 # pick a model / a path / a prompt by condition — anywhere a value is taken
-model:  ${{ vars.env == 'prod' ? 'mistral/mistral-large' : 'ollama/llama3' }}
+model:  ${{ vars.env == 'prod' ? 'mistral/mistral-large' : 'ollama/qwen3.5:9b' }}
 prompt: ${{ has(vars.style) ? vars.style : 'be concise' }}
 when:   ${{ tasks.scan.output.contains('ERROR') }}      # branch on substring
 ```

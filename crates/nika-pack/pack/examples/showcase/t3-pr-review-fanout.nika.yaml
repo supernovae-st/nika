@@ -19,7 +19,7 @@ nika: v1
 workflow: pr-review-fanout
 description: "changed files → one read-only review agent each → merged REVIEW.md"
 
-model: ollama/llama3.2:3b   # local tool-calling model · swap for anthropic/claude-sonnet-4-6 for depth
+model: ollama/qwen3.5:4b   # local tool-calling model · swap for anthropic/claude-sonnet-4-6 for depth
 
 vars:
   base_ref: "main"

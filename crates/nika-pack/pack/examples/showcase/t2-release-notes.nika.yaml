@@ -17,7 +17,7 @@ nika: v1
 workflow: release-notes
 description: "git log → typed release notes → CHANGELOG insert → team ping"
 
-model: ollama/llama3.2:3b   # local · zero key · swap for mistral/mistral-large
+model: ollama/qwen3.5:4b   # local · zero key · swap for mistral/mistral-large
 
 vars:
   since_tag: "v0.80.0"

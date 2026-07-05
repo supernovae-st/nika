@@ -20,7 +20,7 @@ nika: v1
 workflow: deep-research-brief
 description: "plan → budgeted research agent → thinking synthesis → brief on disk"
 
-model: ollama/llama3.2:3b   # local default · per-task overrides below pick stronger models
+model: ollama/qwen3.5:4b   # local default · per-task overrides below pick stronger models
 
 vars:
   topic:

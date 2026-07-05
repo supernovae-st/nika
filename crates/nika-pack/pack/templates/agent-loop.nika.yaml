@@ -14,7 +14,7 @@ nika: v1
 workflow: agent-loop-template       # SLOT: kebab-case workflow id
 description: "plan → budgeted agent → typed result"   # SLOT
 
-model: ollama/llama3.2:3b           # SLOT: a tool-calling model · local by default
+model: ollama/qwen3.5:4b           # SLOT: a tool-calling model · local by default
 
 vars:
   goal:

@@ -26,7 +26,7 @@
     },
     "model": {
       "type": "string",
-      "description": "Default model · `<provider>/<name>` (e.g. anthropic/claude-sonnet-4-6 · ollama/llama3.1 · mock/echo)."
+      "description": "Default model · `<provider>/<name>` (e.g. anthropic/claude-sonnet-4-6 · ollama/qwen3.5:9b · mock/echo)."
     },
     "vars": {
       "type": "object",
