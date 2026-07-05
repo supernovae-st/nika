@@ -9,7 +9,7 @@
 
 use nika_kernel::ai::provider::ToolDef;
 
-/// A small JSON-Schema object builder — keeps the 23 defs declarative.
+/// A small JSON-Schema object builder — keeps the 24 defs declarative.
 fn schema(properties: serde_json::Value, required: &[&str]) -> serde_json::Value {
     let mut obj = serde_json::Map::new();
     obj.insert(
@@ -37,8 +37,8 @@ fn def(name: &str, desc: &str, properties: serde_json::Value, required: &[&str])
     ToolDef::new(format!("nika:{name}"), desc, schema(properties, required))
 }
 
-/// Every builtin's model-facing definition — the canonical 23 (core 6 +
-/// file 5 + data 8 + network 2 + introspection 2).
+/// Every builtin's model-facing definition — the canonical 24 (core 6 +
+/// file 5 + data 8 + network 2 + introspection 2 + media 1).
 #[must_use]
 pub fn tool_defs() -> Vec<ToolDef> {
     let mut defs = core_defs();
@@ -46,6 +46,7 @@ pub fn tool_defs() -> Vec<ToolDef> {
     defs.extend(data_defs());
     defs.extend(net_defs());
     defs.extend(introspection_defs());
+    defs.extend(media_defs());
     defs
 }
 
@@ -342,6 +343,37 @@ fn introspection_defs() -> Vec<ToolDef> {
     ]
 }
 
+fn media_defs() -> Vec<ToolDef> {
+    vec![def(
+        "image_generate",
+        "Generate image assets (openai gpt-image-2 · gemini gemini-3.1-flash-image · mock for offline runs) — saves files under output_dir and returns paths + dimensions + sha256 (+ a provenance manifest); image bytes never ride outputs.",
+        serde_json::json!({
+            "provider": s("openai | gemini | mock (inferred from model: when omitted)"),
+            "model": s("provider model id · defaults: gpt-image-2 · gemini-3.1-flash-image · mock-image-1"),
+            "prompt": s("the creative brief the provider renders"),
+            "mode": s("generate (default) — `edit` is on the media roadmap, rejected loudly"),
+            "n": { "type": "integer", "description": "variant count 1..=10 (gemini runs n sequential calls)" },
+            "aspect_ratio": s("1:1 | 16:9 | 9:16 | 4:3 | 3:4 | 3:2 | 2:3 | 21:9"),
+            "size": s("exact WIDTHxHEIGHT (gpt-image-2 arbitrary /16 sizes · gemini folds to a size class) or auto — an exact size wins over aspect_ratio"),
+            "quality": s("auto (default) | low | medium | high | ultra (folds to high on openai · model-tier on gemini)"),
+            "format": s("png (default) | jpeg | webp — magic bytes are the authority on what lands"),
+            "compression": { "type": "integer", "description": "0..=100 · jpeg/webp only (openai output_compression)" },
+            "background": s("auto (default) | transparent (needs png/webp and a supporting model) | opaque"),
+            "seed": { "type": "integer", "description": "gemini best-effort · openai has no seed (warned + dropped)" },
+            "reference_images": { "type": "array", "items": {"type": "string"}, "description": "media roadmap — rejected loudly in V1" },
+            "provider_options": { "type": "object", "description": "vetted pass-through · openai {moderation, user} · gemini {thinking_level, image_size}" },
+            "output_dir": s("directory the assets land in (rides the declared permits.fs boundary)"),
+            "filename_prefix": s("filename stem (else metadata.page_slug, else `image`) — sanitized, traversal-free"),
+            "save": { "type": "boolean", "description": "V1 contract: stays true — assets land on disk, never inline" },
+            "manifest": { "type": "boolean", "description": "write the provenance manifest JSON beside the assets (default true)" },
+            "metadata": { "type": "object", "description": "free provenance fields (campaign · page_slug · locale …) echoed to output + manifest" },
+            "timeout_ms": { "type": "integer", "description": "per-request deadline · default 180000 · 1000..=600000" },
+            "debug": { "type": "boolean", "description": "echo the sanitized raw provider response (base64 stripped)" }
+        }),
+        &["prompt", "output_dir"],
+    )]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,7 +397,7 @@ mod tests {
 
     #[test]
     fn every_projected_tool_carries_the_joined_contract() {
-        const CATEGORIES: [&str; 5] = ["core", "file", "data", "network", "introspection"];
+        const CATEGORIES: [&str; 6] = ["core", "file", "data", "network", "introspection", "media"];
         let payload = tools_json();
         for tool in payload["tools"].as_array().expect("tools array") {
             let name = tool["name"].as_str().expect("name string");
@@ -405,12 +437,13 @@ mod tests {
     }
 
     #[test]
-    fn the_catalog_is_the_canonical_23_with_no_dupes() {
+    fn the_catalog_is_the_canonical_24_with_no_dupes() {
         let defs = tool_defs();
         assert_eq!(
             defs.len(),
-            23,
-            "stdlib v0.1 ships exactly 23 (+ nika:compose · ADR-096)"
+            24,
+            "stdlib ships exactly 24 (22 Rams-swept + nika:compose ADR-096 + \
+             nika:image_generate stdlib §Media)"
         );
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         names.sort_unstable();

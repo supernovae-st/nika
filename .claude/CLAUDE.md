@@ -131,7 +131,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
 | HEAD             | `8ef43dddc` (`8ef43dddc1c0633a1156ef0eff9f2d10e51595fa`)             |
-| workspace        | v0.93.0-dev                                  |
+| workspace        | v0.93.1                                  |
 | crates (workspace)| 40                                              |
 | crates (admitted)| 40 / 42                                   |
 | crates (WIP)     | 0 —                                   |

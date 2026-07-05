@@ -7,6 +7,39 @@ pub const nika_builtin::defs::TOOLS_EXPORT_VERSION: u32
 pub fn nika_builtin::defs::tool_defs() -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
 pub fn nika_builtin::defs::tools_json() -> serde_json::value::Value
 pub mod nika_builtin::file
+pub mod nika_builtin::image
+#[non_exhaustive] pub struct nika_builtin::image::ImageKeys
+pub nika_builtin::image::ImageKeys::gemini: core::option::Option<nika_kernel_core::infra::secret::Secret>
+pub nika_builtin::image::ImageKeys::openai: core::option::Option<nika_kernel_core::infra::secret::Secret>
+impl nika_builtin::image::ImageKeys
+pub fn nika_builtin::image::ImageKeys::new() -> Self
+pub fn nika_builtin::image::ImageKeys::with_gemini(self, key: nika_kernel_core::infra::secret::Secret) -> Self
+pub fn nika_builtin::image::ImageKeys::with_openai(self, key: nika_kernel_core::infra::secret::Secret) -> Self
+impl core::default::Default for nika_builtin::image::ImageKeys
+pub fn nika_builtin::image::ImageKeys::default() -> nika_builtin::image::ImageKeys
+impl core::fmt::Debug for nika_builtin::image::ImageKeys
+pub fn nika_builtin::image::ImageKeys::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_builtin::image::ImageKeys
+impl<T, U> core::convert::Into<U> for nika_builtin::image::ImageKeys where U: core::convert::From<T>
+pub fn nika_builtin::image::ImageKeys::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::image::ImageKeys where U: core::convert::Into<T>
+pub type nika_builtin::image::ImageKeys::Error = core::convert::Infallible
+pub fn nika_builtin::image::ImageKeys::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::image::ImageKeys where U: core::convert::TryFrom<T>
+pub type nika_builtin::image::ImageKeys::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::image::ImageKeys::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_builtin::image::ImageKeys where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::image::ImageKeys::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::image::ImageKeys where T: ?core::marker::Sized
+pub fn nika_builtin::image::ImageKeys::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::image::ImageKeys where T: ?core::marker::Sized
+pub fn nika_builtin::image::ImageKeys::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_builtin::image::ImageKeys
+pub fn nika_builtin::image::ImageKeys::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_builtin::image::ImageKeys where T: 'static
+pub fn nika_builtin::image::ImageKeys::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_builtin::image::ImageKeys
+pub type nika_builtin::image::ImageKeys::Output = T
 pub mod nika_builtin::inspect
 pub mod nika_builtin::net
 pub mod nika_builtin::permits
@@ -54,6 +87,7 @@ pub struct nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>
 impl<F, H, C, Em, P, W> nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>
 pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::new(fs: alloc::sync::Arc<F>, http: alloc::sync::Arc<H>, clock: alloc::sync::Arc<C>, emitter: alloc::sync::Arc<Em>, prompter: alloc::sync::Arc<P>, workflow: alloc::sync::Arc<W>) -> Self
 pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::with_fs_boundary(self, boundary: nika_builtin::permits::FsBoundary) -> Self
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::with_image_plane(self, http: alloc::sync::Arc<H>, keys: nika_builtin::image::ImageKeys) -> Self
 impl<F, H, C, Em, P, W> nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsListDyn + core::marker::Send + core::marker::Sync, H: nika_kernel_core::io::http::HttpGetDyn + nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Send + core::marker::Sync, Em: nika_builtin::Emitter, P: nika_builtin::Prompter, W: nika_builtin::WorkflowIntrospect
 pub async fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::tool_defs(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>, nika_kernel_ai::tool_defs::ToolDefsError>
 impl<F, H, C, Em, P, W> nika_kernel_runtime::tool_executor::ToolBatchDyn for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsListDyn + core::marker::Send + core::marker::Sync, H: nika_kernel_core::io::http::HttpGetDyn + nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Send + core::marker::Sync, Em: nika_builtin::Emitter, P: nika_builtin::Prompter, W: nika_builtin::WorkflowIntrospect
@@ -180,6 +214,38 @@ impl<T> nika_error::traits::AsAny for nika_builtin::permits::FsBoundary where T:
 pub fn nika_builtin::permits::FsBoundary::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_builtin::permits::FsBoundary
 pub type nika_builtin::permits::FsBoundary::Output = T
+#[non_exhaustive] pub struct nika_builtin::ImageKeys
+pub nika_builtin::ImageKeys::gemini: core::option::Option<nika_kernel_core::infra::secret::Secret>
+pub nika_builtin::ImageKeys::openai: core::option::Option<nika_kernel_core::infra::secret::Secret>
+impl nika_builtin::image::ImageKeys
+pub fn nika_builtin::image::ImageKeys::new() -> Self
+pub fn nika_builtin::image::ImageKeys::with_gemini(self, key: nika_kernel_core::infra::secret::Secret) -> Self
+pub fn nika_builtin::image::ImageKeys::with_openai(self, key: nika_kernel_core::infra::secret::Secret) -> Self
+impl core::default::Default for nika_builtin::image::ImageKeys
+pub fn nika_builtin::image::ImageKeys::default() -> nika_builtin::image::ImageKeys
+impl core::fmt::Debug for nika_builtin::image::ImageKeys
+pub fn nika_builtin::image::ImageKeys::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_builtin::image::ImageKeys
+impl<T, U> core::convert::Into<U> for nika_builtin::image::ImageKeys where U: core::convert::From<T>
+pub fn nika_builtin::image::ImageKeys::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::image::ImageKeys where U: core::convert::Into<T>
+pub type nika_builtin::image::ImageKeys::Error = core::convert::Infallible
+pub fn nika_builtin::image::ImageKeys::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::image::ImageKeys where U: core::convert::TryFrom<T>
+pub type nika_builtin::image::ImageKeys::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::image::ImageKeys::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_builtin::image::ImageKeys where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::image::ImageKeys::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::image::ImageKeys where T: ?core::marker::Sized
+pub fn nika_builtin::image::ImageKeys::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::image::ImageKeys where T: ?core::marker::Sized
+pub fn nika_builtin::image::ImageKeys::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_builtin::image::ImageKeys
+pub fn nika_builtin::image::ImageKeys::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_builtin::image::ImageKeys where T: 'static
+pub fn nika_builtin::image::ImageKeys::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_builtin::image::ImageKeys
+pub type nika_builtin::image::ImageKeys::Output = T
 #[non_exhaustive] pub struct nika_builtin::NoWorkflow
 impl core::clone::Clone for nika_builtin::NoWorkflow
 pub fn nika_builtin::NoWorkflow::clone(&self) -> nika_builtin::NoWorkflow

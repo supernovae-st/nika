@@ -172,19 +172,17 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
 
 /// Output price (USD per million tokens) for a `<provider>/<model>` string.
 ///
-/// Resolves through the catalog's PROVIDER-SCOPED lookup
-/// (`find_pricing_scoped`) — a bare cross-provider substring match
-/// (`"my-gpt-4-finetune".contains("gpt-4")`) would misprice an unrelated
-/// model at another provider's rate, the exact collision the catalog
-/// warns about. With no `provider/` prefix we fall back to the unscoped
-/// lookup (a bare model id). Returns `None` for local/unknown models —
-/// sovereign zero-price models are « unpriced », never « free ».
+/// Resolves through the catalog's ONE resolved-string lookup
+/// (`find_pricing_for`): a `provider/` prefix scopes the search so a bare
+/// cross-provider substring match (`"my-gpt-4-finetune".contains("gpt-4")`)
+/// can never misprice an unrelated model at another provider's rate; a
+/// bare model id falls back to the unscoped lookup. The runtime's
+/// task-completion pricing resolves through the SAME function — the floor
+/// and the actual can never disagree on which row prices a model. Returns
+/// `None` for local/unknown models — sovereign zero-price models are
+/// « unpriced », never « free ».
 pub(super) fn output_price_per_million(model: &str) -> Option<f64> {
-    let pricing = match model.split_once('/') {
-        Some((provider, name)) => nika_catalog::find_pricing_scoped(provider, name),
-        None => nika_catalog::find_pricing(model),
-    };
-    pricing.map(|p| p.output_per_million)
+    nika_catalog::find_pricing_for(model).map(|p| p.output_per_million)
 }
 
 /// A `for_each:` count that is statically known: the expression is exactly

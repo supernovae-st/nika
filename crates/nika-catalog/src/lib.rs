@@ -58,7 +58,9 @@ pub use lookup::find_provider;
 #[cfg(feature = "capabilities")]
 pub use lookup::model_capabilities;
 #[cfg(feature = "pricing")]
-pub use lookup::{estimate_cost, find_pricing, find_pricing_scoped};
+pub use lookup::{
+    estimate_cost, estimate_cost_for, find_pricing, find_pricing_for, find_pricing_scoped,
+};
 #[cfg(feature = "builtins-transforms")]
 pub use lookup::{find_builtin, find_transform, is_known_builtin, is_known_transform};
 #[cfg(feature = "mcp")]
@@ -122,8 +124,9 @@ mod tests {
     #[test]
     fn all_providers_non_empty() {
         // Session 4b added 7 providers (nvidia-nim, deepinfra, replicate,
-        // hyperbolic, writer, databricks, cloudflare): 25 → 32.
-        assert_eq!(all_providers().len(), 32);
+        // hyperbolic, writer, databricks, cloudflare): 25 → 32; 2026-07-05
+        // huggingface joined (+ nvidia-nim → nvidia rename): 32 → 33.
+        assert_eq!(all_providers().len(), 33);
     }
 
     #[test]
@@ -133,12 +136,14 @@ mod tests {
 
     #[test]
     fn all_builtins_non_empty() {
-        // Spec 23 · the 22 Rams-swept stdlib builtins + nika:compose (the
+        // Spec 24 · the 22 Rams-swept stdlib builtins + nika:compose (the
         // agent loop's self-verification intrinsic · ADR-096 · loop-only
-        // like done). Cascade · ADR-088 inspect (4 introspection → 1) +
-        // ADR-087 wait (sleep + wait_until → 1) + ADR-086 convert
-        // (csv_to_json → 1) + D-2026-05-22-N6 stdlib-collapse 42→26.
-        assert_eq!(all_builtins().len(), 23);
+        // like done) + nika:image_generate (stdlib §Media · the first
+        // deferred-media graduate). Cascade · ADR-088 inspect (4
+        // introspection → 1) + ADR-087 wait (sleep + wait_until → 1) +
+        // ADR-086 convert (csv_to_json → 1) + D-2026-05-22-N6
+        // stdlib-collapse 42→26.
+        assert_eq!(all_builtins().len(), 24);
     }
 
     #[test]

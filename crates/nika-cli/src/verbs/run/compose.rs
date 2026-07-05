@@ -20,7 +20,7 @@
 
 use std::sync::Arc;
 
-use nika_builtin::{BuiltinDispatcher, Emitter, FsBoundary, NoWorkflow, NonInteractive};
+use nika_builtin::{BuiltinDispatcher, Emitter, FsBoundary, ImageKeys, NoWorkflow, NonInteractive};
 use nika_clock::SystemClock;
 use nika_exec_runner::TokioShell;
 use nika_fs::TokioFs;
@@ -201,6 +201,31 @@ fn config_from_env() -> ProvidersConfig {
     config
 }
 
+/// Resolve the `nika:image_generate` provider credentials — the SAME
+/// sanctioned env boundary as [`config_from_env`], with the same ladder
+/// shape the inference path uses (`NIKA_<ID>_API_KEY` first, then the
+/// provider's conventional variable). Absent keys are NOT an error here:
+/// the builtin surfaces the precise `NIKA-BUILTIN-IMAGE_GENERATE-002`
+/// (naming the ladder) only when a workflow actually targets that
+/// provider; the mock provider needs no key at all.
+fn image_keys_from_env() -> ImageKeys {
+    let read = |ladder: [&str; 2]| {
+        ladder.into_iter().find_map(|name| {
+            #[allow(clippy::disallowed_methods)] // the sanctioned env→secret boundary (see doc)
+            let value = std::env::var(name).ok()?;
+            (!value.is_empty()).then(|| Secret::new(value))
+        })
+    };
+    let mut keys = ImageKeys::new();
+    if let Some(key) = read(["NIKA_OPENAI_API_KEY", "OPENAI_API_KEY"]) {
+        keys = keys.with_openai(key);
+    }
+    if let Some(key) = read(["NIKA_GEMINI_API_KEY", "GEMINI_API_KEY"]) {
+        keys = keys.with_gemini(key);
+    }
+    keys
+}
+
 /// The production workflow-`secrets:` resolver — the `env` + `file` stores
 /// (MINOR-B). This is the COMPOSITION ROOT's sanctioned secret-store
 /// boundary (the same justification as [`config_from_env`] · the runtime L3
@@ -324,6 +349,21 @@ pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilitie
     }
 }
 
+/// The provider client's transport ceiling — `HttpConfig::timeout` on the
+/// PROVIDER client, which reqwest applies as the client-level idle-read
+/// guard (armed even while AWAITING RESPONSE HEADERS) and as the fallback
+/// total deadline for a request without an explicit one.
+///
+/// Every buffered provider call sets its OWN total deadline (the task
+/// `timeout:` · else the wire layer's per-provider default — 30s cloud ·
+/// 300s local), so this ceiling never governs a well-formed call; it only
+/// reaps sockets that stopped delivering. It MUST comfortably exceed the
+/// longest silent local-model wait (a non-streaming completion delivers
+/// ZERO bytes while the model computes — the default 30s guard killed every
+/// `timeout: 7m` ollama task at 30s · F1). A task `timeout:` beyond this
+/// ceiling is capped by it on a fully-silent connection.
+const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::from_secs(600);
+
 /// The HTTP client for the PROVIDER path (LLM inference), distinct from
 /// the fetch/builtin client.
 ///
@@ -338,6 +378,15 @@ pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilitie
 /// contradicts the local-first raison. `Disabled` is exactly the
 /// "trusted internal networks" opt-out the `nika-http` docs sanction.
 ///
+/// The config `timeout` is raised to [`PROVIDER_TRANSPORT_CEILING`]: the
+/// per-REQUEST deadline is owned by the wire layer (task `timeout:` else
+/// the per-provider default), and the 30s client default would undercut
+/// any longer budget via the idle-read guard (see the ceiling's doc).
+/// Empirical anchor (#148 · M3 Pro): local thinking-era models legitimately
+/// exceed 30s — `qwen3.5:4b` ~43s · `qwen3.5:9b` ~87s for one structured
+/// task · cold model load adds 30-60s (the reason local classes default
+/// to 300s at the wire layer · a timeout is a ceiling, not a wait).
+///
 /// # Errors
 ///
 /// [`nika_kernel::HttpError`] when the TLS backend won't initialize.
@@ -348,6 +397,7 @@ pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilitie
 fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
     let mut config = HttpConfig::default();
     config.ssrf = SsrfMode::Disabled;
+    config.timeout = PROVIDER_TRANSPORT_CEILING;
     ReqwestHttp::with_config(config)
 }
 
@@ -455,7 +505,13 @@ pub fn production_runtime(
             Arc::new(NonInteractive::default()),
             Arc::new(NoWorkflow::default()),
         )
-        .with_fs_boundary(caps.fs),
+        .with_fs_boundary(caps.fs)
+        // The IMAGE PLANE (`nika:image_generate`): provider calls ride the
+        // SSRF-disabled provider client (const studio-fixed endpoints ·
+        // the 600s transport ceiling image renders need — the fetch
+        // client's idle guard would kill them), with keys resolved at THIS
+        // boundary only.
+        .with_image_plane(Arc::clone(&provider_http), image_keys_from_env()),
     );
     let invoke = Arc::new(InvokeVerb::new(Arc::clone(&dispatcher)));
 
@@ -623,6 +679,49 @@ mod tests {
         // We can't assert key absence (the dev's shell may export some),
         // but composition must succeed regardless — proven above.
         let _ = config;
+    }
+
+    #[test]
+    fn full_builtin_whitelist_stays_below_the_router_threshold() {
+        // Adding a builtin must never silently flip `tools: ["nika:*"]`
+        // agents from deterministic passthrough to BM25 routing (the
+        // 23→24 near-miss of 2026-07-05 · ADR-105): a plain-builtin
+        // agent's whitelisted universe equals tool_defs().len(), so it
+        // must stay strictly below the router's activation threshold.
+        let universe = nika_builtin::tool_defs().len();
+        let threshold = nika_verb_agent::RouterConfig::default().min_universe;
+        assert!(
+            universe < threshold,
+            "the full nika:* whitelist ({universe} defs) reached the router's \
+             min_universe ({threshold}) — raise the default (or decide routing \
+             is now INTENDED for plain-builtin agents, and update the e2e \
+             offered-count assertions deliberately)"
+        );
+    }
+
+    #[test]
+    fn image_keys_from_env_never_panics_and_never_leaks_in_debug() {
+        // The image-plane sibling of the test above: resolution succeeds
+        // whatever the shell exports, and the Debug rendering can never
+        // spell a credential (Secret is Debug-redacted by construction).
+        let keys = image_keys_from_env();
+        let rendered = format!("{keys:?}");
+        for env in [
+            "NIKA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+            "NIKA_GEMINI_API_KEY",
+            "GEMINI_API_KEY",
+        ] {
+            #[allow(clippy::disallowed_methods)] // reading, in a test, what the fn read
+            if let Ok(value) = std::env::var(env)
+                && !value.is_empty()
+            {
+                assert!(
+                    !rendered.contains(&value),
+                    "a live `{env}` value surfaced in Debug output"
+                );
+            }
+        }
     }
 
     /// Regression for NIKA-430: the provider HTTP path must NOT apply the

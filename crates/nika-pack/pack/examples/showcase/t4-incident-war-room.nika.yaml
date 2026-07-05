@@ -19,7 +19,7 @@ nika: v1
 workflow: incident-war-room
 description: "parallel evidence → typed timeline → settle + recheck → postmortem draft"
 
-model: mistral/mistral-large
+model: ollama/qwen3.5:4b   # local default · the synthesis task below overrides to a stronger model
 
 vars:
   service: "checkout-api"
@@ -105,7 +105,7 @@ tasks:
       tool: "nika:assert"
       args:
         condition: "${{ tasks.recheck.output == 'operational' }}"
-        message: "Service is NOT back to operational — postmortem draft blocked"
+        message: "Service is NOT back to operational: postmortem draft blocked"
 
   # ── the draft · only after recovery is proven ──
   - id: postmortem
@@ -129,7 +129,7 @@ tasks:
         content: "${{ tasks.postmortem.output }}"
         create_dirs: true
 
-  # the always-pattern · the on-call ping fires on EVERY outcome —
+  # the always-pattern · the on-call ping fires on EVERY outcome:
   # including the designed failure path (recovery NOT confirmed → the
   # assert fails → save never starts → this still runs · when: true
   # replaces the default gate · 03 §Task states).

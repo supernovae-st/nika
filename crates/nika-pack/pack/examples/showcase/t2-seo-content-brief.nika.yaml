@@ -4,21 +4,23 @@
 # showcase · T2 chain · SEO / content marketing
 #
 # A competitor's sitemap goes in. A ready-to-write content brief comes
-# out · title, angle, outline, keywords — grounded in what they actually
+# out · title, angle, outline, keywords: grounded in what they actually
 # published, not vibes.
 #
 # Demonstrates ·
 #   - `mode: sitemap` then `mode: article` · two fetch extractions chained
-#   - `output:` jq slice · `.urls[:5]` — bind just the top of a list
+#     (sitemap yields the ROOT ARRAY `[{loc, changefreq, priority}, …]`)
+#   - `output:` jq · `.[:5] | map(.loc)`: slice the array, keep the URLs
 #   - CEL indexing · `${{ tasks.map.top[0] }}` reaches into a binding
 #   - `infer.schema:` · the brief is typed, not a blob
+#     (mock/echo synthesizes schema-conformant output · offline-runnable)
 #
-# Run · nika run examples/showcase/t2-seo-content-brief.nika.yaml
+# Run · nika run examples/showcase/t2-seo-content-brief.nika.yaml --var topic="rust async runtimes"
 nika: v1
 workflow: seo-content-brief
 description: "Competitor sitemap → top page → gap analysis → typed brief"
 
-model: mock/echo            # swap for openai/gpt-5.2
+model: ollama/qwen3.5:4b   # local · zero key · swap for openai/gpt-5.2
 
 vars:
   competitor_sitemap: "https://competitor.example.com/sitemap.xml"
@@ -35,7 +37,7 @@ tasks:
         url: "${{ vars.competitor_sitemap }}"
         mode: sitemap
     output:
-      top: ".urls[:5]"
+      top: ".[:5] | map(.loc)"
 
   - id: top_page
     depends_on: [map]

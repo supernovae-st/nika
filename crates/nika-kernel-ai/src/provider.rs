@@ -220,6 +220,12 @@ pub struct InferRequest {
     /// use this seed for any randomized behavior (temperature sampling).
     /// Reserved for content-addressed replay (v0.90 `EventLog`).
     pub replay_seed: Option<u64>,
+    /// Transport deadline for ONE provider round-trip — the task-level
+    /// `timeout:` plumbed down so the HTTP effect's fixed default cannot
+    /// undercut a longer task budget (a local model routinely needs
+    /// minutes for one completion). `None` → the adapter's per-provider
+    /// default governs (the caller declared no budget).
+    pub timeout: Option<std::time::Duration>,
     /// `OTel` `GenAI` semconv bridge (Q13). Populated by the provider impl;
     /// default is `GenAiSystem::Unknown` + `GenAiOperation::Chat`.
     pub gen_ai: crate::genai::GenAiAttrs,
@@ -246,6 +252,7 @@ impl InferRequest {
             baggage: None,
             tenant: None,
             replay_seed: None,
+            timeout: None,
             gen_ai: crate::genai::GenAiAttrs::new(),
         }
     }

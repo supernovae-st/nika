@@ -389,3 +389,85 @@ async fn every_wired_profile_parses_a_tool_call_consistently() {
         );
     }
 }
+
+#[tokio::test]
+async fn every_wired_profile_carries_the_transport_deadline() {
+    // F1 parity (field report 2026-07-04): the task `timeout:` must govern
+    // the provider HTTP deadline on EVERY wire — and when the task declares
+    // none, the default is per provider CLASS: local servers get minutes
+    // (a 14B model cannot answer a real prompt in 30s · the sovereignty
+    // story), cloud keeps the historical 30s.
+    use crate::wire::{CLOUD_DEFAULT_TIMEOUT, LOCAL_DEFAULT_TIMEOUT};
+    use std::time::Duration;
+
+    let task_budget = Duration::from_secs(420); // the `timeout: "7m"` repro
+
+    for (id, wire, requires_key) in wired_http_profiles() {
+        let is_local = matches!(id, "ollama" | "lmstudio" | "llamacpp" | "localai" | "vllm");
+
+        // (a) no task timeout → the per-class default rides the request.
+        let fake = FakeHttp::with_json(200, ok_fixture(wire));
+        let rp = resolve_on(&fake, id, requires_key);
+        rp.infer(request())
+            .await
+            .unwrap_or_else(|e| panic!("[{id}] infer must succeed: {e}"));
+        let expected = if is_local {
+            LOCAL_DEFAULT_TIMEOUT
+        } else {
+            CLOUD_DEFAULT_TIMEOUT
+        };
+        assert_eq!(
+            fake.captured()[0].timeout,
+            Some(expected),
+            "[{id}] class default rides the buffered request"
+        );
+
+        // (b) task timeout declared → it WINS on every wire (the 408-at-30s
+        // class: a `timeout: "7m"` task must never die at the transport).
+        let fake = FakeHttp::with_json(200, ok_fixture(wire));
+        let rp = resolve_on(&fake, id, requires_key);
+        let mut req = request();
+        req.timeout = Some(task_budget);
+        rp.infer(req)
+            .await
+            .unwrap_or_else(|e| panic!("[{id}] infer must succeed: {e}"));
+        assert_eq!(
+            fake.captured()[0].timeout,
+            Some(task_budget),
+            "[{id}] the task budget governs the transport deadline"
+        );
+
+        // (c) STREAMING carries only an EXPLICIT budget (a generation
+        // legitimately outlives any fixed total · the idle-read guard
+        // reaps stalls) — None when the task declares none.
+        let fake = FakeHttp::with_stream(200, sse_fixture(wire), 16);
+        let rp = resolve_on(&fake, id, requires_key);
+        let _ = collect(
+            rp.infer_stream(request())
+                .await
+                .unwrap_or_else(|e| panic!("[{id}] stream must open: {e}")),
+        )
+        .await;
+        assert_eq!(
+            fake.captured()[0].timeout,
+            None,
+            "[{id}] streaming without a task budget carries no total deadline"
+        );
+
+        let fake = FakeHttp::with_stream(200, sse_fixture(wire), 16);
+        let rp = resolve_on(&fake, id, requires_key);
+        let mut req = request();
+        req.timeout = Some(task_budget);
+        let _ = collect(
+            rp.infer_stream(req)
+                .await
+                .unwrap_or_else(|e| panic!("[{id}] stream must open: {e}")),
+        )
+        .await;
+        assert_eq!(
+            fake.captured()[0].timeout,
+            Some(task_budget),
+            "[{id}] an explicit task budget rides the streaming request too"
+        );
+    }
+}

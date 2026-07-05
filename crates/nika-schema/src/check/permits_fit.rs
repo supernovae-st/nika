@@ -192,14 +192,18 @@ pub(super) enum BuiltinEffect {
         /// webhook notify).
         url_arg: &'static str,
     },
-    /// A filesystem effect on a literal `path:` arg.
+    /// A filesystem effect on a literal path-carrying arg.
     Fs {
+        /// The arg key carrying the path (`path` for the file builtins ·
+        /// `output_dir` for `nika:image_generate`).
+        path_arg: &'static str,
         /// The effect reads the path (read · grep · edit's find phase).
         reads: bool,
         /// The effect writes the path (write · edit's replace phase).
         writes: bool,
         /// The effect descends under the path (`nika:grep` is a recursive
-        /// reader) — inference grants `<path>/**`, not just the path.
+        /// reader · `nika:image_generate` lands files INSIDE the dir) —
+        /// inference grants `<path>/**`, not just the path.
         recursive: bool,
     },
 }
@@ -218,25 +222,39 @@ pub(super) fn builtin_effect(a: &RawInvokeAction) -> Option<BuiltinEffect> {
             Some(BuiltinEffect::Net { url_arg: "target" })
         }
         "nika:read" => Some(BuiltinEffect::Fs {
+            path_arg: "path",
             reads: true,
             writes: false,
             recursive: false,
         }),
         "nika:grep" => Some(BuiltinEffect::Fs {
+            path_arg: "path",
             reads: true,
             writes: false,
             recursive: true,
         }),
         "nika:write" => Some(BuiltinEffect::Fs {
+            path_arg: "path",
             reads: false,
             writes: true,
             recursive: false,
         }),
         // in-place find/replace reads the bytes, then rewrites the path
         "nika:edit" => Some(BuiltinEffect::Fs {
+            path_arg: "path",
             reads: true,
             writes: true,
             recursive: false,
+        }),
+        // generated assets + the manifest land INSIDE a literal
+        // `output_dir:` — a recursive write (stdlib §Media · the provider
+        // egress rides the engine's image plane, not permits.net.http,
+        // exactly like `infer:`).
+        "nika:image_generate" => Some(BuiltinEffect::Fs {
+            path_arg: "output_dir",
+            reads: false,
+            writes: true,
+            recursive: true,
         }),
         _ => None,
     }
@@ -265,8 +283,13 @@ fn check_builtin_effect(
                 });
             }
         }
-        Some(BuiltinEffect::Fs { reads, writes, .. }) => {
-            let Some(path) = literal_arg(a, "path") else {
+        Some(BuiltinEffect::Fs {
+            path_arg,
+            reads,
+            writes,
+            ..
+        }) => {
+            let Some(path) = literal_arg(a, path_arg) else {
                 return;
             };
             for (active, dir_writes, cat) in [(reads, false, "fs.read"), (writes, true, "fs.write")]

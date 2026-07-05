@@ -12,7 +12,7 @@ It describes the **what** ·
 
 - which LLMs to call (`infer:`)
 - which commands to run (`exec:`)
-- which tools to call — including fetching a URL (`invoke:`)
+- which tools to call, including fetching a URL (`invoke:`)
 - which agentic loops to spawn (`agent:`)
 
 The **how** lives in conformant engines.
@@ -61,7 +61,7 @@ These 5 pillars are **locked forever** at `nika: v1`. Everything else (providers
 nika: v1
 workflow: hello
 
-model: ollama/llama3.1
+model: ollama/qwen3.5:4b
 tasks:
   - id: greet
     infer:
@@ -106,7 +106,7 @@ outputs:                              # what the workflow returns · symmetric t
   summary: ${{ tasks.summarize.output }}
 ```
 
-3 tasks · DAG with deps · 2 verbs (`invoke:` ×2 incl `nika:fetch` · `infer:`) · variable substitution + task output reference · an `outputs:` return contract. Note each task that references `${{ tasks.X.output }}` also lists `X` in `depends_on:` — that pairing is **required** (`NIKA-DAG-003` · the engine never infers the edge). The 4th verb, `agent:` (an agentic loop · may declare a `schema:`), is shown in [examples/](../examples/).
+3 tasks · DAG with deps · 2 verbs (`invoke:` ×2 incl `nika:fetch` · `infer:`) · variable substitution + task output reference · an `outputs:` return contract. Note each task that references `${{ tasks.X.output }}` also lists `X` in `depends_on:`. That pairing is **required** (`NIKA-DAG-003` · the engine never infers the edge). The 4th verb, `agent:` (an agentic loop · may declare a `schema:`), is shown in [examples/](../examples/).
 
 ---
 
@@ -123,7 +123,7 @@ outputs:                              # what the workflow returns · symmetric t
 | [07 conformance](./07-conformance.md) | What « v0.1-compliant » means |
 | [08 out of scope](./08-out-of-scope.md) | Explicit defer list (memory · macros · etc.) |
 
-**Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/) — **<!-- canon:providers -->14<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->23<!-- /canon --> builtins** (6 core · 5 file · 8 data · 2 introspection · 2 network · post ADR-086/087/088 Rams sweep 2026-05-27).
+**Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/): **<!-- canon:providers -->14<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->24<!-- /canon --> builtins** (6 core · 5 file · 8 data · 1 introspection · 2 network · post ADR-086/087/088 Rams sweep 2026-05-27).
 
 ---
 
@@ -145,7 +145,7 @@ See [`08-out-of-scope.md`](./08-out-of-scope.md) for the explicit list.
 
 ## Frozen language envelope
 
-The **language** envelope is frozen at `nika: v1` forever. The 5 pillars are locked at the `nika: v1` contract · minor language additions are additive only (feature-detected · no minor version in the file) · breaking changes would ship as a new contract (`nika: v2`) with its own spec — and the envelope being frozen, that is effectively never. (This is the **language** version, independent of any engine version: the reference engine ships its own semver toward a 1.0 release, which does not touch `nika: v1`.)
+The **language** envelope is frozen at `nika: v1` forever. The 5 pillars are locked at the `nika: v1` contract · minor language additions are additive only (feature-detected · no minor version in the file) · breaking changes would ship as a new contract (`nika: v2`) with its own spec, and the envelope being frozen, that is effectively never. (This is the **language** version, independent of any engine version: the reference engine ships its own semver toward a 1.0 release, which does not touch `nika: v1`.)
 
 In practice · we expect `nika: v1` to last 10+ years.
 

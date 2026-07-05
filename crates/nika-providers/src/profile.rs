@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Provider profiles — the canonical 14, as data.
+//! Provider profiles — the canonical 16, as data.
 //!
 //! A profile binds a provider id to a wire format, a default endpoint and a
 //! key-loading recipe. Cloud rows are seeded from `nika-catalog` (codegen
@@ -21,7 +21,7 @@ pub enum WireFormat {
     Anthropic,
     /// `OpenAI` Chat Completions — also every OpenAI-compatible server
     /// (cloud: `openai` · `deepseek` · `mistral` · `xai` · `groq` ·
-    /// `openrouter` · local: `ollama` · `lmstudio` · `llamacpp` ·
+    /// `openrouter` · `huggingface` · `nvidia` · local: `ollama` · `lmstudio` · `llamacpp` ·
     /// `localai` · `vllm`).
     OpenAiCompat,
     /// Google Gemini `generateContent` (wired s8.6). The profile
@@ -51,6 +51,22 @@ impl WireFormat {
     #[must_use]
     pub fn supports_response_format(self) -> bool {
         matches!(self, Self::OpenAiCompat | Self::Mock | Self::Gemini)
+    }
+
+    /// Whether this wire family's STRICT structured mode rejects an
+    /// UNDERSPECIFIED schema — an object without `properties` or an
+    /// array without `items` anywhere in the tree (F2 · ADR-098).
+    ///
+    /// The real strict modes do: `OpenAI`'s `json_schema`+`strict` 400s
+    /// on exactly this class (the whole family is treated as its peer),
+    /// and gemini's `responseSchema` `OpenAPI` subset carries its own
+    /// rejection surface — callers fall back to the native JSON mode + LOCAL
+    /// validation there. `Mock` SYNTHESIZES a conformant instance from
+    /// ANY schema (F3 · the offline-CI base) and `Anthropic` has no
+    /// native mode at all (instruction fallback) — neither rejects.
+    #[must_use]
+    pub fn strict_rejects_underspecified(self) -> bool {
+        matches!(self, Self::OpenAiCompat | Self::Gemini)
     }
 }
 
@@ -87,6 +103,17 @@ impl Profile {
         v
     }
 
+    /// Whether this profile is one of the 5 LOCAL servers (`ollama` ·
+    /// `lmstudio` · `llamacpp` · `localai` · `vllm`) — keyed on the
+    /// canonical id (the [`LOCAL`] seed rows), so an operator
+    /// `with_base_url` override never flips the classification. Local
+    /// servers get the generous transport-deadline default (a local
+    /// model routinely needs minutes for one completion — see
+    /// `wire::transport_deadline`).
+    pub(crate) fn is_local(&self) -> bool {
+        LOCAL.iter().any(|(id, _)| *id == self.id)
+    }
+
     /// Resolve a model nickname through the catalog row (`"sonnet"` →
     /// `"claude-sonnet-4-20250514"`). Unknown names pass through verbatim —
     /// the wire model namespace is the provider's, not ours.
@@ -103,8 +130,8 @@ impl Profile {
     }
 }
 
-/// The canonical provider ids, in canon order (8 cloud · 5 local · 1 test).
-pub const CANONICAL_IDS: [&str; 14] = [
+/// The canonical provider ids, in canon order (10 cloud · 5 local · 1 test).
+pub const CANONICAL_IDS: [&str; 16] = [
     "anthropic",
     "openai",
     "gemini",
@@ -113,6 +140,8 @@ pub const CANONICAL_IDS: [&str; 14] = [
     "xai",
     "groq",
     "openrouter",
+    "huggingface",
+    "nvidia",
     "ollama",
     "lmstudio",
     "llamacpp",
@@ -121,12 +150,12 @@ pub const CANONICAL_IDS: [&str; 14] = [
     "mock",
 ];
 
-/// The 8 cloud rows (catalog-backed) + the in-process mock.
+/// The 10 cloud rows (catalog-backed) + the in-process mock.
 ///
 /// gemini's `base_url` is a STEM (`…/v1beta`) — the s8.6 adapter appends
 /// `/models/{model}:generateContent` per request (unlike the other wires,
 /// whose `base_url` is the complete endpoint).
-const CATALOG_WIRED: [(&str, WireFormat, &str); 9] = [
+const CATALOG_WIRED: [(&str, WireFormat, &str); 11] = [
     (
         "anthropic",
         WireFormat::Anthropic,
@@ -167,6 +196,24 @@ const CATALOG_WIRED: [(&str, WireFormat, &str); 9] = [
         WireFormat::OpenAiCompat,
         "https://openrouter.ai/api/v1/chat/completions",
     ),
+    // huggingface · the Inference Providers router (chat-only surface ·
+    // 100+ open-weights across 18 backend providers · zero markup) ·
+    // model names carry an INNER slash + optional :provider/:policy
+    // suffix (`Qwen/Qwen3.5-9B:groq`) — resolve() split_once already
+    // hands the whole rest through untouched.
+    (
+        "huggingface",
+        WireFormat::OpenAiCompat,
+        "https://router.huggingface.co/v1/chat/completions",
+    ),
+    // nvidia · integrate.api.nvidia.com (NIM cloud) · Nemotron 3 family
+    // (Open Model License) + hosted open models · self-hosted NIM
+    // containers expose the same surface (override base_url).
+    (
+        "nvidia",
+        WireFormat::OpenAiCompat,
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+    ),
     ("mock", WireFormat::Mock, ""),
 ];
 
@@ -184,10 +231,10 @@ const LOCAL: [(&str, &str); 5] = [
     ("vllm", "http://127.0.0.1:8000/v1/chat/completions"),
 ];
 
-/// Build the canonical 14 profiles (catalog-joined where rows exist).
+/// Build the canonical 16 profiles (catalog-joined where rows exist).
 #[must_use]
 pub fn seed() -> Vec<Profile> {
-    let mut out = Vec::with_capacity(14);
+    let mut out = Vec::with_capacity(16);
     for (id, wire, base_url) in CATALOG_WIRED {
         let catalog = nika_catalog::find_provider(id);
         out.push(Profile {
@@ -217,7 +264,7 @@ mod tests {
     #[test]
     fn seed_yields_the_canonical_fourteen() {
         let profiles = seed();
-        assert_eq!(profiles.len(), 14);
+        assert_eq!(profiles.len(), 16);
         let mut ids: Vec<&str> = profiles.iter().map(|p| p.id).collect();
         ids.sort_unstable();
         let mut canon = CANONICAL_IDS.to_vec();
@@ -257,6 +304,17 @@ mod tests {
                 assert_eq!(p.wire, WireFormat::OpenAiCompat);
                 assert!(p.base_url.starts_with("http://127.0.0.1"), "{}", p.id);
             }
+        }
+    }
+
+    #[test]
+    fn is_local_classifies_exactly_the_five_local_servers() {
+        // F1: the classification drives the transport-deadline default
+        // (local ≫ cloud) — keyed on the id so a base_url override can
+        // never flip it.
+        for p in seed() {
+            let expected = ["ollama", "lmstudio", "llamacpp", "localai", "vllm"].contains(&p.id);
+            assert_eq!(p.is_local(), expected, "{} classification", p.id);
         }
     }
 

@@ -211,6 +211,7 @@ fn arg_rows(report: &CheckReport) -> Vec<String> {
 
 /// Advisory hints + the one-line verdict (the report's last words).
 fn hints_and_verdict(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
+    let mut hint_count = report.hints.len();
     for h in &report.hints {
         let _ = writeln!(
             out,
@@ -223,6 +224,7 @@ fn hints_and_verdict(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t
     }
     let inputs = required_inputs(wf);
     if !inputs.is_empty() {
+        hint_count += 1;
         let pass = inputs
             .iter()
             .map(|n| format!("--var {n}=…"))
@@ -237,17 +239,34 @@ fn hints_and_verdict(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t
         );
     }
     if report.is_clean() {
-        let _ = writeln!(
-            out,
-            " {}",
-            t.paint(
-                Role::Good,
-                "✔ clean — audited before a single token was spent"
-            )
-        );
+        let _ = writeln!(out, " {}", audited_line(report, wf, hint_count, t));
     } else {
         let _ = writeln!(out, " {}", t.paint(Role::Bad, "✖ findings above"));
     }
+}
+
+/// The clean verdict as ONE informative card line — what was proven,
+/// at a glance: `✔ audited · N tasks · M waves · permits <state> ·
+/// est ≥$X · K hints`. The hints themselves stay above; this line
+/// counts them so a scroll-past never misses advice silently.
+fn audited_line(report: &CheckReport, wf: &RawWorkflow, hints: usize, t: Theme) -> String {
+    let tasks: usize = report.waves.iter().map(Vec::len).sum();
+    let permits = if wf.permits.is_some() {
+        "declared"
+    } else {
+        "none"
+    };
+    let floor = crate::display::vocab::at_least(t.ascii);
+    let hint_word = if hints == 1 { "hint" } else { "hints" };
+    let mark = if t.ascii { "ok" } else { "✔" };
+    t.paint(
+        Role::Good,
+        &format!(
+            "{mark} audited · {tasks} task(s) · {} wave(s) · permits {permits} · est {floor}${:.4} · {hints} {hint_word}",
+            report.waves.len(),
+            report.cost.min_path_total_usd,
+        ),
+    )
 }
 
 /// A finding section: one OK line when empty, one row per finding else.
@@ -506,11 +525,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("tmp dir");
         let path = dir.join(name);
         std::fs::write(&path, yaml).expect("fixture body");
-        let theme = Theme {
-            color: false,
-            ascii,
-            animate: false,
-        };
+        let theme = Theme::new(false, ascii, false);
         run(path.to_str().expect("utf8 path"), false, theme).text
     }
 
@@ -553,6 +568,35 @@ mod tests {
         assert!(
             !text.contains("xyzzy"),
             "mark never emits a placeholder: {text}"
+        );
+    }
+
+    /// The clean verdict is the audited CARD line: tasks · waves ·
+    /// permits state · the cost floor · the hint count — with full
+    /// ASCII parity (`ok audited` · `>=`).
+    #[test]
+    fn clean_verdict_is_the_audited_card_line() {
+        let yaml = "nika: v1\nworkflow: card\nmodel: mock/echo\ntasks:\n  - id: a\n    exec: { command: \"echo hi\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo bye\" }\n";
+        let text = checked_text("audited-card.nika.yaml", yaml, false);
+        assert!(
+            text.contains(
+                "✔ audited · 2 task(s) · 2 wave(s) · permits none · est ≥$0.0000 · 1 hint"
+            ),
+            "the audited card line: {text}"
+        );
+        let ascii = checked_text("audited-card-ascii.nika.yaml", yaml, true);
+        assert!(
+            ascii.contains("ok audited") && ascii.contains("est >=$0.0000"),
+            "ascii parity (ok · >=): {ascii}"
+        );
+        assert!(
+            !ascii.contains('≥'),
+            "no unicode leaks into --ascii: {ascii}"
+        );
+        // Hint pluralization: 1 hint here (the permits advisory).
+        assert!(
+            text.contains("1 hint") && !text.contains("1 hints"),
+            "{text}"
         );
     }
 

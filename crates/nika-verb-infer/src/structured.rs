@@ -75,6 +75,77 @@ pub(crate) fn extract_and_validate(text: &str, validator: &jsonschema::Validator
     }
 }
 
+/// Is the task schema UNDERSPECIFIED for a strict provider mode? — any
+/// node typed `object` without `properties`, or typed `array` without
+/// `items`, anywhere in the tree (F2 · ADR-098).
+///
+/// The strict wire modes reject exactly this class (`OpenAI`'s
+/// `json_schema`+`strict` 400s on it); the verb then requests the
+/// provider's native JSON mode instead and validates LOCALLY against the
+/// user schema — the schema means "free-form here", which no strict mode
+/// can express. Iterative walk (an explicit worklist · no recursion), so
+/// a deeply-nested authored schema can never overflow the stack.
+pub(crate) fn is_underspecified(schema: &serde_json::Value) -> bool {
+    let mut stack = vec![schema];
+    while let Some(node) = stack.pop() {
+        let Some(obj) = node.as_object() else {
+            // Boolean schemas (`true`/`false`) carry no object/array
+            // shape for a strict mode to choke on.
+            continue;
+        };
+        if node_lacks_shape(obj) {
+            return true;
+        }
+        push_subschemas(obj, &mut stack);
+    }
+    false
+}
+
+/// One node's verdict: declares the type but not its shape.
+fn node_lacks_shape(obj: &serde_json::Map<String, serde_json::Value>) -> bool {
+    (declares_type(obj, "object") && !obj.contains_key("properties"))
+        || (declares_type(obj, "array") && !obj.contains_key("items"))
+}
+
+/// `"type": "object"` or `"type": ["object", "null"]` — both forms count.
+fn declares_type(obj: &serde_json::Map<String, serde_json::Value>, name: &str) -> bool {
+    match obj.get("type") {
+        Some(serde_json::Value::String(t)) => t == name,
+        Some(serde_json::Value::Array(list)) => list.iter().any(|t| t.as_str() == Some(name)),
+        _ => false,
+    }
+}
+
+/// Push every child subschema of one node onto the worklist.
+fn push_subschemas<'a>(
+    obj: &'a serde_json::Map<String, serde_json::Value>,
+    stack: &mut Vec<&'a serde_json::Value>,
+) {
+    for key in ["properties", "patternProperties", "$defs", "definitions"] {
+        if let Some(map) = obj.get(key).and_then(serde_json::Value::as_object) {
+            stack.extend(map.values());
+        }
+    }
+    for key in ["anyOf", "allOf", "oneOf", "prefixItems"] {
+        if let Some(list) = obj.get(key).and_then(serde_json::Value::as_array) {
+            stack.extend(list.iter());
+        }
+    }
+    match obj.get("items") {
+        // Tuple form (draft-07) — each position is a subschema.
+        Some(serde_json::Value::Array(list)) => stack.extend(list.iter()),
+        Some(single) => stack.push(single),
+        None => {}
+    }
+    // `additionalProperties: { …schema… }` shapes the open remainder —
+    // the bool form is a gate, not a subschema.
+    if let Some(extra) = obj.get("additionalProperties")
+        && extra.is_object()
+    {
+        stack.push(extra);
+    }
+}
+
 /// The corrective user message appended on a validation retry.
 pub(crate) fn retry_message(detail: &str, schema: &serde_json::Value) -> String {
     let rendered = render_schema(schema);
@@ -186,8 +257,10 @@ mod tests {
 
     #[test]
     fn json_embedded_in_prose_is_extracted() {
-        // The mock provider echoes `mock(model) · {prompt}` — the balanced-span
-        // layer is what makes the deterministic happy path work end-to-end.
+        // Real models wrap JSON in prose (`Here's the data: {...}`) — the
+        // balanced-span layer digs it out. (The mock provider synthesizes
+        // pure JSON for schema requests since F3; this layer serves the
+        // REAL providers' noisy replies.)
         let text = r#"mock(echo) · {"name":"Ada","age":36}"#;
         assert!(matches!(
             extract_and_validate(text, &validator(&person_schema())),
@@ -228,6 +301,79 @@ mod tests {
             extract_and_validate("the list is [1, 2, 3] ok", &validator(&schema)),
             Validation::Valid(_)
         ));
+    }
+
+    // ── F2 · underspecified-schema detection (ADR-098) ───────────────
+
+    #[test]
+    fn bare_object_and_bare_array_are_underspecified() {
+        // The field repro: translate-payload's "return the SAME free-form
+        // object" — OpenAI strict 400s "object schema missing properties".
+        assert!(is_underspecified(&json!({ "type": "object" })));
+        assert!(is_underspecified(&json!({ "type": "array" })));
+        // The type-array form counts too.
+        assert!(is_underspecified(&json!({ "type": ["object", "null"] })));
+    }
+
+    #[test]
+    fn underspecified_is_detected_anywhere_in_the_tree() {
+        // The field repro's SECOND rung: head/sections declared but
+        // themselves shapeless — "array schema missing items".
+        assert!(is_underspecified(&json!({
+            "type": "object",
+            "properties": {
+                "head": { "type": "object" },
+                "sections": { "type": "array" }
+            },
+            "required": ["head", "sections"]
+        })));
+        // Nested through items · $defs · anyOf.
+        assert!(is_underspecified(&json!({
+            "type": "array",
+            "items": { "type": "object" }
+        })));
+        assert!(is_underspecified(&json!({
+            "type": "object",
+            "properties": { "x": { "$ref": "#/$defs/free" } },
+            "$defs": { "free": { "type": "object" } }
+        })));
+        assert!(is_underspecified(&json!({
+            "anyOf": [{ "type": "string" }, { "type": "object" }]
+        })));
+        // `additionalProperties: {…}` subschema is walked.
+        assert!(is_underspecified(&json!({
+            "type": "object",
+            "properties": { "k": { "type": "string" } },
+            "additionalProperties": { "type": "array" }
+        })));
+    }
+
+    #[test]
+    fn fully_specified_schemas_are_not_flagged() {
+        // The person schema + the atlas-style review schema keep today's
+        // strict path untouched.
+        assert!(!is_underspecified(&person_schema()));
+        assert!(!is_underspecified(&json!({
+            "type": "object",
+            "required": ["verdict", "findings"],
+            "properties": {
+                "verdict": { "type": "string", "enum": ["P0", "P1"] },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": { "detail": { "type": "string" } }
+                    }
+                }
+            }
+        })));
+        // Scalars + boolean gates never trip the rule.
+        assert!(!is_underspecified(&json!({ "type": "string" })));
+        assert!(!is_underspecified(&json!({
+            "type": "object",
+            "properties": { "k": { "type": "integer" } },
+            "additionalProperties": false
+        })));
     }
 
     #[test]

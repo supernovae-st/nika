@@ -5,7 +5,7 @@
 #
 # The Monday brief that assembles itself · market signal, engineering
 # pulse and the KPI sheet gathered in parallel · synthesized with a
-# thinking budget · saved, dated — and the ping tells you what the run
+# thinking budget · saved, dated, and the ping tells you what the run
 # COST. The workflow reports its own bill.
 #
 # Demonstrates ·
@@ -20,7 +20,7 @@ nika: v1
 workflow: ceo-monday-brief
 description: "news + repo pulse + KPIs → thinking synthesis → dated brief + cost ping"
 
-model: mistral/mistral-large
+model: ollama/qwen3.5:4b   # local default · the synthesis task below overrides to a stronger model
 
 vars:
   watch_query: "AI workflow engines"

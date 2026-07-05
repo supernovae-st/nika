@@ -1,8 +1,8 @@
 # Stdlib v0.1 · Builtins
 
-> **<!-- canon:builtins -->23<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
-> Invoked via `invoke: tool: "nika:<name>"`. Plus media builtins deferred to
-> stdlib v0.x (opt-in feature flag).
+> **<!-- canon:builtins -->24<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
+> Invoked via `invoke: tool: "nika:<name>"`. Plus the remaining media
+> builtins deferred to stdlib v0.x (opt-in feature flag).
 >
 > **Consolidation (« less but better »)** · was 42 → 26 (D-N6) →
 > **22**. Step 1 (42 → 26 · D-N6) · `nika:jq` is THE data language · 13 thin
@@ -10,12 +10,15 @@
 > jaq source-verified 2026-05-27 · `obj_merge` impl + test corpus + corelang
 > docs) · the validators merged · `task_status`/`orchestrate`/`locale_lookup`
 > cut. Step 3 (22 → 23 · 2026-06-13) · `nika:compose` · the agent loop's
-> self-verification intrinsic (ADR-096 · loop-only like `done`). Step 2
+> self-verification intrinsic (ADR-093 · loop-only like `done`). Step 2
 > (26 → 22 · ADR-086/087/088 Rams sweep 2026-05-27) · `convert`
 > replaces `csv_to_json` (multi-format · from:/to:) · `wait` unifies
 > `sleep`+`wait_until` (−1) · `inspect` unifies `cost`+`records`+`dag_info`+
 > `threads` (−3). ZERO capability loss (jq ⊇ the cuts · jaq-verified · the
 > collapses preserve every behavior via mode args). See §"What jq subsumes".
+> Step 4 (23 → 24 · 2026-07-05) · `nika:image_generate` · the FIRST §Media
+> graduate (openai `gpt-image-2` · gemini `gemini-3.1-flash-image` · `mock`
+> for offline runs · assets land on disk, never inline base64).
 
 ---
 
@@ -28,10 +31,10 @@
 | Data | 8 | `jq` (THE data language) + 7 capabilities jq can't express (json_diff · validate · json_merge_patch · convert · uuid · date · hash) |
 | Introspection | 2 | Self-awareness · `inspect` (runtime state · 4 views) · `compose` (static check of a drafted workflow · agent loops only) |
 | Network | 2 | fetch (HTTP+extraction) · notify (alerts out) |
-| Media | — | **Deferred to stdlib v0.x** (opt-in feature flag) |
-| **Total v0.1** | **23** | |
+| Media | 1 | `image_generate` (the first §Media graduate · 2026-07-05) — the REST of the media class stays deferred to stdlib v0.x |
+| **Total v0.1** | **24** | |
 
-A Stdlib v0.1-compliant engine MUST ship these 23.
+A Stdlib v0.1-compliant engine MUST ship these 24.
 
 ---
 
@@ -57,9 +60,9 @@ Emit a custom machine event (consumed by subscribers · journal). Distinct from 
 ```yaml
 invoke: { tool: "nika:assert", args: { condition: "${{ tasks.X.output.count > 0 }}", message: "Expected non-empty result" } }
 ```
-Fail the task if `condition` (a **CEL `${{ }}` boolean**) is false · else no-op. The **fail-fast guard** (distinct from `when:` which is the **skip-guard**). `condition:` uses the canonical `${{ }}` CEL surface — never a legacy `$task` syntax.
+Fail the task if `condition` (a **CEL `${{ }}` boolean**) is false · else no-op. The **fail-fast guard** (distinct from `when:` which is the **skip-guard**). `condition:` uses the canonical `${{ }}` CEL surface, never a legacy `$task` syntax.
 
-Returns `true` on pass. Throws · `NIKA-BUILTIN-ASSERT-001` (assertion failed · `tool_error` · `transient: false` · `message:` lands in the error message · retryable via `retry.on_codes` — the polling pattern's lever).
+Returns `true` on pass. Throws · `NIKA-BUILTIN-ASSERT-001` (assertion failed · `tool_error` · `transient: false` · `message:` lands in the error message · retryable via `retry.on_codes`, the polling pattern's lever).
 
 ### `nika:prompt`
 ```yaml
@@ -75,14 +78,14 @@ is collected** (default `confirm`) ·
 
 | `mode` | Returns | Notes |
 |---|---|---|
-| `confirm` (default) | **boolean** | `true` = confirmed · `false` = refused. A refusal is a VALUE, never an error — gate downstream with `when:`. |
+| `confirm` (default) | **boolean** | `true` = confirmed · `false` = refused. A refusal is a VALUE, never an error: gate downstream with `when:`. |
 | `input` | **string** | the free text the human typed (may be empty). |
 | `choice` | **string** | the chosen element of `choices:` (required · non-empty array). Returns the chosen value (not its index) so it binds directly. |
 
 Non-interactive contract (normative · all modes) · when no human can answer
 (CI · daemon) the engine MUST use `default:` when present · and MUST fail
 `NIKA-BUILTIN-PROMPT-001` (`validation_error` · non-interactive without a
-`default:`) when absent — never hang forever · never silently pick an answer.
+`default:`) when absent: never hang forever · never silently pick an answer.
 A `choice` whose `default:` is not an element of `choices:` is a parse error
 (`NIKA-BUILTIN-PROMPT-002` · `validation_error`).
 
@@ -120,7 +123,7 @@ Read a file · returns **string** content (text mode · the default).
 `binary: true` (explicit · no content sniffing) returns **opaque bytes**
 ([04 §value rendering](../spec/04-variables.md) · they flow tool→tool ·
 never into a string position). Throws · `NIKA-BUILTIN-READ-001` (file not
-found — the code the state-file first-run pattern scopes its recovery to) ·
+found, the code the state-file first-run pattern scopes its recovery to) ·
 `-002` (IO failure · permission) · `-003` (text mode on non-UTF-8 content ·
 use `binary: true`). All `tool_error` · `transient: false`.
 
@@ -137,9 +140,9 @@ Write a file · returns the path. A binary `content` value (an opaque bytes outp
 invoke: { tool: "nika:edit", args: { path: "./file.md", find: "old", replace: "new" } }
 ```
 In-place find/replace · returns the modified path. `find:` is a **literal
-string** (not a regex — use `nika:grep` to locate · jq to transform) ·
+string** (not a regex: use `nika:grep` to locate · jq to transform) ·
 replaces **all occurrences** · `count:` caps replacements when set. Throws ·
-`NIKA-BUILTIN-EDIT-001` (`find:` matched nothing — an edit that edits
+`NIKA-BUILTIN-EDIT-001` (`find:` matched nothing: an edit that edits
 nothing is an authoring bug · `tool_error`) · `-002` (IO failure).
 
 ### `nika:glob`
@@ -168,9 +171,9 @@ sorted by `(path, line)`. `pattern:` is a **Rust-regex-class** expression
 ```yaml
 invoke: { tool: "nika:jq", args: { expression: ".items | map(.price) | add", input: "${{ tasks.X.output }}" } }
 ```
-Run a jq expression. **The single data-transform-and-extraction language** — map · filter · select · group_by · reshape · string-interpolation `"\(.x)"` · `@base64`/`@base64d`/`@csv` encoders · array `flatten` · `leaf_paths`/`getpath`/`setpath`. The same jq used in `output:` bindings (see `04-variables.md`).
+Run a jq expression. **The single data-transform-and-extraction language**: map · filter · select · group_by · reshape · string-interpolation `"\(.x)"` · `@base64`/`@base64d`/`@csv` encoders · array `flatten` · `leaf_paths`/`getpath`/`setpath`. The same jq used in `output:` bindings (see `04-variables.md`).
 
-**`input` is any JSON value** — a single ref (`input: "${{ tasks.X.output }}"`) OR a **constructed array for multi-input ops**. Recursive merge of two objects (this is exactly why `json_merge` is NOT a builtin · jaq's `*` does it) ·
+**`input` is any JSON value**: a single ref (`input: "${{ tasks.X.output }}"`) OR a **constructed array for multi-input ops**. Recursive merge of two objects (this is exactly why `json_merge` is NOT a builtin · jaq's `*` does it) ·
 ```yaml
 invoke:
   tool: nika:jq
@@ -180,10 +183,10 @@ invoke:
 ```
 Same shape combines / zips N inputs · build the array, index inside jq.
 
-**The arg is `expression:`** — exactly that name (not `query:` · not `expr:` ·
+**The arg is `expression:`**, exactly that name (not `query:` · not `expr:` ·
 one name everywhere · the conformance oracle gates it). Throws ·
-`NIKA-BUILTIN-JQ-001` (program error at runtime · `tool_error` — compile
-errors are caught statically · `NIKA-VAR-005`).
+`NIKA-BUILTIN-JQ-001` (program error at runtime · `tool_error`). Compile
+errors are caught statically (`NIKA-VAR-005`).
 
 **Implementation** · reference engine uses `jaq` (Rust jq).
 
@@ -198,7 +201,7 @@ JSON diff · returns **RFC 6902** JSON Patch. (jq can't diff.) Throws · `NIKA-B
 invoke: { tool: "nika:validate", args: { data: { ... }, schema: { type: object, ... }, format: json } }
 # format: json (default · validate a value) | yaml (parse a YAML string first, then validate)
 ```
-Validate data against a **JSON Schema** · returns `{ valid: bool, errors: [...] }` — invalid DATA is a **report, never a task failure** (gate on `.valid` downstream · or `nika:assert` it). Merges the former `json_verify` + `yaml_validate` (`format:` arg · one validator). Throws · `NIKA-BUILTIN-VALIDATE-001` (the `schema:` itself is not a valid JSON Schema · `validation_error`) · `-002` (`format: yaml` and the string does not parse as YAML).
+Validate data against a **JSON Schema** · returns `{ valid: bool, errors: [...] }`. Invalid DATA is a **report, never a task failure** (gate on `.valid` downstream · or `nika:assert` it). Merges the former `json_verify` + `yaml_validate` (`format:` arg · one validator). Throws · `NIKA-BUILTIN-VALIDATE-001` (the `schema:` itself is not a valid JSON Schema · `validation_error`) · `-002` (`format: yaml` and the string does not parse as YAML).
 
 ### `nika:json_merge_patch`
 ```yaml
@@ -248,7 +251,7 @@ Content hashing · default **blake3** (fastest modern cryptographic hash · para
 ## Network builtins (2)
 
 ### `nika:fetch`
-HTTP request + content extraction (reached via `invoke:` — fetching a URL is *calling a tool*, not a verb · see `02-verbs.md`).
+HTTP request + content extraction (reached via `invoke:` because fetching a URL is *calling a tool*, not a verb · see `02-verbs.md`).
 ```yaml
 invoke: { tool: "nika:fetch", args: { url: "https://example.com/article", mode: article } }
 ```
@@ -264,7 +267,7 @@ invoke: { tool: "nika:fetch", args: { url: "https://example.com/article", mode: 
 `NIKA-BUILTIN-FETCH-001` (`category: network_error` · `transient: true` for
 5xx/408/429 · `false` for other 4xx · `details.status_code` carries the
 status). To poll a pending resource · the jq-error pattern
-([08 H19](../spec/08-out-of-scope.md)) — not status-code inspection.
+([08 H19](../spec/08-out-of-scope.md)), not status-code inspection.
 Redirects follow up to an engine cap · the FINAL status decides.
 
 **Security (engine MUST)** · SSRF defense (reject private-net + cloud-metadata `169.254.169.254` unless configured) · honor task-level `timeout` · reject self-signed TLS by default.
@@ -273,7 +276,7 @@ Redirects follow up to an engine cap · the FINAL status decides.
 ```yaml
 invoke: { tool: "nika:notify", args: { channel: webhook, target: "https://hooks.slack.com/...", message: "Done · ${{ tasks.X.status }}", severity: info, data: { run: "${{ tasks.X.output }}" } } }
 ```
-Send notifications · `channel:` enum (`webhook`/`slack`/`email`/`discord`/`sms` · one builtin not 5). The 1.0 engine MUST support `webhook` · others MAY be feature-gated. `data:` (OPTIONAL · any JSON value) carries structured context alongside the human `message` — the webhook payload is `{ message, severity, data? }` (the key is absent when not given · receivers branch on machine fields, never parse the message). Returns `null` on accepted delivery. Throws · `NIKA-BUILTIN-NOTIFY-001` (channel unconfigured · `validation_error`) · `-002` (delivery failed · `network_error` · transient engine-assessed).
+Send notifications · `channel:` enum (`webhook`/`slack`/`email`/`discord`/`sms` · one builtin not 5). The 1.0 engine MUST support `webhook` · others MAY be feature-gated. `data:` (OPTIONAL · any JSON value) carries structured context alongside the human `message`: the webhook payload is `{ message, severity, data? }` (the key is absent when not given · receivers branch on machine fields, never parse the message). Returns `null` on accepted delivery. Throws · `NIKA-BUILTIN-NOTIFY-001` (channel unconfigured · `validation_error`) · `-002` (delivery failed · `network_error` · transient engine-assessed).
 
 ---
 
@@ -286,7 +289,7 @@ agent:
   tools: ["nika:compose"]            # the agent grants itself the self-check
 ```
 The agent loop's self-verification intrinsic · the model passes a workflow
-YAML draft it wrote, and gets the FULL `nika check` verdict back as JSON —
+YAML draft it wrote, and gets the FULL `nika check` verdict back as JSON:
 conformance violations (with codes + repair hints), secret-flow findings,
 permits escapes, and the termination/cost certificate. It **never executes**
 the draft (« generation is not permission » · the draft is an artifact + its
@@ -309,13 +312,114 @@ invoke:
 Workflow introspection · 1 builtin · 4 `view:` enum modes (Rams collapse per ADR-088 · 2026-05-27) ·
 
 - `view: cost` → `{ total_usd, by_task, by_provider }`. Running workflow cost.
-- `view: records` → `{ tasks: [{ id, status, duration_ms, ... }] }`. Full execution record. (Per-task status is also read directly via the `${{ tasks.X.status }}` namespace — same shape.)
+- `view: records` → `{ tasks: [{ id, status, duration_ms, ... }] }`. Full execution record. (Per-task status is also read directly via the `${{ tasks.X.status }}` namespace, same shape.)
 - `view: dag_info` → `{ nodes, edges, waves }`. DAG topology.
 - `view: threads` → `{ active, queued, completed }`. Engine task-pool state · **advisory** · counts reflect the engine's concurrency model (impl-dependent · use for coarse adaptive-throttling · not a portable contract-precise number).
 
 Replaces · 4 legacy introspection builtins (`nika:cost` · `nika:records` · `nika:dag_info` · `nika:threads`) collapsed per « less but better » Rams sweep · same trust class (PURE) · same query-own-workflow-state semantic family · the split into 4 separate builtins was historical (one-per-shape) not structural · the unified `view:` discriminator + per-shape `args:` is the canonical « one super-powerful builtin · multi-mode args » pattern (matches fetch+extract · jq · convert · wait).
 
 Throws · `NIKA-BUILTIN-INSPECT-001` if `view:` value not in the canonical enum.
+
+---
+
+## Media builtins (1)
+
+### `nika:image_generate` · provider-backed image asset generation
+
+```yaml
+invoke:
+  tool: "nika:image_generate"
+  args:
+    provider: mock                # mock (offline · deterministic) | gemini | openai — inferable from model:
+    prompt: "OG hero — a monarch butterfly over a nebula, editorial photo"
+    aspect_ratio: "16:9"
+    output_dir: "./assets/og"
+    filename_prefix: "launch-hero"
+    metadata: { campaign: "spring", page_slug: "qr-menu" }
+```
+
+Text-to-image generation as an *asset pipeline*, not a blob pipe: images are
+**saved to `output_dir:`** and the output carries `paths + dimensions +
+sha256 (+ a provenance manifest)` — **image bytes NEVER ride workflow
+outputs** (no base64 in `tasks.X.output`, logs, or traces · normative).
+
+| Arg | Notes |
+|---|---|
+| `provider` | `openai` · `gemini` · `mock` — optional when inferable from `model:` (`gpt-image*`→openai · `gemini-*`→gemini · `mock*`→mock) |
+| `model` | per-provider default (reference engine 2026-07: `gpt-image-2` · `gemini-3.1-flash-image` · `mock-image-1`) |
+| `prompt` | **required** · the creative brief · may use `${{ … }}` |
+| `mode` | `generate` (default) · `edit` is RESERVED (rejected loudly in v0.1 · media roadmap) |
+| `n` | 1..=10 variants (engines MAY satisfy n via sequential provider calls · documented per adapter) |
+| `aspect_ratio` | closed set `1:1 · 16:9 · 9:16 · 4:3 · 3:4 · 3:2 · 2:3 · 21:9` |
+| `size` | exact `WIDTHxHEIGHT` or `auto` · an exact size WINS over `aspect_ratio:` (with a warning) · providers that render size CLASSES fold it (loudly) |
+| `quality` | `auto · low · medium · high · ultra` — folded per provider capability, never silently |
+| `format` | `png` (default) · `jpeg` · `webp` — **magic bytes are the authority**: what actually landed decides mime/extension, a mismatch is a warning |
+| `compression` | 0..=100 · jpeg/webp only |
+| `background` | `auto · transparent · opaque` · transparent REQUIRES an alpha-capable format (png/webp) and a supporting provider/model |
+| `seed` | best-effort (providers without seed support warn + drop) |
+| `reference_images` | RESERVED (rejected loudly in v0.1 · media roadmap) |
+| `provider_options` | vetted pass-through (unknown keys warn, never crash) |
+| `output_dir` | **required** · rides the declared `permits.fs` boundary (`NIKA-SEC-004` · gated per final path BEFORE any I/O) |
+| `filename_prefix` | filename stem (else `metadata.page_slug`, else `image`) — sanitized `[a-z0-9._-]`, traversal-free by construction |
+| `save` | `true` (v0.1 contract · `save: false` is RESERVED — rejected loudly) |
+| `manifest` | write the provenance manifest JSON beside the assets (default `true`) |
+| `metadata` | free provenance object (campaign · page_slug · locale · …) echoed into output + manifest |
+| `timeout_ms` | per-request deadline · default 180000 · 1000..=600000 (image renders routinely run 30–120s) |
+| `debug` | echo the sanitized raw provider response (base64 payloads STRIPPED · headers never included) |
+
+**Filenames (normative grammar)** ·
+`{stem}-{provider}-{modelslug}-{index}-{sha8}.{ext}` · every component
+sanitized to `[a-z0-9._-]` with no separators; name collisions probe
+`-2..-99`; an IDENTICAL payload already on disk is an idempotent re-run
+(no duplicate). The manifest lands beside the assets as
+`{stem}-{provider}-{modelslug}-{batchsha8}.manifest.json`
+(`manifest_version: 1` · resolved request echo · per-image
+paths/dimensions/sha256 · usage · warnings · caller `metadata:` — and
+NEVER a credential: keys live a composition layer away by construction).
+
+**Output (normalized · both providers + mock)** · `{ provider, model, mode,
+prompt, revised_prompt, provider_text, created_at, count, images: [{ index,
+path, filename, mime_type, format, width, height, size_bytes, sha256,
+provider, model, seed, variant_id, warnings, metadata }], usage:
+{ input_tokens, output_tokens, total_tokens, thoughts_tokens }, warnings,
+manifest_path, output_dir }` — absent usage axes are `null`, never
+zero-that-looks-real.
+
+**Security (engine MUST)** · provider endpoints are ENGINE-FIXED constants
+(never workflow data — the provider egress is engine transport, exactly like
+`infer:`; `permits.net.http` does not govern it, `permits.tools` +
+`permits.fs` DO) · decode validation is HEADER-ONLY (magic bytes + PNG
+IHDR / JPEG SOF / WebP VP8-VP8L-VP8X dimensions · no pixel decode → no
+decompression-bomb surface · declared-vs-actual mismatch is a warning, a
+non-image payload is a hard error) · atomic writes (temp+rename) · API keys
+are engine-configured (env/config at the composition root), never workflow
+args, never logged, never echoed.
+
+**Warnings (normative shape)** · every tolerated-but-lossy mapping lands a
+stable `code: message` warning string (`size_conflict:` ·
+`compression_ignored:` · `seed_unsupported:` · `quality_folded:` ·
+`format_mismatch:` · `gemini_size_class:` · `provider_option_unknown:` ·
+`provider_text_clamped:` · …) in `warnings` — silent degradation is
+non-conformant.
+
+**`provider_text`/`revised_prompt` are captions, not payload channels
+(normative)** · a provider's accompanying text MUST be bounded by the
+engine (the reference engine clamps at 2 000 chars with a
+`provider_text_clamped:` warning) — a multimodal response interleaving
+megabytes of text (or base64-shaped junk) must never ride workflow
+outputs, the manifest, or the `debug:` echo unbounded.
+
+Throws · `NIKA-BUILTIN-IMAGE_GENERATE-001` invalid arguments (incl. the v0.1
+RESERVED options · `validation_error`) · `-002` provider unavailable
+(missing credentials / image plane unwired · `validation_error`) · `-003`
+provider request failed (`network_error` · `transient: true` for
+5xx/408/429 + timeout/connection · `details.status_code`) · `-004` no
+image / malformed response (`tool_error`) · `-005` content policy block
+(moderation / safety finish reasons · `security_error` · never transient ·
+`details {finish_reason? · moderation_details?}`) · `-006` save/manifest
+write failed (`tool_error`) · `-007` image validation failed (magic
+mismatch · dimension/byte bounds · `tool_error`). Plus the boundary
+`NIKA-SEC-004` (an `output_dir:` outside `permits.fs.write`).
 
 ---
 
@@ -345,10 +449,13 @@ Also cut · `nika:task_status` (use `${{ tasks.X.status }}`) · `nika:orchestrat
 
 ---
 
-## Media builtins · DEFERRED to stdlib v0.x
+## Media builtins · the REST stays DEFERRED (stdlib v0.x)
 
-Not enumerated in v0.1 (feature-flag in the reference engine · MAY graduate as a
-separate doc). Deliberate « less but better » (Rams 10).
+`image_generate` graduated 2026-07-05 (above). The remaining media class
+(pdf_extract · svg_render · chart · phash · provenance · image *editing* ·
+…) is NOT enumerated in v0.1 (feature-flag in the reference engine · MAY
+graduate builtin-by-builtin per the 3-razor admission test). Deliberate
+« less but better » (Rams 10).
 
 ---
 
@@ -364,8 +471,10 @@ honors task-level `timeout` · respects engine security policies.
 
 New builtins MAY enter stdlib v0.x. Builtin removal is never allowed within a
 stdlib v0.x lifetime (removal requires a new stdlib major). The v0.1 → 22
-consolidation (42 → 26 → 22 · then +`compose` → 23) happened **pre-public** (0 external users · before the forever-clock).
+consolidation (42 → 26 → 22 · then +`compose` → 23 · then +`image_generate`
+→ 24 · the additive §Media graduation path) happened **pre-public** (0
+external users · before the forever-clock).
 
 ---
 
-🦋 *<!-- canon:builtins -->23<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · clear forever.*
+🦋 *<!-- canon:builtins -->24<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*

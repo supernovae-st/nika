@@ -4,7 +4,7 @@
 # showcase · T3 fan-out · engineering
 #
 # A review SWARM · one mini-agent per changed file, each granted
-# read-only tools, all running in parallel — then jq flattens the
+# read-only tools, all running in parallel, then jq flattens the
 # findings and one model writes the summary a human actually reads.
 #
 # Demonstrates ·
@@ -19,7 +19,7 @@ nika: v1
 workflow: pr-review-fanout
 description: "changed files → one read-only review agent each → merged REVIEW.md"
 
-model: anthropic/claude-sonnet-4-6   # agent loops want a tool-calling model
+model: ollama/qwen3.5:4b   # local tool-calling model · swap for anthropic/claude-sonnet-4-6 for depth
 
 vars:
   base_ref: "main"

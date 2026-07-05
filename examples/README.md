@@ -21,6 +21,10 @@ when you want real inference. `nika doctor` tells you what's wired.
   workflow. Reads your PR diff, judges the risk with a structured verdict,
   and comments only when it's high. Four verbs, one readable file,
   local-first. The whole pitch in 60 lines.
+- [`image-og-pipeline.nika.yaml`](image-og-pipeline.nika.yaml) — the media
+  pipeline. One task: brief in → OG image variants on disk + a provenance
+  manifest (paths + sha256, never inline bytes). Runs OFFLINE as-is
+  (`provider: mock` renders real PNG files) · one-line flip to gemini/openai.
 
 The plan, straight from `nika graph examples/pr-risk-review.nika.yaml --format mermaid`:
 

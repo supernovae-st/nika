@@ -84,8 +84,10 @@ mod tests {
     fn providers_count_pinned() {
         // Pinned to detect silent additions/removals. Session 4b added 7
         // new providers (nvidia-nim/deepinfra/replicate/hyperbolic/writer/
-        // databricks/cloudflare), driving the count from 25 to 32.
-        assert_eq!(ALL_PROVIDERS.len(), 32);
+        // databricks/cloudflare), driving the count from 25 to 32; the
+        // 2026-07-05 canonical promotion added huggingface (the Inference
+        // Providers router) and renamed nvidia-nim → nvidia: 32 → 33.
+        assert_eq!(ALL_PROVIDERS.len(), 33);
     }
 
     #[test]

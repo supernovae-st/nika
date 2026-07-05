@@ -12,8 +12,9 @@
 
 use crate::verbs::VerbOutput;
 
-/// Spec order of the builtin categories (stdlib §5-category taxonomy).
-const CATEGORY_ORDER: [&str; 5] = ["core", "file", "data", "network", "introspection"];
+/// Spec order of the builtin categories (stdlib taxonomy · media last,
+/// the first graduate of the deferred class).
+const CATEGORY_ORDER: [&str; 6] = ["core", "file", "data", "network", "introspection", "media"];
 
 /// `nika tools` — human listing, or the `--json` machine projection.
 #[must_use]

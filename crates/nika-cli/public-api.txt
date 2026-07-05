@@ -5,9 +5,183 @@ pub fn nika_cli::demo::failure() -> alloc::vec::Vec<nika_event::event::Event>
 pub fn nika_cli::demo::retrying() -> alloc::vec::Vec<nika_event::event::Event>
 pub fn nika_cli::demo::success() -> alloc::vec::Vec<nika_event::event::Event>
 pub mod nika_cli::display
+pub mod nika_cli::display::flow
+pub fn nika_cli::display::flow::dag_shape(view: &nika_cli::display::state::RunView, theme: &nika_cli::display::theme::Theme) -> alloc::string::String
+pub fn nika_cli::display::flow::fmt_wall_ms(ms: u64) -> alloc::string::String
+pub fn nika_cli::display::flow::verdict_card(view: &nika_cli::display::state::RunView, theme: &nika_cli::display::theme::Theme, outputs_note: core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_cli::display::flow::waterfall(view: &nika_cli::display::state::RunView, theme: &nika_cli::display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_cli::display::format
+pub enum nika_cli::display::format::ColorChoice
+pub nika_cli::display::format::ColorChoice::Always
+pub nika_cli::display::format::ColorChoice::Auto
+pub nika_cli::display::format::ColorChoice::Never
+impl core::clone::Clone for nika_cli::display::format::ColorChoice
+pub fn nika_cli::display::format::ColorChoice::clone(&self) -> nika_cli::display::format::ColorChoice
+impl core::cmp::Eq for nika_cli::display::format::ColorChoice
+impl core::cmp::PartialEq for nika_cli::display::format::ColorChoice
+pub fn nika_cli::display::format::ColorChoice::eq(&self, other: &nika_cli::display::format::ColorChoice) -> bool
+impl core::fmt::Debug for nika_cli::display::format::ColorChoice
+pub fn nika_cli::display::format::ColorChoice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::display::format::ColorChoice
+impl core::marker::StructuralPartialEq for nika_cli::display::format::ColorChoice
+impl<D> owo_colors::OwoColorize for nika_cli::display::format::ColorChoice
+impl<Q, K> equivalent::Equivalent<K> for nika_cli::display::format::ColorChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::display::format::ColorChoice::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::display::format::ColorChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::display::format::ColorChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::display::format::ColorChoice::equivalent(&self, key: &K) -> bool
+pub fn nika_cli::display::format::ColorChoice::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli::display::format::ColorChoice where U: core::convert::From<T>
+pub fn nika_cli::display::format::ColorChoice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::display::format::ColorChoice where U: core::convert::Into<T>
+pub type nika_cli::display::format::ColorChoice::Error = core::convert::Infallible
+pub fn nika_cli::display::format::ColorChoice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::display::format::ColorChoice where U: core::convert::TryFrom<T>
+pub type nika_cli::display::format::ColorChoice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::display::format::ColorChoice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::display::format::ColorChoice where T: core::clone::Clone
+pub type nika_cli::display::format::ColorChoice::Owned = T
+pub fn nika_cli::display::format::ColorChoice::clone_into(&self, target: &mut T)
+pub fn nika_cli::display::format::ColorChoice::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::display::format::ColorChoice where T: 'static + ?core::marker::Sized
+pub fn nika_cli::display::format::ColorChoice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::display::format::ColorChoice where T: ?core::marker::Sized
+pub fn nika_cli::display::format::ColorChoice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::display::format::ColorChoice where T: ?core::marker::Sized
+pub fn nika_cli::display::format::ColorChoice::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::display::format::ColorChoice where T: core::clone::Clone
+pub unsafe fn nika_cli::display::format::ColorChoice::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::display::format::ColorChoice
+pub fn nika_cli::display::format::ColorChoice::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::display::format::ColorChoice where T: core::clone::Clone
+pub fn nika_cli::display::format::ColorChoice::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::display::format::ColorChoice where T: 'static
+pub fn nika_cli::display::format::ColorChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::display::format::ColorChoice where T: core::marker::Copy
+pub fn nika_cli::display::format::ColorChoice::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::display::format::ColorChoice where T: ?core::marker::Sized
+pub fn nika_cli::display::format::ColorChoice::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::display::format::ColorChoice::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::display::format::ColorChoice
+impl<T> tracing::instrument::WithSubscriber for nika_cli::display::format::ColorChoice
+impl<T> typenum::type_operators::Same for nika_cli::display::format::ColorChoice
+pub type nika_cli::display::format::ColorChoice::Output = T
+pub enum nika_cli::display::format::LinkChoice
+pub nika_cli::display::format::LinkChoice::Always
+pub nika_cli::display::format::LinkChoice::Auto
+pub nika_cli::display::format::LinkChoice::Never
+impl core::clone::Clone for nika_cli::display::format::LinkChoice
+pub fn nika_cli::display::format::LinkChoice::clone(&self) -> nika_cli::display::format::LinkChoice
+impl core::cmp::Eq for nika_cli::display::format::LinkChoice
+impl core::cmp::PartialEq for nika_cli::display::format::LinkChoice
+pub fn nika_cli::display::format::LinkChoice::eq(&self, other: &nika_cli::display::format::LinkChoice) -> bool
+impl core::fmt::Debug for nika_cli::display::format::LinkChoice
+pub fn nika_cli::display::format::LinkChoice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::display::format::LinkChoice
+impl core::marker::StructuralPartialEq for nika_cli::display::format::LinkChoice
+impl<D> owo_colors::OwoColorize for nika_cli::display::format::LinkChoice
+impl<Q, K> equivalent::Equivalent<K> for nika_cli::display::format::LinkChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::display::format::LinkChoice::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::display::format::LinkChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::display::format::LinkChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::display::format::LinkChoice::equivalent(&self, key: &K) -> bool
+pub fn nika_cli::display::format::LinkChoice::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli::display::format::LinkChoice where U: core::convert::From<T>
+pub fn nika_cli::display::format::LinkChoice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::display::format::LinkChoice where U: core::convert::Into<T>
+pub type nika_cli::display::format::LinkChoice::Error = core::convert::Infallible
+pub fn nika_cli::display::format::LinkChoice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::display::format::LinkChoice where U: core::convert::TryFrom<T>
+pub type nika_cli::display::format::LinkChoice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::display::format::LinkChoice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::display::format::LinkChoice where T: core::clone::Clone
+pub type nika_cli::display::format::LinkChoice::Owned = T
+pub fn nika_cli::display::format::LinkChoice::clone_into(&self, target: &mut T)
+pub fn nika_cli::display::format::LinkChoice::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::display::format::LinkChoice where T: 'static + ?core::marker::Sized
+pub fn nika_cli::display::format::LinkChoice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::display::format::LinkChoice where T: ?core::marker::Sized
+pub fn nika_cli::display::format::LinkChoice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::display::format::LinkChoice where T: ?core::marker::Sized
+pub fn nika_cli::display::format::LinkChoice::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::display::format::LinkChoice where T: core::clone::Clone
+pub unsafe fn nika_cli::display::format::LinkChoice::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::display::format::LinkChoice
+pub fn nika_cli::display::format::LinkChoice::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::display::format::LinkChoice where T: core::clone::Clone
+pub fn nika_cli::display::format::LinkChoice::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::display::format::LinkChoice where T: 'static
+pub fn nika_cli::display::format::LinkChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::display::format::LinkChoice where T: core::marker::Copy
+pub fn nika_cli::display::format::LinkChoice::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::display::format::LinkChoice where T: ?core::marker::Sized
+pub fn nika_cli::display::format::LinkChoice::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::display::format::LinkChoice::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::display::format::LinkChoice
+impl<T> tracing::instrument::WithSubscriber for nika_cli::display::format::LinkChoice
+impl<T> typenum::type_operators::Same for nika_cli::display::format::LinkChoice
+pub type nika_cli::display::format::LinkChoice::Output = T
+pub struct nika_cli::display::format::ColorEnv
+pub nika_cli::display::format::ColorEnv::clicolor_zero: bool
+pub nika_cli::display::format::ColorEnv::force: bool
+pub nika_cli::display::format::ColorEnv::no_color: bool
+pub nika_cli::display::format::ColorEnv::term_dumb: bool
+impl core::clone::Clone for nika_cli::display::format::ColorEnv
+pub fn nika_cli::display::format::ColorEnv::clone(&self) -> nika_cli::display::format::ColorEnv
+impl core::default::Default for nika_cli::display::format::ColorEnv
+pub fn nika_cli::display::format::ColorEnv::default() -> nika_cli::display::format::ColorEnv
+impl core::fmt::Debug for nika_cli::display::format::ColorEnv
+pub fn nika_cli::display::format::ColorEnv::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::display::format::ColorEnv
+impl<D> owo_colors::OwoColorize for nika_cli::display::format::ColorEnv
+impl<T, U> core::convert::Into<U> for nika_cli::display::format::ColorEnv where U: core::convert::From<T>
+pub fn nika_cli::display::format::ColorEnv::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::display::format::ColorEnv where U: core::convert::Into<T>
+pub type nika_cli::display::format::ColorEnv::Error = core::convert::Infallible
+pub fn nika_cli::display::format::ColorEnv::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::display::format::ColorEnv where U: core::convert::TryFrom<T>
+pub type nika_cli::display::format::ColorEnv::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::display::format::ColorEnv::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::display::format::ColorEnv where T: core::clone::Clone
+pub type nika_cli::display::format::ColorEnv::Owned = T
+pub fn nika_cli::display::format::ColorEnv::clone_into(&self, target: &mut T)
+pub fn nika_cli::display::format::ColorEnv::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::display::format::ColorEnv where T: 'static + ?core::marker::Sized
+pub fn nika_cli::display::format::ColorEnv::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::display::format::ColorEnv where T: ?core::marker::Sized
+pub fn nika_cli::display::format::ColorEnv::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::display::format::ColorEnv where T: ?core::marker::Sized
+pub fn nika_cli::display::format::ColorEnv::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::display::format::ColorEnv where T: core::clone::Clone
+pub unsafe fn nika_cli::display::format::ColorEnv::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::display::format::ColorEnv
+pub fn nika_cli::display::format::ColorEnv::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::display::format::ColorEnv where T: core::clone::Clone
+pub fn nika_cli::display::format::ColorEnv::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::display::format::ColorEnv where T: 'static
+pub fn nika_cli::display::format::ColorEnv::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::display::format::ColorEnv where T: core::marker::Copy
+pub fn nika_cli::display::format::ColorEnv::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::display::format::ColorEnv where T: ?core::marker::Sized
+pub fn nika_cli::display::format::ColorEnv::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::display::format::ColorEnv::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::display::format::ColorEnv
+impl<T> tracing::instrument::WithSubscriber for nika_cli::display::format::ColorEnv
+impl<T> typenum::type_operators::Same for nika_cli::display::format::ColorEnv
+pub type nika_cli::display::format::ColorEnv::Output = T
+pub fn nika_cli::display::format::color_enabled(choice: nika_cli::display::format::ColorChoice, env: nika_cli::display::format::ColorEnv, tty: bool) -> bool
+pub fn nika_cli::display::format::file_url(host: &str, abs_path: &str) -> alloc::string::String
+pub fn nika_cli::display::format::fmt_cost_usd(usd: f64) -> alloc::string::String
+pub fn nika_cli::display::format::links_enabled(choice: nika_cli::display::format::LinkChoice, tty: bool, term_dumb: bool) -> bool
+pub fn nika_cli::display::format::osc8(url: &str, text: &str, id: core::option::Option<&str>) -> alloc::string::String
 pub mod nika_cli::display::render
 pub fn nika_cli::display::render::frame(view: &nika_cli::display::state::RunView, theme: &nika_cli::display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_cli::display::render::frame_with_outputs(view: &nika_cli::display::state::RunView, theme: &nika_cli::display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cli::display::render::verdict_frame(view: &nika_cli::display::state::RunView, theme: &nika_cli::display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_cli::display::shape
+pub fn nika_cli::display::shape::fmt_bytes(n: usize) -> alloc::string::String
+pub fn nika_cli::display::shape::output_tail(output_json: core::option::Option<&str>, tokens: core::option::Option<u64>, theme: &nika_cli::display::theme::Theme) -> core::option::Option<alloc::string::String>
+pub fn nika_cli::display::shape::summarize(json_text: &str, max_cells: usize) -> core::option::Option<alloc::string::String>
 pub mod nika_cli::display::state
 pub enum nika_cli::display::state::TaskState
 pub nika_cli::display::state::TaskState::Cancelled
@@ -73,6 +247,7 @@ pub nika_cli::display::state::RunView::ceiling_usd: core::option::Option<f64>
 pub nika_cli::display::state::RunView::cost_usd: f64
 pub nika_cli::display::state::RunView::elapsed_ms: u64
 pub nika_cli::display::state::RunView::permits: core::option::Option<alloc::string::String>
+pub nika_cli::display::state::RunView::retries: u32
 pub nika_cli::display::state::RunView::token_samples: alloc::vec::Vec<u64>
 pub nika_cli::display::state::RunView::verdict: core::option::Option<bool>
 pub nika_cli::display::state::RunView::workflow: alloc::string::String
@@ -80,8 +255,11 @@ pub nika_cli::display::state::RunView::workflow_detail: core::option::Option<all
 impl nika_cli::display::state::RunView
 pub fn nika_cli::display::state::RunView::apply(&mut self, event: &nika_event::event::Event)
 pub fn nika_cli::display::state::RunView::done_count(&self) -> usize
+pub fn nika_cli::display::state::RunView::last_ts_ms(&self) -> core::option::Option<i64>
 pub fn nika_cli::display::state::RunView::new() -> Self
+pub fn nika_cli::display::state::RunView::plan(&self) -> core::option::Option<&[alloc::vec::Vec<alloc::string::String>]>
 pub fn nika_cli::display::state::RunView::rows(&self) -> &[nika_cli::display::state::TaskRow]
+pub fn nika_cli::display::state::RunView::set_plan(&mut self, waves: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>)
 impl core::default::Default for nika_cli::display::state::RunView
 pub fn nika_cli::display::state::RunView::default() -> nika_cli::display::state::RunView
 impl core::fmt::Debug for nika_cli::display::state::RunView
@@ -113,10 +291,23 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::display::state::RunVie
 impl<T> typenum::type_operators::Same for nika_cli::display::state::RunView
 pub type nika_cli::display::state::RunView::Output = T
 pub struct nika_cli::display::state::TaskRow
+pub nika_cli::display::state::TaskRow::cached: bool
+pub nika_cli::display::state::TaskRow::cost_usd: core::option::Option<f64>
+pub nika_cli::display::state::TaskRow::def_hash: core::option::Option<alloc::string::String>
 pub nika_cli::display::state::TaskRow::detail: alloc::string::String
+pub nika_cli::display::state::TaskRow::duration_ms: core::option::Option<u64>
+pub nika_cli::display::state::TaskRow::ended_ms: core::option::Option<i64>
 pub nika_cli::display::state::TaskRow::id: alloc::string::String
+pub nika_cli::display::state::TaskRow::input_hash: core::option::Option<alloc::string::String>
+pub nika_cli::display::state::TaskRow::model: core::option::Option<alloc::string::String>
 pub nika_cli::display::state::TaskRow::note: alloc::string::String
+pub nika_cli::display::state::TaskRow::output_json: core::option::Option<alloc::string::String>
+pub nika_cli::display::state::TaskRow::started_ms: core::option::Option<i64>
+pub nika_cli::display::state::TaskRow::started_note: core::option::Option<alloc::string::String>
 pub nika_cli::display::state::TaskRow::state: nika_cli::display::state::TaskState
+pub nika_cli::display::state::TaskRow::tokens: core::option::Option<u64>
+impl nika_cli::display::state::TaskRow
+pub fn nika_cli::display::state::TaskRow::wall_ms(&self) -> core::option::Option<u64>
 impl core::clone::Clone for nika_cli::display::state::TaskRow
 pub fn nika_cli::display::state::TaskRow::clone(&self) -> nika_cli::display::state::TaskRow
 impl core::fmt::Debug for nika_cli::display::state::TaskRow
@@ -215,12 +406,17 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::display::theme::Role
 impl<T> typenum::type_operators::Same for nika_cli::display::theme::Role
 pub type nika_cli::display::theme::Role::Output = T
 pub struct nika_cli::display::theme::Theme
+pub nika_cli::display::theme::Theme::accents: bool
 pub nika_cli::display::theme::Theme::animate: bool
 pub nika_cli::display::theme::Theme::ascii: bool
 pub nika_cli::display::theme::Theme::color: bool
+pub nika_cli::display::theme::Theme::heat: bool
+pub nika_cli::display::theme::Theme::links: bool
 impl nika_cli::display::theme::Theme
 pub fn nika_cli::display::theme::Theme::glyph(&self, state: nika_cli::display::state::TaskState, tick: usize) -> alloc::string::String
+pub fn nika_cli::display::theme::Theme::link(&self, url: &str, text: &str) -> alloc::string::String
 pub fn nika_cli::display::theme::Theme::logo(&self) -> &'static str
+pub const fn nika_cli::display::theme::Theme::new(color: bool, ascii: bool, animate: bool) -> Self
 pub fn nika_cli::display::theme::Theme::paint(&self, role: nika_cli::display::theme::Role, text: &str) -> alloc::string::String
 pub fn nika_cli::display::theme::Theme::sparkline(&self, samples: &[u64]) -> alloc::string::String
 impl core::clone::Clone for nika_cli::display::theme::Theme
@@ -278,6 +474,7 @@ pub mod nika_cli::verbs::exit
 pub const nika_cli::verbs::exit::ENV: u8
 pub const nika_cli::verbs::exit::FILE: u8
 pub const nika_cli::verbs::exit::OK: u8
+pub const nika_cli::verbs::exit::PAUSED: u8
 pub const nika_cli::verbs::exit::WORKFLOW: u8
 pub mod nika_cli::verbs::explain
 pub fn nika_cli::verbs::explain::run(wire: &str) -> nika_cli::verbs::VerbOutput
@@ -485,7 +682,7 @@ pub fn nika_cli::verbs::graph::to_mermaid(doc: &nika_cli::verbs::graph::GraphDoc
 pub mod nika_cli::verbs::init
 pub fn nika_cli::verbs::init::run(dir: &str, force: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::inspect
-pub fn nika_cli::verbs::inspect::run(path: &str) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::inspect::run(path: &str, ascii: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::new
 pub fn nika_cli::verbs::new::run(template: &str, dest: core::option::Option<&str>, force: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::pack_surface
@@ -554,6 +751,8 @@ impl<W: std::io::Write> nika_cli::verbs::run::FoldSink<W>
 pub fn nika_cli::verbs::run::FoldSink<W>::into_error(self) -> core::option::Option<core::io::error::Error>
 pub fn nika_cli::verbs::run::FoldSink<W>::new(writer: W, theme: nika_cli::display::theme::Theme, mode: nika_cli::verbs::run::RenderMode) -> Self
 pub fn nika_cli::verbs::run::FoldSink<W>::print_final(&mut self)
+pub fn nika_cli::verbs::run::FoldSink<W>::set_plan(&mut self, waves: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>)
+pub fn nika_cli::verbs::run::FoldSink<W>::show_outputs(&mut self, on: bool)
 pub fn nika_cli::verbs::run::FoldSink<W>::view(&self) -> &nika_cli::display::state::RunView
 impl<W: std::io::Write> nika_runtime::stamp::EventSink for nika_cli::verbs::run::FoldSink<W>
 pub fn nika_cli::verbs::run::FoldSink<W>::emit(&mut self, event: nika_event::event::Event)
@@ -615,6 +814,77 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::JsonSink<W>
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::JsonSink<W>
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::JsonSink<W>
 pub type nika_cli::verbs::run::JsonSink<W>::Output = T
+pub struct nika_cli::verbs::run::RecoveredTrace
+pub nika_cli::verbs::run::RecoveredTrace::events: alloc::vec::Vec<nika_event::event::Event>
+pub nika_cli::verbs::run::RecoveredTrace::truncated_note: core::option::Option<alloc::string::String>
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::run::RecoveredTrace
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::run::RecoveredTrace where U: core::convert::From<T>
+pub fn nika_cli::verbs::run::RecoveredTrace::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::run::RecoveredTrace where U: core::convert::Into<T>
+pub type nika_cli::verbs::run::RecoveredTrace::Error = core::convert::Infallible
+pub fn nika_cli::verbs::run::RecoveredTrace::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::run::RecoveredTrace where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::run::RecoveredTrace::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::run::RecoveredTrace::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli::verbs::run::RecoveredTrace where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::run::RecoveredTrace::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::run::RecoveredTrace where T: ?core::marker::Sized
+pub fn nika_cli::verbs::run::RecoveredTrace::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::run::RecoveredTrace where T: ?core::marker::Sized
+pub fn nika_cli::verbs::run::RecoveredTrace::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli::verbs::run::RecoveredTrace
+pub fn nika_cli::verbs::run::RecoveredTrace::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::run::RecoveredTrace where T: 'static
+pub fn nika_cli::verbs::run::RecoveredTrace::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::run::RecoveredTrace where T: ?core::marker::Sized
+pub fn nika_cli::verbs::run::RecoveredTrace::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::run::RecoveredTrace::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::RecoveredTrace
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::RecoveredTrace
+impl<T> typenum::type_operators::Same for nika_cli::verbs::run::RecoveredTrace
+pub type nika_cli::verbs::run::RecoveredTrace::Output = T
+pub struct nika_cli::verbs::run::ResumeRequest
+pub nika_cli::verbs::run::ResumeRequest::answers: alloc::vec::Vec<alloc::string::String>
+pub nika_cli::verbs::run::ResumeRequest::from: core::option::Option<alloc::string::String>
+pub nika_cli::verbs::run::ResumeRequest::trace: std::path::PathBuf
+impl core::clone::Clone for nika_cli::verbs::run::ResumeRequest
+pub fn nika_cli::verbs::run::ResumeRequest::clone(&self) -> nika_cli::verbs::run::ResumeRequest
+impl core::fmt::Debug for nika_cli::verbs::run::ResumeRequest
+pub fn nika_cli::verbs::run::ResumeRequest::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::run::ResumeRequest
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::run::ResumeRequest where U: core::convert::From<T>
+pub fn nika_cli::verbs::run::ResumeRequest::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::run::ResumeRequest where U: core::convert::Into<T>
+pub type nika_cli::verbs::run::ResumeRequest::Error = core::convert::Infallible
+pub fn nika_cli::verbs::run::ResumeRequest::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::run::ResumeRequest where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::run::ResumeRequest::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::run::ResumeRequest::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::verbs::run::ResumeRequest where T: core::clone::Clone
+pub type nika_cli::verbs::run::ResumeRequest::Owned = T
+pub fn nika_cli::verbs::run::ResumeRequest::clone_into(&self, target: &mut T)
+pub fn nika_cli::verbs::run::ResumeRequest::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::verbs::run::ResumeRequest where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::run::ResumeRequest::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::run::ResumeRequest where T: ?core::marker::Sized
+pub fn nika_cli::verbs::run::ResumeRequest::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::run::ResumeRequest where T: ?core::marker::Sized
+pub fn nika_cli::verbs::run::ResumeRequest::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::verbs::run::ResumeRequest where T: core::clone::Clone
+pub unsafe fn nika_cli::verbs::run::ResumeRequest::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::verbs::run::ResumeRequest
+pub fn nika_cli::verbs::run::ResumeRequest::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::verbs::run::ResumeRequest where T: core::clone::Clone
+pub fn nika_cli::verbs::run::ResumeRequest::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::run::ResumeRequest where T: 'static
+pub fn nika_cli::verbs::run::ResumeRequest::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::run::ResumeRequest where T: ?core::marker::Sized
+pub fn nika_cli::verbs::run::ResumeRequest::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::run::ResumeRequest::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::ResumeRequest
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::ResumeRequest
+impl<T> typenum::type_operators::Same for nika_cli::verbs::run::ResumeRequest
+pub type nika_cli::verbs::run::ResumeRequest::Output = T
 pub struct nika_cli::verbs::run::RuntimeCapabilities
 pub nika_cli::verbs::run::RuntimeCapabilities::fs: nika_builtin::permits::FsBoundary
 pub nika_cli::verbs::run::RuntimeCapabilities::net: nika_http::NetBoundary
@@ -684,10 +954,17 @@ pub fn nika_cli::verbs::run::example(slug: &str, model_override: core::option::O
 pub fn nika_cli::verbs::run::fs_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_builtin::permits::FsBoundary
 pub fn nika_cli::verbs::run::net_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_http::NetBoundary
 pub fn nika_cli::verbs::run::production_runtime(default_model: &str, caps: nika_cli::verbs::run::RuntimeCapabilities) -> core::result::Result<nika_cli::verbs::run::ProdRuntime, nika_kernel_core::io::http::HttpError>
-pub fn nika_cli::verbs::run::run(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_cli::display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>) -> u8
+pub fn nika_cli::verbs::run::recover_events(raw: &str, label: &str) -> core::result::Result<nika_cli::verbs::run::RecoveredTrace, alloc::string::String>
+pub fn nika_cli::verbs::run::run(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_cli::display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>, vars: &[alloc::string::String], resume: core::option::Option<&nika_cli::verbs::run::ResumeRequest>, no_outputs: bool) -> u8
 pub type nika_cli::verbs::run::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_cli::verbs::run::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_cli::verbs::run::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_cli::verbs::run::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::SystemClock>
+pub mod nika_cli::verbs::test
+pub fn nika_cli::verbs::test::run(file: &str, update: bool, theme: nika_cli::display::theme::Theme) -> u8
 pub mod nika_cli::verbs::tools
 pub fn nika_cli::verbs::tools::run(json: bool) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::trace
+pub fn nika_cli::verbs::trace::flow(trace: &str, workflow: &str, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::trace::outputs(trace: &str, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::trace::peek(trace: &str, task: &str, raw: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::wire
 pub enum nika_cli::verbs::wire::WireTarget
 pub nika_cli::verbs::wire::WireTarget::All
@@ -901,6 +1178,7 @@ pub nika_cli::RunView::ceiling_usd: core::option::Option<f64>
 pub nika_cli::RunView::cost_usd: f64
 pub nika_cli::RunView::elapsed_ms: u64
 pub nika_cli::RunView::permits: core::option::Option<alloc::string::String>
+pub nika_cli::RunView::retries: u32
 pub nika_cli::RunView::token_samples: alloc::vec::Vec<u64>
 pub nika_cli::RunView::verdict: core::option::Option<bool>
 pub nika_cli::RunView::workflow: alloc::string::String
@@ -908,8 +1186,11 @@ pub nika_cli::RunView::workflow_detail: core::option::Option<alloc::string::Stri
 impl nika_cli::display::state::RunView
 pub fn nika_cli::display::state::RunView::apply(&mut self, event: &nika_event::event::Event)
 pub fn nika_cli::display::state::RunView::done_count(&self) -> usize
+pub fn nika_cli::display::state::RunView::last_ts_ms(&self) -> core::option::Option<i64>
 pub fn nika_cli::display::state::RunView::new() -> Self
+pub fn nika_cli::display::state::RunView::plan(&self) -> core::option::Option<&[alloc::vec::Vec<alloc::string::String>]>
 pub fn nika_cli::display::state::RunView::rows(&self) -> &[nika_cli::display::state::TaskRow]
+pub fn nika_cli::display::state::RunView::set_plan(&mut self, waves: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>)
 impl core::default::Default for nika_cli::display::state::RunView
 pub fn nika_cli::display::state::RunView::default() -> nika_cli::display::state::RunView
 impl core::fmt::Debug for nika_cli::display::state::RunView
@@ -941,10 +1222,23 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::display::state::RunVie
 impl<T> typenum::type_operators::Same for nika_cli::display::state::RunView
 pub type nika_cli::display::state::RunView::Output = T
 pub struct nika_cli::TaskRow
+pub nika_cli::TaskRow::cached: bool
+pub nika_cli::TaskRow::cost_usd: core::option::Option<f64>
+pub nika_cli::TaskRow::def_hash: core::option::Option<alloc::string::String>
 pub nika_cli::TaskRow::detail: alloc::string::String
+pub nika_cli::TaskRow::duration_ms: core::option::Option<u64>
+pub nika_cli::TaskRow::ended_ms: core::option::Option<i64>
 pub nika_cli::TaskRow::id: alloc::string::String
+pub nika_cli::TaskRow::input_hash: core::option::Option<alloc::string::String>
+pub nika_cli::TaskRow::model: core::option::Option<alloc::string::String>
 pub nika_cli::TaskRow::note: alloc::string::String
+pub nika_cli::TaskRow::output_json: core::option::Option<alloc::string::String>
+pub nika_cli::TaskRow::started_ms: core::option::Option<i64>
+pub nika_cli::TaskRow::started_note: core::option::Option<alloc::string::String>
 pub nika_cli::TaskRow::state: nika_cli::display::state::TaskState
+pub nika_cli::TaskRow::tokens: core::option::Option<u64>
+impl nika_cli::display::state::TaskRow
+pub fn nika_cli::display::state::TaskRow::wall_ms(&self) -> core::option::Option<u64>
 impl core::clone::Clone for nika_cli::display::state::TaskRow
 pub fn nika_cli::display::state::TaskRow::clone(&self) -> nika_cli::display::state::TaskRow
 impl core::fmt::Debug for nika_cli::display::state::TaskRow
@@ -984,12 +1278,17 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::display::state::TaskRo
 impl<T> typenum::type_operators::Same for nika_cli::display::state::TaskRow
 pub type nika_cli::display::state::TaskRow::Output = T
 pub struct nika_cli::Theme
+pub nika_cli::Theme::accents: bool
 pub nika_cli::Theme::animate: bool
 pub nika_cli::Theme::ascii: bool
 pub nika_cli::Theme::color: bool
+pub nika_cli::Theme::heat: bool
+pub nika_cli::Theme::links: bool
 impl nika_cli::display::theme::Theme
 pub fn nika_cli::display::theme::Theme::glyph(&self, state: nika_cli::display::state::TaskState, tick: usize) -> alloc::string::String
+pub fn nika_cli::display::theme::Theme::link(&self, url: &str, text: &str) -> alloc::string::String
 pub fn nika_cli::display::theme::Theme::logo(&self) -> &'static str
+pub const fn nika_cli::display::theme::Theme::new(color: bool, ascii: bool, animate: bool) -> Self
 pub fn nika_cli::display::theme::Theme::paint(&self, role: nika_cli::display::theme::Role, text: &str) -> alloc::string::String
 pub fn nika_cli::display::theme::Theme::sparkline(&self, samples: &[u64]) -> alloc::string::String
 impl core::clone::Clone for nika_cli::display::theme::Theme
@@ -1034,4 +1333,5 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::display::theme::Theme
 impl<T> typenum::type_operators::Same for nika_cli::display::theme::Theme
 pub type nika_cli::display::theme::Theme::Output = T
 pub fn nika_cli::frame(view: &nika_cli::display::state::RunView, theme: &nika_cli::display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_cli::frame_with_outputs(view: &nika_cli::display::state::RunView, theme: &nika_cli::display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cli::verdict_frame(view: &nika_cli::display::state::RunView, theme: &nika_cli::display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>

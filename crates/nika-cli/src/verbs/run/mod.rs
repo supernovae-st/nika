@@ -22,6 +22,7 @@
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
 mod compose;
+mod resume;
 mod sink;
 mod stamp;
 
@@ -29,6 +30,7 @@ pub use compose::{
     ProdRuntime, RuntimeCapabilities, capabilities_of, fs_boundary_of, net_boundary_of,
     production_runtime,
 };
+pub use resume::{RecoveredTrace, ResumeRequest, recover_events};
 pub use sink::{FoldSink, JsonSink, RenderMode};
 pub use stamp::SystemStamper;
 
@@ -37,7 +39,8 @@ use std::io::Write as _;
 
 use serde_json::Value;
 
-use nika_runtime::{EventSink, Runtime, Stamper};
+use nika_runtime::resume::ResumePlan;
+use nika_runtime::{EventSink, RunOutcome, Runtime, Stamper, WorkflowPause};
 use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 
@@ -56,6 +59,23 @@ use crate::verbs::exit;
 /// previews offline). It travels the SAME composition path as an envelope
 /// model, so a bad id fails loud identically (the registry surfaces its
 /// typed error when an infer/agent task actually resolves it).
+///
+/// `vars` — the repeatable `--var KEY=VALUE` overrides (F4): each key must
+/// be a declared workflow var (unknown keys are refused · exit 3); values
+/// override a `default:` and satisfy a `required: true` var.
+///
+/// `resume` — `--resume <trace>` (ADR-099): fold the prior run's NDJSON
+/// journal into a skip plan; the runtime recomputes each task's identity
+/// and skips iff BOTH hashes match (visible `task_cache_hit` · never
+/// silent). `--from <task_id>` forces a subtree to re-run.
+///
+/// `no_outputs` — `--no-outputs` (the comprehension pass): suppress the
+/// shape tails on the Live storyboard. Only the interactive TTY surface
+/// ever grows tails — pipes · CI · the machine modes stay byte-unchanged
+/// with or without the flag.
+// Ten independent CLI parameters ARE the clap surface — the same idiom
+// as TraceArgs' bools, not a state machine to encode in a struct.
+#[allow(clippy::too_many_arguments)]
 #[must_use]
 pub fn run(
     file: &str,
@@ -65,18 +85,15 @@ pub fn run(
     mode: RenderMode,
     dry_run: bool,
     model_override: Option<&str>,
+    vars: &[String],
+    resume: Option<&ResumeRequest>,
+    no_outputs: bool,
 ) -> u8 {
-    // `--output json` selects the machine-result mode (spec 01 §"What
-    // leaves a run"): the resolved `outputs:` object as one JSON object on
-    // stdout · diagnostics/progress on stderr. Absent → the live human
-    // render. Validated up front so an unknown format fails before any work.
-    let output_json = match output {
-        None => false,
-        Some("json") => true,
-        Some(other) => {
-            eprintln!("nika run: unknown --output format `{other}` (expected `json`)");
-            return exit::ENV;
-        }
+    // `--output` validated up front so an unknown format fails before any
+    // work (machine-result mode · see `output_mode`).
+    let output_json = match output_mode(output) {
+        Ok(flag) => flag,
+        Err(code) => return code,
     };
 
     // ── Audit BEFORE run (spec §3 · INV the runtime also enforces) ──
@@ -86,7 +103,7 @@ pub fn run(
             // Pre-run diagnostics obey the export contract too: in machine
             // mode they go to stderr so a `capture: stdout` consumer never
             // mistakes the "cannot read" text for the JSON result.
-            emit_diagnostic(&out.text, output_json);
+            emit_diagnostic(&refusal_text(&out), output_json);
             return out.code;
         }
     };
@@ -99,62 +116,161 @@ pub fn run(
         return out.code;
     }
 
-    // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
-    // The audit passed; STOP here and show the static plan (the same anatomy
-    // `nika inspect` renders) without composing any production seam. No fs,
-    // no http, no subprocess, no provider call — the run is never reached.
-    if dry_run {
-        let plan = crate::verbs::inspect::run(file);
-        if !plan.text.is_empty() {
-            println!("{}", plan.text.trim_end());
-        }
-        println!("\n  dry-run · plan only · no effects executed");
-        return exit::OK;
-    }
-
-    // ── Compose the production runtime (real seams · env keys) ──────
-    // The envelope default model · a task's own `model:` overrides it ·
-    // an exec-only workflow never resolves it (so "" is harmless until
-    // an infer/agent task actually needs a model · resolve is loud then).
-    // A `--model` override REPLACES the envelope default through this SAME
-    // path — a bad id fails loud at resolve time exactly as a bad envelope
-    // model does (no separate, lenient validation seam).
-    let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
-    let default_model = model_override.unwrap_or(envelope_model);
-    // Both runtime capability boundaries (permits.fs + permits.net.http) in
-    // one value (spec §permits · NIKA-SEC-004) — derived once so neither axis
-    // can be wired while the other is forgotten. fs gates the file builtins;
-    // net gates the fetch client per-hop (catching dynamic/redirect hosts the
-    // static check cannot see). The static check is the other half of each.
-    let caps = capabilities_of(&wf);
-    let runtime = match production_runtime(default_model, caps) {
-        Ok(rt) => rt,
-        Err(e) => {
-            eprintln!("nika run: environment: {e}");
+    // ── `--var` overrides (F4) — parse + validate BEFORE any work ────
+    // An unknown key is refused loudly (a typo'd override silently doing
+    // nothing would be the worst outcome) · same exit class as an unknown
+    // `--output` format (operator input · exit 3).
+    let overrides = match parse_var_overrides(vars, &wf) {
+        Ok(map) => map,
+        Err(message) => {
+            eprintln!("nika run: {message}");
+            emit_error_envelope(&message, output_json);
             return exit::ENV;
         }
+    };
+
+    // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
+    if dry_run {
+        return render_dry_run(file, theme.ascii);
+    }
+
+    // ── `--resume` / `--answer` (ADR-099) — plan + answers up front ──
+    let setup = match resume_setup(resume, &wf, output_json) {
+        Ok(setup) => setup,
+        Err(code) => return code,
+    };
+    // The pause rider binds to the NON-INTERACTIVE machine surfaces only
+    // (`--json` · `--output json` — ADR-099: « under a non-interactive
+    // surface »); the human TTY/plain surfaces keep today's PROMPT-001
+    // contract untouched.
+    let pause_on_prompt = json || output_json;
+
+    // ── Compose the production runtime (real seams · env keys) ──────
+    let runtime = match composed_runtime(
+        &wf,
+        model_override,
+        overrides,
+        setup.plan,
+        setup.answers,
+        pause_on_prompt,
+        output_json,
+    ) {
+        Ok(rt) => rt,
+        Err(code) => return code,
     };
 
     // ── Execute (block the async run on a current-thread executor) ──
-    let rt = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
+    let rt = match executor(output_json) {
         Ok(rt) => rt,
-        Err(e) => {
-            eprintln!("nika run: environment: cannot start the async executor: {e}");
-            return exit::ENV;
-        }
+        Err(code) => return code,
     };
     rt.block_on(execute(
         &runtime,
-        &wf,
+        (file, &wf),
         &report,
         json,
         output_json,
         theme,
         mode,
+        resume.is_some(),
+        !no_outputs,
     ))
+}
+
+/// Build the current-thread executor the run blocks on — an executor
+/// that will not start is the environment class (printed + enveloped).
+///
+/// # Errors
+///
+/// The exit code to return unchanged.
+fn executor(output_json: bool) -> Result<tokio::runtime::Runtime, u8> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| {
+            let message = format!("cannot start the async executor: {e}");
+            eprintln!("nika run: environment: {message}");
+            emit_error_envelope(&message, output_json);
+            exit::ENV
+        })
+}
+
+/// The validated `--resume`/`--answer` inputs the composition consumes.
+struct ResumeSetup {
+    /// The folded skip plan (`None` = no `--resume` requested).
+    plan: Option<ResumePlan>,
+    /// The validated `--answer task=value` map (empty without answers).
+    answers: BTreeMap<String, Value>,
+}
+
+/// Validate + fold the whole `--resume` surface (plan · `--from` ·
+/// `--answer`) BEFORE composing — every refusal is the ENV class,
+/// already printed + enveloped.
+///
+/// # Errors
+///
+/// The exit code to return unchanged.
+fn resume_setup(
+    resume: Option<&ResumeRequest>,
+    wf: &RawWorkflow,
+    output_json: bool,
+) -> Result<ResumeSetup, u8> {
+    let plan = match resume {
+        None => None,
+        Some(req) => Some(load_resume_plan(req, wf, output_json)?),
+    };
+    let answers = resume::parse_answers(resume.map_or(&[][..], |r| r.answers.as_slice()), wf)
+        .map_err(|message| {
+            eprintln!("nika run: {message}");
+            emit_error_envelope(&message, output_json);
+            exit::ENV
+        })?;
+    Ok(ResumeSetup { plan, answers })
+}
+
+/// Read + fold the `--resume` trace into the runtime skip plan (ADR-099).
+/// Honest degradation is the contract: a keyless trace (older engine)
+/// yields an EMPTY plan + a notice — never an error; an unreadable file
+/// or an unknown `--from` id is refused loudly (environment class).
+///
+/// # Errors
+///
+/// The exit code (already printed + enveloped) — ENV for every refusal.
+fn load_resume_plan(
+    req: &ResumeRequest,
+    wf: &RawWorkflow,
+    output_json: bool,
+) -> Result<ResumePlan, u8> {
+    let label = req.trace.display().to_string();
+    let refuse = |message: String| {
+        eprintln!("nika run: {message}");
+        emit_error_envelope(&message, output_json);
+        exit::ENV
+    };
+    let raw = std::fs::read_to_string(&req.trace)
+        .map_err(|e| refuse(format!("--resume: cannot read {label}: {e}")))?;
+    let recovered = resume::recover_events(&raw, &label)
+        .map_err(|message| refuse(format!("--resume: {message}")))?;
+    if let Some(note) = &recovered.truncated_note {
+        eprintln!("nika run: {note}");
+    }
+    let fold = resume::fold_plan(&recovered.events);
+    if fold.plan.is_empty() {
+        // Nothing skippable — an older engine's trace or a run with no
+        // journaled successes. The run proceeds fully live (never an error).
+        eprintln!("nika run: --resume: {label} carries no resume keys — running everything live");
+    } else if fold.keyless + fold.unreadable > 0 {
+        eprintln!(
+            "nika run: --resume: {} record(s) without a usable resume key — those tasks run live",
+            fold.keyless + fold.unreadable
+        );
+    }
+    let mut plan = fold.plan;
+    if let Some(from) = &req.from {
+        resume::apply_from(&mut plan, wf, from)
+            .map_err(|message| refuse(format!("--resume: {message}")))?;
+    }
+    Ok(plan)
 }
 
 /// `nika examples run <slug>` — execute one EMBEDDED example through the
@@ -189,6 +305,11 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
     } else {
         RenderMode::Plain
     };
+    // The interactive duration accents follow the same TTY gate; heat
+    // additionally needs colour + the truecolor proof.
+    let mut theme = theme;
+    theme.accents = mode == RenderMode::Live;
+    theme.heat = theme.accents && theme.color && crate::verbs::truecolor_env();
     let code = run(
         &path.to_string_lossy(),
         false,
@@ -197,6 +318,9 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         mode,
         false,
         model_override,
+        &[],
+        None,
+        false,
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the tip then never
@@ -224,6 +348,177 @@ fn example_model(yaml: &str) -> String {
     .unwrap_or_default()
 }
 
+/// House-voice a pre-run refusal (the empty-state audit · design §3):
+/// the ENV class (an unreadable/missing file) gains the `nika run:`
+/// prefix, ONE `fix:` line and a closing newline — a bare
+/// `cannot read …(os error 2)` glued to the prompt taught nothing.
+/// FILE findings pass through untouched (the check renderer's card is
+/// already the teaching surface).
+fn refusal_text(out: &crate::verbs::VerbOutput) -> String {
+    if out.code != exit::ENV {
+        return out.text.clone();
+    }
+    format!(
+        "nika run: {}\n  fix: check the path — `nika examples list` names runnable demos\n",
+        out.text.trim_end()
+    )
+}
+
+/// Validate `--output` up front — `Ok(true)` selects the machine-result
+/// mode (spec 01 §"What leaves a run": the resolved `outputs:` object as
+/// ONE JSON object on stdout · diagnostics/progress on stderr) · `Ok(false)`
+/// the live human render · `Err(exit)` an unknown format (already printed).
+fn output_mode(output: Option<&str>) -> Result<bool, u8> {
+    match output {
+        None => Ok(false),
+        Some("json") => Ok(true),
+        Some(other) => {
+            eprintln!("nika run: unknown --output format `{other}` (expected `json`)");
+            Err(exit::ENV)
+        }
+    }
+}
+
+/// `--dry-run` (spec §10 · "plan only · zero effects"): the audit passed —
+/// render the static plan (the same anatomy `nika inspect` renders) without
+/// composing any production seam. No fs, no http, no subprocess, no
+/// provider call — the run is never reached.
+fn render_dry_run(file: &str, ascii: bool) -> u8 {
+    let plan = crate::verbs::inspect::run(file, ascii);
+    if !plan.text.is_empty() {
+        println!("{}", plan.text.trim_end());
+    }
+    println!("\n  dry-run · plan only · no effects executed");
+    exit::OK
+}
+
+/// Parse the repeatable `--var KEY=VALUE` overrides and validate every
+/// key against the workflow's declared `vars:` — an unknown key is
+/// refused with the declared set (a typo'd override silently doing
+/// nothing would be the worst outcome). Values parse as JSON when they
+/// parse (numbers · booleans · arrays · quoted strings), else ride as
+/// plain strings: `--var topic=news` is the string `"news"`,
+/// `--var limit=5` the number `5`.
+fn parse_var_overrides(
+    pairs: &[String],
+    wf: &RawWorkflow,
+) -> Result<BTreeMap<String, Value>, String> {
+    let declared: Vec<&str> = wf.vars.iter().map(|(k, _)| k.value.as_str()).collect();
+    let mut overrides = BTreeMap::new();
+    for pair in pairs {
+        let (key, raw) = match pair.split_once('=') {
+            Some((k, v)) if !k.trim().is_empty() => (k.trim(), v),
+            _ => return Err(format!("--var expects KEY=VALUE, got `{pair}`")),
+        };
+        if !declared.contains(&key) {
+            return Err(if declared.is_empty() {
+                format!("--var {key}: this workflow declares no `vars:`")
+            } else {
+                format!(
+                    "--var {key}: unknown var — the workflow declares: {}",
+                    declared.join(" · ")
+                )
+            });
+        }
+        let value =
+            serde_json::from_str::<Value>(raw).unwrap_or_else(|_| Value::String(raw.to_owned()));
+        overrides.insert(key.to_owned(), value);
+    }
+    Ok(overrides)
+}
+
+/// Compose the production runtime for one run — extracted so `run` stays
+/// under the fn-length cap without losing the composition story.
+///
+/// The envelope default model · a task's own `model:` overrides it · an
+/// exec-only workflow never resolves it (so "" is harmless until an
+/// infer/agent task actually needs a model · resolve is loud then). A
+/// `--model` override REPLACES the envelope default through this SAME
+/// path — a bad id fails loud at resolve time exactly as a bad envelope
+/// model does (no separate, lenient validation seam).
+///
+/// Both runtime capability boundaries (permits.fs + permits.net.http)
+/// ride in one value (spec §permits · NIKA-SEC-004) — derived once so
+/// neither axis can be wired while the other is forgotten. fs gates the
+/// file builtins; net gates the fetch client per-hop (catching dynamic/
+/// redirect hosts the static check cannot see). The static check is the
+/// other half of each. The validated `--var` overrides merge OVER the
+/// envelope defaults at run start (F4).
+///
+/// # Errors
+///
+/// The ENV-class composition failure prints + envelopes itself here;
+/// the caller returns the exit code untouched.
+// The 7 knobs ARE the composition surface (var overrides · resume plan ·
+// answers · pause flag) — the same clap-surface idiom as `run` itself.
+#[allow(clippy::too_many_arguments)]
+fn composed_runtime(
+    wf: &RawWorkflow,
+    model_override: Option<&str>,
+    overrides: BTreeMap<String, Value>,
+    resume_plan: Option<ResumePlan>,
+    answers: BTreeMap<String, Value>,
+    pause_on_prompt: bool,
+    output_json: bool,
+) -> Result<ProdRuntime, u8> {
+    let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
+    let default_model = model_override.unwrap_or(envelope_model);
+    let caps = capabilities_of(wf);
+    match production_runtime(default_model, caps) {
+        Ok(rt) => {
+            let rt = rt
+                .with_var_overrides(overrides)
+                .with_prompt_pause(pause_on_prompt)
+                .with_prompt_answers(answers);
+            Ok(match resume_plan {
+                Some(plan) => rt.with_resume_plan(plan),
+                None => rt,
+            })
+        }
+        Err(e) => {
+            eprintln!("nika run: environment: {e}");
+            emit_error_envelope(&e.to_string(), output_json);
+            Err(exit::ENV)
+        }
+    }
+}
+
+/// Execute a CHECKED workflow with the MOCK provider and capture the typed
+/// `outputs:` — the `nika test` seam (F7). The envelope model is replaced
+/// by `mock/echo` through the SAME composition path as `--model` (offline ·
+/// zero key · deterministic + schema-conformant since F3). The fold is a
+/// DIAGNOSTIC here — it goes to stderr (verdict card on failure only), so
+/// the caller owns stdout for its own verdict/diff surface.
+///
+/// # Errors
+///
+/// A composition/executor failure (environment class) as a human-readable
+/// message — the caller maps it to `exit::ENV`.
+pub(crate) fn capture_mock_outputs(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    theme: Theme,
+) -> Result<(u8, BTreeMap<String, Value>), String> {
+    let caps = capabilities_of(wf);
+    let runtime = production_runtime("mock/echo", caps).map_err(|e| e.to_string())?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| format!("cannot start the async executor: {e}"))?;
+    Ok(rt.block_on(async {
+        let mut stamper = SystemStamper::new();
+        let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Quiet);
+        let (code, outcome) = drive(&runtime, wf, report, &mut stamper, &mut sink).await;
+        // Success is silent (the caller prints the test verdict); a failed
+        // mock run surfaces its compact verdict card so the operator sees
+        // WHY before the caller's exit.
+        if code != exit::OK {
+            sink.print_final();
+        }
+        (code, outcome.outputs)
+    }))
+}
+
 /// Should the offline-preview tip fire after an example run?
 ///
 /// True only when ALL hold: the run FAILED (`code != exit::OK`), the user
@@ -239,15 +534,38 @@ fn offline_tip_applies(exit_code: u8, override_given: bool, model: &str) -> bool
     exit_code != exit::OK && !override_given && !model.is_empty() && model != "mock/echo"
 }
 
+/// The static wave plan as task ids (the check report's schedule) —
+/// injected into the display fold so the ∥ lane markers and the DAG-shape
+/// glyph speak the scheduler's truth, not a reconstruction.
+fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
+    report
+        .waves
+        .iter()
+        .map(|wave| {
+            wave.iter()
+                .filter_map(|&i| wf.tasks.get(i).map(|t| t.value.id.value.clone()))
+                .collect()
+        })
+        .collect()
+}
+
 /// Drive the runtime through the chosen sink · return the exit code.
+// The trailing parameters are the `--resume` summary switch + the
+// outputs-tail switch — same clap-surface idiom as `run` itself (four
+// independent flags ARE four bools, not a state machine). The workflow
+// rides as (path, parsed) — the epilogue hint teaches a command over
+// the SAME file the operator just ran.
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 async fn execute(
     runtime: &ProdRuntime,
-    wf: &RawWorkflow,
+    (file, wf): (&str, &RawWorkflow),
     report: &CheckReport,
     json: bool,
     output_json: bool,
     theme: Theme,
     mode: RenderMode,
+    resumed: bool,
+    outputs: bool,
 ) -> u8 {
     let mut stamper = SystemStamper::new();
     if output_json {
@@ -260,35 +578,158 @@ async fn execute(
         // composition path · never the live TTY redraw); the one final
         // storyboard frame is what matters, not the animation.
         let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
-        let (code, outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        sink.set_plan(plan_waves(wf, report));
+        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         sink.print_final();
+        print_resume_summary(&outcome, resumed, true);
+        // Built BEFORE the sink is consumed — the failure envelope reads
+        // the folded view (the failed row's detail carries the wire code).
+        // A PAUSED run gets its own additive envelope (`{"paused":{…}}` ·
+        // ADR-099 rider · run state `paused` in the report vocabulary).
+        let verdict_line = if code == exit::PAUSED {
+            outcome.paused.as_ref().map(paused_envelope_line)
+        } else if code != exit::OK {
+            Some(run_failure_envelope(sink.view()))
+        } else {
+            None
+        };
         if let Some(e) = sink.into_error() {
-            eprintln!("nika run: render failed: {e}");
+            let message = format!("render failed: {e}");
+            eprintln!("nika run: {message}");
+            println!("{}", error_envelope_line(&message));
             return exit::ENV;
         }
-        println!("{}", outputs_json_line(&outputs));
+        // stdout is ALWAYS one self-sufficient JSON object (F6): the
+        // resolved `outputs:` on success · the `{"error":{…}}` envelope on
+        // failure (it used to stay empty/`{}` — a machine consumer had to
+        // scrape stderr to learn WHY) · the `{"paused":{…}}` envelope on a
+        // human-gate pause.
+        match verdict_line {
+            Some(line) => println!("{line}"),
+            None => println!("{}", outputs_json_line(&outcome.outputs)),
+        }
         code
     } else if json {
         let mut sink = JsonSink::new(std::io::stdout().lock());
-        let (code, _outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: stream write failed: {e}");
             return exit::ENV;
         }
+        print_resume_summary(&outcome, resumed, true);
         code
     } else {
         let mut sink = FoldSink::new(std::io::stdout().lock(), theme, mode);
-        let (code, _outputs) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        sink.set_plan(plan_waves(wf, report));
+        // The shape tails ride the INTERACTIVE surface only (`Live` =
+        // TTY): the piped/`--no-progress`/`--quiet` registers keep their
+        // exact bytes — CI logs and scripts never grow tails.
+        if mode == RenderMode::Live && outputs {
+            sink.show_outputs(true);
+        }
+        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
         // `Live` painted in place during the run; `Plain`/`Quiet` folded
         // silently · print the ONE final frame now.
         if mode != RenderMode::Live {
             sink.print_final();
         }
+        // The Live (TTY) final frame carries the flow epilogue: the wall-
+        // time waterfall + the outputs pointer (design §2c). The sober
+        // registers (piped `Plain` · `--quiet` · machine modes) stay
+        // untouched — CI logs never grow chart art.
+        if mode == RenderMode::Live {
+            print_flow_epilogue(sink.view(), &outcome.outputs, theme, file);
+        }
+        print_resume_summary(&outcome, resumed, false);
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: render failed: {e}");
             return exit::ENV;
         }
         code
+    }
+}
+
+/// The `--resume` post-run summary (`resumed · N skipped · M ran live`) —
+/// printed ONLY when a resume was requested (a fresh run's surfaces stay
+/// byte-identical). Machine modes route it to stderr (stdout is the
+/// contract surface); human modes print it under the final frame.
+fn print_resume_summary(outcome: &RunOutcome, resumed: bool, to_stderr: bool) {
+    if !resumed {
+        return;
+    }
+    let ran_live = outcome
+        .records
+        .values()
+        .filter(|r| r.started_at.is_some())
+        .count();
+    let line = resume::summary_line(outcome.cache_hits.len(), ran_live);
+    if to_stderr {
+        eprintln!("{line}");
+    } else {
+        println!("\n  {line}");
+    }
+}
+
+/// The TTY final-frame epilogue: the post-run waterfall (real durations ·
+/// real overlap · pure fold of the run's own event stream) then the
+/// shareable verdict card, its outputs note naming what left the run —
+/// closed by the explore hint. SEAM (stated, not faked): a live run
+/// writes no trace file today, so the hint teaches the two-step that
+/// works NOW (record with `--json`, then browse); when auto-trace
+/// recording ships, this collapses to the recorded path.
+fn print_flow_epilogue(
+    view: &crate::RunView,
+    outputs: &BTreeMap<String, Value>,
+    theme: Theme,
+    file: &str,
+) {
+    for line in crate::display::flow::waterfall(view, &theme) {
+        println!("{line}");
+    }
+    let note = outputs_note(outputs);
+    for line in crate::display::flow::verdict_card(view, &theme, note.as_deref()) {
+        println!("{line}");
+    }
+    // The workflow path is CLICKABLE on link-capable terminals (OSC-8 ·
+    // file:// — the one real file in the hint; the ndjson names are the
+    // suggested two-step, not files that exist yet).
+    let file_cell = crate::verbs::linked_path(theme, file);
+    let record =
+        format!("nika run {file_cell} --json > run.ndjson · nika trace outputs run.ndjson");
+    println!(
+        "  {}",
+        crate::display::vocab::hint(theme, "explore", &record)
+    );
+}
+
+/// The card's outputs note: `outputs → key (type) · key2 (type)` — the
+/// export contract's shape at a glance (types only, never a data dump).
+/// Two keys shown, the rest counted.
+fn outputs_note(outputs: &BTreeMap<String, Value>) -> Option<String> {
+    if outputs.is_empty() {
+        return None;
+    }
+    let mut parts: Vec<String> = outputs
+        .iter()
+        .take(2)
+        .map(|(key, value)| format!("{key} ({})", json_type_name(value)))
+        .collect();
+    if outputs.len() > 2 {
+        parts.push(format!("+{} more", outputs.len() - 2));
+    }
+    Some(format!("outputs → {}", parts.join(" · ")))
+}
+
+/// The JSON type vocabulary for the outputs pointer — names only, never
+/// values (a summary line, not a data leak into the scrollback).
+fn json_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
     }
 }
 
@@ -303,7 +744,7 @@ async fn drive<S, T, H, P, D, C>(
     report: &CheckReport,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
-) -> (u8, BTreeMap<String, Value>)
+) -> (u8, RunOutcome)
 where
     S: nika_kernel::process::ShellRunDyn + Sync,
     T: nika_kernel::tool_executor::ToolExecuteDyn,
@@ -314,8 +755,17 @@ where
 {
     match runtime.run(wf, report, stamper, sink).await {
         Ok(outcome) => {
-            let code = if outcome.ok { exit::OK } else { exit::WORKFLOW };
-            (code, outcome.outputs)
+            // Paused wins the mapping (ADR-099 rider): non-zero on purpose
+            // (`&& next` must not proceed past an unanswered human gate),
+            // never the WORKFLOW failure code (a pause is not a defect).
+            let code = if outcome.paused.is_some() {
+                exit::PAUSED
+            } else if outcome.ok {
+                exit::OK
+            } else {
+                exit::WORKFLOW
+            };
+            (code, outcome)
         }
         Err(err) => {
             use nika_error::traits::NikaErrorCode as _;
@@ -327,7 +777,10 @@ where
                  please report it",
                 err.nika_code()
             );
-            (exit::ENV, BTreeMap::new())
+            (
+                exit::ENV,
+                RunOutcome::new(false, BTreeMap::new(), BTreeMap::new()),
+            )
         }
     }
 }
@@ -345,12 +798,96 @@ fn outputs_json_line(outputs: &BTreeMap<String, Value>) -> String {
 /// Route a human-readable diagnostic to the spec-correct stream: stderr in
 /// `--output json` mode (stdout MUST stay a clean JSON object · the export
 /// contract · `capture: stdout` composition), stdout in the human modes.
+/// In machine mode the failure ALSO lands on stdout as the `{"error":{…}}`
+/// envelope (F6) — the machine surface is self-sufficient, success or not.
 fn emit_diagnostic(text: &str, output_json: bool) {
     if output_json {
         eprint!("{text}");
+        println!("{}", error_envelope_line(envelope_message(text)));
     } else {
         print!("{text}");
     }
+}
+
+/// Print the machine failure envelope when in `--output json` mode (the
+/// ENV-class exits inside `run` share this one seam).
+fn emit_error_envelope(message: &str, output_json: bool) {
+    if output_json {
+        println!("{}", error_envelope_line(message));
+    }
+}
+
+/// ONE `{"paused":{…}}` line — the machine pause contract (ADR-099 rider
+/// · additive beside the success/error envelopes): the prompt payload a
+/// consumer needs to deliver an answer (`--answer <task>=<value>` at
+/// resume · or a serve webhook later).
+fn paused_envelope_line(pause: &WorkflowPause) -> String {
+    serde_json::json!({
+        "paused": {
+            "task": pause.task,
+            "mode": pause.mode,
+            "message": pause.message,
+            "choices": pause.choices,
+        }
+    })
+    .to_string()
+}
+
+/// ONE `{"error":{"code":…,"message":…}}` line — the machine failure
+/// contract (F6). `code` is the first NIKA wire code found in the message
+/// (`null` when the failure class carries none, e.g. an unreadable file).
+fn error_envelope_line(message: &str) -> String {
+    serde_json::json!({
+        "error": { "code": first_nika_code(message), "message": message }
+    })
+    .to_string()
+}
+
+/// Best-effort wire-code extraction: the first `NIKA-…` token in a
+/// diagnostic (findings render `[NIKA-PARSE-009]` · run details lead with
+/// `NIKA-431 · …`). Never invents — no token, no code.
+fn first_nika_code(text: &str) -> Option<&str> {
+    let start = text.find("NIKA-")?;
+    let rest = &text[start..];
+    let end = rest
+        .find(|c: char| !(c.is_ascii_uppercase() || c.is_ascii_digit() || c == '-'))
+        .unwrap_or(rest.len());
+    let code = rest[..end].trim_end_matches('-');
+    // A bare `NIKA-` prefix with no digits is prose, not a code.
+    (code.len() > "NIKA-".len() && code.bytes().any(|b| b.is_ascii_digit())).then_some(code)
+}
+
+/// The one-line message for a findings-render envelope: the first line
+/// carrying a wire code (the render wraps it in section noise), else the
+/// first non-empty line.
+fn envelope_message(text: &str) -> &str {
+    let mut lines = text.lines().filter(|l| !l.trim().is_empty());
+    let first = lines.next().unwrap_or(text);
+    std::iter::once(first)
+        .chain(lines)
+        .find(|l| l.contains("NIKA-"))
+        .unwrap_or(first)
+        .trim()
+}
+
+/// The failure envelope for a run that EXECUTED and failed: the first
+/// failed task row's detail (it carries the wire code), else the
+/// workflow-level detail (run-end typed-output breaches), else a stable
+/// fallback — stdout never goes silent on a machine consumer.
+fn run_failure_envelope(view: &crate::RunView) -> String {
+    let failed = view
+        .rows()
+        .iter()
+        .find(|r| r.state == crate::TaskState::Failed);
+    let message = match failed {
+        Some(row) if row.detail.is_empty() => format!("task `{}` failed", row.id),
+        Some(row) => format!("task `{}` failed — {}", row.id, row.detail),
+        None => view
+            .workflow_detail
+            .clone()
+            .unwrap_or_else(|| "workflow failed".to_owned()),
+    };
+    error_envelope_line(&message)
 }
 
 #[cfg(test)]
@@ -407,14 +944,34 @@ mod tests {
         assert!(!offline_tip_applies(exit::WORKFLOW, false, ""));
     }
 
+    /// The empty-state voice (design §3 rider): an ENV refusal (missing
+    /// file) carries the house prefix + ONE fix line + a closing
+    /// newline; FILE findings pass through to the check card untouched.
+    #[test]
+    fn refusal_text_teaches_only_the_env_class() {
+        let env = crate::verbs::VerbOutput {
+            text: "cannot read demo.yaml: No such file or directory (os error 2)".to_owned(),
+            code: exit::ENV,
+        };
+        let voiced = super::refusal_text(&env);
+        assert!(
+            voiced.starts_with("nika run: cannot read demo.yaml"),
+            "{voiced}"
+        );
+        assert!(voiced.contains("fix: check the path"), "{voiced}");
+        assert!(voiced.ends_with('\n'), "closes its own line: {voiced:?}");
+
+        let findings = crate::verbs::VerbOutput {
+            text: "PARSE X  [NIKA-PARSE-009] two verbs".to_owned(),
+            code: exit::FILE,
+        };
+        assert_eq!(super::refusal_text(&findings), findings.text);
+    }
+
     /// A noiseless theme (no colour · no animation) for the run tests — they
     /// exercise the COMPOSITION + exit code, not the render surface.
     fn plain_theme() -> Theme {
-        Theme {
-            color: false,
-            ascii: true,
-            animate: false,
-        }
+        Theme::new(false, true, false)
     }
 
     fn stage(name: &str, yaml: &str) -> std::path::PathBuf {
@@ -442,6 +999,9 @@ mod tests {
             RenderMode::Plain,
             false,
             Some("mock/echo"),
+            &[],
+            None,
+            false,
         );
         assert_eq!(
             code,
@@ -469,11 +1029,189 @@ mod tests {
             RenderMode::Plain,
             false,
             Some("mock/echo"),
+            &[],
+            None,
+            false,
         );
         assert_eq!(
             overridden,
             exit::OK,
             "the override resolved mock/echo, not the envelope's ollama model"
         );
+    }
+
+    // ── `--var` (F4) — the required-var class was UNRUNNABLE from the CLI ──
+
+    /// The workflow of the field repro: a `required: true` var with no
+    /// default. Before F4 there was NO way to run it from the CLI.
+    const REQUIRED_VAR_WF: &str = "nika: v1\nworkflow: needs-var\nmodel: mock/echo\nvars:\n  topic:\n    type: string\n    required: true\ntasks:\n  - id: ask\n    infer: { prompt: \"about ${{ vars.topic }}\" }\n";
+
+    fn run_with_vars(name: &str, vars: &[String]) -> u8 {
+        let wf = stage(name, REQUIRED_VAR_WF);
+        run(
+            &wf.to_string_lossy(),
+            false,
+            None,
+            plain_theme(),
+            RenderMode::Plain,
+            false,
+            None,
+            vars,
+            None,
+            false,
+        )
+    }
+
+    #[test]
+    fn var_flag_satisfies_a_required_var() {
+        // Without the flag the first `${{ vars.topic }}` reference fails
+        // the task (NIKA-VAR-001) → workflow failed.
+        assert_eq!(
+            run_with_vars("var-missing.nika.yaml", &[]),
+            exit::WORKFLOW,
+            "an unbound required var still fails the run"
+        );
+        // With `--var topic=rust` the SAME workflow runs green.
+        assert_eq!(
+            run_with_vars("var-provided.nika.yaml", &["topic=rust".to_owned()]),
+            exit::OK,
+            "--var makes the required-var workflow runnable"
+        );
+    }
+
+    #[test]
+    fn var_flag_refuses_unknown_keys_and_bad_shapes() {
+        // A typo'd key must refuse LOUDLY (exit 3 · never silently ignored).
+        assert_eq!(
+            run_with_vars("var-unknown.nika.yaml", &["topik=rust".to_owned()]),
+            exit::ENV,
+            "unknown --var key is refused"
+        );
+        // A pair without `=` is an operator input error, same class.
+        assert_eq!(
+            run_with_vars("var-shape.nika.yaml", &["topic".to_owned()]),
+            exit::ENV,
+            "malformed --var pair is refused"
+        );
+    }
+
+    // ── F6 · the `--output json` machine failure envelope ────────────
+
+    /// The envelope is ONE JSON object with the `{"error":{code,message}}`
+    /// shape · the code is extracted, never invented.
+    #[test]
+    fn error_envelope_is_one_object_with_extracted_code() {
+        let line = super::error_envelope_line("task failed — NIKA-VAR-001 · unresolved reference");
+        let v: Value = serde_json::from_str(&line).expect("envelope is JSON");
+        assert_eq!(v["error"]["code"], json!("NIKA-VAR-001"));
+        assert!(
+            v["error"]["message"]
+                .as_str()
+                .expect("message is a string")
+                .contains("unresolved"),
+        );
+        assert!(!line.contains('\n'), "one line — the machine contract");
+
+        // No wire code in the failure class (unreadable file) → null, not
+        // a hallucinated code.
+        let env_line = super::error_envelope_line("cannot read wf.yaml: No such file");
+        let v: Value = serde_json::from_str(&env_line).expect("envelope is JSON");
+        assert!(v["error"]["code"].is_null());
+    }
+
+    /// Wire-code extraction: bracketed findings, leading run details,
+    /// per-builtin long codes — and NO false positive on bare prose.
+    #[test]
+    fn first_nika_code_finds_real_codes_only() {
+        assert_eq!(
+            super::first_nika_code("PARSE ✗  [NIKA-PARSE-009] two verbs"),
+            Some("NIKA-PARSE-009")
+        );
+        assert_eq!(
+            super::first_nika_code("NIKA-431 · provider API error"),
+            Some("NIKA-431")
+        );
+        assert_eq!(
+            super::first_nika_code("x NIKA-BUILTIN-JQ-001 y"),
+            Some("NIKA-BUILTIN-JQ-001")
+        );
+        assert_eq!(super::first_nika_code("the NIKA- prefix alone"), None);
+        assert_eq!(super::first_nika_code("no code here"), None);
+    }
+
+    /// A findings render condenses to the line that carries the code.
+    #[test]
+    fn envelope_message_prefers_the_code_line() {
+        let text =
+            "nika check · wf.yaml\n X CONFORM  [NIKA-CEL-001] bad when\n  verdict: 1 finding\n";
+        assert_eq!(
+            super::envelope_message(text),
+            "X CONFORM  [NIKA-CEL-001] bad when"
+        );
+        // No code anywhere → the first non-empty line.
+        assert_eq!(
+            super::envelope_message("\ncannot read x: gone\ndetail\n"),
+            "cannot read x: gone"
+        );
+    }
+
+    /// The run-failure envelope reads the folded view: the failed row's
+    /// detail (which carries the wire code) becomes the machine message.
+    #[test]
+    fn run_failure_envelope_carries_the_failed_task_detail() {
+        let mut view = crate::RunView::new();
+        for ev in crate::demo::failure() {
+            view.apply(&ev);
+        }
+        let line = super::run_failure_envelope(&view);
+        let v: Value = serde_json::from_str(&line).expect("envelope is JSON");
+        assert_eq!(v["error"]["code"], json!("NIKA-431"), "{line}");
+        assert!(
+            v["error"]["message"]
+                .as_str()
+                .expect("message present")
+                .contains("task `"),
+            "{line}"
+        );
+
+        // An empty view (nothing folded) still yields a stable envelope.
+        let empty = super::run_failure_envelope(&crate::RunView::new());
+        let v: Value = serde_json::from_str(&empty).expect("fallback is JSON");
+        assert_eq!(v["error"]["message"], json!("workflow failed"));
+    }
+
+    #[test]
+    fn parse_var_overrides_types_json_else_string() {
+        let wf = nika_schema::parse(
+            "nika: v1\nworkflow: t\nvars:\n  topic: { type: string, required: true }\n  limit: { type: integer, default: 3 }\n  flags: [\"a\"]\ntasks:\n  - id: t\n    exec: { command: \"true\" }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+
+        // JSON-if-parses: numbers · arrays land typed; bare words as strings.
+        let overrides = super::parse_var_overrides(
+            &[
+                "topic=quantum news".to_owned(),
+                "limit=5".to_owned(),
+                "flags=[\"x\",\"y\"]".to_owned(),
+            ],
+            &wf,
+        )
+        .expect("valid overrides");
+        assert_eq!(overrides["topic"], json!("quantum news"));
+        assert_eq!(overrides["limit"], json!(5));
+        assert_eq!(overrides["flags"], json!(["x", "y"]));
+
+        // The unknown-key refusal NAMES the declared set (actionable).
+        let err = super::parse_var_overrides(&["ghost=1".to_owned()], &wf)
+            .expect_err("unknown key refused");
+        assert!(err.contains("ghost"), "{err}");
+        assert!(err.contains("topic"), "lists the declared vars: {err}");
+
+        // `=` in the VALUE is preserved (split_once · key=v=w).
+        let eq = super::parse_var_overrides(&["topic=a=b".to_owned()], &wf)
+            .expect("value may carry '='");
+        assert_eq!(eq["topic"], json!("a=b"));
     }
 }

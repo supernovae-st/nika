@@ -30,10 +30,10 @@ pub enum TaskState {
     Failed,
     /// An attempt failed · a retry is scheduled (§3.1 `↻` · yellow).
     Retrying,
-    /// Guard false — never ran, by design.
+    /// Guard false — never ran, by design (`↷` · dim · a decision).
     Skipped,
-    /// Cancelled (upstream failure · operator stop · §3.1 `◼` · dim ·
-    /// a decision, not a defect — never red).
+    /// Cancelled (upstream failure · operator stop · `⊘ blocked` · dim
+    /// · the path died upstream — never red, the defect is elsewhere).
     Cancelled,
 }
 
@@ -48,6 +48,57 @@ pub struct TaskRow {
     pub note: String,
     /// Failure detail (`detail` field) — feeds the failure card.
     pub detail: String,
+    /// `task_started` stamp (unix ms) — feeds the live elapsed readout.
+    pub started_ms: Option<i64>,
+    /// Terminal stamp (unix ms) — completion · failure · skip · cancel.
+    pub ended_ms: Option<i64>,
+    /// The runtime-measured `duration_ms` field (the REAL wall time —
+    /// event stamps are settle-time, this one is measured at dispatch).
+    pub duration_ms: Option<u64>,
+    /// Per-task spend (`cost_usd` on the terminal frame).
+    pub cost_usd: Option<f64>,
+    /// The model an inference note named (`infer · <model>` / `agent ·
+    /// <model>` — the runtime's note vocabulary), kept once seen: the
+    /// terminal note overwrites `note`, this survives for the verdict
+    /// surface.
+    pub model: Option<String>,
+    /// The task's output as ONE compact JSON text — the ADR-099 `output`
+    /// trace field on `task_completed` / `task_cache_hit`. `None` when
+    /// the frame carried none: a skip · a failure · an older engine's
+    /// trace · the runtime's secret-drop (an output text leaking a
+    /// resolved secret value never reaches the stream — ADR-099 §1).
+    pub output_json: Option<String>,
+    /// Per-task token usage (`tokens` on the terminal frame).
+    pub tokens: Option<u64>,
+    /// The FIRST `task_started` note (`infer · <model>` · `invoke ·
+    /// nika:fetch` — the runtime's verb vocabulary), kept verbatim: the
+    /// terminal note overwrites `note`, this survives for the per-task
+    /// trace readers (`trace outputs`' verb column).
+    pub started_note: Option<String>,
+    /// The ADR-099 task-definition hash (`def_hash` · blake3 hex) when
+    /// the terminal frame carried the checkpoint trio — the identity
+    /// half `trace peek` surfaces beside the value.
+    pub def_hash: Option<String>,
+    /// The ADR-099 resolved-input hash (`input_hash` · blake3 hex).
+    pub input_hash: Option<String>,
+    /// The row reached Ok via a `task_cache_hit` rehydration (ADR-099
+    /// `--resume`), never by running here — the render distinguishes
+    /// `↷ cache hit (resume)` from a ran-to-green row.
+    pub cached: bool,
+}
+
+impl TaskRow {
+    /// The task's best-known wall duration: the runtime-measured
+    /// `duration_ms` when the stream carried it, else the stamp span.
+    /// `None` for a task that never reached a terminal state.
+    #[must_use]
+    pub fn wall_ms(&self) -> Option<u64> {
+        if let Some(d) = self.duration_ms {
+            return Some(d);
+        }
+        let (start, end) = (self.started_ms?, self.ended_ms?);
+        u64::try_from(end.saturating_sub(start)).ok()
+    }
 }
 
 /// The folded view of one run — everything a frame needs, nothing more.
@@ -70,7 +121,13 @@ pub struct RunView {
     pub workflow_detail: Option<String>,
     /// Wall-clock span folded from event timestamps (ms).
     pub elapsed_ms: u64,
+    /// Retry attempts observed across the run (`task_retrying` count).
+    pub retries: u32,
     first_ts_ms: Option<i64>,
+    last_ts_ms: Option<i64>,
+    /// The static wave plan (task ids per wave · from the check report) —
+    /// side information the run verb injects; the fold never derives it.
+    plan_waves: Option<Vec<Vec<String>>>,
     rows: Vec<TaskRow>,
     index: BTreeMap<String, usize>,
 }
@@ -86,6 +143,27 @@ impl RunView {
     #[must_use]
     pub fn rows(&self) -> &[TaskRow] {
         &self.rows
+    }
+
+    /// The latest event stamp folded so far (unix ms) — "now" as the
+    /// stream knows it (feeds the running row's live elapsed).
+    #[must_use]
+    pub fn last_ts_ms(&self) -> Option<i64> {
+        self.last_ts_ms
+    }
+
+    /// Inject the static wave plan (task ids per wave · from the check
+    /// report). Side information for the lane markers + the DAG-shape
+    /// glyph — a replayed trace without it falls back to interval
+    /// reconstruction.
+    pub fn set_plan(&mut self, waves: Vec<Vec<String>>) {
+        self.plan_waves = Some(waves);
+    }
+
+    /// The injected wave plan, when the caller provided one.
+    #[must_use]
+    pub fn plan(&self) -> Option<&[Vec<String>]> {
+        self.plan_waves.as_deref()
     }
 
     /// How many rows reached a terminal state.
@@ -106,6 +184,7 @@ impl RunView {
     pub fn apply(&mut self, event: &Event) {
         let ts = event.timestamp.unix_ms();
         let first = *self.first_ts_ms.get_or_insert(ts);
+        self.last_ts_ms = Some(ts);
         self.elapsed_ms = u64::try_from(ts.saturating_sub(first)).unwrap_or(0);
 
         match event.kind {
@@ -116,30 +195,82 @@ impl RunView {
                 self.ceiling_usd = float_field(event, "ceiling_usd");
                 self.permits = str_field(event, "permits").map(str::to_owned);
             }
-            EventKind::TaskScheduled => self.touch(event, TaskState::Pending),
-            EventKind::TaskStarted => self.touch(event, TaskState::Running),
+            EventKind::TaskScheduled => {
+                self.touch(event, TaskState::Pending);
+            }
+            EventKind::TaskStarted => {
+                if let Some(i) = self.touch(event, TaskState::Running) {
+                    let row = &mut self.rows[i];
+                    row.started_ms = Some(ts);
+                    if row.started_note.is_none() && !row.note.is_empty() {
+                        row.started_note = Some(row.note.clone());
+                    }
+                }
+            }
             EventKind::TaskCompleted => {
-                self.touch(event, TaskState::Ok);
-                if let Some(usd) = float_field(event, "cost_usd") {
+                let usd = float_field(event, "cost_usd");
+                if let Some(i) = self.touch(event, TaskState::Ok) {
+                    self.stamp_terminal(i, ts, event, usd);
+                    self.keep_output(i, event);
+                    if let Some(tokens) = int_field(event, "tokens") {
+                        self.rows[i].tokens = u64::try_from(tokens).ok();
+                    }
+                }
+                if let Some(usd) = usd {
                     self.cost_usd += usd;
                 }
                 if let Some(tokens) = int_field(event, "tokens") {
                     self.token_samples.push(u64::try_from(tokens).unwrap_or(0));
                 }
             }
-            EventKind::TaskFailed => self.touch(event, TaskState::Failed),
-            EventKind::TaskSkipped => self.touch(event, TaskState::Skipped),
+            // ADR-099 `--resume` — a rehydrated success: the row reads Ok
+            // with the "cache hit" note the frame carries (VISIBLE, never
+            // silent); zero duration/spend (the task never ran here). The
+            // rehydrated output rides the frame — the shape tail and the
+            // trace readers see the SAME value a live run would carry.
+            EventKind::TaskCacheHit => {
+                if let Some(i) = self.touch(event, TaskState::Ok) {
+                    self.rows[i].ended_ms = Some(ts);
+                    self.rows[i].cached = true;
+                    self.keep_output(i, event);
+                }
+            }
+            EventKind::TaskFailed => {
+                let usd = float_field(event, "cost_usd");
+                if let Some(i) = self.touch(event, TaskState::Failed) {
+                    self.stamp_terminal(i, ts, event, usd);
+                }
+            }
+            EventKind::TaskSkipped => {
+                if let Some(i) = self.touch(event, TaskState::Skipped) {
+                    self.rows[i].ended_ms = Some(ts);
+                }
+            }
             // §3.1 `↻` — the attempt failed · the TASK has not · the row
             // holds yellow until the terminal frame replaces it.
-            EventKind::TaskRetrying => self.touch(event, TaskState::Retrying),
-            // §3.1 `◼` — a decision, not a defect (dim · never red).
-            EventKind::TaskCancelled => self.touch(event, TaskState::Cancelled),
+            EventKind::TaskRetrying => {
+                self.retries = self.retries.saturating_add(1);
+                self.touch(event, TaskState::Retrying);
+            }
+            // §3.1 blocked `⊘` — a decision, not a defect (dim · never red).
+            EventKind::TaskCancelled => {
+                if let Some(i) = self.touch(event, TaskState::Cancelled) {
+                    self.rows[i].ended_ms = Some(ts);
+                }
+            }
             EventKind::WorkflowCompleted => self.verdict = Some(true),
             EventKind::WorkflowFailed => {
                 self.verdict = Some(false);
                 // A workflow-level reason (run-end NIKA-VAR-009) rides the
                 // terminal frame's `detail` field, if present.
                 self.workflow_detail = str_field(event, "detail").map(str::to_owned);
+            }
+            // ADR-099 rider — the run paused on a human gate: no verdict
+            // (neither success nor failure) · the detail names the
+            // awaiting task so a replayed trace reads honestly.
+            EventKind::WorkflowPaused => {
+                let task = str_field(event, "task").unwrap_or("a prompt");
+                self.workflow_detail = Some(format!("paused · awaiting an answer for `{task}`"));
             }
             // Dispatch + checkpoint + cost/stream/permit kinds carry no
             // row state today. `#[non_exhaustive]` future kinds render
@@ -148,10 +279,43 @@ impl RunView {
         }
     }
 
+    /// Stamp a ran-to-terminal row (completed · failed): the end stamp,
+    /// the runtime-measured duration, the per-task spend.
+    fn stamp_terminal(&mut self, i: usize, ts: i64, event: &Event, usd: Option<f64>) {
+        let row = &mut self.rows[i];
+        row.ended_ms = Some(ts);
+        if let Some(d) = int_field(event, "duration_ms") {
+            row.duration_ms = u64::try_from(d).ok();
+        }
+        if usd.is_some() {
+            row.cost_usd = usd;
+        }
+    }
+
+    /// Keep the ADR-099 checkpoint trio (the `output` value as ONE
+    /// compact JSON text + the `def_hash`/`input_hash` identity) when
+    /// the frame carried it. A frame without it folds to `None` — the
+    /// honest no-data arm every downstream summary respects (notably
+    /// the runtime's secret-drop: a leaking output never rides the
+    /// stream, so no preview can ever see it).
+    fn keep_output(&mut self, i: usize, event: &Event) {
+        let row = &mut self.rows[i];
+        if let Some(text) = str_field(event, "output") {
+            row.output_json = Some(text.to_owned());
+        }
+        if let Some(hash) = str_field(event, "def_hash") {
+            row.def_hash = Some(hash.to_owned());
+        }
+        if let Some(hash) = str_field(event, "input_hash") {
+            row.input_hash = Some(hash.to_owned());
+        }
+    }
+
     /// Upsert the row a task event addresses, updating state + notes.
-    fn touch(&mut self, event: &Event, state: TaskState) {
+    /// Returns the row index so the caller can stamp kind-specific facts.
+    fn touch(&mut self, event: &Event, state: TaskState) -> Option<usize> {
         let Some(task_id) = str_field(event, "task") else {
-            return; // a task event without a task field renders nothing
+            return None; // a task event without a task field renders nothing
         };
         let idx = if let Some(&i) = self.index.get(task_id) {
             i
@@ -161,6 +325,17 @@ impl RunView {
                 state: TaskState::Pending,
                 note: String::new(),
                 detail: String::new(),
+                started_ms: None,
+                ended_ms: None,
+                duration_ms: None,
+                cost_usd: None,
+                model: None,
+                output_json: None,
+                tokens: None,
+                started_note: None,
+                def_hash: None,
+                input_hash: None,
+                cached: false,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);
@@ -169,11 +344,23 @@ impl RunView {
         let row = &mut self.rows[idx];
         row.state = state;
         if let Some(note) = str_field(event, "note") {
+            // The runtime's inference notes name the model (`infer ·
+            // <model>`) — keep it once seen: the terminal note replaces
+            // `note`, the verdict surface still wants the model.
+            let model = note
+                .strip_prefix("infer · ")
+                .or_else(|| note.strip_prefix("agent · "));
+            if let Some(m) = model
+                && !m.is_empty()
+            {
+                row.model = Some(m.to_owned());
+            }
             note.clone_into(&mut row.note);
         }
         if let Some(detail) = str_field(event, "detail") {
             detail.clone_into(&mut row.detail);
         }
+        Some(idx)
     }
 }
 
@@ -318,5 +505,108 @@ mod tests {
         let ev = demo::bare_event(EventKind::TaskStarted, 100);
         view.apply(&ev);
         assert!(view.rows().is_empty());
+    }
+
+    /// Terminal rows stamp start/end + spend, and the runtime-measured
+    /// `duration_ms` field WINS over the stamp span (stamps are settle-
+    /// time; the measurement is the wall truth).
+    #[test]
+    fn terminal_rows_stamp_time_and_spend() {
+        use nika_types::resource::{KeyValue, Value};
+
+        let mut view = RunView::new();
+        for ev in demo::success() {
+            view.apply(&ev);
+        }
+        let fetch = &view.rows()[0];
+        assert_eq!(fetch.started_ms, Some(20));
+        assert_eq!(fetch.ended_ms, Some(1200));
+        assert_eq!(fetch.wall_ms(), Some(1180), "stamp-span fallback");
+        let summarize = view
+            .rows()
+            .iter()
+            .find(|r| r.id == "summarize")
+            .expect("row");
+        assert_eq!(summarize.cost_usd, Some(0.011), "per-task spend rides");
+
+        // An explicit duration_ms field wins over the (settle-time) span.
+        let mut measured = RunView::new();
+        let task = || KeyValue::new("task", Value::String("t".to_owned()));
+        measured.apply(&demo::bare_event(EventKind::TaskStarted, 0).with_field(task()));
+        measured.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 5000)
+                .with_field(task())
+                .with_field(KeyValue::new("duration_ms", Value::Int(40))),
+        );
+        assert_eq!(measured.rows()[0].wall_ms(), Some(40), "measured wins");
+        assert_eq!(measured.last_ts_ms(), Some(5000), "now = latest stamp");
+    }
+
+    /// The fold keeps the ADR-099 per-task payload fields verbatim —
+    /// `output` (compact JSON text) + `tokens` land on the row; a frame
+    /// WITHOUT an `output` field folds to `None` (older engines · skips
+    /// · the runtime's secret-drop, ADR-099 §1: an output text leaking a
+    /// resolved secret never reaches the stream — so every preview
+    /// surface inherits the invariant structurally).
+    #[test]
+    fn completed_rows_keep_output_text_and_tokens() {
+        use nika_types::resource::{KeyValue, Value};
+        let mut view = RunView::new();
+        let task = |name: &str| KeyValue::new("task", Value::String(name.to_owned()));
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 10)
+                .with_field(task("audit"))
+                .with_field(KeyValue::new(
+                    "output",
+                    Value::String(r#"{"total":9}"#.to_owned()),
+                ))
+                .with_field(KeyValue::new("tokens", Value::Int(90))),
+        );
+        // The secret-drop / older-engine arm: no `output` field at all.
+        view.apply(&demo::bare_event(EventKind::TaskCompleted, 20).with_field(task("bare")));
+        // A cache hit rehydrates its output onto the row too (ADR-099).
+        view.apply(
+            &demo::bare_event(EventKind::TaskCacheHit, 30)
+                .with_field(task("cached"))
+                .with_field(KeyValue::new("output", Value::String("\"hi\"".to_owned()))),
+        );
+        assert_eq!(
+            view.rows()[0].output_json.as_deref(),
+            Some(r#"{"total":9}"#)
+        );
+        assert_eq!(view.rows()[0].tokens, Some(90));
+        assert_eq!(view.rows()[1].output_json, None, "no field → None");
+        assert_eq!(view.rows()[1].tokens, None);
+        assert_eq!(view.rows()[2].output_json.as_deref(), Some("\"hi\""));
+    }
+
+    /// The FIRST started note (the verb vocabulary — `invoke ·
+    /// nika:fetch`) survives the terminal-note overwrite — the trace
+    /// readers' verb column depends on it.
+    #[test]
+    fn started_note_survives_the_terminal_overwrite() {
+        let mut view = RunView::new();
+        for ev in demo::success() {
+            view.apply(&ev);
+        }
+        let fetch = &view.rows()[0];
+        assert_eq!(fetch.started_note.as_deref(), Some("invoke · nika:fetch"));
+        assert_eq!(fetch.note, "http 200 · 1.2s · 34 KB", "terminal note won");
+        // A row that never started (skipped) keeps None.
+        let skipped = view.rows().iter().find(|r| r.id == "notify_slack");
+        assert_eq!(skipped.and_then(|r| r.started_note.as_deref()), None);
+    }
+
+    /// The retry counter folds every `task_retrying` frame (feeds the
+    /// verdict surface's `N retries`).
+    #[test]
+    fn retrying_frames_count_toward_the_retry_total() {
+        let mut view = RunView::new();
+        for ev in demo::retrying() {
+            view.apply(&ev);
+        }
+        assert_eq!(view.retries, 1);
+        let fresh = RunView::new();
+        assert_eq!(fresh.retries, 0);
     }
 }

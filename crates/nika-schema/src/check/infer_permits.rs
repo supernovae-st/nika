@@ -160,12 +160,15 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &crate::raw::RawInvoke
             }
         }
         Some(BuiltinEffect::Fs {
+            path_arg,
             reads,
             writes,
             recursive,
-        }) => match literal_arg(a, "path") {
+        }) => match literal_arg(a, path_arg) {
             Some(path) => {
-                // a recursive reader (nika:grep) touches descendants too
+                // a recursive effect (nika:grep reads descendants ·
+                // nika:image_generate writes into the dir) touches
+                // descendants too
                 let entry = if recursive {
                     format!("{path}/**")
                 } else {
@@ -452,6 +455,41 @@ mod tests {
             vec!["hooks.slack.com"]
         );
         assert_round_trips_clean(yaml);
+    }
+
+    #[test]
+    fn image_generate_infers_a_recursive_write_grant() {
+        // Assets + the manifest land INSIDE output_dir — the inference
+        // grants `<dir>/**` on fs.write (the grep-recursive analog, write
+        // side), and the provider egress is deliberately NOT a net grant
+        // (the image plane rides engine transport, like `infer:`).
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: og\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"./assets/og\" } }\n";
+        let r = infer_of(yaml);
+        let fs = r.permits.fs.as_ref().expect("fs");
+        assert!(fs.read.is_empty(), "generation reads nothing");
+        assert_eq!(fs.write, vec!["./assets/og/**"]);
+        assert!(
+            r.permits.net.is_none(),
+            "provider egress ≠ permits.net.http"
+        );
+        assert!(
+            r.permits
+                .tools
+                .as_ref()
+                .expect("tools")
+                .contains(&"nika:image_generate".to_owned())
+        );
+        assert!(r.notes.is_empty(), "literal dir → no review note");
+        assert_round_trips_clean(yaml);
+    }
+
+    #[test]
+    fn dynamic_image_output_dir_notes_review() {
+        let r = infer_of(
+            "nika: v1\nworkflow: w\nvars: { dir: \"./assets\" }\ntasks:\n  - id: og\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"${{ vars.dir }}\" } }\n",
+        );
+        assert!(r.permits.fs.is_none(), "dynamic dir cannot be pinned");
+        assert!(r.notes.iter().any(|n| n.contains("dynamic path")));
     }
 
     #[test]

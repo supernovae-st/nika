@@ -3,21 +3,21 @@
 #
 # showcase · T1 starter · every office job
 #
-# A meeting transcript goes in. Owners, tasks and deadlines come out —
+# A meeting transcript goes in. Owners, tasks and deadlines come out:
 # as typed JSON your task tracker can actually import.
 #
 # Demonstrates ·
 #   - typed `vars:` · `transcript_path` is required · the engine validates inputs
-#   - `infer.schema:` · structured output — the model MUST return this shape
+#   - `infer.schema:` · structured output: the model MUST return this shape
 #   - `${{ tasks.X.output.actions }}` · indexing into a schema-validated object
 #   - `nika:log` · human-readable diagnostics on the event stream
 #
-# Run · nika run examples/showcase/t1-meeting-actions.nika.yaml
+# Run · nika run examples/showcase/t1-meeting-actions.nika.yaml --var transcript_path=./transcript.txt
 nika: v1
 workflow: meeting-actions
 description: "Transcript → typed action items {owner, task, due}"
 
-model: mock/echo            # swap for openai/gpt-5.2 or any provider in the catalog
+model: ollama/qwen3.5:4b   # local · zero key · swap for openai/gpt-5.2 or any provider in the catalog
 
 vars:
   transcript_path:

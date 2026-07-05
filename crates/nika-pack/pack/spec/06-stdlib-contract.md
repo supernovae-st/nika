@@ -44,9 +44,9 @@ Three reasons ·
 
 The stdlib has **independent versioning** ·
 
-- `stdlib/providers-v0.1.md` — the <!-- canon:providers -->14<!-- /canon --> canonical providers for v0.1
-- `stdlib/extract-modes-v0.1.md` — the <!-- canon:extract_modes -->9<!-- /canon --> canonical extract modes for v0.1
-- `stdlib/builtins-v0.1.md` — the <!-- canon:builtins -->23<!-- /canon --> canonical builtins for v0.1
+- `stdlib/providers-v0.1.md`, the <!-- canon:providers -->14<!-- /canon --> canonical providers for v0.1
+- `stdlib/extract-modes-v0.1.md`, the <!-- canon:extract_modes -->9<!-- /canon --> canonical extract modes for v0.1
+- `stdlib/builtins-v0.1.md`, the <!-- canon:builtins -->24<!-- /canon --> canonical builtins for v0.1
 
 When the stdlib evolves to v0.2 · those files become `*-v0.2.md` and new versions are published. The core language contract (`nika: v1`) is unchanged.
 
@@ -81,15 +81,16 @@ Selected via a single `model: <provider>/<name>` field. Any other OpenAI-compati
 
 See [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md).
 
-### Builtins (23)
+### Builtins (24)
 
 6 core (log · emit · assert · prompt · done · wait)
 + 5 file (read · write · edit · glob · grep)
 + 8 data (jq · json_diff · validate · json_merge_patch · convert · uuid · date · hash)
-+ 1 introspection (inspect · view-discriminated · 4 views cost/records/dag_info/threads)
++ 2 introspection (inspect · view-discriminated · 4 views cost/records/dag_info/threads · compose · agent-loop self-check)
 + 2 network (fetch · notify)
-= **22 canonical builtins** (Stdlib v0.1 · consolidated · was 42 · `jq` subsumes 13 data builtins · validators merged into `validate` · `task_status`/`orchestrate`/`locale_lookup` cut · `sleep`+`wait_until` merged into unified `nika:wait` per ADR-087 · `cost`+`records`+`dag_info`+`threads` merged into unified `nika:inspect` per ADR-088 · ZERO capability loss)
-(+ media · **deferred** to stdlib v0.x · NOT in the v0.1 count)
++ 1 media (image_generate · the first §Media graduate · 2026-07-05)
+= **24 canonical builtins** (Stdlib v0.1 · consolidated · was 42 · `jq` subsumes 13 data builtins · validators merged into `validate` · `task_status`/`orchestrate`/`locale_lookup` cut · `sleep`+`wait_until` merged into unified `nika:wait` per ADR-087 · `cost`+`records`+`dag_info`+`threads` merged into unified `nika:inspect` per ADR-088 · ZERO capability loss)
+(+ the remaining media class · **deferred** to stdlib v0.x · NOT in the v0.1 count)
 
 See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md).
 
@@ -99,7 +100,7 @@ See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md).
 
 Deliberately deferred to stdlib v0.x ·
 
-- **24 media builtins** · pdf_extract · svg_render · chart · phash · thumbhash · provenance · etc. (heavy · high maintenance · niche audience)
+- **The remaining media builtins** · pdf_extract · svg_render · chart · phash · thumbhash · provenance · etc. (heavy · high maintenance · niche audience — `image_generate` graduated 2026-07-05, the rest waits)
 - **Advanced agent presets** · multi-agent coordination patterns · supervisor/worker · etc.
 - **Memory recall builtins** · awaiting the engine's memory subsystem (the Connectome · stdlib v0.5+)
 - **Workflow include / import** · single-file workflows in v0.1
@@ -114,7 +115,7 @@ When these mature · they enter stdlib v0.x. The core language doesn't need to c
 
 ```yaml
 model: anthropic/claude-sonnet-4-6   # <provider>/<name> · see stdlib/providers-v0.1.md
-# model: ollama/llama3.1             # local · same shape
+# model: ollama/qwen3.5:4b          # local · same shape
 ```
 
 ### Extract mode
@@ -153,7 +154,7 @@ These are not stdlib · they depend on the engine's MCP server registry being co
 
 ## Namespace ownership · `nika:` · `mcp:` (closed at v1)
 
-The namespace set is **CLOSED at v1** — `nika:` and `mcp:` are the only two
+The namespace set is **CLOSED at v1**: `nika:` and `mcp:` are the only two
 ([02 §tool reference grammar](./02-verbs.md#tool-reference-grammar-canonical) ·
 any other prefix is rejected at parse time) ·
 
@@ -166,7 +167,7 @@ The `nika:*` namespace is **spec-owned**. A custom engine MUST NOT add tools
 to the `nika:*` namespace · it would violate portability (a workflow using a
 vendor's `nika:custom` builtin would not run on a different engine).
 
-**Engine-specific tools route through `mcp:`** — an engine that ships custom
+**Engine-specific tools route through `mcp:`**: an engine that ships custom
 capabilities exposes them as an MCP server it hosts (`mcp:myengine/research`).
 That is exactly what the protocol is for · the tool is then *declared* in the
 engine's MCP registry like any other (portability semantics intact · any
@@ -174,7 +175,7 @@ engine with that server configured runs the workflow) · and no third
 namespace appears silently.
 
 (An OpenAPI-style `x-<vendor>:` prefix was considered and is **reserved as a
-possible future additive minor** — it does NOT exist in v0.1 · a parser that
+possible future additive minor**: it does NOT exist in v0.1 · a parser that
 accepts `x-anything:tool` today is non-conformant.)
 
 ---
@@ -187,7 +188,7 @@ See [07-conformance.md](./07-conformance.md). In summary ·
 |---|---|
 | Core | None · only parse + DAG + variable + error · no execution needed |
 | Runtime | Must execute the 4 verbs · provider/tool implementations engine's choice |
-| Stdlib v0.1 | Must ship the <!-- canon:providers -->14<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->23<!-- /canon --> builtins |
+| Stdlib v0.1 | Must ship the <!-- canon:providers -->14<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->24<!-- /canon --> builtins |
 | Stdlib v0.1+media | RESERVED · enumerated when the media set publishes (stdlib v0.x · the 24 names are not yet normative) |
 
 A v0.1-compliant engine for a workflow author depends on which level they need.

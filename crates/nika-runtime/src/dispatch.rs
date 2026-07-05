@@ -49,6 +49,10 @@ pub(crate) struct DispatchOk {
     pub value: Value,
     pub tokens: Option<i64>,
     pub warning: Option<String>,
+    /// Real spend in USD (catalog pricing × the provider's reported
+    /// usage split) · None for unpriced models (mock · local · unknown):
+    /// absent is honest — never a fake zero.
+    pub cost_usd: Option<f64>,
 }
 
 impl Dispatched {
@@ -59,19 +63,28 @@ impl Dispatched {
                 value,
                 tokens,
                 warning: None,
+                cost_usd: None,
             }),
         }
     }
 
-    /// `ok` with an OBS-E diagnostic attached (infer/agent only · the
-    /// effect verbs never reason).
-    fn ok_warned(note: String, value: Value, tokens: Option<i64>, warning: Option<String>) -> Self {
+    /// `ok_warned` + real spend — the infer path (the one verb whose
+    /// provider reports a priced usage split today · agent's loop only
+    /// accumulates a total, its split is the documented follow-up seam).
+    fn ok_metered(
+        note: String,
+        value: Value,
+        tokens: Option<i64>,
+        warning: Option<String>,
+        cost_usd: Option<f64>,
+    ) -> Self {
         Self {
             note,
             result: Ok(DispatchOk {
                 value,
                 tokens,
                 warning,
+                cost_usd,
             }),
         }
     }
@@ -143,16 +156,23 @@ where
     D: ToolDefinitionProviderDyn,
 {
     /// Dispatch one action through its verb (see module docs).
+    ///
+    /// `deadline` — the task-level `timeout:` budget (spec 03). The
+    /// attempt loop enforces it as the TOTAL budget; it is ALSO handed
+    /// to the infer path so the provider transport deadline cannot
+    /// undercut it (F1 · a 30s HTTP default killed every `timeout: 7m`
+    /// local-model task at 30s).
     pub(crate) async fn dispatch(
         &self,
         action: &RawAction,
         scope: &Scope<'_>,
         agent_buffer: &crate::agent_events::BufferingObserver,
+        deadline: Option<std::time::Duration>,
     ) -> Dispatched {
         match action {
             RawAction::Invoke(inner) => self.dispatch_invoke(inner, scope).await,
             RawAction::Exec(inner) => self.dispatch_shell(inner, scope).await,
-            RawAction::Infer(inner) => self.dispatch_infer(inner, scope).await,
+            RawAction::Infer(inner) => self.dispatch_infer(inner, scope, deadline).await,
             RawAction::Agent(inner) => self.dispatch_agent(inner, scope, agent_buffer).await,
             // #[non_exhaustive] · a future verb must land HERE loudly ·
             // the runtime refuses rather than silently no-ops.
@@ -300,12 +320,16 @@ where
         &self,
         action: &nika_schema::raw::RawInferAction,
         scope: &Scope<'_>,
+        deadline: Option<std::time::Duration>,
     ) -> Dispatched {
         let prompt = match expr::render(&action.prompt.value, scope) {
             Ok(p) => p,
             Err(err) => return Dispatched::template_err("infer · ?", &err),
         };
         let mut input = InferInput::new(prompt);
+        // The task `timeout:` flows to the provider transport deadline —
+        // the outer attempt-loop select still enforces the total budget.
+        input.timeout = deadline;
         input.system = match render_opt(action.system.as_ref(), scope) {
             Ok(v) => v,
             Err(err) => return Dispatched::template_err("infer · ?", &err),
@@ -339,7 +363,17 @@ where
                 // reasoning model that ate its budget on thinking) as a
                 // non-fatal warning · the task still succeeds.
                 let warning = empty_thinking_warning(&value, &out.usage);
-                Dispatched::ok_warned(note, value, tokens, warning)
+                // Real spend: catalog pricing × the provider's usage split ·
+                // the SAME resolver as the check-time floor (they can never
+                // disagree on which row prices a model) · unpriced models
+                // (mock · local · unknown) emit nothing.
+                let cost_usd = nika_catalog::estimate_cost_for(
+                    &out.model_resolved,
+                    out.usage.input_tokens,
+                    out.usage.output_tokens,
+                )
+                .map(|e| e.usd);
+                Dispatched::ok_metered(note, value, tokens, warning, cost_usd)
             }
             Err(err) => Dispatched::verb_err("infer · ?".to_owned(), &err),
         }
@@ -731,5 +765,143 @@ mod tests {
         assert!(!value_is_blank(&serde_json::json!([1])));
         assert!(!value_is_blank(&Value::Bool(false)));
         assert!(!value_is_blank(&serde_json::json!(0)));
+    }
+}
+
+/// F1 (field report 2026-07-04) — the task `timeout:` must arrive on the
+/// provider HTTP request through the REAL parse → check → run chain: the
+/// 30s transport default killed every `timeout: "7m"` local-model task
+/// with a 408 at 30s. Asserted at the http seam (a capturing effect
+/// under a real `ProviderRegistry` · `ollama` profile · zero network).
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod infer_deadline_tests {
+    use std::collections::BTreeMap;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use bytes::Bytes;
+    use nika_kernel::http::{
+        HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse,
+    };
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+    use nika_verb_agent::AgentVerb;
+    use nika_verb_exec::ExecVerb;
+    use nika_verb_invoke::InvokeVerb;
+
+    use crate::{DeterministicStamper, Runtime, RuntimeConfig, VecSink};
+
+    /// Captures every provider request · answers a minimal
+    /// openai-compat success so the run settles green.
+    #[derive(Default)]
+    struct CapturingHttp {
+        captured: Mutex<Vec<HttpRequest>>,
+    }
+
+    impl CapturingHttp {
+        fn captured(&self) -> Vec<HttpRequest> {
+            self.captured.lock().expect("test mutex").clone()
+        }
+    }
+
+    const OPENAI_OK: &str = r#"{"id":"cc","model":"m",
+        "choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],
+        "usage":{"prompt_tokens":1,"completion_tokens":1}}"#;
+
+    impl HttpPostDyn for CapturingHttp {
+        async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
+            self.captured
+                .lock()
+                .expect("test mutex")
+                .push(request.clone());
+            Ok(HttpResponse::new(
+                200,
+                BTreeMap::new(),
+                Bytes::from_static(OPENAI_OK.as_bytes()),
+                request.url,
+            ))
+        }
+
+        async fn send_streaming(
+            &self,
+            _request: HttpRequest,
+        ) -> Result<HttpStreamResponse, HttpError> {
+            Err(HttpError::Unsupported {
+                reason: "streaming not exercised here".to_owned(),
+            })
+        }
+    }
+
+    async fn run_and_capture(yaml: &str) -> Vec<HttpRequest> {
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        assert!(report.is_clean(), "fixture passes the ladder");
+
+        let http = Arc::new(CapturingHttp::default());
+        let registry = Arc::new(ProviderRegistry::new(
+            Arc::clone(&http),
+            ProvidersConfig::new(),
+        ));
+        let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new())),
+            Arc::clone(&invoke),
+            nika_verb_infer::InferVerb::new(registry, "ollama/llama3.2"),
+            AgentVerb::new(
+                Arc::new(MockProvider::new("mock")),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "mock/echo",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default(),
+        );
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("clean run");
+        assert!(outcome.ok, "the canned success settles green");
+        http.captured()
+    }
+
+    #[tokio::test]
+    async fn task_timeout_governs_the_provider_http_deadline() {
+        // The exact field repro: `timeout: "7m"` on a local-model infer.
+        let captured = run_and_capture(
+            "nika: v1\nworkflow: w\nmodel: ollama/llama3.2\ntasks:\n  - id: ask\n    timeout: \"7m\"\n    infer: { prompt: \"hello\" }\n",
+        )
+        .await;
+        assert_eq!(captured.len(), 1, "one provider round-trip");
+        assert_eq!(
+            captured[0].timeout,
+            Some(Duration::from_secs(420)),
+            "the task budget rides the provider HTTP request"
+        );
+    }
+
+    #[tokio::test]
+    async fn local_provider_without_task_timeout_gets_the_generous_default() {
+        let captured = run_and_capture(
+            "nika: v1\nworkflow: w\nmodel: ollama/llama3.2\ntasks:\n  - id: ask\n    infer: { prompt: \"hello\" }\n",
+        )
+        .await;
+        assert_eq!(captured.len(), 1, "one provider round-trip");
+        // 300s — nika-providers' LOCAL_DEFAULT_TIMEOUT (pub(crate) there ·
+        // the ≥300s F1 acceptance floor pinned at the consumer seam).
+        assert_eq!(
+            captured[0].timeout,
+            Some(Duration::from_secs(300)),
+            "a local provider defaults to minutes, never the 30s cloud default"
+        );
     }
 }

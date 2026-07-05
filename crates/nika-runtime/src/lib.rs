@@ -44,7 +44,9 @@ mod dispatch;
 mod errors;
 mod expr;
 mod jq;
+mod pause;
 mod record;
+pub mod resume;
 mod retry;
 mod secret;
 mod stamp;
@@ -73,6 +75,7 @@ use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
 
 pub use errors::RuntimeError;
+pub use pause::WorkflowPause;
 pub use record::{TaskErrorRecord, TaskRecord, TaskStatus};
 pub use secret::{
     NoSecrets, SecretResolveError, WorkflowSecretResolver, source_is_runtime_resolvable,
@@ -123,6 +126,13 @@ pub struct RunOutcome {
     /// whose reference no longer resolves is omitted · the verdict is
     /// unchanged · spec §3).
     pub outputs: BTreeMap<String, Value>,
+    /// The task ids that settled as ADR-099 cache hits, in settle order
+    /// (empty on a fresh run — feeds the `--resume` summary line).
+    pub cache_hits: Vec<String>,
+    /// `Some` iff the run PAUSED on a blocking `nika:prompt` (ADR-099
+    /// rider · run state `paused` · `ok` stays true — a pause is a
+    /// decision point, never a failure). The payload the CLI surfaces.
+    pub paused: Option<WorkflowPause>,
 }
 
 impl RunOutcome {
@@ -137,6 +147,8 @@ impl RunOutcome {
             ok,
             records,
             outputs,
+            cache_hits: Vec::new(),
+            paused: None,
         }
     }
 }
@@ -154,6 +166,24 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// the prior behavior); the composer injects an env/file resolver via
     /// [`Self::with_secret_resolver`].
     secrets: Arc<dyn WorkflowSecretResolver>,
+    /// Operator-supplied `vars:` values (`nika run --var key=value` · F4)
+    /// — merged OVER the envelope defaults at run start, so an override
+    /// wins and a `required: true` var without a default becomes
+    /// runnable. Empty by default (envelope defaults only).
+    var_overrides: BTreeMap<String, Value>,
+    /// ADR-099 `--resume` skip plan — task id → the journaled success it
+    /// may match (BOTH hashes · §1). Empty by default (a fresh run
+    /// executes every task — `task.cache_hit` fires only under resume).
+    resume_plan: resume::ResumePlan,
+    /// ADR-099 rider — pause (instead of failing) on a blocking
+    /// `nika:prompt` with no usable `default:`. The composer enables it
+    /// for non-interactive machine surfaces (`--json` · `--output json`
+    /// · serve); default OFF (the stdlib PROMPT-001 contract unchanged).
+    pause_on_prompt: bool,
+    /// ADR-099 rider — operator-supplied prompt answers (`--answer
+    /// task=value`): bound as the prompt's `default:` at dispatch (the
+    /// answered branch), never part of the task's resume identity.
+    prompt_answers: BTreeMap<String, Value>,
 }
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
@@ -178,6 +208,10 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             clock,
             config,
             secrets: Arc::new(secret::NoSecrets),
+            var_overrides: BTreeMap::new(),
+            resume_plan: resume::ResumePlan::new(),
+            pause_on_prompt: false,
+            prompt_answers: BTreeMap::new(),
         }
     }
 
@@ -187,6 +221,52 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_secret_resolver(mut self, resolver: Arc<dyn WorkflowSecretResolver>) -> Self {
         self.secrets = resolver;
+        self
+    }
+
+    /// Inject operator-supplied `vars:` values (`nika run --var key=value`
+    /// · F4). Builder form — merged OVER the envelope defaults at run
+    /// start: an override wins against a declared `default:`, and a
+    /// `required: true` var without one becomes runnable from the CLI.
+    /// Keys are the composer's concern (the CLI validates them against
+    /// the workflow's declared `vars:` before composing).
+    #[must_use]
+    pub fn with_var_overrides(mut self, overrides: BTreeMap<String, Value>) -> Self {
+        self.var_overrides = overrides;
+        self
+    }
+
+    /// Inject the ADR-099 `--resume` skip plan (the composer folds a
+    /// prior NDJSON trace into task id → [`resume::PriorSuccess`]).
+    /// Builder form — a task skips iff BOTH its recomputed hashes match
+    /// its journaled success; everything else runs live (§1). An entry
+    /// the composer removed (`--from` + transitive downstream) simply
+    /// re-runs.
+    #[must_use]
+    pub fn with_resume_plan(mut self, plan: resume::ResumePlan) -> Self {
+        self.resume_plan = plan;
+        self
+    }
+
+    /// Enable the ADR-099 pause rider: a blocking `nika:prompt` with no
+    /// usable `default:` PAUSES the run (journals `workflow_paused` ·
+    /// exits cleanly with run state `paused`) instead of failing
+    /// PROMPT-001. The composer turns this on for non-interactive
+    /// machine surfaces only — everything else keeps today's contract.
+    #[must_use]
+    pub fn with_prompt_pause(mut self, pause: bool) -> Self {
+        self.pause_on_prompt = pause;
+        self
+    }
+
+    /// Supply prompt answers (`--answer task=value` · ADR-099 rider):
+    /// bound as the named task's prompt `default:` at dispatch — the
+    /// answered branch of the stdlib contract, type-validated per mode
+    /// by the builtin itself. An answered task never cache-hits (a fresh
+    /// answer always re-asks).
+    #[must_use]
+    pub fn with_prompt_answers(mut self, answers: BTreeMap<String, Value>) -> Self {
+        self.prompt_answers = answers;
         self
     }
 }
@@ -304,7 +384,12 @@ where
         if !report.is_clean() {
             return Err(RuntimeError::DirtyReport);
         }
-        let (vars, workflow_name) = envelope_values(wf);
+        let (mut vars, workflow_name) = envelope_values(wf);
+        // Operator `--var` overrides win over the envelope defaults (F4) —
+        // and give a `required: true` var without a default its value.
+        for (key, value) in &self.var_overrides {
+            vars.insert(key.clone(), value.clone());
+        }
         // Resolve the `secrets:` namespace ONCE at run start (MINOR-B · the
         // injected composer resolver reads env/file). A miss leaves that
         // secret unbound → its `${{ secrets.X }}` reference raises NIKA-1702
@@ -312,6 +397,10 @@ where
         // secret). The resolved values flow ONLY where the IFC sanctioned
         // them (the clean check) and are never emitted to the event stream.
         let secrets = secret::resolve_secrets(self.secrets.as_ref(), &wf.secrets);
+        // ADR-099 resume identities — secret markers + the leak-guard set,
+        // derived once per run (keys are stamped on every success so any
+        // `--json` trace is later resumable).
+        let resume_ctx = resume::ResumeContext::of(wf, &secrets);
         // The declared capability boundary (spec 01 §permits) flows to every
         // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);
@@ -319,6 +408,7 @@ where
 
         let mut records: BTreeMap<String, TaskRecord> = BTreeMap::new();
         let mut ok = true;
+        let mut cache_hits: Vec<String> = Vec::new();
 
         for wave in &report.waves {
             // Resolve indices up front — a bad index is a schedule
@@ -339,17 +429,26 @@ where
                 .config
                 .wave_parallelism
                 .map_or_else(|| members.len().max(1), NonZeroUsize::get);
-            let finishes: Vec<Finish> = futures_util::stream::iter(
-                members
-                    .iter()
-                    .map(|&task| self.run_task_pipeline(task, &records, &vars, &secrets, permits)),
-            )
+            let finishes: Vec<Finish> = futures_util::stream::iter(members.iter().map(|&task| {
+                self.run_task_pipeline(task, &records, &vars, &secrets, permits, &resume_ctx)
+            }))
             .buffered(cap)
             .collect()
             .await;
 
-            for finish in finishes {
-                settle(finish, &mut records, &mut ok, stamper, sink);
+            if let Some(outcome) = self.settle_wave(
+                finishes,
+                wf,
+                &vars,
+                &resume_ctx,
+                &workflow_name,
+                &mut records,
+                &mut ok,
+                &mut cache_hits,
+                stamper,
+                sink,
+            ) {
+                return Ok(outcome);
             }
         }
 
@@ -360,8 +459,84 @@ where
         let outputs = resolve_outputs(wf, &records, &vars, &secrets);
         let ok = finalize_outputs(wf, &outputs, &workflow_name, ok, stamper, sink);
 
-        Ok(RunOutcome::new(ok, records, outputs))
+        let mut outcome = RunOutcome::new(ok, records, outputs);
+        outcome.cache_hits = cache_hits;
+        Ok(outcome)
     }
+
+    /// Settle one wave's finishes in order — `Some(outcome)` iff the wave
+    /// PAUSED on a blocked `nika:prompt` (ADR-099 rider · PROMPT-001
+    /// under a non-interactive surface): siblings that finished still
+    /// settle (their work is journaled · they cache-hit on resume); the
+    /// blocked prompt itself never settles (no `task_failed` — it simply
+    /// has not happened yet); later waves never dispatch.
+    // The pens + the three run accumulators ARE the settle surface —
+    // mirrors `settle` itself.
+    #[allow(clippy::too_many_arguments)]
+    fn settle_wave(
+        &self,
+        finishes: Vec<Finish>,
+        wf: &RawWorkflow,
+        vars: &BTreeMap<String, Value>,
+        resume_ctx: &resume::ResumeContext,
+        workflow_name: &str,
+        records: &mut BTreeMap<String, TaskRecord>,
+        ok: &mut bool,
+        cache_hits: &mut Vec<String>,
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+    ) -> Option<RunOutcome> {
+        let mut paused: Option<WorkflowPause> = None;
+        for finish in finishes {
+            if self.pause_on_prompt
+                && paused.is_none()
+                && let Some(p) =
+                    pause::prompt_block(&finish, wf, records, vars, resume_ctx.markers())
+            {
+                paused = Some(p);
+                continue;
+            }
+            settle(finish, records, ok, cache_hits, stamper, sink);
+        }
+        let p = paused?;
+        emit_paused(workflow_name, &p, stamper, sink);
+        let mut outcome = RunOutcome::new(true, std::mem::take(records), BTreeMap::new());
+        outcome.cache_hits = std::mem::take(cache_hits);
+        outcome.paused = Some(p);
+        Some(outcome)
+    }
+}
+
+/// Emit the `workflow_paused` terminal frame (ADR-099 rider) — the
+/// prompt payload rides as fields (`task` · `mode` · `message` ·
+/// `choices` as compact JSON text), secret-masked by construction (the
+/// payload renders over the marker scope, never resolved values).
+fn emit_paused(
+    workflow_name: &str,
+    pause: &WorkflowPause,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    let mut fields = vec![
+        ("workflow", s(workflow_name)),
+        ("task", s(&pause.task)),
+        ("mode", s(&pause.mode)),
+        (
+            "note",
+            s(
+                "awaiting a `nika:prompt` answer — resume with `--resume <trace> --answer <task>=<value>`",
+            ),
+        ),
+    ];
+    if let Some(message) = pause.message.as_deref() {
+        fields.push(("message", s(message)));
+    }
+    let choices_text = (!pause.choices.is_empty())
+        .then(|| serde_json::to_string(&pause.choices).unwrap_or_else(|_| "[]".to_owned()));
+    if let Some(text) = choices_text.as_deref() {
+        fields.push(("choices", s(text)));
+    }
+    emit(stamper, sink, EventKind::WorkflowPaused, &fields);
 }
 
 /// Settle one task in wave order · owns the pens (stamper + sink) ·
@@ -370,6 +545,7 @@ fn settle(
     finish: Finish,
     records: &mut BTreeMap<String, TaskRecord>,
     ok: &mut bool,
+    cache_hits: &mut Vec<String>,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
@@ -378,6 +554,7 @@ fn settle(
     // outcome: the evaluated values on success · all-`Null` on a
     // non-success (defined-null reads · empty when no `output:`).
     let named = finish.named;
+    let resume = finish.resume;
     match finish.settle {
         SettleAs::Cancelled { note } => {
             emit(
@@ -422,8 +599,28 @@ fn settle(
             records.insert(id, with_named(record, named));
             *ok = false;
         }
+        SettleAs::CacheHit { output } => {
+            // ADR-099 §2 — the skip is VISIBLE: one `task_cache_hit`
+            // frame carrying the matched identity + the rehydrated
+            // output (so a resumed run's own trace stays resumable).
+            // No `TaskStarted` · no duration — the task never ran here.
+            let mut fields = vec![("task", s(&id)), ("note", s("cache hit"))];
+            let output_text = serde_json::to_string(&output).unwrap_or_else(|_| "null".to_owned());
+            if let Some(stamp) = resume.as_ref() {
+                fields.push((resume::fields::DEF_HASH, s(&stamp.def_hash)));
+                fields.push((resume::fields::INPUT_HASH, s(&stamp.input_hash)));
+                fields.push((resume::fields::OUTPUT, s(&output_text)));
+            }
+            let ended = emit(stamper, sink, EventKind::TaskCacheHit, &fields);
+            let mut record = TaskRecord::unran(TaskStatus::Success);
+            record.output = output;
+            record.ended_at = Some(ended);
+            record.named = named;
+            records.insert(id.clone(), record);
+            cache_hits.push(id);
+        }
         SettleAs::Ran(run) => {
-            let mut record = settle_ran(&id, run, ok, stamper, sink);
+            let mut record = settle_ran(&id, run, resume.as_ref(), ok, stamper, sink);
             record.named = named;
             records.insert(id, record);
         }
@@ -438,10 +635,13 @@ fn with_named(mut record: TaskRecord, named: BTreeMap<String, Value>) -> TaskRec
 }
 
 /// Settle a task that RAN — the started frame · the retry history ·
-/// the terminal frame · the result record (spec §3.9).
+/// the terminal frame · the result record (spec §3.9). A SUCCESS with a
+/// resume stamp carries the ADR-099 identity + output on its
+/// `task_completed` frame (additive trace fields · the checkpoint).
 fn settle_ran(
     id: &str,
     run: task::RanTask,
+    resume: Option<&resume::ResumeStamp>,
     ok: &mut bool,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -479,22 +679,20 @@ fn settle_ran(
             value,
             tokens,
             warning,
+            cost_usd,
         } => {
-            let mut fields = vec![
-                ("task", s(id)),
-                ("note", s(&run.note)),
-                ("duration_ms", i(duration)),
-            ];
-            if let Some(n) = tokens {
-                fields.push(("tokens", i(n)));
-            }
-            // OBS-E · a non-fatal diagnostic rides the success frame as a
-            // `warning` field (the reasoning-model blank-answer footgun) ·
-            // the task still completes.
-            if let Some(msg) = warning.as_deref() {
-                fields.push(("warning", s(msg)));
-            }
-            let ended = emit(stamper, sink, EventKind::TaskCompleted, &fields);
+            let ended = emit_completed(
+                id,
+                &run.note,
+                duration,
+                tokens,
+                cost_usd,
+                warning.as_deref(),
+                resume,
+                &value,
+                stamper,
+                sink,
+            );
             record.ended_at = Some(ended);
             record.output = value;
         }
@@ -534,6 +732,57 @@ fn settle_ran(
         }
     }
     record
+}
+
+/// Emit one `task_completed` frame — the base fields (`note` ·
+/// `duration_ms`) + spend (`tokens`) + the OBS-E `warning` diagnostic
+/// when present + the ADR-099 checkpoint trio (`def_hash` · `input_hash`
+/// · `output` as ONE compact JSON text) when the task carries a resume
+/// stamp. Returns the terminal timestamp.
+// The 7 payload knobs mirror the frame's field surface — a builder
+// struct would just restate them.
+#[allow(clippy::too_many_arguments)]
+fn emit_completed(
+    id: &str,
+    note: &str,
+    duration: i64,
+    tokens: Option<i64>,
+    cost_usd: Option<f64>,
+    warning: Option<&str>,
+    resume: Option<&resume::ResumeStamp>,
+    value: &Value,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) -> nika_types::timestamp::Timestamp {
+    let mut fields = vec![
+        ("task", s(id)),
+        ("note", s(note)),
+        ("duration_ms", i(duration)),
+    ];
+    if let Some(n) = tokens {
+        fields.push(("tokens", i(n)));
+    }
+    // Real spend rides next to the tokens it prices · absent = unpriced
+    // (mock · local) — the render layer already treats absent as honest.
+    if let Some(c) = cost_usd {
+        fields.push(("cost_usd", FieldValue::Float(c)));
+    }
+    // OBS-E · a non-fatal diagnostic rides the success frame as a
+    // `warning` field (the reasoning-model blank-answer footgun) · the
+    // task still completes.
+    if let Some(msg) = warning {
+        fields.push(("warning", s(msg)));
+    }
+    // ADR-099 · the checkpoint fields — only a stamped success carries
+    // them (additive trace fields).
+    let output_text =
+        resume.map(|_| serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()));
+    if let (Some(stamp), Some(text)) = (resume, output_text.as_deref()) {
+        fields.push((resume::fields::DEF_HASH, s(&stamp.def_hash)));
+        fields.push((resume::fields::INPUT_HASH, s(&stamp.input_hash)));
+        fields.push((resume::fields::OUTPUT, s(text)));
+    }
+    emit(stamper, sink, EventKind::TaskCompleted, &fields)
 }
 
 /// Resolve workflow `outputs:` from the final records · an output whose
@@ -791,12 +1040,13 @@ outputs:
                 value: Value::String(String::new()),
                 tokens: Some(84),
                 warning: Some("infer produced an empty answer · …".to_owned()),
+                cost_usd: Some(0.0125),
             },
         };
         let mut ok = true;
         let mut stamper = DeterministicStamper::new();
         let mut sink = VecSink::new();
-        settle_ran("think", ran, &mut ok, &mut stamper, &mut sink);
+        settle_ran("think", ran, None, &mut ok, &mut stamper, &mut sink);
 
         let completed = sink
             .events()
@@ -811,6 +1061,17 @@ outputs:
         assert!(
             matches!(&warning.value, FieldValue::String(s) if s.contains("empty answer")),
             "the diagnostic text is carried verbatim"
+        );
+        // Real spend rides the same frame · absent-when-unpriced is pinned
+        // by the sibling test below (its cost_usd is None · no field).
+        let cost = completed
+            .fields
+            .iter()
+            .find(|f| f.key == "cost_usd")
+            .expect("the cost_usd field rides the priced success frame");
+        assert!(
+            matches!(&cost.value, FieldValue::Float(c) if (*c - 0.0125).abs() < f64::EPSILON),
+            "the priced spend is carried verbatim"
         );
     }
 
@@ -827,12 +1088,13 @@ outputs:
                 value: Value::String("ok".to_owned()),
                 tokens: None,
                 warning: None,
+                cost_usd: None,
             },
         };
         let mut ok = true;
         let mut stamper = DeterministicStamper::new();
         let mut sink = VecSink::new();
-        settle_ran("t", ran, &mut ok, &mut stamper, &mut sink);
+        settle_ran("t", ran, None, &mut ok, &mut stamper, &mut sink);
 
         let completed = sink
             .events()
@@ -842,6 +1104,114 @@ outputs:
         assert!(
             !completed.fields.iter().any(|f| f.key == "warning"),
             "no warning on a clean success"
+        );
+        assert!(
+            !completed.fields.iter().any(|f| f.key == "cost_usd"),
+            "an unpriced success carries NO cost field — absent is honest, never a fake zero"
+        );
+    }
+}
+
+/// F4 — operator `--var` overrides through the REAL parse → check → run
+/// chain: an override wins over a declared `default:`, and a
+/// `required: true` var without one becomes runnable (before: the run
+/// could only die NIKA-VAR-001 at first reference).
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod var_override_tests {
+    use std::collections::BTreeMap;
+    use std::sync::Arc;
+
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+    use nika_verb_agent::AgentVerb;
+    use nika_verb_exec::ExecVerb;
+    use nika_verb_infer::InferVerb;
+    use nika_verb_invoke::InvokeVerb;
+    use serde_json::Value;
+
+    use crate::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, VecSink};
+
+    const WORKFLOW: &str = r#"
+nika: v1
+workflow: var-override
+vars:
+  topic:
+    type: string
+    required: true
+  lang: { type: string, default: "en" }
+tasks:
+  - id: say
+    exec: { command: "echo ${{ vars.topic }}" }
+outputs:
+  topic_out: ${{ vars.topic }}
+  lang_out: ${{ vars.lang }}
+"#;
+
+    async fn run_with(overrides: BTreeMap<String, Value>) -> RunOutcome {
+        let wf = nika_schema::parse(
+            WORKFLOW,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        assert!(report.is_clean(), "fixture passes the ladder");
+
+        let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+        let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new().enqueue_ok("said\n"))),
+            Arc::clone(&invoke),
+            InferVerb::new(registry, "mock/echo"),
+            AgentVerb::new(
+                Arc::new(MockProvider::new("mock")),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "mock/echo",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default(),
+        )
+        .with_var_overrides(overrides);
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("clean run")
+    }
+
+    #[tokio::test]
+    async fn override_satisfies_a_required_var_and_beats_the_default() {
+        let overrides = BTreeMap::from([
+            ("topic".to_owned(), Value::String("rust".to_owned())),
+            ("lang".to_owned(), Value::String("fr".to_owned())),
+        ]);
+        let outcome = run_with(overrides).await;
+        assert!(outcome.ok, "the required var is satisfied → green run");
+        assert_eq!(outcome.outputs["topic_out"], "rust");
+        assert_eq!(
+            outcome.outputs["lang_out"], "fr",
+            "an override wins over the declared default"
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_required_var_still_fails_var001_at_reference() {
+        // No override → the pre-F4 behavior is intact: the task's
+        // `${{ vars.topic }}` fails NIKA-VAR-001 (with the --var hint).
+        let outcome = run_with(BTreeMap::new()).await;
+        assert!(!outcome.ok, "unbound required var fails the task");
+        let record = &outcome.records["say"];
+        let error = record.error.as_ref().expect("task carries its error");
+        assert_eq!(error.code, "NIKA-VAR-001");
+        assert!(
+            error.message.contains("--var"),
+            "the message teaches the CLI fix: {}",
+            error.message
         );
     }
 }

@@ -1,5 +1,465 @@
 # Changelog
 
+All notable changes to **Nika** are documented in this file.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Nika follows [real semver toward 1.0](ROADMAP.md) — incremental quality, diamond-grade at every release (amended D-2026-06-20-N1 · was "forever-v0.x").
+
+Nika Diamond is a ground-up rewrite on the `nika-diamond` orphan branch.
+Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
+
+---
+## [0.93.1](https://github.com/supernovae-st/nika/compare/v0.93.0..v0.93.1) - 2026-07-05
+
+### ✨ Highlights
+
+- **The embedded pack teaches 2026 models** — `nika examples` /
+  `nika new` / `nika spec` now carry the qwen3.5 cascade
+  ([PR 161](https://github.com/supernovae-st/nika/pull/161)): the very
+  first `nika examples run 01-hello` of a fresh install works against
+  the models people actually pull in July 2026 (the v0.93.0 binary
+  still embedded the pre-cascade pack — this patch closes the reach).
+- README daily-commands block ([PR 162](https://github.com/supernovae-st/nika/pull/162)).
+
+### 📚 Documentation
+- **readme** — Daily commands — the full 0.93 user loop in one block ([#162](https://github.com/supernovae-st/nika/issues/162)) ([8356df6f7](https://github.com/supernovae-st/nika/commit/8356df6f7e481c089bb86f6efd907a1b1f3240a0))
+
+### 🧹 Chore
+- **pack** — Vendor the qwen3.5 teach-cascade from spec main ([#161](https://github.com/supernovae-st/nika/issues/161)) ([e8f500f73](https://github.com/supernovae-st/nika/commit/e8f500f7362b02cb44a649f861d1228fde16d0cc))
+## [0.93.0](https://github.com/supernovae-st/nika/compare/v0.92.0..v0.93.0) - 2026-07-05
+
+### ✨ Highlights
+
+- **Local thinking-era models unbricked** — the provider-plane HTTP timeout
+  rises to 180s ([PR 148](https://github.com/supernovae-st/nika/pull/148)): 2026 open-weight models (qwen3.5 · gemma4) spend
+  40-90s thinking before a structured answer on consumer hardware; every
+  local structured `infer:` died at the old 30s cloud-calibrated ceiling.
+  Field-fix train [PR 149](https://github.com/supernovae-st/nika/pull/149) pairs it with per-task transport-deadline semantics.
+- **`nika run --resume`** — durable-lite resume: the trace IS the checkpoint
+  (ADR-099 · [PR 154](https://github.com/supernovae-st/nika/pull/154)): completed tasks replay from the flight recorder as
+  visible cache hits · a paused/failed run continues where it stopped.
+- **`nika test`** — the workflow test harness + ADR-098 provider json-mode +
+  the CLI wow pass (waves · lanes · verdict card) landed in the Rounds 2+3
+  train ([PR 153](https://github.com/supernovae-st/nika/pull/153)).
+- **Onboarding golden path** — brew caveats walk the first 60 seconds ·
+  `nika init` hands over to the next command ([PR 158](https://github.com/supernovae-st/nika/pull/158)) · the embedded pack
+  carries the current spec (60s README · why-not table · llms.txt).
+
+### 🆕 Crates admitted
+- **nika-cap** — Admit to workspace — all 12 gates passed ([ea5b2090d](https://github.com/supernovae-st/nika/commit/ea5b2090de164f849369316236f587acbf69bb1d))
+
+### ✨ Features
+- **init** — Hand over to the next command · the beginner golden path ([#158](https://github.com/supernovae-st/nika/issues/158)) ([cd291a3b5](https://github.com/supernovae-st/nika/commit/cd291a3b54ff15c834d97c4af0de0ea52fa84626)) ([#158](https://github.com/supernovae-st/nika/pull/158))
+
+### 🐛 Bug Fixes
+- **cli** — Raise provider-plane http timeout to 180s for local models ([#148](https://github.com/supernovae-st/nika/issues/148)) ([f99828cbf](https://github.com/supernovae-st/nika/commit/f99828cbf728ce9f0c4ce07a1fd48271f7791573)) ([#148](https://github.com/supernovae-st/nika/pull/148))
+- **nika-schema** — Char-boundary panic in go-duration unknown-unit error path ([c1f73af89](https://github.com/supernovae-st/nika/commit/c1f73af89aaf61fd65a696b6bd1894045ca2f537))
+- **scripts** — Adr index generator tolerates missing optional fields ([#152](https://github.com/supernovae-st/nika/issues/152)) ([5d5982f41](https://github.com/supernovae-st/nika/commit/5d5982f418b444e415dc840e1db3ecfa94db028c)) ([#152](https://github.com/supernovae-st/nika/pull/152))
+
+### 📚 Documentation
+- **changelog** — Append v0.92.0 — auto-generated ([#147](https://github.com/supernovae-st/nika/issues/147)) ([2a42f0712](https://github.com/supernovae-st/nika/commit/2a42f0712783235630c940712e00632530b8dc52)) ([#147](https://github.com/supernovae-st/nika/pull/147))
+- **workspace** — Canonical pck crate names + fix publish adr citation ([58d9514bf](https://github.com/supernovae-st/nika/commit/58d9514bf1db97809c41ca95e8a751faf1d831e7))
+
+### 🧪 Tests
+- **nika-mcp** — Regression guard for the embedded-lookup injection-safety ([4f306d5f9](https://github.com/supernovae-st/nika/commit/4f306d5f99c2055695b103a63f0b008f9a9f8d65))
+- **schema** — Forward-compat anchors for the v0.2 seed clauses ([#156](https://github.com/supernovae-st/nika/issues/156)) ([5a84a4702](https://github.com/supernovae-st/nika/commit/5a84a4702586893a2bd077ee5c0f65ddd7942d07)) ([#156](https://github.com/supernovae-st/nika/pull/156))
+
+### 🧹 Chore
+- **ci** — Api-lock the last 3 uncovered lib crates ([539a039eb](https://github.com/supernovae-st/nika/commit/539a039ebb6441fe8863a0b383f407c92c8a89e2))
+- **ci** — Canonicalize 16 public-api baselines from the ci artifact ([1a44b139c](https://github.com/supernovae-st/nika/commit/1a44b139c26b596aacd73d379a8e3a872d4d0566))
+- **ci** — Nika-cli baseline from the ubuntu artifact ([688a851ea](https://github.com/supernovae-st/nika/commit/688a851ea2b317fe5ef894eb72f9a6829e40f6c0))
+- **nika-catalog** — Regenerate public-api baseline — additive builtin arg-shape surface ([a681d6044](https://github.com/supernovae-st/nika/commit/a681d6044855842fda455be8e0c4b5b5f237f8af))
+- **nika-pack** — Re-vendor the pack from the merged spec ([#157](https://github.com/supernovae-st/nika/issues/157)) ([0d5b6dd8c](https://github.com/supernovae-st/nika/commit/0d5b6dd8c46dc316a6f73c876accbc19b409c5f8)) ([#157](https://github.com/supernovae-st/nika/pull/157))
+- **version** — Main → 0.93.0-dev after the v0.92.0 release ([4ad3cbd20](https://github.com/supernovae-st/nika/commit/4ad3cbd203778b0f97d0af1c055fe2bc8c77aacf))
+
+### 💼 Other
+- Field fixes: local-model timeouts, mock-from-schema, --var, sitemap examples ([#149](https://github.com/supernovae-st/nika/issues/149))
+
+* fix(workspace): task timeout governs the provider http deadline
+
+The provider HTTP client aborted every round-trip at a hardcoded 30s
+total deadline, killing any local-model task regardless of its declared
+timeout: budget (408 at 30s on timeout: "7m" · F1 field report
+2026-07-04). The task budget now rides the whole chain — task.timeout →
+dispatch → InferInput → InferRequest → HttpRequest — and when no budget
+is declared the default is per provider CLASS: the 5 local servers get
+300s (a 14B model cannot answer a real prompt in 30s), cloud keeps the
+historical 30s. Streaming carries only an explicit budget (the idle-read
+guard reaps stalls). The provider client's config timeout is raised to a
+600s transport ceiling because reqwest arms the client-level read guard
+even while awaiting response headers — it would otherwise undercut any
+longer per-request deadline.
+
+Tests: wire-level parity across all 13 wired profiles (class default ·
+task budget wins · streaming explicit-only) + profile classification +
+verb plumb + the real parse→check→run chain against a capturing http
+seam. Baselines: nika-kernel-ai + nika-verb-infer public-api
+regenerated (additive timeout field on two #[non_exhaustive] DTOs).
+
+* feat(nika-providers): mock synthesizes schema-conformant output
+
+mock/echo echoed the prompt regardless of an attached schema, so EVERY
+structured workflow on the mock burned its 3-attempt retry budget and
+died NIKA-INFER-002 — no offline CI story for exactly the workflows
+that need one (F3 field report 2026-07-04). A request carrying
+response_format: JsonSchema now returns a SYNTHESIZED minimal instance
+of the schema as pure JSON: string → "mock" (enum → first entry ·
+const/default honored) · integer → minimum ?? 0 · number → 0.0 · bool →
+false · array → one item (minItems honored · allocation-capped) ·
+object → the required keys recursively. Total + deterministic
+(byte-stable) · unsupported keywords (pattern · $ref) degrade to an
+instance that honestly fails the verb's validation. The plain echo
+contract is untouched.
+
+Tests: generator matrix validated with the SAME jsonschema crate the
+verb floor uses (atlas-style enum severity + bounded integers green) ·
+verb-level offline dry-run + retry-exhaustion re-pinned on a pattern
+schema · mock wire pure-JSON determinism · e2e pipeline updated to the
+synthesized instance.
+
+* feat(nika-cli): repeatable --var key=value supplies workflow vars
+
+A workflow with a required: true var and no default was UNRUNNABLE
+from the CLI — nika run had no input surface, so the first
+${{ vars.x }} reference died NIKA-VAR-001 with no fix available (F4
+field report 2026-07-04). nika run gains a repeatable --var KEY=VALUE:
+values override a declared default:, satisfy required vars, parse as
+JSON when they parse (numbers · booleans · arrays) else ride as
+strings, and unknown keys are refused loudly with the declared set
+(exit 3 — a typo silently doing nothing would be the worst outcome).
+The runtime gains the with_var_overrides builder (merged over the
+envelope defaults at run start). NIKA-VAR-001 now teaches the fix on
+BOTH surfaces: the runtime message appends the --var hint for vars.*
+references, and nika explain NIKA-VAR-001 carries an engine-side fix
+line.
+
+Tests: required-var run green with --var / failed without · unknown
+key + malformed pair refused · JSON-else-string typing · override
+beats default through the real parse→check→run chain · both hint
+surfaces pinned. Baselines: nika-runtime regenerated (additive
+builder) · nika-cli run() signature line patched in place (the
+committed file is the ubuntu-canonical artifact — a full local regen
+would carry macOS render skew on unrelated lines).
+
+* fix(nika-pack): sitemap examples bind the root array not .urls
+
+nika:fetch mode: sitemap returns the ROOT ARRAY
+[{loc, changefreq, priority}, …] — the shape nika-extract pins in its
+own tests — but the embedded showcase examples bound a phantom .urls
+wrapper (t2-seo-content-brief .urls[:5] · t3-competitor-radar
+.urls[:8]) and the embedded spec 03-dag fan-out snippet taught
+pages: ".urls[]" (doubly wrong: phantom wrapper AND a stream binding
+where a binding is single-valued). Every user copying the examples hit
+NIKA-VAR-004 at the first sitemap task (F5 field report 2026-07-04).
+The engine is RIGHT — the teaching surface is fixed: .[:5] | map(.loc)
+/ .[:8] | map(.loc) / map(.loc), plus the t2 header now documents the
+sitemap shape and the mock-from-schema offline story F3 made true.
+
+manifest.yaml sha256_16 recomputed for both files (lean-hash algorithm
+cross-verified against all 27 committed rows · 27/27 match). Both fixed
+examples pass nika check clean with the built binary.
+
+FOLLOW-UP (out of this repo's scope): the pack is vendored from the
+nika-spec repo via scripts/sync-pack.sh — the SSOT needs the mirror
+fix (examples + 03-dag.md + manifest) before the next re-vendor, or it
+reverts this.
+
+* refactor(nika-cli): extract output-mode + dry-run helpers from run()
+
+The F4 --var block pushed run() to 114 lines and the F1 budget plumb
+pushed attempt_loop to 101 — both past the 100-line ratchet. Extract
+the --output validation (output_mode) and the dry-run plan render
+(render_dry_run) into named helpers; compress the attempt_loop budget
+comment. Behavior identical — the extracted code is verbatim, tests
+unchanged and green (110 + 78 lib).
+
+---------
+ ([90b19d589](https://github.com/supernovae-st/nika/commit/90b19d58960104d84e87235337da15cc82e3aa97)) ([#149](https://github.com/supernovae-st/nika/pull/149))
+- Rounds 2+3: nika test, DX, ADR-098 json-mode, CLI wow (rebased train) ([#153](https://github.com/supernovae-st/nika/issues/153))
+
+* fix(workspace): task timeout governs the provider http deadline
+
+The provider HTTP client aborted every round-trip at a hardcoded 30s
+total deadline, killing any local-model task regardless of its declared
+timeout: budget (408 at 30s on timeout: "7m" · F1 field report
+2026-07-04). The task budget now rides the whole chain — task.timeout →
+dispatch → InferInput → InferRequest → HttpRequest — and when no budget
+is declared the default is per provider CLASS: the 5 local servers get
+300s (a 14B model cannot answer a real prompt in 30s), cloud keeps the
+historical 30s. Streaming carries only an explicit budget (the idle-read
+guard reaps stalls). The provider client's config timeout is raised to a
+600s transport ceiling because reqwest arms the client-level read guard
+even while awaiting response headers — it would otherwise undercut any
+longer per-request deadline.
+
+Tests: wire-level parity across all 13 wired profiles (class default ·
+task budget wins · streaming explicit-only) + profile classification +
+verb plumb + the real parse→check→run chain against a capturing http
+seam. Baselines: nika-kernel-ai + nika-verb-infer public-api
+regenerated (additive timeout field on two #[non_exhaustive] DTOs).
+
+* feat(nika-providers): mock synthesizes schema-conformant output
+
+mock/echo echoed the prompt regardless of an attached schema, so EVERY
+structured workflow on the mock burned its 3-attempt retry budget and
+died NIKA-INFER-002 — no offline CI story for exactly the workflows
+that need one (F3 field report 2026-07-04). A request carrying
+response_format: JsonSchema now returns a SYNTHESIZED minimal instance
+of the schema as pure JSON: string → "mock" (enum → first entry ·
+const/default honored) · integer → minimum ?? 0 · number → 0.0 · bool →
+false · array → one item (minItems honored · allocation-capped) ·
+object → the required keys recursively. Total + deterministic
+(byte-stable) · unsupported keywords (pattern · $ref) degrade to an
+instance that honestly fails the verb's validation. The plain echo
+contract is untouched.
+
+Tests: generator matrix validated with the SAME jsonschema crate the
+verb floor uses (atlas-style enum severity + bounded integers green) ·
+verb-level offline dry-run + retry-exhaustion re-pinned on a pattern
+schema · mock wire pure-JSON determinism · e2e pipeline updated to the
+synthesized instance.
+
+* feat(nika-cli): repeatable --var key=value supplies workflow vars
+
+A workflow with a required: true var and no default was UNRUNNABLE
+from the CLI — nika run had no input surface, so the first
+${{ vars.x }} reference died NIKA-VAR-001 with no fix available (F4
+field report 2026-07-04). nika run gains a repeatable --var KEY=VALUE:
+values override a declared default:, satisfy required vars, parse as
+JSON when they parse (numbers · booleans · arrays) else ride as
+strings, and unknown keys are refused loudly with the declared set
+(exit 3 — a typo silently doing nothing would be the worst outcome).
+The runtime gains the with_var_overrides builder (merged over the
+envelope defaults at run start). NIKA-VAR-001 now teaches the fix on
+BOTH surfaces: the runtime message appends the --var hint for vars.*
+references, and nika explain NIKA-VAR-001 carries an engine-side fix
+line.
+
+Tests: required-var run green with --var / failed without · unknown
+key + malformed pair refused · JSON-else-string typing · override
+beats default through the real parse→check→run chain · both hint
+surfaces pinned. Baselines: nika-runtime regenerated (additive
+builder) · nika-cli run() signature line patched in place (the
+committed file is the ubuntu-canonical artifact — a full local regen
+would carry macOS render skew on unrelated lines).
+
+* fix(nika-pack): sitemap examples bind the root array not .urls
+
+nika:fetch mode: sitemap returns the ROOT ARRAY
+[{loc, changefreq, priority}, …] — the shape nika-extract pins in its
+own tests — but the embedded showcase examples bound a phantom .urls
+wrapper (t2-seo-content-brief .urls[:5] · t3-competitor-radar
+.urls[:8]) and the embedded spec 03-dag fan-out snippet taught
+pages: ".urls[]" (doubly wrong: phantom wrapper AND a stream binding
+where a binding is single-valued). Every user copying the examples hit
+NIKA-VAR-004 at the first sitemap task (F5 field report 2026-07-04).
+The engine is RIGHT — the teaching surface is fixed: .[:5] | map(.loc)
+/ .[:8] | map(.loc) / map(.loc), plus the t2 header now documents the
+sitemap shape and the mock-from-schema offline story F3 made true.
+
+manifest.yaml sha256_16 recomputed for both files (lean-hash algorithm
+cross-verified against all 27 committed rows · 27/27 match). Both fixed
+examples pass nika check clean with the built binary.
+
+FOLLOW-UP (out of this repo's scope): the pack is vendored from the
+nika-spec repo via scripts/sync-pack.sh — the SSOT needs the mirror
+fix (examples + 03-dag.md + manifest) before the next re-vendor, or it
+reverts this.
+
+* refactor(nika-cli): extract output-mode + dry-run helpers from run()
+
+The F4 --var block pushed run() to 114 lines and the F1 budget plumb
+pushed attempt_loop to 101 — both past the 100-line ratchet. Extract
+the --output validation (output_mode) and the dry-run plan render
+(render_dry_run) into named helpers; compress the attempt_loop budget
+comment. Behavior identical — the extracted code is verbatim, tests
+unchanged and green (110 + 78 lib).
+
+* feat(nika-cli): add nika test — golden outputs under mock (F7)
+
+The v1 workflow-testing surface the field report asked for: users had to
+hand-roll e2e harnesses (atlas ships one) because the verb tree had no
+test/eval/lint. nika test <file> checks (ADR-092 ladder · same gate as
+run), executes under the MOCK provider (deterministic + schema-conformant
+since F3 — the base that unblocked this), captures the typed outputs: as
+ONE canonical JSON (pretty · key-sorted · newline-terminated) and compares
+against the sibling <file>.golden.json. --update (re)writes the pin; no
+golden + no --update teaches how to create one (exit 3). Mismatch renders
+a readable per-path diff (golden → run · capped at 20 rows) and exits 1.
+
+Gates affected: Gate 3 (impl) + Gate 4 (clippy 0). Test delta: +8
+(update-then-match · drift mismatch · missing-golden hint · dirty-file
+findings · diff paths/missing/extra/cap · elision · golden-path mapping ·
+canonical bytes). 118 nika-cli lib tests green.
+
+* fix(workspace): quoted timeout fix-form + json failure envelope (F6)
+
+(a) nika-schema · the NIKA-PARSE-010 bare-number rejection now shows the
+author's OWN value quoted with a unit ("420s" for seconds · "7m" for
+minutes) — the correction becomes a copy-paste, not a spec hunt (the
+field report hit `timeout: 420` and had to guess the form).
+
+(b) nika-cli · `--output json` failures now emit ONE machine envelope
+{"error":{"code":"NIKA-…"|null,"message":"…"}} on stdout — it used to
+stay empty (pre-run findings) or print bare `{}` (run failures), so a
+machine consumer had to scrape stderr. Covers every failure class:
+parse/check findings · --var refusals · composition/executor ENV
+errors · executed-and-failed runs (the folded view's failed-row detail
+carries the wire code). Codes are extracted, never invented.
+
+(c) verified, no change: the NIKA-VAR-001 explain/fix hint already
+names `--var` (shipped with F4 · explain.rs cli_fix_hint plus its
+pinned test).
+
+Gates affected: Gate 3+4. Test delta: +5 (envelope shape/one-line ·
+code extraction incl. per-builtin and no-false-positive · findings-line
+condensing · failed-view envelope + empty-view fallback · parse-010
+quoted fix-form). nika-cli 122 + nika-schema 758 lib tests green.
+
+* feat(workspace): underspecified schemas ride json mode locally (F2)
+
+The field-report F2 wall: the translate-payload class ({type: object} ·
+or head/sections declared shapeless) 400s on OpenAI strict mode, and
+fully specifying a free-form payload recursively is impossible — the
+only workaround was schema-free promptware (zero guarantees).
+
+Conservative fix, zero YAML surface (ADR-098): when the task schema is
+UNDERSPECIFIED (any object without properties · any array without items
+in the tree) on a strict wire, do NOT forward it — request the
+provider's native JSON mode (ResponseFormat::Json), steer the shape
+through the prompt instruction, validate LOCALLY against the user
+schema (the existing floor + bounded retry). Fully-specified schemas
+keep today's strict path verbatim; anthropic keeps the instruction
+fallback; the MOCK keeps receiving the schema (its strict mode
+synthesizes from anything — F3/offline goldens depend on it).
+
+Seams: nika-verb-infer SchemaWire enum (None/Strict/JsonMode/
+Instruction) + is_underspecified iterative walker · nika-providers
+WireFormat::strict_rejects_underspecified (openai-compat + gemini
+true · mock + anthropic false) + the ResolvedProvider delegate.
+
+Gates affected: Gate 3+4+6-adjacent. Test delta: +9 (detection cases ·
+decision table · request mapping · {type:object} green on the REAL
+openai adapter with the http seam mocked + json_object on the wire ·
+fully-specified stays json_schema · mock synthesis non-regression).
+nika-verb-infer 42 + nika-providers 145 lib tests green.
+
+ADR: docs/adr/adr-098-underspecified-schema-json-mode-fallback.md
+(proposed + implemented · alternatives: json:true sugar · full
+recursive spec · schema tightening — all rejected with reasons).
+Note: docs/adr/index.json is stale at HEAD (generator exits 1 on
+ADR-096 · pre-existing) — index.toml regenerated with ADR-098.
+
+* refactor(nika-cli): keep main() and run() under the fn-length cap
+
+Behavior-identical extraction after the F6/F7 additions tripped the
+100-line ratchet (main 102 · run 104): the run clap surface moves into
+a dedicated RunArgs struct (the TraceArgs idiom) unpacked by run_verb();
+the runtime composition block moves into composed_runtime() with its
+full composition story preserved in the doc comment.
+
+cargo test -p nika-cli --lib: 122 passed, 0 failed. clippy -D clean.
+check-fn-length.sh: OK all fns <= 100 lines.
+
+* docs(nika-verb-infer): drop the private intra-doc link to SchemaWire
+
+The crate-level doc linked [`SchemaWire`] — a private enum — which
+fails `cargo doc --document-private-items -D warnings` (hygiene vector
+28 · Gate 8 extended per ADR-015). Plain backticks carry the same
+story without the broken link.
+
+* CLI wow: wave-group inspect, live lanes + ms, waterfall, verdict card ([#151](https://github.com/supernovae-st/nika/issues/151))
+
+* feat(nika-cli): inspect renders waves as bordered parallel groups
+
+The flat first-parent tree hid the scheduler's proof — waves were
+counted in the header but invisible in the body. inspect now renders
+each parallel wave as a bordered group ("N in parallel"), single-task
+waves as bare rows, and flow arrows between waves, so the DAG's real
+concurrency reads at a glance (CLI wow design 2026-07-05 §2a).
+
+- one projector law kept: the render slices the SAME GraphDoc node
+ order by report.waves sizes — nothing re-derived
+- --ascii parity first-class on every new glyph (box → +-|, diamond
+ → #, arrow → v) + a leak test pinning zero unicode under --ascii
+- boxes cap at 74 inner cells (graceful under 80 cols · overlong rows
+ truncate with a mark)
+- the spec §6 DAG-check footer + engineering analysis are unchanged;
+ --dry-run inherits the new plan render through the same verb
+
+* feat(nika-cli): per-task time, spend and parallel lane markers
+
+Time and money were footer-only — no per-task duration, no per-task
+cost, parallelism invisible. The storyboard now carries them first-
+class (CLI wow design 2026-07-05 §2b):
+
+- settled rows show their REAL wall time (the runtime-measured
+ duration_ms field wins · stamp-span fallback) right-aligned after
+ the note column; per-task spend follows when the stream reported it
+- the running/retrying row shows a LIVE elapsed against the latest
+ stamp the fold has seen (still a pure fold — no wall clock leaks)
+- new display/flow module reconstructs each task's interval as
+ [end − duration, end] (frames stamp at settle time · the measured
+ duration is the wall truth) and derives the ∥ lane markers from
+ honest overlap; the run verb injects the check report's wave plan
+ so markers speak the scheduler's truth (siblings only), replayed
+ traces fall back to pure overlap
+- retries counted + per-row start/end/cost stamped in the fold
+- --ascii parity (∥ → ||) with a leak test; machine lanes untouched
+ (--json NDJSON verbatim · --output json stdout unchanged)
+
+* feat(nika-cli): post-run waterfall closes the TTY final frame
+
+Where the seconds burned was invisible after a run — the answer lived
+in the trace but nothing drew it. The Live (TTY) final frame now ends
+with a wall-time waterfall + an outputs pointer (design §2c):
+
+- one scaled bar per task that RAN, offset by its reconstructed
+ interval ([end − measured duration, end] — the same reconstruction
+ the ∥ markers use), so real overlap reads as overlapping bars
+- failed bars paint red · running/retrying cyan · per-task spend rides
+ the row · a dotted time axis closes the chart
+- "outputs → key (type)" names what left the run (types only — a
+ pointer, never a data dump into the scrollback)
+- pure fold of the run's own event stream — zero new instrumentation,
+ and a solo-task run stays chart-free (a single bar is noise)
+- sober registers untouched: piped / --no-progress / --quiet / machine
+ modes never grow chart art (pinned in the piped bin test) · --ascii
+ parity for every glyph (bars → [#] · axis dots → .)
+
+* feat(nika-cli): shareable verdict card + trace replay renders the flow
+
+The final frame becomes the thing you paste in a README (design §2d):
+a bordered verdict card closing every Live run and every trace read —
+the mini DAG-shape glyph (wave sizes as diamond runs joined by flow
+arrows · "###" " => " "#" in ASCII · plan-true when the run injected
+the schedule, interval-reconstructed for a bare trace), the totals
+(tasks · waves · retries · wall · spend · the models the stream
+named), and an "outputs → key (type)" note for runs. No verdict → no
+card (a mid-run card would lie). Wide waves cap at five diamonds,
+long chains at six waves; the box never breaks (fit + one inner
+width, pinned).
+
+mini-ADR · replay surface naming
+Question: where does "render the waterfall from a past trace" live —
+extend "nika inspect --trace <file>", or a new subcommand?
+Decision: NEITHER — it rides the EXISTING "nika trace show|replay".
+Why: (1) house taste = fewest verbs: trace is already the flight-
+recorder reader (replay = re-render, never re-execute), and the
+waterfall IS a trace read, so it belongs there; (2) inspect is locked
+as the STATIC anatomy — its own module doc says "run overlays belong
+to the trace surface", and an --trace flag would fork one verb into
+two registers; (3) zero new verbs, zero new flags: "nika trace show
+run.ndjson" now closes on the waterfall + verdict card, and "trace
+replay" ends its animation on the same final frame a live TTY run
+paints. The machine lanes stay byte-frozen (--json / --output json).
+
+---------
+
+---------
+ ([da874faf6](https://github.com/supernovae-st/nika/commit/da874faf6fb4c02c1c6ebadb6a16a994be5ac02f)) ([#153](https://github.com/supernovae-st/nika/pull/153))
+- Durable-lite resume — --resume, visible cache hits, durable pause ([#154](https://github.com/supernovae-st/nika/issues/154)) ([91d7cf9bf](https://github.com/supernovae-st/nika/commit/91d7cf9bfb9848e2950ede531215662612105a7d)) ([#154](https://github.com/supernovae-st/nika/pull/154))
+# Changelog
+
 All notable changes to Nika are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).

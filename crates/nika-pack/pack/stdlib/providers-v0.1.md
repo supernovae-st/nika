@@ -10,13 +10,13 @@
 ## Model selection · ONE field · `model: <provider>/<name>`
 
 You select an LLM with a **single `model:` field** in the form
-`<provider>/<model-name>` — the de-facto standard convention (LiteLLM ·
+`<provider>/<model-name>`, the de-facto standard convention (LiteLLM ·
 OpenRouter · Vercel AI SDK · PydanticAI all converged on it). There is **no
 separate `provider:` field** · the provider is the prefix.
 
 ```yaml
 infer:
-  model: ollama/llama3.1                 # local · no key
+  model: ollama/qwen3.5:9b                 # local · no key
   prompt: "..."
 
 infer:
@@ -28,15 +28,15 @@ infer:
 fields let you write the silent-nonsense combination `provider: anthropic` +
 `model: gpt-4o`. One `<provider>/<name>` string is atomic, self-documenting,
 trivially swappable, and the industry standard. The same open model served by
-different backends disambiguates cleanly · `groq/llama-3.1-70b` vs
-`ollama/llama-3.1-70b`.
+different backends disambiguates cleanly · `groq/qwen3.5-32b` vs
+`ollama/qwen3.5:27b`.
 
 **Parameterize it** · combine with typed inputs to run one workflow
 against any backend ·
 
 ```yaml
 vars:
-  model: { type: string, default: "ollama/llama3.1" }
+  model: { type: string, default: "ollama/qwen3.5:9b" }
 tasks:
   - id: x
     infer: { model: "${{ vars.model }}", prompt: "..." }
@@ -45,7 +45,7 @@ tasks:
 
 ---
 
-## The 14 canonical providers
+## The 16 canonical providers
 
 | Provider | Backend | Local? | Auth |
 |---|---|---|---|
@@ -58,28 +58,30 @@ tasks:
 | `anthropic` | Anthropic Claude API | cloud | `${{ secrets.* }}` |
 | `openai` | OpenAI API (+ the universal OpenAI-compat escape hatch · see below) | cloud | `${{ secrets.* }}` |
 | `openrouter` | OpenRouter gateway (one key · every major model · cross-vendor fallback) | cloud | `${{ secrets.* }}` |
+| `huggingface` | HF Inference Providers router (100+ open-weights · 18 backends · zero markup) | cloud | `${{ secrets.* }}` |
+| `nvidia` | NVIDIA API (Nemotron 3 · Open Model License · NIM self-hostable) | cloud | `${{ secrets.* }}` |
 | `groq` | Groq Cloud (fastest open-weight) | cloud | `${{ secrets.* }}` |
 | `deepseek` | DeepSeek API (reasoning · cost-efficient) | cloud | `${{ secrets.* }}` |
 | `gemini` | Google Gemini API (long context · multimodal) | cloud | `${{ secrets.* }}` |
 | `xai` | xAI Grok API | cloud | `${{ secrets.* }}` |
 | `mock` | deterministic test fixture · no LLM call | test | none |
 
-A Stdlib v0.1-compliant engine MUST ship all **14** (5 local · 8 cloud · 1 test).
+A Stdlib v0.1-compliant engine MUST ship all **16** (5 local · 10 cloud · 1 test).
 Any *other* OpenAI-compatible local server (Jan · llamafile · KoboldCpp ·
 text-generation-webui · a custom one) routes through the **`openai` escape
-hatch** below — no new provider name needed.
+hatch** below (no new provider name needed).
 
 > **2026-06-10 · `openrouter` promoted from escape hatch to named provider**
 > (D-2026-06-10-N2). Earlier revisions routed OpenRouter through
-> `openai`+`base_url`. That override **hijacks the `openai` prefix** — you
-> cannot reach vanilla OpenAI and OpenRouter from the same engine config —
+> `openai`+`base_url`. That override **hijacks the `openai` prefix** (you
+> cannot reach vanilla OpenAI and OpenRouter from the same engine config),
 > and the largest model-aggregation gateway deserves first-class one-field
 > selection. Together · Fireworks · custom gateways still use the escape hatch.
 
 ## Local vs cloud · the prefix decides
 
-The **provider prefix IS the local/cloud signal** — no separate `local:` flag,
-no hidden config to read:
+The **provider prefix IS the local/cloud signal** (no separate `local:` flag,
+no hidden config to read):
 
 ```
 ollama/…  lmstudio/…  llamacpp/…  localai/…  vllm/…   → LOCAL · localhost · no key · sovereign
@@ -89,15 +91,55 @@ mock/…                                                 → TEST  · determinis
 ```
 
 Sovereignty · **local-first** · nothing leaves the machine unless a
-cloud provider is *explicitly* selected. `ollama/llama3.1` makes a sovereign,
+cloud provider is *explicitly* selected. `ollama/qwen3.5:9b` makes a sovereign,
 zero-cloud run trivial.
 
 All 5 local providers are external **HTTP servers** (OpenAI-compatible API · the
 engine talks to them over localhost). They are NOT the in-process GGUF runtime
 `native`, which was DEFERRED (mistral.rs crashed
-the host) — re-enters stdlib v0.x when a candle/llama.cpp binding stabilizes +
+the host). It re-enters stdlib v0.x when a candle/llama.cpp binding stabilizes +
 30-day crash-free cohort + cross-platform conformance. **The named local
 providers are ergonomic shortcuts; the long tail uses the escape hatch.**
+
+## Transport deadline · the task `timeout:` governs the provider call
+
+The task-level [`timeout:`](../spec/03-dag.md#timeout--optional--task-level-timeout-go-duration-string)
+(Go-duration string) **governs the provider HTTP deadline**: a task
+declaring `timeout: "7m"` gives the provider round-trip those 7 minutes.
+A fixed internal HTTP default MUST NOT undercut the declared budget.
+
+When NO `timeout:` is declared, the default deadline is per provider
+**class** ·
+
+```
+LOCAL  (ollama · lmstudio · llamacpp · localai · vllm)               ≥ 300s
+CLOUD  (mistral · anthropic · openai · openrouter · groq ·             30s
+        deepseek · gemini · xai)
+```
+
+A local model routinely needs minutes for ONE completion on consumer
+hardware — a 14B model cannot answer a real prompt in 30s, and a
+30s-everywhere default silently kills every serious local-first workflow
+(408 before the model finishes thinking). Local-first only works when the
+defaults respect local reality. The class is keyed on the **canonical
+provider id** (the table above) · a `base_url` override never flips it.
+
+Two honest bounds (reference-engine values · pinned by its wire tests) ·
+
+- **600s transport ceiling on a fully-silent connection** · a
+  non-streaming completion delivers ZERO bytes while the model computes,
+  so the transport cannot tell *thinking* from *dead*. A connection that
+  has delivered nothing is reaped at 600s: a `timeout:` longer than the
+  ceiling still bounds the task, but only a connection that starts
+  delivering can use it.
+- **Streaming carries only an EXPLICIT budget** · an SSE generation
+  legitimately outlives any fixed total deadline. A declared `timeout:`
+  rides the streaming request; when none is declared, the idle-read guard
+  reaps a STALLED stream instead of capping a healthy one.
+
+The task clock stays authoritative: `timeout:` bounds the **whole task**
+(retries + backoff included · [03-dag](../spec/03-dag.md#timeout--optional--task-level-timeout-go-duration-string)) ·
+this section defines what the provider leg of that budget does.
 
 ## The `openai` escape hatch · any OpenAI-compatible server
 
@@ -114,9 +156,9 @@ OPENAI_BASE_URL=http://localhost:1337/v1   # engine config · points at Jan
 This is the LiteLLM pattern: **named providers for the popular backends ·
 `openai`+base_url for everything else.** It is how Jan · llamafile ·
 KoboldCpp · text-generation-webui · and any custom OpenAI-compatible server
-run today — zero spec change, the stdlib stays curated, the long tail is
+run today: zero spec change, the stdlib stays curated, the long tail is
 covered. Adding a *new named* provider later (its own prefix) is an
-additive stdlib bump — `openrouter` (2026-06-10 · D-2026-06-10-N2) is the
+additive stdlib bump: `openrouter` (2026-06-10 · D-2026-06-10-N2) is the
 first such promotion.
 
 ## Provider config lives OUTSIDE the workflow
@@ -136,7 +178,7 @@ Every provider supports ·
 infer:
   prompt: "..."                # required
   system: "..."                # optional
-  model: <provider>/<name>     # one field · e.g. ollama/llama3.1
+  model: <provider>/<name>     # one field · e.g. ollama/qwen3.5:9b
   temperature: 0.0 to 2.0      # optional
   max_tokens: <int>            # optional
   schema: { ... }              # optional · structured output
@@ -154,17 +196,17 @@ Errors map to `NIKA-PROVIDER-NNN` codes with the provider-specific status.
 
 ```yaml
 infer:
-  model: ollama/llama3.1                 # or any pulled Ollama model
+  model: ollama/qwen3.5:9b                 # or any pulled Ollama model
   prompt: "..."
 ```
 
 **Backend** · the Ollama daemon (`http://localhost:11434`) · OpenAI-compatible API · the engine talks to it over HTTP.
 
-**Models** · any model pulled into Ollama (`llama3.1` · `qwen2.5` · `mistral` · `gemma2` · etc.) · pass-through.
+**Models** · any model pulled into Ollama (`qwen3.5:9b` · `qwen2.5` · `mistral` · `gemma2` · etc.) · pass-through.
 
 **Auth** · none (localhost).
 
-**Features** · 100% local · zero cloud egress · GPU-accelerated by Ollama. The sovereign default — `model: ollama/<x>` runs offline / air-gapped, zero vendor lock-in. (NOT the in-process `native` GGUF runtime, which is deferred — Ollama is an external server, stable.)
+**Features** · 100% local · zero cloud egress · GPU-accelerated by Ollama. The sovereign default: `model: ollama/<x>` runs offline / air-gapped, zero vendor lock-in. (NOT the in-process `native` GGUF runtime, which is deferred: Ollama is an external server, stable.)
 
 ---
 
@@ -295,7 +337,7 @@ infer:
 
 **Features** · tool use · vision · structured output (JSON mode).
 
-**Escape hatch** · the openai provider routes ANY OpenAI-compatible endpoint via the `OPENAI_BASE_URL` engine-config override (see « The `openai` escape hatch » above). Covers the local servers without their own named provider — **Jan · llamafile · KoboldCpp · text-generation-webui** — plus cloud gateways (**Together · Fireworks**) and custom servers. Providers with their own named prefix (`openrouter` · `ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm`) don't need this.
+**Escape hatch** · the openai provider routes ANY OpenAI-compatible endpoint via the `OPENAI_BASE_URL` engine-config override (see « The `openai` escape hatch » above). Covers the local servers without their own named provider (**Jan · llamafile · KoboldCpp · text-generation-webui**) plus cloud gateways (**Together · Fireworks**) and custom servers. Providers with their own named prefix (`openrouter` · `ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm`) don't need this.
 
 ---
 
@@ -309,10 +351,10 @@ infer:
 
 The cross-vendor **gateway** · one API key reaches every major model
 (Anthropic · OpenAI · Meta · Mistral · Google · open-weight). Promoted from
-the `openai` escape hatch 2026-06-10 (D-2026-06-10-N2) — a named prefix means
+the `openai` escape hatch 2026-06-10 (D-2026-06-10-N2): a named prefix means
 OpenRouter and vanilla `openai` coexist in one engine config.
 
-**Models** · OpenRouter ids are themselves `vendor/model` — the workflow form
+**Models** · OpenRouter ids are themselves `vendor/model`: the workflow form
 is `openrouter/<vendor>/<model>` (everything after the first `/` passes
 through verbatim). E.g. `openrouter/anthropic/claude-sonnet-4-6` ·
 `openrouter/meta-llama/llama-3.1-70b-instruct` · `openrouter/deepseek/deepseek-r1`.
@@ -326,6 +368,75 @@ structured output · provider-side model fallback/routing.
 (`--var model=openrouter/...`) · models with no native named provider ·
 provider-side failover. For a vendor's flagship via its own API (latency ·
 native features · billing) prefer the direct provider (`anthropic/…` etc.).
+
+---
+
+### `huggingface`
+
+```yaml
+infer:
+  model: huggingface/Qwen/Qwen3.5-9B:cheapest
+  prompt: "..."
+```
+
+The **open-weight house** · one `HF_TOKEN` reaches 100+ top open models
+across 18 backend providers (Groq · Cerebras · Together · Fireworks ·
+Scaleway · OVHcloud · …) at provider passthrough prices (zero markup).
+Promoted 2026-07-05 (ADR-104 · the openrouter precedent applied to the
+hub-router access category).
+
+**Models** · Hub ids are `org/model` with an optional ROUTING suffix: the
+workflow form is `huggingface/<org>/<model>[:<provider>|:fastest|:cheapest]`
+(everything after the first `/` passes through verbatim — inner slash AND
+colon included). E.g. `huggingface/Qwen/Qwen3.5-397B-A17B:fastest` ·
+`huggingface/openai/gpt-oss-120b:groq` ·
+`huggingface/deepseek-ai/DeepSeek-V4-Flash`.
+
+**Auth** · `HF_TOKEN` env var (fine-grained token · « Make calls to
+Inference Providers » permission).
+
+**Features** · OpenAI-compatible chat completions · streaming · tool use ·
+structured output (per backend) · `:fastest`/`:cheapest` policy routing ·
+org billing.
+
+**When to prefer it** · running OPEN-WEIGHT models serverless without
+picking a backend vendor · cost/latency policy routing · the sovereignty
+ladder's middle rung (open weights · swappable backends · EU providers
+available). For a fully local run prefer `ollama/…`; the same GGUFs pull
+locally via `ollama run hf.co/<org>/<repo>`.
+
+---
+
+### `nvidia`
+
+```yaml
+infer:
+  model: nvidia/nvidia/nemotron-3-super-120b-a12b
+  prompt: "..."
+```
+
+The **NVIDIA API** (`integrate.api.nvidia.com`) · the Nemotron 3 family
+(Nano 30B-A3B · Super 120B-A12B · Ultra 550B-A55B · NVIDIA Open Model
+License · agentic-first) plus hosted open models (121 live). Promoted
+2026-07-05 (ADR-104): self-hosted **NIM containers expose the exact same
+OpenAI-compatible surface**, so one provider name covers cloud AND
+sovereign self-host (engine-config `base_url` override points at your
+NIM).
+
+**Models** · catalog ids are `org/model`: the workflow form is
+`nvidia/<org>/<model>`. E.g. `nvidia/nvidia/nemotron-3-super-120b-a12b` ·
+`nvidia/nvidia/nemotron-3-nano-30b-a3b` · `nvidia/deepseek-ai/deepseek-r1`.
+
+**Auth** · `NVIDIA_API_KEY` env var (`nvapi-…` from build.nvidia.com ·
+free developer tier · ~40 RPM baseline).
+
+**Features** · OpenAI-compatible chat completions · streaming · tool use ·
+JSON mode · NVFP4-served flagships.
+
+**When to prefer it** · the Nemotron family at full size · enterprise GPU
+serving with a self-host path (NIM) that keeps workflows byte-identical
+between cloud and sovereign deployments. Nemotron Nano GGUFs also run
+fully local via `ollama/…`.
 
 ---
 
@@ -404,12 +515,12 @@ infer:
 **Backend** · deterministic test fixture · returns a configured response.
 
 **Models** ·
-- **`echo` · THE canonical test model** (`model: mock/echo` — what every
+- **`echo` · THE canonical test model** (`model: mock/echo`, what every
   canonical example uses) · returns the prompt text **verbatim** as the
   output · zero network · zero entropy (bit-identical across runs/engines).
   With a `schema:` declared · returns `{}` shaped to the schema's required
   scalar defaults (string `""` · number `0` · boolean `false` · array `[]` ·
-  object recursed) — deterministic · validates · carries no meaning (test
+  object recursed): deterministic · validates · carries no meaning (test
   the SHAPE of your DAG · not model quality).
 - `mock-deterministic` · returns the prompt verbatim (echo's long-form alias)
 - `mock-error` · returns a configured error
@@ -418,7 +529,7 @@ infer:
 
 The configured-response forms (`mock-error` · `mock-streaming` ·
 `mock-json`) read their fixture from **engine config** (NOT workflow YAML ·
-the workflow stays portable) — the behavioral conformance fixtures
+the workflow stays portable). The behavioral conformance fixtures
 (post-announce) pin their exact contract. `mock/echo` is fully normative
 TODAY (the static + example gates rely on it).
 
@@ -438,7 +549,7 @@ When using the same workflow with different providers ·
 - The **structured output** uses JSON Schema (engine adapts to provider's native mechanism · JSON mode · function calling · etc.)
 - The **vision input** is provider-agnostic in the workflow · the engine adapts
 
-A workflow can switch providers with one line change (`model: ollama/llama3.1` → `model: mistral/mistral-large`, or any other `<provider>/<name>`) for most use cases.
+A workflow can switch providers with one line change (`model: ollama/qwen3.5:9b` → `model: mistral/mistral-large`, or any other `<provider>/<name>`) for most use cases.
 
 ---
 

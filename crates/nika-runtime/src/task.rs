@@ -58,6 +58,11 @@ pub(crate) struct Finish {
     /// the jq result over the raw output (or `Null` for a non-success
     /// task · defined-null). Empty when the task declares no `output:`.
     pub named: BTreeMap<String, Value>,
+    /// ADR-099 resume identity — stamped onto a SUCCESS `task_completed`
+    /// record (additive trace fields). `None` = not resume-eligible this
+    /// run (future form · render miss · secret leak) — the task records
+    /// no key and simply never skips (honest degradation).
+    pub resume: Option<crate::resume::ResumeStamp>,
 }
 
 /// How the task settles (spec 03 §task states).
@@ -74,6 +79,11 @@ pub(crate) enum SettleAs {
         stage: &'static str,
         error: TaskErrorRecord,
     },
+    /// ADR-099 `--resume` cache hit — the task's identity matched a
+    /// journaled success: its output is REHYDRATED (never re-executed ·
+    /// no `TaskStarted` · no `on_finally:` — the original run already
+    /// ran its cleanup). Settles as a plain success downstream.
+    CacheHit { output: Value },
     /// The task ran (dispatched at least once).
     Ran(RanTask),
 }
@@ -117,6 +127,8 @@ pub(crate) enum RunResult {
         value: Value,
         tokens: Option<i64>,
         warning: Option<String>,
+        /// Real spend (catalog × usage split) · None = unpriced · honest.
+        cost_usd: Option<f64>,
     },
     /// `on_error: skip` — skipped with the original error readable
     /// (spec 05 · the one coexist state).
@@ -147,53 +159,41 @@ where
         vars: &BTreeMap<String, Value>,
         secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
+        resume_ctx: &crate::resume::ResumeContext,
     ) -> Finish {
         let id = task.id.value.clone();
-        let gate_scope = Scope::workflow_with_secrets(records, vars, secrets);
 
-        // ── The gate (spec 03 §task states) ─────────────────────────
-        match task.when.as_ref() {
-            // Default gate · run iff ALL deps ∈ {success, skipped} ·
-            // else `cancelled` (Dead-Path-Elimination · the cascade).
-            None => {
-                if !default_gate_open(task, records) {
-                    // Gate-cancelled → never produced an output · every
-                    // declared binding reads defined-null (spec 04).
-                    return Finish {
-                        id,
-                        settle: SettleAs::Cancelled {
-                            note: "upstream failed",
-                        },
-                        named: null_bindings(task),
-                    };
-                }
-            }
-            // Explicit `when:` REPLACES the default gate — evaluated
-            // once deps are terminal whatever their status (the
-            // always-pattern · spec 05 §workflow-level).
-            Some(gate) => match eval_gate(&gate.value, &gate_scope) {
-                Ok(true) => {}
-                Ok(false) => {
-                    return Finish {
-                        id,
-                        settle: SettleAs::SkippedGate {
-                            note: "when: gate closed",
-                        },
-                        named: null_bindings(task),
-                    };
-                }
-                Err(err) => {
-                    return Finish {
-                        id,
-                        settle: SettleAs::FailedBeforeStart {
-                            stage: "when",
-                            error: runtime_error_record(&err),
-                        },
-                        named: null_bindings(task),
-                    };
-                }
-            },
+        // ── The gate (spec 03 §task states) — an early settle exits ──
+        if let Some(finish) = gate_finish(task, id.clone(), records, vars, secrets) {
+            return finish;
         }
+
+        // ── ADR-099 resume identity — computed from the task AS
+        //    AUTHORED (an `--answer` never re-keys: a prompt's answer is
+        //    output non-determinism, like an infer's — §4 replays it) ──
+        let resume = crate::resume::stamp(task, records, vars, resume_ctx);
+
+        // ── ADR-099 `--resume` skip — BOTH hashes must match a journaled
+        //    success (an edited task or a changed input re-runs · §1). A
+        //    freshly-supplied `--answer` FORCES the ask (operator intent
+        //    is explicit — never replay an old answer over a new one). ──
+        if !self.prompt_answers.contains_key(&id)
+            && let Some(finish) = self.cache_hit_finish(task, &id, resume.as_ref())
+        {
+            return finish;
+        }
+
+        // ── `--answer task=value` (ADR-099 rider) — bind the supplied
+        //    answer as the prompt's `default:` (the answered branch of
+        //    the stdlib contract · dispatch-only, never the identity) ──
+        let answered;
+        let task = match self.task_with_prompt_answer(task) {
+            Some(bound) => {
+                answered = bound;
+                &answered
+            }
+            None => task,
+        };
 
         // ── `for_each:` fan-out or the single lane ──────────────────
         let mut settle = match task.for_each.as_ref() {
@@ -211,7 +211,84 @@ where
         // binding (the value on success · `Null` on a non-success ·
         // defined-null reads).
         let named = bind_outputs(task, &mut settle);
-        Finish { id, settle, named }
+        // A success output that carries a resolved secret VALUE must not
+        // reach the trace (ADR-099 §1: no secret-derived material) — the
+        // task then records no key and re-runs live on resume.
+        let resume = resume.filter(|_| {
+            success_output(&settle)
+                .and_then(|v| serde_json::to_string(v).ok())
+                .is_none_or(|text| !resume_ctx.leaks_secret(&text))
+        });
+        Finish {
+            id,
+            settle,
+            named,
+            resume,
+        }
+    }
+
+    /// The ADR-099 skip check — `Some(finish)` iff a resume plan is
+    /// present AND this task's recomputed identity matches its journaled
+    /// success (both hashes · §1). The hit settles as a rehydrated
+    /// success (`task_cache_hit` at the pens — VISIBLE, never silent);
+    /// its `output:` bindings re-evaluate over the rehydrated value
+    /// (pure jq · same programs, same input · spec 04).
+    fn cache_hit_finish(
+        &self,
+        task: &RawTask,
+        id: &str,
+        resume: Option<&crate::resume::ResumeStamp>,
+    ) -> Option<Finish> {
+        let stamp = resume?;
+        let prior = self.resume_plan.get(id)?;
+        if prior.def_hash != stamp.def_hash || prior.input_hash != stamp.input_hash {
+            return None;
+        }
+        let mut settle = SettleAs::CacheHit {
+            output: prior.output.clone(),
+        };
+        let named = bind_outputs(task, &mut settle);
+        Some(Finish {
+            id: id.to_owned(),
+            settle,
+            named,
+            resume: Some(stamp.clone()),
+        })
+    }
+
+    /// Bind a supplied `--answer` to this task's `nika:prompt` as its
+    /// `default:` (the answered branch of the stdlib contract — the
+    /// builtin validates the TYPE per mode, so a bad answer fails with
+    /// the same honest PROMPT-001/002 diagnostics). `None` = no answer
+    /// for this task, or not a direct prompt invocation — unchanged.
+    fn task_with_prompt_answer(&self, task: &RawTask) -> Option<RawTask> {
+        let answer = self.prompt_answers.get(&task.id.value)?;
+        let RawAction::Invoke(invoke) = &task.action else {
+            return None;
+        };
+        if invoke.tool.value != "nika:prompt" {
+            return None;
+        }
+        let mut bound = task.clone();
+        let RawAction::Invoke(invoke) = &mut bound.action else {
+            return None; // unreachable — same variant as above
+        };
+        if let Some(args) = invoke.args.as_mut() {
+            // Non-object args fail the builtin's own validation — never
+            // silently rewritten here.
+            if let Value::Object(map) = &mut args.value {
+                map.insert("default".to_owned(), answer.clone());
+            }
+        } else {
+            // No args at all (message missing → the builtin refuses
+            // loudly anyway) — still bind, one behavior.
+            let span = task.id.span;
+            invoke.args = Some(nika_schema::Spanned::new(
+                serde_json::json!({ "default": answer }),
+                span,
+            ));
+        }
+        Some(bound)
     }
 
     /// The single-execution lane (no `for_each:`).
@@ -302,6 +379,7 @@ where
                 // success carries no single warning (a per-element note
                 // would need its own channel · out of scope here).
                 warning: None,
+                cost_usd: acc.cost_sum,
             },
             Some(error) => RunResult::Failed { error },
         };
@@ -397,10 +475,15 @@ where
         let outcome = {
             // The attempt loop borrows the accumulators; the borrow ends
             // when the loop future is consumed/dropped (both arms below).
+            // `budget` = the task's ONE `timeout:` — the total enforced
+            // below AND handed to dispatch (the infer transport · F1).
+            let budget = task.timeout.as_ref().map(|t| t.value);
             let attempts = async {
                 let mut attempt = 1_u32;
                 loop {
-                    let dispatched = self.dispatch(&task.action, scope, &agent_buffer).await;
+                    let dispatched = self
+                        .dispatch(&task.action, scope, &agent_buffer, budget)
+                        .await;
                     note.clone_from(&dispatched.note);
                     attempt_marks.push(agent_buffer.len());
                     match dispatched.result {
@@ -432,7 +515,7 @@ where
                 }
             };
 
-            match task.timeout.as_ref().map(|t| t.value) {
+            match budget {
                 None => attempts.await,
                 Some(limit) => {
                     let attempts = std::pin::pin!(attempts);
@@ -522,7 +605,8 @@ where
         // outcome dropped by design) — a throwaway buffer satisfies the
         // dispatch seam; collecting it is a trigger-gated ratchet.
         let cleanup_buffer = crate::agent_events::BufferingObserver::new();
-        let attempt = std::pin::pin!(self.dispatch(&mini.action, scope, &cleanup_buffer));
+        let attempt =
+            std::pin::pin!(self.dispatch(&mini.action, scope, &cleanup_buffer, Some(limit)));
         let timer = std::pin::pin!(self.clock.sleep(limit));
         // Either way the outcome is dropped — cleanup observability is
         // the cleanup's own effects (e.g. `nika:emit` · spec 03).
@@ -557,6 +641,9 @@ struct FanOutAccum {
     /// Per-iteration token spend SUMMED onto the parent (a 50-infer fan-out
     /// must never report zero to the cost meter) · None until any reports.
     tokens_sum: Option<i64>,
+    /// Per-iteration USD spend SUMMED the same way (same-model iterations ·
+    /// per-turn pricing sums exactly) · None until any priced call reports.
+    cost_sum: Option<f64>,
 }
 
 /// Drain the buffered iteration stream, reducing it to a [`FanOutAccum`] in
@@ -573,6 +660,7 @@ where
         agent_events: Vec::new(),
         first_error: None,
         tokens_sum: None,
+        cost_sum: None,
     };
 
     while let Some(iter_ran) = stream.next().await {
@@ -581,10 +669,18 @@ where
         match iter_ran.result {
             // OBS-E `warning` is per-call · a fan-out element's diagnostic
             // is not aggregated up (only `value` + `tokens` fold).
-            RunResult::Success { value, tokens, .. } => {
+            RunResult::Success {
+                value,
+                tokens,
+                cost_usd,
+                ..
+            } => {
                 acc.outputs.push(value);
                 if let Some(n) = tokens {
                     acc.tokens_sum = Some(acc.tokens_sum.unwrap_or(0).saturating_add(n));
+                }
+                if let Some(c) = cost_usd {
+                    acc.cost_sum = Some(acc.cost_sum.unwrap_or(0.0) + c);
                 }
             }
             // Per-iteration `on_error: skip` contributes null at its
@@ -711,6 +807,9 @@ fn success_output(settle: &SettleAs) -> Option<&Value> {
             RunResult::Success { value, .. } => Some(value),
             RunResult::SkippedWithError { .. } | RunResult::Failed { .. } => None,
         },
+        // A cache hit IS a success — bindings extract from the
+        // rehydrated output (ADR-099 · downstream parity with live).
+        SettleAs::CacheHit { output } => Some(output),
         SettleAs::Cancelled { .. }
         | SettleAs::SkippedGate { .. }
         | SettleAs::FailedBeforeStart { .. } => None,
@@ -750,13 +849,69 @@ fn eval_all_bindings(
 
 /// Turn a settled SUCCESS into a FAILURE in place (an `output:` binding
 /// errored · the success it would have reported is discarded). Only ever
-/// called on a `Ran(Success)` settle (see [`bind_outputs`]).
+/// called on a success-shaped settle (see [`bind_outputs`]).
 fn replace_success_with_failure(settle: &mut SettleAs, error: TaskErrorRecord) {
-    if let SettleAs::Ran(ran) = settle
-        && matches!(ran.result, RunResult::Success { .. })
-    {
-        ran.result = RunResult::Failed { error };
+    match settle {
+        SettleAs::Ran(ran) if matches!(ran.result, RunResult::Success { .. }) => {
+            ran.result = RunResult::Failed { error };
+        }
+        // A binding that fails over a REHYDRATED output fails the task
+        // the same way (it never started — the pre-start failure shape).
+        SettleAs::CacheHit { .. } => {
+            *settle = SettleAs::FailedBeforeStart {
+                stage: "output",
+                error,
+            };
+        }
+        _ => {}
     }
+}
+
+/// The gate stage (spec 03 §task states) — `Some(finish)` when the task
+/// settles WITHOUT running (default gate cancelled · `when:` closed ·
+/// gate eval error), `None` when the gate is open. Extracted from the
+/// pipeline so each stage stays within the fn-length budget.
+fn gate_finish(
+    task: &RawTask,
+    id: String,
+    records: &BTreeMap<String, TaskRecord>,
+    vars: &BTreeMap<String, Value>,
+    secrets: &BTreeMap<String, Value>,
+) -> Option<Finish> {
+    let gate_scope = Scope::workflow_with_secrets(records, vars, secrets);
+    let settle = match task.when.as_ref() {
+        // Default gate · run iff ALL deps ∈ {success, skipped} · else
+        // `cancelled` (Dead-Path-Elimination · the cascade). A gate-
+        // cancelled task never produced an output — every declared
+        // binding reads defined-null (spec 04).
+        None => {
+            if default_gate_open(task, records) {
+                return None;
+            }
+            SettleAs::Cancelled {
+                note: "upstream failed",
+            }
+        }
+        // Explicit `when:` REPLACES the default gate — evaluated once
+        // deps are terminal whatever their status (the always-pattern ·
+        // spec 05 §workflow-level).
+        Some(gate) => match eval_gate(&gate.value, &gate_scope) {
+            Ok(true) => return None,
+            Ok(false) => SettleAs::SkippedGate {
+                note: "when: gate closed",
+            },
+            Err(err) => SettleAs::FailedBeforeStart {
+                stage: "when",
+                error: runtime_error_record(&err),
+            },
+        },
+    };
+    Some(Finish {
+        id,
+        settle,
+        named: null_bindings(task),
+        resume: None,
+    })
 }
 
 /// The default gate's verdict (spec 03 · `depends_on` IS the
@@ -816,10 +971,12 @@ fn dispatch_result(
             value,
             tokens,
             warning,
+            cost_usd,
         }) => RunResult::Success {
             value,
             tokens,
             warning,
+            cost_usd,
         },
         Err(error) => apply_on_error(task, scope, error),
     }
@@ -841,6 +998,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, error: TaskErrorRecord) -> 
                 tokens: None,
                 // A recovered value is author-supplied · no model reasoning.
                 warning: None,
+                cost_usd: None,
             },
             // Recovery itself failed → the task fails as if
             // `on_error:` were absent (spec 05 §recover resolution).
@@ -874,7 +1032,9 @@ fn retry_eligible(task: &RawTask, error: &TaskErrorRecord) -> bool {
 }
 
 /// `on_error.on_codes` filter (spec 05 · empty = applies to all).
-fn on_error_applies(on_error: &OnError, error: &TaskErrorRecord) -> bool {
+/// `pub(crate)`: the ADR-099 pause rider consults it too (an authored
+/// route for PROMPT-001 wins over the pause).
+pub(crate) fn on_error_applies(on_error: &OnError, error: &TaskErrorRecord) -> bool {
     on_error.on_codes.is_empty() || on_error.on_codes.iter().any(|c| c.value == error.code)
 }
 

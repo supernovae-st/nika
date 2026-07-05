@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika-builtin` — the 23 canonical stdlib v0.1 builtins (L1.5).
+//! `nika-builtin` — the 24 canonical stdlib v0.1 builtins (L1.5).
 //!
 //! ONE dispatcher ([`BuiltinDispatcher`]) implements the three kernel tool
 //! seams the verbs consume — [`ToolExecuteDyn`] + [`ToolBatchDyn`]
@@ -32,6 +32,7 @@ pub mod data;
 pub mod date;
 pub mod defs;
 pub mod file;
+pub mod image;
 pub mod inspect;
 pub mod net;
 pub mod permits;
@@ -47,6 +48,7 @@ use nika_kernel::runtime::tool_executor::{
 };
 
 pub use defs::{TOOLS_EXPORT_VERSION, tool_defs, tools_json};
+pub use image::ImageKeys;
 pub use permits::FsBoundary;
 
 /// The closed builtin namespace prefix.
@@ -237,11 +239,12 @@ impl WorkflowIntrospect for NoWorkflow {
 
 // ─── the dispatcher ──────────────────────────────────────────────────────
 
-/// The 23-builtin dispatcher over its six injected seams.
+/// The 24-builtin dispatcher over its injected seams.
 ///
-/// Kernel seams: `F` filesystem (file 5) · `H` http (fetch · notify) ·
-/// `C` clock (wait · date). Local seams: `Em` event content (log · emit)
-/// · `P` prompter (prompt) · `W` workflow introspection (inspect).
+/// Kernel seams: `F` filesystem (file 5) · `H` http (fetch · notify · the
+/// image plane) · `C` clock (wait · date). Local seams: `Em` event content
+/// (log · emit) · `P` prompter (prompt) · `W` workflow introspection
+/// (inspect).
 #[derive(Debug)]
 pub struct BuiltinDispatcher<F, H, C, Em, P, W> {
     fs: Arc<F>,
@@ -256,6 +259,17 @@ pub struct BuiltinDispatcher<F, H, C, Em, P, W> {
     /// the composition root injects the workflow's boundary via
     /// [`BuiltinDispatcher::with_fs_boundary`].
     fs_boundary: FsBoundary,
+    /// The IMAGE-PLANE http client (`nika:image_generate` provider calls) —
+    /// `None` until the composition root wires it via
+    /// [`BuiltinDispatcher::with_image_plane`]. Distinct from `http` (the
+    /// fetch plane): image endpoints are const studio-fixed strings, so the
+    /// provider-plane client (SSRF disabled · long transport ceiling) is the
+    /// correct carrier — the fetch client's 30s idle guard would kill
+    /// 60–120s image renders.
+    image_http: Option<Arc<H>>,
+    /// Image-provider credentials (composition-root resolved · never read
+    /// from the environment here).
+    image_keys: image::ImageKeys,
 }
 
 impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
@@ -277,6 +291,8 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
             prompter,
             workflow,
             fs_boundary: FsBoundary::unbounded(),
+            image_http: None,
+            image_keys: image::ImageKeys::new(),
         }
     }
 
@@ -288,6 +304,20 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
     #[must_use]
     pub fn with_fs_boundary(mut self, boundary: FsBoundary) -> Self {
         self.fs_boundary = boundary;
+        self
+    }
+
+    /// Wire the IMAGE PLANE — the http client + provider keys that
+    /// `nika:image_generate` calls real providers through. The composition
+    /// root passes its PROVIDER-plane client (SSRF disabled for the fixed
+    /// endpoint allowlist · long transport ceiling) and the env-resolved
+    /// [`image::ImageKeys`]. Unwired, the mock provider still works and the
+    /// real providers fail with the precise
+    /// `NIKA-BUILTIN-IMAGE_GENERATE-002`.
+    #[must_use]
+    pub fn with_image_plane(mut self, http: Arc<H>, keys: image::ImageKeys) -> Self {
+        self.image_http = Some(http);
+        self.image_keys = keys;
         self
     }
 }
@@ -379,6 +409,19 @@ where
             // network 2
             "fetch" => Ok(net::fetch(self.http.as_ref(), args).await),
             "notify" => Ok(net::notify(self.http.as_ref(), args).await),
+            // media 1 — provider calls ride the IMAGE PLANE (a dedicated
+            // seam · const endpoints); saves ride the permits.fs boundary
+            // (each final path is gated inside save_all, before any I/O).
+            "image_generate" => Ok(image::generate(
+                self.fs.as_ref(),
+                self.image_http.as_deref(),
+                &self.image_keys,
+                self.clock.as_ref(),
+                self.emitter.as_ref(),
+                &self.fs_boundary,
+                args,
+            )
+            .await),
             // introspection 2
             "compose" => Ok(core_tools::compose()),
             "inspect" => Ok(inspect::inspect(self.workflow.as_ref(), args)),
@@ -669,8 +712,9 @@ mod tests {
             let outcome = rig.execute(call(&def.name, serde_json::json!({}))).await;
             assert!(outcome.is_ok(), "{} must route (got {outcome:?})", def.name);
         }
-        // …and the count is the canonical 23 (stdlib v0.1 · +compose per ADR-096).
-        assert_eq!(tool_defs().len(), 23);
+        // …and the count is the canonical 24 (stdlib v0.1 · +compose per
+        // ADR-096 · +image_generate stdlib §Media).
+        assert_eq!(tool_defs().len(), 24);
     }
 
     #[tokio::test]
@@ -730,7 +774,7 @@ mod tests {
         let defs = ToolDefinitionProviderDyn::tool_defs(&rig())
             .await
             .expect("enumerates");
-        assert_eq!(defs.len(), 23);
+        assert_eq!(defs.len(), 24);
         assert!(defs.iter().all(|d| d.name.starts_with(NAMESPACE)));
         assert!(defs.iter().all(|d| !d.description.is_empty()));
         assert!(

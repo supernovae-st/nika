@@ -11,14 +11,14 @@
 #   - `nika:glob` · the collection comes from the filesystem at runtime
 #   - chained `for_each` stages · read-all → translate-all → write-all
 #   - `nika:jq` `transpose` · zip two parallel arrays into [{path, text}]
-#   - `${{ item.path }}` · loop-locals are objects too — field access works
+#   - `${{ item.path }}` · loop-locals are objects too: field access works
 #
 # Run · nika run examples/showcase/t3-localization-factory.nika.yaml
 nika: v1
 workflow: localization-factory
 description: "glob docs → parallel read → parallel translate → mirror tree"
 
-model: mistral/mistral-large    # EU model for EU locales · pick yours
+model: ollama/qwen3.5:4b   # local default · swap for mistral/mistral-large (EU model for EU locales)
 
 vars:
   lang: "fr"

@@ -20,9 +20,9 @@ nika: v1
 workflow: resume-screener
 description: "glob CVs → local-model rubric per candidate → deterministic shortlist"
 
-model: ollama/llama3.1      # PII stays on the machine · the whole screen is offline
+model: ollama/qwen3.5:4b   # PII stays on the machine · the whole screen is offline
 
-permits:                    # the file IS the blast radius · no net category at all —
+permits:                    # the file IS the blast radius · no net category at all:
   fs:                       # CVs cannot leave this machine even if a prompt is hijacked
     read: ["./hiring/inbox/**"]
     write: ["./hiring/out/**", "./hiring/shortlist-brief.md"]
@@ -74,7 +74,7 @@ tasks:
         CV ·
         ${{ item.text }}
         Score this candidate against the role. Quote evidence from the
-        CV for every rating — no rating without a quote.
+        CV for every rating: no rating without a quote.
       schema:
         type: object
         required: [file, fit, strengths, concerns]
