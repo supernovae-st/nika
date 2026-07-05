@@ -357,6 +357,10 @@ const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::fro
 /// per-REQUEST deadline is owned by the wire layer (task `timeout:` else
 /// the per-provider default), and the 30s client default would undercut
 /// any longer budget via the idle-read guard (see the ceiling's doc).
+/// Empirical anchor (#148 · M3 Pro): local thinking-era models legitimately
+/// exceed 30s — `qwen3.5:4b` ~43s · `qwen3.5:9b` ~87s for one structured
+/// task · cold model load adds 30-60s (the reason local classes default
+/// to 300s at the wire layer · a timeout is a ceiling, not a wait).
 ///
 /// # Errors
 ///
