@@ -194,7 +194,13 @@ pub fn run(dir: &str, force: bool) -> VerbOutput {
     if failed {
         VerbOutput::env(text)
     } else {
-        VerbOutput::ok(text)
+        // The beginner's next move · init used to end SILENTLY (the
+        // 2026-07-05 beginner walk: « you init and… sit there ») — an
+        // onboarding surface must hand over to the next command. Golden
+        // path: offline proof in 10s → scaffold → audit-before-tokens.
+        VerbOutput::ok(format!(
+            "{text}\n\nnext ·\n               nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n               nika new --from chain my-first.nika.yaml       # scaffold a real workflow\n               nika check my-first.nika.yaml                  # audit before a single token"
+        ))
     }
 }
 
@@ -211,6 +217,22 @@ fn write_file(path: &str, body: &str) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::verbs::exit;
+
+    #[test]
+    fn successful_init_hands_over_to_the_next_command() {
+        // The 2026-07-05 beginner walk: init ended SILENTLY (4 files ·
+        // no workflow · no next step). An onboarding surface must hand
+        // over — the ok-path text carries the golden path.
+        let tmp = std::env::temp_dir().join(format!("nika-init-handover-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).expect("mkdir");
+        let out = run(tmp.to_str().expect("utf8"), false);
+        std::fs::remove_dir_all(&tmp).ok();
+        assert_eq!(out.code, exit::OK);
+        assert!(out.text.contains("next ·"), "{}", out.text);
+        assert!(out.text.contains("nika examples run 01-hello"));
+        assert!(out.text.contains("nika check"));
+    }
 
     #[test]
     fn plan_creates_both_when_nothing_exists() {
