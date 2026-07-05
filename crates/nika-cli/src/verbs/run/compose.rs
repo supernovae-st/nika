@@ -338,6 +338,16 @@ pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilitie
 /// contradicts the local-first raison. `Disabled` is exactly the
 /// "trusted internal networks" opt-out the `nika-http` docs sanction.
 ///
+/// The timeout is raised to 180s (the `nika-http` default is 30s ·
+/// calibrated for cloud APIs). Local thinking-era models (2026)
+/// legitimately exceed 30s on consumer hardware: measured on an M3 Pro,
+/// `qwen3.5:4b` takes ~43s and `qwen3.5:9b` ~87s for one structured-output
+/// task (3-5k chars of thinking before the grammar-constrained JSON) ·
+/// cold model load adds 30-60s more. A timeout is a ceiling, not a wait —
+/// cloud providers that answer in 2s are unaffected; without this every
+/// local structured `infer:` dies `NIKA-INFER-001 (408)` at 30s. The
+/// per-task `timeout:` field remains the user's knob BELOW this ceiling.
+///
 /// # Errors
 ///
 /// [`nika_kernel::HttpError`] when the TLS backend won't initialize.
@@ -348,6 +358,7 @@ pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilitie
 fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
     let mut config = HttpConfig::default();
     config.ssrf = SsrfMode::Disabled;
+    config.timeout = std::time::Duration::from_secs(180);
     ReqwestHttp::with_config(config)
 }
 
