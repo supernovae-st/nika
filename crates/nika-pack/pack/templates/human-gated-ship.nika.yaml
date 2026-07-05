@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# TEMPLATE · human-gated-ship — gates in parallel, a human signs,
+# TEMPLATE · human-gated-ship: gates in parallel, a human signs,
 # the action ships, evidence always lands.
 # The default shape for anything irreversible (deploys · sends · publishes).
 #
@@ -10,7 +10,7 @@
 #   nothing irreversible happens before nika:prompt returns true
 #   the assert makes a RED gate terminal · the act fails LOUDLY (default
 #   capture) · a terminal `when: true` task records EVERY outcome
-#   (acted · refused · failed) — the always-pattern
+#   (acted · refused · failed): the always-pattern
 nika: v1
 workflow: human-gated-ship-template  # SLOT: kebab-case workflow id
 description: "verify in parallel · human GO · act · record"   # SLOT
@@ -46,7 +46,7 @@ tasks:
       tool: "nika:assert"
       args:
         condition: "${{ tasks.check_a.output.exit_code == 0 && tasks.check_b.output.exit_code == 0 }}"
-        message: "A gate is RED — refusing to proceed"   # SLOT
+        message: "A gate is RED: refusing to proceed"   # SLOT
 
   - id: human
     depends_on: [gates]
@@ -61,7 +61,7 @@ tasks:
     when: ${{ tasks.human.output == true }}
     exec:
       command: ["echo", "shipped"]   # SLOT: the irreversible action (argv · program must be in permits.exec)
-      # default capture · a failing ship fails LOUDLY (NIKA-EXEC-001) —
+      # default capture · a failing ship fails LOUDLY (NIKA-EXEC-001):
       # never `capture: structured` on the irreversible step (exit codes
       # would become data and a red ship would read as success)
 

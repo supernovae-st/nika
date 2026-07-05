@@ -10,7 +10,7 @@
 ## Model selection · ONE field · `model: <provider>/<name>`
 
 You select an LLM with a **single `model:` field** in the form
-`<provider>/<model-name>` — the de-facto standard convention (LiteLLM ·
+`<provider>/<model-name>`, the de-facto standard convention (LiteLLM ·
 OpenRouter · Vercel AI SDK · PydanticAI all converged on it). There is **no
 separate `provider:` field** · the provider is the prefix.
 
@@ -67,19 +67,19 @@ tasks:
 A Stdlib v0.1-compliant engine MUST ship all **14** (5 local · 8 cloud · 1 test).
 Any *other* OpenAI-compatible local server (Jan · llamafile · KoboldCpp ·
 text-generation-webui · a custom one) routes through the **`openai` escape
-hatch** below — no new provider name needed.
+hatch** below (no new provider name needed).
 
 > **2026-06-10 · `openrouter` promoted from escape hatch to named provider**
 > (D-2026-06-10-N2). Earlier revisions routed OpenRouter through
-> `openai`+`base_url`. That override **hijacks the `openai` prefix** — you
-> cannot reach vanilla OpenAI and OpenRouter from the same engine config —
+> `openai`+`base_url`. That override **hijacks the `openai` prefix** (you
+> cannot reach vanilla OpenAI and OpenRouter from the same engine config),
 > and the largest model-aggregation gateway deserves first-class one-field
 > selection. Together · Fireworks · custom gateways still use the escape hatch.
 
 ## Local vs cloud · the prefix decides
 
-The **provider prefix IS the local/cloud signal** — no separate `local:` flag,
-no hidden config to read:
+The **provider prefix IS the local/cloud signal** (no separate `local:` flag,
+no hidden config to read):
 
 ```
 ollama/…  lmstudio/…  llamacpp/…  localai/…  vllm/…   → LOCAL · localhost · no key · sovereign
@@ -95,7 +95,7 @@ zero-cloud run trivial.
 All 5 local providers are external **HTTP servers** (OpenAI-compatible API · the
 engine talks to them over localhost). They are NOT the in-process GGUF runtime
 `native`, which was DEFERRED (mistral.rs crashed
-the host) — re-enters stdlib v0.x when a candle/llama.cpp binding stabilizes +
+the host). It re-enters stdlib v0.x when a candle/llama.cpp binding stabilizes +
 30-day crash-free cohort + cross-platform conformance. **The named local
 providers are ergonomic shortcuts; the long tail uses the escape hatch.**
 
@@ -114,9 +114,9 @@ OPENAI_BASE_URL=http://localhost:1337/v1   # engine config · points at Jan
 This is the LiteLLM pattern: **named providers for the popular backends ·
 `openai`+base_url for everything else.** It is how Jan · llamafile ·
 KoboldCpp · text-generation-webui · and any custom OpenAI-compatible server
-run today — zero spec change, the stdlib stays curated, the long tail is
+run today: zero spec change, the stdlib stays curated, the long tail is
 covered. Adding a *new named* provider later (its own prefix) is an
-additive stdlib bump — `openrouter` (2026-06-10 · D-2026-06-10-N2) is the
+additive stdlib bump: `openrouter` (2026-06-10 · D-2026-06-10-N2) is the
 first such promotion.
 
 ## Provider config lives OUTSIDE the workflow
@@ -164,7 +164,7 @@ infer:
 
 **Auth** · none (localhost).
 
-**Features** · 100% local · zero cloud egress · GPU-accelerated by Ollama. The sovereign default — `model: ollama/<x>` runs offline / air-gapped, zero vendor lock-in. (NOT the in-process `native` GGUF runtime, which is deferred — Ollama is an external server, stable.)
+**Features** · 100% local · zero cloud egress · GPU-accelerated by Ollama. The sovereign default: `model: ollama/<x>` runs offline / air-gapped, zero vendor lock-in. (NOT the in-process `native` GGUF runtime, which is deferred: Ollama is an external server, stable.)
 
 ---
 
@@ -295,7 +295,7 @@ infer:
 
 **Features** · tool use · vision · structured output (JSON mode).
 
-**Escape hatch** · the openai provider routes ANY OpenAI-compatible endpoint via the `OPENAI_BASE_URL` engine-config override (see « The `openai` escape hatch » above). Covers the local servers without their own named provider — **Jan · llamafile · KoboldCpp · text-generation-webui** — plus cloud gateways (**Together · Fireworks**) and custom servers. Providers with their own named prefix (`openrouter` · `ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm`) don't need this.
+**Escape hatch** · the openai provider routes ANY OpenAI-compatible endpoint via the `OPENAI_BASE_URL` engine-config override (see « The `openai` escape hatch » above). Covers the local servers without their own named provider (**Jan · llamafile · KoboldCpp · text-generation-webui**) plus cloud gateways (**Together · Fireworks**) and custom servers. Providers with their own named prefix (`openrouter` · `ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm`) don't need this.
 
 ---
 
@@ -309,10 +309,10 @@ infer:
 
 The cross-vendor **gateway** · one API key reaches every major model
 (Anthropic · OpenAI · Meta · Mistral · Google · open-weight). Promoted from
-the `openai` escape hatch 2026-06-10 (D-2026-06-10-N2) — a named prefix means
+the `openai` escape hatch 2026-06-10 (D-2026-06-10-N2): a named prefix means
 OpenRouter and vanilla `openai` coexist in one engine config.
 
-**Models** · OpenRouter ids are themselves `vendor/model` — the workflow form
+**Models** · OpenRouter ids are themselves `vendor/model`: the workflow form
 is `openrouter/<vendor>/<model>` (everything after the first `/` passes
 through verbatim). E.g. `openrouter/anthropic/claude-sonnet-4-6` ·
 `openrouter/meta-llama/llama-3.1-70b-instruct` · `openrouter/deepseek/deepseek-r1`.
@@ -404,12 +404,12 @@ infer:
 **Backend** · deterministic test fixture · returns a configured response.
 
 **Models** ·
-- **`echo` · THE canonical test model** (`model: mock/echo` — what every
+- **`echo` · THE canonical test model** (`model: mock/echo`, what every
   canonical example uses) · returns the prompt text **verbatim** as the
   output · zero network · zero entropy (bit-identical across runs/engines).
   With a `schema:` declared · returns `{}` shaped to the schema's required
   scalar defaults (string `""` · number `0` · boolean `false` · array `[]` ·
-  object recursed) — deterministic · validates · carries no meaning (test
+  object recursed): deterministic · validates · carries no meaning (test
   the SHAPE of your DAG · not model quality).
 - `mock-deterministic` · returns the prompt verbatim (echo's long-form alias)
 - `mock-error` · returns a configured error
@@ -418,7 +418,7 @@ infer:
 
 The configured-response forms (`mock-error` · `mock-streaming` ·
 `mock-json`) read their fixture from **engine config** (NOT workflow YAML ·
-the workflow stays portable) — the behavioral conformance fixtures
+the workflow stays portable). The behavioral conformance fixtures
 (post-announce) pin their exact contract. `mock/echo` is fully normative
 TODAY (the static + example gates rely on it).
 

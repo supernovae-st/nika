@@ -5,7 +5,7 @@
 #
 # The release train · gates run in parallel, a human signs the
 # departure, the train WAITS until the scheduled window (absolute
-# `until:` — not a sleep), ships, verifies, and the journal gets the
+# `until:`, not a sleep), ships, verifies, and the journal gets the
 # full departure record. Time is a first-class citizen here.
 #
 # Demonstrates ·
@@ -68,7 +68,7 @@ tasks:
       tool: "nika:assert"
       args:
         condition: "${{ tasks.tests.output.exit_code == 0 && tasks.lint.output.exit_code == 0 && tasks.audit.output.exit_code == 0 }}"
-        message: "A release gate is RED — the train does not depart"
+        message: "A release gate is RED: the train does not depart"
 
   - id: gate_time
     depends_on: [t0, gates_green]
@@ -95,7 +95,7 @@ tasks:
       tool: "nika:assert"
       args:
         condition: "${{ tasks.conductor.output == true }}"
-        message: "Departure not signed — train cancelled"
+        message: "Departure not signed: train cancelled"
 
   # ── hold until the window · absolute time, not a sleep ──
   - id: hold
@@ -132,11 +132,11 @@ tasks:
       tool: "nika:assert"
       args:
         condition: "${{ tasks.verify.output == vars.version }}"
-        message: "Prod does not report the shipped version — investigate before announcing"
+        message: "Prod does not report the shipped version: investigate before announcing"
 
   # the always-pattern · `when: true` replaces the default success-gate ·
   # this task runs whether `live` succeeded, failed, or never started
-  # (upstream abort) — a record that must land on EVERY outcome is a
+  # (upstream abort) · a record that must land on EVERY outcome is a
   # terminal task, not a cleanup hook (03 §Task states).
   - id: record
     depends_on: [live]

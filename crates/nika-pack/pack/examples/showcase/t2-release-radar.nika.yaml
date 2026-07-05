@@ -3,7 +3,7 @@
 #
 # showcase · T2 chain · devops / dependency hygiene
 #
-# « Did anything we depend on ship this week? » — answered from the
+# « Did anything we depend on ship this week? » · answered from the
 # project's own feeds. `mode: feed` parses RSS/Atom natively · the
 # diff against last run's state means you only hear about what's NEW.
 #
@@ -12,14 +12,14 @@
 #   - the state-file pattern · read last run → diff → write next state
 #   - `nika:json_diff` (RFC 6902) · NEW entries = additions in the patch
 #   - `on_error: on_codes + recover:` · first-run recovery scoped to
-#     not-found ONLY — a permission error still fails loudly
+#     not-found ONLY · a permission error still fails loudly
 #
 # Run · nika run examples/showcase/t2-release-radar.nika.yaml
 nika: v1
 workflow: release-radar
 description: "dependency release feed → diff vs last run → only the NEW ships"
 
-model: mock/echo            # swap for ollama/llama3.1 (local · zero key)
+model: ollama/llama3.2:3b   # local · zero key · swap for any of the 14 providers
 
 vars:
   releases_feed: "https://github.com/tokio-rs/tokio/releases.atom"

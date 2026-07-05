@@ -32,7 +32,7 @@ If you have used GitHub Actions, this is the same. If you have not, the rule is 
 Language · the validated, non-Turing-complete standard used by Kubernetes,
 Envoy, and gRPC). A bare reference like `${{ vars.topic }}` is a CEL identifier
 path that evaluates to its value; a condition like `${{ tasks.test.coverage > 80 }}`
-is a CEL boolean. One expression language, everywhere — Nika does not invent a
+is a CEL boolean. One expression language, everywhere: Nika does not invent a
 DSL. See [03-dag.md](./03-dag.md#expression-language--a-documented-subset-of-cel) for the v0.1 CEL subset.
 
 ---
@@ -50,18 +50,18 @@ ${{ secrets.X }}          masked secret reference        (vault-backed · never 
 Five namespaces. That's it.
 
 > **Loop-locals are not a 6th namespace.** Inside a `for_each` task body, two
-> extra identifiers are in scope — `${{ item }}` (the current element) and
+> extra identifiers are in scope: `${{ item }}` (the current element) and
 > `${{ index }}` (its 0-based position). They are **loop-scoped locals**, alive
-> only within that task's body — not global namespaces. So the count stays
+> only within that task's body, not global namespaces. So the count stays
 > « <!-- canon:namespaces -->5<!-- /canon --> namespaces » + the for-each locals where a loop is present.
 
 **Shadowing is structurally impossible.** Every namespace is reached
 through its explicit prefix (`vars.` · `with.` · `tasks.` · `env.` ·
-`secrets.`) — a `vars.item` and the loop-local `item` never collide
+`secrets.`): a `vars.item` and the loop-local `item` never collide
 (one is `vars.item` · the other is bare `item`), a task may be named
 `item` (`tasks.item.output` is unambiguous), and `with.X` never hides a
 `vars.X`. The only bare identifiers in the language are the two
-loop-locals, and `for_each` does not nest within a task — so there is no
+loop-locals, and `for_each` does not nest within a task, so there is no
 scope chain · no resolution-order subtleties · nothing to shadow. This
 is by construction, not by rule.
 
@@ -117,7 +117,7 @@ Reference any upstream task's output (or status · error · duration_ms) ·
     command: "./deploy.sh ${{ tasks.build.output.artifact_path }}"
 ```
 
-`tasks.X` is the task **result record** — a CEL object, NOT the bare output
+`tasks.X` is the task **result record**: a CEL object, NOT the bare output
 value. Always write `.output` for the value · the record's fields are ·
 
 ```
@@ -132,7 +132,7 @@ ${{ tasks.X.<name> }}                a named output: binding (jq · see below)
 
 #### Defined-null reads (normative · the branch-join unlock)
 
-Reading a field of a task that reached a terminal state **never errors** —
+Reading a field of a task that reached a terminal state **never errors**:
 absent values are **`null`**, deterministically ·
 
 ```
@@ -158,7 +158,7 @@ takes whichever ran ·
 ```
 
 **One obvious way · no bare alias.** `${{ tasks.X }}` is the whole result
-object · the output is ALWAYS `${{ tasks.X.output }}` — there is no `tasks.X`
+object · the output is ALWAYS `${{ tasks.X.output }}`: there is no `tasks.X`
 == output shortcut (it would make `tasks.X` both a scalar and a record · which
 CEL cannot type). This matches every workflow engine · GitHub Actions
 `steps.X.outputs` · Argo node context · Temporal result-vs-state · the task
@@ -168,7 +168,7 @@ result is a record, never a scalar masquerading as the namespace.
 
 When the producing task declares a structured-output **`schema:`** (an
 `infer:` or `agent:` task · [02](./02-verbs.md)), the shape of
-`tasks.X.output` is KNOWN at parse time — so a reference path INTO that
+`tasks.X.output` is KNOWN at parse time, so a reference path INTO that
 output (`${{ tasks.X.output.entities }}`) is statically checkable. The
 authoring contract ·
 
@@ -186,17 +186,17 @@ authoring contract ·
 - The static walk covers the v0.1 subset **`properties` · `items` ·
   `type` · `additionalProperties`** only. Any other construct at a level
   (`$ref` · `oneOf` / `anyOf` / `allOf` · `patternProperties` · a missing
-  `type` · …) makes that level **open** — the walk stops and the engine
+  `type` · …) makes that level **open**: the walk stops and the engine
   **MUST NOT** reject anything beneath it.
 - Tasks with NO declared schema (every `exec:` / `invoke:` task · an
-  `infer:` without `schema:`) are dynamic — paths into their output are
+  `infer:` without `schema:`) are dynamic: paths into their output are
   never statically rejected (a wrong path surfaces at run time as
   `NIKA-VAR-001`).
 
 This keeps the check **sound** (zero false rejections · a valid workflow
 is never refused) while making the declared-schema path the
-better-tooling path — one more reason structured output is the default
-authoring style.
+better-tooling path (one more reason structured output is the default
+authoring style).
 
 ### `${{ env.X }}` · environment variable
 
@@ -208,12 +208,12 @@ infer:
 ```
 
 `env` holds **non-sensitive** runtime config. Values may appear in logs +
-traces. For anything secret, use `secrets:` (below) instead — never put a
+traces. For anything secret, use `secrets:` (below) instead: never put a
 credential in `env`.
 
 **Declared-only · no ambient OS fallback** · `${{ env.X }}` resolves ONLY
 against the envelope `env:` block. An entry absent from the block is
-`NIKA-VAR-001` — the engine never silently reads the OS environment (a
+`NIKA-VAR-001`: the engine never silently reads the OS environment (a
 workflow's inputs are all visible in the file · sovereignty + portability).
 To pass an OS value in, do it explicitly at launch
 (`nika run flow.yaml --env LOG_LEVEL="$LOG_LEVEL"` · engine CLI concern).
@@ -230,19 +230,19 @@ headers:
 ```
 
 A secret is always a **reference to a store** (the local `nika-vault` by
-default), declared in the envelope `secrets:` block — never an inline
+default), declared in the envelope `secrets:` block, never an inline
 literal. The engine **masks** every resolved `secrets.X` value in logs,
 traces, and journal events (it renders as `••••••`). This `env` / `secrets`
 split is the modern secure-workflow default: non-sensitive config in `env`,
 masked references in `secrets`.
 
 > **The masking boundary (normative).** Masking covers the engine's OWN
-> observability surface — logs · traces · journal · the `nika:inspect`
+> observability surface: logs · traces · journal · the `nika:inspect`
 > output. It does NOT follow a secret value that the AUTHOR routes into a
 > subprocess or tool that then re-emits it: a `secrets.X` put into
 > `exec.env` (or a `nika:fetch` header) which the command echoes to stdout
 > is captured verbatim into `tasks.X.output` and flows downstream like any
-> other data — the engine cannot know that captured string IS the secret.
+> other data: the engine cannot know that captured string IS the secret.
 > **The contract:** the engine masks what IT prints; the author owns what
 > they pipe a secret INTO. The `nika check` pre-flight (lint) flags a
 > `secrets.X` reaching an `exec` capture or a tool whose output is bound,
@@ -311,7 +311,7 @@ ${{ tasks.api_call.status }}             # RESERVED · the task's own status (su
   the extracted jq result
 - `<name>` collisions with reserved words `output` · `status` · `error` ·
   `started_at` · `ended_at` · `duration_ms` are forbidden at parse time
-  (`NIKA-PARSE` · `validation_error` — the rule is structural · schema-checkable
+  (`NIKA-PARSE` · `validation_error`: the rule is structural · schema-checkable
   via `propertyNames` · `NIKA-VAR-NNN` stays reserved for reference *resolution*
   and binding *evaluation* errors)
 - If no `output:` block · only `tasks.X.output` is accessible (named
@@ -319,10 +319,10 @@ ${{ tasks.api_call.status }}             # RESERVED · the task's own status (su
 
 ### Path grammar · jq (the one data language)
 
-Output binding uses a **jq expression** — the SAME jq as the `nika:jq` builtin.
+Output binding uses a **jq expression**: the SAME jq as the `nika:jq` builtin.
 Nika has ONE data extraction-and-transform language (jq), **not two**: the former
 RFC 9535 JSONPath was dropped because jq is a superset (any JSONPath query + more)
-and a workflow language must not force the author — or an LLM — to choose between
+and a workflow language must not force the author (or an LLM) to choose between
 two extraction syntaxes (SOTA « one obvious way · ≤2 expression layers »). The two
 expression layers are **CEL** (inside `${{ }}` · conditions + value substitution)
 and **jq** (inside `output:` bindings + `nika:jq` · extraction + transform).
@@ -339,28 +339,28 @@ v0.1 jq conformance subset (every engine MUST support) ·
 ```
 
 The subset above is the portability floor every engine MUST support. Full jq
-(the `jaq` Rust impl · « full stdlib ») MAY be used — it is the single data
+(the `jaq` Rust impl · « full stdlib ») MAY be used: it is the single data
 extraction-and-transform language (`output:` bindings + the `nika:jq` builtin).
 
 #### Binding rules (single-value · pure-jq)
 
-- **A binding resolves to exactly ONE value.** A jq program emits a *stream* —
+- **A binding resolves to exactly ONE value.** A jq program emits a *stream*:
   `.users[]` yields N separate values, NOT an array. A binding whose program
   emits zero or multiple values is an **evaluation-time error**
   (`NIKA-VAR-002` · the emission count is data-dependent · undecidable at
-  parse) — the reference linter additionally WARNS at check time
+  parse). The reference linter additionally WARNS at check time
   (`one-obvious-way/009`) on the statically-visible smell (a binding jq
   ending in a trailing iterator `[]` with no collecting `[ … ]` wrapper).
   A jq program that itself errors at runtime is
   `NIKA-VAR-004`. Collect a stream with `[ … ]` (`[.users[].email]` → array)
   · take one with an index (`.users[0]`) or `first(…)`. One obvious way · no
   silent first-match, no implicit array-wrap.
-- **An `output:` jq expression is pure jq over the task's raw output** — it does
+- **An `output:` jq expression is pure jq over the task's raw output**: it does
   NOT contain `${{ }}` (the two expression layers never nest in one string ·
   CEL reads the namespaces · jq reads the task output). To parametrize an
   extraction by a workflow value, shape the verb's *input* with `${{ }}` ·
   the jq then runs over the result. (Exposing the read namespaces as jq
-  variables — `.items[] | select(.id == $vars.target)` — is a v0.2 candidate ·
+  variables, `.items[] | select(.id == $vars.target)`, is a v0.2 candidate ·
   jq-native · additive · NOT in the v0.1 subset.)
 
 ---
@@ -383,7 +383,7 @@ into a **string position** (e.g. inside a `prompt:` or `command:`), it renders
 as **compact JSON** · deterministic (object keys sorted · no insignificant
 whitespace). Scalars render as their natural string (numbers · booleans ·
 `null` → `null`). There are **no template pipe-filters** (`${{ x | json }}` is
-NOT a thing · per the §locked substitution surface) — to control the rendering,
+NOT a thing · per the §locked substitution surface). To control the rendering,
 extract a string with jq in `output:` (`@json` for JSON text · `tostring` /
 `@text` for scalar coercion) and reference that binding. One obvious way ·
 implicit compact-JSON by default · explicit jq when you need a specific shape.
@@ -392,7 +392,7 @@ A **bytes** output (tool-determined · e.g. MCP image content · a binary
 `nika:read`) is **opaque** · it flows tool→tool by reference
 (`${{ tasks.fetch_img.output }}` → another tool's `content:` arg · or a file
 path for `infer.vision`). Bytes **cannot** be jq-extracted (jq is JSON-only)
-nor substituted into a string position — that is an error (`NIKA-VAR-007`) ·
+nor substituted into a string position: that is an error (`NIKA-VAR-007`) ·
 the engine never silently UTF-8-coerces a blob (it would corrupt the data).
 For `nika:fetch` and `exec` (no binary value channel · the 9 fetch modes are
 text/JSON · `raw` is text), binary is **file-mediated** · write to a path,
@@ -413,7 +413,7 @@ infer:
 (Note · YAML escaping of backslash · `\\` in double-quoted strings · `\` in single-quoted or block scalars.)
 
 An **unclosed `${{`** (an unescaped opener with no closing `}}`) is rejected at
-parse time · `NIKA-VAR-008` · `validation_error` — the substitution surface belongs
+parse time · `NIKA-VAR-008` · `validation_error`: the substitution surface belongs
 to this section, even though the YAML itself parses fine.
 
 ---
@@ -434,7 +434,7 @@ Reasons ·
 
 ## Forward-compat
 
-The `${{ ... }}` substitution surface and the <!-- canon:namespaces -->5<!-- /canon --> namespaces are locked at v1. **Template pipe-filters (`${{ vars.x | json }}` · `| upper`) are NOT a growth path** (they would duplicate builtins + push CEL toward a string-DSL). Data transforms live in the `nika:jq` builtin; the `${{ }}` surface grows only with CEL-native features — the conditional `?:`, the `has()` presence macro, and the `contains`/`startsWith`/`endsWith` string tests ship in `cel-subset/0.1` ([03 §grammar](./03-dag.md)); `all`/`exists` and `matches()` regex stay reserved for a later additive minor. jq is the single extraction-and-transform language (`output:` + `nika:jq`).
+The `${{ ... }}` substitution surface and the <!-- canon:namespaces -->5<!-- /canon --> namespaces are locked at v1. **Template pipe-filters (`${{ vars.x | json }}` · `| upper`) are NOT a growth path** (they would duplicate builtins + push CEL toward a string-DSL). Data transforms live in the `nika:jq` builtin; the `${{ }}` surface grows only with CEL-native features: the conditional `?:`, the `has()` presence macro, and the `contains`/`startsWith`/`endsWith` string tests ship in `cel-subset/0.1` ([03 §grammar](./03-dag.md)); `all`/`exists` and `matches()` regex stay reserved for a later additive minor. jq is the single extraction-and-transform language (`output:` + `nika:jq`).
 
 Out of scope for v0.1 (deferred · see [`08-out-of-scope.md`](./08-out-of-scope.md)) ·
 - Expression language (no arithmetic in templates)

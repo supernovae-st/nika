@@ -5,7 +5,7 @@
 #
 # Monday 8am · everything your competitor shipped last week, read in
 # parallel, digested into one brief on your desk. N pages is decided at
-# RUNTIME by their sitemap — not hardcoded.
+# RUNTIME by their sitemap, not hardcoded.
 #
 # Demonstrates ·
 #   - `for_each` over a runtime collection · the matrix / fan-out pattern
@@ -18,7 +18,7 @@ nika: v1
 workflow: competitor-radar
 description: "Sitemap → parallel page reads → one competitive brief + ping"
 
-model: mock/echo            # swap for anthropic/claude-sonnet-4-6
+model: ollama/llama3.2:3b   # local · zero key · swap for anthropic/claude-sonnet-4-6
 
 vars:
   competitor_sitemap: "https://competitor.example.com/sitemap.xml"

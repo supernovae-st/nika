@@ -58,11 +58,11 @@ real ones (`sleep`+`wait_until`→`wait` · 4 introspections→`inspect` ·
 disambiguating a format-bound operation (`json_diff` · `json_merge_patch`).
 Multi-format tools stay unprefixed (`validate` · `convert`). Multi-mode
 tools are ONE builtin with a discriminating argument (`wait` mode ·
-`inspect` view) — never N siblings.
+`inspect` view), never N siblings.
 
 ## Known set-level gap (work item)
 
-Per-builtin **formal args/returns schemas** are not yet published —
+Per-builtin **formal args/returns schemas** are not yet published:
 builtins-v0.1.md ships examples + prose. A per-builtin contract block
 (`args:` JSON Schema · `returns:` shape · `throws:` codes) is the next
 stdlib documentation milestone; until it lands, the YAML examples + the

@@ -3,7 +3,7 @@
 #
 # showcase · T3 fan-out · SRE / platform
 #
-# « Did anyone change prod config without telling us? » — answered
+# « Did anyone change prod config without telling us? » · answered
 # deterministically. Approved overrides are merged into the baseline
 # (RFC 7396), the live config is diffed against that (RFC 6902), and
 # ONLY unsanctioned drift wakes anyone up. The LLM explains; jq decides.
@@ -11,8 +11,8 @@
 # Demonstrates ·
 #   - `on_error: recover:` on the explain step · a model outage degrades the
 #     alert text, never silences the alert
-#   - `nika:json_merge_patch` · RFC 7396 — sanctioned overrides, null deletes
-#   - `nika:json_diff` · RFC 6902 patch — what ACTUALLY changed
+#   - `nika:json_merge_patch` · RFC 7396: sanctioned overrides, null deletes
+#   - `nika:json_diff` · RFC 6902 patch: what ACTUALLY changed
 #   - `nika:hash` (blake3) · provenance fingerprint in the alert
 #   - `size(...)` gate + `nika:emit` · machine event for the journal
 #
@@ -21,7 +21,7 @@ nika: v1
 workflow: config-drift-sentinel
 description: "live config vs sanctioned baseline → typed drift → explained alert"
 
-model: mock/echo            # swap for anthropic/claude-haiku-4-5 — explain is cheap
+model: ollama/llama3.2:3b   # local · zero key · swap for anthropic/claude-haiku-4-5 (explain is cheap)
 
 vars:
   config_url: "https://api.internal.example.com/v1/config"
@@ -84,7 +84,7 @@ tasks:
     depends_on: [drift]
     when: ${{ size(tasks.drift.output) > 0 }}
     on_error:
-      recover: "(explanation unavailable — model call failed · the raw patch is attached)"
+      recover: "(explanation unavailable · model call failed · the raw patch is attached)"
     infer:
       prompt: |
         This RFC 6902 patch is UNSANCTIONED config drift in production ·

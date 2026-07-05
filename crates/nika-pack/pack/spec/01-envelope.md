@@ -30,7 +30,7 @@ workflow: scrape-and-summarize          # required · kebab-case · unique withi
 description: "Fetch + summarize"         # optional · human-readable
 
 # Workflow-level default model · any task may override · <provider>/<name>
-model: ollama/llama3.1            # optional · anthropic/claude-sonnet-4-6 for cloud
+model: ollama/llama3.2:3b         # optional · anthropic/claude-sonnet-4-6 for cloud
 
 # Inputs · available as ${{ vars.<name> }} · untyped OR typed
 vars:
@@ -72,16 +72,16 @@ outputs:
 
 A workflow file is **YAML 1.2 · core schema**. Two consequences authors hit ·
 
-- **Anchors & aliases (`&x` / `*x`) are fully supported** — they are core
+- **Anchors & aliases (`&x` / `*x`) are fully supported**: they are core
   YAML · they resolve BEFORE validation (the schema sees the expanded
   document) · legitimate for de-duplicating repeated blocks (a shared
   `retry:` policy · a common `with:` shape).
-- **Merge keys (`<<:`) are NOT part of the contract** — YAML 1.2 dropped
+- **Merge keys (`<<:`) are NOT part of the contract**: YAML 1.2 dropped
   them (they were a 1.1 extension) · parser support varies · a portable
   workflow MUST NOT use them · the reference linter rejects them at check
   time (`NIKA-PARSE` · `validation_error`).
 
-(YAML 1.2 core also kills the 1.1 traps — `no` is a string, not `false` ·
+(YAML 1.2 core also kills the 1.1 traps: `no` is a string, not `false` ·
 `3:22` is a string, not sexagesimal. The quoted-duration rule of
 [03 §timeout](./03-dag.md#timeout--optional--task-level-timeout-go-duration-string)
 adds the belt to those suspenders.)
@@ -103,7 +103,7 @@ Nika workflow »; the value `v1` pins the **language contract version**.
 additions to the language (a new optional field, a new builtin) are
 **additive** and never change this value. A future `nika: v2` would be a
 deliberate breaking-change generation with its own spec, not
-backward-compatible with v1 — the language envelope is frozen, so that is
+backward-compatible with v1: the language envelope is frozen, so that is
 effectively never. (This is the **language** version, independent of any
 engine version.)
 
@@ -114,11 +114,11 @@ engine version.)
 > Kubernetes-style `apiVersion: nika.sh/v1` (the superseded ADR-021 form)
 > plus a separate `schema: nika/workflow@v1` (superseded too). That is two version-ish fields and
 > ceremony a workflow file does not need. Modern specs converge on a
-> single version marker — OpenAPI writes `openapi: 3.1.0`, Docker
+> single version marker: OpenAPI writes `openapi: 3.1.0`, Docker
 > Compose dropped its `version:` field entirely. Nika takes the
 > middle, proven path: **one field, the language name as the key, the
 > contract version as the value.** The engine's internal canonical URI
-> stays `https://nika.sh/spec/v1` for RDF / conformance tooling — but
+> stays `https://nika.sh/spec/v1` for RDF / conformance tooling, but
 > the author never types a URL.
 
 ### `workflow` · **required · kebab-case · unique within file**
@@ -130,7 +130,7 @@ workflow: scrape-and-summarize
 A stable identifier for the workflow. Kebab-case. Used in journal events,
 traces, and error messages.
 
-The presence of `workflow:` is also the **document-type discriminator** —
+The presence of `workflow:` is also the **document-type discriminator**:
 it marks this file as a workflow. Future Nika document types (if any ever
 ship) would use their own top-level key; there is no separate `kind:`
 field in v1.
@@ -149,12 +149,12 @@ listings + LSP hover hints.
 ### `model` · *optional · default model · `<provider>/<name>`*
 
 ```yaml
-model: ollama/llama3.1                  # local
+model: ollama/llama3.2:3b               # local
 # model: anthropic/claude-sonnet-4-6    # cloud · same shape
 ```
 
 Default model for any `infer:` or `agent:` verb in this workflow, as a single
-**`<provider>/<name>`** string (the LiteLLM / OpenRouter / Vercel convention —
+**`<provider>/<name>`** string (the LiteLLM / OpenRouter / Vercel convention:
 there is no separate `provider:` field). The provider prefix selects the
 backend and decides local-vs-cloud (`ollama/` · `lmstudio/` = local · the rest
 = cloud). See [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md) for the
@@ -181,10 +181,10 @@ vars:
 
 Inputs available in every task via `${{ vars.<name> }}` substitution.
 
-The **untyped form** (`name: value`) is the value's default — simplest for
+The **untyped form** (`name: value`) is the value's default, simplest for
 a workflow you run yourself. The **typed form** (`name: { type, required,
 default, description }`) lets the engine validate inputs and
-**generate a callable schema** — this is what powers `nika.run_workflow`
+**generate a callable schema**: this is what powers `nika.run_workflow`
 over MCP (a caller like an agent host sees the typed inputs and knows
 exactly what to pass) and UI generation. Simple stays simple; power is
 there when a workflow becomes a reusable, callable unit. Typed `vars:` are
@@ -192,7 +192,7 @@ the **input** half of that callable contract; typed [`outputs:`](#outputs--optio
 (below) are the **output** half.
 
 **The discriminator (normative)** · a var whose value is an **object
-carrying a string `type:` key** IS a typed declaration — `type:` must then be
+carrying a string `type:` key** IS a typed declaration: `type:` must then be
 one of the closed enum (`string` · `number` · `integer` · `boolean` · `array`
 · `object`) or the workflow is rejected (`NIKA-PARSE` · `validation_error`).
 An untyped object default that legitimately contains a `type` key
@@ -232,7 +232,7 @@ require `key:` · `file` requires `path:` · an entry with neither (or an
 inline literal value) is rejected (`NIKA-PARSE` · `validation_error`).
 
 Sensitive values available via `${{ secrets.<name> }}`. A secret is always
-a **reference to a store** — never an inline literal. The engine **masks**
+a **reference to a store**, never an inline literal. The engine **masks**
 resolved secret values in logs, traces, and journal events.
 
 **`source` · closed enum** (the only three v0.1 values) ·
@@ -245,17 +245,17 @@ resolved secret values in logs, traces, and journal events.
 
 The `env` / `secrets` split is the modern secure-workflow default: non-sensitive
 config in `env:` (appears in logs), masked references in `secrets:` (never
-logged) — note `source: env` reads a *secret* from an env var and still masks
+logged). Note `source: env` reads a *secret* from an env var and still masks
 it, which is different from the plain `env:` block.
 
 #### `egress` · *optional · sanctioned destinations (declassification)*
 
-By default, a `secrets.<name>` value reaching ANY effect — an `exec:` or
-`invoke:` sink, OR an `infer:`/`agent:` **prompt** (`prompt:` + `system:`) —
+By default, a `secrets.<name>` value reaching ANY effect, an `exec:` or
+`invoke:` sink, OR an `infer:`/`agent:` **prompt** (`prompt:` + `system:`),
 is a **blocking leak**: the engine masks its own output but cannot follow a
 secret a subprocess, a tool, or a third-party provider re-emits (`nika check`
 reports it · the workflow is refused). An `infer:`/`agent:` prompt is a
-provider-egress sink like any other — a secret in it LEAVES the run to the
+provider-egress sink like any other: a secret in it LEAVES the run to the
 provider, so it needs an explicit sanction (`egress: [{ to: "infer" }]` /
 `{ to: "agent" }`) exactly as a tool sink does.
 
@@ -264,7 +264,7 @@ response is not a verbatim echo of its prompt, so `tasks.<id>.output` of an
 `infer:`/`agent:` task is never tainted by a prompt secret (it does not
 re-leak downstream).
 
-But legitimate workflows MUST send a secret to other sinks — a webhook-URL
+But legitimate workflows MUST send a secret to other sinks: a webhook-URL
 secret to `nika:notify`, an API key in a `nika:fetch` header. The optional
 `egress:` list on a secret **sanctions** exactly those destinations · the
 author declassifies their OWN secret, in-file, statically checkable.
@@ -286,19 +286,19 @@ secrets:
 ```
 
 **Default-deny.** An absent / empty `egress:` is the current behavior,
-unchanged — NO sanctioned egress, every `exec:`/`invoke:` reach is a leak.
+unchanged: NO sanctioned egress, every `exec:`/`invoke:` reach is a leak.
 
 **Semantics (normative) · a secret→sink edge is sanctioned iff ALL hold** ·
 
 | Layer | Rule |
 |---|---|
-| **① confidentiality** | the sink's id equals an `egress[].to:` — a tool id (`nika:fetch` · `mcp:<server>/<tool>`), `exec`, or the provider-egress sinks `infer` / `agent` (an infer/agent prompt). `to:` is SPECIFIC — a clearance for `nika:fetch` never authorizes `exec` (no cross-tool laundering). |
+| **① confidentiality** | the sink's id equals an `egress[].to:`: a tool id (`nika:fetch` · `mcp:<server>/<tool>`), `exec`, or the provider-egress sinks `infer` / `agent` (an infer/agent prompt). `to:` is SPECIFIC: a clearance for `nika:fetch` never authorizes `exec` (no cross-tool laundering). |
 | **② integrity** | for a network sink, either `host:` equals the effect's **static-literal** destination host (a templated `${{ }}`-derived host does NOT sanction · it stays the runtime check), OR `host_from_self: true` AND the destination arg is **exactly** `${{ secrets.<this> }}` (not concatenated) AND **no other secret co-occurs** in the same effect payload. A sink with no addressable host (`{ to }` alone) clears this layer. |
-| **③ capability** | when a [`permits:`](#permits--optional--the-declared-capability-boundary) block is present and the host is statically known, the host MUST ALSO be in `permits.net.http` — `egress:` NARROWS the capability boundary, never widens it. `host_from_self` (host unknown statically) degrades to the runtime `permits` check. |
+| **③ capability** | when a [`permits:`](#permits--optional--the-declared-capability-boundary) block is present and the host is statically known, the host MUST ALSO be in `permits.net.http`: `egress:` NARROWS the capability boundary, never widens it. `host_from_self` (host unknown statically) degrades to the runtime `permits` check. |
 
 `to:` is required. `host:` and `host_from_self:` are mutually exclusive (a host
 is a literal you can check OR the secret itself, never both). Sanctioning the
-egress clears the **send**, not the **capture** — a sanctioned `exec:`/tool can
+egress clears the **send**, not the **capture**: a sanctioned `exec:`/tool can
 still embed the secret in its captured output, so that output stays tainted and
 re-leaks if it reaches an unsanctioned sink downstream.
 
@@ -316,7 +316,7 @@ permits:                          # the workflow's entire blast radius, declared
   tools: ["nika:read", "nika:write", "mcp:browser/*"]  # the builtin/MCP surface it may invoke
 ```
 
-`permits:` makes the **file itself the security boundary** — an auditable
+`permits:` makes the **file itself the security boundary**: an auditable
 property of the workflow, not a runtime flag. It is **optional and
 non-breaking**: a workflow with no `permits:` block runs exactly as today
 (bounded only by the engine's own SSRF + blocklist floor).
@@ -327,12 +327,12 @@ DEFAULT-DENY unless listed** ·
 | Category | When listed | When the `permits:` block is present but this category is omitted |
 |---|---|---|
 | `fs.read` / `fs.write` | only the matching path globs are allowed | **no** filesystem read / write |
-| `net.http` | only the listed hosts (globs ok) — tightens the engine SSRF floor, never loosens it | **no** outbound network |
-| `exec` | `false` = no shells · `true` = any (still blocklist-gated) · array = only those program names (argv `command[0]`) | treated as `false` — **no** `exec:` |
+| `net.http` | only the listed hosts (globs ok) · tightens the engine SSRF floor, never loosens it | **no** outbound network |
+| `exec` | `false` = no shells · `true` = any (still blocklist-gated) · array = only those program names (argv `command[0]`) | treated as `false` · **no** `exec:` |
 | `tools` | only the matching `nika:` / `mcp:` ids (globs ok) | **no** `invoke:` of any tool |
 
 So `permits: {}` is a workflow provably limited to pure compute (`infer:` +
-CEL + `nika:jq`) — zero fs, zero net, zero shell, zero tools. That property
+CEL + `nika:jq`): zero fs, zero net, zero shell, zero tools. That property
 is checkable BEFORE the run.
 
 **The engine MUST enforce `permits:` on BOTH surfaces** ·
@@ -341,7 +341,7 @@ is checkable BEFORE the run.
    `invoke:` of an unlisted tool → a **lint error** (the run is refused
    before it starts).
 2. **At runtime** · any effect escaping the declared set fails the task
-   `NIKA-SEC-004` (`security_error` · never fed back to an `agent:` model —
+   `NIKA-SEC-004` (`security_error` · never fed back to an `agent:` model:
    a capability boundary is not negotiation material). This catches the
    dynamic cases a static check cannot (a host computed at run time).
 
@@ -375,7 +375,7 @@ outputs:
     description: "The final markdown brief"
 ```
 
-`outputs:` declares **what the workflow returns** — the symmetric twin of
+`outputs:` declares **what the workflow returns**, the symmetric twin of
 `vars:` (what it takes in). Each entry is a name bound to a
 `${{ tasks.<id>.output }}` reference (or any `${{ ... }}` expression), in the
 **untyped form** (bare reference) or the **typed form**
@@ -383,12 +383,12 @@ outputs:
 
 This single block serves three consumers ·
 
-- **`nika run`** — prints this object as the workflow result (without `outputs:`,
+- **`nika run`**: prints this object as the workflow result (without `outputs:`,
   the CLI result is engine-defined and implicit).
-- **`nika.run_workflow` over MCP** — a caller (agent host · parent workflow)
+- **`nika.run_workflow` over MCP**: a caller (agent host · parent workflow)
   receives exactly this shape. Together with typed `vars:` it forms the
   **complete callable contract** · typed in, typed out.
-- **Schema generation** — typed outputs generate the *output half* of the
+- **Schema generation**: typed outputs generate the *output half* of the
   callable schema (typed `vars:` generate the input half).
 
 If `outputs:` is omitted, the workflow still runs; its result is
@@ -398,28 +398,28 @@ referenced task ids must exist (parse-time validated).
 > **`outputs:` (envelope · plural) ≠ `output:` (task · singular).** The
 > workflow-level `outputs:` is the *return contract*; the task-level `output:`
 > ([04-variables.md](./04-variables.md#output-binding--output)) defines *named
-> jq bindings* on one task. Plural-at-the-top, singular-per-task — the
+> jq bindings* on one task. Plural-at-the-top, singular-per-task: the
 > same split GitHub Actions uses for `workflow_call.outputs` vs step `outputs`.
 
 ### What leaves a run · the export contract (normative)
 
 Exactly **three** things cross the run boundary · nothing else is promised ·
 
-1. **The `outputs:` object** — when declared, a conformant engine's run
+1. **The `outputs:` object**: when declared, a conformant engine's run
    command prints it as a **single JSON object on stdout** (and returns the
    same shape over MCP). Diagnostics · progress · logs go to **stderr** ·
    never interleaved into the stdout JSON.
-2. **The exit code** — maps 1:1 to the workflow final state
+2. **The exit code**: maps 1:1 to the workflow final state
    ([05 §workflow-level semantics](./05-errors.md#workflow-level-error-semantics)) ·
    `success` → **0** · `failure` → **non-zero** · `cancelled` → **non-zero**
    (distinct from failure's code · engine-documented). Parse/validation
    rejection (the run never started) is also non-zero.
-3. **Tool side effects** — whatever the workflow's tools wrote (files ·
+3. **Tool side effects**: whatever the workflow's tools wrote (files ·
    notifications · MCP calls). The language does not track these; they are
    the workflow's business.
 
 A schema'd **machine run report** (per-task statuses · timings · costs ·
-ProofChain-compatible provenance) is deferred — see
+ProofChain-compatible provenance) is deferred: see
 [08 §Horizon postures H10](./08-out-of-scope.md#horizon-postures--the--did-you-think-of-x--table-2026-06-10) ·
 until then `nika:inspect` exposes run introspection *inside* the run, and
 the completion event (05) is the engine-side hook.
@@ -428,7 +428,7 @@ the completion event (05) is the engine-side hook.
 
 ## YAML conventions · no traps
 
-A Nika file is **YAML 1.2** (which is a strict superset of JSON — every Nika
+A Nika file is **YAML 1.2** (which is a strict superset of JSON: every Nika
 workflow can also be written as JSON). YAML 1.2 is mandated specifically to
 avoid the classic YAML 1.1 footguns that bite generated configs:
 
@@ -460,7 +460,7 @@ these files) should quote-by-default for the four ambiguous-scalar cases above.
 
 - It is NOT a place to inline credentials. Use `secrets:` with a `source` reference.
 - It is NOT a place for engine runtime config (global timeouts · concurrency limits). Those live in engine config files, out of scope of the spec.
-- It is NOT a place for imports / includes. v1 is single-file workflows. (Static composition is a candidate for a later additive minor — see [08-out-of-scope.md](./08-out-of-scope.md).)
+- It is NOT a place for imports / includes. v1 is single-file workflows. (Static composition is a candidate for a later additive minor: see [08-out-of-scope.md](./08-out-of-scope.md).)
 
 ---
 
@@ -523,9 +523,9 @@ A v0.1-compliant engine MUST ·
 3. Validate `workflow` identifier kebab-case format
 4. Make workflow-level `model`, `vars`, `env`, `secrets` available to all tasks as defaults
 5. Validate typed `vars` (type + required) before execution · reject missing required inputs
-6. Validate each typed `outputs` value against its declared `type:` at run end · a value that does not match its declared type fails the run (`NIKA-VAR-009` · `validation_error`) — the callable contract is enforced on BOTH halves (typed in via `vars`, typed out via `outputs`) · symmetric with rule 5
+6. Validate each typed `outputs` value against its declared `type:` at run end · a value that does not match its declared type fails the run (`NIKA-VAR-009` · `validation_error`): the callable contract is enforced on BOTH halves (typed in via `vars`, typed out via `outputs`) · symmetric with rule 5
 7. Mask resolved `secrets` values in all logs · traces · journal events
-8. Enforce a declared `permits:` block on both surfaces — refuse statically-detectable escapes at check time, and fail any runtime effect outside the boundary with `NIKA-SEC-004` · once `permits:` is present every category is default-deny unless listed
+8. Enforce a declared `permits:` block on both surfaces: refuse statically-detectable escapes at check time, and fail any runtime effect outside the boundary with `NIKA-SEC-004` · once `permits:` is present every category is default-deny unless listed
 
 ---
 

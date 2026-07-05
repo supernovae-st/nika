@@ -19,7 +19,7 @@ Two header lines + one task ·
 nika: v1
 workflow: hello
 
-model: anthropic/claude-haiku-4-5
+model: ollama/llama3.2:3b
 
 tasks:
   - id: greet
@@ -32,6 +32,14 @@ tasks:
 - `model:`: the default model · `<provider>/<name>` (the prefix picks the provider).
 - one task · `infer:` calls the model.
 
+> **Model note** · every step on this page runs local on
+> `ollama/llama3.2:3b` · zero key, nothing leaves your machine
+> (`ollama pull llama3.2:3b` first · or `lmstudio/…` · `llamacpp/…` ·
+> `vllm/…`). Prefer cloud? Swap the one `model:` line for any of the
+> <!-- canon:providers -->14<!-- /canon --> providers ·
+> `mistral/mistral-small` · `anthropic/claude-haiku-4-5` ·
+> `openai/gpt-5.2` · the rest of the file doesn't change.
+
 ---
 
 ## 2 · Chain two steps (a DAG)
@@ -43,7 +51,7 @@ graph · `${{ tasks.<id>.output }}` reads a prior task's result ·
 nika: v1
 workflow: summarize-and-translate
 
-model: anthropic/claude-haiku-4-5
+model: ollama/llama3.2:3b
 
 tasks:
   - id: summarize
@@ -75,7 +83,7 @@ vars:
   text: "Hello, world"
   target_lang: "French"
 
-model: anthropic/claude-haiku-4-5
+model: ollama/llama3.2:3b
 
 tasks:
   - id: translate
@@ -100,7 +108,7 @@ Everything else (fetching a URL, querying a DB, writing a file) is a
 nika: v1
 workflow: fetch-and-summarize
 
-model: anthropic/claude-haiku-4-5
+model: ollama/llama3.2:3b
 
 tasks:
   - id: fetch_page
@@ -183,15 +191,6 @@ return `NIKA-<NS>-<NNN>` codes · see [spec/05-errors.md](./spec/05-errors.md)) 
 plus the workflow's **`outputs:`** return contract (what `nika run` prints + what
 a caller receives).
 
-## Zero-cloud · local-first
-
-Swap the model prefix to run fully local · no API key, nothing leaves your
-machine ·
-
-```yaml
-model: ollama/llama3.1        # or lmstudio/... · llamacpp/... · vllm/...
-```
-
 ## Where to go next
 
 - **[spec/](./spec/)**: the full specification (~30 pages · the contract)
@@ -199,7 +198,7 @@ model: ollama/llama3.1        # or lmstudio/... · llamacpp/... · vllm/...
   skeleton (6 valid, slot-marked) instead of starting blank, the
   deterministic path agents follow ([protocol](AGENTS.md))
 - **[stdlib/](./stdlib/)**: the <!-- canon:providers -->14<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->23<!-- /canon --> builtins
-- **[examples/](./examples/)**: 7 foundation workflows (full v0.1 construct coverage · 19 more pending for GA)
+- **[examples/](./examples/)**: 7 foundation + 20 showcase workflows, all shipped and CI-gated
 - **[README.md](./README.md)**: why a language · repo layout · governance
 
 ---

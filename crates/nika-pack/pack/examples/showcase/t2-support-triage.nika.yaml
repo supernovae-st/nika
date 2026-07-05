@@ -8,7 +8,7 @@
 # webhook, the full board written to disk under a batch id.
 #
 # Demonstrates ·
-#   - `nika:uuid` · v7 batch ids — sortable, timestamped, no collisions
+#   - `nika:uuid` · v7 batch ids: sortable, timestamped, no collisions
 #   - `infer.schema:` over a LIST · classify the whole queue in one typed call
 #   - `nika:jq` post-filter · urgency slicing WITHOUT another model call
 #   - conditional `notify` · the escalation fires only when needed
@@ -18,7 +18,7 @@ nika: v1
 workflow: support-triage
 description: "Ticket queue → typed triage → urgent escalation → triage board"
 
-model: mock/echo            # swap for groq/llama-3.3-70b — triage wants speed
+model: ollama/llama3.2:3b   # local · zero key · swap for groq/llama-3.3-70b (triage wants speed)
 
 vars:
   queue_path: "./support/overnight-queue.json"

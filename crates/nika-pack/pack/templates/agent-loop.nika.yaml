@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# TEMPLATE · agent-loop — plan with a fast model, execute with a
+# TEMPLATE · agent-loop · plan with a fast model, execute with a
 # budgeted agent, validate the typed result.
 # The default shape for open-ended work (research · review · triage).
 #
@@ -14,7 +14,7 @@ nika: v1
 workflow: agent-loop-template       # SLOT: kebab-case workflow id
 description: "plan → budgeted agent → typed result"   # SLOT
 
-model: mock/echo                    # SLOT: agents want a tool-calling model
+model: ollama/llama3.2:3b           # SLOT: a tool-calling model · local by default
 
 vars:
   goal:
@@ -54,7 +54,7 @@ tasks:
       tool: "nika:assert"
       args:
         condition: "${{ size(tasks.execute.output.findings) > 0 }}"
-        message: "Agent returned no findings — do not trust an empty run"   # SLOT
+        message: "Agent returned no findings, do not trust an empty run"   # SLOT
 
 outputs:
   findings:

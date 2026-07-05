@@ -44,7 +44,7 @@ Every error is a typed structure ·
 
 ## Error code namespaces
 
-Error codes follow the format `NIKA-<NAMESPACE>-<NNN>` where namespace is 2-9 uppercase letters and NNN is a 3-digit zero-padded number. A code MAY add an **optional sub-namespace** for self-documentation · `NIKA-<NAMESPACE>-<SUB>-<NNN>` (4-segment) — used per-builtin (`NIKA-BUILTIN-WAIT-001` · each builtin owns its own 001-099) or per-field (`NIKA-PARSE-WHEN-001` · the `when:` field of a parse error). The canonical regex is `^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$` (also the `retry.on_codes` / `on_error.on_codes` validation pattern) — the sub-namespace segment admits underscores so underscore-named builtins encode cleanly (`NIKA-BUILTIN-JSON_MERGE_PATCH-001`).
+Error codes follow the format `NIKA-<NAMESPACE>-<NNN>` where namespace is 2-9 uppercase letters and NNN is a 3-digit zero-padded number. A code MAY add an **optional sub-namespace** for self-documentation · `NIKA-<NAMESPACE>-<SUB>-<NNN>` (4-segment), used per-builtin (`NIKA-BUILTIN-WAIT-001` · each builtin owns its own 001-099) or per-field (`NIKA-PARSE-WHEN-001` · the `when:` field of a parse error). The canonical regex is `^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$` (also the `retry.on_codes` / `on_error.on_codes` validation pattern). The sub-namespace segment admits underscores so underscore-named builtins encode cleanly (`NIKA-BUILTIN-JSON_MERGE_PATCH-001`).
 
 | Namespace | Scope | Reserved range |
 |---|---|---|
@@ -67,7 +67,7 @@ A v0.1-compliant engine MUST use these namespaces for the canonical categories. 
 
 ### Concrete v0.1 codes · the normative floor
 
-The codes below are **allocated** — a conformant engine emits exactly these
+The codes below are **allocated**: a conformant engine emits exactly these
 codes for these failures (it MAY add more within a namespace's range · never
 repurpose). This closes the « placeholder » gap: a second engine matches
 these from this file alone.
@@ -127,23 +127,23 @@ these from this file alone.
 
 
 `NIKA-PARSE-016` is **retired** (never reuse): the jq-binding-contains-template
-class folded into `NIKA-VAR-005` at the deep-conformance registry remap — the
+class folded into `NIKA-VAR-005` at the deep-conformance registry remap: the
 allocation hole is deliberate, per the additive-never-repurposed rule above.
 
 ### Taxonomy ownership · the spec table is normative · engines derive
 
-**This table — not any engine's source code — owns the taxonomy.** A
+**This table, not any engine's source code, owns the taxonomy.** A
 conformant engine (the Rust reference included) *derives* its error types
 from this section: every spec-relevant error it emits MUST carry a code
 matching the canonical regex, in the namespace this table assigns to the
 failure's scope, with the category semantics of §Categories. An engine MAY
 keep richer internal error machinery (the reference engine's internal
-diagnostics codes, subsystem-specific numbering, extra metadata) — internal
+diagnostics codes, subsystem-specific numbering, extra metadata). Internal
 codes are **not** spec surface and MUST NOT leak into workflow-visible
 errors (`tasks.X.error` · run reports · conformance output) in place of the
 canonical form. Two consequences ·
 
-1. **A second engine can be error-conformant from this file alone** — the
+1. **A second engine can be error-conformant from this file alone**: the
    conformance suite matches on `code` OR `namespace`+`category`
    ([07](./07-conformance.md)) · nothing requires reading the reference
    implementation.
@@ -217,7 +217,7 @@ A task MAY declare a `retry:` block. Retries apply to **transient** errors only 
 With `jitter: true` (the default) the computed delay is randomized (full-jitter
 or equal-jitter family · per AWS « exponential backoff and jitter ») so many
 tasks retrying the same upstream do not synchronize into a thundering herd.
-`on_codes` lists canonical `NIKA-<NS>-<NNN>` codes (e.g. `NIKA-BUILTIN-FETCH-001`) — not
+`on_codes` lists canonical `NIKA-<NS>-<NNN>` codes (e.g. `NIKA-BUILTIN-FETCH-001`), not
 HTTP status numbers.
 
 ### Conformance
@@ -256,10 +256,10 @@ A task MAY declare an `on_error:` block to recover from non-transient errors (or
 
 | Field | Effect | Downstream sees |
 |---|---|---|
-| `recover: <value>` | Use a recovery output — a `${{ }}` ref (e.g. another task's output) OR a literal | `status: success` · output = recover value |
-| `skip: true` | Skip this task on error · **the original error stays readable** at `tasks.X.error` (status is `skipped` · error populated — the one state where both coexist · enables downstream per-code routing) | `status: skipped` · `error` = the original typed error |
+| `recover: <value>` | Use a recovery output: a `${{ }}` ref (e.g. another task's output) OR a literal | `status: success` · output = recover value |
+| `skip: true` | Skip this task on error · **the original error stays readable** at `tasks.X.error` (status is `skipped` · error populated · the one state where both coexist · enables downstream per-code routing) | `status: skipped` · `error` = the original typed error |
 | `fail_workflow: true` | Fail the whole workflow (default behavior) | n/a (workflow fails) |
-| `on_codes: [<NIKA-…>]` | **Optional filter** (combinable with exactly one action above) · the action applies ONLY when the final error's `code` is listed · an unlisted code falls through to the default (fail) — the catch-side mirror of `retry.on_codes` (same regex) | per the action |
+| `on_codes: [<NIKA-…>]` | **Optional filter** (combinable with exactly one action above) · the action applies ONLY when the final error's `code` is listed · an unlisted code falls through to the default (fail) · the catch-side mirror of `retry.on_codes` (same regex) | per the action |
 
 `recover:` merges the former `fallback:` (ref) + `value:` (literal) into one field
 (`${{ }}` resolves to values either way · 4 modes → 3 · one way).
@@ -292,18 +292,18 @@ Resolution happens at **recovery time** ·
    itself fails → the task fails as if `on_error:` were absent.
 
 **Recovery × `output:` bindings (normative)** · when `recover:` fires, the
-recovery value **substitutes the raw output BEFORE binding extraction** —
+recovery value **substitutes the raw output BEFORE binding extraction**:
 the task's `output:` jq bindings evaluate over the recovered value exactly
 as they would over a verb response. Downstream consumers stay shape-stable
 (`tasks.X.title` works whether the live call or the fallback produced the
-data) — which is why a recovery source SHOULD match the raw output's shape.
+data), which is why a recovery source SHOULD match the raw output's shape.
 A binding that fails over the recovered shape errors as usual
 (`NIKA-VAR-002` / `NIKA-VAR-004`) · the recovery does not mask it.
 
 **Parse-time acyclicity rule (`NIKA-DAG-004` · `validation_error`)** · a
 `recover:` reference to a task that **transitively depends on the declaring
 task** is rejected at parse time. At recovery time such a task could never
-reach a terminal state (it is waiting on the failing task) — the step-3 await
+reach a terminal state (it is waiting on the failing task): the step-3 await
 would deadlock. The [03 carve-out](./03-dag.md#referencing-a-task-requires-an-explicit-depends_on)
 exempts `recover:` from *edge creation*, not from *acyclicity*.
 
@@ -346,7 +346,7 @@ The `infer:` and `agent:` verbs may declare a JSON Schema for structured output.
 
 The engine MAY auto-retry validation failures internally (transparent to the
 workflow) before surfacing the error (`NIKA-INFER-002`). This behavior is
-engine-configurable — the SAME rule as [02 §infer conformance](./02-verbs.md#conformance)
+engine-configurable: the SAME rule as [02 §infer conformance](./02-verbs.md#conformance)
 (MAY · engine choice · the two sections state one contract).
 
 ```yaml
@@ -384,7 +384,7 @@ blanket kill** ·
   whose deps can no longer all end `success`/`skipped` is `cancelled`.
 - A not-yet-started task with an **explicit `when:`** still gets its
   evaluation once its deps are terminal (`failure` and `cancelled` ARE
-  terminal) · `true` → it RUNS (this is the **always-pattern** — a final
+  terminal) · `true` → it RUNS (this is the **always-pattern**: a final
   notify/cleanup task with `when: true` runs even in a failing workflow) ·
   `false` → `skipped`.
 - The workflow's final state stays `failure` even when always-pattern tasks

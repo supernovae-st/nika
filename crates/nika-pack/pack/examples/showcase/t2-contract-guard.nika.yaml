@@ -8,7 +8,7 @@
 # validate + assert pair refuses to ship a memo built on bad data.
 #
 # Demonstrates ·
-#   - sovereignty · `model: ollama/llama3.1` — sensitive docs stay local
+#   - sovereignty · `model: ollama/llama3.2:3b`: sensitive docs stay local
 #   - `nika:validate` · re-check the extraction against a stricter schema
 #   - `nika:assert` · the fail-fast guard (vs `when:` · the skip-guard)
 #   - belt-and-braces · schema at infer time + validate + assert downstream
@@ -18,7 +18,7 @@ nika: v1
 workflow: contract-guard
 description: "Local-model clause extraction → schema gate → risk memo"
 
-model: ollama/llama3.1      # the whole review runs offline · zero cloud
+model: ollama/llama3.2:3b   # the whole review runs offline · zero cloud
 
 vars:
   contract_path:
@@ -74,7 +74,7 @@ tasks:
       tool: "nika:assert"
       args:
         condition: "${{ tasks.check.output.valid == true }}"
-        message: "Clause extraction failed the schema gate — refusing to write the memo"
+        message: "Clause extraction failed the schema gate: refusing to write the memo"
 
   - id: memo
     depends_on: [clauses, gate]

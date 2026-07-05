@@ -64,9 +64,9 @@ the workflow file.
 
 **Why snake_case, not kebab** · task ids are referenced in CEL expressions as
 `tasks.<id>.output`. In CEL (and almost every expression language) a hyphen is
-the **subtraction operator** — `tasks.research-topic.output` would parse as
+the **subtraction operator**: `tasks.research-topic.output` would parse as
 `tasks.research - topic.output`, a silent trap. Snake_case ids are always
-clean CEL identifiers. (The workflow-level `workflow:` id stays kebab-case —
+clean CEL identifiers. (The workflow-level `workflow:` id stays kebab-case:
 it is a resource name, never referenced inside an expression.)
 
 ### `depends_on` · *optional · default `[]`*
@@ -94,11 +94,11 @@ A list of task ids this task depends on. The engine MUST not start this task unt
 
 #### Expression language · a documented subset of CEL
 
-Everything inside `${{ ... }}` — both value substitution and `when:`
-conditions — is **[CEL](https://cel.dev) (Common Expression Language)**, the
+Everything inside `${{ ... }}` (both value substitution and `when:`
+conditions) is **[CEL](https://cel.dev) (Common Expression Language)**, the
 validated, non-Turing-complete, side-effect-free expression standard used by
 Kubernetes (ValidatingAdmissionPolicy), Kyverno, Envoy, and gRPC. Nika does
-**not** invent an expression DSL — it adopts the standard. (This supersedes the « custom minimal DSL » framing.)
+**not** invent an expression DSL: it adopts the standard. (This supersedes the « custom minimal DSL » framing.)
 
 **Why CEL** · it is *common* (millions of K8s users), *comprehensible*
 (reads like a boolean expression), *validated* (a published spec + multiple
@@ -119,10 +119,10 @@ literals                    true · false · 42 · 3.14 · 'str' · "str" · nul
 grouping                    ( … )
 ```
 
-`size()` (collection/string length) is the ONE function in the v0.1 subset —
+`size()` (collection/string length) is the ONE function in the v0.1 subset,
 the canonical empty/non-empty-check idiom (`size(items) > 0`). Everything else
 is **reserved** · arithmetic · CEL macros (`has()`, `all()`, `exists()`) · and
-string-manipulation functions (`startsWith`, `matches`, `contains`, …) — not in
+string-manipulation functions (`startsWith`, `matches`, `contains`, …): not in
 the v0.1 subset, addable in a later minor (CEL is a superset, so growth is
 additive and never breaking). If you need richer logic today, compute it in a
 `nika:assert` builtin or an `infer:` task.
@@ -131,7 +131,7 @@ additive and never breaking). If you need richer logic today, compute it in a
 
 Prose + examples are not re-implementable; this EBNF is. A conformant engine
 parses exactly this grammar inside `${{ }}` (it is a strict subset of
-[cel-spec](https://github.com/google/cel-spec) — any full CEL parser accepts
+[cel-spec](https://github.com/google/cel-spec): any full CEL parser accepts
 every expression below) ·
 
 ```ebnf
@@ -166,17 +166,17 @@ STRING   = /'([^'\\]|\\.)*'/ | /"([^"\\]|\\.)*"/ ;   (* escapes · \\ \' \" \n \
    (substring / prefix / suffix tests · case-sensitive · operands MUST be
    strings). `has(x)` is the presence macro · `true` iff the reference `x`
    resolves to a defined, non-`null` value (the safe way to test an optional
-   field before reading it · never raises `NIKA-VAR-001`). **No regex** —
+   field before reading it · never raises `NIKA-VAR-001`). **No regex**:
    `matches()` is reserved (ReDoS surface · a later minor). Any other call
    suffix is a parse error.
 2. **Precedence** (tightest → loosest) · postfix (`.` `[]`) → `!` → relational
    (`==` `!=` `<` `<=` `>` `>=` `in`) → `&&` → `||` → ternary (`?:`).
    Parentheses override. The ternary `cond ? a : b` requires a **boolean**
    `cond` (a non-boolean condition is `NIKA-VAR-006`) · `a` and `b` may be any
-   value and need not share a type — it is value-selection, not a relation, so
+   value and need not share a type: it is value-selection, not a relation, so
    it does NOT count against the one-relation rule.
 3. **Relations do not chain** · `rel` admits at most one `relop`
-   (non-associative) — `a == b == c` must be written `(a == b) == c` if that
+   (non-associative): `a == b == c` must be written `(a == b) == c` if that
    is really meant.
 4. **No implicit coercion** · the subset is strongly typed per CEL ·
    comparing values of different types (`42 == "42"`) is an evaluation error
@@ -194,7 +194,7 @@ STRING   = /'([^'\\]|\\.)*'/ | /"([^"\\]|\\.)*"/ ;   (* escapes · \\ \' \" \n \
    root is `NIKA-VAR-001`.
 
 The grammar is versioned (`cel-subset/0.1`) · later minors may only ADD
-productions (arithmetic · `matches()` regex · further macros) — never change
+productions (arithmetic · `matches()` regex · further macros), never change
 the meaning of an expression that parses today. The conditional `?:`, the
 `has()` macro, and the `contains`/`startsWith`/`endsWith` string tests are IN
 `cel-subset/0.1` (they are standard CEL · any full CEL parser accepts them).
@@ -213,15 +213,15 @@ when:   ${{ tasks.scan.output.contains('ERROR') }}      # branch on substring
 · `env` · `secrets`) are bound as top-level CEL variables. `tasks.<id>.status`
 etc. resolve against the live DAG state. **Inside a `for_each` task body, two
 more scoped CEL variables are bound** · `item` (the current element) and `index`
-(its 0-based position) — available ONLY within that task (the <!-- canon:namespaces -->5<!-- /canon --> namespaces are
+(its 0-based position), available ONLY within that task (the <!-- canon:namespaces -->5<!-- /canon --> namespaces are
 global · `item`/`index` are for_each-local · see `for_each` below).
 
 #### Referencing a task requires an explicit `depends_on`
 
-If a task references `tasks.<id>` inside a `${{ }}` expression — in `when:` ·
+If a task references `tasks.<id>` inside a `${{ }}` expression, in `when:` ·
 `with:` · `for_each:` · or any verb field (`prompt:` · `command:` · `args:` ·
-…) — that task **MUST** declare `<id>` in its `depends_on:`. The engine **rejects the workflow at parse
-time** otherwise (`NIKA-DAG-003` · `validation_error`) — it does **not** silently
+…), that task **MUST** declare `<id>` in its `depends_on:`. The engine **rejects the workflow at parse
+time** otherwise (`NIKA-DAG-003` · `validation_error`): it does **not** silently
 infer the edge (a verb-body reference is an edge too · no invisible edges).
 
 ```yaml
@@ -237,24 +237,24 @@ infer the edge (a verb-body reference is an edge too · no invisible edges).
   exec: { command: "./deploy.sh" }
 ```
 
-**Why explicit, not inferred** · an inferred edge is an invisible edge — it
+**Why explicit, not inferred** · an inferred edge is an invisible edge: it
 makes the DAG harder to read and lets a typo (`tasks.tset`) silently change
 ordering. Requiring the declaration keeps the graph honest: every dependency
 is visible in `depends_on`, and a dangling reference is a loud parse error, not
-a race. (This is the one rule an LLM most often gets wrong — so it fails fast.)
+a race. (This is the one rule an LLM most often gets wrong, so it fails fast.)
 
 **Two surfaces are deliberately NOT in this rule** ·
 
-- **`output:`** — its values are pure **jq** over the task's OWN raw output
+- **`output:`**: its values are pure **jq** over the task's OWN raw output
   ([04 §output binding](./04-variables.md#output-binding--output)) · they never
   contain `${{ }}` · `tasks.X` cannot legitimately appear there.
-- **`on_error:` / `on_finally:`** — a `recover:` reference reads a *fallback
+- **`on_error:` / `on_finally:`**: a `recover:` reference reads a *fallback
   source*, an `on_finally:` reads its *own parent* · neither is an
   execution-order edge ([05 §on_error](./05-errors.md#error-recovery--on_error)
   defines the recovery-time resolution semantics).
 
 **Implementation** · an engine MAY embed a CEL library (e.g. the Rust
-`cel-interpreter` crate) OR hand-roll the small v0.1 subset above — both are
+`cel-interpreter` crate) OR hand-roll the small v0.1 subset above: both are
 conformant because the subset is exactly CEL. The Core conformance suite tests
 the subset against the CEL spec.
 
@@ -287,7 +287,7 @@ case) or the **YAML boolean literal `true` / `false`** (the always/never
 pattern · `when: true` runs the task regardless of upstream outcome · see
 §Task states). Anything else is rejected.
 
-**Parse time (MUST · `NIKA-VAR-005` · `validation_error`)** — statically
+**Parse time (MUST · `NIKA-VAR-005` · `validation_error`)**: statically
 non-boolean-SHAPED roots are rejected before any execution ·
 ```yaml
 when: ${{ vars.threshold }}                    # ❌ bare reference · no relation/boolean operator
@@ -296,7 +296,7 @@ when: ${{ 'production' }}                      # ❌ bare literal
 when: "literal string"                          # ❌ neither ${{ }} nor a YAML boolean
 ```
 
-**Evaluation time (`NIKA-VAR-006` · `variable_error`)** — an expression whose
+**Evaluation time (`NIKA-VAR-006` · `variable_error`)**: an expression whose
 *shape* is boolean but whose runtime value is not (a typed comparison across
 types · a reference that resolves non-boolean through an operator the static
 pass could not see) fails when evaluated.
@@ -327,7 +327,7 @@ when: ${{ size(vars.items) > 0 }}              # collection size check
 `for_each` runs the task **once per element** of the collection. Inside the
 task body, `${{ item }}` resolves to the current element (and `${{ index }}`
 to its zero-based position). The collection is either a literal list or a
-reference to an upstream task's array output — this is the **matrix /
+reference to an upstream task's array output: this is the **matrix /
 fan-out** pattern familiar from GitHub Actions.
 
 #### ⚠️ Parallel by default
@@ -379,7 +379,7 @@ fail_fast: false                # default true · false = process all even if so
 #### Semantics (closed at v1)
 
 - **Every expression in the task body is re-evaluated PER ITERATION** with
-  `item`/`index` bound — `with:`, the verb fields (`prompt:` · `command:` ·
+  `item`/`index` bound: `with:`, the verb fields (`prompt:` · `command:` ·
   `args:` · …), `when:`, AND the `output:` bindings. (The canonical
   `with: { page: ${{ item }} }` shape above relies on this: `with:` is NOT
   evaluated once at dispatch, it is evaluated once per element.) The only
@@ -387,22 +387,22 @@ fail_fast: false                # default true · false = process all even if so
 - The task's output is the **array of per-iteration outputs**, in input
   order · referenced downstream as `${{ tasks.scrape_all.output }}`
   (an array) · `${{ tasks.scrape_all.output[0] }}` for one element.
-- **`output:` bindings apply per iteration** — each binding's jq runs over
+- **`output:` bindings apply per iteration**: each binding's jq runs over
   that iteration's raw response · downstream `tasks.X.<name>` is the
   **array of that binding's per-iteration values**, input order (so
   `tasks.X.output` = array of raw outputs · `tasks.X.title` = array of
   titles · positions align).
 - **A failed iteration contributes `null`** at its index (in `.output`
-  AND in every named binding) — positional alignment survives partial
+  AND in every named binding): positional alignment survives partial
   failure (the zip patterns stay sound). Per-iteration
   `on_error: { recover: … }` substitutes its recovery value instead.
 - **Where `.output` is observable** · the positional array is the
-  task's `.output` only when the **parent settles `success`** — i.e.
+  task's `.output` only when the **parent settles `success`**, i.e.
   every element either succeeded, was `on_error: skip`-ped (→ `null` at
   its index) or `on_error: recover`-ed (→ the recovery value). That is
   the zip-sound surface a downstream task reads. An **UNRECOVERED**
   iteration error transitions the parent to `failure` (per `fail_fast`),
-  and the failed parent's `.output` is **`null`** — NOT a partial array ·
+  and the failed parent's `.output` is **`null`**: NOT a partial array ·
   the per-iteration errors surface in the failure detail, not as output
   (a downstream task gated on the failed parent is cancelled · the
   positional array is observable only on a `success` settle). To keep the
@@ -416,13 +416,13 @@ fail_fast: false                # default true · false = process all even if so
   `for_each` over its own output. The DAG stays acyclic.
 - If the collection is empty · the task is `skipped` (status `skipped`).
 - `when:` is evaluated **once** before the fan-out · `retry:` /
-  `on_error:` / **`timeout:`** apply **per iteration** — the timeout
+  `on_error:` / **`timeout:`** apply **per iteration**: the timeout
   clock covers one element's execution including its own retries (and
   backoff sleeps · wall-clock). There is **no whole-fan-out timer** in
   v0.1 (bound total work via `max_parallel:` + the per-iteration cap).
 - `max_parallel:` + `fail_fast:` apply uniformly across all iterations.
 - `on_finally:` (see below) runs **once** after all iterations complete
-  (success OR failure) — `item` / `index` are NOT in scope there (there
+  (success OR failure): `item` / `index` are NOT in scope there (there
   is no current element after the fan-out).
 
 This is the one construct that lets a v1 workflow process a
@@ -543,12 +543,12 @@ A v0.1-compliant engine MUST ·
 
 A downstream task sees an upstream's status via `${{ tasks.task_id.status }}`.
 **Only the four terminal states are observable from expressions** (the closed
-enum of [04](./04-variables.md#-taskxoutput--task-output-reference)) —
+enum of [04](./04-variables.md#-taskxoutput--task-output-reference)):
 `pending` / `running` exist in run reports and events, never inside `${{ }}`
 (a dependent's expressions evaluate only once all its deps are terminal).
 
 **The gate.** The default `depends_on` behavior (no `when:`) is to run only
-when all deps are `success` or `skipped` — any dep ending `failure` or
+when all deps are `success` or `skipped`: any dep ending `failure` or
 `cancelled` makes the default gate unsatisfiable and the task is `cancelled`.
 An **explicit `when:`** REPLACES the default gate · it is evaluated once all
 deps are terminal, whatever their status · `true` → run (the always-pattern ·
@@ -556,7 +556,7 @@ deps are terminal, whatever their status · `true` → run (the always-pattern �
 [05 §workflow-level semantics](./05-errors.md#workflow-level-error-semantics).
 
 > **`depends_on` IS the success-gate.** Do NOT write
-> `when: ${{ tasks.X.status == 'success' }}` as a plain gate — it is **redundant**
+> `when: ${{ tasks.X.status == 'success' }}` as a plain gate: it is **redundant**
 > (`depends_on` already requires success). Use `when:` ONLY for conditions BEYOND
 > the default gate · a value check (`tasks.X.output.coverage > 80`) · an env check
 > · or to **exclude a skipped** upstream (`when: status == 'success'` is meaningful
@@ -667,12 +667,12 @@ tasks:
 
 `discover` finds N pages · `summarize` runs once per page (parallel,
 bounded) · `digest` consumes the array of all summaries. N is computed at
-runtime — no static enumeration.
+runtime: no static enumeration.
 
 ### Output shape · *no `output_format` field · shape is per-verb*
 
 There is **no `output_format` task field**. The raw output shape is determined
-**per verb** — the single source of truth is the `.output` table in
+**per verb**: the single source of truth is the `.output` table in
 [02-verbs.md](./02-verbs.md#what--tasksidoutput--holds--per-verb) ·
 
 - `infer:` → string · or the schema object when `schema:` is set
@@ -682,7 +682,7 @@ There is **no `output_format` task field**. The raw output shape is determined
 
 To **force JSON validation** of a raw output, use the per-verb mechanism that
 already owns it (`infer`/`agent` `schema:` · `exec` `capture: structured`) or
-the `nika:validate` builtin — never a duplicate task-level type enum (a single
+the `nika:validate` builtin, never a duplicate task-level type enum (a single
 source of truth · Rams 4 understandable). A `output_format` field was drafted
 in pre-public hardening and **removed** · it duplicated `capture`/`schema` and
 its default table had drifted out of sync with 02-verbs (the very drift a
@@ -721,10 +721,10 @@ completes · REGARDLESS of outcome (success · failure · timeout · cancel).
   per cleanup task via `timeout:` field).
 - **Failed parent task's `on_finally:` runs BEFORE** the error propagates
   upward in the DAG (gives cleanup a chance to undo side effects).
-- **Engine MUST execute** `on_finally:` on cancel (Ctrl+C) and timeout —
+- **Engine MUST execute** `on_finally:` on cancel (Ctrl+C) and timeout,
   for a task that **started**. A task that never ran (`skipped` gate ·
   cancelled-before-start) runs NO `on_finally:` (there is nothing to clean
-  up) — a record that must land on EVERY outcome is a **terminal
+  up). A record that must land on EVERY outcome is a **terminal
   `when: true` task** (the always-pattern · §Task states), not a cleanup
   hook.
 - **Engine MAY skip** `on_finally:` only if the workflow process itself
@@ -759,18 +759,18 @@ on_finally:
 ## One obvious way · control-flow preference rules (normative for lints)
 
 Several intents are *expressible* two ways; the spec names ONE as canonical.
-These rules are informative for authors and **normative for linters** — a
+These rules are informative for authors and **normative for linters**: a
 conformant linter (the reference `one-obvious-way` rule set) warns on the
 discouraged form ·
 
 | Intent | ✅ The one way | ❌ Discouraged · why |
 |---|---|---|
-| « run B only if A succeeded » | `depends_on: [a]` alone — success-gating is the **default edge semantic** (a failed dependency cancels dependents · §Task states) | `depends_on: [a]` + `when: ${{ tasks.a.status == 'success' }}` — redundant restatement of the default |
-| « run B even if A failed » | an explicit `when:` (it replaces the default gate · §Task states « to run regardless ») — `when: ${{ tasks.a.status in ['success','failure'] }}` reads the intent precisely | encoding it via `on_error: { skip: true }` on A — that changes A's contract for B's benefit |
-| « retry on transient failure » | `retry:` — the ONE retry shape (`max_attempts` · `backoff_*` · `on_codes`) | a `when:`-guarded duplicate task · a self-referencing recovery chain |
-| « provide a fallback value » | `on_error: { recover: … }` — the route stays *in the failing task* | a second task `when: ${{ tasks.a.status == 'failure' }}` for a mere value — use a task only when real *work* runs on failure |
+| « run B only if A succeeded » | `depends_on: [a]` alone · success-gating is the **default edge semantic** (a failed dependency cancels dependents · §Task states) | `depends_on: [a]` + `when: ${{ tasks.a.status == 'success' }}` · redundant restatement of the default |
+| « run B even if A failed » | an explicit `when:` (it replaces the default gate · §Task states « to run regardless ») · `when: ${{ tasks.a.status in ['success','failure'] }}` reads the intent precisely | encoding it via `on_error: { skip: true }` on A · that changes A's contract for B's benefit |
+| « retry on transient failure » | `retry:` · the ONE retry shape (`max_attempts` · `backoff_*` · `on_codes`) | a `when:`-guarded duplicate task · a self-referencing recovery chain |
+| « provide a fallback value » | `on_error: { recover: … }` · the route stays *in the failing task* | a second task `when: ${{ tasks.a.status == 'failure' }}` for a mere value · use a task only when real *work* runs on failure |
 | « cleanup that always runs » | `on_finally:` | a terminal task depending on everything with a permissive `when:` |
-| « time-bound an iteration » | `timeout:` on the `for_each` task — it applies **per iteration** (§for_each semantics) | per-element timing tricks inside the body · a whole-fan-out timer (none exists in v0.1) |
+| « time-bound an iteration » | `timeout:` on the `for_each` task · it applies **per iteration** (§for_each semantics) | per-element timing tricks inside the body · a whole-fan-out timer (none exists in v0.1) |
 | « cap fan-out concurrency » | `max_parallel:` | manual sharding into N sequential tasks |
 
 The dividing line, stated once · **`when:` reads state to decide *whether* a
@@ -778,7 +778,7 @@ task runs · `on_error:`/`retry:` decide *what happens inside* a task's own
 failure · `depends_on` is pure ordering.** A construct that restates another
 construct's default is noise; a construct that smuggles another's job is a
 trap. The reference validator ships these as warnings (`one-obvious-way/001`
-…`/007` · table order) — never hard errors (the discouraged forms are legal ·
+…`/007` · table order), never hard errors (the discouraged forms are legal ·
 just not canonical).
 
 ## Forward-compat

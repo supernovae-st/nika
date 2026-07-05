@@ -62,7 +62,7 @@ invoke:
 
 **Behavior** · extracts the main article body · stripping navigation · sidebars · ads · share widgets · related-post blocks · comments. Page-type aware: on forum/discussion pages the posts and replies ARE the content (kept, not pruned).
 
-**Implementation** · reference engine runs a three-stage cascade (the failure modes are decorrelated, so the cascade beats any single extractor): (1) a Trafilatura-grade rule cascade — zone targeting (the semantic content container) + a boilerplate prune denylist, the 2024-2026 SOTA for main-content extraction; (2) a Readability pass (`dom_smoothie`) for markup-poor pages; (3) a Boilerpipe shallow-text-density floor for div-soup pages. The earlier stage wins when it yields a substantial body, else the next fires.
+**Implementation** · reference engine runs a three-stage cascade (the failure modes are decorrelated, so the cascade beats any single extractor): (1) a Trafilatura-grade rule cascade: zone targeting (the semantic content container) + a boilerplate prune denylist, the 2024-2026 SOTA for main-content extraction; (2) a Readability pass (`dom_smoothie`) for markup-poor pages; (3) a Boilerpipe shallow-text-density floor for div-soup pages. The earlier stage wins when it yields a substantial body, else the next fires.
 
 **Output** · Markdown string · article body only.
 
@@ -116,17 +116,17 @@ invoke:
     jq: "[.data.users[].email]"
 ```
 
-**Behavior** · parses response as JSON · applies the jq expression · returns the result. The SAME jq language used in `output:` bindings and the `nika:jq` builtin — Nika has ONE data language (replaces the former JSONPath mode · jq is a superset of JSONPath). **The exactly-one-output law applies** (same engine · same law as `nika:jq` per [04 §bindings](../spec/04-variables.md)) · an expression producing 0 or N outputs is `NIKA-BUILTIN-FETCH-001` — wrap streams in `[…]` to collect.
+**Behavior** · parses response as JSON · applies the jq expression · returns the result. The SAME jq language used in `output:` bindings and the `nika:jq` builtin: Nika has ONE data language (replaces the former JSONPath mode · jq is a superset of JSONPath). **The exactly-one-output law applies** (same engine · same law as `nika:jq` per [04 §bindings](../spec/04-variables.md)) · an expression producing 0 or N outputs is `NIKA-BUILTIN-FETCH-001` (wrap streams in `[…]` to collect).
 
 **Implementation** · reference engine uses `jaq` (Rust jq).
 
 **Output** · JSON value (string · array · object).
 
 **Examples** ·
-- `.` — whole response
-- `.data.users[0]` — first user
-- `[.data.users[].name]` — all user names (collected · one array)
-- `[.. | .price?] | map(select(. != null))` — all prices recursively
+- `.`, whole response
+- `.data.users[0]`, first user
+- `[.data.users[].name]`, all user names (collected · one array)
+- `[.. | .price?] | map(select(. != null))`, all prices recursively
 
 ---
 
@@ -140,7 +140,7 @@ invoke:
     mode: metadata
 ```
 
-**Behavior** · walks the HTML head + the embedded structured data. Returns a structured object. `og`/`twitter` are ALWAYS objects (stable shape); scalar keys are omitted when absent. `title`/`description` fall back to the `og:`/`twitter:` equivalents when the `<title>`/`<meta name=description>` is missing (common on SPAs). The URL-valued `og:image`/`og:url`/`twitter:image` are resolved to absolute against the effective base (like `canonical`). Beyond the `<meta>` tags it surfaces the two embedded-structured-data carriers: `jsonld` (schema.org `<script type=ld+json>` blocks, parsed) and `microdata` (schema.org `itemscope`/`itemprop` items, the W3C item model) — schema-agnostic, for a downstream `jq` step to walk.
+**Behavior** · walks the HTML head + the embedded structured data. Returns a structured object. `og`/`twitter` are ALWAYS objects (stable shape); scalar keys are omitted when absent. `title`/`description` fall back to the `og:`/`twitter:` equivalents when the `<title>`/`<meta name=description>` is missing (common on SPAs). The URL-valued `og:image`/`og:url`/`twitter:image` are resolved to absolute against the effective base (like `canonical`). Beyond the `<meta>` tags it surfaces the two embedded-structured-data carriers: `jsonld` (schema.org `<script type=ld+json>` blocks, parsed) and `microdata` (schema.org `itemscope`/`itemprop` items, the W3C item model). Both are schema-agnostic, for a downstream `jq` step to walk.
 
 **Output** ·
 ```json
@@ -179,7 +179,7 @@ invoke:
     mode: links
 ```
 
-**Behavior** · extracts all `<a href>` URLs. Resolves relative to absolute against the document's effective base — a `<base href>` element when present (WHATWG), else the fetch URL.
+**Behavior** · extracts all `<a href>` URLs. Resolves relative to absolute against the document's effective base: a `<base href>` element when present (WHATWG), else the fetch URL.
 
 **Output** · array of strings ·
 ```json
@@ -193,7 +193,7 @@ invoke:
 **Use case** · crawler · link analysis · sitemap building.
 
 **Combining metadata + links** · two tasks on the same URL (the canon
-set is CLOSED at v0.1 — a combined `metadata-links` mode is a stdlib
+set is CLOSED at v0.1: a combined `metadata-links` mode is a stdlib
 v0.x candidate, rejected today like `llm-txt`).
 
 ---
@@ -208,7 +208,7 @@ invoke:
     mode: feed
 ```
 
-**Behavior** · parses RSS · Atom · or JSON Feed. Returns normalized structure. Each item carries the short `summary` blurb AND, when present, the full `content` body (RSS `<content:encoded>` · Atom `<content>` · JSON Feed `content_html`) — `content` is the field for full-text pipelines. Items also carry `media` (attached audio/video — RSS `<enclosure>` + MediaRSS `<media:content>` — for podcast/video feeds). Fields absent from the source are omitted (absence over null · stable shape).
+**Behavior** · parses RSS · Atom · or JSON Feed. Returns normalized structure. Each item carries the short `summary` blurb AND, when present, the full `content` body (RSS `<content:encoded>` · Atom `<content>` · JSON Feed `content_html`): `content` is the field for full-text pipelines. Items also carry `media` (attached audio/video, RSS `<enclosure>` + MediaRSS `<media:content>`, for podcast/video feeds). Fields absent from the source are omitted (absence over null · stable shape).
 
 **Implementation** · reference engine uses `feed-rs`.
 
@@ -264,7 +264,7 @@ invoke:
 ### `llm-txt` · RESERVED (not a v0.1 mode)
 
 A future mode parsing the `llms.txt` convention (LLM-friendly site
-descriptions). **NOT in the v0.1 canonical set** — `mode: llm-txt` is
+descriptions). **NOT in the v0.1 canonical set**: `mode: llm-txt` is
 rejected today (the canon list of 9 is closed · the conformance oracle
 enforces it). Until it stabilizes (stdlib v0.2 candidate) · fetch with
 `mode: text` and parse with `nika:jq` / an `infer:` step.
