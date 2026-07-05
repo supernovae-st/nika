@@ -52,6 +52,22 @@ impl WireFormat {
     pub fn supports_response_format(self) -> bool {
         matches!(self, Self::OpenAiCompat | Self::Mock | Self::Gemini)
     }
+
+    /// Whether this wire family's STRICT structured mode rejects an
+    /// UNDERSPECIFIED schema — an object without `properties` or an
+    /// array without `items` anywhere in the tree (F2 · ADR-098).
+    ///
+    /// The real strict modes do: `OpenAI`'s `json_schema`+`strict` 400s
+    /// on exactly this class (the whole family is treated as its peer),
+    /// and gemini's `responseSchema` `OpenAPI` subset carries its own
+    /// rejection surface — callers fall back to the native JSON mode + LOCAL
+    /// validation there. `Mock` SYNTHESIZES a conformant instance from
+    /// ANY schema (F3 · the offline-CI base) and `Anthropic` has no
+    /// native mode at all (instruction fallback) — neither rejects.
+    #[must_use]
+    pub fn strict_rejects_underspecified(self) -> bool {
+        matches!(self, Self::OpenAiCompat | Self::Gemini)
+    }
 }
 
 /// One canonical provider profile.

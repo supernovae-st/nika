@@ -197,6 +197,12 @@ fn the_live_lane_paints_one_clean_frame_when_piped() {
         !stdout.contains('\x1b'),
         "piped (non-TTY) leaks no cursor escapes: {stdout:?}"
     );
+    // The sober register stays sober: the TTY-only flow epilogue (the
+    // waterfall chart + outputs pointer) never reaches a piped capture.
+    assert!(
+        !stdout.contains("\n  0s ") && !stdout.contains("outputs →"),
+        "piped (non-TTY) carries no waterfall/epilogue art: {stdout:?}"
+    );
 }
 
 // `examples run` EXECUTES (no longer refuses). 01-hello infers against

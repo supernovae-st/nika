@@ -48,6 +48,34 @@ pub struct TaskRow {
     pub note: String,
     /// Failure detail (`detail` field) — feeds the failure card.
     pub detail: String,
+    /// `task_started` stamp (unix ms) — feeds the live elapsed readout.
+    pub started_ms: Option<i64>,
+    /// Terminal stamp (unix ms) — completion · failure · skip · cancel.
+    pub ended_ms: Option<i64>,
+    /// The runtime-measured `duration_ms` field (the REAL wall time —
+    /// event stamps are settle-time, this one is measured at dispatch).
+    pub duration_ms: Option<u64>,
+    /// Per-task spend (`cost_usd` on the terminal frame).
+    pub cost_usd: Option<f64>,
+    /// The model an inference note named (`infer · <model>` / `agent ·
+    /// <model>` — the runtime's note vocabulary), kept once seen: the
+    /// terminal note overwrites `note`, this survives for the verdict
+    /// surface.
+    pub model: Option<String>,
+}
+
+impl TaskRow {
+    /// The task's best-known wall duration: the runtime-measured
+    /// `duration_ms` when the stream carried it, else the stamp span.
+    /// `None` for a task that never reached a terminal state.
+    #[must_use]
+    pub fn wall_ms(&self) -> Option<u64> {
+        if let Some(d) = self.duration_ms {
+            return Some(d);
+        }
+        let (start, end) = (self.started_ms?, self.ended_ms?);
+        u64::try_from(end.saturating_sub(start)).ok()
+    }
 }
 
 /// The folded view of one run — everything a frame needs, nothing more.
@@ -70,7 +98,13 @@ pub struct RunView {
     pub workflow_detail: Option<String>,
     /// Wall-clock span folded from event timestamps (ms).
     pub elapsed_ms: u64,
+    /// Retry attempts observed across the run (`task_retrying` count).
+    pub retries: u32,
     first_ts_ms: Option<i64>,
+    last_ts_ms: Option<i64>,
+    /// The static wave plan (task ids per wave · from the check report) —
+    /// side information the run verb injects; the fold never derives it.
+    plan_waves: Option<Vec<Vec<String>>>,
     rows: Vec<TaskRow>,
     index: BTreeMap<String, usize>,
 }
@@ -86,6 +120,27 @@ impl RunView {
     #[must_use]
     pub fn rows(&self) -> &[TaskRow] {
         &self.rows
+    }
+
+    /// The latest event stamp folded so far (unix ms) — "now" as the
+    /// stream knows it (feeds the running row's live elapsed).
+    #[must_use]
+    pub fn last_ts_ms(&self) -> Option<i64> {
+        self.last_ts_ms
+    }
+
+    /// Inject the static wave plan (task ids per wave · from the check
+    /// report). Side information for the lane markers + the DAG-shape
+    /// glyph — a replayed trace without it falls back to interval
+    /// reconstruction.
+    pub fn set_plan(&mut self, waves: Vec<Vec<String>>) {
+        self.plan_waves = Some(waves);
+    }
+
+    /// The injected wave plan, when the caller provided one.
+    #[must_use]
+    pub fn plan(&self) -> Option<&[Vec<String>]> {
+        self.plan_waves.as_deref()
     }
 
     /// How many rows reached a terminal state.
@@ -106,6 +161,7 @@ impl RunView {
     pub fn apply(&mut self, event: &Event) {
         let ts = event.timestamp.unix_ms();
         let first = *self.first_ts_ms.get_or_insert(ts);
+        self.last_ts_ms = Some(ts);
         self.elapsed_ms = u64::try_from(ts.saturating_sub(first)).unwrap_or(0);
 
         match event.kind {
@@ -116,24 +172,49 @@ impl RunView {
                 self.ceiling_usd = float_field(event, "ceiling_usd");
                 self.permits = str_field(event, "permits").map(str::to_owned);
             }
-            EventKind::TaskScheduled => self.touch(event, TaskState::Pending),
-            EventKind::TaskStarted => self.touch(event, TaskState::Running),
+            EventKind::TaskScheduled => {
+                self.touch(event, TaskState::Pending);
+            }
+            EventKind::TaskStarted => {
+                if let Some(i) = self.touch(event, TaskState::Running) {
+                    self.rows[i].started_ms = Some(ts);
+                }
+            }
             EventKind::TaskCompleted => {
-                self.touch(event, TaskState::Ok);
-                if let Some(usd) = float_field(event, "cost_usd") {
+                let usd = float_field(event, "cost_usd");
+                if let Some(i) = self.touch(event, TaskState::Ok) {
+                    self.stamp_terminal(i, ts, event, usd);
+                }
+                if let Some(usd) = usd {
                     self.cost_usd += usd;
                 }
                 if let Some(tokens) = int_field(event, "tokens") {
                     self.token_samples.push(u64::try_from(tokens).unwrap_or(0));
                 }
             }
-            EventKind::TaskFailed => self.touch(event, TaskState::Failed),
-            EventKind::TaskSkipped => self.touch(event, TaskState::Skipped),
+            EventKind::TaskFailed => {
+                let usd = float_field(event, "cost_usd");
+                if let Some(i) = self.touch(event, TaskState::Failed) {
+                    self.stamp_terminal(i, ts, event, usd);
+                }
+            }
+            EventKind::TaskSkipped => {
+                if let Some(i) = self.touch(event, TaskState::Skipped) {
+                    self.rows[i].ended_ms = Some(ts);
+                }
+            }
             // §3.1 `↻` — the attempt failed · the TASK has not · the row
             // holds yellow until the terminal frame replaces it.
-            EventKind::TaskRetrying => self.touch(event, TaskState::Retrying),
+            EventKind::TaskRetrying => {
+                self.retries = self.retries.saturating_add(1);
+                self.touch(event, TaskState::Retrying);
+            }
             // §3.1 `◼` — a decision, not a defect (dim · never red).
-            EventKind::TaskCancelled => self.touch(event, TaskState::Cancelled),
+            EventKind::TaskCancelled => {
+                if let Some(i) = self.touch(event, TaskState::Cancelled) {
+                    self.rows[i].ended_ms = Some(ts);
+                }
+            }
             EventKind::WorkflowCompleted => self.verdict = Some(true),
             EventKind::WorkflowFailed => {
                 self.verdict = Some(false);
@@ -148,10 +229,24 @@ impl RunView {
         }
     }
 
+    /// Stamp a ran-to-terminal row (completed · failed): the end stamp,
+    /// the runtime-measured duration, the per-task spend.
+    fn stamp_terminal(&mut self, i: usize, ts: i64, event: &Event, usd: Option<f64>) {
+        let row = &mut self.rows[i];
+        row.ended_ms = Some(ts);
+        if let Some(d) = int_field(event, "duration_ms") {
+            row.duration_ms = u64::try_from(d).ok();
+        }
+        if usd.is_some() {
+            row.cost_usd = usd;
+        }
+    }
+
     /// Upsert the row a task event addresses, updating state + notes.
-    fn touch(&mut self, event: &Event, state: TaskState) {
+    /// Returns the row index so the caller can stamp kind-specific facts.
+    fn touch(&mut self, event: &Event, state: TaskState) -> Option<usize> {
         let Some(task_id) = str_field(event, "task") else {
-            return; // a task event without a task field renders nothing
+            return None; // a task event without a task field renders nothing
         };
         let idx = if let Some(&i) = self.index.get(task_id) {
             i
@@ -161,6 +256,11 @@ impl RunView {
                 state: TaskState::Pending,
                 note: String::new(),
                 detail: String::new(),
+                started_ms: None,
+                ended_ms: None,
+                duration_ms: None,
+                cost_usd: None,
+                model: None,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);
@@ -169,11 +269,23 @@ impl RunView {
         let row = &mut self.rows[idx];
         row.state = state;
         if let Some(note) = str_field(event, "note") {
+            // The runtime's inference notes name the model (`infer ·
+            // <model>`) — keep it once seen: the terminal note replaces
+            // `note`, the verdict surface still wants the model.
+            let model = note
+                .strip_prefix("infer · ")
+                .or_else(|| note.strip_prefix("agent · "));
+            if let Some(m) = model
+                && !m.is_empty()
+            {
+                row.model = Some(m.to_owned());
+            }
             note.clone_into(&mut row.note);
         }
         if let Some(detail) = str_field(event, "detail") {
             detail.clone_into(&mut row.detail);
         }
+        Some(idx)
     }
 }
 
@@ -318,5 +430,53 @@ mod tests {
         let ev = demo::bare_event(EventKind::TaskStarted, 100);
         view.apply(&ev);
         assert!(view.rows().is_empty());
+    }
+
+    /// Terminal rows stamp start/end + spend, and the runtime-measured
+    /// `duration_ms` field WINS over the stamp span (stamps are settle-
+    /// time; the measurement is the wall truth).
+    #[test]
+    fn terminal_rows_stamp_time_and_spend() {
+        use nika_types::resource::{KeyValue, Value};
+
+        let mut view = RunView::new();
+        for ev in demo::success() {
+            view.apply(&ev);
+        }
+        let fetch = &view.rows()[0];
+        assert_eq!(fetch.started_ms, Some(20));
+        assert_eq!(fetch.ended_ms, Some(1200));
+        assert_eq!(fetch.wall_ms(), Some(1180), "stamp-span fallback");
+        let summarize = view
+            .rows()
+            .iter()
+            .find(|r| r.id == "summarize")
+            .expect("row");
+        assert_eq!(summarize.cost_usd, Some(0.011), "per-task spend rides");
+
+        // An explicit duration_ms field wins over the (settle-time) span.
+        let mut measured = RunView::new();
+        let task = || KeyValue::new("task", Value::String("t".to_owned()));
+        measured.apply(&demo::bare_event(EventKind::TaskStarted, 0).with_field(task()));
+        measured.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 5000)
+                .with_field(task())
+                .with_field(KeyValue::new("duration_ms", Value::Int(40))),
+        );
+        assert_eq!(measured.rows()[0].wall_ms(), Some(40), "measured wins");
+        assert_eq!(measured.last_ts_ms(), Some(5000), "now = latest stamp");
+    }
+
+    /// The retry counter folds every `task_retrying` frame (feeds the
+    /// verdict surface's `N retries`).
+    #[test]
+    fn retrying_frames_count_toward_the_retry_total() {
+        let mut view = RunView::new();
+        for ev in demo::retrying() {
+            view.apply(&ev);
+        }
+        assert_eq!(view.retries, 1);
+        let fresh = RunView::new();
+        assert_eq!(fresh.retries, 0);
     }
 }

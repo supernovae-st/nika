@@ -17,11 +17,14 @@
 //!   [`nika_kernel::ai::provider::InferRequest`] from already-resolved
 //!   task fields (`${{ }}` CEL binding happens upstream).
 //! - **Structured output floor** — when the task carries a `schema:`,
-//!   injects `ResponseFormat::JsonSchema` (instruction fallback for
-//!   profiles without native support), extracts a JSON candidate from the
-//!   reply, validates, and retries within a bounded budget
-//!   (spec-sanctioned: « MAY auto-retry validation before emitting
-//!   NIKA-INFER-002 »).
+//!   picks the wire per the internal `SchemaWire` decision: fully-specified
+//!   schemas forward as
+//!   `ResponseFormat::JsonSchema`; an UNDERSPECIFIED schema on a strict
+//!   wire falls back to the provider's native JSON mode + LOCAL validation
+//!   (F2 · ADR-098); profiles without native support get the instruction
+//!   fallback. In every path the reply is extracted, validated locally,
+//!   and retried within a bounded budget (spec-sanctioned: « MAY
+//!   auto-retry validation before emitting NIKA-INFER-002 »).
 //!
 //! ## Fences (what this crate is NOT)
 //!
@@ -218,15 +221,19 @@ where
                     model: model.to_owned(),
                     source,
                 })?;
-        let native_schema = provider.supports_response_format();
+        let wire = schema_wire(
+            &input,
+            provider.supports_response_format(),
+            provider.strict_schema_rejects_underspecified(),
+        );
 
-        let mut messages = base_messages(&input, native_schema);
+        let mut messages = base_messages(&input, wire);
         // u32 counter: a u8 would saturate at budget = u8::MAX and loop
         // forever on paid calls (review lens 1 · P1).
         let mut attempts: u32 = 0;
         loop {
             attempts += 1;
-            let request = build_request(&input, provider.name(), messages.clone(), native_schema);
+            let request = build_request(&input, provider.name(), messages.clone(), wire);
             let response = provider
                 .infer(request)
                 .await
@@ -284,16 +291,51 @@ fn validate_params(input: &InferInput) -> Result<(), VerbInferError> {
     Ok(())
 }
 
+/// How the task `schema:` reaches the provider wire (F2 · ADR-098).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SchemaWire {
+    /// No `schema:` on the task — plain text.
+    None,
+    /// Fully-specified schema on a wire with native structured support —
+    /// forward verbatim as `ResponseFormat::JsonSchema` (today's path).
+    Strict,
+    /// UNDERSPECIFIED schema (an object without `properties` · an array
+    /// without `items` anywhere in the tree) on a strict wire that would
+    /// 400 on it — request the provider's native JSON mode instead, put
+    /// the schema instruction in the prompt, validate LOCALLY.
+    JsonMode,
+    /// No native support on this wire at all — instruction-only prompt
+    /// (+ the lenient extraction strips prose/code fences), local
+    /// validation as everywhere.
+    Instruction,
+}
+
+/// Pick the schema wire once per run — the F2 decision, made from the
+/// resolved provider's two capability answers.
+fn schema_wire(input: &InferInput, native: bool, strict_rejects: bool) -> SchemaWire {
+    let Some(schema) = &input.schema else {
+        return SchemaWire::None;
+    };
+    if !native {
+        return SchemaWire::Instruction;
+    }
+    if strict_rejects && structured::is_underspecified(schema) {
+        return SchemaWire::JsonMode;
+    }
+    SchemaWire::Strict
+}
+
 /// The opening conversation: optional system, then the user prompt (with
-/// the schema instruction appended when the profile lacks native
-/// `response_format` support).
-fn base_messages(input: &InferInput, native_schema: bool) -> Vec<Message> {
+/// the schema instruction appended whenever the schema does NOT travel
+/// natively as `JsonSchema` — the JSON-mode and instruction fallbacks
+/// both steer the model through the prompt).
+fn base_messages(input: &InferInput, wire: SchemaWire) -> Vec<Message> {
     let mut messages = Vec::with_capacity(2);
     if let Some(system) = &input.system {
         messages.push(Message::text(Role::System, system.clone()));
     }
-    let prompt = match (&input.schema, native_schema) {
-        (Some(schema), false) => format!(
+    let prompt = match (&input.schema, wire) {
+        (Some(schema), SchemaWire::JsonMode | SchemaWire::Instruction) => format!(
             "{prompt}\n\nReply with ONLY a JSON value that satisfies this \
              JSON Schema, no prose, no code fences:\n{rendered}",
             prompt = input.prompt,
@@ -310,7 +352,7 @@ fn build_request(
     input: &InferInput,
     wire_model: &str,
     messages: Vec<Message>,
-    native_schema: bool,
+    wire: SchemaWire,
 ) -> InferRequest {
     let mut request = InferRequest::new(wire_model, messages);
     request.temperature = input.temperature;
@@ -320,10 +362,16 @@ fn build_request(
     // retries included) — the OUTER attempt-loop budget still enforces
     // the real total; this only stops the transport from undercutting it.
     request.timeout = input.timeout;
-    if let Some(schema) = &input.schema
-        && native_schema
-    {
-        request.response_format = ResponseFormat::JsonSchema(schema.clone());
+    match (&input.schema, wire) {
+        (Some(schema), SchemaWire::Strict) => {
+            request.response_format = ResponseFormat::JsonSchema(schema.clone());
+        }
+        // The F2 fallback: ask for JSON (which the wire CAN promise) ·
+        // the user schema is enforced by the LOCAL validation layer.
+        (Some(_), SchemaWire::JsonMode) => {
+            request.response_format = ResponseFormat::Json;
+        }
+        _ => {}
     }
     request
 }
@@ -560,24 +608,56 @@ mod tests {
     fn system_prompt_lands_first() {
         let mut input = InferInput::new("question");
         input.system = Some("you are terse".to_owned());
-        let messages = base_messages(&input, true);
+        let messages = base_messages(&input, SchemaWire::None);
         assert_eq!(messages.len(), 2);
         assert!(matches!(messages[0].role, Role::System));
         assert!(matches!(messages[1].role, Role::User));
     }
 
     #[test]
-    fn instruction_fallback_only_without_native_support() {
+    fn instruction_rides_the_prompt_on_both_fallback_wires() {
         let mut input = InferInput::new("question");
         input.schema = Some(json!({ "type": "object" }));
-        let native = base_messages(&input, true);
-        let fallback = base_messages(&input, false);
         let text_of = |m: &Message| match &m.content[0] {
             ContentBlock::Text { text } => text.clone(),
             _ => String::new(),
         };
+        // Strict: the schema travels natively — the prompt stays clean.
+        let native = base_messages(&input, SchemaWire::Strict);
         assert_eq!(text_of(&native[0]), "question");
-        assert!(text_of(&fallback[0]).contains("JSON Schema"));
+        // Both fallbacks steer through the prompt (JSON mode only promises
+        // JSON, not the shape; instruction-only promises nothing).
+        for wire in [SchemaWire::JsonMode, SchemaWire::Instruction] {
+            let fallback = base_messages(&input, wire);
+            assert!(text_of(&fallback[0]).contains("JSON Schema"), "{wire:?}");
+        }
+    }
+
+    // ── F2 · the schema-wire decision (ADR-098) ──────────────────────
+
+    /// The decision table: underspecified + strict wire → JSON mode;
+    /// fully-specified keeps today's strict path; no native support →
+    /// instruction; no schema → none.
+    #[test]
+    fn schema_wire_decision_table() {
+        let plain = InferInput::new("q");
+        assert_eq!(schema_wire(&plain, true, true), SchemaWire::None);
+
+        let mut under = InferInput::new("q");
+        under.schema = Some(json!({ "type": "object" }));
+        assert_eq!(schema_wire(&under, true, true), SchemaWire::JsonMode);
+        // A wire whose strict mode accepts anything (mock) keeps Strict —
+        // the F3 offline synthesis depends on receiving the schema.
+        assert_eq!(schema_wire(&under, true, false), SchemaWire::Strict);
+        assert_eq!(schema_wire(&under, false, false), SchemaWire::Instruction);
+
+        let mut full = InferInput::new("q");
+        full.schema = Some(json!({
+            "type": "object",
+            "properties": { "name": { "type": "string" } },
+            "required": ["name"]
+        }));
+        assert_eq!(schema_wire(&full, true, true), SchemaWire::Strict);
     }
 
     /// Gate 10 PARITY — pins the request-shaping behaviors the brouillon
@@ -592,7 +672,7 @@ mod tests {
         input.system = Some("You are terse.".to_owned());
         input.temperature = Some(0.3);
         input.max_tokens = Some(128);
-        let messages = base_messages(&input, true);
+        let messages = base_messages(&input, SchemaWire::None);
         // Brouillon shape: [System, User] · prompt verbatim · single block.
         assert_eq!(messages.len(), 2);
         assert!(matches!(messages[0].role, Role::System));
@@ -601,7 +681,7 @@ mod tests {
             &messages[1].content[0],
             ContentBlock::Text { text } if text == "What is the capital of France?"
         ));
-        let req = build_request(&input, "echo", messages, true);
+        let req = build_request(&input, "echo", messages, SchemaWire::None);
         assert_eq!(req.temperature, Some(0.3));
         assert_eq!(req.max_tokens, Some(128));
         // End-to-end on the deterministic mock: echo carries the prompt,
@@ -624,26 +704,205 @@ mod tests {
         let budget = std::time::Duration::from_secs(420);
         let mut input = InferInput::new("q");
         input.timeout = Some(budget);
-        let req = build_request(&input, "m", base_messages(&input, true), true);
+        let req = build_request(
+            &input,
+            "m",
+            base_messages(&input, SchemaWire::None),
+            SchemaWire::None,
+        );
         assert_eq!(req.timeout, Some(budget));
 
         let unset = InferInput::new("q");
-        let req = build_request(&unset, "m", base_messages(&unset, true), true);
+        let req = build_request(
+            &unset,
+            "m",
+            base_messages(&unset, SchemaWire::None),
+            SchemaWire::None,
+        );
         assert_eq!(req.timeout, None, "no budget → adapter default governs");
     }
 
+    // ── F2 · the adapter-path proof (the http seam mocked) ───────────
+
+    use nika_kernel::http::{HttpError, HttpRequest, HttpResponse, HttpStreamResponse};
+    use nika_kernel::secret::Secret;
+    use nika_providers::ProviderRegistry as Registry;
+
+    /// A canned-response http seam: serves queued JSON bodies · captures
+    /// every request it saw (the dividend of the kernel http seam — the
+    /// real openai adapter runs with zero network).
+    struct SeamHttp {
+        responses: std::sync::Mutex<std::collections::VecDeque<String>>,
+        captured: std::sync::Mutex<Vec<HttpRequest>>,
+    }
+
+    impl SeamHttp {
+        fn with_json(bodies: &[&str]) -> Arc<Self> {
+            Arc::new(Self {
+                responses: std::sync::Mutex::new(bodies.iter().map(|b| (*b).to_owned()).collect()),
+                captured: std::sync::Mutex::new(Vec::new()),
+            })
+        }
+
+        fn captured(&self) -> Vec<HttpRequest> {
+            self.captured.lock().expect("seam lock").clone()
+        }
+    }
+
+    impl HttpPostDyn for SeamHttp {
+        async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
+            self.captured
+                .lock()
+                .expect("seam lock")
+                .push(request.clone());
+            let body = self
+                .responses
+                .lock()
+                .expect("seam lock")
+                .pop_front()
+                .ok_or_else(|| HttpError::Other {
+                    reason: "SeamHttp: no canned response queued".to_owned(),
+                })?;
+            Ok(HttpResponse::new(
+                200,
+                std::collections::BTreeMap::new(),
+                bytes::Bytes::from(body),
+                request.url,
+            ))
+        }
+
+        async fn send_streaming(
+            &self,
+            _request: HttpRequest,
+        ) -> Result<HttpStreamResponse, HttpError> {
+            Err(HttpError::Other {
+                reason: "SeamHttp: streaming not modelled".to_owned(),
+            })
+        }
+    }
+
+    fn openai_verb(seam: &Arc<SeamHttp>) -> InferVerb<SeamHttp> {
+        let registry = Registry::new(
+            Arc::clone(seam),
+            ProvidersConfig::new().with_key("openai", Secret::new("sk-test")),
+        );
+        InferVerb::new(Arc::new(registry), "openai/gpt-4o-mini")
+    }
+
+    /// The captured wire body of the seam's one request.
+    fn wire_body(seam: &Arc<SeamHttp>) -> serde_json::Value {
+        let captured = seam.captured();
+        assert_eq!(captured.len(), 1, "one round-trip");
+        serde_json::from_slice(captured[0].body.as_ref().expect("a POST body"))
+            .expect("the wire body is JSON")
+    }
+
+    /// F2 acceptance: `{type: object}` — the field repro that 400'd on
+    /// `OpenAI` strict — now rides JSON MODE on the real openai adapter and
+    /// lands green, validated locally.
+    #[tokio::test]
+    async fn underspecified_schema_rides_json_mode_on_the_openai_path() {
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"{\"head\":{\"x\":1},\"sections\":[]}"},"finish_reason":"stop"}],"usage":{}}"#,
+        ]);
+        let mut input = InferInput::new("translate the payload");
+        input.schema = Some(json!({ "type": "object" }));
+        let out = openai_verb(&seam)
+            .run(input)
+            .await
+            .expect("green — the strict-mode 400 class is gone");
+        assert!(matches!(out.output, InferValue::Structured(_)));
+
+        // The wire proof: JSON mode requested — NOT the strict schema
+        // the provider would reject.
+        let body = wire_body(&seam);
+        assert_eq!(
+            body["response_format"],
+            json!({ "type": "json_object" }),
+            "{body}"
+        );
+        // The shape is steered through the prompt + enforced locally.
+        let prompt = body["messages"][0]["content"]
+            .as_str()
+            .expect("prompt text");
+        assert!(prompt.contains("JSON Schema"), "{prompt}");
+    }
+
+    /// F2 non-regression: a fully-specified schema keeps today's strict
+    /// path on the SAME adapter — forwarded verbatim as `json_schema`.
+    #[tokio::test]
+    async fn fully_specified_schema_keeps_the_strict_path_on_openai() {
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{}}"#,
+        ]);
+        let mut input = InferInput::new("extract the person");
+        input.schema = Some(json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" },
+                "age": { "type": "integer" }
+            },
+            "required": ["name", "age"],
+            "additionalProperties": false
+        }));
+        let out = openai_verb(&seam)
+            .run(input)
+            .await
+            .expect("the strict path stays green");
+        assert!(matches!(out.output, InferValue::Structured(_)));
+
+        let body = wire_body(&seam);
+        assert_eq!(body["response_format"]["type"], "json_schema", "{body}");
+    }
+
+    /// F2 non-regression for F3: the mock's "strict mode" SYNTHESIZES
+    /// from ANY schema — an underspecified schema must keep the Strict
+    /// wire there (a JSON-mode fallback would hand mock/echo prose and
+    /// break every offline golden).
+    #[tokio::test]
+    async fn underspecified_schema_still_synthesizes_on_mock() {
+        let mut input = InferInput::new("free-form");
+        input.schema = Some(json!({ "type": "object" }));
+        let out = mock_verb().run(input).await.expect("mock stays green");
+        assert!(matches!(out.output, InferValue::Structured(_)));
+    }
+
     #[test]
-    fn request_carries_params_and_native_schema() {
+    fn request_carries_params_and_the_schema_wire() {
         let mut input = InferInput::new("q");
         input.temperature = Some(0.7);
         input.max_tokens = Some(64);
-        input.schema = Some(json!({ "type": "object" }));
-        let req = build_request(&input, "claude-x", base_messages(&input, true), true);
+        input.schema = Some(json!({
+            "type": "object",
+            "properties": { "name": { "type": "string" } }
+        }));
+        let req = build_request(
+            &input,
+            "claude-x",
+            base_messages(&input, SchemaWire::Strict),
+            SchemaWire::Strict,
+        );
         assert_eq!(req.model, "claude-x");
         assert_eq!(req.temperature, Some(0.7));
         assert_eq!(req.max_tokens, Some(64));
         assert!(matches!(req.response_format, ResponseFormat::JsonSchema(_)));
-        let req_no_native = build_request(&input, "m", base_messages(&input, false), false);
+        // F2 · the JSON-mode fallback asks the wire for JSON, not a shape.
+        let req_json_mode = build_request(
+            &input,
+            "m",
+            base_messages(&input, SchemaWire::JsonMode),
+            SchemaWire::JsonMode,
+        );
+        assert!(matches!(
+            req_json_mode.response_format,
+            ResponseFormat::Json
+        ));
+        let req_no_native = build_request(
+            &input,
+            "m",
+            base_messages(&input, SchemaWire::Instruction),
+            SchemaWire::Instruction,
+        );
         assert!(matches!(
             req_no_native.response_format,
             ResponseFormat::Text
