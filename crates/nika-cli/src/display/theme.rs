@@ -14,6 +14,21 @@ use crate::display::state::TaskState;
 /// Braille spinner frames (80ms cadence at the call site).
 pub const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
+/// The duration-heat ramp (design §1.5): ONE hue (azure ≈ 200°), five
+/// quantized LIGHTNESS steps — short bars pale, the long pole bright.
+/// Perceptual single-hue by design: never red→green (deuteranopia) ·
+/// never a second semantic hue (red stays the failure verdict alone).
+/// Truecolor ONLY — the caller gates on `Theme.heat` (`COLORTERM` said
+/// truecolor/24bit); the 256-colour fallback is the FLAT bar, never an
+/// approximated ramp. A const table, no colour crate.
+pub(crate) const HEAT_RAMP: [(u8, u8, u8); 5] = [
+    (96, 125, 139),
+    (86, 143, 163),
+    (74, 162, 189),
+    (58, 183, 217),
+    (38, 205, 247),
+];
+
 /// Token-arrival sparkline ramp (low → high).
 pub const SPARK: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
 
@@ -47,18 +62,51 @@ impl Role {
     }
 }
 
-/// One theme = colour on/off × glyph family × motion.
+/// One theme = colour on/off × glyph family × motion × capability tier.
+// Five INDEPENDENT render knobs, not a state machine — the same
+// flags-are-flags exemption the clap arg structs carry (main.rs).
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {
-    /// Emit ANSI colour (resolved from `--color`/`NO_COLOR`/TTY upstream).
+    /// Emit ANSI colour (resolved through the ONE priority chain —
+    /// `display::format::color_enabled` · `--color` > `CLICOLOR_FORCE` >
+    /// `NO_COLOR` > `CLICOLOR=0` > TTY+`TERM≠dumb`).
     pub color: bool,
     /// Use the ASCII glyph column (CI logs · legacy conhost · `--ascii`).
     pub ascii: bool,
     /// Animate the running glyph (TTY + motion allowed).
     pub animate: bool,
+    /// Truecolor DATA ramps allowed (`COLORTERM` said truecolor/24bit ·
+    /// the duration-heat waterfall). Chrome NEVER rides this — the
+    /// ANSI-16 `Role` slots stay the chrome vocabulary (format.rs doc).
+    pub heat: bool,
+    /// Emit OSC-8 hyperlinks (`--hyperlink` · auto = TTY + `TERM≠dumb` ·
+    /// never to pipes).
+    pub links: bool,
+    /// The interactive duration accents (nextest school): bracketed
+    /// right-aligned duration cells (`[  2.7s]`) + the `slow` marker.
+    /// TTY comfort ONLY — these are TEXT, so every sober register
+    /// (pipes · CI · `--no-progress` · machine modes) keeps its exact
+    /// bytes by leaving this off.
+    pub accents: bool,
 }
 
 impl Theme {
+    /// The 3-knob constructor every call site speaks — capability tiers
+    /// (`heat` · `links` · `accents`) default OFF so a bare theme is
+    /// exactly the pre-round-8 surface (pipes · CI · tests stay
+    /// byte-identical).
+    #[must_use]
+    pub const fn new(color: bool, ascii: bool, animate: bool) -> Self {
+        Self {
+            color,
+            ascii,
+            animate,
+            heat: false,
+            links: false,
+            accents: false,
+        }
+    }
     /// Paint `text` in a semantic role (no-op when colour is off).
     #[must_use]
     pub fn paint(&self, role: Role, text: &str) -> String {
@@ -78,14 +126,17 @@ impl Theme {
             return self.paint(Role::Accent, &format!("{frame} "));
         }
         let raw = if self.ascii {
-            // The LOCKED §3.1 ASCII column (err `X` ≠ cancelled `x`).
+            // The §3.1 ASCII column (err `X` ≠ blocked `x`). The
+            // comprehension pass re-voiced the never-ran pair: a SKIP
+            // (a decision — gate false · cache hit) reads `~>` (flows
+            // past), a BLOCKED cancellation reads `x` (the path died).
             match state {
                 TaskState::Pending => ". ",
                 TaskState::Running => "> ",
                 TaskState::Ok => "ok",
                 TaskState::Failed => "X ",
                 TaskState::Retrying => "r ",
-                TaskState::Skipped => "- ",
+                TaskState::Skipped => "~>",
                 TaskState::Cancelled => "x ",
             }
         } else {
@@ -95,8 +146,8 @@ impl Theme {
                 TaskState::Ok => "✔ ",
                 TaskState::Failed => "✖ ",
                 TaskState::Retrying => "↻ ",
-                TaskState::Skipped => "⊘ ",
-                TaskState::Cancelled => "◼ ",
+                TaskState::Skipped => "↷ ",
+                TaskState::Cancelled => "⊘ ",
             }
         };
         let role = match state {
@@ -113,6 +164,32 @@ impl Theme {
     #[must_use]
     pub fn logo(&self) -> &'static str {
         if self.ascii { "[nika]" } else { "🦋" }
+    }
+
+    /// Wrap `text` as an OSC-8 hyperlink to `url` — a no-op unless the
+    /// `links` capability resolved on (TTY + `--hyperlink` chain), so
+    /// every sober register keeps its exact bytes.
+    #[must_use]
+    pub fn link(&self, url: &str, text: &str) -> String {
+        if self.links {
+            crate::display::format::osc8(url, text, None)
+        } else {
+            text.to_owned()
+        }
+    }
+
+    /// Paint a DATA run in one heat step (truecolor SGR · [`HEAT_RAMP`])
+    /// — the ONLY truecolor seam in the binary: chrome (borders · labels
+    /// · verdicts) stays on the ANSI-16 `Role` slots forever (the user's
+    /// terminal theme decides those hues). Plain text when colour is
+    /// off; the CALLER gates on `self.heat` (the `COLORTERM` capability).
+    #[must_use]
+    pub(crate) fn heat_step(self, step: usize, text: &str) -> String {
+        if !self.color {
+            return text.to_owned();
+        }
+        let (r, g, b) = HEAT_RAMP[step.min(HEAT_RAMP.len() - 1)];
+        format!("\x1b[38;2;{r};{g};{b}m{text}\x1b[0m")
     }
 
     /// Render a 3-sample sparkline from token-arrival counts.
@@ -141,16 +218,8 @@ impl Theme {
 mod tests {
     use super::*;
 
-    const PLAIN: Theme = Theme {
-        color: false,
-        ascii: false,
-        animate: false,
-    };
-    const ASCII: Theme = Theme {
-        color: false,
-        ascii: true,
-        animate: false,
-    };
+    const PLAIN: Theme = Theme::new(false, false, false);
+    const ASCII: Theme = Theme::new(false, true, false);
 
     #[test]
     fn every_state_has_a_two_cell_glyph_in_both_themes() {
@@ -174,21 +243,21 @@ mod tests {
 
     #[test]
     fn locked_contract_glyphs_for_the_new_states() {
-        // §3.1 LOCKED table · retrying ↻/r yellow · cancelled ◼/x dim ·
-        // err `X` ≠ cancelled `x` (the case IS the distinction).
+        // §3.1 table (comprehension-pass vocabulary) · retrying ↻/r
+        // yellow · skip ↷/~> dim (a decision: gate false · cache hit) ·
+        // blocked-cancelled ⊘/x dim · err `X` ≠ blocked `x` (the case
+        // IS the distinction).
         assert_eq!(PLAIN.glyph(TaskState::Retrying, 0), "↻ ");
         assert_eq!(ASCII.glyph(TaskState::Retrying, 0), "r ");
-        assert_eq!(PLAIN.glyph(TaskState::Cancelled, 0), "◼ ");
+        assert_eq!(PLAIN.glyph(TaskState::Skipped, 0), "↷ ");
+        assert_eq!(ASCII.glyph(TaskState::Skipped, 0), "~>");
+        assert_eq!(PLAIN.glyph(TaskState::Cancelled, 0), "⊘ ");
         assert_eq!(ASCII.glyph(TaskState::Cancelled, 0), "x ");
         assert_ne!(
             ASCII.glyph(TaskState::Failed, 0),
             ASCII.glyph(TaskState::Cancelled, 0)
         );
-        let coloured = Theme {
-            color: true,
-            ascii: false,
-            animate: false,
-        };
+        let coloured = Theme::new(true, false, false);
         assert!(
             coloured.glyph(TaskState::Retrying, 0).contains("\x1b[33m"),
             "retrying paints yellow (Warn)"

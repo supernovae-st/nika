@@ -54,7 +54,9 @@ pub use lookup::find_provider;
 #[cfg(feature = "capabilities")]
 pub use lookup::model_capabilities;
 #[cfg(feature = "pricing")]
-pub use lookup::{estimate_cost, find_pricing, find_pricing_scoped};
+pub use lookup::{
+    estimate_cost, estimate_cost_for, find_pricing, find_pricing_for, find_pricing_scoped,
+};
 #[cfg(feature = "builtins-transforms")]
 pub use lookup::{find_builtin, find_transform, is_known_builtin, is_known_transform};
 #[cfg(feature = "mcp")]
@@ -118,8 +120,9 @@ mod tests {
     #[test]
     fn all_providers_non_empty() {
         // Session 4b added 7 providers (nvidia-nim, deepinfra, replicate,
-        // hyperbolic, writer, databricks, cloudflare): 25 → 32.
-        assert_eq!(all_providers().len(), 32);
+        // hyperbolic, writer, databricks, cloudflare): 25 → 32; 2026-07-05
+        // huggingface joined (+ nvidia-nim → nvidia rename): 32 → 33.
+        assert_eq!(all_providers().len(), 33);
     }
 
     #[test]

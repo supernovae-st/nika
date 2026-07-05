@@ -11,11 +11,7 @@ use nika_cli::verbs::graph::{GraphFormat, project, to_dot, to_mermaid};
 use nika_cli::verbs::{check, exit, explain, graph, inspect, new, pack_surface};
 use nika_schema::{FileId, ParseMode};
 
-const PLAIN: Theme = Theme {
-    color: false,
-    ascii: false,
-    animate: false,
-};
+const PLAIN: Theme = Theme::new(false, false, false);
 
 /// The shared fixture — same shape as the e2e pipeline workflow.
 const WORKFLOW: &str = r#"
@@ -236,9 +232,14 @@ fn check_clean_file_exits_0_with_grep_stable_sections() {
     ] {
         assert!(out.text.contains(section), "missing section {section}");
     }
+    // The clean verdict is the audited card line: what was proven, at a
+    // glance (tasks · waves · permits state · cost floor · hint count).
     assert!(
+        out.text.contains("audited ·")
+            && out.text.contains("wave(s)")
+            && out.text.contains("permits"),
+        "the audited card line closes a clean report: {}",
         out.text
-            .contains("clean — audited before a single token was spent")
     );
     // mock/echo is unpriced: the cost lane says FLOOR, never invents.
     assert!(out.text.contains("UNBOUNDED"), "{}", out.text);
@@ -263,11 +264,7 @@ fn check_dirty_file_exits_2_and_names_the_fix() {
 fn check_json_is_the_report_plus_clean_flag_never_coloured() {
     let path = fixture_path("check-json.nika.yaml", WORKFLOW);
     // Colour requested — json must ignore it (the contract bytes).
-    let coloured = Theme {
-        color: true,
-        ascii: false,
-        animate: false,
-    };
+    let coloured = Theme::new(true, false, false);
     let out = check::run(&path, true, coloured);
     assert_eq!(out.code, exit::OK);
     assert!(!out.text.contains('\x1b'), "json is never coloured");

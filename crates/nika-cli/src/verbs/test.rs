@@ -107,10 +107,18 @@ pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
     };
 
     if expected == actual {
+        // The match verdict says WHAT was pinned, not just that it holds:
+        // top-level output keys + the canonical document's byte size.
+        let keys = actual.as_object().map_or(0, serde_json::Map::len);
+        let bytes = crate::display::shape::fmt_bytes(canonical_json(&actual).len());
+        let key_word = if keys == 1 { "key" } else { "keys" };
         println!(
-            "{} outputs match the golden {}",
+            "{} golden match · {keys} {key_word} · {bytes} {}",
             theme.paint(Role::Good, if theme.ascii { "ok" } else { "✔" }),
-            theme.paint(Role::Dim, &format!("· {golden_path}"))
+            theme.paint(
+                Role::Dim,
+                &format!("· {}", crate::verbs::linked_path(theme, &golden_path)),
+            )
         );
         return exit::OK;
     }
@@ -145,7 +153,10 @@ fn write_golden(golden_path: &str, actual: &Value, theme: Theme) -> u8 {
     println!(
         "{} golden written {}",
         theme.paint(Role::Good, if theme.ascii { "ok" } else { "✔" }),
-        theme.paint(Role::Dim, &format!("· {golden_path}"))
+        theme.paint(
+            Role::Dim,
+            &format!("· {}", crate::verbs::linked_path(theme, golden_path)),
+        )
     );
     println!("  review it once, commit it — `nika test` now guards this workflow");
     exit::OK
@@ -176,12 +187,21 @@ fn render_mismatch(
         out,
         "{} outputs drifted from the golden {}",
         theme.paint(Role::Bad, if theme.ascii { "X" } else { "✖" }),
-        theme.paint(Role::Dim, &format!("· {golden_path}"))
+        theme.paint(
+            Role::Dim,
+            &format!("· {}", crate::verbs::linked_path(theme, golden_path)),
+        )
     );
     for line in diff_lines(expected, actual) {
         let _ = writeln!(out, "  {line}");
     }
-    let _ = writeln!(out, "\n  intended? re-pin with: nika test {file} --update");
+    // The ONE hint vocabulary (`label: command`) — same form as the
+    // failure card's fix hint and the run epilogue's explore hint.
+    let _ = writeln!(
+        out,
+        "\n  intended? {}",
+        crate::display::vocab::hint(theme, "re-baseline", &format!("nika test {file} --update"))
+    );
     out
 }
 
@@ -251,11 +271,7 @@ mod tests {
 
     /// A noiseless theme — the tests exercise verdicts, not paint.
     fn plain_theme() -> Theme {
-        Theme {
-            color: false,
-            ascii: true,
-            animate: false,
-        }
+        Theme::new(false, true, false)
     }
 
     /// A deterministic mock workflow with a typed `outputs:` block.

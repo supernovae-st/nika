@@ -10,6 +10,7 @@
 //! honest overlap. Everything here (lane markers · durations) derives
 //! from that one reconstruction.
 
+use crate::display::format::fmt_cost_usd;
 use crate::display::state::{RunView, TaskRow, TaskState};
 use crate::display::theme::{Role, Theme};
 
@@ -141,6 +142,10 @@ pub fn waterfall(view: &RunView, theme: &Theme) -> Vec<String> {
         .collect();
     let time_w = durs.iter().map(|d| d.chars().count()).max().unwrap_or(0);
 
+    // The heat scale anchors on the run's own long pole (max wall time).
+    let wall_of = |iv: &Interval| u64::try_from(iv.end.saturating_sub(iv.start)).unwrap_or(0);
+    let wall_max = ran.iter().map(|(_, iv)| wall_of(iv)).max().unwrap_or(1);
+
     let mut lines = Vec::with_capacity(ran.len() + 1);
     for ((row, iv), dur) in ran.iter().zip(&durs) {
         let off = cell(iv.start).min(BAR_WIDTH - 1);
@@ -150,17 +155,26 @@ pub fn waterfall(view: &RunView, theme: &Theme) -> Vec<String> {
             TaskState::Running | TaskState::Retrying => Role::Accent,
             _ => Role::Good,
         };
+        // Duration heat rides SUCCESS bars only (design §1.5): the
+        // verdict hues (failed red · running accent) always win — heat
+        // is data, never a verdict. Off (flat Good) unless COLORTERM
+        // proved truecolor (`theme.heat`).
+        let bar_raw = bar.to_string().repeat(len);
+        let painted = if theme.heat && role == Role::Good {
+            theme.heat_step(heat_bucket(wall_of(iv), wall_max), &bar_raw)
+        } else {
+            theme.paint(role, &bar_raw)
+        };
         let mut line = format!(
-            "  {:<id_w$}  {edge_l}{}{}{edge_r}",
+            "  {:<id_w$}  {edge_l}{}{painted}{edge_r}",
             row.id,
             " ".repeat(off),
-            theme.paint(role, &bar.to_string().repeat(len)),
         );
         line.push_str(&" ".repeat(BAR_WIDTH - off - len));
         line.push_str("  ");
         line.push_str(&theme.paint(Role::Dim, &format!("{dur:>time_w$}")));
         if let Some(cost) = row.cost_usd {
-            line.push_str(&theme.paint(Role::Dim, &format!(" · ${cost:.4}")));
+            line.push_str(&theme.paint(Role::Dim, &format!(" · {}", fmt_cost_usd(cost))));
         }
         lines.push(line);
     }
@@ -173,6 +187,15 @@ pub fn waterfall(view: &RunView, theme: &Theme) -> Vec<String> {
         &format!("  0s {} {total}", dot.to_string().repeat(dots)),
     ));
     lines
+}
+
+/// Quantize one duration onto the 5-step heat ramp: 0 (the fastest
+/// band) … 4 (the run's long pole). The run's own max anchors the
+/// scale — heat compares tasks WITHIN a run, never across runs.
+pub(crate) fn heat_bucket(wall_ms: u64, max_ms: u64) -> usize {
+    usize::try_from(wall_ms.saturating_mul(4) / max_ms.max(1))
+        .unwrap_or(4)
+        .min(4)
 }
 
 /// Widest the verdict card grows (inner cells) — 2-indent + corners keeps
@@ -263,12 +286,12 @@ pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -
     let title_raw = format!("{h} nika {mark_raw} {} ", view.workflow);
 
     let waves = wave_sizes(view).len();
+    let retries_cell = format!("{} retries", view.retries);
     let mut rows = vec![
         format!(
-            "{}    {} tasks · {waves} waves · {} retries",
+            "{}    {} tasks · {waves} waves · {retries_cell}",
             dag_shape(view, theme),
             view.rows().len(),
-            view.retries,
         ),
         totals_row(view),
     ];
@@ -298,18 +321,36 @@ pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -
         let pad = inner
             .saturating_sub(4)
             .saturating_sub(fitted.chars().count());
-        lines.push(format!("  {v}  {fitted}{}  {v}", " ".repeat(pad)));
+        // Verdict-count discipline (cargo school · design §1.7): only a
+        // NON-ZERO bad count earns colour — `0 retries` stays plain, a
+        // real retry count paints yellow. The paint lands on the FITTED
+        // text AFTER the width math (escapes add zero visible cells; a
+        // truncated row simply keeps its plain form).
+        let shown = if view.retries > 0 {
+            fitted.replace(&retries_cell, &theme.paint(Role::Warn, &retries_cell))
+        } else {
+            fitted
+        };
+        lines.push(format!("  {v}  {shown}{}  {v}", " ".repeat(pad)));
     }
     let bottom: String = std::iter::repeat_n(h, inner).collect();
     lines.push(format!("  {bl}{bottom}{br}"));
     lines
 }
 
-/// The card's totals row: wall time · spend · the models the stream
-/// named (the fold kept them off the `infer · <model>` / `agent ·
-/// <model>` notes — rendered only when the stream actually said them).
+/// The card's totals row: wall time · total tokens (when any task
+/// reported usage — tokens are real TODAY, dollars stay honest-zero
+/// until the engine prices them) · spend · the models the stream named
+/// (the fold kept them off the `infer · <model>` / `agent · <model>`
+/// notes — rendered only when the stream actually said them).
 fn totals_row(view: &RunView) -> String {
-    let mut row = format!("{} · ${:.4}", fmt_wall_ms(view.elapsed_ms), view.cost_usd);
+    use std::fmt::Write as _;
+    let mut row = fmt_wall_ms(view.elapsed_ms);
+    let tokens: u64 = view.token_samples.iter().sum();
+    if tokens > 0 {
+        let _ = write!(row, " · {tokens} tok");
+    }
+    let _ = write!(row, " · {}", fmt_cost_usd(view.cost_usd));
     let mut models: Vec<&str> = Vec::new();
     for r in view.rows() {
         if let Some(m) = r.model.as_deref()
@@ -469,16 +510,8 @@ mod tests {
         assert!(marks[2] && marks[3], "running ∥ settled sibling: {marks:?}");
     }
 
-    const PLAIN: Theme = Theme {
-        color: false,
-        ascii: false,
-        animate: false,
-    };
-    const ASCII: Theme = Theme {
-        color: false,
-        ascii: true,
-        animate: false,
-    };
+    const PLAIN: Theme = Theme::new(false, false, false);
+    const ASCII: Theme = Theme::new(false, true, false);
 
     /// Golden waterfall — bars scale to wall time, offsets carry the real
     /// sequencing, the axis closes the chart (design §2c geometry pinned:
@@ -554,7 +587,7 @@ mod tests {
         let lines = waterfall(&view, &PLAIN);
         assert_eq!(lines.len(), 3, "two ran bars + axis (no cancelled bar)");
         assert!(
-            lines[0].contains("work") && lines[0].ends_with("· $0.0020"),
+            lines[0].contains("work") && lines[0].ends_with("· $0.002"),
             "failed row bars + keeps its spend: {lines:?}"
         );
         assert!(
@@ -619,8 +652,8 @@ mod tests {
             "{lines:?}"
         );
         assert!(
-            lines[2].contains("4.7s · $0.0110 · claude-sonnet"),
-            "totals + the model the stream named: {lines:?}"
+            lines[2].contains("4.7s · 710 tok · $0.01 · claude-sonnet"),
+            "totals (wall · tokens · spend) + the model the stream named: {lines:?}"
         );
         assert!(lines[3].contains("outputs → review (object)"), "{lines:?}");
         assert!(
@@ -647,6 +680,55 @@ mod tests {
                 "unicode {glyph} leaked into --ascii: {ascii:?}"
             );
         }
+    }
+
+    /// Verdict-count discipline (cargo school): `0 retries` renders
+    /// PLAIN even with colour on — only a real retry count paints
+    /// yellow, and the paint never disturbs the box alignment (escapes
+    /// land after the width math).
+    #[test]
+    fn verdict_card_colours_only_non_zero_retries() {
+        let coloured = Theme::new(true, false, false);
+
+        let mut clean = RunView::new();
+        for e in demo::success() {
+            clean.apply(&e);
+        }
+        let lines = verdict_card(&clean, &coloured, None);
+        let totals = lines.iter().find(|l| l.contains("retries")).expect("row");
+        assert!(
+            totals.contains("0 retries") && !totals.contains("\x1b[33m"),
+            "a zero count stays plain: {totals:?}"
+        );
+
+        let mut retried = RunView::new();
+        for e in demo::retrying() {
+            retried.apply(&e);
+        }
+        retried.apply(&ev(EventKind::WorkflowCompleted, 9_000, &[]));
+        let lines = verdict_card(&retried, &coloured, None);
+        let totals = lines.iter().find(|l| l.contains("retries")).expect("row");
+        assert!(
+            totals.contains("\x1b[33m1 retries\x1b[0m"),
+            "a real retry count paints yellow: {totals:?}"
+        );
+        // The box still closes at one visible column: strip the escapes
+        // and every border row measures the same width.
+        let bare: Vec<usize> = lines
+            .iter()
+            .map(|l| {
+                l.replace("\x1b[33m", "")
+                    .replace("\x1b[32m", "")
+                    .replace("\x1b[1m", "")
+                    .replace("\x1b[0m", "")
+                    .chars()
+                    .count()
+            })
+            .collect();
+        assert!(
+            bare.iter().all(|w| *w == bare[0]),
+            "escape-stripped alignment holds: {bare:?}"
+        );
     }
 
     /// A failed run cards the ✖ mark; a run with no verdict cards nothing
@@ -677,5 +759,63 @@ mod tests {
         assert_eq!(fmt_wall_ms(3_200), "3.2s");
         assert_eq!(fmt_wall_ms(59_949), "59.9s");
         assert_eq!(fmt_wall_ms(124_000), "2m04s");
+    }
+
+    /// The heat quantizer: 5 bands anchored on the run's long pole —
+    /// zero-length lands in band 0, the max in band 4, and the scale is
+    /// linear in between (the exact boundaries pin the `*4/max` math
+    /// against off-by-one mutations).
+    #[test]
+    fn heat_bucket_quantizes_five_bands() {
+        assert_eq!(heat_bucket(0, 1_000), 0);
+        assert_eq!(heat_bucket(249, 1_000), 0);
+        assert_eq!(heat_bucket(250, 1_000), 1);
+        assert_eq!(heat_bucket(500, 1_000), 2);
+        assert_eq!(heat_bucket(750, 1_000), 3);
+        assert_eq!(heat_bucket(1_000, 1_000), 4);
+        // Degenerate scales stay in range (a zero-max run · overshoot).
+        assert_eq!(heat_bucket(5, 0), 4, "max clamps · never a panic");
+        assert_eq!(heat_bucket(2_000, 1_000), 4, "overshoot clamps to 4");
+    }
+
+    /// Duration heat rides SUCCESS bars only, truecolor only: with
+    /// `theme.heat` the ok bars carry `38;2;r;g;b` SGRs (the long pole
+    /// in the ramp's deepest step · the failed bar KEEPS its red) — and
+    /// without it the same view renders zero truecolor bytes (the
+    /// 256-colour fallback is flat, never approximated).
+    #[test]
+    fn waterfall_heat_is_truecolor_gated_and_success_only() {
+        let mut view = RunView::new();
+        view.apply(&ev(EventKind::TaskStarted, 0, &[("task", s("fast"))]));
+        view.apply(&ev(EventKind::TaskCompleted, 250, &[("task", s("fast"))]));
+        view.apply(&ev(EventKind::TaskStarted, 250, &[("task", s("long"))]));
+        view.apply(&ev(EventKind::TaskCompleted, 1_250, &[("task", s("long"))]));
+        view.apply(&ev(EventKind::TaskStarted, 1_250, &[("task", s("bad"))]));
+        view.apply(&ev(EventKind::TaskFailed, 1_500, &[("task", s("bad"))]));
+
+        let mut heat = Theme::new(true, false, false);
+        heat.heat = true;
+        let lines = waterfall(&view, &heat);
+        let ramp_top = crate::display::theme::HEAT_RAMP[4];
+        let deepest = format!("\x1b[38;2;{};{};{}m", ramp_top.0, ramp_top.1, ramp_top.2);
+        assert!(
+            lines[1].contains(&deepest),
+            "the long pole wears the deepest step: {lines:?}"
+        );
+        assert!(
+            lines[0].contains("\x1b[38;2;"),
+            "the fast bar wears a paler step: {lines:?}"
+        );
+        assert!(
+            lines[2].contains("\x1b[31m") && !lines[2].contains("38;2;"),
+            "the failed bar stays RED — verdict beats heat: {lines:?}"
+        );
+
+        // COLORTERM absent → theme.heat off → flat bars, zero truecolor.
+        let flat = waterfall(&view, &Theme::new(true, false, false));
+        assert!(
+            !flat.iter().any(|l| l.contains("38;2;")),
+            "no COLORTERM proof → no truecolor: {flat:?}"
+        );
     }
 }

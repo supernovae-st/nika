@@ -21,6 +21,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
+use nika_cli::display::format::{ColorChoice, ColorEnv, LinkChoice, color_enabled, links_enabled};
 use nika_cli::verbs::{self, VerbOutput};
 use nika_cli::{RunView, Theme, frame};
 use nika_event::Event;
@@ -31,12 +32,67 @@ use nika_event::Event;
 // filename, so the version/usage/errors must say `nika`, not the seed crate name.
 #[command(
     name = "nika",
+    bin_name = "nika",
     version,
     about = "nika · the AI workflow engine — operator surface"
 )]
 struct Cli {
+    /// When to colour the output (auto = TTY + `TERM != dumb` · honours
+    /// `CLICOLOR_FORCE` · `NO_COLOR` · `CLICOLOR=0` in that order).
+    #[arg(long, global = true, value_enum, default_value_t = ColorWhenArg::Auto)]
+    color: ColorWhenArg,
+    /// When to emit OSC-8 hyperlinks on printed paths (auto = TTY +
+    /// `TERM != dumb` · never to pipes; always = force them, for pagers
+    /// that pass escapes — tmux/screen may render them as plain text).
+    #[arg(long, global = true, value_enum, default_value_t = LinkWhenArg::Auto)]
+    hyperlink: LinkWhenArg,
     #[command(subcommand)]
     command: Command,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum LinkWhenArg {
+    /// Force hyperlinks on (escape-passing pagers · captured demos).
+    Always,
+    /// Force hyperlinks off.
+    Never,
+    /// TTY + `TERM != dumb` — never to pipes (the default).
+    Auto,
+}
+
+impl LinkWhenArg {
+    fn choice(self) -> LinkChoice {
+        match self {
+            Self::Always => LinkChoice::Always,
+            Self::Never => LinkChoice::Never,
+            Self::Auto => LinkChoice::Auto,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum ColorWhenArg {
+    /// Force colour on (pagers accepting escapes · captured demos).
+    Always,
+    /// Force colour off (the `--no-color` flags fold here).
+    Never,
+    /// Resolve from the environment chain + TTY (the default).
+    Auto,
+}
+
+impl ColorWhenArg {
+    /// Fold a verb's legacy `--no-color` sugar into the tri-state: an
+    /// explicit off wins (both flags together = the conservative read).
+    fn with_no_color(self, no_color: bool) -> ColorChoice {
+        if no_color {
+            return ColorChoice::Never;
+        }
+        match self {
+            Self::Always => ColorChoice::Always,
+            Self::Never => ColorChoice::Never,
+            Self::Auto => ColorChoice::Auto,
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -222,6 +278,51 @@ enum TraceAction {
     Replay(TraceArgs),
     /// Print the final card only.
     Show(TraceArgs),
+    /// Browse per-task outputs: verb · duration · tokens · bounded
+    /// preview (full value: `trace peek`).
+    Outputs {
+        /// Trace NDJSON path (one `nika-event` Event per line).
+        trace: PathBuf,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+    },
+    /// Read ONE task's full output + its identity (hashes · duration ·
+    /// tokens). `--raw` prints the exact value only (pipe it to jq).
+    Peek {
+        /// Trace NDJSON path (one `nika-event` Event per line).
+        trace: PathBuf,
+        /// The task id whose output to read.
+        task: String,
+        /// Print the exact recorded value only (machine-friendly).
+        #[arg(long)]
+        raw: bool,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+    },
+    /// The data waterfall: which output fed which task, with recorded
+    /// sizes (plan bindings from the workflow file × sizes from the
+    /// trace).
+    Flow {
+        /// Trace NDJSON path (one `nika-event` Event per line).
+        trace: PathBuf,
+        /// The workflow file the run executed (`*.nika.yaml`) — the
+        /// trace records values, the definition records the bindings.
+        workflow: String,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+    },
 }
 
 #[derive(Args)]
@@ -303,10 +404,15 @@ struct RunArgs {
     /// `NIKA_NO_TRACE_FILE` (any non-empty value) opts out globally.
     #[arg(long)]
     no_trace_file: bool,
+    /// Hide the per-task output summaries (`→ {…} · 312B`) on the live
+    /// storyboard. Interactive TTY only — pipes · CI · the machine modes
+    /// never carry them anyway.
+    #[arg(long)]
+    no_outputs: bool,
 }
 
 #[derive(Args)]
-// Four independent CLI flags ARE four bools — the clap-surface idiom, not
+// Five independent CLI flags ARE five bools — the clap-surface idiom, not
 // a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
 struct TraceArgs {
@@ -327,10 +433,17 @@ struct TraceArgs {
     /// Disable colour output.
     #[arg(long)]
     no_color: bool,
+    /// Hide the per-task output summaries (`→ {…} · 312B`) on the
+    /// rendered storyboard. Interactive TTY only — a piped `trace show`
+    /// never carries them anyway.
+    #[arg(long)]
+    no_outputs: bool,
 }
 
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
+    let color = cli.color;
+    let link_when = cli.hyperlink.choice();
     let code = match cli.command {
         Command::Check {
             file,
@@ -342,17 +455,25 @@ fn main() -> std::process::ExitCode {
             let out = if infer_permits {
                 verbs::check::run_infer_permits(&file, json)
             } else {
-                verbs::check::run(&file, json, term_theme(no_color, ascii))
+                verbs::check::run(
+                    &file,
+                    json,
+                    term_theme(color.with_no_color(no_color), ascii, link_when),
+                )
             };
             emit(&out)
         }
-        Command::Run(args) => run_verb(&args),
+        Command::Run(args) => run_verb(&args, color, link_when),
         Command::Test {
             file,
             update,
             no_color,
             ascii,
-        } => verbs::test::run(&file, update, term_theme(no_color, ascii)),
+        } => verbs::test::run(
+            &file,
+            update,
+            term_theme(color.with_no_color(no_color), ascii, link_when),
+        ),
         Command::Inspect { file, ascii } => emit(&verbs::inspect::run(&file, ascii)),
         Command::Graph { file, format } => {
             let format = match format {
@@ -372,20 +493,18 @@ fn main() -> std::process::ExitCode {
             ExamplesAction::List => emit(&verbs::pack_surface::examples_list()),
             ExamplesAction::Show { slug } => emit(&verbs::pack_surface::examples_show(&slug)),
             // The L3 run verb shipped — execute the embedded example for real.
-            ExamplesAction::Run { slug, model } => {
-                verbs::run::example(&slug, model.as_deref(), term_theme(false, false))
-            }
+            ExamplesAction::Run { slug, model } => verbs::run::example(
+                &slug,
+                model.as_deref(),
+                term_theme(color.with_no_color(false), false, link_when),
+            ),
         },
         Command::New { from, dest, force } => emit(&verbs::new::run(&from, dest.as_deref(), force)),
         Command::Completions { shell } => {
-            let mut cmd = Cli::command();
-            clap_complete::generate(shell, &mut cmd, "nika-cli", &mut std::io::stdout());
+            write_completions(shell, &mut std::io::stdout());
             0
         }
-        Command::Trace { action } => match action {
-            TraceAction::Replay(args) => trace_render(&args, true),
-            TraceAction::Show(args) => trace_render(&args, false),
-        },
+        Command::Trace { action } => trace_verb(action, color, link_when),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
@@ -424,25 +543,75 @@ fn emit(out: &VerbOutput) -> u8 {
     out.code
 }
 
+/// Dispatch the `trace` verb family: the live renders (replay · show)
+/// plus the static readers (outputs · peek · flow).
+fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
+    match action {
+        TraceAction::Replay(args) => trace_render(&args, true, color, link_when),
+        TraceAction::Show(args) => trace_render(&args, false, color, link_when),
+        TraceAction::Outputs {
+            trace,
+            ascii,
+            no_color,
+        } => {
+            let mut theme = term_theme(color.with_no_color(no_color), ascii, link_when);
+            // The dur column's bracket accents: TTY comfort only.
+            theme.accents = std::io::stdout().is_terminal();
+            emit(&verbs::trace::outputs(&trace.to_string_lossy(), theme))
+        }
+        TraceAction::Peek {
+            trace,
+            task,
+            raw,
+            ascii,
+            no_color,
+        } => emit(&verbs::trace::peek(
+            &trace.to_string_lossy(),
+            &task,
+            raw,
+            term_theme(color.with_no_color(no_color), ascii, link_when),
+        )),
+        TraceAction::Flow {
+            trace,
+            workflow,
+            ascii,
+            no_color,
+        } => emit(&verbs::trace::flow(
+            &trace.to_string_lossy(),
+            &workflow,
+            term_theme(color.with_no_color(no_color), ascii, link_when),
+        )),
+    }
+}
+
 /// Unpack the `run` clap surface into the library verb call.
-fn run_verb(args: &RunArgs) -> u8 {
+fn run_verb(args: &RunArgs, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
     let resume = args.resume.as_ref().map(|trace| verbs::run::ResumeRequest {
         trace: trace.clone(),
         from: args.from.clone(),
         answers: args.answer.clone(),
     });
+    let mode = resolve_run_mode(args.quiet, args.no_progress);
+    let mut theme = term_theme(color.with_no_color(args.no_color), args.ascii, link_when);
+    // The duration accents ride the interactive surface ONLY — the
+    // sober registers (piped · --no-progress · --quiet) keep their
+    // exact bytes.
+    theme.accents = mode == verbs::run::RenderMode::Live;
+    // Duration heat additionally needs colour + the truecolor PROOF.
+    theme.heat = theme.accents && theme.color && truecolor_env();
     verbs::run::run(
         &args.file,
         args.json,
         args.output.as_deref(),
-        term_theme(args.no_color, args.ascii),
-        resolve_run_mode(args.quiet, args.no_progress),
+        theme,
+        mode,
         args.dry_run,
         args.model.as_deref(),
         &args.var,
         resume.as_ref(),
         args.no_trace_file || env_flag("NIKA_NO_TRACE_FILE"),
         args.task.as_deref(),
+        args.no_outputs,
     )
 }
 
@@ -461,41 +630,75 @@ fn resolve_run_mode(quiet: bool, no_progress: bool) -> verbs::run::RenderMode {
     }
 }
 
-/// Resolve the colour/glyph theme for static (non-animated) surfaces.
-fn term_theme(no_color: bool, ascii: bool) -> Theme {
-    let tty = std::io::stdout().is_terminal();
-    Theme {
-        color: tty && !no_color && !env_flag("NO_COLOR"),
-        ascii,
-        animate: false,
+/// Write shell completions attached to the PUBLIC binary name — `nika`,
+/// never the seed crate's file name (`#compdef nika-cli` would wire
+/// completions to a command users never type · found live 2026-07-05).
+fn write_completions(shell: clap_complete::Shell, out: &mut dyn std::io::Write) {
+    let mut cmd = Cli::command();
+    clap_complete::generate(shell, &mut cmd, "nika", out);
+}
+
+/// Collect the colour-relevant environment facts once (the pure priority
+/// chain lives in `display::format::color_enabled` — this is its I/O half).
+fn color_env() -> ColorEnv {
+    ColorEnv {
+        force: env_value("CLICOLOR_FORCE").is_some_and(|v| !v.is_empty() && v != "0"),
+        no_color: env_flag("NO_COLOR"),
+        clicolor_zero: env_value("CLICOLOR").is_some_and(|v| v == "0"),
+        term_dumb: env_value("TERM").is_some_and(|v| v == "dumb"),
     }
 }
 
+/// Resolve the colour/glyph/link theme for static (non-animated)
+/// surfaces — colour and hyperlinks each ride their own capability
+/// chain over the SAME environment facts.
+fn term_theme(choice: ColorChoice, ascii: bool, link_when: LinkChoice) -> Theme {
+    let tty = std::io::stdout().is_terminal();
+    let env = color_env();
+    let mut theme = Theme::new(color_enabled(choice, env, tty), ascii, false);
+    theme.links = links_enabled(link_when, tty, env.term_dumb);
+    theme
+}
+
 /// Load events, fold, render — live replay or final card.
-fn trace_render(args: &TraceArgs, replay: bool) -> u8 {
+fn trace_render(args: &TraceArgs, replay: bool, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
     let events = match load_events(args) {
         Ok(events) => events,
         Err(message) => {
-            eprintln!("nika-cli: {message}");
-            return 3; // environment error (spec §4)
+            eprintln!("nika trace: {message}");
+            eprintln!(
+                "  fix: a trace is the NDJSON a run records — nika run <wf> --json > run.ndjson"
+            );
+            return verbs::exit::ENV; // environment error (spec §4)
         }
     };
 
     let tty = std::io::stdout().is_terminal();
-    let theme = Theme {
-        color: tty && !args.no_color && !env_flag("NO_COLOR"),
-        ascii: args.ascii,
-        animate: tty && replay && !env_flag("NIKA_REDUCED_MOTION"),
-    };
+    let mut theme = term_theme(color.with_no_color(args.no_color), args.ascii, link_when);
+    theme.animate = tty && replay && !env_flag("NIKA_REDUCED_MOTION");
+    // The duration accents ride the interactive surface only — a piped
+    // `trace show` keeps its exact legacy bytes.
+    theme.accents = tty;
+    // Duration heat additionally needs colour + the truecolor PROOF.
+    theme.heat = tty && theme.color && truecolor_env();
 
+    // The shape tails ride the interactive surface only: a TTY render
+    // (show OR replay) carries them unless `--no-outputs`; a piped
+    // `trace show` keeps its exact legacy bytes.
+    let outputs = tty && !args.no_outputs;
     let mut view = RunView::new();
     if theme.animate {
-        live_replay(&events, &mut view, theme, args.speed);
+        live_replay(&events, &mut view, theme, args.speed, outputs);
     } else {
         for event in &events {
             view.apply(event);
         }
-        print_lines(&frame(&view, &theme, 0));
+        let lines = if outputs {
+            nika_cli::frame_with_outputs(&view, &theme, 0)
+        } else {
+            frame(&view, &theme, 0)
+        };
+        print_lines(&lines);
     }
     // The trace surface owns the run overlays (replay = re-render, never
     // re-execute): the waterfall + the verdict card close the read, from
@@ -508,7 +711,7 @@ fn trace_render(args: &TraceArgs, replay: bool) -> u8 {
 
 /// Replay with compressed timing: spinner ticks between events, frames
 /// redrawn in place (cursor-up + clear).
-fn live_replay(events: &[Event], view: &mut RunView, theme: Theme, speed: f64) {
+fn live_replay(events: &[Event], view: &mut RunView, theme: Theme, speed: f64, outputs: bool) {
     let mut drawn = 0usize;
     let mut tick = 0usize;
     let mut last_ms = events.first().map_or(0, |e| e.timestamp.unix_ms());
@@ -523,19 +726,23 @@ fn live_replay(events: &[Event], view: &mut RunView, theme: Theme, speed: f64) {
         // display pacing only — precision is irrelevant at 80ms granularity
         let steps = ((gap_ms as f64 / speed.max(0.1) / 80.0).ceil() as u64).clamp(1, 50);
         for _ in 0..steps {
-            drawn = redraw(view, theme, tick, drawn);
+            drawn = redraw(view, theme, tick, drawn, outputs);
             tick += 1;
             std::thread::sleep(Duration::from_millis(80));
         }
         last_ms = ts;
         view.apply(event);
-        drawn = redraw(view, theme, tick, drawn);
+        drawn = redraw(view, theme, tick, drawn, outputs);
     }
 }
 
 /// Draw one frame in place; returns the line count for the next clear.
-fn redraw(view: &RunView, theme: Theme, tick: usize, drawn: usize) -> usize {
-    let lines = frame(view, &theme, tick);
+fn redraw(view: &RunView, theme: Theme, tick: usize, drawn: usize, outputs: bool) -> usize {
+    let lines = if outputs {
+        nika_cli::frame_with_outputs(view, &theme, tick)
+    } else {
+        frame(view, &theme, tick)
+    };
     let mut out = std::io::stdout().lock();
     if drawn > 0 {
         // Cursor up over the previous frame, then clear to end of screen.
@@ -593,10 +800,54 @@ fn env_flag(name: &str) -> bool {
     std::env::var_os(name).is_some_and(|v| !v.is_empty())
 }
 
+/// Did the terminal PROVE truecolor (`COLORTERM=truecolor|24bit`)?
+/// The duration-heat ramp fires only on proof — 256-colour terminals
+/// get the flat fallback, never an approximated ramp (design §1.5).
+fn truecolor_env() -> bool {
+    env_value("COLORTERM").is_some_and(|v| v == "truecolor" || v == "24bit")
+}
+
+/// Read a presentation variable's VALUE (`CLICOLOR` · `TERM` ·
+/// `COLORTERM`) — the same non-secret seam as [`env_flag`].
+#[allow(clippy::disallowed_methods)]
+fn env_value(name: &str) -> Option<String> {
+    std::env::var(name).ok()
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
     use super::*;
+
+    /// The public name is `nika` EVERYWHERE clap speaks (found live
+    /// 2026-07-05): the Usage line (`bin_name`) and the generated shell
+    /// completions — `#compdef nika-cli` attached completions to a
+    /// command users never type, dead on arrival.
+    #[test]
+    fn clap_surfaces_speak_the_public_binary_name() {
+        let help = Cli::command().render_help().to_string();
+        assert!(help.contains("Usage: nika "), "usage speaks `nika`: {help}");
+        assert!(!help.contains("nika-cli"), "the seed name never leaks");
+
+        let mut zsh = Vec::new();
+        write_completions(clap_complete::Shell::Zsh, &mut zsh);
+        let zsh = String::from_utf8(zsh).expect("utf8");
+        assert!(
+            zsh.starts_with("#compdef nika\n"),
+            "zsh attaches to `nika`: {}",
+            zsh.lines().next().unwrap_or_default()
+        );
+
+        let mut bash = Vec::new();
+        write_completions(clap_complete::Shell::Bash, &mut bash);
+        let bash = String::from_utf8(bash).expect("utf8");
+        assert!(
+            bash.contains("complete -F _nika -o nosort -o bashdefault -o default nika")
+                || (bash.contains("default nika") && !bash.contains("nika-cli")),
+            "bash completes `nika`, never nika-cli: {bash}"
+        );
+        assert!(!bash.contains("nika-cli"), "the seed name never leaks");
+    }
 
     /// One valid serialized Event line — reuse the demo's real events.
     fn valid_line() -> String {

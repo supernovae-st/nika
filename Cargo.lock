@@ -3963,6 +3963,7 @@ dependencies = [
  "jaq-json",
  "jaq-std",
  "miette",
+ "nika-catalog",
  "nika-cel",
  "nika-error",
  "nika-event",

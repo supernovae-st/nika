@@ -76,7 +76,13 @@ use crate::verbs::exit;
 /// disables it too (a staged temp-file run is not a workspace run).
 // Ten independent CLI parameters ARE the clap surface — the same idiom
 // as TraceArgs' four bools, not a state machine to encode in a struct.
-#[allow(clippy::too_many_arguments)]
+/// `no_outputs` — `--no-outputs` (the comprehension pass): suppress the
+/// shape tails on the Live storyboard. Only the interactive TTY surface
+/// ever grows tails — pipes · CI · the machine modes stay byte-unchanged
+/// with or without the flag.
+// Ten independent CLI parameters ARE the clap surface — the same idiom
+// as TraceArgs' bools, not a state machine to encode in a struct.
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 #[must_use]
 pub fn run(
     file: &str,
@@ -90,6 +96,7 @@ pub fn run(
     resume: Option<&ResumeRequest>,
     no_trace_file: bool,
     task_filter: Option<&str>,
+    no_outputs: bool,
 ) -> u8 {
     // `--output` validated up front so an unknown format fails before any
     // work (machine-result mode · see `output_mode`).
@@ -105,7 +112,7 @@ pub fn run(
             // Pre-run diagnostics obey the export contract too: in machine
             // mode they go to stderr so a `capture: stdout` consumer never
             // mistakes the "cannot read" text for the JSON result.
-            emit_diagnostic(&out.text, output_json);
+            emit_diagnostic(&refusal_text(&out), output_json);
             return out.code;
         }
     };
@@ -193,7 +200,7 @@ pub fn run(
     };
     rt.block_on(execute(
         &runtime,
-        &wf,
+        (file, &wf),
         &report,
         json,
         output_json,
@@ -201,6 +208,7 @@ pub fn run(
         mode,
         resume.is_some(),
         trace,
+        !no_outputs,
     ))
 }
 
@@ -332,6 +340,11 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
     } else {
         RenderMode::Plain
     };
+    // The interactive duration accents follow the same TTY gate; heat
+    // additionally needs colour + the truecolor proof.
+    let mut theme = theme;
+    theme.accents = mode == RenderMode::Live;
+    theme.heat = theme.accents && theme.color && crate::verbs::truecolor_env();
     let code = run(
         &path.to_string_lossy(),
         false,
@@ -348,6 +361,7 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         true,
         // Examples always run whole (tiny by design · no scoping surface).
         None,
+        false,
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the tip then never
@@ -373,6 +387,22 @@ fn example_model(yaml: &str) -> String {
     .ok()
     .and_then(|wf| wf.model.map(|m| m.value))
     .unwrap_or_default()
+}
+
+/// House-voice a pre-run refusal (the empty-state audit · design §3):
+/// the ENV class (an unreadable/missing file) gains the `nika run:`
+/// prefix, ONE `fix:` line and a closing newline — a bare
+/// `cannot read …(os error 2)` glued to the prompt taught nothing.
+/// FILE findings pass through untouched (the check renderer's card is
+/// already the teaching surface).
+fn refusal_text(out: &crate::verbs::VerbOutput) -> String {
+    if out.code != exit::ENV {
+        return out.text.clone();
+    }
+    format!(
+        "nika run: {}\n  fix: check the path — `nika examples list` names runnable demos\n",
+        out.text.trim_end()
+    )
 }
 
 /// Validate `--output` up front — `Ok(true)` selects the machine-result
@@ -617,11 +647,15 @@ fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
 /// after the run · never the exit code). The caller composes the journal
 /// (enabled or disabled) like every other seam.
 // The 8th parameter is the `--resume` summary switch — same clap-surface
-// idiom as `run` itself.
-#[allow(clippy::too_many_arguments)]
+// The trailing parameters are the `--resume` summary switch + the
+// outputs-tail switch — same clap-surface idiom as `run` itself (four
+// independent flags ARE four bools, not a state machine). The workflow
+// rides as (path, parsed) — the epilogue hint teaches a command over
+// the SAME file the operator just ran.
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 async fn execute(
     runtime: &ProdRuntime,
-    wf: &RawWorkflow,
+    (file, wf): (&str, &RawWorkflow),
     report: &CheckReport,
     json: bool,
     output_json: bool,
@@ -629,6 +663,7 @@ async fn execute(
     mode: RenderMode,
     resumed: bool,
     trace: TraceFileSink,
+    outputs: bool,
 ) -> u8 {
     let mut stamper = SystemStamper::new();
     if output_json {
@@ -691,6 +726,12 @@ async fn execute(
     } else {
         let mut fold = FoldSink::new(std::io::stdout().lock(), theme, mode);
         fold.set_plan(plan_waves(wf, report));
+        // The shape tails ride the INTERACTIVE surface only (`Live` =
+        // TTY): the piped/`--no-progress`/`--quiet` registers keep their
+        // exact bytes — CI logs and scripts never grow tails.
+        if mode == RenderMode::Live && outputs {
+            fold.show_outputs(true);
+        }
         let mut tee = Tee::new(fold, trace);
         let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
         let (mut sink, trace) = tee.into_parts();
@@ -704,7 +745,7 @@ async fn execute(
         // registers (piped `Plain` · `--quiet` · machine modes) stay
         // untouched — CI logs never grow chart art.
         if mode == RenderMode::Live {
-            print_flow_epilogue(sink.view(), &outcome.outputs, theme);
+            print_flow_epilogue(sink.view(), &outcome.outputs, theme, file);
         }
         // The spec §3.3 final-frame pointer (`trace: …`) — under the frame
         // on the storytelling surfaces; `--quiet` keeps its compact-card
@@ -791,8 +832,17 @@ fn print_resume_summary(outcome: &RunOutcome, resumed: bool, to_stderr: bool) {
 
 /// The TTY final-frame epilogue: the post-run waterfall (real durations ·
 /// real overlap · pure fold of the run's own event stream) then the
-/// shareable verdict card, its outputs note naming what left the run.
-fn print_flow_epilogue(view: &crate::RunView, outputs: &BTreeMap<String, Value>, theme: Theme) {
+/// shareable verdict card, its outputs note naming what left the run —
+/// closed by the explore hint. SEAM (stated, not faked): a live run
+/// writes no trace file today, so the hint teaches the two-step that
+/// works NOW (record with `--json`, then browse); when auto-trace
+/// recording ships, this collapses to the recorded path.
+fn print_flow_epilogue(
+    view: &crate::RunView,
+    outputs: &BTreeMap<String, Value>,
+    theme: Theme,
+    file: &str,
+) {
     for line in crate::display::flow::waterfall(view, &theme) {
         println!("{line}");
     }
@@ -800,6 +850,16 @@ fn print_flow_epilogue(view: &crate::RunView, outputs: &BTreeMap<String, Value>,
     for line in crate::display::flow::verdict_card(view, &theme, note.as_deref()) {
         println!("{line}");
     }
+    // The workflow path is CLICKABLE on link-capable terminals (OSC-8 ·
+    // file:// — the one real file in the hint; the ndjson names are the
+    // suggested two-step, not files that exist yet).
+    let file_cell = crate::verbs::linked_path(theme, file);
+    let record =
+        format!("nika run {file_cell} --json > run.ndjson · nika trace outputs run.ndjson");
+    println!(
+        "  {}",
+        crate::display::vocab::hint(theme, "explore", &record)
+    );
 }
 
 /// The card's outputs note: `outputs → key (type) · key2 (type)` — the
@@ -1044,14 +1104,34 @@ mod tests {
         assert!(!offline_tip_applies(exit::WORKFLOW, false, ""));
     }
 
+    /// The empty-state voice (design §3 rider): an ENV refusal (missing
+    /// file) carries the house prefix + ONE fix line + a closing
+    /// newline; FILE findings pass through to the check card untouched.
+    #[test]
+    fn refusal_text_teaches_only_the_env_class() {
+        let env = crate::verbs::VerbOutput {
+            text: "cannot read demo.yaml: No such file or directory (os error 2)".to_owned(),
+            code: exit::ENV,
+        };
+        let voiced = super::refusal_text(&env);
+        assert!(
+            voiced.starts_with("nika run: cannot read demo.yaml"),
+            "{voiced}"
+        );
+        assert!(voiced.contains("fix: check the path"), "{voiced}");
+        assert!(voiced.ends_with('\n'), "closes its own line: {voiced:?}");
+
+        let findings = crate::verbs::VerbOutput {
+            text: "PARSE X  [NIKA-PARSE-009] two verbs".to_owned(),
+            code: exit::FILE,
+        };
+        assert_eq!(super::refusal_text(&findings), findings.text);
+    }
+
     /// A noiseless theme (no colour · no animation) for the run tests — they
     /// exercise the COMPOSITION + exit code, not the render surface.
     fn plain_theme() -> Theme {
-        Theme {
-            color: false,
-            ascii: true,
-            animate: false,
-        }
+        Theme::new(false, true, false)
     }
 
     fn stage(name: &str, yaml: &str) -> std::path::PathBuf {
@@ -1083,6 +1163,7 @@ mod tests {
             None,
             true, // tests never write .nika/traces (cwd hygiene)
             None, // whole-workflow runs (scoping has its own tests)
+            false,
         );
         assert_eq!(
             code,
@@ -1114,6 +1195,7 @@ mod tests {
             None,
             true, // tests never write .nika/traces (cwd hygiene)
             None, // whole-workflow runs (scoping has its own tests)
+            false,
         );
         assert_eq!(
             overridden,
@@ -1142,6 +1224,7 @@ mod tests {
             None,
             true, // tests never write .nika/traces (cwd hygiene)
             None, // whole-workflow runs (scoping has its own tests)
+            false,
         )
     }
 

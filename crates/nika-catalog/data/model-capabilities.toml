@@ -489,8 +489,8 @@ routing_complete = true
 
 # [43] NVIDIA NIM — text-only fallback. OpenAI-compat: json_schema YES.
 [[rules]]
-name             = "nvidia-nim-any-model"
-scope            = { providers = ["nvidia-nim"] }
+name             = "nvidia-any-model"
+scope            = { providers = ["nvidia"] }
 match            = { kind = "any" }
 caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 routing_complete = true

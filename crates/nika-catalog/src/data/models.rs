@@ -138,21 +138,65 @@ pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static Model
         .find(|p| p.provider.eq_ignore_ascii_case(provider) && model.contains(p.model_pattern))
 }
 
-/// Estimate cost for a model invocation.
+/// Find pricing for a model string that MAY carry a `provider/` prefix —
+/// the resolved form the engine passes around (`"openai/gpt-4o-mini"`).
+///
+/// A prefixed string resolves via [`find_pricing_scoped`] (contains-fallback
+/// never crosses provider boundaries) · a bare string falls back to
+/// [`find_pricing`]. This is the ONE model-string → pricing resolution:
+/// the check-time cost floor (`nika-schema` check/cost) and the runtime's
+/// task-completion pricing both call it — the two surfaces can never
+/// disagree on which row prices a model.
 #[cfg(feature = "pricing")]
 #[must_use]
+pub fn find_pricing_for(model: &str) -> Option<&'static ModelPricing> {
+    match model.split_once('/') {
+        Some((provider, name)) => find_pricing_scoped(provider, name),
+        None => find_pricing(model),
+    }
+}
+
+/// The pricing math — one site for both estimate surfaces.
+#[cfg(feature = "pricing")]
 // REASON: casting `u64` token counts to `f64` for the rate multiplication.
 // Token counts cap at provider context windows (≤ 10 M = 2²³), well below
 // the `f64` precision horizon (2⁵³). A saturating conversion would hide a
 // real data bug if that ever changed; the cast is the right primitive here.
 #[allow(clippy::cast_precision_loss)]
+fn usd_for(pricing: &ModelPricing, input_tokens: u64, output_tokens: u64) -> f64 {
+    (input_tokens as f64 * pricing.input_per_million
+        + output_tokens as f64 * pricing.output_per_million)
+        / 1_000_000.0
+}
+
+/// Estimate cost for a model invocation.
+#[cfg(feature = "pricing")]
+#[must_use]
 pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> Option<CostEstimate> {
     let pricing = find_pricing(model)?;
-    let usd = (input_tokens as f64 * pricing.input_per_million
-        + output_tokens as f64 * pricing.output_per_million)
-        / 1_000_000.0;
     Some(CostEstimate::new(
-        usd,
+        usd_for(pricing, input_tokens, output_tokens),
+        pricing.input_per_million,
+        pricing.output_per_million,
+        model.to_string(),
+        pricing.provider.to_string(),
+    ))
+}
+
+/// Estimate cost for a RESOLVED model string (`provider/name` or bare) —
+/// [`find_pricing_for`] resolution × the same per-million math as
+/// [`estimate_cost`]. `None` when the model has no catalog price (mock ·
+/// unknown local) — the caller emits nothing rather than a fake number.
+#[cfg(feature = "pricing")]
+#[must_use]
+pub fn estimate_cost_for(
+    model: &str,
+    input_tokens: u64,
+    output_tokens: u64,
+) -> Option<CostEstimate> {
+    let pricing = find_pricing_for(model)?;
+    Some(CostEstimate::new(
+        usd_for(pricing, input_tokens, output_tokens),
         pricing.input_per_million,
         pricing.output_per_million,
         model.to_string(),
@@ -382,6 +426,55 @@ mod tests {
             estimate_cost("nonexistent-model-xyz", 100, 50).is_none(),
             "unknown model must return None",
         );
+    }
+
+    // ── find_pricing_for / estimate_cost_for (resolved strings) ──
+
+    #[test]
+    fn find_pricing_for_provider_prefixed_resolves_scoped() {
+        let p = find_pricing_for("openai/gpt-4o-mini").expect("priced model");
+        assert_eq!(p.provider, "OpenAI");
+        // The prefixed form and the explicit scoped call resolve to the
+        // SAME row — one resolution, two spellings.
+        let scoped = find_pricing_scoped("openai", "gpt-4o-mini").expect("scoped hit");
+        assert!(std::ptr::eq(p, scoped));
+    }
+
+    #[test]
+    fn find_pricing_for_bare_falls_back_unscoped() {
+        let p = find_pricing_for("gpt-4o-mini").expect("bare model resolves");
+        let unscoped = find_pricing("gpt-4o-mini").expect("unscoped hit");
+        assert!(std::ptr::eq(p, unscoped));
+    }
+
+    #[test]
+    fn find_pricing_for_mock_and_unknown_local_are_none() {
+        // The honest-absence contract: a mock or local model prices to
+        // None — the runtime emits NO cost fields for these.
+        assert!(find_pricing_for("mock/mock-echo").is_none());
+        assert!(find_pricing_for("ollama/qwen3.5:4b").is_none());
+    }
+
+    #[test]
+    fn estimate_cost_for_prefixed_matches_scoped_math() {
+        let est = estimate_cost_for("openai/gpt-4o-mini", 1000, 500).expect("priced");
+        let p = find_pricing_scoped("openai", "gpt-4o-mini").expect("scoped hit");
+        let expected = (1000.0 * p.input_per_million + 500.0 * p.output_per_million) / 1e6;
+        assert!((est.usd - expected).abs() < 1e-12);
+        assert_eq!(est.model, "openai/gpt-4o-mini", "carries the queried form");
+        assert_eq!(est.provider, "OpenAI");
+    }
+
+    #[test]
+    fn estimate_cost_for_unpriced_is_none() {
+        assert!(estimate_cost_for("mock/mock-echo", 100, 50).is_none());
+        assert!(estimate_cost_for("llamacpp/local-gguf", 100, 50).is_none());
+    }
+
+    #[test]
+    fn estimate_cost_for_zero_tokens_is_zero_usd() {
+        let est = estimate_cost_for("openai/gpt-4o", 0, 0).expect("priced");
+        assert!(est.usd.abs() < f64::EPSILON);
     }
 
     #[test]
