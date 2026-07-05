@@ -45,6 +45,7 @@ mod errors;
 mod expr;
 mod jq;
 mod record;
+pub mod resume;
 mod retry;
 mod secret;
 mod stamp;
@@ -335,6 +336,10 @@ where
         // secret). The resolved values flow ONLY where the IFC sanctioned
         // them (the clean check) and are never emitted to the event stream.
         let secrets = secret::resolve_secrets(self.secrets.as_ref(), &wf.secrets);
+        // ADR-099 resume identities — secret markers + the leak-guard set,
+        // derived once per run (keys are stamped on every success so any
+        // `--json` trace is later resumable).
+        let resume_ctx = resume::ResumeContext::of(wf, &secrets);
         // The declared capability boundary (spec 01 §permits) flows to every
         // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);
@@ -362,11 +367,9 @@ where
                 .config
                 .wave_parallelism
                 .map_or_else(|| members.len().max(1), NonZeroUsize::get);
-            let finishes: Vec<Finish> = futures_util::stream::iter(
-                members
-                    .iter()
-                    .map(|&task| self.run_task_pipeline(task, &records, &vars, &secrets, permits)),
-            )
+            let finishes: Vec<Finish> = futures_util::stream::iter(members.iter().map(|&task| {
+                self.run_task_pipeline(task, &records, &vars, &secrets, permits, &resume_ctx)
+            }))
             .buffered(cap)
             .collect()
             .await;
@@ -401,6 +404,7 @@ fn settle(
     // outcome: the evaluated values on success · all-`Null` on a
     // non-success (defined-null reads · empty when no `output:`).
     let named = finish.named;
+    let resume = finish.resume;
     match finish.settle {
         SettleAs::Cancelled { note } => {
             emit(
@@ -446,7 +450,7 @@ fn settle(
             *ok = false;
         }
         SettleAs::Ran(run) => {
-            let mut record = settle_ran(&id, run, ok, stamper, sink);
+            let mut record = settle_ran(&id, run, resume.as_ref(), ok, stamper, sink);
             record.named = named;
             records.insert(id, record);
         }
@@ -461,10 +465,13 @@ fn with_named(mut record: TaskRecord, named: BTreeMap<String, Value>) -> TaskRec
 }
 
 /// Settle a task that RAN — the started frame · the retry history ·
-/// the terminal frame · the result record (spec §3.9).
+/// the terminal frame · the result record (spec §3.9). A SUCCESS with a
+/// resume stamp carries the ADR-099 identity + output on its
+/// `task_completed` frame (additive trace fields · the checkpoint).
 fn settle_ran(
     id: &str,
     run: task::RanTask,
+    resume: Option<&resume::ResumeStamp>,
     ok: &mut bool,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -516,6 +523,16 @@ fn settle_ran(
             // the task still completes.
             if let Some(msg) = warning.as_deref() {
                 fields.push(("warning", s(msg)));
+            }
+            // ADR-099 · the checkpoint fields: the two key hashes + the
+            // output as ONE compact JSON text (rehydration source). Only
+            // a stamped success carries them (additive trace fields).
+            let output_text =
+                resume.map(|_| serde_json::to_string(&value).unwrap_or_else(|_| "null".to_owned()));
+            if let (Some(stamp), Some(text)) = (resume, output_text.as_deref()) {
+                fields.push((resume::fields::DEF_HASH, s(&stamp.def_hash)));
+                fields.push((resume::fields::INPUT_HASH, s(&stamp.input_hash)));
+                fields.push((resume::fields::OUTPUT, s(text)));
             }
             let ended = emit(stamper, sink, EventKind::TaskCompleted, &fields);
             record.ended_at = Some(ended);
@@ -819,7 +836,7 @@ outputs:
         let mut ok = true;
         let mut stamper = DeterministicStamper::new();
         let mut sink = VecSink::new();
-        settle_ran("think", ran, &mut ok, &mut stamper, &mut sink);
+        settle_ran("think", ran, None, &mut ok, &mut stamper, &mut sink);
 
         let completed = sink
             .events()
@@ -855,7 +872,7 @@ outputs:
         let mut ok = true;
         let mut stamper = DeterministicStamper::new();
         let mut sink = VecSink::new();
-        settle_ran("t", ran, &mut ok, &mut stamper, &mut sink);
+        settle_ran("t", ran, None, &mut ok, &mut stamper, &mut sink);
 
         let completed = sink
             .events()

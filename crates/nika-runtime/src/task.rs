@@ -58,6 +58,11 @@ pub(crate) struct Finish {
     /// the jq result over the raw output (or `Null` for a non-success
     /// task · defined-null). Empty when the task declares no `output:`.
     pub named: BTreeMap<String, Value>,
+    /// ADR-099 resume identity — stamped onto a SUCCESS `task_completed`
+    /// record (additive trace fields). `None` = not resume-eligible this
+    /// run (future form · render miss · secret leak) — the task records
+    /// no key and simply never skips (honest degradation).
+    pub resume: Option<crate::resume::ResumeStamp>,
 }
 
 /// How the task settles (spec 03 §task states).
@@ -147,6 +152,7 @@ where
         vars: &BTreeMap<String, Value>,
         secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
+        resume_ctx: &crate::resume::ResumeContext,
     ) -> Finish {
         let id = task.id.value.clone();
         let gate_scope = Scope::workflow_with_secrets(records, vars, secrets);
@@ -165,6 +171,7 @@ where
                             note: "upstream failed",
                         },
                         named: null_bindings(task),
+                        resume: None,
                     };
                 }
             }
@@ -180,6 +187,7 @@ where
                             note: "when: gate closed",
                         },
                         named: null_bindings(task),
+                        resume: None,
                     };
                 }
                 Err(err) => {
@@ -190,10 +198,15 @@ where
                             error: runtime_error_record(&err),
                         },
                         named: null_bindings(task),
+                        resume: None,
                     };
                 }
             },
         }
+
+        // ── ADR-099 resume identity (computed on EVERY run, so any
+        //    `--json` trace is later resumable · None = never skips) ──
+        let resume = crate::resume::stamp(task, records, vars, resume_ctx);
 
         // ── `for_each:` fan-out or the single lane ──────────────────
         let mut settle = match task.for_each.as_ref() {
@@ -211,7 +224,20 @@ where
         // binding (the value on success · `Null` on a non-success ·
         // defined-null reads).
         let named = bind_outputs(task, &mut settle);
-        Finish { id, settle, named }
+        // A success output that carries a resolved secret VALUE must not
+        // reach the trace (ADR-099 §1: no secret-derived material) — the
+        // task then records no key and re-runs live on resume.
+        let resume = resume.filter(|_| {
+            success_output(&settle)
+                .and_then(|v| serde_json::to_string(v).ok())
+                .is_none_or(|text| !resume_ctx.leaks_secret(&text))
+        });
+        Finish {
+            id,
+            settle,
+            named,
+            resume,
+        }
     }
 
     /// The single-execution lane (no `for_each:`).
