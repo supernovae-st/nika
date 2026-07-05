@@ -118,8 +118,9 @@ mod tests {
     #[test]
     fn all_providers_non_empty() {
         // Session 4b added 7 providers (nvidia-nim, deepinfra, replicate,
-        // hyperbolic, writer, databricks, cloudflare): 25 → 32.
-        assert_eq!(all_providers().len(), 32);
+        // hyperbolic, writer, databricks, cloudflare): 25 → 32; 2026-07-05
+        // huggingface joined (+ nvidia-nim → nvidia rename): 32 → 33.
+        assert_eq!(all_providers().len(), 33);
     }
 
     #[test]

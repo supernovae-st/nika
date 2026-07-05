@@ -152,11 +152,11 @@ pub(crate) fn gen_ai_system(provider_id: &str) -> GenAiSystem {
         "mistral" => GenAiSystem::Mistral,
         "deepseek" => GenAiSystem::DeepSeek,
         "xai" => GenAiSystem::Xai,
-        // groq · openrouter · the 5 local servers all speak the
-        // OpenAI-compatible dialect; mock is Unknown by design.
-        "groq" | "openrouter" | "ollama" | "lmstudio" | "llamacpp" | "localai" | "vllm" => {
-            GenAiSystem::OpenAiCompatible
-        }
+        // groq · openrouter · huggingface (Inference Providers router) ·
+        // nvidia (integrate.api.nvidia.com / NIM) · the 5 local servers all
+        // speak the OpenAI-compatible dialect; mock is Unknown by design.
+        "groq" | "openrouter" | "huggingface" | "nvidia" | "ollama" | "lmstudio" | "llamacpp"
+        | "localai" | "vllm" => GenAiSystem::OpenAiCompatible,
         _ => GenAiSystem::Unknown,
     }
 }
@@ -473,7 +473,7 @@ mod tests {
     }
 
     #[test]
-    fn gen_ai_system_covers_all_fourteen() {
+    fn gen_ai_system_covers_all_sixteen() {
         for id in crate::profile::CANONICAL_IDS {
             let sys = gen_ai_system(id);
             if id == "mock" {

@@ -306,9 +306,11 @@ mod tests {
                 "groq/",
                 "xai/",
                 "openrouter/",
+                "huggingface/",
+                "nvidia/",
                 "mock/",
             ],
-            "the 14-provider catalog, local-first, each suffixed with `/`"
+            "the 16-provider catalog, local-first, each suffixed with `/`"
         );
         // every provider item is a VALUE with a non-empty detail (the kind +
         // detail fields, not just the label).
