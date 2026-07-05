@@ -20,7 +20,7 @@ nika: v1
 workflow: ceo-monday-brief
 description: "news + repo pulse + KPIs → thinking synthesis → dated brief + cost ping"
 
-model: ollama/llama3.2:3b   # local default · the synthesis task below overrides to a stronger model
+model: ollama/qwen3.5:4b   # local default · the synthesis task below overrides to a stronger model
 
 vars:
   watch_query: "AI workflow engines"

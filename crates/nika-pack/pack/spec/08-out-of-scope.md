@@ -157,6 +157,15 @@ tasks: ...
 
 **Why deferred** · scheduling is an engine-runtime concern · not a language concern. A conformant engine handles cron at runtime · workflows themselves stay schedule-agnostic.
 
+### Trace retention · lifted by ADR-100 (proposed)
+
+> `.nika/traces/` is bounded by default (keep-last-N · age cap · size
+> budget) with two absolute exemptions — a `paused` trace (a pending human
+> gate) and each workflow's newest trace (the standing resume candidate) —
+> and a one-line visible report whenever collection removes anything ·
+> [ADR-100](../adr/adr-100-trace-retention.md). CLI surface (`nika trace
+> ls|rm`) and config wiring land with the engine arc.
+
 ### Workflow checkpointing / resumption
 
 ```yaml

@@ -19,7 +19,7 @@ Two header lines + one task ·
 nika: v1
 workflow: hello
 
-model: ollama/llama3.2:3b
+model: ollama/qwen3.5:4b
 
 tasks:
   - id: greet
@@ -33,8 +33,8 @@ tasks:
 - one task · `infer:` calls the model.
 
 > **Model note** · every step on this page runs local on
-> `ollama/llama3.2:3b` · zero key, nothing leaves your machine
-> (`ollama pull llama3.2:3b` first · or `lmstudio/…` · `llamacpp/…` ·
+> `ollama/qwen3.5:4b` · zero key, nothing leaves your machine
+> (`ollama pull qwen3.5:4b` first · or `lmstudio/…` · `llamacpp/…` ·
 > `vllm/…`). Prefer cloud? Swap the one `model:` line for any of the
 > <!-- canon:providers -->14<!-- /canon --> providers ·
 > `mistral/mistral-small` · `anthropic/claude-haiku-4-5` ·
@@ -51,7 +51,7 @@ graph · `${{ tasks.<id>.output }}` reads a prior task's result ·
 nika: v1
 workflow: summarize-and-translate
 
-model: ollama/llama3.2:3b
+model: ollama/qwen3.5:4b
 
 tasks:
   - id: summarize
@@ -83,7 +83,7 @@ vars:
   text: "Hello, world"
   target_lang: "French"
 
-model: ollama/llama3.2:3b
+model: ollama/qwen3.5:4b
 
 tasks:
   - id: translate
@@ -119,7 +119,7 @@ Everything else (fetching a URL, querying a DB, writing a file) is a
 nika: v1
 workflow: fetch-and-summarize
 
-model: ollama/llama3.2:3b
+model: ollama/qwen3.5:4b
 
 tasks:
   - id: fetch_page

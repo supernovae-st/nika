@@ -19,7 +19,7 @@ nika: v1
 workflow: incident-war-room
 description: "parallel evidence → typed timeline → settle + recheck → postmortem draft"
 
-model: ollama/llama3.2:3b   # local default · the synthesis task below overrides to a stronger model
+model: ollama/qwen3.5:4b   # local default · the synthesis task below overrides to a stronger model
 
 vars:
   service: "checkout-api"

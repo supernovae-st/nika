@@ -16,7 +16,7 @@ nika: v1
 workflow: standup-digest
 description: "Read yesterday's commits, write today's standup note"
 
-model: ollama/llama3.2:3b   # local · zero key · swap for anthropic/claude-haiku-4-5 (fast one-liner job)
+model: ollama/qwen3.5:4b   # local · zero key · swap for anthropic/claude-haiku-4-5 (fast one-liner job)
 
 tasks:
   # No deps between these two → the engine runs them in parallel.

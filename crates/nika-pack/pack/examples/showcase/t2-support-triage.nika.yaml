@@ -18,7 +18,7 @@ nika: v1
 workflow: support-triage
 description: "Ticket queue → typed triage → urgent escalation → triage board"
 
-model: ollama/llama3.2:3b   # local · zero key · swap for groq/llama-3.3-70b (triage wants speed)
+model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (triage wants speed)
 
 vars:
   queue_path: "./support/overnight-queue.json"

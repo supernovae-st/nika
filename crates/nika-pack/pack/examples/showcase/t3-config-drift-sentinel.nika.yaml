@@ -21,7 +21,7 @@ nika: v1
 workflow: config-drift-sentinel
 description: "live config vs sanctioned baseline → typed drift → explained alert"
 
-model: ollama/llama3.2:3b   # local · zero key · swap for anthropic/claude-haiku-4-5 (explain is cheap)
+model: ollama/qwen3.5:4b   # local · zero key · swap for anthropic/claude-haiku-4-5 (explain is cheap)
 
 vars:
   config_url: "https://api.internal.example.com/v1/config"

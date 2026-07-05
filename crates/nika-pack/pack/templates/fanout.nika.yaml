@@ -15,7 +15,7 @@ nika: v1
 workflow: fanout-template           # SLOT: kebab-case workflow id
 description: "discover N items · process in parallel · merge"   # SLOT
 
-model: ollama/llama3.2:3b           # SLOT: provider/model · local · zero key
+model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
 
 vars:
   collection_source: "./items"      # SLOT: where the collection comes from

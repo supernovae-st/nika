@@ -20,7 +20,7 @@ nika: v1
 workflow: resume-screener
 description: "glob CVs → local-model rubric per candidate → deterministic shortlist"
 
-model: ollama/llama3.2:3b   # PII stays on the machine · the whole screen is offline
+model: ollama/qwen3.5:4b   # PII stays on the machine · the whole screen is offline
 
 permits:                    # the file IS the blast radius · no net category at all:
   fs:                       # CVs cannot leave this machine even if a prompt is hijacked

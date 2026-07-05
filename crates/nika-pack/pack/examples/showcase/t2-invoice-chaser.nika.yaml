@@ -18,7 +18,7 @@ nika: v1
 workflow: invoice-chaser
 description: "Ledger CSV → overdue filter → drafted reminders → human gate → drafts file"
 
-model: ollama/llama3.2:3b   # local · zero key · swap for groq/llama-3.3-70b (drafting is a fast-model job)
+model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (drafting is a fast-model job)
 
 vars:
   ledger_csv: "./finance/invoices.csv"

@@ -20,7 +20,7 @@ nika: v1
 workflow: seo-content-brief
 description: "Competitor sitemap → top page → gap analysis → typed brief"
 
-model: ollama/llama3.2:3b   # local · zero key · swap for openai/gpt-5.2
+model: ollama/qwen3.5:4b   # local · zero key · swap for openai/gpt-5.2
 
 vars:
   competitor_sitemap: "https://competitor.example.com/sitemap.xml"

@@ -16,7 +16,7 @@ separate `provider:` field** · the provider is the prefix.
 
 ```yaml
 infer:
-  model: ollama/llama3.1                 # local · no key
+  model: ollama/qwen3.5:9b                 # local · no key
   prompt: "..."
 
 infer:
@@ -28,15 +28,15 @@ infer:
 fields let you write the silent-nonsense combination `provider: anthropic` +
 `model: gpt-4o`. One `<provider>/<name>` string is atomic, self-documenting,
 trivially swappable, and the industry standard. The same open model served by
-different backends disambiguates cleanly · `groq/llama-3.1-70b` vs
-`ollama/llama-3.1-70b`.
+different backends disambiguates cleanly · `groq/qwen3.5-32b` vs
+`ollama/qwen3.5:27b`.
 
 **Parameterize it** · combine with typed inputs to run one workflow
 against any backend ·
 
 ```yaml
 vars:
-  model: { type: string, default: "ollama/llama3.1" }
+  model: { type: string, default: "ollama/qwen3.5:9b" }
 tasks:
   - id: x
     infer: { model: "${{ vars.model }}", prompt: "..." }
@@ -89,7 +89,7 @@ mock/…                                                 → TEST  · determinis
 ```
 
 Sovereignty · **local-first** · nothing leaves the machine unless a
-cloud provider is *explicitly* selected. `ollama/llama3.1` makes a sovereign,
+cloud provider is *explicitly* selected. `ollama/qwen3.5:9b` makes a sovereign,
 zero-cloud run trivial.
 
 All 5 local providers are external **HTTP servers** (OpenAI-compatible API · the
@@ -176,7 +176,7 @@ Every provider supports ·
 infer:
   prompt: "..."                # required
   system: "..."                # optional
-  model: <provider>/<name>     # one field · e.g. ollama/llama3.1
+  model: <provider>/<name>     # one field · e.g. ollama/qwen3.5:9b
   temperature: 0.0 to 2.0      # optional
   max_tokens: <int>            # optional
   schema: { ... }              # optional · structured output
@@ -194,13 +194,13 @@ Errors map to `NIKA-PROVIDER-NNN` codes with the provider-specific status.
 
 ```yaml
 infer:
-  model: ollama/llama3.1                 # or any pulled Ollama model
+  model: ollama/qwen3.5:9b                 # or any pulled Ollama model
   prompt: "..."
 ```
 
 **Backend** · the Ollama daemon (`http://localhost:11434`) · OpenAI-compatible API · the engine talks to it over HTTP.
 
-**Models** · any model pulled into Ollama (`llama3.1` · `qwen2.5` · `mistral` · `gemma2` · etc.) · pass-through.
+**Models** · any model pulled into Ollama (`qwen3.5:9b` · `qwen2.5` · `mistral` · `gemma2` · etc.) · pass-through.
 
 **Auth** · none (localhost).
 
@@ -478,7 +478,7 @@ When using the same workflow with different providers ·
 - The **structured output** uses JSON Schema (engine adapts to provider's native mechanism · JSON mode · function calling · etc.)
 - The **vision input** is provider-agnostic in the workflow · the engine adapts
 
-A workflow can switch providers with one line change (`model: ollama/llama3.1` → `model: mistral/mistral-large`, or any other `<provider>/<name>`) for most use cases.
+A workflow can switch providers with one line change (`model: ollama/qwen3.5:9b` → `model: mistral/mistral-large`, or any other `<provider>/<name>`) for most use cases.
 
 ---
 

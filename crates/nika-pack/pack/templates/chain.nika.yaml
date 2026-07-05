@@ -15,7 +15,7 @@ nika: v1
 workflow: chain-template            # SLOT: kebab-case workflow id
 description: "gather → think → persist"   # SLOT: one honest sentence
 
-model: ollama/llama3.2:3b           # SLOT: provider/model · local · zero key
+model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
 
 vars:
   source: "./input.txt"             # SLOT: your inputs · typed where required
