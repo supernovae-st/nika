@@ -128,7 +128,7 @@ deferred Media class (23 → 24 canonical builtins).
 - **v1.2 polish (2026-07-05 · same-day)** — the top-of-art pass
   (competitive research vs n8n/Dify/LangGraph/CrewAI/Make/ComfyUI ·
   primary sources · Nika held 7/7 differentiators). Three additions:
-  (1) **in-file provenance** — saved PNGs carry a `nika` tEXt chunk
+  (1) **in-file provenance** — saved PNG files carry a `nika` tEXt chunk
   (deterministic core: tool · engine · provider · model · clamped prompt
   · seed — NO timestamp, so mock byte-determinism holds) inserted after
   IHDR before hashing, the ComfyUI/InvokeAI interchange practice no

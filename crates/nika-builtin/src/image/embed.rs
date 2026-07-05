@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! In-file provenance — a `nika` tEXt chunk embedded into saved PNGs.
+//! In-file provenance — a `nika` tEXt chunk embedded into saved PNG files.
 //!
 //! The sidecar manifest answers « where does this asset come from? » —
 //! until the file is COPIED somewhere and the sidecar stays behind. The
