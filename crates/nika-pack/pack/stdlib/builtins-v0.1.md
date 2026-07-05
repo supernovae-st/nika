@@ -435,6 +435,24 @@ the const-endpoint design closed. The provenance manifest and output
 carry `endpoint_host` (which server actually rendered the asset — load-
 bearing for `local`, where the endpoint is configurable).
 
+**Content credentials: detect-and-PRESERVE (normative)** · upstream
+generators sign their returned bytes (OpenAI images and Google's media
+models emit C2PA manifests as of mid-2026 · carriage: PNG `caBX` chunk ·
+JPEG APP11 JUMBF · `WebP`/WAV RIFF `C2PA` · MP3 `ID3v2` GEOB
+`application/c2pa`), and C2PA hard bindings hash the asset's byte
+ranges — **any engine-side insert into a signed payload converts valid
+credentials into « present but tampered », which is worse than
+stripping them**. Engines MUST detect these signals before any in-file
+write, MUST stand their own embed down when credentials are present,
+and SHOULD surface presence as `content_credentials` in output +
+manifest (values are DETECTION labels — an engine that has not
+cryptographically validated the manifest must never say « verified »).
+Provider-declared watermarking (e.g. `SynthID` — detectable only by the
+vendor) MAY be surfaced as a `watermark_declared` manifest fact, marked
+as declared, never as verified. Preserving machine-readable marks is
+also the EU AI Act Article 50 robustness expectation (in force
+2026-08-02).
+
 **Provenance travels IN the file (PNG)** · engines SHOULD embed the
 deterministic provenance core (tool · engine version · provider · model ·
 clamped prompt · seed — no timestamp, so byte-determinism holds) as a

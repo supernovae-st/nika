@@ -163,6 +163,7 @@ where
 
     // Magic-byte authority: the payload names its own container.
     let sniffed = sniff::sniff(&bytes)?;
+    let content_credentials = detect_audio_credentials(&bytes, emitter);
     if let Some(asked) = args.format
         && asked != sniffed.format
         && !warnings.iter().any(|w| w.starts_with("format_mismatch:"))
@@ -184,7 +185,7 @@ where
 
     let created_at = rfc3339_now(clock);
     let manifest_path = if args.manifest {
-        let manifest = manifest_json(
+        let mut manifest = manifest_json(
             &args,
             &saved,
             cost_usd,
@@ -192,13 +193,16 @@ where
             &created_at,
             endpoint_host.as_deref(),
         );
+        if let serde_json::Value::Object(map) = &mut manifest {
+            map.insert("content_credentials".into(), content_credentials.into());
+        }
         Some(write_manifest(fs, boundary, &args, &saved, &manifest, emitter).await?)
     } else {
         None
     };
 
     emit_closing_events(emitter, clock, started, &saved, cost_usd, &warnings);
-    Ok(output_json(
+    let mut output = output_json(
         &args,
         &saved,
         cost_usd,
@@ -206,7 +210,26 @@ where
         &created_at,
         endpoint_host.as_deref(),
         manifest_path.as_deref(),
-    ))
+    );
+    if let serde_json::Value::Object(map) = &mut output {
+        map.insert("content_credentials".into(), content_credentials.into());
+    }
+    Ok(output)
+}
+
+/// Content credentials: Google's Lyria and the `ElevenLabs` stack already
+/// ship C2PA in audio bytes — detect and surface (presence, never
+/// « verified »; audio has no nika embed, so nothing to stand down).
+fn detect_audio_credentials<Em: Emitter>(bytes: &[u8], emitter: &Em) -> Option<&'static str> {
+    let label = super::image::credentials::detect_audio(bytes)
+        .map(super::image::credentials::CredentialSignal::label);
+    if let Some(standard) = label {
+        emitter.emit(
+            "tts_generation.credentials_detected",
+            serde_json::json!({ "standard": standard }),
+        );
+    }
+    label
 }
 
 /// The batch's closing telemetry — every warning as its own event, then

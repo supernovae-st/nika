@@ -30,6 +30,7 @@
 //! a credential (the `Secret` type is zeroizing + Debug-redacted).
 
 pub(crate) mod args;
+pub(crate) mod credentials;
 pub(crate) mod embed;
 pub(crate) mod gemini;
 pub(crate) mod local;
@@ -198,7 +199,7 @@ where
     // ── decode validation (header-only · magic authority) ───────────────
     let mut decoded = validate_decoded(images, &args, emitter, &mut warnings)?;
 
-    embed_provenance_into_pngs(&mut decoded, &args);
+    let content_credentials = detect_and_preserve_credentials(&mut decoded, &args, emitter);
 
     // ── save (boundary-gated · atomic · cleanup on partial failure) ─────
     let saved = save::save_all(fs, boundary, &args, decoded).await?;
@@ -222,6 +223,7 @@ where
         &saved,
         usage,
         cost_usd,
+        content_credentials,
         &warnings,
         &created_at,
         revised_prompt.as_deref(),
@@ -238,6 +240,7 @@ where
         &saved,
         usage,
         cost_usd,
+        content_credentials,
         &warnings,
         &created_at,
         revised_prompt.as_deref(),
@@ -287,6 +290,7 @@ async fn write_manifest<F, Em>(
     saved: &[SavedImage],
     usage: types::Usage,
     cost_usd: Option<f64>,
+    content_credentials: Option<&str>,
     warnings: &[String],
     created_at: &str,
     revised_prompt: Option<&str>,
@@ -306,6 +310,7 @@ where
         saved,
         usage,
         cost_usd,
+        content_credentials,
         warnings,
         created_at,
         revised_prompt,
@@ -325,16 +330,39 @@ where
 /// `ComfyUI`/`InvokeAI` interchange practice — no workflow engine does
 /// it). Embedded BEFORE hashing/saving so the filename sha and manifest
 /// sha cover the byte that lands on disk.
-fn embed_provenance_into_pngs(
+/// Detect upstream content credentials, then embed the `nika` tEXt chunk
+/// ONLY into unsigned PNG payloads — C2PA hard bindings hash the file's
+/// byte ranges, so inserting our chunk into a signed render would
+/// INVALIDATE the generator's own credentials (detect-and-PRESERVE ·
+/// their signed manifest outranks our informal chunk). Returns the batch
+/// label for output/manifest (`"c2pa"` when ANY image carried a signal).
+fn detect_and_preserve_credentials<Em: Emitter>(
     decoded: &mut [(types::RawImage, sniff::Sniffed, Vec<String>)],
     args: &ImageArgs,
-) {
-    for (image, sniffed, _) in decoded {
-        if sniffed.format == types::ImageFormat::Png {
-            let seed = image.seed;
-            image.bytes = embed::embed_provenance(std::mem::take(&mut image.bytes), args, seed);
+    emitter: &Em,
+) -> Option<&'static str> {
+    let mut batch_signal = None;
+    for (image, sniffed, image_warnings) in decoded {
+        match credentials::detect(&image.bytes) {
+            Some(signal) => {
+                batch_signal = Some(signal.label());
+                image_warnings.push(format!(
+                    "content_credentials_preserved: upstream {} manifest detected — the `nika` tEXt chunk was NOT embedded (it would invalidate the signature)",
+                    signal.label()
+                ));
+                emitter.emit(
+                    "image_generation.credentials_detected",
+                    serde_json::json!({ "standard": signal.label() }),
+                );
+            }
+            None if sniffed.format == types::ImageFormat::Png => {
+                let seed = image.seed;
+                image.bytes = embed::embed_provenance(std::mem::take(&mut image.bytes), args, seed);
+            }
+            None => {}
         }
     }
+    batch_signal
 }
 
 /// A provider returning fewer images than `n:` is a WARNED degradation,
@@ -509,6 +537,7 @@ fn output_json(
     saved: &[SavedImage],
     usage: types::Usage,
     cost_usd: Option<f64>,
+    content_credentials: Option<&str>,
     warnings: &[String],
     created_at: &str,
     revised_prompt: Option<&str>,
@@ -552,6 +581,7 @@ fn output_json(
         "images": images,
         "usage": usage.to_json(),
         "cost_usd": cost_usd,
+        "content_credentials": content_credentials,
         "warnings": warnings,
         "manifest_path": manifest_path,
         "output_dir": args.output_dir,
