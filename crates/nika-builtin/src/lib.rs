@@ -47,7 +47,7 @@ use nika_kernel::runtime::tool_executor::{
     ToolBatchDyn, ToolCall, ToolErrorMeta, ToolExecError, ToolExecuteDyn, ToolResult,
 };
 
-pub use defs::tool_defs;
+pub use defs::{TOOLS_EXPORT_VERSION, tool_defs, tools_json};
 pub use image::ImageKeys;
 pub use permits::FsBoundary;
 

@@ -3908,6 +3908,8 @@ dependencies = [
 name = "nika-mcp"
 version = "0.93.1"
 dependencies = [
+ "nika-builtin",
+ "nika-catalog",
  "nika-error",
  "nika-pack",
  "nika-schema",

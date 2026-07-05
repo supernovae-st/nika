@@ -50,6 +50,44 @@ pub fn tool_defs() -> Vec<ToolDef> {
     defs
 }
 
+/// Version marker of the `nika tools --json` envelope. Additive-only.
+pub const TOOLS_EXPORT_VERSION: u32 = 1;
+
+/// The builtin-tool wire projection — what `nika tools --json` and the MCP
+/// `nika_tools` tool emit.
+///
+/// One entry per builtin: the model-facing definition (`name` ·
+/// `description` · `parameters` JSON-Schema, whose own `required` may carry
+/// CONDITIONAL model hints for `wait`/`fetch`) JOINED with the check-time
+/// contract from the catalog (`category` · declared `args` vocabulary ·
+/// the UNCONDITIONALLY-`required` subset `nika check` scans for). The two
+/// sides are one contract — the drift guards in this file's tests pin them.
+///
+/// Versioned envelope `tools_version: 1`, evolution ADDITIVE-ONLY;
+/// consumers must ignore unknown fields.
+#[must_use]
+pub fn tools_json() -> serde_json::Value {
+    let tools: Vec<serde_json::Value> = tool_defs()
+        .into_iter()
+        .map(|d| {
+            let bare = d.name.strip_prefix("nika:").unwrap_or(&d.name);
+            let entry = nika_catalog::find_builtin(bare);
+            serde_json::json!({
+                "name": d.name,
+                "category": entry.map(|b| b.category.as_str()),
+                "description": d.description,
+                "parameters": d.parameters,
+                "args": entry.map_or(&[][..], |b| b.args),
+                "required": entry.map_or(&[][..], |b| b.required),
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "tools_version": TOOLS_EXPORT_VERSION,
+        "tools": tools,
+    })
+}
+
 fn core_defs() -> Vec<ToolDef> {
     vec![
         // ── core 6 ──────────────────────────────────────────────────────
@@ -339,6 +377,64 @@ fn media_defs() -> Vec<ToolDef> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tools_json_is_the_versioned_total_join() {
+        let payload = tools_json();
+        assert_eq!(payload["tools_version"], 1, "the locked v1 wire marker");
+        let tools = payload["tools"].as_array().expect("tools array");
+        assert_eq!(
+            tools.len(),
+            tool_defs().len(),
+            "every model-facing def is projected",
+        );
+        assert_eq!(
+            tools.len(),
+            nika_catalog::all_builtins().len(),
+            "the join is total — defs and catalog are the same set",
+        );
+    }
+
+    #[test]
+    fn every_projected_tool_carries_the_joined_contract() {
+        const CATEGORIES: [&str; 6] = ["core", "file", "data", "network", "introspection", "media"];
+        let payload = tools_json();
+        for tool in payload["tools"].as_array().expect("tools array") {
+            let name = tool["name"].as_str().expect("name string");
+            assert!(name.starts_with("nika:"), "`{name}` misses the namespace");
+            let category = tool["category"]
+                .as_str()
+                .unwrap_or_else(|| panic!("`{name}`: category missing from the join"));
+            assert!(
+                CATEGORIES.contains(&category),
+                "`{name}`: category `{category}` outside the closed set",
+            );
+            assert!(
+                !tool["description"]
+                    .as_str()
+                    .expect("description")
+                    .is_empty(),
+                "`{name}`: empty description",
+            );
+            assert_eq!(
+                tool["parameters"]["type"], "object",
+                "`{name}`: parameters must be the JSON-Schema object",
+            );
+            let args: Vec<&str> = tool["args"]
+                .as_array()
+                .expect("args array")
+                .iter()
+                .filter_map(|v| v.as_str())
+                .collect();
+            for req in tool["required"].as_array().expect("required array") {
+                let key = req.as_str().expect("required key string");
+                assert!(
+                    args.contains(&key),
+                    "`{name}`: required `{key}` outside the declared args",
+                );
+            }
+        }
+    }
 
     #[test]
     fn the_catalog_is_the_canonical_24_with_no_dupes() {
