@@ -197,7 +197,29 @@ where
         None
     };
 
-    for warning in &warnings {
+    emit_closing_events(emitter, clock, started, &saved, cost_usd, &warnings);
+    Ok(output_json(
+        &args,
+        &saved,
+        cost_usd,
+        &warnings,
+        &created_at,
+        endpoint_host.as_deref(),
+        manifest_path.as_deref(),
+    ))
+}
+
+/// The batch's closing telemetry — every warning as its own event, then
+/// the ONE `completed` summary.
+fn emit_closing_events<C: ClockDyn, Em: Emitter>(
+    emitter: &Em,
+    clock: &C,
+    started: std::time::Instant,
+    saved: &SavedAudio,
+    cost_usd: Option<f64>,
+    warnings: &[String],
+) {
+    for warning in warnings {
         emitter.emit(
             "tts_generation.warning",
             serde_json::json!({ "message": warning }),
@@ -213,8 +235,19 @@ where
                 u64::try_from(clock.elapsed(started).as_millis()).unwrap_or(u64::MAX),
         }),
     );
+}
 
-    Ok(serde_json::json!({
+/// The normalized output object — path + hashes, never bytes.
+fn output_json(
+    args: &TtsArgs,
+    saved: &SavedAudio,
+    cost_usd: Option<f64>,
+    warnings: &[String],
+    created_at: &str,
+    endpoint_host: Option<&str>,
+    manifest_path: Option<&str>,
+) -> serde_json::Value {
+    serde_json::json!({
         "provider": args.provider.id(),
         "model": args.model,
         "voice": args.voice,
@@ -233,7 +266,7 @@ where
         "warnings": warnings,
         "manifest_path": manifest_path,
         "output_dir": args.output_dir,
-    }))
+    })
 }
 
 async fn call_provider<H: HttpPostDyn>(
