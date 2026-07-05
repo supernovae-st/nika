@@ -330,6 +330,7 @@ mod tests {
             name: name.to_owned(),
             workflow: workflow.to_owned(),
             state,
+            paused_task: (state == TraceState::Paused).then(|| "gate".to_owned()),
             bytes,
             modified: now() - Duration::from_secs(age_s),
         }

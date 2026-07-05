@@ -75,6 +75,9 @@ pub(crate) struct TraceMeta {
     pub workflow: String,
     /// The last workflow-level terminal event's verdict.
     pub state: TraceState,
+    /// The awaiting task id when `state` is `Paused` — what a forced
+    /// removal would destroy (the `trace rm` refusal names it).
+    pub paused_task: Option<String>,
     /// File size in bytes (the budget's unit).
     pub bytes: u64,
     /// Last modification time (the age clock — a trace's mtime is its
@@ -117,21 +120,23 @@ fn read_meta(path: &Path) -> Option<TraceMeta> {
     // tail keeps its valid prefix; a file with no readable first line is
     // not a trace we can reason about — skipped, never collected.
     let recovered = recover_events(&raw, &name).ok()?;
-    let (workflow, state) = fold_facts(&recovered.events);
+    let (workflow, state, paused_task) = fold_facts(&recovered.events);
     Some(TraceMeta {
         path: path.to_path_buf(),
         name,
         workflow,
         state,
+        paused_task,
         bytes: meta.len(),
         modified,
     })
 }
 
-/// Fold recovered events into (workflow name · terminal state): the
-/// FIRST `workflow_started` names the run; the LAST workflow-level
-/// terminal event decides the state (none → `Running`).
-fn fold_facts(events: &[Event]) -> (String, TraceState) {
+/// Fold recovered events into (workflow name · terminal state · the
+/// awaiting task): the FIRST `workflow_started` names the run; the
+/// LAST workflow-level terminal event decides the state (none →
+/// `Running`) and, when paused, names the unanswered task.
+fn fold_facts(events: &[Event]) -> (String, TraceState, Option<String>) {
     let workflow = events
         .iter()
         .find(|e| e.kind == EventKind::WorkflowStarted)
@@ -139,6 +144,7 @@ fn fold_facts(events: &[Event]) -> (String, TraceState) {
         .unwrap_or_default()
         .to_owned();
     let mut state = TraceState::Running;
+    let mut paused_task = None;
     for event in events {
         if event.kind.class() != nika_event::EventClass::Workflow || !event.kind.is_terminal() {
             continue;
@@ -153,8 +159,12 @@ fn fold_facts(events: &[Event]) -> (String, TraceState) {
             // (exempt from rotation · age and budget still bound it).
             _ => TraceState::Running,
         };
+        paused_task = match state {
+            TraceState::Paused => str_field(event, "task").map(str::to_owned),
+            _ => None,
+        };
     }
-    (workflow, state)
+    (workflow, state, paused_task)
 }
 
 /// One string field off an event (the journal's additive KV vocabulary).
