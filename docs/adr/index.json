@@ -993,5 +993,37 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-098",
+      "title": "Underspecified schemas fall back to native JSON mode + local validation",
+      "status": "proposed",
+      "date": "2026-07-05",
+      "filename": "adr-098-underspecified-schema-json-mode-fallback.md",
+      "tags": ["nika-verb-infer","nika-providers","structured-output","json-mode","field-report"],
+      "affects_crates": ["nika-verb-infer","nika-providers"],
+      "affects_layers": ["L1.5","L2"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-092"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-099",
+      "title": "Durable-lite run resume — the trace IS the checkpoint",
+      "status": "accepted",
+      "date": "2026-07-05",
+      "filename": "adr-099-durable-lite-run-resume.md",
+      "tags": ["resume","durability","trace","cache-hit","human-gate","prompt","cli","conformance"],
+      "affects_crates": ["nika-cli","nika-runtime","nika-event"],
+      "affects_layers": ["L2","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": [],
+      "requires": [],
+      "enables": []
+    }
   ]
 }
