@@ -51,6 +51,7 @@ pub(crate) fn generate(args: &ImageArgs) -> Result<ProviderBatch, BuiltinFailure
             total_tokens: Some(input + output),
             thoughts_tokens: None,
         },
+        cost_usd: None,
         endpoint_host: None, // in-process — no wire was crossed
         provider_text: None,
         warnings,
@@ -185,7 +186,7 @@ fn zlib_stored(raw: &[u8]) -> Vec<u8> {
 }
 
 /// PNG CRC-32 (ISO 3309 · reflected 0xEDB88320) — bitwise, table-free.
-fn crc32(data: &[u8]) -> u32 {
+pub(crate) fn crc32(data: &[u8]) -> u32 {
     let mut crc = 0xffff_ffffu32;
     for &byte in data {
         crc ^= u32::from(byte);

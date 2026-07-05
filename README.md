@@ -111,6 +111,31 @@ completes, and the output says what it is:
 
 ![The live source is missing so the task fails; on_error recover degrades to the cached snapshot; the run exits 0 and the published file says stale: true](media/gifs/on-error-recover.optimized.gif)
 
+## Images are workflow citizens
+
+`nika:image_generate` renders through the same discipline as everything
+else — a declared `permits:` boundary gates every save, the run ledger
+meters real spend, and provenance is structural, not a promise:
+
+![One workflow renders through any of five image providers — local server first; the run meters $0.02 exactly; the asset lands sha256-named with a provenance manifest beside it](media/gifs/image-pipeline.gif)
+
+- **Local-first** — `provider: local` speaks the OpenAI-images wire any
+  self-hosted server exposes (LocalAI · Ollama · stable-diffusion.cpp ·
+  SGLang · vLLM-Omni). The base URL is engine config, never workflow data.
+  Clouds when you choose: `openai` · `gemini` · `xai` — and `mock` renders
+  real, decodable PNG files offline for CI.
+- **Provenance survives `cp`** — every saved PNG carries a `nika` tEXt
+  chunk (tool · engine · provider · model · prompt · seed), the practice
+  ComfyUI and InvokeAI standardized and no other workflow engine ships.
+  The sidecar manifest adds sha256, resolved request and timing.
+- **Honesty is enforced** — magic bytes beat declared MIME types, lossy
+  provider mappings warn loudly, a provider returning fewer images than
+  asked is a visible `count_shortfall:`, result URLs are **never**
+  fetched, and base64 never rides workflow outputs — assets, not blobs.
+- **Real spend in the ledger** — a render's exact cost (xAI bills in
+  ticks) lands on the task line and the run total, the same honest-spend
+  channel `infer:` uses.
+
 ## Daily commands
 
 ```sh

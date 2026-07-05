@@ -230,6 +230,7 @@ fn parse_response(
         images,
         usage: Usage::default(), // self-hosted — no billing axes to report
         endpoint_host: Some(host_of(base_url)),
+        cost_usd: None, // self-hosted — no billing axis
         provider_text: None,
         warnings: Vec::new(),
         raw_debug,

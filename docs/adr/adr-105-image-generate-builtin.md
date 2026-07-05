@@ -125,6 +125,22 @@ deferred Media class (23 → 24 canonical builtins).
   API stays deferred (async submit→poll wire — a second adapter
   architecture; the sovereign path to FLUX is `local`). Mistral has no
   image-generation API (agent-tool only — verified negative).
+- **v1.2 polish (2026-07-05 · same-day)** — the top-of-art pass
+  (competitive research vs n8n/Dify/LangGraph/CrewAI/Make/ComfyUI ·
+  primary sources · Nika held 7/7 differentiators). Three additions:
+  (1) **in-file provenance** — saved PNG files carry a `nika` tEXt chunk
+  (deterministic core: tool · engine · provider · model · clamped prompt
+  · seed — NO timestamp, so mock byte-determinism holds) inserted after
+  IHDR before hashing, the ComfyUI/InvokeAI interchange practice no
+  workflow engine ships; (2) **honest cost** — `ProviderBatch.cost_usd`
+  (xai maps `cost_in_usd_ticks` exactly · 1¢ = 10⁸ ticks · others
+  null-honest) rides output + manifest + the completed event, and the
+  runtime meters ANY invoke tool's top-level `cost_usd` into the run
+  ledger (the same channel infer rides); (3) **doctor names the image
+  plane** — one `image` finding (mock ready · which cloud keys present ·
+  the local URL). Identified-but-deferred: `mode: edit`/img2img (the one
+  real competitor gap · reserved args already refuse loudly) · async
+  submit-poll wires (video-class · not stills).
 - **The image plane shares the dispatcher's `H` type parameter**
   (`Option<Arc<H>>`) rather than a `dyn` seam: `HttpPostDyn` is a
   `trait_variant` async trait (not dyn-compatible), and the house

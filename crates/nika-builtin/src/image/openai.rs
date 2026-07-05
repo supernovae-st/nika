@@ -294,6 +294,7 @@ fn parse_response(
         images,
         usage,
         endpoint_host: Some("api.openai.com".to_owned()),
+        cost_usd: None, // token-priced · image models unpriced in the catalog (roadmap)
         provider_text: None,
         warnings,
         raw_debug,

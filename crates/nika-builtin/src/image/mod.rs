@@ -30,6 +30,7 @@
 //! a credential (the `Secret` type is zeroizing + Debug-redacted).
 
 pub(crate) mod args;
+pub(crate) mod embed;
 pub(crate) mod gemini;
 pub(crate) mod local;
 pub(crate) mod manifest;
@@ -185,6 +186,7 @@ where
     let ProviderBatch {
         images,
         usage,
+        cost_usd,
         endpoint_host,
         provider_text,
         warnings: batch_warnings,
@@ -194,7 +196,9 @@ where
     push_count_shortfall(&args, images.len(), &mut warnings);
 
     // ── decode validation (header-only · magic authority) ───────────────
-    let decoded = validate_decoded(images, &args, emitter, &mut warnings)?;
+    let mut decoded = validate_decoded(images, &args, emitter, &mut warnings)?;
+
+    embed_provenance_into_pngs(&mut decoded, &args);
 
     // ── save (boundary-gated · atomic · cleanup on partial failure) ─────
     let saved = save::save_all(fs, boundary, &args, decoded).await?;
@@ -217,6 +221,7 @@ where
         &args,
         &saved,
         usage,
+        cost_usd,
         &warnings,
         &created_at,
         revised_prompt.as_deref(),
@@ -226,7 +231,35 @@ where
     )
     .await?;
 
-    for warning in &warnings {
+    emit_closing_events(emitter, clock, started, &saved, cost_usd, &warnings);
+
+    Ok(output_json(
+        &args,
+        &saved,
+        usage,
+        cost_usd,
+        &warnings,
+        &created_at,
+        revised_prompt.as_deref(),
+        provider_text.as_deref(),
+        endpoint_host.as_deref(),
+        manifest_path.as_deref(),
+        raw_debug,
+    ))
+}
+
+/// The batch's closing telemetry — every accumulated warning as its own
+/// event, then the ONE `completed` summary (count · bytes · real spend ·
+/// wall duration).
+fn emit_closing_events<C: ClockDyn, Em: Emitter>(
+    emitter: &Em,
+    clock: &C,
+    started: std::time::Instant,
+    saved: &[save::SavedImage],
+    cost_usd: Option<f64>,
+    warnings: &[String],
+) {
+    for warning in warnings {
         emitter.emit(
             "image_generation.warning",
             serde_json::json!({ "message": warning }),
@@ -237,23 +270,11 @@ where
         serde_json::json!({
             "count": saved.len(),
             "total_bytes": saved.iter().map(|s| s.size_bytes).sum::<u64>(),
+            "cost_usd": cost_usd,
             "duration_ms":
                 u64::try_from(clock.elapsed(started).as_millis()).unwrap_or(u64::MAX),
         }),
     );
-
-    Ok(output_json(
-        &args,
-        &saved,
-        usage,
-        &warnings,
-        &created_at,
-        revised_prompt.as_deref(),
-        provider_text.as_deref(),
-        endpoint_host.as_deref(),
-        manifest_path.as_deref(),
-        raw_debug,
-    ))
 }
 
 /// Build + write the provenance manifest beside the assets (when
@@ -265,6 +286,7 @@ async fn write_manifest<F, Em>(
     args: &ImageArgs,
     saved: &[SavedImage],
     usage: types::Usage,
+    cost_usd: Option<f64>,
     warnings: &[String],
     created_at: &str,
     revised_prompt: Option<&str>,
@@ -283,6 +305,7 @@ where
         args,
         saved,
         usage,
+        cost_usd,
         warnings,
         created_at,
         revised_prompt,
@@ -295,6 +318,23 @@ where
         serde_json::json!({ "path": path }),
     );
     Ok(Some(path))
+}
+
+/// In-file provenance (PNG tEXt · deterministic core) — the manifest is
+/// the sidecar; the `nika` chunk is what SURVIVES a `cp` (the
+/// `ComfyUI`/`InvokeAI` interchange practice — no workflow engine does
+/// it). Embedded BEFORE hashing/saving so the filename sha and manifest
+/// sha cover the byte that lands on disk.
+fn embed_provenance_into_pngs(
+    decoded: &mut [(types::RawImage, sniff::Sniffed, Vec<String>)],
+    args: &ImageArgs,
+) {
+    for (image, sniffed, _) in decoded {
+        if sniffed.format == types::ImageFormat::Png {
+            let seed = image.seed;
+            image.bytes = embed::embed_provenance(std::mem::take(&mut image.bytes), args, seed);
+        }
+    }
 }
 
 /// A provider returning fewer images than `n:` is a WARNED degradation,
@@ -468,6 +508,7 @@ fn output_json(
     args: &ImageArgs,
     saved: &[SavedImage],
     usage: types::Usage,
+    cost_usd: Option<f64>,
     warnings: &[String],
     created_at: &str,
     revised_prompt: Option<&str>,
@@ -510,6 +551,7 @@ fn output_json(
         "count": saved.len(),
         "images": images,
         "usage": usage.to_json(),
+        "cost_usd": cost_usd,
         "warnings": warnings,
         "manifest_path": manifest_path,
         "output_dir": args.output_dir,
