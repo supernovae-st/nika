@@ -99,6 +99,13 @@ fn map_transport(error: HttpError) -> BuiltinFailure {
             BuiltinFailure::new(C_REQUEST, format!("elevenlabs connection failed: {reason}"))
                 .with_transient(true)
         }
+        HttpError::TooLarge { size, max } => BuiltinFailure::new(
+            C_REQUEST,
+            format!(
+                "elevenlabs response was {size} bytes (cap {max}) — shorten `text:` or \\
+                 split the script across tasks"
+            ),
+        ),
         other => BuiltinFailure::new(C_REQUEST, format!("elevenlabs request failed: {other}")),
     }
 }
