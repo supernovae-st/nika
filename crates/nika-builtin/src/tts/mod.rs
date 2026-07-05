@@ -292,45 +292,55 @@ fn output_json(
     })
 }
 
+/// The resolved wire for one synthesis call — built by `call_provider`'s
+/// ONE provider match (the mock arm returns from inside it, so no
+/// panic-class `unreachable!` arm exists — the image family's zero-panic
+/// pattern, applied down · architect finding P2.3).
+enum Wire<'k> {
+    Openai(&'k Secret),
+    Elevenlabs(&'k Secret),
+    Local {
+        base_url: String,
+        key: Option<&'k Secret>,
+    },
+}
+
 async fn call_provider<H: HttpPostDyn>(
     http: Option<&H>,
     keys: &TtsKeys,
     args: &TtsArgs,
 ) -> Result<ProviderAudio, BuiltinFailure> {
-    if args.provider == Provider::Mock {
-        return Ok(mock::generate(args));
-    }
+    let wire = match args.provider {
+        Provider::Mock => return Ok(mock::generate(args)),
+        Provider::Openai => Wire::Openai(
+            keys.openai
+                .as_ref()
+                .ok_or_else(|| missing_key("openai", "NIKA_OPENAI_API_KEY or OPENAI_API_KEY"))?,
+        ),
+        Provider::Elevenlabs => Wire::Elevenlabs(keys.elevenlabs.as_ref().ok_or_else(|| {
+            missing_key(
+                "elevenlabs",
+                "NIKA_ELEVENLABS_API_KEY or ELEVENLABS_API_KEY",
+            )
+        })?),
+        Provider::Local => Wire::Local {
+            base_url: keys
+                .local_base_url
+                .clone()
+                .unwrap_or_else(|| local::DEFAULT_BASE_URL.to_owned()),
+            key: keys.local_api_key.as_ref(),
+        },
+    };
     let http = http.ok_or_else(|| {
         BuiltinFailure::new(
             C_PROVIDER_UNAVAILABLE,
             "the TTS plane is not wired — the composition root did not inject an HTTP client",
         )
     })?;
-    match args.provider {
-        Provider::Openai => {
-            let key = keys
-                .openai
-                .as_ref()
-                .ok_or_else(|| missing_key("openai", "NIKA_OPENAI_API_KEY or OPENAI_API_KEY"))?;
-            openai::generate(http, key, args).await
-        }
-        Provider::Elevenlabs => {
-            let key = keys.elevenlabs.as_ref().ok_or_else(|| {
-                missing_key(
-                    "elevenlabs",
-                    "NIKA_ELEVENLABS_API_KEY or ELEVENLABS_API_KEY",
-                )
-            })?;
-            elevenlabs::generate(http, key, args).await
-        }
-        Provider::Local => {
-            let base = keys
-                .local_base_url
-                .clone()
-                .unwrap_or_else(|| local::DEFAULT_BASE_URL.to_owned());
-            local::generate(http, &base, keys.local_api_key.as_ref(), args).await
-        }
-        Provider::Mock => unreachable!("handled above"),
+    match wire {
+        Wire::Openai(key) => openai::generate(http, key, args).await,
+        Wire::Elevenlabs(key) => elevenlabs::generate(http, key, args).await,
+        Wire::Local { base_url, key } => local::generate(http, &base_url, key, args).await,
     }
 }
 

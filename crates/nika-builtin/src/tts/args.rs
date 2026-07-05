@@ -153,9 +153,15 @@ fn parse_timeout(args: &Args, provider: Provider) -> Result<u64, BuiltinFailure>
         None => Ok(default),
         Some(v) => v
             .as_u64()
-            .filter(|ms| (1..=MAX_TIMEOUT_MS).contains(ms))
+            .filter(|ms| (1_000..=MAX_TIMEOUT_MS).contains(ms))
             .ok_or_else(|| {
-                BuiltinFailure::new(C_ARGS, format!("`timeout_ms` must be 1..={MAX_TIMEOUT_MS}"))
+                BuiltinFailure::new(
+                    C_ARGS,
+                    format!(
+                        "`timeout_ms` must be 1000..={MAX_TIMEOUT_MS} — under 1s is a typo'd \
+                         unit (the image family's floor, applied uniformly)"
+                    ),
+                )
             }),
     }
 }
@@ -262,6 +268,10 @@ mod tests {
         assert!(parse(&base(serde_json::json!({ "text": "x".repeat(5000) }))).is_err());
         assert!(parse(&base(serde_json::json!({ "speed": 9.0 }))).is_err());
         assert!(parse(&base(serde_json::json!({ "format": "flac" }))).is_err());
+        assert!(
+            parse(&base(serde_json::json!({ "timeout_ms": 5 }))).is_err(),
+            "sub-second timeouts are typo'd units (image-family floor parity)"
+        );
         let s = parse(&base(serde_json::json!({ "speed": 1.5 }))).expect("speed");
         assert_eq!(s.speed_permille(), 1500);
         assert!((s.speed_f64() - 1.5).abs() < 1e-9);

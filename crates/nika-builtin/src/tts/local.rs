@@ -97,6 +97,13 @@ fn map_transport(error: HttpError) -> BuiltinFailure {
             ),
         )
         .with_transient(true),
+        HttpError::TooLarge { size, max } => BuiltinFailure::new(
+            C_REQUEST,
+            format!(
+                "local TTS response was {size} bytes (cap {max}) — shorten `text:` or \\
+                 split the script across tasks"
+            ),
+        ),
         other => BuiltinFailure::new(C_REQUEST, format!("local TTS request failed: {other}")),
     }
 }

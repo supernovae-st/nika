@@ -449,12 +449,6 @@ where
         }
     }
 
-    /// Enforce the `permits.fs` boundary for every `access` direction the
-    /// op needs on its `path:` arg, THEN run the builtin. A path that
-    /// resolves outside the boundary fails (`NIKA-SEC-004`) before the op —
-    /// the capability boundary, not the I/O, is the gate. When `path:` is
-    /// absent the op runs (its own arg ladder surfaces the missing-arg
-    /// error · the boundary has nothing to confine).
     /// The `nika:tts_generate` plumbing (kept out of `route`'s match for
     /// the fn-length budget — pure delegation).
     async fn route_tts(&self, args: &Args) -> BuiltinOutcome {
@@ -470,6 +464,12 @@ where
         .await
     }
 
+    /// Enforce the `permits.fs` boundary for every `access` direction the
+    /// op needs on its `path:` arg, THEN run the builtin. A path that
+    /// resolves outside the boundary fails (`NIKA-SEC-004`) before the op —
+    /// the capability boundary, not the I/O, is the gate. When `path:` is
+    /// absent the op runs (its own arg ladder surfaces the missing-arg
+    /// error · the boundary has nothing to confine).
     async fn guarded_fs<'a, Fut>(
         &'a self,
         args: &'a Args,
