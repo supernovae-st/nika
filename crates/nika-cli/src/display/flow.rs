@@ -286,12 +286,12 @@ pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -
     let title_raw = format!("{h} nika {mark_raw} {} ", view.workflow);
 
     let waves = wave_sizes(view).len();
+    let retries_cell = format!("{} retries", view.retries);
     let mut rows = vec![
         format!(
-            "{}    {} tasks · {waves} waves · {} retries",
+            "{}    {} tasks · {waves} waves · {retries_cell}",
             dag_shape(view, theme),
             view.rows().len(),
-            view.retries,
         ),
         totals_row(view),
     ];
@@ -321,7 +321,17 @@ pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -
         let pad = inner
             .saturating_sub(4)
             .saturating_sub(fitted.chars().count());
-        lines.push(format!("  {v}  {fitted}{}  {v}", " ".repeat(pad)));
+        // Verdict-count discipline (cargo school · design §1.7): only a
+        // NON-ZERO bad count earns colour — `0 retries` stays plain, a
+        // real retry count paints yellow. The paint lands on the FITTED
+        // text AFTER the width math (escapes add zero visible cells; a
+        // truncated row simply keeps its plain form).
+        let shown = if view.retries > 0 {
+            fitted.replace(&retries_cell, &theme.paint(Role::Warn, &retries_cell))
+        } else {
+            fitted
+        };
+        lines.push(format!("  {v}  {shown}{}  {v}", " ".repeat(pad)));
     }
     let bottom: String = std::iter::repeat_n(h, inner).collect();
     lines.push(format!("  {bl}{bottom}{br}"));
@@ -670,6 +680,55 @@ mod tests {
                 "unicode {glyph} leaked into --ascii: {ascii:?}"
             );
         }
+    }
+
+    /// Verdict-count discipline (cargo school): `0 retries` renders
+    /// PLAIN even with colour on — only a real retry count paints
+    /// yellow, and the paint never disturbs the box alignment (escapes
+    /// land after the width math).
+    #[test]
+    fn verdict_card_colours_only_non_zero_retries() {
+        let coloured = Theme::new(true, false, false);
+
+        let mut clean = RunView::new();
+        for e in demo::success() {
+            clean.apply(&e);
+        }
+        let lines = verdict_card(&clean, &coloured, None);
+        let totals = lines.iter().find(|l| l.contains("retries")).expect("row");
+        assert!(
+            totals.contains("0 retries") && !totals.contains("\x1b[33m"),
+            "a zero count stays plain: {totals:?}"
+        );
+
+        let mut retried = RunView::new();
+        for e in demo::retrying() {
+            retried.apply(&e);
+        }
+        retried.apply(&ev(EventKind::WorkflowCompleted, 9_000, &[]));
+        let lines = verdict_card(&retried, &coloured, None);
+        let totals = lines.iter().find(|l| l.contains("retries")).expect("row");
+        assert!(
+            totals.contains("\x1b[33m1 retries\x1b[0m"),
+            "a real retry count paints yellow: {totals:?}"
+        );
+        // The box still closes at one visible column: strip the escapes
+        // and every border row measures the same width.
+        let bare: Vec<usize> = lines
+            .iter()
+            .map(|l| {
+                l.replace("\x1b[33m", "")
+                    .replace("\x1b[32m", "")
+                    .replace("\x1b[1m", "")
+                    .replace("\x1b[0m", "")
+                    .chars()
+                    .count()
+            })
+            .collect();
+        assert!(
+            bare.iter().all(|w| *w == bare[0]),
+            "escape-stripped alignment holds: {bare:?}"
+        );
     }
 
     /// A failed run cards the ✖ mark; a run with no verdict cards nothing
