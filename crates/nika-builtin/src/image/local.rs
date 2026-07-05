@@ -44,7 +44,7 @@ pub(crate) async fn generate<H: HttpPostDyn>(
 ) -> Result<ProviderBatch, BuiltinFailure> {
     let (request, warnings) = build_request(base_url, key, args)?;
     let response = http.post(request).await.map_err(map_transport)?;
-    let mut batch = parse_response(response.status, &response.body, base_url, args)?;
+    let mut batch = parse_response(response.status, &response.body, base_url, key, args)?;
     batch.warnings.splice(0..0, warnings);
     Ok(batch)
 }
@@ -58,14 +58,12 @@ fn endpoint_of(base_url: &str) -> String {
 /// which server rendered this asset). Best-effort split, display-only:
 /// the value never gates anything.
 pub(crate) fn host_of(base_url: &str) -> String {
-    base_url
-        .split("://")
-        .nth(1)
-        .unwrap_or(base_url)
-        .split('/')
-        .next()
-        .unwrap_or(base_url)
-        .to_owned()
+    let after_scheme = base_url.split("://").nth(1).unwrap_or(base_url);
+    let authority = after_scheme.split('/').next().unwrap_or(after_scheme);
+    // Strip URL userinfo (`user:token@host`) — endpoint_host rides into
+    // outputs/manifests/events, and embedded credentials (an operator
+    // anti-pattern, but a possible one) must never ride along.
+    authority.rsplit('@').next().unwrap_or(authority).to_owned()
 }
 
 /// Build the wire request (pure — unit-testable without a transport).
@@ -170,10 +168,11 @@ fn parse_response(
     status: u16,
     body: &[u8],
     base_url: &str,
+    key: Option<&Secret>,
     args: &ImageArgs,
 ) -> Result<ProviderBatch, BuiltinFailure> {
     if !(200..300).contains(&status) {
-        return Err(map_error_status(status, body));
+        return Err(map_error_status(status, body, key));
     }
     let parsed: serde_json::Value = serde_json::from_slice(body).map_err(|e| {
         BuiltinFailure::new(
@@ -238,10 +237,15 @@ fn parse_response(
 }
 
 /// Map a non-2xx envelope best-effort (server families differ — `LocalAI`
-/// speaks the `OpenAI` error shape, others send plain text).
-fn map_error_status(status: u16, body: &[u8]) -> BuiltinFailure {
+/// speaks the `OpenAI` error shape, others send plain text). The raw-body
+/// fallback is what makes local errors USEFUL (« model failed to load »),
+/// but a verbose/misbehaving self-hosted server can reflect the request's
+/// `Authorization` header into its error body — so the configured key is
+/// scrubbed from the message before it can ride into tool results, agent
+/// context or events (refuter finding · 2026-07-05).
+fn map_error_status(status: u16, body: &[u8], key: Option<&Secret>) -> BuiltinFailure {
     let envelope: serde_json::Value = serde_json::from_slice(body).unwrap_or_default();
-    let message: String = envelope
+    let mut message: String = envelope
         .get("error")
         .and_then(|e| e.get("message"))
         .and_then(serde_json::Value::as_str)
@@ -249,6 +253,12 @@ fn map_error_status(status: u16, body: &[u8]) -> BuiltinFailure {
         .chars()
         .take(300)
         .collect();
+    if let Some(key) = key {
+        let exposed = key.expose();
+        if !exposed.is_empty() && message.contains(exposed) {
+            message = message.replace(exposed, "***");
+        }
+    }
     BuiltinFailure::new(
         C_REQUEST,
         format!("local image server HTTP {status}: {message}"),
@@ -437,6 +447,54 @@ mod tests {
         assert!(!err.message.contains("local-KEY"), "{}", err.message);
     }
 
+    #[tokio::test]
+    async fn a_server_reflecting_the_bearer_is_scrubbed_from_the_message() {
+        // The refuter's counterexample (2026-07-05): a verbose/misbehaving
+        // self-hosted server reflects the Authorization header into its
+        // error body — the raw-body fallback must scrub the configured
+        // key before the message rides into tool results/agent context.
+        let reflected = format!("unauthorized, you sent: Bearer {}", "local-KEY-do-not-leak");
+        let http = MockHttp::new().enqueue_ok(401, reflected.into_bytes());
+        let key = Secret::new("local-KEY-do-not-leak".to_owned());
+        let err = generate(
+            &http,
+            DEFAULT_BASE_URL,
+            Some(&key),
+            &parsed(serde_json::json!({})),
+        )
+        .await
+        .expect_err("fails");
+        assert!(
+            !err.message.contains("local-KEY-do-not-leak"),
+            "the reflected key must be scrubbed: {}",
+            err.message
+        );
+        assert!(err.message.contains("***"), "{}", err.message);
+        assert!(
+            err.message.contains("unauthorized"),
+            "the useful text stays"
+        );
+        // The JSON-envelope shape is scrubbed too (all-adapter class, but
+        // local's trust model makes it the load-bearing one).
+        let enveloped = serde_json::json!({
+            "error": { "message": "invalid key: Bearer local-KEY-do-not-leak" }
+        });
+        let http = MockHttp::new().enqueue_ok(401, enveloped.to_string().into_bytes());
+        let err = generate(
+            &http,
+            DEFAULT_BASE_URL,
+            Some(&key),
+            &parsed(serde_json::json!({})),
+        )
+        .await
+        .expect_err("fails");
+        assert!(
+            !err.message.contains("local-KEY-do-not-leak"),
+            "{}",
+            err.message
+        );
+    }
+
     #[test]
     fn quality_and_compression_warn_and_host_parses() {
         let args = parsed(serde_json::json!({
@@ -452,5 +510,10 @@ mod tests {
         assert_eq!(host_of("http://localhost:8080"), "localhost:8080");
         assert_eq!(host_of("http://127.0.0.1:1234/api"), "127.0.0.1:1234");
         assert_eq!(host_of("nonsense"), "nonsense", "display-only · total");
+        assert_eq!(
+            host_of("https://user:token@proxy.example.com:8443/v1"),
+            "proxy.example.com:8443",
+            "URL userinfo never rides into provenance"
+        );
     }
 }

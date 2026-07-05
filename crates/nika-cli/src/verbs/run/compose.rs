@@ -235,6 +235,8 @@ fn image_keys_from_env() -> ImageKeys {
     {
         keys = keys.with_local_base_url(url);
     }
+    // Single-name read (no conventional fallback exists for a local key —
+    // the array shape just reuses the ladder helper).
     if let Some(key) = read(["NIKA_IMAGE_LOCAL_API_KEY", "NIKA_IMAGE_LOCAL_API_KEY"]) {
         keys = keys.with_local_api_key(key);
     }
