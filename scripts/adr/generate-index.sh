@@ -20,7 +20,7 @@ json_escape() {
 # Usage: extract_scalar "field_name" "$frontmatter"
 extract_scalar() {
   local field="$1" fm="$2"
-  printf '%s\n' "$fm" | grep -E "^${field}:" | head -1 \
+  printf '%s\n' "$fm" | { grep -E "^${field}:" || true; } | head -1 \
     | sed -E "s/^${field}:[[:space:]]*//" \
     | sed -E 's/^"//; s/"$//' \
     | sed -E "s/^'//; s/'$//"
@@ -31,7 +31,7 @@ extract_scalar() {
 # Returns one element per line, stripped of quotes and brackets.
 extract_array() {
   local field="$1" fm="$2"
-  printf '%s\n' "$fm" | grep -E "^${field}:" | head -1 \
+  printf '%s\n' "$fm" | { grep -E "^${field}:" || true; } | head -1 \
     | sed -E "s/^${field}:[[:space:]]*//" \
     | tr -d '[]' \
     | tr ',' '\n' \
