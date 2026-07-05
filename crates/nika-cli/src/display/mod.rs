@@ -10,3 +10,4 @@ pub mod render;
 pub mod shape;
 pub mod state;
 pub mod theme;
+pub(crate) mod vocab;

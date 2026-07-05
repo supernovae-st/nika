@@ -287,7 +287,10 @@ fn append_failure_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
             theme.paint(Role::Strong, detail),
         ));
         if let Some(code) = detail.split_whitespace().find(|w| w.starts_with("NIKA-")) {
-            lines.push(theme.paint(Role::Dim, &format!("    fix: nika explain {code}")));
+            lines.push(format!(
+                "    {}",
+                crate::display::vocab::hint(*theme, "fix", &format!("nika explain {code}"))
+            ));
         }
     }
     for row in view.rows() {
@@ -303,7 +306,10 @@ fn append_failure_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
                 .split_whitespace()
                 .find(|w| w.starts_with("NIKA-"))
             {
-                lines.push(theme.paint(Role::Dim, &format!("    fix: nika explain {code}")));
+                lines.push(format!(
+                    "    {}",
+                    crate::display::vocab::hint(*theme, "fix", &format!("nika explain {code}"))
+                ));
             }
         }
     }

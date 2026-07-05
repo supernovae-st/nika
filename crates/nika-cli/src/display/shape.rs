@@ -105,7 +105,7 @@ pub fn output_tail(
     use std::fmt::Write as _;
     let text = output_json?;
     let shape = summarize(text, SHAPE_CELLS)?;
-    let arrow = if theme.ascii { "->" } else { "→" };
+    let arrow = crate::display::vocab::arrow(theme.ascii);
     let mut tail = format!("{arrow} {shape} · {}", fmt_bytes(text.len()));
     if let Some(tok) = tokens {
         let _ = write!(tail, " · {tok} tok");

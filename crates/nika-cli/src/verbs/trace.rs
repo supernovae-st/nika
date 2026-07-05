@@ -371,16 +371,14 @@ fn render_flow(edges: &[FlowEdge], theme: Theme) -> String {
         .max()
         .unwrap_or(0);
     for edge in edges {
+        let arrow = crate::display::vocab::arrow(theme.ascii);
         let rail = match edge.bytes {
             Some(n) => {
                 let size = shape::fmt_bytes(n);
-                if theme.ascii {
-                    format!("-{size}->")
-                } else {
-                    format!("─{size}→")
-                }
+                let dash = if theme.ascii { "-" } else { "─" };
+                format!("{dash}{size}{arrow}")
             }
-            None => (if theme.ascii { "->" } else { "→" }).to_owned(),
+            None => arrow.to_owned(),
         };
         let _ = writeln!(
             out,
@@ -390,7 +388,7 @@ fn render_flow(edges: &[FlowEdge], theme: Theme) -> String {
             edge.to
         );
     }
-    let arrow = if theme.ascii { "->" } else { "→" };
+    let arrow = crate::display::vocab::arrow(theme.ascii);
     let join = if theme.ascii { "x" } else { "×" };
     let mut totals = format!("  {} edge(s)", edges.len());
     if let Some(widest) = edges
