@@ -3907,6 +3907,8 @@ dependencies = [
 name = "nika-mcp"
 version = "0.93.0-dev"
 dependencies = [
+ "nika-builtin",
+ "nika-catalog",
  "nika-error",
  "nika-pack",
  "nika-schema",

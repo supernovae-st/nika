@@ -33,6 +33,10 @@
 // and our `cargo public-api` diff would churn on every data edit.
 pub(crate) mod data;
 pub mod error;
+// The wire projection (`nika catalog --json` · MCP `nika_catalog`) needs
+// serde derives + the provider catalog + the capability rule table.
+#[cfg(all(feature = "serde", feature = "providers", feature = "capabilities"))]
+pub mod export;
 pub mod lookup;
 pub mod suggest;
 pub mod types;

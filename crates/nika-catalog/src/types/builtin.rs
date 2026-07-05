@@ -120,3 +120,51 @@ pub enum BuiltinCategory {
     /// `inspect` (view: `cost` | `records` | `dag_info` | `threads`).
     Introspection,
 }
+
+impl BuiltinCategory {
+    /// Kebab-case wire identifier — the SAME rendering as the serde
+    /// `rename_all = "kebab-case"` derive (a unit test pins the two), so
+    /// serde-less consumers (`nika tools --json` join) speak one vocabulary.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Core => "core",
+            Self::File => "file",
+            Self::Data => "data",
+            Self::Network => "network",
+            Self::Introspection => "introspection",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ALL_CATEGORIES: [BuiltinCategory; 5] = [
+        BuiltinCategory::Core,
+        BuiltinCategory::File,
+        BuiltinCategory::Data,
+        BuiltinCategory::Network,
+        BuiltinCategory::Introspection,
+    ];
+
+    #[test]
+    fn category_as_str_is_the_kebab_wire_identifier() {
+        let strs: Vec<&str> = ALL_CATEGORIES.iter().map(|c| c.as_str()).collect();
+        assert_eq!(strs, ["core", "file", "data", "network", "introspection"]);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn category_as_str_agrees_with_the_serde_rendering() {
+        for cat in ALL_CATEGORIES {
+            let via_serde = serde_json::to_value(cat).expect("category serializes");
+            assert_eq!(
+                via_serde,
+                serde_json::Value::String(cat.as_str().to_owned()),
+                "as_str and the serde kebab-case derive must be ONE rendering",
+            );
+        }
+    }
+}

@@ -13,9 +13,11 @@
 //! Two tool families:
 //! - **validate** (`nika_check` · `nika_explain`) — the repair oracle.
 //! - **learn** (`nika_schema` · `nika_examples` · `nika_template` ·
-//!   `nika_canon`) — the authoring surface, so a wired agent follows the
-//!   deterministic template→fill→check→repair protocol instead of guessing
-//!   structure (the spec's §Writing-a-workflow path, reachable over MCP).
+//!   `nika_canon` · `nika_catalog` · `nika_tools`) — the authoring surface,
+//!   so a wired agent follows the deterministic template→fill→check→repair
+//!   protocol instead of guessing structure (the spec's §Writing-a-workflow
+//!   path, reachable over MCP) and picks REAL providers/models/tools from
+//!   the versioned projections instead of remembered ids.
 
 use serde_json::{Value, json};
 
@@ -97,6 +99,23 @@ pub(crate) fn catalog() -> Value {
                             names: verbs, builtins, providers, extract modes. Cite it, \
                             never a remembered number.",
             "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "nika_catalog",
+            "description": "The embedded provider/model catalog — providers, models, \
+                            capabilities (vision · reasoning · json_mode), context \
+                            windows, and API-key env-var NAMES (values never read). \
+                            Versioned wire `catalog_version: 1`. Pick REAL model ids \
+                            from here instead of guessing.",
+            "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "nika_tools",
+            "description": "The embedded builtin-tool catalog — every `nika:*` tool \
+                            with its model-facing JSON-Schema (`parameters`) joined \
+                            with the check-time contract (category · args · required). \
+                            Versioned wire `tools_version: 1`.",
+            "inputSchema": { "type": "object", "properties": {} }
         }
     ])
 }
@@ -111,9 +130,12 @@ pub(crate) fn execute(name: &str, args: &Value) -> Result<String, String> {
         "nika_examples" => examples(args),
         "nika_template" => template(args),
         "nika_canon" => Ok(nika_pack::canon().to_owned()),
+        "nika_catalog" => catalog_payload(),
+        "nika_tools" => tools_payload(),
         other => Err(format!(
             "unknown tool `{other}` — nika exposes nika_check · nika_explain · \
-             nika_schema · nika_examples · nika_template · nika_canon"
+             nika_schema · nika_examples · nika_template · nika_canon · \
+             nika_catalog · nika_tools"
         )),
     }
 }
@@ -175,6 +197,21 @@ fn template(args: &Value) -> Result<String, String> {
     }
 }
 
+/// `nika_catalog` — the versioned provider/model projection: the SAME
+/// payload `nika catalog --json` emits (built by `nika-catalog::export`,
+/// the one owning builder — CLI and MCP never drift).
+fn catalog_payload() -> Result<String, String> {
+    serde_json::to_string_pretty(&nika_catalog::export::catalog_export())
+        .map_err(|e| format!("catalog projection failed: {e}"))
+}
+
+/// `nika_tools` — the versioned builtin-tool projection: the SAME payload
+/// `nika tools --json` emits (built by `nika-builtin::tools_json`).
+fn tools_payload() -> Result<String, String> {
+    serde_json::to_string_pretty(&nika_builtin::tools_json())
+        .map_err(|e| format!("tools projection failed: {e}"))
+}
+
 /// `nika_explain` — teach one error code (numeric registry or spec code).
 fn explain(args: &Value) -> Result<String, String> {
     let code = args
@@ -229,13 +266,34 @@ mod tests {
                 "nika_schema",
                 "nika_examples",
                 "nika_template",
-                "nika_canon"
+                "nika_canon",
+                "nika_catalog",
+                "nika_tools"
             ]
         );
         // Each tool carries a JSON-Schema inputSchema (the client validates args).
         for t in c.as_array().expect("array") {
             assert_eq!(t["inputSchema"]["type"], "object");
         }
+    }
+
+    #[test]
+    fn catalog_and_tools_payloads_are_the_versioned_wire_json() {
+        let out = execute("nika_catalog", &json!({})).expect("nika_catalog runs");
+        let value: Value = serde_json::from_str(&out).expect("nika_catalog emits JSON");
+        assert_eq!(value["catalog_version"], 1, "the locked v1 wire marker");
+        assert!(
+            !value["providers"].as_array().expect("providers").is_empty(),
+            "the embedded catalog is never empty",
+        );
+
+        let out = execute("nika_tools", &json!({})).expect("nika_tools runs");
+        let value: Value = serde_json::from_str(&out).expect("nika_tools emits JSON");
+        assert_eq!(value["tools_version"], 1, "the locked v1 wire marker");
+        assert!(
+            !value["tools"].as_array().expect("tools").is_empty(),
+            "the embedded builtin set is never empty",
+        );
     }
 
     #[test]

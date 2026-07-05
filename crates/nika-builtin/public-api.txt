@@ -3,7 +3,9 @@ pub mod nika_builtin::core_tools
 pub mod nika_builtin::data
 pub mod nika_builtin::date
 pub mod nika_builtin::defs
+pub const nika_builtin::defs::TOOLS_EXPORT_VERSION: u32
 pub fn nika_builtin::defs::tool_defs() -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
+pub fn nika_builtin::defs::tools_json() -> serde_json::value::Value
 pub mod nika_builtin::file
 pub mod nika_builtin::inspect
 pub mod nika_builtin::net
@@ -307,6 +309,7 @@ pub fn nika_builtin::NullEmitter::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_builtin::NullEmitter
 pub type nika_builtin::NullEmitter::Output = T
 pub const nika_builtin::NAMESPACE: &str
+pub const nika_builtin::TOOLS_EXPORT_VERSION: u32
 pub trait nika_builtin::Emitter: core::marker::Send + core::marker::Sync
 pub fn nika_builtin::Emitter::emit(&self, kind: &str, payload: serde_json::value::Value)
 impl nika_builtin::Emitter for nika_builtin::NullEmitter
@@ -330,5 +333,6 @@ pub fn nika_builtin::NoWorkflow::dag_info(&self) -> serde_json::value::Value
 pub fn nika_builtin::NoWorkflow::records(&self) -> serde_json::value::Value
 pub fn nika_builtin::NoWorkflow::threads(&self) -> serde_json::value::Value
 pub fn nika_builtin::tool_defs() -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
+pub fn nika_builtin::tools_json() -> serde_json::value::Value
 pub type nika_builtin::BuiltinOutcome = core::result::Result<nika_builtin::BuiltinValue, nika_builtin::BuiltinFailure>
 pub type nika_builtin::BuiltinValue = serde_json::value::Value

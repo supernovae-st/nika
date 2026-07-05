@@ -1,0 +1,277 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! The catalog wire projection — what `nika catalog --json` and the MCP
+//! `nika_catalog` tool emit.
+//!
+//! The embedded provider catalog (providers · models · capabilities) is
+//! typed and build-time generated, but until this module it left the
+//! binary on no wire — every IDE/agent consumer re-bundled its own copy
+//! and drifted generationally. This projection is the single machine
+//! surface; clients paint it, never re-derive it.
+//!
+//! # Wire contract
+//!
+//! Versioned envelope: `catalog_version: 1`. Evolution is ADDITIVE-ONLY —
+//! new fields may appear, existing fields never change meaning or
+//! disappear within a version. Consumers must ignore unknown fields.
+//!
+//! Pricing is deliberately NOT part of this payload — rates live in the
+//! feature-gated pricing catalog (TOML-externalised) and are never
+//! hardcoded into client bundles.
+//!
+//! The structs serialize with `serde` only (no `Deserialize`): this is an
+//! OUTPUT-ONLY projection. Wire consumers parse JSON; Rust consumers
+//! (Olympus cockpit · future cortex overlays) read the typed views.
+
+use serde::Serialize;
+
+use crate::types::{JsonMode, Modality, Provider, ProviderModel, Tag};
+
+/// Version marker of the `nika catalog --json` envelope. Additive-only.
+pub const CATALOG_EXPORT_VERSION: u32 = 1;
+
+/// The full catalog projection (`catalog_version` + every provider).
+#[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
+pub struct CatalogExport {
+    /// Envelope version (see [`CATALOG_EXPORT_VERSION`]).
+    pub catalog_version: u32,
+    /// Every embedded provider, in catalog order.
+    pub providers: Vec<ProviderExport>,
+}
+
+/// One provider entry of the wire projection.
+#[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
+pub struct ProviderExport {
+    /// Canonical id (`"anthropic"`, always lowercase).
+    pub id: &'static str,
+    /// Human-readable name (`"Anthropic Claude"`).
+    pub name: &'static str,
+    /// Alternative names resolving to this provider (`["claude"]`).
+    pub aliases: &'static [&'static str],
+    /// Environment variable carrying the API key (`"ANTHROPIC_API_KEY"`).
+    /// The NAME only — no surface here ever reads or emits the value.
+    pub env_var: &'static str,
+    /// Whether the provider needs an API key at all.
+    pub requires_key: bool,
+    /// Whether this provider runs locally (mirrors the `local` tag —
+    /// sovereignty-relevant: local providers cost zero keys, zero network).
+    pub local: bool,
+    /// Default model (wire identifier) when the caller names none.
+    pub default_model: &'static str,
+    /// Cheap/fast model (wire identifier) for repair and cost-sensitive passes.
+    pub cheap_model: &'static str,
+    /// Short human description.
+    pub description: &'static str,
+    /// Wire-protocol dialect family (`"openai-chat"` · `"anthropic"` · …),
+    /// `None` for bespoke protocols.
+    pub api_dialect: Option<&'static str>,
+    /// Typed capability/deployment/economics tags, kebab-case.
+    pub tags: Vec<&'static str>,
+    /// Known models (nickname → wire id) with resolved capabilities.
+    pub models: Vec<ModelExport>,
+}
+
+/// One model entry of a provider, with its resolved capabilities.
+#[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
+pub struct ModelExport {
+    /// Short nickname used by workflows (`"sonnet"`, `"mini"`).
+    pub id: &'static str,
+    /// Wire identifier sent to the provider API.
+    pub model: &'static str,
+    /// Maximum context window in tokens (input + output combined).
+    pub context_window_tokens: u32,
+    /// Maximum tokens the model can emit in one response.
+    pub max_output_tokens: u32,
+    /// Capabilities resolved through the TOML rule table
+    /// ([`crate::model_capabilities`]) against the WIRE identifier.
+    pub capabilities: CapabilitiesExport,
+}
+
+/// The IDE-relevant capability slice of one model.
+///
+/// A deliberate SUBSET of [`crate::types::ModelCapabilities`] — the three
+/// answers an authoring surface needs for hover/completion (can it see
+/// images? does it reason? how strong is its JSON discipline?). More
+/// fields arrive additively as consumers need them.
+#[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
+pub struct CapabilitiesExport {
+    /// Model exposes a reasoning / extended-thinking mode.
+    pub reasoning: bool,
+    /// Model accepts image input (vision).
+    pub vision: bool,
+    /// Structured-output discipline: `"unavailable"` · `"object"` ·
+    /// `"schema"` · `null` when the rule table does not know.
+    pub json_mode: Option<&'static str>,
+}
+
+/// Build the full catalog projection from the embedded catalogs.
+///
+/// Pure over compile-time data: zero I/O, zero network, deterministic
+/// for a given binary. Capabilities are resolved per model through
+/// [`crate::model_capabilities`] using the provider id + WIRE model id
+/// (the rule table matches wire names, not nicknames).
+#[must_use]
+pub fn catalog_export() -> CatalogExport {
+    CatalogExport {
+        catalog_version: CATALOG_EXPORT_VERSION,
+        providers: crate::all_providers().iter().map(provider_export).collect(),
+    }
+}
+
+/// Project one provider entry (models resolved through the rule table).
+fn provider_export(p: &Provider) -> ProviderExport {
+    ProviderExport {
+        id: p.id,
+        name: p.name,
+        aliases: p.aliases,
+        env_var: p.env_var,
+        requires_key: p.requires_key,
+        local: p.tags.iter().any(|t| matches!(t, Tag::Local)),
+        default_model: p.default_model,
+        cheap_model: p.cheap_model,
+        description: p.description,
+        api_dialect: p.api_dialect,
+        tags: p.tags.iter().map(|t| t.as_str()).collect(),
+        models: p.models.iter().map(|m| model_export(p.id, m)).collect(),
+    }
+}
+
+/// Project one model entry — capabilities resolved against the WIRE id
+/// (the rule table's matchers are written for wire names).
+fn model_export(provider_id: &str, m: &ProviderModel) -> ModelExport {
+    let caps = crate::model_capabilities(provider_id, m.model);
+    ModelExport {
+        id: m.id,
+        model: m.model,
+        context_window_tokens: m.context_window_tokens,
+        max_output_tokens: m.max_output_tokens,
+        capabilities: CapabilitiesExport {
+            reasoning: caps.reasoning,
+            vision: caps
+                .input_modalities
+                .iter()
+                .any(|m| matches!(m, Modality::Image)),
+            json_mode: caps.json_mode.map(JsonMode::as_str),
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn envelope_is_versioned_and_total() {
+        let export = catalog_export();
+        assert_eq!(export.catalog_version, CATALOG_EXPORT_VERSION);
+        assert_eq!(export.catalog_version, 1, "the locked v1 wire marker");
+        assert_eq!(
+            export.providers.len(),
+            crate::all_providers().len(),
+            "every embedded provider is projected — none filtered, none invented",
+        );
+        assert!(!export.providers.is_empty());
+    }
+
+    #[test]
+    fn local_flag_mirrors_the_local_tag() {
+        let export = catalog_export();
+        assert!(
+            export.providers.iter().any(|p| p.local),
+            "the catalog ships local providers (ollama · lm studio · …)",
+        );
+        for p in &export.providers {
+            let tagged = p.tags.contains(&"local");
+            assert_eq!(
+                p.local, tagged,
+                "provider `{}`: the local flag must mirror the `local` tag",
+                p.id,
+            );
+        }
+    }
+
+    #[test]
+    fn every_model_carries_resolved_capabilities() {
+        let export = catalog_export();
+        let mut models_seen = 0usize;
+        for p in &export.providers {
+            for m in &p.models {
+                models_seen += 1;
+                assert!(
+                    !m.id.is_empty(),
+                    "provider `{}`: empty model nickname",
+                    p.id
+                );
+                assert!(!m.model.is_empty(), "provider `{}`: empty wire id", p.id);
+                if let Some(mode) = m.capabilities.json_mode {
+                    assert!(
+                        matches!(mode, "unavailable" | "object" | "schema"),
+                        "provider `{}` model `{}`: json_mode `{mode}` outside the closed set",
+                        p.id,
+                        m.id,
+                    );
+                }
+            }
+        }
+        assert!(models_seen > 0, "the catalog ships model entries");
+        let all_models = || export.providers.iter().flat_map(|p| &p.models);
+        assert!(
+            all_models().any(|m| m.capabilities.vision),
+            "at least one vision-capable model exists in the embedded catalog",
+        );
+        assert!(
+            all_models().any(|m| m.capabilities.reasoning),
+            "at least one reasoning model exists in the embedded catalog",
+        );
+    }
+
+    #[test]
+    fn wire_shape_is_the_locked_contract() {
+        let export = catalog_export();
+        let value = serde_json::to_value(&export).expect("projection serializes");
+        let top = value.as_object().expect("top level is an object");
+        assert_eq!(top.len(), 2, "v1 envelope carries exactly two keys");
+        assert!(top.contains_key("catalog_version"));
+        assert!(top.contains_key("providers"));
+
+        let first = value["providers"][0]
+            .as_object()
+            .expect("provider entries are objects");
+        for key in [
+            "id",
+            "name",
+            "aliases",
+            "env_var",
+            "requires_key",
+            "local",
+            "default_model",
+            "cheap_model",
+            "description",
+            "api_dialect",
+            "tags",
+            "models",
+        ] {
+            assert!(first.contains_key(key), "provider entry missing `{key}`");
+        }
+    }
+
+    #[test]
+    fn aliases_resolve_back_to_their_provider() {
+        for p in catalog_export().providers {
+            for alias in p.aliases {
+                let resolved = crate::find_provider(alias).map(|r| r.id);
+                assert_eq!(
+                    resolved,
+                    Some(p.id),
+                    "alias `{alias}` must round-trip to provider `{}`",
+                    p.id,
+                );
+            }
+        }
+    }
+}

@@ -147,6 +147,18 @@ enum Command {
     },
     /// The embedded JSON Schema for `*.nika.yaml`.
     Schema,
+    /// The embedded provider/model catalog (models · capabilities · env vars).
+    Catalog {
+        /// Emit the versioned machine projection (`catalog_version: 1`).
+        #[arg(long)]
+        json: bool,
+    },
+    /// The embedded builtin tool catalog (`nika:*` · model-facing schemas).
+    Tools {
+        /// Emit the versioned machine projection (`tools_version: 1`).
+        #[arg(long)]
+        json: bool,
+    },
     /// Browse the embedded examples.
     Examples {
         #[command(subcommand)]
@@ -319,6 +331,8 @@ fn main() -> std::process::ExitCode {
         Command::Wire { target, dir } => emit(&verbs::wire::run(target.into(), &dir)),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
         Command::Schema => emit(&verbs::pack_surface::schema()),
+        Command::Catalog { json } => emit(&verbs::catalog::run(json)),
+        Command::Tools { json } => emit(&verbs::tools::run(json)),
         Command::Examples { action } => match action {
             ExamplesAction::List => emit(&verbs::pack_surface::examples_list()),
             ExamplesAction::Show { slug } => emit(&verbs::pack_surface::examples_show(&slug)),

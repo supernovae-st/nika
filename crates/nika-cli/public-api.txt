@@ -267,6 +267,8 @@ pub type nika_cli::display::theme::Theme::Output = T
 pub const nika_cli::display::theme::SPARK: [char; 7]
 pub const nika_cli::display::theme::SPINNER: [char; 10]
 pub mod nika_cli::verbs
+pub mod nika_cli::verbs::catalog
+pub fn nika_cli::verbs::catalog::run(json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::check
 pub fn nika_cli::verbs::check::run(path: &str, json: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::check::run_infer_permits(path: &str, json: bool) -> nika_cli::verbs::VerbOutput
@@ -684,6 +686,8 @@ pub fn nika_cli::verbs::run::net_boundary_of(wf: &nika_schema::raw::workflow::Ra
 pub fn nika_cli::verbs::run::production_runtime(default_model: &str, caps: nika_cli::verbs::run::RuntimeCapabilities) -> core::result::Result<nika_cli::verbs::run::ProdRuntime, nika_kernel_core::io::http::HttpError>
 pub fn nika_cli::verbs::run::run(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_cli::display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>) -> u8
 pub type nika_cli::verbs::run::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_cli::verbs::run::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_cli::verbs::run::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_cli::verbs::run::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::SystemClock>
+pub mod nika_cli::verbs::tools
+pub fn nika_cli::verbs::tools::run(json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::wire
 pub enum nika_cli::verbs::wire::WireTarget
 pub nika_cli::verbs::wire::WireTarget::All

@@ -6,6 +6,8 @@ pub nika_catalog::builtin::BuiltinCategory::Data
 pub nika_catalog::builtin::BuiltinCategory::File
 pub nika_catalog::builtin::BuiltinCategory::Introspection
 pub nika_catalog::builtin::BuiltinCategory::Network
+impl nika_catalog::builtin::BuiltinCategory
+pub const fn nika_catalog::builtin::BuiltinCategory::as_str(self) -> &'static str
 impl core::clone::Clone for nika_catalog::builtin::BuiltinCategory
 pub fn nika_catalog::builtin::BuiltinCategory::clone(&self) -> nika_catalog::builtin::BuiltinCategory
 impl core::cmp::Eq for nika_catalog::builtin::BuiltinCategory
@@ -949,6 +951,159 @@ impl<T> core::convert::From<T> for nika_catalog::error::CatalogError
 pub fn nika_catalog::error::CatalogError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::error::CatalogError where T: 'static
 pub fn nika_catalog::error::CatalogError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub mod nika_catalog::export
+#[non_exhaustive] pub struct nika_catalog::export::CapabilitiesExport
+pub nika_catalog::export::CapabilitiesExport::json_mode: core::option::Option<&'static str>
+pub nika_catalog::export::CapabilitiesExport::reasoning: bool
+pub nika_catalog::export::CapabilitiesExport::vision: bool
+impl core::clone::Clone for nika_catalog::export::CapabilitiesExport
+pub fn nika_catalog::export::CapabilitiesExport::clone(&self) -> nika_catalog::export::CapabilitiesExport
+impl core::fmt::Debug for nika_catalog::export::CapabilitiesExport
+pub fn nika_catalog::export::CapabilitiesExport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_catalog::export::CapabilitiesExport
+pub fn nika_catalog::export::CapabilitiesExport::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::export::CapabilitiesExport
+impl<T, U> core::convert::Into<U> for nika_catalog::export::CapabilitiesExport where U: core::convert::From<T>
+pub fn nika_catalog::export::CapabilitiesExport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::export::CapabilitiesExport where U: core::convert::Into<T>
+pub type nika_catalog::export::CapabilitiesExport::Error = core::convert::Infallible
+pub fn nika_catalog::export::CapabilitiesExport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::export::CapabilitiesExport where U: core::convert::TryFrom<T>
+pub type nika_catalog::export::CapabilitiesExport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::export::CapabilitiesExport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::export::CapabilitiesExport where T: core::clone::Clone
+pub type nika_catalog::export::CapabilitiesExport::Owned = T
+pub fn nika_catalog::export::CapabilitiesExport::clone_into(&self, target: &mut T)
+pub fn nika_catalog::export::CapabilitiesExport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::export::CapabilitiesExport where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::export::CapabilitiesExport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::export::CapabilitiesExport where T: ?core::marker::Sized
+pub fn nika_catalog::export::CapabilitiesExport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::export::CapabilitiesExport where T: ?core::marker::Sized
+pub fn nika_catalog::export::CapabilitiesExport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::export::CapabilitiesExport where T: core::clone::Clone
+pub unsafe fn nika_catalog::export::CapabilitiesExport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::export::CapabilitiesExport
+pub fn nika_catalog::export::CapabilitiesExport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::export::CapabilitiesExport where T: 'static
+pub fn nika_catalog::export::CapabilitiesExport::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::export::CatalogExport
+pub nika_catalog::export::CatalogExport::catalog_version: u32
+pub nika_catalog::export::CatalogExport::providers: alloc::vec::Vec<nika_catalog::export::ProviderExport>
+impl core::clone::Clone for nika_catalog::export::CatalogExport
+pub fn nika_catalog::export::CatalogExport::clone(&self) -> nika_catalog::export::CatalogExport
+impl core::fmt::Debug for nika_catalog::export::CatalogExport
+pub fn nika_catalog::export::CatalogExport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_catalog::export::CatalogExport
+pub fn nika_catalog::export::CatalogExport::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::export::CatalogExport
+impl<T, U> core::convert::Into<U> for nika_catalog::export::CatalogExport where U: core::convert::From<T>
+pub fn nika_catalog::export::CatalogExport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::export::CatalogExport where U: core::convert::Into<T>
+pub type nika_catalog::export::CatalogExport::Error = core::convert::Infallible
+pub fn nika_catalog::export::CatalogExport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::export::CatalogExport where U: core::convert::TryFrom<T>
+pub type nika_catalog::export::CatalogExport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::export::CatalogExport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::export::CatalogExport where T: core::clone::Clone
+pub type nika_catalog::export::CatalogExport::Owned = T
+pub fn nika_catalog::export::CatalogExport::clone_into(&self, target: &mut T)
+pub fn nika_catalog::export::CatalogExport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::export::CatalogExport where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::export::CatalogExport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::export::CatalogExport where T: ?core::marker::Sized
+pub fn nika_catalog::export::CatalogExport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::export::CatalogExport where T: ?core::marker::Sized
+pub fn nika_catalog::export::CatalogExport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::export::CatalogExport where T: core::clone::Clone
+pub unsafe fn nika_catalog::export::CatalogExport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::export::CatalogExport
+pub fn nika_catalog::export::CatalogExport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::export::CatalogExport where T: 'static
+pub fn nika_catalog::export::CatalogExport::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::export::ModelExport
+pub nika_catalog::export::ModelExport::capabilities: nika_catalog::export::CapabilitiesExport
+pub nika_catalog::export::ModelExport::context_window_tokens: u32
+pub nika_catalog::export::ModelExport::id: &'static str
+pub nika_catalog::export::ModelExport::max_output_tokens: u32
+pub nika_catalog::export::ModelExport::model: &'static str
+impl core::clone::Clone for nika_catalog::export::ModelExport
+pub fn nika_catalog::export::ModelExport::clone(&self) -> nika_catalog::export::ModelExport
+impl core::fmt::Debug for nika_catalog::export::ModelExport
+pub fn nika_catalog::export::ModelExport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_catalog::export::ModelExport
+pub fn nika_catalog::export::ModelExport::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::export::ModelExport
+impl<T, U> core::convert::Into<U> for nika_catalog::export::ModelExport where U: core::convert::From<T>
+pub fn nika_catalog::export::ModelExport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::export::ModelExport where U: core::convert::Into<T>
+pub type nika_catalog::export::ModelExport::Error = core::convert::Infallible
+pub fn nika_catalog::export::ModelExport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::export::ModelExport where U: core::convert::TryFrom<T>
+pub type nika_catalog::export::ModelExport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::export::ModelExport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::export::ModelExport where T: core::clone::Clone
+pub type nika_catalog::export::ModelExport::Owned = T
+pub fn nika_catalog::export::ModelExport::clone_into(&self, target: &mut T)
+pub fn nika_catalog::export::ModelExport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::export::ModelExport where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::export::ModelExport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::export::ModelExport where T: ?core::marker::Sized
+pub fn nika_catalog::export::ModelExport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::export::ModelExport where T: ?core::marker::Sized
+pub fn nika_catalog::export::ModelExport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::export::ModelExport where T: core::clone::Clone
+pub unsafe fn nika_catalog::export::ModelExport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::export::ModelExport
+pub fn nika_catalog::export::ModelExport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::export::ModelExport where T: 'static
+pub fn nika_catalog::export::ModelExport::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::export::ProviderExport
+pub nika_catalog::export::ProviderExport::aliases: &'static [&'static str]
+pub nika_catalog::export::ProviderExport::api_dialect: core::option::Option<&'static str>
+pub nika_catalog::export::ProviderExport::cheap_model: &'static str
+pub nika_catalog::export::ProviderExport::default_model: &'static str
+pub nika_catalog::export::ProviderExport::description: &'static str
+pub nika_catalog::export::ProviderExport::env_var: &'static str
+pub nika_catalog::export::ProviderExport::id: &'static str
+pub nika_catalog::export::ProviderExport::local: bool
+pub nika_catalog::export::ProviderExport::models: alloc::vec::Vec<nika_catalog::export::ModelExport>
+pub nika_catalog::export::ProviderExport::name: &'static str
+pub nika_catalog::export::ProviderExport::requires_key: bool
+pub nika_catalog::export::ProviderExport::tags: alloc::vec::Vec<&'static str>
+impl core::clone::Clone for nika_catalog::export::ProviderExport
+pub fn nika_catalog::export::ProviderExport::clone(&self) -> nika_catalog::export::ProviderExport
+impl core::fmt::Debug for nika_catalog::export::ProviderExport
+pub fn nika_catalog::export::ProviderExport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_catalog::export::ProviderExport
+pub fn nika_catalog::export::ProviderExport::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::export::ProviderExport
+impl<T, U> core::convert::Into<U> for nika_catalog::export::ProviderExport where U: core::convert::From<T>
+pub fn nika_catalog::export::ProviderExport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::export::ProviderExport where U: core::convert::Into<T>
+pub type nika_catalog::export::ProviderExport::Error = core::convert::Infallible
+pub fn nika_catalog::export::ProviderExport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::export::ProviderExport where U: core::convert::TryFrom<T>
+pub type nika_catalog::export::ProviderExport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::export::ProviderExport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::export::ProviderExport where T: core::clone::Clone
+pub type nika_catalog::export::ProviderExport::Owned = T
+pub fn nika_catalog::export::ProviderExport::clone_into(&self, target: &mut T)
+pub fn nika_catalog::export::ProviderExport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::export::ProviderExport where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::export::ProviderExport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::export::ProviderExport where T: ?core::marker::Sized
+pub fn nika_catalog::export::ProviderExport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::export::ProviderExport where T: ?core::marker::Sized
+pub fn nika_catalog::export::ProviderExport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::export::ProviderExport where T: core::clone::Clone
+pub unsafe fn nika_catalog::export::ProviderExport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::export::ProviderExport
+pub fn nika_catalog::export::ProviderExport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::export::ProviderExport where T: 'static
+pub fn nika_catalog::export::ProviderExport::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_catalog::export::CATALOG_EXPORT_VERSION: u32
+pub fn nika_catalog::export::catalog_export() -> nika_catalog::export::CatalogExport
 pub mod nika_catalog::json_mode
 #[non_exhaustive] pub enum nika_catalog::json_mode::JsonMode
 pub nika_catalog::json_mode::JsonMode::Object
@@ -2273,6 +2428,8 @@ pub nika_catalog::types::builtin::BuiltinCategory::Data
 pub nika_catalog::types::builtin::BuiltinCategory::File
 pub nika_catalog::types::builtin::BuiltinCategory::Introspection
 pub nika_catalog::types::builtin::BuiltinCategory::Network
+impl nika_catalog::builtin::BuiltinCategory
+pub const fn nika_catalog::builtin::BuiltinCategory::as_str(self) -> &'static str
 impl core::clone::Clone for nika_catalog::builtin::BuiltinCategory
 pub fn nika_catalog::builtin::BuiltinCategory::clone(&self) -> nika_catalog::builtin::BuiltinCategory
 impl core::cmp::Eq for nika_catalog::builtin::BuiltinCategory
@@ -4417,6 +4574,8 @@ pub nika_catalog::types::BuiltinCategory::Data
 pub nika_catalog::types::BuiltinCategory::File
 pub nika_catalog::types::BuiltinCategory::Introspection
 pub nika_catalog::types::BuiltinCategory::Network
+impl nika_catalog::builtin::BuiltinCategory
+pub const fn nika_catalog::builtin::BuiltinCategory::as_str(self) -> &'static str
 impl core::clone::Clone for nika_catalog::builtin::BuiltinCategory
 pub fn nika_catalog::builtin::BuiltinCategory::clone(&self) -> nika_catalog::builtin::BuiltinCategory
 impl core::cmp::Eq for nika_catalog::builtin::BuiltinCategory
@@ -6379,6 +6538,8 @@ pub nika_catalog::BuiltinCategory::Data
 pub nika_catalog::BuiltinCategory::File
 pub nika_catalog::BuiltinCategory::Introspection
 pub nika_catalog::BuiltinCategory::Network
+impl nika_catalog::builtin::BuiltinCategory
+pub const fn nika_catalog::builtin::BuiltinCategory::as_str(self) -> &'static str
 impl core::clone::Clone for nika_catalog::builtin::BuiltinCategory
 pub fn nika_catalog::builtin::BuiltinCategory::clone(&self) -> nika_catalog::builtin::BuiltinCategory
 impl core::cmp::Eq for nika_catalog::builtin::BuiltinCategory

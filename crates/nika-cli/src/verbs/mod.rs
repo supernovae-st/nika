@@ -10,6 +10,7 @@
 //! then. The bin (`main.rs`) stays a thin dispatcher so every surface is
 //! testable as a library call.
 
+pub mod catalog;
 pub mod check;
 pub mod doctor;
 pub mod explain;
@@ -19,6 +20,7 @@ pub mod inspect;
 pub mod new;
 pub mod pack_surface;
 pub mod run;
+pub mod tools;
 pub mod wire;
 
 use nika_schema::check::CheckReport;
