@@ -62,13 +62,15 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
     // are first-class columns: a settled row carries its REAL wall time
     // (+ per-task spend when the stream reported one), a running row its
     // live elapsed, and `∥` marks wave-siblings that actually overlapped.
+    // Never-ran rows speak their REASON (`cache hit (resume)` · `when:
+    // false` · `blocked · <task> failed`) through the display-note map.
     let width = view.rows().iter().map(|r| r.id.len()).max().unwrap_or(8);
     let marks = lane_marks(view);
     let times: Vec<Option<String>> = view.rows().iter().map(|r| row_wall(r, view)).collect();
-    let note_w = view
-        .rows()
+    let notes: Vec<String> = view.rows().iter().map(|r| display_note(r, view)).collect();
+    let note_w = notes
         .iter()
-        .map(|r| r.note.chars().count())
+        .map(|n| n.chars().count())
         .max()
         .unwrap_or(0)
         .min(NOTE_COL_CAP);
@@ -87,7 +89,7 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
         };
         lines.push(task_line(
             row,
-            view,
+            (view, &notes[i]),
             theme,
             tick,
             (width, note_w, time_w),
@@ -138,6 +140,48 @@ fn row_wall(row: &TaskRow, view: &RunView) -> Option<String> {
     }
 }
 
+/// The row's DISPLAY note — the skip-reason vocabulary over the raw
+/// fold note. Three never-ran classes speak distinctly: a rehydrated
+/// row says `cache hit (resume)`, a closed `when:` gate says `when:
+/// false`, a dead-path cancellation says `blocked · <task> failed`
+/// (naming the failed upstream when the run has exactly ONE failed
+/// task — with several, ancestry is ambiguous from the stream alone,
+/// so the honest generic `upstream failed` stays). Every other note
+/// renders verbatim (the runtime's vocabulary is already teaching).
+fn display_note(row: &TaskRow, view: &RunView) -> String {
+    if row.cached {
+        return "cache hit (resume)".to_owned();
+    }
+    match (row.state, row.note.as_str()) {
+        (TaskState::Skipped, "when: gate closed") => "when: false".to_owned(),
+        (TaskState::Cancelled, "upstream failed") => {
+            let failed: Vec<&str> = view
+                .rows()
+                .iter()
+                .filter(|r| r.state == TaskState::Failed)
+                .map(|r| r.id.as_str())
+                .collect();
+            match failed.as_slice() {
+                [one] => format!("blocked · {one} failed"),
+                _ => "blocked · upstream failed".to_owned(),
+            }
+        }
+        _ => row.note.clone(),
+    }
+}
+
+/// The row's glyph — the ONE render-level override: a cache-hit row is
+/// Ok in the fold (the value is real) but reads as the skip family
+/// (`↷` · it never ran HERE), so green stays reserved for work done.
+// `&Theme` to match the `task_line` borrow that threads it here.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn row_glyph(row: &TaskRow, theme: &Theme, tick: usize) -> String {
+    if row.cached {
+        return theme.glyph(TaskState::Skipped, tick);
+    }
+    theme.glyph(row.state, tick)
+}
+
 /// Assemble one storyboard row: glyph · id · dimmed note · then the
 /// time/cost/tail/lane suffix, column-aligned on RAW (pre-paint) widths
 /// so ANSI escapes never skew the layout. Rows with no suffix keep the
@@ -145,11 +189,12 @@ fn row_wall(row: &TaskRow, view: &RunView) -> Option<String> {
 // `&Theme` to match the `frame` borrow that threads it here — the same
 // one-calling-convention rationale as `append_failure_card`. The 8th
 // parameter is the optional output tail — the same clap-surface idiom
-// the run verb carries.
+// the run verb carries; the display note rides beside the view it was
+// derived from.
 #[allow(clippy::trivially_copy_pass_by_ref, clippy::too_many_arguments)]
 fn task_line(
     row: &TaskRow,
-    view: &RunView,
+    (view, display_note): (&RunView, &str),
     theme: &Theme,
     tick: usize,
     (id_w, note_w, time_w): (usize, usize, usize),
@@ -157,7 +202,7 @@ fn task_line(
     mark: bool,
     tail: Option<&str>,
 ) -> String {
-    let mut note = row.note.clone();
+    let mut note = display_note.to_owned();
     if row.state == TaskState::Running && !view.token_samples.is_empty() {
         let spark = theme.sparkline(&view.token_samples);
         if !spark.is_empty() {
@@ -166,7 +211,7 @@ fn task_line(
     }
     let mut line = format!(
         "  {} {:<id_w$}  {}",
-        theme.glyph(row.state, tick),
+        row_glyph(row, theme, tick),
         row.id,
         theme.paint(Role::Dim, &note),
     );
@@ -176,7 +221,7 @@ fn task_line(
     }
     // Column pad computed on the RAW note (paint added escapes, the
     // sparkline may ride a running row — transient shift accepted).
-    let pad = note_w.saturating_sub(row.note.chars().count());
+    let pad = note_w.saturating_sub(display_note.chars().count());
     line.push_str(&" ".repeat(pad + 2));
     let cell = format!("{:>time_w$}", time.unwrap_or(""));
     line.push_str(&theme.paint(Role::Dim, cell.trim_end()));
@@ -315,7 +360,7 @@ mod tests {
             "  ✔  extract_ai    jq · 0.1s · 12 items           130ms",
             "  ✔  summarize     claude-sonnet · 3.1s · $0.011   3.0s · $0.0110",
             "  ✔  write_md      2.1 KB written                 290ms",
-            "  ⊘  notify_slack  when: env.CI != 'true'",
+            "  ↷  notify_slack  when: env.CI != 'true'",
         ];
         assert_eq!(&lines[..8], &expected[..]);
         // The meter line: pinned prefix + rule-padded to a stable width.
@@ -349,24 +394,93 @@ mod tests {
         assert_eq!(tail[1], "    fix: nika explain NIKA-431");
     }
 
-    /// The cascade rows RENDER as §3.1 `◼` (the runtime's
-    /// upstream-failure cancellation · dim · never red) — the fold and
-    /// the glyph were each pinned alone; this pins the assembled line.
+    /// The cascade rows RENDER as blocked `⊘` (the runtime's
+    /// upstream-failure cancellation · dim · never red) — and because
+    /// the demo failure has exactly ONE failed task, the note NAMES it:
+    /// `blocked · summarize failed` (unambiguous from the stream).
     #[test]
     fn golden_failure_frame_renders_cancelled_rows() {
         let lines = frame(&fold(&demo::failure()), &UNICODE, 0);
         assert!(
             lines
                 .iter()
-                .any(|l| l.starts_with("  ◼  write_md") && l.contains("upstream failed")),
-            "unicode cancelled row: {lines:?}"
+                .any(|l| l.starts_with("  ⊘  write_md") && l.contains("blocked · summarize failed")),
+            "unicode blocked row names the one failed upstream: {lines:?}"
         );
         let ascii = frame(&fold(&demo::failure()), &ASCII, 0);
         assert!(
             ascii
                 .iter()
-                .any(|l| l.starts_with("  x  write_md") && l.contains("upstream failed")),
-            "ascii cancelled row (err X ≠ cancelled x): {ascii:?}"
+                .any(|l| l.starts_with("  x  write_md") && l.contains("blocked · summarize failed")),
+            "ascii blocked row (err X ≠ blocked x): {ascii:?}"
+        );
+    }
+
+    /// The three never-ran classes render DISTINCTLY (the skip-reason
+    /// law): `↷ cache hit (resume)` · `↷ when: false` · `⊘ blocked ·
+    /// upstream failed` — the generic blocked form when SEVERAL tasks
+    /// failed (ancestry is ambiguous from the stream alone).
+    #[test]
+    fn skip_reasons_render_their_three_classes() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let task = |n: &str| KeyValue::new("task", Value::String(n.to_owned()));
+        let note = |n: &str| KeyValue::new("note", Value::String(n.to_owned()));
+
+        let mut view = RunView::new();
+        view.apply(&demo::bare_event(EventKind::TaskCacheHit, 5).with_field(task("read")));
+        view.apply(
+            &demo::bare_event(EventKind::TaskSkipped, 10)
+                .with_field(task("deploy"))
+                .with_field(note("when: gate closed")),
+        );
+        // TWO failures → the blocked row cannot name ONE upstream.
+        view.apply(&demo::bare_event(EventKind::TaskFailed, 15).with_field(task("a")));
+        view.apply(&demo::bare_event(EventKind::TaskFailed, 16).with_field(task("b")));
+        view.apply(
+            &demo::bare_event(EventKind::TaskCancelled, 20)
+                .with_field(task("notify"))
+                .with_field(note("upstream failed")),
+        );
+
+        let lines = frame(&view, &UNICODE, 0);
+        let find = |id: &str| {
+            lines
+                .iter()
+                .find(|l| l.contains(id))
+                .cloned()
+                .expect("every staged row renders")
+        };
+        assert!(
+            find("read").starts_with("  ↷ ") && find("read").contains("cache hit (resume)"),
+            "cache hit: {}",
+            find("read")
+        );
+        assert!(
+            find("deploy").starts_with("  ↷ ") && find("deploy").contains("when: false"),
+            "when gate: {}",
+            find("deploy")
+        );
+        assert!(
+            find("notify").starts_with("  ⊘ ")
+                && find("notify").contains("blocked · upstream failed"),
+            "ambiguous blocked stays generic: {}",
+            find("notify")
+        );
+
+        // ASCII parity for the whole vocabulary: ~> skip · x blocked.
+        let ascii = frame(&view, &ASCII, 0);
+        assert!(
+            ascii.iter().any(|l| l.starts_with("  ~> read")),
+            "ascii skip glyph: {ascii:?}"
+        );
+        assert!(
+            ascii.iter().any(|l| l.starts_with("  x  notify")),
+            "ascii blocked glyph: {ascii:?}"
+        );
+        assert!(
+            !ascii.iter().any(|l| l.contains('↷') || l.contains('⊘')),
+            "no unicode leaks into --ascii: {ascii:?}"
         );
     }
 

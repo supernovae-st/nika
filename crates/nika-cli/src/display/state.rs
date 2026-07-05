@@ -30,10 +30,10 @@ pub enum TaskState {
     Failed,
     /// An attempt failed · a retry is scheduled (§3.1 `↻` · yellow).
     Retrying,
-    /// Guard false — never ran, by design.
+    /// Guard false — never ran, by design (`↷` · dim · a decision).
     Skipped,
-    /// Cancelled (upstream failure · operator stop · §3.1 `◼` · dim ·
-    /// a decision, not a defect — never red).
+    /// Cancelled (upstream failure · operator stop · `⊘ blocked` · dim
+    /// · the path died upstream — never red, the defect is elsewhere).
     Cancelled,
 }
 
@@ -81,6 +81,10 @@ pub struct TaskRow {
     pub def_hash: Option<String>,
     /// The ADR-099 resolved-input hash (`input_hash` · blake3 hex).
     pub input_hash: Option<String>,
+    /// The row reached Ok via a `task_cache_hit` rehydration (ADR-099
+    /// `--resume`), never by running here — the render distinguishes
+    /// `↷ cache hit (resume)` from a ran-to-green row.
+    pub cached: bool,
 }
 
 impl TaskRow {
@@ -227,6 +231,7 @@ impl RunView {
             EventKind::TaskCacheHit => {
                 if let Some(i) = self.touch(event, TaskState::Ok) {
                     self.rows[i].ended_ms = Some(ts);
+                    self.rows[i].cached = true;
                     self.keep_output(i, event);
                 }
             }
@@ -247,7 +252,7 @@ impl RunView {
                 self.retries = self.retries.saturating_add(1);
                 self.touch(event, TaskState::Retrying);
             }
-            // §3.1 `◼` — a decision, not a defect (dim · never red).
+            // §3.1 blocked `⊘` — a decision, not a defect (dim · never red).
             EventKind::TaskCancelled => {
                 if let Some(i) = self.touch(event, TaskState::Cancelled) {
                     self.rows[i].ended_ms = Some(ts);
@@ -330,6 +335,7 @@ impl RunView {
                 started_note: None,
                 def_hash: None,
                 input_hash: None,
+                cached: false,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);

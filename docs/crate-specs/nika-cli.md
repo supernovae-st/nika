@@ -71,8 +71,15 @@ never a fork in truth.
 | ok | `✔` | `ok` | green |
 | failed | `✖` | `X` | red |
 | retrying | `↻` | `r` | yellow |
-| skipped (when:false) | `⊘` | `-` | dim |
-| cancelled | `◼` | `x` | dim |
+| skipped (when: false · empty for_each · on_error skip) | `↷` | `~>` | dim |
+| cache hit (resume rehydration · Ok in the fold, skip family on screen) | `↷` | `~>` | dim |
+| cancelled (blocked · upstream failed) | `⊘` | `x` | dim |
+
+Skip reasons speak (the comprehension pass): `↷ cache hit (resume)` ·
+`↷ when: false` · `⊘ blocked · <task> failed` (the failed upstream is
+named when the run has exactly ONE failed task — with several, the
+stream alone cannot prove ancestry, so the generic `blocked · upstream
+failed` stays honest).
 
 The ASCII column is a **first-class theme** (CI logs, legacy conhost, screen
 readers via `--no-progress`), not a degraded mode — snapshot tests pin BOTH.
@@ -99,7 +106,7 @@ frame N (during · one line per task · topological order · stable rows)
   ✔ extract_ai       jq · 0.1s · 12 items
   ◐ summarize        claude-sonnet · 3.1s · ~$0.011 ▁▃▅
   ○ write_md         waiting on summarize
-  ⊘ notify_slack     skipped (when: false)
+  ↷ notify_slack     when: false
   ── 2/6 done · $0.011 of ≤$0.04 · elapsed 4.4s ──────────────────
    ↑ footer meter: count · LIVE cost vs static ceiling · wall clock
 
