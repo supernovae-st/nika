@@ -81,6 +81,7 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     }
 
     batch.warnings.splice(0..0, warnings.drain(..));
+    batch.endpoint_host = Some("generativelanguage.googleapis.com".to_owned());
     batch.provider_text = (!texts.is_empty()).then(|| texts.join("\n"));
     clamp_provider_text(&mut batch);
     batch.raw_debug = args.debug.then_some(serde_json::Value::Array(raw_calls));

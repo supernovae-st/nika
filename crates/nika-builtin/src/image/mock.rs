@@ -51,6 +51,7 @@ pub(crate) fn generate(args: &ImageArgs) -> Result<ProviderBatch, BuiltinFailure
             total_tokens: Some(input + output),
             thoughts_tokens: None,
         },
+        endpoint_host: None, // in-process — no wire was crossed
         provider_text: None,
         warnings,
         raw_debug: args.debug.then(|| {

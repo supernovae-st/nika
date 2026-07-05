@@ -20,6 +20,9 @@ use super::types::{AspectRatio, Background, C_ARGS, ImageFormat, Provider, Quali
 /// (`OpenAI` documents « up to 2 minutes » for complex prompts); the fetch
 /// client's 30s default would kill most calls (the F1 timeout class).
 const DEFAULT_TIMEOUT_MS: u64 = 180_000;
+/// The `local` default is wider — a CPU-bound SD/FLUX render routinely
+/// runs past 3 minutes (still under the 600s transport ceiling).
+const DEFAULT_LOCAL_TIMEOUT_MS: u64 = 300_000;
 /// `timeout_ms:` bounds — under 1s is a typo'd unit; over 600s exceeds the
 /// provider transport ceiling (the composition root's idle-read guard).
 const TIMEOUT_RANGE_MS: std::ops::RangeInclusive<u64> = 1_000..=600_000;
@@ -42,6 +45,10 @@ pub(crate) struct ImageArgs {
     pub(crate) size: SizeSpec,
     pub(crate) quality: Quality,
     pub(crate) format: ImageFormat,
+    /// Whether `format:` was explicitly set (a mismatch on a DEFAULT
+    /// format is not a lossy mapping worth warning about on providers
+    /// with no output-format control — xai returns jpeg by design).
+    pub(crate) format_explicit: bool,
     /// 0–100 · `Some` only when applicable (jpeg/webp).
     pub(crate) compression: Option<u8>,
     pub(crate) background: Background,
@@ -110,13 +117,14 @@ pub(crate) fn parse(args: &Args) -> Result<ImageArgs, BuiltinFailure> {
 
     let n = parse_n(args)?;
     let format = parse_format(args)?;
+    let format_explicit = args.contains_key("format");
     let quality = parse_quality(args)?;
     let background = parse_background(args, provider, &model, format)?;
     let size = parse_size(args, &mut warnings)?;
     let compression = parse_compression(args, format, &mut warnings)?;
     let seed = parse_seed(args, provider, &mut warnings)?;
     let provider_options = parse_provider_options(args, provider, &mut warnings)?;
-    let timeout = parse_timeout(args)?;
+    let timeout = parse_timeout(args, provider)?;
 
     let manifest = crate::opt_bool(args, "manifest", true);
     let debug = crate::opt_bool(args, "debug", false);
@@ -140,6 +148,7 @@ pub(crate) fn parse(args: &Args) -> Result<ImageArgs, BuiltinFailure> {
         size,
         quality,
         format,
+        format_explicit,
         compression,
         background,
         seed,
@@ -199,21 +208,24 @@ fn resolve_provider_model(
 ) -> Result<(Provider, String), BuiltinFailure> {
     let model_arg = opt_str(args, "model", C_ARGS)?.map(str::to_owned);
     let provider = match opt_str(args, "provider", C_ARGS)? {
+        Some("local") => Provider::Local,
         Some("openai") => Provider::Openai,
         Some("gemini") => Provider::Gemini,
+        Some("xai") => Provider::Xai,
         Some("mock") => Provider::Mock,
         Some(other) => {
             return Err(BuiltinFailure::new(
                 C_ARGS,
                 format!(
-                    "`provider: {other}` is not a V1 image provider — the set is \
-                     `openai` · `gemini` · `mock`"
+                    "`provider: {other}` is not a v1.1 image provider — the set is \
+                     `local` · `openai` · `gemini` · `xai` · `mock`"
                 ),
             ));
         }
         None => match model_arg.as_deref() {
             Some(m) if m.starts_with("gpt-image") => Provider::Openai,
             Some(m) if m.starts_with("gemini") => Provider::Gemini,
+            Some(m) if m.starts_with("grok") => Provider::Xai,
             Some(m) if m.starts_with("mock") => Provider::Mock,
             Some(m) if m.starts_with("dall-e") => {
                 return Err(BuiltinFailure::new(
@@ -234,7 +246,8 @@ fn resolve_provider_model(
                     C_ARGS,
                     format!(
                         "cannot infer a provider from `model: {m}` — set `provider:` \
-                         (`openai` · `gemini` · `mock`)"
+                         (`local` · `openai` · `gemini` · `xai` · `mock`; local model \
+                         names are server-specific, so `local` is never inferred)"
                     ),
                 ));
             }
@@ -242,7 +255,7 @@ fn resolve_provider_model(
                 return Err(BuiltinFailure::new(
                     C_ARGS,
                     "`provider:` (or a `model:` it can be inferred from) is required — \
-                     `openai` · `gemini` · `mock`",
+                     `local` · `openai` · `gemini` · `xai` · `mock`",
                 ));
             }
         },
@@ -356,6 +369,21 @@ fn parse_background(
                     C_ARGS,
                     "the gemini image models do not document transparent-background \
                      output — use openai `gpt-image-1.5` for transparency",
+                ));
+            }
+            Provider::Xai => {
+                return Err(BuiltinFailure::new(
+                    C_ARGS,
+                    "the xai Imagine API has no background control — use openai \
+                     `gpt-image-1.5` for transparency",
+                ));
+            }
+            Provider::Local => {
+                return Err(BuiltinFailure::new(
+                    C_ARGS,
+                    "the compat wire has no background field — transparency depends \
+                     on the served model; use openai `gpt-image-1.5`, or bake the \
+                     requirement into the prompt for a server/model that honors it",
                 ));
             }
             Provider::Openai | Provider::Mock => {}
@@ -476,6 +504,22 @@ fn parse_seed(
             );
             Ok(None)
         }
+        Provider::Xai => {
+            warnings.push(
+                "seed_unsupported: the xai Imagine API has no seed parameter — \
+                 the seed is ignored"
+                    .to_owned(),
+            );
+            Ok(None)
+        }
+        Provider::Local => {
+            warnings.push(
+                "seed_unsupported: the compat wire has no seed field — the seed is \
+                 ignored (configure determinism server-side)"
+                    .to_owned(),
+            );
+            Ok(None)
+        }
         Provider::Gemini => {
             warnings.push(
                 "seed_best_effort: gemini accepts `generationConfig.seed` but does \
@@ -509,7 +553,8 @@ fn parse_provider_options(
     let known: &[&str] = match provider {
         Provider::Openai => &["moderation", "user"],
         Provider::Gemini => &["thinking_level", "image_size"],
-        Provider::Mock => &[],
+        Provider::Xai => &["user", "resolution"],
+        Provider::Local | Provider::Mock => &[],
     };
     for (key, value) in &options {
         if !known.contains(&key.as_str()) {
@@ -547,6 +592,21 @@ fn parse_provider_options(
                      (gemini-3.1-flash-image family)",
                 ));
             }
+            (Provider::Xai, "user", Some(_)) => {}
+            (Provider::Xai, "user", None) => {
+                return Err(BuiltinFailure::new(
+                    C_ARGS,
+                    "`provider_options.user` must be a string",
+                ));
+            }
+            (Provider::Xai, "resolution", Some("1k" | "2k")) => {}
+            (Provider::Xai, "resolution", _) => {
+                return Err(BuiltinFailure::new(
+                    C_ARGS,
+                    "`provider_options.resolution` must be `1k` or `2k` (lowercase k \
+                     — the xai Imagine classes)",
+                ));
+            }
             (Provider::Gemini, "image_size", Some("512" | "1K" | "2K" | "4K")) => {}
             (Provider::Gemini, "image_size", _) => {
                 return Err(BuiltinFailure::new(
@@ -561,9 +621,14 @@ fn parse_provider_options(
     Ok(options)
 }
 
-fn parse_timeout(args: &Args) -> Result<Duration, BuiltinFailure> {
+fn parse_timeout(args: &Args, provider: Provider) -> Result<Duration, BuiltinFailure> {
     let Some(value) = args.get("timeout_ms") else {
-        return Ok(Duration::from_millis(DEFAULT_TIMEOUT_MS));
+        let default = if provider == Provider::Local {
+            DEFAULT_LOCAL_TIMEOUT_MS
+        } else {
+            DEFAULT_TIMEOUT_MS
+        };
+        return Ok(Duration::from_millis(default));
     };
     let ms = value.as_u64().ok_or_else(|| {
         BuiltinFailure::new(C_ARGS, "`timeout_ms:` must be an integer (milliseconds)")
@@ -899,6 +964,66 @@ mod tests {
             })))
             .is_ok()
         );
+    }
+
+    #[test]
+    fn v11_providers_resolve_and_guard_correctly() {
+        // xai: explicit + grok-prefix inference + defaults.
+        let p = parse(&base(serde_json::json!({ "provider": "xai" }))).expect("valid");
+        assert_eq!(p.provider, Provider::Xai);
+        assert_eq!(p.model, "grok-imagine-image");
+        let mut inferred = base(serde_json::json!({ "model": "grok-imagine-image-quality" }));
+        inferred.remove("provider");
+        let p = parse(&inferred).expect("valid");
+        assert_eq!(p.provider, Provider::Xai);
+        // local: explicit only — never inferred.
+        let p = parse(&base(serde_json::json!({ "provider": "local" }))).expect("valid");
+        assert_eq!(p.provider, Provider::Local);
+        assert_eq!(p.model, "stablediffusion", "the LocalAI convention default");
+        assert_eq!(
+            p.timeout,
+            Duration::from_millis(300_000),
+            "local defaults wider — CPU renders run minutes"
+        );
+        // transparent is refused on both (no wire control).
+        for prov in ["xai", "local"] {
+            let err = parse(&base(serde_json::json!({
+                "provider": prov, "background": "transparent"
+            })))
+            .expect_err("no background control");
+            assert!(err.message.contains("gpt-image-1.5"), "{}", err.message);
+        }
+        // seed warns-and-drops on both.
+        for prov in ["xai", "local"] {
+            let p =
+                parse(&base(serde_json::json!({ "provider": prov, "seed": 7 }))).expect("valid");
+            assert_eq!(p.seed, None, "{prov}");
+            assert!(
+                p.warnings
+                    .iter()
+                    .any(|w| w.starts_with("seed_unsupported:"))
+            );
+        }
+        // xai provider_options: resolution validated, lowercase-k enforced.
+        let err = parse(&base(serde_json::json!({
+            "provider": "xai", "provider_options": { "resolution": "2K" }
+        })))
+        .expect_err("uppercase K");
+        assert!(err.message.contains("lowercase"), "{}", err.message);
+        assert!(
+            parse(&base(serde_json::json!({
+                "provider": "xai", "provider_options": { "resolution": "2k" }
+            })))
+            .is_ok()
+        );
+        // format_explicit rides the parse.
+        let p = parse(&base(serde_json::json!({ "provider": "xai" }))).expect("valid");
+        assert!(!p.format_explicit, "default png is not explicit");
+        let p = parse(&base(
+            serde_json::json!({ "provider": "xai", "format": "png" }),
+        ))
+        .expect("valid");
+        assert!(p.format_explicit);
     }
 
     #[test]

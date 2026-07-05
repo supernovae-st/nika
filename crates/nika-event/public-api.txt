@@ -229,6 +229,7 @@ pub nika_event::kind::EventKind::CheckpointWritten
 pub nika_event::kind::EventKind::CostIncurred
 pub nika_event::kind::EventKind::InferChunk
 pub nika_event::kind::EventKind::PermitChecked
+pub nika_event::kind::EventKind::TaskCacheHit
 pub nika_event::kind::EventKind::TaskCancelled
 pub nika_event::kind::EventKind::TaskCompleted
 pub nika_event::kind::EventKind::TaskFailed
@@ -241,6 +242,7 @@ pub nika_event::kind::EventKind::VerbInvoked
 pub nika_event::kind::EventKind::WorkflowCancelled
 pub nika_event::kind::EventKind::WorkflowCompleted
 pub nika_event::kind::EventKind::WorkflowFailed
+pub nika_event::kind::EventKind::WorkflowPaused
 pub nika_event::kind::EventKind::WorkflowStarted
 impl nika_event::kind::EventKind
 pub const fn nika_event::kind::EventKind::as_str(&self) -> &'static str
@@ -392,6 +394,7 @@ pub nika_event::prelude::EventKind::CheckpointWritten
 pub nika_event::prelude::EventKind::CostIncurred
 pub nika_event::prelude::EventKind::InferChunk
 pub nika_event::prelude::EventKind::PermitChecked
+pub nika_event::prelude::EventKind::TaskCacheHit
 pub nika_event::prelude::EventKind::TaskCancelled
 pub nika_event::prelude::EventKind::TaskCompleted
 pub nika_event::prelude::EventKind::TaskFailed
@@ -404,6 +407,7 @@ pub nika_event::prelude::EventKind::VerbInvoked
 pub nika_event::prelude::EventKind::WorkflowCancelled
 pub nika_event::prelude::EventKind::WorkflowCompleted
 pub nika_event::prelude::EventKind::WorkflowFailed
+pub nika_event::prelude::EventKind::WorkflowPaused
 pub nika_event::prelude::EventKind::WorkflowStarted
 impl nika_event::kind::EventKind
 pub const fn nika_event::kind::EventKind::as_str(&self) -> &'static str
@@ -678,6 +682,7 @@ pub nika_event::EventKind::CheckpointWritten
 pub nika_event::EventKind::CostIncurred
 pub nika_event::EventKind::InferChunk
 pub nika_event::EventKind::PermitChecked
+pub nika_event::EventKind::TaskCacheHit
 pub nika_event::EventKind::TaskCancelled
 pub nika_event::EventKind::TaskCompleted
 pub nika_event::EventKind::TaskFailed
@@ -690,6 +695,7 @@ pub nika_event::EventKind::VerbInvoked
 pub nika_event::EventKind::WorkflowCancelled
 pub nika_event::EventKind::WorkflowCompleted
 pub nika_event::EventKind::WorkflowFailed
+pub nika_event::EventKind::WorkflowPaused
 pub nika_event::EventKind::WorkflowStarted
 impl nika_event::kind::EventKind
 pub const fn nika_event::kind::EventKind::as_str(&self) -> &'static str

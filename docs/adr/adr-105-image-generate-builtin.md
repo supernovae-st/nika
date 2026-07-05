@@ -5,7 +5,7 @@ status: accepted
 date: 2026-07-05
 phase: "post-0.93 · announce ladder"
 deciders: ["@ThibautMelen"]
-tags: ["nika-builtin", "media", "image-generation", "openai", "gemini", "mock", "image-plane", "provenance", "permits"]
+tags: ["nika-builtin", "media", "image-generation", "local", "openai", "gemini", "xai", "mock", "image-plane", "provenance", "permits", "sovereignty"]
 affects_crates: ["nika-builtin", "nika-catalog", "nika-schema", "nika-cli", "nika-pack", "nika-verb-agent"]
 affects_layers: ["L0", "L1.5", "L4"]
 supersedes: []
@@ -108,6 +108,23 @@ deferred Media class (23 → 24 canonical builtins).
   oversized non-payload string — a multimodal response cannot carry
   megabytes of text into `ToolResult.content`/the agent's next turn/the
   manifest (review-swarm refutation, 2026-07-05).
+- **v1.1 amendment (2026-07-05 · same-day)** — the Socratic sovereignty
+  review found the V1 set violated supernovae-alignment Rule 3 (5 local
+  LLM providers · zero sovereign image path). The set opens: **`local`**
+  (one OpenAI-images-compat wire now covers LocalAI · Ollama · sd.cpp
+  `sd-server` · SGLang Diffusion · vLLM-Omni — landscape-verified; base
+  URL = engine config `NIKA_IMAGE_LOCAL_URL`, default LocalAI `:8080`,
+  optional Bearer; `response_format: b64_json` forced; url-only answers
+  REFUSED — result URLs are never fetched; 300s default timeout; never
+  inferred from `model:`) and **`xai`** (Imagine API · `grok-imagine-image`
+  default, `-quality` tier as the model knob · native aspect_ratio +
+  resolution 1k/2k classes · usage billed in cost ticks → axes stay null).
+  Riders: `endpoint_host` provenance in output+manifest · `count_shortfall:`
+  · `revised_prompt_clamped:` warnings · `format_mismatch:` now fires only
+  on an EXPLICIT `format:` (xai returns jpeg by design). BFL's cloud FLUX
+  API stays deferred (async submit→poll wire — a second adapter
+  architecture; the sovereign path to FLUX is `local`). Mistral has no
+  image-generation API (agent-tool only — verified negative).
 - **The image plane shares the dispatcher's `H` type parameter**
   (`Option<Arc<H>>`) rather than a `dyn` seam: `HttpPostDyn` is a
   `trait_variant` async trait (not dyn-compatible), and the house

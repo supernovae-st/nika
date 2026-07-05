@@ -17,8 +17,11 @@
 > `threads` (−3). ZERO capability loss (jq ⊇ the cuts · jaq-verified · the
 > collapses preserve every behavior via mode args). See §"What jq subsumes".
 > Step 4 (23 → 24 · 2026-07-05) · `nika:image_generate` · the FIRST §Media
-> graduate (openai `gpt-image-2` · gemini `gemini-3.1-flash-image` · `mock`
-> for offline runs · assets land on disk, never inline base64).
+> graduate. Providers v1.1 (local-first per the sovereignty review
+> 2026-07-05) · `local` (any OpenAI-images-compatible self-hosted server —
+> LocalAI · Ollama · sd.cpp · SGLang · vLLM-Omni) · openai `gpt-image-2` ·
+> gemini `gemini-3.1-flash-image` · xai `grok-imagine-image` · `mock` for
+> offline runs · assets land on disk, never inline base64.
 
 ---
 
@@ -330,7 +333,7 @@ Throws · `NIKA-BUILTIN-INSPECT-001` if `view:` value not in the canonical enum.
 invoke:
   tool: "nika:image_generate"
   args:
-    provider: mock                # mock (offline · deterministic) | gemini | openai — inferable from model:
+    provider: mock                # mock (offline) | local (sovereign) | gemini | openai | xai — inferable from model: (local excepted)
     prompt: "OG hero — a monarch butterfly over a nebula, editorial photo"
     aspect_ratio: "16:9"
     output_dir: "./assets/og"
@@ -345,8 +348,8 @@ outputs** (no base64 in `tasks.X.output`, logs, or traces · normative).
 
 | Arg | Notes |
 |---|---|
-| `provider` | `openai` · `gemini` · `mock` — optional when inferable from `model:` (`gpt-image*`→openai · `gemini-*`→gemini · `mock*`→mock) |
-| `model` | per-provider default (reference engine 2026-07: `gpt-image-2` · `gemini-3.1-flash-image` · `mock-image-1`) |
+| `provider` | `local` · `openai` · `gemini` · `xai` · `mock` — optional when inferable from `model:` (`gpt-image*`→openai · `gemini-*`→gemini · `grok*`→xai · `mock*`→mock · `local` is NEVER inferred: its model names are server-specific) |
+| `model` | per-provider default (reference engine 2026-07: `stablediffusion` for local — the LocalAI convention · `gpt-image-2` · `gemini-3.1-flash-image` · `grok-imagine-image` — the `-quality` tier is the model knob · `mock-image-1`) |
 | `prompt` | **required** · the creative brief · may use `${{ … }}` |
 | `mode` | `generate` (default) · `edit` is RESERVED (rejected loudly in v0.1 · media roadmap) |
 | `n` | 1..=10 variants (engines MAY satisfy n via sequential provider calls · documented per adapter) |
@@ -358,13 +361,13 @@ outputs** (no base64 in `tasks.X.output`, logs, or traces · normative).
 | `background` | `auto · transparent · opaque` · transparent REQUIRES an alpha-capable format (png/webp) and a supporting provider/model |
 | `seed` | best-effort (providers without seed support warn + drop) |
 | `reference_images` | RESERVED (rejected loudly in v0.1 · media roadmap) |
-| `provider_options` | vetted pass-through (unknown keys warn, never crash) |
+| `provider_options` | vetted pass-through (unknown keys warn, never crash) · openai `{moderation, user}` · gemini `{thinking_level, image_size}` · xai `{user, resolution: 1k\|2k}` |
 | `output_dir` | **required** · rides the declared `permits.fs` boundary (`NIKA-SEC-004` · gated per final path BEFORE any I/O) |
 | `filename_prefix` | filename stem (else `metadata.page_slug`, else `image`) — sanitized `[a-z0-9._-]`, traversal-free by construction |
 | `save` | `true` (v0.1 contract · `save: false` is RESERVED — rejected loudly) |
 | `manifest` | write the provenance manifest JSON beside the assets (default `true`) |
 | `metadata` | free provenance object (campaign · page_slug · locale · …) echoed into output + manifest |
-| `timeout_ms` | per-request deadline · default 180000 · 1000..=600000 (image renders routinely run 30–120s) |
+| `timeout_ms` | per-request deadline · default 180000 (local: 300000 — CPU renders run minutes) · 1000..=600000 |
 | `debug` | echo the sanitized raw provider response (base64 payloads STRIPPED · headers never included) |
 
 **Filenames (normative grammar)** ·
@@ -377,7 +380,7 @@ sanitized to `[a-z0-9._-]` with no separators; name collisions probe
 paths/dimensions/sha256 · usage · warnings · caller `metadata:` — and
 NEVER a credential: keys live a composition layer away by construction).
 
-**Output (normalized · both providers + mock)** · `{ provider, model, mode,
+**Output (normalized · every provider + mock)** · `{ provider, model, mode,
 prompt, revised_prompt, provider_text, created_at, count, images: [{ index,
 path, filename, mime_type, format, width, height, size_bytes, sha256,
 provider, model, seed, variant_id, warnings, metadata }], usage:
@@ -388,7 +391,9 @@ zero-that-looks-real.
 **Security (engine MUST)** · provider endpoints are ENGINE-FIXED constants
 (never workflow data — the provider egress is engine transport, exactly like
 `infer:`; `permits.net.http` does not govern it, `permits.tools` +
-`permits.fs` DO) · decode validation is HEADER-ONLY (magic bytes + PNG
+`permits.fs` DO; the `local` base URL is ENGINE CONFIG resolved at the
+composition root — `NIKA_IMAGE_LOCAL_URL`, default LocalAI's
+`http://localhost:8080` — still never workflow data) · decode validation is HEADER-ONLY (magic bytes + PNG
 IHDR / JPEG SOF / WebP VP8-VP8L-VP8X dimensions · no pixel decode → no
 decompression-bomb surface · declared-vs-actual mismatch is a warning, a
 non-image payload is a hard error) · atomic writes (temp+rename) · API keys
@@ -398,8 +403,9 @@ args, never logged, never echoed.
 **Warnings (normative shape)** · every tolerated-but-lossy mapping lands a
 stable `code: message` warning string (`size_conflict:` ·
 `compression_ignored:` · `seed_unsupported:` · `quality_folded:` ·
-`format_mismatch:` · `gemini_size_class:` · `provider_option_unknown:` ·
-`provider_text_clamped:` · …) in `warnings` — silent degradation is
+`format_mismatch:` · `gemini_size_class:` · `xai_size_class:` ·
+`aspect_remapped:` · `count_shortfall:` · `revised_prompt_clamped:` ·
+`provider_option_unknown:` · `provider_text_clamped:` · …) in `warnings` — silent degradation is
 non-conformant.
 
 **`provider_text`/`revised_prompt` are captions, not payload channels
@@ -408,6 +414,14 @@ engine (the reference engine clamps at 2 000 chars with a
 `provider_text_clamped:` warning) — a multimodal response interleaving
 megabytes of text (or base64-shaped junk) must never ride workflow
 outputs, the manifest, or the `debug:` echo unbounded.
+
+**Result URLs are never fetched (normative)** · engines request
+`response_format: b64_json` on url-capable wires (openai-compat · xai) and
+MUST refuse a url-only response with an actionable error — fetching a
+provider-supplied result URL would reopen the SSRF/net-boundary surface
+the const-endpoint design closed. The provenance manifest and output
+carry `endpoint_host` (which server actually rendered the asset — load-
+bearing for `local`, where the endpoint is configurable).
 
 Throws · `NIKA-BUILTIN-IMAGE_GENERATE-001` invalid arguments (incl. the v0.1
 RESERVED options · `validation_error`) · `-002` provider unavailable

@@ -60,8 +60,8 @@ pub fn nika_cli::display::format::ColorChoice::as_any(&self) -> &(dyn core::any:
 impl<T> outref::AsOut<T> for nika_cli::display::format::ColorChoice where T: core::marker::Copy
 pub fn nika_cli::display::format::ColorChoice::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::display::format::ColorChoice where T: ?core::marker::Sized
-pub fn nika_cli::display::format::ColorChoice::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli::display::format::ColorChoice::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::display::format::ColorChoice::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::display::format::ColorChoice::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_cli::display::format::ColorChoice
 impl<T> tracing::instrument::WithSubscriber for nika_cli::display::format::ColorChoice
 impl<T> typenum::type_operators::Same for nika_cli::display::format::ColorChoice
@@ -115,8 +115,8 @@ pub fn nika_cli::display::format::LinkChoice::as_any(&self) -> &(dyn core::any::
 impl<T> outref::AsOut<T> for nika_cli::display::format::LinkChoice where T: core::marker::Copy
 pub fn nika_cli::display::format::LinkChoice::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::display::format::LinkChoice where T: ?core::marker::Sized
-pub fn nika_cli::display::format::LinkChoice::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli::display::format::LinkChoice::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::display::format::LinkChoice::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::display::format::LinkChoice::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_cli::display::format::LinkChoice
 impl<T> tracing::instrument::WithSubscriber for nika_cli::display::format::LinkChoice
 impl<T> typenum::type_operators::Same for nika_cli::display::format::LinkChoice
@@ -163,8 +163,8 @@ pub fn nika_cli::display::format::ColorEnv::as_any(&self) -> &(dyn core::any::An
 impl<T> outref::AsOut<T> for nika_cli::display::format::ColorEnv where T: core::marker::Copy
 pub fn nika_cli::display::format::ColorEnv::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::display::format::ColorEnv where T: ?core::marker::Sized
-pub fn nika_cli::display::format::ColorEnv::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli::display::format::ColorEnv::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::display::format::ColorEnv::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::display::format::ColorEnv::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_cli::display::format::ColorEnv
 impl<T> tracing::instrument::WithSubscriber for nika_cli::display::format::ColorEnv
 impl<T> typenum::type_operators::Same for nika_cli::display::format::ColorEnv
@@ -837,8 +837,8 @@ pub fn nika_cli::verbs::run::RecoveredTrace::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::run::RecoveredTrace where T: 'static
 pub fn nika_cli::verbs::run::RecoveredTrace::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::run::RecoveredTrace where T: ?core::marker::Sized
-pub fn nika_cli::verbs::run::RecoveredTrace::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli::verbs::run::RecoveredTrace::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::run::RecoveredTrace::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::run::RecoveredTrace::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::RecoveredTrace
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::RecoveredTrace
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::RecoveredTrace
@@ -879,8 +879,8 @@ pub fn nika_cli::verbs::run::ResumeRequest::__clone_box(&self, _: dyn_clone::sea
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::run::ResumeRequest where T: 'static
 pub fn nika_cli::verbs::run::ResumeRequest::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::run::ResumeRequest where T: ?core::marker::Sized
-pub fn nika_cli::verbs::run::ResumeRequest::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli::verbs::run::ResumeRequest::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::run::ResumeRequest::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::run::ResumeRequest::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::ResumeRequest
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::ResumeRequest
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::ResumeRequest

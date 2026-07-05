@@ -30,4 +30,6 @@ impl<T> core::convert::From<T> for nika_mcp::McpError
 pub fn nika_mcp::McpError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_mcp::McpError where T: 'static
 pub fn nika_mcp::McpError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_mcp::McpError
+pub type nika_mcp::McpError::Output = T
 pub fn nika_mcp::run_stdio() -> core::result::Result<(), nika_mcp::McpError>

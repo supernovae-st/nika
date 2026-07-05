@@ -10,11 +10,17 @@ pub mod nika_builtin::file
 pub mod nika_builtin::image
 #[non_exhaustive] pub struct nika_builtin::image::ImageKeys
 pub nika_builtin::image::ImageKeys::gemini: core::option::Option<nika_kernel_core::infra::secret::Secret>
+pub nika_builtin::image::ImageKeys::local_api_key: core::option::Option<nika_kernel_core::infra::secret::Secret>
+pub nika_builtin::image::ImageKeys::local_base_url: core::option::Option<alloc::string::String>
 pub nika_builtin::image::ImageKeys::openai: core::option::Option<nika_kernel_core::infra::secret::Secret>
+pub nika_builtin::image::ImageKeys::xai: core::option::Option<nika_kernel_core::infra::secret::Secret>
 impl nika_builtin::image::ImageKeys
 pub fn nika_builtin::image::ImageKeys::new() -> Self
 pub fn nika_builtin::image::ImageKeys::with_gemini(self, key: nika_kernel_core::infra::secret::Secret) -> Self
+pub fn nika_builtin::image::ImageKeys::with_local_api_key(self, key: nika_kernel_core::infra::secret::Secret) -> Self
+pub fn nika_builtin::image::ImageKeys::with_local_base_url(self, base_url: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_builtin::image::ImageKeys::with_openai(self, key: nika_kernel_core::infra::secret::Secret) -> Self
+pub fn nika_builtin::image::ImageKeys::with_xai(self, key: nika_kernel_core::infra::secret::Secret) -> Self
 impl core::default::Default for nika_builtin::image::ImageKeys
 pub fn nika_builtin::image::ImageKeys::default() -> nika_builtin::image::ImageKeys
 impl core::fmt::Debug for nika_builtin::image::ImageKeys
@@ -216,11 +222,17 @@ impl<T> typenum::type_operators::Same for nika_builtin::permits::FsBoundary
 pub type nika_builtin::permits::FsBoundary::Output = T
 #[non_exhaustive] pub struct nika_builtin::ImageKeys
 pub nika_builtin::ImageKeys::gemini: core::option::Option<nika_kernel_core::infra::secret::Secret>
+pub nika_builtin::ImageKeys::local_api_key: core::option::Option<nika_kernel_core::infra::secret::Secret>
+pub nika_builtin::ImageKeys::local_base_url: core::option::Option<alloc::string::String>
 pub nika_builtin::ImageKeys::openai: core::option::Option<nika_kernel_core::infra::secret::Secret>
+pub nika_builtin::ImageKeys::xai: core::option::Option<nika_kernel_core::infra::secret::Secret>
 impl nika_builtin::image::ImageKeys
 pub fn nika_builtin::image::ImageKeys::new() -> Self
 pub fn nika_builtin::image::ImageKeys::with_gemini(self, key: nika_kernel_core::infra::secret::Secret) -> Self
+pub fn nika_builtin::image::ImageKeys::with_local_api_key(self, key: nika_kernel_core::infra::secret::Secret) -> Self
+pub fn nika_builtin::image::ImageKeys::with_local_base_url(self, base_url: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_builtin::image::ImageKeys::with_openai(self, key: nika_kernel_core::infra::secret::Secret) -> Self
+pub fn nika_builtin::image::ImageKeys::with_xai(self, key: nika_kernel_core::infra::secret::Secret) -> Self
 impl core::default::Default for nika_builtin::image::ImageKeys
 pub fn nika_builtin::image::ImageKeys::default() -> nika_builtin::image::ImageKeys
 impl core::fmt::Debug for nika_builtin::image::ImageKeys

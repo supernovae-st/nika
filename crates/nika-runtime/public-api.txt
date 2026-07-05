@@ -1,4 +1,85 @@
 pub mod nika_runtime
+pub mod nika_runtime::resume
+pub mod nika_runtime::resume::fields
+pub const nika_runtime::resume::fields::DEF_HASH: &str
+pub const nika_runtime::resume::fields::INPUT_HASH: &str
+pub const nika_runtime::resume::fields::OUTPUT: &str
+#[non_exhaustive] pub struct nika_runtime::resume::PriorSuccess
+pub nika_runtime::resume::PriorSuccess::def_hash: alloc::string::String
+pub nika_runtime::resume::PriorSuccess::input_hash: alloc::string::String
+pub nika_runtime::resume::PriorSuccess::output: serde_json::value::Value
+impl nika_runtime::resume::PriorSuccess
+pub fn nika_runtime::resume::PriorSuccess::new(def_hash: alloc::string::String, input_hash: alloc::string::String, output: serde_json::value::Value) -> Self
+impl core::clone::Clone for nika_runtime::resume::PriorSuccess
+pub fn nika_runtime::resume::PriorSuccess::clone(&self) -> nika_runtime::resume::PriorSuccess
+impl core::fmt::Debug for nika_runtime::resume::PriorSuccess
+pub fn nika_runtime::resume::PriorSuccess::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_runtime::resume::PriorSuccess
+impl<T, U> core::convert::Into<U> for nika_runtime::resume::PriorSuccess where U: core::convert::From<T>
+pub fn nika_runtime::resume::PriorSuccess::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::resume::PriorSuccess where U: core::convert::Into<T>
+pub type nika_runtime::resume::PriorSuccess::Error = core::convert::Infallible
+pub fn nika_runtime::resume::PriorSuccess::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::resume::PriorSuccess where U: core::convert::TryFrom<T>
+pub type nika_runtime::resume::PriorSuccess::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::resume::PriorSuccess::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::resume::PriorSuccess where T: core::clone::Clone
+pub type nika_runtime::resume::PriorSuccess::Owned = T
+pub fn nika_runtime::resume::PriorSuccess::clone_into(&self, target: &mut T)
+pub fn nika_runtime::resume::PriorSuccess::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::resume::PriorSuccess where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::resume::PriorSuccess::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::resume::PriorSuccess where T: ?core::marker::Sized
+pub fn nika_runtime::resume::PriorSuccess::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::resume::PriorSuccess where T: ?core::marker::Sized
+pub fn nika_runtime::resume::PriorSuccess::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::resume::PriorSuccess where T: core::clone::Clone
+pub unsafe fn nika_runtime::resume::PriorSuccess::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::resume::PriorSuccess
+pub fn nika_runtime::resume::PriorSuccess::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::resume::PriorSuccess where T: core::clone::Clone
+pub fn nika_runtime::resume::PriorSuccess::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::resume::PriorSuccess where T: 'static
+pub fn nika_runtime::resume::PriorSuccess::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_runtime::resume::ResumeKey
+impl nika_runtime::resume::ResumeKey
+pub fn nika_runtime::resume::ResumeKey::definition_hash(&self) -> core::option::Option<alloc::string::String>
+pub fn nika_runtime::resume::ResumeKey::input_hash(&self) -> core::option::Option<alloc::string::String>
+pub fn nika_runtime::resume::ResumeKey::new(task: alloc::string::String, verb: alloc::string::String, definition: serde_json::value::Value, inputs: serde_json::value::Value) -> Self
+impl core::clone::Clone for nika_runtime::resume::ResumeKey
+pub fn nika_runtime::resume::ResumeKey::clone(&self) -> nika_runtime::resume::ResumeKey
+impl core::fmt::Debug for nika_runtime::resume::ResumeKey
+pub fn nika_runtime::resume::ResumeKey::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_runtime::resume::ResumeKey
+impl<T, U> core::convert::Into<U> for nika_runtime::resume::ResumeKey where U: core::convert::From<T>
+pub fn nika_runtime::resume::ResumeKey::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::resume::ResumeKey where U: core::convert::Into<T>
+pub type nika_runtime::resume::ResumeKey::Error = core::convert::Infallible
+pub fn nika_runtime::resume::ResumeKey::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::resume::ResumeKey where U: core::convert::TryFrom<T>
+pub type nika_runtime::resume::ResumeKey::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::resume::ResumeKey::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::resume::ResumeKey where T: core::clone::Clone
+pub type nika_runtime::resume::ResumeKey::Owned = T
+pub fn nika_runtime::resume::ResumeKey::clone_into(&self, target: &mut T)
+pub fn nika_runtime::resume::ResumeKey::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::resume::ResumeKey where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::resume::ResumeKey::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::resume::ResumeKey where T: ?core::marker::Sized
+pub fn nika_runtime::resume::ResumeKey::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::resume::ResumeKey where T: ?core::marker::Sized
+pub fn nika_runtime::resume::ResumeKey::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::resume::ResumeKey where T: core::clone::Clone
+pub unsafe fn nika_runtime::resume::ResumeKey::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::resume::ResumeKey
+pub fn nika_runtime::resume::ResumeKey::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::resume::ResumeKey where T: core::clone::Clone
+pub fn nika_runtime::resume::ResumeKey::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::resume::ResumeKey where T: 'static
+pub fn nika_runtime::resume::ResumeKey::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_runtime::resume::KEY_VERSION: u32
+pub fn nika_runtime::resume::referenced_upstreams(task: &nika_schema::raw::task::RawTask) -> alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub type nika_runtime::resume::ResumePlan = alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::resume::PriorSuccess>
 #[non_exhaustive] pub enum nika_runtime::RuntimeError
 pub nika_runtime::RuntimeError::CelEval
 pub nika_runtime::RuntimeError::CelEval::code: &'static str
@@ -168,8 +249,10 @@ pub fn nika_runtime::NoSecrets::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_runtime::NoSecrets where T: core::marker::Copy
 pub fn nika_runtime::NoSecrets::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub struct nika_runtime::RunOutcome
+pub nika_runtime::RunOutcome::cache_hits: alloc::vec::Vec<alloc::string::String>
 pub nika_runtime::RunOutcome::ok: bool
 pub nika_runtime::RunOutcome::outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_runtime::RunOutcome::paused: core::option::Option<nika_runtime::WorkflowPause>
 pub nika_runtime::RunOutcome::records: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::TaskRecord>
 impl nika_runtime::RunOutcome
 pub fn nika_runtime::RunOutcome::new(ok: bool, records: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::TaskRecord>, outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
@@ -199,6 +282,9 @@ impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C> where S: nika_ker
 pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_schema::check::CheckReport, stamper: &mut dyn nika_runtime::Stamper, sink: &mut dyn nika_runtime::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime::RuntimeError>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecVerb<S>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, infer: nika_verb_infer::InferVerb<H>, agent: nika_verb_agent::AgentVerb<P, T, D>, clock: C, config: nika_runtime::RuntimeConfig) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_answers(self, answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_pause(self, pause: bool) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_plan(self, plan: nika_runtime::resume::ResumePlan) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_secret_resolver(self, resolver: alloc::sync::Arc<dyn nika_runtime::WorkflowSecretResolver>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_var_overrides(self, overrides: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
 impl<D> owo_colors::OwoColorize for nika_runtime::Runtime<S, T, H, P, D, C>
@@ -426,6 +512,44 @@ impl<T> core::convert::From<T> for nika_runtime::VecSink
 pub fn nika_runtime::VecSink::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_runtime::VecSink where T: 'static
 pub fn nika_runtime::VecSink::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_runtime::WorkflowPause
+pub nika_runtime::WorkflowPause::choices: alloc::vec::Vec<alloc::string::String>
+pub nika_runtime::WorkflowPause::message: core::option::Option<alloc::string::String>
+pub nika_runtime::WorkflowPause::mode: alloc::string::String
+pub nika_runtime::WorkflowPause::task: alloc::string::String
+impl nika_runtime::WorkflowPause
+pub fn nika_runtime::WorkflowPause::new(task: alloc::string::String, mode: alloc::string::String, message: core::option::Option<alloc::string::String>, choices: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_runtime::WorkflowPause
+pub fn nika_runtime::WorkflowPause::clone(&self) -> nika_runtime::WorkflowPause
+impl core::fmt::Debug for nika_runtime::WorkflowPause
+pub fn nika_runtime::WorkflowPause::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_runtime::WorkflowPause
+impl<T, U> core::convert::Into<U> for nika_runtime::WorkflowPause where U: core::convert::From<T>
+pub fn nika_runtime::WorkflowPause::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::WorkflowPause where U: core::convert::Into<T>
+pub type nika_runtime::WorkflowPause::Error = core::convert::Infallible
+pub fn nika_runtime::WorkflowPause::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::WorkflowPause where U: core::convert::TryFrom<T>
+pub type nika_runtime::WorkflowPause::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::WorkflowPause::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::WorkflowPause where T: core::clone::Clone
+pub type nika_runtime::WorkflowPause::Owned = T
+pub fn nika_runtime::WorkflowPause::clone_into(&self, target: &mut T)
+pub fn nika_runtime::WorkflowPause::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::WorkflowPause where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::WorkflowPause::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::WorkflowPause where T: ?core::marker::Sized
+pub fn nika_runtime::WorkflowPause::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::WorkflowPause where T: ?core::marker::Sized
+pub fn nika_runtime::WorkflowPause::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::WorkflowPause where T: core::clone::Clone
+pub unsafe fn nika_runtime::WorkflowPause::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::WorkflowPause
+pub fn nika_runtime::WorkflowPause::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::WorkflowPause where T: core::clone::Clone
+pub fn nika_runtime::WorkflowPause::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::WorkflowPause where T: 'static
+pub fn nika_runtime::WorkflowPause::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub trait nika_runtime::EventSink
 pub fn nika_runtime::EventSink::emit(&mut self, event: nika_event::event::Event)
 impl nika_runtime::EventSink for nika_runtime::VecSink

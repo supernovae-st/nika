@@ -346,10 +346,10 @@ fn introspection_defs() -> Vec<ToolDef> {
 fn media_defs() -> Vec<ToolDef> {
     vec![def(
         "image_generate",
-        "Generate image assets (openai gpt-image-2 · gemini gemini-3.1-flash-image · mock for offline runs) — saves files under output_dir and returns paths + dimensions + sha256 (+ a provenance manifest); image bytes never ride outputs.",
+        "Generate image assets (local compat servers · openai gpt-image-2 · gemini gemini-3.1-flash-image · xai grok-imagine-image · mock for offline runs) — saves files under output_dir and returns paths + dimensions + sha256 (+ a provenance manifest); image bytes never ride outputs.",
         serde_json::json!({
-            "provider": s("openai | gemini | mock (inferred from model: when omitted)"),
-            "model": s("provider model id · defaults: gpt-image-2 · gemini-3.1-flash-image · mock-image-1"),
+            "provider": s("local | openai | gemini | xai | mock (inferred from model: when omitted · local is never inferred)"),
+            "model": s("provider model id · defaults: stablediffusion (local · LocalAI convention) · gpt-image-2 · gemini-3.1-flash-image · grok-imagine-image · mock-image-1"),
             "prompt": s("the creative brief the provider renders"),
             "mode": s("generate (default) — `edit` is on the media roadmap, rejected loudly"),
             "n": { "type": "integer", "description": "variant count 1..=10 (gemini runs n sequential calls)" },
@@ -361,7 +361,7 @@ fn media_defs() -> Vec<ToolDef> {
             "background": s("auto (default) | transparent (needs png/webp and a supporting model) | opaque"),
             "seed": { "type": "integer", "description": "gemini best-effort · openai has no seed (warned + dropped)" },
             "reference_images": { "type": "array", "items": {"type": "string"}, "description": "media roadmap — rejected loudly in V1" },
-            "provider_options": { "type": "object", "description": "vetted pass-through · openai {moderation, user} · gemini {thinking_level, image_size}" },
+            "provider_options": { "type": "object", "description": "vetted pass-through · openai {moderation, user} · gemini {thinking_level, image_size} · xai {user, resolution}" },
             "output_dir": s("directory the assets land in (rides the declared permits.fs boundary)"),
             "filename_prefix": s("filename stem (else metadata.page_slug, else `image`) — sanitized, traversal-free"),
             "save": { "type": "boolean", "description": "V1 contract: stays true — assets land on disk, never inline" },

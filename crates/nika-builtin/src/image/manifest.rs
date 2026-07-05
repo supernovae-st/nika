@@ -27,6 +27,7 @@ use super::types::{C_SAVE, Usage};
 const MANIFEST_VERSION: u32 = 1;
 
 /// Build the manifest JSON for a completed batch.
+#[allow(clippy::too_many_arguments)] // a pure projection of the pipeline's products
 pub(crate) fn build(
     args: &ImageArgs,
     saved: &[SavedImage],
@@ -35,6 +36,7 @@ pub(crate) fn build(
     created_at: &str,
     revised_prompt: Option<&str>,
     provider_text: Option<&str>,
+    endpoint_host: Option<&str>,
 ) -> serde_json::Value {
     let request = request_echo(args);
     let input_hash = sha256_hex(request.to_string().as_bytes());
@@ -45,6 +47,7 @@ pub(crate) fn build(
         "provider": args.provider.id(),
         "model": args.model,
         "mode": "generate",
+        "endpoint_host": endpoint_host,
         "prompt": args.prompt,
         "revised_prompt": revised_prompt,
         "provider_text": provider_text,
@@ -204,6 +207,7 @@ mod tests {
             "2026-07-05T12:00:00Z",
             None,
             None,
+            Some("api.openai.com"),
         );
         assert_eq!(manifest["manifest_version"], 1);
         assert_eq!(manifest["nika_version"], env!("CARGO_PKG_VERSION"));
@@ -234,12 +238,12 @@ mod tests {
     fn input_hash_is_deterministic_and_request_sensitive() {
         let root = scratch();
         let args = parsed(&root);
-        let a = build(&args, &[], Usage::default(), &[], "t", None, None);
-        let b = build(&args, &[], Usage::default(), &[], "t", None, None);
+        let a = build(&args, &[], Usage::default(), &[], "t", None, None, None);
+        let b = build(&args, &[], Usage::default(), &[], "t", None, None, None);
         assert_eq!(a["input_hash"], b["input_hash"], "same request → same hash");
         let mut other = parsed(&root);
         other.prompt = "different".into();
-        let c = build(&other, &[], Usage::default(), &[], "t", None, None);
+        let c = build(&other, &[], Usage::default(), &[], "t", None, None, None);
         assert_ne!(a["input_hash"], c["input_hash"], "prompt changes the hash");
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -265,7 +269,7 @@ mod tests {
         let root = scratch();
         let args = parsed(&root);
         let saved = vec![saved_fixture()];
-        let manifest = build(&args, &saved, Usage::default(), &[], "t", None, None);
+        let manifest = build(&args, &saved, Usage::default(), &[], "t", None, None, None);
         let path = write(&TokioFs, &FsBoundary::unbounded(), &args, &saved, &manifest)
             .await
             .expect("writes");

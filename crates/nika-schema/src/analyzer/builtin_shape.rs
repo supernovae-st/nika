@@ -192,7 +192,7 @@ fn check_image_generate_shape(
 
     // Closed literal enums (builtins-v0.1.md §nika:image_generate).
     let enums: [(&str, &[&str]); 5] = [
-        ("provider", &["openai", "gemini", "mock"]),
+        ("provider", &["local", "openai", "gemini", "xai", "mock"]),
         ("format", &["png", "jpeg", "jpg", "webp"]),
         ("quality", &["auto", "low", "medium", "high", "ultra"]),
         ("background", &["auto", "transparent", "opaque"]),
@@ -497,6 +497,16 @@ mod tests {
                 r#"{ prompt: "x", output_dir: "./o", provider: mock }"#,
                 "nika:image_generate",
                 false,
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", provider: local }"#,
+                "nika:image_generate",
+                false, // the sovereign path (v1.1)
+            ),
+            (
+                r#"{ prompt: "x", output_dir: "./o", provider: xai }"#,
+                "nika:image_generate",
+                false, // v1.1
             ),
             (
                 r#"{ prompt: "x", output_dir: "./o", format: gif }"#,

@@ -31,12 +31,14 @@
 
 pub(crate) mod args;
 pub(crate) mod gemini;
+pub(crate) mod local;
 pub(crate) mod manifest;
 pub(crate) mod mock;
 pub(crate) mod openai;
 pub(crate) mod save;
 pub(crate) mod sniff;
 pub(crate) mod types;
+pub(crate) mod xai;
 
 use nika_kernel::io::clock::ClockDyn;
 use nika_kernel::io::fs::{FsReadDyn, FsWriteDyn};
@@ -50,11 +52,15 @@ use self::args::ImageArgs;
 use self::save::SavedImage;
 use self::types::{C_PROVIDER_UNAVAILABLE, Provider, ProviderBatch};
 
-/// The image-provider credentials, resolved by the composition root (the
-/// sanctioned env boundary — `NIKA_OPENAI_API_KEY` → `OPENAI_API_KEY` ·
-/// `NIKA_GEMINI_API_KEY` → `GEMINI_API_KEY`) and injected via
-/// [`crate::BuiltinDispatcher::with_image_plane`]. The mock provider
-/// needs no key (and no http).
+/// The image-plane connection config, resolved by the composition root
+/// (the sanctioned env boundary — `NIKA_OPENAI_API_KEY` → `OPENAI_API_KEY`
+/// · `NIKA_GEMINI_API_KEY` → `GEMINI_API_KEY` · `NIKA_XAI_API_KEY` →
+/// `XAI_API_KEY` · `NIKA_IMAGE_LOCAL_URL` + optional
+/// `NIKA_IMAGE_LOCAL_API_KEY`) and injected via
+/// [`crate::BuiltinDispatcher::with_image_plane`]. The `local` base URL is
+/// engine CONFIG resolved at the same boundary — never workflow data,
+/// which is exactly why the SSRF-disabled provider client may carry it.
+/// The mock provider needs none of this (no key, no http).
 #[derive(Debug, Default)]
 #[non_exhaustive]
 pub struct ImageKeys {
@@ -62,6 +68,15 @@ pub struct ImageKeys {
     pub openai: Option<Secret>,
     /// The Gemini API key, when present in the environment.
     pub gemini: Option<Secret>,
+    /// The xAI API key, when present in the environment.
+    pub xai: Option<Secret>,
+    /// The LOCAL image server base URL (`NIKA_IMAGE_LOCAL_URL`) — defaults
+    /// to `LocalAI`'s `http://localhost:8080` when unset.
+    pub local_base_url: Option<String>,
+    /// The optional local-server key (`NIKA_IMAGE_LOCAL_API_KEY`) — most
+    /// self-hosted servers run keyless; `LocalAI`'s `--api-keys` mode wants
+    /// a Bearer.
+    pub local_api_key: Option<Secret>,
 }
 
 impl ImageKeys {
@@ -82,6 +97,28 @@ impl ImageKeys {
     #[must_use]
     pub fn with_gemini(mut self, key: Secret) -> Self {
         self.gemini = Some(key);
+        self
+    }
+
+    /// Attach the xAI key.
+    #[must_use]
+    pub fn with_xai(mut self, key: Secret) -> Self {
+        self.xai = Some(key);
+        self
+    }
+
+    /// Point the `local` provider at a specific compat server (`LocalAI` ·
+    /// Ollama · sd-server · `SGLang` · `vLLM-Omni`).
+    #[must_use]
+    pub fn with_local_base_url(mut self, base_url: impl Into<String>) -> Self {
+        self.local_base_url = Some(base_url.into());
+        self
+    }
+
+    /// Attach the optional local-server key.
+    #[must_use]
+    pub fn with_local_api_key(mut self, key: Secret) -> Self {
+        self.local_api_key = Some(key);
         self
     }
 }
@@ -148,11 +185,13 @@ where
     let ProviderBatch {
         images,
         usage,
+        endpoint_host,
         provider_text,
         warnings: batch_warnings,
         raw_debug,
     } = batch;
     warnings.extend(batch_warnings);
+    push_count_shortfall(&args, images.len(), &mut warnings);
 
     // ── decode validation (header-only · magic authority) ───────────────
     let decoded = validate_decoded(images, &args, emitter, &mut warnings)?;
@@ -182,6 +221,7 @@ where
         &created_at,
         revised_prompt.as_deref(),
         provider_text.as_deref(),
+        endpoint_host.as_deref(),
         emitter,
     )
     .await?;
@@ -210,6 +250,7 @@ where
         &created_at,
         revised_prompt.as_deref(),
         provider_text.as_deref(),
+        endpoint_host.as_deref(),
         manifest_path.as_deref(),
         raw_debug,
     ))
@@ -228,6 +269,7 @@ async fn write_manifest<F, Em>(
     created_at: &str,
     revised_prompt: Option<&str>,
     provider_text: Option<&str>,
+    endpoint_host: Option<&str>,
     emitter: &Em,
 ) -> Result<Option<String>, BuiltinFailure>
 where
@@ -245,6 +287,7 @@ where
         created_at,
         revised_prompt,
         provider_text,
+        endpoint_host,
     );
     let path = manifest::write(fs, boundary, args, saved, &document).await?;
     emitter.emit(
@@ -252,6 +295,18 @@ where
         serde_json::json!({ "path": path }),
     );
     Ok(Some(path))
+}
+
+/// A provider returning fewer images than `n:` is a WARNED degradation,
+/// never silent (Ollama's compat route ignores `n` · openai may under-
+/// deliver on moderation-filtered variants).
+fn push_count_shortfall(args: &ImageArgs, delivered: usize, warnings: &mut Vec<String>) {
+    if delivered < args.n as usize {
+        warnings.push(format!(
+            "count_shortfall: requested n: {} — the provider returned {delivered} image(s)",
+            args.n
+        ));
+    }
 }
 
 /// Header-only decode validation over a provider batch — magic bytes are
@@ -267,7 +322,10 @@ fn validate_decoded<Em: Emitter>(
     let mut format_mismatch_seen = false;
     for (index, image) in images.into_iter().enumerate() {
         let sniffed = sniff::sniff(&image.bytes)?;
-        if sniffed.format != args.format && !format_mismatch_seen {
+        // A mismatch on the DEFAULT png is only worth a warning when the
+        // caller ASKED for a format — xai returns jpeg by design and has
+        // no output-format control; filenames follow magic either way.
+        if sniffed.format != args.format && args.format_explicit && !format_mismatch_seen {
             format_mismatch_seen = true;
             warnings.push(format!(
                 "format_mismatch: requested `{}` — the provider returned `{}`; \
@@ -289,13 +347,18 @@ fn validate_decoded<Em: Emitter>(
     Ok(decoded)
 }
 
-/// The cloud subset of [`Provider`] — bound by the SAME match that
-/// resolves the credential, so the adapter dispatch below needs no
-/// second look at `Provider::Mock` (and therefore no panic-class
+/// The over-the-wire subset of [`Provider`] — bound by the SAME match
+/// that resolves credentials/config, so the adapter dispatch below needs
+/// no second look at `Provider::Mock` (and therefore no panic-class
 /// `unreachable!` arm in production src — zero-panic discipline).
-enum Cloud {
-    Openai,
-    Gemini,
+enum Wire<'k> {
+    Openai(&'k Secret),
+    Gemini(&'k Secret),
+    Xai(&'k Secret),
+    Local {
+        base_url: String,
+        key: Option<&'k Secret>,
+    },
 }
 
 /// Dispatch to the provider adapter — the wiring/credential gate.
@@ -312,30 +375,51 @@ where
     C: ClockDyn,
     Em: Emitter,
 {
-    let (endpoint_host, key, cloud) = match args.provider {
+    let (endpoint_host, wire) = match args.provider {
         Provider::Mock => return mock::generate(args),
         Provider::Openai => (
-            "api.openai.com",
-            keys.openai.as_ref().ok_or_else(|| {
+            "api.openai.com".to_owned(),
+            Wire::Openai(keys.openai.as_ref().ok_or_else(|| {
                 BuiltinFailure::new(
                     C_PROVIDER_UNAVAILABLE,
                     "no OpenAI API key — set NIKA_OPENAI_API_KEY or OPENAI_API_KEY \
                      in the engine's environment",
                 )
-            })?,
-            Cloud::Openai,
+            })?),
         ),
         Provider::Gemini => (
-            "generativelanguage.googleapis.com",
-            keys.gemini.as_ref().ok_or_else(|| {
+            "generativelanguage.googleapis.com".to_owned(),
+            Wire::Gemini(keys.gemini.as_ref().ok_or_else(|| {
                 BuiltinFailure::new(
                     C_PROVIDER_UNAVAILABLE,
                     "no Gemini API key — set NIKA_GEMINI_API_KEY or GEMINI_API_KEY \
                      in the engine's environment",
                 )
-            })?,
-            Cloud::Gemini,
+            })?),
         ),
+        Provider::Xai => (
+            "api.x.ai".to_owned(),
+            Wire::Xai(keys.xai.as_ref().ok_or_else(|| {
+                BuiltinFailure::new(
+                    C_PROVIDER_UNAVAILABLE,
+                    "no xAI API key — set NIKA_XAI_API_KEY or XAI_API_KEY in the \
+                     engine's environment",
+                )
+            })?),
+        ),
+        Provider::Local => {
+            let base_url = keys
+                .local_base_url
+                .clone()
+                .unwrap_or_else(|| local::DEFAULT_BASE_URL.to_owned());
+            (
+                local::host_of(&base_url),
+                Wire::Local {
+                    base_url,
+                    key: keys.local_api_key.as_ref(),
+                },
+            )
+        }
     };
     let Some(http) = http else {
         return Err(BuiltinFailure::new(
@@ -351,9 +435,11 @@ where
             "endpoint_host": endpoint_host, "n": args.n,
         }),
     );
-    let batch = match cloud {
-        Cloud::Openai => openai::generate(http, key, args).await?,
-        Cloud::Gemini => gemini::generate(http, key, args).await?,
+    let batch = match wire {
+        Wire::Openai(key) => openai::generate(http, key, args).await?,
+        Wire::Gemini(key) => gemini::generate(http, key, args).await?,
+        Wire::Xai(key) => xai::generate(http, key, args).await?,
+        Wire::Local { base_url, key } => local::generate(http, &base_url, key, args).await?,
     };
     emitter.emit(
         "image_generation.provider_response",
@@ -386,6 +472,7 @@ fn output_json(
     created_at: &str,
     revised_prompt: Option<&str>,
     provider_text: Option<&str>,
+    endpoint_host: Option<&str>,
     manifest_path: Option<&str>,
     raw_debug: Option<serde_json::Value>,
 ) -> serde_json::Value {
@@ -418,6 +505,7 @@ fn output_json(
         "prompt": args.prompt,
         "revised_prompt": revised_prompt,
         "provider_text": provider_text,
+        "endpoint_host": endpoint_host,
         "created_at": created_at,
         "count": saved.len(),
         "images": images,

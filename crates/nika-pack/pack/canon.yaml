@@ -88,7 +88,7 @@ namespaces:
 
 # ---------------------------------------------------------------- builtins
 # Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-093 · agent-loop self-check intrinsic, loop-only like done) → 24 (image_generate added 2026-07-05 · the first stdlib §Media graduate · openai/gemini/mock · assets land on disk, never inline).
-# stdlib/builtins-v0.1.md is the prose home (matches at 24 · cascade complete 2026-07-05).
+# stdlib/builtins-v0.1.md is the prose home (matches at 24 · cascade complete 2026-07-05 · image providers v1.1 local-first + xai same day).
 # Admission test · 3 razors · (1) NOT-expressible-in-jq+CEL+Schema · (2) canonical
 # interop format (RFC-6902/7396/9562 · etc.) · (3) cookbook-clarity.
 builtins:
