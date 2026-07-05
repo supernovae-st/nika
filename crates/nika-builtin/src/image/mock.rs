@@ -15,6 +15,8 @@ use crate::BuiltinFailure;
 use super::args::ImageArgs;
 use super::types::{C_ARGS, ImageFormat, ProviderBatch, RawImage, SizeSpec, Usage};
 
+use crate::media::png::crc32;
+
 /// Mock renders uncompressed rows (stored deflate) — cap the edge so one
 /// mock image stays well under the per-image byte ceiling.
 const MOCK_MAX_EDGE: u32 = 2_048;
@@ -183,22 +185,6 @@ fn zlib_stored(raw: &[u8]) -> Vec<u8> {
     }
     out.extend_from_slice(&adler32(raw).to_be_bytes());
     out
-}
-
-/// PNG CRC-32 (ISO 3309 · reflected 0xEDB88320) — bitwise, table-free.
-pub(crate) fn crc32(data: &[u8]) -> u32 {
-    let mut crc = 0xffff_ffffu32;
-    for &byte in data {
-        crc ^= u32::from(byte);
-        for _ in 0..8 {
-            crc = if crc & 1 == 1 {
-                (crc >> 1) ^ 0xedb8_8320
-            } else {
-                crc >> 1
-            };
-        }
-    }
-    !crc
 }
 
 /// zlib Adler-32 over the UNCOMPRESSED stream.
