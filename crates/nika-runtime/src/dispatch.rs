@@ -49,6 +49,10 @@ pub(crate) struct DispatchOk {
     pub value: Value,
     pub tokens: Option<i64>,
     pub warning: Option<String>,
+    /// Real spend in USD (catalog pricing × the provider's reported
+    /// usage split) · None for unpriced models (mock · local · unknown):
+    /// absent is honest — never a fake zero.
+    pub cost_usd: Option<f64>,
 }
 
 impl Dispatched {
@@ -59,19 +63,28 @@ impl Dispatched {
                 value,
                 tokens,
                 warning: None,
+                cost_usd: None,
             }),
         }
     }
 
-    /// `ok` with an OBS-E diagnostic attached (infer/agent only · the
-    /// effect verbs never reason).
-    fn ok_warned(note: String, value: Value, tokens: Option<i64>, warning: Option<String>) -> Self {
+    /// `ok_warned` + real spend — the infer path (the one verb whose
+    /// provider reports a priced usage split today · agent's loop only
+    /// accumulates a total, its split is the documented follow-up seam).
+    fn ok_metered(
+        note: String,
+        value: Value,
+        tokens: Option<i64>,
+        warning: Option<String>,
+        cost_usd: Option<f64>,
+    ) -> Self {
         Self {
             note,
             result: Ok(DispatchOk {
                 value,
                 tokens,
                 warning,
+                cost_usd,
             }),
         }
     }
@@ -350,7 +363,17 @@ where
                 // reasoning model that ate its budget on thinking) as a
                 // non-fatal warning · the task still succeeds.
                 let warning = empty_thinking_warning(&value, &out.usage);
-                Dispatched::ok_warned(note, value, tokens, warning)
+                // Real spend: catalog pricing × the provider's usage split ·
+                // the SAME resolver as the check-time floor (they can never
+                // disagree on which row prices a model) · unpriced models
+                // (mock · local · unknown) emit nothing.
+                let cost_usd = nika_catalog::estimate_cost_for(
+                    &out.model_resolved,
+                    out.usage.input_tokens,
+                    out.usage.output_tokens,
+                )
+                .map(|e| e.usd);
+                Dispatched::ok_metered(note, value, tokens, warning, cost_usd)
             }
             Err(err) => Dispatched::verb_err("infer · ?".to_owned(), &err),
         }

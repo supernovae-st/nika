@@ -15,6 +15,7 @@ nika-types       = { path = "../nika-types", version = "0.93.1" }        # Event
 nika-error       = { path = "../nika-error", version = "0.93.1" }        # NIKA_1700..1703 registry constants
 nika-event       = { path = "../nika-event", version = "0.93.1" }        # Event · EventKind (the stream this crate emits)
 nika-schema      = { path = "../nika-schema", version = "0.93.1" }       # RawWorkflow · RawAction · CheckReport (audit-before-run)
+nika-catalog     = { path = "../nika-catalog", version = "0.93.1", features = ["pricing"] } # estimate_cost_for — the ONE pricing seam (floor + actual agree by construction)
 nika-cel         = { path = "../nika-cel", version = "0.93.1" }          # the cel-subset/0.1 engine behind the expr seam (parse · compute · Resolver · L0)
 nika-kernel      = { path = "../nika-kernel", version = "0.93.1" }       # ShellRunDyn · ToolExecuteDyn · ClockDyn · ai seams (hub only)
 nika-verb-infer  = { path = "../nika-verb-infer", version = "0.93.1" }

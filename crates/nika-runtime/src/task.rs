@@ -127,6 +127,8 @@ pub(crate) enum RunResult {
         value: Value,
         tokens: Option<i64>,
         warning: Option<String>,
+        /// Real spend (catalog × usage split) · None = unpriced · honest.
+        cost_usd: Option<f64>,
     },
     /// `on_error: skip` — skipped with the original error readable
     /// (spec 05 · the one coexist state).
@@ -377,6 +379,7 @@ where
                 // success carries no single warning (a per-element note
                 // would need its own channel · out of scope here).
                 warning: None,
+                cost_usd: acc.cost_sum,
             },
             Some(error) => RunResult::Failed { error },
         };
@@ -638,6 +641,9 @@ struct FanOutAccum {
     /// Per-iteration token spend SUMMED onto the parent (a 50-infer fan-out
     /// must never report zero to the cost meter) · None until any reports.
     tokens_sum: Option<i64>,
+    /// Per-iteration USD spend SUMMED the same way (same-model iterations ·
+    /// per-turn pricing sums exactly) · None until any priced call reports.
+    cost_sum: Option<f64>,
 }
 
 /// Drain the buffered iteration stream, reducing it to a [`FanOutAccum`] in
@@ -654,6 +660,7 @@ where
         agent_events: Vec::new(),
         first_error: None,
         tokens_sum: None,
+        cost_sum: None,
     };
 
     while let Some(iter_ran) = stream.next().await {
@@ -662,10 +669,18 @@ where
         match iter_ran.result {
             // OBS-E `warning` is per-call · a fan-out element's diagnostic
             // is not aggregated up (only `value` + `tokens` fold).
-            RunResult::Success { value, tokens, .. } => {
+            RunResult::Success {
+                value,
+                tokens,
+                cost_usd,
+                ..
+            } => {
                 acc.outputs.push(value);
                 if let Some(n) = tokens {
                     acc.tokens_sum = Some(acc.tokens_sum.unwrap_or(0).saturating_add(n));
+                }
+                if let Some(c) = cost_usd {
+                    acc.cost_sum = Some(acc.cost_sum.unwrap_or(0.0) + c);
                 }
             }
             // Per-iteration `on_error: skip` contributes null at its
@@ -956,10 +971,12 @@ fn dispatch_result(
             value,
             tokens,
             warning,
+            cost_usd,
         }) => RunResult::Success {
             value,
             tokens,
             warning,
+            cost_usd,
         },
         Err(error) => apply_on_error(task, scope, error),
     }
@@ -981,6 +998,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, error: TaskErrorRecord) -> 
                 tokens: None,
                 // A recovered value is author-supplied · no model reasoning.
                 warning: None,
+                cost_usd: None,
             },
             // Recovery itself failed → the task fails as if
             // `on_error:` were absent (spec 05 §recover resolution).

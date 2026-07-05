@@ -679,12 +679,14 @@ fn settle_ran(
             value,
             tokens,
             warning,
+            cost_usd,
         } => {
             let ended = emit_completed(
                 id,
                 &run.note,
                 duration,
                 tokens,
+                cost_usd,
                 warning.as_deref(),
                 resume,
                 &value,
@@ -745,6 +747,7 @@ fn emit_completed(
     note: &str,
     duration: i64,
     tokens: Option<i64>,
+    cost_usd: Option<f64>,
     warning: Option<&str>,
     resume: Option<&resume::ResumeStamp>,
     value: &Value,
@@ -758,6 +761,11 @@ fn emit_completed(
     ];
     if let Some(n) = tokens {
         fields.push(("tokens", i(n)));
+    }
+    // Real spend rides next to the tokens it prices · absent = unpriced
+    // (mock · local) — the render layer already treats absent as honest.
+    if let Some(c) = cost_usd {
+        fields.push(("cost_usd", FieldValue::Float(c)));
     }
     // OBS-E · a non-fatal diagnostic rides the success frame as a
     // `warning` field (the reasoning-model blank-answer footgun) · the
@@ -1032,6 +1040,7 @@ outputs:
                 value: Value::String(String::new()),
                 tokens: Some(84),
                 warning: Some("infer produced an empty answer · …".to_owned()),
+                cost_usd: Some(0.0125),
             },
         };
         let mut ok = true;
@@ -1053,6 +1062,17 @@ outputs:
             matches!(&warning.value, FieldValue::String(s) if s.contains("empty answer")),
             "the diagnostic text is carried verbatim"
         );
+        // Real spend rides the same frame · absent-when-unpriced is pinned
+        // by the sibling test below (its cost_usd is None · no field).
+        let cost = completed
+            .fields
+            .iter()
+            .find(|f| f.key == "cost_usd")
+            .expect("the cost_usd field rides the priced success frame");
+        assert!(
+            matches!(&cost.value, FieldValue::Float(c) if (*c - 0.0125).abs() < f64::EPSILON),
+            "the priced spend is carried verbatim"
+        );
     }
 
     /// The common path · a success with no OBS-E diagnostic emits NO
@@ -1068,6 +1088,7 @@ outputs:
                 value: Value::String("ok".to_owned()),
                 tokens: None,
                 warning: None,
+                cost_usd: None,
             },
         };
         let mut ok = true;
@@ -1083,6 +1104,10 @@ outputs:
         assert!(
             !completed.fields.iter().any(|f| f.key == "warning"),
             "no warning on a clean success"
+        );
+        assert!(
+            !completed.fields.iter().any(|f| f.key == "cost_usd"),
+            "an unpriced success carries NO cost field — absent is honest, never a fake zero"
         );
     }
 }
