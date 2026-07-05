@@ -292,6 +292,12 @@ impl ResumeContext {
     pub(crate) fn leaks_secret(&self, text: &str) -> bool {
         self.secret_values.iter().any(|v| text.contains(v.as_str()))
     }
+
+    /// The by-reference secret markers — the pause rider renders its
+    /// journal payload over these (never a resolved value).
+    pub(crate) fn markers(&self) -> &BTreeMap<String, Value> {
+        &self.markers
+    }
 }
 
 /// Compute one task's [`ResumeStamp`] — `None` means the task is not

@@ -230,6 +230,13 @@ impl RunView {
                 // terminal frame's `detail` field, if present.
                 self.workflow_detail = str_field(event, "detail").map(str::to_owned);
             }
+            // ADR-099 rider — the run paused on a human gate: no verdict
+            // (neither success nor failure) · the detail names the
+            // awaiting task so a replayed trace reads honestly.
+            EventKind::WorkflowPaused => {
+                let task = str_field(event, "task").unwrap_or("a prompt");
+                self.workflow_detail = Some(format!("paused · awaiting an answer for `{task}`"));
+            }
             // Dispatch + checkpoint + cost/stream/permit kinds carry no
             // row state today. `#[non_exhaustive]` future kinds render
             // nothing rather than lying.

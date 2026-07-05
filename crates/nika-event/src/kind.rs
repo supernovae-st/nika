@@ -110,6 +110,13 @@ pub enum EventKind {
     /// success` exactly as if it ran live; the task-state enum stays
     /// CLOSED — the cache/live distinction rides the event stream only.
     TaskCacheHit,
+    /// The run paused on a blocking `nika:prompt` with no usable
+    /// `default:` under a non-interactive surface (`task` + the prompt
+    /// payload fields · spec vocabulary `workflow.paused` · ADR-099
+    /// rider). Terminal for THIS invocation (the process exits cleanly ·
+    /// run state `paused`) — `--resume` re-arms the prompt; a paused
+    /// trace can be resumed any number of times.
+    WorkflowPaused,
 }
 
 impl EventKind {
@@ -145,6 +152,7 @@ impl EventKind {
             Self::AgentComposeChecked => "agent_compose_checked",
             Self::AgentBudgetCheckpoint => "agent_budget_checkpoint",
             Self::TaskCacheHit => "task_cache_hit",
+            Self::WorkflowPaused => "workflow_paused",
         }
     }
 
@@ -161,7 +169,10 @@ impl EventKind {
     pub const fn is_terminal(&self) -> bool {
         matches!(
             self,
-            Self::WorkflowCompleted | Self::WorkflowFailed | Self::WorkflowCancelled
+            Self::WorkflowCompleted
+                | Self::WorkflowFailed
+                | Self::WorkflowCancelled
+                | Self::WorkflowPaused
         )
     }
 
@@ -197,7 +208,8 @@ impl EventKind {
             Self::WorkflowStarted
             | Self::WorkflowCompleted
             | Self::WorkflowFailed
-            | Self::WorkflowCancelled => EventClass::Workflow,
+            | Self::WorkflowCancelled
+            | Self::WorkflowPaused => EventClass::Workflow,
             Self::TaskScheduled
             | Self::TaskStarted
             | Self::TaskCompleted
@@ -287,6 +299,7 @@ mod tests {
         EventKind::AgentComposeChecked,
         EventKind::AgentBudgetCheckpoint,
         EventKind::TaskCacheHit,
+        EventKind::WorkflowPaused,
     ];
 
     #[test]
@@ -318,10 +331,11 @@ mod tests {
                 | EventKind::AgentStalled
                 | EventKind::AgentComposeChecked
                 | EventKind::AgentBudgetCheckpoint
-                | EventKind::TaskCacheHit => {}
+                | EventKind::TaskCacheHit
+                | EventKind::WorkflowPaused => {}
             }
         }
-        assert_eq!(ALL.len(), 23, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 24, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
@@ -379,6 +393,10 @@ mod tests {
         // failure, never terminal for the run.
         assert!(!EventKind::TaskCacheHit.is_failure());
         assert!(!EventKind::TaskCacheHit.is_terminal());
+        // Paused is terminal for THIS invocation but NEVER a failure —
+        // the run exits cleanly with state `paused` (ADR-099 rider).
+        assert!(EventKind::WorkflowPaused.is_terminal());
+        assert!(!EventKind::WorkflowPaused.is_failure());
     }
 
     #[test]

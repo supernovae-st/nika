@@ -40,7 +40,7 @@ use std::io::Write as _;
 use serde_json::Value;
 
 use nika_runtime::resume::ResumePlan;
-use nika_runtime::{EventSink, RunOutcome, Runtime, Stamper};
+use nika_runtime::{EventSink, RunOutcome, Runtime, Stamper, WorkflowPause};
 use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 
@@ -128,17 +128,27 @@ pub fn run(
         return render_dry_run(file, theme.ascii);
     }
 
-    // ── `--resume` (ADR-099) — fold the prior trace into a skip plan ─
-    let resume_plan = match resume {
-        None => None,
-        Some(req) => match load_resume_plan(req, &wf, output_json) {
-            Ok(plan) => Some(plan),
-            Err(code) => return code,
-        },
+    // ── `--resume` / `--answer` (ADR-099) — plan + answers up front ──
+    let setup = match resume_setup(resume, &wf, output_json) {
+        Ok(setup) => setup,
+        Err(code) => return code,
     };
+    // The pause rider binds to the NON-INTERACTIVE machine surfaces only
+    // (`--json` · `--output json` — ADR-099: « under a non-interactive
+    // surface »); the human TTY/plain surfaces keep today's PROMPT-001
+    // contract untouched.
+    let pause_on_prompt = json || output_json;
 
     // ── Compose the production runtime (real seams · env keys) ──────
-    let runtime = match composed_runtime(&wf, model_override, overrides, resume_plan, output_json) {
+    let runtime = match composed_runtime(
+        &wf,
+        model_override,
+        overrides,
+        setup.plan,
+        setup.answers,
+        pause_on_prompt,
+        output_json,
+    ) {
         Ok(rt) => rt,
         Err(code) => return code,
     };
@@ -166,6 +176,39 @@ pub fn run(
         mode,
         resume.is_some(),
     ))
+}
+
+/// The validated `--resume`/`--answer` inputs the composition consumes.
+struct ResumeSetup {
+    /// The folded skip plan (`None` = no `--resume` requested).
+    plan: Option<ResumePlan>,
+    /// The validated `--answer task=value` map (empty without answers).
+    answers: BTreeMap<String, Value>,
+}
+
+/// Validate + fold the whole `--resume` surface (plan · `--from` ·
+/// `--answer`) BEFORE composing — every refusal is the ENV class,
+/// already printed + enveloped.
+///
+/// # Errors
+///
+/// The exit code to return unchanged.
+fn resume_setup(
+    resume: Option<&ResumeRequest>,
+    wf: &RawWorkflow,
+    output_json: bool,
+) -> Result<ResumeSetup, u8> {
+    let plan = match resume {
+        None => None,
+        Some(req) => Some(load_resume_plan(req, wf, output_json)?),
+    };
+    let answers = resume::parse_answers(resume.map_or(&[][..], |r| r.answers.as_slice()), wf)
+        .map_err(|message| {
+            eprintln!("nika run: {message}");
+            emit_error_envelope(&message, output_json);
+            exit::ENV
+        })?;
+    Ok(ResumeSetup { plan, answers })
 }
 
 /// Read + fold the `--resume` trace into the runtime skip plan (ADR-099).
@@ -367,11 +410,16 @@ fn parse_var_overrides(
 ///
 /// The ENV-class composition failure prints + envelopes itself here;
 /// the caller returns the exit code untouched.
+// The 7 knobs ARE the composition surface (var overrides · resume plan ·
+// answers · pause flag) — the same clap-surface idiom as `run` itself.
+#[allow(clippy::too_many_arguments)]
 fn composed_runtime(
     wf: &RawWorkflow,
     model_override: Option<&str>,
     overrides: BTreeMap<String, Value>,
     resume_plan: Option<ResumePlan>,
+    answers: BTreeMap<String, Value>,
+    pause_on_prompt: bool,
     output_json: bool,
 ) -> Result<ProdRuntime, u8> {
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
@@ -379,7 +427,10 @@ fn composed_runtime(
     let caps = capabilities_of(wf);
     match production_runtime(default_model, caps) {
         Ok(rt) => {
-            let rt = rt.with_var_overrides(overrides);
+            let rt = rt
+                .with_var_overrides(overrides)
+                .with_prompt_pause(pause_on_prompt)
+                .with_prompt_answers(answers);
             Ok(match resume_plan {
                 Some(plan) => rt.with_resume_plan(plan),
                 None => rt,
@@ -490,7 +541,15 @@ async fn execute(
         print_resume_summary(&outcome, resumed, true);
         // Built BEFORE the sink is consumed — the failure envelope reads
         // the folded view (the failed row's detail carries the wire code).
-        let failure_line = (code != exit::OK).then(|| run_failure_envelope(sink.view()));
+        // A PAUSED run gets its own additive envelope (`{"paused":{…}}` ·
+        // ADR-099 rider · run state `paused` in the report vocabulary).
+        let verdict_line = if code == exit::PAUSED {
+            outcome.paused.as_ref().map(paused_envelope_line)
+        } else if code != exit::OK {
+            Some(run_failure_envelope(sink.view()))
+        } else {
+            None
+        };
         if let Some(e) = sink.into_error() {
             let message = format!("render failed: {e}");
             eprintln!("nika run: {message}");
@@ -500,8 +559,9 @@ async fn execute(
         // stdout is ALWAYS one self-sufficient JSON object (F6): the
         // resolved `outputs:` on success · the `{"error":{…}}` envelope on
         // failure (it used to stay empty/`{}` — a machine consumer had to
-        // scrape stderr to learn WHY).
-        match failure_line {
+        // scrape stderr to learn WHY) · the `{"paused":{…}}` envelope on a
+        // human-gate pause.
+        match verdict_line {
             Some(line) => println!("{line}"),
             None => println!("{}", outputs_json_line(&outcome.outputs)),
         }
@@ -627,7 +687,16 @@ where
 {
     match runtime.run(wf, report, stamper, sink).await {
         Ok(outcome) => {
-            let code = if outcome.ok { exit::OK } else { exit::WORKFLOW };
+            // Paused wins the mapping (ADR-099 rider): non-zero on purpose
+            // (`&& next` must not proceed past an unanswered human gate),
+            // never the WORKFLOW failure code (a pause is not a defect).
+            let code = if outcome.paused.is_some() {
+                exit::PAUSED
+            } else if outcome.ok {
+                exit::OK
+            } else {
+                exit::WORKFLOW
+            };
             (code, outcome)
         }
         Err(err) => {
@@ -678,6 +747,22 @@ fn emit_error_envelope(message: &str, output_json: bool) {
     if output_json {
         println!("{}", error_envelope_line(message));
     }
+}
+
+/// ONE `{"paused":{…}}` line — the machine pause contract (ADR-099 rider
+/// · additive beside the success/error envelopes): the prompt payload a
+/// consumer needs to deliver an answer (`--answer <task>=<value>` at
+/// resume · or a serve webhook later).
+fn paused_envelope_line(pause: &WorkflowPause) -> String {
+    serde_json::json!({
+        "paused": {
+            "task": pause.task,
+            "mode": pause.mode,
+            "message": pause.message,
+            "choices": pause.choices,
+        }
+    })
+    .to_string()
 }
 
 /// ONE `{"error":{"code":…,"message":…}}` line — the machine failure

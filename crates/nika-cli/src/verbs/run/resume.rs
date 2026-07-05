@@ -31,6 +31,51 @@ pub struct ResumeRequest {
     /// `--from <task_id>` — force this task + its transitive downstream
     /// to re-run even on an identity match (ADR-099 §3).
     pub from: Option<String>,
+    /// `--answer TASK=VALUE` (repeatable · ADR-099 rider) — binds a
+    /// paused prompt's answer at resume; the value parses as JSON when
+    /// it parses, else rides as a string (the `--var` convention).
+    pub answers: Vec<String>,
+}
+
+/// Parse + validate the repeatable `--answer TASK=VALUE` pairs: the task
+/// must exist AND be a direct `invoke: nika:prompt` (an answer aimed at
+/// anything else would silently do nothing — refused instead, the same
+/// posture as an unknown `--var` key).
+///
+/// # Errors
+///
+/// A human-readable refusal (environment class).
+pub(crate) fn parse_answers(
+    pairs: &[String],
+    wf: &RawWorkflow,
+) -> Result<BTreeMap<String, serde_json::Value>, String> {
+    let mut answers = BTreeMap::new();
+    for pair in pairs {
+        let (task_id, raw) = match pair.split_once('=') {
+            Some((t, v)) if !t.trim().is_empty() => (t.trim(), v),
+            _ => return Err(format!("--answer expects TASK=VALUE, got `{pair}`")),
+        };
+        let Some(task) = wf.tasks.iter().find(|t| t.value.id.value == task_id) else {
+            let ids: Vec<&str> = wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect();
+            return Err(format!(
+                "--answer {task_id}: unknown task — the workflow declares: {}",
+                ids.join(" · ")
+            ));
+        };
+        let is_prompt = matches!(
+            &task.value.action,
+            nika_schema::raw::RawAction::Invoke(invoke) if invoke.tool.value == "nika:prompt"
+        );
+        if !is_prompt {
+            return Err(format!(
+                "--answer {task_id}: not a `nika:prompt` task — an answer would do nothing"
+            ));
+        }
+        let value =
+            serde_json::from_str(raw).unwrap_or_else(|_| serde_json::Value::String(raw.to_owned()));
+        answers.insert(task_id.to_owned(), value);
+    }
+    Ok(answers)
 }
 
 /// A recovered NDJSON trace — the valid prefix + an optional truncation
@@ -312,5 +357,27 @@ mod tests {
             summary_line(3, 2),
             "resumed · 3 skipped (cache hit) · 2 ran live"
         );
+    }
+
+    #[test]
+    fn answers_bind_only_known_prompt_tasks() {
+        const WF: &str = "nika: v1\nworkflow: t\ntasks:\n  - id: ask\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"go?\" }\n  - id: build\n    exec: { command: \"true\" }\n";
+        let wf = nika_schema::parse(
+            WF,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("parses");
+        // JSON-if-parses: a confirm answer lands as a real boolean.
+        let answers = parse_answers(&["ask=true".to_owned()], &wf).expect("valid");
+        assert_eq!(answers["ask"], serde_json::json!(true));
+        // Unknown task → refused with the declared set.
+        let err = parse_answers(&["ghost=1".to_owned()], &wf).expect_err("unknown");
+        assert!(err.contains("ghost") && err.contains("ask"), "{err}");
+        // A non-prompt task → refused (the answer would do nothing).
+        let err = parse_answers(&["build=1".to_owned()], &wf).expect_err("not a prompt");
+        assert!(err.contains("not a `nika:prompt`"), "{err}");
+        // Shape errors are loud.
+        assert!(parse_answers(&["noequals".to_owned()], &wf).is_err());
     }
 }

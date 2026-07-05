@@ -284,6 +284,12 @@ struct RunArgs {
     /// rotated secret · external state · an infer output to re-roll).
     #[arg(long, value_name = "TASK_ID", requires = "resume")]
     from: Option<String>,
+    /// Answer a paused `nika:prompt` at resume (repeatable · ADR-099
+    /// rider): binds as the named task's answer — `--answer ok=true` for
+    /// confirm, a string for input, one of the choices for choice. The
+    /// value parses as JSON when it parses, else rides as a string.
+    #[arg(long = "answer", value_name = "TASK=VALUE", requires = "resume")]
+    answer: Vec<String>,
 }
 
 #[derive(Args)]
@@ -410,6 +416,7 @@ fn run_verb(args: &RunArgs) -> u8 {
     let resume = args.resume.as_ref().map(|trace| verbs::run::ResumeRequest {
         trace: trace.clone(),
         from: args.from.clone(),
+        answers: args.answer.clone(),
     });
     verbs::run::run(
         &args.file,

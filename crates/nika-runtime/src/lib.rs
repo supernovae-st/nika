@@ -44,6 +44,7 @@ mod dispatch;
 mod errors;
 mod expr;
 mod jq;
+mod pause;
 mod record;
 pub mod resume;
 mod retry;
@@ -74,6 +75,7 @@ use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
 
 pub use errors::RuntimeError;
+pub use pause::WorkflowPause;
 pub use record::{TaskErrorRecord, TaskRecord, TaskStatus};
 pub use secret::{
     NoSecrets, SecretResolveError, WorkflowSecretResolver, source_is_runtime_resolvable,
@@ -127,6 +129,10 @@ pub struct RunOutcome {
     /// The task ids that settled as ADR-099 cache hits, in settle order
     /// (empty on a fresh run — feeds the `--resume` summary line).
     pub cache_hits: Vec<String>,
+    /// `Some` iff the run PAUSED on a blocking `nika:prompt` (ADR-099
+    /// rider · run state `paused` · `ok` stays true — a pause is a
+    /// decision point, never a failure). The payload the CLI surfaces.
+    pub paused: Option<WorkflowPause>,
 }
 
 impl RunOutcome {
@@ -142,6 +148,7 @@ impl RunOutcome {
             records,
             outputs,
             cache_hits: Vec::new(),
+            paused: None,
         }
     }
 }
@@ -168,6 +175,15 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// may match (BOTH hashes · §1). Empty by default (a fresh run
     /// executes every task — `task.cache_hit` fires only under resume).
     resume_plan: resume::ResumePlan,
+    /// ADR-099 rider — pause (instead of failing) on a blocking
+    /// `nika:prompt` with no usable `default:`. The composer enables it
+    /// for non-interactive machine surfaces (`--json` · `--output json`
+    /// · serve); default OFF (the stdlib PROMPT-001 contract unchanged).
+    pause_on_prompt: bool,
+    /// ADR-099 rider — operator-supplied prompt answers (`--answer
+    /// task=value`): bound as the prompt's `default:` at dispatch (the
+    /// answered branch), never part of the task's resume identity.
+    prompt_answers: BTreeMap<String, Value>,
 }
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
@@ -194,6 +210,8 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             secrets: Arc::new(secret::NoSecrets),
             var_overrides: BTreeMap::new(),
             resume_plan: resume::ResumePlan::new(),
+            pause_on_prompt: false,
+            prompt_answers: BTreeMap::new(),
         }
     }
 
@@ -227,6 +245,28 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_resume_plan(mut self, plan: resume::ResumePlan) -> Self {
         self.resume_plan = plan;
+        self
+    }
+
+    /// Enable the ADR-099 pause rider: a blocking `nika:prompt` with no
+    /// usable `default:` PAUSES the run (journals `workflow_paused` ·
+    /// exits cleanly with run state `paused`) instead of failing
+    /// PROMPT-001. The composer turns this on for non-interactive
+    /// machine surfaces only — everything else keeps today's contract.
+    #[must_use]
+    pub fn with_prompt_pause(mut self, pause: bool) -> Self {
+        self.pause_on_prompt = pause;
+        self
+    }
+
+    /// Supply prompt answers (`--answer task=value` · ADR-099 rider):
+    /// bound as the named task's prompt `default:` at dispatch — the
+    /// answered branch of the stdlib contract, type-validated per mode
+    /// by the builtin itself. An answered task never cache-hits (a fresh
+    /// answer always re-asks).
+    #[must_use]
+    pub fn with_prompt_answers(mut self, answers: BTreeMap<String, Value>) -> Self {
+        self.prompt_answers = answers;
         self
     }
 }
@@ -396,15 +436,19 @@ where
             .collect()
             .await;
 
-            for finish in finishes {
-                settle(
-                    finish,
-                    &mut records,
-                    &mut ok,
-                    &mut cache_hits,
-                    stamper,
-                    sink,
-                );
+            if let Some(outcome) = self.settle_wave(
+                finishes,
+                wf,
+                &vars,
+                &resume_ctx,
+                &workflow_name,
+                &mut records,
+                &mut ok,
+                &mut cache_hits,
+                stamper,
+                sink,
+            ) {
+                return Ok(outcome);
             }
         }
 
@@ -419,6 +463,80 @@ where
         outcome.cache_hits = cache_hits;
         Ok(outcome)
     }
+
+    /// Settle one wave's finishes in order — `Some(outcome)` iff the wave
+    /// PAUSED on a blocked `nika:prompt` (ADR-099 rider · PROMPT-001
+    /// under a non-interactive surface): siblings that finished still
+    /// settle (their work is journaled · they cache-hit on resume); the
+    /// blocked prompt itself never settles (no `task_failed` — it simply
+    /// has not happened yet); later waves never dispatch.
+    // The pens + the three run accumulators ARE the settle surface —
+    // mirrors `settle` itself.
+    #[allow(clippy::too_many_arguments)]
+    fn settle_wave(
+        &self,
+        finishes: Vec<Finish>,
+        wf: &RawWorkflow,
+        vars: &BTreeMap<String, Value>,
+        resume_ctx: &resume::ResumeContext,
+        workflow_name: &str,
+        records: &mut BTreeMap<String, TaskRecord>,
+        ok: &mut bool,
+        cache_hits: &mut Vec<String>,
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+    ) -> Option<RunOutcome> {
+        let mut paused: Option<WorkflowPause> = None;
+        for finish in finishes {
+            if self.pause_on_prompt
+                && paused.is_none()
+                && let Some(p) =
+                    pause::prompt_block(&finish, wf, records, vars, resume_ctx.markers())
+            {
+                paused = Some(p);
+                continue;
+            }
+            settle(finish, records, ok, cache_hits, stamper, sink);
+        }
+        let p = paused?;
+        emit_paused(workflow_name, &p, stamper, sink);
+        let mut outcome = RunOutcome::new(true, std::mem::take(records), BTreeMap::new());
+        outcome.cache_hits = std::mem::take(cache_hits);
+        outcome.paused = Some(p);
+        Some(outcome)
+    }
+}
+
+/// Emit the `workflow_paused` terminal frame (ADR-099 rider) — the
+/// prompt payload rides as fields (`task` · `mode` · `message` ·
+/// `choices` as compact JSON text), secret-masked by construction (the
+/// payload renders over the marker scope, never resolved values).
+fn emit_paused(
+    workflow_name: &str,
+    pause: &WorkflowPause,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    let mut fields = vec![
+        ("workflow", s(workflow_name)),
+        ("task", s(&pause.task)),
+        ("mode", s(&pause.mode)),
+        (
+            "note",
+            s(
+                "awaiting a `nika:prompt` answer — resume with `--resume <trace> --answer <task>=<value>`",
+            ),
+        ),
+    ];
+    if let Some(message) = pause.message.as_deref() {
+        fields.push(("message", s(message)));
+    }
+    let choices_text = (!pause.choices.is_empty())
+        .then(|| serde_json::to_string(&pause.choices).unwrap_or_else(|_| "[]".to_owned()));
+    if let Some(text) = choices_text.as_deref() {
+        fields.push(("choices", s(text)));
+    }
+    emit(stamper, sink, EventKind::WorkflowPaused, &fields);
 }
 
 /// Settle one task in wave order · owns the pens (stamper + sink) ·
@@ -562,31 +680,17 @@ fn settle_ran(
             tokens,
             warning,
         } => {
-            let mut fields = vec![
-                ("task", s(id)),
-                ("note", s(&run.note)),
-                ("duration_ms", i(duration)),
-            ];
-            if let Some(n) = tokens {
-                fields.push(("tokens", i(n)));
-            }
-            // OBS-E · a non-fatal diagnostic rides the success frame as a
-            // `warning` field (the reasoning-model blank-answer footgun) ·
-            // the task still completes.
-            if let Some(msg) = warning.as_deref() {
-                fields.push(("warning", s(msg)));
-            }
-            // ADR-099 · the checkpoint fields: the two key hashes + the
-            // output as ONE compact JSON text (rehydration source). Only
-            // a stamped success carries them (additive trace fields).
-            let output_text =
-                resume.map(|_| serde_json::to_string(&value).unwrap_or_else(|_| "null".to_owned()));
-            if let (Some(stamp), Some(text)) = (resume, output_text.as_deref()) {
-                fields.push((resume::fields::DEF_HASH, s(&stamp.def_hash)));
-                fields.push((resume::fields::INPUT_HASH, s(&stamp.input_hash)));
-                fields.push((resume::fields::OUTPUT, s(text)));
-            }
-            let ended = emit(stamper, sink, EventKind::TaskCompleted, &fields);
+            let ended = emit_completed(
+                id,
+                &run.note,
+                duration,
+                tokens,
+                warning.as_deref(),
+                resume,
+                &value,
+                stamper,
+                sink,
+            );
             record.ended_at = Some(ended);
             record.output = value;
         }
@@ -626,6 +730,51 @@ fn settle_ran(
         }
     }
     record
+}
+
+/// Emit one `task_completed` frame — the base fields (`note` ·
+/// `duration_ms`) + spend (`tokens`) + the OBS-E `warning` diagnostic
+/// when present + the ADR-099 checkpoint trio (`def_hash` · `input_hash`
+/// · `output` as ONE compact JSON text) when the task carries a resume
+/// stamp. Returns the terminal timestamp.
+// The 7 payload knobs mirror the frame's field surface — a builder
+// struct would just restate them.
+#[allow(clippy::too_many_arguments)]
+fn emit_completed(
+    id: &str,
+    note: &str,
+    duration: i64,
+    tokens: Option<i64>,
+    warning: Option<&str>,
+    resume: Option<&resume::ResumeStamp>,
+    value: &Value,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) -> nika_types::timestamp::Timestamp {
+    let mut fields = vec![
+        ("task", s(id)),
+        ("note", s(note)),
+        ("duration_ms", i(duration)),
+    ];
+    if let Some(n) = tokens {
+        fields.push(("tokens", i(n)));
+    }
+    // OBS-E · a non-fatal diagnostic rides the success frame as a
+    // `warning` field (the reasoning-model blank-answer footgun) · the
+    // task still completes.
+    if let Some(msg) = warning {
+        fields.push(("warning", s(msg)));
+    }
+    // ADR-099 · the checkpoint fields — only a stamped success carries
+    // them (additive trace fields).
+    let output_text =
+        resume.map(|_| serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()));
+    if let (Some(stamp), Some(text)) = (resume, output_text.as_deref()) {
+        fields.push((resume::fields::DEF_HASH, s(&stamp.def_hash)));
+        fields.push((resume::fields::INPUT_HASH, s(&stamp.input_hash)));
+        fields.push((resume::fields::OUTPUT, s(text)));
+    }
+    emit(stamper, sink, EventKind::TaskCompleted, &fields)
 }
 
 /// Resolve workflow `outputs:` from the final records · an output whose
