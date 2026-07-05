@@ -89,6 +89,7 @@ pub fn run(
     vars: &[String],
     resume: Option<&ResumeRequest>,
     no_trace_file: bool,
+    task_filter: Option<&str>,
 ) -> u8 {
     // `--output` validated up front so an unknown format fails before any
     // work (machine-result mode · see `output_mode`).
@@ -107,6 +108,24 @@ pub fn run(
             emit_diagnostic(&out.text, output_json);
             return out.code;
         }
+    };
+
+    // ── `--task` scope (the regenerate-one-block move) ──
+    // The FULL workflow audited above (whole-file spans · findings) — the
+    // sub-DAG re-checks below so the plan/waves/cost describe exactly
+    // what will run. Scoping happens before any effect.
+    let (wf, report) = match task_filter {
+        None => (wf, report),
+        Some(target) => match scope_to_task(wf, target) {
+            Ok(sub) => {
+                let sub_report = nika_schema::check(&sub);
+                (sub, sub_report)
+            }
+            Err(msg) => {
+                emit_diagnostic(&msg, output_json);
+                return exit::ENV;
+            }
+        },
     };
     if !report.is_clean() {
         // The SAME findings `nika check` renders — the user must see why
@@ -327,6 +346,8 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         // traces/` belongs to workspace runs (the same drive underneath,
         // deliberately disabled here).
         true,
+        // Examples always run whole (tiny by design · no scoping surface).
+        None,
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the tip then never
@@ -527,6 +548,55 @@ fn offline_tip_applies(exit_code: u8, override_given: bool, model: &str) -> bool
 /// The static wave plan as task ids (the check report's schedule) —
 /// injected into the display fold so the ∥ lane markers and the DAG-shape
 /// glyph speak the scheduler's truth, not a reconstruction.
+/// Scope a workflow to ONE task + its transitive upstream (`--task`).
+///
+/// Ancestors must run — their outputs feed the target's bindings; nothing
+/// downstream or sibling executes. Document order is preserved (stable
+/// waves) and workflow `outputs:` drop (they may reference tasks outside
+/// the scope — the target's own output IS the point of the run). Unknown
+/// ids fail with the available set (environment class · exit 3 · before
+/// any effect — the same lane as an unknown `--var` key).
+fn scope_to_task(mut wf: RawWorkflow, target: &str) -> Result<RawWorkflow, String> {
+    use std::collections::{BTreeSet, VecDeque};
+
+    let mut deps_of: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
+    for t in &wf.tasks {
+        deps_of.insert(
+            t.value.id.value.as_str().to_owned(),
+            t.value
+                .depends_on
+                .iter()
+                .map(|d| d.value.as_str().to_owned())
+                .collect(),
+        );
+    }
+    if !deps_of.contains_key(target) {
+        let known = deps_of.keys().cloned().collect::<Vec<_>>().join(" · ");
+        return Err(format!(
+            "--task `{target}` names no task in this workflow — tasks: {known}"
+        ));
+    }
+
+    let mut keep: BTreeSet<String> = BTreeSet::new();
+    let mut queue: VecDeque<String> = VecDeque::from([target.to_owned()]);
+    while let Some(id) = queue.pop_front() {
+        if !keep.insert(id.clone()) {
+            continue;
+        }
+        if let Some(deps) = deps_of.get(&id) {
+            for d in deps {
+                queue.push_back(d.clone());
+            }
+        }
+    }
+
+    wf.tasks
+        .retain(|t| keep.contains(t.value.id.value.as_str()));
+    wf.outputs.clear();
+    Ok(wf)
+}
+
 fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
     report
         .waves
@@ -923,7 +993,7 @@ fn run_failure_envelope(view: &crate::RunView) -> String {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{RenderMode, exit, offline_tip_applies, outputs_json_line, run};
+    use super::{RenderMode, exit, offline_tip_applies, outputs_json_line, run, scope_to_task};
     use crate::Theme;
     use serde_json::{Value, json};
     use std::collections::BTreeMap;
@@ -1012,6 +1082,7 @@ mod tests {
             &[],
             None,
             true, // tests never write .nika/traces (cwd hygiene)
+            None, // whole-workflow runs (scoping has its own tests)
         );
         assert_eq!(
             code,
@@ -1042,6 +1113,7 @@ mod tests {
             &[],
             None,
             true, // tests never write .nika/traces (cwd hygiene)
+            None, // whole-workflow runs (scoping has its own tests)
         );
         assert_eq!(
             overridden,
@@ -1069,6 +1141,7 @@ mod tests {
             vars,
             None,
             true, // tests never write .nika/traces (cwd hygiene)
+            None, // whole-workflow runs (scoping has its own tests)
         )
     }
 
@@ -1223,5 +1296,60 @@ mod tests {
         let eq = super::parse_var_overrides(&["topic=a=b".to_owned()], &wf)
             .expect("value may carry '='");
         assert_eq!(eq["topic"], json!("a=b"));
+    }
+    /// `--task` scope · the diamond proves ancestors-only semantics: the
+    /// target + transitive upstream survive · siblings and downstream drop
+    /// · outputs clear (they may read unscoped tasks).
+    #[test]
+    fn scope_to_task_keeps_the_ancestor_cone() {
+        let yaml = "nika: v1\nworkflow: diamond\nmodel: mock/echo\ntasks:\n  - id: discover\n    invoke: { tool: \"nika:glob\", args: { pattern: \"*.md\" } }\n  - id: stats\n    depends_on: [discover]\n    infer: { prompt: \"count ${{ tasks.discover.output }}\" }\n  - id: digest\n    depends_on: [discover]\n    infer: { prompt: \"sum ${{ tasks.discover.output }}\" }\n  - id: report\n    depends_on: [stats, digest]\n    infer: { prompt: \"merge ${{ tasks.stats.output }} ${{ tasks.digest.output }}\" }\noutputs:\n  all: ${{ tasks.report.output }}\n";
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("diamond parses");
+
+        let stats_only = scope_to_task(wf.clone(), "stats").expect("stats scopes");
+        let ids: Vec<&str> = stats_only
+            .tasks
+            .iter()
+            .map(|t| t.value.id.value.as_str())
+            .collect();
+        assert_eq!(
+            ids,
+            vec!["discover", "stats"],
+            "target + its one ancestor · document order"
+        );
+        assert!(stats_only.outputs.is_empty(), "outputs drop under scope");
+
+        let full = scope_to_task(wf.clone(), "report").expect("report scopes");
+        assert_eq!(full.tasks.len(), 4, "the sink's cone is the whole diamond");
+
+        let err = scope_to_task(wf, "nope").expect_err("unknown id refused");
+        assert!(
+            err.contains("nope") && err.contains("discover"),
+            "names the id + the available set"
+        );
+    }
+
+    /// The scoped sub-workflow re-checks CLEAN — the plan/waves/cost the
+    /// run renders describe exactly the cone, not the original file.
+    #[test]
+    fn scoped_workflow_rechecks_clean() {
+        let yaml = "nika: v1\nworkflow: pair\nmodel: mock/echo\ntasks:\n  - id: a\n    infer: { prompt: \"hi\" }\n  - id: b\n    depends_on: [a]\n    infer: { prompt: \"use ${{ tasks.a.output }}\" }\n";
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("pair parses");
+        let sub = scope_to_task(wf, "a").expect("a scopes");
+        let report = nika_schema::check(&sub);
+        assert!(
+            report.is_clean(),
+            "the cone stands alone (no dangling refs)"
+        );
+        assert_eq!(sub.tasks.len(), 1);
     }
 }

@@ -290,6 +290,13 @@ struct RunArgs {
     /// value parses as JSON when it parses, else rides as a string.
     #[arg(long = "answer", value_name = "TASK=VALUE", requires = "resume")]
     answer: Vec<String>,
+    /// Run ONE task and its transitive upstream only (the regenerate-one-
+    /// block move): the full workflow still audits (spans · findings stay
+    /// whole-file faithful), then execution scopes to the ancestor
+    /// sub-DAG and the plan/cost re-derive for exactly what will run.
+    /// Workflow `outputs:` are skipped (they may read unscoped tasks).
+    #[arg(long, value_name = "TASK_ID", conflicts_with = "resume")]
+    task: Option<String>,
     /// Skip the run journal (`.nika/traces/<ts>-<id>.ndjson` · spec §3.3).
     /// Every run writes one by default so `nika trace show|replay`,
     /// `--resume` and the editor's runs view have a file to read.
@@ -435,6 +442,7 @@ fn run_verb(args: &RunArgs) -> u8 {
         &args.var,
         resume.as_ref(),
         args.no_trace_file || env_flag("NIKA_NO_TRACE_FILE"),
+        args.task.as_deref(),
     )
 }
 
