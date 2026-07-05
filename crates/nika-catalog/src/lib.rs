@@ -54,7 +54,9 @@ pub use lookup::find_provider;
 #[cfg(feature = "capabilities")]
 pub use lookup::model_capabilities;
 #[cfg(feature = "pricing")]
-pub use lookup::{estimate_cost, find_pricing, find_pricing_scoped};
+pub use lookup::{
+    estimate_cost, estimate_cost_for, find_pricing, find_pricing_for, find_pricing_scoped,
+};
 #[cfg(feature = "builtins-transforms")]
 pub use lookup::{find_builtin, find_transform, is_known_builtin, is_known_transform};
 #[cfg(feature = "mcp")]
