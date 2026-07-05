@@ -225,7 +225,7 @@ enum TraceAction {
 }
 
 #[derive(Args)]
-// Five independent CLI flags ARE five bools — the clap-surface idiom
+// Six independent CLI flags ARE six bools — the clap-surface idiom
 // (same as TraceArgs), not a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
 struct RunArgs {
@@ -290,6 +290,12 @@ struct RunArgs {
     /// value parses as JSON when it parses, else rides as a string.
     #[arg(long = "answer", value_name = "TASK=VALUE", requires = "resume")]
     answer: Vec<String>,
+    /// Skip the run journal (`.nika/traces/<ts>-<id>.ndjson` · spec §3.3).
+    /// Every run writes one by default so `nika trace show|replay`,
+    /// `--resume` and the editor's runs view have a file to read.
+    /// `NIKA_NO_TRACE_FILE` (any non-empty value) opts out globally.
+    #[arg(long)]
+    no_trace_file: bool,
 }
 
 #[derive(Args)]
@@ -428,6 +434,7 @@ fn run_verb(args: &RunArgs) -> u8 {
         args.model.as_deref(),
         &args.var,
         resume.as_ref(),
+        args.no_trace_file || env_flag("NIKA_NO_TRACE_FILE"),
     )
 }
 
@@ -568,9 +575,10 @@ fn recover_events(raw: &str, label: &str) -> Result<Vec<Event>, String> {
 
 /// Read a boolean presentation flag from the environment.
 ///
-/// Presentation flags (`NO_COLOR` · `NIKA_REDUCED_MOTION`) are not secrets —
-/// the workspace `disallowed_methods` ban on `std::env::var` exists to route
-/// SECRET reads through the kernel vault seam, which has no business in a
+/// Presentation flags (`NO_COLOR` · `NIKA_REDUCED_MOTION` ·
+/// `NIKA_NO_TRACE_FILE`) are not secrets — the workspace
+/// `disallowed_methods` ban on `std::env::var` exists to route SECRET
+/// reads through the kernel vault seam, which has no business in a
 /// colour toggle. Scoped allow, single seam.
 #[allow(clippy::disallowed_methods)]
 fn env_flag(name: &str) -> bool {

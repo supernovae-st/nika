@@ -34,6 +34,8 @@ pub use resume::{RecoveredTrace, ResumeRequest, recover_events};
 pub use sink::{FoldSink, JsonSink, RenderMode};
 pub use stamp::SystemStamper;
 
+use sink::{TRACE_DIR, Tee, TraceFileSink};
+
 use std::collections::BTreeMap;
 use std::io::Write as _;
 
@@ -68,7 +70,11 @@ use crate::verbs::exit;
 /// journal into a skip plan; the runtime recomputes each task's identity
 /// and skips iff BOTH hashes match (visible `task_cache_hit` · never
 /// silent). `--from <task_id>` forces a subtree to re-run.
-// Nine independent CLI parameters ARE the clap surface — the same idiom
+///
+/// `no_trace_file` — skip the run journal (`.nika/traces/` · spec §3.3):
+/// `--no-trace-file` / `NIKA_NO_TRACE_FILE` opt out; `examples run`
+/// disables it too (a staged temp-file run is not a workspace run).
+// Ten independent CLI parameters ARE the clap surface — the same idiom
 // as TraceArgs' four bools, not a state machine to encode in a struct.
 #[allow(clippy::too_many_arguments)]
 #[must_use]
@@ -82,6 +88,7 @@ pub fn run(
     model_override: Option<&str>,
     vars: &[String],
     resume: Option<&ResumeRequest>,
+    no_trace_file: bool,
 ) -> u8 {
     // `--output` validated up front so an unknown format fails before any
     // work (machine-result mode · see `output_mode`).
@@ -158,6 +165,13 @@ pub fn run(
         Ok(rt) => rt,
         Err(code) => return code,
     };
+    // The run journal (spec §3.3) — composed HERE like the other seams;
+    // `execute` receives the sink, never a flag.
+    let trace = if no_trace_file {
+        TraceFileSink::disabled()
+    } else {
+        TraceFileSink::new(TRACE_DIR)
+    };
     rt.block_on(execute(
         &runtime,
         &wf,
@@ -167,6 +181,7 @@ pub fn run(
         theme,
         mode,
         resume.is_some(),
+        trace,
     ))
 }
 
@@ -308,6 +323,10 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         model_override,
         &[],
         None,
+        // No run journal: the example is staged to a TEMP file — `.nika/
+        // traces/` belongs to workspace runs (the same drive underneath,
+        // deliberately disabled here).
+        true,
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the tip then never
@@ -521,7 +540,13 @@ fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
 }
 
 /// Drive the runtime through the chosen sink · return the exit code.
-// The 9th parameter is the `--resume` summary switch — same clap-surface
+///
+/// Every lane tees the run journal (`trace` · a [`TraceFileSink`] ·
+/// `.nika/traces/` · spec §3.3) BESIDE its primary surface: the primary's
+/// bytes stay exact (the rider can only buffer its own fs error, surfaced
+/// after the run · never the exit code). The caller composes the journal
+/// (enabled or disabled) like every other seam.
+// The 8th parameter is the `--resume` summary switch — same clap-surface
 // idiom as `run` itself.
 #[allow(clippy::too_many_arguments)]
 async fn execute(
@@ -533,6 +558,7 @@ async fn execute(
     theme: Theme,
     mode: RenderMode,
     resumed: bool,
+    trace: TraceFileSink,
 ) -> u8 {
     let mut stamper = SystemStamper::new();
     if output_json {
@@ -544,10 +570,13 @@ async fn execute(
         // `Plain` deliberately: the fold goes to stderr (a pipe in the
         // composition path · never the live TTY redraw); the one final
         // storyboard frame is what matters, not the animation.
-        let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
-        sink.set_plan(plan_waves(wf, report));
-        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
+        fold.set_plan(plan_waves(wf, report));
+        let mut tee = Tee::new(fold, trace);
+        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
+        let (mut sink, trace) = tee.into_parts();
         sink.print_final();
+        surface_trace(trace, TraceNote::Stderr);
         print_resume_summary(&outcome, resumed, true);
         // Built BEFORE the sink is consumed — the failure envelope reads
         // the folded view (the failed row's detail carries the wire code).
@@ -577,8 +606,12 @@ async fn execute(
         }
         code
     } else if json {
-        let mut sink = JsonSink::new(std::io::stdout().lock());
-        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        let mut tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
+        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
+        let (sink, trace) = tee.into_parts();
+        // stdout stays NDJSON verbatim (byte-identical with or without the
+        // journal) — the trace note rides on stderr here.
+        surface_trace(trace, TraceNote::Stderr);
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: stream write failed: {e}");
             return exit::ENV;
@@ -586,9 +619,11 @@ async fn execute(
         print_resume_summary(&outcome, resumed, true);
         code
     } else {
-        let mut sink = FoldSink::new(std::io::stdout().lock(), theme, mode);
-        sink.set_plan(plan_waves(wf, report));
-        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        let mut fold = FoldSink::new(std::io::stdout().lock(), theme, mode);
+        fold.set_plan(plan_waves(wf, report));
+        let mut tee = Tee::new(fold, trace);
+        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
+        let (mut sink, trace) = tee.into_parts();
         // `Live` painted in place during the run; `Plain`/`Quiet` folded
         // silently · print the ONE final frame now.
         if mode != RenderMode::Live {
@@ -601,12 +636,65 @@ async fn execute(
         if mode == RenderMode::Live {
             print_flow_epilogue(sink.view(), &outcome.outputs, theme);
         }
+        // The spec §3.3 final-frame pointer (`trace: …`) — under the frame
+        // on the storytelling surfaces; `--quiet` keeps its compact-card
+        // promise (the file still exists · errors still reach stderr).
+        surface_trace(
+            trace,
+            if mode == RenderMode::Quiet {
+                TraceNote::Silent
+            } else {
+                TraceNote::Stdout
+            },
+        );
         print_resume_summary(&outcome, resumed, false);
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: render failed: {e}");
             return exit::ENV;
         }
         code
+    }
+}
+
+/// Where the run journal's `trace:` pointer lands (per lane).
+#[derive(Clone, Copy)]
+enum TraceNote {
+    /// The human storytelling surfaces (`Live` · `Plain`) — the spec §3.3
+    /// final-frame pointer, printed under the frame.
+    Stdout,
+    /// The machine lanes (`--json` · `--output json`) — their stdout is a
+    /// byte-exact contract, so the pointer rides the diagnostic stream.
+    Stderr,
+    /// `--quiet` — the compact-card promise holds (no pointer · the
+    /// journal is still written · an fs error still reaches stderr).
+    Silent,
+}
+
+/// Surface the run journal AFTER the run — NEVER the exit code (the sink
+/// contract: journaling is a rider, a broken rider is a note, not a
+/// failure). An fs error goes to stderr with the path when one was opened;
+/// a written journal prints its `trace:` pointer per [`TraceNote`].
+fn surface_trace(trace: TraceFileSink, note: TraceNote) {
+    let path = trace.path().map(std::path::Path::to_path_buf);
+    if let Some(e) = trace.into_error() {
+        // Name the file when the failure struck AFTER the open (a partial
+        // journal on disk) — the operator sees exactly what to distrust.
+        match &path {
+            Some(p) => eprintln!(
+                "nika run: trace file {}: {e} — the run itself is unaffected",
+                p.display()
+            ),
+            None => eprintln!("nika run: trace file: {e} — the run itself is unaffected"),
+        }
+        return;
+    }
+    let Some(path) = path else {
+        return; // disabled · or a run that emitted zero events
+    };
+    match note {
+        TraceNote::Stdout => println!("    trace: {}", path.display()),
+        TraceNote::Stderr => eprintln!("nika run: trace: {}", path.display()),
+        TraceNote::Silent => {}
     }
 }
 
@@ -923,6 +1011,7 @@ mod tests {
             Some("mock/echo"),
             &[],
             None,
+            true, // tests never write .nika/traces (cwd hygiene)
         );
         assert_eq!(
             code,
@@ -952,6 +1041,7 @@ mod tests {
             Some("mock/echo"),
             &[],
             None,
+            true, // tests never write .nika/traces (cwd hygiene)
         );
         assert_eq!(
             overridden,
@@ -978,6 +1068,7 @@ mod tests {
             None,
             vars,
             None,
+            true, // tests never write .nika/traces (cwd hygiene)
         )
     }
 
