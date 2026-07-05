@@ -14,7 +14,7 @@ use std::io::Write;
 use nika_event::Event;
 use nika_runtime::EventSink;
 
-use crate::{RunView, Theme, frame, verdict_frame};
+use crate::{RunView, Theme, frame, frame_with_outputs, verdict_frame};
 
 /// How the live fold reaches the terminal (spec §3.5 reduced surfaces).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,6 +84,10 @@ pub struct FoldSink<W: Write> {
     /// (TTY only · cursor control), `Plain`/`Quiet` fold silently and the
     /// caller prints ONE final frame (no escape noise in a captured log).
     mode: RenderMode,
+    /// Paint the shape tails (`→ {…} · 312B · 90 tok`) on completed rows.
+    /// The interactive-TTY comprehension surface — the run verb enables it
+    /// for `Live` only (pipes · CI · `--no-outputs` stay byte-unchanged).
+    outputs: bool,
     /// Lines painted by the previous frame (to clear before the redraw).
     last_lines: usize,
     error: Option<std::io::Error>,
@@ -99,9 +103,17 @@ impl<W: Write> FoldSink<W> {
             theme,
             view: RunView::new(),
             mode,
+            outputs: false,
             last_lines: 0,
             error: None,
         }
+    }
+
+    /// Enable the shape tails on completed rows (the interactive-TTY
+    /// comprehension surface). Off by default — every existing register
+    /// keeps its exact bytes until a caller opts in.
+    pub fn show_outputs(&mut self, on: bool) {
+        self.outputs = on;
     }
 
     /// The folded view (the caller renders the FINAL frame + the failure
@@ -126,6 +138,7 @@ impl<W: Write> FoldSink<W> {
         }
         let lines = match self.mode {
             RenderMode::Quiet => verdict_frame(&self.view, &self.theme),
+            _ if self.outputs => frame_with_outputs(&self.view, &self.theme, 0),
             _ => frame(&self.view, &self.theme, 0),
         };
         for line in &lines {
@@ -151,7 +164,11 @@ impl<W: Write> FoldSink<W> {
             write!(self.writer, "\x1b[{}A", self.last_lines)?;
             write!(self.writer, "\x1b[0J")?;
         }
-        let lines = frame(&self.view, &self.theme, 0);
+        let lines = if self.outputs {
+            frame_with_outputs(&self.view, &self.theme, 0)
+        } else {
+            frame(&self.view, &self.theme, 0)
+        };
         for line in &lines {
             writeln!(self.writer, "{line}")?;
         }
@@ -302,6 +319,38 @@ mod tests {
             sink.emit(ev);
         }
         assert_eq!(sink.view().verdict, Some(false));
+    }
+
+    /// The outputs knob is OPT-IN per sink: the same output-carrying
+    /// stream paints tails only after `show_outputs(true)` — the piped
+    /// (`Plain`) register stays byte-free of tails unless a caller
+    /// explicitly asks (the run verb only ever asks for `Live`).
+    #[test]
+    fn fold_sink_tails_are_opt_in() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let theme = Theme {
+            color: false,
+            ascii: true,
+            animate: false,
+        };
+        let completed = demo::bare_event(EventKind::TaskCompleted, 5)
+            .with_field(KeyValue::new("task", Value::String("audit".into())))
+            .with_field(KeyValue::new("output", Value::String("[1,2]".into())));
+        let render = |opt_in: bool| {
+            let mut buf = Vec::new();
+            let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Plain);
+            sink.show_outputs(opt_in);
+            sink.emit(completed.clone());
+            sink.print_final();
+            String::from_utf8(buf).expect("utf8")
+        };
+        assert!(!render(false).contains("->"), "default: no tails");
+        assert!(
+            render(true).contains("-> [2] · 5B"),
+            "opted in: the tail rides: {}",
+            render(true)
+        );
     }
 
     /// The repaint clears the PRIOR frame only when one exists (`last_lines >

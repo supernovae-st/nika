@@ -222,10 +222,55 @@ enum TraceAction {
     Replay(TraceArgs),
     /// Print the final card only.
     Show(TraceArgs),
+    /// Browse per-task outputs: verb · duration · tokens · bounded
+    /// preview (full value: `trace peek`).
+    Outputs {
+        /// Trace NDJSON path (one `nika-event` Event per line).
+        trace: PathBuf,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+    },
+    /// Read ONE task's full output + its identity (hashes · duration ·
+    /// tokens). `--raw` prints the exact value only (pipe it to jq).
+    Peek {
+        /// Trace NDJSON path (one `nika-event` Event per line).
+        trace: PathBuf,
+        /// The task id whose output to read.
+        task: String,
+        /// Print the exact recorded value only (machine-friendly).
+        #[arg(long)]
+        raw: bool,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+    },
+    /// The data waterfall: which output fed which task, with recorded
+    /// sizes (plan bindings from the workflow file × sizes from the
+    /// trace).
+    Flow {
+        /// Trace NDJSON path (one `nika-event` Event per line).
+        trace: PathBuf,
+        /// The workflow file the run executed (`*.nika.yaml`) — the
+        /// trace records values, the definition records the bindings.
+        workflow: String,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+    },
 }
 
 #[derive(Args)]
-// Five independent CLI flags ARE five bools — the clap-surface idiom
+// Six independent CLI flags ARE six bools — the clap-surface idiom
 // (same as TraceArgs), not a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
 struct RunArgs {
@@ -290,10 +335,15 @@ struct RunArgs {
     /// value parses as JSON when it parses, else rides as a string.
     #[arg(long = "answer", value_name = "TASK=VALUE", requires = "resume")]
     answer: Vec<String>,
+    /// Hide the per-task output summaries (`→ {…} · 312B`) on the live
+    /// storyboard. Interactive TTY only — pipes · CI · the machine modes
+    /// never carry them anyway.
+    #[arg(long)]
+    no_outputs: bool,
 }
 
 #[derive(Args)]
-// Four independent CLI flags ARE four bools — the clap-surface idiom, not
+// Five independent CLI flags ARE five bools — the clap-surface idiom, not
 // a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
 struct TraceArgs {
@@ -314,6 +364,11 @@ struct TraceArgs {
     /// Disable colour output.
     #[arg(long)]
     no_color: bool,
+    /// Hide the per-task output summaries (`→ {…} · 312B`) on the
+    /// rendered storyboard. Interactive TTY only — a piped `trace show`
+    /// never carries them anyway.
+    #[arg(long)]
+    no_outputs: bool,
 }
 
 fn main() -> std::process::ExitCode {
@@ -369,10 +424,7 @@ fn main() -> std::process::ExitCode {
             clap_complete::generate(shell, &mut cmd, "nika-cli", &mut std::io::stdout());
             0
         }
-        Command::Trace { action } => match action {
-            TraceAction::Replay(args) => trace_render(&args, true),
-            TraceAction::Show(args) => trace_render(&args, false),
-        },
+        Command::Trace { action } => trace_verb(action),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
@@ -411,6 +463,45 @@ fn emit(out: &VerbOutput) -> u8 {
     out.code
 }
 
+/// Dispatch the `trace` verb family: the live renders (replay · show)
+/// plus the static readers (outputs · peek · flow).
+fn trace_verb(action: TraceAction) -> u8 {
+    match action {
+        TraceAction::Replay(args) => trace_render(&args, true),
+        TraceAction::Show(args) => trace_render(&args, false),
+        TraceAction::Outputs {
+            trace,
+            ascii,
+            no_color,
+        } => emit(&verbs::trace::outputs(
+            &trace.to_string_lossy(),
+            term_theme(no_color, ascii),
+        )),
+        TraceAction::Peek {
+            trace,
+            task,
+            raw,
+            ascii,
+            no_color,
+        } => emit(&verbs::trace::peek(
+            &trace.to_string_lossy(),
+            &task,
+            raw,
+            term_theme(no_color, ascii),
+        )),
+        TraceAction::Flow {
+            trace,
+            workflow,
+            ascii,
+            no_color,
+        } => emit(&verbs::trace::flow(
+            &trace.to_string_lossy(),
+            &workflow,
+            term_theme(no_color, ascii),
+        )),
+    }
+}
+
 /// Unpack the `run` clap surface into the library verb call.
 fn run_verb(args: &RunArgs) -> u8 {
     let resume = args.resume.as_ref().map(|trace| verbs::run::ResumeRequest {
@@ -428,6 +519,7 @@ fn run_verb(args: &RunArgs) -> u8 {
         args.model.as_deref(),
         &args.var,
         resume.as_ref(),
+        args.no_outputs,
     )
 }
 
@@ -473,14 +565,23 @@ fn trace_render(args: &TraceArgs, replay: bool) -> u8 {
         animate: tty && replay && !env_flag("NIKA_REDUCED_MOTION"),
     };
 
+    // The shape tails ride the interactive surface only: a TTY render
+    // (show OR replay) carries them unless `--no-outputs`; a piped
+    // `trace show` keeps its exact legacy bytes.
+    let outputs = tty && !args.no_outputs;
     let mut view = RunView::new();
     if theme.animate {
-        live_replay(&events, &mut view, theme, args.speed);
+        live_replay(&events, &mut view, theme, args.speed, outputs);
     } else {
         for event in &events {
             view.apply(event);
         }
-        print_lines(&frame(&view, &theme, 0));
+        let lines = if outputs {
+            nika_cli::frame_with_outputs(&view, &theme, 0)
+        } else {
+            frame(&view, &theme, 0)
+        };
+        print_lines(&lines);
     }
     // The trace surface owns the run overlays (replay = re-render, never
     // re-execute): the waterfall + the verdict card close the read, from
@@ -493,7 +594,7 @@ fn trace_render(args: &TraceArgs, replay: bool) -> u8 {
 
 /// Replay with compressed timing: spinner ticks between events, frames
 /// redrawn in place (cursor-up + clear).
-fn live_replay(events: &[Event], view: &mut RunView, theme: Theme, speed: f64) {
+fn live_replay(events: &[Event], view: &mut RunView, theme: Theme, speed: f64, outputs: bool) {
     let mut drawn = 0usize;
     let mut tick = 0usize;
     let mut last_ms = events.first().map_or(0, |e| e.timestamp.unix_ms());
@@ -508,19 +609,23 @@ fn live_replay(events: &[Event], view: &mut RunView, theme: Theme, speed: f64) {
         // display pacing only — precision is irrelevant at 80ms granularity
         let steps = ((gap_ms as f64 / speed.max(0.1) / 80.0).ceil() as u64).clamp(1, 50);
         for _ in 0..steps {
-            drawn = redraw(view, theme, tick, drawn);
+            drawn = redraw(view, theme, tick, drawn, outputs);
             tick += 1;
             std::thread::sleep(Duration::from_millis(80));
         }
         last_ms = ts;
         view.apply(event);
-        drawn = redraw(view, theme, tick, drawn);
+        drawn = redraw(view, theme, tick, drawn, outputs);
     }
 }
 
 /// Draw one frame in place; returns the line count for the next clear.
-fn redraw(view: &RunView, theme: Theme, tick: usize, drawn: usize) -> usize {
-    let lines = frame(view, &theme, tick);
+fn redraw(view: &RunView, theme: Theme, tick: usize, drawn: usize, outputs: bool) -> usize {
+    let lines = if outputs {
+        nika_cli::frame_with_outputs(view, &theme, tick)
+    } else {
+        frame(view, &theme, tick)
+    };
     let mut out = std::io::stdout().lock();
     if drawn > 0 {
         // Cursor up over the previous frame, then clear to end of screen.

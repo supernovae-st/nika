@@ -30,10 +30,10 @@ pub enum TaskState {
     Failed,
     /// An attempt failed · a retry is scheduled (§3.1 `↻` · yellow).
     Retrying,
-    /// Guard false — never ran, by design.
+    /// Guard false — never ran, by design (`↷` · dim · a decision).
     Skipped,
-    /// Cancelled (upstream failure · operator stop · §3.1 `◼` · dim ·
-    /// a decision, not a defect — never red).
+    /// Cancelled (upstream failure · operator stop · `⊘ blocked` · dim
+    /// · the path died upstream — never red, the defect is elsewhere).
     Cancelled,
 }
 
@@ -62,6 +62,29 @@ pub struct TaskRow {
     /// terminal note overwrites `note`, this survives for the verdict
     /// surface.
     pub model: Option<String>,
+    /// The task's output as ONE compact JSON text — the ADR-099 `output`
+    /// trace field on `task_completed` / `task_cache_hit`. `None` when
+    /// the frame carried none: a skip · a failure · an older engine's
+    /// trace · the runtime's secret-drop (an output text leaking a
+    /// resolved secret value never reaches the stream — ADR-099 §1).
+    pub output_json: Option<String>,
+    /// Per-task token usage (`tokens` on the terminal frame).
+    pub tokens: Option<u64>,
+    /// The FIRST `task_started` note (`infer · <model>` · `invoke ·
+    /// nika:fetch` — the runtime's verb vocabulary), kept verbatim: the
+    /// terminal note overwrites `note`, this survives for the per-task
+    /// trace readers (`trace outputs`' verb column).
+    pub started_note: Option<String>,
+    /// The ADR-099 task-definition hash (`def_hash` · blake3 hex) when
+    /// the terminal frame carried the checkpoint trio — the identity
+    /// half `trace peek` surfaces beside the value.
+    pub def_hash: Option<String>,
+    /// The ADR-099 resolved-input hash (`input_hash` · blake3 hex).
+    pub input_hash: Option<String>,
+    /// The row reached Ok via a `task_cache_hit` rehydration (ADR-099
+    /// `--resume`), never by running here — the render distinguishes
+    /// `↷ cache hit (resume)` from a ran-to-green row.
+    pub cached: bool,
 }
 
 impl TaskRow {
@@ -177,13 +200,21 @@ impl RunView {
             }
             EventKind::TaskStarted => {
                 if let Some(i) = self.touch(event, TaskState::Running) {
-                    self.rows[i].started_ms = Some(ts);
+                    let row = &mut self.rows[i];
+                    row.started_ms = Some(ts);
+                    if row.started_note.is_none() && !row.note.is_empty() {
+                        row.started_note = Some(row.note.clone());
+                    }
                 }
             }
             EventKind::TaskCompleted => {
                 let usd = float_field(event, "cost_usd");
                 if let Some(i) = self.touch(event, TaskState::Ok) {
                     self.stamp_terminal(i, ts, event, usd);
+                    self.keep_output(i, event);
+                    if let Some(tokens) = int_field(event, "tokens") {
+                        self.rows[i].tokens = u64::try_from(tokens).ok();
+                    }
                 }
                 if let Some(usd) = usd {
                     self.cost_usd += usd;
@@ -194,10 +225,14 @@ impl RunView {
             }
             // ADR-099 `--resume` — a rehydrated success: the row reads Ok
             // with the "cache hit" note the frame carries (VISIBLE, never
-            // silent); zero duration/spend (the task never ran here).
+            // silent); zero duration/spend (the task never ran here). The
+            // rehydrated output rides the frame — the shape tail and the
+            // trace readers see the SAME value a live run would carry.
             EventKind::TaskCacheHit => {
                 if let Some(i) = self.touch(event, TaskState::Ok) {
                     self.rows[i].ended_ms = Some(ts);
+                    self.rows[i].cached = true;
+                    self.keep_output(i, event);
                 }
             }
             EventKind::TaskFailed => {
@@ -217,7 +252,7 @@ impl RunView {
                 self.retries = self.retries.saturating_add(1);
                 self.touch(event, TaskState::Retrying);
             }
-            // §3.1 `◼` — a decision, not a defect (dim · never red).
+            // §3.1 blocked `⊘` — a decision, not a defect (dim · never red).
             EventKind::TaskCancelled => {
                 if let Some(i) = self.touch(event, TaskState::Cancelled) {
                     self.rows[i].ended_ms = Some(ts);
@@ -257,6 +292,25 @@ impl RunView {
         }
     }
 
+    /// Keep the ADR-099 checkpoint trio (the `output` value as ONE
+    /// compact JSON text + the `def_hash`/`input_hash` identity) when
+    /// the frame carried it. A frame without it folds to `None` — the
+    /// honest no-data arm every downstream summary respects (notably
+    /// the runtime's secret-drop: a leaking output never rides the
+    /// stream, so no preview can ever see it).
+    fn keep_output(&mut self, i: usize, event: &Event) {
+        let row = &mut self.rows[i];
+        if let Some(text) = str_field(event, "output") {
+            row.output_json = Some(text.to_owned());
+        }
+        if let Some(hash) = str_field(event, "def_hash") {
+            row.def_hash = Some(hash.to_owned());
+        }
+        if let Some(hash) = str_field(event, "input_hash") {
+            row.input_hash = Some(hash.to_owned());
+        }
+    }
+
     /// Upsert the row a task event addresses, updating state + notes.
     /// Returns the row index so the caller can stamp kind-specific facts.
     fn touch(&mut self, event: &Event, state: TaskState) -> Option<usize> {
@@ -276,6 +330,12 @@ impl RunView {
                 duration_ms: None,
                 cost_usd: None,
                 model: None,
+                output_json: None,
+                tokens: None,
+                started_note: None,
+                def_hash: None,
+                input_hash: None,
+                cached: false,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);
@@ -480,6 +540,61 @@ mod tests {
         );
         assert_eq!(measured.rows()[0].wall_ms(), Some(40), "measured wins");
         assert_eq!(measured.last_ts_ms(), Some(5000), "now = latest stamp");
+    }
+
+    /// The fold keeps the ADR-099 per-task payload fields verbatim —
+    /// `output` (compact JSON text) + `tokens` land on the row; a frame
+    /// WITHOUT an `output` field folds to `None` (older engines · skips
+    /// · the runtime's secret-drop, ADR-099 §1: an output text leaking a
+    /// resolved secret never reaches the stream — so every preview
+    /// surface inherits the invariant structurally).
+    #[test]
+    fn completed_rows_keep_output_text_and_tokens() {
+        use nika_types::resource::{KeyValue, Value};
+        let mut view = RunView::new();
+        let task = |name: &str| KeyValue::new("task", Value::String(name.to_owned()));
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 10)
+                .with_field(task("audit"))
+                .with_field(KeyValue::new(
+                    "output",
+                    Value::String(r#"{"total":9}"#.to_owned()),
+                ))
+                .with_field(KeyValue::new("tokens", Value::Int(90))),
+        );
+        // The secret-drop / older-engine arm: no `output` field at all.
+        view.apply(&demo::bare_event(EventKind::TaskCompleted, 20).with_field(task("bare")));
+        // A cache hit rehydrates its output onto the row too (ADR-099).
+        view.apply(
+            &demo::bare_event(EventKind::TaskCacheHit, 30)
+                .with_field(task("cached"))
+                .with_field(KeyValue::new("output", Value::String("\"hi\"".to_owned()))),
+        );
+        assert_eq!(
+            view.rows()[0].output_json.as_deref(),
+            Some(r#"{"total":9}"#)
+        );
+        assert_eq!(view.rows()[0].tokens, Some(90));
+        assert_eq!(view.rows()[1].output_json, None, "no field → None");
+        assert_eq!(view.rows()[1].tokens, None);
+        assert_eq!(view.rows()[2].output_json.as_deref(), Some("\"hi\""));
+    }
+
+    /// The FIRST started note (the verb vocabulary — `invoke ·
+    /// nika:fetch`) survives the terminal-note overwrite — the trace
+    /// readers' verb column depends on it.
+    #[test]
+    fn started_note_survives_the_terminal_overwrite() {
+        let mut view = RunView::new();
+        for ev in demo::success() {
+            view.apply(&ev);
+        }
+        let fetch = &view.rows()[0];
+        assert_eq!(fetch.started_note.as_deref(), Some("invoke · nika:fetch"));
+        assert_eq!(fetch.note, "http 200 · 1.2s · 34 KB", "terminal note won");
+        // A row that never started (skipped) keeps None.
+        let skipped = view.rows().iter().find(|r| r.id == "notify_slack");
+        assert_eq!(skipped.and_then(|r| r.started_note.as_deref()), None);
     }
 
     /// The retry counter folds every `task_retrying` frame (feeds the

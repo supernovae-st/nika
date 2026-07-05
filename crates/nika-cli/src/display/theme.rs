@@ -78,14 +78,17 @@ impl Theme {
             return self.paint(Role::Accent, &format!("{frame} "));
         }
         let raw = if self.ascii {
-            // The LOCKED §3.1 ASCII column (err `X` ≠ cancelled `x`).
+            // The §3.1 ASCII column (err `X` ≠ blocked `x`). The
+            // comprehension pass re-voiced the never-ran pair: a SKIP
+            // (a decision — gate false · cache hit) reads `~>` (flows
+            // past), a BLOCKED cancellation reads `x` (the path died).
             match state {
                 TaskState::Pending => ". ",
                 TaskState::Running => "> ",
                 TaskState::Ok => "ok",
                 TaskState::Failed => "X ",
                 TaskState::Retrying => "r ",
-                TaskState::Skipped => "- ",
+                TaskState::Skipped => "~>",
                 TaskState::Cancelled => "x ",
             }
         } else {
@@ -95,8 +98,8 @@ impl Theme {
                 TaskState::Ok => "✔ ",
                 TaskState::Failed => "✖ ",
                 TaskState::Retrying => "↻ ",
-                TaskState::Skipped => "⊘ ",
-                TaskState::Cancelled => "◼ ",
+                TaskState::Skipped => "↷ ",
+                TaskState::Cancelled => "⊘ ",
             }
         };
         let role = match state {
@@ -174,11 +177,15 @@ mod tests {
 
     #[test]
     fn locked_contract_glyphs_for_the_new_states() {
-        // §3.1 LOCKED table · retrying ↻/r yellow · cancelled ◼/x dim ·
-        // err `X` ≠ cancelled `x` (the case IS the distinction).
+        // §3.1 table (comprehension-pass vocabulary) · retrying ↻/r
+        // yellow · skip ↷/~> dim (a decision: gate false · cache hit) ·
+        // blocked-cancelled ⊘/x dim · err `X` ≠ blocked `x` (the case
+        // IS the distinction).
         assert_eq!(PLAIN.glyph(TaskState::Retrying, 0), "↻ ");
         assert_eq!(ASCII.glyph(TaskState::Retrying, 0), "r ");
-        assert_eq!(PLAIN.glyph(TaskState::Cancelled, 0), "◼ ");
+        assert_eq!(PLAIN.glyph(TaskState::Skipped, 0), "↷ ");
+        assert_eq!(ASCII.glyph(TaskState::Skipped, 0), "~>");
+        assert_eq!(PLAIN.glyph(TaskState::Cancelled, 0), "⊘ ");
         assert_eq!(ASCII.glyph(TaskState::Cancelled, 0), "x ");
         assert_ne!(
             ASCII.glyph(TaskState::Failed, 0),
