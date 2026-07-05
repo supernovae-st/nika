@@ -396,6 +396,12 @@ struct RunArgs {
     /// never carry them anyway.
     #[arg(long)]
     no_outputs: bool,
+    /// Skip the opportunistic trace collection for this invocation
+    /// (ADR-100: `.nika/traces/` is bounded by default — retention
+    /// rides every run start; a collection that removes anything says
+    /// so on stderr).
+    #[arg(long)]
+    no_gc: bool,
 }
 
 #[derive(Args)]
@@ -597,6 +603,7 @@ fn run_verb(args: &RunArgs, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
         &args.var,
         resume.as_ref(),
         args.no_outputs,
+        args.no_gc,
     )
 }
 

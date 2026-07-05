@@ -14,6 +14,9 @@
 //! recorded sizes) — a fold over two existing truths, zero new
 //! analysis.
 
+pub(crate) mod retention;
+pub(crate) mod store;
+
 use std::fmt::Write as _;
 
 use crate::display::flow::fmt_wall_ms;
