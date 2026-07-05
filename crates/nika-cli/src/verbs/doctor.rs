@@ -74,6 +74,19 @@ pub(crate) struct Probe {
     pub config_path: Option<String>,
     pub providers: Vec<ProviderProbe>,
     pub clients: Vec<ClientProbe>,
+    /// The `nika:image_generate` plane — key/URL PRESENCE only.
+    pub image: ImageProbe,
+}
+
+/// The image-plane environment facts (presence only, never values).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct ImageProbe {
+    pub openai_key: bool,
+    pub gemini_key: bool,
+    pub xai_key: bool,
+    /// `Some(url)` when `NIKA_IMAGE_LOCAL_URL` is set (a URL is config,
+    /// not a credential — displayable).
+    pub local_url: Option<String>,
 }
 
 /// Agent/editor MCP wiring facts — config presence only, not file contents in
@@ -166,6 +179,8 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
         });
     }
 
+    out.push(image_finding(&probe.image));
+
     // The ONE Fail that drives exit 3 · no inference path AT ALL (a broken or
     // empty catalog). A merely-unset cloud key is a ⚠ above, never fatal.
     if cloud_keys == 0 && local_ids.is_empty() {
@@ -182,6 +197,42 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
     }
 
     out
+}
+
+/// The image plane (`nika:image_generate`) — mock always works; this
+/// names what ELSE is wired. Informational, never fatal (media is a
+/// builtin, not the inference path).
+fn image_finding(img: &ImageProbe) -> Finding {
+    let mut wired: Vec<&str> = Vec::new();
+    if img.openai_key {
+        wired.push("openai");
+    }
+    if img.gemini_key {
+        wired.push("gemini");
+    }
+    if img.xai_key {
+        wired.push("xai");
+    }
+    let local_part = img.local_url.as_deref().map_or_else(
+        || {
+            "local → http://localhost:8080 default (set NIKA_IMAGE_LOCAL_URL to point elsewhere)"
+                .to_owned()
+        },
+        |url| format!("local → {url}"),
+    );
+    Finding {
+        level: Level::Ok,
+        label: "image".to_owned(),
+        detail: if wired.is_empty() {
+            format!("mock ready · {local_part} · no cloud image key set")
+        } else {
+            format!(
+                "mock ready · {} key(s) present · {local_part}",
+                wired.join(" · ")
+            )
+        },
+        fix: None,
+    }
 }
 
 fn client_finding(client: &ClientProbe) -> Finding {
@@ -281,6 +332,16 @@ pub fn run() -> VerbOutput {
         config_path: config_path(),
         providers,
         clients: client_probes(),
+        image: ImageProbe {
+            openai_key: env_present("NIKA_OPENAI_API_KEY") || env_present("OPENAI_API_KEY"),
+            gemini_key: env_present("NIKA_GEMINI_API_KEY") || env_present("GEMINI_API_KEY"),
+            xai_key: env_present("NIKA_XAI_API_KEY") || env_present("XAI_API_KEY"),
+            // A URL is connection config, not a credential — displayable.
+            #[allow(clippy::disallowed_methods)] // presence+value of a NON-secret config var
+            local_url: std::env::var("NIKA_IMAGE_LOCAL_URL")
+                .ok()
+                .filter(|u| !u.is_empty()),
+        },
     };
     let findings = diagnose(&probe);
     let code = exit_code(&findings);
@@ -446,6 +507,7 @@ mod tests {
             config_path: Some("~/.nika/config.toml".to_owned()),
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", true)],
             clients: vec![],
+            image: ImageProbe::default(),
         };
         let f = diagnose(&probe);
         let prov = f
@@ -469,6 +531,7 @@ mod tests {
                 local("ollama"),
             ],
             clients: vec![],
+            image: ImageProbe::default(),
         };
         let f = diagnose(&probe);
         let prov = f
@@ -497,6 +560,7 @@ mod tests {
             config_path: None,
             providers: vec![cloud("openai", "OPENAI_API_KEY", false)],
             clients: vec![],
+            image: ImageProbe::default(),
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("OPENAI_API_KEY"), "names the var: {text}");
@@ -515,6 +579,7 @@ mod tests {
             config_path: None,
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", false)],
             clients: vec![],
+            image: ImageProbe::default(),
         };
         let f = diagnose(&probe);
         assert!(f.iter().any(|f| f.level == Level::Fail));
@@ -528,6 +593,7 @@ mod tests {
             config_path: None,
             providers: vec![local("ollama"), local("vllm")],
             clients: vec![],
+            image: ImageProbe::default(),
         };
         let f = diagnose(&probe);
         let loc = f.iter().find(|f| f.label == "local").expect("local line");
@@ -558,6 +624,7 @@ mod tests {
                 current: false,
                 stale: true,
             }],
+            image: ImageProbe::default(),
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("stale MCP args"), "{text}");
@@ -600,7 +667,14 @@ mod tests {
         let out = run();
         assert_eq!(out.code, exit::OK, "the catalog always offers a path");
         assert!(out.text.contains("binary"), "renders the binary line");
-        assert!(!out.text.contains("mock"), "the test backend is hidden");
+        // The LLM test backend stays hidden (no `mock — key` provider row);
+        // the IMAGE line's `mock ready` is operator-facing truth (the image
+        // mock is a documented, always-available provider).
+        assert!(
+            !out.text.contains("mock —"),
+            "the LLM test backend is hidden"
+        );
+        assert!(out.text.contains("image"), "the image plane renders");
     }
 
     /// The report opens on the ONE verdict line — level counts first,
