@@ -1025,5 +1025,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-105",
+      "title": "nika:image_generate — the Media builtin rides a dedicated image plane",
+      "status": "accepted",
+      "date": "2026-07-05",
+      "filename": "adr-105-image-generate-builtin.md",
+      "tags": ["nika-builtin","media","image-generation","openai","gemini","mock","image-plane","provenance","permits"],
+      "affects_crates": ["nika-builtin","nika-catalog","nika-schema","nika-cli","nika-pack"],
+      "affects_layers": ["L0","L1.5","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-093","ADR-095","ADR-096"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }
