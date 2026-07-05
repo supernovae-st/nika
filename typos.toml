@@ -9,6 +9,8 @@ extend-ignore-identifiers-re = [
 ]
 
 [default.extend-words]
+# Speaches is a real project (speaches.ai · OpenAI-compat speech server), not a typo of "Speeches".
+Speaches = "Speaches"
 # Project-specific terms that look like typos but aren't
 Nika       = "Nika"
 nika       = "nika"
