@@ -29,6 +29,10 @@ pub(crate) struct ReplaySession {
     /// Client-side workflow path — every stack frame points here.
     pub(crate) workflow_path: String,
     pub(crate) workflow_name: String,
+    /// The #210 identity check: Some(true) = the CURRENT yaml differs
+    /// from the bytes the run executed (breakpoint lines may be off) ·
+    /// None = the journal predates `workflow_sha256`.
+    pub(crate) drifted: Option<bool>,
     /// `(task id, 1-based start line)` in document order.
     task_lines: Vec<(String, u32)>,
     pub(crate) stops: Vec<Stop>,
@@ -47,6 +51,15 @@ impl ReplaySession {
             .map_err(|e| format!("cannot read journal {replay_path}: {e}"))?;
         let recovered = super::super::run::recover_events(&raw, replay_path)?;
         Self::from_parts(workflow_path, &yaml, &recovered.events)
+    }
+
+    /// The #210 identity check against the CURRENT source bytes.
+    fn drift_of(yaml: &str, events: &[nika_event::Event]) -> Option<bool> {
+        let recorded = events
+            .iter()
+            .find(|e| e.kind == EventKind::WorkflowStarted)
+            .and_then(|e| field_str(e, "workflow_sha256"))?;
+        Some(super::super::run::sha256_hex(yaml.as_bytes()) != recorded)
     }
 
     /// The testable core: source text + folded events.
@@ -108,6 +121,7 @@ impl ReplaySession {
         Ok(Self {
             workflow_path: workflow_path.to_owned(),
             workflow_name,
+            drifted: Self::drift_of(yaml, events),
             task_lines,
             stops,
             cursor: 0,
@@ -295,6 +309,28 @@ mod tests {
         // reverseContinue with no earlier breakpoint floors at stop 0.
         s.run_backward();
         assert_eq!(s.current().task, "alpha");
+    }
+
+    #[test]
+    fn drift_verdict_tracks_the_recorded_sha() {
+        // No workflow_sha256 on the started frame → pre-#210 journal → None.
+        assert_eq!(session().drifted, None);
+
+        // A recorded sha that MATCHES the current bytes → not drifted.
+        let sha = crate::verbs::run::sha256_hex(YAML.as_bytes());
+        let make = |recorded: &str| {
+            let events = vec![
+                ev(
+                    1,
+                    EventKind::WorkflowStarted,
+                    &[("workflow", "demo"), ("workflow_sha256", recorded)],
+                ),
+                ev(2, EventKind::TaskCompleted, &[("task", "alpha")]),
+            ];
+            ReplaySession::from_parts("/w.nika.yaml", YAML, &events).expect("builds")
+        };
+        assert_eq!(make(&sha).drifted, Some(false));
+        assert_eq!(make(&"ab".repeat(32)).drifted, Some(true));
     }
 
     #[test]

@@ -470,7 +470,7 @@ fn parse_var_overrides(
 // answers · pause flag) — the same clap-surface idiom as `run` itself.
 #[allow(clippy::too_many_arguments)]
 /// The run's source identity: sha256 hex over the exact bytes read.
-fn sha256_hex(bytes: &[u8]) -> String {
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::{Digest as _, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(bytes);

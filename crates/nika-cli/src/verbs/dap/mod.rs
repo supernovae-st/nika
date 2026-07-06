@@ -46,6 +46,18 @@ fn serve<R: std::io::BufRead, W: std::io::Write>(mut wire: Wire<R, W>) -> u8 {
             }
             "launch" => match launch(&req) {
                 Ok(s) => {
+                    // The #210 identity check speaks BEFORE the first stop:
+                    // a drifted source means snapped breakpoint lines may
+                    // not match what actually ran.
+                    if s.drifted == Some(true) {
+                        wire.emit(
+                            "output",
+                            serde_json::json!({
+                                "category": "console",
+                                "output": "⚠ workflow changed since this run was recorded — breakpoint lines may be off (re-run to refresh the journal)\n",
+                            }),
+                        );
+                    }
                     session = Some(s);
                     wire.respond(&req, serde_json::Value::Null);
                 }
