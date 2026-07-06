@@ -442,6 +442,15 @@ fn manifest_json(
         "endpoint_host": endpoint_host,
         "request": request,
         "input_hash": sha256_hex(request.to_string().as_bytes()),
+        // Provider-DECLARED watermarking (catalog fact, never byte-verified
+        // — SynthID detection is vendor-hosted only). ElevenLabs announced
+        // SynthID across generations (I/O 2026); OpenAI speech carries no
+        // such declaration → null-honest. The image manifest's exact rule.
+        "watermark_declared": match args.provider {
+            Provider::Elevenlabs =>
+                Some("synthid (provider-declared · not byte-verified)"),
+            _ => None,
+        },
         "audio": {
             "path": saved.path,
             "filename": saved.filename,
