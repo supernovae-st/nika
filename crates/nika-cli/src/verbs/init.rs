@@ -97,7 +97,7 @@ Envelope: `nika: v1` (always · frozen forever). Extension: `.nika.yaml`.
 ## Authoring Discipline
 - Interpolation uses `${{ vars.x }}` · `${{ tasks.id.output }}` · `${{ env.KEY }}` · `${{ with.alias }}`.
 - Bindings use `with: { alias: ${{ tasks.id.output }} }` then `${{ with.alias }}`.
-- Models use the combined form `provider/name` (for example `mock/echo`, `openai/gpt-4o-mini`).
+- Models use the combined form `provider/name` (for example `mock/echo`, `ollama/qwen3.5:4b`, `mistral/mistral-small`).
 - `depends_on` is always an array: `depends_on: [task_id]`.
 - Secrets come from the environment — never inline literal keys.
 - After every edit, run `nika check <file>` and repair from diagnostics.

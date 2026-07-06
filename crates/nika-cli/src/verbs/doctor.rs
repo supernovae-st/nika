@@ -172,33 +172,32 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
         out.push(client_finding(client));
     }
 
+    // Display order practices the presentation lock (teaching surface ·
+    // the first screen after install): the sovereign keyless line leads,
+    // then the cloud rows with mistral (EU · open-weight) first. The
+    // registry's seed order is functional and stays untouched — this is
+    // a render sort only.
     let mut cloud_keys = 0_usize;
     let mut local_ids: Vec<&str> = Vec::new();
+    let mut cloud_rows: Vec<&ProviderProbe> = Vec::new();
     for p in &probe.providers {
-        if !p.requires_key {
-            local_ids.push(&p.id);
-        } else if p.key_present {
-            cloud_keys += 1;
-            out.push(Finding {
-                level: Level::Ok,
-                label: "provider".to_owned(),
-                detail: format!("{} — key present", p.id),
-                fix: None,
-            });
+        if p.requires_key {
+            cloud_rows.push(p);
         } else {
-            out.push(Finding {
-                level: Level::Warn,
-                label: "provider".to_owned(),
-                detail: format!("{} — {} unset", p.id, p.fix_var),
-                fix: Some(format!("export {}=…", p.fix_var)),
-            });
+            local_ids.push(&p.id);
         }
     }
+    cloud_rows.sort_by_key(|p| usize::from(p.id != "mistral"));
 
     if !local_ids.is_empty() {
         out.push(local_finding(&local_ids, !probe.local_pings.is_empty()));
     }
     out.extend(probe.local_pings.iter().map(ping_finding));
+
+    for p in cloud_rows {
+        cloud_keys += usize::from(p.key_present);
+        out.push(provider_finding(p));
+    }
 
     out.push(image_finding(&probe.image));
     out.push(tts_finding(&probe.tts));
@@ -350,6 +349,25 @@ pub(crate) fn render(findings: &[Finding]) -> String {
         }
     }
     s
+}
+
+/// One cloud-provider row (✔ key present · ⚠ unset, with the export fix).
+fn provider_finding(p: &ProviderProbe) -> Finding {
+    if p.key_present {
+        Finding {
+            level: Level::Ok,
+            label: "provider".to_owned(),
+            detail: format!("{} — key present", p.id),
+            fix: None,
+        }
+    } else {
+        Finding {
+            level: Level::Warn,
+            label: "provider".to_owned(),
+            detail: format!("{} — {} unset", p.id, p.fix_var),
+            fix: Some(format!("export {}=…", p.fix_var)),
+        }
+    }
 }
 
 /// The local-providers summary line · unpinged runs hand off to `--ping`.
