@@ -373,6 +373,31 @@ fn detect_and_preserve_credentials<Em: Emitter>(
     batch_signal
 }
 
+/// Route one EDIT call — openai carries the first wire (M-A.2); the
+/// other providers refuse loudly until their adapters land (M-B/M-C).
+/// The ONE provider match means no panic-class `unreachable!` arm exists
+/// (the zero-panic pattern · mock returns before any wire is built).
+async fn dispatch_edit<H: HttpPostDyn>(
+    http: &H,
+    wire: Wire<'_>,
+    args: &ImageArgs,
+    inputs: &[types::InputImage],
+) -> Result<ProviderBatch, BuiltinFailure> {
+    let id = match wire {
+        Wire::Openai(key) => return openai::edit(http, key, args, inputs).await,
+        Wire::Gemini(_) => "gemini",
+        Wire::Xai(_) => "xai",
+        Wire::Local { .. } => "local",
+    };
+    Err(BuiltinFailure::new(
+        types::C_ARGS,
+        format!(
+            "`mode: edit` is wired for openai (and mock) today — the {id} edit \
+             adapter ships next (use provider: openai, or mock offline)"
+        ),
+    ))
+}
+
 /// A provider returning fewer images than `n:` is a WARNED degradation,
 /// never silent (Ollama's compat route ignores `n` · openai may under-
 /// deliver on moderation-filtered variants).
@@ -499,6 +524,7 @@ where
             path: (*path).to_owned(),
             sha256: save::sha256_hex(&bytes),
             format: sniffed.format,
+            bytes: bytes.to_vec(),
         });
     }
     Ok(inputs)
@@ -578,11 +604,16 @@ where
             "endpoint_host": endpoint_host, "n": args.n,
         }),
     );
-    let batch = match wire {
-        Wire::Openai(key) => openai::generate(http, key, args).await?,
-        Wire::Gemini(key) => gemini::generate(http, key, args).await?,
-        Wire::Xai(key) => xai::generate(http, key, args).await?,
-        Wire::Local { base_url, key } => local::generate(http, &base_url, key, args).await?,
+    let batch = match (args.mode, wire) {
+        // ── generate (the default text→image path) ──
+        (types::Mode::Generate, Wire::Openai(key)) => openai::generate(http, key, args).await?,
+        (types::Mode::Generate, Wire::Gemini(key)) => gemini::generate(http, key, args).await?,
+        (types::Mode::Generate, Wire::Xai(key)) => xai::generate(http, key, args).await?,
+        (types::Mode::Generate, Wire::Local { base_url, key }) => {
+            local::generate(http, &base_url, key, args).await?
+        }
+        // ── edit (source image(s) + instruction) · openai first (M-A.2) ──
+        (types::Mode::Edit, wire) => dispatch_edit(http, wire, args, inputs).await?,
     };
     emitter.emit(
         "image_generation.provider_response",
