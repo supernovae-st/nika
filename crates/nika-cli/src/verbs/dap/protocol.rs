@@ -22,6 +22,8 @@ pub(crate) struct Request {
     #[serde(rename = "type")]
     pub(crate) kind: String,
     pub(crate) command: String,
+    #[serde(default)]
+    pub(crate) arguments: serde_json::Value,
 }
 
 /// The adapter's reply envelope.
