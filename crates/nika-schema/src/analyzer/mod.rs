@@ -434,6 +434,19 @@ tasks:
     }
 
     #[test]
+    fn envelope_model_unresolved_var_is_flagged() {
+        // deep/019 — the oracle false-green class: an envelope
+        // `model: "${{ vars.nope }}"` was ACCEPTED and died at dispatch.
+        let yaml = "nika: v1\nworkflow: w\nmodel: \"${{ vars.nope }}\"\ntasks:\n  - id: a\n    infer: { prompt: hi }\n";
+        let errors = analyze_yaml(yaml).expect_err("envelope model ref must flag");
+        assert_has(
+            &errors,
+            |e| matches!(e, SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "vars.nope"),
+            "vars.nope unresolved at the envelope",
+        );
+    }
+
+    #[test]
     fn with_undeclared_errors() {
         // Conformance fixture variables/004-with-undeclared.
         let yaml = "\

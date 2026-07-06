@@ -119,18 +119,24 @@ pub(super) fn scan_workflow(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
         scan_task(&task.value, &index, errors);
     }
 
-    // Envelope `outputs:` — workflow level · no with/item/index · no
-    // edge rule (NIKA-VAR existence only · fixture variables/001).
-    let outputs_ctx = ScanCtx {
-        location: "outputs".to_owned(),
-        task_id: "", // workflow level · no edge/loop-local rule fires here
+    // Workflow-level surfaces share one ctx shape (no task id · no
+    // edge/loop-local rule): `outputs:` (fixture variables/001) and the
+    // one templated envelope field, `model:` (deep/019 — an unresolved
+    // ref there is NIKA-VAR-001 like any task surface).
+    let envelope_ctx = |location: &str| ScanCtx {
+        location: location.to_owned(),
+        task_id: "",
         edge_set: None,
         with_names: None,
         allow_loop_locals: false,
     };
+    let outputs_ctx = envelope_ctx("outputs");
     for (_, decl) in &wf.outputs {
         let value = decl.value();
         scan_string(value, &outputs_ctx, &index, errors);
+    }
+    if let Some(model) = &wf.model {
+        scan_string(model, &envelope_ctx("model"), &index, errors);
     }
 }
 
