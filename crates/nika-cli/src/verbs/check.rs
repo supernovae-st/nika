@@ -34,6 +34,7 @@ pub fn run(path: &str, json: bool, theme: Theme) -> VerbOutput {
                 let clean = report.is_clean();
                 if let Some(obj) = payload.as_object_mut() {
                     obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
+                    obj.insert("pricing".to_owned(), pricing_section(&report));
                 }
                 let text = format!("{payload:#}");
                 if clean {
@@ -52,6 +53,28 @@ pub fn run(path: &str, json: bool, theme: Theme) -> VerbOutput {
     } else {
         VerbOutput::file(text)
     }
+}
+
+/// The rates the preflight shows BEFORE the first run: each model the
+/// requirements collected (#213), priced from the vendored catalog.
+/// UNKNOWN is null, never 0.00 — a missing price must look missing.
+/// Rates only (USD per 1M tokens): token counts are unknowable
+/// statically; the estimate with honest bounds is the next arc.
+fn pricing_section(report: &nika_schema::check::CheckReport) -> serde_json::Value {
+    let models: Vec<serde_json::Value> = report
+        .requirements
+        .models
+        .iter()
+        .map(|m| {
+            let priced = nika_catalog::find_pricing_for(&m.model);
+            serde_json::json!({
+                "model": m.model,
+                "input_per_million": priced.map(|p| p.input_per_million),
+                "output_per_million": priced.map(|p| p.output_per_million),
+            })
+        })
+        .collect();
+    serde_json::json!({ "models": models })
 }
 
 /// Section mark: `✔`-class verdict glyphs through the theme seam.
@@ -490,6 +513,32 @@ pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pricing_section_rates_known_null_unknown() {
+        let wf = parse_wf(
+            "nika: v1\nworkflow: priced\nmodel: anthropic/claude-opus-4-5\ntasks:\n  - id: think\n    infer:\n      prompt: hi\n  - id: odd\n    infer:\n      model: custom/never-heard-of-it\n      prompt: hi\n",
+        );
+        let report = nika_schema::check(&wf);
+        let section = pricing_section(&report);
+        let models = section["models"].as_array().expect("array");
+        assert_eq!(models.len(), 2, "one row per requirements model");
+        let by_model = |name: &str| {
+            models
+                .iter()
+                .find(|m| m["model"] == name)
+                .expect("a row per requirements model")
+                .clone()
+        };
+        let priced = by_model("anthropic/claude-opus-4-5");
+        assert!((priced["input_per_million"].as_f64().expect("rate") - 5.0).abs() < 1e-9);
+        assert!((priced["output_per_million"].as_f64().expect("rate") - 25.0).abs() < 1e-9);
+        // UNKNOWN renders null — a missing price must look missing,
+        // never $0.00 (the silent-zero anti-pattern).
+        let unknown = by_model("custom/never-heard-of-it");
+        assert!(unknown["input_per_million"].is_null());
+        assert!(unknown["output_per_million"].is_null());
+    }
 
     fn parse_wf(yaml: &str) -> RawWorkflow {
         nika_schema::parse(
