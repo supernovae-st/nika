@@ -340,21 +340,51 @@ fn check_image_v1_reservations(
         let value = object?.get(key)?.as_str()?;
         (!value.contains("${{")).then_some(value)
     };
-    match literal("mode") {
-        None | Some("generate") => {}
-        Some("edit") => errors.push(shape(
-            task,
-            tool,
-            "`mode: edit` is not in V1 — `generate` only; image editing \
-             (reference-image edits) is on the media roadmap",
-            span,
-        )),
-        Some(other) => errors.push(shape(
-            task,
-            tool,
-            &format!("`mode: {other}` is not a mode — V1 supports `generate`"),
-            span,
-        )),
+    let is_edit = match literal("mode") {
+        None | Some("generate") => false,
+        Some("edit") => true,
+        Some(other) => {
+            errors.push(shape(
+                task,
+                tool,
+                &format!("`mode: {other}` is not a mode — one of generate · edit"),
+                span,
+            ));
+            false
+        }
+    };
+    let has = |k: &str| object.is_some_and(|m| m.contains_key(k));
+    if is_edit {
+        // edit REQUIRES a source; `image` XOR `images`; a templated path is
+        // runtime business (statically silent).
+        if !has("image") && !has("images") {
+            errors.push(shape(
+                task,
+                tool,
+                "`mode: edit` requires `image:` (a path) or `images:` (paths)",
+                span,
+            ));
+        }
+        if has("image") && has("images") {
+            errors.push(shape(
+                task,
+                tool,
+                "`image:` and `images:` are mutually exclusive — use one",
+                span,
+            ));
+        }
+    } else {
+        // edit-only keys in generate mode are a loud static error.
+        for key in ["image", "images", "mask"] {
+            if has(key) {
+                errors.push(shape(
+                    task,
+                    tool,
+                    &format!("`{key}:` requires `mode: edit`"),
+                    span,
+                ));
+            }
+        }
     }
     if object.is_some_and(|map| map.contains_key("reference_images")) {
         errors.push(shape(
@@ -521,7 +551,7 @@ mod tests {
             (
                 r#"{ prompt: "x", output_dir: "./o", mode: edit }"#,
                 "nika:image_generate",
-                true, // V1: generate only
+                true, // edit without a source image → requires image:
             ),
             (
                 r#"{ prompt: "x", output_dir: "./o", mode: remix }"#,

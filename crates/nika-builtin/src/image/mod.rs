@@ -48,7 +48,7 @@ use nika_kernel::io::http::HttpPostDyn;
 use nika_kernel::secret::Secret;
 
 use crate::media::time::rfc3339_now;
-use crate::permits::FsBoundary;
+use crate::permits::{FsAccess, FsBoundary};
 use crate::{Args, BuiltinFailure, BuiltinOutcome, Emitter};
 
 use self::args::ImageArgs;
@@ -179,12 +179,16 @@ where
     emitter.emit(
         "image_generation.started",
         serde_json::json!({
-            "provider": args.provider.id(), "model": args.model, "n": args.n,
+            "provider": args.provider.id(), "model": args.model,
+            "mode": args.mode.name(), "n": args.n,
         }),
     );
 
+    // ── edit inputs (permit-gated reads · the mirror of the save boundary) ─
+    let inputs = read_edit_inputs(fs, boundary, &args, emitter).await?;
+
     // ── provider call ────────────────────────────────────────────────────
-    let batch = call_provider(http, keys, &args, clock, emitter, started).await?;
+    let batch = call_provider(http, keys, &args, &inputs, clock, emitter, started).await?;
     let ProviderBatch {
         images,
         usage,
@@ -221,6 +225,7 @@ where
         fs,
         boundary,
         &args,
+        &inputs,
         &saved,
         usage,
         cost_usd,
@@ -288,6 +293,7 @@ async fn write_manifest<F, Em>(
     fs: &F,
     boundary: &FsBoundary,
     args: &ImageArgs,
+    inputs: &[types::InputImage],
     saved: &[SavedImage],
     usage: types::Usage,
     cost_usd: Option<f64>,
@@ -308,6 +314,7 @@ where
     }
     let document = manifest::build(
         args,
+        inputs,
         saved,
         usage,
         cost_usd,
@@ -430,11 +437,78 @@ enum Wire<'k> {
     },
 }
 
-/// Dispatch to the provider adapter — the wiring/credential gate.
+/// The largest edit input we read — the `OpenAI` JSON data-URL ceiling,
+/// held portably (bigger inputs get a clear `-001`, not a silent OOM).
+const MAX_INPUT_BYTES: u64 = 20 * 1024 * 1024;
+
+/// Read + permit-gate the `mode: edit` source images (and mask). Each path
+/// is enforced against `permits.fs` for READ before any byte is read (the
+/// exact mirror of the save-side `FsAccess::Write` gate · NIKA-SEC-004),
+/// capped, and magic-byte-sniffed — a non-image input is a hard -001.
+/// Generate mode reads nothing.
+async fn read_edit_inputs<F, Em>(
+    fs: &F,
+    boundary: &FsBoundary,
+    args: &ImageArgs,
+    emitter: &Em,
+) -> Result<Vec<types::InputImage>, BuiltinFailure>
+where
+    F: FsReadDyn + FsWriteDyn,
+    Em: Emitter,
+{
+    if args.mode != types::Mode::Edit {
+        return Ok(Vec::new());
+    }
+    let paths: Vec<&str> = args
+        .input_paths
+        .iter()
+        .map(String::as_str)
+        .chain(args.mask_path.as_deref())
+        .collect();
+    let mut inputs = Vec::with_capacity(args.input_paths.len());
+    for (i, path) in paths.iter().enumerate() {
+        boundary.enforce(fs, path, FsAccess::Read).await?;
+        let bytes = fs.read(std::path::Path::new(path)).await.map_err(|e| {
+            BuiltinFailure::new(
+                types::C_ARGS,
+                format!("edit input `{path}` could not be read: {e}"),
+            )
+        })?;
+        if bytes.len() as u64 > MAX_INPUT_BYTES {
+            return Err(BuiltinFailure::new(
+                types::C_ARGS,
+                format!(
+                    "edit input `{path}` is {} bytes — the cap is {MAX_INPUT_BYTES} \
+                     (~20MB · downscale it first)",
+                    bytes.len()
+                ),
+            ));
+        }
+        let sniffed = sniff::sniff(&bytes).map_err(|_| {
+            BuiltinFailure::new(
+                types::C_ARGS,
+                format!("edit input `{path}` is not a PNG/JPEG/WebP image"),
+            )
+        })?;
+        emitter.emit(
+            "image_generation.input_read",
+            serde_json::json!({ "path": path, "bytes": bytes.len(),
+                "role": if args.mask_path.is_some() && i + 1 == paths.len() { "mask" } else { "source" } }),
+        );
+        inputs.push(types::InputImage {
+            path: (*path).to_owned(),
+            sha256: save::sha256_hex(&bytes),
+            format: sniffed.format,
+        });
+    }
+    Ok(inputs)
+}
+
 async fn call_provider<H, C, Em>(
     http: Option<&H>,
     keys: &ImageKeys,
     args: &ImageArgs,
+    inputs: &[types::InputImage],
     clock: &C,
     emitter: &Em,
     started: std::time::Instant,
@@ -445,7 +519,7 @@ where
     Em: Emitter,
 {
     let (endpoint_host, wire) = match args.provider {
-        Provider::Mock => return mock::generate(args),
+        Provider::Mock => return mock::generate(args, inputs),
         Provider::Openai => (
             "api.openai.com".to_owned(),
             Wire::Openai(keys.openai.as_ref().ok_or_else(|| {

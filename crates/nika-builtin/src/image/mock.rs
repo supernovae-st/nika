@@ -22,9 +22,21 @@ use crate::media::png::crc32;
 const MOCK_MAX_EDGE: u32 = 2_048;
 
 /// Run the mock provider for a parsed request.
-pub(crate) fn generate(args: &ImageArgs) -> Result<ProviderBatch, BuiltinFailure> {
+pub(crate) fn generate(
+    args: &ImageArgs,
+    inputs: &[super::types::InputImage],
+) -> Result<ProviderBatch, BuiltinFailure> {
     let (width, height) = dimensions(&args.size)?;
     let mut warnings = Vec::new();
+    // In edit mode the render seeds from the FIRST input's hash so the
+    // output visibly + deterministically DERIVES from the source (a real,
+    // decodable, byte-stable "edit" — the mock's honesty contract).
+    let edit_seed: Option<i64> = inputs.first().map(|img| {
+        img.sha256.bytes().take(8).fold(0i64, |acc, b| {
+            acc.wrapping_mul(31).wrapping_add(i64::from(b))
+        })
+    });
+    let render_seed = edit_seed.or(args.seed);
     if args.format != ImageFormat::Png {
         warnings.push(format!(
             "mock_format: the mock provider always renders png — requested `{}` \
@@ -34,7 +46,7 @@ pub(crate) fn generate(args: &ImageArgs) -> Result<ProviderBatch, BuiltinFailure
     }
     let mut images = Vec::with_capacity(args.n as usize);
     for index in 0..args.n {
-        let bytes = render_png(width, height, &args.prompt, args.seed, index);
+        let bytes = render_png(width, height, &args.prompt, render_seed, index);
         images.push(RawImage {
             bytes,
             revised_prompt: None,
@@ -235,7 +247,7 @@ mod tests {
         // Decoded by the independent `png` crate (dev-dep) — proves the
         // hand-rolled encoder produces a spec-valid file, not just bytes
         // our own sniffer accepts.
-        let batch = generate(&parsed(serde_json::json!({ "size": "64x48" }))).expect("mock");
+        let batch = generate(&parsed(serde_json::json!({ "size": "64x48" })), &[]).expect("mock");
         let bytes = &batch.images[0].bytes;
         let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
         let mut reader = decoder.read_info().expect("valid PNG header");
@@ -252,19 +264,30 @@ mod tests {
 
     #[test]
     fn mock_is_byte_deterministic_and_seed_index_sensitive() {
-        let a1 =
-            generate(&parsed(serde_json::json!({ "seed": 7, "size": "32x32" }))).expect("mock");
-        let a2 =
-            generate(&parsed(serde_json::json!({ "seed": 7, "size": "32x32" }))).expect("mock");
+        let a1 = generate(
+            &parsed(serde_json::json!({ "seed": 7, "size": "32x32" })),
+            &[],
+        )
+        .expect("mock");
+        let a2 = generate(
+            &parsed(serde_json::json!({ "seed": 7, "size": "32x32" })),
+            &[],
+        )
+        .expect("mock");
         assert_eq!(
             a1.images[0].bytes, a2.images[0].bytes,
             "same inputs → same bytes"
         );
-        let b = generate(&parsed(serde_json::json!({ "seed": 8, "size": "32x32" }))).expect("mock");
+        let b = generate(
+            &parsed(serde_json::json!({ "seed": 8, "size": "32x32" })),
+            &[],
+        )
+        .expect("mock");
         assert_ne!(a1.images[0].bytes, b.images[0].bytes, "seed varies content");
-        let two = generate(&parsed(
-            serde_json::json!({ "seed": 7, "n": 2, "size": "32x32" }),
-        ))
+        let two = generate(
+            &parsed(serde_json::json!({ "seed": 7, "n": 2, "size": "32x32" })),
+            &[],
+        )
         .expect("mock");
         assert_eq!(two.images.len(), 2);
         assert_ne!(
@@ -275,16 +298,17 @@ mod tests {
 
     #[test]
     fn mock_size_policy_auto_aspect_exact_and_cap() {
-        let auto = generate(&parsed(serde_json::json!({}))).expect("mock");
+        let auto = generate(&parsed(serde_json::json!({})), &[]).expect("mock");
         let s = sniff(&auto.images[0].bytes).expect("sniffs");
         assert_eq!((s.width, s.height), (256, 256));
-        let wide = generate(&parsed(serde_json::json!({ "aspect_ratio": "16:9" }))).expect("mock");
+        let wide =
+            generate(&parsed(serde_json::json!({ "aspect_ratio": "16:9" })), &[]).expect("mock");
         let s = sniff(&wide.images[0].bytes).expect("sniffs");
         assert_eq!((s.width, s.height), (448, 252));
-        let exact = generate(&parsed(serde_json::json!({ "size": "100x40" }))).expect("mock");
+        let exact = generate(&parsed(serde_json::json!({ "size": "100x40" })), &[]).expect("mock");
         let s = sniff(&exact.images[0].bytes).expect("sniffs");
         assert_eq!((s.width, s.height), (100, 40));
-        let over = generate(&parsed(serde_json::json!({ "size": "4096x4096" })));
+        let over = generate(&parsed(serde_json::json!({ "size": "4096x4096" })), &[]);
         assert!(
             matches!(over, Err(ref f) if f.code == C_ARGS && f.message.contains("2048")),
             "{over:?}"
@@ -293,7 +317,7 @@ mod tests {
 
     #[test]
     fn mock_warns_on_non_png_format_and_reports_deterministic_usage() {
-        let batch = generate(&parsed(serde_json::json!({ "format": "webp" }))).expect("mock");
+        let batch = generate(&parsed(serde_json::json!({ "format": "webp" })), &[]).expect("mock");
         assert!(
             batch.warnings.iter().any(|w| w.starts_with("mock_format:")),
             "{:?}",
@@ -310,9 +334,9 @@ mod tests {
 
     #[test]
     fn mock_debug_carries_a_sanitized_raw_and_default_does_not() {
-        let quiet = generate(&parsed(serde_json::json!({}))).expect("mock");
+        let quiet = generate(&parsed(serde_json::json!({})), &[]).expect("mock");
         assert!(quiet.raw_debug.is_none());
-        let debug = generate(&parsed(serde_json::json!({ "debug": true }))).expect("mock");
+        let debug = generate(&parsed(serde_json::json!({ "debug": true })), &[]).expect("mock");
         let raw = debug.raw_debug.expect("debug raw");
         assert_eq!(raw["mock"], true);
     }
@@ -321,7 +345,7 @@ mod tests {
     fn zlib_stored_spans_multiple_blocks_past_64k() {
         // A 200x120 RGB raw stream is ~72KB → 2 stored blocks; the PNG
         // still decodes (the block-chaining path, not just the small case).
-        let batch = generate(&parsed(serde_json::json!({ "size": "200x120" }))).expect("mock");
+        let batch = generate(&parsed(serde_json::json!({ "size": "200x120" })), &[]).expect("mock");
         let bytes = &batch.images[0].bytes;
         let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
         let mut reader = decoder.read_info().expect("valid");

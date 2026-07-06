@@ -491,7 +491,7 @@ mod tests {
             .expect("object"),
         )
         .expect("valid");
-        let batch = super::super::mock::generate(&mock_args).expect("mock png");
+        let batch = super::super::mock::generate(&mock_args, &[]).expect("mock png");
         let bytes = batch.images.into_iter().next().expect("one").bytes;
         (crate::data::base64_encode(&bytes), bytes)
     }
