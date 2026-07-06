@@ -179,6 +179,12 @@ The full gallery (27 workflows + 6 templates) lives in
 [`examples/`](examples/): foundation patterns, business showcases, and the
 skeletons `nika new --from <template>` instantiates.
 
+Shared workflows live on [**nika-registry**](https://github.com/supernovae-st/nika-registry) —
+every entry pinned to a full commit + sha256 and re-proven by CI (the
+conformance oracle + this engine's static certificate: exec · tools ·
+cost, visible before anything runs). `nika add` is on the roadmap; today
+the registry's `get.py` does resolve → verify → audit in one command.
+
 ## The model
 
 Four verbs, and nothing else. A small core that composes into arbitrary
