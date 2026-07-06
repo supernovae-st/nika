@@ -435,12 +435,15 @@ fn ping_addr(url: &str) -> Option<String> {
 /// expiry the port is reported unreachable and the worker is left to
 /// finish in the background (a one-shot diagnostic can afford one
 /// parked thread; it exits with the process).
-fn tcp_ping(addr: &str, timeout: Duration) -> PingState {
-    let started = Instant::now();
+/// Launch one probe worker; the caller awaits the returned channel —
+/// [`collect_local_pings`] starts EVERY probe first and then collects
+/// against one shared deadline, so seven surfaces answer in ~one cap
+/// total instead of seven caps end to end.
+fn spawn_ping(addr: &str, timeout: Duration) -> std::sync::mpsc::Receiver<bool> {
     let (tx, rx) = std::sync::mpsc::channel();
     let addr = addr.to_owned();
     // Doctor is a synchronous one-shot diagnostic (no tokio runtime on this
-    // path); one plain worker thread is the whole async story here.
+    // path); plain worker threads are the whole async story here.
     #[allow(clippy::disallowed_methods)]
     std::thread::spawn(move || {
         // A dropped receiver (cap expired) makes every send a no-op.
@@ -451,10 +454,7 @@ fn tcp_ping(addr: &str, timeout: Duration) -> PingState {
             .is_some_and(|sock| TcpStream::connect_timeout(&sock, timeout).is_ok());
         let _ = tx.send(reachable);
     });
-    match rx.recv_timeout(timeout) {
-        Ok(true) => PingState::Reachable(u64::try_from(started.elapsed().as_millis()).unwrap_or(0)),
-        _ => PingState::Unreachable,
-    }
+    rx
 }
 
 /// `--ping` collection · the LOCAL surfaces only (infer locals + the media
@@ -465,21 +465,41 @@ fn collect_local_pings(
     tts_url: Option<&str>,
 ) -> Vec<(String, String, PingState)> {
     const CAP: Duration = Duration::from_millis(300);
-    let mut out = Vec::new();
+    // Start every probe first, then collect against ONE shared deadline:
+    // the whole sweep answers in ~CAP total (results stay surface-ordered)
+    // instead of paying the cap once per dead port.
+    let mut pending = Vec::new();
     for p in registry.profiles() {
         if p.requires_key || p.id == "mock" {
             continue;
         }
         if let Some(addr) = ping_addr(p.base_url) {
-            out.push((p.id.to_owned(), addr.clone(), tcp_ping(&addr, CAP)));
+            let rx = spawn_ping(&addr, CAP);
+            pending.push((p.id.to_owned(), addr, rx));
         }
     }
     for (id, url) in [("image-local", image_url), ("tts-local", tts_url)] {
         if let Some(addr) = url.and_then(ping_addr) {
-            out.push((id.to_owned(), addr.clone(), tcp_ping(&addr, CAP)));
+            let rx = spawn_ping(&addr, CAP);
+            pending.push((id.to_owned(), addr, rx));
         }
     }
-    out
+
+    let started = Instant::now();
+    let deadline = started + CAP;
+    pending
+        .into_iter()
+        .map(|(id, addr, rx)| {
+            let budget = deadline.saturating_duration_since(Instant::now());
+            let state = match rx.recv_timeout(budget) {
+                Ok(true) => {
+                    PingState::Reachable(u64::try_from(started.elapsed().as_millis()).unwrap_or(0))
+                }
+                _ => PingState::Unreachable,
+            };
+            (id, addr, state)
+        })
+        .collect()
 }
 
 /// Build the real probe from the environment (PRESENCE-only key checks · the
@@ -962,12 +982,21 @@ mod tests {
         assert_eq!(ping_addr("http://"), None);
     }
 
+    /// The single-probe composition the parallel collector applies per
+    /// surface — kept here so the probe contract stays directly tested.
+    fn ping_once(addr: &str, timeout: Duration) -> PingState {
+        match spawn_ping(addr, timeout).recv_timeout(timeout) {
+            Ok(true) => PingState::Reachable(0),
+            _ => PingState::Unreachable,
+        }
+    }
+
     #[test]
     fn tcp_ping_reachable_and_unreachable() {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
         let addr = listener.local_addr().expect("addr").to_string();
         assert!(matches!(
-            tcp_ping(&addr, Duration::from_millis(300)),
+            ping_once(&addr, Duration::from_millis(300)),
             PingState::Reachable(_)
         ));
         // Bind then drop → the port is free again: nothing listens on it.
@@ -976,11 +1005,11 @@ mod tests {
             l.local_addr().expect("addr").to_string()
         };
         assert_eq!(
-            tcp_ping(&closed, Duration::from_millis(300)),
+            ping_once(&closed, Duration::from_millis(300)),
             PingState::Unreachable
         );
         assert_eq!(
-            tcp_ping("not-an-addr", Duration::from_millis(300)),
+            ping_once("not-an-addr", Duration::from_millis(300)),
             PingState::Unreachable
         );
     }
