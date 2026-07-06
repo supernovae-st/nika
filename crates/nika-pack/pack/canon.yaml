@@ -58,6 +58,9 @@ counts:
   diamond_layers: 7
   steal_pattern_tiers: 4
   severity: 4
+  # ---- extended 2026-07-06 · the MCP oracle surface
+  mcp_tools: 8
+  mcp_protocol_versions: 5
 
 # ---------------------------------------------------------------- verbs
 # D-2026-05-22-N18 · "the count is 4, absolute · immutable forever".
@@ -89,7 +92,7 @@ namespaces:
 
 # ---------------------------------------------------------------- builtins
 # Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-093 · agent-loop self-check intrinsic, loop-only like done) → 24 (image_generate added 2026-07-05 · the first stdlib §Media graduate · openai/gemini/mock · assets land on disk, never inline) → 25 (tts_generate added 2026-07-05 · §Audio · local/openai/elevenlabs/mock · sovereign-first).
-# stdlib/builtins-v0.1.md is the prose home (matches at 24 · cascade complete 2026-07-05 · image providers v1.1 local-first + xai same day).
+# stdlib/builtins-v0.1.md is the prose home (matches at 25 · cascade complete 2026-07-06 · image providers v1.1 local-first + xai · tts_generate §Audio same arc).
 # Admission test · 3 razors · (1) NOT-expressible-in-jq+CEL+Schema · (2) canonical
 # interop format (RFC-6902/7396/9562 · etc.) · (3) cookbook-clarity.
 builtins:
@@ -338,6 +341,36 @@ severity:
   count: 4
   reference: studio-internal
   items: [BLOCKER, HIGH, MED, LOW]
+
+# ---------------------------------------------------------------- mcp
+# The in-binary MCP server surface (`nika mcp` · read-only oracle). Tools and
+# protocol revisions are ENGINE-VERIFIED facts (crates/nika-mcp · protocol.rs
+# SUPPORTED array + tools.rs registry) — projected, never hand-typed (the
+# 2026-07-06 audit found the two-tool framing fossilized on four satellite
+# surfaces while the engine served eight).
+mcp:
+  tools:
+    count: 8
+    reference: crates/nika-mcp/src/tools.rs
+    items:
+      - nika_check
+      - nika_explain
+      - nika_schema
+      - nika_examples
+      - nika_template
+      - nika_canon
+      - nika_catalog
+      - nika_tools
+  protocol_versions:
+    count: 5
+    latest: "2026-07-28"
+    reference: crates/nika-mcp/src/protocol.rs
+    items:
+      - "2026-07-28"
+      - "2025-11-25"
+      - "2025-06-18"
+      - "2025-03-26"
+      - "2024-11-05"
 
 # ---------------------------------------------------------------- canonical phrasing
 # F2 one-voice registry (2026-06-10 night arc · B1) · the LOAD-BEARING sentences

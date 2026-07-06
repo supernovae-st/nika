@@ -11,14 +11,14 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See ADR-022.
 
 [dependencies]
-nika-schema = { path = "../nika-schema", version = "0.93.1" }  # parse + the ADR-092 check ladder (the `nika_check` tool)
-nika-error  = { path = "../nika-error", version = "0.93.1" }   # code_help/lookup — numeric registry (the `nika_explain` tool)
-nika-pack   = { path = "../nika-pack", version = "0.93.1" }    # embedded canon error_codes — the spec codes (NIKA-VAR-* · NIKA-DAG-* …)
+nika-schema = { path = "../nika-schema", version = "0.94.0" }  # parse + the ADR-092 check ladder (the `nika_check` tool)
+nika-error  = { path = "../nika-error", version = "0.94.0" }   # code_help/lookup — numeric registry (the `nika_explain` tool)
+nika-pack   = { path = "../nika-pack", version = "0.94.0" }    # embedded canon error_codes — the spec codes (NIKA-VAR-* · NIKA-DAG-* …)
 # The embedded knowledge payloads (`nika_catalog` · `nika_tools`) — the SAME
 # versioned projections `nika catalog|tools --json` emit (one builder per
 # owning crate · zero duplication). L4→L0 / L4→L1.5, strictly downward.
-nika-catalog = { path = "../nika-catalog", version = "0.93.1", default-features = false, features = ["serde", "capabilities"] }
-nika-builtin = { path = "../nika-builtin", version = "0.93.1" }
+nika-catalog = { path = "../nika-catalog", version = "0.94.0", default-features = false, features = ["serde", "capabilities"] }
+nika-builtin = { path = "../nika-builtin", version = "0.94.0" }
 
 serde_json  = { workspace = true }   # JSON-RPC 2.0 messages (the only wire format · no SDK)
 thiserror   = { workspace = true }   # the transport error enum
