@@ -7,9 +7,11 @@
 //! COMMAND, never mutates PATH / shell / config (`--fix` is refused v1 · spec
 //! §8). Provider keys are checked PRESENT-NOT-PRINTED — only `is_set` is
 //! observed, the value is never bound into a variable, so no secret can reach
-//! stdout / stderr / a trace (alignment Rule 1). No network, no phone-home: v1
-//! does NOT ping providers (it cannot confirm a local server is up without a
-//! probe), it reports the configured surface and prints the fix.
+//! stdout / stderr / a trace (alignment Rule 1). No network BY DEFAULT, no
+//! phone-home ever: the base run reports the configured surface and prints
+//! the fix. `--ping` (opt-in) TCP-probes the LOCAL provider ports only —
+//! loopback defaults or the operator's own `NIKA_*_LOCAL_URL` — never a
+//! vendor endpoint, never a request body, 300ms cap per port.
 //!
 //! Exit · `0` (a diagnosis is informational) · `3` (ENV · spec §4) only when
 //! there is NO inference path at all (zero cloud keys present AND zero local
@@ -18,7 +20,9 @@
 //! `✖`: with no workflow in hand `doctor` cannot know which provider you need.
 
 use std::fmt::Write as _;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use nika_providers::{ProviderRegistry, ProvidersConfig};
 use serde_json::Value;
@@ -44,6 +48,16 @@ impl Level {
             Self::Fail => '✖',
         }
     }
+}
+
+/// One `--ping` observation · a local port either answered a TCP connect
+/// within the cap or it did not (no request is ever sent on the socket).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PingState {
+    /// The port accepted the connection (round-trip in ms).
+    Reachable(u64),
+    /// Nothing listening (or slower than the 300ms cap).
+    Unreachable,
 }
 
 /// One diagnosis line · a problem carries the exact PRINTED fix (never run).
@@ -78,6 +92,9 @@ pub(crate) struct Probe {
     pub image: ImageProbe,
     /// The `nika:tts_generate` plane — key/URL PRESENCE only.
     pub tts: TtsProbe,
+    /// `--ping` observations per local surface (empty = not requested ·
+    /// the default run stays fully offline).
+    pub local_pings: Vec<(String, String, PingState)>,
 }
 
 /// The TTS-plane environment facts (presence only, never values).
@@ -146,7 +163,8 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
     out.push(Finding {
         level: Level::Ok,
         label: "mcp".to_owned(),
-        detail: "available via `nika mcp` (read-only tools: nika_check · nika_explain)".to_owned(),
+        detail: "available via `nika mcp` (8 read-only tools · nika_check through nika_tools)"
+            .to_owned(),
         fix: None,
     });
 
@@ -178,17 +196,9 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
     }
 
     if !local_ids.is_empty() {
-        out.push(Finding {
-            level: Level::Ok,
-            label: "local".to_owned(),
-            detail: format!(
-                "{} provider(s) ({}) — no key · needs a running server (doctor does not ping · v1)",
-                local_ids.len(),
-                local_ids.join(" · ")
-            ),
-            fix: None,
-        });
+        out.push(local_finding(&local_ids, !probe.local_pings.is_empty()));
     }
+    out.extend(probe.local_pings.iter().map(ping_finding));
 
     out.push(image_finding(&probe.image));
     out.push(tts_finding(&probe.tts));
@@ -342,10 +352,105 @@ pub(crate) fn render(findings: &[Finding]) -> String {
     s
 }
 
+/// The local-providers summary line · unpinged runs hand off to `--ping`.
+fn local_finding(local_ids: &[&str], pinged: bool) -> Finding {
+    Finding {
+        level: Level::Ok,
+        label: "local".to_owned(),
+        detail: format!(
+            "{} provider(s) ({}) — no key · needs a running server",
+            local_ids.len(),
+            local_ids.join(" · ")
+        ),
+        fix: (!pinged)
+            .then(|| "nika doctor --ping   # probe the local ports (offline otherwise)".to_owned()),
+    }
+}
+
+/// One rendered `--ping` line (✔ listening · ⚠ nothing there).
+fn ping_finding((id, addr, state): &(String, String, PingState)) -> Finding {
+    match state {
+        PingState::Reachable(ms) => Finding {
+            level: Level::Ok,
+            label: "ping".to_owned(),
+            detail: format!("{id} — listening on {addr} ({ms}ms)"),
+            fix: None,
+        },
+        PingState::Unreachable => Finding {
+            level: Level::Warn,
+            label: "ping".to_owned(),
+            detail: format!("{id} — nothing listening on {addr}"),
+            fix: None,
+        },
+    }
+}
+
+/// `host:port` extracted from a base URL, for a connect-only probe.
+/// No URL crate: scheme-strip, authority up to the first `/`, default
+/// port per scheme. `None` = unparseable (probed as unreachable).
+fn ping_addr(url: &str) -> Option<String> {
+    let (default_port, rest) = if let Some(r) = url.strip_prefix("https://") {
+        ("443", r)
+    } else if let Some(r) = url.strip_prefix("http://") {
+        ("80", r)
+    } else {
+        return None;
+    };
+    let authority = rest.split('/').next().unwrap_or_default();
+    if authority.is_empty() {
+        return None;
+    }
+    if authority.contains(':') {
+        Some(authority.to_owned())
+    } else {
+        Some(format!("{authority}:{default_port}"))
+    }
+}
+
+/// Connect-only TCP probe (nothing is ever written on the socket).
+fn tcp_ping(addr: &str, timeout: Duration) -> PingState {
+    let started = Instant::now();
+    let Ok(mut candidates) = addr.to_socket_addrs() else {
+        return PingState::Unreachable;
+    };
+    let Some(sock) = candidates.next() else {
+        return PingState::Unreachable;
+    };
+    match TcpStream::connect_timeout(&sock, timeout) {
+        Ok(_) => PingState::Reachable(u64::try_from(started.elapsed().as_millis()).unwrap_or(0)),
+        Err(_) => PingState::Unreachable,
+    }
+}
+
+/// `--ping` collection · the LOCAL surfaces only (infer locals + the media
+/// planes when their URL is configured) · 300ms cap per port.
+fn collect_local_pings(
+    registry: &ProviderRegistry,
+    image_url: Option<&str>,
+    tts_url: Option<&str>,
+) -> Vec<(String, String, PingState)> {
+    const CAP: Duration = Duration::from_millis(300);
+    let mut out = Vec::new();
+    for p in registry.profiles() {
+        if p.requires_key || p.id == "mock" {
+            continue;
+        }
+        if let Some(addr) = ping_addr(p.base_url) {
+            out.push((p.id.to_owned(), addr.clone(), tcp_ping(&addr, CAP)));
+        }
+    }
+    for (id, url) in [("image-local", image_url), ("tts-local", tts_url)] {
+        if let Some(addr) = url.and_then(ping_addr) {
+            out.push((id.to_owned(), addr.clone(), tcp_ping(&addr, CAP)));
+        }
+    }
+    out
+}
+
 /// Build the real probe from the environment (PRESENCE-only key checks · the
 /// value is never bound) + the canonical provider catalog, then diagnose.
 #[must_use]
-pub fn run() -> VerbOutput {
+pub fn run(ping: bool) -> VerbOutput {
     let registry = ProviderRegistry::without_http(ProvidersConfig::new());
     let providers = registry
         .profiles()
@@ -392,6 +497,20 @@ pub fn run() -> VerbOutput {
             #[allow(clippy::disallowed_methods)] // presence+value of a NON-secret config var
             local_url: std::env::var("NIKA_TTS_LOCAL_URL").ok().filter(|u| !u.is_empty()),
         },
+        local_pings: Vec::new(),
+    };
+    let probe = if ping {
+        let local_pings = collect_local_pings(
+            &registry,
+            probe.image.local_url.as_deref(),
+            probe.tts.local_url.as_deref(),
+        );
+        Probe {
+            local_pings,
+            ..probe
+        }
+    } else {
+        probe
     };
     let findings = diagnose(&probe);
     let code = exit_code(&findings);
@@ -559,6 +678,7 @@ mod tests {
             clients: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
+            local_pings: Vec::new(),
         };
         let f = diagnose(&probe);
         let prov = f
@@ -584,6 +704,7 @@ mod tests {
             clients: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
+            local_pings: Vec::new(),
         };
         let f = diagnose(&probe);
         let prov = f
@@ -614,6 +735,7 @@ mod tests {
             clients: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
+            local_pings: Vec::new(),
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("OPENAI_API_KEY"), "names the var: {text}");
@@ -634,6 +756,7 @@ mod tests {
             clients: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
+            local_pings: Vec::new(),
         };
         let f = diagnose(&probe);
         assert!(f.iter().any(|f| f.level == Level::Fail));
@@ -649,6 +772,7 @@ mod tests {
             clients: vec![],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
+            local_pings: Vec::new(),
         };
         let f = diagnose(&probe);
         let loc = f.iter().find(|f| f.label == "local").expect("local line");
@@ -681,6 +805,7 @@ mod tests {
             }],
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
+            local_pings: Vec::new(),
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("stale MCP args"), "{text}");
@@ -720,7 +845,8 @@ mod tests {
     fn the_real_catalog_has_no_fail_and_renders() {
         // The wired run() over the canonical catalog: local providers exist, so
         // there is never a hard Fail (exit 0) even with no keys in the test env.
-        let out = run();
+        // ping=false — the default run stays fully offline, in tests too.
+        let out = run(false);
         assert_eq!(out.code, exit::OK, "the catalog always offers a path");
         assert!(out.text.contains("binary"), "renders the binary line");
         // The LLM test backend stays hidden (no `mock — key` provider row);
@@ -784,5 +910,98 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("temp dir");
         dir
+    }
+
+    #[test]
+    fn ping_addr_extracts_authority_and_defaults_ports() {
+        assert_eq!(
+            ping_addr("http://127.0.0.1:11434/v1/chat/completions").as_deref(),
+            Some("127.0.0.1:11434")
+        );
+        assert_eq!(
+            ping_addr("https://example.test/v1").as_deref(),
+            Some("example.test:443")
+        );
+        assert_eq!(ping_addr("http://host/v1").as_deref(), Some("host:80"));
+        assert_eq!(ping_addr("ftp://x"), None);
+        assert_eq!(ping_addr("http://"), None);
+    }
+
+    #[test]
+    fn tcp_ping_reachable_and_unreachable() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("addr").to_string();
+        assert!(matches!(
+            tcp_ping(&addr, Duration::from_millis(300)),
+            PingState::Reachable(_)
+        ));
+        // Bind then drop → the port is free again: nothing listens on it.
+        let closed = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+            l.local_addr().expect("addr").to_string()
+        };
+        assert_eq!(
+            tcp_ping(&closed, Duration::from_millis(300)),
+            PingState::Unreachable
+        );
+        assert_eq!(
+            tcp_ping("not-an-addr", Duration::from_millis(300)),
+            PingState::Unreachable
+        );
+    }
+
+    #[test]
+    fn local_line_hands_off_to_ping_and_ping_lines_render() {
+        let base = Probe {
+            version: "0.0.0".to_owned(),
+            config_path: None,
+            providers: vec![ProviderProbe {
+                id: "ollama".to_owned(),
+                requires_key: false,
+                key_present: false,
+                fix_var: String::new(),
+            }],
+            clients: Vec::new(),
+            image: ImageProbe::default(),
+            tts: TtsProbe::default(),
+            local_pings: Vec::new(),
+        };
+        let findings = diagnose(&base);
+        let local = findings
+            .iter()
+            .find(|f| f.label == "local")
+            .expect("local line");
+        assert!(
+            local.fix.as_deref().is_some_and(|f| f.contains("--ping")),
+            "unpinged run must hand off to --ping"
+        );
+
+        let pinged = Probe {
+            local_pings: vec![
+                (
+                    "ollama".to_owned(),
+                    "127.0.0.1:11434".to_owned(),
+                    PingState::Reachable(3),
+                ),
+                (
+                    "vllm".to_owned(),
+                    "127.0.0.1:8000".to_owned(),
+                    PingState::Unreachable,
+                ),
+            ],
+            ..base
+        };
+        let findings = diagnose(&pinged);
+        let pings: Vec<_> = findings.iter().filter(|f| f.label == "ping").collect();
+        assert_eq!(pings.len(), 2);
+        assert!(pings[0].detail.contains("listening on 127.0.0.1:11434"));
+        assert_eq!(pings[0].level, Level::Ok);
+        assert!(pings[1].detail.contains("nothing listening"));
+        assert_eq!(pings[1].level, Level::Warn);
+        let local = findings
+            .iter()
+            .find(|f| f.label == "local")
+            .expect("local line");
+        assert!(local.fix.is_none(), "pinged run drops the hand-off");
     }
 }
