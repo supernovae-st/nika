@@ -575,3 +575,105 @@ fn test_dash_is_refused_with_guidance() {
         "guidance: {err}"
     );
 }
+
+// ─── the agent surface, on the real binary ───────────────────────────────────
+// tools/list proves the CATALOG; these prove the DISPATCH — an agent's
+// actual round-trip: a typo'd workflow in, the did-you-mean out. And the
+// LSP's framed wire (Content-Length · the OTHER stdio protocol) end to end:
+// initialize → didOpen → published diagnostics → clean shutdown. Both were
+// proven by hand against the released 0.95.0 (2026-07-06 e2e sweep); these
+// pin that proof to every future binary.
+
+/// `tools/call nika_check` round-trips a typo'd workflow: the reply carries
+/// the did-you-mean (the fix an agent applies), and `isError` stays false —
+/// findings are CONTENT (the tool ran fine), not a tool failure.
+#[test]
+fn mcp_tools_call_check_carries_the_did_you_mean() {
+    use std::process::Stdio;
+    let mut child = bin()
+        .arg("mcp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn nika mcp");
+    {
+        let mut stdin = child.stdin.take().expect("stdin");
+        stdin
+            .write_all(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}\n")
+            .expect("write initialize");
+        let wf = "nika: v1\nworkflow: agent-authored\ntasks:\n  - id: log_it\n    invoke:\n      tool: \"nika:log\"\n      args:\n        mesage: \"typo'd by the agent\"\n";
+        let call = serde_json::json!({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": { "name": "nika_check", "arguments": { "workflow": wf } }
+        });
+        stdin
+            .write_all(format!("{call}\n").as_bytes())
+            .expect("write tools/call");
+    }
+    let out = child.wait_with_output().expect("wait");
+    assert!(out.status.success(), "clean EOF shutdown");
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    let reply = stdout
+        .lines()
+        .find(|l| l.contains("\"id\":2"))
+        .expect("tools/call reply");
+    let doc: serde_json::Value = serde_json::from_str(reply).expect("json reply");
+    assert_eq!(
+        doc["result"]["isError"], false,
+        "findings are content, not a tool failure: {reply}"
+    );
+    let text = doc["result"]["content"][0]["text"].as_str().expect("text");
+    assert!(
+        text.contains("mesage") && text.contains("message"),
+        "the did-you-mean rides the reply: {text}"
+    );
+}
+
+/// One LSP-framed message (`Content-Length` header + JSON body).
+fn lsp_frame(body: &serde_json::Value) -> Vec<u8> {
+    let b = body.to_string();
+    format!("Content-Length: {}\r\n\r\n{b}", b.len()).into_bytes()
+}
+
+/// `nika lsp` over real stdio: initialize advertises the v0.1 quartet,
+/// didOpen publishes diagnostics (hint-tier parity with `nika check`),
+/// and shutdown → exit ends the process with code 0.
+#[test]
+fn lsp_serves_initialize_diagnostics_and_clean_exit() {
+    use std::process::Stdio;
+    let mut child = bin()
+        .arg("lsp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn nika lsp");
+    {
+        let mut stdin = child.stdin.take().expect("stdin");
+        let msgs = [
+            serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize",
+                "params":{"processId":null,"rootUri":null,"capabilities":{}}}),
+            serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+            serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":"file:///t/probe.nika.yaml",
+                    "languageId":"nika","version":1,"text":VALID}}}),
+            serde_json::json!({"jsonrpc":"2.0","id":2,"method":"shutdown","params":null}),
+            serde_json::json!({"jsonrpc":"2.0","method":"exit"}),
+        ];
+        for m in &msgs {
+            stdin.write_all(&lsp_frame(m)).expect("write frame");
+        }
+    }
+    let out = child.wait_with_output().expect("wait");
+    assert_eq!(out.status.code(), Some(0), "shutdown → exit is code 0");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("\"hoverProvider\":true") && stdout.contains("completionProvider"),
+        "initialize advertises the surface: {stdout}"
+    );
+    assert!(
+        stdout.contains("textDocument/publishDiagnostics"),
+        "didOpen published diagnostics: {stdout}"
+    );
+}
