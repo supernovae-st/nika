@@ -176,14 +176,19 @@ fn task_spans(
         by_task.entry(task).or_default().push(e);
     }
 
+    let last_ns = events
+        .iter()
+        .map(|e| e.timestamp.unix_ns)
+        .max()
+        .unwrap_or(0);
     let mut spans = Vec::new();
     for task in order {
         let task_events = &by_task[task];
-        let Some(span) = one_task_span(task, task_events, trace_id, root_span_id, include_content)
-        else {
-            continue;
-        };
-        spans.push(span);
+        let span = one_task_span(task, task_events, trace_id, root_span_id, include_content)
+            .or_else(|| unfinished_task_span(task, task_events, trace_id, root_span_id, last_ns));
+        if let Some(span) = span {
+            spans.push(span);
+        }
     }
     spans
 }
@@ -211,8 +216,18 @@ fn one_task_span(
     // Identity anchors on the event that BEGAN the story (started ·
     // else the terminal itself for scheduled-only settles).
     let anchor = started.unwrap_or(terminal);
-    let start_ns = anchor.timestamp.unix_ns;
-    let end_ns = terminal.timestamp.unix_ns.max(start_ns + 1);
+    // The span WINDOW comes from `duration_ms`, not the frame gap: the
+    // runtime settles a task in one burst (started · retries · terminal
+    // share one stamp — measured 2ms apart on a 2009ms task), so the
+    // terminal is the settle instant and the measured duration walks
+    // backward from it. Frame-gap fallback for duration-less terminals
+    // (skip · cancel · cache-hit) — those genuinely take ~no time.
+    let end_ns = terminal.timestamp.unix_ns;
+    let start_ns = match field(terminal, "duration_ms") {
+        Some(FieldValue::Int(ms)) => end_ns.saturating_sub(ms.saturating_mul(1_000_000)),
+        _ => anchor.timestamp.unix_ns,
+    };
+    let end_ns = end_ns.max(start_ns + 1);
 
     let mut attributes = vec![kv_str("nika.task.id", task)];
     if let Some(note) = field_str(terminal, "note") {
@@ -258,24 +273,16 @@ fn one_task_span(
     if include_content && let Some(output) = field_str(terminal, "output") {
         attributes.push(kv_str("nika.task.output", output));
     }
+    // OBS-E non-fatal diagnostics ride the success frame — surface them.
+    if let Some(warning) = field_str(terminal, "warning") {
+        attributes.push(kv_str("nika.task.warning", warning));
+    }
 
-    // Retries ride as span events — the attempt story stays visible in
-    // any OTel viewer without inventing child spans the journal lacks.
-    let retry_events: Vec<serde_json::Value> = task_events
-        .iter()
-        .filter(|e| e.kind == EventKind::TaskRetrying)
-        .map(|e| {
-            let mut evt_attrs = Vec::new();
-            if let Some(detail) = field_str(e, "detail") {
-                evt_attrs.push(kv_str("nika.retry.detail", detail));
-            }
-            serde_json::json!({
-                "name": "retry",
-                "timeUnixNano": e.timestamp.unix_ns.to_string(),
-                "attributes": evt_attrs,
-            })
-        })
-        .collect();
+    // Retries and agent routing decisions ride as span events — the
+    // attempt story stays visible in any OTel viewer without inventing
+    // child spans the journal lacks. Retry frames carry the REAL fields
+    // (attempt · max_attempts · delay_ms — ints, settle-emitted).
+    let span_events = task_span_events(task_events);
 
     Some(serde_json::json!({
         "traceId": trace_id,
@@ -286,8 +293,71 @@ fn one_task_span(
         "startTimeUnixNano": start_ns.to_string(),
         "endTimeUnixNano": end_ns.to_string(),
         "attributes": attributes,
-        "events": retry_events,
+        "events": span_events,
         "status": status,
+    }))
+}
+
+/// The in-span story: retry frames (`attempt`/`max_attempts`/`delay_ms`)
+/// and agent routing decisions (`tools_selected` · offered/universe)
+/// become `OTel` span events, timestamped where the journal put them.
+fn task_span_events(task_events: &[&Event]) -> Vec<serde_json::Value> {
+    let mut out = Vec::new();
+    for e in task_events {
+        let (name, keys): (&str, &[&str]) = match e.kind {
+            EventKind::TaskRetrying => ("retry", &["attempt", "max_attempts", "delay_ms"]),
+            EventKind::AgentToolsSelected => ("tools_selected", &["turn", "offered", "universe"]),
+            EventKind::AgentStalled => ("agent_stalled", &["turn", "attempt"]),
+            EventKind::AgentNudge => ("agent_nudge", &["turn", "attempt"]),
+            _ => continue,
+        };
+        let mut attrs = Vec::new();
+        for key in keys {
+            if let Some(FieldValue::Int(v)) = field(e, key) {
+                attrs.push(kv_int(&format!("nika.{name}.{key}"), *v));
+            }
+        }
+        out.push(serde_json::json!({
+            "name": name,
+            "timeUnixNano": e.timestamp.unix_ns.to_string(),
+            "attributes": attrs,
+        }));
+    }
+    out
+}
+
+/// A task that STARTED but never settled (a pause gate holding it · a
+/// crash mid-flight) still deserves a span — Unset status, flagged, and
+/// ended at the journal's last breath so the trace stays renderable.
+fn unfinished_task_span(
+    task: &str,
+    task_events: &[&Event],
+    trace_id: &str,
+    root_span_id: &str,
+    last_ns: i64,
+) -> Option<serde_json::Value> {
+    let started = task_events
+        .iter()
+        .find(|e| e.kind == EventKind::TaskStarted)?;
+    let start_ns = started.timestamp.unix_ns;
+    let mut attributes = vec![
+        kv_str("nika.task.id", task),
+        kv_bool("nika.task.unfinished", true),
+    ];
+    if let Some(note) = field_str(started, "note") {
+        attributes.push(kv_str("nika.task.note", note));
+    }
+    Some(serde_json::json!({
+        "traceId": trace_id,
+        "spanId": span_id_of(started),
+        "parentSpanId": root_span_id,
+        "name": task,
+        "kind": 1,
+        "startTimeUnixNano": start_ns.to_string(),
+        "endTimeUnixNano": last_ns.max(start_ns + 1).to_string(),
+        "attributes": attributes,
+        "events": task_span_events(task_events),
+        "status": {},
     }))
 }
 
@@ -378,7 +448,12 @@ mod tests {
                 3,
                 1_500,
                 EventKind::TaskRetrying,
-                &[("task", s("fetch")), ("detail", s("NIKA-NET-020 · reset"))],
+                &[
+                    ("task", s("fetch")),
+                    ("attempt", FieldValue::Int(2)),
+                    ("max_attempts", FieldValue::Int(3)),
+                    ("delay_ms", FieldValue::Int(250)),
+                ],
             ),
             ev(
                 4,
@@ -387,6 +462,7 @@ mod tests {
                 &[
                     ("task", s("fetch")),
                     ("note", s("invoke · nika:fetch")),
+                    ("duration_ms", FieldValue::Int(900)),
                     ("cost_usd", FieldValue::Float(0.01)),
                     ("tokens", FieldValue::Int(42)),
                     ("output", s("{\"x\":1}")),
@@ -416,6 +492,12 @@ mod tests {
             ),
             ev(
                 8,
+                2_400,
+                EventKind::TaskStarted,
+                &[("task", s("held")), ("note", s("infer · gate"))],
+            ),
+            ev(
+                9,
                 3_000,
                 EventKind::WorkflowCompleted,
                 &[("workflow", s("demo"))],
@@ -467,6 +549,20 @@ mod tests {
         assert_eq!(attr(fetch, "nika.cost.usd").unwrap()["doubleValue"], 0.01);
         assert_eq!(attr(fetch, "nika.tokens").unwrap()["intValue"], "42");
         assert_eq!(fetch["events"][0]["name"], "retry");
+        assert_eq!(
+            fetch["events"][0]["attributes"][0]["key"], "nika.retry.attempt",
+            "retry events carry the REAL journal fields (attempt · ints)"
+        );
+        // The span WINDOW is duration_ms walked back from the settle —
+        // the runtime emits started+terminal in one burst, so the frame
+        // gap is ~0 and duration_ms is the only true width.
+        let f_start: i64 = fetch["startTimeUnixNano"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
+        let f_end: i64 = fetch["endTimeUnixNano"].as_str().unwrap().parse().unwrap();
+        assert_eq!(f_end - f_start, 900 * 1_000_000, "width = duration_ms");
         // Content stays OUT by default (Rule 1).
         assert!(attr(fetch, "nika.task.output").is_none());
 
@@ -494,6 +590,15 @@ mod tests {
             attr(cancelled, "nika.task.blocked_by").unwrap()["stringValue"],
             "gated"
         );
+
+        // A started-but-never-settled task (pause gate · crash) still
+        // renders: Unset status, flagged, ended at the journal's last ns.
+        let held = spans.iter().find(|sp| sp["name"] == "held").unwrap();
+        assert_eq!(
+            attr(held, "nika.task.unfinished").unwrap()["boolValue"],
+            true
+        );
+        assert_eq!(held["endTimeUnixNano"], "3000");
     }
 
     #[test]
