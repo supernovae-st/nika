@@ -33,6 +33,9 @@ pub(crate) struct ReplaySession {
     /// from the bytes the run executed (breakpoint lines may be off) ·
     /// None = the journal predates `workflow_sha256`.
     pub(crate) drifted: Option<bool>,
+    /// The chain check (P2): the journal fails verification — its
+    /// claims are unverified. False for intact/torn/unchained.
+    pub(crate) chain_broken: bool,
     /// `(task id, 1-based start line)` in document order.
     task_lines: Vec<(String, u32)>,
     pub(crate) stops: Vec<Stop>,
@@ -50,7 +53,15 @@ impl ReplaySession {
         let raw = std::fs::read_to_string(replay_path)
             .map_err(|e| format!("cannot read journal {replay_path}: {e}"))?;
         let recovered = super::super::run::recover_events(&raw, replay_path)?;
-        Self::from_parts(workflow_path, &yaml, &recovered.events)
+        let mut session = Self::from_parts(workflow_path, &yaml, &recovered.events)?;
+        // Verify before trusting: a broken chain replays (warn, never
+        // block — coherent with tamper-EVIDENT), but the debugger says
+        // so before the first stop.
+        session.chain_broken = matches!(
+            super::super::trace_verify::walk(&raw),
+            super::super::trace_verify::Verdict::Broken { .. }
+        );
+        Ok(session)
     }
 
     /// The #210 identity check against the CURRENT source bytes.
@@ -122,6 +133,7 @@ impl ReplaySession {
             workflow_path: workflow_path.to_owned(),
             workflow_name,
             drifted: Self::drift_of(yaml, events),
+            chain_broken: false,
             task_lines,
             stops,
             cursor: 0,
