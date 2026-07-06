@@ -232,8 +232,10 @@ enum Command {
         #[command(subcommand)]
         action: TraceAction,
     },
-    /// Debug Adapter Protocol server (stdio) — replay a recorded run
-    /// under a debugger UI (preview: handshake only, sessions land next).
+    /// Debug Adapter Protocol server (stdio) — time-travel a recorded
+    /// run under a debugger UI: breakpoints on task lines · step forward
+    /// AND back through settles · outputs in the variables pane. Replay
+    /// re-renders, never re-executes.
     Dap,
     /// Run the language server over stdio (drives the editor extension).
     Lsp,

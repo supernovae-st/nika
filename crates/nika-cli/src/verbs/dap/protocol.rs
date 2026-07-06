@@ -9,18 +9,23 @@
 //! Generic over `Read`/`Write` — the unit tests drive the exact bytes a
 //! VS Code client would send, no process spawn needed.
 
-use std::io::{BufRead, Write};
+use std::io::{BufRead, Read as _, Write};
 
 use serde::{Deserialize, Serialize};
 
 /// One incoming client message (the adapter only ever RECEIVES requests).
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct Request {
+    #[serde(default)]
     pub(crate) seq: i64,
     /// Always "request" from a conforming client — kept for the honest
     /// decode (a stray response/event is skipped, never a crash).
     #[serde(rename = "type")]
     pub(crate) kind: String,
+    /// Defaulted: events/responses carry no `command`, and they must
+    /// deserialize so the skip arm can drop them (a real stray event
+    /// killing the session was the M2 finding).
+    #[serde(default)]
     pub(crate) command: String,
     #[serde(default)]
     pub(crate) arguments: serde_json::Value,
@@ -51,6 +56,14 @@ pub(crate) struct EventMsg {
     #[serde(skip_serializing_if = "serde_json::Value::is_null")]
     pub(crate) body: serde_json::Value,
 }
+
+/// Frame-size ceiling — a malformed/hostile `Content-Length` ends the
+/// session instead of becoming an allocation.
+const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
+
+/// Header-line ceiling — a peer streaming bytes with no newline must
+/// not grow the line buffer unboundedly (`read_line` reads to \n).
+const MAX_HEADER_LINE: u64 = 8 * 1024;
 
 /// The wire: reads framed requests, writes framed responses/events,
 /// owns the outgoing `seq` counter.
@@ -90,8 +103,19 @@ impl<R: BufRead, W: Write> Wire<R, W> {
         let mut content_length: Option<usize> = None;
         loop {
             let mut line = String::new();
-            if self.reader.read_line(&mut line).ok()? == 0 {
+            // `take` bounds ONE line: a newline-less stream ends the
+            // session at the cap instead of growing the buffer.
+            let n = self
+                .reader
+                .by_ref()
+                .take(MAX_HEADER_LINE)
+                .read_line(&mut line)
+                .ok()?;
+            if n == 0 {
                 return None; // EOF
+            }
+            if n as u64 >= MAX_HEADER_LINE && !line.ends_with('\n') {
+                return None; // hostile: an unterminated header line
             }
             let line = line.trim_end();
             if line.is_empty() {
@@ -102,6 +126,11 @@ impl<R: BufRead, W: Write> Wire<R, W> {
             }
         }
         let len = content_length?;
+        // A hostile header (`Content-Length: 9e15`) must not become an
+        // allocation. Real DAP messages are KBs; 16 MiB is generous.
+        if len > MAX_FRAME_BYTES {
+            return None;
+        }
         let mut body = vec![0u8; len];
         self.reader.read_exact(&mut body).ok()?;
         Some(body)
@@ -215,9 +244,25 @@ mod tests {
     }
 
     #[test]
+    fn a_hostile_content_length_ends_the_session_not_the_memory() {
+        let hostile = b"Content-Length: 9999999999999
+
+"
+        .to_vec();
+        let mut out: Vec<u8> = Vec::new();
+        let mut wire = Wire::new(std::io::Cursor::new(hostile), &mut out);
+        assert!(
+            wire.read_request().is_none(),
+            "a frame beyond MAX_FRAME_BYTES is refused, never allocated"
+        );
+    }
+
+    #[test]
     fn non_request_frames_are_skipped() {
+        // A REAL stray event — no command field (the doctored fixture
+        // used to smuggle one in, masking the M2 session-kill).
         let mut input = frame(&serde_json::json!({
-            "seq": 9, "type": "event", "event": "echo", "command": "x"
+            "seq": 9, "type": "event", "event": "echo"
         }));
         input.extend(frame(&serde_json::json!({
             "seq": 3, "type": "request", "command": "threads"

@@ -42,20 +42,39 @@ fn serve<R: std::io::BufRead, W: std::io::Write>(mut wire: Wire<R, W>) -> u8 {
                         "supportsStepBack": true,
                     }),
                 );
-                wire.emit("initialized", serde_json::Value::Null);
+                // `initialized` waits for launch: the adapter is only
+                // ready for setBreakpoints once a session exists (a
+                // config-first client would lose its breakpoints to
+                // "before launch" rejections — the M1 finding).
             }
             "launch" => match launch(&req) {
                 Ok(s) => {
+                    // The #210 identity check speaks BEFORE the first stop:
+                    // a drifted source means snapped breakpoint lines may
+                    // not match what actually ran.
+                    if s.drifted == Some(true) {
+                        wire.emit(
+                            "output",
+                            serde_json::json!({
+                                "category": "console",
+                                "output": "⚠ workflow changed since this run was recorded — breakpoint lines may be off (re-run to refresh the journal)\n",
+                            }),
+                        );
+                    }
                     session = Some(s);
                     wire.respond(&req, serde_json::Value::Null);
+                    wire.emit("initialized", serde_json::Value::Null);
                 }
                 Err(e) => wire.reject(&req, &e),
             },
             "setBreakpoints" => set_breakpoints(&mut wire, session.as_mut(), &req),
             "configurationDone" => {
                 wire.respond(&req, serde_json::Value::Null);
-                // The replay opens standing on the first settle.
-                stopped(&mut wire, "entry");
+                // The replay opens standing on the first settle — but a
+                // failed launch must not announce a phantom stop.
+                if session.is_some() {
+                    stopped(&mut wire, "entry");
+                }
             }
             "threads" => {
                 let name = session
@@ -111,11 +130,33 @@ fn set_breakpoints<R: std::io::BufRead, W: std::io::Write>(
         wire.reject(req, "setBreakpoints before launch");
         return;
     };
+    // The session debugs ONE source: breakpoints from any other file
+    // must not clobber the set (VS Code sends one setBreakpoints per
+    // file — the H1 finding). Mismatch → all unverified, set untouched.
+    let requested = req.arguments["source"]["path"].as_str();
+    if let Some(path) = requested
+        && path != session.workflow_path
+    {
+        let n = req.arguments["breakpoints"].as_array().map_or(0, Vec::len);
+        let body: Vec<serde_json::Value> = (0..n)
+            .map(|_| {
+                serde_json::json!({
+                    "verified": false,
+                    "message": "Breakpoints only bind in the replayed workflow file.",
+                })
+            })
+            .collect();
+        wire.respond(req, serde_json::json!({ "breakpoints": body }));
+        return;
+    }
+    // `map`, never `filter_map`: the response array must stay 1:1 with
+    // the request (clients align by index — the L2 finding). A bad line
+    // becomes 0, which snaps to nothing → an honest unverified verdict.
     let lines: Vec<u32> = req.arguments["breakpoints"]
         .as_array()
         .map(|bps| {
             bps.iter()
-                .filter_map(|b| u32::try_from(b["line"].as_i64().unwrap_or(0)).ok())
+                .map(|b| u32::try_from(b["line"].as_i64().unwrap_or(0)).unwrap_or(0))
                 .collect()
         })
         .unwrap_or_default();
@@ -258,7 +299,10 @@ mod tests {
             req(2, "disconnect", &serde_json::Value::Null),
         ]);
         assert!(out.contains(r#""supportsStepBack":true"#));
-        assert!(out.contains(r#""event":"initialized""#));
+        // `initialized` waits for a session (M1): no launch → no event —
+        // a config-first client must never lose breakpoints to
+        // "before launch" rejections.
+        assert!(!out.contains(r#""event":"initialized""#));
         assert!(out.contains(r#""request_seq":2"#));
     }
 

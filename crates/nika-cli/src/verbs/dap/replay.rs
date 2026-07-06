@@ -29,6 +29,10 @@ pub(crate) struct ReplaySession {
     /// Client-side workflow path — every stack frame points here.
     pub(crate) workflow_path: String,
     pub(crate) workflow_name: String,
+    /// The #210 identity check: Some(true) = the CURRENT yaml differs
+    /// from the bytes the run executed (breakpoint lines may be off) ·
+    /// None = the journal predates `workflow_sha256`.
+    pub(crate) drifted: Option<bool>,
     /// `(task id, 1-based start line)` in document order.
     task_lines: Vec<(String, u32)>,
     pub(crate) stops: Vec<Stop>,
@@ -47,6 +51,15 @@ impl ReplaySession {
             .map_err(|e| format!("cannot read journal {replay_path}: {e}"))?;
         let recovered = super::super::run::recover_events(&raw, replay_path)?;
         Self::from_parts(workflow_path, &yaml, &recovered.events)
+    }
+
+    /// The #210 identity check against the CURRENT source bytes.
+    fn drift_of(yaml: &str, events: &[nika_event::Event]) -> Option<bool> {
+        let recorded = events
+            .iter()
+            .find(|e| e.kind == EventKind::WorkflowStarted)
+            .and_then(|e| field_str(e, "workflow_sha256"))?;
+        Some(super::super::run::sha256_hex(yaml.as_bytes()) != recorded)
     }
 
     /// The testable core: source text + folded events.
@@ -108,6 +121,7 @@ impl ReplaySession {
         Ok(Self {
             workflow_path: workflow_path.to_owned(),
             workflow_name,
+            drifted: Self::drift_of(yaml, events),
             task_lines,
             stops,
             cursor: 0,
@@ -199,8 +213,18 @@ impl ReplaySession {
 
 /// 1-based line of a byte offset (the span is byte-addressed).
 fn line_of_offset(text: &str, offset: usize) -> u32 {
-    let upto = &text[..offset.min(text.len())];
-    u32::try_from(upto.split('\n').count()).unwrap_or(1)
+    // Byte-wise walk — string slicing would PANIC on a non-char-boundary
+    // offset (multi-byte chars upstream of a span are enough).
+    let mut line: u32 = 1;
+    for (i, b) in text.bytes().enumerate() {
+        if i >= offset {
+            break;
+        }
+        if b == b'\n' {
+            line = line.saturating_add(1);
+        }
+    }
+    line
 }
 
 fn field_str<'e>(event: &'e nika_event::Event, key: &str) -> Option<&'e str> {
@@ -295,6 +319,37 @@ mod tests {
         // reverseContinue with no earlier breakpoint floors at stop 0.
         s.run_backward();
         assert_eq!(s.current().task, "alpha");
+    }
+
+    #[test]
+    fn line_of_offset_survives_multibyte_text() {
+        // « é » is 2 bytes — an offset INSIDE it must not panic.
+        let text = "é\nx";
+        assert_eq!(line_of_offset(text, 1), 1);
+        assert_eq!(line_of_offset(text, 3), 2);
+        assert_eq!(line_of_offset(text, 999), 2);
+    }
+
+    #[test]
+    fn drift_verdict_tracks_the_recorded_sha() {
+        // No workflow_sha256 on the started frame → pre-#210 journal → None.
+        assert_eq!(session().drifted, None);
+
+        // A recorded sha that MATCHES the current bytes → not drifted.
+        let sha = crate::verbs::run::sha256_hex(YAML.as_bytes());
+        let make = |recorded: &str| {
+            let events = vec![
+                ev(
+                    1,
+                    EventKind::WorkflowStarted,
+                    &[("workflow", "demo"), ("workflow_sha256", recorded)],
+                ),
+                ev(2, EventKind::TaskCompleted, &[("task", "alpha")]),
+            ];
+            ReplaySession::from_parts("/w.nika.yaml", YAML, &events).expect("builds")
+        };
+        assert_eq!(make(&sha).drifted, Some(false));
+        assert_eq!(make(&"ab".repeat(32)).drifted, Some(true));
     }
 
     #[test]
