@@ -180,7 +180,7 @@ sorted by `(path, line)`. `pattern:` is a **Rust-regex-class** expression
 ```yaml
 invoke: { tool: "nika:jq", args: { expression: ".items | map(.price) | add", input: "${{ tasks.X.output }}" } }
 ```
-Run a jq expression. **The single data-transform-and-extraction language**: map · filter · select · group_by · reshape · string-interpolation `"\(.x)"` · `@base64`/`@base64d`/`@csv` encoders · array `flatten` · `leaf_paths`/`getpath`/`setpath`. The same jq used in `output:` bindings (see `04-variables.md`).
+Run a jq expression. **The single data-transform-and-extraction language**: map · filter · select · group_by · reshape · string-interpolation `"\(.x)"` · `@base64`/`@base64d` encoders (the embedded jaq has NO `@csv`/`@tsv` — use `nika:convert to: csv`) · array `flatten` · `leaf_paths`/`getpath`/`setpath`. The same jq used in `output:` bindings (see `04-variables.md`).
 
 **`input` is any JSON value**: a single ref (`input: "${{ tasks.X.output }}"`) OR a **constructed array for multi-input ops**. Recursive merge of two objects (this is exactly why `json_merge` is NOT a builtin · jaq's `*` does it) ·
 ```yaml
@@ -227,12 +227,15 @@ invoke:
     from: csv                          # REQUIRED · enum · json | yaml | toml | csv
     to: json                           # REQUIRED · enum · json | yaml | toml | csv
     has_header: true                   # OPTIONAL · CSV only · default true
+    formula_guard: false               # OPTIONAL · CSV emit only · default false (see below)
 ```
 Universal format converter · 4 formats v0.1 (`json` · `yaml` · `toml` · `csv`) · 12 directions in scope (4×3 minus identity) · `from == to` is rejected (`NIKA-BUILTIN-CONVERT-001` · `validation_error` · an identity conversion is an authoring bug). Throws · `-002` (the input does not parse as `from:` · `tool_error`).
 
+**`formula_guard`** (CSV emit only · default `false`) · opt-in **CSV formula-injection guard** (CWE-1236). A spreadsheet (Excel · Sheets · LibreOffice) interprets a cell whose FIRST non-whitespace character is `=` `+` `-` `@` (or a leading `\t`/`\r` control char) as a **formula** — so `=HYPERLINK(…)` or `=cmd|…` in untrusted data executes when the file is opened. With `formula_guard: true`, such a cell (data OR header key) is prefixed with a single quote `'` — the OWASP mitigation those apps render as literal text. **Opt-in because it ALTERS data**: a legitimate negative number `-5` becomes the text `'-5`. Enable it when the CSV carries untrusted data AND is destined for a spreadsheet; leave it off (the default) for clean machine round-trips — matching the Rust/Python `csv` ecosystem, where the spreadsheet is the consumer's trust boundary. A non-boolean value is a loud `-001` arg error (never silently read as `false`).
+
 Pattern · `fetch+extract` symmetry · single super-powerful builtin · `from`/`to` mode parameters · all bidirectional pairs canonical · no per-direction builtin slot.
 
-Replaces · legacy `nika:csv_to_json` (cut per ADR-086 · D-2026-05-27 Rams sweep · the « less but better » builtin-by-builtin review that cut the canonical set to 22). The reverse direction (JSON→CSV) is ALSO covered here · jq's `@csv` filter is the in-jq alternative for that specific direction · `nika:convert` is the canonical multi-format builtin.
+Replaces · legacy `nika:csv_to_json` (cut per ADR-086 · D-2026-05-27 Rams sweep · the « less but better » builtin-by-builtin review that cut the canonical set to 22). The reverse direction (JSON→CSV) is ALSO covered here · `nika:convert` is the canonical multi-format builtin for BOTH directions (the embedded jaq has no `@csv`/`@tsv` filter, so there is no in-jq alternative — `nika:convert to: csv` is the one path).
 
 Reference implementation · `serde_transcode` 1.1+ orchestrator (zero-allocation walk · serde-ecosystem canonical · 15M+ downloads · sfackler) + format-specific crates · `serde_json` (JSON · already nika dep) · `serde_yaml_bw` 2.5+ (YAML · modern + maintained 2026) · `toml` 1.1+ (TOML · spec 1.1.0 compliant) · `csv` 1.4+ (CSV · quoting-aware).
 
@@ -286,6 +289,8 @@ Redirects follow up to an engine cap · the FINAL status decides.
 invoke: { tool: "nika:notify", args: { channel: webhook, target: "https://hooks.slack.com/...", message: "Done · ${{ tasks.X.status }}", severity: info, data: { run: "${{ tasks.X.output }}" } } }
 ```
 Send notifications · `channel:` enum (`webhook`/`slack`/`email`/`discord`/`sms` · one builtin not 5). The 1.0 engine MUST support `webhook` · others MAY be feature-gated. `data:` (OPTIONAL · any JSON value) carries structured context alongside the human `message`: the webhook payload is `{ message, severity, data? }` (the key is absent when not given · receivers branch on machine fields, never parse the message). Returns `null` on accepted delivery. Throws · `NIKA-BUILTIN-NOTIFY-001` (channel unconfigured · `validation_error`) · `-002` (delivery failed · `network_error` · transient engine-assessed).
+
+**Injection defense (normative)** · the `webhook` payload is JSON-encoded, so the `message` cannot break its transport (serde escaping neutralizes `"`/newlines). A channel that renders the `message` into a DIFFERENT medium MUST neutralize that medium's injection surface when implemented · **email** MUST reject/strip CR/LF in any header-bound field (`target:`/subject) against RFC 5322 header injection · **slack**/**discord** MUST treat the `message` as text, never a trusted mrkdwn/mention control string · **sms** MUST bound length to the carrier segment limit. The `webhook target:` rides the same SSRF boundary as `nika:fetch` (private-network / cloud-metadata rejected). Same discipline as the `nika:fetch` SSRF requirement · an output channel that reaches an interpreter neutralizes that interpreter's control surface.
 
 ---
 
@@ -550,7 +555,7 @@ keep ONE data language (« no two ways to transform data »). Canonical recipes 
 | `nika:unflatten` | `reduce to_entries[] as $e (.; setpath($e.key/"."; $e.value))` |
 | `nika:inject` (template) | `"Hello \(.name), age \(.age)"` (string interpolation) |
 | `nika:base64_encode` / `_decode` | `@base64` / `@base64d` |
-| `nika:json_to_csv` | `@csv` |
+| `nika:json_to_csv` | `nika:convert to: csv` (NOT jq — the embedded jaq has no `@csv` filter) |
 | `nika:json_merge` (recursive `*`) | `.[0] * .[1]` on a `[base, overlay]` input (jaq `obj_merge` · source-verified 2026-05-27) |
 
 Also cut · `nika:task_status` (use `${{ tasks.X.status }}`) · `nika:orchestrate`

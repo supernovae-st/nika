@@ -8,6 +8,53 @@ Nika Diamond is a ground-up rewrite on the `nika-diamond` orphan branch.
 Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ---
+## [0.96.0](https://github.com/supernovae-st/nika/compare/v0.95.0..v0.96.0) - 2026-07-06
+
+### ✨ Highlights
+
+- **`nika dap` — time-travel replay debugging** ([PR 225](https://github.com/supernovae-st/nika/pull/225) ·
+  drift warn [PR 227](https://github.com/supernovae-st/nika/pull/227)) — a Debug
+  Adapter over the run journal: breakpoints in your `.nika.yaml`, step
+  forward AND backward through task settles, recorded outputs in the
+  Variables pane. Replay never re-executes. The editor extension's F5
+  integration (shipped dark in nika-vscode 0.97) lights up on this tag.
+- **`nika trace export` — every OTel tool becomes a nika viewer**
+  ([PR 221](https://github.com/supernovae-st/nika/pull/221) · true durations
+  [PR 223](https://github.com/supernovae-st/nika/pull/223)) — project any
+  journal to OTLP/JSON lines: drag into Jaeger, POST to Grafana/Langfuse
+  (cost rides `gen_ai.usage.cost`). Local file, zero collector.
+- **The caller contract** ([PR 213](https://github.com/supernovae-st/nika/pull/213)) —
+  `check --json` gains a `requirements` section (models · keys · secrets ·
+  env the run will need) so editors and CI state blockers BEFORE any token.
+- **Unknown fields teach** ([PR 228](https://github.com/supernovae-st/nika/pull/228)) —
+  a typo'd verb key gets the did-you-mean: `` unknown field `infr` … — did
+  you mean `infer`? `` on every surface (check · JSON · LSP · MCP).
+- **The run knows its story** — `workflow_sha256` on workflow_started
+  ([PR 210](https://github.com/supernovae-st/nika/pull/210)) powers drift-aware
+  replay; skips and cancels say WHY (`when` + `blocked_by` ·
+  [PR 211](https://github.com/supernovae-st/nika/pull/211)).
+
+### 🐛 Fixes & hardening
+
+- `doctor --ping` v2: true 300ms cap, sovereign order, parallel sweep
+  ([PR 229](https://github.com/supernovae-st/nika/pull/229)).
+- Strict boolean args close the `overwrite:` data-loss footgun
+  ([PR 220](https://github.com/supernovae-st/nika/pull/220));
+  `nika:convert` gains the opt-in CSV formula-injection guard
+  ([PR 217](https://github.com/supernovae-st/nika/pull/217)).
+- Trace export renders TRUE durations — the settle-burst law
+  ([PR 223](https://github.com/supernovae-st/nika/pull/223)).
+
+### 🏗️ Internals
+
+- The ecosystem coherence bot: cross-repo pins checked nightly, registry
+  watched, self-testing ([PR 216](https://github.com/supernovae-st/nika/pull/216)/[PR 222](https://github.com/supernovae-st/nika/pull/222)/[PR 230](https://github.com/supernovae-st/nika/pull/230)).
+- CI gets the full integration battery ([PR 218](https://github.com/supernovae-st/nika/pull/218));
+  the agent surface round-trips in bin_smoke — tools/call + the LSP framed
+  wire ([PR 219](https://github.com/supernovae-st/nika/pull/219)).
+- The pack re-vendors nika-spec main (formula_guard prose · the embedded
+  jaq's honest @csv note · nika-spec#22).
+
 ## [0.95.0](https://github.com/supernovae-st/nika/compare/v0.94.0..v0.95.0) - 2026-07-06
 
 ### ✨ Highlights
