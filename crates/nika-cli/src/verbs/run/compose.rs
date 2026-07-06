@@ -75,6 +75,32 @@ impl Emitter for StderrEmitter {
 /// with `{ level, message, data }`; `nika:emit` as kind == the custom
 /// `event_type` with its payload. Each is prefixed so an operator greps
 /// them apart from the run fold.
+/// Neutralize terminal-control characters before a string reaches stderr.
+///
+/// `nika:log`'s `message` can carry values interpolated from untrusted
+/// sources (e.g. `${tasks.fetched}` of web content), and this sink writes
+/// it to the operator's terminal. A raw ESC / CSI / OSC sequence would let
+/// that content rewrite the title, move the cursor, forge log lines (CR),
+/// or worse — so every C0/C1 control char except tab and newline is
+/// rendered as its visible `\u{XX}` escape. The machine surface (`--json`)
+/// is unaffected: it renders through serde, which already escapes.
+fn sanitize_for_terminal(s: &str) -> String {
+    use std::fmt::Write as _;
+    if !s.chars().any(|c| c.is_control() && c != '\n' && c != '\t') {
+        return s.to_owned();
+    }
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if c.is_control() && c != '\n' && c != '\t' {
+            // write! to a String is infallible.
+            let _ = write!(out, "\\u{{{:02x}}}", c as u32);
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
 fn format_emit(kind: &str, payload: &serde_json::Value) -> String {
     if kind != "log" {
         return format!("nika:emit [{kind}] {payload}");
@@ -83,10 +109,11 @@ fn format_emit(kind: &str, payload: &serde_json::Value) -> String {
         .get("level")
         .and_then(serde_json::Value::as_str)
         .unwrap_or("info");
-    // A string message renders verbatim; a non-string (shouldn't happen ·
-    // log builds the payload) renders as compact JSON; absent → empty.
+    // A string message renders verbatim (control chars neutralized for the
+    // terminal · see `sanitize_for_terminal`); a non-string (shouldn't
+    // happen · log builds the payload) renders as compact JSON; absent → "".
     let message = match payload.get("message") {
-        Some(serde_json::Value::String(s)) => s.clone(),
+        Some(serde_json::Value::String(s)) => sanitize_for_terminal(s),
         Some(other) => other.to_string(),
         None => String::new(),
     };
@@ -717,6 +744,31 @@ mod tests {
         // nika:emit → the custom event_type as kind + its payload verbatim.
         let emit = format_emit("deploy.started", &serde_json::json!({ "version": "1.2.3" }));
         assert_eq!(emit, r#"nika:emit [deploy.started] {"version":"1.2.3"}"#);
+    }
+
+    #[test]
+    fn log_message_neutralizes_terminal_control_sequences() {
+        // An untrusted value (e.g. `${tasks.fetched}` of web content)
+        // carrying an OSC title-rewrite + a CR log-forge must reach the
+        // terminal as visible escapes, never as live control bytes.
+        let hostile = "\u{1b}]0;pwned\u{7}safe\rFORGED";
+        let out = format_emit(
+            "log",
+            &serde_json::json!({ "level": "info", "message": hostile }),
+        );
+        assert!(!out.contains('\u{1b}'), "no raw ESC survives: {out:?}");
+        assert!(!out.contains('\r'), "no raw CR survives: {out:?}");
+        assert!(
+            out.contains("\\u{1b}") && out.contains("\\u{0d}"),
+            "escaped form: {out:?}"
+        );
+        assert!(
+            out.contains("safe") && out.contains("FORGED"),
+            "text preserved: {out:?}"
+        );
+        // The common clean path is untouched (tab + newline pass through).
+        let clean = format_emit("log", &serde_json::json!({ "message": "line1\nline2\tx" }));
+        assert_eq!(clean, "nika:log [info] line1\nline2\tx");
     }
 
     #[test]
