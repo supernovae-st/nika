@@ -10,6 +10,7 @@ pub mod flow;
 pub mod format;
 pub mod render;
 pub mod shape;
+pub(crate) mod snippet;
 pub mod state;
 pub mod theme;
 pub(crate) mod vocab;

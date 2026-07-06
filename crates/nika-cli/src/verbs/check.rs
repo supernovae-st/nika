@@ -18,13 +18,13 @@ use nika_schema::raw::RawWorkflow;
 use nika_schema::types::VarDecl;
 
 use crate::display::theme::{Role, Theme};
-use crate::verbs::{VerbOutput, load_checked};
+use crate::verbs::{VerbOutput, load_checked, load_checked_with_source};
 
 /// The `nika check <file>` verb.
 #[must_use]
 pub fn run(path: &str, json: bool, theme: Theme) -> VerbOutput {
-    let (wf, report) = match load_checked(path) {
-        Ok(pair) => pair,
+    let (source, wf, report) = match load_checked_with_source(path) {
+        Ok(triple) => triple,
         Err(out) => return out,
     };
 
@@ -46,7 +46,7 @@ pub fn run(path: &str, json: bool, theme: Theme) -> VerbOutput {
         };
     }
 
-    let text = render(&report, &wf, path, theme);
+    let text = render(&report, &wf, &source, path, theme);
     if report.is_clean() {
         VerbOutput::ok(text)
     } else {
@@ -65,7 +65,7 @@ fn mark(theme: Theme, ok: bool) -> String {
 }
 
 /// Render the human report — every section present, grep-stable keywords.
-fn render(report: &CheckReport, wf: &RawWorkflow, path: &str, t: Theme) -> String {
+fn render(report: &CheckReport, wf: &RawWorkflow, source: &str, path: &str, t: Theme) -> String {
     let mut out = String::new();
     let name = path.rsplit('/').next().unwrap_or(path);
     let _ = writeln!(
@@ -86,6 +86,12 @@ fn render(report: &CheckReport, wf: &RawWorkflow, path: &str, t: Theme) -> Strin
         );
         // The rustc `--explain` move: every code links its own page.
         let _ = writeln!(out, "   {}", t.paint(Role::Dim, &c.docs_url));
+        // …and span-carrying findings frame the offending source line
+        // (rustc-grade caret · the CONFORM row above stays grep-stable).
+        if let Some(span) = c.span {
+            let frame = crate::display::snippet::paint_span(source, path, span, t);
+            let _ = writeln!(out, "{frame}");
+        }
     }
 
     plan(&mut out, report, t);

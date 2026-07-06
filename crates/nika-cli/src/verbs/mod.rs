@@ -126,6 +126,17 @@ pub(crate) fn linked_path(theme: crate::Theme, path: &str) -> String {
 /// Failure mapping per spec §4: unreadable = environment (`3`) · parse
 /// error = a finding in the FILE (`2`).
 pub(crate) fn load_checked(path: &str) -> Result<(RawWorkflow, CheckReport), VerbOutput> {
+    let (_, wf, report) = load_checked_with_source(path)?;
+    Ok((wf, report))
+}
+
+/// [`load_checked`] plus the raw YAML — the painted-diagnostics surface
+/// (check) frames findings on the source, so the text it was parsed
+/// from rides along instead of being read twice. Carries the Unix-dash
+/// contract: `-` reads stdin (the frames then label the origin `-`).
+pub(crate) fn load_checked_with_source(
+    path: &str,
+) -> Result<(String, RawWorkflow, CheckReport), VerbOutput> {
     let yaml = if path == "-" {
         use std::io::Read as _;
         let mut buf = String::new();
@@ -140,7 +151,7 @@ pub(crate) fn load_checked(path: &str) -> Result<(RawWorkflow, CheckReport), Ver
     let wf = nika_schema::parse(&yaml, FileId::new(0), ParseMode::Strict)
         .map_err(|e| VerbOutput::file(format!("PARSE ✗  [{}] {e}", e.spec_code())))?;
     let report = nika_schema::check(&wf);
-    Ok((wf, report))
+    Ok((yaml, wf, report))
 }
 
 #[cfg(test)]

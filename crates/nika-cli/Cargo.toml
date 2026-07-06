@@ -22,7 +22,9 @@ clap_complete = { workspace = true }                           # `nika completio
 serde       = { workspace = true }                             # graph projection envelope (§6)
 serde_json  = { workspace = true }                             # trace NDJSON parse · --json surfaces
 toml_edit   = { workspace = true }                             # wire codex · ~/.codex/config.toml (comment-preserving)
-uuid        = { workspace = true }                             # deterministic demo EventIds
+uuid        = { workspace = true }
+annotate-snippets = { workspace = true }                       # painted spans (check · rustc-grade frames through the Theme seam)
+anstyle     = { workspace = true }                             # Role→Style mapping for the snippet renderer                             # deterministic demo EventIds
 # The `nika run` composer (verbs/run/) wires the REAL shipped layers below
 # the CLI — all strictly downward (L4 → L3/L2/L1.5/L1/L0). Before the run
 # verb these were dev-deps (the e2e rehearsal only); the verb makes them
