@@ -154,7 +154,12 @@ enum Command {
     },
     /// Diagnose the environment (binary · config · provider keys · spec §8).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
-    Doctor,
+    Doctor {
+        /// TCP-probe the local provider ports (loopback/configured only ·
+        /// 300ms cap · nothing is sent on the socket). Offline without it.
+        #[arg(long)]
+        ping: bool,
+    },
     /// Scaffold a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule ·
     /// `.agents/skills` authoring skill). Existing files are skipped —
     /// `--force` overwrites.
@@ -483,7 +488,7 @@ fn main() -> std::process::ExitCode {
             emit(&verbs::graph::run(&file, format))
         }
         Command::Explain { code } => emit(&verbs::explain::run(&code)),
-        Command::Doctor => emit(&verbs::doctor::run()),
+        Command::Doctor { ping } => emit(&verbs::doctor::run(ping)),
         Command::Init { dir, force } => emit(&verbs::init::run(&dir, force)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target.into(), &dir)),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
