@@ -213,8 +213,18 @@ impl ReplaySession {
 
 /// 1-based line of a byte offset (the span is byte-addressed).
 fn line_of_offset(text: &str, offset: usize) -> u32 {
-    let upto = &text[..offset.min(text.len())];
-    u32::try_from(upto.split('\n').count()).unwrap_or(1)
+    // Byte-wise walk — string slicing would PANIC on a non-char-boundary
+    // offset (multi-byte chars upstream of a span are enough).
+    let mut line: u32 = 1;
+    for (i, b) in text.bytes().enumerate() {
+        if i >= offset {
+            break;
+        }
+        if b == b'\n' {
+            line = line.saturating_add(1);
+        }
+    }
+    line
 }
 
 fn field_str<'e>(event: &'e nika_event::Event, key: &str) -> Option<&'e str> {
@@ -309,6 +319,15 @@ mod tests {
         // reverseContinue with no earlier breakpoint floors at stop 0.
         s.run_backward();
         assert_eq!(s.current().task, "alpha");
+    }
+
+    #[test]
+    fn line_of_offset_survives_multibyte_text() {
+        // « é » is 2 bytes — an offset INSIDE it must not panic.
+        let text = "é\nx";
+        assert_eq!(line_of_offset(text, 1), 1);
+        assert_eq!(line_of_offset(text, 3), 2);
+        assert_eq!(line_of_offset(text, 999), 2);
     }
 
     #[test]

@@ -52,6 +52,10 @@ pub(crate) struct EventMsg {
     pub(crate) body: serde_json::Value,
 }
 
+/// Frame-size ceiling — a malformed/hostile `Content-Length` ends the
+/// session instead of becoming an allocation.
+const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
+
 /// The wire: reads framed requests, writes framed responses/events,
 /// owns the outgoing `seq` counter.
 pub(crate) struct Wire<R, W> {
@@ -102,6 +106,11 @@ impl<R: BufRead, W: Write> Wire<R, W> {
             }
         }
         let len = content_length?;
+        // A hostile header (`Content-Length: 9e15`) must not become an
+        // allocation. Real DAP messages are KBs; 16 MiB is generous.
+        if len > MAX_FRAME_BYTES {
+            return None;
+        }
         let mut body = vec![0u8; len];
         self.reader.read_exact(&mut body).ok()?;
         Some(body)
@@ -211,6 +220,20 @@ mod tests {
         assert!(
             wire2.read_request().is_none(),
             "malformed JSON ends the session — never guess at a broken stream"
+        );
+    }
+
+    #[test]
+    fn a_hostile_content_length_ends_the_session_not_the_memory() {
+        let hostile = b"Content-Length: 9999999999999
+
+"
+        .to_vec();
+        let mut out: Vec<u8> = Vec::new();
+        let mut wire = Wire::new(std::io::Cursor::new(hostile), &mut out);
+        assert!(
+            wire.read_request().is_none(),
+            "a frame beyond MAX_FRAME_BYTES is refused, never allocated"
         );
     }
 
