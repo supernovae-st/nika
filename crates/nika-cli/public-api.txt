@@ -469,7 +469,7 @@ pub mod nika_cli::verbs::check
 pub fn nika_cli::verbs::check::run(path: &str, json: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::check::run_infer_permits(path: &str, json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::doctor
-pub fn nika_cli::verbs::doctor::run() -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::doctor::run(ping: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::exit
 pub const nika_cli::verbs::exit::ENV: u8
 pub const nika_cli::verbs::exit::FILE: u8
