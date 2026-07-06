@@ -401,6 +401,7 @@ pub nika_schema::check::CheckReport::gate_findings: alloc::vec::Vec<nika_schema:
 pub nika_schema::check::CheckReport::hints: alloc::vec::Vec<nika_schema::Hint>
 pub nika_schema::check::CheckReport::missing_args: alloc::vec::Vec<nika_schema::check::MissingArg>
 pub nika_schema::check::CheckReport::report_version: u32
+pub nika_schema::check::CheckReport::requirements: nika_schema::check::Requirements
 pub nika_schema::check::CheckReport::schema_findings: alloc::vec::Vec<nika_schema::SchemaTypeFinding>
 pub nika_schema::check::CheckReport::schema_lints: alloc::vec::Vec<nika_schema::SchemaLintFinding>
 pub nika_schema::check::CheckReport::secret_egresses: alloc::vec::Vec<nika_schema::check::SecretEgress>
@@ -793,6 +794,103 @@ impl<T> dyn_clone::DynClone for nika_schema::check::MissingArg where T: core::cl
 pub fn nika_schema::check::MissingArg::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::check::MissingArg where T: 'static
 pub fn nika_schema::check::MissingArg::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_schema::check::ModelRequirement
+pub nika_schema::check::ModelRequirement::model: alloc::string::String
+pub nika_schema::check::ModelRequirement::tasks: alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_schema::check::ModelRequirement
+pub fn nika_schema::check::ModelRequirement::clone(&self) -> nika_schema::check::ModelRequirement
+impl core::cmp::Eq for nika_schema::check::ModelRequirement
+impl core::cmp::PartialEq for nika_schema::check::ModelRequirement
+pub fn nika_schema::check::ModelRequirement::eq(&self, other: &nika_schema::check::ModelRequirement) -> bool
+impl core::fmt::Debug for nika_schema::check::ModelRequirement
+pub fn nika_schema::check::ModelRequirement::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::check::ModelRequirement
+impl serde_core::ser::Serialize for nika_schema::check::ModelRequirement
+pub fn nika_schema::check::ModelRequirement::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_schema::check::ModelRequirement
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::check::ModelRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::ModelRequirement::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::ModelRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::ModelRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::ModelRequirement::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::check::ModelRequirement::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::check::ModelRequirement where U: core::convert::From<T>
+pub fn nika_schema::check::ModelRequirement::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::check::ModelRequirement where U: core::convert::Into<T>
+pub type nika_schema::check::ModelRequirement::Error = core::convert::Infallible
+pub fn nika_schema::check::ModelRequirement::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::check::ModelRequirement where U: core::convert::TryFrom<T>
+pub type nika_schema::check::ModelRequirement::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::check::ModelRequirement::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::check::ModelRequirement where T: core::clone::Clone
+pub type nika_schema::check::ModelRequirement::Owned = T
+pub fn nika_schema::check::ModelRequirement::clone_into(&self, target: &mut T)
+pub fn nika_schema::check::ModelRequirement::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::check::ModelRequirement where T: 'static + ?core::marker::Sized
+pub fn nika_schema::check::ModelRequirement::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::check::ModelRequirement where T: ?core::marker::Sized
+pub fn nika_schema::check::ModelRequirement::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::check::ModelRequirement where T: ?core::marker::Sized
+pub fn nika_schema::check::ModelRequirement::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::check::ModelRequirement where T: core::clone::Clone
+pub unsafe fn nika_schema::check::ModelRequirement::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::check::ModelRequirement
+pub fn nika_schema::check::ModelRequirement::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::check::ModelRequirement where T: core::clone::Clone
+pub fn nika_schema::check::ModelRequirement::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::check::ModelRequirement where T: 'static
+pub fn nika_schema::check::ModelRequirement::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_schema::check::Requirements
+pub nika_schema::check::Requirements::env_defined: alloc::vec::Vec<alloc::string::String>
+pub nika_schema::check::Requirements::env_reads: alloc::vec::Vec<alloc::string::String>
+pub nika_schema::check::Requirements::models: alloc::vec::Vec<nika_schema::check::ModelRequirement>
+pub nika_schema::check::Requirements::secrets: alloc::vec::Vec<nika_schema::check::SecretRequirement>
+pub nika_schema::check::Requirements::vars_required: alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_schema::check::Requirements
+pub fn nika_schema::check::Requirements::clone(&self) -> nika_schema::check::Requirements
+impl core::cmp::Eq for nika_schema::check::Requirements
+impl core::cmp::PartialEq for nika_schema::check::Requirements
+pub fn nika_schema::check::Requirements::eq(&self, other: &nika_schema::check::Requirements) -> bool
+impl core::default::Default for nika_schema::check::Requirements
+pub fn nika_schema::check::Requirements::default() -> nika_schema::check::Requirements
+impl core::fmt::Debug for nika_schema::check::Requirements
+pub fn nika_schema::check::Requirements::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::check::Requirements
+impl serde_core::ser::Serialize for nika_schema::check::Requirements
+pub fn nika_schema::check::Requirements::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_schema::check::Requirements
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::check::Requirements where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::Requirements::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::Requirements where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::Requirements where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::Requirements::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::check::Requirements::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::check::Requirements where U: core::convert::From<T>
+pub fn nika_schema::check::Requirements::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::check::Requirements where U: core::convert::Into<T>
+pub type nika_schema::check::Requirements::Error = core::convert::Infallible
+pub fn nika_schema::check::Requirements::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::check::Requirements where U: core::convert::TryFrom<T>
+pub type nika_schema::check::Requirements::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::check::Requirements::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::check::Requirements where T: core::clone::Clone
+pub type nika_schema::check::Requirements::Owned = T
+pub fn nika_schema::check::Requirements::clone_into(&self, target: &mut T)
+pub fn nika_schema::check::Requirements::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::check::Requirements where T: 'static + ?core::marker::Sized
+pub fn nika_schema::check::Requirements::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::check::Requirements where T: ?core::marker::Sized
+pub fn nika_schema::check::Requirements::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::check::Requirements where T: ?core::marker::Sized
+pub fn nika_schema::check::Requirements::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::check::Requirements where T: core::clone::Clone
+pub unsafe fn nika_schema::check::Requirements::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::check::Requirements
+pub fn nika_schema::check::Requirements::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::check::Requirements where T: core::clone::Clone
+pub fn nika_schema::check::Requirements::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::check::Requirements where T: 'static
+pub fn nika_schema::check::Requirements::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::check::RunCertificate
 pub nika_schema::check::RunCertificate::derivation: alloc::vec::Vec<nika_schema::check::certificate::TaskContribution>
 pub nika_schema::check::RunCertificate::effect_calls: nika_schema::Bound
@@ -1037,6 +1135,53 @@ impl<T> dyn_clone::DynClone for nika_schema::SecretLeak where T: core::clone::Cl
 pub fn nika_schema::SecretLeak::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::SecretLeak where T: 'static
 pub fn nika_schema::SecretLeak::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_schema::check::SecretRequirement
+pub nika_schema::check::SecretRequirement::key: alloc::string::String
+pub nika_schema::check::SecretRequirement::name: alloc::string::String
+pub nika_schema::check::SecretRequirement::source: nika_schema::types::secret::SecretSource
+impl core::clone::Clone for nika_schema::check::SecretRequirement
+pub fn nika_schema::check::SecretRequirement::clone(&self) -> nika_schema::check::SecretRequirement
+impl core::cmp::Eq for nika_schema::check::SecretRequirement
+impl core::cmp::PartialEq for nika_schema::check::SecretRequirement
+pub fn nika_schema::check::SecretRequirement::eq(&self, other: &nika_schema::check::SecretRequirement) -> bool
+impl core::fmt::Debug for nika_schema::check::SecretRequirement
+pub fn nika_schema::check::SecretRequirement::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::check::SecretRequirement
+impl serde_core::ser::Serialize for nika_schema::check::SecretRequirement
+pub fn nika_schema::check::SecretRequirement::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_schema::check::SecretRequirement
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::check::SecretRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::SecretRequirement::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::SecretRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::SecretRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::SecretRequirement::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::check::SecretRequirement::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::check::SecretRequirement where U: core::convert::From<T>
+pub fn nika_schema::check::SecretRequirement::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::check::SecretRequirement where U: core::convert::Into<T>
+pub type nika_schema::check::SecretRequirement::Error = core::convert::Infallible
+pub fn nika_schema::check::SecretRequirement::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::check::SecretRequirement where U: core::convert::TryFrom<T>
+pub type nika_schema::check::SecretRequirement::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::check::SecretRequirement::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::check::SecretRequirement where T: core::clone::Clone
+pub type nika_schema::check::SecretRequirement::Owned = T
+pub fn nika_schema::check::SecretRequirement::clone_into(&self, target: &mut T)
+pub fn nika_schema::check::SecretRequirement::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::check::SecretRequirement where T: 'static + ?core::marker::Sized
+pub fn nika_schema::check::SecretRequirement::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::check::SecretRequirement where T: ?core::marker::Sized
+pub fn nika_schema::check::SecretRequirement::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::check::SecretRequirement where T: ?core::marker::Sized
+pub fn nika_schema::check::SecretRequirement::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::check::SecretRequirement where T: core::clone::Clone
+pub unsafe fn nika_schema::check::SecretRequirement::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::check::SecretRequirement
+pub fn nika_schema::check::SecretRequirement::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::check::SecretRequirement where T: core::clone::Clone
+pub fn nika_schema::check::SecretRequirement::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::check::SecretRequirement where T: 'static
+pub fn nika_schema::check::SecretRequirement::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::check::TaintTrace
 pub nika_schema::check::TaintTrace::secret: alloc::string::String
 impl nika_schema::check::TaintTrace
@@ -6473,6 +6618,7 @@ pub nika_schema::CheckReport::gate_findings: alloc::vec::Vec<nika_schema::GateFi
 pub nika_schema::CheckReport::hints: alloc::vec::Vec<nika_schema::Hint>
 pub nika_schema::CheckReport::missing_args: alloc::vec::Vec<nika_schema::check::MissingArg>
 pub nika_schema::CheckReport::report_version: u32
+pub nika_schema::CheckReport::requirements: nika_schema::check::Requirements
 pub nika_schema::CheckReport::schema_findings: alloc::vec::Vec<nika_schema::SchemaTypeFinding>
 pub nika_schema::CheckReport::schema_lints: alloc::vec::Vec<nika_schema::SchemaLintFinding>
 pub nika_schema::CheckReport::secret_egresses: alloc::vec::Vec<nika_schema::check::SecretEgress>
