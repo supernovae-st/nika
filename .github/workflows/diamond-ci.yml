@@ -69,7 +69,19 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
+      # The conformance suites (nika-schema tests/) read the PUBLIC spec
+      # repo's fixtures — locally a sibling ../spec checkout, here an
+      # explicit NIKA_SPEC_DIR. Tests-leg only: the full battery (the
+      # 2026-07-06 flip) is the first CI consumer these suites ever had.
+      - name: Checkout nika-spec (conformance fixtures · tests leg)
+        if: matrix.job == 'tests'
+        uses: actions/checkout@v4
+        with:
+          repository: supernovae-st/nika-spec
+          path: nika-spec
       - name: Run rust job
+        env:
+          NIKA_SPEC_DIR: ${{ github.workspace }}/nika-spec
         run: ./scripts/ci/check-"$JOB".sh
 
   deny:

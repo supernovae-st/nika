@@ -114,7 +114,12 @@ fn def(name: &str, desc: &str) -> ToolDef {
 }
 
 fn big_universe() -> Vec<ToolDef> {
-    let mut defs: Vec<ToolDef> = (0..24)
+    // DERIVED past the routing threshold: min_universe moved once (24→32,
+    // the tts-arc structural pin) while this suite ran nowhere — a pinned
+    // 24 silently became a routing NO-OP (offered == universe). Deriving
+    // from the live default keeps the fixture on the routed side forever.
+    let unrelated = nika_verb_agent::AgentConfig::default().router.min_universe + 8;
+    let mut defs: Vec<ToolDef> = (0..unrelated)
         .map(|i| {
             def(
                 &format!("mcp:srv/tool{i}"),
@@ -264,8 +269,8 @@ async fn routing_measurably_narrows_the_request_tool_list() {
 
     // The decision is observable with the SAME numbers the request shows
     // (AgentOps: decisions, not just I/O) — the event is the source of
-    // truth for the whitelisted universe (24 mcp + nika:fetch + the
-    // synthesized sentinel).
+    // truth for the whitelisted universe (the unrelated mcp tools +
+    // nika:fetch + the synthesized intrinsics).
     let events = r.observer.events();
     let Some(AgentEvent::ToolsSelected {
         offered, universe, ..

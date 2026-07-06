@@ -311,8 +311,12 @@ fn article_rule_cascade_is_bounded_on_hostile_input() {
     let started = std::time::Instant::now();
     let out = run(&body, ExtractMode::Article);
     assert!(out.is_ok(), "hostile article page must be total");
+    // The subject is NO BLOWUP on width — quadratic over 30k siblings
+    // would run for hours anywhere. The bound is a blowup tripwire, not
+    // a speed pin: 10s was a fast-mac debug number (observed 14.8s on
+    // the 2-core CI runner the day this suite first ran there).
     assert!(
-        started.elapsed().as_secs() < 10,
+        started.elapsed().as_secs() < 60,
         "rule cascade bounded, took {:?}",
         started.elapsed()
     );

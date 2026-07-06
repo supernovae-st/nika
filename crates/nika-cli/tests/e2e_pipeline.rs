@@ -699,14 +699,12 @@ async fn e2e_agent_loop_over_the_real_builtin_dispatcher() {
         .expect("the read result fed back");
     assert_eq!(turn3_read, "release: ship the agent");
 
-    // And the catalog the model was offered IS the dispatcher's: the
-    // whitelist (`nika:*`) admitted the 24 builtins minus the source-side
-    // `nika:done` + `nika:compose` (the loop owns BOTH intrinsics and
-    // re-synthesizes their defs · ADR-096) → 24 defs (22 dispatched + the
-    // 2 loop-owned · image_generate joined per ADR-105 · still BELOW the
-    // router's min_universe, so the full set ships every turn).
+    // The offered catalog IS the dispatcher's — DERIVED, never pinned (a
+    // pin went stale the day a builtin landed while this suite ran
+    // nowhere). Below min_universe the full set ships each turn.
     let offered = &requests[0].tools;
-    assert_eq!(offered.len(), 24, "22 dispatched + done + compose");
+    let catalog = nika_builtin::tool_defs().len();
+    assert_eq!(offered.len(), catalog, "the catalog, derived");
     assert!(offered.iter().any(|d| d.name == "nika:jq"));
     assert!(offered.iter().any(|d| d.name == "nika:done"));
     // The loop-owned self-check intrinsic is offered too (re-synthesized,
