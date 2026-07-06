@@ -969,6 +969,8 @@ pub fn nika_cli::verbs::trace::outputs(trace: &str, theme: nika_cli::display::th
 pub fn nika_cli::verbs::trace::peek(trace: &str, task: &str, raw: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::trace_otel
 pub fn nika_cli::verbs::trace_otel::export(trace: &str, out: core::option::Option<&str>, include_content: bool) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::trace_verify
+pub fn nika_cli::verbs::trace_verify::verify(trace: &str) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::wire
 pub enum nika_cli::verbs::wire::WireTarget
 pub nika_cli::verbs::wire::WireTarget::All

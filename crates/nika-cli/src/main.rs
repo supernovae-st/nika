@@ -330,6 +330,13 @@ enum TraceAction {
         #[arg(long)]
         include_content: bool,
     },
+    /// Verify the journal's tamper-evidence chain (0.96+): any edited,
+    /// inserted, dropped or reordered line breaks every hash after it.
+    /// Exit 0 intact · 2 broken · 3 unchained (pre-chain journal).
+    Verify {
+        /// Trace NDJSON path (one `nika-event` Event per line).
+        trace: PathBuf,
+    },
     /// Read ONE task's full output + its identity (hashes · duration ·
     /// tokens). `--raw` prints the exact value only (pipe it to jq).
     Peek {
@@ -601,6 +608,9 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
             // The dur column's bracket accents: TTY comfort only.
             theme.accents = std::io::stdout().is_terminal();
             emit(&verbs::trace::outputs(&trace.to_string_lossy(), theme))
+        }
+        TraceAction::Verify { trace } => {
+            emit(&verbs::trace_verify::verify(&trace.to_string_lossy()))
         }
         TraceAction::Export {
             trace,
