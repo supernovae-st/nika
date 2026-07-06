@@ -149,7 +149,7 @@ fn root_span(
         "name": format!("invoke_workflow {workflow}"),
         "kind": 1,
         "startTimeUnixNano": started.timestamp.unix_ns.to_string(),
-        "endTimeUnixNano": last_ns.max(started.timestamp.unix_ns + 1).to_string(),
+        "endTimeUnixNano": last_ns.max(started.timestamp.unix_ns.saturating_add(1)).to_string(),
         "attributes": attributes,
         "status": status,
     })
@@ -223,11 +223,15 @@ fn one_task_span(
     // backward from it. Frame-gap fallback for duration-less terminals
     // (skip · cancel · cache-hit) — those genuinely take ~no time.
     let end_ns = terminal.timestamp.unix_ns;
+    // A negative measured duration is a corrupt journal — treat it as
+    // duration-less (the frame-gap arm), never a forward-running span.
     let start_ns = match field(terminal, "duration_ms") {
-        Some(FieldValue::Int(ms)) => end_ns.saturating_sub(ms.saturating_mul(1_000_000)),
+        Some(FieldValue::Int(ms)) if *ms >= 0 => {
+            end_ns.saturating_sub(ms.saturating_mul(1_000_000))
+        }
         _ => anchor.timestamp.unix_ns,
     };
-    let end_ns = end_ns.max(start_ns + 1);
+    let end_ns = end_ns.max(start_ns.saturating_add(1));
 
     let mut attributes = vec![kv_str("nika.task.id", task)];
     if let Some(note) = field_str(terminal, "note") {
@@ -354,7 +358,7 @@ fn unfinished_task_span(
         "name": task,
         "kind": 1,
         "startTimeUnixNano": start_ns.to_string(),
-        "endTimeUnixNano": last_ns.max(start_ns + 1).to_string(),
+        "endTimeUnixNano": last_ns.max(start_ns.saturating_add(1)).to_string(),
         "attributes": attributes,
         "events": task_span_events(task_events),
         "status": {},
@@ -367,7 +371,15 @@ fn unfinished_task_span(
 /// The high half is a millisecond timestamp: two events born in the
 /// same ms would collide there.
 fn span_id_of(event: &Event) -> String {
-    hex_bytes(&event.id.uuid.as_bytes()[8..16])
+    let id = hex_bytes(&event.id.uuid.as_bytes()[8..16]);
+    // The docstring's own law, enforced: an all-zero id (nil-uuid line
+    // in a corrupted journal) is OTLP-invalid — strict consumers drop
+    // the span silently. Substitute a constant non-zero sentinel; the
+    // ids of a nil-uuid journal were never meaningful to begin with.
+    if id == "0000000000000000" {
+        return "6e696b612d302d30".to_owned(); // "nika-0-0"
+    }
+    id
 }
 
 fn hex_bytes(bytes: &[u8]) -> String {
