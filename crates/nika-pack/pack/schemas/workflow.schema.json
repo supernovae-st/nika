@@ -26,7 +26,7 @@
     },
     "model": {
       "type": "string",
-      "description": "Default model \u00b7 `<provider>/<name>` (e.g. anthropic/claude-sonnet-4-6 \u00b7 ollama/qwen3.5:9b \u00b7 mock/echo)."
+      "description": "Default model \u00b7 `<provider>/<name>` (e.g. ollama/qwen3.5:9b \u00b7 anthropic/claude-sonnet-4-6 \u00b7 mock/echo)."
     },
     "vars": {
       "type": "object",
@@ -562,7 +562,7 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "`nika:*` builtin \u00b7 24 canonical per stdlib v0.1 (Core 6 \u00b7 File 5 \u00b7 Data 8 \u00b7 Network 2 \u00b7 Introspection 2 \u00b7 Media 1). Closed enum for `yaml-language-server` autocomplete.",
+              "description": "`nika:*` builtin \u00b7 the closed canonical stdlib (Core \u00b7 File \u00b7 Data \u00b7 Network \u00b7 Introspection \u00b7 Media \u00b7 counts live in canon.yaml). Closed enum for `yaml-language-server` autocomplete.",
               "enum": [
                 "nika:assert",
                 "nika:compose",
