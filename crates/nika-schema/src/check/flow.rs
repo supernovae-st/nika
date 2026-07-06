@@ -376,7 +376,7 @@ fn propagate_cleanups(
 /// is never tainted from a prompt secret · ADR-092). To send a secret to a
 /// provider, the author sanctions it explicitly (`egress: [{ to: "infer" }]`
 /// / `{ to: "agent" }`).
-fn action_effect_fields(action: &RawAction) -> Vec<&str> {
+pub(crate) fn action_effect_fields(action: &RawAction) -> Vec<&str> {
     match action {
         RawAction::Exec(a) => {
             let mut fields = a.command.text_fragments();
@@ -403,7 +403,7 @@ fn action_effect_fields(action: &RawAction) -> Vec<&str> {
 
 /// The `prompt:` + optional `system:` text of an `infer:`/`agent:` action —
 /// the provider-egress sink surface (BUG#3).
-fn prompt_system_fields<'a>(
+pub(crate) fn prompt_system_fields<'a>(
     prompt: &'a str,
     system: Option<&'a crate::Spanned<String>>,
 ) -> Vec<&'a str> {
@@ -474,7 +474,7 @@ fn taint_of_refs_full(
 
 /// The `${{ … }}` references inside a string (via the real extractor — the
 /// same path the analyzer uses, so taint and `NIKA-VAR-001` agree).
-fn refs_in_str(text: &str) -> Vec<NamespaceRef> {
+pub(crate) fn refs_in_str(text: &str) -> Vec<NamespaceRef> {
     let Ok(islands) = scan_templates(text) else {
         return Vec::new();
     };
@@ -490,7 +490,7 @@ fn refs_in_json(value: &serde_json::Value) -> Vec<NamespaceRef> {
 }
 
 /// Every string leaf of a JSON value (for the ref/taint scan).
-fn collect_json_strings(value: &serde_json::Value) -> Vec<&str> {
+pub(crate) fn collect_json_strings(value: &serde_json::Value) -> Vec<&str> {
     let mut out = Vec::new();
     collect_json_strings_into(value, &mut out);
     out

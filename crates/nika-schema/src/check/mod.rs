@@ -38,6 +38,7 @@ mod infer_permits;
 mod metamorphic;
 mod permits_fit;
 mod reach;
+mod requirements;
 mod schema_lint;
 mod schema_typing;
 mod secrets;
@@ -55,6 +56,7 @@ pub use hints::Hint;
 pub use infer_permits::InferredPermits;
 pub use permits_fit::CapabilityEscape;
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
+pub use requirements::{ModelRequirement, Requirements, SecretRequirement};
 pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::SchemaTypeFinding;
 pub use secrets::{SecretEgress, SecretLeak};
@@ -166,6 +168,13 @@ pub struct CheckReport {
     /// are degree-1 polynomials in the `for_each` collection sizes.
     /// Additive: `report_version` stays 1.
     pub certificate: RunCertificate,
+    /// What this workflow needs from its caller BEFORE any token is
+    /// spent — models per task · declared secrets (facts, no values) ·
+    /// env reads vs env defines · required vars. Declaration truth
+    /// only: presence checks stay with the caller (a static report
+    /// never depends on who runs it). Additive: `report_version`
+    /// stays 1.
+    pub requirements: Requirements,
     /// Every `secrets.X` that escapes the masking boundary into an
     /// `exec`/`invoke` effect (directly, via a `with:` alias, or
     /// transitively through a tainted upstream output · IFC · ADR-092).
@@ -322,6 +331,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         conformance,
         cost: cost::ceiling(wf),
         certificate: certificate::certify(wf),
+        requirements: requirements::collect(wf),
         secret_leaks: secrets::scan_leaks(wf, &flow),
         secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes: permits_fit::scan_escapes(wf),
