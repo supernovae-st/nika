@@ -100,8 +100,12 @@ impl CandleBackend {
     ) -> Result<Self, InferLocalError> {
         let device = Self::pick_device();
 
-        let mut file =
-            std::fs::File::open(gguf_path).map_err(|_| InferLocalError::ModelNotFound {
+        // The local-infer sidecar loads its OWN GGUF weights here — a
+        // subprocess resource loaded once at startup, NOT a workflow fs
+        // effect governed by permits.fs (behind the local-infer feature ·
+        // off in the default nika build).
+        let mut file = std::fs::File::open(gguf_path) // seam-bypass-ok: sidecar ML weight load, not a permits.fs workflow effect
+            .map_err(|_| InferLocalError::ModelNotFound {
                 model: gguf_path.display().to_string(),
             })?;
         let content =
