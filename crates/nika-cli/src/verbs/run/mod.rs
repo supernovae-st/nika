@@ -109,7 +109,7 @@ pub fn run(
     };
 
     // ── Audit BEFORE run (spec §3 · INV the runtime also enforces) ──
-    let (wf, report) = match crate::verbs::load_checked(file) {
+    let (source, wf, report) = match crate::verbs::load_checked_with_source(file) {
         Ok(pair) => pair,
         Err(out) => {
             // Pre-run diagnostics obey the export contract too: in machine
@@ -142,15 +142,15 @@ pub fn run(
         Ok(setup) => setup,
         Err(code) => return code,
     };
-    // The pause rider binds to the NON-INTERACTIVE machine surfaces only
-    // (`--json` · `--output json` — ADR-099: « under a non-interactive
-    // surface »); the human TTY/plain surfaces keep today's PROMPT-001
-    // contract untouched.
+    // ADR-099: the pause rider binds to the NON-INTERACTIVE machine
+    // surfaces only (`--json` · `--output json`); human TTY/plain
+    // surfaces keep today's PROMPT-001 contract untouched.
     let pause_on_prompt = json || output_json;
 
     // ── Compose the production runtime (real seams · env keys) ──────
     let runtime = match composed_runtime(
         &wf,
+        &source,
         model_override,
         overrides,
         setup.plan,
@@ -469,8 +469,23 @@ fn parse_var_overrides(
 // The 7 knobs ARE the composition surface (var overrides · resume plan ·
 // answers · pause flag) — the same clap-surface idiom as `run` itself.
 #[allow(clippy::too_many_arguments)]
+/// The run's source identity: sha256 hex over the exact bytes read.
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest as _, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    let digest = hasher.finalize();
+    let mut hex = String::with_capacity(64);
+    for byte in digest {
+        use std::fmt::Write as _;
+        let _ = write!(hex, "{byte:02x}");
+    }
+    hex
+}
+
 fn composed_runtime(
     wf: &RawWorkflow,
+    source: &str,
     model_override: Option<&str>,
     overrides: BTreeMap<String, Value>,
     resume_plan: Option<ResumePlan>,
@@ -486,7 +501,10 @@ fn composed_runtime(
             let rt = rt
                 .with_var_overrides(overrides)
                 .with_prompt_pause(pause_on_prompt)
-                .with_prompt_answers(answers);
+                .with_prompt_answers(answers)
+                // The run's identity: the journal names the definition it
+                // recorded (sha256 of the exact bytes this composer read).
+                .with_source_sha256(sha256_hex(source.as_bytes()));
             Ok(match resume_plan {
                 Some(plan) => rt.with_resume_plan(plan),
                 None => rt,

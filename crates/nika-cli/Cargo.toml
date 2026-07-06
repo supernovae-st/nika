@@ -19,6 +19,7 @@ nika-pack   = { path = "../nika-pack", version = "0.94.0" }   # the embedded lan
 nika-bm25   = { path = "../nika-bm25", version = "0.94.0" }   # intent→template routing (`nika new` · the deterministic floor)
 clap        = { workspace = true }                             # verb tree (completions + man derive later)
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
+sha2          = { workspace = true }   # run identity — workflow_sha256 on workflow_started
 serde       = { workspace = true }                             # graph projection envelope (§6)
 serde_json  = { workspace = true }                             # trace NDJSON parse · --json surfaces
 toml_edit   = { workspace = true }                             # wire codex · ~/.codex/config.toml (comment-preserving)
