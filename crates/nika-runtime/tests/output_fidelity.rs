@@ -544,3 +544,85 @@ tasks:
         "no source injected → no identity claim"
     );
 }
+
+// ─── the skip/cancel WHY rides the journal (skip-why · 2026-07-06) ───────────
+
+/// « Why did this task not run? » must be answerable from the journal
+/// alone: a `when:` gate that closes journals its own CEL text on the
+/// `when` field; a default-gate cancellation names the first
+/// unsatisfied dependency on `blocked_by`. Both additive.
+#[tokio::test]
+async fn skip_and_cancel_events_carry_their_why() {
+    let yaml = r#"
+nika: v1
+workflow: skip-why
+tasks:
+  - id: seed
+    invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
+  - id: gated
+    depends_on: [seed]
+    when: "${{ tasks.seed.status == 'failure' }}"
+    invoke: { tool: "nika:jq", args: { input: { x: 2 }, expression: ".x" } }
+  - id: doomed
+    depends_on: [seed]
+    exec: { command: ["false"] }
+  - id: downstream
+    depends_on: [doomed]
+    invoke: { tool: "nika:jq", args: { input: { x: 3 }, expression: ".x" } }
+"#;
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_schema::check(&wf);
+    assert!(report.is_clean(), "fixture passes the ladder");
+    let tools = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("seed", "1").with_structured(serde_json::json!(1)));
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::new(tools)));
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::new(MockShell::new().enqueue_fail(7, "boom"))),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        ),
+        MockClock::new(),
+        RuntimeConfig::default(),
+    );
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("the run itself is not an error");
+    assert!(!outcome.ok, "doomed fails the workflow");
+    let events = sink.into_events();
+
+    let skipped = events
+        .iter()
+        .find(|e| e.kind == EventKind::TaskSkipped)
+        .expect("the gated task skips");
+    assert_eq!(str_field(skipped, "task"), Some("gated"));
+    assert_eq!(
+        str_field(skipped, "when"),
+        Some("${{ tasks.seed.status == 'failure' }}"),
+        "the gate's own CEL text answers the why"
+    );
+
+    let cancelled = events
+        .iter()
+        .find(|e| e.kind == EventKind::TaskCancelled)
+        .expect("the downstream task cancels");
+    assert_eq!(str_field(cancelled, "task"), Some("downstream"));
+    assert_eq!(
+        str_field(cancelled, "blocked_by"),
+        Some("doomed"),
+        "the culprit upstream is named"
+    );
+}

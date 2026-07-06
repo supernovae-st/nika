@@ -580,25 +580,25 @@ fn settle(
     let named = finish.named;
     let resume = finish.resume;
     match finish.settle {
-        SettleAs::Cancelled { note } => {
-            emit(
-                stamper,
-                sink,
-                EventKind::TaskCancelled,
-                &[("task", s(&id)), ("note", s(note))],
-            );
+        SettleAs::Cancelled { note, blocked_by } => {
+            // The WHY rides along: which upstream kept the gate closed.
+            let mut fields = vec![("task", s(&id)), ("note", s(note))];
+            if let Some(culprit) = &blocked_by {
+                fields.push(("blocked_by", s(culprit)));
+            }
+            emit(stamper, sink, EventKind::TaskCancelled, &fields);
             records.insert(
                 id,
                 with_named(TaskRecord::unran(TaskStatus::Cancelled), named),
             );
         }
-        SettleAs::SkippedGate { note } => {
-            emit(
-                stamper,
-                sink,
-                EventKind::TaskSkipped,
-                &[("task", s(&id)), ("note", s(note))],
-            );
+        SettleAs::SkippedGate { note, expr } => {
+            // The gate's own CEL text — « why did this not run » verbatim.
+            let mut fields = vec![("task", s(&id)), ("note", s(note))];
+            if let Some(cel) = &expr {
+                fields.push(("when", s(cel)));
+            }
+            emit(stamper, sink, EventKind::TaskSkipped, &fields);
             records.insert(
                 id,
                 with_named(TaskRecord::unran(TaskStatus::Skipped), named),
