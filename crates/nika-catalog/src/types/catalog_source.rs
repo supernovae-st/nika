@@ -175,15 +175,17 @@ mod tests {
     fn static_source_resolves_pricing() {
         let ds = StaticCatalogDataSource;
         let p = ds.find_pricing("gpt-4o").unwrap();
-        assert_eq!(p.provider, "OpenAI");
+        assert_eq!(p.provider, "openai");
     }
 
     #[test]
     #[cfg(feature = "pricing")]
     fn static_source_scoped_pricing() {
         let ds = StaticCatalogDataSource;
-        let p = ds.find_pricing_scoped("anthropic", "sonnet-4").unwrap();
-        assert_eq!(p.provider, "Anthropic");
+        let p = ds
+            .find_pricing_scoped("anthropic", "claude-sonnet-4-5")
+            .unwrap();
+        assert_eq!(p.provider, "anthropic");
     }
 
     #[test]
@@ -192,7 +194,7 @@ mod tests {
         let ds = StaticCatalogDataSource;
         let est = ds.estimate_cost("gpt-4o", 1000, 500).unwrap();
         assert!(est.usd > 0.0);
-        assert_eq!(est.provider, "OpenAI");
+        assert_eq!(est.provider, "openai");
     }
 
     /// Object-safety requires the full feature set (all cfg-gated methods

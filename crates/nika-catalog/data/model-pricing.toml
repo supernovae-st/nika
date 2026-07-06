@@ -1,381 +1,3640 @@
 schema = "nika/model-pricing@1.0"
 
-# ── Anthropic ───────────────────────────────────────────────
-[[rules]]
-provider = "Anthropic"
-model_pattern = "claude-3-haiku"
-input_per_million = 0.25
-output_per_million = 1.25
+# ── GENERATED · do not hand-edit ────────────────────────────
+# Source: https://models.dev/api.json (MIT · sst/models.dev)
+# as_of: 2026-07-06 · source sha256[:16]: ad917b2482fa6b38
+# Refresh: bash scripts/refresh-pricing.sh
+# Values: USD per 1M tokens. Lookup: exact match, then contains()
+# fallback (first hit wins — longest patterns emitted first).
+
+# ── anthropic (15 models) ──
 
 [[rules]]
-provider = "Anthropic"
-model_pattern = "opus-4"
+provider = "anthropic"
+model_pattern = "claude-sonnet-4-5-20250929"
+input_per_million = 3.0
+output_per_million = 15.0
+
+[[rules]]
+provider = "anthropic"
+model_pattern = "claude-haiku-4-5-20251001"
+input_per_million = 1.0
+output_per_million = 5.0
+
+[[rules]]
+provider = "anthropic"
+model_pattern = "claude-opus-4-1-20250805"
 input_per_million = 15.0
 output_per_million = 75.0
 
 [[rules]]
-provider = "Anthropic"
-model_pattern = "sonnet-4"
+provider = "anthropic"
+model_pattern = "claude-opus-4-5-20251101"
+input_per_million = 5.0
+output_per_million = 25.0
+
+[[rules]]
+provider = "anthropic"
+model_pattern = "claude-sonnet-4-5"
 input_per_million = 3.0
 output_per_million = 15.0
 
 [[rules]]
-provider = "Anthropic"
-model_pattern = "haiku-4"
-input_per_million = 0.8
-output_per_million = 4.0
-
-[[rules]]
-provider = "Anthropic"
-model_pattern = "claude-3-5-sonnet"
+provider = "anthropic"
+model_pattern = "claude-sonnet-4-6"
 input_per_million = 3.0
 output_per_million = 15.0
 
 [[rules]]
-provider = "Anthropic"
-model_pattern = "claude-3-5-haiku"
-input_per_million = 0.8
-output_per_million = 4.0
+provider = "anthropic"
+model_pattern = "claude-haiku-4-5"
+input_per_million = 1.0
+output_per_million = 5.0
 
 [[rules]]
-provider = "Anthropic"
-model_pattern = "claude-3-opus"
+provider = "anthropic"
+model_pattern = "claude-opus-4-1"
 input_per_million = 15.0
 output_per_million = 75.0
 
 [[rules]]
-provider = "Anthropic"
-model_pattern = "claude-3-sonnet"
+provider = "anthropic"
+model_pattern = "claude-opus-4-5"
+input_per_million = 5.0
+output_per_million = 25.0
+
+[[rules]]
+provider = "anthropic"
+model_pattern = "claude-opus-4-6"
+input_per_million = 5.0
+output_per_million = 25.0
+
+[[rules]]
+provider = "anthropic"
+model_pattern = "claude-opus-4-7"
+input_per_million = 5.0
+output_per_million = 25.0
+
+[[rules]]
+provider = "anthropic"
+model_pattern = "claude-opus-4-8"
+input_per_million = 5.0
+output_per_million = 25.0
+
+[[rules]]
+provider = "anthropic"
+model_pattern = "claude-sonnet-4"
 input_per_million = 3.0
 output_per_million = 15.0
 
-# ── OpenAI (ordering critical for contains fallback) ────────
 [[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-4o-mini"
-input_per_million = 0.15
-output_per_million = 0.6
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-4o"
-input_per_million = 2.5
+provider = "anthropic"
+model_pattern = "claude-sonnet-5"
+input_per_million = 2.0
 output_per_million = 10.0
 
 [[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-4.1-nano"
-input_per_million = 0.1
-output_per_million = 0.4
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-4.1-mini"
-input_per_million = 0.4
-output_per_million = 1.6
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-4.1"
-input_per_million = 2.0
-output_per_million = 8.0
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-3.5-turbo"
-input_per_million = 0.5
-output_per_million = 1.5
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-4-turbo"
+provider = "anthropic"
+model_pattern = "claude-fable-5"
 input_per_million = 10.0
-output_per_million = 30.0
+output_per_million = 50.0
+
+# ── deepseek (4 models) ──
 
 [[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-4"
-input_per_million = 30.0
-output_per_million = 60.0
+provider = "deepseek"
+model_pattern = "deepseek-reasoner"
+input_per_million = 0.14
+output_per_million = 0.28
 
 [[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-5.4-nano"
-input_per_million = 0.10
-output_per_million = 0.40
+provider = "deepseek"
+model_pattern = "deepseek-v4-flash"
+input_per_million = 0.14
+output_per_million = 0.28
 
 [[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-5.4-mini"
-input_per_million = 0.40
-output_per_million = 1.60
+provider = "deepseek"
+model_pattern = "deepseek-v4-pro"
+input_per_million = 0.435
+output_per_million = 0.87
 
 [[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-5.4"
-input_per_million = 2.00
-output_per_million = 8.00
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-5.2-pro"
-input_per_million = 21.0
-output_per_million = 168.0
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-5.2"
-input_per_million = 1.75
-output_per_million = 14.0
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "gpt-5"
-input_per_million = 1.75
-output_per_million = 14.0
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "o1-mini"
-input_per_million = 3.0
-output_per_million = 12.0
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "o1"
-input_per_million = 15.0
-output_per_million = 60.0
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "o3-mini"
-input_per_million = 1.1
-output_per_million = 4.4
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "o4-mini"
-input_per_million = 1.1
-output_per_million = 4.4
-
-[[rules]]
-provider = "OpenAI"
-model_pattern = "o3"
-input_per_million = 2.0
-output_per_million = 8.0
-
-# o4-mini BEFORE o4 (contains "o4" substring)
-[[rules]]
-provider = "OpenAI"
-model_pattern = "o4"
-input_per_million = 2.0
-output_per_million = 8.0
-
-# ── Mistral ─────────────────────────────────────────────────
-[[rules]]
-provider = "Mistral"
-model_pattern = "mistral-large"
-input_per_million = 2.0
-output_per_million = 6.0
-
-[[rules]]
-provider = "Mistral"
-model_pattern = "mistral-medium"
-input_per_million = 2.7
-output_per_million = 8.1
-
-[[rules]]
-provider = "Mistral"
-model_pattern = "mistral-small"
-input_per_million = 0.2
-output_per_million = 0.6
-
-[[rules]]
-provider = "Mistral"
-model_pattern = "codestral"
-input_per_million = 0.3
-output_per_million = 0.9
-
-[[rules]]
-provider = "Mistral"
-model_pattern = "ministral-8b"
-input_per_million = 0.1
-output_per_million = 0.1
-
-[[rules]]
-provider = "Mistral"
-model_pattern = "ministral-3b"
-input_per_million = 0.04
-output_per_million = 0.04
-
-[[rules]]
-provider = "Mistral"
-model_pattern = "pixtral-large"
-input_per_million = 2.0
-output_per_million = 6.0
-
-[[rules]]
-provider = "Mistral"
-model_pattern = "pixtral-12b"
-input_per_million = 0.15
-output_per_million = 0.15
-
-# ── Groq ────────────────────────────────────────────────────
-[[rules]]
-provider = "Groq"
-model_pattern = "llama-3.3-70b-specdec"
-input_per_million = 0.59
-output_per_million = 0.99
-
-[[rules]]
-provider = "Groq"
-model_pattern = "llama-3.3-70b"
-input_per_million = 0.59
-output_per_million = 0.79
-
-[[rules]]
-provider = "Groq"
-model_pattern = "llama-3.1-70b"
-input_per_million = 0.59
-output_per_million = 0.79
-
-[[rules]]
-provider = "Groq"
-model_pattern = "llama-3.1-8b"
-input_per_million = 0.05
-output_per_million = 0.08
-
-[[rules]]
-provider = "Groq"
-model_pattern = "llama3-70b"
-input_per_million = 0.59
-output_per_million = 0.79
-
-[[rules]]
-provider = "Groq"
-model_pattern = "llama3-8b"
-input_per_million = 0.05
-output_per_million = 0.08
-
-[[rules]]
-provider = "Groq"
-model_pattern = "mixtral-8x7b"
-input_per_million = 0.24
-output_per_million = 0.24
-
-[[rules]]
-provider = "Groq"
-model_pattern = "gemma2-9b"
-input_per_million = 0.20
-output_per_million = 0.20
-
-# ── DeepSeek ────────────────────────────────────────────────
-[[rules]]
-provider = "DeepSeek"
+provider = "deepseek"
 model_pattern = "deepseek-chat"
 input_per_million = 0.14
 output_per_million = 0.28
 
-[[rules]]
-provider = "DeepSeek"
-model_pattern = "deepseek-reasoner"
-input_per_million = 0.55
-output_per_million = 2.19
+# ── google (20 models) ──
 
 [[rules]]
-provider = "DeepSeek"
-model_pattern = "deepseek-coder"
-input_per_million = 0.14
-output_per_million = 0.28
-
-# ── Gemini ──────────────────────────────────────────────────
-[[rules]]
-provider = "Gemini"
-model_pattern = "gemini-2.5-flash"
-input_per_million = 0.15
-output_per_million = 0.6
+provider = "google"
+model_pattern = "gemini-3.1-pro-preview-customtools"
+input_per_million = 2.0
+output_per_million = 12.0
 
 [[rules]]
-provider = "Gemini"
-model_pattern = "gemini-2.5-pro"
-input_per_million = 1.25
+provider = "google"
+model_pattern = "gemini-3.1-flash-image-preview"
+input_per_million = 0.5
+output_per_million = 60.0
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-3.1-flash-lite-preview"
+input_per_million = 0.25
+output_per_million = 1.5
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-2.5-flash-preview-tts"
+input_per_million = 0.5
 output_per_million = 10.0
 
 [[rules]]
-provider = "Gemini"
-model_pattern = "gemini-2.0-flash-exp"
-input_per_million = 0.0
+provider = "google"
+model_pattern = "gemini-2.5-pro-preview-tts"
+input_per_million = 1.0
+output_per_million = 20.0
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-3-pro-image-preview"
+input_per_million = 2.0
+output_per_million = 120.0
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-flash-lite-latest"
+input_per_million = 0.1
+output_per_million = 0.4
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-2.5-flash-image"
+input_per_million = 0.3
+output_per_million = 30.0
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-3-flash-preview"
+input_per_million = 0.5
+output_per_million = 3.0
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-3.1-pro-preview"
+input_per_million = 2.0
+output_per_million = 12.0
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-2.0-flash-lite"
+input_per_million = 0.075
+output_per_million = 0.3
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-2.5-flash-lite"
+input_per_million = 0.1
+output_per_million = 0.4
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-3.1-flash-lite"
+input_per_million = 0.25
+output_per_million = 1.5
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-3-pro-preview"
+input_per_million = 2.0
+output_per_million = 12.0
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-embedding-001"
+input_per_million = 0.15
 output_per_million = 0.0
 
 [[rules]]
-provider = "Gemini"
-model_pattern = "gemini-2.0-flash-thinking"
-input_per_million = 0.0
-output_per_million = 0.0
+provider = "google"
+model_pattern = "gemini-flash-latest"
+input_per_million = 0.3
+output_per_million = 2.5
 
 [[rules]]
-provider = "Gemini"
+provider = "google"
 model_pattern = "gemini-2.0-flash"
 input_per_million = 0.1
 output_per_million = 0.4
 
 [[rules]]
-provider = "Gemini"
-model_pattern = "gemini-1.5-flash-8b"
-input_per_million = 0.0375
-output_per_million = 0.15
+provider = "google"
+model_pattern = "gemini-2.5-flash"
+input_per_million = 0.3
+output_per_million = 2.5
 
 [[rules]]
-provider = "Gemini"
-model_pattern = "gemini-1.5-flash"
+provider = "google"
+model_pattern = "gemini-3.5-flash"
+input_per_million = 1.5
+output_per_million = 9.0
+
+[[rules]]
+provider = "google"
+model_pattern = "gemini-2.5-pro"
+input_per_million = 1.25
+output_per_million = 10.0
+
+# ── groq (9 models) ──
+
+[[rules]]
+provider = "groq"
+model_pattern = "meta-llama/llama-4-scout-17b-16e-instruct"
+input_per_million = 0.11
+output_per_million = 0.34
+
+[[rules]]
+provider = "groq"
+model_pattern = "meta-llama/llama-prompt-guard-2-22m"
+input_per_million = 0.03
+output_per_million = 0.03
+
+[[rules]]
+provider = "groq"
+model_pattern = "meta-llama/llama-prompt-guard-2-86m"
+input_per_million = 0.04
+output_per_million = 0.04
+
+[[rules]]
+provider = "groq"
+model_pattern = "openai/gpt-oss-safeguard-20b"
 input_per_million = 0.075
 output_per_million = 0.3
 
 [[rules]]
-provider = "Gemini"
-model_pattern = "gemini-1.5-pro"
-input_per_million = 1.25
+provider = "groq"
+model_pattern = "llama-3.3-70b-versatile"
+input_per_million = 0.59
+output_per_million = 0.79
+
+[[rules]]
+provider = "groq"
+model_pattern = "llama-3.1-8b-instant"
+input_per_million = 0.05
+output_per_million = 0.08
+
+[[rules]]
+provider = "groq"
+model_pattern = "openai/gpt-oss-120b"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "groq"
+model_pattern = "openai/gpt-oss-20b"
+input_per_million = 0.075
+output_per_million = 0.3
+
+[[rules]]
+provider = "groq"
+model_pattern = "qwen/qwen3-32b"
+input_per_million = 0.29
+output_per_million = 0.59
+
+# ── huggingface (50 models) ──
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3-Coder-480B-A35B-Instruct"
+input_per_million = 2.0
+output_per_million = 2.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3-235B-A22B-Thinking-2507"
+input_per_million = 0.3
+output_per_million = 3.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+input_per_million = 0.07
+output_per_million = 0.26
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "meta-llama/Llama-3.3-70B-Instruct"
+input_per_million = 0.59
+output_per_million = 0.79
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3-Next-80B-A3B-Instruct"
+input_per_million = 0.25
+output_per_million = 1.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3-Next-80B-A3B-Thinking"
+input_per_million = 0.3
+output_per_million = 2.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "moonshotai/Kimi-K2-Instruct-0905"
+input_per_million = 1.0
+output_per_million = 3.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "deepseek-ai/DeepSeek-V4-Flash"
+input_per_million = 0.14
+output_per_million = 0.28
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "deepseek-ai/DeepSeek-R1-0528"
+input_per_million = 3.0
 output_per_million = 5.0
 
 [[rules]]
-provider = "Gemini"
-model_pattern = "gemini-pro"
+provider = "huggingface"
+model_pattern = "deepseek-ai/DeepSeek-V4-Pro"
+input_per_million = 0.435
+output_per_million = 0.87
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "moonshotai/Kimi-K2-Instruct"
+input_per_million = 1.0
+output_per_million = 3.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "moonshotai/Kimi-K2-Thinking"
+input_per_million = 0.6
+output_per_million = 2.5
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "deepseek-ai/DeepSeek-V3.2"
+input_per_million = 0.28
+output_per_million = 0.4
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "google/gemma-4-26B-A4B-it"
+input_per_million = 0.13
+output_per_million = 0.4
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "moonshotai/Kimi-K2.7-Code"
+input_per_million = 0.95
+output_per_million = 4.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "stepfun-ai/Step-3.5-Flash"
+input_per_million = 0.1
+output_per_million = 0.3
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "stepfun-ai/Step-3.7-Flash"
+input_per_million = 0.2
+output_per_million = 1.15
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "XiaomiMiMo/MiMo-V2-Flash"
+input_per_million = 0.1
+output_per_million = 0.3
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "XiaomiMiMo/MiMo-V2.5-Pro"
+input_per_million = 1.0
+output_per_million = 3.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3-Embedding-4B"
+input_per_million = 0.01
+output_per_million = 0.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3-Embedding-8B"
+input_per_million = 0.01
+output_per_million = 0.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "deepseek-ai/DeepSeek-R1"
+input_per_million = 0.7
+output_per_million = 2.5
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "MiniMaxAI/MiniMax-M2.1"
+input_per_million = 0.3
+output_per_million = 1.2
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "MiniMaxAI/MiniMax-M2.5"
+input_per_million = 0.3
+output_per_million = 1.2
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "MiniMaxAI/MiniMax-M2.7"
+input_per_million = 0.3
+output_per_million = 1.2
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3.5-122B-A10B"
+input_per_million = 0.4
+output_per_million = 3.2
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3.5-397B-A17B"
+input_per_million = 0.6
+output_per_million = 3.6
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3-Coder-Next"
+input_per_million = 0.2
+output_per_million = 1.5
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "google/gemma-4-31B-it"
+input_per_million = 0.14
+output_per_million = 0.4
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "zai-org/GLM-4.7-Flash"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "MiniMaxAI/MiniMax-M2"
+input_per_million = 0.3
+output_per_million = 1.2
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "MiniMaxAI/MiniMax-M3"
+input_per_million = 0.3
+output_per_million = 1.2
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3-235B-A22B"
+input_per_million = 0.2
+output_per_million = 0.8
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3.5-35B-A3B"
+input_per_million = 0.25
+output_per_million = 2.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3.6-35B-A3B"
+input_per_million = 0.15
+output_per_million = 0.95
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "moonshotai/Kimi-K2.5"
+input_per_million = 0.6
+output_per_million = 3.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "moonshotai/Kimi-K2.6"
+input_per_million = 0.95
+output_per_million = 4.0
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "openai/gpt-oss-120b"
+input_per_million = 0.25
+output_per_million = 0.69
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "zai-org/GLM-4.5-Air"
+input_per_million = 0.13
+output_per_million = 0.85
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3.5-27B"
+input_per_million = 0.3
+output_per_million = 2.4
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3.6-27B"
+input_per_million = 0.47
+output_per_million = 3.19
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "zai-org/GLM-4.5V"
+input_per_million = 0.6
+output_per_million = 1.8
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3.5-9B"
+input_per_million = 0.17
+output_per_million = 0.25
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "zai-org/GLM-4.5"
+input_per_million = 0.6
+output_per_million = 2.2
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "zai-org/GLM-4.6"
+input_per_million = 0.55
+output_per_million = 2.2
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "zai-org/GLM-4.7"
+input_per_million = 0.6
+output_per_million = 2.2
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "zai-org/GLM-5.1"
+input_per_million = 1.0
+output_per_million = 3.2
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "zai-org/GLM-5.2"
+input_per_million = 1.4
+output_per_million = 4.4
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "Qwen/Qwen3-32B"
+input_per_million = 0.29
+output_per_million = 0.59
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "zai-org/GLM-5"
+input_per_million = 1.0
+output_per_million = 3.2
+
+# ── mistral (30 models) ──
+
+[[rules]]
+provider = "mistral"
+model_pattern = "labs-devstral-small-2512"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "mistral"
+model_pattern = "magistral-medium-latest"
+input_per_million = 2.0
+output_per_million = 5.0
+
+[[rules]]
+provider = "mistral"
+model_pattern = "devstral-medium-latest"
+input_per_million = 0.4
+output_per_million = 2.0
+
+[[rules]]
+provider = "mistral"
+model_pattern = "mistral-medium-latest"
+input_per_million = 1.5
+output_per_million = 7.5
+
+[[rules]]
+provider = "mistral"
+model_pattern = "devstral-medium-2507"
+input_per_million = 0.4
+output_per_million = 2.0
+
+[[rules]]
+provider = "mistral"
+model_pattern = "mistral-large-latest"
 input_per_million = 0.5
 output_per_million = 1.5
 
-# ── xAI ─────────────────────────────────────────────────────
 [[rules]]
-provider = "xAI"
-model_pattern = "grok-4"
-input_per_million = 3.0
+provider = "mistral"
+model_pattern = "mistral-small-latest"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "mistral"
+model_pattern = "pixtral-large-latest"
+input_per_million = 2.0
+output_per_million = 6.0
+
+[[rules]]
+provider = "mistral"
+model_pattern = "devstral-small-2505"
+input_per_million = 0.1
+output_per_million = 0.3
+
+[[rules]]
+provider = "mistral"
+model_pattern = "devstral-small-2507"
+input_per_million = 0.1
+output_per_million = 0.3
+
+[[rules]]
+provider = "mistral"
+model_pattern = "ministral-3b-latest"
+input_per_million = 0.04
+output_per_million = 0.04
+
+[[rules]]
+provider = "mistral"
+model_pattern = "ministral-8b-latest"
+input_per_million = 0.1
+output_per_million = 0.1
+
+[[rules]]
+provider = "mistral"
+model_pattern = "mistral-medium-2505"
+input_per_million = 0.4
+output_per_million = 2.0
+
+[[rules]]
+provider = "mistral"
+model_pattern = "mistral-medium-2508"
+input_per_million = 0.4
+output_per_million = 2.0
+
+[[rules]]
+provider = "mistral"
+model_pattern = "mistral-medium-2604"
+input_per_million = 1.5
+output_per_million = 7.5
+
+[[rules]]
+provider = "mistral"
+model_pattern = "mistral-large-2411"
+input_per_million = 2.0
+output_per_million = 6.0
+
+[[rules]]
+provider = "mistral"
+model_pattern = "mistral-large-2512"
+input_per_million = 0.5
+output_per_million = 1.5
+
+[[rules]]
+provider = "mistral"
+model_pattern = "mistral-small-2506"
+input_per_million = 0.1
+output_per_million = 0.3
+
+[[rules]]
+provider = "mistral"
+model_pattern = "mistral-small-2603"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "mistral"
+model_pattern = "open-mixtral-8x22b"
+input_per_million = 2.0
+output_per_million = 6.0
+
+[[rules]]
+provider = "mistral"
+model_pattern = "open-mistral-nemo"
+input_per_million = 0.15
+output_per_million = 0.15
+
+[[rules]]
+provider = "mistral"
+model_pattern = "open-mixtral-8x7b"
+input_per_million = 0.7
+output_per_million = 0.7
+
+[[rules]]
+provider = "mistral"
+model_pattern = "codestral-latest"
+input_per_million = 0.3
+output_per_million = 0.9
+
+[[rules]]
+provider = "mistral"
+model_pattern = "devstral-latest"
+input_per_million = 0.4
+output_per_million = 2.0
+
+[[rules]]
+provider = "mistral"
+model_pattern = "magistral-small"
+input_per_million = 0.5
+output_per_million = 1.5
+
+[[rules]]
+provider = "mistral"
+model_pattern = "open-mistral-7b"
+input_per_million = 0.25
+output_per_million = 0.25
+
+[[rules]]
+provider = "mistral"
+model_pattern = "devstral-2512"
+input_per_million = 0.4
+output_per_million = 2.0
+
+[[rules]]
+provider = "mistral"
+model_pattern = "mistral-embed"
+input_per_million = 0.1
+output_per_million = 0.0
+
+[[rules]]
+provider = "mistral"
+model_pattern = "mistral-nemo"
+input_per_million = 0.15
+output_per_million = 0.15
+
+[[rules]]
+provider = "mistral"
+model_pattern = "pixtral-12b"
+input_per_million = 0.15
+output_per_million = 0.15
+
+# ── nvidia (84 models) ──
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "mistralai/mistral-large-3-675b-instruct-2512"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/llama-3_1-nemotron-safety-guard-8b-v3"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/llama-3_2-nemoretriever-300m-embed-v1"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/nemotron-content-safety-reasoning-4b"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "abacusai/dracarys-llama-3_1-70b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "meta/llama-4-maverick-17b-128e-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/riva-translate-4b-instruct-v1_1"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/llama-nemotron-rerank-vl-1b-v2"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "black-forest-labs/flux_1-kontext-dev"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/llama-nemotron-embed-vl-1b-v2"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "microsoft/phi-4-multimodal-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "mistralai/mistral-medium-3-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "mistralai/mistral-small-4-119b-2603"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "qwen/qwen3-coder-480b-a35b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "meta/llama-3.2-11b-vision-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "meta/llama-3.2-90b-vision-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "black-forest-labs/flux_2-klein-4b"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "mistralai/mistral-7b-instruct-v03"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/nemotron-3-super-120b-a12b"
+input_per_million = 0.2
+output_per_million = 0.8
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/nemotron-3-ultra-550b-a55b"
+input_per_million = 0.5
+output_per_million = 2.5
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/nvidia-nemotron-nano-9b-v2"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "black-forest-labs/flux_1-schnell"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "mistralai/mixtral-8x22b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "moonshotai/kimi-k2-instruct-0905"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/nemotron-3-content-safety"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/nemotron-mini-4b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "qwen/qwen3-next-80b-a3b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "bytedance/seed-oss-36b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "mistralai/mixtral-8x7b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/active-speaker-detection"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/synthetic-video-detector"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "qwen/qwen2.5-coder-32b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "mistralai/magistral-small-2506"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/nemotron-3-nano-30b-a3b"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "deepseek-ai/deepseek-v4-flash"
+input_per_million = 0.14
+output_per_million = 0.28
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "microsoft/phi-4-mini-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "black-forest-labs/flux.1-dev"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/cosmos-transfer2_5-2b"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "upstage/solar-10_7b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "deepseek-ai/deepseek-v4-pro"
+input_per_million = 0.435
+output_per_million = 0.87
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "meta/llama-3.1-70b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "meta/llama-3.3-70b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/rerank-qa-mistral-4b"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "meta/llama-3.1-8b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "meta/llama-3.2-1b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "meta/llama-3.2-3b-instruct"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "mistralai/mistral-nemotron"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/cosmos-transfer1-7b"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/magpie-tts-zeroshot"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/cosmos-predict1-5b"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/nemotron-voicechat"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/nv-embedcode-7b-v1"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "stepfun-ai/step-3.5-flash"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "stepfun-ai/step-3.7-flash"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "google/google-paligemma"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "openai/whisper-large-v3"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "google/gemma-3n-e2b-it"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "google/gemma-3n-e4b-it"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "meta/llama-guard-4-12b"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "minimaxai/minimax-m2.7"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "qwen/qwen3.5-122b-a10b"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "qwen/qwen3.5-397b-a17b"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "google/gemma-4-31b-it"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "google/gemma-2-2b-it"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "minimaxai/minimax-m3"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "moonshotai/kimi-k2.6"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "qwen/qwen-image-edit"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "openai/gpt-oss-120b"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/nv-embed-v1"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/sparsedrive"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/studiovoice"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/usdvalidate"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "openai/gpt-oss-20b"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/gliner-pii"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/streampetr"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "sarvamai/sarvam-m"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/bevformer"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "qwen/qwen-image"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "meta/esm2-650m"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "nvidia/usdcode"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "meta/esmfold"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "z-ai/glm-5.2"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "nvidia"
+model_pattern = "baai/bge-m3"
+input_per_million = 0.0
+output_per_million = 0.0
+
+# ── openai (47 models) ──
+
+[[rules]]
+provider = "openai"
+model_pattern = "text-embedding-3-large"
+input_per_million = 0.13
+output_per_million = 0.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "text-embedding-3-small"
+input_per_million = 0.02
+output_per_million = 0.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "text-embedding-ada-002"
+input_per_million = 0.1
+output_per_million = 0.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "o4-mini-deep-research"
+input_per_million = 2.0
+output_per_million = 8.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.1-chat-latest"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.2-chat-latest"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.3-chat-latest"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.3-codex-spark"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.1-codex-mini"
+input_per_million = 0.25
+output_per_million = 2.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-4o-2024-05-13"
+input_per_million = 5.0
 output_per_million = 15.0
 
 [[rules]]
-provider = "xAI"
-model_pattern = "grok-3-mini-fast"
+provider = "openai"
+model_pattern = "gpt-4o-2024-08-06"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-4o-2024-11-20"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5-chat-latest"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.1-codex-max"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "o3-deep-research"
+input_per_million = 10.0
+output_per_million = 40.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-3.5-turbo"
+input_per_million = 0.5
+output_per_million = 1.5
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.1-codex"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.2-codex"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.3-codex"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-4.1-mini"
+input_per_million = 0.4
+output_per_million = 1.6
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-4.1-nano"
 input_per_million = 0.1
 output_per_million = 0.4
 
 [[rules]]
-provider = "xAI"
-model_pattern = "grok-3-mini"
+provider = "openai"
+model_pattern = "gpt-5.4-mini"
+input_per_million = 0.75
+output_per_million = 4.5
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.4-nano"
+input_per_million = 0.2
+output_per_million = 1.25
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-4-turbo"
+input_per_million = 10.0
+output_per_million = 30.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-4o-mini"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5-codex"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.2-pro"
+input_per_million = 21.0
+output_per_million = 168.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.4-pro"
+input_per_million = 30.0
+output_per_million = 180.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.5-pro"
+input_per_million = 30.0
+output_per_million = 180.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-image-2"
+input_per_million = 5.0
+output_per_million = 30.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5-mini"
+input_per_million = 0.25
+output_per_million = 2.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5-nano"
+input_per_million = 0.05
+output_per_million = 0.4
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5-pro"
+input_per_million = 15.0
+output_per_million = 120.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-4.1"
+input_per_million = 2.0
+output_per_million = 8.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.1"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.2"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.4"
+input_per_million = 2.5
+output_per_million = 15.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5.5"
+input_per_million = 5.0
+output_per_million = 30.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "o3-mini"
+input_per_million = 1.1
+output_per_million = 4.4
+
+[[rules]]
+provider = "openai"
+model_pattern = "o4-mini"
+input_per_million = 1.1
+output_per_million = 4.4
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-4o"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "o1-pro"
+input_per_million = 150.0
+output_per_million = 600.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "o3-pro"
+input_per_million = 20.0
+output_per_million = 80.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-4"
+input_per_million = 30.0
+output_per_million = 60.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "gpt-5"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "o1"
+input_per_million = 15.0
+output_per_million = 60.0
+
+[[rules]]
+provider = "openai"
+model_pattern = "o3"
+input_per_million = 2.0
+output_per_million = 8.0
+
+# ── openrouter (336 models) ──
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "cognitivecomputations/dolphin-mistral-24b-venice-edition:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-2.5-flash-lite-preview-09-2025"
+input_per_million = 0.1
+output_per_million = 0.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-3.1-pro-preview-customtools"
+input_per_million = 2.0
+output_per_million = 12.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mistral-small-24b-instruct-2501"
+input_per_million = 0.05
+output_per_million = 0.08
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nousresearch/hermes-3-llama-3.1-405b:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "meta-llama/llama-3.2-11b-vision-instruct"
+input_per_million = 0.345
+output_per_million = 0.345
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mistral-small-3.1-24b-instruct"
+input_per_million = 0.351
+output_per_million = 0.555
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mistral-small-3.2-24b-instruct"
+input_per_million = 0.075
+output_per_million = 0.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+input_per_million = 0.4
+output_per_million = 0.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nvidia/nemotron-3.5-content-safety:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "deepseek/deepseek-r1-distill-llama-70b"
+input_per_million = 0.8
+output_per_million = 0.8
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "meta-llama/llama-3.3-70b-instruct:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nvidia/nemotron-3-super-120b-a12b:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nvidia/nemotron-3-ultra-550b-a55b:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-3.1-flash-image-preview"
+input_per_million = 0.5
+output_per_million = 3.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "meta-llama/llama-3.2-3b-instruct:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-next-80b-a3b-instruct:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-3.1-flash-lite-preview"
+input_per_million = 0.25
+output_per_million = 1.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "inflection/inflection-3-productivity"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nousresearch/hermes-3-llama-3.1-405b"
+input_per_million = 1.0
+output_per_million = 1.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-2.5-pro-preview-05-06"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nousresearch/hermes-3-llama-3.1-70b"
+input_per_million = 0.7
+output_per_million = 0.7
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nvidia/nemotron-3-nano-30b-a3b:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nvidia/nemotron-nano-12b-v2-vl:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-3.1-flash-lite-image"
+input_per_million = 0.25
+output_per_million = 1.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen-plus-2025-07-28:thinking"
+input_per_million = 0.26
+output_per_million = 0.78
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-235b-a22b-thinking-2507"
+input_per_million = 0.1495
+output_per_million = 1.495
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-3-pro-image-preview"
+input_per_million = 2.0
+output_per_million = 12.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "liquid/lfm-2.5-1.2b-instruct:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "liquid/lfm-2.5-1.2b-thinking:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "meta-llama/llama-3.1-70b-instruct"
+input_per_million = 0.4
+output_per_million = 0.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "meta-llama/llama-3.3-70b-instruct"
+input_per_million = 0.1
+output_per_million = 0.32
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nvidia/nemotron-3-super-120b-a12b"
+input_per_million = 0.08
+output_per_million = 0.45
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nvidia/nemotron-3-ultra-550b-a55b"
+input_per_million = 0.5
+output_per_million = 2.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4o-mini-search-preview"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-coder-30b-a3b-instruct"
+input_per_million = 0.07
+output_per_million = 0.27
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "meta-llama/llama-3.1-8b-instruct"
+input_per_million = 0.02
+output_per_million = 0.03
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "meta-llama/llama-3.2-1b-instruct"
+input_per_million = 0.027
+output_per_million = 0.201
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "meta-llama/llama-3.2-3b-instruct"
+input_per_million = 0.0509
+output_per_million = 0.335
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mixtral-8x22b-instruct"
+input_per_million = 2.0
+output_per_million = 6.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/voxtral-small-24b-2507"
+input_per_million = 0.1
+output_per_million = 0.3
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen-2.5-coder-32b-instruct"
+input_per_million = 0.66
+output_per_million = 1.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-30b-a3b-instruct-2507"
+input_per_million = 0.04815
+output_per_million = 0.19305
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-30b-a3b-thinking-2507"
+input_per_million = 0.13
+output_per_million = 1.56
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-next-80b-a3b-instruct"
+input_per_million = 0.09
+output_per_million = 1.1
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-next-80b-a3b-thinking"
+input_per_million = 0.0975
+output_per_million = 0.78
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-vl-235b-a22b-instruct"
+input_per_million = 0.2
+output_per_million = 0.88
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-vl-235b-a22b-thinking"
+input_per_million = 0.26
+output_per_million = 2.6
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "arcee-ai/trinity-large-thinking"
+input_per_million = 0.25
+output_per_million = 0.8
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "deepseek/deepseek-v3.1-terminus"
+input_per_million = 0.27
+output_per_million = 0.95
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "ibm-granite/granite-4.0-h-micro"
+input_per_million = 0.017
+output_per_million = 0.112
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nvidia/nemotron-nano-9b-v2:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "~anthropic/claude-sonnet-latest"
+input_per_million = 2.0
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "aion-labs/aion-rp-llama-3.1-8b"
+input_per_million = 0.8
+output_per_million = 1.6
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-opus-4.7-fast"
+input_per_million = 30.0
+output_per_million = 150.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-opus-4.8-fast"
+input_per_million = 10.0
+output_per_million = 50.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "deepseek/deepseek-chat-v3-0324"
+input_per_million = 0.24
+output_per_million = 0.9
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemma-4-26b-a4b-it:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "meta-llama/llama-3-8b-instruct"
+input_per_million = 0.14
+output_per_million = 0.14
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nvidia/nemotron-3-nano-30b-a3b"
+input_per_million = 0.05
+output_per_million = 0.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "perplexity/sonar-deep-research"
+input_per_million = 2.0
+output_per_million = 8.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "perplexity/sonar-reasoning-pro"
+input_per_million = 2.0
+output_per_million = 8.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-vl-30b-a3b-instruct"
+input_per_million = 0.13
+output_per_million = 0.52
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-vl-30b-a3b-thinking"
+input_per_million = 0.13
+output_per_million = 1.56
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "~anthropic/claude-fable-latest"
+input_per_million = 10.0
+output_per_million = 50.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "~anthropic/claude-haiku-latest"
+input_per_million = 1.0
+output_per_million = 5.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "bytedance-seed/seed-1.6-flash"
+input_per_million = 0.075
+output_per_million = 0.3
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "cohere/command-r-plus-08-2024"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-2.5-flash-image"
 input_per_million = 0.3
-output_per_million = 0.5
+output_per_million = 2.5
 
 [[rules]]
-provider = "xAI"
-model_pattern = "grok-3-fast"
-input_per_million = 0.6
-output_per_million = 4.0
+provider = "openrouter"
+model_pattern = "google/gemini-2.5-pro-preview"
+input_per_million = 1.25
+output_per_million = 10.0
 
 [[rules]]
-provider = "xAI"
-model_pattern = "grok-3"
+provider = "openrouter"
+model_pattern = "google/gemini-3-flash-preview"
+input_per_million = 0.5
+output_per_million = 3.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-3.1-flash-image"
+input_per_million = 0.5
+output_per_million = 3.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-3.1-pro-preview"
+input_per_million = 2.0
+output_per_million = 12.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-3.5-turbo-instruct"
+input_per_million = 1.5
+output_per_million = 2.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4o-mini-2024-07-18"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "tencent/hunyuan-a13b-instruct"
+input_per_million = 0.14
+output_per_million = 0.57
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "~anthropic/claude-opus-latest"
+input_per_million = 5.0
+output_per_million = 25.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthracite-org/magnum-v4-72b"
+input_per_million = 3.0
+output_per_million = 5.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "baidu/ernie-4.5-vl-424b-a47b"
+input_per_million = 0.42
+output_per_million = 1.25
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "bytedance-seed/seed-2.0-lite"
+input_per_million = 0.25
+output_per_million = 2.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "bytedance-seed/seed-2.0-mini"
+input_per_million = 0.1
+output_per_million = 0.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-2.5-flash-lite"
+input_per_million = 0.1
+output_per_million = 0.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-3.1-flash-lite"
+input_per_million = 0.25
+output_per_million = 1.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "meta-llama/llama-guard-4-12b"
+input_per_million = 0.18
+output_per_million = 0.18
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/ministral-14b-2512"
+input_per_million = 0.2
+output_per_million = 0.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mistral-large-2407"
+input_per_million = 2.0
+output_per_million = 6.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mistral-large-2512"
+input_per_million = 0.5
+output_per_million = 1.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mistral-medium-3-5"
+input_per_million = 1.5
+output_per_million = 7.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mistral-medium-3.1"
+input_per_million = 0.4
+output_per_million = 2.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mistral-small-2603"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4o-search-preview"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-oss-safeguard-20b"
+input_per_million = 0.075
+output_per_million = 0.3
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/o4-mini-deep-research"
+input_per_million = 2.0
+output_per_million = 8.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen2.5-vl-72b-instruct"
+input_per_million = 0.8
+output_per_million = 1.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-sonnet-4.5"
 input_per_million = 3.0
 output_per_million = 15.0
 
 [[rules]]
-provider = "xAI"
-model_pattern = "grok-2"
+provider = "openrouter"
+model_pattern = "anthropic/claude-sonnet-4.6"
+input_per_million = 3.0
+output_per_million = 15.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "cohere/north-mini-code:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "deepcogito/cogito-v2.1-671b"
+input_per_million = 1.25
+output_per_million = 1.25
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "deepseek/deepseek-chat-v3.1"
+input_per_million = 0.21
+output_per_million = 0.79
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/lyria-3-clip-preview"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "meta-llama/llama-4-maverick"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/ministral-3b-2512"
+input_per_million = 0.1
+output_per_million = 0.1
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/ministral-8b-2512"
+input_per_million = 0.15
+output_per_million = 0.15
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "moonshotai/kimi-k2-thinking"
+input_per_million = 0.6
+output_per_million = 2.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "perplexity/sonar-pro-search"
+input_per_million = 3.0
+output_per_million = 15.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "poolside/laguna-xs-2.1:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "thedrummer/cydonia-24b-v4.1"
+input_per_million = 0.3
+output_per_million = 0.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "~google/gemini-flash-latest"
+input_per_million = 1.5
+output_per_million = 9.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-haiku-4.5"
+input_per_million = 1.0
+output_per_million = 5.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "cohere/command-r7b-12-2024"
+input_per_million = 0.0375
+output_per_million = 0.15
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "deepseek/deepseek-v3.2-exp"
+input_per_million = 0.27
+output_per_million = 0.41
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "deepseek/deepseek-v4-flash"
+input_per_million = 0.09
+output_per_million = 0.18
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemma-4-31b-it:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/lyria-3-pro-preview"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "ibm-granite/granite-4.1-8b"
+input_per_million = 0.05
+output_per_million = 0.1
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "inclusionai/ling-2.6-flash"
+input_per_million = 0.01
+output_per_million = 0.03
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "inflection/inflection-3-pi"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "kwaipilot/kat-coder-pro-v2"
+input_per_million = 0.3
+output_per_million = 1.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "microsoft/wizardlm-2-8x22b"
+input_per_million = 0.62
+output_per_million = 0.62
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mistral-medium-3"
+input_per_million = 0.4
+output_per_million = 2.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nousresearch/hermes-4-405b"
+input_per_million = 1.0
+output_per_million = 3.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4-turbo-preview"
+input_per_million = 10.0
+output_per_million = 30.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen-2.5-72b-instruct"
+input_per_million = 0.36
+output_per_million = 0.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-vl-32b-instruct"
+input_per_million = 0.104
+output_per_million = 0.416
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.5-plus-20260420"
+input_per_million = 0.3
+output_per_million = 1.8
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "x-ai/grok-4.20-multi-agent"
+input_per_million = 1.25
+output_per_million = 2.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-opus-4.1"
+input_per_million = 15.0
+output_per_million = 75.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-opus-4.5"
+input_per_million = 5.0
+output_per_million = 25.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-opus-4.6"
+input_per_million = 5.0
+output_per_million = 25.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-opus-4.7"
+input_per_million = 5.0
+output_per_million = 25.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-opus-4.8"
+input_per_million = 5.0
+output_per_million = 25.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-sonnet-4"
+input_per_million = 3.0
+output_per_million = 15.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-sonnet-5"
 input_per_million = 2.0
 output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "deepseek/deepseek-r1-0528"
+input_per_million = 0.5
+output_per_million = 2.15
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-3-pro-image"
+input_per_million = 2.0
+output_per_million = 12.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemma-4-26b-a4b-it"
+input_per_million = 0.06
+output_per_million = 0.33
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "moonshotai/kimi-k2.7-code"
+input_per_million = 0.74
+output_per_million = 3.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nousresearch/hermes-4-70b"
+input_per_million = 0.13
+output_per_million = 0.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-3.5-turbo-0613"
+input_per_million = 1.0
+output_per_million = 2.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.1-codex-mini"
+input_per_million = 0.25
+output_per_million = 2.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "perceptron/perceptron-mk1"
+input_per_million = 0.15
+output_per_million = 1.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "poolside/laguna-xs.2:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen-2.5-7b-instruct"
+input_per_million = 0.04
+output_per_million = 0.1
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen-plus-2025-07-28"
+input_per_million = 0.26
+output_per_million = 0.78
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-235b-a22b-2507"
+input_per_million = 0.09
+output_per_million = 0.1
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-vl-8b-instruct"
+input_per_million = 0.117
+output_per_million = 0.455
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-vl-8b-thinking"
+input_per_million = 0.117
+output_per_million = 1.365
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "sao10k/l3.1-70b-hanami-x1"
+input_per_million = 3.0
+output_per_million = 3.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "thedrummer/skyfall-36b-v2"
+input_per_million = 0.55
+output_per_million = 0.8
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "thedrummer/unslopnemo-12b"
+input_per_million = 0.4
+output_per_million = 0.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "~google/gemini-pro-latest"
+input_per_million = 2.0
+output_per_million = 12.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "allenai/olmo-3-32b-think"
+input_per_million = 0.15
+output_per_million = 0.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-3-haiku"
+input_per_million = 0.25
+output_per_million = 1.25
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-fable-5"
+input_per_million = 10.0
+output_per_million = 50.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "bytedance/ui-tars-1.5-7b"
+input_per_million = 0.1
+output_per_million = 0.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "cohere/command-r-08-2024"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "deepseek/deepseek-v4-pro"
+input_per_million = 0.435
+output_per_million = 0.87
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "meta-llama/llama-4-scout"
+input_per_million = 0.1
+output_per_million = 0.3
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/codestral-2508"
+input_per_million = 0.3
+output_per_million = 0.9
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-3.5-turbo-16k"
+input_per_million = 3.0
+output_per_million = 4.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4o-2024-05-13"
+input_per_million = 5.0
+output_per_million = 15.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4o-2024-08-06"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4o-2024-11-20"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.1-codex-max"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-oss-120b:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "poolside/laguna-m.1:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.5-flash-02-23"
+input_per_million = 0.065
+output_per_million = 0.26
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.6-max-preview"
+input_per_million = 1.04
+output_per_million = 6.24
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "thedrummer/rocinante-12b"
+input_per_million = 0.25
+output_per_million = 0.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "undi95/remm-slerp-l2-13b"
+input_per_million = 0.45
+output_per_million = 0.65
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "aion-labs/aion-1.0-mini"
+input_per_million = 0.7
+output_per_million = 1.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "anthropic/claude-opus-4"
+input_per_million = 15.0
+output_per_million = 75.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "arcee-ai/virtuoso-large"
+input_per_million = 0.75
+output_per_million = 1.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "bytedance-seed/seed-1.6"
+input_per_million = 0.25
+output_per_million = 2.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-2.5-flash"
+input_per_million = 0.3
+output_per_million = 2.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-3.5-flash"
+input_per_million = 1.5
+output_per_million = 9.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "inclusionai/ling-2.6-1t"
+input_per_million = 0.075
+output_per_million = 0.625
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "inclusionai/ring-2.6-1t"
+input_per_million = 0.075
+output_per_million = 0.625
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/devstral-2512"
+input_per_million = 0.4
+output_per_million = 2.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mistral-large"
+input_per_million = 2.0
+output_per_million = 6.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "moonshotai/kimi-k2-0905"
+input_per_million = 0.6
+output_per_million = 2.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5-image-mini"
+input_per_million = 2.5
+output_per_million = 2.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-oss-20b:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/o3-deep-research"
+input_per_million = 10.0
+output_per_million = 40.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-max-thinking"
+input_per_million = 0.78
+output_per_million = 3.9
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.5-plus-02-15"
+input_per_million = 0.26
+output_per_million = 1.56
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "sao10k/l3.1-euryale-70b"
+input_per_million = 0.85
+output_per_million = 0.85
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "sao10k/l3.3-euryale-70b"
+input_per_million = 0.65
+output_per_million = 0.75
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "~moonshotai/kimi-latest"
+input_per_million = 0.66
+output_per_million = 3.41
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "~openai/gpt-mini-latest"
+input_per_million = 0.75
+output_per_million = 4.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "amazon/nova-premier-v1"
+input_per_million = 2.5
+output_per_million = 12.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "deepseek/deepseek-chat"
+input_per_million = 0.2002
+output_per_million = 0.8001
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "deepseek/deepseek-v3.2"
+input_per_million = 0.2288
+output_per_million = 0.3432
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemma-3n-e4b-it"
+input_per_million = 0.06
+output_per_million = 0.12
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "gryphe/mythomax-l2-13b"
+input_per_million = 0.06
+output_per_million = 0.06
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "minimax/minimax-m2-her"
+input_per_million = 0.3
+output_per_million = 1.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mistral-nemo"
+input_per_million = 0.02
+output_per_million = 0.03
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mistralai/mistral-saba"
+input_per_million = 0.2
+output_per_million = 0.6
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.4-image-2"
+input_per_million = 8.0
+output_per_million = 15.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-chat-latest"
+input_per_million = 5.0
+output_per_million = 30.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "poolside/laguna-xs-2.1"
+input_per_million = 0.06
+output_per_million = 0.12
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-coder-flash"
+input_per_million = 0.195
+output_per_million = 0.975
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.5-122b-a10b"
+input_per_million = 0.26
+output_per_million = 2.08
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.5-397b-a17b"
+input_per_million = 0.385
+output_per_million = 2.45
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "stepfun/step-3.5-flash"
+input_per_million = 0.1
+output_per_million = 0.3
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "stepfun/step-3.7-flash"
+input_per_million = 0.2
+output_per_million = 1.15
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "amazon/nova-2-lite-v1"
+input_per_million = 0.3
+output_per_million = 2.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "arcee-ai/trinity-mini"
+input_per_million = 0.045
+output_per_million = 0.15
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemini-2.5-pro"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemma-2-27b-it"
+input_per_million = 0.65
+output_per_million = 0.65
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemma-3-12b-it"
+input_per_million = 0.05
+output_per_million = 0.15
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemma-3-27b-it"
+input_per_million = 0.08
+output_per_million = 0.16
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemma-4-31b-it"
+input_per_million = 0.12
+output_per_million = 0.35
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-audio-mini"
+input_per_million = 0.6
+output_per_million = 2.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-coder-next"
+input_per_million = 0.11
+output_per_million = 0.8
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-coder-plus"
+input_per_million = 0.65
+output_per_million = 3.25
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-coder:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "relace/relace-apply-3"
+input_per_million = 0.85
+output_per_million = 1.25
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "ai21/jamba-large-1.7"
+input_per_million = 2.0
+output_per_million = 8.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "amazon/nova-micro-v1"
+input_per_million = 0.035
+output_per_million = 0.14
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "arcee-ai/coder-large"
+input_per_million = 0.5
+output_per_million = 0.8
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "deepseek/deepseek-r1"
+input_per_million = 0.7
+output_per_million = 2.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "google/gemma-3-4b-it"
+input_per_million = 0.05
+output_per_million = 0.1
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "liquid/lfm-2-24b-a2b"
+input_per_million = 0.03
+output_per_million = 0.12
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "minimax/minimax-m2.1"
+input_per_million = 0.3
+output_per_million = 1.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "minimax/minimax-m2.5"
+input_per_million = 0.12
+output_per_million = 0.48
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "minimax/minimax-m2.7"
+input_per_million = 0.18
+output_per_million = 0.72
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "moonshotai/kimi-k2.5"
+input_per_million = 0.375
+output_per_million = 2.025
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "moonshotai/kimi-k2.6"
+input_per_million = 0.66
+output_per_million = 3.41
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "morph/morph-v3-large"
+input_per_million = 0.9
+output_per_million = 1.9
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-3.5-turbo"
+input_per_million = 0.5
+output_per_million = 1.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.1-codex"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.2-codex"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.3-codex"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "perplexity/sonar-pro"
+input_per_million = 3.0
+output_per_million = 15.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "poolside/laguna-xs.2"
+input_per_million = 0.1
+output_per_million = 0.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-235b-a22b"
+input_per_million = 0.455
+output_per_million = 1.82
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.5-35b-a3b"
+input_per_million = 0.14
+output_per_million = 1.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.6-35b-a3b"
+input_per_million = 0.14
+output_per_million = 1.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "relace/relace-search"
+input_per_million = 1.0
+output_per_million = 3.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "sao10k/l3-lunaris-8b"
+input_per_million = 0.04
+output_per_million = 0.05
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "xiaomi/mimo-v2.5-pro"
+input_per_million = 0.435
+output_per_million = 0.87
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "amazon/nova-lite-v1"
+input_per_million = 0.06
+output_per_million = 0.24
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "inception/mercury-2"
+input_per_million = 0.25
+output_per_million = 0.75
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "morph/morph-v3-fast"
+input_per_million = 0.8
+output_per_million = 1.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4.1-mini"
+input_per_million = 0.4
+output_per_million = 1.6
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4.1-nano"
+input_per_million = 0.1
+output_per_million = 0.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.1-chat"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.2-chat"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.3-chat"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.4-mini"
+input_per_million = 0.75
+output_per_million = 4.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.4-nano"
+input_per_million = 0.2
+output_per_million = 1.25
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-oss-120b"
+input_per_million = 0.03
+output_per_million = 0.15
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/o3-mini-high"
+input_per_million = 1.1
+output_per_million = 4.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/o4-mini-high"
+input_per_million = 1.1
+output_per_million = 4.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "poolside/laguna-m.1"
+input_per_million = 0.2
+output_per_million = 0.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "rekaai/reka-flash-3"
+input_per_million = 0.1
+output_per_million = 0.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "tencent/hy3-preview"
+input_per_million = 0.063
+output_per_million = 0.21
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "upstage/solar-pro-3"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "x-ai/grok-build-0.1"
+input_per_million = 1.0
+output_per_million = 2.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "aion-labs/aion-1.0"
+input_per_million = 4.0
+output_per_million = 8.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "aion-labs/aion-2.0"
+input_per_million = 0.8
+output_per_million = 1.6
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "amazon/nova-pro-v1"
+input_per_million = 0.8
+output_per_million = 3.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "minimax/minimax-01"
+input_per_million = 0.2
+output_per_million = 1.1
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "minimax/minimax-m1"
+input_per_million = 0.4
+output_per_million = 2.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "minimax/minimax-m2"
+input_per_million = 0.255
+output_per_million = 1.02
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "minimax/minimax-m3"
+input_per_million = 0.3
+output_per_million = 1.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "moonshotai/kimi-k2"
+input_per_million = 0.57
+output_per_million = 2.3
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "nex-agi/nex-n2-pro"
+input_per_million = 0.25
+output_per_million = 1.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4-turbo"
+input_per_million = 10.0
+output_per_million = 30.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4o-mini"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5-codex"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5-image"
+input_per_million = 10.0
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.2-pro"
+input_per_million = 21.0
+output_per_million = 168.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.4-pro"
+input_per_million = 30.0
+output_per_million = 180.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.5-pro"
+input_per_million = 30.0
+output_per_million = 180.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-oss-20b"
+input_per_million = 0.029
+output_per_million = 0.14
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-30b-a3b"
+input_per_million = 0.12
+output_per_million = 0.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.6-flash"
+input_per_million = 0.1875
+output_per_million = 1.125
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "switchpoint/router"
+input_per_million = 0.85
+output_per_million = 3.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "z-ai/glm-4.7-flash"
+input_per_million = 0.06
+output_per_million = 0.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "~openai/gpt-latest"
+input_per_million = 5.0
+output_per_million = 30.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5-chat"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5-mini"
+input_per_million = 0.25
+output_per_million = 2.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5-nano"
+input_per_million = 0.05
+output_per_million = 0.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.6-plus"
+input_per_million = 0.325
+output_per_million = 1.95
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.7-plus"
+input_per_million = 0.32
+output_per_million = 1.28
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "sakana/fugu-ultra"
+input_per_million = 5.0
+output_per_million = 30.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "writer/palmyra-x5"
+input_per_million = 0.6
+output_per_million = 6.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "z-ai/glm-5v-turbo"
+input_per_million = 1.2
+output_per_million = 4.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "cohere/command-a"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5-pro"
+input_per_million = 15.0
+output_per_million = 120.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-audio"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "perplexity/sonar"
+input_per_million = 1.0
+output_per_million = 1.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-coder"
+input_per_million = 0.22
+output_per_million = 1.8
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.5-27b"
+input_per_million = 0.195
+output_per_million = 1.56
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.6-27b"
+input_per_million = 0.285
+output_per_million = 2.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.7-max"
+input_per_million = 1.25
+output_per_million = 3.75
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "rekaai/reka-edge"
+input_per_million = 0.1
+output_per_million = 0.1
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "xiaomi/mimo-v2.5"
+input_per_million = 0.105
+output_per_million = 0.28
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "z-ai/glm-4.5-air"
+input_per_million = 0.13
+output_per_million = 0.85
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "z-ai/glm-5-turbo"
+input_per_million = 1.2
+output_per_million = 4.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "microsoft/phi-4"
+input_per_million = 0.07
+output_per_million = 0.14
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openrouter/free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3.5-9b"
+input_per_million = 0.1
+output_per_million = 0.15
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4.1"
+input_per_million = 2.0
+output_per_million = 8.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.1"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.2"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.4"
+input_per_million = 2.5
+output_per_million = 15.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5.5"
+input_per_million = 5.0
+output_per_million = 30.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/o3-mini"
+input_per_million = 1.1
+output_per_million = 4.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/o4-mini"
+input_per_million = 1.1
+output_per_million = 4.4
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen-plus"
+input_per_million = 0.26
+output_per_million = 0.78
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-14b"
+input_per_million = 0.1
+output_per_million = 0.24
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-32b"
+input_per_million = 0.08
+output_per_million = 0.28
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-max"
+input_per_million = 0.78
+output_per_million = 3.9
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "x-ai/grok-4.20"
+input_per_million = 1.25
+output_per_million = 2.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "mancer/weaver"
+input_per_million = 0.75
+output_per_million = 1.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4o"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/o1-pro"
+input_per_million = 150.0
+output_per_million = 600.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/o3-pro"
+input_per_million = 20.0
+output_per_million = 80.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "qwen/qwen3-8b"
+input_per_million = 0.117
+output_per_million = 0.455
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "x-ai/grok-4.3"
+input_per_million = 1.25
+output_per_million = 2.5
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "z-ai/glm-4.5v"
+input_per_million = 0.6
+output_per_million = 1.8
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "z-ai/glm-4.6v"
+input_per_million = 0.3
+output_per_million = 0.9
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-4"
+input_per_million = 30.0
+output_per_million = 60.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/gpt-5"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "z-ai/glm-4.5"
+input_per_million = 0.6
+output_per_million = 2.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "z-ai/glm-4.6"
+input_per_million = 0.43
+output_per_million = 1.74
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "z-ai/glm-4.7"
+input_per_million = 0.4
+output_per_million = 1.75
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "z-ai/glm-5.1"
+input_per_million = 0.966
+output_per_million = 3.036
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "z-ai/glm-5.2"
+input_per_million = 0.686
+output_per_million = 2.156
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "z-ai/glm-5"
+input_per_million = 0.6
+output_per_million = 1.92
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/o1"
+input_per_million = 15.0
+output_per_million = 60.0
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "openai/o3"
+input_per_million = 2.0
+output_per_million = 8.0
+
+# ── xai (7 models) ──
+
+[[rules]]
+provider = "xai"
+model_pattern = "grok-4.20-0309-non-reasoning"
+input_per_million = 1.25
+output_per_million = 2.5
+
+[[rules]]
+provider = "xai"
+model_pattern = "grok-4.20-multi-agent-0309"
+input_per_million = 1.25
+output_per_million = 2.5
+
+[[rules]]
+provider = "xai"
+model_pattern = "grok-4.20-0309-reasoning"
+input_per_million = 1.25
+output_per_million = 2.5
+
+[[rules]]
+provider = "xai"
+model_pattern = "grok-3-mini-fast"
+input_per_million = 0.6
+output_per_million = 4.0
+
+[[rules]]
+provider = "xai"
+model_pattern = "grok-build-0.1"
+input_per_million = 1.0
+output_per_million = 2.0
+
+[[rules]]
+provider = "xai"
+model_pattern = "grok-4.3"
+input_per_million = 1.25
+output_per_million = 2.5
+
+[[rules]]
+provider = "xai"
+model_pattern = "grok-3"
+input_per_million = 3.0
+output_per_million = 15.0
