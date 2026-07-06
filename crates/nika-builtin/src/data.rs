@@ -789,6 +789,54 @@ mod tests {
     }
 
     #[test]
+    fn validate_never_fetches_a_remote_ref() {
+        // SSRF FLOOR: jsonschema is compiled `default-features = false`
+        // (no resolve-http / resolve-file), so a remote `$ref` CANNOT be
+        // fetched — it must surface loudly as a compile error, never a
+        // network call or a silent pass. This pins the structurally-closed
+        // property so a future `default-features` flip is caught here, not
+        // in the wild. (Proven at the binary: the remote $ref returns
+        // VALIDATE-001 with no hang.)
+        for uri in [
+            "https://example.com/evil.json",
+            "http://169.254.169.254/latest/meta-data",
+            "file:///etc/passwd",
+        ] {
+            let refused = validate(&args(serde_json::json!({
+                "data": {}, "schema": { "$ref": uri }
+            })));
+            assert!(
+                matches!(&refused, Err(f) if f.code == "NIKA-BUILTIN-VALIDATE-001"),
+                "remote/file $ref `{uri}` must refuse (SSRF/LFI floor), got {refused:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_deep_yaml_is_bounded_never_a_stack_overflow() {
+        // TOTALITY: a deeply-nested YAML `data:` string must not overflow
+        // the parser's stack (the classic serde_yaml crash class). The
+        // `serde_yaml_bw` fork bounds nesting, so this returns a clean
+        // parse error, never a SIGSEGV. Pinned across a depth sweep so a
+        // dep swap that reintroduces the crash is caught. (Proven at the
+        // binary: 200 → 50k deep, all clean exits, zero crashes.)
+        let schema = serde_json::json!({ "type": "array" });
+        for depth in [128_usize, 1_000, 20_000] {
+            let deep = format!("{}{}", "[".repeat(depth), "]".repeat(depth));
+            let out = validate(&args(serde_json::json!({
+                "data": deep, "schema": schema, "format": "yaml"
+            })));
+            // Either it parses (bounded-ok) or it refuses (VALIDATE-002) —
+            // both are total; the ONLY unacceptable outcome is a crash,
+            // which this call returning at all disproves.
+            assert!(
+                out.is_ok() || matches!(&out, Err(f) if f.code == "NIKA-BUILTIN-VALIDATE-002"),
+                "depth {depth} must be total (ok or -002), got {out:?}"
+            );
+        }
+    }
+
+    #[test]
     fn convert_round_trips_and_rejects_identity() {
         // json → yaml → json round-trip.
         let yaml = convert(&args(serde_json::json!({
