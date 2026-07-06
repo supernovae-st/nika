@@ -256,7 +256,8 @@ fn data_defs() -> Vec<ToolDef> {
                 "input": { "description": "the data (string for text formats)" },
                 "from": s("json|yaml|toml|csv"),
                 "to": s("json|yaml|toml|csv"),
-                "has_header": { "type": "boolean", "description": "CSV only (default true)" }
+                "has_header": { "type": "boolean", "description": "CSV only (default true)" },
+                "formula_guard": { "type": "boolean", "description": "CSV only · prefix formula-triggering cells (=+-@) with ' against spreadsheet injection · default false (alters data)" }
             }),
             &["input", "from", "to"],
         ),
