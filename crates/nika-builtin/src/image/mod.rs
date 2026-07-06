@@ -47,6 +47,7 @@ use nika_kernel::io::fs::{FsReadDyn, FsWriteDyn};
 use nika_kernel::io::http::HttpPostDyn;
 use nika_kernel::secret::Secret;
 
+use crate::media::time::rfc3339_now;
 use crate::permits::FsBoundary;
 use crate::{Args, BuiltinFailure, BuiltinOutcome, Emitter};
 
@@ -519,13 +520,6 @@ where
         }),
     );
     Ok(batch)
-}
-
-/// RFC 3339 wall-clock timestamp through the injected clock seam (test
-/// hermeticity — invariant #27).
-fn rfc3339_now<C: ClockDyn>(clock: &C) -> String {
-    jiff::Timestamp::try_from(clock.system_now())
-        .map_or_else(|_| "1970-01-01T00:00:00Z".to_owned(), |ts| ts.to_string())
 }
 
 /// Assemble the normalized output object — paths + hashes + usage, never

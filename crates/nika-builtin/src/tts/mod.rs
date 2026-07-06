@@ -31,6 +31,7 @@ use nika_kernel::io::fs::{FsReadDyn, FsWriteDyn};
 use nika_kernel::io::http::HttpPostDyn;
 use nika_kernel::secret::Secret;
 
+use crate::media::time::rfc3339_now;
 use crate::permits::{FsAccess, FsBoundary};
 use crate::{Args, BuiltinFailure, BuiltinOutcome, Emitter};
 
@@ -487,11 +488,6 @@ async fn write_manifest<F: FsReadDyn + FsWriteDyn, Em: Emitter>(
         serde_json::json!({ "path": path_str }),
     );
     Ok(path_str)
-}
-
-fn rfc3339_now<C: ClockDyn>(clock: &C) -> String {
-    jiff::Timestamp::try_from(clock.system_now())
-        .map_or_else(|_| "1970-01-01T00:00:00Z".to_owned(), |ts| ts.to_string())
 }
 
 #[cfg(test)]

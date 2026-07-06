@@ -55,7 +55,7 @@ fn push_text_chunk(out: &mut Vec<u8>, data: &[u8]) {
     out.extend_from_slice(data);
     let mut crc_input = b"tEXt".to_vec();
     crc_input.extend_from_slice(data);
-    out.extend_from_slice(&super::mock::crc32(&crc_input).to_be_bytes());
+    out.extend_from_slice(&crate::media::png::crc32(&crc_input).to_be_bytes());
 }
 
 /// The deterministic provenance core as pure-ASCII JSON (`\uXXXX`-escaped
