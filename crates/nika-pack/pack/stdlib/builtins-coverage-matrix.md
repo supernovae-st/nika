@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtin coverage matrix
 
-> The <!-- canon:builtins -->24<!-- /canon --> builtins audited **as a SET** (2026-06-10) · capability coverage ·
+> The <!-- canon:builtins -->25<!-- /canon --> builtins audited **as a SET** (2026-06-10) · capability coverage ·
 > overlap boundaries · naming grammar · deliberate absences. Per-builtin
 > specs live in [builtins-v0.1.md](./builtins-v0.1.md); this file answers
 > the set-level questions · « can it do everything? » and « is anything
@@ -21,7 +21,8 @@
 | time | `wait` (relative XOR absolute) · `date` | ✅ |
 | hash / crypto | `hash` | ✅ hashing · signing/encryption = deliberate absence (B2) |
 | notify / human | `notify` · `prompt` (blocking approval) | ✅ full |
-| media / image generation | `image_generate` (openai · gemini · mock · assets land on disk + provenance manifest) | ✅ first §Media graduate (2026-07-05) · editing + the rest of the media class deferred |
+| media / image generation | `image_generate` (local · openai · gemini · xai · mock · assets land on disk + provenance manifest) | ✅ §Media (2026-07-05) · `mode: edit` specified ([builtins-v0.1 §edit](./builtins-v0.1.md)) · the rest of the media class deferred |
+| media / speech synthesis | `tts_generate` (local · openai · elevenlabs · mock · assets land on disk + manifest incl. `watermark_declared`) | ✅ §Audio (2026-07-05) |
 | control / observability | `assert` · `done` · `log` · `emit` · `inspect` (+ DAG-side `when` · `for_each`) | ✅ full |
 
 Every capability class is covered or carries a **written deliberate-absence
@@ -71,4 +72,4 @@ reference engine define the precise shapes.
 
 ---
 
-🦋 *<!-- canon:builtins -->24<!-- /canon --> builtins · zero duplicates · every absence written.*
+🦋 *<!-- canon:builtins -->25<!-- /canon --> builtins · zero duplicates · every absence written.*

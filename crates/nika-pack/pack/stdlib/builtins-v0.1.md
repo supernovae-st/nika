@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtins
 
-> **<!-- canon:builtins -->24<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
+> **<!-- canon:builtins -->25<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
 > Invoked via `invoke: tool: "nika:<name>"`. Plus the remaining media
 > builtins deferred to stdlib v0.x (opt-in feature flag).
 >
@@ -331,7 +331,7 @@ Throws · `NIKA-BUILTIN-INSPECT-001` if `view:` value not in the canonical enum.
 
 ---
 
-## Media builtins (1)
+## Media builtins (2)
 
 ### `nika:image_generate` · provider-backed image asset generation
 
@@ -357,7 +357,9 @@ outputs** (no base64 in `tasks.X.output`, logs, or traces · normative).
 | `provider` | `local` · `openai` · `gemini` · `xai` · `mock` — optional when inferable from `model:` (`gpt-image*`→openai · `gemini-*`→gemini · `grok*`→xai · `mock*`→mock · `local` is NEVER inferred: its model names are server-specific) |
 | `model` | per-provider default (reference engine 2026-07: `stablediffusion` for local — the LocalAI convention · SD-family servers also honor the `positive \| negative` split INSIDE `prompt:` (LocalAI pipe syntax) — no separate arg needed · `gpt-image-2` · `gemini-3.1-flash-image` · `grok-imagine-image` — the `-quality` tier is the model knob · `mock-image-1`) |
 | `prompt` | **required** · the creative brief · may use `${{ … }}` |
-| `mode` | `generate` (default) · `edit` is RESERVED (rejected loudly in v0.1 · media roadmap) |
+| `mode` | `generate` (default · text→image) · `edit` (source image(s) + instruction → image · M2.2 · 2026-07-06) |
+| `image` / `images` | mode:edit source · one path (`image:`) XOR many (`images:` · capped per provider: openai 16 · gemini 14 · xai 3) · **read + permit-gated** (`permits.fs.read` must cover them — the mirror of the save boundary) |
+| `mask` | mode:edit optional pixel-mask path · openai/local only — a mask on an instruction-only provider (gemini/xai) is REFUSED loudly, never silently dropped (the output would be wrong outside the region) |
 | `n` | 1..=10 variants (engines MAY satisfy n via sequential provider calls · documented per adapter) |
 | `aspect_ratio` | closed set `1:1 · 16:9 · 9:16 · 4:3 · 3:4 · 3:2 · 2:3 · 21:9` |
 | `size` | exact `WIDTHxHEIGHT` or `auto` · an exact size WINS over `aspect_ratio:` (with a warning) · providers that render size CLASSES fold it (loudly) |
@@ -526,9 +528,10 @@ scrubbed (the image family's rule).
 Throws · `NIKA-BUILTIN-TTS_GENERATE-001` invalid arguments
 (`validation_error`) · `-002` provider unavailable (`validation_error`) ·
 `-003` request failed (`network_error` · `transient: true` for
-5xx/408/429 + timeout/connection) · `-004` empty audio · `-005` content
-policy · `-006` save failed · `-007` payload validation (all
-`runtime_error` unless noted).
+5xx/408/429 + timeout/connection) · `-004` empty audio (`tool_error`) ·
+`-005` content policy (`security_error` · never transient) · `-006` save
+failed (`tool_error`) · `-007` payload validation (`tool_error`) — the
+image twin's category ladder, code for code.
 
 ## What jq subsumes (cut from v0.1)
 
@@ -584,4 +587,4 @@ external users · before the forever-clock).
 
 ---
 
-🦋 *<!-- canon:builtins -->24<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*
+🦋 *<!-- canon:builtins -->25<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*

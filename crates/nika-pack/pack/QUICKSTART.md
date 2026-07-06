@@ -36,7 +36,7 @@ tasks:
 > `ollama/qwen3.5:4b` · zero key, nothing leaves your machine
 > (`ollama pull qwen3.5:4b` first · or `lmstudio/…` · `llamacpp/…` ·
 > `vllm/…`). Prefer cloud? Swap the one `model:` line for any of the
-> <!-- canon:providers -->14<!-- /canon --> providers ·
+> <!-- canon:providers -->16<!-- /canon --> providers ·
 > `mistral/mistral-small` · `anthropic/claude-haiku-4-5` ·
 > `openai/gpt-5.2` · the rest of the file doesn't change.
 
@@ -208,7 +208,7 @@ a caller receives).
 - **[templates/](./templates/)**: writing your own? Instantiate a
   skeleton (6 valid, slot-marked) instead of starting blank, the
   deterministic path agents follow ([protocol](AGENTS.md))
-- **[stdlib/](./stdlib/)**: the <!-- canon:providers -->14<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->24<!-- /canon --> builtins
+- **[stdlib/](./stdlib/)**: the <!-- canon:providers -->16<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->25<!-- /canon --> builtins
 - **[examples/](./examples/)**: 7 foundation + 20 showcase workflows, all shipped and CI-gated
 - **[README.md](./README.md)**: why a language · repo layout · governance
 

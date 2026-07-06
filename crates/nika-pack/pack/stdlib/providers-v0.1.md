@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Providers
 
-> The canonical <!-- canon:providers -->14<!-- /canon --> providers shipped with v0.1-compliant engines. Each
+> The canonical <!-- canon:providers -->16<!-- /canon --> providers shipped with v0.1-compliant engines. Each
 > provider implements the same interface (LLM chat completion + optional
 > streaming + vision + structured output) against a different backend.
 > You select one with a single `model: <provider>/<name>` field.
@@ -570,4 +570,4 @@ The reference engine implements `provider_options:` as best-effort pass-through.
 
 ---
 
-🦋 *<!-- canon:providers -->14<!-- /canon --> providers · 1 contract · sovereignty preserved.*
+🦋 *<!-- canon:providers -->16<!-- /canon --> providers · 1 contract · sovereignty preserved.*

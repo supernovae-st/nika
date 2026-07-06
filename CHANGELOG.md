@@ -8,6 +8,51 @@ Nika Diamond is a ground-up rewrite on the `nika-diamond` orphan branch.
 Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ---
+## [0.94.0](https://github.com/supernovae-st/nika/compare/v0.93.1..v0.94.0) - 2026-07-06
+
+### ✨ Highlights
+
+- **The media suite** — two new builtins take the stdlib to 25.
+  `nika:image_generate` ([PR 173](https://github.com/supernovae-st/nika/pull/173) · providers v1.1 local-first + xai
+  [PR 174](https://github.com/supernovae-st/nika/pull/174) · `mode: edit` M-A/M-A.2
+  [PR 188](https://github.com/supernovae-st/nika/pull/188)/[PR 189](https://github.com/supernovae-st/nika/pull/189)) and
+  `nika:tts_generate` ([PR 176](https://github.com/supernovae-st/nika/pull/176) · one sovereign
+  `/v1/audio/speech` wire = LocalAI/Kokoro/Speaches · openai · elevenlabs · a real
+  deterministic WAV under mock). Assets land on disk with provenance manifests —
+  content credentials detected and preserved ([PR 177](https://github.com/supernovae-st/nika/pull/177)) ·
+  the elevenlabs watermark declared ([PR 183](https://github.com/supernovae-st/nika/pull/183)).
+- **Every run leaves a journal** — `.nika/traces/<ts>-<id>.ndjson` by default
+  ([PR 170](https://github.com/supernovae-st/nika/pull/170) · opt out `--no-trace-file` /
+  `NIKA_NO_TRACE_FILE`), and `nika run --task <id>` scopes execution to one task
+  and its upstream cone. CEL expression completion lands in the LSP.
+- **The catalog rides the wire** — `nika catalog --json` · `nika tools --json`
+  ([PR 172](https://github.com/supernovae-st/nika/pull/172)) + their MCP twins:
+  the oracle now serves 8 read-only tools, and the server speaks MCP
+  2026-07-28 natively ([PR 171](https://github.com/supernovae-st/nika/pull/171)) while
+  accepting 2025-11-25 clients ([PR 185](https://github.com/supernovae-st/nika/pull/185)).
+- **Honest money** — real per-task spend: `cost_usd` rides `task_completed`
+  ([PR 168](https://github.com/supernovae-st/nika/pull/168) · absent for mock/local,
+  never a fake zero) and agent loops meter tool-reported cost
+  ([PR 178](https://github.com/supernovae-st/nika/pull/178)).
+- **Providers 16** — huggingface + nvidia join the canonical catalog
+  ([PR 167](https://github.com/supernovae-st/nika/pull/167) · ADR-104).
+- **`nika doctor --ping`** — the local ports, actually probed
+  ([PR 195](https://github.com/supernovae-st/nika/pull/195) · TCP connect-only ·
+  300ms cap · loopback/configured URLs only · the default run stays offline).
+  `nika check` findings carry severity + a docs URL
+  ([PR 184](https://github.com/supernovae-st/nika/pull/184)).
+
+### 🧹 Chore
+
+- **pack** — re-vendored from spec main: the 16-provider/25-builtin markers ·
+  the tts error-category ladder · the new `mcp:` canon section ride the binary.
+- **ci** — the test gate runs under nextest ([PR 192](https://github.com/supernovae-st/nika/pull/192)) ·
+  public-api baselines canonicalized from the ubuntu artifact ·
+  `iter_over_hash_type` denied ([PR 181](https://github.com/supernovae-st/nika/pull/181)).
+- **cli** — round-8 visual polish ([PR 169](https://github.com/supernovae-st/nika/pull/169)) ·
+  the comprehension pass ([PR 166](https://github.com/supernovae-st/nika/pull/166)) ·
+  the init hand-off drops its phantom indentation ([PR 194](https://github.com/supernovae-st/nika/pull/194)).
+
 ## [0.93.1](https://github.com/supernovae-st/nika/compare/v0.93.0..v0.93.1) - 2026-07-05
 
 ### ✨ Highlights
