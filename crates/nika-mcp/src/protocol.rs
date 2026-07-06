@@ -33,7 +33,13 @@ pub(crate) const PROTOCOL_VERSION: &str = "2026-07-28";
 /// tools/call surface; batching (a 2024-11-05 / 2025-03-26 feature) is handled
 /// by [`dispatch`]; statelessness (2026-07-28) is the dispatcher's native
 /// shape. SUPPORTED stays additive — no client ever breaks (no flag-day).
-pub(crate) const SUPPORTED: [&str; 4] = ["2026-07-28", "2025-06-18", "2025-03-26", "2024-11-05"];
+pub(crate) const SUPPORTED: [&str; 5] = [
+    "2026-07-28",
+    "2025-11-25",
+    "2025-06-18",
+    "2025-03-26",
+    "2024-11-05",
+];
 /// The advertised server name (`serverInfo.name`).
 pub(crate) const SERVER_NAME: &str = "nika";
 
@@ -284,7 +290,7 @@ mod tests {
     fn initialize_echoes_a_supported_client_version() {
         // Spec lifecycle MUST: a client on an older supported rev gets THAT rev
         // back (not our latest) — so it connects instead of disconnecting.
-        for v in ["2024-11-05", "2025-03-26", "2025-06-18"] {
+        for v in ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"] {
             let resp = handle(&json!({
                 "jsonrpc": "2.0", "id": 1, "method": "initialize",
                 "params": { "protocolVersion": v }
