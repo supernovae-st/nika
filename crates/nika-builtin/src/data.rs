@@ -272,26 +272,75 @@ pub(crate) fn convert(args: &Args) -> BuiltinOutcome {
     // opposite of intent · the F1 silent-data-corruption footgun). It only
     // matters for the csv direction, but validating unconditionally is the
     // loud floor — a non-bool flag is an authoring bug regardless.
-    let has_header = strict_has_header(args, C1)?;
+    let has_header = strict_bool(args, "has_header", true, C1)?;
+    // CSV formula-injection guard (opt-in · default false). When on, a cell
+    // whose first byte a spreadsheet reads as a formula (`= + - @` or the
+    // `\t`/`\r` control chars) is prefixed with `'` so Excel/Sheets/LibreOffice
+    // render it as literal text (CWE-1236). Opt-in because it ALTERS data — a
+    // negative number `-5` becomes the text `'-5` — so a workflow enables it
+    // only when the CSV is untrusted AND destined for a spreadsheet. Resolved
+    // here (loud on a non-bool) even for non-csv `to`, matching has_header:
+    // an errant flag is an authoring bug in any direction.
+    let formula_guard = strict_bool(args, "formula_guard", false, C1)?;
 
     let value = parse_format(from, input, has_header).map_err(|e| BuiltinFailure::new(C2, e))?;
     // Emit the target format.
-    emit_format(to, &value, has_header).map_err(|e| BuiltinFailure::new(C1, e))
+    emit_format(to, &value, has_header, formula_guard).map_err(|e| BuiltinFailure::new(C1, e))
 }
 
-/// CSV `has_header:` — absent OR a real boolean (default true); anything
-/// else is a LOUD arg error. The general `crate::opt_bool` reads every
-/// non-bool as the default, which for `has_header` silently INVERTS intent
-/// (`"false"` → header-aware) — so this builtin needs the strict reading.
-fn strict_has_header(args: &Args, code: &'static str) -> Result<bool, BuiltinFailure> {
-    match args.get("has_header") {
-        None => Ok(true),
+/// A strict boolean arg — absent → `default`, a real boolean → its value,
+/// anything else → a LOUD arg error. The general `crate::opt_bool` reads
+/// every non-bool as the default, which silently INVERTS a flag's intent
+/// (`has_header: "false"` → header-aware · the F1 footgun) — so flags that
+/// shape output need this strict reading.
+fn strict_bool(
+    args: &Args,
+    key: &str,
+    default: bool,
+    code: &'static str,
+) -> Result<bool, BuiltinFailure> {
+    match args.get(key) {
+        None => Ok(default),
         Some(serde_json::Value::Bool(b)) => Ok(*b),
         Some(other) => Err(BuiltinFailure::new(
             code,
-            format!("`has_header:` must be a boolean (true/false), not {other}"),
+            format!("`{key}:` must be a boolean (true/false), not {other}"),
         )),
     }
+}
+
+/// The CSV formula-injection guard (CWE-1236). A spreadsheet interprets a
+/// cell that begins with `= + - @` as a formula — so `=HYPERLINK(...)` or
+/// `=cmd|...` in untrusted data executes when the file is opened. The OWASP
+/// mitigation: prefix such a cell with a single quote, which those apps strip
+/// on display and treat as text.
+///
+/// Two subtleties beyond a naive first-byte check:
+/// - **Leading whitespace**: Google Sheets (and some Excel import paths) trim
+///   leading spaces/tabs BEFORE formula detection, so ` =cmd` executes. We
+///   check the first NON-whitespace byte, not byte 0.
+/// - **Control-char triggers**: a cell whose very first byte is `\t` or `\r`
+///   is itself a trigger (those bytes ARE whitespace, so the non-whitespace
+///   scan would skip past them — they're caught explicitly).
+///
+/// Takes ownership so the common path (guard off, or a safe cell) is
+/// zero-allocation — it returns the input unchanged. Byte-level is sound: an
+/// ASCII trigger can never be a UTF-8 continuation/lead byte (those are ≥0x80).
+fn guard_formula(cell: String, on: bool) -> String {
+    if !on {
+        return cell;
+    }
+    let bytes = cell.as_bytes();
+    let leading_control = matches!(bytes.first(), Some(b'\t' | b'\r'));
+    let first_significant = bytes.iter().find(|b| !b.is_ascii_whitespace());
+    let is_formula_start = matches!(first_significant, Some(b'=' | b'+' | b'-' | b'@'));
+    if leading_control || is_formula_start {
+        let mut guarded = String::with_capacity(cell.len() + 1);
+        guarded.push('\'');
+        guarded.push_str(&cell);
+        return guarded;
+    }
+    cell
 }
 
 fn parse_format(
@@ -350,12 +399,13 @@ fn emit_format(
     to: &str,
     value: &serde_json::Value,
     has_header: bool,
+    formula_guard: bool,
 ) -> Result<serde_json::Value, String> {
     let text = match to {
         "json" => return Ok(value.clone()),
         "yaml" => serde_yaml_bw::to_string(value).map_err(|e| format!("to YAML: {e}"))?,
         "toml" => toml_convert::to_string(value).map_err(|e| format!("to TOML: {e}"))?,
-        "csv" => emit_csv(value, has_header)?,
+        "csv" => emit_csv(value, has_header, formula_guard)?,
         other => return Err(format!("unknown to: {other} (json|yaml|toml|csv)")),
     };
     Ok(serde_json::Value::String(text))
@@ -396,7 +446,11 @@ fn parse_csv(text: &str, has_header: bool) -> Result<serde_json::Value, String> 
 
 /// An array of objects → CSV (union of keys = header, sorted for
 /// determinism across engines).
-fn emit_csv(value: &serde_json::Value, has_header: bool) -> Result<String, String> {
+fn emit_csv(
+    value: &serde_json::Value,
+    has_header: bool,
+    formula_guard: bool,
+) -> Result<String, String> {
     let rows = value
         .as_array()
         .ok_or_else(|| "CSV output needs an array of objects".to_owned())?;
@@ -413,7 +467,13 @@ fn emit_csv(value: &serde_json::Value, has_header: bool) -> Result<String, Strin
     headers.sort();
     let mut writer = csv::Writer::from_writer(Vec::new());
     if has_header {
-        writer.write_record(&headers).map_err(|e| e.to_string())?;
+        // A header key is attacker-influenced too (JSON object keys) — guard it
+        // after sorting, at write time, so the guard never perturbs dedup/order.
+        let hdr: Vec<String> = headers
+            .iter()
+            .map(|h| guard_formula(h.clone(), formula_guard))
+            .collect();
+        writer.write_record(&hdr).map_err(|e| e.to_string())?;
     }
     for row in rows {
         let obj = row
@@ -421,10 +481,13 @@ fn emit_csv(value: &serde_json::Value, has_header: bool) -> Result<String, Strin
             .ok_or_else(|| "every CSV row must be an object".to_owned())?;
         let cells: Vec<String> = headers
             .iter()
-            .map(|h| match obj.get(h) {
-                Some(serde_json::Value::String(s)) => s.clone(),
-                Some(other) => other.to_string(),
-                None => String::new(),
+            .map(|h| {
+                let raw = match obj.get(h) {
+                    Some(serde_json::Value::String(s)) => s.clone(),
+                    Some(other) => other.to_string(),
+                    None => String::new(),
+                };
+                guard_formula(raw, formula_guard)
             })
             .collect();
         writer.write_record(&cells).map_err(|e| e.to_string())?;
@@ -972,6 +1035,156 @@ mod tests {
             "input": "x = nan", "from": "toml", "to": "json"
         })));
         assert!(matches!(nan, Err(f) if f.message.contains("non-finite")));
+    }
+
+    #[test]
+    fn convert_formula_guard_off_by_default_preserves_dangerous_cells() {
+        // Default (no flag): a `=cmd` cell rides through VERBATIM — round-trip
+        // fidelity is the default, matching the Rust/Python csv ecosystem. The
+        // spreadsheet-injection risk is the caller's to opt into.
+        let csv = convert(&args(serde_json::json!({
+            "input": [{"formula": "=HYPERLINK(\"http://evil\")"}],
+            "from": "json", "to": "csv"
+        })))
+        .expect("ok");
+        let text = csv.as_str().expect("string");
+        assert!(
+            text.contains("=HYPERLINK"),
+            "default is verbatim (no guard): {text}"
+        );
+        assert!(!text.contains("'=HYPERLINK"), "no quote prefix by default");
+    }
+
+    #[test]
+    fn convert_formula_guard_on_neutralizes_every_owasp_trigger() {
+        // With the flag, each of the canonical OWASP trigger characters
+        // (`= + - @` and the `\t`/`\r` control chars) leading a cell is
+        // prefixed with `'` — the spreadsheet renders it as literal text.
+        for trigger in ["=cmd", "+cmd", "-cmd", "@cmd", "\tcmd", "\rcmd"] {
+            let csv = convert(&args(serde_json::json!({
+                "input": [{"c": trigger}],
+                "from": "json", "to": "csv", "formula_guard": true
+            })))
+            .expect("ok");
+            let text = csv.as_str().expect("string");
+            // The data row is the second line (after the `c` header). It must
+            // carry the leading quote before the trigger.
+            let data = text.lines().nth(1).unwrap_or("");
+            assert!(
+                data.contains(&format!("'{trigger}"))
+                    || data.contains("'\t")
+                    || data.contains('\r'),
+                "trigger {trigger:?} neutralized with a leading quote: {data:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn convert_formula_guard_on_catches_the_leading_whitespace_bypass() {
+        // The subtle bypass: a spreadsheet (Google Sheets · some Excel paths)
+        // trims leading whitespace BEFORE formula detection, so ` =cmd` and
+        // `\t=cmd` execute. A naive first-BYTE check would miss them (it sees
+        // the space/tab). The guard scans the first NON-whitespace byte.
+        for payload in [" =SUM(1)", "  =cmd", "\t=cmd", " \t -evil"] {
+            let csv = convert(&args(serde_json::json!({
+                "input": [{"c": payload}],
+                "from": "json", "to": "csv", "formula_guard": true
+            })))
+            .expect("ok");
+            let text = csv.as_str().expect("string");
+            let data = text.lines().nth(1).unwrap_or("");
+            // The leading quote sits at the very start (before the whitespace).
+            assert!(
+                data.contains(&format!("\"'{payload}\"")) || data.contains('\''),
+                "whitespace-prefixed formula {payload:?} is guarded: {data:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn convert_formula_guard_on_leaves_safe_cells_untouched() {
+        // A safe cell (normal text, or a number not leading with a trigger)
+        // is byte-identical with the guard on — the guard is surgical.
+        let csv = convert(&args(serde_json::json!({
+            "input": [{"name": "ada", "n": "36", "note": "hi=there"}],
+            "from": "json", "to": "csv", "formula_guard": true
+        })))
+        .expect("ok");
+        let text = csv.as_str().expect("string");
+        assert!(!text.contains('\''), "no quote added to safe cells: {text}");
+        assert!(text.contains("hi=there"), "an interior = is not a trigger");
+    }
+
+    #[test]
+    fn convert_formula_guard_on_guards_header_keys_too() {
+        // A JSON object key is attacker-influenced (it comes from the input),
+        // so a `=cmd` HEADER is neutralized just like a data cell.
+        let csv = convert(&args(serde_json::json!({
+            "input": [{"=evil": "1"}],
+            "from": "json", "to": "csv", "formula_guard": true
+        })))
+        .expect("ok");
+        let text = csv.as_str().expect("string");
+        let header = text.lines().next().unwrap_or("");
+        assert!(header.contains("'=evil"), "header key guarded: {header:?}");
+    }
+
+    #[test]
+    fn convert_formula_guard_survives_the_csv_quoting_layer_round_trip() {
+        // The one place two escaping layers stack: a cell that is BOTH a
+        // formula trigger AND contains a comma. The guard prefixes `'`, then
+        // the csv writer quotes the field (for the comma). Round-tripping the
+        // output back through `from: csv` must recover a cell that STILL starts
+        // with the guard quote — proving CSV transport-quoting is stripped by
+        // the reader without undoing the formula guard (the refuter's item 3/4).
+        let csv = convert(&args(serde_json::json!({
+            "input": [{"c": "=cmd,evil"}],
+            "from": "json", "to": "csv", "formula_guard": true
+        })))
+        .expect("emit ok");
+        let text = csv.as_str().expect("string").to_owned();
+        // The emitted field is quoted (it has a comma) AND guarded.
+        assert!(text.contains("\"'=cmd,evil\""), "quoted + guarded: {text}");
+        // Read it back: the recovered cell keeps the leading quote (the CSV
+        // quotes are transport, stripped by the reader; the `'` is content).
+        let back = convert(&args(serde_json::json!({
+            "input": text, "from": "csv", "to": "json"
+        })))
+        .expect("parse ok");
+        assert_eq!(
+            back[0]["c"],
+            serde_json::json!("'=cmd,evil"),
+            "the guard apostrophe survives the quoting round-trip: {back}"
+        );
+    }
+
+    #[test]
+    fn convert_formula_guard_on_is_the_accepted_fidelity_cost() {
+        // The documented tradeoff: with the guard on, a legitimate negative
+        // number `-5` becomes the text `'-5`. This test PINS that cost so it
+        // is never a surprise — it is why the guard is opt-in, not default.
+        let csv = convert(&args(serde_json::json!({
+            "input": [{"balance": "-5"}],
+            "from": "json", "to": "csv", "formula_guard": true
+        })))
+        .expect("ok");
+        let text = csv.as_str().expect("string");
+        assert!(text.contains("'-5"), "negative number becomes text: {text}");
+    }
+
+    #[test]
+    fn convert_formula_guard_is_a_strict_bool_not_silently_coerced() {
+        // Same F1 floor as has_header: a non-bool `formula_guard` is a LOUD
+        // arg error, never silently read as false (which would ship an
+        // unguarded CSV while the author believed the guard was on).
+        let bad = convert(&args(serde_json::json!({
+            "input": [{"c": "=x"}], "from": "json", "to": "csv", "formula_guard": "true"
+        })));
+        assert!(
+            matches!(&bad, Err(f) if f.code == "NIKA-BUILTIN-CONVERT-001"
+                && f.message.contains("formula_guard")),
+            "non-bool formula_guard is a loud CONVERT-001: {bad:?}"
+        );
     }
 
     #[test]
