@@ -42,7 +42,7 @@ nika-fs          = { path = "../nika-fs", version = "0.96.0" }            # Toki
 nika-clock       = { path = "../nika-clock", version = "0.96.0" }         # SystemClock — backoff + timeout + the date builtin
 nika-http        = { path = "../nika-http", version = "0.96.0" }          # ReqwestHttp — the registry + fetch effect
 nika-exec-runner = { path = "../nika-exec-runner", version = "0.96.0" }   # TokioShell — the exec verb's subprocess runner
-nika-catalog     = { path = "../nika-catalog", version = "0.96.0", features = ["providers"] }  # the env_var ladder per provider
+nika-catalog     = { path = "../nika-catalog", version = "0.96.0", features = ["providers", "pricing"] }  # env_var ladder + the rates the preflight shows
 nika-lsp         = { path = "../nika-lsp", version = "0.96.0" }           # `nika lsp` — the language server (stdio · drives the editor extension)
 nika-mcp         = { path = "../nika-mcp", version = "0.96.0" }           # `nika mcp` — the MCP server (stdio · exposes check/explain to Cursor/Claude Desktop)
 tokio            = { workspace = true }                                   # the bin's async entry (block the run on the executor)
