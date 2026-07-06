@@ -84,6 +84,8 @@ fn render(report: &CheckReport, wf: &RawWorkflow, path: &str, t: Theme) -> Strin
             c.code,
             c.message
         );
+        // The rustc `--explain` move: every code links its own page.
+        let _ = writeln!(out, "   {}", t.paint(Role::Dim, &c.docs_url));
     }
 
     plan(&mut out, report, t);
