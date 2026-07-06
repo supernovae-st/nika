@@ -42,7 +42,18 @@ pub fn export(trace: &str, out: Option<&str>, include_content: bool) -> VerbOutp
         Ok(recovered) => recovered,
         Err(e) => return VerbOutput::env(e),
     };
-    let line = match project(&recovered.events, include_content) {
+    // Verify before trusting (the git index-pack model — affordable at
+    // 0.4µs/line): a BROKEN chain still exports, but says so; the head
+    // rides the export so the anchor travels with the trace.
+    let chain = match super::trace_verify::walk(&raw) {
+        super::trace_verify::Verdict::Intact { head, .. }
+        | super::trace_verify::Verdict::TornTail { head, .. } => Some(("intact", head)),
+        super::trace_verify::Verdict::Broken { line, .. } => {
+            Some(("broken", format!("chain broken at line {line}")))
+        }
+        _ => None, // unchained (pre-chain journal) — nothing to claim
+    };
+    let line = match project_with_chain(&recovered.events, include_content, chain.as_ref()) {
         Ok(line) => line,
         Err(e) => return VerbOutput::env(e),
     };
@@ -50,9 +61,17 @@ pub fn export(trace: &str, out: Option<&str>, include_content: bool) -> VerbOutp
     if let Err(e) = std::fs::write(&target, format!("{line}\n")) {
         return VerbOutput::env(format!("cannot write {target}: {e}"));
     }
-    VerbOutput::ok(format!(
+    let mut msg = format!(
         "exported → {target}\n  view: drag into Jaeger UI (≥1.60) · or POST the line to any OTLP/HTTP endpoint (`:4318/v1/traces`)"
-    ))
+    );
+    if let Some(("broken", detail)) = chain.as_ref().map(|(k, d)| (*k, d)) {
+        use std::fmt::Write as _;
+        let _ = write!(
+            msg,
+            "\n  WARNING — this journal fails verification ({detail}); its claims are unverified"
+        );
+    }
+    VerbOutput::ok(msg)
 }
 
 /// `run.ndjson` → `run.otlp.jsonl`, beside the journal.
@@ -63,8 +82,20 @@ fn default_out_path(trace: &str) -> String {
     )
 }
 
-/// One journal → one `{"resourceSpans":[…]}` JSON value (one line).
+/// One journal → one `{"resourceSpans":[…]}` JSON value (one line) —
+/// the chain-less shape the unit pins drive.
+#[cfg(test)]
 pub(crate) fn project(events: &[Event], include_content: bool) -> Result<String, String> {
+    project_with_chain(events, include_content, None)
+}
+
+/// The full projection — `chain` carries the verify verdict so the
+/// anchor (or the broken flag) travels with the export.
+pub(crate) fn project_with_chain(
+    events: &[Event],
+    include_content: bool,
+    chain: Option<&(&str, String)>,
+) -> Result<String, String> {
     let started = events
         .iter()
         .find(|e| e.kind == EventKind::WorkflowStarted)
@@ -105,6 +136,15 @@ pub(crate) fn project(events: &[Event], include_content: bool) -> Result<String,
     ];
     if let Some(platform) = field_str(started, "platform") {
         resource_attrs.push(kv_str("nika.platform", platform));
+    }
+    match chain {
+        Some(("intact", head)) => {
+            resource_attrs.push(kv_str("nika.trace.chain_head", head));
+        }
+        Some(("broken", _)) => {
+            resource_attrs.push(kv_str("nika.trace.chain", "broken"));
+        }
+        _ => {}
     }
     let payload = serde_json::json!({
         "resourceSpans": [{

@@ -47,7 +47,7 @@ pub fn verify(trace: &str) -> VerbOutput {
     }
 }
 
-enum Verdict {
+pub(crate) enum Verdict {
     Intact {
         events: usize,
         head: String,
@@ -70,7 +70,7 @@ enum Verdict {
 }
 
 /// The pure walk — recompute the chain over exact line bytes.
-fn walk(raw: &str) -> Verdict {
+pub(crate) fn walk(raw: &str) -> Verdict {
     let lines: Vec<&str> = raw.lines().filter(|l| !l.trim().is_empty()).collect();
     if lines.is_empty() {
         return Verdict::Empty;

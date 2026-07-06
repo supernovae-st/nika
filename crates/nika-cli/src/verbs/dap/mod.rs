@@ -52,6 +52,15 @@ fn serve<R: std::io::BufRead, W: std::io::Write>(mut wire: Wire<R, W>) -> u8 {
                     // The #210 identity check speaks BEFORE the first stop:
                     // a drifted source means snapped breakpoint lines may
                     // not match what actually ran.
+                    if s.chain_broken {
+                        wire.emit(
+                            "output",
+                            serde_json::json!({
+                                "category": "console",
+                                "output": "⚠ this journal FAILS verification (nika trace verify) — its recorded outputs are unverified\n",
+                            }),
+                        );
+                    }
                     if s.drifted == Some(true) {
                         wire.emit(
                             "output",
