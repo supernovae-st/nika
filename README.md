@@ -117,7 +117,7 @@ completes, and the output says what it is:
 else — a declared `permits:` boundary gates every save, the run ledger
 meters real spend, and provenance is structural, not a promise:
 
-![One workflow renders through any of five image providers — local server first; the run meters $0.02 exactly; the asset lands sha256-named with a provenance manifest beside it](media/gifs/image-pipeline.gif)
+![One workflow renders a real image and speaks a real line — permits gate the saves, the ledger shows $0.02 exact, the gallery frame carries the actual renders and a waveform drawn from the real MP3 bytes, and the manifest panel shows the provenance nobody else keeps](media/gifs/image-pipeline.gif)
 
 - **Local-first** — `provider: local` speaks the OpenAI-images wire any
   self-hosted server exposes (LocalAI · Ollama · stable-diffusion.cpp ·
