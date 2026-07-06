@@ -59,7 +59,7 @@ fn renderer(theme: Theme) -> Renderer {
 /// (`no_name` + empty title): origin `path:line:col`, the source line,
 /// the caret run — nothing duplicated.
 #[must_use]
-pub fn paint_span(source: &str, path: &str, span: ByteSpan, theme: Theme) -> String {
+pub(crate) fn paint_span(source: &str, path: &str, span: ByteSpan, theme: Theme) -> String {
     let start = (span.start as usize).min(source.len());
     // A point span (start == end — flow-scalar tokens) still deserves a
     // visible caret: widen to one byte, clamped to the source end.
