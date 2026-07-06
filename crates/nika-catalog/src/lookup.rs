@@ -97,7 +97,20 @@ mod tests {
 
     #[test]
     fn provider_unknown() {
-        assert!(find_provider("ollama").is_none());
+        assert!(find_provider("not-a-provider").is_none());
+    }
+
+    #[test]
+    fn local_servers_are_catalog_rows() {
+        // The 2026-07-06 fill: the 5 local servers have a catalog face
+        // (description · tags · seed models) — keyless by construction.
+        for id in ["ollama", "lmstudio", "llamacpp", "localai", "vllm"] {
+            let row = find_provider(id);
+            assert!(row.is_some(), "{id} missing from the catalog");
+            let row = row.expect("checked above");
+            assert!(!row.requires_key, "{id} must be keyless");
+            assert!(!row.models.is_empty(), "{id} needs a seed model");
+        }
     }
 
     #[test]

@@ -86,8 +86,10 @@ mod tests {
         // new providers (nvidia-nim/deepinfra/replicate/hyperbolic/writer/
         // databricks/cloudflare), driving the count from 25 to 32; the
         // 2026-07-05 canonical promotion added huggingface (the Inference
-        // Providers router) and renamed nvidia-nim → nvidia: 32 → 33.
-        assert_eq!(ALL_PROVIDERS.len(), 33);
+        // Providers router) and renamed nvidia-nim → nvidia: 32 → 33; the
+        // 2026-07-06 local-rows fill gave the 5 local servers their catalog
+        // face (ollama/lmstudio/llamacpp/localai/vllm): 33 → 38.
+        assert_eq!(ALL_PROVIDERS.len(), 38);
     }
 
     #[test]
