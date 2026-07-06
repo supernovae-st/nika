@@ -311,6 +311,20 @@ enum TraceAction {
         #[arg(long)]
         no_color: bool,
     },
+    /// Project the journal to OTLP/JSON lines — every `OTel` tool becomes
+    /// a viewer (drag into Jaeger UI ≥1.60 · POST lines to any OTLP/HTTP
+    /// endpoint). Local file, zero collector, zero vendor.
+    Export {
+        /// Trace NDJSON path (one `nika-event` Event per line).
+        trace: PathBuf,
+        /// Output path (default: `<trace>.otlp.jsonl` beside the journal).
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+        /// Include recorded task outputs as span attributes (payloads
+        /// stay LOCAL either way — this only widens the exported file).
+        #[arg(long)]
+        include_content: bool,
+    },
     /// Read ONE task's full output + its identity (hashes · duration ·
     /// tokens). `--raw` prints the exact value only (pipe it to jq).
     Peek {
@@ -582,6 +596,17 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
             theme.accents = std::io::stdout().is_terminal();
             emit(&verbs::trace::outputs(&trace.to_string_lossy(), theme))
         }
+        TraceAction::Export {
+            trace,
+            out,
+            include_content,
+        } => emit(&verbs::trace_otel::export(
+            &trace.to_string_lossy(),
+            out.as_deref()
+                .map(|p| p.to_string_lossy().into_owned())
+                .as_deref(),
+            include_content,
+        )),
         TraceAction::Peek {
             trace,
             task,
