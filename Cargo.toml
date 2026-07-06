@@ -264,7 +264,8 @@ jaq-core = "3.1"        # nika-builtin L1.5 — nika:jq · THE data language (jq
 jaq-std  = "3.0"        # nika-builtin L1.5 — jq stdlib filters (map · select · group_by …)
 jaq-json = { version = "2.0", features = ["serde"] }   # nika-builtin L1.5 — jq Val type + serde bridge to serde_json::Value
 json-patch = "4.2"      # nika-builtin L1.5 — nika:json_diff (RFC 6902 diff) + nika:json_merge_patch (RFC 7396 · null-deletes)
-jiff     = "0.2"        # nika-builtin L1.5 — nika:date (IANA tzdb BUNDLED · sovereign zero-system-dep · strftime grammar · Unlicense OR MIT)
+jiff     = "0.2"        # nika-builtin L1.5 — nika:date · strftime grammar · Unlicense OR MIT · named tz resolved via jiff-tzdb below (NOT jiff's system-preferring .in_tz)
+jiff-tzdb = "0.1"       # nika-builtin L1.5 — the EMBEDDED IANA tzdb · nika:date resolves named zones from THIS (bundled · deterministic · zero system read), never jiff's default which prefers /usr/share/zoneinfo on Unix · CC-BY-4.0 OR ... (tzdata public-domain)
 serde_yaml_bw = "2.5"   # nika-builtin L1.5 — nika:convert yaml leg + nika:validate format:yaml (panic-free fork · spec-named reference impl)
 toml_convert = { package = "toml", version = "1.1" }   # nika-builtin L1.5 — nika:convert toml leg (alias avoids clash if a config-toml dep lands later)
 csv      = "1.4"        # nika-builtin L1.5 — nika:convert csv leg (quoting-aware · spec-named reference impl)

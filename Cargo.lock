@@ -3558,6 +3558,7 @@ dependencies = [
  "jaq-json",
  "jaq-std",
  "jiff",
+ "jiff-tzdb",
  "json-patch",
  "jsonschema",
  "nika-catalog",

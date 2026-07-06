@@ -61,6 +61,24 @@ fn parse_ts(args: &Args, key: &str) -> Result<jiff::Timestamp, BuiltinFailure> {
         .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("`{key}:` unparseable: {e}")))
 }
 
+/// Resolve an IANA zone name from the BUNDLED tzdb (`jiff-tzdb`), never
+/// the system.
+///
+/// jiff's own `.in_tz(name)` / `TimeZone::get(name)` PREFER the system
+/// `/usr/share/zoneinfo` on Unix (jiff PLATFORM.md: "Jiff defaults to
+/// searching for a system copy"), which is an fs read inside a pure
+/// builtin AND makes offsets depend on the host's tzdata version — a
+/// replay/hermeticity hole. Resolving from the embedded db instead makes
+/// `nika:date` host-independent and deterministic: the same workflow on
+/// any machine yields the same offset (the tzdb is frozen at build, re-
+/// vendored each release). Zero system read.
+fn bundled_tz(name: &str) -> Result<jiff::tz::TimeZone, BuiltinFailure> {
+    let (canonical, tzif) = jiff_tzdb::get(name)
+        .ok_or_else(|| BuiltinFailure::new(DATE_CODE, format!("unknown `tz:` `{name}`")))?;
+    jiff::tz::TimeZone::tzif(canonical, tzif)
+        .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("bad `tz:` `{name}`: {e}")))
+}
+
 /// `op: now { tz }` — the injected wall clock, ISO 8601 out (UTC `Z`
 /// form by default · offset form in an IANA `tz:`).
 fn date_now<C: ClockDyn>(clock: &C, args: &Args) -> BuiltinOutcome {
@@ -69,9 +87,7 @@ fn date_now<C: ClockDyn>(clock: &C, args: &Args) -> BuiltinOutcome {
     match opt_str(args, "tz", DATE_CODE)? {
         None => Ok(serde_json::Value::String(now.to_string())),
         Some(tz) => {
-            let zoned = now
-                .in_tz(tz)
-                .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("bad `tz:` `{tz}`: {e}")))?;
+            let zoned = now.to_zoned(bundled_tz(tz)?);
             let text = jiff::fmt::strtime::format("%Y-%m-%dT%H:%M:%S%.f%:z", &zoned)
                 .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("render failed: {e}")))?;
             Ok(serde_json::Value::String(text))
@@ -107,9 +123,7 @@ fn date_shift_base_zoned(args: &Args) -> Result<jiff::Zoned, BuiltinFailure> {
     let ts = parse_ts(args, "base")?;
     match opt_str(args, "tz", DATE_CODE)? {
         None => Ok(ts.to_zoned(jiff::tz::TimeZone::UTC)),
-        Some(tz) => ts
-            .in_tz(tz)
-            .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("bad `tz:` `{tz}`: {e}"))),
+        Some(tz) => Ok(ts.to_zoned(bundled_tz(tz)?)),
     }
 }
 
@@ -123,9 +137,7 @@ fn date_format(args: &Args) -> BuiltinOutcome {
     let fmt = req_str(args, "format", DATE_CODE)?;
     let zoned = match opt_str(args, "tz", DATE_CODE)? {
         None => ts.to_zoned(jiff::tz::TimeZone::UTC),
-        Some(tz) => ts
-            .in_tz(tz)
-            .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("bad `tz:` `{tz}`: {e}")))?,
+        Some(tz) => ts.to_zoned(bundled_tz(tz)?),
     };
     let text = jiff::fmt::strtime::format(fmt, &zoned)
         .map_err(|e| BuiltinFailure::new(DATE_CODE, format!("`format:` failed: {e}")))?;
@@ -188,6 +200,27 @@ mod tests {
             serde_json::Value::Object(map) => map,
             other => panic!("test arg must be an object, got {other}"),
         }
+    }
+
+    #[test]
+    fn bundled_tz_resolves_from_the_embedded_db_not_the_system() {
+        // A named zone resolves from jiff-tzdb (bundled), DST-aware, with
+        // zero system read — the sovereignty/determinism contract. Paris
+        // is +02:00 in summer (CEST) and its winter render is exercised by
+        // date_format below; here we pin the helper: known → ok, unknown →
+        // a clean DATE-001, never a system lookup that could succeed by
+        // host luck.
+        let paris = bundled_tz("Europe/Paris").expect("Europe/Paris is in the bundled db");
+        let summer: jiff::Timestamp = "2026-07-15T12:00:00Z".parse().expect("ts");
+        assert_eq!(
+            summer.to_zoned(paris).offset().to_string(),
+            "+02",
+            "DST-aware offset from the embedded tzdb"
+        );
+        assert!(
+            matches!(bundled_tz("Not/AZone"), Err(f) if f.code == DATE_CODE),
+            "an unknown zone is a clean DATE-001, not a system probe"
+        );
     }
 
     #[test]

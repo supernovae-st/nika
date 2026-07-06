@@ -19,7 +19,8 @@ jaq-std       = { workspace = true }
 jaq-json      = { workspace = true }
 json-patch    = { workspace = true }   # nika:json_diff (RFC 6902) + nika:json_merge_patch (RFC 7396)
 jsonschema    = { workspace = true }   # nika:validate — SSRF floor: workspace pins default-features=false (no http/file resolver); regression `validate_never_fetches_a_remote_ref` guards the flip
-jiff          = { workspace = true }   # nika:date (IANA tzdb bundled · sovereign)
+jiff          = { workspace = true }   # nika:date arithmetic/format · strftime
+jiff-tzdb     = { workspace = true }   # nika:date named-zone resolution (bundled · sovereign · zero system read)
 serde_yaml_bw = { workspace = true }   # nika:convert yaml + nika:validate format:yaml
 toml_convert  = { workspace = true }   # nika:convert toml
 csv           = { workspace = true }   # nika:convert csv
