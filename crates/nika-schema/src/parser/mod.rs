@@ -229,16 +229,7 @@ impl Cx<'_> {
         if self.mode == ParseMode::Lenient {
             return Ok(());
         }
-        for (key, _) in mapping.iter() {
-            if !known.contains(&key.as_str()) {
-                return Err(SchemaError::UnknownField {
-                    field: key.as_str().to_owned(),
-                    location: location.to_owned(),
-                    span: self.span(key.span()),
-                });
-            }
-        }
-        Ok(())
+        self.check_unknown_keys_always(mapping, known, location)
     }
 
     /// Reject any mapping key outside `known` in BOTH parse modes.
@@ -258,6 +249,8 @@ impl Cx<'_> {
                     field: key.as_str().to_owned(),
                     location: location.to_owned(),
                     span: self.span(key.span()),
+                    suggestion: crate::suggest::did_you_mean(key.as_str(), known.iter().copied())
+                        .map(str::to_owned),
                 });
             }
         }
@@ -631,6 +624,26 @@ tasks:
             panic!("expected UnknownField, got {err:?}");
         };
         assert_eq!(field, "foo");
+    }
+
+    #[test]
+    fn unknown_field_suggests_near_typos_and_stays_silent_far() {
+        // The #1 beginner friction (user-sim punch list 2026-07-06): a
+        // typo'd verb key (`infr:`) died as a bare « unknown field » while
+        // the closed vocabulary sat RIGHT THERE in the rejection call.
+        // And the suggest module's own law: a wrong suggestion is worse
+        // than none — `zzzqx` is nowhere near the vocabulary, so silence.
+        let near = "nika: v1\nworkflow: h\ntasks:\n  - id: g\n    infr:\n      prompt: \"hi\"\n";
+        let err = parse_strict(near).expect_err("unknown key");
+        assert!(err.to_string().contains("did you mean `infer`?"), "{err}");
+        let SchemaError::UnknownField { suggestion, .. } = err else {
+            panic!("expected UnknownField, got {err:?}");
+        };
+        assert_eq!(suggestion.as_deref(), Some("infer"));
+
+        let far = "nika: v1\nworkflow: h\ntasks:\n  - id: g\n    zzzqx:\n      prompt: \"hi\"\n";
+        let msg = parse_strict(far).expect_err("unknown key").to_string();
+        assert!(!msg.contains("did you mean"), "{msg}");
     }
 
     #[test]

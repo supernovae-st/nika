@@ -72,7 +72,10 @@ pub enum SchemaError {
     ///
     /// Spec `02-verbs.md` §forward-compat · « **Reject** with a clear
     /// error (strict mode · default for tests) ».
-    #[error("unknown field `{field}` in {location} (strict mode)")]
+    #[error(
+        "unknown field `{field}` in {location} (strict mode){}",
+        crate::suggest::suggestion_clause(suggestion.as_deref())
+    )]
     UnknownField {
         /// The unknown key.
         field: String,
@@ -80,6 +83,10 @@ pub enum SchemaError {
         location: String,
         /// Source span of the key.
         span: Option<Span>,
+        /// The nearest known key, when one is close enough to assert
+        /// (Damerau-Levenshtein · rustc threshold — the same suggestion
+        /// core every check finding shares · silence beats a wrong guess).
+        suggestion: Option<String>,
     },
 
     /// Task `id:` is not `snake_case`.
@@ -618,6 +625,7 @@ fn parse_level_variants() -> Vec<SchemaError> {
             field: String::new(),
             location: String::new(),
             span: None,
+            suggestion: None,
         },
         SchemaError::BadTaskId {
             id: String::new(),
