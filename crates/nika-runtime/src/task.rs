@@ -68,11 +68,20 @@ pub(crate) struct Finish {
 /// How the task settles (spec 03 §task states).
 pub(crate) enum SettleAs {
     /// The default gate became unsatisfiable (upstream failure /
-    /// cancellation) — a decision, not a defect.
-    Cancelled { note: &'static str },
+    /// cancellation) — a decision, not a defect. `blocked_by` names the
+    /// first unsatisfied dependency (the WHY the journal can teach).
+    Cancelled {
+        note: &'static str,
+        blocked_by: Option<String>,
+    },
     /// The `when:` gate evaluated false · or an empty `for_each`
     /// collection (pure skip · no cascade).
-    SkippedGate { note: &'static str },
+    SkippedGate {
+        note: &'static str,
+        /// The CEL text that evaluated false (`when:` closes only) —
+        /// the journal answers « why did this not run » verbatim.
+        expr: Option<String>,
+    },
     /// A pre-dispatch failure (gate eval · `with:` render · `for_each`
     /// collection) — never started · no `on_finally:` (spec 03).
     FailedBeforeStart {
@@ -348,6 +357,7 @@ where
         if items.is_empty() {
             return SettleAs::SkippedGate {
                 note: "for_each · empty collection",
+                expr: None,
             };
         }
 
@@ -890,6 +900,7 @@ fn gate_finish(
             }
             SettleAs::Cancelled {
                 note: "upstream failed",
+                blocked_by: first_unsatisfied_dep(task, records),
             }
         }
         // Explicit `when:` REPLACES the default gate — evaluated once
@@ -899,6 +910,12 @@ fn gate_finish(
             Ok(true) => return None,
             Ok(false) => SettleAs::SkippedGate {
                 note: "when: gate closed",
+                expr: match &gate.value {
+                    nika_schema::types::WhenGate::Expr(cel) => Some(cel.clone()),
+                    // `when: false` — the literal IS the story; the
+                    // note already says the gate closed.
+                    _ => None,
+                },
             },
             Err(err) => SettleAs::FailedBeforeStart {
                 stage: "when",
@@ -916,6 +933,21 @@ fn gate_finish(
 
 /// The default gate's verdict (spec 03 · `depends_on` IS the
 /// success-gate): open iff ALL deps ∈ {success, skipped}.
+/// The first dependency that keeps the default gate closed — the
+/// culprit `blocked_by` names in the journal (id order = declaration
+/// order, deterministic).
+fn first_unsatisfied_dep(task: &RawTask, records: &BTreeMap<String, TaskRecord>) -> Option<String> {
+    task.depends_on
+        .iter()
+        .find(|dep| {
+            !matches!(
+                records.get(&dep.value).map(|r| r.status),
+                Some(TaskStatus::Success | TaskStatus::Skipped)
+            )
+        })
+        .map(|dep| dep.value.clone())
+}
+
 fn default_gate_open(task: &RawTask, records: &BTreeMap<String, TaskRecord>) -> bool {
     task.depends_on.iter().all(|dep| {
         matches!(
