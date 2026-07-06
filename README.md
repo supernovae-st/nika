@@ -144,13 +144,18 @@ nika check flow.nika.yaml            # the audit · exit 0 clean · 2 findings
 nika explain NIKA-VAR-001            # any code · cause · category · fix-form
 nika run flow.nika.yaml --var topic=rust   # launch inputs · repeatable
 nika test flow.nika.yaml --update    # pin the golden · then `nika test` = offline CI
+nika run flow.nika.yaml --task hero    # regenerate ONE task + its upstream cone
 nika run flow.nika.yaml --resume .nika/traces/<run>.ndjson   # skip journaled successes
 nika run flow.nika.yaml --resume <trace> --answer approve=true  # re-arm a paused gate
 nika trace show .nika/traces/<run>.ndjson   # re-render any past run
+nika doctor --ping                   # are the local servers actually listening?
 ```
 
-A paused run exits `4` (a blocking `nika:prompt` journals its question);
-cache hits on resume are always visible — nothing is skipped silently.
+Every run writes its own journal to `.nika/traces/` (opt out per run with
+`--no-trace-file`, globally with `NIKA_NO_TRACE_FILE`) — `--resume` and
+`nika trace` read it directly. A paused run exits `4` (a blocking
+`nika:prompt` journals its question); cache hits on resume are always
+visible — nothing is skipped silently.
 
 ## Pick a workflow
 
