@@ -34,9 +34,24 @@ use crate::verbs::exit;
 /// flooding a CI log when a whole subtree changed.
 const DIFF_LINE_CAP: usize = 20;
 
+/// stdin (`-`) is `load_checked`'s seam, but this verb needs the FILE
+/// twice over: the golden lives beside it (`<file>.golden.json`) and a
+/// dirty doc re-renders through `check::run` — which would re-read an
+/// already-consumed stdin and report a lying parse error. Refused with
+/// guidance (spec §4: environment · exit 3).
+fn refuse_stdin() -> u8 {
+    eprintln!(
+        "nika test: stdin (`-`) is not supported — the golden lives beside the file (<file>.golden.json)"
+    );
+    3
+}
+
 /// The `nika test <file> [--update]` verb (spec §4 exit contract).
 #[must_use]
 pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
+    if file == "-" {
+        return refuse_stdin();
+    }
     // ── Audit BEFORE run — the same gate `nika run` holds ───────────
     let (wf, report) = match crate::verbs::load_checked(file) {
         Ok(pair) => pair,

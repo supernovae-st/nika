@@ -118,13 +118,25 @@ pub(crate) fn linked_path(theme: crate::Theme, path: &str) -> String {
     }
 }
 
-/// Read + strict-parse + ladder-check one workflow file.
+/// Read + strict-parse + ladder-check one workflow file. The Unix dash
+/// (`-`) reads stdin — the editor wire: a dirty buffer pipes straight
+/// in, no tmp-file dance; every verb on this seam (check · graph ·
+/// inspect · test) inherits it.
 ///
 /// Failure mapping per spec §4: unreadable = environment (`3`) · parse
 /// error = a finding in the FILE (`2`).
 pub(crate) fn load_checked(path: &str) -> Result<(RawWorkflow, CheckReport), VerbOutput> {
-    let yaml = std::fs::read_to_string(path)
-        .map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))?;
+    let yaml = if path == "-" {
+        use std::io::Read as _;
+        let mut buf = String::new();
+        std::io::stdin()
+            .read_to_string(&mut buf)
+            .map_err(|e| VerbOutput::env(format!("cannot read stdin: {e}")))?;
+        buf
+    } else {
+        std::fs::read_to_string(path)
+            .map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))?
+    };
     let wf = nika_schema::parse(&yaml, FileId::new(0), ParseMode::Strict)
         .map_err(|e| VerbOutput::file(format!("PARSE ✗  [{}] {e}", e.spec_code())))?;
     let report = nika_schema::check(&wf);

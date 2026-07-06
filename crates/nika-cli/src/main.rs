@@ -99,7 +99,7 @@ impl ColorWhenArg {
 enum Command {
     /// Static pre-flight: the ADR-092 ladder (audit BEFORE run).
     Check {
-        /// Workflow file (`*.nika.yaml`).
+        /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
         file: String,
         /// Emit the machine-readable report (never coloured).
         #[arg(long)]
@@ -133,7 +133,7 @@ enum Command {
     },
     /// Static anatomy: tasks · verbs · wave groups · cost · permits.
     Inspect {
-        /// Workflow file (`*.nika.yaml`).
+        /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
         file: String,
         /// Force the ASCII glyph theme (CI logs · legacy terminals).
         #[arg(long)]
@@ -141,7 +141,7 @@ enum Command {
     },
     /// The ONE graph projector (json canonical · mermaid/dot derived).
     Graph {
-        /// Workflow file (`*.nika.yaml`).
+        /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
         file: String,
         /// Output format.
         #[arg(long, value_enum, default_value_t = GraphFormatArg::Json)]
