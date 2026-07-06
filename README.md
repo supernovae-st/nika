@@ -316,8 +316,8 @@ drops the schema wiring, `AGENTS.md`, the Cursor rule and a repo-level
 Codex and friends author valid workflows on the first try. `nika wire
 <cursor|vscode|windsurf|claude|codex|all>` points each client's MCP config at
 the engine — idempotent, and it preserves your other servers. `nika mcp`
-exposes a read-only oracle (`nika_check` + `nika_explain`) any MCP client can
-call. `nika lsp` speaks LSP to every editor.
+exposes a read-only oracle — 8 tools, `nika_check` and `nika_explain` through
+`nika_catalog` and `nika_tools` — any MCP client can call. `nika lsp` speaks LSP to every editor.
 
 Or install everything as a plugin — this repo hosts one plugin (the
 `nika-authoring` skill + the MCP oracle) for both ecosystems:

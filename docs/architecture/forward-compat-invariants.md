@@ -390,8 +390,8 @@ only comments; a NEW effect trait returning `std::io::Result` goes RED.
 |---|---|---|---|---|
 | Core engine | `Runtime::execute`, EventStream | EventKind Extension variant, new directives in InferRequest | LOW | EventKind `#[non_exhaustive]` |
 | pck | `schema:` + 9 types | `x-*` namespace, new schema versions | MED | `deny_unknown_fields` top-level only |
-| Natives | 4 verbs sealed · 22 spec-curated builtins | `ExternalVerb` registry for community | LOW | Sealed `Verb` + open `ExternalVerb` |
-| Providers | 14 canonical (spec stdlib) via wire dialects + mock | New providers as crates, `ProviderId` as newtype with `Custom(String)` | HIGH | Crate split already locked |
+| Natives | 4 verbs sealed · 25 spec-curated builtins | `ExternalVerb` registry for community | LOW | Sealed `Verb` + open `ExternalVerb` |
+| Providers | 16 canonical (spec stdlib) via wire dialects + mock | New providers as crates, `ProviderId` as newtype with `Custom(String)` | HIGH | Crate split already locked |
 | MCP | Catalog + aliases | New transports, MCP versions | MED | rmcp behind facade trait |
 | The Connectome | Trait stubs only | Real impl in the 2.0 era | LOW | All hooks in the kernel today |
 | agent-v2 | Reserved EventKinds, error codes | New crate in the 2.0 era | LOW | InferRequest fields + default methods |

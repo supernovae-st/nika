@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Static builtin tool catalog — 24 `nika:*` tools in a sorted array.
+//! Static builtin tool catalog — 25 `nika:*` tools in a sorted array.
 //!
 //! Case-sensitive lookup via binary search. Tool names are engine-controlled,
 //! always lowercase.
@@ -14,15 +14,16 @@
 //! `threads` → `inspect` view-discriminated (`jaq` source-verified ·
 //! `nika:json_merge_patch` stays for RFC-7396 null-delete which `jq *` cannot
 //! express) + `nika:compose` (ADR-096) + `nika:image_generate` (stdlib
-//! §Media · the first deferred-media graduate).
+//! §Media · the first deferred-media graduate) + `nika:tts_generate`
+//! (stdlib §Audio · sovereign-first).
 //!
-//! 6 categories · Core 6 · File 5 · Data 8 · Network 2 · Introspection 2 · Media 1 = 24.
+//! 6 categories · Core 6 · File 5 · Data 8 · Network 2 · Introspection 2 · Media 2 = 25.
 
 use crate::types::builtin::{Builtin, BuiltinCategory};
 
 use BuiltinCategory::{Core, Data, File, Introspection, Media, Network};
 
-/// All 24 builtin tools, **sorted alphabetically by name**.
+/// All 25 builtin tools, **sorted alphabetically by name**.
 ///
 /// Invariant: array MUST be sorted for `binary_search` to work.
 /// This is validated by a unit test.
@@ -303,7 +304,7 @@ mod tests {
         assert_eq!(
             core + file + data + network + intro + media,
             25,
-            "total must equal 24"
+            "total must equal 25"
         );
     }
 
