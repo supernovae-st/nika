@@ -13,6 +13,7 @@ use nika_kernel::io::http::{HttpError, HttpPostDyn, HttpRequest};
 use nika_kernel::secret::Secret;
 
 use crate::BuiltinFailure;
+use crate::media::wire;
 
 use super::args::TtsArgs;
 use super::types::{AudioFormat, C_REQUEST, ProviderAudio};
@@ -132,7 +133,7 @@ fn map_error_status(status: u16, body: &[u8], key: Option<&Secret>) -> BuiltinFa
         C_REQUEST,
         format!("local TTS server HTTP {status}: {message}"),
     )
-    .with_transient(matches!(status, 500..=599 | 408 | 429))
+    .with_transient(wire::transient_status(status))
     .with_details(serde_json::json!({ "status_code": status }))
 }
 
