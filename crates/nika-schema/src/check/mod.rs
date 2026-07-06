@@ -188,8 +188,9 @@ pub struct CheckReport {
     /// DAG order — empty when `conformance` has entries.
     pub gate_findings: Vec<GateFinding>,
     /// Every `nika:` tool that names no canonical builtin (the closed
-    /// 22-builtin catalog) — a runtime dispatch failure moved to check
-    /// time, with the « did you mean » fix attached.
+    /// stdlib catalog — the count lives in `nika-builtin`, never here) —
+    /// a runtime dispatch failure moved to check time, with the
+    /// « did you mean » fix attached.
     pub unknown_tools: Vec<UnknownTool>,
     /// Every `invoke` call passing an `args:` key the named builtin does
     /// not declare — the silent-footgun class (`nika:jq` with `data:`
@@ -197,8 +198,9 @@ pub struct CheckReport {
     /// surfaced at check time with the « did you mean » fix.
     pub unknown_args: Vec<UnknownArg>,
     /// Every `invoke` call MISSING an unconditionally-required `args:` key
-    /// (the `Builtin::required` set). Closes the « only 5/23 builtins had a
-    /// static required-arg check » gap — a required-arg builtin now fails
+    /// (the `Builtin::required` set). Closes the « only a handful of
+    /// builtins had a static required-arg check » gap — a required-arg
+    /// builtin now fails
     /// `nika check` instead of passing `check {}` and failing at run. The
     /// conditional contracts (`nika:wait`, `nika:fetch`) stay in
     /// `conformance` (the `builtin_shape` ladder) — no double report.

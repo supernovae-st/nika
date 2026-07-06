@@ -11,7 +11,7 @@
 //!
 //! - **Dispatcher injected, never owned** — the verb rides the kernel
 //!   `ToolExecuteDyn` seam: production wiring injects the engine's
-//!   builtin+MCP dispatcher (resolves `nika:*` against the closed 22-builtin
+//!   builtin+MCP dispatcher (resolves `nika:*` against the closed builtin
 //!   set + `mcp:*` against the configured server registry); tests inject a
 //!   mock executor. NO Cargo dep on `nika-builtin` / `nika-mcp`.
 //! - **The closed-namespace contract (spec §invoke)** — the tool-ref
@@ -519,7 +519,7 @@ mod tests {
     #[test]
     fn tool_ref_validation_matrix() {
         // `nika:connectome/recall` is verb-LEVEL valid (grammar shape ok);
-        // the injected dispatcher rejects it against the closed 22-builtin
+        // the injected dispatcher rejects it against the closed builtin
         // set today (spec 02-verbs §invoke · the verb does shape, the
         // dispatcher does the closed-set check).
         assert!(validate_tool_ref("nika:read").is_ok());
