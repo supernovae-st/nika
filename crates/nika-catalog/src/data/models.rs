@@ -218,7 +218,27 @@ mod tests {
 
     #[test]
     fn pricing_count() {
-        assert_eq!(ALL_PRICING.len(), 62);
+        // DERIVED, never pinned (the born-stale law): the generated
+        // catalog moves with upstream — the structural truths are
+        // non-emptiness and every cloud provider being represented.
+        assert!(ALL_PRICING.len() > 100, "got {}", ALL_PRICING.len());
+        for provider in [
+            "anthropic",
+            "openai",
+            "google",
+            "deepseek",
+            "mistral",
+            "xai",
+            "groq",
+            "openrouter",
+            "huggingface",
+            "nvidia",
+        ] {
+            assert!(
+                ALL_PRICING.iter().any(|p| p.provider == provider),
+                "no pricing rules for {provider}"
+            );
+        }
     }
 
     // ── Capabilities ────────────────────────────────────────────
@@ -391,8 +411,11 @@ mod tests {
 
     #[test]
     fn contains_fallback_for_dated_variants() {
-        let p = find_pricing("claude-sonnet-4-20250514").unwrap();
-        assert_eq!(p.provider, "Anthropic");
+        // A dated variant contains-matches its base pattern (providers
+        // are the ENGINE ids since the models.dev regen — the display
+        // names never matched eq_ignore_ascii_case("google", …)).
+        let p = find_pricing("claude-sonnet-4-5-20991231").unwrap();
+        assert_eq!(p.provider, "anthropic");
         assert!((p.input_per_million - 3.0).abs() < f64::EPSILON);
     }
 
@@ -403,7 +426,7 @@ mod tests {
 
     #[test]
     fn estimate_cost_sonnet_1k_tokens() {
-        let est = estimate_cost("claude-sonnet-4-20250514", 1000, 500).unwrap();
+        let est = estimate_cost("claude-sonnet-4-5-20991231", 1000, 500).unwrap();
         let expected = (1000.0 * 3.0 + 500.0 * 15.0) / 1_000_000.0;
         assert!((est.usd - expected).abs() < 1e-10);
     }
@@ -416,7 +439,7 @@ mod tests {
             "zero tokens must produce zero cost, got {}",
             est.usd,
         );
-        assert_eq!(est.provider, "OpenAI");
+        assert_eq!(est.provider, "openai");
         assert_eq!(est.model, "gpt-4o");
     }
 
@@ -433,7 +456,7 @@ mod tests {
     #[test]
     fn find_pricing_for_provider_prefixed_resolves_scoped() {
         let p = find_pricing_for("openai/gpt-4o-mini").expect("priced model");
-        assert_eq!(p.provider, "OpenAI");
+        assert_eq!(p.provider, "openai");
         // The prefixed form and the explicit scoped call resolve to the
         // SAME row — one resolution, two spellings.
         let scoped = find_pricing_scoped("openai", "gpt-4o-mini").expect("scoped hit");
@@ -462,7 +485,7 @@ mod tests {
         let expected = (1000.0 * p.input_per_million + 500.0 * p.output_per_million) / 1e6;
         assert!((est.usd - expected).abs() < 1e-12);
         assert_eq!(est.model, "openai/gpt-4o-mini", "carries the queried form");
-        assert_eq!(est.provider, "OpenAI");
+        assert_eq!(est.provider, "openai");
     }
 
     #[test]
@@ -487,11 +510,15 @@ mod tests {
     }
 
     #[test]
-    fn specdec_different_from_versatile() {
-        let specdec = find_pricing("llama-3.3-70b-specdec").unwrap();
+    fn family_variants_price_differently() {
+        // The lookup distinguishes same-family variants — the SUBJECT is
+        // no-cross-contamination, not any specific price (derived law).
         let versatile = find_pricing("llama-3.3-70b-versatile").unwrap();
-        assert!((specdec.output_per_million - 0.99).abs() < f64::EPSILON);
-        assert!((versatile.output_per_million - 0.79).abs() < f64::EPSILON);
+        let instant = find_pricing("llama-3.1-8b-instant").unwrap();
+        assert!(
+            (versatile.output_per_million - instant.output_per_million).abs() > f64::EPSILON,
+            "distinct variants must not collapse onto one rule"
+        );
     }
 
     #[test]
@@ -544,15 +571,17 @@ mod tests {
     #[test]
     fn scoped_pricing_exact_match() {
         let p = find_pricing_scoped("openai", "gpt-4o").unwrap();
-        assert_eq!(p.provider, "OpenAI");
+        assert_eq!(p.provider, "openai");
         assert!((p.input_per_million - 2.5).abs() < f64::EPSILON);
     }
 
     #[test]
     fn scoped_pricing_contains_fallback() {
-        // Dated variant — should fall through to the "claude-sonnet-4" contains match.
+        // Dated variant — falls through to the "claude-sonnet-4"
+        // supplement row (referenced-but-retired · kept for the
+        // provider default_model integrity gate).
         let p = find_pricing_scoped("anthropic", "claude-sonnet-4-20250514").unwrap();
-        assert_eq!(p.provider, "Anthropic");
+        assert_eq!(p.provider, "anthropic");
     }
 
     #[test]

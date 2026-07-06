@@ -154,6 +154,7 @@ mod tests {
 
     #[test]
     fn all_pricing_non_empty() {
-        assert_eq!(all_pricing().len(), 62);
+        // Derived, never pinned — the generated catalog moves upstream.
+        assert!(!all_pricing().is_empty());
     }
 }
