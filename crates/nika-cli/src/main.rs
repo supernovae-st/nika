@@ -232,6 +232,9 @@ enum Command {
         #[command(subcommand)]
         action: TraceAction,
     },
+    /// Debug Adapter Protocol server (stdio) — replay a recorded run
+    /// under a debugger UI (preview: handshake only, sessions land next).
+    Dap,
     /// Run the language server over stdio (drives the editor extension).
     Lsp,
     /// Run the MCP server over stdio (validate: check/explain · learn:
@@ -547,6 +550,7 @@ fn main() -> std::process::ExitCode {
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
         // `exit` without a prior `shutdown`) — the server-process
         // convention, NOT the verb FILE/WORKFLOW/ENV taxonomy.
+        Command::Dap => verbs::dap::run_stdio(),
         Command::Lsp => match nika_lsp::run_stdio() {
             Ok(()) => verbs::exit::OK,
             Err(err) => {
