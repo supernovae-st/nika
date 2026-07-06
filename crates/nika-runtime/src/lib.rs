@@ -339,6 +339,14 @@ fn emit_prologue(
     if let Some(hex) = source_sha256 {
         opening.push(("workflow_sha256", s(hex)));
     }
+    // Environment attestation (Q11): reproducing a failure needs to know
+    // WHICH engine on WHICH platform wrote the journal. Compile-time
+    // constants only — the workspace releases in lockstep, so the
+    // runtime crate's version IS the engine version; no clock, no I/O,
+    // determinism intact.
+    opening.push(("engine_version", s(env!("CARGO_PKG_VERSION"))));
+    let platform = format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH);
+    opening.push(("platform", s(&platform)));
     emit(stamper, sink, EventKind::WorkflowStarted, &opening);
     for task in &wf.tasks {
         emit(

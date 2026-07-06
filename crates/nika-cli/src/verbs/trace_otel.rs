@@ -95,12 +95,20 @@ pub(crate) fn project(events: &[Event], include_content: bool) -> Result<String,
         include_content,
     ));
 
+    // The resource names the engine that RAN, not the one exporting —
+    // the journal's own attestation (Q11) wins; the exporter's version
+    // is only the fallback for pre-attestation journals.
+    let ran_version = field_str(started, "engine_version").unwrap_or(env!("CARGO_PKG_VERSION"));
+    let mut resource_attrs = vec![
+        kv_str("service.name", "nika"),
+        kv_str("service.version", ran_version),
+    ];
+    if let Some(platform) = field_str(started, "platform") {
+        resource_attrs.push(kv_str("nika.platform", platform));
+    }
     let payload = serde_json::json!({
         "resourceSpans": [{
-            "resource": { "attributes": [
-                kv_str("service.name", "nika"),
-                kv_str("service.version", env!("CARGO_PKG_VERSION")),
-            ]},
+            "resource": { "attributes": resource_attrs },
             "scopeSpans": [{
                 "scope": { "name": "nika", "version": env!("CARGO_PKG_VERSION") },
                 "spans": spans,
