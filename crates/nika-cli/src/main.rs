@@ -408,6 +408,19 @@ struct RunArgs {
     /// value parses as JSON when it parses, else rides as a string.
     #[arg(long = "answer", value_name = "TASK=VALUE", requires = "resume")]
     answer: Vec<String>,
+    /// Run ONE task and its transitive upstream only (the regenerate-one-
+    /// block move): the full workflow still audits (spans · findings stay
+    /// whole-file faithful), then execution scopes to the ancestor
+    /// sub-DAG and the plan/cost re-derive for exactly what will run.
+    /// Workflow `outputs:` are skipped (they may read unscoped tasks).
+    #[arg(long, value_name = "TASK_ID", conflicts_with = "resume")]
+    task: Option<String>,
+    /// Skip the run journal (`.nika/traces/<ts>-<id>.ndjson` · spec §3.3).
+    /// Every run writes one by default so `nika trace show|replay`,
+    /// `--resume` and the editor's runs view have a file to read.
+    /// `NIKA_NO_TRACE_FILE` (any non-empty value) opts out globally.
+    #[arg(long)]
+    no_trace_file: bool,
     /// Hide the per-task output summaries (`→ {…} · 312B`) on the live
     /// storyboard. Interactive TTY only — pipes · CI · the machine modes
     /// never carry them anyway.
@@ -615,6 +628,8 @@ fn run_verb(args: &RunArgs, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
         args.model.as_deref(),
         &args.var,
         resume.as_ref(),
+        args.no_trace_file || env_flag("NIKA_NO_TRACE_FILE"),
+        args.task.as_deref(),
         args.no_outputs,
     )
 }
@@ -794,9 +809,10 @@ fn recover_events(raw: &str, label: &str) -> Result<Vec<Event>, String> {
 
 /// Read a boolean presentation flag from the environment.
 ///
-/// Presentation flags (`NO_COLOR` · `NIKA_REDUCED_MOTION`) are not secrets —
-/// the workspace `disallowed_methods` ban on `std::env::var` exists to route
-/// SECRET reads through the kernel vault seam, which has no business in a
+/// Presentation flags (`NO_COLOR` · `NIKA_REDUCED_MOTION` ·
+/// `NIKA_NO_TRACE_FILE`) are not secrets — the workspace
+/// `disallowed_methods` ban on `std::env::var` exists to route SECRET
+/// reads through the kernel vault seam, which has no business in a
 /// colour toggle. Scoped allow, single seam.
 #[allow(clippy::disallowed_methods)]
 fn env_flag(name: &str) -> bool {

@@ -1,20 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The production [`EventSink`] lanes — `--json` (NDJSON verbatim) and
-//! the live TTY fold (`RunView` repaint per event).
+//! The production [`EventSink`] lanes — `--json` (NDJSON verbatim), the
+//! live TTY fold (`RunView` repaint per event), and the run journal
+//! ([`TraceFileSink`] · `.nika/traces/` · teed beside either via [`Tee`]).
 //!
-//! Both are consumers of the SAME stream (the fold law · spec §3): the
+//! All are consumers of the SAME stream (the fold law · spec §3): the
 //! sink shape decides the surface, never the runtime. The sink contract
 //! is INFALLIBLE (a write error never changes the run's verdict — it is
 //! buffered and surfaced at the end).
 
-use std::io::Write;
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::{Path, PathBuf};
 
 use nika_event::Event;
 use nika_runtime::EventSink;
+use nika_types::timestamp::Timestamp;
+use uuid::Uuid;
 
 use crate::{RunView, Theme, frame, frame_with_outputs, verdict_frame};
+
+/// Where run journals land, relative to the run's CWD (the workspace
+/// root by convention — the editor extension watches exactly this
+/// directory, and spec §3.3 prints it in the final frame).
+pub(super) const TRACE_DIR: &str = ".nika/traces";
 
 /// How the live fold reaches the terminal (spec §3.5 reduced surfaces).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,6 +79,211 @@ impl<W: Write> EventSink for JsonSink<W> {
         if let Err(e) = result {
             self.error = Some(e);
         }
+    }
+}
+
+/// The run-journal state: which disk lane, if any, this sink drives.
+enum Lane {
+    /// `--no-trace-file` / `NIKA_NO_TRACE_FILE` / a non-workspace run
+    /// (`examples run` stages a temp file) — emit is a no-op by design,
+    /// so the caller keeps ONE code path whether journaling or not.
+    Disabled,
+    /// Enabled but not yet on disk — the file is NAMED from the first
+    /// event's identity (its `UUIDv7` id carries the run's mint time),
+    /// so nothing can open before the stream starts.
+    Pending,
+    /// Open and appending one NDJSON line per event.
+    Open(BufWriter<File>),
+}
+
+/// The run journal — writes the SAME NDJSON stream as [`JsonSink`] into
+/// `<dir>/<ISO-compact>-<short-id>.ndjson` (spec §3.3 final frame ·
+/// `.nika/traces/` in production). The flight recorder (`nika trace
+/// show|replay`), `--resume`, and the editor extension's runs view all
+/// read this file back — it exists so EVERY run leaves a journal, not
+/// only the ones piped through `--json`.
+///
+/// Three constraints shape it:
+/// - **Lazy open** — file creation waits for the FIRST emit: the name
+///   needs the first event's `UUIDv7` id + wall timestamp, and a run
+///   that never starts (audit refusal · composition failure) must not
+///   litter an empty file.
+/// - **Infallible** (the [`EventSink`] contract) — an fs error (read-only
+///   checkout · disk full) is buffered, never panics, never changes the
+///   run's verdict or its primary bytes; the caller surfaces it AFTER
+///   the run as a stderr note.
+/// - **Rider, never a surface** — it tees BESIDE the chosen primary lane
+///   (via [`Tee`]); with the sink disabled or broken, the primary lane's
+///   output stays byte-identical.
+pub(super) struct TraceFileSink {
+    /// The journal directory (created on first emit · `TRACE_DIR` in
+    /// production · a temp dir under test). Meaningless when disabled.
+    dir: PathBuf,
+    lane: Lane,
+    /// The opened file's path (`None` until the lazy open · stays `None`
+    /// when disabled or when the open itself failed).
+    path: Option<PathBuf>,
+    /// The first fs error, buffered (the sink contract is infallible
+    /// w.r.t. the run · the caller surfaces this after the run).
+    error: Option<std::io::Error>,
+}
+
+impl TraceFileSink {
+    /// An enabled journal rooted at `dir` (lazy — no fs effect here).
+    pub(super) fn new(dir: impl Into<PathBuf>) -> Self {
+        Self {
+            dir: dir.into(),
+            lane: Lane::Pending,
+            path: None,
+            error: None,
+        }
+    }
+
+    /// A permanently-silent journal (`emit` = no-op · zero fs effects) —
+    /// the opt-out shape that keeps the caller's wiring branch-free.
+    #[must_use]
+    pub(super) fn disabled() -> Self {
+        Self {
+            dir: PathBuf::new(),
+            lane: Lane::Disabled,
+            path: None,
+            error: None,
+        }
+    }
+
+    /// The journal file's path, once the lazy open happened.
+    #[must_use]
+    pub(super) fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
+    }
+
+    /// The buffered fs error, if journaling ever failed.
+    #[must_use]
+    pub(super) fn into_error(self) -> Option<std::io::Error> {
+        self.error
+    }
+
+    /// Create the directory + the journal file, named from the first
+    /// event's identity.
+    ///
+    /// The runtime does not stamp `event.run` today, so the first
+    /// event's own id IS the run-unique mint (`SystemStamper` `UUIDv7` ·
+    /// ADR-033); `run` is preferred whenever a future runtime sets it.
+    fn open(&mut self, first: &Event) -> std::io::Result<()> {
+        std::fs::create_dir_all(&self.dir)?;
+        let id = first.run.as_ref().map_or(first.id.uuid, |r| r.uuid);
+        let path = self.dir.join(trace_file_name(first.timestamp, id));
+        // `create_new` refuses to clobber: two runs in the same SECOND can
+        // share the 4-hex short id (16 random bits — a real risk under a
+        // parallel CI matrix), and truncating a sibling run's journal would
+        // be silent data loss. The fallback name carries the full 32-hex id
+        // (uuid-unique), so it cannot collide again.
+        let create = |p: &Path| {
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(p)
+        };
+        let (file, path) = match create(&path) {
+            Ok(f) => (f, path),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                let full = self.dir.join(format!(
+                    "{}-{}.ndjson",
+                    compact_ts(first.timestamp),
+                    id.as_simple()
+                ));
+                (create(&full)?, full)
+            }
+            Err(e) => return Err(e),
+        };
+        self.lane = Lane::Open(BufWriter::new(file));
+        self.path = Some(path);
+        Ok(())
+    }
+}
+
+impl EventSink for TraceFileSink {
+    fn emit(&mut self, event: Event) {
+        if self.error.is_some() {
+            return; // already broken · stop touching a dead lane
+        }
+        if matches!(self.lane, Lane::Pending)
+            && let Err(e) = self.open(&event)
+        {
+            // The failed open is FINAL (the error gate above short-circuits
+            // every later emit) — no retry storm against a read-only disk.
+            self.error = Some(e);
+            return;
+        }
+        let Lane::Open(writer) = &mut self.lane else {
+            return; // Disabled — a deliberate no-op
+        };
+        // Mirror JsonSink byte-for-byte (one JSON document per line · flush
+        // per event): the journal must parse wherever the `--json` stream
+        // parses, and the extension's watcher tails it for liveness.
+        let result = serde_json::to_writer(&mut *writer, &event)
+            .map_err(std::io::Error::from)
+            .and_then(|()| writer.write_all(b"\n"))
+            .and_then(|()| writer.flush());
+        if let Err(e) = result {
+            self.error = Some(e);
+        }
+    }
+}
+
+/// The journal's timestamp component: RFC 3339 compacted for a path —
+/// second precision (drop `.fff`) and `:` → `-` (colons are illegal on
+/// Windows paths and hostile in macOS Finder). `2026-06-11T14:02:33.123Z`
+/// becomes `2026-06-11T14-02-33Z`.
+fn compact_ts(ts: Timestamp) -> String {
+    let iso = ts.to_string();
+    // Display always renders `…SS.mmmZ`; the guard keeps this total if
+    // that ever changes (worst case: the full string, still path-safe
+    // after the replace below except the dot — acceptable, never wrong).
+    let seconds = iso.split('.').next().unwrap_or(&iso);
+    format!("{}Z", seconds.replace(':', "-"))
+}
+
+/// The journal file name (spec §3.3 final frame): `<ISO-compact>-<short>
+/// .ndjson`, e.g. `2026-06-11T14-02-33Z-a3f2.ndjson`. The short id is
+/// the LAST 4 hex chars of the `UUIDv7` — the tail is the random part
+/// (the v7 PREFIX encodes coarse mint-time and is near-constant across
+/// weeks, so it would disambiguate nothing the timestamp doesn't).
+fn trace_file_name(ts: Timestamp, id: Uuid) -> String {
+    let simple = id.as_simple().to_string();
+    let short = &simple[simple.len().saturating_sub(4)..];
+    format!("{}-{short}.ndjson", compact_ts(ts))
+}
+
+/// Fans one event stream into two sinks — `emit` delivers to BOTH (one
+/// clone per event · events are small values). This is how the run
+/// journal rides beside every primary surface without forking `drive`:
+/// the primary lane `a` keeps its exact bytes; the rider `b` (the trace
+/// file) observes the same stream. Both sides are [`EventSink`]s, so
+/// infallibility composes — neither can veto the run or the other lane.
+pub(super) struct Tee<A: EventSink, B: EventSink> {
+    a: A,
+    b: B,
+}
+
+impl<A: EventSink, B: EventSink> Tee<A, B> {
+    /// Pair the primary surface `a` with the rider `b`.
+    pub(super) fn new(a: A, b: B) -> Self {
+        Self { a, b }
+    }
+
+    /// Take both lanes back after the run (the caller reads the fold's
+    /// verdict from `a` and surfaces buffered errors from each side).
+    pub(super) fn into_parts(self) -> (A, B) {
+        (self.a, self.b)
+    }
+}
+
+impl<A: EventSink, B: EventSink> EventSink for Tee<A, B> {
+    fn emit(&mut self, event: Event) {
+        // Primary first (the user-facing surface leads) · rider second.
+        self.a.emit(event.clone());
+        self.b.emit(event);
     }
 }
 
@@ -364,6 +579,178 @@ mod tests {
         assert!(
             !text.contains('\x1b'),
             "no prior frame to clear → no cursor-up escape: {text:?}"
+        );
+    }
+
+    // ───────────────────────── run journal (TraceFileSink · Tee) ─────
+
+    /// The spec §3.3 name form: `<ISO-compact>-<short>.ndjson` — second
+    /// precision, `:` → `-`, the short id = the LAST 4 hex of the uuid.
+    #[test]
+    fn trace_file_name_matches_the_spec_form() {
+        let id = Uuid::from_u128(0xa3f2);
+        assert_eq!(
+            trace_file_name(Timestamp::from_unix_ms(0), id),
+            "1970-01-01T00-00-00Z-a3f2.ndjson"
+        );
+        // Milliseconds are dropped, never rounded (1.5s stays second 1).
+        assert_eq!(
+            trace_file_name(Timestamp::from_unix_ms(1500), id),
+            "1970-01-01T00-00-01Z-a3f2.ndjson"
+        );
+    }
+
+    /// Lazy open: a sink that never receives an event leaves ZERO fs
+    /// footprint — no directory, no empty journal file.
+    #[test]
+    fn trace_sink_is_lazy_zero_events_zero_fs() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("traces");
+        {
+            let sink = TraceFileSink::new(&dir);
+            assert!(sink.path().is_none());
+            assert!(sink.into_error().is_none());
+        }
+        assert!(!dir.exists(), "no emit → the directory is never created");
+    }
+
+    /// The journal is the `--json` lane byte-for-byte: same events in,
+    /// identical NDJSON out (the file must parse wherever the stream does).
+    #[test]
+    fn trace_sink_journal_mirrors_the_json_lane_bytes() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("traces");
+        let events = demo::success();
+
+        let mut expected = Vec::new();
+        let mut json = JsonSink::new(&mut expected);
+        for ev in &events {
+            json.emit(ev.clone());
+        }
+
+        let mut sink = TraceFileSink::new(&dir);
+        for ev in &events {
+            sink.emit(ev.clone());
+        }
+        let path = sink.path().expect("opened on first emit").to_path_buf();
+        assert!(path.starts_with(&dir), "journal lives under its dir");
+        assert_eq!(
+            path.extension().and_then(|e| e.to_str()),
+            Some("ndjson"),
+            "the spec extension"
+        );
+        assert!(sink.into_error().is_none(), "a writable dir never errors");
+
+        let written = std::fs::read(&path).expect("journal readable");
+        assert_eq!(written, expected, "trace file == JsonSink bytes");
+        // split() over adding a bytecount dep for one test assertion
+        // (clippy::naive_bytecount fires on the filter().count() idiom).
+        assert_eq!(
+            written.split(|&b| b == b'\n').count() - 1,
+            events.len(),
+            "one NDJSON line per event"
+        );
+    }
+
+    /// The opt-out shape: `disabled()` swallows every event with zero fs
+    /// effects — the caller's wiring stays branch-free.
+    #[test]
+    fn trace_sink_disabled_never_touches_disk() {
+        let mut sink = TraceFileSink::disabled();
+        for ev in demo::success() {
+            sink.emit(ev);
+        }
+        assert!(sink.path().is_none(), "disabled never opens");
+        assert!(sink.into_error().is_none(), "disabled never errors");
+    }
+
+    /// Order-recording sink — proves the Tee delivery contract.
+    struct RecordingSink {
+        tag: char,
+        log: std::rc::Rc<std::cell::RefCell<Vec<(char, u128)>>>,
+    }
+
+    impl EventSink for RecordingSink {
+        fn emit(&mut self, event: Event) {
+            self.log
+                .borrow_mut()
+                .push((self.tag, event.id.uuid.as_u128()));
+        }
+    }
+
+    /// Tee fans each event to BOTH sinks, primary (`a`) first — per event,
+    /// not batched (the rider observes the same liveness the surface does).
+    #[test]
+    fn tee_delivers_to_both_primary_first_per_event() {
+        let log = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let a = RecordingSink {
+            tag: 'a',
+            log: std::rc::Rc::clone(&log),
+        };
+        let b = RecordingSink {
+            tag: 'b',
+            log: std::rc::Rc::clone(&log),
+        };
+        let mut tee = Tee::new(a, b);
+        let events = demo::success();
+        tee.emit(events[0].clone());
+        tee.emit(events[1].clone());
+        let (a, b) = tee.into_parts();
+        assert_eq!((a.tag, b.tag), ('a', 'b'), "parts come back in order");
+        let id0 = events[0].id.uuid.as_u128();
+        let id1 = events[1].id.uuid.as_u128();
+        assert_eq!(
+            *log.borrow(),
+            vec![('a', id0), ('b', id0), ('a', id1), ('b', id1)],
+            "primary first · rider second · per event"
+        );
+    }
+
+    /// Infallible under a broken destination: the error is buffered ONCE,
+    /// later emits are silent no-ops, nothing panics (the run's verdict
+    /// never depends on the journal).
+    #[test]
+    fn trace_sink_buffers_the_error_and_goes_silent() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // A FILE where the directory must go → create_dir_all fails on
+        // every platform (no chmod games · works under any uid).
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").expect("fixture");
+        let mut sink = TraceFileSink::new(blocker.join("traces"));
+        for ev in demo::success() {
+            sink.emit(ev); // first emit fails the open · the rest no-op
+        }
+        assert!(sink.path().is_none(), "a failed open never half-opens");
+        assert!(sink.into_error().is_some(), "the fs error is buffered");
+    }
+
+    /// Two runs colliding on the same second + short id: the second open
+    /// falls back to the FULL 32-hex id — never truncates a sibling.
+    #[test]
+    fn trace_sink_collision_falls_back_to_the_full_id_name() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("traces");
+        let events = demo::success();
+
+        let mut first = TraceFileSink::new(&dir);
+        let mut second = TraceFileSink::new(&dir);
+        for ev in &events {
+            first.emit(ev.clone());
+            second.emit(ev.clone()); // same ids · same second → collision
+        }
+        let p1 = first.path().expect("first opened").to_path_buf();
+        let p2 = second.path().expect("second opened").to_path_buf();
+        assert_ne!(p1, p2, "the fallback picked a different name");
+        assert!(second.into_error().is_none(), "collision is not an error");
+        let full = events[0].id.uuid.as_simple().to_string();
+        assert!(
+            p2.to_string_lossy().contains(&full),
+            "fallback carries the full uuid: {p2:?}"
+        );
+        // Both journals intact — byte-identical streams, zero clobbering.
+        assert_eq!(
+            std::fs::read(&p1).expect("first journal"),
+            std::fs::read(&p2).expect("second journal")
         );
     }
 

@@ -34,6 +34,11 @@ pub use resume::{RecoveredTrace, ResumeRequest, recover_events};
 pub use sink::{FoldSink, JsonSink, RenderMode};
 pub use stamp::SystemStamper;
 
+mod scope;
+use scope::scope_to_task;
+
+use sink::{TRACE_DIR, Tee, TraceFileSink};
+
 use std::collections::BTreeMap;
 use std::io::Write as _;
 
@@ -69,13 +74,18 @@ use crate::verbs::exit;
 /// and skips iff BOTH hashes match (visible `task_cache_hit` · never
 /// silent). `--from <task_id>` forces a subtree to re-run.
 ///
+/// `no_trace_file` — skip the run journal (`.nika/traces/` · spec §3.3):
+/// `--no-trace-file` / `NIKA_NO_TRACE_FILE` opt out; `examples run`
+/// disables it too (a staged temp-file run is not a workspace run).
+// Ten independent CLI parameters ARE the clap surface — the same idiom
+// as TraceArgs' four bools, not a state machine to encode in a struct.
 /// `no_outputs` — `--no-outputs` (the comprehension pass): suppress the
 /// shape tails on the Live storyboard. Only the interactive TTY surface
 /// ever grows tails — pipes · CI · the machine modes stay byte-unchanged
 /// with or without the flag.
 // Ten independent CLI parameters ARE the clap surface — the same idiom
 // as TraceArgs' bools, not a state machine to encode in a struct.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 #[must_use]
 pub fn run(
     file: &str,
@@ -87,6 +97,8 @@ pub fn run(
     model_override: Option<&str>,
     vars: &[String],
     resume: Option<&ResumeRequest>,
+    no_trace_file: bool,
+    task_filter: Option<&str>,
     no_outputs: bool,
 ) -> u8 {
     // `--output` validated up front so an unknown format fails before any
@@ -107,26 +119,17 @@ pub fn run(
             return out.code;
         }
     };
-    if !report.is_clean() {
-        // The SAME findings `nika check` renders — the user must see why
-        // it won't run. Reuses the locked check rendering (exit 2). In
-        // machine mode the findings go to stderr (stdout stays clean JSON).
-        let out = crate::verbs::check::run(file, json, theme);
-        emit_diagnostic(&out.text, output_json);
-        return out.code;
-    }
 
-    // ── `--var` overrides (F4) — parse + validate BEFORE any work ────
-    // An unknown key is refused loudly (a typo'd override silently doing
-    // nothing would be the worst outcome) · same exit class as an unknown
-    // `--output` format (operator input · exit 3).
-    let overrides = match parse_var_overrides(vars, &wf) {
+    // ── `--task` scope + clean gate + `--var` overrides (all before
+    //    any effect — the whole operator-input preflight) ──
+    let (wf, report) =
+        match scoped_clean_gate(wf, report, task_filter, file, json, theme, output_json) {
+            Ok(pair) => pair,
+            Err(code) => return code,
+        };
+    let overrides = match validated_var_overrides(vars, &wf, output_json) {
         Ok(map) => map,
-        Err(message) => {
-            eprintln!("nika run: {message}");
-            emit_error_envelope(&message, output_json);
-            return exit::ENV;
-        }
+        Err(code) => return code,
     };
 
     // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
@@ -164,6 +167,13 @@ pub fn run(
         Ok(rt) => rt,
         Err(code) => return code,
     };
+    // The run journal (spec §3.3) — composed HERE like the other seams;
+    // `execute` receives the sink, never a flag.
+    let trace = if no_trace_file {
+        TraceFileSink::disabled()
+    } else {
+        TraceFileSink::new(TRACE_DIR)
+    };
     rt.block_on(execute(
         &runtime,
         (file, &wf),
@@ -173,6 +183,7 @@ pub fn run(
         theme,
         mode,
         resume.is_some(),
+        trace,
         !no_outputs,
     ))
 }
@@ -319,6 +330,12 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         false,
         model_override,
         &[],
+        None,
+        // No run journal: the example is staged to a TEMP file — `.nika/
+        // traces/` belongs to workspace runs (the same drive underneath,
+        // deliberately disabled here).
+        true,
+        // Examples always run whole (tiny by design · no scoping surface).
         None,
         false,
     );
@@ -537,6 +554,71 @@ fn offline_tip_applies(exit_code: u8, override_given: bool, model: &str) -> bool
 /// The static wave plan as task ids (the check report's schedule) —
 /// injected into the display fold so the ∥ lane markers and the DAG-shape
 /// glyph speak the scheduler's truth, not a reconstruction.
+/// `--var` overrides (F4), parsed + validated BEFORE any work: an
+/// unknown key refuses loudly (a typo'd override silently doing nothing
+/// would be the worst outcome) · the operator-input exit class (3).
+fn validated_var_overrides(
+    vars: &[String],
+    wf: &RawWorkflow,
+    output_json: bool,
+) -> Result<std::collections::BTreeMap<String, serde_json::Value>, u8> {
+    parse_var_overrides(vars, wf).map_err(|message| {
+        eprintln!("nika run: {message}");
+        emit_error_envelope(&message, output_json);
+        exit::ENV
+    })
+}
+
+/// The `--task` scope + the clean gate, fused (both run before any
+/// effect): scope to the target's ancestor cone when requested (the
+/// sub-DAG re-checks so plan/waves/cost describe exactly what runs) ·
+/// then refuse a dirty report with the SAME findings `nika check`
+/// renders (locked rendering · exit 2 · stderr in machine mode).
+#[allow(clippy::too_many_arguments)]
+fn scoped_clean_gate(
+    wf: RawWorkflow,
+    report: CheckReport,
+    task_filter: Option<&str>,
+    file: &str,
+    json: bool,
+    theme: Theme,
+    output_json: bool,
+) -> Result<(RawWorkflow, CheckReport), u8> {
+    let (wf, report) = apply_task_scope(wf, report, task_filter, output_json)?;
+    if !report.is_clean() {
+        let out = crate::verbs::check::run(file, json, theme);
+        emit_diagnostic(&out.text, output_json);
+        return Err(out.code);
+    }
+    Ok((wf, report))
+}
+
+/// Apply the `--task` scope when requested (the regenerate-one-block
+/// move). The FULL workflow audited already (whole-file spans · faithful
+/// findings) — the sub-DAG RE-CHECKS here so the plan/waves/cost describe
+/// exactly what will run. Scoping happens before any effect; an unknown
+/// id refuses on the diagnostic surface with the environment exit class.
+fn apply_task_scope(
+    wf: RawWorkflow,
+    report: CheckReport,
+    task_filter: Option<&str>,
+    output_json: bool,
+) -> Result<(RawWorkflow, CheckReport), u8> {
+    let Some(target) = task_filter else {
+        return Ok((wf, report));
+    };
+    match scope_to_task(wf, target) {
+        Ok(sub) => {
+            let sub_report = nika_schema::check(&sub);
+            Ok((sub, sub_report))
+        }
+        Err(msg) => {
+            emit_diagnostic(&msg, output_json);
+            Err(exit::ENV)
+        }
+    }
+}
+
 fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
     report
         .waves
@@ -550,6 +632,13 @@ fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
 }
 
 /// Drive the runtime through the chosen sink · return the exit code.
+///
+/// Every lane tees the run journal (`trace` · a [`TraceFileSink`] ·
+/// `.nika/traces/` · spec §3.3) BESIDE its primary surface: the primary's
+/// bytes stay exact (the rider can only buffer its own fs error, surfaced
+/// after the run · never the exit code). The caller composes the journal
+/// (enabled or disabled) like every other seam.
+// The 8th parameter is the `--resume` summary switch — same clap-surface
 // The trailing parameters are the `--resume` summary switch + the
 // outputs-tail switch — same clap-surface idiom as `run` itself (four
 // independent flags ARE four bools, not a state machine). The workflow
@@ -565,6 +654,7 @@ async fn execute(
     theme: Theme,
     mode: RenderMode,
     resumed: bool,
+    trace: TraceFileSink,
     outputs: bool,
 ) -> u8 {
     let mut stamper = SystemStamper::new();
@@ -577,10 +667,13 @@ async fn execute(
         // `Plain` deliberately: the fold goes to stderr (a pipe in the
         // composition path · never the live TTY redraw); the one final
         // storyboard frame is what matters, not the animation.
-        let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
-        sink.set_plan(plan_waves(wf, report));
-        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
+        fold.set_plan(plan_waves(wf, report));
+        let mut tee = Tee::new(fold, trace);
+        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
+        let (mut sink, trace) = tee.into_parts();
         sink.print_final();
+        surface_trace(trace, TraceNote::Stderr);
         print_resume_summary(&outcome, resumed, true);
         // Built BEFORE the sink is consumed — the failure envelope reads
         // the folded view (the failed row's detail carries the wire code).
@@ -610,8 +703,12 @@ async fn execute(
         }
         code
     } else if json {
-        let mut sink = JsonSink::new(std::io::stdout().lock());
-        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
+        let mut tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
+        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
+        let (sink, trace) = tee.into_parts();
+        // stdout stays NDJSON verbatim (byte-identical with or without the
+        // journal) — the trace note rides on stderr here.
+        surface_trace(trace, TraceNote::Stderr);
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: stream write failed: {e}");
             return exit::ENV;
@@ -619,33 +716,119 @@ async fn execute(
         print_resume_summary(&outcome, resumed, true);
         code
     } else {
-        let mut sink = FoldSink::new(std::io::stdout().lock(), theme, mode);
-        sink.set_plan(plan_waves(wf, report));
-        // The shape tails ride the INTERACTIVE surface only (`Live` =
-        // TTY): the piped/`--no-progress`/`--quiet` registers keep their
-        // exact bytes — CI logs and scripts never grow tails.
-        if mode == RenderMode::Live && outputs {
-            sink.show_outputs(true);
+        execute_fold_lane(
+            runtime,
+            wf,
+            report,
+            &mut stamper,
+            file,
+            theme,
+            mode,
+            resumed,
+            trace,
+            outputs,
+        )
+        .await
+    }
+}
+
+/// The human fold lane (`Live` · `Plain` · `Quiet`) — extracted whole so
+/// `execute` stays a lane DISPATCHER (fn-length ratchet · the three lanes
+/// are peers, not one long body). Storytelling surfaces get the flow
+/// epilogue + the spec §3.3 `trace:` pointer; `--quiet` keeps its
+/// compact-card promise.
+#[allow(clippy::too_many_arguments)]
+async fn execute_fold_lane(
+    runtime: &ProdRuntime,
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    stamper: &mut SystemStamper,
+    file: &str,
+    theme: Theme,
+    mode: RenderMode,
+    resumed: bool,
+    trace: TraceFileSink,
+    outputs: bool,
+) -> u8 {
+    let mut fold = FoldSink::new(std::io::stdout().lock(), theme, mode);
+    fold.set_plan(plan_waves(wf, report));
+    // The shape tails ride the INTERACTIVE surface only (`Live` = TTY):
+    // the piped/`--no-progress`/`--quiet` registers keep their exact
+    // bytes — CI logs and scripts never grow tails.
+    if mode == RenderMode::Live && outputs {
+        fold.show_outputs(true);
+    }
+    let mut tee = Tee::new(fold, trace);
+    let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
+    let (mut sink, trace) = tee.into_parts();
+    // `Live` painted in place during the run; `Plain`/`Quiet` folded
+    // silently · print the ONE final frame now.
+    if mode != RenderMode::Live {
+        sink.print_final();
+    }
+    // The Live (TTY) final frame carries the flow epilogue: the wall-
+    // time waterfall + the outputs pointer (design §2c). The sober
+    // registers stay untouched — CI logs never grow chart art.
+    if mode == RenderMode::Live {
+        print_flow_epilogue(sink.view(), &outcome.outputs, theme, file);
+    }
+    // The spec §3.3 final-frame pointer (`trace: …`) — under the frame
+    // on the storytelling surfaces.
+    surface_trace(
+        trace,
+        if mode == RenderMode::Quiet {
+            TraceNote::Silent
+        } else {
+            TraceNote::Stdout
+        },
+    );
+    print_resume_summary(&outcome, resumed, false);
+    if let Some(e) = sink.into_error() {
+        eprintln!("nika run: render failed: {e}");
+        return exit::ENV;
+    }
+    code
+}
+
+/// Where the run journal's `trace:` pointer lands (per lane).
+#[derive(Clone, Copy)]
+enum TraceNote {
+    /// The human storytelling surfaces (`Live` · `Plain`) — the spec §3.3
+    /// final-frame pointer, printed under the frame.
+    Stdout,
+    /// The machine lanes (`--json` · `--output json`) — their stdout is a
+    /// byte-exact contract, so the pointer rides the diagnostic stream.
+    Stderr,
+    /// `--quiet` — the compact-card promise holds (no pointer · the
+    /// journal is still written · an fs error still reaches stderr).
+    Silent,
+}
+
+/// Surface the run journal AFTER the run — NEVER the exit code (the sink
+/// contract: journaling is a rider, a broken rider is a note, not a
+/// failure). An fs error goes to stderr with the path when one was opened;
+/// a written journal prints its `trace:` pointer per [`TraceNote`].
+fn surface_trace(trace: TraceFileSink, note: TraceNote) {
+    let path = trace.path().map(std::path::Path::to_path_buf);
+    if let Some(e) = trace.into_error() {
+        // Name the file when the failure struck AFTER the open (a partial
+        // journal on disk) — the operator sees exactly what to distrust.
+        match &path {
+            Some(p) => eprintln!(
+                "nika run: trace file {}: {e} — the run itself is unaffected",
+                p.display()
+            ),
+            None => eprintln!("nika run: trace file: {e} — the run itself is unaffected"),
         }
-        let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut sink).await;
-        // `Live` painted in place during the run; `Plain`/`Quiet` folded
-        // silently · print the ONE final frame now.
-        if mode != RenderMode::Live {
-            sink.print_final();
-        }
-        // The Live (TTY) final frame carries the flow epilogue: the wall-
-        // time waterfall + the outputs pointer (design §2c). The sober
-        // registers (piped `Plain` · `--quiet` · machine modes) stay
-        // untouched — CI logs never grow chart art.
-        if mode == RenderMode::Live {
-            print_flow_epilogue(sink.view(), &outcome.outputs, theme, file);
-        }
-        print_resume_summary(&outcome, resumed, false);
-        if let Some(e) = sink.into_error() {
-            eprintln!("nika run: render failed: {e}");
-            return exit::ENV;
-        }
-        code
+        return;
+    }
+    let Some(path) = path else {
+        return; // disabled · or a run that emitted zero events
+    };
+    match note {
+        TraceNote::Stdout => println!("    trace: {}", path.display()),
+        TraceNote::Stderr => eprintln!("nika run: trace: {}", path.display()),
+        TraceNote::Silent => {}
     }
 }
 
@@ -893,7 +1076,7 @@ fn run_failure_envelope(view: &crate::RunView) -> String {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{RenderMode, exit, offline_tip_applies, outputs_json_line, run};
+    use super::{RenderMode, exit, offline_tip_applies, outputs_json_line, run, scope_to_task};
     use crate::Theme;
     use serde_json::{Value, json};
     use std::collections::BTreeMap;
@@ -1001,6 +1184,8 @@ mod tests {
             Some("mock/echo"),
             &[],
             None,
+            true, // tests never write .nika/traces (cwd hygiene)
+            None, // whole-workflow runs (scoping has its own tests)
             false,
         );
         assert_eq!(
@@ -1031,6 +1216,8 @@ mod tests {
             Some("mock/echo"),
             &[],
             None,
+            true, // tests never write .nika/traces (cwd hygiene)
+            None, // whole-workflow runs (scoping has its own tests)
             false,
         );
         assert_eq!(
@@ -1058,6 +1245,8 @@ mod tests {
             None,
             vars,
             None,
+            true, // tests never write .nika/traces (cwd hygiene)
+            None, // whole-workflow runs (scoping has its own tests)
             false,
         )
     }
@@ -1213,5 +1402,60 @@ mod tests {
         let eq = super::parse_var_overrides(&["topic=a=b".to_owned()], &wf)
             .expect("value may carry '='");
         assert_eq!(eq["topic"], json!("a=b"));
+    }
+    /// `--task` scope · the diamond proves ancestors-only semantics: the
+    /// target + transitive upstream survive · siblings and downstream drop
+    /// · outputs clear (they may read unscoped tasks).
+    #[test]
+    fn scope_to_task_keeps_the_ancestor_cone() {
+        let yaml = "nika: v1\nworkflow: diamond\nmodel: mock/echo\ntasks:\n  - id: discover\n    invoke: { tool: \"nika:glob\", args: { pattern: \"*.md\" } }\n  - id: stats\n    depends_on: [discover]\n    infer: { prompt: \"count ${{ tasks.discover.output }}\" }\n  - id: digest\n    depends_on: [discover]\n    infer: { prompt: \"sum ${{ tasks.discover.output }}\" }\n  - id: report\n    depends_on: [stats, digest]\n    infer: { prompt: \"merge ${{ tasks.stats.output }} ${{ tasks.digest.output }}\" }\noutputs:\n  all: ${{ tasks.report.output }}\n";
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("diamond parses");
+
+        let stats_only = scope_to_task(wf.clone(), "stats").expect("stats scopes");
+        let ids: Vec<&str> = stats_only
+            .tasks
+            .iter()
+            .map(|t| t.value.id.value.as_str())
+            .collect();
+        assert_eq!(
+            ids,
+            vec!["discover", "stats"],
+            "target + its one ancestor · document order"
+        );
+        assert!(stats_only.outputs.is_empty(), "outputs drop under scope");
+
+        let full = scope_to_task(wf.clone(), "report").expect("report scopes");
+        assert_eq!(full.tasks.len(), 4, "the sink's cone is the whole diamond");
+
+        let err = scope_to_task(wf, "nope").expect_err("unknown id refused");
+        assert!(
+            err.contains("nope") && err.contains("discover"),
+            "names the id + the available set"
+        );
+    }
+
+    /// The scoped sub-workflow re-checks CLEAN — the plan/waves/cost the
+    /// run renders describe exactly the cone, not the original file.
+    #[test]
+    fn scoped_workflow_rechecks_clean() {
+        let yaml = "nika: v1\nworkflow: pair\nmodel: mock/echo\ntasks:\n  - id: a\n    infer: { prompt: \"hi\" }\n  - id: b\n    depends_on: [a]\n    infer: { prompt: \"use ${{ tasks.a.output }}\" }\n";
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("pair parses");
+        let sub = scope_to_task(wf, "a").expect("a scopes");
+        let report = nika_schema::check(&sub);
+        assert!(
+            report.is_clean(),
+            "the cone stands alone (no dangling refs)"
+        );
+        assert_eq!(sub.tasks.len(), 1);
     }
 }

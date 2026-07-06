@@ -40,6 +40,12 @@ pub fn completion(text: &str, offset: usize) -> Vec<CompletionItem> {
     if in_open_depends_on(text, offset) || is_template_tasks_ref(prefix) {
         return task_ids(text);
     }
+    if is_expression_post_dot(prefix) {
+        return cel_methods();
+    }
+    if is_expression_start(prefix) {
+        return expression_roots();
+    }
     if is_top_level_key(prefix) {
         return keyword_items(vocab::TOP_LEVEL_KEYS);
     }
@@ -104,6 +110,121 @@ fn is_template_tasks_ref(prefix: &str) -> bool {
     };
     let after = prefix.get(island..).unwrap_or("");
     !after.contains("}}") && after.trim_end().ends_with("tasks.")
+}
+
+/// The open `${{ … }}` island of `prefix`, when one exists on this line.
+fn open_island(prefix: &str) -> Option<&str> {
+    let island = prefix.rfind("${{")?;
+    let after = prefix.get(island + 3..).unwrap_or("");
+    if after.contains("}}") {
+        None
+    } else {
+        Some(after)
+    }
+}
+
+/// Post-dot INSIDE an expression, past a data path (`tasks.x.output.` ·
+/// `vars.name.`) — the CEL method position. The bare `tasks.` island is
+/// task-id territory (checked before this) so ids win there.
+fn is_expression_post_dot(prefix: &str) -> bool {
+    let Some(after) = open_island(prefix) else {
+        return false;
+    };
+    let t = after.trim_end();
+    // A dot that FOLLOWS at least one path segment (`root.seg…`) — one
+    // trailing dot with no prior dot is the root's own member position.
+    t.ends_with('.') && t.trim_end_matches('.').contains('.')
+}
+
+/// The very start of an expression island (`${{ ` · or a bare partial
+/// identifier with no dot yet) — the roots + free-functions position.
+fn is_expression_start(prefix: &str) -> bool {
+    let Some(after) = open_island(prefix) else {
+        return false;
+    };
+    let t = after.trim_start();
+    t.is_empty() || (!t.contains('.') && t.chars().all(|c| c.is_alphanumeric() || c == '_'))
+}
+
+/// The cel-subset/0.1 METHOD set — mirrors `nika-cel`'s parser arity
+/// table (the vocabulary is CLOSED there: an unknown method is a static
+/// error, so this list cannot silently drift wider than the engine).
+fn cel_methods() -> Vec<CompletionItem> {
+    const METHODS: &[(&str, &str, &str)] = &[
+        (
+            "size()",
+            "size",
+            "length of a string · list · map (cel-subset/0.1)",
+        ),
+        (
+            "contains(…)",
+            "contains",
+            "substring test on a string (cel-subset/0.1)",
+        ),
+        (
+            "startsWith(…)",
+            "startsWith",
+            "prefix test on a string (cel-subset/0.1)",
+        ),
+        (
+            "endsWith(…)",
+            "endsWith",
+            "suffix test on a string (cel-subset/0.1)",
+        ),
+    ];
+    METHODS
+        .iter()
+        .map(|(label, insert, doc)| CompletionItem {
+            label: (*label).to_owned(),
+            insert_text: Some((*insert).to_owned()),
+            kind: Some(CompletionItemKind::METHOD),
+            detail: Some((*doc).to_owned()),
+            ..CompletionItem::default()
+        })
+        .collect()
+}
+
+/// Expression ROOTS (the five locked namespaces · D-N11) + the two free
+/// functions the parser accepts (`size` · `has` — a closed set there too).
+fn expression_roots() -> Vec<CompletionItem> {
+    const ROOTS: &[(&str, &str)] = &[
+        ("tasks", "an upstream task's output (`tasks.<id>.output`)"),
+        ("vars", "a declared workflow var"),
+        ("env", "an allowed environment value"),
+        ("secrets", "a declared secret (never echoed)"),
+        ("with", "this task's own `with:` aliases"),
+        ("item", "the current `for_each` element"),
+    ];
+    let mut items: Vec<CompletionItem> = ROOTS
+        .iter()
+        .map(|(name, doc)| CompletionItem {
+            label: (*name).to_owned(),
+            kind: Some(CompletionItemKind::VARIABLE),
+            detail: Some((*doc).to_owned()),
+            ..CompletionItem::default()
+        })
+        .collect();
+    for (label, insert, doc) in [
+        (
+            "size(…)",
+            "size",
+            "length of a string · list · map (free form)",
+        ),
+        (
+            "has(…)",
+            "has",
+            "presence test — true when the path resolves",
+        ),
+    ] {
+        items.push(CompletionItem {
+            label: label.to_owned(),
+            insert_text: Some(insert.to_owned()),
+            kind: Some(CompletionItemKind::FUNCTION),
+            detail: Some(doc.to_owned()),
+            ..CompletionItem::default()
+        });
+    }
+    items
 }
 
 /// A top-level key position — column 0 (no indentation) and the prefix is
@@ -640,6 +761,67 @@ mod tests {
         assert!(
             labels(&items).contains(&"on_error".to_owned()),
             "and the rest"
+        );
+    }
+
+    /// B6 · the CEL method position: a dot PAST a data path inside an
+    /// open island completes the closed cel-subset/0.1 method set — and
+    /// the bare `tasks.` island stays task-id territory (checked first).
+    #[test]
+    fn expression_post_dot_completes_cel_methods() {
+        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"x\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.output.";
+        let items = completion(text, text.len());
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"size()"),
+            "cel methods at post-path dot: {labels:?}"
+        );
+        assert!(labels.contains(&"startsWith(…)"));
+        assert_eq!(
+            items.len(),
+            4,
+            "the method set is CLOSED (parser arity table)"
+        );
+
+        // Bare `tasks.` still resolves to task IDS, never methods.
+        let bare = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"x\" }\n  - id: b\n    exec: { command: \"echo ${{ tasks.";
+        let ids: Vec<String> = completion(bare, bare.len())
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            ids.contains(&"a".to_owned()),
+            "task ids win on the bare root: {ids:?}"
+        );
+    }
+
+    /// B6 · the island start completes the five locked roots + item +
+    /// the two free functions — and outside any island, nothing changes.
+    #[test]
+    fn expression_start_completes_roots_and_free_functions() {
+        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"${{ ";
+        let labels: Vec<String> = completion(text, text.len())
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        for root in ["tasks", "vars", "env", "secrets", "with", "item"] {
+            assert!(
+                labels.contains(&root.to_owned()),
+                "missing root {root}: {labels:?}"
+            );
+        }
+        assert!(labels.contains(&"has(…)".to_owned()));
+
+        // A closed island offers nothing from the expression vocab.
+        let closed =
+            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"${{ vars.x }} and ";
+        let after: Vec<String> = completion(closed, closed.len())
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(
+            !after.contains(&"has(…)".to_owned()),
+            "closed island leaks: {after:?}"
         );
     }
 
