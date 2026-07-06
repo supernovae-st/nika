@@ -10,7 +10,7 @@ affects_crates: ["nika-verb-exec", "nika-exec-runner", "nika-kernel-core", "nika
 affects_layers: ["L0.5", "L1", "L2", "L3"]
 supersedes: []
 superseded_by: []
-related: ["ADR-001", "ADR-003", "ADR-016", "ADR-080", "ADR-081"]
+related: ["ADR-001", "ADR-003", "ADR-016", "ADR-080", "ADR-081", "ADR-105"]
 requires: ["ADR-003"]
 enables: []
 amends: []

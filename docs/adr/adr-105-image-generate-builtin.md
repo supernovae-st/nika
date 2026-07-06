@@ -10,7 +10,7 @@ affects_crates: ["nika-builtin", "nika-catalog", "nika-schema", "nika-cli", "nik
 affects_layers: ["L0", "L1.5", "L4"]
 supersedes: []
 superseded_by: []
-related: ["ADR-093", "ADR-095", "ADR-096"]
+related: ["ADR-093", "ADR-095", "ADR-096", "ADR-106"]
 requires: []
 enables: []
 amends: []
