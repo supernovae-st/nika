@@ -142,7 +142,7 @@ invoke: { tool: "nika:write", args: { path: "./out.md", content: "...", create_d
 ```
 Write a file · returns the path. A binary `content` value (an opaque bytes output from an upstream tool · e.g. MCP image content) is written as-is · no `output_format` declaration needed (the value carries its own type).
 
-`overwrite:` defaults **true** · `create_dirs:` defaults **false**. Throws · `NIKA-BUILTIN-WRITE-001` (IO failure) · `-002` (`overwrite: false` and the path exists). Both `tool_error` · `transient: false`.
+`overwrite:` defaults **true** · `create_dirs:` defaults **false** — and a false `create_dirs:` is ENFORCED, not ignored: a missing parent directory is refused loudly (a typo'd path surfaces rather than silently materializing a directory tree), so pass `create_dirs: true` to create the parent. Throws · `NIKA-BUILTIN-WRITE-001` (IO failure, or a missing parent while `create_dirs: false`) · `-002` (`overwrite: false` and the path exists). Both `tool_error` · `transient: false`.
 
 ### `nika:edit`
 ```yaml
