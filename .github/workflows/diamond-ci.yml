@@ -64,6 +64,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: diamond
+      - name: Install cargo-nextest (tests leg)
+        if: matrix.job == 'tests'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
       - name: Run rust job
         run: ./scripts/ci/check-"$JOB".sh
 
