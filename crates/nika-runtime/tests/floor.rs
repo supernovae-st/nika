@@ -571,12 +571,15 @@ tasks:
         0,
         "no task fails · the deep path is no longer NIKA-1703"
     );
-    // The deep-path value flowed into the prompt (echoed) → output ·
-    // proves the resolution actually happened (not a silent skip).
+    // The deep-path reference RESOLVED into the prompt (mock/echo with a
+    // schema SYNTHESIZES the extract output — `{"headline":"mock"}` ·
+    // JsonMode::Schema — so the substituted value is "mock"). The test's
+    // subject is the RESOLUTION, not the mock's contents: an unresolved
+    // template would echo the literal `${{ … }}` back.
+    let think = output_str(&outcome, "think");
     assert!(
-        output_str(&outcome, "think").contains("Rust 2.0"),
-        "the deep-path headline resolved into think · got: {}",
-        output_str(&outcome, "think")
+        think.contains("headline is mock") && !think.contains("${{"),
+        "the deep-path reference resolved into think · got: {think}"
     );
 }
 
