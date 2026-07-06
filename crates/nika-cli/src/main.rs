@@ -34,7 +34,11 @@ use nika_event::Event;
     name = "nika",
     bin_name = "nika",
     version,
-    about = "nika · the AI workflow engine — operator surface"
+    about = "nika · the AI workflow engine — operator surface",
+    // The lost-user footer (clig.dev · suggest the next command): a bare
+    // `nika` is someone asking where to start, not someone reading a
+    // reference. Three commands, zero keys, offline.
+    after_help = "start here:\n  nika init                                      # wire this repo (editor · agents)\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika doctor                                    # what's configured · what's missing"
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
