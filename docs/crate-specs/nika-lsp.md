@@ -40,7 +40,8 @@ ships — zero extension change.
 | **Completion** | ✅ | top-level keys · task fields · the 4 verbs · `model: <provider>/` providers · the workflow's own task ids · auto-trigger on `.` `/` `[` |
 | **Document symbols** | ✅ | `RawWorkflow.tasks` → a `workflow → tasks → task(verb)` tree |
 | **Go-to-definition** | ✅ | a task ref (`depends_on:` item or `${{ tasks.X }}`) at the cursor → the task's `id` span |
-| Expression intelligence inside `${{ }}` | ❌ v0.8X | (the extension keeps its client-side intel meanwhile) |
+| **`$/cancelRequest`** (base protocol) | ✅ | the serve loop drains everything already queued into one batch and answers a request cancelled BEFORE it was computed with `-32800 RequestCancelled` — a fast-typing burst no longer computes stale results the client already discarded |
+| Expression intelligence inside `${{ }}` | 🟡 | CEL completion inside `${{ }}` islands shipped (PR #170) · expression hover stays client-side meanwhile |
 | Code actions / quick fixes | ❌ v0.8X | (the check ladder already carries the fix form in the message) |
 | Inlay hints · semantic tokens · code lens | ❌ v0.8X | |
 | Model catalog hover/compat (`model_intel`) | ❌ v0.8X | |
