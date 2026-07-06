@@ -408,17 +408,34 @@ fn ping_addr(url: &str) -> Option<String> {
 }
 
 /// Connect-only TCP probe (nothing is ever written on the socket).
+///
+/// The whole probe — DNS resolution INCLUDED — honours the cap.
+/// `to_socket_addrs` is a synchronous OS resolver call with no timeout of
+/// its own; on a dead resolver it can stall for seconds, and the review
+/// caught the first cut capping only the connect. Resolution + connect
+/// run on a worker thread and the caller waits `recv_timeout(cap)`; on
+/// expiry the port is reported unreachable and the worker is left to
+/// finish in the background (a one-shot diagnostic can afford one
+/// parked thread; it exits with the process).
 fn tcp_ping(addr: &str, timeout: Duration) -> PingState {
     let started = Instant::now();
-    let Ok(mut candidates) = addr.to_socket_addrs() else {
-        return PingState::Unreachable;
-    };
-    let Some(sock) = candidates.next() else {
-        return PingState::Unreachable;
-    };
-    match TcpStream::connect_timeout(&sock, timeout) {
-        Ok(_) => PingState::Reachable(u64::try_from(started.elapsed().as_millis()).unwrap_or(0)),
-        Err(_) => PingState::Unreachable,
+    let (tx, rx) = std::sync::mpsc::channel();
+    let addr = addr.to_owned();
+    // Doctor is a synchronous one-shot diagnostic (no tokio runtime on this
+    // path); one plain worker thread is the whole async story here.
+    #[allow(clippy::disallowed_methods)]
+    std::thread::spawn(move || {
+        // A dropped receiver (cap expired) makes every send a no-op.
+        let reachable = addr
+            .to_socket_addrs()
+            .ok()
+            .and_then(|mut candidates| candidates.next())
+            .is_some_and(|sock| TcpStream::connect_timeout(&sock, timeout).is_ok());
+        let _ = tx.send(reachable);
+    });
+    match rx.recv_timeout(timeout) {
+        Ok(true) => PingState::Reachable(u64::try_from(started.elapsed().as_millis()).unwrap_or(0)),
+        _ => PingState::Unreachable,
     }
 }
 
