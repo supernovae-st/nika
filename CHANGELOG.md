@@ -10,6 +10,215 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [0.94.0](https://github.com/supernovae-st/nika/compare/v0.93.1..v0.94.0) - 2026-07-06
 
+### ✨ Features
+- **catalog** — Export the embedded catalogs on the wire — nika catalog/tools --json + MCP twins ([#172](https://github.com/supernovae-st/nika/issues/172)) ([0e974c894](https://github.com/supernovae-st/nika/commit/0e974c8949ffa6f4d2957e8e671a3d1c43aeff18)) ([#172](https://github.com/supernovae-st/nika/pull/172))
+- **check** — Findings carry severity + docs_url — the --explain wire ([#184](https://github.com/supernovae-st/nika/issues/184)) ([e1180bb64](https://github.com/supernovae-st/nika/commit/e1180bb64d361eb85fd78a1322d0e5b9923a1147)) ([#184](https://github.com/supernovae-st/nika/pull/184))
+- **cli** — The Unix dash — check/graph/inspect read stdin ([#190](https://github.com/supernovae-st/nika/issues/190)) ([e1802ac8d](https://github.com/supernovae-st/nika/commit/e1802ac8db14276054272052f6cd2a47cbd76c78)) ([#190](https://github.com/supernovae-st/nika/pull/190))
+- **nika-builtin** — Nika:image_generate — the 24th builtin rides a dedicated image plane ([#173](https://github.com/supernovae-st/nika/issues/173)) ([a3ca49be3](https://github.com/supernovae-st/nika/commit/a3ca49be3a60443376b78ee93d27a918cf539f26)) ([#173](https://github.com/supernovae-st/nika/pull/173))
+- **nika-builtin** — Image providers v1.1 — local-first + xai ([#174](https://github.com/supernovae-st/nika/issues/174)) ([5321f2c25](https://github.com/supernovae-st/nika/commit/5321f2c254a7cbeb1afb2fce030e4ebf528896e1)) ([#174](https://github.com/supernovae-st/nika/pull/174))
+- **nika-builtin** — Image polish — in-file provenance · honest cost · doctor ([#175](https://github.com/supernovae-st/nika/issues/175)) ([e2ffce860](https://github.com/supernovae-st/nika/commit/e2ffce8609ba028b8b29e45e180ce8edcf16df36)) ([#175](https://github.com/supernovae-st/nika/pull/175))
+- **nika-builtin** — Nika:tts_generate — the 25th builtin (stdlib §Audio) ([#176](https://github.com/supernovae-st/nika/issues/176)) ([2419eb44b](https://github.com/supernovae-st/nika/commit/2419eb44b6c9323def8a14d0d3e73903f601b7e9)) ([#176](https://github.com/supernovae-st/nika/pull/176))
+- **nika-builtin** — Content credentials — detect-and-preserve + surface ([#177](https://github.com/supernovae-st/nika/issues/177)) ([c63bc06b8](https://github.com/supernovae-st/nika/commit/c63bc06b8896d8eab04b7992c715326931dc99a0)) ([#177](https://github.com/supernovae-st/nika/pull/177))
+- **nika-builtin** — Tts manifest declares the elevenlabs watermark ([#183](https://github.com/supernovae-st/nika/issues/183)) ([fe7082ac7](https://github.com/supernovae-st/nika/commit/fe7082ac7326b857b1029c7cee35fa0c8f90a7e0)) ([#183](https://github.com/supernovae-st/nika/pull/183))
+- **nika-builtin** — Image mode:edit — M-A (args · permit-gated reads · mock) ([#188](https://github.com/supernovae-st/nika/issues/188)) ([e3f219e8d](https://github.com/supernovae-st/nika/commit/e3f219e8dd2b1461b563597764102f227f884345)) ([#188](https://github.com/supernovae-st/nika/pull/188))
+- **nika-builtin** — Openai edit wire — M-A.2 (multipart · proven live) ([#189](https://github.com/supernovae-st/nika/issues/189)) ([4b9c68c25](https://github.com/supernovae-st/nika/commit/4b9c68c2523ce6f06c20cee59af246d7776fb02e)) ([#189](https://github.com/supernovae-st/nika/pull/189))
+- **nika-cli** — Round-8 visual polish — links, sync frames, heat, one formatter ([#169](https://github.com/supernovae-st/nika/issues/169)) ([da282b057](https://github.com/supernovae-st/nika/commit/da282b0575e878e1b7e86effa0a296aca214e49a)) ([#169](https://github.com/supernovae-st/nika/pull/169))
+- **nika-cli** — Doctor names the tts plane ([#179](https://github.com/supernovae-st/nika/issues/179)) ([06051fb9c](https://github.com/supernovae-st/nika/commit/06051fb9cd630abe3090141a456ac086bc8d1ce1)) ([#179](https://github.com/supernovae-st/nika/pull/179))
+- **nika-cli** — Painted diagnostics — rustc-grade source frames on check ([#193](https://github.com/supernovae-st/nika/issues/193)) ([3ebd5f84b](https://github.com/supernovae-st/nika/commit/3ebd5f84b7fd918eeee32265344bf3b8967cfc40)) ([#193](https://github.com/supernovae-st/nika/pull/193))
+- **nika-cli** — Doctor --ping — the local ports, actually probed ([#195](https://github.com/supernovae-st/nika/issues/195)) ([106901285](https://github.com/supernovae-st/nika/commit/1069012857b4ed0de45625a109dba3db86929650)) ([#195](https://github.com/supernovae-st/nika/pull/195))
+- **nika-mcp** — Negotiate MCP 2026-07-28 — the stateless rev, natively ([#171](https://github.com/supernovae-st/nika/issues/171)) ([629e25bb9](https://github.com/supernovae-st/nika/commit/629e25bb9e294e07ba047ad6d55cd15e9f7e3532)) ([#171](https://github.com/supernovae-st/nika/pull/171))
+- **nika-mcp** — Accept protocol 2025-11-25 — the version clients send today ([#185](https://github.com/supernovae-st/nika/issues/185)) ([ae94120bd](https://github.com/supernovae-st/nika/commit/ae94120bdfec768803ed6fd6dd42f7f2382d58a6)) ([#185](https://github.com/supernovae-st/nika/pull/185))
+- **nika-runtime** — Real per-task spend — cost_usd rides task_completed ([#168](https://github.com/supernovae-st/nika/issues/168)) ([0d379e571](https://github.com/supernovae-st/nika/commit/0d379e571d52189a2c16d0bb127def4000e8f673)) ([#168](https://github.com/supernovae-st/nika/pull/168))
+- **nika-verb-agent** — Meter tool-reported cost through the loop ([#178](https://github.com/supernovae-st/nika/issues/178)) ([f37e1f69b](https://github.com/supernovae-st/nika/commit/f37e1f69b6451f47bd556e73464dd60073b52237)) ([#178](https://github.com/supernovae-st/nika/pull/178))
+- **providers** — Huggingface + nvidia join the canonical catalog (16) ([#167](https://github.com/supernovae-st/nika/issues/167)) ([a0791af24](https://github.com/supernovae-st/nika/commit/a0791af24bb14173c72b1051bcbe180b64d4896a)) ([#167](https://github.com/supernovae-st/nika/pull/167))
+- **run** — Run journal + --task cone + CEL expression completion ([#170](https://github.com/supernovae-st/nika/issues/170)) ([cd6b8cd7a](https://github.com/supernovae-st/nika/commit/cd6b8cd7a6c2d42cdd5604f4a96230d2299d9002)) ([#170](https://github.com/supernovae-st/nika/pull/170))
+
+### 🐛 Bug Fixes
+- **nika-builtin** — Heal the tts↔image drift — the architect review's cheap P-items ([#180](https://github.com/supernovae-st/nika/issues/180)) ([7b65c1792](https://github.com/supernovae-st/nika/commit/7b65c179278190ad24e402a3a2745c46dc52fde8)) ([#180](https://github.com/supernovae-st/nika/pull/180))
+- **nika-cli** — Init hand-off loses its phantom indentation ([#194](https://github.com/supernovae-st/nika/issues/194)) ([324f33143](https://github.com/supernovae-st/nika/commit/324f3314387398483f4150bb5df5d79090696226)) ([#194](https://github.com/supernovae-st/nika/pull/194))
+
+### 🔨 Refactors
+- **nika-builtin** — Seed the media/ core — first two re-homings ([#182](https://github.com/supernovae-st/nika/issues/182)) ([716e9229e](https://github.com/supernovae-st/nika/commit/716e9229ef702508165ec7ae6a4abcb0499faebf)) ([#182](https://github.com/supernovae-st/nika/pull/182))
+- **nika-builtin** — Media/wire — the transient status matrix, named once ([#187](https://github.com/supernovae-st/nika/issues/187)) ([80fa3ab34](https://github.com/supernovae-st/nika/commit/80fa3ab341860344b782b9843453ffca8e80da8c)) ([#187](https://github.com/supernovae-st/nika/pull/187))
+
+### 📚 Documentation
+- **nika-catalog** — Builtins.rs doc-comments catch up to 25 ([#191](https://github.com/supernovae-st/nika/issues/191)) ([844f6fa02](https://github.com/supernovae-st/nika/commit/844f6fa0289f7db3c0c34e49c43c25c5ed36cee0)) ([#191](https://github.com/supernovae-st/nika/pull/191))
+- **readme** — Teach qwen3.5 on the re-runnable surfaces ([#165](https://github.com/supernovae-st/nika/issues/165)) ([fcbf04d97](https://github.com/supernovae-st/nika/commit/fcbf04d976e1cc0e748a85b7dbf0927c0c079e34)) ([#165](https://github.com/supernovae-st/nika/pull/165))
+- **readme** — Media gif v2 — one file, both senses ([#186](https://github.com/supernovae-st/nika/issues/186)) ([a90d5f03b](https://github.com/supernovae-st/nika/commit/a90d5f03b4c7356e565a87b0a0442e581e615dc5)) ([#186](https://github.com/supernovae-st/nika/pull/186))
+
+### 📦 Build
+- The test gate runs under nextest — process isolation, parallel ([#192](https://github.com/supernovae-st/nika/issues/192)) ([a12caffd0](https://github.com/supernovae-st/nika/commit/a12caffd012cbb86ee5d1a8ea1c04f3771d9102d)) ([#192](https://github.com/supernovae-st/nika/pull/192))
+
+### 🧹 Chore
+- **lints** — Deny iter_over_hash_type — determinism as a ratchet ([#181](https://github.com/supernovae-st/nika/issues/181)) ([984d55e59](https://github.com/supernovae-st/nika/commit/984d55e59aad8b4fc0794691c8ef67b0ab40cbd7)) ([#181](https://github.com/supernovae-st/nika/pull/181))
+- **nika-cli** — Sync public-api baseline — doctor::run gained ping ([#198](https://github.com/supernovae-st/nika/issues/198)) ([a51a0a846](https://github.com/supernovae-st/nika/commit/a51a0a84633c1d74b136f95c67736394108a882a)) ([#198](https://github.com/supernovae-st/nika/pull/198))
+
+### 💼 Other
+- CLI comprehension pass: see WHAT ran — outputs, peek, flow, clarity ([#166](https://github.com/supernovae-st/nika/issues/166))
+
+* feat(nika-cli): shape tails on the live storyboard rows
+
+The run told you THAT a task finished, never WHAT it produced. Completed
+rows on the interactive surface now carry a type-aware bounded summary
+of the task output plus its token count, folded from the trace fields
+the engine already emits (ADR-099 output/tokens — presentation only,
+zero engine change):
+
+ audit infer · mock/echo 2ms -> {concrete_facts, ...} · 312B · 90 tok
+
+- display/shape.rs (new): summarize() renders objects as their key set
+ (array-valued keys carry [N]), arrays as [len], strings as a quoted
+ bounded head, scalars literally — deterministic, width-capped at 24
+ cells, None on non-JSON (never garbage). fmt_bytes 89B/1.2KB/3.4MB.
+- RunView fold keeps output_json + tokens per row; a frame WITHOUT the
+ output field folds to None — the runtime drops the field wholesale
+ when an output text leaks a resolved secret (ADR-099 stamp filter),
+ so every preview surface inherits the masking invariant structurally;
+ this layer adds no secret read of its own (the seam, stated).
+- frame_with_outputs() beside frame(): the bare frame stays BYTE-EXACT
+ for pipes, CI logs and machine modes; tails ride only the Live TTY
+ render and trace show/replay on a TTY. --no-outputs opts out on both.
+- ASCII parity: -> for the arrow, no unicode leak under --ascii.
+
+Gates: cargo test -p nika-cli --lib 157 passed · clippy --all-targets
+-D warnings clean · fmt clean. Seam note: crates/nika-cli/public-api.txt
+is stale on main since the wow/resume rounds (flow module, TaskRow
+fields, test verb all missing) AND the committed rendering predates the
+current nightly rustdoc (Sized-bound formatting drift on ~50 lines) —
+the gate is pre-existing red; the repair is the established regen from
+the ubuntu public-api-actual artifact, deliberately not hand-forged
+here. New pub items land in that same regen.
+
+* feat(nika-cli): nika trace outputs — the per-task output browser
+
+The middle density between the storyboard tail and full fidelity: one
+table row per task (task · verb · dur · tok · bounded preview + byte
+size), a totals line (tasks · wall · token sum), and the copy-paste
+peek hint carrying the REAL trace path:
+
+ task verb dur tok output
+ read_payload invoke · nika:read 2ms — "{ \"head\": { \"ti…" · 3.6KB
+ audit infer · mock/echo 1ms 35 {concrete_facts, dir…} · 397B
+ 2 task(s) · 4ms · 35 tok · full value: nika trace peek run.ndjson <task>
+
+- verbs/trace.rs (new): load through the SAME tolerant recovery the
+ resume fold and trace show use (one recovery contract), fold into the
+ ONE RunView truth, render. Rows without an output field show the
+ honest dash (skips · failures · older engines · the secret-drop).
+- The fold keeps the FIRST task_started note verbatim (started_note) —
+ the runtime's verb vocabulary survives the terminal-note overwrite
+ and becomes the verb column.
+- ASCII parity: the dash cell degrades to '-' · no unicode leak.
+- Unreadable path / unparseable trace = ENV class (exit 3), actionable.
+
+Gates: cargo test -p nika-cli --lib 161 passed · clippy --all-targets
+-D warnings clean · fmt clean.
+
+* feat(nika-cli): nika trace peek — full-fidelity task output + identity
+
+The debug density: one task's WHOLE recorded output pretty-printed
+under a compact identity block, straight from the ADR-099 checkpoint
+fields the trace already carries:
+
+ audit · infer · mock/echo
+ 38ms · 90 tok · 25B
+ def_hash 5b2fa9e9232e… · input_hash 7f14c732ad33…
+
+ { "fixes": ["a"], "total": 9 }
+
+- --raw prints the EXACT recorded value as one JSON text and nothing
+ else — the jq-pipe contract (never coloured, no identity block).
+- The fold keeps def_hash/input_hash beside output_json (one checkpoint
+ trio, one keeper).
+- Errors teach: an unknown task lists what the trace records; a task
+ without an output names its state and the rows that have one; both
+ are the ENV class (exit 3).
+- Hashes clip to 12 hex chars for eyeballing (ascii parity: .. for …);
+ the full hex stays in the trace itself.
+- A non-JSON output value (hand-edited trace) prints verbatim — honesty
+ over polish, never a panic.
+
+Gates: cargo test -p nika-cli --lib 164 passed · clippy --all-targets
+-D warnings clean · fmt clean.
+
+* feat(nika-cli): skip reasons speak — cache hit · when false · blocked
+
+A skip without a reason is hidden magic. The three never-ran classes
+now render distinctly in run + trace show, from what the stream ACTUALLY
+distinguishes today (task_cache_hit · task_skipped notes · the
+task_cancelled cascade):
+
+ ~> read_payload cache hit (resume)
+ ~> deploy when: false
+ x notify blocked · audit failed
+
+- Glyph vocabulary: skip family (gate false · empty for_each · on_error
+ skip · cache hit) reads U+21B7 (ascii ~>); a blocked cancellation
+ reads the barred circle (ascii x · err X vs blocked x distinction
+ kept). The fold marks cache-hit rows (cached) so a rehydrated Ok
+ reads as the skip family — green stays reserved for work done.
+- Note map at render (the fold stays verbatim truth): "when: gate
+ closed" reads "when: false"; a cancelled "upstream failed" reads
+ "blocked · <task> failed" when the run has exactly ONE failed task
+ (unambiguous: the DPE cascade fires only from failure), else the
+ generic "blocked · upstream failed" — SEAM: the task_cancelled event
+ carries no upstream id, so multi-failure ancestry is not provable
+ from the stream alone; naming it would need plan edges (documented,
+ not faked).
+- Spec 3.1 table + storyboard sketch updated to the new vocabulary;
+ golden frames re-pinned in both themes.
+
+Gates: cargo test -p nika-cli --lib 165 passed · clippy --all-targets
+-D warnings clean · fmt clean.
+
+* feat(nika-cli): nika trace flow — the data waterfall
+
+The signature read nobody has: which output fed which task, with the
+REAL recorded sizes. The time-waterfall shows WHEN; flow shows WHY:
+
+ read_payload ─3.6KB→ audit
+ audit ─397B→ outputs.geo_score
+ 2 edge(s) · widest: read_payload→audit · derived from plan bindings
+ × trace sizes
+
+- A fold over two existing truths, zero new analysis: edges come from
+ the checked definition's bindings via the runtime's OWN
+ referenced_upstreams scan (depends_on + tasks.X template refs — the
+ same over-collecting walk --resume --from uses · filtered to real
+ sibling tasks), plus the outputs.<name> terminal edges from the
+ workflow outputs templates; sizes come from the trace fold's recorded
+ output bytes (the source task's whole output — the honest measure).
+- The command takes trace AND workflow file: the trace records values,
+ only the definition records bindings (the trace carries no dependency
+ info — deriving edges from it alone would be invention). A name
+ mismatch between the two surfaces as a warn note, never silent.
+- Honest degradation: a source the trace never sized keeps the bare
+ arrow (older engines · skips) — never an invented number; zero edges
+ says so in words.
+- ASCII parity: rails -3.6KB->, arrows ->, the x join glyph.
+
+Gates: cargo test -p nika-cli --lib 167 passed · clippy --all-targets
+-D warnings clean (main dispatcher extracted under the 100-line cap) ·
+fmt clean.
+
+* feat(nika-cli): every-command clarity — verdicts speak, one vocab
+
+check clean now closes on the audited card (tasks, waves, permits
+state, cost floor, hint count), doctor opens on the one verdict line
+(N ok, N warn, N fail — sections unchanged), test match says what was
+pinned (keys, bytes) and a mismatch teaches the re-baseline command,
+the run epilogue teaches the explore two-step, and the verdict card
+sums real tokens. Every glyph and hint now speaks through the one
+display/vocab module (arrow, at-least, label-colon-command) so the
+registers can never drift apart glyph-by-glyph. ASCII parity pinned
+by tests on every new surface. Machine modes untouched.
+
+---------
+ ([2af944d11](https://github.com/supernovae-st/nika/commit/2af944d112a7b3d1c351cf340e28415c450a78eb)) ([#166](https://github.com/supernovae-st/nika/pull/166))
+
+
+## [0.94.0](https://github.com/supernovae-st/nika/compare/v0.93.1..v0.94.0) - 2026-07-06
+
 ### ✨ Highlights
 
 - **The media suite** — two new builtins take the stdlib to 25.
