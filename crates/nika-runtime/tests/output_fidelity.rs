@@ -626,3 +626,35 @@ tasks:
         "the culprit upstream is named"
     );
 }
+
+// ─── the environment attestation rides the opening frame (Q11) ──────────────
+
+/// Reproducing a failure needs WHICH engine on WHICH platform — the
+/// prologue attests both, from compile-time constants only.
+#[tokio::test]
+async fn workflow_started_attests_engine_and_platform() {
+    let yaml =
+        "nika: v1\nworkflow: attest\ntasks:\n  - id: a\n    exec:\n      command: [\"true\"]\n";
+    let (_outcome, events) = run_to_events(
+        yaml,
+        MockShell::new(),
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+    )
+    .await;
+    let started = events
+        .iter()
+        .find(|e| e.kind == EventKind::WorkflowStarted)
+        .expect("a workflow_started frame");
+    let version = str_field(started, "engine_version").expect("engine_version attested");
+    assert_eq!(
+        version.split('.').count(),
+        3,
+        "semver shape (got {version})"
+    );
+    let platform = str_field(started, "platform").expect("platform attested");
+    assert!(
+        platform.contains('/') && !platform.starts_with('/'),
+        "os/arch shape (got {platform})"
+    );
+}
