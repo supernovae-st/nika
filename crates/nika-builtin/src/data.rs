@@ -13,7 +13,7 @@ use jaq_core::{Compiler, Ctx, Vars, data as jaq_data, unwrap_valr};
 use jaq_json::{Val, read};
 use sha2::Digest;
 
-use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str};
+use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str, strict_bool};
 
 // ─── nika:jq · the transform + extraction primitive ─────────────────────
 
@@ -267,7 +267,7 @@ pub(crate) fn convert(args: &Args) -> BuiltinOutcome {
     // Parse the input into the canonical serde_json::Value bridge.
     // CSV `has_header:` is STRICT (default true) — resolved ONCE here so a
     // non-bool (`"false"`, `0`) is a LOUD CONVERT-001 arg error · NOT the
-    // silent coercion `crate::opt_bool` would do (reading every non-bool as
+    // silent coercion a lax reader would do (reading every non-bool as
     // the default → header-AWARE output for `has_header: "false"`, the
     // opposite of intent · the F1 silent-data-corruption footgun). It only
     // matters for the csv direction, but validating unconditionally is the
@@ -286,27 +286,6 @@ pub(crate) fn convert(args: &Args) -> BuiltinOutcome {
     let value = parse_format(from, input, has_header).map_err(|e| BuiltinFailure::new(C2, e))?;
     // Emit the target format.
     emit_format(to, &value, has_header, formula_guard).map_err(|e| BuiltinFailure::new(C1, e))
-}
-
-/// A strict boolean arg — absent → `default`, a real boolean → its value,
-/// anything else → a LOUD arg error. The general `crate::opt_bool` reads
-/// every non-bool as the default, which silently INVERTS a flag's intent
-/// (`has_header: "false"` → header-aware · the F1 footgun) — so flags that
-/// shape output need this strict reading.
-fn strict_bool(
-    args: &Args,
-    key: &str,
-    default: bool,
-    code: &'static str,
-) -> Result<bool, BuiltinFailure> {
-    match args.get(key) {
-        None => Ok(default),
-        Some(serde_json::Value::Bool(b)) => Ok(*b),
-        Some(other) => Err(BuiltinFailure::new(
-            code,
-            format!("`{key}:` must be a boolean (true/false), not {other}"),
-        )),
-    }
 }
 
 /// The CSV formula-injection guard (CWE-1236). A spreadsheet interprets a

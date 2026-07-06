@@ -642,11 +642,31 @@ pub(crate) fn opt_str<'a>(
     }
 }
 
-/// An optional boolean with a default.
-pub(crate) fn opt_bool(args: &Args, key: &str, default: bool) -> bool {
-    args.get(key)
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(default)
+/// A strict optional boolean — absent → `default`, a real JSON boolean → its
+/// value, anything else → a LOUD `code` arg error.
+///
+/// This is the ONE boolean-arg reader (there is no silent-coercion variant by
+/// design). The prior `opt_bool` read every non-bool as the default via
+/// `as_bool().unwrap_or(default)`, which silently INVERTS a flag's intent: an
+/// authored `overwrite: "false"` (a string, the common YAML/JSON slip) parsed
+/// as `None` → `unwrap_or(true)` → the file was overwritten — a data-loss
+/// footgun the static `check` did not catch (it validates arg KEYS and schema
+/// satisfiability, not literal value types). Reading a non-bool as a hard error
+/// is the only safe contract for a flag whose wrong value inverts behavior.
+pub(crate) fn strict_bool(
+    args: &Args,
+    key: &str,
+    default: bool,
+    code: &'static str,
+) -> Result<bool, BuiltinFailure> {
+    match args.get(key) {
+        None => Ok(default),
+        Some(serde_json::Value::Bool(b)) => Ok(*b),
+        Some(other) => Err(BuiltinFailure::new(
+            code,
+            format!("`{key}:` must be a boolean (true/false), not {other}"),
+        )),
+    }
 }
 
 #[cfg(test)]

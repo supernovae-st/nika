@@ -9,14 +9,14 @@ use std::path::Path;
 use nika_kernel::io::fs::{FsError, FsListDyn, FsReadDyn, FsWriteDyn};
 
 use crate::permits::{FsAccess, FsBoundary};
-use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_bool, req_str};
+use crate::{Args, BuiltinFailure, BuiltinOutcome, req_str, strict_bool};
 
 /// `nika:read` — text (default) or binary. Returns the file content.
 pub(crate) async fn read<F: FsReadDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
     const C1: &str = "NIKA-BUILTIN-READ-001";
     const C3: &str = "NIKA-BUILTIN-READ-003";
     let path = req_str(args, "path", C1)?;
-    if opt_bool(args, "binary", false) {
+    if strict_bool(args, "binary", false, C1)? {
         // Opaque bytes flow tool→tool — we surface them base64-tagged so
         // they round-trip through the string `content` channel without
         // pretending to be text (spec 04 value-rendering).
@@ -64,8 +64,8 @@ pub(crate) async fn write<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Bui
     const C2: &str = "NIKA-BUILTIN-WRITE-002";
     let path = req_str(args, "path", C1)?;
     let content = write_content(args, C1)?;
-    let overwrite = opt_bool(args, "overwrite", true);
-    let create_dirs = opt_bool(args, "create_dirs", false);
+    let overwrite = strict_bool(args, "overwrite", true, C1)?;
+    let create_dirs = strict_bool(args, "create_dirs", false, C1)?;
 
     if !overwrite && fs.exists(Path::new(path)).await {
         return Err(BuiltinFailure::new(
@@ -346,7 +346,7 @@ pub(crate) async fn grep<F: FsReadDyn + FsListDyn>(
         .get("path")
         .and_then(serde_json::Value::as_str)
         .unwrap_or(".");
-    let regex = build_regex(pattern, opt_bool(args, "case_insensitive", false))
+    let regex = build_regex(pattern, strict_bool(args, "case_insensitive", false, C)?)
         .map_err(|e| BuiltinFailure::new(C, format!("invalid pattern: {e}")))?;
 
     let files = fs.glob(Path::new(root), "**").await.map_err(|e| {
@@ -574,6 +574,36 @@ mod tests {
         .await
         .expect("overwrite default true");
         assert_eq!(ok, serde_json::Value::String("e.txt".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn write_overwrite_string_false_is_a_loud_error_not_silent_clobber() {
+        // The data-loss footgun: a STRING "false" (the common YAML/JSON slip)
+        // must be a LOUD WRITE-001, never silently coerced to the `true`
+        // default — which would overwrite the file the author meant to
+        // protect. `nika check` does not type-check literal arg values, so the
+        // runtime strict-bool reader is the last line of defense.
+        let fs = MockFs::new().with_file("precious.txt", "PRECIOUS");
+        let loud = write(
+            &fs,
+            &args(serde_json::json!({
+                "path": "precious.txt", "content": "CLOBBER", "overwrite": "false"
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&loud, Err(f) if f.code == "NIKA-BUILTIN-WRITE-001"
+                && f.message.contains("overwrite") && f.message.contains("boolean")),
+            "string overwrite is a loud WRITE-001, not a silent clobber: {loud:?}"
+        );
+        // The file is untouched — the guard fired before any write.
+        assert_eq!(
+            fs.read_to_string(Path::new("precious.txt"))
+                .await
+                .expect("still there"),
+            "PRECIOUS",
+            "the protected file survives the string-false footgun"
+        );
     }
 
     #[tokio::test]
