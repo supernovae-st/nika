@@ -11,12 +11,12 @@ homepage.workspace     = true
 publish                = false  # Internal L4 interface crate (the binary ships, the lib doesn't).
 
 [dependencies]
-nika-event  = { path = "../nika-event", version = "0.95.0" }  # the REAL event taxonomy (the fold input)
-nika-types  = { path = "../nika-types", version = "0.95.0" }  # Timestamp · KeyValue · ids
-nika-schema = { path = "../nika-schema", version = "0.95.0" } # parse + the ADR-092 check ladder (check · inspect · graph)
-nika-error  = { path = "../nika-error", version = "0.95.0" }  # the code registry (`nika explain`)
-nika-pack   = { path = "../nika-pack", version = "0.95.0" }   # the embedded language pack (`nika spec|schema|examples|new`)
-nika-bm25   = { path = "../nika-bm25", version = "0.95.0" }   # intent→template routing (`nika new` · the deterministic floor)
+nika-event  = { path = "../nika-event", version = "0.96.0" }  # the REAL event taxonomy (the fold input)
+nika-types  = { path = "../nika-types", version = "0.96.0" }  # Timestamp · KeyValue · ids
+nika-schema = { path = "../nika-schema", version = "0.96.0" } # parse + the ADR-092 check ladder (check · inspect · graph)
+nika-error  = { path = "../nika-error", version = "0.96.0" }  # the code registry (`nika explain`)
+nika-pack   = { path = "../nika-pack", version = "0.96.0" }   # the embedded language pack (`nika spec|schema|examples|new`)
+nika-bm25   = { path = "../nika-bm25", version = "0.96.0" }   # intent→template routing (`nika new` · the deterministic floor)
 clap        = { workspace = true }                             # verb tree (completions + man derive later)
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
 sha2          = { workspace = true }   # run identity — workflow_sha256 on workflow_started
@@ -30,21 +30,21 @@ anstyle     = { workspace = true }                             # Role→Style ma
 # the CLI — all strictly downward (L4 → L3/L2/L1.5/L1/L0). Before the run
 # verb these were dev-deps (the e2e rehearsal only); the verb makes them
 # load-bearing in src/.
-nika-kernel      = { path = "../nika-kernel", version = "0.95.0" }        # ProviderInferDyn · Secret · the seam traits
-nika-runtime     = { path = "../nika-runtime", version = "0.95.0" }       # the L3 executor (the composer drives it)
-nika-providers   = { path = "../nika-providers", version = "0.95.0" }     # ProviderRegistry — resolve provider/model + keys
-nika-verb-infer  = { path = "../nika-verb-infer", version = "0.95.0" }
-nika-verb-exec   = { path = "../nika-verb-exec", version = "0.95.0" }
-nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.95.0" }
-nika-verb-agent  = { path = "../nika-verb-agent", version = "0.95.0" }
-nika-builtin     = { path = "../nika-builtin", version = "0.95.0" }       # BuiltinDispatcher — the tool plane (invoke + agent tools)
-nika-fs          = { path = "../nika-fs", version = "0.95.0" }            # TokioFs — the builtin tool plane's fs effect
-nika-clock       = { path = "../nika-clock", version = "0.95.0" }         # SystemClock — backoff + timeout + the date builtin
-nika-http        = { path = "../nika-http", version = "0.95.0" }          # ReqwestHttp — the registry + fetch effect
-nika-exec-runner = { path = "../nika-exec-runner", version = "0.95.0" }   # TokioShell — the exec verb's subprocess runner
-nika-catalog     = { path = "../nika-catalog", version = "0.95.0", features = ["providers"] }  # the env_var ladder per provider
-nika-lsp         = { path = "../nika-lsp", version = "0.95.0" }           # `nika lsp` — the language server (stdio · drives the editor extension)
-nika-mcp         = { path = "../nika-mcp", version = "0.95.0" }           # `nika mcp` — the MCP server (stdio · exposes check/explain to Cursor/Claude Desktop)
+nika-kernel      = { path = "../nika-kernel", version = "0.96.0" }        # ProviderInferDyn · Secret · the seam traits
+nika-runtime     = { path = "../nika-runtime", version = "0.96.0" }       # the L3 executor (the composer drives it)
+nika-providers   = { path = "../nika-providers", version = "0.96.0" }     # ProviderRegistry — resolve provider/model + keys
+nika-verb-infer  = { path = "../nika-verb-infer", version = "0.96.0" }
+nika-verb-exec   = { path = "../nika-verb-exec", version = "0.96.0" }
+nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.96.0" }
+nika-verb-agent  = { path = "../nika-verb-agent", version = "0.96.0" }
+nika-builtin     = { path = "../nika-builtin", version = "0.96.0" }       # BuiltinDispatcher — the tool plane (invoke + agent tools)
+nika-fs          = { path = "../nika-fs", version = "0.96.0" }            # TokioFs — the builtin tool plane's fs effect
+nika-clock       = { path = "../nika-clock", version = "0.96.0" }         # SystemClock — backoff + timeout + the date builtin
+nika-http        = { path = "../nika-http", version = "0.96.0" }          # ReqwestHttp — the registry + fetch effect
+nika-exec-runner = { path = "../nika-exec-runner", version = "0.96.0" }   # TokioShell — the exec verb's subprocess runner
+nika-catalog     = { path = "../nika-catalog", version = "0.96.0", features = ["providers"] }  # the env_var ladder per provider
+nika-lsp         = { path = "../nika-lsp", version = "0.96.0" }           # `nika lsp` — the language server (stdio · drives the editor extension)
+nika-mcp         = { path = "../nika-mcp", version = "0.96.0" }           # `nika mcp` — the MCP server (stdio · exposes check/explain to Cursor/Claude Desktop)
 tokio            = { workspace = true }                                   # the bin's async entry (block the run on the executor)
 
 [[bin]]
@@ -55,7 +55,7 @@ path = "src/main.rs"
 
 [dev-dependencies]
 # Test-only seams: the mocks the e2e pipeline + the run-verb tests inject.
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.95.0" }
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.96.0" }
 proptest = { workspace = true }   # Gate 6 · the fold's order-independence property (tests/fold_property.rs)
 tempfile = { workspace = true }   # trace-file sink fixtures (`.nika/traces/` journal · sink.rs tests)
 
