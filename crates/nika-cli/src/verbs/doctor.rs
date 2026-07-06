@@ -172,33 +172,32 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
         out.push(client_finding(client));
     }
 
+    // Display order practices the presentation lock (teaching surface ·
+    // the first screen after install): the sovereign keyless line leads,
+    // then the cloud rows with mistral (EU · open-weight) first. The
+    // registry's seed order is functional and stays untouched — this is
+    // a render sort only.
     let mut cloud_keys = 0_usize;
     let mut local_ids: Vec<&str> = Vec::new();
+    let mut cloud_rows: Vec<&ProviderProbe> = Vec::new();
     for p in &probe.providers {
-        if !p.requires_key {
-            local_ids.push(&p.id);
-        } else if p.key_present {
-            cloud_keys += 1;
-            out.push(Finding {
-                level: Level::Ok,
-                label: "provider".to_owned(),
-                detail: format!("{} — key present", p.id),
-                fix: None,
-            });
+        if p.requires_key {
+            cloud_rows.push(p);
         } else {
-            out.push(Finding {
-                level: Level::Warn,
-                label: "provider".to_owned(),
-                detail: format!("{} — {} unset", p.id, p.fix_var),
-                fix: Some(format!("export {}=…", p.fix_var)),
-            });
+            local_ids.push(&p.id);
         }
     }
+    cloud_rows.sort_by_key(|p| usize::from(p.id != "mistral"));
 
     if !local_ids.is_empty() {
         out.push(local_finding(&local_ids, !probe.local_pings.is_empty()));
     }
     out.extend(probe.local_pings.iter().map(ping_finding));
+
+    for p in cloud_rows {
+        cloud_keys += usize::from(p.key_present);
+        out.push(provider_finding(p));
+    }
 
     out.push(image_finding(&probe.image));
     out.push(tts_finding(&probe.tts));
@@ -352,6 +351,25 @@ pub(crate) fn render(findings: &[Finding]) -> String {
     s
 }
 
+/// One cloud-provider row (✔ key present · ⚠ unset, with the export fix).
+fn provider_finding(p: &ProviderProbe) -> Finding {
+    if p.key_present {
+        Finding {
+            level: Level::Ok,
+            label: "provider".to_owned(),
+            detail: format!("{} — key present", p.id),
+            fix: None,
+        }
+    } else {
+        Finding {
+            level: Level::Warn,
+            label: "provider".to_owned(),
+            detail: format!("{} — {} unset", p.id, p.fix_var),
+            fix: Some(format!("export {}=…", p.fix_var)),
+        }
+    }
+}
+
 /// The local-providers summary line · unpinged runs hand off to `--ping`.
 fn local_finding(local_ids: &[&str], pinged: bool) -> Finding {
     Finding {
@@ -408,18 +426,35 @@ fn ping_addr(url: &str) -> Option<String> {
 }
 
 /// Connect-only TCP probe (nothing is ever written on the socket).
-fn tcp_ping(addr: &str, timeout: Duration) -> PingState {
-    let started = Instant::now();
-    let Ok(mut candidates) = addr.to_socket_addrs() else {
-        return PingState::Unreachable;
-    };
-    let Some(sock) = candidates.next() else {
-        return PingState::Unreachable;
-    };
-    match TcpStream::connect_timeout(&sock, timeout) {
-        Ok(_) => PingState::Reachable(u64::try_from(started.elapsed().as_millis()).unwrap_or(0)),
-        Err(_) => PingState::Unreachable,
-    }
+///
+/// The whole probe — DNS resolution INCLUDED — honours the cap.
+/// `to_socket_addrs` is a synchronous OS resolver call with no timeout of
+/// its own; on a dead resolver it can stall for seconds, and the review
+/// caught the first cut capping only the connect. Resolution + connect
+/// run on a worker thread and the caller waits `recv_timeout(cap)`; on
+/// expiry the port is reported unreachable and the worker is left to
+/// finish in the background (a one-shot diagnostic can afford one
+/// parked thread; it exits with the process).
+/// Launch one probe worker; the caller awaits the returned channel —
+/// [`collect_local_pings`] starts EVERY probe first and then collects
+/// against one shared deadline, so seven surfaces answer in ~one cap
+/// total instead of seven caps end to end.
+fn spawn_ping(addr: &str, timeout: Duration) -> std::sync::mpsc::Receiver<bool> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let addr = addr.to_owned();
+    // Doctor is a synchronous one-shot diagnostic (no tokio runtime on this
+    // path); plain worker threads are the whole async story here.
+    #[allow(clippy::disallowed_methods)]
+    std::thread::spawn(move || {
+        // A dropped receiver (cap expired) makes every send a no-op.
+        let reachable = addr
+            .to_socket_addrs()
+            .ok()
+            .and_then(|mut candidates| candidates.next())
+            .is_some_and(|sock| TcpStream::connect_timeout(&sock, timeout).is_ok());
+        let _ = tx.send(reachable);
+    });
+    rx
 }
 
 /// `--ping` collection · the LOCAL surfaces only (infer locals + the media
@@ -430,21 +465,41 @@ fn collect_local_pings(
     tts_url: Option<&str>,
 ) -> Vec<(String, String, PingState)> {
     const CAP: Duration = Duration::from_millis(300);
-    let mut out = Vec::new();
+    // Start every probe first, then collect against ONE shared deadline:
+    // the whole sweep answers in ~CAP total (results stay surface-ordered)
+    // instead of paying the cap once per dead port.
+    let mut pending = Vec::new();
     for p in registry.profiles() {
         if p.requires_key || p.id == "mock" {
             continue;
         }
         if let Some(addr) = ping_addr(p.base_url) {
-            out.push((p.id.to_owned(), addr.clone(), tcp_ping(&addr, CAP)));
+            let rx = spawn_ping(&addr, CAP);
+            pending.push((p.id.to_owned(), addr, rx));
         }
     }
     for (id, url) in [("image-local", image_url), ("tts-local", tts_url)] {
         if let Some(addr) = url.and_then(ping_addr) {
-            out.push((id.to_owned(), addr.clone(), tcp_ping(&addr, CAP)));
+            let rx = spawn_ping(&addr, CAP);
+            pending.push((id.to_owned(), addr, rx));
         }
     }
-    out
+
+    let started = Instant::now();
+    let deadline = started + CAP;
+    pending
+        .into_iter()
+        .map(|(id, addr, rx)| {
+            let budget = deadline.saturating_duration_since(Instant::now());
+            let state = match rx.recv_timeout(budget) {
+                Ok(true) => {
+                    PingState::Reachable(u64::try_from(started.elapsed().as_millis()).unwrap_or(0))
+                }
+                _ => PingState::Unreachable,
+            };
+            (id, addr, state)
+        })
+        .collect()
 }
 
 /// Build the real probe from the environment (PRESENCE-only key checks · the
@@ -927,12 +982,21 @@ mod tests {
         assert_eq!(ping_addr("http://"), None);
     }
 
+    /// The single-probe composition the parallel collector applies per
+    /// surface — kept here so the probe contract stays directly tested.
+    fn ping_once(addr: &str, timeout: Duration) -> PingState {
+        match spawn_ping(addr, timeout).recv_timeout(timeout) {
+            Ok(true) => PingState::Reachable(0),
+            _ => PingState::Unreachable,
+        }
+    }
+
     #[test]
     fn tcp_ping_reachable_and_unreachable() {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
         let addr = listener.local_addr().expect("addr").to_string();
         assert!(matches!(
-            tcp_ping(&addr, Duration::from_millis(300)),
+            ping_once(&addr, Duration::from_millis(300)),
             PingState::Reachable(_)
         ));
         // Bind then drop → the port is free again: nothing listens on it.
@@ -941,11 +1005,11 @@ mod tests {
             l.local_addr().expect("addr").to_string()
         };
         assert_eq!(
-            tcp_ping(&closed, Duration::from_millis(300)),
+            ping_once(&closed, Duration::from_millis(300)),
             PingState::Unreachable
         );
         assert_eq!(
-            tcp_ping("not-an-addr", Duration::from_millis(300)),
+            ping_once("not-an-addr", Duration::from_millis(300)),
             PingState::Unreachable
         );
     }
