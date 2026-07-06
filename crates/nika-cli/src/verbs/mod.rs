@@ -23,6 +23,7 @@ pub mod run;
 pub mod test;
 pub mod tools;
 pub mod trace;
+pub mod trace_otel;
 pub mod wire;
 
 use nika_schema::check::CheckReport;
