@@ -1,8 +1,6 @@
-//! The workflow's REQUIREMENTS — what a caller must satisfy before any
-//! token is spent (E-REQ). Declaration facts from the typed AST only:
-//! models per task · declared secrets (never values) · `env` reads vs
-//! defines (the split IS the semantics) · required vars. PRESENCE stays
-//! the caller's check — a static report never depends on who runs it.
+//! The workflow's REQUIREMENTS (E-REQ) — declaration facts only:
+//! models per task · secrets (never values) · env reads vs defines ·
+//! required vars. Presence stays the caller's check.
 
 use std::collections::{BTreeMap, BTreeSet};
 
