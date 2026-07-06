@@ -73,10 +73,30 @@ pub(crate) async fn write<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Bui
             format!("`{path}` exists and overwrite: false"),
         ));
     }
-    if create_dirs && let Some(parent) = Path::new(path).parent() {
-        fs.create_dir_all(parent)
-            .await
-            .map_err(|e| BuiltinFailure::new(C1, format!("create_dirs failed: {e}")))?;
+    // `create_dirs:` is a load-bearing SAFETY arg: false (the default) means
+    // "do not scatter directories — fail if the parent is missing" (a typo'd
+    // path should surface, not silently materialize a tree). The atomic-write
+    // seam auto-creates the parent unconditionally to place its temp sibling,
+    // so honouring `create_dirs: false` requires the builtin to gate the write
+    // BEFORE the seam ever runs. An empty parent (bare filename → cwd) always
+    // exists, so it is skipped.
+    if let Some(parent) = Path::new(path)
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+    {
+        if create_dirs {
+            fs.create_dir_all(parent)
+                .await
+                .map_err(|e| BuiltinFailure::new(C1, format!("create_dirs failed: {e}")))?;
+        } else if !fs.exists(parent).await {
+            return Err(BuiltinFailure::new(
+                C1,
+                format!(
+                    "parent directory `{}` does not exist — pass `create_dirs: true` to create it",
+                    parent.display()
+                ),
+            ));
+        }
     }
     fs.write(Path::new(path), &content)
         .await
@@ -557,6 +577,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn write_create_dirs_false_refuses_a_missing_parent() {
+        // false (the default) → a missing parent is a LOUD refusal, not a
+        // silently-materialized tree (the seam would otherwise auto-create).
+        let fs = MockFs::new();
+        let refused = write(
+            &fs,
+            &args(serde_json::json!({ "path": "missing/x.txt", "content": "hi" })),
+        )
+        .await;
+        assert!(
+            matches!(&refused, Err(f) if f.code == "NIKA-BUILTIN-WRITE-001"
+                && f.message.contains("create_dirs: true")),
+            "missing parent + create_dirs:false must refuse with the fix hint: {refused:?}"
+        );
+        // …a parent that already exists is fine without create_dirs.
+        let fs = MockFs::new().with_file("here/sibling.txt", "x");
+        write(
+            &fs,
+            &args(serde_json::json!({ "path": "here/x.txt", "content": "hi" })),
+        )
+        .await
+        .expect("existing parent needs no create_dirs");
+        // …and create_dirs:true still materializes the tree.
+        let fs = MockFs::new();
+        write(
+            &fs,
+            &args(
+                serde_json::json!({ "path": "fresh/deep/x.txt", "content": "hi", "create_dirs": true }),
+            ),
+        )
+        .await
+        .expect("create_dirs:true creates the parent");
+        // …and a bare filename (empty parent = cwd) never trips the guard.
+        let fs = MockFs::new();
+        write(
+            &fs,
+            &args(serde_json::json!({ "path": "bare.txt", "content": "hi" })),
+        )
+        .await
+        .expect("bare filename writes to cwd");
+    }
+
+    #[tokio::test]
     async fn edit_replaces_all_or_capped_and_fails_on_no_match() {
         let fs = MockFs::new().with_file("c.txt", "a a a");
         edit(
@@ -920,8 +983,10 @@ mod tests {
         // is `nika-policy`'s contract (L1.5 · design locked, impl gated).
         // When policy lands between the verbs and this dispatcher, THIS
         // pin flips to an expect-reject — until then the delegation is
-        // explicit, not accidental.
-        let fs = MockFs::new();
+        // explicit, not accidental. (An anchor file makes the `..` parent
+        // exist so the create_dirs:false guard is orthogonal to the point
+        // under test — traversal delegation, not parent existence.)
+        let fs = MockFs::new().with_file("../anchor.txt", "x");
         let out = write(
             &fs,
             &args(serde_json::json!({ "path": "../escape.txt", "content": "x" })),
