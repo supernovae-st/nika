@@ -13,7 +13,7 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-002","ADR-003","ADR-004","ADR-037","ADR-038"],
+      "related": ["ADR-002","ADR-003","ADR-004","ADR-037","ADR-038","ADR-095"],
       "requires": [],
       "enables": ["ADR-002","ADR-003","ADR-004"]
     }
@@ -45,7 +45,7 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-001","ADR-004","ADR-006","ADR-009","ADR-011","ADR-037","ADR-038","ADR-081","ADR-083","ADR-084","ADR-090","ADR-091","ADR-093","ADR-094"],
+      "related": ["ADR-001","ADR-004","ADR-006","ADR-009","ADR-011","ADR-037","ADR-038","ADR-081","ADR-083","ADR-084","ADR-090","ADR-091","ADR-093","ADR-094","ADR-095"],
       "requires": ["ADR-001","ADR-004"],
       "enables": ["ADR-009","ADR-011"]
     }
@@ -253,7 +253,7 @@
       "affects_layers": ["L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-006","ADR-007","ADR-014","ADR-017","ADR-018","ADR-020","ADR-034","ADR-038","ADR-078","ADR-081","ADR-083"],
+      "related": ["ADR-006","ADR-007","ADR-014","ADR-017","ADR-018","ADR-020","ADR-034","ADR-038","ADR-078","ADR-081","ADR-083","ADR-095"],
       "requires": ["ADR-007"],
       "enables": ["ADR-034"]
     }
@@ -717,7 +717,7 @@
       "affects_layers": ["L0.5","L2","L3","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-006","ADR-014","ADR-020","ADR-030","ADR-079"],
+      "related": ["ADR-006","ADR-014","ADR-020","ADR-030","ADR-079","ADR-095"],
       "requires": ["ADR-006","ADR-014","ADR-079"],
       "enables": []
     }
@@ -733,7 +733,7 @@
       "affects_layers": ["L1"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-003","ADR-005","ADR-014","ADR-016","ADR-017","ADR-083","ADR-090","ADR-091"],
+      "related": ["ADR-003","ADR-005","ADR-014","ADR-016","ADR-017","ADR-083","ADR-090","ADR-091","ADR-095"],
       "requires": ["ADR-003"],
       "enables": []
     }
@@ -909,7 +909,7 @@
       "affects_layers": ["L0"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-093","ADR-094"],
+      "related": ["ADR-093","ADR-094","ADR-096","ADR-098","ADR-106"],
       "requires": [],
       "enables": []
     }
@@ -925,7 +925,7 @@
       "affects_layers": ["L1.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-091","ADR-003"],
+      "related": ["ADR-003","ADR-091","ADR-092","ADR-105"],
       "requires": ["ADR-091"],
       "enables": []
     }
@@ -957,7 +957,7 @@
       "affects_layers": ["L0.5","L1","L2","L3"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-001","ADR-003","ADR-016","ADR-080","ADR-081"],
+      "related": ["ADR-001","ADR-003","ADR-016","ADR-080","ADR-081","ADR-105"],
       "requires": ["ADR-003"],
       "enables": []
     }
@@ -973,7 +973,7 @@
       "affects_layers": ["L2","L0"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-092"],
+      "related": ["ADR-092","ADR-097","ADR-105"],
       "requires": [],
       "enables": []
     }
@@ -1021,7 +1021,7 @@
       "affects_layers": ["L2","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": [],
+      "related": ["ADR-106"],
       "requires": [],
       "enables": []
     }
@@ -1032,12 +1032,28 @@
       "status": "accepted",
       "date": "2026-07-05",
       "filename": "adr-105-image-generate-builtin.md",
-      "tags": ["nika-builtin","media","image-generation","openai","gemini","mock","image-plane","provenance","permits"],
-      "affects_crates": ["nika-builtin","nika-catalog","nika-schema","nika-cli","nika-pack"],
+      "tags": ["nika-builtin","media","image-generation","local","openai","gemini","xai","mock","image-plane","provenance","permits","sovereignty"],
+      "affects_crates": ["nika-builtin","nika-catalog","nika-schema","nika-cli","nika-pack","nika-verb-agent"],
       "affects_layers": ["L0","L1.5","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-093","ADR-095","ADR-096"],
+      "related": ["ADR-093","ADR-095","ADR-096","ADR-106"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-106",
+      "title": "nika add — the registry client verb (resolve · verify · install)",
+      "status": "proposed",
+      "date": "2026-07-06",
+      "filename": "adr-106-nika-add-registry-client.md",
+      "tags": ["nika-cli","registry","supply-chain","content-addressed","sovereignty","conformance-as-trust","lockfile"],
+      "affects_crates": ["nika-cli","nika-blob","nika-schema"],
+      "affects_layers": ["L1","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-092","ADR-099","ADR-105"],
       "requires": [],
       "enables": []
     }

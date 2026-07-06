@@ -10,7 +10,7 @@ affects_crates: [nika-verb-agent, nika-event]
 affects_layers: [L2, L0]
 supersedes: []
 superseded_by: []
-related: ["ADR-092"]
+related: ["ADR-092", "ADR-097", "ADR-105"]
 requires: []
 ---
 
