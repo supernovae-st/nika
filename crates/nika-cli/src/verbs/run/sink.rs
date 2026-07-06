@@ -145,6 +145,8 @@ pub(super) struct TraceFileSink {
     /// bytes (genesis: sha256 of [`CHAIN_GENESIS`]) — injected into the
     /// NEXT line as its `chain` field. After the run, this is the HEAD.
     chain: String,
+    /// Lines actually written (the anchor trio's count).
+    written: usize,
 }
 
 /// The chain's genesis tag — the first line's `chain` field is the
@@ -160,6 +162,7 @@ impl TraceFileSink {
             path: None,
             error: None,
             chain: sha256_hex(CHAIN_GENESIS),
+            written: 0,
         }
     }
 
@@ -173,6 +176,7 @@ impl TraceFileSink {
             path: None,
             error: None,
             chain: sha256_hex(CHAIN_GENESIS),
+            written: 0,
         }
     }
 
@@ -194,6 +198,13 @@ impl TraceFileSink {
     #[must_use]
     pub(super) fn chain_head(&self) -> &str {
         &self.chain
+    }
+
+    /// Lines written — the anchor trio's middle term (the C2SP
+    /// checkpoint shape: origin · size · root).
+    #[must_use]
+    pub(super) fn chain_len(&self) -> usize {
+        self.written
     }
 
     /// Create the directory + the journal file, named from the first
@@ -269,6 +280,7 @@ impl EventSink for TraceFileSink {
                 }
                 let line = serde_json::to_string(&value).map_err(std::io::Error::from)?;
                 self.chain = sha256_hex(line.as_bytes());
+                self.written += 1;
                 writer.write_all(line.as_bytes())?;
                 writer.write_all(b"\n")?;
                 writer.flush()

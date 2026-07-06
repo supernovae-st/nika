@@ -37,6 +37,9 @@ pub fn verify(trace: &str) -> VerbOutput {
             short(&recorded),
             short(&computed),
         )),
+        Verdict::TornTail { events, head } => VerbOutput::ok(format!(
+            "OK — {events} events · chain intact · head {head}\n  the final line is TORN (a crash mid-write, not tampering) — the chain\n  covers every complete line"
+        )),
         Verdict::Unchained => VerbOutput::env(format!(
             "unchained — {trace} predates the chain (pre-0.96 journal): nothing to verify, nothing to distrust"
         )),
@@ -46,6 +49,14 @@ pub fn verify(trace: &str) -> VerbOutput {
 
 enum Verdict {
     Intact {
+        events: usize,
+        head: String,
+    },
+    /// The chain holds through the last COMPLETE line, but the final
+    /// line is not valid JSON — a crash mid-write (torn tail), NOT
+    /// tampering. The research-locked distinction: conflating the two
+    /// would make every crashed run look forged.
+    TornTail {
         events: usize,
         head: String,
     },
@@ -66,6 +77,15 @@ fn walk(raw: &str) -> Verdict {
     }
     let mut expected = sha256_hex(CHAIN_GENESIS);
     for (i, line) in lines.iter().enumerate() {
+        // A FINAL line that is not valid JSON is a torn tail (crash
+        // mid-write) — the chain verdict covers the complete lines.
+        let is_last = i + 1 == lines.len();
+        if is_last && serde_json::from_str::<serde_json::Value>(line).is_err() {
+            return Verdict::TornTail {
+                events: i,
+                head: expected,
+            };
+        }
         let Some(recorded) = chain_of(line) else {
             // The FIRST line decides the era: no chain there = a
             // pre-chain journal. A chain that starts and then STOPS is
@@ -204,6 +224,17 @@ mod tests {
     fn a_pre_chain_journal_is_unchained_not_broken() {
         let raw = format!("{}\n", ev("workflow_started"));
         assert!(matches!(walk(&raw), Verdict::Unchained));
+    }
+
+    #[test]
+    fn a_torn_final_line_is_a_crash_not_a_tamper() {
+        let mut raw = chained(&[ev("workflow_started"), ev("task_completed")]);
+        raw.push_str("{\"id\":{\"uuid\":\"01912345-0000-7000-8000-0000000");
+        let verdict = walk(&raw);
+        assert!(
+            matches!(verdict, Verdict::TornTail { events: 2, .. }),
+            "a torn final line is a crash, not a tamper"
+        );
     }
 
     #[test]

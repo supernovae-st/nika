@@ -832,6 +832,7 @@ fn surface_trace(trace: TraceFileSink, note: TraceNote) {
     // scrollback hold it, so a rewritten-whole journal no longer matches
     // the record of the run that printed it (tamper-EVIDENT → checkable).
     let head8 = trace.chain_head()[..16].to_owned();
+    let count = trace.chain_len();
     if let Some(e) = trace.into_error() {
         // Name the file when the failure struck AFTER the open (a partial
         // journal on disk) — the operator sees exactly what to distrust.
@@ -848,8 +849,18 @@ fn surface_trace(trace: TraceFileSink, note: TraceNote) {
         return; // disabled · or a run that emitted zero events
     };
     match note {
-        TraceNote::Stdout => println!("    trace: {} · chain {head8}", path.display()),
-        TraceNote::Stderr => eprintln!("nika run: trace: {} · chain {head8}", path.display()),
+        TraceNote::Stdout => {
+            println!(
+                "    trace: {} · {count} events · chain {head8}",
+                path.display()
+            );
+        }
+        TraceNote::Stderr => {
+            eprintln!(
+                "nika run: trace: {} · {count} events · chain {head8}",
+                path.display()
+            );
+        }
         TraceNote::Silent => {}
     }
 }
