@@ -10,6 +10,30 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [0.95.0](https://github.com/supernovae-st/nika/compare/v0.94.0..v0.95.0) - 2026-07-06
 
+### ✨ Features
+- **hygiene** — Seam-discipline vector + chromiumoxide surface pin ([#207](https://github.com/supernovae-st/nika/issues/207)) ([b8cd039aa](https://github.com/supernovae-st/nika/commit/b8cd039aa888642074b7907ff27522a710074749)) ([#207](https://github.com/supernovae-st/nika/pull/207))
+- **nika-catalog** — The 5 local servers get their catalog face ([#208](https://github.com/supernovae-st/nika/issues/208)) ([7223c41b0](https://github.com/supernovae-st/nika/commit/7223c41b07c81768db59a8a866d08afc61991016)) ([#208](https://github.com/supernovae-st/nika/pull/208))
+- **nika-cli** — The lost-user footer — bare nika suggests the next command ([#203](https://github.com/supernovae-st/nika/issues/203)) ([16e279935](https://github.com/supernovae-st/nika/commit/16e279935949dfc7d722cd370921987a2ccf3b4e)) ([#203](https://github.com/supernovae-st/nika/pull/203))
+
+### 🐛 Bug Fixes
+- **nika-builtin** — Write honors create_dirs:false — no silent tree ([#196](https://github.com/supernovae-st/nika/issues/196)) ([7fc3c9fc1](https://github.com/supernovae-st/nika/commit/7fc3c9fc18d44836de48ca1ab8cecbda44bb1fd6)) ([#196](https://github.com/supernovae-st/nika/pull/196))
+- **nika-builtin** — Date resolves named tz from the bundled db, not the OS ([#199](https://github.com/supernovae-st/nika/issues/199)) ([228032695](https://github.com/supernovae-st/nika/commit/228032695567ae51d10939037248768771c634c7)) ([#199](https://github.com/supernovae-st/nika/pull/199))
+- **nika-cli** — Log message neutralizes terminal control sequences ([#204](https://github.com/supernovae-st/nika/issues/204)) ([09c059646](https://github.com/supernovae-st/nika/commit/09c05964655359f5780113d94a10b75fbfc269ff)) ([#204](https://github.com/supernovae-st/nika/pull/204))
+- **nika-mcp** — Bound the stdio transport — no unbounded line read ([#209](https://github.com/supernovae-st/nika/issues/209)) ([dd829f451](https://github.com/supernovae-st/nika/commit/dd829f45138e6e6d2ec83393eb441356841265a9)) ([#209](https://github.com/supernovae-st/nika/pull/209))
+
+### 📚 Documentation
+- **readme** — Daily commands catch the 0.94 loop ([#205](https://github.com/supernovae-st/nika/issues/205)) ([da5740747](https://github.com/supernovae-st/nika/commit/da574074799cabc01431bc83b178b1af6b15e2c0)) ([#205](https://github.com/supernovae-st/nika/pull/205))
+- **src** — Stdlib counts leave the doc-comments — the catalog is the count ([#206](https://github.com/supernovae-st/nika/issues/206)) ([69929aaab](https://github.com/supernovae-st/nika/commit/69929aaabe5d3752f49986b156fd610c6c18424b)) ([#206](https://github.com/supernovae-st/nika/pull/206))
+
+### 🧪 Tests
+- **nika-builtin** — Pin validate's SSRF floor + deep-YAML totality ([#197](https://github.com/supernovae-st/nika/issues/197)) ([f96317699](https://github.com/supernovae-st/nika/commit/f963176999380946021f87e81f244f3b0ae9b938)) ([#197](https://github.com/supernovae-st/nika/pull/197))
+
+### 🧹 Chore
+- **nika-cli** — Sync public-api baseline — run::run gained no_trace_file+task_filter ([#200](https://github.com/supernovae-st/nika/issues/200)) ([68ce435cb](https://github.com/supernovae-st/nika/commit/68ce435cb084787d007c6c00201a3d905b82a76b)) ([#200](https://github.com/supernovae-st/nika/pull/200))
+
+
+## [0.95.0](https://github.com/supernovae-st/nika/compare/v0.94.0..v0.95.0) - 2026-07-06
+
 ### ✨ Highlights
 
 - **The 5 local servers get their catalog face** ([PR 208](https://github.com/supernovae-st/nika/pull/208)) —
