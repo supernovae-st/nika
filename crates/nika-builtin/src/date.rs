@@ -14,12 +14,21 @@ use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str};
 // ─── nika:uuid ──────────────────────────────────────────────────────────
 
 /// Generate a UUID (v7 default · sortable · or v4 random).
+///
+/// `nika:uuid` is INTENTIONALLY non-hermetic — a uuid's purpose is a
+/// fresh, unique id. v7's time-prefix gives sortability, not
+/// reproducibility; threading the clock would make the timestamp
+/// hermetic but the 74 random bits are not, so a trace-replay CANNOT
+/// reproduce it (and shouldn't — that defeats uniqueness). The inverse
+/// of `date`'s tz, which MUST be sovereign: offsets are world-facts,
+/// ids are meant to be fresh. Rides getrandom's CSPRNG directly — the
+/// single deliberate seam bypass in the L1.5+ layer (check-seam-discipline).
 pub(crate) fn uuid(args: &Args) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-UUID-001";
     let version = opt_str(args, "version", C)?.unwrap_or("v7");
     let id = match version {
-        "v7" => uuid::Uuid::now_v7(),
-        "v4" => uuid::Uuid::new_v4(),
+        "v7" => uuid::Uuid::now_v7(), // seam-bypass-ok: uuid is intentionally non-hermetic (entropy/freshness IS the id)
+        "v4" => uuid::Uuid::new_v4(), // seam-bypass-ok: v4 is pure entropy by design
         other => {
             return Err(BuiltinFailure::new(
                 C,
