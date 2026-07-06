@@ -8,6 +8,42 @@ Nika Diamond is a ground-up rewrite on the `nika-diamond` orphan branch.
 Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ---
+## [0.95.0](https://github.com/supernovae-st/nika/compare/v0.94.0..v0.95.0) - 2026-07-06
+
+### ✨ Highlights
+
+- **The 5 local servers get their catalog face** ([PR 208](https://github.com/supernovae-st/nika/pull/208)) —
+  ollama · lmstudio · llamacpp · localai · vllm join `nika catalog` (and
+  `catalog --json`, so editor model pickers see them) with descriptions,
+  `local`/`open-source` tags and seed models. Keyless by construction:
+  a catalog edit can never invent a key gate. Sovereign models stay
+  « unpriced », never « free ». 38 catalog providers total.
+- **The lost-user footer** ([PR 203](https://github.com/supernovae-st/nika/pull/203)) — a bare `nika`
+  suggests the next command instead of a wall of clap.
+- **Hygiene: the seam-discipline vector** ([PR 207](https://github.com/supernovae-st/nika/pull/207)) +
+  the chromiumoxide surface pin.
+
+### 🐛 Fixes
+
+- `nika:write` honors `create_dirs: false` — a missing parent is refused
+  loudly instead of silently materializing a tree ([PR 196](https://github.com/supernovae-st/nika/pull/196)).
+- `nika:date` resolves named timezones from the bundled tz db, not the
+  OS ([PR 199](https://github.com/supernovae-st/nika/pull/199)).
+- `nika:log` neutralizes terminal control sequences ([PR 204](https://github.com/supernovae-st/nika/pull/204)).
+- The MCP stdio transport bounds its line reads — no unbounded buffer
+  on a hostile client ([PR 209](https://github.com/supernovae-st/nika/pull/209)).
+
+### 📚 Docs & internals
+
+- Doc-comments go count-free (« 22-builtin » / « 5/23 » swept — the
+  catalog is the count · [PR 206](https://github.com/supernovae-st/nika/pull/206)); README daily
+  commands catch the 0.94 loop ([PR 205](https://github.com/supernovae-st/nika/pull/205)).
+- The embedded pack re-vendors nika-spec main: count-free schema
+  description (nika-spec#21) and `create_dirs` enforcement prose
+  (nika-spec#20).
+- `nika:validate` SSRF floor + deep-YAML totality pinned ([PR 197](https://github.com/supernovae-st/nika/pull/197));
+  public-api baselines synced ([PR 198](https://github.com/supernovae-st/nika/pull/198)/[PR 200](https://github.com/supernovae-st/nika/pull/200)).
+
 ## [0.94.0](https://github.com/supernovae-st/nika/compare/v0.93.1..v0.94.0) - 2026-07-06
 
 ### ✨ Highlights

@@ -11,7 +11,7 @@ homepage.workspace     = true
 publish                = false  # Internal L4 interface crate (driven by the `nika lsp` subcommand).
 
 [dependencies]
-nika-schema = { path = "../nika-schema", version = "0.94.0" }  # parse + the ADR-092 check ladder + RawWorkflow (the analysis source)
+nika-schema = { path = "../nika-schema", version = "0.95.0" }  # parse + the ADR-092 check ladder + RawWorkflow (the analysis source)
 lsp-server  = { workspace = true }                             # sync stdio JSON-RPC message loop
 lsp-types   = { workspace = true }                             # LSP 3.17 protocol types
 serde       = { workspace = true }                             # DeserializeOwned/Serialize bounds for the request dispatch
