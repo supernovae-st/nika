@@ -467,3 +467,80 @@ tasks:
         "no declared boundary → the engine-floor truth · got: {permits}"
     );
 }
+
+// ─── the run knows its source (WorkflowStarted workflow_sha256) ──────────────
+
+/// The journal must name the DEFINITION it recorded: with a source
+/// identity injected, `workflow_started` carries `workflow_sha256`
+/// verbatim — replay/diff/fork surfaces can then prove « the file
+/// changed since this run » instead of guessing from task shapes.
+/// Without one (embedded/test callers), the field is ABSENT: no
+/// source, no claim.
+#[tokio::test]
+async fn workflow_started_carries_the_source_identity_when_injected() {
+    let yaml = r#"
+nika: v1
+workflow: source-identity
+tasks:
+  - id: t
+    invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
+"#;
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_schema::check(&wf);
+    let tools = MockToolExecutor::new()
+        .enqueue_ok(ToolResult::success("t", "1").with_structured(serde_json::json!(1)));
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::new(tools)));
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::new(MockShell::new())),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        ),
+        MockClock::new(),
+        RuntimeConfig::default(),
+    )
+    .with_source_sha256("ab".repeat(32));
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("runs clean");
+    let events = sink.into_events();
+    let started = events
+        .iter()
+        .find(|e| e.kind == EventKind::WorkflowStarted)
+        .expect("a workflow_started frame");
+    assert_eq!(
+        str_field(started, "workflow_sha256").expect("the identity field"),
+        "ab".repeat(32),
+    );
+
+    // The companion truth: a PLAIN run makes no source claim.
+    let (_outcome, events) = run_to_events(
+        yaml,
+        MockShell::new(),
+        MockToolExecutor::new()
+            .enqueue_ok(ToolResult::success("t", "1").with_structured(serde_json::json!(1))),
+        MockProvider::new("mock"),
+    )
+    .await;
+    let plain = events
+        .iter()
+        .find(|e| e.kind == EventKind::WorkflowStarted)
+        .expect("a workflow_started frame");
+    assert!(
+        str_field(plain, "workflow_sha256").is_none(),
+        "no source injected → no identity claim"
+    );
+}

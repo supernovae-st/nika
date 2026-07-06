@@ -184,6 +184,13 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// task=value`): bound as the prompt's `default:` at dispatch (the
     /// answered branch), never part of the task's resume identity.
     prompt_answers: BTreeMap<String, Value>,
+    /// The run's SOURCE identity — sha256 hex over the exact bytes the
+    /// operator ran (computed by the composer that read the file; the
+    /// runtime never re-reads). Stamped on `workflow_started` so every
+    /// journal names the definition it recorded: replay, diff and
+    /// fork surfaces can prove « the file changed since this run »
+    /// instead of guessing. `None` (embedded/test callers) = no claim.
+    source_sha256: Option<String>,
 }
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
@@ -212,6 +219,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             resume_plan: resume::ResumePlan::new(),
             pause_on_prompt: false,
             prompt_answers: BTreeMap::new(),
+            source_sha256: None,
         }
     }
 
@@ -259,6 +267,16 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
         self
     }
 
+    /// Stamp the run's source identity (sha256 hex of the exact bytes
+    /// the operator ran) on `workflow_started` — the journal then names
+    /// the definition it recorded (drift detection for replay/diff/fork
+    /// surfaces). Absent by default: no source, no claim.
+    #[must_use]
+    pub fn with_source_sha256(mut self, hex: String) -> Self {
+        self.source_sha256 = Some(hex);
+        self
+    }
+
     /// Supply prompt answers (`--answer task=value` · ADR-099 rider):
     /// bound as the named task's prompt `default:` at dispatch — the
     /// answered branch of the stdlib contract, type-validated per mode
@@ -300,6 +318,7 @@ fn i(v: i64) -> FieldValue {
 fn emit_prologue(
     wf: &RawWorkflow,
     workflow_name: &str,
+    source_sha256: Option<&str>,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
@@ -316,12 +335,11 @@ fn emit_prologue(
     } else {
         "engine floor (no boundary declared)"
     };
-    emit(
-        stamper,
-        sink,
-        EventKind::WorkflowStarted,
-        &[("workflow", s(workflow_name)), ("permits", s(permits_desc))],
-    );
+    let mut opening = vec![("workflow", s(workflow_name)), ("permits", s(permits_desc))];
+    if let Some(hex) = source_sha256 {
+        opening.push(("workflow_sha256", s(hex)));
+    }
+    emit(stamper, sink, EventKind::WorkflowStarted, &opening);
     for task in &wf.tasks {
         emit(
             stamper,
@@ -404,7 +422,13 @@ where
         // The declared capability boundary (spec 01 §permits) flows to every
         // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);
-        emit_prologue(wf, &workflow_name, stamper, sink);
+        emit_prologue(
+            wf,
+            &workflow_name,
+            self.source_sha256.as_deref(),
+            stamper,
+            sink,
+        );
 
         let mut records: BTreeMap<String, TaskRecord> = BTreeMap::new();
         let mut ok = true;
