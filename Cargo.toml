@@ -233,6 +233,8 @@ trait-variant = "0.1"
 bytes         = { version = "1", features = ["serde"] }
 blake3        = "1"     # nika-blob L1 — content-addressed hashing (CC0-1.0 OR Apache-2.0 · allowlisted)
 serde_json_canonicalizer = "0.3"   # nika-runtime L3 — RFC 8785 JCS bytes under the ADR-099 resume keys (MIT · rides the existing serde_json/ryu stack)
+annotate-snippets = "0.12"          # nika-cli L4 — rustc-grade painted diagnostics (rust-lang org · cargo depends on it · MIT OR Apache-2.0)
+anstyle = "1"                       # nika-cli L4 — the Style type annotate-snippets' renderer consumes (colour stays OUR seam mapping)
 unicode-normalization = "0.1"   # nika-exec-runner L1 — NFKC confusable-bypass defense in the command blocklist (MIT OR Apache-2.0)
 nix           = { version = "0.30", default-features = false, features = ["signal"] }   # nika-exec-runner L1 (unix) — safe killpg wrapper for process-group kill (encapsulates the unsafe signal FFI → crate stays unsafe_code = forbid · MIT)
 futures-core  = "0.3"

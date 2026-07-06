@@ -3648,6 +3648,8 @@ dependencies = [
 name = "nika-cli"
 version = "0.93.1"
 dependencies = [
+ "annotate-snippets 0.12.15",
+ "anstyle",
  "clap",
  "clap_complete",
  "nika-bm25",
