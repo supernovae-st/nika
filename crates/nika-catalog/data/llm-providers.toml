@@ -769,6 +769,110 @@ model = "@cf/meta/llama-3.1-8b-instruct"
 context_window_tokens = 128000
 max_output_tokens = 4096
 
+# ── the 5 local OpenAI-compatible servers ────────────────────────────────────
+# Runtime profiles are const in nika-providers (loopback defaults · zero key ·
+# is_local classification) — these rows carry the CATALOG face: description,
+# discovery tags and a seed model each. A local server serves whatever model
+# the operator pulled, so the model list is a curated STARTING POINT, never a
+# closed set (resolve_model passes unknown names through verbatim). Seed ids
+# follow the repo's own teaching surface (README · docs · site).
+
+[[providers]]
+id = "ollama"
+name = "Ollama"
+aliases = []
+env_var = ""
+default_model = "qwen3.5:4b"
+cheap_model = "llama3.2:3b"
+requires_key = false
+description = "Local Ollama server (default port 11434) — serves any pulled model."
+api_dialect = "openai-chat"
+tags = ["local", "open-source"]
+
+[[providers.models]]
+id = "qwen"
+model = "qwen3.5:4b"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "llama"
+model = "llama3.2:3b"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers]]
+id = "lmstudio"
+name = "LM Studio"
+aliases = ["lm-studio"]
+env_var = ""
+default_model = "qwen3.5-4b"
+cheap_model = "qwen3.5-4b"
+requires_key = false
+description = "LM Studio local server (default port 1234) — serves the loaded model."
+api_dialect = "openai-chat"
+tags = ["local", "open-source"]
+
+[[providers.models]]
+id = "qwen"
+model = "qwen3.5-4b"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers]]
+id = "llamacpp"
+name = "llama.cpp"
+aliases = ["llama-cpp"]
+env_var = ""
+default_model = "default"
+cheap_model = "default"
+requires_key = false
+description = "llama.cpp server (default port 8080) — serves the loaded GGUF; the wire model id is free-form."
+api_dialect = "openai-chat"
+tags = ["local", "open-source"]
+
+[[providers.models]]
+id = "default"
+model = "default"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers]]
+id = "localai"
+name = "LocalAI"
+aliases = []
+env_var = ""
+default_model = "default"
+cheap_model = "default"
+requires_key = false
+description = "LocalAI server (default port 8080) — an OpenAI-compatible gateway over local backends."
+api_dialect = "openai-chat"
+tags = ["local", "open-source"]
+
+[[providers.models]]
+id = "default"
+model = "default"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers]]
+id = "vllm"
+name = "vLLM"
+aliases = []
+env_var = ""
+default_model = "Qwen/Qwen3-8B"
+cheap_model = "Qwen/Qwen3-8B"
+requires_key = false
+description = "vLLM server (default port 8000) — serves Hugging Face model ids at throughput."
+api_dialect = "openai-chat"
+tags = ["local", "open-source"]
+
+[[providers.models]]
+id = "qwen"
+model = "Qwen/Qwen3-8B"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
 [[providers]]
 id = "native"
 name = "Native Inference"

@@ -4,12 +4,12 @@
 //! Provider profiles — the canonical 16, as data.
 //!
 //! A profile binds a provider id to a wire format, a default endpoint and a
-//! key-loading recipe. Cloud rows are seeded from `nika-catalog` (codegen
-//! from `data/llm-providers.toml` — id · env var · model nicknames); the 5
-//! local servers are not catalog rows yet, so their profiles are const data
-//! here (upstreaming them to the catalog TOML is a follow-up — the set and
-//! its split are canon: `nika-spec/canon.yaml` `providers:` · 8 cloud + 5
-//! local + 1 test = 14 per D-2026-06-10-N2).
+//! key-loading recipe. Every canonical id joins its `nika-catalog` row
+//! (codegen from `data/llm-providers.toml` — description · tags · model
+//! nicknames): cloud rows carry env var + key prefixes, the 5 local
+//! servers' rows (the 2026-07-06 fill) carry the catalog face while their
+//! endpoints and keyless-ness stay const HERE — the loopback defaults and
+//! the `is_local` classification are runtime facts, never data.
 
 use nika_catalog::types::Provider as CatalogRow;
 
@@ -217,8 +217,9 @@ const CATALOG_WIRED: [(&str, WireFormat, &str); 11] = [
     ("mock", WireFormat::Mock, ""),
 ];
 
-/// The 5 local OpenAI-compatible servers (not catalog rows yet — const
-/// profiles · zero key · loopback defaults · operator-overridable).
+/// The 5 local OpenAI-compatible servers — endpoints and keyless-ness are
+/// const RUNTIME facts (loopback defaults · operator-overridable); their
+/// catalog rows (description · tags · seed models) join in [`seed`].
 ///
 /// `llamacpp` and `localai` both ship 8080 because that IS each upstream's
 /// own default; running both at once needs one `with_base_url` override
@@ -250,8 +251,11 @@ pub fn seed() -> Vec<Profile> {
             id,
             wire: WireFormat::OpenAiCompat,
             base_url,
+            // Keyless by CONSTRUCTION, never by data: a catalog edit
+            // flipping requires_key on a local row must not invent a
+            // key gate the servers don't have.
             requires_key: false,
-            catalog: None,
+            catalog: nika_catalog::find_provider(id),
         });
     }
     out
@@ -303,6 +307,23 @@ mod tests {
                 assert!(!p.requires_key, "{} must not require a key", p.id);
                 assert_eq!(p.wire, WireFormat::OpenAiCompat);
                 assert!(p.base_url.starts_with("http://127.0.0.1"), "{}", p.id);
+            }
+        }
+    }
+
+    #[test]
+    fn locals_join_their_catalog_rows_but_stay_keyless_by_construction() {
+        // The 2026-07-06 fill: local rows carry the catalog FACE
+        // (description · tags · seed models — `nika catalog` and the
+        // editor picker see them), while requires_key stays a literal
+        // false in seed(): a catalog edit can never invent a key gate.
+        for p in seed() {
+            if ["ollama", "lmstudio", "llamacpp", "localai", "vllm"].contains(&p.id) {
+                let row = p
+                    .catalog
+                    .unwrap_or_else(|| panic!("{} must join its row", p.id));
+                assert!(!row.models.is_empty(), "{} row needs a seed model", p.id);
+                assert!(!p.requires_key, "{} keyless by construction", p.id);
             }
         }
     }
