@@ -16,7 +16,7 @@ use nika_kernel::io::http::{HttpError, HttpPostDyn, HttpRequest};
 use nika_kernel::secret::Secret;
 
 use crate::BuiltinFailure;
-use crate::media::wire;
+use crate::media::wire::{self, Part};
 
 use super::args::ImageArgs;
 use super::types::{
@@ -43,6 +43,90 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     let mut batch = parse_response(response.status, &response.body, args)?;
     batch.warnings.splice(0..0, warnings);
     Ok(batch)
+}
+
+const EDIT_ENDPOINT: &str = "https://api.openai.com/v1/images/edits";
+
+/// Run one EDIT batch (`mode: edit`) — the multipart `/v1/images/edits`
+/// wire: `image[]` file parts (raw bytes · never base64 in multipart) +
+/// the instruction + optional `mask`. The response is the SAME
+/// `ImagesResponse` shape as generations, so `parse_response` is reused
+/// verbatim. `input_fidelity` is deliberately NOT sent — gpt-image-2
+/// rejects it (always high · research-verified).
+pub(crate) async fn edit<H: HttpPostDyn>(
+    http: &H,
+    key: &Secret,
+    args: &ImageArgs,
+    inputs: &[super::types::InputImage],
+) -> Result<ProviderBatch, BuiltinFailure> {
+    let (request, warnings) = build_edit_request(args, inputs, key)?;
+    let response = http.post(request).await.map_err(map_transport)?;
+    let mut batch = parse_response(response.status, &response.body, args)?;
+    batch.warnings.splice(0..0, warnings);
+    Ok(batch)
+}
+
+/// Build the multipart edit request (pure). The mask, when present, is
+/// the LAST input (the read stage appends it) and rides its own `mask`
+/// part; every other input is an `image[]` source part.
+fn build_edit_request(
+    args: &ImageArgs,
+    inputs: &[super::types::InputImage],
+    key: &Secret,
+) -> Result<(HttpRequest, Vec<String>), BuiltinFailure> {
+    let mut warnings = Vec::new();
+    let n_string = args.n.to_string();
+    let mut parts: Vec<Part<'_>> = vec![
+        Part::Text {
+            name: "model",
+            value: &args.model,
+        },
+        Part::Text {
+            name: "prompt",
+            value: &args.prompt,
+        },
+        Part::Text {
+            name: "n",
+            value: &n_string,
+        },
+    ];
+    let size_string = resolve_size(args, &mut warnings)?;
+    if let Some(size) = size_string.as_deref() {
+        parts.push(Part::Text {
+            name: "size",
+            value: size,
+        });
+    }
+    let has_mask = args.mask_path.is_some();
+    let source_count = if has_mask {
+        inputs.len().saturating_sub(1)
+    } else {
+        inputs.len()
+    };
+    for (i, input) in inputs.iter().enumerate() {
+        let is_mask = has_mask && i == source_count;
+        // The filename extension is LOAD-BEARING (servers sniff it) — the
+        // read stage's magic-byte format names it truthfully.
+        parts.push(Part::File {
+            name: if is_mask { "mask" } else { "image[]" },
+            filename: if is_mask { "mask.png" } else { "source.png" },
+            mime: input.format.mime(),
+            bytes: &input.bytes,
+        });
+    }
+    let (body, content_type) = wire::multipart(&parts);
+
+    let mut request = HttpRequest::post(EDIT_ENDPOINT);
+    request.headers.insert(
+        "authorization".to_owned(),
+        format!("Bearer {}", key.expose()),
+    );
+    request
+        .headers
+        .insert("content-type".to_owned(), content_type);
+    request.timeout = Some(args.timeout);
+    request.body = Some(body.into());
+    Ok((request, warnings))
 }
 
 /// Build the wire request (pure — unit-testable without a transport).
@@ -368,6 +452,83 @@ mod tests {
 
     fn key() -> Secret {
         Secret::new("sk-test-XYZ-do-not-leak".to_owned())
+    }
+
+    fn edit_args(patch: serde_json::Value) -> ImageArgs {
+        let serde_json::Value::Object(mut map) = serde_json::json!({
+            "provider": "openai", "mode": "edit", "image": "src.png",
+            "prompt": "make the sky a sunset", "output_dir": "./out"
+        }) else {
+            unreachable!()
+        };
+        if let serde_json::Value::Object(p) = patch {
+            for (k, v) in p {
+                map.insert(k, v);
+            }
+        }
+        args::parse(&map).expect("valid")
+    }
+
+    fn input(bytes: &[u8]) -> super::super::types::InputImage {
+        super::super::types::InputImage {
+            path: "src.png".to_owned(),
+            format: super::super::types::ImageFormat::Png,
+            sha256: "ab".repeat(32),
+            bytes: bytes.to_vec(),
+        }
+    }
+
+    #[test]
+    fn edit_request_is_multipart_with_verbatim_bytes_and_no_key_in_body() {
+        let args = edit_args(serde_json::json!({}));
+        let inputs = vec![input(b"\x89PNG-source-bytes")];
+        let (request, _) = build_edit_request(&args, &inputs, &key()).expect("builds");
+        assert_eq!(request.url, EDIT_ENDPOINT);
+        let ct = request.headers.get("content-type").expect("ct");
+        assert!(ct.starts_with("multipart/form-data; boundary="), "{ct}");
+        let body = request.body.as_ref().expect("body");
+        let s = String::from_utf8_lossy(body);
+        assert!(s.contains("name=\"image[]\"; filename=\"source.png\""));
+        assert!(s.contains("name=\"prompt\"\r\n\r\nmake the sky a sunset"));
+        assert!(s.contains("name=\"model\""));
+        // raw bytes verbatim — multipart files are never base64.
+        assert!(body.windows(17).any(|w| w == b"\x89PNG-source-bytes"));
+        // the credential rides the header ONLY.
+        assert!(!s.contains("sk-test-XYZ"), "key never in the body");
+        assert_eq!(
+            request.headers.get("authorization").map(String::as_str),
+            Some("Bearer sk-test-XYZ-do-not-leak")
+        );
+        // input_fidelity is deliberately absent (gpt-image-2 rejects it).
+        assert!(!s.contains("input_fidelity"));
+    }
+
+    #[test]
+    fn edit_request_appends_the_mask_as_its_own_part() {
+        let args = edit_args(serde_json::json!({ "mask": "m.png" }));
+        // the read stage appends the mask LAST.
+        let inputs = vec![input(b"src-bytes"), input(b"mask-bytes")];
+        let (request, _) = build_edit_request(&args, &inputs, &key()).expect("builds");
+        let s = String::from_utf8_lossy(request.body.as_ref().expect("body"));
+        assert!(s.contains("name=\"mask\"; filename=\"mask.png\""));
+        let sources = s.matches("name=\"image[]\"").count();
+        assert_eq!(sources, 1, "one source · the mask is not an image[] part");
+    }
+
+    #[tokio::test]
+    async fn edit_reuses_the_generations_response_parse() {
+        let (b64, raw) = wire_png_b64();
+        let response = serde_json::json!({ "data": [{ "b64_json": b64 }] });
+        let http = MockHttp::new().enqueue_ok(200, response.to_string().into_bytes());
+        let batch = edit(
+            &http,
+            &key(),
+            &edit_args(serde_json::json!({})),
+            &[input(b"src")],
+        )
+        .await
+        .expect("edit ok");
+        assert_eq!(batch.images[0].bytes, raw, "same ImagesResponse shape");
     }
 
     /// A tiny valid PNG payload (via the mock renderer) base64-encoded

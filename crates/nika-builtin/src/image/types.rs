@@ -43,16 +43,15 @@ impl Mode {
 
 /// One input image read from disk for `mode: edit` — the bytes + the
 /// sniffed format + the path/sha for the provenance chain.
-///
-/// M-A stores the identity (path · sha · format) that the mock edit and
-/// the manifest provenance chain need; the wire adapters (M-A.2) will add
-/// the byte payload they data-URL-encode. Growing the struct then is
-/// additive and behavior-free.
 #[derive(Debug, Clone)]
 pub(crate) struct InputImage {
     pub(crate) path: String,
     pub(crate) format: ImageFormat,
     pub(crate) sha256: String,
+    /// The source payload the wire adapters send (openai edit rides the
+    /// raw bytes as multipart file parts). Arrived WITH its first
+    /// consumer (M-A.2) — never stored ahead of use.
+    pub(crate) bytes: Vec<u8>,
 }
 
 /// The v1.1 image providers — a closed set (local + xai joined 2026-07-05
