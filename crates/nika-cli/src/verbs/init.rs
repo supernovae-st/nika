@@ -199,7 +199,7 @@ pub fn run(dir: &str, force: bool) -> VerbOutput {
         // onboarding surface must hand over to the next command. Golden
         // path: offline proof in 10s → scaffold → audit-before-tokens.
         VerbOutput::ok(format!(
-            "{text}\n\nnext ·\n               nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n               nika new --from chain my-first.nika.yaml       # scaffold a real workflow\n               nika check my-first.nika.yaml                  # audit before a single token"
+            "{text}\n\nnext ·\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika new --from chain my-first.nika.yaml       # scaffold a real workflow\n  nika check my-first.nika.yaml                  # audit before a single token"
         ))
     }
 }
