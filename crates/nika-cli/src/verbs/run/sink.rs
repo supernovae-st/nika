@@ -21,6 +21,21 @@ use uuid::Uuid;
 
 use crate::{RunView, Theme, frame, frame_with_outputs, verdict_frame};
 
+/// sha256 hex over exact bytes — the chain primitive (same shape as the
+/// run verb's source hasher; local to keep the sink self-contained).
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest as _, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    let digest = hasher.finalize();
+    let mut hex = String::with_capacity(64);
+    for byte in digest {
+        use std::fmt::Write as _;
+        let _ = write!(hex, "{byte:02x}");
+    }
+    hex
+}
+
 /// Where run journals land, relative to the run's CWD (the workspace
 /// root by convention — the editor extension watches exactly this
 /// directory, and spec §3.3 prints it in the final frame).
@@ -126,7 +141,15 @@ pub(super) struct TraceFileSink {
     /// The first fs error, buffered (the sink contract is infallible
     /// w.r.t. the run · the caller surfaces this after the run).
     error: Option<std::io::Error>,
+    /// The tamper-evidence chain: sha256 hex of the LAST line's exact
+    /// bytes (genesis: sha256 of [`CHAIN_GENESIS`]) — injected into the
+    /// NEXT line as its `chain` field. After the run, this is the HEAD.
+    chain: String,
 }
+
+/// The chain's genesis tag — the first line's `chain` field is the
+/// sha256 of these bytes, so an empty prefix is still committed.
+pub(super) const CHAIN_GENESIS: &[u8] = b"nika-trace-v1";
 
 impl TraceFileSink {
     /// An enabled journal rooted at `dir` (lazy — no fs effect here).
@@ -136,6 +159,7 @@ impl TraceFileSink {
             lane: Lane::Pending,
             path: None,
             error: None,
+            chain: sha256_hex(CHAIN_GENESIS),
         }
     }
 
@@ -148,6 +172,7 @@ impl TraceFileSink {
             lane: Lane::Disabled,
             path: None,
             error: None,
+            chain: sha256_hex(CHAIN_GENESIS),
         }
     }
 
@@ -161,6 +186,14 @@ impl TraceFileSink {
     #[must_use]
     pub(super) fn into_error(self) -> Option<std::io::Error> {
         self.error
+    }
+
+    /// The chain HEAD — sha256 of the last written line's exact bytes.
+    /// Printing it (CI logs · scrollback) is the free external anchor
+    /// that upgrades tamper-EVIDENT toward attributable.
+    #[must_use]
+    pub(super) fn chain_head(&self) -> &str {
+        &self.chain
     }
 
     /// Create the directory + the journal file, named from the first
@@ -218,13 +251,28 @@ impl EventSink for TraceFileSink {
         let Lane::Open(writer) = &mut self.lane else {
             return; // Disabled — a deliberate no-op
         };
-        // Mirror JsonSink byte-for-byte (one JSON document per line · flush
-        // per event): the journal must parse wherever the `--json` stream
-        // parses, and the extension's watcher tails it for liveness.
-        let result = serde_json::to_writer(&mut *writer, &event)
+        // One JSON document per line + flush per event (the watcher tails
+        // for liveness). The journal line = the event object PLUS a
+        // `chain` field — sha256 hex of the PREVIOUS line's exact bytes
+        // (genesis: CHAIN_GENESIS). Hashing written bytes, never a
+        // re-serialization, is what makes `trace verify` total: no
+        // canonical-JSON contract to drift. Event consumers ignore the
+        // extra field (tolerant serde — pinned in verify tests).
+        let result = serde_json::to_value(&event)
             .map_err(std::io::Error::from)
-            .and_then(|()| writer.write_all(b"\n"))
-            .and_then(|()| writer.flush());
+            .and_then(|mut value| {
+                if let Some(obj) = value.as_object_mut() {
+                    obj.insert(
+                        "chain".to_owned(),
+                        serde_json::Value::String(self.chain.clone()),
+                    );
+                }
+                let line = serde_json::to_string(&value).map_err(std::io::Error::from)?;
+                self.chain = sha256_hex(line.as_bytes());
+                writer.write_all(line.as_bytes())?;
+                writer.write_all(b"\n")?;
+                writer.flush()
+            });
         if let Err(e) = result {
             self.error = Some(e);
         }
@@ -642,14 +690,29 @@ mod tests {
         assert!(sink.into_error().is_none(), "a writable dir never errors");
 
         let written = std::fs::read(&path).expect("journal readable");
-        assert_eq!(written, expected, "trace file == JsonSink bytes");
-        // split() over adding a bytecount dep for one test assertion
-        // (clippy::naive_bytecount fires on the filter().count() idiom).
-        assert_eq!(
-            written.split(|&b| b == b'\n').count() - 1,
-            events.len(),
-            "one NDJSON line per event"
-        );
+        // The journal = the --json lane PLUS the chain field (0.96): each
+        // line parses to the SAME event with one extra key committing to
+        // the previous line's bytes. Semantic mirror, chained.
+        let jl: Vec<serde_json::Value> = String::from_utf8(written)
+            .expect("utf8")
+            .lines()
+            .map(|l| serde_json::from_str(l).expect("journal line parses"))
+            .collect();
+        let el: Vec<serde_json::Value> = String::from_utf8(expected)
+            .expect("utf8")
+            .lines()
+            .map(|l| serde_json::from_str(l).expect("json line parses"))
+            .collect();
+        assert_eq!(jl.len(), el.len(), "one NDJSON line per event, both lanes");
+        for (j, e) in jl.iter().zip(&el) {
+            let mut j = j.clone();
+            let chain = j
+                .as_object_mut()
+                .and_then(|o| o.remove("chain"))
+                .expect("every journal line carries its chain");
+            assert_eq!(chain.as_str().map(str::len), Some(64), "a full sha256 hex");
+            assert_eq!(&j, e, "the event itself mirrors the --json lane");
+        }
     }
 
     /// The opt-out shape: `disabled()` swallows every event with zero fs
