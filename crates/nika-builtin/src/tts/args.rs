@@ -177,12 +177,7 @@ fn parse_provenance_knobs(
             return Err(BuiltinFailure::new(C_ARGS, "`metadata` must be an object"));
         }
     };
-    let manifest = match args.get("manifest") {
-        None => true,
-        Some(v) => v
-            .as_bool()
-            .ok_or_else(|| BuiltinFailure::new(C_ARGS, "`manifest` must be a boolean"))?,
-    };
+    let manifest = crate::strict_bool(args, "manifest", true, C_ARGS)?;
     Ok((metadata, manifest))
 }
 

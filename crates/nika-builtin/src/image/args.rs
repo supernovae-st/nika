@@ -140,8 +140,8 @@ pub(crate) fn parse(args: &Args) -> Result<ImageArgs, BuiltinFailure> {
     let provider_options = parse_provider_options(args, provider, &mut warnings)?;
     let timeout = parse_timeout(args, provider)?;
 
-    let manifest = crate::opt_bool(args, "manifest", true);
-    let debug = crate::opt_bool(args, "debug", false);
+    let manifest = crate::strict_bool(args, "manifest", true, C_ARGS)?;
+    let debug = crate::strict_bool(args, "debug", false, C_ARGS)?;
     let filename_prefix = opt_str(args, "filename_prefix", C_ARGS)?.map(str::to_owned);
     let metadata = match args.get("metadata") {
         None => serde_json::Map::new(),
@@ -190,7 +190,10 @@ fn reject_v1_unsupported(args: &Args) -> Result<(), BuiltinFailure> {
              reference-image composition is on the media roadmap",
         ));
     }
-    if args.get("save").and_then(serde_json::Value::as_bool) == Some(false) {
+    // `save:` is strict-bool read (a present non-bool like `save: "false"` is
+    // a LOUD error, never silently ignored — same footgun class as overwrite),
+    // THEN a real `save: false` hits the V1-unsupported rejection below.
+    if !crate::strict_bool(args, "save", true, C_ARGS)? {
         return Err(BuiltinFailure::new(
             C_ARGS,
             "`save: false` is not supported — V1 always writes assets to \
@@ -1231,6 +1234,30 @@ mod tests {
         // …but the same prompt is fine on mock (no documented cap).
         let long = "x".repeat(32_001);
         assert!(parse(&base(serde_json::json!({ "prompt": long }))).is_ok());
+    }
+
+    #[test]
+    fn save_string_false_is_loud_not_silently_ignored() {
+        // The reviewer-flagged lax-read gap: `save:` used `as_bool() ==
+        // Some(false)`, so `save: "false"` (string) → None → the V1-unsupported
+        // rejection did NOT fire → the provider was invoked as if save were
+        // never given. Now strict: a present non-bool save is a LOUD error.
+        let string_false = parse(&base(serde_json::json!({ "save": "false" })));
+        assert!(
+            matches!(&string_false, Err(f) if f.message.contains("save") && f.message.contains("boolean")),
+            "string save is a loud boolean error: {string_false:?}"
+        );
+        // …and a real boolean `save: false` still hits the V1-unsupported msg.
+        let bool_false = parse(&base(serde_json::json!({ "save": false })));
+        assert!(
+            matches!(&bool_false, Err(f) if f.message.contains("not supported")),
+            "bool save:false is the V1-unsupported rejection: {bool_false:?}"
+        );
+        // …absent (the default) is fine — V1 always saves.
+        assert!(
+            parse(&base(serde_json::json!({}))).is_ok(),
+            "save absent = ok"
+        );
     }
 
     #[test]
