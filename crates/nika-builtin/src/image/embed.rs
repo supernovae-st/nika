@@ -108,9 +108,10 @@ mod tests {
     }
 
     fn mock_png() -> Vec<u8> {
-        let batch = super::super::mock::generate(&parsed(serde_json::json!({
-            "size": "32x24", "seed": 7
-        })))
+        let batch = super::super::mock::generate(
+            &parsed(serde_json::json!({ "size": "32x24", "seed": 7 })),
+            &[],
+        )
         .expect("mock");
         batch.images.into_iter().next().expect("one").bytes
     }

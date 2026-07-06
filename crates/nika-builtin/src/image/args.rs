@@ -14,7 +14,9 @@ use std::time::Duration;
 
 use crate::{Args, BuiltinFailure, opt_str};
 
-use super::types::{AspectRatio, Background, C_ARGS, ImageFormat, Provider, Quality, SizeSpec};
+use super::types::{
+    AspectRatio, Background, C_ARGS, ImageFormat, Mode, Provider, Quality, SizeSpec,
+};
 
 /// Default request deadline — image generation routinely runs 30–120s
 /// (`OpenAI` documents « up to 2 minutes » for complex prompts); the fetch
@@ -40,6 +42,16 @@ const SIZE_EDGE_RANGE: std::ops::RangeInclusive<u32> = 16..=8_192;
 pub(crate) struct ImageArgs {
     pub(crate) provider: Provider,
     pub(crate) model: String,
+    /// `generate` (default) or `edit`. In edit mode the prompt is an
+    /// EDIT INSTRUCTION and `input_paths` carries the source image(s).
+    pub(crate) mode: Mode,
+    /// `mode: edit` source image paths (read + permit-gated at run-time ·
+    /// empty in generate mode). Capped per provider at parse.
+    pub(crate) input_paths: Vec<String>,
+    /// `mode: edit` optional mask path (only providers with pixel-mask
+    /// support accept it · a mask on an instruction-only provider is a
+    /// LOUD refusal, never a silent drop · Vercel #14360).
+    pub(crate) mask_path: Option<String>,
     pub(crate) prompt: String,
     pub(crate) n: u32,
     pub(crate) size: SizeSpec,
@@ -104,6 +116,8 @@ pub(crate) fn parse(args: &Args) -> Result<ImageArgs, BuiltinFailure> {
 
     let (provider, model) = resolve_provider_model(args, &mut warnings)?;
 
+    let (mode, input_paths, mask_path) = parse_edit(args, provider)?;
+
     if provider == Provider::Openai && prompt.chars().count() > OPENAI_MAX_PROMPT_CHARS {
         return Err(BuiltinFailure::new(
             C_ARGS,
@@ -143,6 +157,9 @@ pub(crate) fn parse(args: &Args) -> Result<ImageArgs, BuiltinFailure> {
     Ok(ImageArgs {
         provider,
         model,
+        mode,
+        input_paths,
+        mask_path,
         prompt,
         n,
         size,
@@ -166,22 +183,6 @@ pub(crate) fn parse(args: &Args) -> Result<ImageArgs, BuiltinFailure> {
 /// The V1-boundary rejections — structurally reserved options that are
 /// NOT silently ignored and NOT half-implemented (mission contract).
 fn reject_v1_unsupported(args: &Args) -> Result<(), BuiltinFailure> {
-    match opt_str(args, "mode", C_ARGS)? {
-        None | Some("generate") => {}
-        Some("edit") => {
-            return Err(BuiltinFailure::new(
-                C_ARGS,
-                "`mode: edit` is not supported yet — V1 ships `generate` only; image \
-                 editing (reference-image edits) is on the media roadmap",
-            ));
-        }
-        Some(other) => {
-            return Err(BuiltinFailure::new(
-                C_ARGS,
-                format!("`mode: {other}` is not a mode — V1 supports `generate`"),
-            ));
-        }
-    }
     if args.contains_key("reference_images") {
         return Err(BuiltinFailure::new(
             C_ARGS,
@@ -198,6 +199,126 @@ fn reject_v1_unsupported(args: &Args) -> Result<(), BuiltinFailure> {
         ));
     }
     Ok(())
+}
+
+/// Per-provider `mode: edit` cap on the number of source images (the
+/// documented multi-reference limits · research-verified 2026-07).
+fn edit_image_cap(provider: Provider) -> usize {
+    match provider {
+        Provider::Openai => 16,
+        Provider::Gemini => 14,
+        Provider::Xai => 3,
+        Provider::Local | Provider::Mock => 8,
+    }
+}
+
+/// Whether the provider supports a PIXEL mask (`mask:`) — openai/local
+/// inpaint do; gemini/xai are instruction-only. A mask on an
+/// instruction-only provider is REFUSED, never silently dropped (the
+/// output would be wrong outside the intended region · Vercel #14360).
+fn supports_pixel_mask(provider: Provider) -> bool {
+    matches!(
+        provider,
+        Provider::Openai | Provider::Local | Provider::Mock
+    )
+}
+
+/// Parse the `mode:` and, in edit mode, the source `image:`/`images:` +
+/// optional `mask:` PATHS (bytes are read + permit-gated at run-time).
+fn parse_edit(
+    args: &Args,
+    provider: Provider,
+) -> Result<(Mode, Vec<String>, Option<String>), BuiltinFailure> {
+    let mode = match opt_str(args, "mode", C_ARGS)? {
+        None | Some("generate") => Mode::Generate,
+        Some("edit") => Mode::Edit,
+        Some(other) => {
+            return Err(BuiltinFailure::new(
+                C_ARGS,
+                format!("`mode: {other}` is not a mode — one of generate · edit"),
+            ));
+        }
+    };
+    if mode == Mode::Generate {
+        for key in ["image", "images", "mask"] {
+            if args.contains_key(key) {
+                return Err(BuiltinFailure::new(
+                    C_ARGS,
+                    format!("`{key}:` requires `mode: edit`"),
+                ));
+            }
+        }
+        return Ok((Mode::Generate, Vec::new(), None));
+    }
+
+    // edit: collect image(s) — `image:` (one) XOR `images:` (many).
+    let mut input_paths = Vec::new();
+    match (args.get("image"), args.get("images")) {
+        (Some(_), Some(_)) => {
+            return Err(BuiltinFailure::new(
+                C_ARGS,
+                "`image:` and `images:` are mutually exclusive — use one",
+            ));
+        }
+        (Some(one), None) => {
+            let path = one.as_str().map(str::trim).filter(|s| !s.is_empty());
+            input_paths.push(
+                path.ok_or_else(|| {
+                    BuiltinFailure::new(C_ARGS, "`image:` must be a non-empty path string")
+                })?
+                .to_owned(),
+            );
+        }
+        (None, Some(serde_json::Value::Array(items))) => {
+            for item in items {
+                let path = item.as_str().map(str::trim).filter(|s| !s.is_empty());
+                input_paths.push(
+                    path.ok_or_else(|| {
+                        BuiltinFailure::new(C_ARGS, "each `images:` entry must be a path string")
+                    })?
+                    .to_owned(),
+                );
+            }
+        }
+        (None, Some(_)) => {
+            return Err(BuiltinFailure::new(
+                C_ARGS,
+                "`images:` must be an array of paths",
+            ));
+        }
+        (None, None) => {
+            return Err(BuiltinFailure::new(
+                C_ARGS,
+                "`mode: edit` requires `image:` (a path) or `images:` (paths)",
+            ));
+        }
+    }
+    let cap = edit_image_cap(provider);
+    if input_paths.len() > cap {
+        return Err(BuiltinFailure::new(
+            C_ARGS,
+            format!(
+                "{} source images — {} accepts at most {cap} for edits",
+                input_paths.len(),
+                provider.id()
+            ),
+        ));
+    }
+
+    let mask_path = opt_str(args, "mask", C_ARGS)?.map(str::to_owned);
+    if mask_path.is_some() && !supports_pixel_mask(provider) {
+        return Err(BuiltinFailure::new(
+            C_ARGS,
+            format!(
+                "`mask:` is not supported by `{}` — it edits by instruction only \
+                 (a silently-dropped mask edits the wrong region · use gpt-image \
+                 for pixel masks, or drop `mask:` and describe the edit)",
+                provider.id()
+            ),
+        ));
+    }
+
+    Ok((Mode::Edit, input_paths, mask_path))
 }
 
 /// Resolve `(provider, model)` — explicit `provider:` wins; else inferred
@@ -740,9 +861,73 @@ mod tests {
     }
 
     #[test]
+    fn edit_mode_parses_inputs_caps_and_refuses_masks_honestly() {
+        let base_edit = |extra: serde_json::Value| {
+            let serde_json::Value::Object(mut m) = serde_json::json!({
+                "provider": "mock", "mode": "edit", "prompt": "make it night",
+                "output_dir": "./out"
+            }) else {
+                unreachable!()
+            };
+            if let serde_json::Value::Object(e) = extra {
+                m.extend(e);
+            }
+            m
+        };
+        // single image path.
+        let one = parse(&base_edit(serde_json::json!({ "image": "hero.png" }))).expect("valid");
+        assert_eq!(one.mode, Mode::Edit);
+        assert_eq!(one.input_paths, vec!["hero.png".to_owned()]);
+        // images[] array.
+        let many = parse(&base_edit(
+            serde_json::json!({ "images": ["a.png", "b.png"] }),
+        ))
+        .expect("valid");
+        assert_eq!(many.input_paths.len(), 2);
+        // image XOR images.
+        assert!(
+            parse(&base_edit(
+                serde_json::json!({ "image": "a", "images": ["b"] })
+            ))
+            .is_err()
+        );
+        // cap: xai edits ≤3.
+        let over = parse(&{
+            let mut m = base_edit(serde_json::json!({
+                "provider": "xai", "images": ["a", "b", "c", "d"]
+            }));
+            m.remove("prompt");
+            m.insert("prompt".into(), "x".into());
+            m
+        });
+        assert!(over.is_err(), "xai caps edits at 3");
+        // mask on mock (pixel-mask ok) parses; mask on xai (instruction-only) refuses.
+        let masked = parse(&base_edit(
+            serde_json::json!({ "image": "a.png", "mask": "m.png" }),
+        ))
+        .expect("ok");
+        assert_eq!(masked.mask_path.as_deref(), Some("m.png"));
+        let xai_mask = parse(&base_edit(serde_json::json!({
+            "provider": "xai", "image": "a.png", "mask": "m.png"
+        })));
+        assert!(
+            xai_mask.is_err(),
+            "mask on instruction-only provider is refused"
+        );
+        assert!(
+            xai_mask.unwrap_err().message.contains("instruction"),
+            "the refusal names why"
+        );
+        // edit-only keys refused in generate mode.
+        assert!(parse(&base(serde_json::json!({ "image": "a.png" }))).is_err());
+    }
+
+    #[test]
     fn v1_unsupported_options_are_loud_never_silent() {
-        let edit = parse(&base(serde_json::json!({ "mode": "edit" }))).expect_err("edit");
-        assert!(edit.message.contains("roadmap"), "{}", edit.message);
+        // `mode: edit` now PARSES (M2.2) — the honest refusal moved to a
+        // missing source image, not the mode itself.
+        let no_img = parse(&base(serde_json::json!({ "mode": "edit" }))).expect_err("no image");
+        assert!(no_img.message.contains("image:"), "{}", no_img.message);
         let refs = parse(&base(serde_json::json!({ "reference_images": ["a.png"] })))
             .expect_err("reference_images");
         assert!(refs.message.contains("roadmap"), "{}", refs.message);

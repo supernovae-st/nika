@@ -373,7 +373,7 @@ mod tests {
     /// the way the wire carries it.
     fn wire_png_b64() -> (String, Vec<u8>) {
         let mock_args = parsed(serde_json::json!({ "provider": "mock", "size": "24x16" }));
-        let batch = super::super::mock::generate(&mock_args).expect("mock png");
+        let batch = super::super::mock::generate(&mock_args, &[]).expect("mock png");
         let bytes = batch.images.into_iter().next().expect("one").bytes;
         (crate::data::base64_encode(&bytes), bytes)
     }

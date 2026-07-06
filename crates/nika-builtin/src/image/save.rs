@@ -308,7 +308,7 @@ mod tests {
             Path::new("/tmp"),
             serde_json::json!({ "size": "24x16", "seed": seed }),
         );
-        let batch = super::super::mock::generate(&args).expect("mock");
+        let batch = super::super::mock::generate(&args, &[]).expect("mock");
         let image = batch.images.into_iter().next().expect("one image");
         let sniffed = sniff(&image.bytes).expect("sniffs");
         (image, sniffed, Vec::new())

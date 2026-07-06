@@ -225,14 +225,17 @@ mod tests {
             None,
             "our own chunk is not C2PA"
         );
-        let mock = super::super::mock::generate(&{
-            let serde_json::Value::Object(map) = serde_json::json!({
-                "provider": "mock", "prompt": "clean", "output_dir": "./out"
-            }) else {
-                unreachable!()
-            };
-            super::super::args::parse(&map).expect("valid")
-        })
+        let mock = super::super::mock::generate(
+            &{
+                let serde_json::Value::Object(map) = serde_json::json!({
+                    "provider": "mock", "prompt": "clean", "output_dir": "./out"
+                }) else {
+                    unreachable!()
+                };
+                super::super::args::parse(&map).expect("valid")
+            },
+            &[],
+        )
         .expect("mock");
         assert_eq!(
             detect(&mock.images[0].bytes),

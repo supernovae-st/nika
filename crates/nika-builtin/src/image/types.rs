@@ -23,6 +23,38 @@ pub(crate) const C_SAVE: &str = "NIKA-BUILTIN-IMAGE_GENERATE-006";
 /// 007 — decoded image failed validation (magic bytes · dimensions · size).
 pub(crate) const C_VALIDATE: &str = "NIKA-BUILTIN-IMAGE_GENERATE-007";
 
+/// The generation mode — `generate` (text→image · default) or `edit`
+/// (input image(s) + instruction → image · reads are permit-gated, the
+/// mirror of the save boundary).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Mode {
+    Generate,
+    Edit,
+}
+
+impl Mode {
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::Generate => "generate",
+            Self::Edit => "edit",
+        }
+    }
+}
+
+/// One input image read from disk for `mode: edit` — the bytes + the
+/// sniffed format + the path/sha for the provenance chain.
+///
+/// M-A stores the identity (path · sha · format) that the mock edit and
+/// the manifest provenance chain need; the wire adapters (M-A.2) will add
+/// the byte payload they data-URL-encode. Growing the struct then is
+/// additive and behavior-free.
+#[derive(Debug, Clone)]
+pub(crate) struct InputImage {
+    pub(crate) path: String,
+    pub(crate) format: ImageFormat,
+    pub(crate) sha256: String,
+}
+
 /// The v1.1 image providers — a closed set (local + xai joined 2026-07-05
 /// per the Rule-3 sovereignty review · mock for offline CI/docs).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -30,6 +30,7 @@ const MANIFEST_VERSION: u32 = 1;
 #[allow(clippy::too_many_arguments)] // a pure projection of the pipeline's products
 pub(crate) fn build(
     args: &ImageArgs,
+    inputs: &[super::types::InputImage],
     saved: &[SavedImage],
     usage: Usage,
     cost_usd: Option<f64>,
@@ -48,7 +49,8 @@ pub(crate) fn build(
         "created_at": created_at,
         "provider": args.provider.id(),
         "model": args.model,
-        "mode": "generate",
+        "mode": args.mode.name(),
+        "source_images": inputs.iter().map(|i| serde_json::json!({ "path": i.path, "sha256": i.sha256, "format": i.format.name() })).collect::<Vec<_>>(),
         "endpoint_host": endpoint_host,
         "prompt": args.prompt,
         "revised_prompt": revised_prompt,
@@ -208,6 +210,7 @@ mod tests {
         let args = parsed(&root);
         let manifest = build(
             &args,
+            &[],
             &[saved_fixture()],
             Usage {
                 input_tokens: Some(10),
@@ -256,6 +259,7 @@ mod tests {
         let a = build(
             &args,
             &[],
+            &[],
             Usage::default(),
             None,
             None,
@@ -267,6 +271,7 @@ mod tests {
         );
         let b = build(
             &args,
+            &[],
             &[],
             Usage::default(),
             None,
@@ -282,6 +287,7 @@ mod tests {
         other.prompt = "different".into();
         let c = build(
             &other,
+            &[],
             &[],
             Usage::default(),
             None,
@@ -319,6 +325,7 @@ mod tests {
         let saved = vec![saved_fixture()];
         let manifest = build(
             &args,
+            &[],
             &saved,
             Usage::default(),
             None,
