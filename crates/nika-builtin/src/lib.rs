@@ -669,6 +669,29 @@ pub(crate) fn strict_bool(
     }
 }
 
+/// A strict optional `u64` arg — absent → `None`, a real JSON non-negative
+/// integer → `Some(n)`, anything else (a string `"3"`, a float, a negative,
+/// a boolean) → a LOUD error. The numeric sibling of [`strict_bool`] and
+/// [`opt_str`]: a PRESENT non-integer is an authoring bug, never silently the
+/// default. Closes the `count: "3"` footgun — a lax `and_then(as_u64)` reads
+/// the string as `None` and falls through to the "unbounded" default (e.g.
+/// `nika:edit` replacing EVERY match instead of the intended 3).
+pub(crate) fn strict_u64(
+    args: &Args,
+    key: &str,
+    code: &'static str,
+) -> Result<Option<u64>, BuiltinFailure> {
+    match args.get(key) {
+        None => Ok(None),
+        Some(v) => v.as_u64().map(Some).ok_or_else(|| {
+            BuiltinFailure::new(
+                code,
+                format!("`{key}:` must be a non-negative integer, not {v}"),
+            )
+        }),
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod test_rig {
     use super::*;

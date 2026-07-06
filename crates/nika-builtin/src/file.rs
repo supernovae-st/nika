@@ -9,7 +9,7 @@ use std::path::Path;
 use nika_kernel::io::fs::{FsError, FsListDyn, FsReadDyn, FsWriteDyn};
 
 use crate::permits::{FsAccess, FsBoundary};
-use crate::{Args, BuiltinFailure, BuiltinOutcome, req_str, strict_bool};
+use crate::{Args, BuiltinFailure, BuiltinOutcome, req_str, strict_bool, strict_u64};
 
 /// `nika:read` — text (default) or binary. Returns the file content.
 pub(crate) async fn read<F: FsReadDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
@@ -165,7 +165,11 @@ pub(crate) async fn edit<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Buil
             format!("`find:` matched nothing in {path}"),
         ));
     }
-    let edited = match args.get("count").and_then(serde_json::Value::as_u64) {
+    // `count:` is a strict optional integer — a present non-integer (the
+    // `count: "3"` string slip) is a LOUD error, never silently the "replace
+    // ALL" default (which would over-edit the file · the intent-inversion
+    // footgun class, sibling of overwrite/has_header).
+    let edited = match strict_u64(args, "count", C1)? {
         Some(cap) => {
             let cap = usize::try_from(cap)
                 .map_err(|_| BuiltinFailure::new(C1, "`count:` is out of range"))?;
@@ -669,6 +673,37 @@ mod tests {
         )
         .await;
         assert!(matches!(nomatch, Err(f) if f.code == "NIKA-BUILTIN-EDIT-001"));
+    }
+
+    #[tokio::test]
+    async fn edit_count_string_is_loud_not_a_silent_replace_all() {
+        // The intent-inversion footgun (sibling of overwrite:"false"): a
+        // STRING count "2" parsed via a lax `and_then(as_u64)` reads as None
+        // and falls through to replace-ALL — the author wanted 2 replaced but
+        // silently gets every match. Now strict: a present non-integer count is
+        // a LOUD EDIT-001, and the file is left untouched.
+        let fs = MockFs::new().with_file("d.txt", "a a a a");
+        let loud = edit(
+            &fs,
+            &args(serde_json::json!({
+                "path": "d.txt", "find": "a", "replace": "b", "count": "2"
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&loud, Err(f) if f.code == "NIKA-BUILTIN-EDIT-001"
+                && f.message.contains("count") && f.message.contains("integer")),
+            "string count is a loud EDIT-001, not a silent replace-all: {loud:?}"
+        );
+        // The file is untouched — the guard fired before the write.
+        let after = read(&fs, &args(serde_json::json!({ "path": "d.txt" })))
+            .await
+            .expect("ok");
+        assert_eq!(
+            after,
+            serde_json::Value::String("a a a a".to_owned()),
+            "the file survives the string-count footgun (no over-edit)"
+        );
     }
 
     #[tokio::test]
