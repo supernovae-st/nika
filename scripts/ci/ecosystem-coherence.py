@@ -59,6 +59,12 @@ def mm(v):
     return ".".join(v.lstrip("v").split(".")[:2])
 
 
+def semver_key(v):
+    """`0.97.0` / `0.97.0-rc1` → (0, 97, 0) — a pre-release suffix must
+    never crash the nightly (int("0-rc1") did, latently)."""
+    return tuple(int(part.split("-")[0].split("+")[0]) for part in v.lstrip("v").split(".")[:3])
+
+
 def main():
     rel = json.loads(fetch("https://api.github.com/repos/supernovae-st/nika/releases/latest"))
     tag = rel["tag_name"].lstrip("v")
@@ -127,7 +133,7 @@ def main():
 
     # Lockstep-at-convergence · WARN preview below 0.97 · FAIL from 0.97.
     if engine_main:
-        lock_sev = "FAIL" if tuple(map(int, engine_main.split("."))) >= (0, 97, 0) else "WARN"
+        lock_sev = "FAIL" if semver_key(engine_main) >= (0, 97, 0) else "WARN"
         for name, ver in (("vscode", vscode_repo), ("client-sdk", sdk_repo)):
             if ver and mm(ver) != mm(engine_main):
                 FINDINGS.append((lock_sev, f"lockstep {name}",
@@ -142,4 +148,8 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as exc:  # noqa: BLE001 — a dead bot must still say why
+        print(f"FAIL  bot              crashed: {exc.__class__.__name__}: {exc}", file=sys.stderr)
+        sys.exit(1)

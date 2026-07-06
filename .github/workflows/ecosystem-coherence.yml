@@ -21,6 +21,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Self-test the bot (offline decision table — grace · lockstep · pre-release · dark surfaces)
+        run: python3 scripts/ci/test-ecosystem-coherence.py
       - name: Run the coherence bot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
