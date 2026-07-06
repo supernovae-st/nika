@@ -275,6 +275,27 @@ fn check_json_is_the_report_plus_clean_flag_never_coloured() {
 }
 
 #[test]
+fn check_json_conformance_carries_severity_and_docs_url() {
+    // The agent-loop wire: every conformance finding stamps its own
+    // severity + per-code docs page (the rustc --explain move, machine
+    // form). Consumers link the code without re-deriving anything.
+    let broken = WORKFLOW.replace("depends_on: [gather, probe]", "depends_on: [ghost]");
+    let path = fixture_path("check-severity.nika.yaml", &broken);
+    let out = check::run(&path, true, PLAIN);
+    let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
+    let c = &doc["conformance"][0];
+    assert_eq!(c["severity"], "error");
+    let url = c["docs_url"].as_str().expect("docs_url string");
+    assert_eq!(
+        url,
+        format!(
+            "https://nika.sh/errors/{}",
+            c["code"].as_str().expect("code")
+        )
+    );
+}
+
+#[test]
 fn check_parse_error_is_a_file_finding_exit_2() {
     let path = fixture_path("check-parse.nika.yaml", "nika: v1\nworkflow: [broken");
     let out = check::run(&path, false, PLAIN);

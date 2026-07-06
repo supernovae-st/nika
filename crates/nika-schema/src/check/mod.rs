@@ -86,6 +86,29 @@ impl ByteSpan {
     }
 }
 
+/// The base URL of the per-code error pages (`<base>/<CODE>`) — the
+/// human twin of the machine registry served at
+/// `https://nika.sh/errors/catalog.json`. Findings stamp their own
+/// [`ConformanceViolation::docs_url`] from it so consumers never
+/// hardcode the scheme.
+pub const ERROR_DOCS_BASE: &str = "https://nika.sh/errors";
+
+/// A finding's severity, stamped BY the engine (the one truth — no
+/// consumer re-derives it from the code or the family). `lowercase`
+/// on the wire (`"error"`). Additive: `report_version` stays 1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum FindingSeverity {
+    /// The workflow will not run correctly — fails `is_clean`.
+    Error,
+    /// Suspicious but runnable (reserved — no warning-grade
+    /// conformance rule exists today).
+    Warning,
+    /// Advisory (reserved for future finding families).
+    Info,
+}
+
 /// One Core-conformance violation, in report shape (the canonical spec
 /// code + the rendered message, which carries the location and any
 /// did-you-mean repair).
@@ -101,6 +124,15 @@ pub struct ConformanceViolation {
     /// diagnostics for workflow YAML). Additive: `report_version`
     /// stays 1.
     pub span: Option<ByteSpan>,
+    /// Engine-stamped severity — conformance violations are always
+    /// [`FindingSeverity::Error`] (they block the DAG). Additive:
+    /// `report_version` stays 1.
+    pub severity: FindingSeverity,
+    /// The per-code documentation page
+    /// (`https://nika.sh/errors/<CODE>` · [`ERROR_DOCS_BASE`]) —
+    /// editors surface the code as a clickable link. Additive:
+    /// `report_version` stays 1.
+    pub docs_url: String,
 }
 
 /// The static pre-flight report — everything `nika check` learns without
@@ -252,13 +284,19 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         Err(errors) => (
             errors
                 .iter()
-                .map(|e| ConformanceViolation {
-                    code: e.spec_code().to_string(),
-                    message: e.to_string(),
-                    span: e.span().map(|s| ByteSpan {
-                        start: s.start.0,
-                        end: s.end.0,
-                    }),
+                .map(|e| {
+                    let code = e.spec_code().to_string();
+                    let docs_url = format!("{ERROR_DOCS_BASE}/{code}");
+                    ConformanceViolation {
+                        code,
+                        message: e.to_string(),
+                        span: e.span().map(|s| ByteSpan {
+                            start: s.start.0,
+                            end: s.end.0,
+                        }),
+                        severity: FindingSeverity::Error,
+                        docs_url,
+                    }
                 })
                 .collect(),
             Vec::new(),
@@ -322,6 +360,39 @@ mod tests {
     fn check_yaml(yaml: &str) -> CheckReport {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         check(&wf)
+    }
+
+    #[test]
+    fn conformance_violations_carry_severity_and_docs_url() {
+        // An unresolved dependency -> a conformance violation. The finding
+        // must stamp its own severity AND the canonical docs URL so every
+        // consumer (extension diagnostics, agent loops, CI) reads ONE
+        // truth without re-deriving either.
+        let r = check_yaml(
+            "\
+nika: v1
+workflow: t
+tasks:
+  - id: a
+    depends_on: [ghost]
+    exec: { command: \"echo hi\" }
+",
+        );
+        assert!(!r.conformance.is_empty());
+        let v = &r.conformance[0];
+        assert_eq!(v.severity, FindingSeverity::Error);
+        assert_eq!(v.docs_url, format!("{ERROR_DOCS_BASE}/{}", v.code));
+
+        // The wire form: lowercase severity, absolute per-code URL.
+        let json = serde_json::to_value(&r).expect("report serializes");
+        let c = &json["conformance"][0];
+        assert_eq!(c["severity"], "error");
+        assert!(
+            c["docs_url"]
+                .as_str()
+                .expect("docs_url is a string")
+                .starts_with("https://nika.sh/errors/NIKA-"),
+        );
     }
 
     #[test]

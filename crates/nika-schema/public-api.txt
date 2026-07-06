@@ -47,6 +47,56 @@ impl<T> nika_error::traits::AsAny for nika_schema::analyzer::AnalyzedWorkflow wh
 pub fn nika_schema::analyzer::AnalyzedWorkflow::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_schema::analyzer::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_schema::analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
 pub mod nika_schema::check
+#[non_exhaustive] pub enum nika_schema::check::FindingSeverity
+pub nika_schema::check::FindingSeverity::Error
+pub nika_schema::check::FindingSeverity::Info
+pub nika_schema::check::FindingSeverity::Warning
+impl core::clone::Clone for nika_schema::check::FindingSeverity
+pub fn nika_schema::check::FindingSeverity::clone(&self) -> nika_schema::check::FindingSeverity
+impl core::cmp::Eq for nika_schema::check::FindingSeverity
+impl core::cmp::PartialEq for nika_schema::check::FindingSeverity
+pub fn nika_schema::check::FindingSeverity::eq(&self, other: &nika_schema::check::FindingSeverity) -> bool
+impl core::fmt::Debug for nika_schema::check::FindingSeverity
+pub fn nika_schema::check::FindingSeverity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::check::FindingSeverity
+impl core::marker::StructuralPartialEq for nika_schema::check::FindingSeverity
+impl serde_core::ser::Serialize for nika_schema::check::FindingSeverity
+pub fn nika_schema::check::FindingSeverity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_schema::check::FindingSeverity
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::FindingSeverity::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::FindingSeverity::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::check::FindingSeverity::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::check::FindingSeverity where U: core::convert::From<T>
+pub fn nika_schema::check::FindingSeverity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::check::FindingSeverity where U: core::convert::Into<T>
+pub type nika_schema::check::FindingSeverity::Error = core::convert::Infallible
+pub fn nika_schema::check::FindingSeverity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::check::FindingSeverity where U: core::convert::TryFrom<T>
+pub type nika_schema::check::FindingSeverity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::check::FindingSeverity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::check::FindingSeverity where T: core::clone::Clone
+pub type nika_schema::check::FindingSeverity::Owned = T
+pub fn nika_schema::check::FindingSeverity::clone_into(&self, target: &mut T)
+pub fn nika_schema::check::FindingSeverity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::check::FindingSeverity where T: 'static + ?core::marker::Sized
+pub fn nika_schema::check::FindingSeverity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::check::FindingSeverity where T: ?core::marker::Sized
+pub fn nika_schema::check::FindingSeverity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::check::FindingSeverity where T: ?core::marker::Sized
+pub fn nika_schema::check::FindingSeverity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::check::FindingSeverity where T: core::clone::Clone
+pub unsafe fn nika_schema::check::FindingSeverity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::check::FindingSeverity
+pub fn nika_schema::check::FindingSeverity::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::check::FindingSeverity where T: core::clone::Clone
+pub fn nika_schema::check::FindingSeverity::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::check::FindingSeverity where T: 'static
+pub fn nika_schema::check::FindingSeverity::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_schema::check::FindingSeverity where T: core::marker::Copy
+pub fn nika_schema::check::FindingSeverity::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_schema::check::GateFindingKind
 pub nika_schema::check::GateFindingKind::BadStatusLiteral
 pub nika_schema::check::GateFindingKind::DeadTask
@@ -396,7 +446,9 @@ impl<T> nika_error::traits::AsAny for nika_schema::check::CheckReport where T: '
 pub fn nika_schema::check::CheckReport::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::check::ConformanceViolation
 pub nika_schema::check::ConformanceViolation::code: alloc::string::String
+pub nika_schema::check::ConformanceViolation::docs_url: alloc::string::String
 pub nika_schema::check::ConformanceViolation::message: alloc::string::String
+pub nika_schema::check::ConformanceViolation::severity: nika_schema::check::FindingSeverity
 pub nika_schema::check::ConformanceViolation::span: core::option::Option<nika_schema::check::ByteSpan>
 impl core::clone::Clone for nika_schema::check::ConformanceViolation
 pub fn nika_schema::check::ConformanceViolation::clone(&self) -> nika_schema::check::ConformanceViolation
@@ -1207,6 +1259,7 @@ impl<T> dyn_clone::DynClone for nika_schema::UnknownTool where T: core::clone::C
 pub fn nika_schema::UnknownTool::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::UnknownTool where T: 'static
 pub fn nika_schema::UnknownTool::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_schema::check::ERROR_DOCS_BASE: &str
 pub const nika_schema::check::REPORT_VERSION: u32
 pub const nika_schema::check::STATUS_VOCAB: [&str; 4]
 pub fn nika_schema::check::check(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_schema::check::CheckReport
@@ -5363,6 +5416,56 @@ pub fn nika_schema::types::extract::ExtractMode::as_any(&self) -> &(dyn core::an
 impl<T> outref::AsOut<T> for nika_schema::types::extract::ExtractMode where T: core::marker::Copy
 pub fn nika_schema::types::extract::ExtractMode::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> serde_core::de::DeserializeOwned for nika_schema::types::extract::ExtractMode where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_schema::FindingSeverity
+pub nika_schema::FindingSeverity::Error
+pub nika_schema::FindingSeverity::Info
+pub nika_schema::FindingSeverity::Warning
+impl core::clone::Clone for nika_schema::check::FindingSeverity
+pub fn nika_schema::check::FindingSeverity::clone(&self) -> nika_schema::check::FindingSeverity
+impl core::cmp::Eq for nika_schema::check::FindingSeverity
+impl core::cmp::PartialEq for nika_schema::check::FindingSeverity
+pub fn nika_schema::check::FindingSeverity::eq(&self, other: &nika_schema::check::FindingSeverity) -> bool
+impl core::fmt::Debug for nika_schema::check::FindingSeverity
+pub fn nika_schema::check::FindingSeverity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::check::FindingSeverity
+impl core::marker::StructuralPartialEq for nika_schema::check::FindingSeverity
+impl serde_core::ser::Serialize for nika_schema::check::FindingSeverity
+pub fn nika_schema::check::FindingSeverity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_schema::check::FindingSeverity
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::FindingSeverity::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::FindingSeverity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::FindingSeverity::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::check::FindingSeverity::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::check::FindingSeverity where U: core::convert::From<T>
+pub fn nika_schema::check::FindingSeverity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::check::FindingSeverity where U: core::convert::Into<T>
+pub type nika_schema::check::FindingSeverity::Error = core::convert::Infallible
+pub fn nika_schema::check::FindingSeverity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::check::FindingSeverity where U: core::convert::TryFrom<T>
+pub type nika_schema::check::FindingSeverity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::check::FindingSeverity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::check::FindingSeverity where T: core::clone::Clone
+pub type nika_schema::check::FindingSeverity::Owned = T
+pub fn nika_schema::check::FindingSeverity::clone_into(&self, target: &mut T)
+pub fn nika_schema::check::FindingSeverity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::check::FindingSeverity where T: 'static + ?core::marker::Sized
+pub fn nika_schema::check::FindingSeverity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::check::FindingSeverity where T: ?core::marker::Sized
+pub fn nika_schema::check::FindingSeverity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::check::FindingSeverity where T: ?core::marker::Sized
+pub fn nika_schema::check::FindingSeverity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::check::FindingSeverity where T: core::clone::Clone
+pub unsafe fn nika_schema::check::FindingSeverity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::check::FindingSeverity
+pub fn nika_schema::check::FindingSeverity::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::check::FindingSeverity where T: core::clone::Clone
+pub fn nika_schema::check::FindingSeverity::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::check::FindingSeverity where T: 'static
+pub fn nika_schema::check::FindingSeverity::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_schema::check::FindingSeverity where T: core::marker::Copy
+pub fn nika_schema::check::FindingSeverity::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_schema::GateFindingKind
 pub nika_schema::GateFindingKind::BadStatusLiteral
 pub nika_schema::GateFindingKind::DeadTask
@@ -6415,7 +6518,9 @@ impl<T> nika_error::traits::AsAny for nika_schema::check::CheckReport where T: '
 pub fn nika_schema::check::CheckReport::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::ConformanceViolation
 pub nika_schema::ConformanceViolation::code: alloc::string::String
+pub nika_schema::ConformanceViolation::docs_url: alloc::string::String
 pub nika_schema::ConformanceViolation::message: alloc::string::String
+pub nika_schema::ConformanceViolation::severity: nika_schema::check::FindingSeverity
 pub nika_schema::ConformanceViolation::span: core::option::Option<nika_schema::check::ByteSpan>
 impl core::clone::Clone for nika_schema::check::ConformanceViolation
 pub fn nika_schema::check::ConformanceViolation::clone(&self) -> nika_schema::check::ConformanceViolation
@@ -7424,6 +7529,7 @@ impl<T> dyn_clone::DynClone for nika_schema::UnknownTool where T: core::clone::C
 pub fn nika_schema::UnknownTool::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::UnknownTool where T: 'static
 pub fn nika_schema::UnknownTool::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_schema::ERROR_DOCS_BASE: &str
 pub const nika_schema::REPORT_VERSION: u32
 pub const nika_schema::STATUS_VOCAB: [&str; 4]
 pub fn nika_schema::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_schema::analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
