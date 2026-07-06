@@ -1,0 +1,27 @@
+name: ecosystem coherence
+
+# The nightly cross-repo drift bot — scripts/ci/ecosystem-coherence.py.
+# FAIL pins (24h post-tag grace): tap==release · site==release · npm==repo ·
+# pack==spec. WARN: operator-gated lag (OpenVSX publish · docs snapshot) +
+# the lockstep-at-0.97 preview. Read-only · public HTTP · no user input
+# reaches the shell.
+
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coherence:
+    name: cross-repo pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the coherence bot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/ci/ecosystem-coherence.py | tee -a "$GITHUB_STEP_SUMMARY"
