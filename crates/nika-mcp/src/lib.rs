@@ -24,7 +24,7 @@
 mod protocol;
 mod tools;
 
-use std::io::{BufRead, Write};
+use std::io::{BufRead, Read, Write};
 
 /// MCP transport failures — the stdio pipe broke (a disconnected client, a
 /// closed pipe). Protocol-level errors travel IN-BAND as JSON-RPC error
@@ -52,25 +52,69 @@ pub fn run_stdio() -> Result<(), McpError> {
     run(stdin.lock(), stdout.lock())
 }
 
+/// The per-message byte ceiling. A well-formed MCP request is a single line
+/// of JSON — a workflow-in-arguments is KB-scale, so 8 MiB is generous. The
+/// cap exists because the transport is a TRUST BOUNDARY (an external agent
+/// feeds stdin): `BufRead::lines()` grows one `String` until a newline, so a
+/// hostile line with no terminator would allocate without bound (an OOM `DoS`).
+/// A message that reaches the ceiling without a newline is refused with a
+/// `-32700`-class error and the pump stops — the stream is unrecoverable for
+/// a line protocol, and draining an unterminated line is itself unbounded.
+const MAX_MSG_BYTES: u64 = 8 * 1024 * 1024;
+
 /// The transport pump over arbitrary byte streams. [`run_stdio`] wires the real
 /// stdio handles; tests drive it with in-memory buffers so every branch — a
 /// dispatched reply, a skipped blank line, a silent notification, a `-32700`
-/// parse error — is exercised without a real pipe (the wiring wrapper above is
-/// the only line the lib tests cannot reach; the canary E2E covers it).
+/// parse error, an over-ceiling refusal — is exercised without a real pipe (the
+/// wiring wrapper above is the only line the lib tests cannot reach; the canary
+/// E2E covers it).
 ///
-/// Reads one JSON-RPC message per line, dispatches it through the pure
-/// `dispatch`, and writes each reply as one flushed line.
+/// Reads one JSON-RPC message per line (bounded to [`MAX_MSG_BYTES`]),
+/// dispatches it through the pure `dispatch`, and writes each reply as one
+/// flushed line.
 ///
 /// # Errors
 /// Returns [`McpError::Transport`] if reading the input or writing the output
 /// fails.
-fn run<R: BufRead, W: Write>(reader: R, mut writer: W) -> Result<(), McpError> {
-    for line in reader.lines() {
-        let line = line?;
-        if line.trim().is_empty() {
-            continue;
+fn run<R: BufRead, W: Write>(mut reader: R, mut writer: W) -> Result<(), McpError> {
+    let mut buf: Vec<u8> = Vec::new();
+    loop {
+        buf.clear();
+        // Read one line, but never more than the ceiling + 1 byte — the +1
+        // lets us distinguish "a full MAX-byte line that DID terminate" from
+        // "a line that overran the ceiling".
+        let n = (&mut reader)
+            .take(MAX_MSG_BYTES + 1)
+            .read_until(b'\n', &mut buf)?;
+        if n == 0 {
+            break; // clean EOF
         }
-        match serde_json::from_str::<serde_json::Value>(&line) {
+        let terminated = buf.last() == Some(&b'\n');
+        if !terminated && n as u64 > MAX_MSG_BYTES {
+            // Over the ceiling without a newline — refuse and stop (see doc).
+            let reply = serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": serde_json::Value::Null,
+                "error": { "code": -32700,
+                    "message": format!("message exceeds the {MAX_MSG_BYTES}-byte line ceiling") }
+            });
+            writeln!(writer, "{reply}")?;
+            writer.flush()?;
+            break;
+        }
+        // Trim the trailing newline (and a CRLF's \r) before parsing.
+        while matches!(buf.last(), Some(b'\n' | b'\r')) {
+            buf.pop();
+        }
+        if buf.iter().all(u8::is_ascii_whitespace) {
+            continue; // blank/whitespace-only line
+        }
+        // A line must be valid UTF-8 to be JSON — non-UTF-8 is a parse error,
+        // preserving the prior `lines()` behavior (which errored on bad UTF-8).
+        let parsed = std::str::from_utf8(&buf)
+            .map_err(|e| e.to_string())
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(s).map_err(|e| e.to_string()));
+        match parsed {
             Ok(msg) => {
                 if let Some(reply) = protocol::dispatch(&msg) {
                     writeln!(writer, "{reply}")?;
@@ -124,6 +168,49 @@ mod tests {
             replies[1].contains("-32700"),
             "second is the parse error: {}",
             replies[1]
+        );
+    }
+
+    #[test]
+    fn an_over_ceiling_line_is_refused_and_the_pump_stops_bounded() {
+        // TRUST-BOUNDARY totality: a hostile external agent sends a line that
+        // never terminates (no newline). The transport must NOT allocate it
+        // without bound (the `BufRead::lines` OOM class) — it refuses at the
+        // ceiling with a -32700 and stops, having read at most MAX+1 bytes.
+        // Modeled with a reader that yields 'a' forever, capped by Take so the
+        // test itself stays bounded; the pump's own ceiling is what proves the
+        // property (it reads MAX+1, sees no newline, refuses).
+        struct Endless;
+        impl std::io::Read for Endless {
+            fn read(&mut self, b: &mut [u8]) -> std::io::Result<usize> {
+                b.fill(b'a');
+                Ok(b.len())
+            }
+        }
+        let reader = std::io::BufReader::new(Endless);
+        let mut out = Vec::new();
+        run(reader, &mut out).expect("the transport refuses cleanly, never OOMs");
+        let s = String::from_utf8(out).expect("utf8");
+        assert!(
+            s.contains("-32700") && s.contains("ceiling"),
+            "the over-limit line is refused with the ceiling error: {s}"
+        );
+        assert_eq!(s.lines().count(), 1, "exactly one refusal, then it stops");
+    }
+
+    #[test]
+    fn a_full_ceiling_line_that_terminates_is_still_parsed() {
+        // The boundary is exact: a message right at the ceiling that DOES end
+        // in a newline is a normal (if large) line — parsed, not refused. A
+        // padded-but-valid JSON request proves the +1 discriminator is correct.
+        let pad = " ".repeat(1000);
+        let line = format!("{{\"jsonrpc\":\"2.0\",\"id\":9,{pad}\"method\":\"ping\"}}\n");
+        let mut out = Vec::new();
+        run(line.as_bytes(), &mut out).expect("a large-but-valid line parses");
+        let s = String::from_utf8(out).expect("utf8");
+        assert!(
+            s.contains("\"id\":9") && !s.contains("-32700"),
+            "parsed, not refused: {s}"
         );
     }
 
