@@ -108,6 +108,23 @@ def main():
     if engine_main and docs_ver and docs_ver != engine_main:
         FINDINGS.append(("WARN", "docs", f"status snapshot {docs_ver} != main workspace {engine_main} — rerun mintlify-snapshot.sh"))
 
+    # Registry · a first-class citizen (operator lock 2026-07-06). The
+    # SPEC_PIN the first-party showcases project from must be a real
+    # nika-spec commit, and the index must carry artifacts — a wired,
+    # living registry, not an orphan.
+    spec_pin = grab(f"{RAW}/supernovae-st/nika-registry/main/SPEC_PIN",
+                    lambda t: next(l.strip() for l in t.splitlines() if l.strip() and not l.startswith("#")),
+                    "registry pin")
+    reg_index = grab(f"{RAW}/supernovae-st/nika-registry/main/index.json",
+                     lambda t: len(json.loads(t)["artifacts"]), "registry index")
+    if reg_index is not None and reg_index == 0:
+        FINDINGS.append(("FAIL", "registry", "index.json carries zero artifacts"))
+    if spec_pin:
+        try:
+            fetch(f"https://api.github.com/repos/supernovae-st/nika-spec/commits/{spec_pin}")
+        except Exception:  # noqa: BLE001 — an unresolvable pin is the finding
+            FINDINGS.append(("FAIL", "registry", f"SPEC_PIN {spec_pin[:9]} not a nika-spec commit"))
+
     # Lockstep-at-convergence · WARN preview below 0.97 · FAIL from 0.97.
     if engine_main:
         lock_sev = "FAIL" if tuple(map(int, engine_main.split("."))) >= (0, 97, 0) else "WARN"
