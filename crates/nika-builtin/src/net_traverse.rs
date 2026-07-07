@@ -83,19 +83,7 @@ pub(crate) async fn traverse<H: HttpGetDyn>(http: &H, root: &str, args: &Args) -
     }
     let origin = root_url.origin();
 
-    let disallows = if spec.respect_robots {
-        fetch_robots_disallows(http, &root_url).await
-    } else {
-        Vec::new()
-    };
-    if robots_blocks(&disallows, root_url.path()) {
-        return Err(BuiltinFailure::new(
-            C,
-            format!(
-                "robots.txt disallows the root `{root}` — nothing to crawl (set `respect_robots: false` only if you own the site)"
-            ),
-        ));
-    }
+    let disallows = root_disallows(http, &root_url, &spec).await?;
 
     let mut queue: VecDeque<String> = VecDeque::new();
     let mut visited: Vec<String> = Vec::new();
@@ -171,6 +159,31 @@ pub(crate) async fn traverse<H: HttpGetDyn>(http: &H, root: &str, args: &Args) -
         "pages": pages,
         "assets": { "images": asset_images, "colors": asset_colors },
     }))
+}
+
+/// The robots gate for the whole crawl: fetch + parse the disallow
+/// prefixes (empty when `respect_robots: false`), and refuse a
+/// disallowed ROOT loudly — nothing was crawled, loud beats empty.
+async fn root_disallows<H: HttpGetDyn>(
+    http: &H,
+    root_url: &url::Url,
+    spec: &TraverseSpec,
+) -> Result<Vec<String>, BuiltinFailure> {
+    let disallows = if spec.respect_robots {
+        fetch_robots_disallows(http, root_url).await
+    } else {
+        Vec::new()
+    };
+    if robots_blocks(&disallows, root_url.path()) {
+        return Err(BuiltinFailure::new(
+            C,
+            format!(
+                "robots.txt disallows the root `{root_url}` — nothing to crawl \
+                 (set `respect_robots: false` only if you own the site)"
+            ),
+        ));
+    }
+    Ok(disallows)
 }
 
 /// Vet the whole-arg surface + parse the spec: `traverse:` excludes the
