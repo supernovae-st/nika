@@ -39,6 +39,22 @@ impl MockHttp {
         self
     }
 
+    /// Enqueue a successful response whose `final_url` differs from the
+    /// request (the post-redirect landing URL) — the affordance the
+    /// traverse redirect-refilter test needs (every other builder left
+    /// `final_url` empty, so the redirect path was untested).
+    #[must_use]
+    pub fn enqueue_ok_final_url(
+        self,
+        status: u16,
+        body: impl Into<Bytes>,
+        final_url: impl Into<String>,
+    ) -> Self {
+        let resp = HttpResponse::new(status, BTreeMap::default(), body.into(), final_url.into());
+        self.responses.lock().push_back(Ok(resp));
+        self
+    }
+
     /// Enqueue a successful response carrying headers (builder) — for
     /// consumers that read `Content-Type` & friends (header names
     /// lowercase, mirroring the production client's normalization).
