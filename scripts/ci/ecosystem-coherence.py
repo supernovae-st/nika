@@ -100,7 +100,7 @@ def main():
 
     vscode_repo = grab(f"{RAW}/supernovae-st/nika-vscode/main/package.json",
                        lambda t: json.loads(t)["version"], "vscode repo")
-    ovsx = grab("https://open-vsx.org/api/supernovae-st/nika-vscode",
+    ovsx = grab("https://open-vsx.org/api/supernovae/nika-lang",
                 lambda t: json.loads(t)["version"], "openvsx")
     if vscode_repo and ovsx and vscode_repo != ovsx:
         FINDINGS.append(("WARN", "vscode publish", f"OpenVSX {ovsx} lags repo {vscode_repo} (publish = tag · operator)"))
