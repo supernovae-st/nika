@@ -308,6 +308,7 @@ fn net_defs() -> Vec<ToolDef> {
                 "body": { "description": "request body (objects auto-JSON) · at most one of body/form/multipart" },
                 "form": { "type": "object", "description": "application/x-www-form-urlencoded scalar fields · POST/PUT/PATCH only" },
                 "multipart": { "type": "array", "description": "multipart/form-data parts · {name, value} text or {name, path, filename?, content_type?} file (path is permits.fs.read-gated · ≤32 MiB total) · POST/PUT/PATCH only" },
+                "traverse": { "type": "object", "description": "bounded same-origin crawl · { max_pages: 1..=25 (required), respect_robots?: bool (default true) } · GET only · excludes mode/selector/jq/body/form/multipart · emits { url, page_count, pages[], assets } page digests" },
                 "mode": s("markdown (default) | article | text | selector | jq | metadata | links | feed | sitemap | raw"),
                 "selector": s("CSS selector (mode: selector only)"),
                 "jq": s("a jq expression (mode: jq only · the one data language)")
@@ -506,6 +507,20 @@ mod tests {
         let prop = s("a helpful description");
         assert_eq!(prop["type"], "string");
         assert_eq!(prop["description"], "a helpful description");
+    }
+
+    /// The vNext fetch families are DECLARED — a third-source pin. The
+    /// defs↔catalog equality guard cannot see a key missing from BOTH
+    /// sides (empirical 2026-07-07: `traverse` shipped in the runtime +
+    /// shape checker while both declaration lists lacked it, and every
+    /// drift test stayed green — the merged binary then refused every
+    /// traverse workflow at ARGS).
+    #[test]
+    fn fetch_declares_the_vnext_payload_families() {
+        let fetch = nika_catalog::find_builtin("fetch").expect("fetch in catalog");
+        for key in ["form", "multipart", "traverse"] {
+            assert!(fetch.args.contains(&key), "catalog lost fetch `{key}`");
+        }
     }
 
     #[test]
