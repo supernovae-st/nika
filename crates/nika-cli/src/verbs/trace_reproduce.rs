@@ -12,6 +12,9 @@
 //! - `status-changed` — settled differently (completed → failed · …)
 //! - `unverifiable` — no stamps to compare (skips · cancels · fails)
 //! - `missing` — absent from the fresh run
+//! - `added` — a fresh task the recorded run never had (informational:
+//!   the recorded journal is the reference frame, but silence would
+//!   hide half the authorship story)
 //!
 //! Exit codes: 0 = every comparable task reproduced · 2 (FILE) = any
 //! divergence. Unverifiable tasks never fail the verdict — stated,
@@ -73,6 +76,7 @@ pub(crate) enum Verdict {
     StatusChanged { recorded: String, fresh: String },
     Unverifiable,
     Missing,
+    Added,
 }
 
 pub(crate) struct Row {
@@ -89,6 +93,7 @@ pub(crate) struct Report {
 
 impl Report {
     pub(crate) fn diverged(&self) -> bool {
+        // ADDED diverges too: the definition set itself changed.
         self.rows
             .iter()
             .any(|r| !matches!(r.verdict, Verdict::Reproduced | Verdict::Unverifiable))
@@ -109,7 +114,7 @@ pub(crate) fn compare(recorded: &[Event], fresh: &[Event]) -> Report {
     let rec = settles_of(recorded);
     let new = settles_of(fresh);
 
-    let rows = rec
+    let mut rows: Vec<Row> = rec
         .iter()
         .map(|(task, r)| {
             let verdict = match new.get(task) {
@@ -122,6 +127,12 @@ pub(crate) fn compare(recorded: &[Event], fresh: &[Event]) -> Report {
             }
         })
         .collect();
+    // Fresh tasks the recorded run never had — named, not silenced
+    // (half the authorship story lives on the fresh side).
+    rows.extend(new.keys().filter(|t| !rec.contains_key(*t)).map(|t| Row {
+        task: t.clone(),
+        verdict: Verdict::Added,
+    }));
 
     Report {
         rows,
@@ -210,6 +221,7 @@ fn render(report: &Report) -> String {
             }
             Verdict::Unverifiable => ("unverifiable", String::new()),
             Verdict::Missing => ("MISSING", " — absent from the fresh run".to_owned()),
+            Verdict::Added => ("ADDED", " — absent from the recorded run".to_owned()),
         };
         *counts.entry(tag).or_default() += 1;
         let _ = writeln!(out, "  {tag:<16} {}{detail}", row.task);
@@ -329,10 +341,31 @@ mod tests {
             "skips have no stamps"
         );
         assert_eq!(verdict("gone"), Verdict::Missing);
+        assert!(
+            !report.rows.iter().any(|r| r.verdict == Verdict::Added),
+            "no phantom ADDED rows on this fixture"
+        );
         assert!(report.diverged());
         // The attestation comparison rides (#235 closing another loop).
         assert_eq!(report.recorded_env.as_deref(), Some("0.95.0/macos/aarch64"));
         assert_eq!(report.fresh_env.as_deref(), Some("0.96.0/macos/aarch64"));
+    }
+
+    #[test]
+    fn a_fresh_task_the_recorded_run_never_had_is_named() {
+        let recorded = vec![completed(1, "a", "d", "i", "\"x\"")];
+        let fresh = vec![
+            completed(2, "a", "d", "i", "\"x\""),
+            completed(3, "brand_new", "d9", "i9", "\"y\""),
+        ];
+        let report = compare(&recorded, &fresh);
+        let added = report
+            .rows
+            .iter()
+            .find(|r| r.task == "brand_new")
+            .expect("named, not silenced");
+        assert_eq!(added.verdict, Verdict::Added);
+        assert!(report.diverged(), "the definition set changed");
     }
 
     #[test]
