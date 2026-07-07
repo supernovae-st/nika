@@ -16,4 +16,3 @@
 
 pub(crate) mod png;
 pub(crate) mod time;
-pub(crate) mod wire;

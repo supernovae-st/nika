@@ -38,6 +38,7 @@ pub(crate) mod media;
 pub mod net;
 pub mod permits;
 pub mod tts;
+pub(crate) mod wire;
 
 use std::sync::Arc;
 

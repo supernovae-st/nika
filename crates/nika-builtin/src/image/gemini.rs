@@ -17,7 +17,7 @@ use nika_kernel::io::http::{HttpError, HttpPostDyn, HttpRequest};
 use nika_kernel::secret::Secret;
 
 use crate::BuiltinFailure;
-use crate::media::wire;
+use crate::wire;
 
 use super::args::ImageArgs;
 use super::types::{

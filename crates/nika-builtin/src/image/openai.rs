@@ -16,7 +16,7 @@ use nika_kernel::io::http::{HttpError, HttpPostDyn, HttpRequest};
 use nika_kernel::secret::Secret;
 
 use crate::BuiltinFailure;
-use crate::media::wire::{self, Part};
+use crate::wire::{self, Part};
 
 use super::args::ImageArgs;
 use super::types::{
@@ -114,7 +114,8 @@ fn build_edit_request(
             bytes: &input.bytes,
         });
     }
-    let (body, content_type) = wire::multipart(&parts);
+    let (body, content_type) =
+        wire::multipart(&parts).map_err(|e| BuiltinFailure::new(C_ARGS, e))?;
 
     let mut request = HttpRequest::post(EDIT_ENDPOINT);
     request.headers.insert(
