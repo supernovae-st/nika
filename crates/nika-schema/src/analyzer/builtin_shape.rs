@@ -154,6 +154,7 @@ fn check_fetch_shape(
         ));
         return;
     }
+    check_fetch_payload_shape(task, tool, object, span, errors);
     let mode = match object.and_then(|map| map.get("mode")) {
         // Absent → the spec default (markdown).
         None => Some(ExtractMode::Markdown),
@@ -224,6 +225,164 @@ fn check_fetch_shape(
              (extract-modes-v0.1.md §selector)",
             span,
         ));
+    }
+}
+
+/// The fetch vNext payload families (stdlib §fetch): `body ⊥ form ⊥
+/// multipart` · `form:`/`multipart:` need a body-bearing method · the
+/// multipart part shape is CLOSED. A templated value (`${{ … }}`) is
+/// runtime business — statically silent (the runtime re-vets all of it).
+fn check_fetch_payload_shape(
+    task: &str,
+    tool: &str,
+    object: Option<&serde_json::Map<String, serde_json::Value>>,
+    span: Span,
+    errors: &mut Vec<SchemaError>,
+) {
+    let has = |key: &str| object.is_some_and(|map| map.contains_key(key));
+    if ["body", "form", "multipart"]
+        .iter()
+        .filter(|key| has(key))
+        .count()
+        > 1
+    {
+        errors.push(shape(
+            task,
+            tool,
+            "at most one of `body:` · `form:` · `multipart:` \
+             (builtins-v0.1.md §nika:fetch)",
+            span,
+        ));
+    }
+    if has("form") || has("multipart") {
+        match object
+            .and_then(|map| map.get("method"))
+            .and_then(serde_json::Value::as_str)
+        {
+            None => errors.push(shape(
+                task,
+                tool,
+                "`form:`/`multipart:` need `method: POST` (or PUT/PATCH) — \
+                 the default GET carries no body",
+                span,
+            )),
+            Some(raw) if raw.contains("${{") => {} // templated — runtime business
+            Some(raw) => {
+                let upper = raw.to_uppercase();
+                if matches!(upper.as_str(), "GET" | "HEAD" | "DELETE") {
+                    errors.push(shape(
+                        task,
+                        tool,
+                        &format!(
+                            "`form:`/`multipart:` need a body-bearing method — \
+                             `{raw}` carries no body (use POST · PUT · PATCH)"
+                        ),
+                        span,
+                    ));
+                }
+            }
+        }
+    }
+    if let Some(form) = object.and_then(|map| map.get("form"))
+        && !form.is_object()
+        && !matches!(form, serde_json::Value::String(s) if s.contains("${{"))
+    {
+        errors.push(shape(
+            task,
+            tool,
+            "`form:` must be an object of scalar fields (builtins-v0.1.md §nika:fetch)",
+            span,
+        ));
+    }
+    if let Some(parts) = object.and_then(|map| map.get("multipart")) {
+        check_multipart_parts(task, tool, parts, span, errors);
+    }
+}
+
+/// The closed multipart part shape — `{name, value}` XOR `{name, path,
+/// filename?, content_type?}`. Presence rules are static even when the
+/// VALUES are templated; a fully-templated `multipart:` string is silent.
+fn check_multipart_parts(
+    task: &str,
+    tool: &str,
+    parts: &serde_json::Value,
+    span: Span,
+    errors: &mut Vec<SchemaError>,
+) {
+    const PART_KEYS: [&str; 5] = ["name", "value", "path", "filename", "content_type"];
+    let items = match parts {
+        serde_json::Value::String(s) if s.contains("${{") => return,
+        serde_json::Value::Array(items) => items,
+        _ => {
+            errors.push(shape(
+                task,
+                tool,
+                "`multipart:` must be an array of parts (builtins-v0.1.md §nika:fetch)",
+                span,
+            ));
+            return;
+        }
+    };
+    if items.is_empty() {
+        errors.push(shape(
+            task,
+            tool,
+            "`multipart:` needs at least one part",
+            span,
+        ));
+        return;
+    }
+    for (i, item) in items.iter().enumerate() {
+        let Some(map) = item.as_object() else {
+            errors.push(shape(
+                task,
+                tool,
+                &format!("multipart part {i} must be an object"),
+                span,
+            ));
+            continue;
+        };
+        if let Some(unknown) = map.keys().find(|k| !PART_KEYS.contains(&k.as_str())) {
+            errors.push(shape(
+                task,
+                tool,
+                &format!(
+                    "multipart part {i}: unknown key `{unknown}` — the shape is \
+                     {{name, value}} or {{name, path, filename?, content_type?}}"
+                ),
+                span,
+            ));
+        }
+        if !map.contains_key("name") {
+            errors.push(shape(
+                task,
+                tool,
+                &format!("multipart part {i} needs a `name:`"),
+                span,
+            ));
+        }
+        match (map.contains_key("value"), map.contains_key("path")) {
+            (true, true) | (false, false) => errors.push(shape(
+                task,
+                tool,
+                &format!("multipart part {i}: exactly one of `value:` (text) | `path:` (file)"),
+                span,
+            )),
+            (true, false) => {
+                if map.contains_key("filename") || map.contains_key("content_type") {
+                    errors.push(shape(
+                        task,
+                        tool,
+                        &format!(
+                            "multipart part {i}: `filename:`/`content_type:` belong to \
+                             file parts (`path:`)"
+                        ),
+                        span,
+                    ));
+                }
+            }
+            (false, true) => {}
+        }
     }
 }
 
@@ -526,6 +685,95 @@ mod tests {
                 false, // templated mode — runtime business, statically silent
             ),
             (r#"{ url: "https://x.test", mode: 5 }"#, "nika:fetch", true), // not a string
+        ];
+        for (args, tool, violates) in &cases {
+            let yaml = format!(
+                "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke:\n      \
+                 tool: \"{tool}\"\n      args: {args}\n"
+            );
+            assert_eq!(
+                has_shape_error(&yaml, tool),
+                *violates,
+                "{tool} · args {args}"
+            );
+        }
+    }
+
+    #[test]
+    fn fetch_payload_shape_rules_table() {
+        // nika:fetch vNext — payload families (stdlib §fetch):
+        // body ⊥ form ⊥ multipart · body-bearing method · closed part shape.
+        let cases = [
+            (
+                r#"{ url: "https://x.test", form: { a: "b" } }"#,
+                "nika:fetch",
+                true, // form on the default GET — no body to carry
+            ),
+            (
+                r#"{ url: "https://x.test", method: POST, form: { a: "b" } }"#,
+                "nika:fetch",
+                false, // the valid form pairing
+            ),
+            (
+                r#"{ url: "https://x.test", method: post, form: { a: "b" } }"#,
+                "nika:fetch",
+                false, // method case-folds at runtime — static agrees
+            ),
+            (
+                r#"{ url: "https://x.test", method: POST, form: { a: "b" }, body: "x" }"#,
+                "nika:fetch",
+                true, // body ⊥ form
+            ),
+            (
+                r#"{ url: "https://x.test", method: "${{ vars.m }}", form: { a: "b" } }"#,
+                "nika:fetch",
+                false, // templated method — runtime business
+            ),
+            (
+                r#"{ url: "https://x.test", method: POST, form: "nope" }"#,
+                "nika:fetch",
+                true, // form must be an object
+            ),
+            (
+                r#"{ url: "https://x.test", method: PATCH, multipart: [{ name: f, value: v }] }"#,
+                "nika:fetch",
+                false, // valid text part on a body-bearing method
+            ),
+            (
+                r#"{ url: "https://x.test", method: POST, multipart: [] }"#,
+                "nika:fetch",
+                true, // needs at least one part
+            ),
+            (
+                r#"{ url: "https://x.test", method: POST, multipart: [{ name: f, value: v, path: p }] }"#,
+                "nika:fetch",
+                true, // exactly one of value | path
+            ),
+            (
+                r#"{ url: "https://x.test", method: POST, multipart: [{ name: f, value: v, surprise: 1 }] }"#,
+                "nika:fetch",
+                true, // unknown part key — the shape is closed
+            ),
+            (
+                r#"{ url: "https://x.test", method: POST, multipart: [{ name: f, value: v, filename: x }] }"#,
+                "nika:fetch",
+                true, // filename belongs to file parts
+            ),
+            (
+                r#"{ url: "https://x.test", method: POST, multipart: [{ name: f, path: "out/a.png" }] }"#,
+                "nika:fetch",
+                false, // valid file part
+            ),
+            (
+                r#"{ url: "https://x.test", method: POST, multipart: "${{ tasks.prep.output }}" }"#,
+                "nika:fetch",
+                false, // fully-templated parts — runtime business
+            ),
+            (
+                r#"{ url: "https://x.test", method: DELETE, multipart: [{ name: f, value: v }] }"#,
+                "nika:fetch",
+                true, // DELETE carries no body
+            ),
         ];
         for (args, tool, violates) in cases {
             let yaml = format!(

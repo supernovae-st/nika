@@ -71,7 +71,17 @@ pub static ALL_BUILTINS: &[Builtin] = &[
     Builtin::with_args(
         "fetch",
         Network,
-        &["url", "method", "headers", "body", "mode", "selector", "jq"],
+        &[
+            "url",
+            "method",
+            "headers",
+            "body",
+            "form",
+            "multipart",
+            "mode",
+            "selector",
+            "jq",
+        ],
     ),
     Builtin::with_required("glob", File, &["pattern", "exclude"], &["pattern"]),
     Builtin::with_required(

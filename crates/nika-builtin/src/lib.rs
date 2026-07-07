@@ -425,8 +425,16 @@ where
             "uuid" => Ok(date::uuid(args)),
             "date" => Ok(date::date(self.clock.as_ref(), args)),
             "hash" => Ok(data::hash(args)),
-            // network 2
-            "fetch" => Ok(net::fetch(self.http.as_ref(), args).await),
+            // network 2 — fetch's `multipart:` file parts ride the SAME
+            // permits.fs READ boundary as the file builtins (gated inside
+            // resolve_multipart · before any byte is read).
+            "fetch" => Ok(net::fetch(
+                self.http.as_ref(),
+                self.fs.as_ref(),
+                &self.fs_boundary,
+                args,
+            )
+            .await),
             "notify" => Ok(net::notify(self.http.as_ref(), args).await),
             // media 1 — provider calls ride the IMAGE PLANE (a dedicated
             // seam · const endpoints); saves ride the permits.fs boundary

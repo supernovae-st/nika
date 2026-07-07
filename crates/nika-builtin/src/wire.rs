@@ -21,6 +21,38 @@
 //!   `Content-Disposition`/`Content-Type` lines — a quote or CR/LF
 //!   there is header injection, so they are rejected loudly.
 
+/// Encode `application/x-www-form-urlencoded` pairs (WHATWG form rules:
+/// space → `+`, unreserved ALPHA/DIGIT/`-_.~` verbatim, every other
+/// byte percent-encoded — multibyte UTF-8 lands as its encoded bytes).
+pub(crate) fn form_urlencode(pairs: &[(&str, String)]) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    fn encode_into(out: &mut String, raw: &str) {
+        for byte in raw.bytes() {
+            match byte {
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                    out.push(byte as char);
+                }
+                b' ' => out.push('+'),
+                other => {
+                    out.push('%');
+                    out.push(HEX[usize::from(other >> 4)] as char);
+                    out.push(HEX[usize::from(other & 0x0f)] as char);
+                }
+            }
+        }
+    }
+    let mut out = String::new();
+    for (i, (key, value)) in pairs.iter().enumerate() {
+        if i > 0 {
+            out.push('&');
+        }
+        encode_into(&mut out, key);
+        out.push('=');
+        encode_into(&mut out, value);
+    }
+    out
+}
+
 /// Is this HTTP status transient (worth a retry)? The spec's status table:
 /// 5xx server errors + 408 Request Timeout + 429 Too Many Requests. THE
 /// single authority — `retry.on_codes` correctness rides on it matching
