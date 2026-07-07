@@ -158,7 +158,7 @@ Default model for any `infer:` or `agent:` verb in this workflow, as a single
 there is no separate `provider:` field). The provider prefix selects the
 backend and decides local-vs-cloud (`ollama/` · `lmstudio/` = local · the rest
 = cloud). See [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md) for the
-14-provider catalog.
+<!-- canon:providers -->16<!-- /canon -->-provider catalog.
 
 A task may override this. If absent · each `infer:`/`agent:` task must specify
 its own `model:`.

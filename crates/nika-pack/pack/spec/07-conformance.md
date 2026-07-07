@@ -81,7 +81,7 @@ guarantees below) ·
 | **Cost ceiling** | the worst-case spend · `Σ (max_tokens × provider price)` across `infer:`/`agent:` tasks · before one token is spent | the `nika:inspect view: cost` model, run statically |
 | **Secret leak** | every `secrets.X` that flows into an `exec` capture or a tool whose output is bound (the masking boundary · [04 §secrets](./04-variables.md)) | reference graph |
 | **Capability escape** | any effect outside a declared `permits:` block: a write outside `fs.write`, a fetch to an unlisted host, an `exec` under `exec: false`, an unlisted tool | `permits:` ([01](./01-envelope.md)) |
-| **Provider parity** | (`--providers`) that the workflow uses zero provider-specific fields → the same `schema:` runs identically on all 14 providers (incl. the 5 local) | the closed verb-field set |
+| **Provider parity** | (`--providers`) that the workflow uses zero provider-specific fields → the same `schema:` runs identically on all <!-- canon:providers -->16<!-- /canon --> providers (incl. the 5 local) | the closed verb-field set |
 
 This is the property no other AI workflow runner gives: **GitHub Actions,
 Temporal, and LangGraph tell you nothing (and charge you nothing back)
