@@ -631,6 +631,35 @@ mod tests {
         )
     }
 
+    /// `--json --native-strict`: the payload's `native_strict_clean` and
+    /// the exit code must agree (the review-swarm untested-branch gap).
+    #[test]
+    fn native_strict_json_payload_agrees_with_the_exit_code() {
+        let helper = "nika: v1\nworkflow: helper\ntasks:\n  - id: crawl\n    exec: { command: \"curl -s https://acme.test\" }\n";
+        let dir = std::env::temp_dir().join("nika-cli-killtests");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let path = dir.join("native-strict-json.nika.yaml");
+        std::fs::write(&path, helper).expect("fixture body");
+        let theme = Theme::new(false, true, false);
+        let out = run(path.to_str().expect("utf8 path"), true, true, theme);
+        assert_eq!(
+            out.code, 2,
+            "strict hint-only workflow exits FILE: {}",
+            out.text
+        );
+        let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+        assert_eq!(
+            payload["clean"],
+            serde_json::json!(true),
+            "spec-clean stays true"
+        );
+        assert_eq!(
+            payload["native_strict_clean"],
+            serde_json::json!(false),
+            "the strict verdict rides the payload: {payload:#}"
+        );
+    }
+
     /// `--native-strict` promotes native-first hints to failure: the SAME
     /// spec-valid workflow exits 0 by default and 2 under strict, with the
     /// strict verdict naming the count; a natively-written twin stays exit

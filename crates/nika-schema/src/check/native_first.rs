@@ -52,8 +52,9 @@ const FILE_PROGRAMS: [&str; 9] = [
 /// Data-transform programs (003).
 const DATA_PROGRAMS: [&str; 3] = ["jq", "sed", "awk"];
 /// Script interpreters (005 · and the 001 one-liner carve-in).
-const INTERPRETERS: [&str; 10] = [
-    "node", "python", "python3", "bash", "sh", "zsh", "deno", "bun", "ruby", "perl",
+const INTERPRETERS: [&str; 12] = [
+    "node", "python", "python3", "pythonw", "bash", "sh", "dash", "zsh", "deno", "bun", "ruby",
+    "perl",
 ];
 /// Script-file suffixes an interpreter head promotes to 005.
 const SCRIPT_SUFFIXES: [&str; 8] = [".mjs", ".cjs", ".js", ".ts", ".py", ".sh", ".rb", ".pl"];
@@ -66,7 +67,16 @@ const MEDIA_MARKERS: [&str; 4] = [
     "api.elevenlabs.io",
 ];
 /// HTTP one-liner markers inside interpreter code (001 carve-in).
-const HTTP_CODE_MARKERS: [&str; 4] = ["fetch(", "axios", "http.request", "https.request"];
+const HTTP_CODE_MARKERS: [&str; 8] = [
+    "fetch(",
+    "axios",
+    "http.request",
+    "https.request",
+    "requests.get(",
+    "requests.post(",
+    "urlopen(",
+    "httpx.",
+];
 
 /// Scan every `exec:` task (and `on_finally` cleanups) for a native
 /// path — at most one hint per task.
@@ -100,7 +110,7 @@ fn push_native_first(action: &RawAction, id: &str, hints: &mut Vec<Hint>) {
 /// the check hint AND the reference linter ruleset
 /// (`lints::native_first`) both classify HERE.
 pub(crate) fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
-    let head = command_head(command)?;
+    let (head, pathed) = command_head(command)?;
     if head == "nika" {
         return None; // nested `nika run …` — the sanctioned composition
     }
@@ -140,8 +150,10 @@ pub(crate) fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
             ),
         ));
     }
-    // 001 · an HTTP client program, or an interpreter one-liner around one.
-    if HTTP_PROGRAMS.contains(&head.as_str()) || (is_interpreter && has_marker(&HTTP_CODE_MARKERS))
+    // 001 · an HTTP client program (bare head only — `./scripts/curl` is
+    // the author's own tool), or an interpreter one-liner around one.
+    if (!pathed && HTTP_PROGRAMS.contains(&head.as_str()))
+        || (is_interpreter && has_marker(&HTTP_CODE_MARKERS))
     {
         return Some((
             "native-first/001",
@@ -152,8 +164,8 @@ pub(crate) fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
             ),
         ));
     }
-    // 002 · file plumbing.
-    if FILE_PROGRAMS.contains(&head.as_str()) {
+    // 002 · file plumbing (bare head only).
+    if !pathed && FILE_PROGRAMS.contains(&head.as_str()) {
         return Some((
             "native-first/002",
             format!(
@@ -163,8 +175,8 @@ pub(crate) fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
             ),
         ));
     }
-    // 003 · data transforms.
-    if DATA_PROGRAMS.contains(&head.as_str()) {
+    // 003 · data transforms (bare head only).
+    if !pathed && DATA_PROGRAMS.contains(&head.as_str()) {
         return Some((
             "native-first/003",
             format!(
@@ -177,10 +189,15 @@ pub(crate) fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
     None
 }
 
-/// The literal program head: `argv[0]` for the argv form, the first
-/// non-assignment token of a shell string. Basename'd (`/usr/bin/curl`
-/// counts as `curl`); a templated head (`${{ … }}`) makes no claim.
-fn command_head(command: &RawCommand) -> Option<String> {
+/// The literal program head + whether it was PATH-QUALIFIED: `argv[0]`
+/// for the argv form, the first non-assignment token of a shell string.
+/// Basename'd (`/usr/bin/curl` counts as `curl`) — but the program-name
+/// families (001/002/003) only fire on a BARE head: `./scripts/cat` is
+/// an author's own tool that merely shares a utility's name (review
+/// finding · false-positive class), while a pathed INTERPRETER
+/// (`/usr/bin/python3 helper.py`) legitimately stays rule-005 material.
+/// A templated head (`${{ … }}`) makes no claim.
+fn command_head(command: &RawCommand) -> Option<(String, bool)> {
     let raw = match command {
         RawCommand::Argv(_) => command.argv_program()?.to_owned(),
         RawCommand::Shell(s) => {
@@ -201,8 +218,9 @@ fn command_head(command: &RawCommand) -> Option<String> {
     if raw.contains("${{") {
         return None; // templated — runtime business, no static claim
     }
+    let pathed = raw.contains('/');
     let head = raw.rsplit('/').next().unwrap_or(&raw);
-    (!head.is_empty()).then(|| head.to_owned())
+    (!head.is_empty()).then(|| (head.to_owned(), pathed))
 }
 
 #[cfg(test)]
@@ -239,8 +257,30 @@ mod tests {
     }
 
     #[test]
-    fn fires_on_argv_wget_and_pathed_program() {
-        let h = sole_native_hint(&exec_wf("[\"/usr/bin/wget\", \"https://x.test\"]"));
+    fn pathed_program_names_never_fire_the_name_families() {
+        // The author's own tool sharing a utility name (review FP class):
+        // path-qualified heads make no program-name claim.
+        for command in [
+            "[\"./scripts/cat\", \"--render\", \"template.json\"]",
+            "[\"/usr/local/bin/curl\", \"https://x.test\"]",
+            "\"./tools/jq-like transform.json\"",
+        ] {
+            let hints = hints_of(&exec_wf(command));
+            assert!(
+                !hints.iter().any(|h| h.kind == "native-first"),
+                "{command} must stay silent: {hints:?}"
+            );
+        }
+        // …but a pathed INTERPRETER + script is still the helper class.
+        let h = sole_native_hint(&exec_wf("[\"/usr/bin/python3\", \"scripts/upload.py\"]"));
+        assert!(h.advice.contains("native-first/005"), "{h:?}");
+    }
+
+    #[test]
+    fn fires_on_python_requests_one_liner_001() {
+        let h = sole_native_hint(&exec_wf(
+            "\"python3 -c 'import requests; requests.get(\\\"https://x.test\\\")'\"",
+        ));
         assert!(h.advice.contains("native-first/001"), "{h:?}");
     }
 
