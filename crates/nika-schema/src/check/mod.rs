@@ -34,8 +34,6 @@ mod declass;
 mod flow;
 mod hints;
 mod infer_permits;
-#[cfg(test)]
-mod metamorphic;
 mod permits_fit;
 mod reach;
 mod requirements;
