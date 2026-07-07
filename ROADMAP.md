@@ -86,6 +86,24 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
+| branch           | `release/0.97.0`                                      |
+| HEAD             | `54838424f` (`54838424f7e256b86501af51550007a7968f2fc0`)             |
+| workspace        | v0.97.0                                  |
+| crates (workspace)| 40                                              |
+| crates (admitted)| 40 / 42                                   |
+| crates (WIP)     | 0 —                                   |
+| L0               | 9                                              |
+| L0.5             | 6                                              |
+| L1               | 12                                              |
+| L1.5             | 4                                              |
+| L2               | 4                                              |
+| L3               | 1                                              |
+| L4               | 4                                              |
+| lib tests        | 3411 passed, 0 failed                              |
+| clippy           | 0 warnings                              |
+
+| field            | value                                          |
+|------------------|------------------------------------------------|
 | branch           | `chore/release-0.96.0`                                      |
 | HEAD             | `05cdaab1e` (`05cdaab1ec68217f3a7fb03841dbe5f7720767d4`)             |
 | workspace        | v0.96.0                                  |

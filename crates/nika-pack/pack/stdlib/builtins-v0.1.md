@@ -150,9 +150,14 @@ invoke: { tool: "nika:edit", args: { path: "./file.md", find: "old", replace: "n
 ```
 In-place find/replace · returns the modified path. `find:` is a **literal
 string** (not a regex: use `nika:grep` to locate · jq to transform) ·
-replaces **all occurrences** · `count:` caps replacements when set. Throws ·
+replaces **all occurrences** · `count:` (when set) caps replacements to the
+first N. `count:` MUST be a non-negative integer — a present non-integer
+(e.g. the string `"2"`) is a loud `-001` arg error, NEVER silently the
+replace-all default (that silent fall-through would over-edit the file · the
+intent-inversion footgun class). Throws ·
 `NIKA-BUILTIN-EDIT-001` (`find:` matched nothing: an edit that edits
-nothing is an authoring bug · `tool_error`) · `-002` (IO failure).
+nothing is an authoring bug · `tool_error` · also a non-integer `count:`) ·
+`-002` (IO failure).
 
 ### `nika:glob`
 ```yaml
