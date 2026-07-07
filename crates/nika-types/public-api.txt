@@ -1554,6 +1554,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::memory::Score where T: 
 pub mod nika_types::net
 pub const nika_types::net::HOST_EXTRACTION_VECTORS: &[(&str, core::option::Option<&str>)]
 pub const nika_types::net::MAX_TRAVERSE_PAGES: u64
+pub const nika_types::net::MULTIPART_PART_KEYS: [&str; 5]
 pub fn nika_types::net::host_glob_matches(glob: &str, host: &str) -> bool
 pub fn nika_types::net::host_in_allowlist(allowlist: &[alloc::string::String], host: &str) -> bool
 pub fn nika_types::net::ip_is_blocked(ip: core::net::ip_addr::IpAddr) -> bool

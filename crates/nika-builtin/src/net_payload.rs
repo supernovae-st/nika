@@ -8,7 +8,7 @@
 //! stay with their owners (`net.rs` · `net_traverse.rs`).
 
 use bytes::Bytes;
-use nika_kernel::io::fs::FsReadDyn;
+use nika_kernel::io::fs::{FsMetaDyn, FsReadDyn};
 use nika_kernel::io::http::{HttpMethod, HttpRequest};
 
 use crate::permits::{FsAccess, FsBoundary};
@@ -24,7 +24,7 @@ use crate::net::build_request;
 /// `multipart:`; the payload families own their `content-type` (a
 /// user-supplied one is a conflict, refused loudly) and need a
 /// body-bearing method.
-pub(crate) async fn prepare_request<F: FsReadDyn>(
+pub(crate) async fn prepare_request<F: FsReadDyn + FsMetaDyn>(
     method: HttpMethod,
     url: &str,
     fs: &F,
@@ -148,12 +148,12 @@ impl OwnedPart {
 /// filename?, content_type?}` file. Every `path:` is enforced against
 /// the `permits.fs` READ boundary BEFORE any byte is read
 /// (`NIKA-SEC-004` on escape — the image edit-input precedent).
-const MULTIPART_PART_KEYS: [&str; 5] = ["name", "value", "path", "filename", "content_type"];
+use nika_types::net::MULTIPART_PART_KEYS;
 /// Upload ceiling — assets-not-blobs: bigger payloads ship by URL.
 const MAX_MULTIPART_BYTES: usize = 32 * 1024 * 1024;
 const MAX_MULTIPART_PARTS: usize = 64;
 
-async fn resolve_multipart<F: FsReadDyn>(
+async fn resolve_multipart<F: FsReadDyn + FsMetaDyn>(
     fs: &F,
     boundary: &FsBoundary,
     spec: &serde_json::Value,
@@ -202,7 +202,7 @@ async fn resolve_multipart<F: FsReadDyn>(
 }
 
 /// Resolve one part (text value XOR permit-gated file read).
-async fn resolve_part<F: FsReadDyn>(
+async fn resolve_part<F: FsReadDyn + FsMetaDyn>(
     fs: &F,
     boundary: &FsBoundary,
     name: &str,
@@ -243,6 +243,19 @@ async fn resolve_part<F: FsReadDyn>(
                 )));
             };
             boundary.enforce(fs, path, FsAccess::Read).await?;
+            // Pre-read cap: refuse an oversized file from its metadata,
+            // BEFORE buffering it (a metadata error falls through — the
+            // read below surfaces the real failure; the post-read total
+            // check stays the authority the mock-less path relies on).
+            if let Ok(meta) = fs.metadata(std::path::Path::new(path)).await
+                && meta.len > MAX_MULTIPART_BYTES as u64
+            {
+                return Err(fail(format!(
+                    "multipart part `{name}`: `{path}` is {} bytes — the payload cap \
+                     is {MAX_MULTIPART_BYTES} (~32 MiB) · ship large assets by URL",
+                    meta.len
+                )));
+            }
             let bytes = fs.read(std::path::Path::new(path)).await.map_err(|e| {
                 fail(format!(
                     "multipart part `{name}`: `{path}` could not be read: {e}"
@@ -358,6 +371,31 @@ mod tests {
             http.sent_requests().is_empty(),
             "no byte leaves the machine"
         );
+    }
+
+    #[tokio::test]
+    async fn multipart_oversized_file_is_refused_from_metadata_before_read() {
+        // 33 MiB seeded once — the metadata pre-check must refuse it
+        // (and the request must never leave).
+        let fs = MockFs::new().with_file("out/huge.bin", vec![0u8; 33 * 1024 * 1024]);
+        let boundary = FsBoundary::declared(vec!["out/**".to_owned()], Vec::new());
+        let http = MockHttp::new().enqueue_ok(200, b"ok".to_vec());
+        let fail = crate::net::fetch(
+            &http,
+            &fs,
+            &boundary,
+            &args(serde_json::json!({
+                "url": "https://api.test/upload", "method": "POST",
+                "multipart": [ { "name": "file", "path": "out/huge.bin" } ]
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&fail, Err(f) if f.code == "NIKA-BUILTIN-FETCH-001"
+                && f.message.contains("~32 MiB")),
+            "{fail:?}"
+        );
+        assert!(http.sent_requests().is_empty(), "no request spent");
     }
 
     #[tokio::test]

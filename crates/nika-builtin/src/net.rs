@@ -12,7 +12,7 @@
 
 use bytes::Bytes;
 use nika_extract::{ExtractMode, ExtractOptions};
-use nika_kernel::io::fs::FsReadDyn;
+use nika_kernel::io::fs::{FsMetaDyn, FsReadDyn};
 use nika_kernel::io::http::{HttpError, HttpGetDyn, HttpMethod, HttpPostDyn, HttpRequest};
 
 use crate::permits::FsBoundary;
@@ -55,7 +55,7 @@ pub(crate) fn net_security_failure(e: &HttpError) -> Option<BuiltinFailure> {
 /// mode is otherwise linear in the (capped) body. A panic inside the
 /// closure unwinds (workspace `panic = "unwind"`) to a `JoinError`
 /// handled at the call site — it is never a process-wide abort.
-pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn>(
+pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn + FsMetaDyn>(
     http: &H,
     fs: &F,
     boundary: &FsBoundary,
@@ -117,11 +117,16 @@ pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn>(
         // `details.status_code` carries the status (stdlib §fetch ·
         // normative) — branching on 403 vs 429 must never mean parsing
         // the human message.
-        return Err(
-            BuiltinFailure::new(C, format!("HTTP {} from {url}", response.status))
-                .with_transient(is_transient_status(response.status))
-                .with_details(serde_json::json!({ "status_code": response.status })),
-        );
+        return Err(BuiltinFailure::new(
+            C,
+            format!(
+                "HTTP {} from {}",
+                response.status,
+                crate::wire::redact_url(url)
+            ),
+        )
+        .with_transient(is_transient_status(response.status))
+        .with_details(serde_json::json!({ "status_code": response.status })));
     }
 
     // Gather the extraction inputs (owned) BEFORE handing off, so the
@@ -548,6 +553,25 @@ mod tests {
         assert!(
             matches!(fail, Err(f) if f.code == "NIKA-BUILTIN-FETCH-001" && f.message.contains("404"))
         );
+    }
+
+    #[tokio::test]
+    async fn non_2xx_failure_message_never_echoes_userinfo() {
+        let http = MockHttp::new().enqueue_ok(404, Vec::new());
+        let fail = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "https://user:hunter2@x.test/a" })),
+        )
+        .await;
+        let Err(f) = fail else {
+            panic!("404 must fail")
+        };
+        assert!(
+            !f.message.contains("hunter2"),
+            "credential echoed: {}",
+            f.message
+        );
+        assert!(f.message.contains("https://x.test/a"), "{}", f.message);
     }
 
     #[tokio::test]

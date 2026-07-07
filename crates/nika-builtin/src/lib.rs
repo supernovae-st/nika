@@ -47,7 +47,7 @@ use std::sync::Arc;
 
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::io::clock::ClockDyn;
-use nika_kernel::io::fs::{FsListDyn, FsReadDyn, FsWriteDyn};
+use nika_kernel::io::fs::{FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
 use nika_kernel::io::http::{HttpGetDyn, HttpPostDyn};
 use nika_kernel::runtime::tool_executor::{
     ToolBatchDyn, ToolCall, ToolErrorMeta, ToolExecError, ToolExecuteDyn, ToolResult,
@@ -346,7 +346,7 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
 
 impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W>
 where
-    F: FsReadDyn + FsWriteDyn + FsListDyn,
+    F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn,
     H: HttpGetDyn + HttpPostDyn,
     C: ClockDyn,
     Em: Emitter,
@@ -574,7 +574,7 @@ fn render(call_id: &str, outcome: BuiltinOutcome) -> ToolResult {
 
 impl<F, H, C, Em, P, W> ToolExecuteDyn for BuiltinDispatcher<F, H, C, Em, P, W>
 where
-    F: FsReadDyn + FsWriteDyn + FsListDyn + Send + Sync,
+    F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync,
     H: HttpGetDyn + HttpPostDyn + Send + Sync,
     C: ClockDyn + Send + Sync,
     Em: Emitter,
@@ -589,7 +589,7 @@ where
 
 impl<F, H, C, Em, P, W> ToolBatchDyn for BuiltinDispatcher<F, H, C, Em, P, W>
 where
-    F: FsReadDyn + FsWriteDyn + FsListDyn + Send + Sync,
+    F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync,
     H: HttpGetDyn + HttpPostDyn + Send + Sync,
     C: ClockDyn + Send + Sync,
     Em: Emitter,
@@ -607,7 +607,7 @@ where
 
 impl<F, H, C, Em, P, W> ToolDefinitionProviderDyn for BuiltinDispatcher<F, H, C, Em, P, W>
 where
-    F: FsReadDyn + FsWriteDyn + FsListDyn + Send + Sync,
+    F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync,
     H: HttpGetDyn + HttpPostDyn + Send + Sync,
     C: ClockDyn + Send + Sync,
     Em: Emitter,

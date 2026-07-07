@@ -53,6 +53,22 @@ pub(crate) fn form_urlencode(pairs: &[(&str, String)]) -> String {
     out
 }
 
+/// Strip userinfo from a URL before it rides HUMAN/LLM-facing text
+/// (failure messages · trace lines · agent tool-results): an authored
+/// `https://user:pass@host/…` must never echo its credentials (the
+/// image-provider raw-body precedent). Unparseable input returns
+/// verbatim (it carried no parseable userinfo either).
+pub(crate) fn redact_url(raw: &str) -> String {
+    match url::Url::parse(raw) {
+        Ok(mut parsed) if !parsed.username().is_empty() || parsed.password().is_some() => {
+            let _ = parsed.set_username("");
+            let _ = parsed.set_password(None);
+            parsed.to_string()
+        }
+        _ => raw.to_owned(),
+    }
+}
+
 /// Is this HTTP status transient (worth a retry)? The spec's status table:
 /// 5xx server errors + 408 Request Timeout + 429 Too Many Requests. THE
 /// single authority — `retry.on_codes` correctness rides on it matching
@@ -314,6 +330,29 @@ mod tests {
                 "names the violation: {err}"
             );
         }
+    }
+
+    #[test]
+    fn redact_url_strips_userinfo_only() {
+        assert_eq!(
+            redact_url("https://user:hunter2@api.test/upload?k=v"),
+            "https://api.test/upload?k=v"
+        );
+        assert_eq!(
+            redact_url("https://token@api.test/x"),
+            "https://api.test/x",
+            "username-only userinfo is stripped too"
+        );
+        assert_eq!(
+            redact_url("https://api.test/plain"),
+            "https://api.test/plain",
+            "no userinfo → byte-identical"
+        );
+        assert_eq!(
+            redact_url("not a url"),
+            "not a url",
+            "unparseable → verbatim"
+        );
     }
 
     #[test]

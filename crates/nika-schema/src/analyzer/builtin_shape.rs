@@ -363,6 +363,22 @@ fn check_fetch_payload_shape(
             span,
         ));
     }
+    if (has("form") || has("multipart"))
+        && let Some(headers) = object
+            .and_then(|map| map.get("headers"))
+            .and_then(serde_json::Value::as_object)
+        && headers
+            .keys()
+            .any(|k| k.eq_ignore_ascii_case("content-type"))
+    {
+        errors.push(shape(
+            task,
+            tool,
+            "`form:`/`multipart:` set their own content-type — drop the \
+             `headers:` entry (builtins-v0.1.md §nika:fetch)",
+            span,
+        ));
+    }
     if has("form") || has("multipart") {
         match object
             .and_then(|map| map.get("method"))
@@ -418,7 +434,7 @@ fn check_multipart_parts(
     span: Span,
     errors: &mut Vec<SchemaError>,
 ) {
-    const PART_KEYS: [&str; 5] = ["name", "value", "path", "filename", "content_type"];
+    use nika_types::net::MULTIPART_PART_KEYS as PART_KEYS;
     let items = match parts {
         serde_json::Value::String(s) if s.contains("${{") => return,
         serde_json::Value::Array(items) => items,
@@ -882,6 +898,11 @@ mod tests {
                 r#"{ url: "https://x.test", method: DELETE, multipart: [{ name: f, value: v }] }"#,
                 "nika:fetch",
                 true, // DELETE carries no body
+            ),
+            (
+                r#"{ url: "https://x.test", method: POST, form: { a: "b" }, headers: { Content-Type: "application/json" } }"#,
+                "nika:fetch",
+                true, // the payload family owns its content-type (runtime parity)
             ),
         ];
         for (args, tool, violates) in &cases {
