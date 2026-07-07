@@ -163,7 +163,15 @@ fn check(args: &Value) -> Result<String, String> {
     // dropping 9 classes · a model can parse the JSON + repair from it).
     let detail = serde_json::to_string_pretty(&report)
         .map_err(|e| format!("check report serialization failed: {e}"))?;
-    Ok(format!(
+    // A DIRTY workflow is an `Err` so the dispatcher flags `isError: true`:
+    // the model then SEES the findings AND the harness triggers its repair
+    // loop (the authoring protocol is template→fill→check→REPAIR). This
+    // mirrors the CLI's exit-2-on-dirty — the two machine lanes must not
+    // disagree (a `nika check` that fails the shell must not read as
+    // success over MCP). The full report rides the Err text unchanged, so
+    // the model repairs from the same JSON either way (the user-sim
+    // finding · the is_clean mirror law applied to the MCP lane).
+    Err(format!(
         "✖ findings — the workflow is not clean · the full check report:\n{detail}"
     ))
 }
@@ -304,11 +312,14 @@ mod tests {
     }
 
     #[test]
-    fn check_a_broken_workflow_lists_findings() {
+    fn check_a_broken_workflow_is_an_error_carrying_the_findings() {
         // A dangling depends_on edge — a DAG finding the ladder catches.
+        // Dirty is an `Err` (→ isError:true) so a wired agent's repair
+        // loop triggers, mirroring the CLI's exit-2-on-dirty; the full
+        // report still rides the text so the model repairs from it.
         let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: \"x\" }\n";
-        let out = execute("nika_check", &json!({ "workflow": wf })).expect("ran");
-        assert!(out.contains("findings") && out.contains("NIKA-"), "{out}");
+        let err = execute("nika_check", &json!({ "workflow": wf })).expect_err("dirty is an error");
+        assert!(err.contains("findings") && err.contains("NIKA-"), "{err}");
     }
 
     #[test]
@@ -324,7 +335,7 @@ mod tests {
         // only `conformance` → an empty "✖ findings" body for this whole class
         // (the P1). The full-report render must surface it.
         let wf = "nika: v1\nworkflow: t\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: x\n      max_tokens: 10\n      schema: { type: object, properties: { a: { type: string } }, required: [b] }\n";
-        let out = execute("nika_check", &json!({ "workflow": wf })).expect("ran");
+        let out = execute("nika_check", &json!({ "workflow": wf })).expect_err("dirty is an error");
         assert!(out.contains("findings"), "flags not-clean: {out}");
         assert!(
             out.contains("schema_lints") && out.contains('b'),

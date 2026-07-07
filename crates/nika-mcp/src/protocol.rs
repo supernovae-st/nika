@@ -234,6 +234,31 @@ mod tests {
     }
 
     #[test]
+    fn tools_call_dirty_check_is_iserror_so_the_repair_loop_triggers() {
+        // A workflow with findings comes back isError:true (the model
+        // sees the findings AND a repair-on-error harness fires) — the
+        // MCP lane must agree with the CLI's exit-2-on-dirty.
+        let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: \"x\" }\n";
+        let resp = handle(&json!({
+            "jsonrpc": "2.0", "id": 7, "method": "tools/call",
+            "params": { "name": "nika_check", "arguments": { "workflow": wf } }
+        }))
+        .expect("reply");
+        assert!(resp.get("error").is_none(), "not a protocol error");
+        assert_eq!(
+            resp["result"]["isError"], true,
+            "dirty check signals isError"
+        );
+        assert!(
+            resp["result"]["content"][0]["text"]
+                .as_str()
+                .expect("text")
+                .contains("findings"),
+            "the findings still ride the content so the model repairs"
+        );
+    }
+
+    #[test]
     fn tools_call_tool_error_is_iserror_not_protocol_error() {
         let resp = handle(&json!({
             "jsonrpc": "2.0", "id": 4, "method": "tools/call",
