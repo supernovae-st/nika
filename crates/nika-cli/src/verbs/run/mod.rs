@@ -24,6 +24,7 @@
 mod compose;
 mod resume;
 mod sink;
+mod source_id;
 mod stamp;
 
 pub use compose::{
@@ -36,6 +37,7 @@ pub use stamp::SystemStamper;
 
 mod scope;
 use scope::scope_to_task;
+pub(crate) use source_id::{lf_normal_form, sha256_hex};
 
 use sink::{TRACE_DIR, Tee, TraceFileSink};
 
@@ -469,20 +471,6 @@ fn parse_var_overrides(
 // The 7 knobs ARE the composition surface (var overrides · resume plan ·
 // answers · pause flag) — the same clap-surface idiom as `run` itself.
 #[allow(clippy::too_many_arguments)]
-/// The run's source identity: sha256 hex over the exact bytes read.
-pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
-    use sha2::{Digest as _, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(bytes);
-    let digest = hasher.finalize();
-    let mut hex = String::with_capacity(64);
-    for byte in digest {
-        use std::fmt::Write as _;
-        let _ = write!(hex, "{byte:02x}");
-    }
-    hex
-}
-
 fn composed_runtime(
     wf: &RawWorkflow,
     source: &str,
@@ -505,6 +493,16 @@ fn composed_runtime(
                 // The run's identity: the journal names the definition it
                 // recorded (sha256 of the exact bytes this composer read).
                 .with_source_sha256(sha256_hex(source.as_bytes()));
+            // A CRLF/BOM source ALSO records its LF normal form, so drift
+            // checks can tell a re-encode from an edit. LF sources skip
+            // the field (the forms coincide — the journal stays lean).
+            let raw_sha = sha256_hex(source.as_bytes());
+            let lf_sha = sha256_hex(lf_normal_form(source).as_bytes());
+            let rt = if lf_sha == raw_sha {
+                rt
+            } else {
+                rt.with_source_sha256_lf(lf_sha)
+            };
             Ok(match resume_plan {
                 Some(plan) => rt.with_resume_plan(plan),
                 None => rt,
