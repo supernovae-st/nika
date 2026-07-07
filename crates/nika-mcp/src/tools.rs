@@ -79,7 +79,7 @@ pub(crate) fn catalog() -> Value {
         },
         {
             "name": "nika_template",
-            "description": "The 6 canonical workflow skeletons (chain · gate-and-act · \
+            "description": "The canonical workflow skeletons (chain · gate-and-act · \
                             fanout · …). Without `name`: the list. With `name`: that \
                             skeleton's source — copy it, fill the SLOT lines, never \
                             invent structure.",

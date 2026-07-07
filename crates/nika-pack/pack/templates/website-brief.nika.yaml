@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · website-brief · crawl a site → understand it → persist the brief.
+# The shape for « understand a site (domain · theme · assets) from a URL ».
+#
+# Instantiate (agents · deterministic) ·
+#   1. Copy this file · rename per the job (kebab-case).
+#   2. Fill every `# SLOT:` line · delete slot comments when filled.
+#   3. Validate · `nika check <file>` (or conformance/runner.py validate).
+#   4. Repair using the error's fix line · re-check until valid.
+# Native-first · the crawl is `traverse:` (no curl · no helper script);
+# the brief is one typed infer; the persist is `nika:write`. Zero exec.
+nika: v1
+workflow: website-brief-template    # SLOT: kebab-case workflow id
+description: "crawl → brief → persist"   # SLOT: one honest sentence
+
+model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
+
+vars:
+  site_url: "https://example.com"   # SLOT: the site to understand
+  out_path: "./out/brief.json"      # SLOT: where the brief lands
+
+tasks:
+  - id: crawl_site
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ vars.site_url }}"
+        traverse: { max_pages: 5 }  # SLOT: crawl bound · 1..=25 (robots honored)
+
+  - id: brief
+    depends_on: [crawl_site]
+    infer:
+      max_tokens: 1200
+      prompt: |
+        # SLOT: the one model job · what should the brief capture?
+        From this site crawl, produce a creative brief: the domain of
+        activity, the dominant visual theme, the audience, the usable
+        colors and image assets.
+        Crawl digest · ${{ tasks.crawl_site.output }}
+      schema:                       # SLOT: the typed shape downstream tasks rely on
+        type: object
+        additionalProperties: false
+        properties:
+          domain: { type: string }
+          theme: { type: string }
+          audience: { type: string }
+          colors: { type: array, items: { type: string } }
+          assets: { type: array, items: { type: string } }
+        required: [domain, theme, audience, colors, assets]
+
+  - id: persist
+    depends_on: [brief]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "${{ vars.out_path }}"
+        create_dirs: true
+        content: "${{ tasks.brief.output }}"   # ALWAYS pass content
+
+outputs:
+  brief: ${{ tasks.brief.output }}   # SLOT: the callable contract
