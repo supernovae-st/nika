@@ -8,6 +8,55 @@ Nika Diamond is a ground-up rewrite on the `nika-diamond` orphan branch.
 Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ---
+## [0.97.0](https://github.com/supernovae-st/nika/compare/v0.96.0..v0.97.0) - 2026-07-07
+
+**The run becomes evidence.** 0.96 made the run a place you can visit;
+0.97 makes it a record you can trust — and prices it before you pay.
+
+### ✨ Features
+
+- **The journal is tamper-evident** — every line carries a hash chain;
+  `nika trace verify` walks it and names the first broken link ([PR 237](https://github.com/supernovae-st/nika/pull/237)).
+  Export and replay check the chain BEFORE trusting the data ([PR 238](https://github.com/supernovae-st/nika/pull/238)).
+- **`nika trace reproduce`** — is this run reproducible, and WHY not:
+  the verdict names every non-deterministic ingredient ([PR 241](https://github.com/supernovae-st/nika/pull/241)).
+- **The journal attests its engine** — `engine_version` + platform ride
+  `workflow_started`: a failure report says WHICH binary WHERE ([PR 235](https://github.com/supernovae-st/nika/pull/235)).
+- **Models are priced before the first run** — the vendored catalog
+  refreshed from models.dev (62 rules → 602 · [PR 233](https://github.com/supernovae-st/nika/pull/233)) and `check --json`
+  carries per-model rates ([PR 236](https://github.com/supernovae-st/nika/pull/236)): the editor preflight (nika-vscode
+  0.97.3) shows `$in/$out per 1M` with zero spend — it lights up on this tag.
+- **`check` IS the dry-run** — the plan names WHAT dispatches WHEN:
+  waves, gates, blast radius, before anything runs ([PR 245](https://github.com/supernovae-st/nika/pull/245)).
+- **`doctor --json`** — the diagnosis speaks machine ([PR 244](https://github.com/supernovae-st/nika/pull/244)).
+- **Guided onboarding** — bare `nika init`/`nika new` converse on a
+  terminal instead of demanding flags ([PR 253](https://github.com/supernovae-st/nika/pull/253)).
+- **Envelope-model did-you-mean resolves like any surface** — deep/019 ([PR 239](https://github.com/supernovae-st/nika/pull/239)).
+
+### 🐛 Bug Fixes
+
+- **The trust surface stops lying at its edges** — the rust-pro batch
+  hardens verify/export/replay edge cases ([PR 248](https://github.com/supernovae-st/nika/pull/248)),
+  and the chain writer earns its anchor — the writer-side review
+  batch ([PR 252](https://github.com/supernovae-st/nika/pull/252)).
+- **infer bills every round-trip, not just the last** — multi-cycle
+  runs report their true cost ([PR 250](https://github.com/supernovae-st/nika/pull/250)).
+- **The drift warn tells a re-encode from an edit** — CRLF/BOM sources
+  record `workflow_sha256_lf` (the LF normal form); dap replay compares
+  content, not bytes — an editor re-encode no longer cries
+  « workflow changed » ([PR 247](https://github.com/supernovae-st/nika/pull/247)).
+- **dap launch gets the file-side bounds** — 64 MiB cap, regular files
+  only (a device/FIFO hung the adapter), and a torn-tail journal says
+  « valid prefix only » instead of replaying silently ([PR 242](https://github.com/supernovae-st/nika/pull/242)).
+- **infer repairs near-miss JSON** and reaches longer stall cycles ([PR 243](https://github.com/supernovae-st/nika/pull/243)).
+- **Strict `json_schema` claims travel only where earned** ([PR 246](https://github.com/supernovae-st/nika/pull/246)).
+
+### 📦 Pack
+
+- Vendored spec pack synced to nika-spec main — `nika:edit count:` is a
+  strict non-negative integer: the string `"2"` is a loud arg error,
+  never a silent replace-all (spec [PR 26](https://github.com/supernovae-st/nika-spec/pull/26)).
+
 ## [0.96.0](https://github.com/supernovae-st/nika/compare/v0.95.0..v0.96.0) - 2026-07-06
 
 ### ✨ Highlights
