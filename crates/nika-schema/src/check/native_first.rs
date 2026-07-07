@@ -159,7 +159,7 @@ fn native_advice(command: &RawCommand) -> Option<String> {
     None
 }
 
-/// The literal program head: argv[0] for the argv form, the first
+/// The literal program head: `argv[0]` for the argv form, the first
 /// non-assignment token of a shell string. Basename'd (`/usr/bin/curl`
 /// counts as `curl`); a templated head (`${{ … }}`) makes no claim.
 fn command_head(command: &RawCommand) -> Option<String> {
