@@ -9,6 +9,7 @@
 //! `expression:` · `nika:wait` takes `duration:` XOR `until:`.
 
 use nika_types::extract::{EXTRACT_MODE_NAMES, ExtractMode};
+use nika_types::net::MAX_TRAVERSE_PAGES;
 
 use crate::error::SchemaError;
 use crate::raw::{RawAction, RawTask};
@@ -155,6 +156,10 @@ fn check_fetch_shape(
         return;
     }
     check_fetch_payload_shape(task, tool, object, span, errors);
+    if object.is_some_and(|map| map.contains_key("traverse")) {
+        check_fetch_traverse_shape(task, tool, object, span, errors);
+        return; // traverse owns the whole surface — no mode pairing below
+    }
     let mode = match object.and_then(|map| map.get("mode")) {
         // Absent → the spec default (markdown).
         None => Some(ExtractMode::Markdown),
@@ -225,6 +230,110 @@ fn check_fetch_shape(
              (extract-modes-v0.1.md §selector)",
             span,
         ));
+    }
+}
+
+/// `traverse:` static contracts (stdlib §fetch · traverse): the crawl
+/// excludes the single-fetch extraction args (`mode`/`selector`/`jq` —
+/// the payload families are already covered by the exclusivity rule in
+/// [`check_fetch_payload_shape`] since traverse is GET-only), forces
+/// GET, and its own shape is CLOSED (`max_pages` 1..=25 required ·
+/// `respect_robots` bool). Templated values are runtime business.
+fn check_fetch_traverse_shape(
+    task: &str,
+    tool: &str,
+    object: Option<&serde_json::Map<String, serde_json::Value>>,
+    span: Span,
+    errors: &mut Vec<SchemaError>,
+) {
+    let has = |key: &str| object.is_some_and(|map| map.contains_key(key));
+    for key in ["mode", "selector", "jq", "body", "form", "multipart"] {
+        if has(key) {
+            errors.push(shape(
+                task,
+                tool,
+                &format!(
+                    "`traverse:` excludes `{key}:` — the crawl emits the fixed \
+                     page-digest shape (builtins-v0.1.md §nika:fetch · traverse)"
+                ),
+                span,
+            ));
+        }
+    }
+    if let Some(method) = object
+        .and_then(|map| map.get("method"))
+        .and_then(serde_json::Value::as_str)
+        && !method.contains("${{")
+        && !method.eq_ignore_ascii_case("GET")
+    {
+        errors.push(shape(
+            task,
+            tool,
+            &format!("`traverse:` crawls with GET only — drop `method: {method}`"),
+            span,
+        ));
+    }
+    let traverse = object.and_then(|map| map.get("traverse"));
+    let map = match traverse {
+        Some(serde_json::Value::String(s)) if s.contains("${{") => return, // runtime
+        Some(serde_json::Value::Object(map)) => map,
+        Some(_) | None => {
+            errors.push(shape(
+                task,
+                tool,
+                "`traverse:` must be an object — `{ max_pages: N, respect_robots?: bool }`",
+                span,
+            ));
+            return;
+        }
+    };
+    if let Some(unknown) = map
+        .keys()
+        .find(|k| !matches!(k.as_str(), "max_pages" | "respect_robots"))
+    {
+        errors.push(shape(
+            task,
+            tool,
+            &format!("`traverse.{unknown}:` is not a traverse field — the shape is closed"),
+            span,
+        ));
+    }
+    match map.get("max_pages") {
+        None => errors.push(shape(
+            task,
+            tool,
+            &format!(
+                "`traverse.max_pages:` is required — an integer 1..={MAX_TRAVERSE_PAGES} \
+                 (the crawl bound)"
+            ),
+            span,
+        )),
+        Some(serde_json::Value::String(s)) if s.contains("${{") => {} // runtime
+        Some(value) => match value.as_u64() {
+            Some(n) if (1..=MAX_TRAVERSE_PAGES).contains(&n) => {}
+            Some(n) => errors.push(shape(
+                task,
+                tool,
+                &format!("`traverse.max_pages: {n}` out of range — 1..={MAX_TRAVERSE_PAGES}"),
+                span,
+            )),
+            None => errors.push(shape(
+                task,
+                tool,
+                &format!("`traverse.max_pages:` must be an integer 1..={MAX_TRAVERSE_PAGES}"),
+                span,
+            )),
+        },
+    }
+    match map.get("respect_robots") {
+        None | Some(serde_json::Value::Bool(_)) => {}
+        Some(serde_json::Value::String(s)) if s.contains("${{") => {} // runtime
+        Some(_) => errors.push(shape(
+            task,
+            tool,
+            "`traverse.respect_robots:` must be a boolean",
+            span,
+        )),
     }
 }
 
@@ -773,6 +882,74 @@ mod tests {
                 r#"{ url: "https://x.test", method: DELETE, multipart: [{ name: f, value: v }] }"#,
                 "nika:fetch",
                 true, // DELETE carries no body
+            ),
+        ];
+        for (args, tool, violates) in &cases {
+            let yaml = format!(
+                "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke:\n      \
+                 tool: \"{tool}\"\n      args: {args}\n"
+            );
+            assert_eq!(
+                has_shape_error(&yaml, tool),
+                *violates,
+                "{tool} · args {args}"
+            );
+        }
+    }
+
+    #[test]
+    fn fetch_traverse_shape_rules_table() {
+        // nika:fetch traverse — the bounded crawl (stdlib §fetch · traverse).
+        let cases = [
+            (
+                r#"{ url: "https://x.test", traverse: { max_pages: 5 } }"#,
+                "nika:fetch",
+                false, // the valid crawl
+            ),
+            (
+                r#"{ url: "https://x.test", traverse: { max_pages: 5, respect_robots: false } }"#,
+                "nika:fetch",
+                false, // robots opt-out is a bool field
+            ),
+            (
+                r#"{ url: "https://x.test", traverse: { max_pages: 0 } }"#,
+                "nika:fetch",
+                true, // below the range
+            ),
+            (
+                r#"{ url: "https://x.test", traverse: { max_pages: 26 } }"#,
+                "nika:fetch",
+                true, // above the cap
+            ),
+            (
+                r#"{ url: "https://x.test", traverse: {} }"#,
+                "nika:fetch",
+                true, // max_pages is required
+            ),
+            (
+                r#"{ url: "https://x.test", traverse: { max_pages: 5, depth: 2 } }"#,
+                "nika:fetch",
+                true, // the shape is closed
+            ),
+            (
+                r#"{ url: "https://x.test", traverse: { max_pages: 5 }, mode: raw }"#,
+                "nika:fetch",
+                true, // traverse excludes the extraction args
+            ),
+            (
+                r#"{ url: "https://x.test", traverse: { max_pages: 5 }, method: POST }"#,
+                "nika:fetch",
+                true, // GET only
+            ),
+            (
+                r#"{ url: "https://x.test", traverse: "${{ vars.crawl }}" }"#,
+                "nika:fetch",
+                false, // fully-templated spec — runtime business
+            ),
+            (
+                r#"{ url: "https://x.test", traverse: { max_pages: "${{ vars.n }}" } }"#,
+                "nika:fetch",
+                false, // templated field — runtime business
             ),
         ];
         for (args, tool, violates) in cases {

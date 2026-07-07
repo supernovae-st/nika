@@ -26,7 +26,7 @@ use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str};
 /// are `security_error` · non-transient · never fed back to an `agent:` model
 /// (a boundary is not negotiation material). `None` for transport-plane
 /// errors — the caller maps those per its own retry contract.
-fn net_security_failure(e: &HttpError) -> Option<BuiltinFailure> {
+pub(crate) fn net_security_failure(e: &HttpError) -> Option<BuiltinFailure> {
     match e {
         HttpError::HostNotAllowed { host } => Some(BuiltinFailure::new(
             crate::permits::SEC_DENIED,
@@ -64,6 +64,12 @@ pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn>(
 ) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-FETCH-001";
     let url = req_str(args, "url", C)?;
+    // `traverse:` is the bounded-crawl family — it owns its whole arg
+    // surface (exclusivity · GET-only · closed spec) and its own output
+    // shape, so it branches before any single-fetch vetting.
+    if args.contains_key("traverse") {
+        return crate::net_traverse::traverse(http, url, args).await;
+    }
     let method = opt_str(args, "method", C)?.unwrap_or("GET").to_uppercase();
     // Vet the mode + arg pairings BEFORE the network call — a bad
     // `mode:` or a silently-droppable `selector:`/`jq:` should fail
@@ -270,7 +276,10 @@ fn decode_utf8_strict(body: &[u8], code: &'static str) -> Result<String, Builtin
 /// Lossy by design — extraction is best-effort cleanup, a stray byte
 /// must not sink the page (the strict path is `raw`/`jq` above). `Cow`:
 /// clean UTF-8 (the web's majority) BORROWS — no copy.
-fn decode_charset<'a>(body: &'a [u8], content_type: Option<&str>) -> std::borrow::Cow<'a, str> {
+pub(crate) fn decode_charset<'a>(
+    body: &'a [u8],
+    content_type: Option<&str>,
+) -> std::borrow::Cow<'a, str> {
     let encoding = encoding_rs::Encoding::for_bom(body)
         .map(|(enc, _bom_len)| enc)
         .or_else(|| {
@@ -705,7 +714,7 @@ fn build_request(method: HttpMethod, url: &str, args: &Args) -> Result<HttpReque
 
 /// The spec's status→retryability table (stdlib §fetch · normative):
 /// 5xx, 408 (request timeout) and 429 (rate limit) are transient.
-fn is_transient_status(status: u16) -> bool {
+pub(crate) fn is_transient_status(status: u16) -> bool {
     matches!(status, 500..=599 | 408 | 429)
 }
 

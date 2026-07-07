@@ -48,7 +48,9 @@
 //! - `infer` = 1 LLM call per body run · `agent` ≤ `max_turns` (default
 //!   10) per body run · `exec`/`invoke` = 1 effect call per body run
 
-use crate::raw::{ForEachValue, RawAction, RawWorkflow};
+use nika_types::net::MAX_TRAVERSE_PAGES;
+
+use crate::raw::{ForEachValue, RawAction, RawInvokeAction, RawWorkflow};
 
 /// One parametric term: `coeff · |task|` (the `for_each` collection
 /// size of `task`, known only at runtime).
@@ -276,8 +278,39 @@ fn action_calls(action: &RawAction) -> (u64, u64) {
         // exhaustive ON PURPOSE (we are the defining crate): a future
         // verb fails compilation HERE until it declares its call class —
         // the certificate can never silently under-count a new verb
-        RawAction::Exec(_) | RawAction::Invoke(_) => (0, 1),
+        RawAction::Exec(_) => (0, 1),
+        RawAction::Invoke(a) => (0, invoke_effect_calls(a)),
     }
+}
+
+/// Effect calls ONE `invoke:` body run performs — 1 for every tool
+/// except a `nika:fetch` carrying `traverse:` (the bounded crawl): a
+/// literal `max_pages: N` means N page requests, +1 robots.txt probe
+/// unless `respect_robots:` is LITERALLY `false`; a templated spec or
+/// field folds to the runtime cap ([`MAX_TRAVERSE_PAGES`] — ONE
+/// definition with the runtime via `nika-types`). The certificate may
+/// over-state a crawl that converges early; it must never under-count.
+fn invoke_effect_calls(action: &RawInvokeAction) -> u64 {
+    if action.tool.value != "nika:fetch" {
+        return 1;
+    }
+    let Some(traverse) = action
+        .args
+        .as_ref()
+        .and_then(|args| args.value.get("traverse"))
+    else {
+        return 1;
+    };
+    let pages = traverse
+        .get("max_pages")
+        .and_then(serde_json::Value::as_u64)
+        .filter(|n| (1..=MAX_TRAVERSE_PAGES).contains(n))
+        .unwrap_or(MAX_TRAVERSE_PAGES);
+    let robots = match traverse.get("respect_robots") {
+        Some(serde_json::Value::Bool(false)) => 0,
+        _ => 1,
+    };
+    pages + robots
 }
 
 /// ONE body run's worst-case spend in micro-USD — `Ok(0)` for
@@ -499,6 +532,30 @@ mod tests {
             constant: n,
             terms: vec![],
         }
+    }
+
+    #[test]
+    fn traverse_fetch_counts_its_page_bound_plus_robots() {
+        // literal max_pages 5 + default robots → 5 + 1 effects.
+        let c = cert(&wf(
+            "  - id: crawl\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: { max_pages: 5 } } }\n",
+        ));
+        assert_eq!(c.effect_calls, konst(6));
+        // respect_robots literally false → no probe.
+        let c = cert(&wf(
+            "  - id: crawl\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: { max_pages: 5, respect_robots: false } } }\n",
+        ));
+        assert_eq!(c.effect_calls, konst(5));
+        // a templated spec folds to the runtime cap (+ robots).
+        let c = cert(&wf(
+            "  - id: crawl\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: \"${{ vars.spec }}\" } }\n",
+        ));
+        assert_eq!(c.effect_calls, konst(MAX_TRAVERSE_PAGES + 1));
+        // a plain fetch stays exactly 1 (no traverse key).
+        let c = cert(&wf(
+            "  - id: one\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\" } }\n",
+        ));
+        assert_eq!(c.effect_calls, konst(1));
     }
 
     #[test]
