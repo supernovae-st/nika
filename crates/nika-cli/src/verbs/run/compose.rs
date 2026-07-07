@@ -213,7 +213,7 @@ where
 /// time is NOT an error here: `resolve()` surfaces the typed
 /// `AuthFailed` (with the env-ladder hint) only if a workflow actually
 /// targets that provider.
-fn config_from_env() -> ProvidersConfig {
+pub(crate) fn config_from_env() -> ProvidersConfig {
     let mut config = ProvidersConfig::new();
     for provider in nika_catalog::all_providers() {
         if provider.env_var.is_empty() {
@@ -227,7 +227,84 @@ fn config_from_env() -> ProvidersConfig {
             config = config.with_key(provider.id, Secret::new(value));
         }
     }
+    // The LOCAL servers' base URLs cross the SAME sanctioned boundary
+    // (deliberately not secrets — same rationale as NIKA_IMAGE_LOCAL_URL):
+    // `NIKA_<ID>_BASE_URL` first (ours, all 5 locals), then the server's
+    // own convention where one exists — `OLLAMA_HOST`, which the official
+    // ollama client honors and every LAN-GPU setup already exports. The
+    // engine ignoring it sent runs to 127.0.0.1 while the user's own
+    // `ollama` CLI talked to the box they configured (the user-sim
+    // finding). The convenience forms ollama documents (`host` ·
+    // `host:port` · full URL) all resolve; a bare host gets the
+    // provider's own default port, mirroring the official client.
+    for (id, conventional, default_port) in LOCAL_BASE_ENV {
+        let ours = format!("NIKA_{}_BASE_URL", id.to_uppercase());
+        #[allow(clippy::disallowed_methods)] // the sanctioned env boundary (see doc)
+        let raw = std::env::var(&ours)
+            .ok()
+            .filter(|v| !v.is_empty())
+            .or_else(|| {
+                conventional.and_then(|name| {
+                    #[allow(clippy::disallowed_methods)] // the sanctioned env boundary (see doc)
+                    std::env::var(name).ok().filter(|v| !v.is_empty())
+                })
+            });
+        if let Some(raw) = raw {
+            config = config.with_base_url(id, normalize_local_base_url(&raw, default_port));
+        }
+    }
     config
+}
+
+/// The 5 local servers' env ladder: our variable first, then the
+/// server's own convention where one exists. Default ports mirror the
+/// seed rows in `nika-providers::profile::LOCAL` — the cross-check test
+/// below fails if either side drifts (a 6th local or a port change must
+/// land in BOTH places).
+const LOCAL_BASE_ENV: [(&str, Option<&str>, u16); 5] = [
+    ("ollama", Some("OLLAMA_HOST"), 11434),
+    ("lmstudio", None, 1234),
+    ("llamacpp", None, 8080),
+    ("localai", None, 8080),
+    ("vllm", None, 8000),
+];
+
+/// Normalize an operator-supplied local base URL to the full wire
+/// endpoint the adapters expect (`http://host:port/v1/chat/completions`).
+/// Mirrors the official ollama client's `OLLAMA_HOST` conveniences:
+/// scheme optional (http assumed) · port optional (the provider's
+/// default, NOT 80 — `OLLAMA_HOST=gpu-box` must reach 11434) · path
+/// optional (the wire path appended). A URL that already names a path
+/// is taken verbatim (trailing slash trimmed); IPv6 authorities
+/// (`[::1]`) are bracket-aware.
+fn normalize_local_base_url(raw: &str, default_port: u16) -> String {
+    let trimmed = raw.trim().trim_end_matches('/');
+    let with_scheme = if trimmed.contains("://") {
+        trimmed.to_owned()
+    } else {
+        format!("http://{trimmed}")
+    };
+    let (scheme, rest) = with_scheme
+        .split_once("://")
+        .map_or(("http", with_scheme.as_str()), |(s, r)| (s, r));
+    let (authority, path) = rest
+        .split_once('/')
+        .map_or((rest, None), |(a, p)| (a, Some(p)));
+    let has_port = if let Some(bracket_end) = authority.rfind(']') {
+        // IPv6 `[::1]` or `[::1]:11434` — a port is a colon AFTER the bracket.
+        authority[bracket_end..].contains(':')
+    } else {
+        authority.contains(':')
+    };
+    let authority = if has_port {
+        authority.to_owned()
+    } else {
+        format!("{authority}:{default_port}")
+    };
+    match path {
+        Some(p) => format!("{scheme}://{authority}/{p}"),
+        None => format!("{scheme}://{authority}/v1/chat/completions"),
+    }
 }
 
 /// Resolve the `nika:image_generate` provider credentials — the SAME
@@ -621,6 +698,62 @@ pub fn production_runtime(
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_base_url_normalization_mirrors_the_ollama_client() {
+        // The documented OLLAMA_HOST conveniences, each resolved the way
+        // the official client resolves them (scheme http · port = the
+        // provider's own default, never 80 · wire path appended).
+        let n = |raw: &str| normalize_local_base_url(raw, 11434);
+        assert_eq!(
+            n("gpu-box:11434"),
+            "http://gpu-box:11434/v1/chat/completions"
+        );
+        assert_eq!(n("gpu-box"), "http://gpu-box:11434/v1/chat/completions");
+        assert_eq!(n("0.0.0.0"), "http://0.0.0.0:11434/v1/chat/completions");
+        assert_eq!(
+            n("http://gpu-box:7777"),
+            "http://gpu-box:7777/v1/chat/completions"
+        );
+        assert_eq!(
+            n("https://gpu-box"),
+            "https://gpu-box:11434/v1/chat/completions"
+        );
+        assert_eq!(
+            n("http://gpu-box:7777/"),
+            "http://gpu-box:7777/v1/chat/completions"
+        );
+        // An explicit path is the operator's word — verbatim.
+        assert_eq!(
+            n("http://gw:8080/ollama/v1/chat/completions"),
+            "http://gw:8080/ollama/v1/chat/completions"
+        );
+        // IPv6: the authority colon is not a port separator.
+        assert_eq!(n("[::1]"), "http://[::1]:11434/v1/chat/completions");
+        assert_eq!(n("[::1]:7777"), "http://[::1]:7777/v1/chat/completions");
+        // A different provider's default rides its own port.
+        assert_eq!(
+            normalize_local_base_url("gpu-box", 8000),
+            "http://gpu-box:8000/v1/chat/completions"
+        );
+    }
+
+    #[test]
+    fn local_base_env_table_matches_the_provider_seeds() {
+        // The default ports here MUST mirror nika-providers' LOCAL seed
+        // rows — this cross-check turns silent drift (a 6th local · a
+        // port change) into a red test naming both places.
+        let registry = ProviderRegistry::without_http(ProvidersConfig::new());
+        for (id, _, port) in LOCAL_BASE_ENV {
+            let profile = registry.profiles().iter().find(|p| p.id == id);
+            let profile = profile.expect("every LOCAL_BASE_ENV id exists in the registry seeds");
+            assert!(
+                profile.base_url.contains(&format!(":{port}/")),
+                "`{id}` default port drifted: table says {port}, seed says {}",
+                profile.base_url
+            );
+        }
+    }
 
     fn parse(yaml: &str) -> nika_schema::raw::RawWorkflow {
         nika_schema::parse(

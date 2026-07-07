@@ -219,8 +219,11 @@ enum Command {
     },
     /// Browse the embedded examples.
     Examples {
+        /// Bare `nika examples` lists — the clap usage screen answered
+        /// where a user following init's « next · » expected the slugs
+        /// (the user-sim finding).
         #[command(subcommand)]
-        action: ExamplesAction,
+        action: Option<ExamplesAction>,
     },
     /// Instantiate an embedded template skeleton.
     New {
@@ -565,7 +568,7 @@ fn main() -> std::process::ExitCode {
         Command::Schema => emit(&verbs::pack_surface::schema()),
         Command::Catalog { json } => emit(&verbs::catalog::run(json)),
         Command::Tools { json } => emit(&verbs::tools::run(json)),
-        Command::Examples { action } => match action {
+        Command::Examples { action } => match action.unwrap_or(ExamplesAction::List) {
             ExamplesAction::List => emit(&verbs::pack_surface::examples_list()),
             ExamplesAction::Show { slug } => emit(&verbs::pack_surface::examples_show(&slug)),
             // The L3 run verb shipped — execute the embedded example for real.
@@ -917,6 +920,19 @@ fn env_value(name: &str) -> Option<String> {
 mod tests {
     #![allow(clippy::expect_used)]
     use super::*;
+
+    /// Bare `nika examples` answers with the LIST, not the usage
+    /// screen — init's « next · » sends users here (user-sim finding).
+    #[test]
+    fn bare_examples_defaults_to_list() {
+        let cli = Cli::try_parse_from(["nika", "examples"]).expect("parses");
+        assert!(
+            matches!(cli.command, Command::Examples { action: None }),
+            "bare form parses (dispatch folds to List)"
+        );
+        // The explicit form still parses.
+        assert!(Cli::try_parse_from(["nika", "examples", "list"]).is_ok());
+    }
 
     /// The public name is `nika` EVERYWHERE clap speaks (found live
     /// 2026-07-05): the Usage line (`bin_name`) and the generated shell

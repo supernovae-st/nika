@@ -107,6 +107,22 @@ impl ProviderRegistry<NoHttp> {
             config,
         }
     }
+
+    /// The base URL a run against this provider would ACTUALLY hit —
+    /// the operator's `with_base_url` override when present, else the
+    /// profile seed. Diagnostic surfaces (doctor `--ping`) must probe
+    /// THIS, not the seed: pinging 127.0.0.1 while runs talk to the
+    /// operator's GPU box is an anti-doctor.
+    #[must_use]
+    pub fn effective_base_url(&self, provider: &str) -> Option<&str> {
+        if let Some(url) = self.config.base_urls.get(provider) {
+            return Some(url.as_str());
+        }
+        self.profiles
+            .iter()
+            .find(|p| p.id == provider)
+            .map(|p| p.base_url)
+    }
 }
 
 // Capability queries that need only the profiles (no http · no key) —
