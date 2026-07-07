@@ -111,6 +111,11 @@ enum Command {
         /// Print an inferred `permits:` boundary instead of the report.
         #[arg(long)]
         infer_permits: bool,
+        /// Fail (exit 2) when any `native-first` hint remains — an
+        /// `exec:` a builtin or MCP tool probably covers. The agent/CI
+        /// posture; hints stay advisory without it.
+        #[arg(long)]
+        native_strict: bool,
         /// Disable colour output.
         #[arg(long)]
         no_color: bool,
@@ -510,6 +515,7 @@ fn main() -> std::process::ExitCode {
             file,
             json,
             infer_permits,
+            native_strict,
             no_color,
             ascii,
         } => {
@@ -519,6 +525,7 @@ fn main() -> std::process::ExitCode {
                 verbs::check::run(
                     &file,
                     json,
+                    native_strict,
                     term_theme(color.with_no_color(no_color), ascii, link_when),
                 )
             };

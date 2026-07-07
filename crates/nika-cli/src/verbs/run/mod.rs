@@ -604,7 +604,7 @@ fn scoped_clean_gate(
 ) -> Result<(RawWorkflow, CheckReport), u8> {
     let (wf, report) = apply_task_scope(wf, report, task_filter, output_json)?;
     if !report.is_clean() {
-        let out = crate::verbs::check::run(file, json, theme);
+        let out = crate::verbs::check::run(file, json, false, theme);
         emit_diagnostic(&out.text, output_json);
         return Err(out.code);
     }
