@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 //! Metamorphic conformance (ADR-092 ladder #9 · the first slice).
 //!
@@ -32,9 +33,7 @@ use std::fmt::Write as _;
 
 use proptest::prelude::*;
 
-use super::certificate::Bound;
-use super::certificate::RunCertificate;
-use crate::{FileId, ParseMode, parse};
+use nika_schema::{Bound, CheckReport, FileId, ParseMode, RunCertificate, check, parse};
 
 /// One generated task — a STRUCTURE, rendered to YAML with any id
 /// prefix (that is what makes R2 trivial and exact).
@@ -122,9 +121,9 @@ fn to_yaml(tasks: &[TaskSpec], prefix: &str) -> String {
 }
 
 /// Front-door run: parse (strict) then the infallible check.
-fn run(yaml: &str) -> Result<super::CheckReport, String> {
+fn run(yaml: &str) -> Result<CheckReport, String> {
     let wf = parse(yaml, FileId::new(0), ParseMode::Strict).map_err(|e| e.to_string())?;
-    Ok(super::check(&wf))
+    Ok(check(&wf))
 }
 
 /// A bound as an order-free multiset (terms sorted) for comparison
@@ -331,7 +330,7 @@ proptest! {
     fn r6_honest_certificates_always_audit_clean(tasks in workflow_strategy()) {
         let yaml = to_yaml(&tasks, "t");
         let wf = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parses");
-        let report = super::check(&wf);
+        let report = check(&wf);
         prop_assert!(
             report.certificate.audit(&wf).is_ok(),
             "honest certificate rejected on:\n{yaml}"
