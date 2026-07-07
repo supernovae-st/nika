@@ -175,7 +175,7 @@ pub(crate) fn render(lines: &[(char, String)]) -> String {
 /// must hand over to the next command. Golden path: offline proof in
 /// 10s → scaffold → audit-before-tokens. Byte-stable: this is the exact
 /// non-interactive shape scripts have seen since #158.
-const NEXT_BLOCK: &str = "next ·\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika new --from chain my-first.nika.yaml       # scaffold a real workflow\n  nika check my-first.nika.yaml                  # audit before a single token";
+const NEXT_BLOCK: &str = "next ·\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika new                                       # your first workflow — guided on a terminal\n  nika new --from chain my-first.nika.yaml       # the same, scriptable\n  nika check my-first.nika.yaml                  # audit before a single token";
 
 /// Scaffold `dir` (default `.`). Creates parent dirs as needed. A write
 /// failure is the one environment error (`exit 3`); everything else is `0`.
