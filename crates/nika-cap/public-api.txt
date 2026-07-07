@@ -174,3 +174,4 @@ pub unsafe fn nika_cap::Permits::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::Permits
 pub fn nika_cap::Permits::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cap::Permits where T: for<'de> serde_core::de::Deserialize<'de>
+pub fn nika_cap::builtin_shape_findings(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<alloc::string::String>
