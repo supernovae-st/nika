@@ -156,19 +156,101 @@ pub(crate) fn retry_message(detail: &str, schema: &serde_json::Value) -> String 
     )
 }
 
+/// The most candidate spans `extract_json` will try before giving up —
+/// bounds the balanced-span scan at O(CAP · n) on adversarial input (a
+/// 1 MB tool result full of `{` must not become O(n²)). Real model output
+/// carries the value near the start or in the first fence; 16 starts covers
+/// prose-wrapped replies without opening a `DoS` surface.
+const MAX_SPAN_CANDIDATES: usize = 16;
+
 /// Pull the first plausible JSON value out of free-form model text.
+///
+/// Layered, most-specific first: the whole trimmed text, the first fenced
+/// block, then EACH balanced `{…}`/`[…]` span in turn (not just the first —
+/// leading prose containing a stray `{`/`[` used to hide the real value that
+/// followed · review lens 4). Every candidate is tried STRICT then through a
+/// conservative repair (trailing commas) — the near-miss JSON local/open-weight
+/// models emit (`PromptPort` · arxiv.org/abs/2601.06151) costs a wasted paid
+/// retry otherwise.
 fn extract_json(text: &str) -> Option<serde_json::Value> {
     let trimmed = text.trim();
-    if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
+    if let Some(v) = parse_lenient(trimmed) {
         return Some(v);
     }
     if let Some(fenced) = first_fenced_block(trimmed)
-        && let Ok(v) = serde_json::from_str::<serde_json::Value>(fenced)
+        && let Some(v) = parse_lenient(fenced)
     {
         return Some(v);
     }
-    first_balanced_span(trimmed)
-        .and_then(|span| serde_json::from_str::<serde_json::Value>(span).ok())
+    balanced_spans(trimmed).into_iter().find_map(parse_lenient)
+}
+
+/// Parse a candidate STRICT, then — only if that fails — through one
+/// conservative repair pass. The repair is deterministic and never runs on
+/// already-valid JSON (a valid value returns at the strict branch), so the
+/// strict contract is never weakened for well-formed providers.
+fn parse_lenient(candidate: &str) -> Option<serde_json::Value> {
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(candidate) {
+        return Some(v);
+    }
+    let repaired = strip_trailing_commas(candidate);
+    // Only reparse if the repair actually changed something — otherwise it is
+    // the same strict failure, not a near-miss.
+    if repaired.len() != candidate.len() {
+        return serde_json::from_str::<serde_json::Value>(&repaired).ok();
+    }
+    None
+}
+
+/// Drop trailing commas (`,]` / `,}`) — the single most common near-miss
+/// JSON weak local models emit (`PromptPort` canonicalization ·
+/// arxiv.org/abs/2601.06151). String-literal-aware, so a comma inside a
+/// value is never touched; applied ONLY after a strict parse already failed,
+/// and its result is reparsed strict, so a genuinely malformed value still
+/// fails. (Smart-quote / single-quote repair is deliberately NOT done —
+/// those are ambiguous against string content and risk corrupting a value.)
+fn strip_trailing_commas(candidate: &str) -> String {
+    let bytes = candidate.as_bytes();
+    // Copy bytes through unchanged and skip ONLY the ASCII `,` we drop — the
+    // comma byte (0x2C) never appears inside a UTF-8 multibyte sequence, so
+    // multibyte string content is preserved byte-for-byte and the result is
+    // always valid UTF-8.
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut in_string = false;
+    let mut escaped = false;
+    for (i, &b) in bytes.iter().enumerate() {
+        if in_string {
+            out.push(b);
+            if escaped {
+                escaped = false;
+            } else if b == b'\\' {
+                escaped = true;
+            } else if b == b'"' {
+                in_string = false;
+            }
+            continue;
+        }
+        if b == b'"' {
+            in_string = true;
+            out.push(b);
+        } else if b == b',' && next_nonspace_closes(bytes, i + 1) {
+            // trailing comma before `]`/`}` — drop it
+        } else {
+            out.push(b);
+        }
+    }
+    // SAFETY-EQUIVALENT: only whole ASCII bytes were removed from valid UTF-8.
+    String::from_utf8(out).unwrap_or_else(|_| candidate.to_owned())
+}
+
+/// Is the next non-whitespace byte a closing `]` or `}`? (trailing-comma test)
+/// ASCII-only scan is correct: JSON structural whitespace and the closers are
+/// all ASCII, and multibyte UTF-8 continuation bytes are never `< 0x80`.
+fn next_nonspace_closes(bytes: &[u8], from: usize) -> bool {
+    bytes[from..]
+        .iter()
+        .find(|&&b| !b.is_ascii_whitespace())
+        .is_some_and(|&b| b == b']' || b == b'}')
 }
 
 /// The body of the first code fence (with or without a language tag).
@@ -181,10 +263,34 @@ fn first_fenced_block(text: &str) -> Option<&str> {
     Some(body[..end].trim())
 }
 
-/// The first balanced `{…}` or `[…]` span, string-literal aware.
-fn first_balanced_span(text: &str) -> Option<&str> {
-    let open_idx = text.find(['{', '['])?;
+/// Every balanced `{…}`/`[…]` span, in source order, string-literal aware —
+/// bounded to [`MAX_SPAN_CANDIDATES`] start positions. Trying each span (not
+/// just the first) is what lets a real value survive leading prose that
+/// carries a stray `{`/`[`: the caller parses candidates in order and takes
+/// the first that succeeds.
+fn balanced_spans(text: &str) -> Vec<&str> {
     let bytes = text.as_bytes();
+    let mut spans = Vec::new();
+    let mut search_from = 0;
+    while spans.len() < MAX_SPAN_CANDIDATES {
+        let Some(rel) = text[search_from..].find(['{', '[']) else {
+            break;
+        };
+        let open_idx = search_from + rel;
+        if let Some(end) = balanced_end(bytes, open_idx) {
+            spans.push(&text[open_idx..=end]);
+        }
+        // Advance past this opener (ASCII · a char boundary) to the next
+        // candidate — a span that never closed is skipped, not abandoned.
+        search_from = open_idx + 1;
+    }
+    spans
+}
+
+/// The index of the matching close for the delimiter at `open_idx`, or
+/// `None` if the span never balances. String-literal aware: braces/brackets
+/// inside a `"…"` value never move the depth.
+fn balanced_end(bytes: &[u8], open_idx: usize) -> Option<usize> {
     let open = bytes[open_idx];
     let close = if open == b'{' { b'}' } else { b']' };
     let mut depth = 0usize;
@@ -207,7 +313,7 @@ fn first_balanced_span(text: &str) -> Option<&str> {
             _ if b == close => {
                 depth = depth.saturating_sub(1);
                 if depth == 0 {
-                    return Some(&text[open_idx..=i]);
+                    return Some(i);
                 }
             }
             _ => {}
@@ -434,12 +540,88 @@ mod tests {
 
     #[test]
     fn array_span_must_close_with_a_bracket() {
-        // `[` opens an array span; a stray `}` must not close it.
+        // `[` opens an array span; a stray `}` must not close it. The first
+        // `[` never balances (its only closer is `]`, reached inside a longer
+        // unbalanced run) so it yields no parseable candidate — but the
+        // extractor now advances to the NEXT candidate `[3, 4]` and returns
+        // it (multi-candidate · review lens 4). A stray `}` still never
+        // mis-pairs an array.
         let text = "data [1, 2} oops [3, 4] real";
-        // The first `[` span is `[1, 2} oops [3, 4]` — unparseable. The
-        // extractor deliberately does NOT backtrack to later candidates
-        // (first-plausible-span contract); it returns None rather than
-        // mis-pairing delimiters.
-        assert_eq!(extract_json(text), None);
+        assert_eq!(extract_json(text), Some(serde_json::json!([3, 4])));
+    }
+
+    // ── near-miss repair (PromptPort · local-model robustness) ────────
+
+    #[test]
+    fn trailing_comma_in_object_is_repaired() {
+        // The dominant local-model near-miss: a trailing comma before `}`.
+        let v = extract_and_validate(r#"{"name":"Ada","age":36,}"#, &validator(&person_schema()));
+        match v {
+            Validation::Valid(val) => assert_eq!(val["age"], 36),
+            Validation::Invalid(d) => panic!("expected repair to valid, got: {d}"),
+        }
+    }
+
+    #[test]
+    fn trailing_comma_in_array_and_nested_is_repaired() {
+        let schema = json!({ "type": "array", "items": { "type": "integer" } });
+        assert!(matches!(
+            extract_and_validate("[1, 2, 3, ]", &validator(&schema)),
+            Validation::Valid(_)
+        ));
+        // Nested + whitespace before the closer.
+        assert_eq!(
+            extract_json("{\"a\":[1,2,],\n}"),
+            Some(serde_json::json!({"a":[1,2]}))
+        );
+    }
+
+    #[test]
+    fn a_comma_inside_a_string_is_never_stripped() {
+        // The repair is string-aware: a comma that is real content stays, and
+        // a genuine trailing comma in the SAME value is still dropped.
+        assert_eq!(
+            extract_json(r#"{"s":"a, b","n":2,}"#),
+            Some(serde_json::json!({"s":"a, b","n":2}))
+        );
+    }
+
+    #[test]
+    fn repair_preserves_multibyte_utf8() {
+        // The byte-level comma strip must not corrupt multibyte string
+        // content (café · 🦋) — it copies every non-dropped byte verbatim.
+        assert_eq!(
+            extract_json(r#"{"who":"café 🦋","k":1,}"#),
+            Some(serde_json::json!({"who":"café 🦋","k":1}))
+        );
+    }
+
+    #[test]
+    fn a_valid_value_never_reaches_the_repair() {
+        // Well-formed JSON with a legitimate `,]`-looking sequence INSIDE a
+        // string parses strict on the first try — the repair branch (which
+        // could only see it post-failure) is never consulted.
+        assert_eq!(
+            extract_json(r#"{"note":"ends with ,]"}"#),
+            Some(serde_json::json!({"note":"ends with ,]"}))
+        );
+    }
+
+    #[test]
+    fn a_later_candidate_survives_leading_prose_brackets() {
+        // Leading prose carrying a stray `[maybe]` (not JSON) must not hide
+        // the real object that follows — the multi-candidate scan reaches it.
+        let text = r#"I think [maybe] the answer is {"name":"Ada","age":36}."#;
+        assert!(matches!(
+            extract_and_validate(text, &validator(&person_schema())),
+            Validation::Valid(_)
+        ));
+    }
+
+    #[test]
+    fn a_genuinely_malformed_value_still_fails() {
+        // The repair only strips trailing commas; a missing colon is still a
+        // hard parse failure (no silent acceptance of structural garbage).
+        assert!(extract_json(r#"{"a" 1, "b" 2}"#).is_none());
     }
 }

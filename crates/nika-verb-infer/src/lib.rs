@@ -57,7 +57,7 @@ use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ProviderMeta,
-    ResponseFormat, Role, TokenUsage,
+    ResponseFormat, Role, StopReason, TokenUsage,
 };
 use nika_kernel::http::HttpPostDyn;
 use nika_providers::ProviderRegistry;
@@ -259,6 +259,13 @@ where
                 }
                 structured::Validation::Invalid(detail) => {
                     if attempts > u32::from(self.schema_retry_budget) {
+                        // Un-mask a truncated or filtered reply: without this,
+                        // "cut off before the JSON closed" reads as a plain
+                        // schema mismatch and sends the author chasing the
+                        // wrong fix (review lens 5). The retries already ran —
+                        // a tightened instruction can fix VERBOSE truncation —
+                        // so this only annotates the terminal failure.
+                        let detail = format!("{detail}{}", stop_reason_hint(&response.stop_reason));
                         return Err(VerbInferError::SchemaValidation { attempts, detail });
                     }
                     messages.push(Message::text(Role::Assistant, text));
@@ -374,6 +381,21 @@ fn build_request(
         _ => {}
     }
     request
+}
+
+/// An actionable suffix when a structured reply failed AND the provider
+/// stopped for a reason that EXPLAINS the failure — truncation and content
+/// filtering otherwise masquerade as a bare schema mismatch, hiding the real
+/// cause. Empty for a normal stop (the schema genuinely went unmet).
+fn stop_reason_hint(stop: &StopReason) -> &'static str {
+    match stop {
+        StopReason::MaxTokens => {
+            " · the reply was cut off at the token limit before it could \
+             complete — raise `max_tokens` or simplify the schema"
+        }
+        StopReason::ContentFilter => " · the provider's content filter blocked the reply",
+        _ => "",
+    }
 }
 
 /// Concatenated text blocks of the response content.
@@ -826,6 +848,61 @@ mod tests {
             .as_str()
             .expect("prompt text");
         assert!(prompt.contains("JSON Schema"), "{prompt}");
+    }
+
+    /// A structured reply cut off at the token limit reports the TRUNCATION
+    /// as the cause, not a bare schema mismatch (review lens 5 · finding #5).
+    /// `finish_reason: "length"` → `StopReason::MaxTokens` on the openai
+    /// adapter; the terminal error must name the real fix.
+    #[tokio::test]
+    async fn truncated_structured_reply_names_the_token_limit() {
+        // Valid JSON, but the required `age` never arrived — the reply was
+        // cut off. Budget 0 → single shot → straight to the terminal error.
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"length"}],"usage":{}}"#,
+        ]);
+        let mut input = InferInput::new("extract the person");
+        input.schema = Some(json!({
+            "type": "object",
+            "properties": { "name": { "type": "string" }, "age": { "type": "integer" } },
+            "required": ["name", "age"],
+            "additionalProperties": false
+        }));
+        let err = openai_verb(&seam)
+            .with_schema_retry_budget(0)
+            .run(input)
+            .await
+            .expect_err("a truncated reply that misses the schema must error");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("token limit"),
+            "the cause must be named: {msg}"
+        );
+    }
+
+    /// A NORMAL stop that fails the schema stays a plain schema mismatch —
+    /// no truncation hint bolted onto an ordinary validation failure.
+    #[tokio::test]
+    async fn a_normal_stop_carries_no_truncation_hint() {
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"stop"}],"usage":{}}"#,
+        ]);
+        let mut input = InferInput::new("extract the person");
+        input.schema = Some(json!({
+            "type": "object",
+            "properties": { "name": { "type": "string" }, "age": { "type": "integer" } },
+            "required": ["name", "age"],
+            "additionalProperties": false
+        }));
+        let err = openai_verb(&seam)
+            .with_schema_retry_budget(0)
+            .run(input)
+            .await
+            .expect_err("missing required field must still error");
+        assert!(
+            !err.to_string().contains("token limit"),
+            "a clean stop must not claim truncation: {err}"
+        );
     }
 
     /// F2 non-regression: a fully-specified schema keeps today's strict
