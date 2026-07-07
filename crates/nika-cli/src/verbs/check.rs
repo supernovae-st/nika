@@ -20,13 +20,22 @@ use nika_schema::types::VarDecl;
 use crate::display::theme::{Role, Theme};
 use crate::verbs::{VerbOutput, load_checked, load_checked_with_source};
 
-/// The `nika check <file>` verb.
+/// The `nika check <file>` verb. `native_strict` promotes the advisory
+/// `native-first` hints to failures (exit 2) — the agent/CI posture:
+/// spec-validity is unchanged, but an `exec:` with a probable native
+/// path no longer sails through silently.
 #[must_use]
-pub fn run(path: &str, json: bool, theme: Theme) -> VerbOutput {
+pub fn run(path: &str, json: bool, native_strict: bool, theme: Theme) -> VerbOutput {
     let (source, wf, report) = match load_checked_with_source(path) {
         Ok(triple) => triple,
         Err(out) => return out,
     };
+    let native_hints = report
+        .hints
+        .iter()
+        .filter(|h| h.kind == "native-first")
+        .count();
+    let strict_clean = report.is_clean() && (!native_strict || native_hints == 0);
 
     if json {
         return match serde_json::to_value(&report) {
@@ -35,9 +44,15 @@ pub fn run(path: &str, json: bool, theme: Theme) -> VerbOutput {
                 if let Some(obj) = payload.as_object_mut() {
                     obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
                     obj.insert("pricing".to_owned(), pricing_section(&report));
+                    if native_strict {
+                        obj.insert(
+                            "native_strict_clean".to_owned(),
+                            serde_json::Value::Bool(strict_clean),
+                        );
+                    }
                 }
                 let text = format!("{payload:#}");
-                if clean {
+                if strict_clean {
                     VerbOutput::ok(text)
                 } else {
                     VerbOutput::file(text)
@@ -47,8 +62,22 @@ pub fn run(path: &str, json: bool, theme: Theme) -> VerbOutput {
         };
     }
 
-    let text = render(&report, &wf, &source, path, theme);
-    if report.is_clean() {
+    let mut text = render(&report, &wf, &source, path, theme);
+    if native_strict && report.is_clean() && native_hints > 0 {
+        let hint_word = if native_hints == 1 { "hint" } else { "hints" };
+        let _ = writeln!(
+            text,
+            " {}",
+            theme.paint(
+                Role::Bad,
+                &format!(
+                    "✖ native-strict · {native_hints} native-first {hint_word} above — \
+                     replace the exec(s) or record them in the exec ledger"
+                ),
+            )
+        );
+    }
+    if strict_clean {
         VerbOutput::ok(text)
     } else {
         VerbOutput::file(text)
@@ -639,7 +668,89 @@ mod tests {
         let path = dir.join(name);
         std::fs::write(&path, yaml).expect("fixture body");
         let theme = Theme::new(false, ascii, false);
-        run(path.to_str().expect("utf8 path"), false, theme).text
+        run(path.to_str().expect("utf8 path"), false, false, theme).text
+    }
+
+    /// Same fixture plumbing, full `VerbOutput` (exit-code assertions) —
+    /// the `--native-strict` posture tests read `.code`.
+    fn checked_output(name: &str, yaml: &str, native_strict: bool) -> VerbOutput {
+        let dir = std::env::temp_dir().join("nika-cli-killtests");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let path = dir.join(name);
+        std::fs::write(&path, yaml).expect("fixture body");
+        let theme = Theme::new(false, true, false);
+        run(
+            path.to_str().expect("utf8 path"),
+            false,
+            native_strict,
+            theme,
+        )
+    }
+
+    /// `--json --native-strict`: the payload's `native_strict_clean` and
+    /// the exit code must agree (the review-swarm untested-branch gap).
+    #[test]
+    fn native_strict_json_payload_agrees_with_the_exit_code() {
+        let helper = "nika: v1\nworkflow: helper\ntasks:\n  - id: crawl\n    exec: { command: \"curl -s https://acme.test\" }\n";
+        let dir = std::env::temp_dir().join("nika-cli-killtests");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let path = dir.join("native-strict-json.nika.yaml");
+        std::fs::write(&path, helper).expect("fixture body");
+        let theme = Theme::new(false, true, false);
+        let out = run(path.to_str().expect("utf8 path"), true, true, theme);
+        assert_eq!(
+            out.code, 2,
+            "strict hint-only workflow exits FILE: {}",
+            out.text
+        );
+        let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+        assert_eq!(
+            payload["clean"],
+            serde_json::json!(true),
+            "spec-clean stays true"
+        );
+        assert_eq!(
+            payload["native_strict_clean"],
+            serde_json::json!(false),
+            "the strict verdict rides the payload: {payload:#}"
+        );
+    }
+
+    /// `--native-strict` promotes native-first hints to failure: the SAME
+    /// spec-valid workflow exits 0 by default and 2 under strict, with the
+    /// strict verdict naming the count; a natively-written twin stays exit
+    /// 0 under strict.
+    #[test]
+    fn native_strict_fails_on_native_first_hints_only() {
+        let helper = "nika: v1\nworkflow: helper\ntasks:\n  - id: crawl\n    exec: { command: \"curl -s https://acme.test\" }\n";
+        let default_run = checked_output("native-default.nika.yaml", helper, false);
+        assert_eq!(
+            default_run.code, 0,
+            "advisory by default: {}",
+            default_run.text
+        );
+        assert!(
+            default_run.text.contains("[native-first]"),
+            "{}",
+            default_run.text
+        );
+
+        let strict = checked_output("native-strict.nika.yaml", helper, true);
+        assert_eq!(
+            strict.code, 2,
+            "strict promotes to failure: {}",
+            strict.text
+        );
+        assert!(
+            strict.text.contains("native-strict · 1 native-first hint"),
+            "{}",
+            strict.text
+        );
+
+        let native_twin = "nika: v1\nworkflow: native\ntasks:\n  - id: crawl\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://acme.test\" } }\n";
+        let twin = checked_output("native-twin.nika.yaml", native_twin, true);
+        assert_eq!(twin.code, 0, "the native twin passes strict: {}", twin.text);
+        assert!(!twin.text.contains("native-strict ·"), "{}", twin.text);
     }
 
     /// The COST section names a DISTINCT reason per unbounded task — a deleted

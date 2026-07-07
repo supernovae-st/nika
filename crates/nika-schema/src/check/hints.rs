@@ -34,6 +34,10 @@
 //!   [`push_retry_effects_hint`].
 //! - **concurrent same-path writers** (`parallel-writers`) — emitted by
 //!   the DAG analysis pass (`check/analysis.rs`) and merged here.
+//! - **exec with a native path** (`native-first`) — emitted by the
+//!   `check/native_first.rs` pass (the `native-first/001..005` ruleset:
+//!   http/file/data/media/helper commands a builtin or MCP tool
+//!   covers); `nika check --native-strict` promotes them to failures.
 
 use std::collections::BTreeSet;
 
@@ -47,8 +51,9 @@ use crate::types::OnErrorAction;
 pub struct Hint {
     /// The hint class — the closed set today: `cost` · `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `redundant-gate` ·
-    /// `retry-effects` · `parallel-writers` · `secrets-store` (additive ·
-    /// agents route on it; the module doc describes each).
+    /// `retry-effects` · `parallel-writers` · `secrets-store` ·
+    /// `native-first` (additive · agents route on it; the module doc
+    /// describes each).
     pub kind: &'static str,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,

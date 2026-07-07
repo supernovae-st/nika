@@ -18,12 +18,14 @@
 mod common;
 
 use common::{fixture_dirs, skip_in_mutants_sandbox, spec_dir};
-use nika_schema::lints::{Lint, one_obvious_way};
+use nika_schema::lints::{Lint, native_first, one_obvious_way};
 use nika_schema::{FileId, ParseMode, parse};
 
 fn lint(yaml: &str) -> Vec<Lint> {
     let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("lint fixture must parse");
-    one_obvious_way(&wf)
+    let mut lints = one_obvious_way(&wf);
+    lints.extend(native_first(&wf));
+    lints
 }
 
 #[derive(Debug, serde::Deserialize, PartialEq)]
