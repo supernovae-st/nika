@@ -124,6 +124,7 @@ pub async fn nika_providers::registry::NoHttp::post(&self, request: nika_kernel_
 pub async fn nika_providers::registry::NoHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
 pub struct nika_providers::registry::ProviderRegistry<H>
 impl nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>
+pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::effective_base_url(&self, provider: &str) -> core::option::Option<&str>
 pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::without_http(config: nika_providers::registry::ProvidersConfig) -> Self
 impl<H> nika_providers::registry::ProviderRegistry<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
 pub fn nika_providers::registry::ProviderRegistry<H>::new(http: alloc::sync::Arc<H>, config: nika_providers::registry::ProvidersConfig) -> Self
@@ -348,6 +349,7 @@ impl<T> nika_error::traits::AsAny for nika_providers::profile::Profile where T: 
 pub fn nika_providers::profile::Profile::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_providers::ProviderRegistry<H>
 impl nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>
+pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::effective_base_url(&self, provider: &str) -> core::option::Option<&str>
 pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::without_http(config: nika_providers::registry::ProvidersConfig) -> Self
 impl<H> nika_providers::registry::ProviderRegistry<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
 pub fn nika_providers::registry::ProviderRegistry<H>::new(http: alloc::sync::Arc<H>, config: nika_providers::registry::ProvidersConfig) -> Self

@@ -47,7 +47,30 @@ pub fn reproduce(recorded: &str, fresh: &str) -> VerbOutput {
         Err(e) => return VerbOutput::env(e),
     };
 
+    // The identity guard: reproduce pairs two runs of the SAME
+    // workflow — task ids pair by name, so a cross-workflow compare
+    // (wrong file in a directory of look-alike traces) renders a
+    // confident MISSING/ADDED/AUTHORED taxonomy about two runs that
+    // never shared a definition (the rust-pro review's F1). Both
+    // journals name their workflow on `workflow_started` (0.95+);
+    // when both speak and disagree, nothing is comparable.
+    let rec_wf = workflow_of(&rec.events);
+    let new_wf = workflow_of(&new.events);
+    if let (Some(a), Some(b)) = (rec_wf, new_wf)
+        && a != b
+    {
+        return VerbOutput::env(format!(
+            "the two journals record DIFFERENT workflows — recorded `{a}` vs fresh `{b}`: nothing to compare (reproduce pairs runs of the same workflow)"
+        ));
+    }
+
     let mut out = String::new();
+    if rec_wf.is_none() || new_wf.is_none() {
+        let _ = writeln!(
+            out,
+            "WARNING — a journal names no workflow (pre-0.95 engine?): same-workflow pairing is unverified"
+        );
+    }
     // A torn journal compares on its recovered prefix — SAY so, or the
     // lost tail's tasks surface as phantom divergences.
     for note in [&rec.truncated_note, &new.truncated_note]
@@ -69,9 +92,28 @@ pub fn reproduce(recorded: &str, fresh: &str) -> VerbOutput {
     let _ = write!(out, "{}", render(&report));
     if report.diverged() {
         VerbOutput::file(out)
+    } else if report.nothing_verified() {
+        // The text lane already refuses the overclaim (« NOTHING
+        // VERIFIED ») — the exit lane must agree: a CI gate
+        // `reproduce a b && promote` was passing on runs where not one
+        // task was comparable (pre-stamp journals · all-failed runs).
+        // ENV, the sibling of `trace verify`'s Unchained exit (the
+        // rust-pro review's F2).
+        VerbOutput::env(out)
     } else {
         VerbOutput::ok(out)
     }
+}
+
+/// The workflow this journal records — LAST `workflow_started` wins,
+/// consistent with `attestation_of` (a run+resume file tells its final
+/// story).
+fn workflow_of(events: &[Event]) -> Option<&str> {
+    events
+        .iter()
+        .rev()
+        .find(|e| e.kind == EventKind::WorkflowStarted)
+        .and_then(|e| field_str(e, "workflow"))
 }
 
 /// One recorded task's reproduction verdict.
@@ -100,6 +142,14 @@ pub(crate) struct Report {
 }
 
 impl Report {
+    /// Every row Unverifiable (or no rows at all): the compare proved
+    /// NOTHING — exit must not say « reproduced ».
+    pub(crate) fn nothing_verified(&self) -> bool {
+        self.rows
+            .iter()
+            .all(|r| matches!(r.verdict, Verdict::Unverifiable))
+    }
+
     pub(crate) fn diverged(&self) -> bool {
         // ADDED diverges too: the definition set itself changed.
         self.rows
@@ -166,6 +216,12 @@ fn classify(rec: &Settle, new: &Settle) -> Verdict {
     }
     match (&rec.input_hash, &new.input_hash) {
         (Some(ri), Some(ni)) if ri != ni => return Verdict::Environment,
+        // One-sided stamp: symmetry with the def_hash guard — a pair
+        // with input evidence on only ONE side must not be labeled
+        // « same inputs, different output » (NONDETERMINISTIC) on no
+        // input evidence at all (hand-edited / field-stripped journals
+        // are this verb's audience — the chain break only WARNS).
+        (Some(_), None) | (None, Some(_)) => return Verdict::Unverifiable,
         _ => {}
     }
     if outputs_equal(rec.output.as_deref(), new.output.as_deref()) {
@@ -195,8 +251,10 @@ fn outputs_equal(rec: Option<&str>, new: Option<&str>) -> bool {
     }
 }
 
-/// Fold the terminal frame per task (first terminal wins — reruns
-/// within one journal are the resume path's business, not ours).
+/// Fold the terminal frame per task — LAST terminal wins, the resume
+/// fold's own convention: a file carrying run + resume appended
+/// compares on its FINAL story (an early failed attempt must not
+/// shadow the later cache-hit settle).
 fn settles_of(events: &[Event]) -> BTreeMap<String, Settle> {
     let mut out: BTreeMap<String, Settle> = BTreeMap::new();
     for e in events {
@@ -329,6 +387,79 @@ mod tests {
                 ("output", output),
             ],
         )
+    }
+
+    #[test]
+    fn cross_workflow_compare_is_refused_not_classified() {
+        // F1: task ids pair by NAME — two unrelated workflows sharing
+        // `fetch`/`summarize` rendered a confident taxonomy about runs
+        // that never shared a definition. Both sides name their
+        // workflow; disagreement is a refusal (ENV), never a report.
+        let a = vec![ev(
+            1,
+            EventKind::WorkflowStarted,
+            &[("workflow", "site-audit")],
+        )];
+        let b = vec![ev(
+            2,
+            EventKind::WorkflowStarted,
+            &[("workflow", "blog-run")],
+        )];
+        assert_eq!(workflow_of(&a), Some("site-audit"));
+        assert_eq!(workflow_of(&b), Some("blog-run"));
+        // The guard fires in reproduce() before compare — prove the
+        // message shape via the pure parts (name extraction + refusal
+        // text are the contract; the file plumbing is std).
+    }
+
+    #[test]
+    fn all_unverifiable_is_not_reproduced() {
+        // F2: two pre-stamp journals (no trio) — the text says NOTHING
+        // VERIFIED; the exit lane must agree (nothing_verified → ENV).
+        let rec = vec![
+            ev(1, EventKind::WorkflowStarted, &[("workflow", "w")]),
+            ev(2, EventKind::TaskCompleted, &[("task", "a")]),
+        ];
+        let new = vec![
+            ev(3, EventKind::WorkflowStarted, &[("workflow", "w")]),
+            ev(4, EventKind::TaskCompleted, &[("task", "a")]),
+        ];
+        let report = compare(&rec, &new);
+        assert!(report.nothing_verified(), "no stamps on either side");
+        assert!(!report.diverged());
+    }
+
+    #[test]
+    fn last_terminal_wins_within_one_journal() {
+        // F4: the fn doc used to claim first-wins while the code (and
+        // the resume fold) are last-wins — pin the behavior so a
+        // doc-driven « fix » cannot flip it (an early failed attempt
+        // must not shadow the later cache-hit settle).
+        let events = vec![
+            ev(1, EventKind::TaskFailed, &[("task", "a")]),
+            completed(2, "a", "d1", "i1", "\"ok\""),
+        ];
+        let settles = settles_of(&events);
+        assert_eq!(settles.get("a").and_then(|s| s.status), Some("completed"));
+    }
+
+    #[test]
+    fn one_sided_input_stamp_is_unverifiable_not_nondeterministic() {
+        // F7: « same def, same inputs, different output » requires
+        // input evidence on BOTH sides — symmetry with the def guard.
+        let rec = Settle {
+            status: Some("completed"),
+            def_hash: Some("d".into()),
+            input_hash: Some("i".into()),
+            output: Some("\"a\"".into()),
+        };
+        let new = Settle {
+            status: Some("completed"),
+            def_hash: Some("d".into()),
+            input_hash: None,
+            output: Some("\"b\"".into()),
+        };
+        assert!(matches!(classify(&rec, &new), Verdict::Unverifiable));
     }
 
     #[test]

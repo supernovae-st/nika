@@ -22,6 +22,7 @@
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
 mod compose;
+pub(crate) use compose::config_from_env;
 mod resume;
 mod sink;
 mod source_id;

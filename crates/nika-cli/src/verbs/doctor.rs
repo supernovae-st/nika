@@ -24,7 +24,7 @@ use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use nika_providers::{ProviderRegistry, ProvidersConfig};
+use nika_providers::ProviderRegistry;
 use serde_json::Value;
 
 use crate::verbs::{VerbOutput, exit};
@@ -240,7 +240,7 @@ fn image_finding(img: &ImageProbe) -> Finding {
             "local → http://localhost:8080 default (set NIKA_IMAGE_LOCAL_URL to point elsewhere)"
                 .to_owned()
         },
-        |url| format!("local → {url}"),
+        |url| format!("local → {}", redact_userinfo(url)),
     );
     Finding {
         level: Level::Ok,
@@ -271,7 +271,7 @@ fn tts_finding(tts: &TtsProbe) -> Finding {
             "local → http://localhost:8080 default (set NIKA_TTS_LOCAL_URL to point elsewhere)"
                 .to_owned()
         },
-        |url| format!("local → {url}"),
+        |url| format!("local → {}", redact_userinfo(url)),
     );
     Finding {
         level: Level::Ok,
@@ -422,6 +422,21 @@ fn ping_finding((id, addr, state): &(String, String, PingState)) -> Finding {
 /// `host:port` extracted from a base URL, for a connect-only probe.
 /// No URL crate: scheme-strip, authority up to the first `/`, default
 /// port per scheme. `None` = unparseable (probed as unreachable).
+/// Strip `user:pass@` from a URL for DISPLAY — a local media URL is
+/// config, not a credential, but `http://user:s3cret@tts.lan` in a CI
+/// log leaks the embedded secret (the rust-pro review's F5). The
+/// userinfo is replaced, never echoed.
+fn redact_userinfo(url: &str) -> String {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return url.to_owned();
+    };
+    let authority_end = rest.find('/').unwrap_or(rest.len());
+    match rest[..authority_end].rfind('@') {
+        Some(at) => format!("{scheme}://***@{}", &rest[at + 1..]),
+        None => url.to_owned(),
+    }
+}
+
 fn ping_addr(url: &str) -> Option<String> {
     let (default_port, rest) = if let Some(r) = url.strip_prefix("https://") {
         ("443", r)
@@ -431,6 +446,11 @@ fn ping_addr(url: &str) -> Option<String> {
         return None;
     };
     let authority = rest.split('/').next().unwrap_or_default();
+    // Userinfo is display/credential noise, never part of the dial —
+    // `user:pass@host` must resolve (and print) as `host`.
+    let authority = authority
+        .rsplit_once('@')
+        .map_or(authority, |(_, host)| host);
     if authority.is_empty() {
         return None;
     }
@@ -455,20 +475,27 @@ fn ping_addr(url: &str) -> Option<String> {
 /// [`collect_local_pings`] starts EVERY probe first and then collects
 /// against one shared deadline, so seven surfaces answer in ~one cap
 /// total instead of seven caps end to end.
-fn spawn_ping(addr: &str, timeout: Duration) -> std::sync::mpsc::Receiver<bool> {
+fn spawn_ping(addr: &str, timeout: Duration) -> std::sync::mpsc::Receiver<Option<u64>> {
     let (tx, rx) = std::sync::mpsc::channel();
     let addr = addr.to_owned();
     // Doctor is a synchronous one-shot diagnostic (no tokio runtime on this
     // path); plain worker threads are the whole async story here.
     #[allow(clippy::disallowed_methods)]
     std::thread::spawn(move || {
+        // The round-trip is measured HERE, in the worker: collection-side
+        // elapsed was inflated by every earlier slot's wait (a live 3ms
+        // ollama reported "(300ms)" behind a dead port — a 100× lie on a
+        // diagnostic surface). DNS included: resolution is part of what
+        // the operator's run will pay.
+        let started = Instant::now();
         // A dropped receiver (cap expired) makes every send a no-op.
-        let reachable = addr
+        let rtt = addr
             .to_socket_addrs()
             .ok()
             .and_then(|mut candidates| candidates.next())
-            .is_some_and(|sock| TcpStream::connect_timeout(&sock, timeout).is_ok());
-        let _ = tx.send(reachable);
+            .filter(|sock| TcpStream::connect_timeout(sock, timeout).is_ok())
+            .map(|_| u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX));
+        let _ = tx.send(rtt);
     });
     rx
 }
@@ -489,7 +516,12 @@ fn collect_local_pings(
         if p.requires_key || p.id == "mock" {
             continue;
         }
-        if let Some(addr) = ping_addr(p.base_url) {
+        // Probe what a run would ACTUALLY hit — the operator override
+        // (NIKA_<ID>_BASE_URL · OLLAMA_HOST) when present, else the seed.
+        // Pinging 127.0.0.1 while runs talk to the GPU box is an
+        // anti-doctor.
+        let url = registry.effective_base_url(p.id).unwrap_or(p.base_url);
+        if let Some(addr) = ping_addr(url) {
             let rx = spawn_ping(&addr, CAP);
             pending.push((p.id.to_owned(), addr, rx));
         }
@@ -501,16 +533,13 @@ fn collect_local_pings(
         }
     }
 
-    let started = Instant::now();
-    let deadline = started + CAP;
+    let deadline = Instant::now() + CAP;
     pending
         .into_iter()
         .map(|(id, addr, rx)| {
             let budget = deadline.saturating_duration_since(Instant::now());
             let state = match rx.recv_timeout(budget) {
-                Ok(true) => {
-                    PingState::Reachable(u64::try_from(started.elapsed().as_millis()).unwrap_or(0))
-                }
+                Ok(Some(ms)) => PingState::Reachable(ms),
                 _ => PingState::Unreachable,
             };
             (id, addr, state)
@@ -522,7 +551,10 @@ fn collect_local_pings(
 /// value is never bound) + the canonical provider catalog, then diagnose.
 #[must_use]
 pub fn run(ping: bool, json: bool) -> VerbOutput {
-    let registry = ProviderRegistry::without_http(ProvidersConfig::new());
+    // The SAME env composition a run uses: doctor diagnoses the world
+    // the runtime will see, overrides included (ProvidersConfig::new()
+    // here made --ping probe seeds the operator had redirected away).
+    let registry = ProviderRegistry::without_http(crate::verbs::run::config_from_env());
     let providers = registry
         .profiles()
         .iter()
@@ -1030,9 +1062,48 @@ mod tests {
     /// surface — kept here so the probe contract stays directly tested.
     fn ping_once(addr: &str, timeout: Duration) -> PingState {
         match spawn_ping(addr, timeout).recv_timeout(timeout) {
-            Ok(true) => PingState::Reachable(0),
+            Ok(Some(ms)) => PingState::Reachable(ms),
             _ => PingState::Unreachable,
         }
+    }
+
+    #[test]
+    fn userinfo_never_prints_and_never_dials() {
+        // F5: an operator embedding basic-auth in a local URL must not
+        // see it echoed (CI logs) nor dialed as part of the host.
+        assert_eq!(
+            redact_userinfo("http://user:s3cret@tts.lan:8080/v1"),
+            "http://***@tts.lan:8080/v1"
+        );
+        assert_eq!(
+            redact_userinfo("http://tts.lan:8080"),
+            "http://tts.lan:8080"
+        );
+        assert_eq!(redact_userinfo("no-scheme"), "no-scheme");
+        assert_eq!(
+            ping_addr("http://user:s3cret@tts.lan:8080/v1").as_deref(),
+            Some("tts.lan:8080")
+        );
+    }
+
+    #[test]
+    fn effective_base_url_reaches_the_ping() {
+        use nika_providers::ProvidersConfig;
+        // The anti-doctor fix: --ping probes the OVERRIDDEN url, not the
+        // seed — the registry answers the override when one is present.
+        let config = ProvidersConfig::new()
+            .with_base_url("ollama", "http://10.9.9.9:7777/v1/chat/completions");
+        let reg = ProviderRegistry::without_http(config);
+        assert_eq!(
+            reg.effective_base_url("ollama"),
+            Some("http://10.9.9.9:7777/v1/chat/completions")
+        );
+        let reg2 = ProviderRegistry::without_http(ProvidersConfig::new());
+        assert!(
+            reg2.effective_base_url("ollama")
+                .is_some_and(|u| u.contains("127.0.0.1:11434"))
+        );
+        assert_eq!(reg2.effective_base_url("nope"), None);
     }
 
     #[test]

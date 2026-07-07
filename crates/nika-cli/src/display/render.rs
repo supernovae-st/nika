@@ -440,6 +440,21 @@ mod tests {
     }
 
     #[test]
+    fn the_per_row_failure_detail_reaches_the_operator() {
+        // The user-sim finding: `row.detail` was documented « feeds the
+        // failure card » but stamp_terminal never copied it — the journal
+        // carried « NIKA-VAR-001 · supply it with --var … » while the
+        // live render showed a mute ✖. The WHY must be IN the frame.
+        let lines = frame(&fold(&demo::failure()), &UNICODE, 0);
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.contains("provider refused (429) · retried 2×")),
+            "the TaskFailed `detail` field must render: {lines:?}"
+        );
+    }
+
+    #[test]
     fn golden_failure_card_carries_the_explain_hint() {
         let lines = frame(&fold(&demo::failure()), &UNICODE, 0);
         let tail = &lines[lines.len() - 2..];

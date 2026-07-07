@@ -290,6 +290,14 @@ impl RunView {
         if usd.is_some() {
             row.cost_usd = usd;
         }
+        // The WHY reaches the operator: without this copy the per-row
+        // failure card (render.rs) never fires — the journal carried
+        // « NIKA-VAR-001 · supply it with --var … » while the live
+        // render showed a mute ✖ (the user-sim finding · the
+        // dead-on-the-wire class). Non-failed frames carry no detail.
+        if let Some(d) = str_field(event, "detail") {
+            d.clone_into(&mut row.detail);
+        }
     }
 
     /// Keep the ADR-099 checkpoint trio (the `output` value as ONE
