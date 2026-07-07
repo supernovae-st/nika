@@ -337,6 +337,16 @@ enum TraceAction {
         /// Trace NDJSON path (one `nika-event` Event per line).
         trace: PathBuf,
     },
+    /// Is this run reproducible? Compare a recorded journal against a
+    /// fresh one and classify every task: reproduced · nondeterministic
+    /// (same def+inputs, different output) · authored · environment ·
+    /// status-changed · unverifiable. Exit 0 reproduced · 2 diverged.
+    Reproduce {
+        /// The RECORDED journal (the reference frame).
+        recorded: PathBuf,
+        /// A FRESH journal of the same workflow (run it again first).
+        fresh: PathBuf,
+    },
     /// Read ONE task's full output + its identity (hashes · duration ·
     /// tokens). `--raw` prints the exact value only (pipe it to jq).
     Peek {
@@ -612,6 +622,10 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
         TraceAction::Verify { trace } => {
             emit(&verbs::trace_verify::verify(&trace.to_string_lossy()))
         }
+        TraceAction::Reproduce { recorded, fresh } => emit(&verbs::trace_reproduce::reproduce(
+            &recorded.to_string_lossy(),
+            &fresh.to_string_lossy(),
+        )),
         TraceAction::Export {
             trace,
             out,
