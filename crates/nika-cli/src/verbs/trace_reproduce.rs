@@ -48,6 +48,14 @@ pub fn reproduce(recorded: &str, fresh: &str) -> VerbOutput {
     };
 
     let mut out = String::new();
+    // A torn journal compares on its recovered prefix — SAY so, or the
+    // lost tail's tasks surface as phantom divergences.
+    for note in [&rec.truncated_note, &new.truncated_note]
+        .into_iter()
+        .flatten()
+    {
+        let _ = writeln!(out, "WARNING — {note}");
+    }
     for (label, raw) in [("recorded", &rec_raw), ("fresh", &new_raw)] {
         if let super::trace_verify::Verdict::Broken { line, .. } = super::trace_verify::walk(raw) {
             let _ = writeln!(
@@ -160,10 +168,30 @@ fn classify(rec: &Settle, new: &Settle) -> Verdict {
         (Some(ri), Some(ni)) if ri != ni => return Verdict::Environment,
         _ => {}
     }
-    if rec.output == new.output {
+    if outputs_equal(rec.output.as_deref(), new.output.as_deref()) {
         Verdict::Reproduced
     } else {
         Verdict::Nondeterministic
+    }
+}
+
+/// Value equality, not byte equality: a future serializer drift (JCS ·
+/// float formatting) across engine VERSIONS must not read as
+/// nondeterminism when the values are equal. Unparseable falls back to
+/// byte compare.
+fn outputs_equal(rec: Option<&str>, new: Option<&str>) -> bool {
+    match (rec, new) {
+        (None, None) => true,
+        (Some(r), Some(n)) => {
+            match (
+                serde_json::from_str::<serde_json::Value>(r),
+                serde_json::from_str::<serde_json::Value>(n),
+            ) {
+                (Ok(rv), Ok(nv)) => rv == nv,
+                _ => r == n,
+            }
+        }
+        _ => false,
     }
 }
 
@@ -173,20 +201,21 @@ fn settles_of(events: &[Event]) -> BTreeMap<String, Settle> {
     let mut out: BTreeMap<String, Settle> = BTreeMap::new();
     for e in events {
         let status = match e.kind {
-            EventKind::TaskCompleted => "completed",
+            // A cache hit replays a completed settle byte-for-byte (the
+            // ADR-099 trio rides both frames) — normalize so a --resume
+            // journal never reads as a status flip.
+            EventKind::TaskCompleted | EventKind::TaskCacheHit => "completed",
             EventKind::TaskFailed => "failed",
             EventKind::TaskSkipped => "skipped",
             EventKind::TaskCancelled => "cancelled",
-            EventKind::TaskCacheHit => "cache-hit",
             _ => continue,
         };
         let Some(task) = field_str(e, "task") else {
             continue;
         };
+        // LAST terminal wins — the resume fold's own convention (a file
+        // carrying run + resume appended tells its FINAL story).
         let entry = out.entry(task.to_owned()).or_default();
-        if entry.status.is_some() {
-            continue;
-        }
         entry.status = Some(status);
         entry.def_hash = field_str(e, "def_hash").map(ToOwned::to_owned);
         entry.input_hash = field_str(e, "input_hash").map(ToOwned::to_owned);
@@ -196,8 +225,11 @@ fn settles_of(events: &[Event]) -> BTreeMap<String, Settle> {
 }
 
 fn attestation_of(events: &[Event]) -> Option<String> {
+    // LAST started wins — a run+resume-appended journal attests the
+    // engine that produced its final story (consistent with settles_of).
     let started = events
         .iter()
+        .rev()
         .find(|e| e.kind == EventKind::WorkflowStarted)?;
     let version = field_str(started, "engine_version")?;
     let platform = field_str(started, "platform").unwrap_or("?");
@@ -224,11 +256,24 @@ fn render(report: &Report) -> String {
             Verdict::Added => ("ADDED", " — absent from the recorded run".to_owned()),
         };
         *counts.entry(tag).or_default() += 1;
-        let _ = writeln!(out, "  {tag:<16} {}{detail}", row.task);
+        let _ = writeln!(
+            out,
+            "  {tag:<16} {}{detail}",
+            super::trace_verify::sanitize(&row.task)
+        );
     }
     let summary: Vec<String> = counts.iter().map(|(tag, n)| format!("{n} {tag}")).collect();
+    let comparable = report
+        .rows
+        .iter()
+        .filter(|r| !matches!(r.verdict, Verdict::Unverifiable))
+        .count();
+    // An all-unverifiable report proved NOTHING — the banner must not
+    // overclaim (a pre-stamp journal would otherwise read REPRODUCED).
     let verdict = if report.diverged() {
         "DIVERGED"
+    } else if comparable == 0 {
+        "NOTHING VERIFIED — no comparable stamps"
     } else {
         "REPRODUCED"
     };
@@ -384,6 +429,35 @@ mod tests {
                 fresh: "failed".to_owned()
             }
         );
+    }
+
+    #[test]
+    fn a_resume_cache_hit_is_the_same_completed_settle() {
+        // H2: a --resume journal rehydrates via task_cache_hit carrying
+        // the SAME ADR-099 trio — never a status flip.
+        let recorded = vec![completed(1, "a", "d", "i", "\"x\"")];
+        let fresh = vec![ev(
+            2,
+            EventKind::TaskCacheHit,
+            &[
+                ("task", "a"),
+                ("def_hash", "d"),
+                ("input_hash", "i"),
+                ("output", "\"x\""),
+            ],
+        )];
+        let report = compare(&recorded, &fresh);
+        assert_eq!(report.rows[0].verdict, Verdict::Reproduced);
+    }
+
+    #[test]
+    fn value_equal_outputs_reproduce_across_serializer_drift() {
+        // M2: key order is presentation, not value — cross-version
+        // serializer drift must not read as nondeterminism.
+        let recorded = vec![completed(1, "a", "d", "i", "{\"x\":1,\"y\":2}")];
+        let fresh = vec![completed(2, "a", "d", "i", "{\"y\":2,\"x\":1}")];
+        let report = compare(&recorded, &fresh);
+        assert_eq!(report.rows[0].verdict, Verdict::Reproduced);
     }
 
     #[test]
