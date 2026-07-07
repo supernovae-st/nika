@@ -8,13 +8,17 @@
 //! run on the raw AST after [`crate::parse`] succeeds and are orthogonal
 //! to [`crate::analyze`] (which emits spec ERRORS).
 //!
-//! v0.1 ships TWO rule sets · [`one_obvious_way`] — the control-flow
-//! preference rules the spec marks « normative for linters » — and
+//! v0.1 ships THREE rule sets · [`one_obvious_way`] — the control-flow
+//! preference rules the spec marks « normative for linters » —
+//! [`native_first()`] — the verb-choice preference rules (spec
+//! `03-dag.md` §Native-first · exec with a probable native path) — and
 //! [`arg_injection()`] — argument-injection advisories for the array command
 //! form (spec `02-verbs.md` §exec Security · the differentiator).
 
 mod arg_injection;
+mod native_first;
 mod preference_rules;
 
 pub use arg_injection::arg_injection;
+pub use native_first::native_first;
 pub use preference_rules::{Lint, one_obvious_way};

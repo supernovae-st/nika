@@ -34,7 +34,7 @@ mod declass;
 mod flow;
 mod hints;
 mod infer_permits;
-mod native_first;
+pub(crate) mod native_first;
 mod permits_fit;
 mod reach;
 mod requirements;

@@ -86,17 +86,20 @@ fn push_native_first(action: &RawAction, id: &str, hints: &mut Vec<Hint>) {
     let RawAction::Exec(exec) = action else {
         return;
     };
-    if let Some(advice) = native_advice(&exec.command) {
+    if let Some((rule, advice)) = classify(&exec.command) {
         hints.push(Hint {
             kind: KIND,
             task: id.to_owned(),
-            advice,
+            advice: format!("{rule} · {advice}"),
         });
     }
 }
 
-/// The rule ladder — most specific first, one verdict.
-fn native_advice(command: &RawCommand) -> Option<String> {
+/// The rule ladder — most specific first, one verdict. Returns the
+/// stable rule id (`native-first/00N`) + the advice body. ONE truth:
+/// the check hint AND the reference linter ruleset
+/// (`lints::native_first`) both classify HERE.
+pub(crate) fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
     let head = command_head(command)?;
     if head == "nika" {
         return None; // nested `nika run …` — the sanctioned composition
@@ -115,45 +118,60 @@ fn native_advice(command: &RawCommand) -> Option<String> {
             .iter()
             .any(|f| !f.contains("${{") && SCRIPT_SUFFIXES.iter().any(|suffix| f.ends_with(suffix)))
     {
-        return Some(format!(
-            "native-first/005 · `{head}` runs a helper script — inventory it: \
-             HTTP calls → `nika:fetch` (uploads: `multipart:` · crawls: `traverse:`) · \
-             file I/O → `nika:read`/`nika:write` · JSON shaping → `nika:jq` · \
-             a product API → wrap it as an MCP server (`mcp:<server>/<tool>`); \
-             keep `exec:` only for a genuine subprocess and record it in the exec ledger"
+        return Some((
+            "native-first/005",
+            format!(
+                "`{head}` runs a helper script — inventory it: \
+                 HTTP calls → `nika:fetch` (uploads: `multipart:` · crawls: `traverse:`) · \
+                 file I/O → `nika:read`/`nika:write` · JSON shaping → `nika:jq` · \
+                 a product API → wrap it as an MCP server (`mcp:<server>/<tool>`); \
+                 keep `exec:` only for a genuine subprocess and record it in the exec ledger"
+            ),
         ));
     }
     // 004 · a media provider endpoint in the command.
     if has_marker(&MEDIA_MARKERS) {
-        return Some(format!(
-            "native-first/004 · `{head}` calls a media provider endpoint — \
-             `nika:image_generate`/`nika:tts_generate` cover generation natively \
-             (provider-portable · provenance manifest · permits.fs-gated saves)"
+        return Some((
+            "native-first/004",
+            format!(
+                "`{head}` calls a media provider endpoint — \
+                 `nika:image_generate`/`nika:tts_generate` cover generation natively \
+                 (provider-portable · provenance manifest · permits.fs-gated saves)"
+            ),
         ));
     }
     // 001 · an HTTP client program, or an interpreter one-liner around one.
     if HTTP_PROGRAMS.contains(&head.as_str()) || (is_interpreter && has_marker(&HTTP_CODE_MARKERS))
     {
-        return Some(format!(
-            "native-first/001 · `{head}` is an HTTP fetch — `nika:fetch` covers \
-             GET/POST + extraction (SSRF-defended · permits-gated); uploads take \
-             `multipart:` · crawls take `traverse:` (builtins-v0.1.md §nika:fetch)"
+        return Some((
+            "native-first/001",
+            format!(
+                "`{head}` is an HTTP fetch — `nika:fetch` covers \
+                 GET/POST + extraction (SSRF-defended · permits-gated); uploads take \
+                 `multipart:` · crawls take `traverse:` (builtins-v0.1.md §nika:fetch)"
+            ),
         ));
     }
     // 002 · file plumbing.
     if FILE_PROGRAMS.contains(&head.as_str()) {
-        return Some(format!(
-            "native-first/002 · `{head}` is file plumbing — `nika:read`/`nika:write` \
-             (`create_dirs: true` replaces mkdir) / `nika:glob` cover it inside the \
-             permits.fs boundary (no subprocess)"
+        return Some((
+            "native-first/002",
+            format!(
+                "`{head}` is file plumbing — `nika:read`/`nika:write` \
+                 (`create_dirs: true` replaces mkdir) / `nika:glob` cover it inside the \
+                 permits.fs boundary (no subprocess)"
+            ),
         ));
     }
     // 003 · data transforms.
     if DATA_PROGRAMS.contains(&head.as_str()) {
-        return Some(format!(
-            "native-first/003 · `{head}` reshapes data — `nika:jq` (or an `output:` \
-             jq binding) covers JSON in-process · `nika:edit` covers in-place \
-             literal file edits (one data language · no quoting traps)"
+        return Some((
+            "native-first/003",
+            format!(
+                "`{head}` reshapes data — `nika:jq` (or an `output:` \
+                 jq binding) covers JSON in-process · `nika:edit` covers in-place \
+                 literal file edits (one data language · no quoting traps)"
+            ),
         ));
     }
     None
