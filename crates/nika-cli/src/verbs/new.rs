@@ -19,15 +19,50 @@
 //!    zero-LLM — the floor of « the binary generates the best workflow
 //!    for the intent » (editor LLM loops build ON this rung).
 
+use std::fmt::Write as _;
+use std::io::{BufRead, IsTerminal};
 use std::path::Path;
 
 use nika_bm25::{BmIndex, BmParams};
 
 use crate::verbs::{VerbOutput, exit};
 
+/// `nika new` — resolve the missing `--from` per clig.dev: a terminal
+/// gets the guided flow (prompt for the missing argument) · a pipe/CI
+/// fails fast naming the flag (never REQUIRE interactivity).
+#[must_use]
+pub fn dispatch(from: Option<&str>, dest: Option<&str>, force: bool) -> VerbOutput {
+    match from {
+        Some(f) => run(f, dest, force),
+        None if interactive() => {
+            let stdin = std::io::stdin();
+            wizard_io(".", dest, force, &mut stdin.lock(), &mut std::io::stdout())
+        }
+        None => VerbOutput {
+            text: format!(
+                "nothing to scaffold — pass --from <template|intent> (`nika new --from '?'` lists the set)\nembedded set: {}",
+                nika_pack::template_names().join(" · ")
+            ),
+            code: exit::FILE,
+        },
+    }
+}
+
+/// Both ends of the conversation are a terminal — the only state in
+/// which any nika surface may prompt (clig.dev interactivity rule).
+fn interactive() -> bool {
+    std::io::stdin().is_terminal() && std::io::stdout().is_terminal()
+}
+
 /// The `nika new` verb.
 #[must_use]
 pub fn run(template: &str, dest: Option<&str>, force: bool) -> VerbOutput {
+    // `?` is the documented discovery query — a question answered is a
+    // SUCCESS, not a finding (it used to reuse the unknown-template error
+    // and exit 2, which read as failure to a human following the help).
+    if template == "?" {
+        return discovery();
+    }
     let (name, body, routed) = match nika_pack::template(template) {
         Some(body) => (template.to_owned(), body, false),
         None => match route_intent(template) {
@@ -87,6 +122,331 @@ fn unknown(template: &str) -> VerbOutput {
             nika_pack::template_names().join(" · ")
         ),
         code: exit::FILE,
+    }
+}
+
+/// First-class `--from '?'` — the listing a human reads (name + tagline
+/// derived from each template's own `# TEMPLATE` header · no second
+/// source) with the `embedded set:` WIRE-CONTRACT line kept verbatim for
+/// the editor probes. Exit 0: a discovery query answered is a success.
+fn discovery() -> VerbOutput {
+    let names = nika_pack::template_names();
+    let mut text = String::from("the embedded template skeletons ·\n");
+    for name in &names {
+        let tag = nika_pack::template(name).map_or_else(String::new, |b| tagline(name, b));
+        let _ = writeln!(text, "  {name:<18} {tag}");
+    }
+    let _ = write!(text, "\nembedded set: {}", names.join(" · "));
+    text.push_str(
+        "\n\ntry ·\n  nika new --from chain my-first.nika.yaml\n  nika new --from \"describe the job in plain words\" my.nika.yaml   # routes to the closest skeleton\n  nika new                                                          # guided (terminal only)",
+    );
+    VerbOutput {
+        text,
+        code: exit::OK,
+    }
+}
+
+/// The one-line tagline out of a template's `# TEMPLATE · <name> · …`
+/// header. Empty when a body carries no header — the listing degrades
+/// gracefully instead of inventing prose. A header that wraps to the
+/// next comment line gets an honest `…` instead of ending mid-thought.
+fn tagline(name: &str, body: &str) -> String {
+    body.lines()
+        .find_map(|l| l.strip_prefix("# TEMPLATE"))
+        .map_or_else(String::new, |rest| {
+            let rest = rest.trim_start_matches([' ', '·']);
+            let rest = rest.strip_prefix(name).unwrap_or(rest);
+            let rest = rest.trim_start_matches([' ', '·', ':']).trim_end();
+            let clean = rest.trim_end_matches([',', ' ']);
+            if rest.ends_with('.') {
+                clean.to_owned()
+            } else {
+                format!("{clean}…")
+            }
+        })
+}
+
+// ─── The guided flow (the wizard) ────────────────────────────────────
+//
+// Three questions, every one Enter-skippable, reachable from two doors:
+// `nika new` bare on a terminal (missing argument → prompt · clig.dev)
+// and `nika init`'s hand-off (gh-repo-create shape: bare on a TTY is
+// guided · flags and pipes keep the exact old behavior). The answers
+// land in the SAME file the flag form writes — plus the three slots the
+// wizard can stamp honestly (id · description · model); the remaining
+// `# SLOT:` lines stay visible so the author fills them deliberately.
+
+/// The wizard's harvest — decoupled from the terminal (answers arrive
+/// through any `BufRead` · tests inject a cursor).
+struct Wizard {
+    template: String,
+    routed: bool,
+    dest: String,
+    model: String,
+    intent: String,
+}
+
+/// The default first-workflow file name (shared with the init hand-off).
+const WIZARD_DEST: &str = "my-first.nika.yaml";
+
+/// One prompt · one line back. `None` = EOF (the human left — cancel,
+/// never loop).
+fn ask(
+    input: &mut dyn BufRead,
+    out: &mut dyn std::io::Write,
+    prompt: &str,
+) -> std::io::Result<Option<String>> {
+    write!(out, "{prompt}\n> ")?;
+    out.flush()?;
+    let mut line = String::new();
+    if input.read_line(&mut line)? == 0 {
+        return Ok(None);
+    }
+    Ok(Some(line.trim().to_owned()))
+}
+
+/// Intent → template: exact name first, BM25 routing second, the
+/// `chain` default third (empty answer = the golden path).
+fn resolve_template(intent: &str) -> (String, bool) {
+    if intent.is_empty() {
+        return ("chain".to_owned(), false);
+    }
+    if nika_pack::template(intent).is_some() {
+        return (intent.to_owned(), false);
+    }
+    match route_intent(intent) {
+        Some(name) => (name, true),
+        None => ("chain".to_owned(), false),
+    }
+}
+
+/// The provider menu, DERIVED from the embedded catalog (no hardcoded
+/// model names to drift) in the doctrine presentation order · local
+/// first · offline mock · EU open-weight · then the US clouds.
+fn model_menu() -> Vec<(String, &'static str)> {
+    let export = nika_catalog::export::catalog_export();
+    [
+        ("ollama", "local · sovereign · zero key"),
+        ("mock", "offline preview · zero key · always works"),
+        ("mistral", "EU · open-weight"),
+        ("anthropic", ""),
+        ("openai", ""),
+    ]
+    .iter()
+    .filter_map(|(id, note)| {
+        export.providers.iter().find(|p| p.id == *id).map(|p| {
+            // `mock/echo` is THE teaching example on every other surface
+            // (the help footer · the init hand-off · AGENTS.md · docs) —
+            // the menu must not introduce a second mock spelling.
+            let model = if p.id == "mock" {
+                "echo"
+            } else {
+                p.default_model
+            };
+            (format!("{}/{model}", p.id), *note)
+        })
+    })
+    .collect()
+}
+
+/// A menu number, a full `provider/model`, or Enter → the offline mock
+/// (the one answer that succeeds with zero keys and zero network — the
+/// first run must not be able to fail).
+fn resolve_model(pick: &str, menu: &[(String, &'static str)]) -> String {
+    let fallback = || {
+        menu.get(1)
+            .map_or_else(|| "mock/echo".to_owned(), |(m, _)| m.clone())
+    };
+    if pick.is_empty() {
+        return fallback();
+    }
+    if let Ok(n) = pick.parse::<usize>()
+        && let Some((m, _)) = n.checked_sub(1).and_then(|i| menu.get(i))
+    {
+        return m.clone();
+    }
+    if pick.contains('/') {
+        return pick.to_owned();
+    }
+    fallback()
+}
+
+/// A kebab workflow id out of the destination file name.
+fn workflow_id(dest: &str) -> String {
+    let base = Path::new(dest)
+        .file_name()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let stem = base.strip_suffix(".nika.yaml").unwrap_or(&base);
+    let id: String = stem
+        .to_ascii_lowercase()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let id = id.trim_matches('-').to_owned();
+    if id.is_empty() {
+        "my-first".to_owned()
+    } else {
+        id
+    }
+}
+
+/// Stamp the three answers the wizard KNOWS into the template — id ·
+/// description · model. Line-anchored on the template contract (every
+/// skeleton opens those keys at column 0); templates without a top-level
+/// `model:` (per-task models) are left alone.
+fn stamp(body: &str, id: &str, description: &str, model: &str) -> String {
+    let mut out: String = body
+        .lines()
+        .map(|line| {
+            if line.starts_with("workflow: ") {
+                format!("workflow: {id}")
+            } else if line.starts_with("description: ") && !description.is_empty() {
+                format!("description: \"{description}\"")
+            } else if line.starts_with("model: ") {
+                format!("model: {model}")
+            } else {
+                line.to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    out.push('\n');
+    out
+}
+
+/// Run the three questions over injected io. `Ok(None)` = cancelled.
+fn read_wizard(
+    input: &mut dyn BufRead,
+    out: &mut dyn std::io::Write,
+    dest_hint: Option<&str>,
+) -> std::io::Result<Option<Wizard>> {
+    writeln!(
+        out,
+        "🦋 nika · your first workflow — Enter accepts a default · Ctrl-C exits"
+    )?;
+    let Some(intent) = ask(
+        input,
+        out,
+        "\nwhat should it do? — a plain sentence routes to the closest skeleton [chain]",
+    )?
+    else {
+        return Ok(None);
+    };
+    let (template, routed) = resolve_template(&intent);
+    let tag = nika_pack::template(&template).map_or_else(String::new, |b| tagline(&template, b));
+    writeln!(out, "  → template `{template}` — {tag}")?;
+
+    let default_dest = dest_hint.unwrap_or(WIZARD_DEST);
+    let Some(mut dest) = ask(input, out, &format!("\nfile [{default_dest}]"))? else {
+        return Ok(None);
+    };
+    if dest.is_empty() {
+        default_dest.clone_into(&mut dest);
+    }
+    if !dest.ends_with(".nika.yaml") {
+        dest.push_str(".nika.yaml");
+    }
+
+    let menu = model_menu();
+    writeln!(
+        out,
+        "\nmodel — the same file runs on any provider (`nika catalog` names them all)"
+    )?;
+    for (i, (m, note)) in menu.iter().enumerate() {
+        writeln!(out, "  {}  {m:<30} {note}", i + 1)?;
+    }
+    let Some(pick) = ask(input, out, "a number, or any provider/model [2]")? else {
+        return Ok(None);
+    };
+    let model = resolve_model(&pick, &menu);
+    Ok(Some(Wizard {
+        template,
+        routed,
+        dest,
+        model,
+        intent,
+    }))
+}
+
+/// The wizard over real io: converse, then materialize the file.
+pub(crate) fn wizard_io(
+    base: &str,
+    dest_hint: Option<&str>,
+    force: bool,
+    input: &mut dyn BufRead,
+    out: &mut dyn std::io::Write,
+) -> VerbOutput {
+    match read_wizard(input, out, dest_hint) {
+        Err(e) => VerbOutput {
+            text: format!("wizard i/o failed: {e}"),
+            code: exit::ENV,
+        },
+        Ok(None) => VerbOutput {
+            text: "cancelled — nothing written".to_owned(),
+            code: exit::ENV,
+        },
+        Ok(Some(w)) => materialize(base, &w, force),
+    }
+}
+
+/// `nika init`'s hand-off question — one keypress, Enter = yes (the
+/// golden path). `None` = declined (init prints its classic next block).
+pub(crate) fn offer_first_workflow(base: &str, report: &str) -> Option<VerbOutput> {
+    let stdin = std::io::stdin();
+    let mut input = stdin.lock();
+    let mut stdout = std::io::stdout();
+    let out: &mut dyn std::io::Write = &mut stdout;
+    // The scaffold report prints HERE (through the writer, macro-free —
+    // the lib bans println!): the conversation happens below it.
+    write!(out, "{report}").ok()?;
+    let answer = ask(
+        &mut input,
+        &mut *out,
+        "\nscaffold your first workflow now? [Y/n]",
+    )
+    .ok()??;
+    if answer.eq_ignore_ascii_case("n") || answer.eq_ignore_ascii_case("no") {
+        return None;
+    }
+    Some(wizard_io(base, None, false, &mut input, out))
+}
+
+/// Write the stamped template + hand over to the check-first loop, and
+/// teach the scriptable form of what the wizard just did (the wizard
+/// must map back to flags — reproducibility is part of the contract).
+fn materialize(base: &str, w: &Wizard, force: bool) -> VerbOutput {
+    let dest = if Path::new(&w.dest).is_absolute() || base == "." {
+        w.dest.clone()
+    } else {
+        Path::new(base).join(&w.dest).to_string_lossy().into_owned()
+    };
+    let Some(body) = nika_pack::template(&w.template) else {
+        return unknown(&w.template);
+    };
+    if Path::new(&dest).exists() && !force {
+        return VerbOutput {
+            text: format!("{dest} exists — pass --force to overwrite"),
+            code: exit::ENV,
+        };
+    }
+    let id = workflow_id(&dest);
+    let description = w.intent.replace('"', "");
+    let stamped = stamp(body, &id, &description, &w.model);
+    if let Err(e) = std::fs::write(&dest, &stamped) {
+        return VerbOutput {
+            text: format!("cannot write {dest}: {e}"),
+            code: exit::ENV,
+        };
+    }
+    let routing = if w.routed { "routed intent → " } else { "" };
+    VerbOutput {
+        text: format!(
+            "{dest} ← {routing}template `{tpl}` · stamped workflow `{id}` · model `{model}`\n\nnext ·\n  nika check {dest}                # the oracle — it names every remaining `# SLOT:` to fill\n  nika run {dest}                  # execute · live render (mock is offline · $0.00)\n\nscriptable form · nika new --from {tpl} {dest}",
+            tpl = w.template,
+            model = w.model,
+        ),
+        code: exit::OK,
     }
 }
 
@@ -224,14 +584,32 @@ mod tests {
         std::fs::remove_file(&d).ok();
     }
 
-    /// The wire contract: `nika new --from '?'` (NO dest) names the set.
-    /// Editor integrations probe this bare; clap used to require a dummy
-    /// dest, so the documented discovery command errored.
+    /// The wire contract: `nika new --from '?'` (NO dest) names the set —
+    /// and a discovery query answered is a SUCCESS (exit 0 · it used to
+    /// reuse the unknown-template error, so the documented command read
+    /// as a failure). The `embedded set:` line survives verbatim (the
+    /// editor probes regex exactly that grammar).
     #[test]
     fn discovery_query_lists_the_set_without_a_dest() {
         let out = run("?", None, false);
-        assert_eq!(out.code, exit::FILE, "{}", out.text);
+        assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(out.text.contains("embedded set:"), "{}", out.text);
+        for name in nika_pack::template_names() {
+            assert!(out.text.contains(&name), "lists `{name}`: {}", out.text);
+        }
+    }
+
+    /// The listing derives its taglines from the template bodies' own
+    /// `# TEMPLATE` headers — no second prose source to drift.
+    #[test]
+    fn discovery_taglines_come_from_the_bodies() {
+        let body = nika_pack::template("chain").expect("chain embedded");
+        let tag = tagline("chain", body);
+        assert!(!tag.is_empty(), "chain header carries a tagline");
+        assert!(
+            run("?", None, false).text.contains(&tag),
+            "the listing shows it"
+        );
     }
 
     /// A REAL template with no dest can't be instantiated — ask for one
@@ -292,13 +670,161 @@ mod tests {
 
     #[test]
     fn zero_evidence_intent_keeps_the_wire_contract_error() {
-        // '?' is the editor probe — the `embedded set:` line is parsed
-        // verbatim by integrations; gibberish shares no term either.
-        for q in ["?", "zzzz qqqq xxxx"] {
-            let out = run(q, Some(&dest("zero")), true);
-            assert_eq!(out.code, exit::FILE, "{}", out.text);
-            assert!(out.text.contains("embedded set:"), "{}", out.text);
+        // Gibberish shares no term with any template — the honest unknown
+        // (exit 2) still names the set on the `embedded set:` wire line.
+        let out = run("zzzz qqqq xxxx", Some(&dest("zero")), true);
+        assert_eq!(out.code, exit::FILE, "{}", out.text);
+        assert!(out.text.contains("embedded set:"), "{}", out.text);
+    }
+
+    // NOTE · the bare-`nika new`-in-a-pipe contract (fail fast naming
+    // `--from`) is pinned at the BINARY plane (bin_smoke) — is_terminal
+    // inside `cargo test` reflects the invoking terminal, so an
+    // in-process assert would flip between a laptop run and CI.
+
+    #[test]
+    fn dispatch_with_a_template_is_the_flag_path_unchanged() {
+        let d = dest("dispatch");
+        let out = dispatch(Some("chain"), Some(&d), true);
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        std::fs::remove_file(&d).ok();
+    }
+
+    // ─── The wizard's pure parts ─────────────────────────────────────
+
+    #[test]
+    fn resolve_template_covers_the_three_rungs() {
+        assert_eq!(resolve_template(""), ("chain".to_owned(), false));
+        assert_eq!(resolve_template("fanout"), ("fanout".to_owned(), false));
+        let (name, routed) = resolve_template("summarize every item in parallel");
+        assert_eq!(name, "fanout");
+        assert!(routed);
+        // Zero evidence → the chain default, never a dead end.
+        assert_eq!(resolve_template("zzzz qqqq"), ("chain".to_owned(), false));
+    }
+
+    #[test]
+    fn the_model_menu_derives_from_the_catalog_local_first() {
+        let menu = model_menu();
+        assert!(menu.len() >= 2, "catalog carries the menu providers");
+        assert!(
+            menu[0].0.starts_with("ollama/"),
+            "local first (presentation order): {menu:?}"
+        );
+        assert!(menu[1].0.starts_with("mock/"), "offline second: {menu:?}");
+        // Every entry is a full provider/model wire id from the catalog.
+        assert!(menu.iter().all(|(m, _)| m.contains('/')), "{menu:?}");
+    }
+
+    #[test]
+    fn resolve_model_defaults_to_the_offline_mock() {
+        let menu = model_menu();
+        let default = resolve_model("", &menu);
+        assert!(
+            default.starts_with("mock/"),
+            "Enter must never fail: {default}"
+        );
+        assert_eq!(resolve_model("1", &menu), menu[0].0);
+        assert_eq!(
+            resolve_model("ollama/llama3.2:3b", &menu),
+            "ollama/llama3.2:3b"
+        );
+        // A number off the menu or a word without `/` falls back safe.
+        assert!(resolve_model("99", &menu).starts_with("mock/"));
+        assert!(resolve_model("gpt", &menu).starts_with("mock/"));
+    }
+
+    #[test]
+    fn workflow_id_is_a_kebab_of_the_file_name() {
+        assert_eq!(workflow_id("my-first.nika.yaml"), "my-first");
+        assert_eq!(workflow_id("dir/Sub/PR Review.nika.yaml"), "pr-review");
+        assert_eq!(workflow_id(".nika.yaml"), "my-first");
+    }
+
+    #[test]
+    fn stamp_fills_exactly_the_three_known_slots() {
+        for name in nika_pack::template_names() {
+            let body = nika_pack::template(&name).expect("embedded");
+            let stamped = stamp(body, "field-demo", "their problem", "mock/echo");
+            assert!(
+                stamped.contains("workflow: field-demo"),
+                "{name}: id stamped"
+            );
+            assert!(
+                !stamped.contains("-template "),
+                "{name}: no template id remnant"
+            );
+            assert!(
+                stamped.contains("description: \"their problem\""),
+                "{name}: description stamped"
+            );
+            if body.lines().any(|l| l.starts_with("model: ")) {
+                assert!(
+                    stamped.contains("model: mock/echo"),
+                    "{name}: model stamped"
+                );
+            }
         }
+    }
+
+    /// The whole conversation over an injected cursor: three Enters =
+    /// the golden path (chain · default name · offline mock).
+    #[test]
+    fn read_wizard_three_enters_is_the_golden_path() {
+        let mut input = std::io::Cursor::new(b"\n\n\n".to_vec());
+        let mut out = Vec::new();
+        let w = read_wizard(&mut input, &mut out, None)
+            .expect("io ok")
+            .expect("not cancelled");
+        assert_eq!(w.template, "chain");
+        assert_eq!(w.dest, WIZARD_DEST);
+        assert!(w.model.starts_with("mock/"));
+        let shown = String::from_utf8(out).expect("utf8");
+        assert!(shown.contains("template `chain`"), "{shown}");
+        assert!(shown.contains("ollama/"), "menu shows local first: {shown}");
+    }
+
+    /// An intent answer routes; EOF mid-flow cancels instead of looping.
+    #[test]
+    fn read_wizard_routes_and_cancels_honestly() {
+        let mut input =
+            std::io::Cursor::new(b"process every item in parallel\nbatch\n2\n".to_vec());
+        let mut out = Vec::new();
+        let w = read_wizard(&mut input, &mut out, None)
+            .expect("io ok")
+            .expect("not cancelled");
+        assert_eq!(w.template, "fanout");
+        assert_eq!(w.dest, "batch.nika.yaml", "the suffix is appended");
+
+        let mut eof = std::io::Cursor::new(Vec::new());
+        let mut out2 = Vec::new();
+        assert!(
+            read_wizard(&mut eof, &mut out2, None)
+                .expect("io ok")
+                .is_none(),
+            "EOF = cancelled"
+        );
+    }
+
+    /// End-to-end over injected io: the file lands stamped + checkable.
+    #[test]
+    fn wizard_io_materializes_a_stamped_file() {
+        let dir = std::env::temp_dir().join(format!("nika-wizard-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let mut input = std::io::Cursor::new(b"\nfirst\n\n".to_vec());
+        let mut out = Vec::new();
+        let v = wizard_io(
+            dir.to_str().expect("utf8"),
+            None,
+            true,
+            &mut input,
+            &mut out,
+        );
+        assert_eq!(v.code, exit::OK, "{}", v.text);
+        assert!(v.text.contains("scriptable form"), "{}", v.text);
+        let written = std::fs::read_to_string(dir.join("first.nika.yaml")).expect("file written");
+        assert!(written.contains("workflow: first"));
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

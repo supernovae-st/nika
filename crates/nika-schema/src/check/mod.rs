@@ -34,6 +34,7 @@ mod declass;
 mod flow;
 mod hints;
 mod infer_permits;
+pub(crate) mod native_first;
 mod permits_fit;
 mod reach;
 mod requirements;
@@ -323,6 +324,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         analysis::DagRead::skipped()
     };
     let mut hints = hints::scan_hints(wf);
+    hints.extend(native_first::scan(wf));
     hints.extend(dag_read.conflicts);
     CheckReport {
         report_version: REPORT_VERSION,

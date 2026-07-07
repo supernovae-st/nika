@@ -11,8 +11,13 @@
 //! `--force` is the explicit override (same law as `nika new`). Diagnose-and-
 //! report: every created/skipped path is named; a write failure is the one
 //! environment error (`exit 3`).
+//!
+//! Bare on a terminal, init then OFFERS the first workflow (the guided
+//! three-question flow shared with bare `nika new` — the gh-repo-create
+//! shape). `--yes`, any pipe, and CI keep the old behavior byte-for-byte.
 
 use std::fmt::Write as _;
+use std::io::IsTerminal;
 use std::path::Path;
 
 use crate::verbs::VerbOutput;
@@ -164,10 +169,22 @@ pub(crate) fn render(lines: &[(char, String)]) -> String {
     s
 }
 
+/// The beginner's next move · init used to end SILENTLY (the 2026-07-05
+/// beginner walk: « you init and… sit there ») — an onboarding surface
+/// must hand over to the next command. Golden path: offline proof in
+/// 10s → scaffold → audit-before-tokens. Byte-stable: this is the exact
+/// non-interactive shape scripts have seen since #158.
+const NEXT_BLOCK: &str = "next ·\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika new --from chain my-first.nika.yaml       # scaffold a real workflow\n  nika check my-first.nika.yaml                  # audit before a single token";
+
 /// Scaffold `dir` (default `.`). Creates parent dirs as needed. A write
 /// failure is the one environment error (`exit 3`); everything else is `0`.
+///
+/// Bare on a terminal (and not `--yes`) the scaffold report prints
+/// immediately and init hands over to the guided first-workflow flow —
+/// the gh-repo-create shape (bare on a TTY is guided · flags and pipes
+/// keep the exact old output).
 #[must_use]
-pub fn run(dir: &str, force: bool) -> VerbOutput {
+pub fn run(dir: &str, force: bool, yes: bool) -> VerbOutput {
     let plan = plan(dir, &|p| Path::new(p).exists(), force);
     let mut lines: Vec<(char, String)> = Vec::new();
     let mut failed = false;
@@ -192,16 +209,19 @@ pub fn run(dir: &str, force: bool) -> VerbOutput {
 
     let text = render(&lines);
     if failed {
-        VerbOutput::env(text)
-    } else {
-        // The beginner's next move · init used to end SILENTLY (the
-        // 2026-07-05 beginner walk: « you init and… sit there ») — an
-        // onboarding surface must hand over to the next command. Golden
-        // path: offline proof in 10s → scaffold → audit-before-tokens.
-        VerbOutput::ok(format!(
-            "{text}\n\nnext ·\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika new --from chain my-first.nika.yaml       # scaffold a real workflow\n  nika check my-first.nika.yaml                  # audit before a single token"
-        ))
+        return VerbOutput::env(text);
     }
+    if !yes && std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+        // Interactive: the wizard prints the report itself (the lib bans
+        // println! — output flows through its writer), then offers the
+        // first workflow. Declined → the classic hand-off, so nobody
+        // exits without a next command.
+        return match crate::verbs::new::offer_first_workflow(dir, &text) {
+            Some(v) => v,
+            None => VerbOutput::ok(NEXT_BLOCK.to_owned()),
+        };
+    }
+    VerbOutput::ok(format!("{text}\n\n{NEXT_BLOCK}"))
 }
 
 /// Create any missing parent dirs, then write the file.
@@ -226,12 +246,29 @@ mod tests {
         // over — the ok-path text carries the golden path.
         let tmp = std::env::temp_dir().join(format!("nika-init-handover-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).expect("mkdir");
-        let out = run(tmp.to_str().expect("utf8"), false);
+        let out = run(tmp.to_str().expect("utf8"), false, true);
         std::fs::remove_dir_all(&tmp).ok();
         assert_eq!(out.code, exit::OK);
         assert!(out.text.contains("next ·"), "{}", out.text);
         assert!(out.text.contains("nika examples run 01-hello"));
         assert!(out.text.contains("nika check"));
+    }
+
+    /// `--yes` (and any non-terminal) is the byte-stable script shape —
+    /// the report and the classic hand-off, zero prompts.
+    #[test]
+    fn yes_keeps_the_non_interactive_shape() {
+        let tmp = std::env::temp_dir().join(format!("nika-init-yes-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).expect("mkdir");
+        let out = run(tmp.to_str().expect("utf8"), false, true);
+        std::fs::remove_dir_all(&tmp).ok();
+        assert_eq!(out.code, exit::OK);
+        assert!(out.text.contains("✔ created"), "{}", out.text);
+        assert!(
+            out.text.contains(NEXT_BLOCK),
+            "the classic block survives verbatim: {}",
+            out.text
+        );
     }
 
     #[test]

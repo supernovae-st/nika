@@ -111,6 +111,11 @@ enum Command {
         /// Print an inferred `permits:` boundary instead of the report.
         #[arg(long)]
         infer_permits: bool,
+        /// Fail (exit 2) when any `native-first` hint remains — an
+        /// `exec:` a builtin or MCP tool probably covers. The agent/CI
+        /// posture; hints stay advisory without it.
+        #[arg(long)]
+        native_strict: bool,
         /// Disable colour output.
         #[arg(long)]
         no_color: bool,
@@ -178,6 +183,10 @@ enum Command {
         /// Overwrite existing files.
         #[arg(long)]
         force: bool,
+        /// Accept every default — never prompt (pipes and CI are
+        /// implicitly `--yes`; prompts only ever appear on a terminal).
+        #[arg(long, short = 'y')]
+        yes: bool,
     },
     /// Wire Nika into editor/agent MCP clients (explicit, idempotent).
     Wire {
@@ -215,9 +224,11 @@ enum Command {
     },
     /// Instantiate an embedded template skeleton.
     New {
-        /// Template name (see `nika new --from '?'` for the set).
+        /// Template name or plain-words intent (`--from '?'` lists the
+        /// set). Omitted on a terminal → the guided three-question flow;
+        /// omitted in a pipe → fail fast naming this flag.
         #[arg(long)]
-        from: String,
+        from: Option<String>,
         /// Destination path (`*.nika.yaml`). Optional for the `--from '?'`
         /// discovery query; required to instantiate a template.
         dest: Option<String>,
@@ -510,6 +521,7 @@ fn main() -> std::process::ExitCode {
             file,
             json,
             infer_permits,
+            native_strict,
             no_color,
             ascii,
         } => {
@@ -519,6 +531,7 @@ fn main() -> std::process::ExitCode {
                 verbs::check::run(
                     &file,
                     json,
+                    native_strict,
                     term_theme(color.with_no_color(no_color), ascii, link_when),
                 )
             };
@@ -546,7 +559,7 @@ fn main() -> std::process::ExitCode {
         }
         Command::Explain { code } => emit(&verbs::explain::run(&code)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json)),
-        Command::Init { dir, force } => emit(&verbs::init::run(&dir, force)),
+        Command::Init { dir, force, yes } => emit(&verbs::init::run(&dir, force, yes)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target.into(), &dir)),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
         Command::Schema => emit(&verbs::pack_surface::schema()),
@@ -562,7 +575,11 @@ fn main() -> std::process::ExitCode {
                 term_theme(color.with_no_color(false), false, link_when),
             ),
         },
-        Command::New { from, dest, force } => emit(&verbs::new::run(&from, dest.as_deref(), force)),
+        Command::New { from, dest, force } => emit(&verbs::new::dispatch(
+            from.as_deref(),
+            dest.as_deref(),
+            force,
+        )),
         Command::Completions { shell } => {
             write_completions(shell, &mut std::io::stdout());
             0

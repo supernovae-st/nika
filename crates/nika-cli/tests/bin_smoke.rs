@@ -401,7 +401,49 @@ fn init_scaffolds_a_repo_and_is_idempotent() {
         stdout.contains("skipped"),
         "idempotent re-run skips: {stdout}"
     );
+    // Off-terminal (output() nulls stdin) the classic hand-off block is
+    // byte-stable — scripts and CI never meet a prompt (clig.dev).
+    assert!(
+        stdout.contains("next ·"),
+        "non-interactive init keeps the hand-off: {stdout}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn bare_new_in_a_pipe_fails_fast_naming_the_flag() {
+    // clig.dev: never REQUIRE interactivity. Bare `nika new` without a
+    // terminal must not hang waiting on stdin — it fails fast, names the
+    // missing flag, and still hands over the template set (wire line).
+    let out = bin()
+        .arg("new")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(2), "fail fast, not a hang");
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(text.contains("--from"), "names the flag: {text}");
+    assert!(text.contains("embedded set:"), "hands over the set: {text}");
+}
+
+#[test]
+fn discovery_query_is_a_success_at_the_binary_plane() {
+    // `nika new --from '?'` is the documented discovery command — exit 0
+    // (a question answered is a success), the wire-contract line intact.
+    let out = bin()
+        .arg("new")
+        .arg("--from")
+        .arg("?")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(0), "discovery is a success");
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    assert!(stdout.contains("embedded set:"), "{stdout}");
 }
 
 #[test]

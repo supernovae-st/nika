@@ -225,7 +225,7 @@ fn inspect_draws_the_wave_groups_with_static_facts() {
 #[test]
 fn check_clean_file_exits_0_with_grep_stable_sections() {
     let path = fixture_path("check-clean.nika.yaml", WORKFLOW);
-    let out = check::run(&path, false, PLAIN);
+    let out = check::run(&path, false, false, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     for section in [
         "PLAN", "COST", "SECRETS", "TYPES", "TOOLS", "SCHEMA", "PERMITS",
@@ -249,7 +249,7 @@ fn check_clean_file_exits_0_with_grep_stable_sections() {
 fn check_dirty_file_exits_2_and_names_the_fix() {
     let dirty = WORKFLOW.replace("\"nika:read\"", "\"nika:reed\"");
     let path = fixture_path("check-dirty.nika.yaml", &dirty);
-    let out = check::run(&path, false, PLAIN);
+    let out = check::run(&path, false, false, PLAIN);
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("TOOLS"), "{}", out.text);
     assert!(
@@ -265,7 +265,7 @@ fn check_json_is_the_report_plus_clean_flag_never_coloured() {
     let path = fixture_path("check-json.nika.yaml", WORKFLOW);
     // Colour requested — json must ignore it (the contract bytes).
     let coloured = Theme::new(true, false, false);
-    let out = check::run(&path, true, coloured);
+    let out = check::run(&path, true, false, coloured);
     assert_eq!(out.code, exit::OK);
     assert!(!out.text.contains('\x1b'), "json is never coloured");
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
@@ -281,7 +281,7 @@ fn check_json_conformance_carries_severity_and_docs_url() {
     // form). Consumers link the code without re-deriving anything.
     let broken = WORKFLOW.replace("depends_on: [gather, probe]", "depends_on: [ghost]");
     let path = fixture_path("check-severity.nika.yaml", &broken);
-    let out = check::run(&path, true, PLAIN);
+    let out = check::run(&path, true, false, PLAIN);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
     let c = &doc["conformance"][0];
     assert_eq!(c["severity"], "error");
@@ -298,14 +298,14 @@ fn check_json_conformance_carries_severity_and_docs_url() {
 #[test]
 fn check_parse_error_is_a_file_finding_exit_2() {
     let path = fixture_path("check-parse.nika.yaml", "nika: v1\nworkflow: [broken");
-    let out = check::run(&path, false, PLAIN);
+    let out = check::run(&path, false, false, PLAIN);
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("PARSE"), "{}", out.text);
 }
 
 #[test]
 fn check_unreadable_file_is_an_environment_error_exit_3() {
-    let out = check::run("/nonexistent/missing.nika.yaml", false, PLAIN);
+    let out = check::run("/nonexistent/missing.nika.yaml", false, false, PLAIN);
     assert_eq!(out.code, exit::ENV);
     assert!(out.text.contains("cannot read"));
 }
@@ -414,7 +414,7 @@ fn new_writes_a_template_that_passes_its_own_check() {
     );
 
     // The own-corpus law: what we scaffold must pass our own ladder.
-    let checked = check::run(&dest_str, false, PLAIN);
+    let checked = check::run(&dest_str, false, false, PLAIN);
     assert_eq!(
         checked.code,
         exit::OK,
@@ -431,17 +431,33 @@ fn new_writes_a_template_that_passes_its_own_check() {
 }
 
 #[test]
-fn new_refuses_an_unknown_template_and_names_the_set() {
-    // `?` is the canonical discovery query — it shares no term with any
-    // template, so it hits the unknown() path that names the embedded set.
-    // (A garbage string like "no-such-template" spuriously ROUTES: its term
-    // "template" matches the `…-template` placeholder inside the bodies.)
+fn new_answers_the_discovery_query_as_a_success() {
+    // `?` is the canonical discovery query — first-class since the
+    // 2026-07-07 field walk (it used to reuse the unknown-template error
+    // and exit 2 · a documented command must not read as a failure). The
+    // `embedded set:` wire line survives verbatim for the editor probes,
+    // and a passed dest is never written.
     let out = new::run("?", Some("/tmp/never-written.nika.yaml"), false);
-    assert_eq!(out.code, exit::FILE);
-    assert!(out.text.contains("unknown template"));
+    assert_eq!(out.code, exit::OK, "{}", out.text);
+    assert!(out.text.contains("embedded set:"), "{}", out.text);
+    assert!(!std::path::Path::new("/tmp/never-written.nika.yaml").exists());
     for name in nika_pack::template_names() {
         assert!(out.text.contains(&name), "set names {name}");
     }
+}
+
+#[test]
+fn new_refuses_gibberish_and_names_the_set() {
+    // Zero-evidence text (no shared term with any template body) keeps
+    // the honest unknown-template error + the wire-contract set line.
+    let out = new::run(
+        "zzzz qqqq xxxx",
+        Some("/tmp/never-written.nika.yaml"),
+        false,
+    );
+    assert_eq!(out.code, exit::FILE);
+    assert!(out.text.contains("unknown template"));
+    assert!(out.text.contains("embedded set:"));
 }
 
 #[test]

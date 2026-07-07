@@ -191,6 +191,10 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// fork surfaces can prove « the file changed since this run »
     /// instead of guessing. `None` (embedded/test callers) = no claim.
     source_sha256: Option<String>,
+    /// The LF normal form's sha256 — present only when the source bytes
+    /// were CRLF/BOM-encoded (the two hashes differ). Lets drift checks
+    /// tell a re-encode from an edit.
+    source_sha256_lf: Option<String>,
 }
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
@@ -220,6 +224,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             pause_on_prompt: false,
             prompt_answers: BTreeMap::new(),
             source_sha256: None,
+            source_sha256_lf: None,
         }
     }
 
@@ -277,6 +282,15 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
         self
     }
 
+    /// Stamp the LF-normal-form sibling (`workflow_sha256_lf`) — only
+    /// meaningful when it differs from the raw sha (CRLF/BOM sources);
+    /// the composer owns that comparison, the runtime never re-reads.
+    #[must_use]
+    pub fn with_source_sha256_lf(mut self, hex: String) -> Self {
+        self.source_sha256_lf = Some(hex);
+        self
+    }
+
     /// Supply prompt answers (`--answer task=value` · ADR-099 rider):
     /// bound as the named task's prompt `default:` at dispatch — the
     /// answered branch of the stdlib contract, type-validated per mode
@@ -319,6 +333,7 @@ fn emit_prologue(
     wf: &RawWorkflow,
     workflow_name: &str,
     source_sha256: Option<&str>,
+    source_sha256_lf: Option<&str>,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
@@ -338,6 +353,9 @@ fn emit_prologue(
     let mut opening = vec![("workflow", s(workflow_name)), ("permits", s(permits_desc))];
     if let Some(hex) = source_sha256 {
         opening.push(("workflow_sha256", s(hex)));
+    }
+    if let Some(hex) = source_sha256_lf {
+        opening.push(("workflow_sha256_lf", s(hex)));
     }
     // Environment attestation (Q11): reproducing a failure needs to know
     // WHICH engine on WHICH platform wrote the journal. Compile-time
@@ -434,6 +452,7 @@ where
             wf,
             &workflow_name,
             self.source_sha256.as_deref(),
+            self.source_sha256_lf.as_deref(),
             stamper,
             sink,
         );

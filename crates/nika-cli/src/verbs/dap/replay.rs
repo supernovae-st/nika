@@ -96,13 +96,27 @@ impl ReplaySession {
         Ok(session)
     }
 
-    /// The #210 identity check against the CURRENT source bytes.
+    /// The #210 identity check against the CURRENT source bytes — in
+    /// content terms, not byte terms: an editor re-encoding CRLF↔LF (or
+    /// adding a BOM) cannot move a breakpoint line, and the 0.96.0
+    /// review proved the raw compare cried wolf on exactly that. Raw
+    /// match first; then LF normal forms (against the recorded raw for
+    /// LF-recorded files, against `workflow_sha256_lf` for
+    /// CRLF-recorded ones). Only a CONTENT change survives all three.
     fn drift_of(yaml: &str, events: &[nika_event::Event]) -> Option<bool> {
-        let recorded = events
+        let started = events
             .iter()
-            .find(|e| e.kind == EventKind::WorkflowStarted)
-            .and_then(|e| field_str(e, "workflow_sha256"))?;
-        Some(super::super::run::sha256_hex(yaml.as_bytes()) != recorded)
+            .find(|e| e.kind == EventKind::WorkflowStarted)?;
+        let recorded = field_str(started, "workflow_sha256")?;
+        if super::super::run::sha256_hex(yaml.as_bytes()) == recorded {
+            return Some(false);
+        }
+        let lf_sha =
+            super::super::run::sha256_hex(super::super::run::lf_normal_form(yaml).as_bytes());
+        if lf_sha == recorded || field_str(started, "workflow_sha256_lf") == Some(lf_sha.as_str()) {
+            return Some(false);
+        }
+        Some(true)
     }
 
     /// The testable core: source text + folded events.
@@ -244,13 +258,19 @@ impl ReplaySession {
     }
 
     /// Variables at the cursor: every settle up to and including it —
-    /// the output when recorded, else the terminal kind.
-    pub(crate) fn variables(&self) -> Vec<(String, String)> {
+    /// the output when recorded, else the terminal kind. Recorded
+    /// outputs are BORROWED: the per-call clone of the whole settled
+    /// prefix was the deep-cursor latency cliff on very long runs
+    /// (the 0.96.0 review's fan-out finding).
+    pub(crate) fn variables(&self) -> Vec<(&str, std::borrow::Cow<'_, str>)> {
         self.stops[..=self.cursor.min(self.stops.len() - 1)]
             .iter()
             .map(|s| {
-                let value = s.output.clone().unwrap_or_else(|| format!("({})", s.kind));
-                (s.task.clone(), value)
+                let value = s.output.as_deref().map_or_else(
+                    || std::borrow::Cow::Owned(format!("({})", s.kind)),
+                    std::borrow::Cow::Borrowed,
+                );
+                (s.task.as_str(), value)
             })
             .collect()
     }
@@ -333,7 +353,8 @@ mod tests {
         assert_eq!(s.current().task, "beta");
         // alpha's recorded output + beta's kind (no output recorded).
         let vars = s.variables();
-        assert_eq!(vars[0], ("alpha".to_owned(), "\"a\"".to_owned()));
+        assert_eq!(vars[0].0, "alpha");
+        assert_eq!(vars[0].1, "\"a\"");
         assert_eq!(vars[1].1, "(completed)");
 
         assert!(s.step());
@@ -395,6 +416,39 @@ mod tests {
         };
         assert_eq!(make(&sha).drifted, Some(false));
         assert_eq!(make(&"ab".repeat(32)).drifted, Some(true));
+    }
+
+    #[test]
+    fn a_reencode_is_not_drift_but_an_edit_is() {
+        // The four quadrants of the encoding rule. Raw shas differ in
+        // the two re-encode cases; the LF normal forms agree — only a
+        // content change may say drifted.
+        let crlf = YAML.replace('\n', "\r\n");
+        let raw = |text: &str| super::super::super::run::sha256_hex(text.as_bytes());
+        let started = |fields: &[(&str, &str)]| vec![ev(1, EventKind::WorkflowStarted, fields)];
+
+        // LF-recorded · current CRLF → the LF form matches the recorded raw.
+        let rec_lf = started(&[("workflow_sha256", &raw(YAML))]);
+        assert_eq!(ReplaySession::drift_of(&crlf, &rec_lf), Some(false));
+
+        // CRLF-recorded (journal carries the _lf sibling) · current LF.
+        let rec_crlf = started(&[
+            ("workflow_sha256", &raw(&crlf)),
+            ("workflow_sha256_lf", &raw(YAML)),
+        ]);
+        assert_eq!(ReplaySession::drift_of(YAML, &rec_crlf), Some(false));
+
+        // BOM added by an editor → not an edit either.
+        let bom = format!("\u{feff}{YAML}");
+        assert_eq!(ReplaySession::drift_of(&bom, &rec_lf), Some(false));
+
+        // A real content edit still drifts, whatever the encoding.
+        let edited = YAML.replace("alpha", "omega");
+        assert_eq!(ReplaySession::drift_of(&edited, &rec_lf), Some(true));
+        assert_eq!(
+            ReplaySession::drift_of(&edited.replace('\n', "\r\n"), &rec_crlf),
+            Some(true)
+        );
     }
 
     #[test]

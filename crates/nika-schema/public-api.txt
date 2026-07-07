@@ -2154,6 +2154,7 @@ pub fn nika_schema::lints::Lint::__clone_box(&self, _: dyn_clone::sealed::Privat
 impl<T> nika_error::traits::AsAny for nika_schema::lints::Lint where T: 'static
 pub fn nika_schema::lints::Lint::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_schema::lints::arg_injection(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_schema::lints::Lint>
+pub fn nika_schema::lints::native_first(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_schema::lints::Lint>
 pub fn nika_schema::lints::one_obvious_way(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_schema::lints::Lint>
 pub mod nika_schema::parser
 #[non_exhaustive] pub enum nika_schema::parser::ParseMode

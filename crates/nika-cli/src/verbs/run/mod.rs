@@ -24,6 +24,7 @@
 mod compose;
 mod resume;
 mod sink;
+mod source_id;
 mod stamp;
 
 pub use compose::{
@@ -32,10 +33,12 @@ pub use compose::{
 };
 pub use resume::{RecoveredTrace, ResumeRequest, recover_events};
 pub use sink::{FoldSink, JsonSink, RenderMode};
+use sink::{TraceNote, surface_trace};
 pub use stamp::SystemStamper;
 
 mod scope;
 use scope::scope_to_task;
+pub(crate) use source_id::{lf_normal_form, sha256_hex};
 
 use sink::{TRACE_DIR, Tee, TraceFileSink};
 
@@ -469,20 +472,6 @@ fn parse_var_overrides(
 // The 7 knobs ARE the composition surface (var overrides · resume plan ·
 // answers · pause flag) — the same clap-surface idiom as `run` itself.
 #[allow(clippy::too_many_arguments)]
-/// The run's source identity: sha256 hex over the exact bytes read.
-pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
-    use sha2::{Digest as _, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(bytes);
-    let digest = hasher.finalize();
-    let mut hex = String::with_capacity(64);
-    for byte in digest {
-        use std::fmt::Write as _;
-        let _ = write!(hex, "{byte:02x}");
-    }
-    hex
-}
-
 fn composed_runtime(
     wf: &RawWorkflow,
     source: &str,
@@ -505,6 +494,16 @@ fn composed_runtime(
                 // The run's identity: the journal names the definition it
                 // recorded (sha256 of the exact bytes this composer read).
                 .with_source_sha256(sha256_hex(source.as_bytes()));
+            // A CRLF/BOM source ALSO records its LF normal form, so drift
+            // checks can tell a re-encode from an edit. LF sources skip
+            // the field (the forms coincide — the journal stays lean).
+            let raw_sha = sha256_hex(source.as_bytes());
+            let lf_sha = sha256_hex(lf_normal_form(source).as_bytes());
+            let rt = if lf_sha == raw_sha {
+                rt
+            } else {
+                rt.with_source_sha256_lf(lf_sha)
+            };
             Ok(match resume_plan {
                 Some(plan) => rt.with_resume_plan(plan),
                 None => rt,
@@ -604,7 +603,7 @@ fn scoped_clean_gate(
 ) -> Result<(RawWorkflow, CheckReport), u8> {
     let (wf, report) = apply_task_scope(wf, report, task_filter, output_json)?;
     if !report.is_clean() {
-        let out = crate::verbs::check::run(file, json, theme);
+        let out = crate::verbs::check::run(file, json, false, theme);
         emit_diagnostic(&out.text, output_json);
         return Err(out.code);
     }
@@ -691,7 +690,7 @@ async fn execute(
         let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
         let (mut sink, trace) = tee.into_parts();
         sink.print_final();
-        surface_trace(trace, TraceNote::Stderr);
+        surface_trace(trace, TraceNote::Stderr, None);
         print_resume_summary(&outcome, resumed, true);
         // Built BEFORE the sink is consumed — the failure envelope reads
         // the folded view (the failed row's detail carries the wire code).
@@ -726,7 +725,7 @@ async fn execute(
         let (sink, trace) = tee.into_parts();
         // stdout stays NDJSON verbatim (byte-identical with or without the
         // journal) — the trace note rides on stderr here.
-        surface_trace(trace, TraceNote::Stderr);
+        surface_trace(trace, TraceNote::Stderr, None);
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: stream write failed: {e}");
             return exit::ENV;
@@ -792,6 +791,12 @@ async fn execute_fold_lane(
     }
     // The spec §3.3 final-frame pointer (`trace: …`) — under the frame
     // on the storytelling surfaces.
+    let failed_task = sink
+        .view()
+        .rows()
+        .iter()
+        .find(|r| r.state == crate::TaskState::Failed)
+        .map(|r| r.id.clone());
     surface_trace(
         trace,
         if mode == RenderMode::Quiet {
@@ -799,6 +804,7 @@ async fn execute_fold_lane(
         } else {
             TraceNote::Stdout
         },
+        failed_task.as_deref(),
     );
     print_resume_summary(&outcome, resumed, false);
     if let Some(e) = sink.into_error() {
@@ -806,63 +812,6 @@ async fn execute_fold_lane(
         return exit::ENV;
     }
     code
-}
-
-/// Where the run journal's `trace:` pointer lands (per lane).
-#[derive(Clone, Copy)]
-enum TraceNote {
-    /// The human storytelling surfaces (`Live` · `Plain`) — the spec §3.3
-    /// final-frame pointer, printed under the frame.
-    Stdout,
-    /// The machine lanes (`--json` · `--output json`) — their stdout is a
-    /// byte-exact contract, so the pointer rides the diagnostic stream.
-    Stderr,
-    /// `--quiet` — the compact-card promise holds (no pointer · the
-    /// journal is still written · an fs error still reaches stderr).
-    Silent,
-}
-
-/// Surface the run journal AFTER the run — NEVER the exit code (the sink
-/// contract: journaling is a rider, a broken rider is a note, not a
-/// failure). An fs error goes to stderr with the path when one was opened;
-/// a written journal prints its `trace:` pointer per [`TraceNote`].
-fn surface_trace(trace: TraceFileSink, note: TraceNote) {
-    let path = trace.path().map(std::path::Path::to_path_buf);
-    // The printed head is the chain's free external anchor: CI logs and
-    // scrollback hold it, so a rewritten-whole journal no longer matches
-    // the record of the run that printed it (tamper-EVIDENT → checkable).
-    let head8 = trace.chain_head()[..16].to_owned();
-    let count = trace.chain_len();
-    if let Some(e) = trace.into_error() {
-        // Name the file when the failure struck AFTER the open (a partial
-        // journal on disk) — the operator sees exactly what to distrust.
-        match &path {
-            Some(p) => eprintln!(
-                "nika run: trace file {}: {e} — the run itself is unaffected",
-                p.display()
-            ),
-            None => eprintln!("nika run: trace file: {e} — the run itself is unaffected"),
-        }
-        return;
-    }
-    let Some(path) = path else {
-        return; // disabled · or a run that emitted zero events
-    };
-    match note {
-        TraceNote::Stdout => {
-            println!(
-                "    trace: {} · {count} events · chain {head8}",
-                path.display()
-            );
-        }
-        TraceNote::Stderr => {
-            eprintln!(
-                "nika run: trace: {} · {count} events · chain {head8}",
-                path.display()
-            );
-        }
-        TraceNote::Silent => {}
-    }
 }
 
 /// The `--resume` post-run summary (`resumed · N skipped · M ran live`) —

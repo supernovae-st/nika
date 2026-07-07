@@ -40,6 +40,15 @@ jobs:
             echo "No changelog content — skipping"
             exit 0
           fi
+          # Idempotence guard: the release PR often lands a curated
+          # "## [X.Y.Z]" section before this workflow runs — prepending
+          # again doubles the header (the 0.95/0.96 duplicate class,
+          # cleaned in #251). Fixed-string match on the header prefix.
+          VER="${TAG#v}"
+          if grep -qF "## [${VER}]" CHANGELOG.md; then
+            echo "CHANGELOG already carries a [${VER}] section — skipping (idempotence guard)"
+            exit 0
+          fi
           BR="chore/changelog-${TAG}"
           git config user.name "nika-bot 🦋"
           git config user.email "nika@supernovae.studio"

@@ -125,3 +125,46 @@ fn export_projects_the_real_journal_with_true_durations() {
             .contains("tasks.seed.status")
     );
 }
+
+/// The failure moment teaches its own forensics (runtime UX): a failed
+/// run's trace pointer carries the autopsy line naming the failed task;
+/// a clean run stays autopsy-free.
+#[test]
+fn a_failed_run_prints_its_autopsy_a_clean_run_does_not() {
+    let dir = tempfile::tempdir().expect("tmpdir");
+    std::fs::write(
+        dir.path().join("fail.nika.yaml"),
+        "nika: v1\nworkflow: fail-ux\ntasks:\n  - id: boom\n    exec:\n      command: [\"false\"]\n",
+    )
+    .expect("write");
+    let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+        .args(["run", "fail.nika.yaml", "--no-progress"])
+        .current_dir(dir.path())
+        .output()
+        .expect("spawns");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.contains("autopsy: nika trace peek") && text.contains(" boom"),
+        "the autopsy names the failed task: {text}"
+    );
+    assert!(
+        text.contains("trace replay"),
+        "the replay path rides: {text}"
+    );
+
+    std::fs::write(
+        dir.path().join("ok.nika.yaml"),
+        "nika: v1\nworkflow: ok-ux\ntasks:\n  - id: fine\n    exec:\n      command: [\"true\"]\n",
+    )
+    .expect("write");
+    let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+        .args(["run", "ok.nika.yaml", "--no-progress"])
+        .current_dir(dir.path())
+        .output()
+        .expect("spawns");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        !text.contains("autopsy:"),
+        "a clean run is autopsy-free: {text}"
+    );
+}
