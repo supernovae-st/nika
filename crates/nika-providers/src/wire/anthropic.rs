@@ -120,14 +120,6 @@ fn request_body(
     stream: bool,
     names: &ToolNameMap,
 ) -> Result<Value, ProviderError> {
-    if !matches!(req.response_format, ResponseFormat::Text) {
-        return Err(ProviderError::Other {
-            reason: "anthropic does not support response_format at v0.1 · \
-                     use an openai-compat provider or prompt-level JSON"
-                .to_owned(),
-        });
-    }
-
     let mut system = String::new();
     let mut messages = Vec::new();
     for m in &req.messages {
@@ -185,6 +177,23 @@ fn request_body(
             json!({ "type": "enabled", "budget_tokens": budget }),
         );
     }
+    // Structured output rides `output_config.format` (GA 2026-01-29 ·
+    // grammar-constrained sampling on the final text; extended thinking
+    // stays unconstrained — the grammar applies only to the direct output).
+    // `ResponseFormat::Json` is a deliberate NO-OP, not an error: Anthropic
+    // has no bare JSON mode, and the verb's JsonMode fallback (ADR-098 ·
+    // how an UNDERSPECIFIED schema reaches this wire) already carries the
+    // schema instruction in the prompt and validates locally — the wire
+    // adds nothing.
+    if let ResponseFormat::JsonSchema(schema) = &req.response_format {
+        obj.insert(
+            "output_config".to_owned(),
+            json!({ "format": {
+                "type": "json_schema",
+                "schema": normalize_output_schema(schema),
+            }}),
+        );
+    }
     // Provider extras never override the structural keys this adapter set
     // (model · messages · stream · tools · …) — first-write-wins.
     for (k, v) in &req.extra.params {
@@ -193,6 +202,136 @@ fn request_body(
         }
     }
     Ok(body)
+}
+
+/// The `format:` values Anthropic's structured-output dialect accepts —
+/// anything else 400s at grammar compilation and is stripped at the wire.
+const SUPPORTED_FORMATS: [&str; 10] = [
+    "date",
+    "date-time",
+    "duration",
+    "email",
+    "hostname",
+    "ipv4",
+    "ipv6",
+    "time",
+    "uri",
+    "uuid",
+];
+
+/// Rewrite a JSON Schema into Anthropic's structured-output dialect
+/// (GA 2026-01-29 · platform.claude.com/docs · structured-outputs).
+///
+/// NARROWER than `OpenAI` strict, and different in one welcome way: every
+/// object MUST carry `additionalProperties: false` (injected), but
+/// author-optional properties STAY optional — no required-all/nullable
+/// widening. `oneOf` is not accepted (`anyOf` is) and folds into it. The
+/// keywords the wire rejects at grammar compilation — numeric bounds ·
+/// string lengths · array bounds beyond `minItems: 0|1` · the
+/// negation/conditional family · non-whitelisted `format` values — are
+/// STRIPPED at the wire; the authored constraints stay enforced by the
+/// verb's LOCAL validation + retry (the same contract as the `uniqueItems`
+/// strip on the openai path).
+fn normalize_output_schema(schema: &Value) -> Value {
+    let mut out = schema.clone();
+    normalize_node(&mut out);
+    out
+}
+
+/// In-place dialect rewrite of one schema node and its descendants.
+fn normalize_node(node: &mut Value) {
+    let Some(obj) = node.as_object_mut() else {
+        return;
+    };
+    descend_subschemas(obj);
+    fold_oneof_into_anyof(obj);
+    strip_unsupported(obj);
+    if obj.get("type").and_then(Value::as_str) == Some("object") {
+        obj.insert("additionalProperties".to_owned(), Value::Bool(false));
+    }
+}
+
+/// Recurse into every child that is itself a schema (composition +
+/// container keywords; internal `$ref`/`$defs` are supported upstream, so
+/// the definitions are normalized too).
+fn descend_subschemas(obj: &mut serde_json::Map<String, Value>) {
+    if let Some(props) = obj.get_mut("properties").and_then(Value::as_object_mut) {
+        props.values_mut().for_each(normalize_node);
+    }
+    match obj.get_mut("items") {
+        Some(Value::Array(items)) => items.iter_mut().for_each(normalize_node),
+        Some(child) => normalize_node(child),
+        None => {}
+    }
+    for key in ["$defs", "definitions"] {
+        if let Some(defs) = obj.get_mut(key).and_then(Value::as_object_mut) {
+            defs.values_mut().for_each(normalize_node);
+        }
+    }
+    for key in ["anyOf", "allOf", "oneOf"] {
+        if let Some(branches) = obj.get_mut(key).and_then(Value::as_array_mut) {
+            branches.iter_mut().for_each(normalize_node);
+        }
+    }
+}
+
+/// `oneOf` → `anyOf` (the dialect accepts `anyOf`, not `oneOf`) — same
+/// fold as the openai strict path: existing `anyOf` branches keep their
+/// place, the `oneOf` branches append, no `oneOf` survives.
+fn fold_oneof_into_anyof(obj: &mut serde_json::Map<String, Value>) {
+    let Some(Value::Array(one_of)) = obj.remove("oneOf") else {
+        return;
+    };
+    match obj.get_mut("anyOf").and_then(Value::as_array_mut) {
+        Some(any_of) => any_of.extend(one_of),
+        None => {
+            obj.insert("anyOf".to_owned(), Value::Array(one_of));
+        }
+    }
+}
+
+/// Strip every keyword the dialect 400s on (constraints stay locally
+/// enforced). `minItems` is special-cased: the dialect accepts 0 and 1.
+fn strip_unsupported(obj: &mut serde_json::Map<String, Value>) {
+    for kw in [
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "minLength",
+        "maxLength",
+        "maxItems",
+        "uniqueItems",
+        "not",
+        "if",
+        "then",
+        "else",
+        "patternProperties",
+        "prefixItems",
+        "propertyNames",
+        "minProperties",
+        "maxProperties",
+        "contains",
+        "minContains",
+        "maxContains",
+        "dependentRequired",
+        "dependentSchemas",
+    ] {
+        obj.remove(kw);
+    }
+    if obj
+        .get("minItems")
+        .and_then(Value::as_u64)
+        .is_some_and(|n| n > 1)
+    {
+        obj.remove("minItems");
+    }
+    if let Some(format) = obj.get("format").and_then(Value::as_str)
+        && !SUPPORTED_FORMATS.contains(&format)
+    {
+        obj.remove("format");
+    }
 }
 
 /// Insert `tools` + `tool_choice`. Each tool name is sanitized to the
@@ -574,11 +713,141 @@ mod tests {
     }
 
     #[test]
-    fn response_format_is_an_honest_error() {
+    fn json_schema_rides_output_config() {
+        // The GA structured-output shape (2026-01-29): the schema travels
+        // in `output_config.format`, normalized to the dialect — objects
+        // gain `additionalProperties: false`, but author-optional
+        // properties STAY optional (no required-all widening — the one
+        // welcome difference from openai strict).
+        let mut r = req(vec![Message::text(Role::User, "extract")]);
+        r.response_format = ResponseFormat::JsonSchema(serde_json::json!({
+            "type": "object",
+            "properties": { "id": {"type": "string"}, "note": {"type": "string"} },
+            "required": ["id"]
+        }));
+        let body = body_of("m", &r, false).expect("body");
+        let format = &body["output_config"]["format"];
+        assert_eq!(format["type"], "json_schema");
+        assert_eq!(format["schema"]["additionalProperties"], false);
+        assert_eq!(
+            format["schema"]["required"],
+            serde_json::json!(["id"]),
+            "author optionality preserved — no required-all widening"
+        );
+        assert_eq!(
+            format["schema"]["properties"]["note"]["type"], "string",
+            "no nullable widening either"
+        );
+    }
+
+    #[test]
+    fn json_mode_is_a_deliberate_noop() {
+        // ResponseFormat::Json must neither error nor emit output_config:
+        // it is the ADR-098 underspecified-schema fallback reaching this
+        // wire — the schema instruction rides the prompt, validation is
+        // local, the wire adds nothing.
         let mut r = req(vec![Message::text(Role::User, "json")]);
         r.response_format = ResponseFormat::Json;
-        let err = body_of("m", &r, false).unwrap_err();
-        assert!(err.to_string().contains("response_format"));
+        let body = body_of("m", &r, false).expect("no error");
+        assert!(body.get("output_config").is_none());
+    }
+
+    #[test]
+    fn dialect_strips_wire_rejected_keywords_locally_enforced() {
+        // Numeric bounds · string lengths · array bounds > minItems 1 ·
+        // not/if/then/else · non-whitelisted formats all 400 at grammar
+        // compilation — stripped at the wire, held by local validation.
+        let mut r = req(vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::JsonSchema(serde_json::json!({
+            "type": "object",
+            "required": ["age", "tags", "mail", "phone"],
+            "properties": {
+                "age": {"type": "integer", "minimum": 0, "maximum": 150},
+                "tags": {
+                    "type": "array", "items": {"type": "string"},
+                    "minItems": 3, "maxItems": 10, "uniqueItems": true
+                },
+                "mail": {"type": "string", "format": "email", "maxLength": 100},
+                "phone": {"type": "string", "format": "phone", "not": {"enum": ["0"]}}
+            }
+        }));
+        let body = body_of("m", &r, false).expect("body");
+        let props = &body["output_config"]["format"]["schema"]["properties"];
+        assert!(props["age"].get("minimum").is_none(), "{props}");
+        assert!(props["age"].get("maximum").is_none());
+        assert!(
+            props["tags"].get("minItems").is_none(),
+            "minItems 3 > 1 dropped"
+        );
+        assert!(props["tags"].get("maxItems").is_none());
+        assert!(props["tags"].get("uniqueItems").is_none());
+        assert!(props["mail"].get("maxLength").is_none());
+        assert_eq!(props["mail"]["format"], "email", "whitelisted format kept");
+        assert!(
+            props["phone"].get("format").is_none(),
+            "unknown format dropped"
+        );
+        assert!(props["phone"].get("not").is_none());
+    }
+
+    #[test]
+    fn dialect_keeps_min_items_zero_or_one_and_folds_oneof() {
+        let mut r = req(vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::JsonSchema(serde_json::json!({
+            "type": "object",
+            "required": ["items", "kind"],
+            "properties": {
+                "items": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                "kind": {"oneOf": [{"type": "string"}, {"type": "integer"}]}
+            }
+        }));
+        let body = body_of("m", &r, false).expect("body");
+        let props = &body["output_config"]["format"]["schema"]["properties"];
+        assert_eq!(
+            props["items"]["minItems"], 1,
+            "minItems 0|1 accepted upstream"
+        );
+        assert!(props["kind"].get("oneOf").is_none(), "no oneOf survives");
+        assert_eq!(
+            props["kind"]["anyOf"].as_array().expect("anyOf").len(),
+            2,
+            "both branches preserved"
+        );
+    }
+
+    #[test]
+    fn dialect_normalizes_nested_defs_and_array_elements() {
+        // The walk reaches $defs entries and array element schemas — a
+        // nested object deep in the tree still gains the mandatory
+        // additionalProperties: false.
+        let mut r = req(vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::JsonSchema(serde_json::json!({
+            "type": "object",
+            "required": ["rows", "node"],
+            "properties": {
+                "rows": {"type": "array", "items": {
+                    "type": "object",
+                    "required": ["sku"],
+                    "properties": {"sku": {"type": "string", "minLength": 2}}
+                }},
+                "node": {"$ref": "#/$defs/Node"}
+            },
+            "$defs": {
+                "Node": {"type": "object", "properties": {"label": {"type": "string"}}}
+            }
+        }));
+        let body = body_of("m", &r, false).expect("body");
+        let schema = &body["output_config"]["format"]["schema"];
+        let elem = &schema["properties"]["rows"]["items"];
+        assert_eq!(
+            elem["additionalProperties"], false,
+            "array element tightened"
+        );
+        assert!(elem["properties"]["sku"].get("minLength").is_none());
+        assert_eq!(
+            schema["$defs"]["Node"]["additionalProperties"], false,
+            "$defs entry tightened"
+        );
     }
 
     #[tokio::test]
