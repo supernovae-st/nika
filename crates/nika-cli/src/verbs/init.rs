@@ -20,6 +20,7 @@ use std::fmt::Write as _;
 use std::io::IsTerminal;
 use std::path::Path;
 
+use crate::display::theme::Theme;
 use crate::verbs::VerbOutput;
 
 /// `.vscode/settings.json` — wire `*.nika.yaml` to the canonical schema so any
@@ -184,7 +185,7 @@ const NEXT_BLOCK: &str = "next ·\n  nika examples run 01-hello --model mock/ech
 /// the gh-repo-create shape (bare on a TTY is guided · flags and pipes
 /// keep the exact old output).
 #[must_use]
-pub fn run(dir: &str, force: bool, yes: bool) -> VerbOutput {
+pub fn run(dir: &str, force: bool, yes: bool, theme: Theme) -> VerbOutput {
     let plan = plan(dir, &|p| Path::new(p).exists(), force);
     let mut lines: Vec<(char, String)> = Vec::new();
     let mut failed = false;
@@ -216,7 +217,7 @@ pub fn run(dir: &str, force: bool, yes: bool) -> VerbOutput {
         // println! — output flows through its writer), then offers the
         // first workflow. Declined → the classic hand-off, so nobody
         // exits without a next command.
-        return match crate::verbs::new::offer_first_workflow(dir, &text) {
+        return match crate::verbs::new::offer_first_workflow(dir, &text, theme) {
             Some(v) => v,
             None => VerbOutput::ok(NEXT_BLOCK.to_owned()),
         };
@@ -246,7 +247,12 @@ mod tests {
         // over — the ok-path text carries the golden path.
         let tmp = std::env::temp_dir().join(format!("nika-init-handover-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).expect("mkdir");
-        let out = run(tmp.to_str().expect("utf8"), false, true);
+        let out = run(
+            tmp.to_str().expect("utf8"),
+            false,
+            true,
+            Theme::new(false, false, false),
+        );
         std::fs::remove_dir_all(&tmp).ok();
         assert_eq!(out.code, exit::OK);
         assert!(out.text.contains("next ·"), "{}", out.text);
@@ -260,7 +266,12 @@ mod tests {
     fn yes_keeps_the_non_interactive_shape() {
         let tmp = std::env::temp_dir().join(format!("nika-init-yes-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).expect("mkdir");
-        let out = run(tmp.to_str().expect("utf8"), false, true);
+        let out = run(
+            tmp.to_str().expect("utf8"),
+            false,
+            true,
+            Theme::new(false, false, false),
+        );
         std::fs::remove_dir_all(&tmp).ok();
         assert_eq!(out.code, exit::OK);
         assert!(out.text.contains("✔ created"), "{}", out.text);

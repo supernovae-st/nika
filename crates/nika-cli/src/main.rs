@@ -516,6 +516,7 @@ fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     let color = cli.color;
     let link_when = cli.hyperlink.choice();
+    let plain_theme = term_theme(color.with_no_color(false), false, link_when);
     let code = match cli.command {
         Command::Check {
             file,
@@ -559,7 +560,7 @@ fn main() -> std::process::ExitCode {
         }
         Command::Explain { code } => emit(&verbs::explain::run(&code)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json)),
-        Command::Init { dir, force, yes } => emit(&verbs::init::run(&dir, force, yes)),
+        Command::Init { dir, force, yes } => emit(&verbs::init::run(&dir, force, yes, plain_theme)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target.into(), &dir)),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
         Command::Schema => emit(&verbs::pack_surface::schema()),
@@ -569,16 +570,15 @@ fn main() -> std::process::ExitCode {
             ExamplesAction::List => emit(&verbs::pack_surface::examples_list()),
             ExamplesAction::Show { slug } => emit(&verbs::pack_surface::examples_show(&slug)),
             // The L3 run verb shipped — execute the embedded example for real.
-            ExamplesAction::Run { slug, model } => verbs::run::example(
-                &slug,
-                model.as_deref(),
-                term_theme(color.with_no_color(false), false, link_when),
-            ),
+            ExamplesAction::Run { slug, model } => {
+                verbs::run::example(&slug, model.as_deref(), plain_theme)
+            }
         },
         Command::New { from, dest, force } => emit(&verbs::new::dispatch(
             from.as_deref(),
             dest.as_deref(),
             force,
+            plain_theme,
         )),
         Command::Completions { shell } => {
             write_completions(shell, &mut std::io::stdout());

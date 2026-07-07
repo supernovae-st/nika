@@ -25,18 +25,26 @@ use std::path::Path;
 
 use nika_bm25::{BmIndex, BmParams};
 
+use crate::display::theme::{Role, Theme};
 use crate::verbs::{VerbOutput, exit};
 
 /// `nika new` — resolve the missing `--from` per clig.dev: a terminal
 /// gets the guided flow (prompt for the missing argument) · a pipe/CI
 /// fails fast naming the flag (never REQUIRE interactivity).
 #[must_use]
-pub fn dispatch(from: Option<&str>, dest: Option<&str>, force: bool) -> VerbOutput {
+pub fn dispatch(from: Option<&str>, dest: Option<&str>, force: bool, theme: Theme) -> VerbOutput {
     match from {
         Some(f) => run(f, dest, force),
         None if interactive() => {
             let stdin = std::io::stdin();
-            wizard_io(".", dest, force, &mut stdin.lock(), &mut std::io::stdout())
+            wizard_io(
+                ".",
+                dest,
+                force,
+                theme,
+                &mut stdin.lock(),
+                &mut std::io::stdout(),
+            )
         }
         None => VerbOutput {
             text: format!(
@@ -190,13 +198,15 @@ struct Wizard {
 const WIZARD_DEST: &str = "my-first.nika.yaml";
 
 /// One prompt · one line back. `None` = EOF (the human left — cancel,
-/// never loop).
+/// never loop). The `>` is the single accent — the conversation's
+/// running line, same semantic slot as the run render's active task.
 fn ask(
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
+    theme: Theme,
     prompt: &str,
 ) -> std::io::Result<Option<String>> {
-    write!(out, "{prompt}\n> ")?;
+    write!(out, "{prompt}\n{} ", theme.paint(Role::Accent, ">"))?;
     out.flush()?;
     let mut line = String::new();
     if input.read_line(&mut line)? == 0 {
@@ -316,29 +326,58 @@ fn stamp(body: &str, id: &str, description: &str, model: &str) -> String {
 }
 
 /// Run the three questions over injected io. `Ok(None)` = cancelled.
+/// Styling stays inside the semantic seam (theme.rs): the brand mark on
+/// the header · dim for defaults/metadata · the accent on resolutions.
+/// Every register without colour keeps byte-identical text (paint is a
+/// no-op), so the conversation reads the same in a transcript.
 fn read_wizard(
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
     dest_hint: Option<&str>,
+    theme: Theme,
 ) -> std::io::Result<Option<Wizard>> {
     writeln!(
         out,
-        "🦋 nika · your first workflow — Enter accepts a default · Ctrl-C exits"
+        "{} nika · {} {}",
+        theme.logo(),
+        theme.paint(Role::Strong, "your first workflow"),
+        theme.paint(Role::Dim, "— Enter accepts a default · Ctrl-C exits"),
     )?;
     let Some(intent) = ask(
         input,
         out,
-        "\nwhat should it do? — a plain sentence routes to the closest skeleton [chain]",
+        theme,
+        &format!(
+            "\nwhat should it do? {}",
+            theme.paint(
+                Role::Dim,
+                "— a plain sentence routes to the closest skeleton [chain]"
+            )
+        ),
     )?
     else {
         return Ok(None);
     };
     let (template, routed) = resolve_template(&intent);
     let tag = nika_pack::template(&template).map_or_else(String::new, |b| tagline(&template, b));
-    writeln!(out, "  → template `{template}` — {tag}")?;
+    writeln!(
+        out,
+        "  → template `{}` {}",
+        theme.paint(Role::Accent, &template),
+        theme.paint(Role::Dim, &format!("— {tag}")),
+    )?;
 
     let default_dest = dest_hint.unwrap_or(WIZARD_DEST);
-    let Some(mut dest) = ask(input, out, &format!("\nfile [{default_dest}]"))? else {
+    let Some(mut dest) = ask(
+        input,
+        out,
+        theme,
+        &format!(
+            "\nfile {}",
+            theme.paint(Role::Dim, &format!("[{default_dest}]"))
+        ),
+    )?
+    else {
         return Ok(None);
     };
     if dest.is_empty() {
@@ -351,15 +390,34 @@ fn read_wizard(
     let menu = model_menu();
     writeln!(
         out,
-        "\nmodel — the same file runs on any provider (`nika catalog` names them all)"
+        "\nmodel {}",
+        theme.paint(
+            Role::Dim,
+            "— the same file runs on any provider (`nika catalog` names them all)"
+        )
     )?;
     for (i, (m, note)) in menu.iter().enumerate() {
-        writeln!(out, "  {}  {m:<30} {note}", i + 1)?;
+        writeln!(
+            out,
+            "  {}  {m:<30} {}",
+            theme.paint(Role::Strong, &(i + 1).to_string()),
+            theme.paint(Role::Dim, note),
+        )?;
     }
-    let Some(pick) = ask(input, out, "a number, or any provider/model [2]")? else {
+    let Some(pick) = ask(
+        input,
+        out,
+        theme,
+        &format!(
+            "a number, or any provider/model {}",
+            theme.paint(Role::Dim, "[2]")
+        ),
+    )?
+    else {
         return Ok(None);
     };
     let model = resolve_model(&pick, &menu);
+    writeln!(out, "  → model `{}`", theme.paint(Role::Accent, &model))?;
     Ok(Some(Wizard {
         template,
         routed,
@@ -374,10 +432,11 @@ pub(crate) fn wizard_io(
     base: &str,
     dest_hint: Option<&str>,
     force: bool,
+    theme: Theme,
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
 ) -> VerbOutput {
-    match read_wizard(input, out, dest_hint) {
+    match read_wizard(input, out, dest_hint, theme) {
         Err(e) => VerbOutput {
             text: format!("wizard i/o failed: {e}"),
             code: exit::ENV,
@@ -386,13 +445,13 @@ pub(crate) fn wizard_io(
             text: "cancelled — nothing written".to_owned(),
             code: exit::ENV,
         },
-        Ok(Some(w)) => materialize(base, &w, force),
+        Ok(Some(w)) => materialize(base, &w, force, theme),
     }
 }
 
 /// `nika init`'s hand-off question — one keypress, Enter = yes (the
 /// golden path). `None` = declined (init prints its classic next block).
-pub(crate) fn offer_first_workflow(base: &str, report: &str) -> Option<VerbOutput> {
+pub(crate) fn offer_first_workflow(base: &str, report: &str, theme: Theme) -> Option<VerbOutput> {
     let stdin = std::io::stdin();
     let mut input = stdin.lock();
     let mut stdout = std::io::stdout();
@@ -403,19 +462,25 @@ pub(crate) fn offer_first_workflow(base: &str, report: &str) -> Option<VerbOutpu
     let answer = ask(
         &mut input,
         &mut *out,
-        "\nscaffold your first workflow now? [Y/n]",
+        theme,
+        &format!(
+            "\nscaffold your first workflow now? {}",
+            theme.paint(Role::Dim, "[Y/n]")
+        ),
     )
     .ok()??;
     if answer.eq_ignore_ascii_case("n") || answer.eq_ignore_ascii_case("no") {
         return None;
     }
-    Some(wizard_io(base, None, false, &mut input, out))
+    Some(wizard_io(base, None, false, theme, &mut input, out))
 }
 
-/// Write the stamped template + hand over to the check-first loop, and
-/// teach the scriptable form of what the wizard just did (the wizard
-/// must map back to flags — reproducibility is part of the contract).
-fn materialize(base: &str, w: &Wizard, force: bool) -> VerbOutput {
+/// Write the stamped template, then RUN the audit and show the ladder —
+/// the wizard hands over a CHECKED workflow, not a suggestion to check
+/// (audit-before-run is the differentiator; the first minute must show
+/// it, not name it). Also teach the scriptable form of what the wizard
+/// just did — reproducibility is part of the contract.
+fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme) -> VerbOutput {
     let dest = if Path::new(&w.dest).is_absolute() || base == "." {
         w.dest.clone()
     } else {
@@ -440,13 +505,26 @@ fn materialize(base: &str, w: &Wizard, force: bool) -> VerbOutput {
         };
     }
     let routing = if w.routed { "routed intent → " } else { "" };
-    VerbOutput {
-        text: format!(
-            "{dest} ← {routing}template `{tpl}` · stamped workflow `{id}` · model `{model}`\n\nnext ·\n  nika check {dest}                # the oracle — it names every remaining `# SLOT:` to fill\n  nika run {dest}                  # execute · live render (mock is offline · $0.00)\n\nscriptable form · nika new --from {tpl} {dest}",
-            tpl = w.template,
-            model = w.model,
+    let wrote = format!(
+        "{} {dest} ← {routing}template `{tpl}` · stamped workflow `{id}` · model `{model}`",
+        theme.paint(Role::Good, "✔"),
+        tpl = w.template,
+        model = w.model,
+    );
+    // The audit runs NOW — the ladder on screen inside the first minute
+    // is the product's argument (a red ladder would honestly propagate,
+    // but a fresh scaffold checks clean by the templates' own-corpus law).
+    let audit = crate::verbs::check::run(&dest, false, false, theme);
+    let next = format!(
+        "next ·\n  $EDITOR {dest}                   # fill the remaining `# SLOT:` lines\n  nika run {dest}                  # execute · live render (mock is offline · $0.00)\n\n{}",
+        theme.paint(
+            Role::Dim,
+            &format!("scriptable form · nika new --from {} {dest}", w.template)
         ),
-        code: exit::OK,
+    );
+    VerbOutput {
+        text: format!("{wrote}\n\n{}\n\n{next}", audit.text.trim_end()),
+        code: audit.code,
     }
 }
 
@@ -568,6 +646,8 @@ fn route_intent(intent: &str) -> Option<String> {
 mod tests {
     use super::*;
 
+    const PLAIN: Theme = Theme::new(false, false, false);
+
     fn dest(tag: &str) -> String {
         std::env::temp_dir()
             .join(format!("nika-new-{}-{tag}.nika.yaml", std::process::id()))
@@ -685,7 +765,7 @@ mod tests {
     #[test]
     fn dispatch_with_a_template_is_the_flag_path_unchanged() {
         let d = dest("dispatch");
-        let out = dispatch(Some("chain"), Some(&d), true);
+        let out = dispatch(Some("chain"), Some(&d), true, PLAIN);
         assert_eq!(out.code, exit::OK, "{}", out.text);
         std::fs::remove_file(&d).ok();
     }
@@ -773,7 +853,7 @@ mod tests {
     fn read_wizard_three_enters_is_the_golden_path() {
         let mut input = std::io::Cursor::new(b"\n\n\n".to_vec());
         let mut out = Vec::new();
-        let w = read_wizard(&mut input, &mut out, None)
+        let w = read_wizard(&mut input, &mut out, None, PLAIN)
             .expect("io ok")
             .expect("not cancelled");
         assert_eq!(w.template, "chain");
@@ -790,7 +870,7 @@ mod tests {
         let mut input =
             std::io::Cursor::new(b"process every item in parallel\nbatch\n2\n".to_vec());
         let mut out = Vec::new();
-        let w = read_wizard(&mut input, &mut out, None)
+        let w = read_wizard(&mut input, &mut out, None, PLAIN)
             .expect("io ok")
             .expect("not cancelled");
         assert_eq!(w.template, "fanout");
@@ -799,7 +879,7 @@ mod tests {
         let mut eof = std::io::Cursor::new(Vec::new());
         let mut out2 = Vec::new();
         assert!(
-            read_wizard(&mut eof, &mut out2, None)
+            read_wizard(&mut eof, &mut out2, None, PLAIN)
                 .expect("io ok")
                 .is_none(),
             "EOF = cancelled"
@@ -817,11 +897,15 @@ mod tests {
             dir.to_str().expect("utf8"),
             None,
             true,
+            PLAIN,
             &mut input,
             &mut out,
         );
         assert_eq!(v.code, exit::OK, "{}", v.text);
         assert!(v.text.contains("scriptable form"), "{}", v.text);
+        // The wow contract: the wizard SHOWS the audit ladder — the file
+        // arrives already checked, not with a suggestion to check.
+        assert!(v.text.contains("audited"), "the ladder ran: {}", v.text);
         let written = std::fs::read_to_string(dir.join("first.nika.yaml")).expect("file written");
         assert!(written.contains("workflow: first"));
         std::fs::remove_dir_all(&dir).ok();
