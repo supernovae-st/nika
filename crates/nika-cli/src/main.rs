@@ -163,6 +163,10 @@ enum Command {
         /// 300ms cap · nothing is sent on the socket). Offline without it.
         #[arg(long)]
         ping: bool,
+        /// Emit the findings as JSON (summary + findings[] · agents/CI
+        /// branch on `summary.fail` instead of parsing glyphs).
+        #[arg(long)]
+        json: bool,
     },
     /// Scaffold a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule ·
     /// `.agents/skills` authoring skill). Existing files are skipped —
@@ -541,7 +545,7 @@ fn main() -> std::process::ExitCode {
             emit(&verbs::graph::run(&file, format))
         }
         Command::Explain { code } => emit(&verbs::explain::run(&code)),
-        Command::Doctor { ping } => emit(&verbs::doctor::run(ping)),
+        Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json)),
         Command::Init { dir, force } => emit(&verbs::init::run(&dir, force)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target.into(), &dir)),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),

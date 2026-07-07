@@ -471,7 +471,7 @@ pub fn nika_cli::verbs::check::run_infer_permits(path: &str, json: bool) -> nika
 pub mod nika_cli::verbs::dap
 pub fn nika_cli::verbs::dap::run_stdio() -> u8
 pub mod nika_cli::verbs::doctor
-pub fn nika_cli::verbs::doctor::run(ping: bool) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::doctor::run(ping: bool, json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::exit
 pub const nika_cli::verbs::exit::ENV: u8
 pub const nika_cli::verbs::exit::FILE: u8

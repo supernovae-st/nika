@@ -30,7 +30,8 @@ use serde_json::Value;
 use crate::verbs::{VerbOutput, exit};
 
 /// Severity of one diagnosis line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum Level {
     /// `✔` healthy.
     Ok,
@@ -61,7 +62,7 @@ pub(crate) enum PingState {
 }
 
 /// One diagnosis line · a problem carries the exact PRINTED fix (never run).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct Finding {
     pub level: Level,
     pub label: String,
@@ -336,6 +337,21 @@ pub(crate) fn exit_code(findings: &[Finding]) -> u8 {
 /// padded · detail · an indented `fix:` line under a problem) — opened by the
 /// ONE verdict line (`✔ 6 ok · 4 warn · 0 fail`) so the state of the
 /// environment reads before the sections do. Sections stay unchanged.
+/// The machine lane (Q7): findings verbatim + a computed summary —
+/// agents/CI branch on `summary.fail` instead of parsing glyphs.
+pub(crate) fn render_json(findings: &[Finding]) -> String {
+    let count = |lvl: Level| findings.iter().filter(|f| f.level == lvl).count();
+    let payload = serde_json::json!({
+        "summary": {
+            "ok": count(Level::Ok),
+            "warn": count(Level::Warn),
+            "fail": count(Level::Fail),
+        },
+        "findings": findings,
+    });
+    format!("{payload:#}")
+}
+
 pub(crate) fn render(findings: &[Finding]) -> String {
     let mut s = String::new();
     let count = |level: Level| findings.iter().filter(|f| f.level == level).count();
@@ -505,7 +521,7 @@ fn collect_local_pings(
 /// Build the real probe from the environment (PRESENCE-only key checks · the
 /// value is never bound) + the canonical provider catalog, then diagnose.
 #[must_use]
-pub fn run(ping: bool) -> VerbOutput {
+pub fn run(ping: bool, json: bool) -> VerbOutput {
     let registry = ProviderRegistry::without_http(ProvidersConfig::new());
     let providers = registry
         .profiles()
@@ -570,7 +586,11 @@ pub fn run(ping: bool) -> VerbOutput {
     let findings = diagnose(&probe);
     let code = exit_code(&findings);
     VerbOutput {
-        text: render(&findings),
+        text: if json {
+            render_json(&findings)
+        } else {
+            render(&findings)
+        },
         code,
     }
 }
@@ -836,6 +856,30 @@ mod tests {
         assert_eq!(exit_code(&f), exit::OK, "a local path is usable");
     }
 
+    #[test]
+    fn json_lane_carries_summary_and_findings_verbatim() {
+        let findings = vec![
+            Finding {
+                level: Level::Ok,
+                label: "binary".to_owned(),
+                detail: "v0.96.0".to_owned(),
+                fix: None,
+            },
+            Finding {
+                level: Level::Fail,
+                label: "config".to_owned(),
+                detail: "broken".to_owned(),
+                fix: Some("nika wire claude".to_owned()),
+            },
+        ];
+        let json: serde_json::Value =
+            serde_json::from_str(&render_json(&findings)).expect("valid JSON");
+        assert_eq!(json["summary"]["ok"], 1);
+        assert_eq!(json["summary"]["fail"], 1);
+        assert_eq!(json["findings"][0]["level"], "ok");
+        assert_eq!(json["findings"][1]["fix"], "nika wire claude");
+    }
+
     /// Each severity prints a DISTINCT glyph — a `Default::default()` mutant
     /// (the null char `'\0'`) would erase the level cue the operator scans for.
     #[test]
@@ -901,7 +945,7 @@ mod tests {
         // The wired run() over the canonical catalog: local providers exist, so
         // there is never a hard Fail (exit 0) even with no keys in the test env.
         // ping=false — the default run stays fully offline, in tests too.
-        let out = run(false);
+        let out = run(false, false);
         assert_eq!(out.code, exit::OK, "the catalog always offers a path");
         assert!(out.text.contains("binary"), "renders the binary line");
         // The LLM test backend stays hidden (no `mock — key` provider row);
