@@ -12,7 +12,7 @@ publish                = false  # Internal L1.5 tool layer.
 
 [dependencies]
 nika-kernel = { path = "../nika-kernel", version = "0.96.0" }   # the 3 tool seams + fs/http/clock/event effect seams
-nika-extract = { path = "../nika-extract", version = "0.96.0" }  # nika:fetch — the 8 extract modes (L1.5→L1.5 same-layer)
+nika-extract = { path = "../nika-extract", version = "0.96.0" }  # nika:fetch — the extract modes + page digest (L1.5→L1.5 same-layer)
 nika-types   = { path = "../nika-types", version = "0.96.0" }    # fetch traverse bound — ONE definition with the static checker
 url           = { workspace = true }   # traverse — same-origin math + normalization (the WHATWG parse the transport uses)
 # data wave

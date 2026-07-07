@@ -9,7 +9,7 @@
 
 use nika_kernel::ai::provider::ToolDef;
 
-/// A small JSON-Schema object builder — keeps the 24 defs declarative.
+/// A small JSON-Schema object builder — keeps the defs declarative.
 fn schema(properties: serde_json::Value, required: &[&str]) -> serde_json::Value {
     let mut obj = serde_json::Map::new();
     obj.insert(
@@ -37,8 +37,8 @@ fn def(name: &str, desc: &str, properties: serde_json::Value, required: &[&str])
     ToolDef::new(format!("nika:{name}"), desc, schema(properties, required))
 }
 
-/// Every builtin's model-facing definition — the canonical 24 (core 6 +
-/// file 5 + data 8 + network 2 + introspection 2 + media 1).
+/// Every builtin's model-facing definition — the canonical set (the
+/// live count is the catalog's · asserted by the parity tests below).
 #[must_use]
 pub fn tool_defs() -> Vec<ToolDef> {
     let mut defs = core_defs();

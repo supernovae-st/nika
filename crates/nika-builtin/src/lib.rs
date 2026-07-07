@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika-builtin` — the 24 canonical stdlib v0.1 builtins (L1.5).
+//! `nika-builtin` — the canonical stdlib v0.1 builtins (L1.5 · the
+//! live count is the catalog's, never prose).
 //!
 //! ONE dispatcher ([`BuiltinDispatcher`]) implements the three kernel tool
 //! seams the verbs consume — [`ToolExecuteDyn`] + [`ToolBatchDyn`]

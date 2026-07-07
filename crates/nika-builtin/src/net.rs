@@ -7,7 +7,7 @@
 //! L1 http effect (3-layer · s5), this layer never re-implements it.
 //!
 //! `nika:fetch` is web-CONTENT acquisition: the kernel http GET/POST,
-//! then the `mode:` extraction (`nika-extract` · 8 modes) — `mode: jq`
+//! then the `mode:` extraction (`nika-extract`) — `mode: jq`
 //! composes THIS crate's one jq engine (`data::jq`), never a second one.
 
 use bytes::Bytes;
