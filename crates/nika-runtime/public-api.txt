@@ -287,6 +287,7 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_pause(self, pause: b
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_plan(self, plan: nika_runtime::resume::ResumePlan) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_secret_resolver(self, resolver: alloc::sync::Arc<dyn nika_runtime::WorkflowSecretResolver>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_source_sha256(self, hex: alloc::string::String) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_source_sha256_lf(self, hex: alloc::string::String) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_var_overrides(self, overrides: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
 impl<D> owo_colors::OwoColorize for nika_runtime::Runtime<S, T, H, P, D, C>
 impl<T, U> core::convert::Into<U> for nika_runtime::Runtime<S, T, H, P, D, C> where U: core::convert::From<T>
