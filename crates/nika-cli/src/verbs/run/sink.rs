@@ -901,3 +901,74 @@ mod tests {
         );
     }
 }
+
+/// Where the run journal's `trace:` pointer lands (per lane).
+#[derive(Clone, Copy)]
+pub(super) enum TraceNote {
+    /// The human storytelling surfaces (`Live` · `Plain`) — the spec §3.3
+    /// final-frame pointer, printed under the frame.
+    Stdout,
+    /// The machine lanes (`--json` · `--output json`) — their stdout is a
+    /// byte-exact contract, so the pointer rides the diagnostic stream.
+    Stderr,
+    /// `--quiet` — the compact-card promise holds (no pointer · the
+    /// journal is still written · an fs error still reaches stderr).
+    Silent,
+}
+
+/// Surface the run journal AFTER the run — NEVER the exit code (the sink
+/// contract: journaling is a rider, a broken rider is a note, not a
+/// failure). An fs error goes to stderr with the path when one was opened;
+/// a written journal prints its `trace:` pointer per [`TraceNote`].
+pub(super) fn surface_trace(mut trace: TraceFileSink, note: TraceNote, autopsy: Option<&str>) {
+    // Durability BEFORE advertisement: the anchor must describe bytes
+    // that survive a power loss (flush reaches the page cache only).
+    trace.finalize();
+    let path = trace.path().map(std::path::Path::to_path_buf);
+    // Read the anchor parts BEFORE into_error consumes the sink — they
+    // are only ADVERTISED after the error gate below passes.
+    let head = trace.chain_head().chars().take(32).collect::<String>();
+    let count = trace.chain_len();
+    if let Some(e) = trace.into_error() {
+        // Name the file when the failure struck AFTER the open (a partial
+        // journal on disk) — the operator sees exactly what to distrust.
+        match &path {
+            Some(p) => eprintln!(
+                "nika run: trace file {}: {e} — the run itself is unaffected",
+                p.display()
+            ),
+            None => eprintln!("nika run: trace file: {e} — the run itself is unaffected"),
+        }
+        return;
+    }
+    let Some(path) = path else {
+        return; // disabled · or a run that emitted zero events
+    };
+    // The anchor: 32 hex (128-bit) — the scrollback head is the ONE
+    // thing a whole-file rewrite cannot touch; 16 hex capped forgery at
+    // ~2^63 with a malleable final line (the writer-side review's M4).
+    match note {
+        TraceNote::Stdout => {
+            println!(
+                "    trace: {} · {count} events · chain {head}",
+                path.display()
+            );
+            // The autopsy line — a FAILED run teaches its own forensics:
+            // the journal it just wrote replays, peeks and time-travels.
+            if let Some(task) = autopsy {
+                println!(
+                    "    autopsy: nika trace peek {} {task} · replay: nika trace replay {} · or F5 in VS Code",
+                    path.display(),
+                    path.display()
+                );
+            }
+        }
+        TraceNote::Stderr => {
+            eprintln!(
+                "nika run: trace: {} · {count} events · chain {head}",
+                path.display()
+            );
+        }
+        TraceNote::Silent => {}
+    }
+}

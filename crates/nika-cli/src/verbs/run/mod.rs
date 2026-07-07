@@ -33,6 +33,7 @@ pub use compose::{
 };
 pub use resume::{RecoveredTrace, ResumeRequest, recover_events};
 pub use sink::{FoldSink, JsonSink, RenderMode};
+use sink::{TraceNote, surface_trace};
 pub use stamp::SystemStamper;
 
 mod scope;
@@ -689,7 +690,7 @@ async fn execute(
         let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
         let (mut sink, trace) = tee.into_parts();
         sink.print_final();
-        surface_trace(trace, TraceNote::Stderr);
+        surface_trace(trace, TraceNote::Stderr, None);
         print_resume_summary(&outcome, resumed, true);
         // Built BEFORE the sink is consumed — the failure envelope reads
         // the folded view (the failed row's detail carries the wire code).
@@ -724,7 +725,7 @@ async fn execute(
         let (sink, trace) = tee.into_parts();
         // stdout stays NDJSON verbatim (byte-identical with or without the
         // journal) — the trace note rides on stderr here.
-        surface_trace(trace, TraceNote::Stderr);
+        surface_trace(trace, TraceNote::Stderr, None);
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: stream write failed: {e}");
             return exit::ENV;
@@ -790,6 +791,12 @@ async fn execute_fold_lane(
     }
     // The spec §3.3 final-frame pointer (`trace: …`) — under the frame
     // on the storytelling surfaces.
+    let failed_task = sink
+        .view()
+        .rows()
+        .iter()
+        .find(|r| r.state == crate::TaskState::Failed)
+        .map(|r| r.id.clone());
     surface_trace(
         trace,
         if mode == RenderMode::Quiet {
@@ -797,6 +804,7 @@ async fn execute_fold_lane(
         } else {
             TraceNote::Stdout
         },
+        failed_task.as_deref(),
     );
     print_resume_summary(&outcome, resumed, false);
     if let Some(e) = sink.into_error() {
@@ -804,68 +812,6 @@ async fn execute_fold_lane(
         return exit::ENV;
     }
     code
-}
-
-/// Where the run journal's `trace:` pointer lands (per lane).
-#[derive(Clone, Copy)]
-enum TraceNote {
-    /// The human storytelling surfaces (`Live` · `Plain`) — the spec §3.3
-    /// final-frame pointer, printed under the frame.
-    Stdout,
-    /// The machine lanes (`--json` · `--output json`) — their stdout is a
-    /// byte-exact contract, so the pointer rides the diagnostic stream.
-    Stderr,
-    /// `--quiet` — the compact-card promise holds (no pointer · the
-    /// journal is still written · an fs error still reaches stderr).
-    Silent,
-}
-
-/// Surface the run journal AFTER the run — NEVER the exit code (the sink
-/// contract: journaling is a rider, a broken rider is a note, not a
-/// failure). An fs error goes to stderr with the path when one was opened;
-/// a written journal prints its `trace:` pointer per [`TraceNote`].
-fn surface_trace(mut trace: TraceFileSink, note: TraceNote) {
-    // Durability BEFORE advertisement: the anchor must describe bytes
-    // that survive a power loss (flush reaches the page cache only).
-    trace.finalize();
-    let path = trace.path().map(std::path::Path::to_path_buf);
-    // Read the anchor parts BEFORE into_error consumes the sink — they
-    // are only ADVERTISED after the error gate below passes.
-    let head = trace.chain_head().chars().take(32).collect::<String>();
-    let count = trace.chain_len();
-    if let Some(e) = trace.into_error() {
-        // Name the file when the failure struck AFTER the open (a partial
-        // journal on disk) — the operator sees exactly what to distrust.
-        match &path {
-            Some(p) => eprintln!(
-                "nika run: trace file {}: {e} — the run itself is unaffected",
-                p.display()
-            ),
-            None => eprintln!("nika run: trace file: {e} — the run itself is unaffected"),
-        }
-        return;
-    }
-    let Some(path) = path else {
-        return; // disabled · or a run that emitted zero events
-    };
-    // The anchor: 32 hex (128-bit) — the scrollback head is the ONE
-    // thing a whole-file rewrite cannot touch; 16 hex capped forgery at
-    // ~2^63 with a malleable final line (the writer-side review's M4).
-    match note {
-        TraceNote::Stdout => {
-            println!(
-                "    trace: {} · {count} events · chain {head}",
-                path.display()
-            );
-        }
-        TraceNote::Stderr => {
-            eprintln!(
-                "nika run: trace: {} · {count} events · chain {head}",
-                path.display()
-            );
-        }
-        TraceNote::Silent => {}
-    }
 }
 
 /// The `--resume` post-run summary (`resumed · N skipped · M ran live`) —
