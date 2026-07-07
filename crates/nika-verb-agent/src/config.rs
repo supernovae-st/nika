@@ -109,11 +109,11 @@ impl RouterConfig {
 /// REACH INVARIANT (the review caught this): a period-`p` cycle can repeat
 /// at most `floor(window / p)` times inside the window, so a cycle is only
 /// detectable when `window ≥ p · stall_after`. The default `window` is
-/// sized at `stall_after · 5` so cycles up to period 5 reach the stall
-/// threshold; `Guard::new` additionally clamps `window ≥ stall_after` so a
-/// misconfigured small window can never silently disarm even period-1
-/// detection. (Period > window/2 is inherently invisible — a cycle that
-/// long is indistinguishable from forward progress over the window.)
+/// sized at `stall_after · MAX_TRACKED_PERIOD` so cycles up to that period
+/// reach the stall threshold; `Guard::new` additionally clamps the window to
+/// the same floor so a misconfigured small window can never silently disarm
+/// detection. (Period > window/2 is inherently invisible — a cycle that long
+/// is indistinguishable from forward progress over the window.)
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct GuardConfig {
@@ -139,9 +139,11 @@ pub struct GuardConfig {
 impl Default for GuardConfig {
     fn default() -> Self {
         Self {
-            // stall_after · 5 — cycles up to period 5 reach the stall
-            // threshold (floor(25/5) = 5); see the REACH INVARIANT above.
-            window: 25,
+            // stall_after · MAX_TRACKED_PERIOD (5 · 8 = 40) — cycles up to
+            // period 8 reach the stall threshold (floor(40/8) = 5); see the
+            // REACH INVARIANT above. Raised from 25 (period-5) in the 2026-07
+            // review that found a period-6 cycle ran to max_turns.
+            window: 40,
             nudge_after: 3,
             stall_after: 5,
             max_reflections: 1,

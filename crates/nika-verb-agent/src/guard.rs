@@ -27,6 +27,19 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use crate::config::GuardConfig;
 use crate::observe::NudgeReason;
 
+/// The longest byte-identical action cycle the stall guard is GUARANTEED to
+/// stop. A period-`p` cycle reaches `stall_after` repeats only once the
+/// window holds `p · stall_after` signatures, so [`Guard::new`] floors the
+/// window at `stall_after · MAX_TRACKED_PERIOD` (REACH INVARIANT). Cycles
+/// longer than this fall through to `max_turns`; a byte-identical ≥9-step
+/// ritual is rare (models drift within a longer loop) and the per-turn scan
+/// is `window²/4`, so the bound trades a vanishing tail for a smaller scan.
+///
+/// Raised from an implicit 5 to 8 (2026-07 review): at ×5 a period-6 cycle
+/// nudged once then ran to `max_turns` — the exact class the period-4 fix
+/// targeted, one period further out.
+pub(crate) const MAX_TRACKED_PERIOD: usize = 8;
+
 /// What the guard tells the loop after observing one turn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum GuardVerdict {
@@ -58,10 +71,13 @@ impl Guard {
     pub(crate) fn new(mut cfg: GuardConfig) -> Self {
         // REACH INVARIANT clamp (config.rs · GuardConfig): a window smaller
         // than the periods it must hold silently disarms detection. Floor
-        // the window at `stall_after · 5` so cycles up to period 5 can
-        // actually reach the stop — a too-small configured window can never
-        // make the guard a no-op.
-        cfg.window = cfg.window.max(cfg.stall_after as usize * 5).max(2);
+        // the window at `stall_after · MAX_TRACKED_PERIOD` so every cycle up
+        // to that period can actually reach the stop — a too-small configured
+        // window can never make the guard a no-op.
+        cfg.window = cfg
+            .window
+            .max(cfg.stall_after as usize * MAX_TRACKED_PERIOD)
+            .max(2);
         let capacity = cfg.window;
         Self {
             cfg,
@@ -319,6 +335,31 @@ mod tests {
     }
 
     #[test]
+    fn a_period_eight_cycle_reaches_the_stall_under_defaults() {
+        // The 2026-07 review-caught bug, one period further out than the
+        // period-4 fix: at window 25 (stall·5) a period-6+ byte-identical
+        // cycle repeats at most floor(25/6) = 4 < stall_after 5 → nudges once
+        // then runs to max_turns. With MAX_TRACKED_PERIOD = 8 the default
+        // window is 40 (stall·8), so a period-8 cycle MUST reach the stall.
+        let mut g = Guard::new(GuardConfig::new());
+        let cycle = [11_u64, 22, 33, 44, 55, 66, 77, 88];
+        let mut stalled = None;
+        'outer: for _ in 0..8 {
+            for &s in &cycle {
+                if let GuardVerdict::Stall { period, repeats } = g.observe_turn(s, false) {
+                    stalled = Some((period, repeats));
+                    break 'outer;
+                }
+            }
+        }
+        assert_eq!(
+            stalled,
+            Some((8, 5)),
+            "a period-8 cycle MUST reach NIKA-467 under default config"
+        );
+    }
+
+    #[test]
     fn a_tiny_configured_window_cannot_disarm_detection() {
         // Misconfig: window 3 with stall_after 5 — the clamp must lift the
         // window so period-1 still stops (the second prong of the bug).
@@ -447,13 +488,14 @@ mod tests {
 
     proptest! {
         /// Injected periodic suffixes are detected; random aperiodic
-        /// prefixes never mask them. Cycle length 1..=5 — the post-fix
-        /// reach (window 25 = stall·5 holds 5 periods up to period 5),
-        /// which the old window-16 default could not (period-4 was unstoppable).
+        /// prefixes never mask them. Cycle length 1..=8 — the post-fix reach
+        /// (window 40 = stall·MAX_TRACKED_PERIOD holds 5 periods up to period
+        /// 8), which the old window-25 default could not (period-6+ ran to
+        /// max_turns).
         #[test]
         fn injected_cycles_are_detected(
             prefix in proptest::collection::vec(0u64..1000, 0..6),
-            cycle in proptest::collection::vec(0u64..4, 1..6),
+            cycle in proptest::collection::vec(0u64..8, 1..9),
             extra in 0u32..3,
         ) {
             // Default config: window is clamped to stall_after·5 = 25, big
