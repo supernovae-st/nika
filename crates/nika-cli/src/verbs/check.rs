@@ -14,7 +14,7 @@ use std::fmt::Write as _;
 
 use nika_schema::check::{CheckReport, UnboundedReason};
 use nika_schema::infer_permits;
-use nika_schema::raw::RawWorkflow;
+use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::types::VarDecl;
 
 use crate::display::theme::{Role, Theme};
@@ -117,7 +117,7 @@ fn render(report: &CheckReport, wf: &RawWorkflow, source: &str, path: &str, t: T
         }
     }
 
-    plan(&mut out, report, t);
+    plan(&mut out, report, wf, t);
     cost(&mut out, report, t);
 
     section_list(&mut out, t, "SECRETS", "no information-flow escapes", {
@@ -325,7 +325,7 @@ fn section_list(out: &mut String, t: Theme, label: &str, ok_msg: &str, rows: Vec
     }
 }
 
-fn plan(out: &mut String, report: &CheckReport, t: Theme) {
+fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     if report.waves.is_empty() {
         if !report.conformance.is_empty() {
             let _ = writeln!(
@@ -372,6 +372,62 @@ fn plan(out: &mut String, report: &CheckReport, t: Theme) {
         t.paint(Role::Strong, "PLAN"),
         report.waves.len(),
     );
+    // The membership — WHAT dispatches WHEN (the dry-run answer: check
+    // is the dry-run; this line is what `run` will do, wave by wave).
+    // Compact workflows only: past 12 tasks the summary line carries it.
+    if tasks <= 12 {
+        for (i, wave) in report.waves.iter().enumerate() {
+            let members: Vec<String> = wave
+                .iter()
+                .filter_map(|&ix| wf.tasks.get(ix))
+                .map(|task| {
+                    let (verb, target) = verb_of(&task.value.action, wf);
+                    match target {
+                        Some(target) => format!("{} ({verb} · {target})", task.value.id.value),
+                        None => format!("{} ({verb})", task.value.id.value),
+                    }
+                })
+                .collect();
+            let _ = writeln!(
+                out,
+                "      {} {}",
+                t.paint(Role::Dim, &format!("wave {}", i + 1)),
+                members.join(" · ")
+            );
+        }
+    }
+}
+
+/// A task's verb + dispatch target (model · tool · `argv[0]`) for the plan.
+fn verb_of<'w>(action: &'w RawAction, wf: &'w RawWorkflow) -> (&'static str, Option<String>) {
+    match action {
+        RawAction::Infer(a) => (
+            "infer",
+            a.model
+                .as_ref()
+                .map(|m| m.value.clone())
+                .or_else(|| wf.model.as_ref().map(|m| m.value.clone())),
+        ),
+        RawAction::Agent(a) => (
+            "agent",
+            a.model
+                .as_ref()
+                .map(|m| m.value.clone())
+                .or_else(|| wf.model.as_ref().map(|m| m.value.clone())),
+        ),
+        RawAction::Exec(a) => (
+            "exec",
+            match &a.command {
+                nika_schema::raw::RawCommand::Shell(_) => Some("sh -c".to_owned()),
+                nika_schema::raw::RawCommand::Argv(argv) => argv.first().map(|w| w.value.clone()),
+                // #[non_exhaustive] — a future command form names itself.
+                _ => None,
+            },
+        ),
+        RawAction::Invoke(a) => ("invoke", Some(a.tool.value.clone())),
+        // #[non_exhaustive] — a future verb must not break this build.
+        _ => ("task", None),
+    }
 }
 
 fn cost(out: &mut String, report: &CheckReport, t: Theme) {
@@ -660,6 +716,24 @@ mod tests {
     /// When conformance FAILS there is no valid DAG, so PLAN announces the skip
     /// (gated on `!conformance.is_empty()`) — a deleted `!` would suppress the
     /// line and leave the operator wondering where the plan went.
+    #[test]
+    fn plan_prints_wave_membership_with_verbs_and_targets() {
+        let text = checked_text(
+            "plan-membership.nika.yaml",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-5\ntasks:\n  - id: think\n    infer: { prompt: hi }\n  - id: after\n    depends_on: [think]\n    exec:\n      command: [\"echo\", \"x\"]\n",
+            true,
+        );
+        assert!(text.contains("wave 1"), "membership renders: {text}");
+        assert!(
+            text.contains("think (infer · anthropic/claude-sonnet-5)"),
+            "the envelope model resolves into the plan line: {text}"
+        );
+        assert!(
+            text.contains("after (exec · echo)"),
+            "argv[0] names the exec: {text}"
+        );
+    }
+
     #[test]
     fn plan_announces_the_skip_when_conformance_fails() {
         let text = checked_text(
