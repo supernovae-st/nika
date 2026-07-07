@@ -186,32 +186,8 @@ fn request_body(
         };
         obj.insert("tool_choice".to_owned(), choice);
     }
-    match &req.response_format {
-        ResponseFormat::Json => {
-            obj.insert(
-                "response_format".to_owned(),
-                json!({ "type": "json_object" }),
-            );
-        }
-        ResponseFormat::JsonSchema(schema) => {
-            // OpenAI's strict mode rejects (HTTP 400) any schema whose
-            // object nodes omit `additionalProperties:false` or whose
-            // `required` does not list every property. Normalize on that
-            // path only — the OpenAI-compatible peers + local servers take
-            // the author's schema as written (gemini has its own adapter).
-            let schema = if provider_id == "openai" {
-                normalize_strict_schema(schema)
-            } else {
-                schema.clone()
-            };
-            obj.insert(
-                "response_format".to_owned(),
-                json!({ "type": "json_schema", "json_schema": {
-                    "name": "response", "schema": schema, "strict": true,
-                }}),
-            );
-        }
-        ResponseFormat::Text | _ => {}
+    if let Some(rf) = response_format_value(&req.response_format, provider_id) {
+        obj.insert("response_format".to_owned(), rf);
     }
     // Provider extras never override the structural keys this adapter set
     // (model · messages · stream · tools · …) — first-write-wins.
@@ -221,6 +197,39 @@ fn request_body(
         }
     }
     Ok(body)
+}
+
+/// Build the `response_format` value for one request, or `None` for plain
+/// text. Split out of `request_body` so that function stays under the
+/// 100-LOC cap and the structured-output dialect lives in one place.
+///
+/// `strict:true` is an OpenAI-specific CLAIM that every object node carries
+/// `additionalProperties:false` and lists all properties as `required` —
+/// which ONLY `normalize_strict_schema` guarantees, and only for `openai`.
+/// Sending it to a compat peer alongside the author's raw schema is a false
+/// claim: a server honoring strict semantics would 400, while every
+/// documented local wire (ollama · llama.cpp · vLLM · LM Studio) enforces on
+/// the PRESENCE of `json_schema` and needs no strict flag (verified live
+/// 2026-07-07: ollama/qwen enforces with and without it). So `strict` travels
+/// ONLY where the schema was normalized to earn it.
+fn response_format_value(format: &ResponseFormat, provider_id: &str) -> Option<Value> {
+    match format {
+        ResponseFormat::Json => Some(json!({ "type": "json_object" })),
+        ResponseFormat::JsonSchema(schema) => {
+            let is_openai = provider_id == "openai";
+            let schema = if is_openai {
+                normalize_strict_schema(schema)
+            } else {
+                schema.clone()
+            };
+            let mut json_schema = json!({ "name": "response", "schema": schema });
+            if is_openai {
+                json_schema["strict"] = json!(true);
+            }
+            Some(json!({ "type": "json_schema", "json_schema": json_schema }))
+        }
+        ResponseFormat::Text | _ => None,
+    }
 }
 
 /// Recursively rewrite a JSON Schema into `OpenAI` strict-mode shape.
@@ -735,17 +744,47 @@ mod tests {
         r.tool_choice = ToolChoice::Specific("add".into());
         r.response_format = ResponseFormat::JsonSchema(json!({"type":"object"}));
         // groq is an OpenAI-compatible peer: the author's schema is taken
-        // verbatim (only `openai` runs the strict-mode normalizer below).
+        // verbatim (only `openai` runs the strict-mode normalizer below) AND
+        // `strict` is NOT claimed — the peer enforces on `json_schema` presence
+        // and a strict claim over an un-normalized schema is a false contract.
         let body = body_of("m", &r, false, true, "groq").expect("body");
         assert_eq!(body["tools"][0]["type"], "function");
         assert_eq!(body["tools"][0]["function"]["name"], "add");
         assert_eq!(body["tool_choice"]["function"]["name"], "add");
         assert_eq!(body["response_format"]["type"], "json_schema");
-        assert_eq!(body["response_format"]["json_schema"]["strict"], true);
+        assert!(
+            body["response_format"]["json_schema"]
+                .get("strict")
+                .is_none(),
+            "a compat peer must not carry the OpenAI-only strict claim"
+        );
         assert_eq!(
             body["response_format"]["json_schema"]["schema"],
             json!({"type":"object"}),
             "non-openai schema passes through unmodified"
+        );
+    }
+
+    #[test]
+    fn openai_alone_carries_the_strict_claim() {
+        // The strict flag rides ONLY the openai path — where the schema is also
+        // normalized to actually satisfy strict mode (additionalProperties +
+        // required). Sibling to `tools_and_response_format_shape` (the peer
+        // case): together they pin strict to the one provider that earns it.
+        let mut r = req(vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::JsonSchema(json!({
+            "type": "object",
+            "properties": { "a": { "type": "string" } },
+            "required": ["a"]
+        }));
+        let body = body_of("m", &r, false, true, "openai").expect("body");
+        assert_eq!(
+            body["response_format"]["json_schema"]["strict"], true,
+            "openai claims strict"
+        );
+        assert_eq!(
+            body["response_format"]["json_schema"]["schema"]["additionalProperties"], false,
+            "openai schema is normalized to satisfy the strict claim"
         );
     }
 
