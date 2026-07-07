@@ -10,38 +10,6 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [0.96.0](https://github.com/supernovae-st/nika/compare/v0.95.0..v0.96.0) - 2026-07-06
 
-### ✨ Features
-- **nika-builtin** — Nika:convert formula_guard — opt-in CSV injection guard ([#217](https://github.com/supernovae-st/nika/issues/217)) ([3edb94454](https://github.com/supernovae-st/nika/commit/3edb94454ccd2d361bbf737cb6441bedbbb790eb)) ([#217](https://github.com/supernovae-st/nika/pull/217))
-- **nika-cli** — Trace export — every OTel tool becomes a nika viewer ([#221](https://github.com/supernovae-st/nika/issues/221)) ([d6e6f9ee5](https://github.com/supernovae-st/nika/commit/d6e6f9ee5540e63492a5add3aceb66cdc275415f)) ([#221](https://github.com/supernovae-st/nika/pull/221))
-- **nika-cli** — Nika dap — time-travel replay debugging over the run journal ([#225](https://github.com/supernovae-st/nika/issues/225)) ([b844c316c](https://github.com/supernovae-st/nika/commit/b844c316cd45a7ef025f4755fd6fe497f0e24b0a)) ([#225](https://github.com/supernovae-st/nika/pull/225))
-- **nika-cli** — Dap launch warns when the workflow drifted since the run ([#227](https://github.com/supernovae-st/nika/issues/227)) ([05cdaab1e](https://github.com/supernovae-st/nika/commit/05cdaab1ec68217f3a7fb03841dbe5f7720767d4)) ([#227](https://github.com/supernovae-st/nika/pull/227))
-- **nika-runtime** — The run knows its source — workflow_sha256 on workflow_started ([#210](https://github.com/supernovae-st/nika/issues/210)) ([74f53d443](https://github.com/supernovae-st/nika/commit/74f53d443f9c768a8708843ce9055ffa9af895d0)) ([#210](https://github.com/supernovae-st/nika/pull/210))
-- **nika-runtime** — The skip and the cancel say WHY — when + blocked_by ([#211](https://github.com/supernovae-st/nika/issues/211)) ([dc7b31b4c](https://github.com/supernovae-st/nika/commit/dc7b31b4c6db578408630a898f28c6b256a38867)) ([#211](https://github.com/supernovae-st/nika/pull/211))
-- **nika-schema** — The caller contract — a requirements section on check ([#213](https://github.com/supernovae-st/nika/issues/213)) ([e3a9bcb4a](https://github.com/supernovae-st/nika/commit/e3a9bcb4ab06421c6812fa57950482bb60f3cf68)) ([#213](https://github.com/supernovae-st/nika/pull/213))
-- **nika-schema** — Unknown fields carry the did-you-mean — PARSE-005 teaches ([#228](https://github.com/supernovae-st/nika/issues/228)) ([be92b54dc](https://github.com/supernovae-st/nika/commit/be92b54dc0ade1e0d7995595733ab5d5a21c3e46)) ([#228](https://github.com/supernovae-st/nika/pull/228))
-
-### 🐛 Bug Fixes
-- **ci** — The integration suites finally run somewhere — CI gets the full battery ([#218](https://github.com/supernovae-st/nika/issues/218)) ([5160a8216](https://github.com/supernovae-st/nika/commit/5160a8216aa804fb9f7ef6238a51569fb14823cc)) ([#218](https://github.com/supernovae-st/nika/pull/218))
-- **nika-builtin** — Strict boolean args — close the overwrite data-loss footgun ([#220](https://github.com/supernovae-st/nika/issues/220)) ([2fdb057dc](https://github.com/supernovae-st/nika/commit/2fdb057dcff5cdf98fafa949e5fc30bae13a9861)) ([#220](https://github.com/supernovae-st/nika/pull/220))
-- **nika-builtin** — Strict count arg — close the edit over-edit footgun ([#231](https://github.com/supernovae-st/nika/issues/231)) ([59ff98a05](https://github.com/supernovae-st/nika/commit/59ff98a05bed02ee071151812bf565967a8a3238)) ([#231](https://github.com/supernovae-st/nika/pull/231))
-- **nika-cli** — Trace export renders TRUE durations — the settle-burst law ([#223](https://github.com/supernovae-st/nika/issues/223)) ([412e32c27](https://github.com/supernovae-st/nika/commit/412e32c276352e0b89c6ed98032fd4904c4c9a6a)) ([#223](https://github.com/supernovae-st/nika/pull/223))
-- **nika-cli** — Doctor --ping — true cap, sovereign order, parallel sweep ([#229](https://github.com/supernovae-st/nika/issues/229)) ([aa7366f17](https://github.com/supernovae-st/nika/commit/aa7366f17a7dc5ad8518768522a4cae732acdae9)) ([#229](https://github.com/supernovae-st/nika/pull/229))
-
-### 📚 Documentation
-- **adr** — Adr-106 — nika add, the registry client verb (proposed) ([#226](https://github.com/supernovae-st/nika/issues/226)) ([018b4673a](https://github.com/supernovae-st/nika/commit/018b4673a938b9e7c7c143f181152debdf283a5b)) ([#226](https://github.com/supernovae-st/nika/pull/226))
-- **readme** — Shared workflows have a home — the registry pointer ([#224](https://github.com/supernovae-st/nika/issues/224)) ([047b8b838](https://github.com/supernovae-st/nika/commit/047b8b838959a22b327759a0c366c8a5ecc26001)) ([#224](https://github.com/supernovae-st/nika/pull/224))
-
-### 🧪 Tests
-- **bin_smoke** — The agent surface round-trips — tools/call + the LSP wire ([#219](https://github.com/supernovae-st/nika/issues/219)) ([6ef0d67f9](https://github.com/supernovae-st/nika/commit/6ef0d67f9c5d137e61ea7acd2ef6e88cca107483)) ([#219](https://github.com/supernovae-st/nika/pull/219))
-
-### 📦 Build
-- **coherence** — The registry is a watched first-class citizen ([#222](https://github.com/supernovae-st/nika/issues/222)) ([0110da503](https://github.com/supernovae-st/nika/commit/0110da50311ed16287d24e0705920a28fc001c61)) ([#222](https://github.com/supernovae-st/nika/pull/222))
-- **coherence** — The bot self-tests before every run — and survives pre-releases ([#230](https://github.com/supernovae-st/nika/issues/230)) ([bba71ebf6](https://github.com/supernovae-st/nika/commit/bba71ebf6caa19aefc14b7e33ee9e9e30e9a1c70)) ([#230](https://github.com/supernovae-st/nika/pull/230))
-- The ecosystem coherence bot — cross-repo pins, checked nightly ([#216](https://github.com/supernovae-st/nika/issues/216)) ([325ed0a8b](https://github.com/supernovae-st/nika/commit/325ed0a8b598cdbdca1265b0ea39e312448bda4b)) ([#216](https://github.com/supernovae-st/nika/pull/216))
-
-
-## [0.96.0](https://github.com/supernovae-st/nika/compare/v0.95.0..v0.96.0) - 2026-07-06
-
 ### ✨ Highlights
 
 - **`nika dap` — time-travel replay debugging** ([PR 225](https://github.com/supernovae-st/nika/pull/225) ·
@@ -87,29 +55,34 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 - The pack re-vendors nika-spec main (formula_guard prose · the embedded
   jaq's honest @csv note · nika-spec#22).
 
-## [0.95.0](https://github.com/supernovae-st/nika/compare/v0.94.0..v0.95.0) - 2026-07-06
-
 ### ✨ Features
-- **hygiene** — Seam-discipline vector + chromiumoxide surface pin ([#207](https://github.com/supernovae-st/nika/issues/207)) ([b8cd039aa](https://github.com/supernovae-st/nika/commit/b8cd039aa888642074b7907ff27522a710074749)) ([#207](https://github.com/supernovae-st/nika/pull/207))
-- **nika-catalog** — The 5 local servers get their catalog face ([#208](https://github.com/supernovae-st/nika/issues/208)) ([7223c41b0](https://github.com/supernovae-st/nika/commit/7223c41b07c81768db59a8a866d08afc61991016)) ([#208](https://github.com/supernovae-st/nika/pull/208))
-- **nika-cli** — The lost-user footer — bare nika suggests the next command ([#203](https://github.com/supernovae-st/nika/issues/203)) ([16e279935](https://github.com/supernovae-st/nika/commit/16e279935949dfc7d722cd370921987a2ccf3b4e)) ([#203](https://github.com/supernovae-st/nika/pull/203))
+- **nika-builtin** — Nika:convert formula_guard — opt-in CSV injection guard ([#217](https://github.com/supernovae-st/nika/issues/217)) ([3edb94454](https://github.com/supernovae-st/nika/commit/3edb94454ccd2d361bbf737cb6441bedbbb790eb)) ([#217](https://github.com/supernovae-st/nika/pull/217))
+- **nika-cli** — Trace export — every OTel tool becomes a nika viewer ([#221](https://github.com/supernovae-st/nika/issues/221)) ([d6e6f9ee5](https://github.com/supernovae-st/nika/commit/d6e6f9ee5540e63492a5add3aceb66cdc275415f)) ([#221](https://github.com/supernovae-st/nika/pull/221))
+- **nika-cli** — Nika dap — time-travel replay debugging over the run journal ([#225](https://github.com/supernovae-st/nika/issues/225)) ([b844c316c](https://github.com/supernovae-st/nika/commit/b844c316cd45a7ef025f4755fd6fe497f0e24b0a)) ([#225](https://github.com/supernovae-st/nika/pull/225))
+- **nika-cli** — Dap launch warns when the workflow drifted since the run ([#227](https://github.com/supernovae-st/nika/issues/227)) ([05cdaab1e](https://github.com/supernovae-st/nika/commit/05cdaab1ec68217f3a7fb03841dbe5f7720767d4)) ([#227](https://github.com/supernovae-st/nika/pull/227))
+- **nika-runtime** — The run knows its source — workflow_sha256 on workflow_started ([#210](https://github.com/supernovae-st/nika/issues/210)) ([74f53d443](https://github.com/supernovae-st/nika/commit/74f53d443f9c768a8708843ce9055ffa9af895d0)) ([#210](https://github.com/supernovae-st/nika/pull/210))
+- **nika-runtime** — The skip and the cancel say WHY — when + blocked_by ([#211](https://github.com/supernovae-st/nika/issues/211)) ([dc7b31b4c](https://github.com/supernovae-st/nika/commit/dc7b31b4c6db578408630a898f28c6b256a38867)) ([#211](https://github.com/supernovae-st/nika/pull/211))
+- **nika-schema** — The caller contract — a requirements section on check ([#213](https://github.com/supernovae-st/nika/issues/213)) ([e3a9bcb4a](https://github.com/supernovae-st/nika/commit/e3a9bcb4ab06421c6812fa57950482bb60f3cf68)) ([#213](https://github.com/supernovae-st/nika/pull/213))
+- **nika-schema** — Unknown fields carry the did-you-mean — PARSE-005 teaches ([#228](https://github.com/supernovae-st/nika/issues/228)) ([be92b54dc](https://github.com/supernovae-st/nika/commit/be92b54dc0ade1e0d7995595733ab5d5a21c3e46)) ([#228](https://github.com/supernovae-st/nika/pull/228))
 
 ### 🐛 Bug Fixes
-- **nika-builtin** — Write honors create_dirs:false — no silent tree ([#196](https://github.com/supernovae-st/nika/issues/196)) ([7fc3c9fc1](https://github.com/supernovae-st/nika/commit/7fc3c9fc18d44836de48ca1ab8cecbda44bb1fd6)) ([#196](https://github.com/supernovae-st/nika/pull/196))
-- **nika-builtin** — Date resolves named tz from the bundled db, not the OS ([#199](https://github.com/supernovae-st/nika/issues/199)) ([228032695](https://github.com/supernovae-st/nika/commit/228032695567ae51d10939037248768771c634c7)) ([#199](https://github.com/supernovae-st/nika/pull/199))
-- **nika-cli** — Log message neutralizes terminal control sequences ([#204](https://github.com/supernovae-st/nika/issues/204)) ([09c059646](https://github.com/supernovae-st/nika/commit/09c05964655359f5780113d94a10b75fbfc269ff)) ([#204](https://github.com/supernovae-st/nika/pull/204))
-- **nika-mcp** — Bound the stdio transport — no unbounded line read ([#209](https://github.com/supernovae-st/nika/issues/209)) ([dd829f451](https://github.com/supernovae-st/nika/commit/dd829f45138e6e6d2ec83393eb441356841265a9)) ([#209](https://github.com/supernovae-st/nika/pull/209))
+- **ci** — The integration suites finally run somewhere — CI gets the full battery ([#218](https://github.com/supernovae-st/nika/issues/218)) ([5160a8216](https://github.com/supernovae-st/nika/commit/5160a8216aa804fb9f7ef6238a51569fb14823cc)) ([#218](https://github.com/supernovae-st/nika/pull/218))
+- **nika-builtin** — Strict boolean args — close the overwrite data-loss footgun ([#220](https://github.com/supernovae-st/nika/issues/220)) ([2fdb057dc](https://github.com/supernovae-st/nika/commit/2fdb057dcff5cdf98fafa949e5fc30bae13a9861)) ([#220](https://github.com/supernovae-st/nika/pull/220))
+- **nika-builtin** — Strict count arg — close the edit over-edit footgun ([#231](https://github.com/supernovae-st/nika/issues/231)) ([59ff98a05](https://github.com/supernovae-st/nika/commit/59ff98a05bed02ee071151812bf565967a8a3238)) ([#231](https://github.com/supernovae-st/nika/pull/231))
+- **nika-cli** — Trace export renders TRUE durations — the settle-burst law ([#223](https://github.com/supernovae-st/nika/issues/223)) ([412e32c27](https://github.com/supernovae-st/nika/commit/412e32c276352e0b89c6ed98032fd4904c4c9a6a)) ([#223](https://github.com/supernovae-st/nika/pull/223))
+- **nika-cli** — Doctor --ping — true cap, sovereign order, parallel sweep ([#229](https://github.com/supernovae-st/nika/issues/229)) ([aa7366f17](https://github.com/supernovae-st/nika/commit/aa7366f17a7dc5ad8518768522a4cae732acdae9)) ([#229](https://github.com/supernovae-st/nika/pull/229))
 
 ### 📚 Documentation
-- **readme** — Daily commands catch the 0.94 loop ([#205](https://github.com/supernovae-st/nika/issues/205)) ([da5740747](https://github.com/supernovae-st/nika/commit/da574074799cabc01431bc83b178b1af6b15e2c0)) ([#205](https://github.com/supernovae-st/nika/pull/205))
-- **src** — Stdlib counts leave the doc-comments — the catalog is the count ([#206](https://github.com/supernovae-st/nika/issues/206)) ([69929aaab](https://github.com/supernovae-st/nika/commit/69929aaabe5d3752f49986b156fd610c6c18424b)) ([#206](https://github.com/supernovae-st/nika/pull/206))
+- **adr** — Adr-106 — nika add, the registry client verb (proposed) ([#226](https://github.com/supernovae-st/nika/issues/226)) ([018b4673a](https://github.com/supernovae-st/nika/commit/018b4673a938b9e7c7c143f181152debdf283a5b)) ([#226](https://github.com/supernovae-st/nika/pull/226))
+- **readme** — Shared workflows have a home — the registry pointer ([#224](https://github.com/supernovae-st/nika/issues/224)) ([047b8b838](https://github.com/supernovae-st/nika/commit/047b8b838959a22b327759a0c366c8a5ecc26001)) ([#224](https://github.com/supernovae-st/nika/pull/224))
 
 ### 🧪 Tests
-- **nika-builtin** — Pin validate's SSRF floor + deep-YAML totality ([#197](https://github.com/supernovae-st/nika/issues/197)) ([f96317699](https://github.com/supernovae-st/nika/commit/f963176999380946021f87e81f244f3b0ae9b938)) ([#197](https://github.com/supernovae-st/nika/pull/197))
+- **bin_smoke** — The agent surface round-trips — tools/call + the LSP wire ([#219](https://github.com/supernovae-st/nika/issues/219)) ([6ef0d67f9](https://github.com/supernovae-st/nika/commit/6ef0d67f9c5d137e61ea7acd2ef6e88cca107483)) ([#219](https://github.com/supernovae-st/nika/pull/219))
 
-### 🧹 Chore
-- **nika-cli** — Sync public-api baseline — run::run gained no_trace_file+task_filter ([#200](https://github.com/supernovae-st/nika/issues/200)) ([68ce435cb](https://github.com/supernovae-st/nika/commit/68ce435cb084787d007c6c00201a3d905b82a76b)) ([#200](https://github.com/supernovae-st/nika/pull/200))
-
+### 📦 Build
+- **coherence** — The registry is a watched first-class citizen ([#222](https://github.com/supernovae-st/nika/issues/222)) ([0110da503](https://github.com/supernovae-st/nika/commit/0110da50311ed16287d24e0705920a28fc001c61)) ([#222](https://github.com/supernovae-st/nika/pull/222))
+- **coherence** — The bot self-tests before every run — and survives pre-releases ([#230](https://github.com/supernovae-st/nika/issues/230)) ([bba71ebf6](https://github.com/supernovae-st/nika/commit/bba71ebf6caa19aefc14b7e33ee9e9e30e9a1c70)) ([#230](https://github.com/supernovae-st/nika/pull/230))
+- The ecosystem coherence bot — cross-repo pins, checked nightly ([#216](https://github.com/supernovae-st/nika/issues/216)) ([325ed0a8b](https://github.com/supernovae-st/nika/commit/325ed0a8b598cdbdca1265b0ea39e312448bda4b)) ([#216](https://github.com/supernovae-st/nika/pull/216))
 
 ## [0.95.0](https://github.com/supernovae-st/nika/compare/v0.94.0..v0.95.0) - 2026-07-06
 
@@ -146,6 +119,27 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   (nika-spec#20).
 - `nika:validate` SSRF floor + deep-YAML totality pinned ([PR 197](https://github.com/supernovae-st/nika/pull/197));
   public-api baselines synced ([PR 198](https://github.com/supernovae-st/nika/pull/198)/[PR 200](https://github.com/supernovae-st/nika/pull/200)).
+
+### ✨ Features
+- **hygiene** — Seam-discipline vector + chromiumoxide surface pin ([#207](https://github.com/supernovae-st/nika/issues/207)) ([b8cd039aa](https://github.com/supernovae-st/nika/commit/b8cd039aa888642074b7907ff27522a710074749)) ([#207](https://github.com/supernovae-st/nika/pull/207))
+- **nika-catalog** — The 5 local servers get their catalog face ([#208](https://github.com/supernovae-st/nika/issues/208)) ([7223c41b0](https://github.com/supernovae-st/nika/commit/7223c41b07c81768db59a8a866d08afc61991016)) ([#208](https://github.com/supernovae-st/nika/pull/208))
+- **nika-cli** — The lost-user footer — bare nika suggests the next command ([#203](https://github.com/supernovae-st/nika/issues/203)) ([16e279935](https://github.com/supernovae-st/nika/commit/16e279935949dfc7d722cd370921987a2ccf3b4e)) ([#203](https://github.com/supernovae-st/nika/pull/203))
+
+### 🐛 Bug Fixes
+- **nika-builtin** — Write honors create_dirs:false — no silent tree ([#196](https://github.com/supernovae-st/nika/issues/196)) ([7fc3c9fc1](https://github.com/supernovae-st/nika/commit/7fc3c9fc18d44836de48ca1ab8cecbda44bb1fd6)) ([#196](https://github.com/supernovae-st/nika/pull/196))
+- **nika-builtin** — Date resolves named tz from the bundled db, not the OS ([#199](https://github.com/supernovae-st/nika/issues/199)) ([228032695](https://github.com/supernovae-st/nika/commit/228032695567ae51d10939037248768771c634c7)) ([#199](https://github.com/supernovae-st/nika/pull/199))
+- **nika-cli** — Log message neutralizes terminal control sequences ([#204](https://github.com/supernovae-st/nika/issues/204)) ([09c059646](https://github.com/supernovae-st/nika/commit/09c05964655359f5780113d94a10b75fbfc269ff)) ([#204](https://github.com/supernovae-st/nika/pull/204))
+- **nika-mcp** — Bound the stdio transport — no unbounded line read ([#209](https://github.com/supernovae-st/nika/issues/209)) ([dd829f451](https://github.com/supernovae-st/nika/commit/dd829f45138e6e6d2ec83393eb441356841265a9)) ([#209](https://github.com/supernovae-st/nika/pull/209))
+
+### 📚 Documentation
+- **readme** — Daily commands catch the 0.94 loop ([#205](https://github.com/supernovae-st/nika/issues/205)) ([da5740747](https://github.com/supernovae-st/nika/commit/da574074799cabc01431bc83b178b1af6b15e2c0)) ([#205](https://github.com/supernovae-st/nika/pull/205))
+- **src** — Stdlib counts leave the doc-comments — the catalog is the count ([#206](https://github.com/supernovae-st/nika/issues/206)) ([69929aaab](https://github.com/supernovae-st/nika/commit/69929aaabe5d3752f49986b156fd610c6c18424b)) ([#206](https://github.com/supernovae-st/nika/pull/206))
+
+### 🧪 Tests
+- **nika-builtin** — Pin validate's SSRF floor + deep-YAML totality ([#197](https://github.com/supernovae-st/nika/issues/197)) ([f96317699](https://github.com/supernovae-st/nika/commit/f963176999380946021f87e81f244f3b0ae9b938)) ([#197](https://github.com/supernovae-st/nika/pull/197))
+
+### 🧹 Chore
+- **nika-cli** — Sync public-api baseline — run::run gained no_trace_file+task_filter ([#200](https://github.com/supernovae-st/nika/issues/200)) ([68ce435cb](https://github.com/supernovae-st/nika/commit/68ce435cb084787d007c6c00201a3d905b82a76b)) ([#200](https://github.com/supernovae-st/nika/pull/200))
 
 ## [0.94.0](https://github.com/supernovae-st/nika/compare/v0.93.1..v0.94.0) - 2026-07-06
 
@@ -209,6 +203,7 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### 🧹 Chore
 - **pack** — Vendor the qwen3.5 teach-cascade from spec main ([#161](https://github.com/supernovae-st/nika/issues/161)) ([e8f500f73](https://github.com/supernovae-st/nika/commit/e8f500f7362b02cb44a649f861d1228fde16d0cc))
+
 ## [0.93.0](https://github.com/supernovae-st/nika/compare/v0.92.0..v0.93.0) - 2026-07-05
 
 ### ✨ Highlights
@@ -726,7 +721,6 @@ changelog tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 - **catalog** — Refresh nika-types public-api baseline ([4a59e2551](https://github.com/supernovae-st/nika/commit/4a59e2551860b20d4a5fde14f6121c2424c0baef))
 - **ci** — Lock 8 more public-api surfaces — vector 38 ratchet 27/38 → 35/38 ([1f398ef9f](https://github.com/supernovae-st/nika/commit/1f398ef9fef4ec27593c1c5baceca3e6d39d33c9))
 
-
 ## [0.91.0](https://github.com/supernovae-st/nika/compare/v0.90.0..v0.91.0) - 2026-06-25
 
 ### ✨ Features
@@ -769,8 +763,7 @@ changelog tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 ### 🦋 New Contributors
 - @github-actions[bot] made their first contribution in [#133](https://github.com/supernovae-st/nika/pull/133)
 
-
-## [Unreleased]
+## [0.90.0](https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.4..v0.90.0) - 2026-06-21
 
 ### 🆕 Crates admitted
 - **nika-a11y** — Admit to workspace — all 12 gates passed ([047e180d1](https://github.com/supernovae-st/nika/commit/047e180d196c984eab516fe17a9a6d5e3bbb00d6))
@@ -1721,9 +1714,6 @@ Brings the analyzer builtin arg-shape pass: four ledger rows close and
 the lints corpus moves to the spec repo (companion nika-spec c9233c9,
 already on its main).
  ([20aea2143](https://github.com/supernovae-st/nika/commit/20aea21432891cfe39c575ecf4a2402bc1036743))
-
-
-## [Unreleased]
 
 ### 🏁 Both WIP crates ADMITTED — the engine wip array is EMPTY (39/42 · 2026-06-21)
 
