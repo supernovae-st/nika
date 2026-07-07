@@ -29,6 +29,7 @@
 
 mod article;
 mod blocks;
+mod digest;
 mod feed;
 mod html;
 pub mod link_header;
@@ -37,6 +38,7 @@ mod page_type;
 mod sitemap;
 mod zones;
 
+pub use digest::page_digest;
 pub use feed::feed_from_bytes;
 pub use nika_types::extract::{EXTRACT_MODE_NAMES, ExtractMode, UnknownExtractMode};
 
