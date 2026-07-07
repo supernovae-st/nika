@@ -190,12 +190,43 @@ struct Wizard {
     template: String,
     routed: bool,
     dest: String,
-    model: String,
+    /// `None` = the skeleton carries no top-level `model:` (its models
+    /// are per-task) — the wizard neither asked nor stamps one.
+    model: Option<String>,
     intent: String,
 }
 
-/// The default first-workflow file name (shared with the init hand-off).
-const WIZARD_DEST: &str = "my-first.nika.yaml";
+/// Whether a template takes the wizard's model answer — a top-level
+/// `model:` line at column 0 (the stamp's own anchor). Skeletons whose
+/// models live per-task get NO model question: asking and then not
+/// stamping would promise what the file doesn't carry.
+fn template_takes_model(body: &str) -> bool {
+    body.lines().any(|l| l.starts_with("model: "))
+}
+
+/// The collision-free default destination — `my-first`, then `my-second`,
+/// `my-third`, then numbered. A re-run of the wizard must never dead-end
+/// on « exists — pass --force » AFTER the human answered every question.
+fn wizard_default_dest(base: &str) -> String {
+    let candidates = ["my-first", "my-second", "my-third"];
+    let free = |stem: &str| {
+        let name = format!("{stem}.nika.yaml");
+        !Path::new(base).join(&name).exists()
+    };
+    for stem in candidates {
+        if free(stem) {
+            return format!("{stem}.nika.yaml");
+        }
+    }
+    let mut n = 4;
+    loop {
+        let stem = format!("my-{n}");
+        if free(&stem) {
+            return format!("{stem}.nika.yaml");
+        }
+        n += 1;
+    }
+}
 
 /// One prompt · one line back. `None` = EOF (the human left — cancel,
 /// never loop). The `>` is the single accent — the conversation's
@@ -301,11 +332,11 @@ fn workflow_id(dest: &str) -> String {
     }
 }
 
-/// Stamp the three answers the wizard KNOWS into the template — id ·
-/// description · model. Line-anchored on the template contract (every
-/// skeleton opens those keys at column 0); templates without a top-level
-/// `model:` (per-task models) are left alone.
-fn stamp(body: &str, id: &str, description: &str, model: &str) -> String {
+/// Stamp the answers the wizard KNOWS into the template — id ·
+/// description · model (the last only when the wizard asked, i.e. the
+/// skeleton carries a top-level `model:` at column 0 — the stamp's
+/// anchor). Never stamp what wasn't answered.
+fn stamp(body: &str, id: &str, description: &str, model: Option<&str>) -> String {
     let mut out: String = body
         .lines()
         .map(|line| {
@@ -313,7 +344,7 @@ fn stamp(body: &str, id: &str, description: &str, model: &str) -> String {
                 format!("workflow: {id}")
             } else if line.starts_with("description: ") && !description.is_empty() {
                 format!("description: \"{description}\"")
-            } else if line.starts_with("model: ") {
+            } else if let (true, Some(model)) = (line.starts_with("model: "), model) {
                 format!("model: {model}")
             } else {
                 line.to_owned()
@@ -325,14 +356,58 @@ fn stamp(body: &str, id: &str, description: &str, model: &str) -> String {
     out
 }
 
-/// Run the three questions over injected io. `Ok(None)` = cancelled.
-/// Styling stays inside the semantic seam (theme.rs): the brand mark on
-/// the header · dim for defaults/metadata · the accent on resolutions.
-/// Every register without colour keeps byte-identical text (paint is a
-/// no-op), so the conversation reads the same in a transcript.
+/// Run the (at most) three questions over injected io. `Ok(None)` =
+/// cancelled. Styling stays inside the semantic seam (theme.rs): the
+/// brand mark on the header · dim for defaults/metadata · the accent on
+/// resolutions. Every register without colour keeps byte-identical text
+/// (paint is a no-op), so the conversation reads the same in a
+/// transcript. The model question only fires for skeletons that carry a
+/// top-level `model:` — the others say so instead of asking.
+/// The model beat — menu (catalog-derived · local first) then one pick.
+/// `Ok(None)` = EOF (cancelled), consistent with `ask`.
+fn ask_model(
+    input: &mut dyn BufRead,
+    out: &mut dyn std::io::Write,
+    theme: Theme,
+) -> std::io::Result<Option<String>> {
+    let menu = model_menu();
+    writeln!(
+        out,
+        "\nmodel {}",
+        theme.paint(
+            Role::Dim,
+            "— the same file runs on any provider (`nika catalog` names them all)"
+        )
+    )?;
+    for (i, (m, note)) in menu.iter().enumerate() {
+        writeln!(
+            out,
+            "  {}  {m:<30} {}",
+            theme.paint(Role::Strong, &(i + 1).to_string()),
+            theme.paint(Role::Dim, note),
+        )?;
+    }
+    let Some(pick) = ask(
+        input,
+        out,
+        theme,
+        &format!(
+            "a number, or any provider/model {}",
+            theme.paint(Role::Dim, "[2]")
+        ),
+    )?
+    else {
+        return Ok(None);
+    };
+    let model = resolve_model(&pick, &menu);
+    writeln!(out, "  → model `{}`", theme.paint(Role::Accent, &model))?;
+    Ok(Some(model))
+}
+
 fn read_wizard(
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
+    base: &str,
     dest_hint: Option<&str>,
     theme: Theme,
 ) -> std::io::Result<Option<Wizard>> {
@@ -367,7 +442,8 @@ fn read_wizard(
         theme.paint(Role::Dim, &format!("— {tag}")),
     )?;
 
-    let default_dest = dest_hint.unwrap_or(WIZARD_DEST);
+    let fallback = wizard_default_dest(base);
+    let default_dest = dest_hint.unwrap_or(&fallback);
     let Some(mut dest) = ask(
         input,
         out,
@@ -387,37 +463,24 @@ fn read_wizard(
         dest.push_str(".nika.yaml");
     }
 
-    let menu = model_menu();
-    writeln!(
-        out,
-        "\nmodel {}",
-        theme.paint(
-            Role::Dim,
-            "— the same file runs on any provider (`nika catalog` names them all)"
-        )
-    )?;
-    for (i, (m, note)) in menu.iter().enumerate() {
+    let model = if nika_pack::template(&template).is_some_and(template_takes_model) {
+        match ask_model(input, out, theme)? {
+            Some(model) => Some(model),
+            None => return Ok(None),
+        }
+    } else {
+        // Asking would promise a stamp the file doesn't carry — say
+        // where the models actually live instead.
         writeln!(
             out,
-            "  {}  {m:<30} {}",
-            theme.paint(Role::Strong, &(i + 1).to_string()),
-            theme.paint(Role::Dim, note),
+            "  {}",
+            theme.paint(
+                Role::Dim,
+                "models are per-task in this skeleton — set them at the `model:` slots in the file"
+            )
         )?;
-    }
-    let Some(pick) = ask(
-        input,
-        out,
-        theme,
-        &format!(
-            "a number, or any provider/model {}",
-            theme.paint(Role::Dim, "[2]")
-        ),
-    )?
-    else {
-        return Ok(None);
+        None
     };
-    let model = resolve_model(&pick, &menu);
-    writeln!(out, "  → model `{}`", theme.paint(Role::Accent, &model))?;
     Ok(Some(Wizard {
         template,
         routed,
@@ -436,7 +499,7 @@ pub(crate) fn wizard_io(
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
 ) -> VerbOutput {
-    match read_wizard(input, out, dest_hint, theme) {
+    match read_wizard(input, out, base, dest_hint, theme) {
         Err(e) => VerbOutput {
             text: format!("wizard i/o failed: {e}"),
             code: exit::ENV,
@@ -497,7 +560,7 @@ fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme) -> VerbOutput 
     }
     let id = workflow_id(&dest);
     let description = w.intent.replace('"', "");
-    let stamped = stamp(body, &id, &description, &w.model);
+    let stamped = stamp(body, &id, &description, w.model.as_deref());
     if let Err(e) = std::fs::write(&dest, &stamped) {
         return VerbOutput {
             text: format!("cannot write {dest}: {e}"),
@@ -505,11 +568,16 @@ fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme) -> VerbOutput 
         };
     }
     let routing = if w.routed { "routed intent → " } else { "" };
+    // The summary claims exactly what the file carries — a stamped model
+    // when the wizard asked, the per-task truth when it didn't.
+    let model_said = w
+        .model
+        .as_ref()
+        .map_or_else(|| "models per-task".to_owned(), |m| format!("model `{m}`"));
     let wrote = format!(
-        "{} {dest} ← {routing}template `{tpl}` · stamped workflow `{id}` · model `{model}`",
+        "{} {dest} ← {routing}template `{tpl}` · stamped workflow `{id}` · {model_said}",
         theme.paint(Role::Good, "✔"),
         tpl = w.template,
-        model = w.model,
     );
     // The audit runs NOW — the ladder on screen inside the first minute
     // is the product's argument (a red ladder would honestly propagate,
@@ -647,6 +715,15 @@ mod tests {
     use super::*;
 
     const PLAIN: Theme = Theme::new(false, false, false);
+
+    /// A unique EMPTY dir per test — the collision-aware default reads
+    /// the base, so shared temp dirs would leak state between tests.
+    fn fresh_base(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("nika-wiz-{tag}-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        dir
+    }
 
     fn dest(tag: &str) -> String {
         std::env::temp_dir()
@@ -825,7 +902,7 @@ mod tests {
     fn stamp_fills_exactly_the_three_known_slots() {
         for name in nika_pack::template_names() {
             let body = nika_pack::template(&name).expect("embedded");
-            let stamped = stamp(body, "field-demo", "their problem", "mock/echo");
+            let stamped = stamp(body, "field-demo", "their problem", Some("mock/echo"));
             assert!(
                 stamped.contains("workflow: field-demo"),
                 "{name}: id stamped"
@@ -851,39 +928,123 @@ mod tests {
     /// the golden path (chain · default name · offline mock).
     #[test]
     fn read_wizard_three_enters_is_the_golden_path() {
+        let base = fresh_base("golden");
         let mut input = std::io::Cursor::new(b"\n\n\n".to_vec());
         let mut out = Vec::new();
-        let w = read_wizard(&mut input, &mut out, None, PLAIN)
-            .expect("io ok")
-            .expect("not cancelled");
+        let w = read_wizard(
+            &mut input,
+            &mut out,
+            base.to_str().expect("utf8"),
+            None,
+            PLAIN,
+        )
+        .expect("io ok")
+        .expect("not cancelled");
         assert_eq!(w.template, "chain");
-        assert_eq!(w.dest, WIZARD_DEST);
-        assert!(w.model.starts_with("mock/"));
+        assert_eq!(w.dest, "my-first.nika.yaml");
+        assert!(w.model.as_deref().is_some_and(|m| m.starts_with("mock/")));
         let shown = String::from_utf8(out).expect("utf8");
         assert!(shown.contains("template `chain`"), "{shown}");
         assert!(shown.contains("ollama/"), "menu shows local first: {shown}");
+        std::fs::remove_dir_all(&base).ok();
+    }
+
+    /// A skeleton without a top-level `model:` gets NO model question —
+    /// asking would promise a stamp the file doesn't carry. Two answers
+    /// complete the flow and the conversation says where models live.
+    #[test]
+    fn read_wizard_skips_the_model_question_when_the_template_takes_none() {
+        let base = fresh_base("permodel");
+        // gate-and-act carries no top-level model line (exact name = rung 1).
+        let mut input = std::io::Cursor::new(b"gate-and-act\n\n".to_vec());
+        let mut out = Vec::new();
+        let w = read_wizard(
+            &mut input,
+            &mut out,
+            base.to_str().expect("utf8"),
+            None,
+            PLAIN,
+        )
+        .expect("io ok")
+        .expect("not cancelled");
+        assert_eq!(w.template, "gate-and-act");
+        assert_eq!(w.model, None, "no model harvested");
+        let shown = String::from_utf8(out).expect("utf8");
+        assert!(
+            shown.contains("models are per-task in this skeleton"),
+            "{shown}"
+        );
+        assert!(
+            !shown.contains("a number, or any provider/model"),
+            "the question must not fire: {shown}"
+        );
+        std::fs::remove_dir_all(&base).ok();
+    }
+
+    /// The default file name walks past collisions — a wizard re-run must
+    /// never dead-end on « exists » AFTER every question was answered.
+    #[test]
+    fn wizard_default_dest_walks_past_collisions() {
+        let base = fresh_base("collide");
+        let b = base.to_str().expect("utf8");
+        assert_eq!(wizard_default_dest(b), "my-first.nika.yaml");
+        std::fs::write(base.join("my-first.nika.yaml"), "x").expect("seed");
+        assert_eq!(wizard_default_dest(b), "my-second.nika.yaml");
+        std::fs::write(base.join("my-second.nika.yaml"), "x").expect("seed");
+        std::fs::write(base.join("my-third.nika.yaml"), "x").expect("seed");
+        assert_eq!(wizard_default_dest(b), "my-4.nika.yaml");
+        std::fs::remove_dir_all(&base).ok();
+    }
+
+    #[test]
+    fn template_takes_model_matches_every_body() {
+        for name in nika_pack::template_names() {
+            let body = nika_pack::template(&name).expect("embedded");
+            let has = body.lines().any(|l| l.starts_with("model: "));
+            assert_eq!(template_takes_model(body), has, "{name}");
+        }
+        // The split is real: both kinds exist in the embedded set.
+        let kinds: Vec<bool> = nika_pack::template_names()
+            .iter()
+            .map(|n| template_takes_model(nika_pack::template(n).expect("embedded")))
+            .collect();
+        assert!(kinds.contains(&true) && kinds.contains(&false));
     }
 
     /// An intent answer routes; EOF mid-flow cancels instead of looping.
     #[test]
     fn read_wizard_routes_and_cancels_honestly() {
+        let base = fresh_base("routes");
         let mut input =
             std::io::Cursor::new(b"process every item in parallel\nbatch\n2\n".to_vec());
         let mut out = Vec::new();
-        let w = read_wizard(&mut input, &mut out, None, PLAIN)
-            .expect("io ok")
-            .expect("not cancelled");
+        let w = read_wizard(
+            &mut input,
+            &mut out,
+            base.to_str().expect("utf8"),
+            None,
+            PLAIN,
+        )
+        .expect("io ok")
+        .expect("not cancelled");
         assert_eq!(w.template, "fanout");
         assert_eq!(w.dest, "batch.nika.yaml", "the suffix is appended");
 
         let mut eof = std::io::Cursor::new(Vec::new());
         let mut out2 = Vec::new();
         assert!(
-            read_wizard(&mut eof, &mut out2, None, PLAIN)
-                .expect("io ok")
-                .is_none(),
+            read_wizard(
+                &mut eof,
+                &mut out2,
+                base.to_str().expect("utf8"),
+                None,
+                PLAIN
+            )
+            .expect("io ok")
+            .is_none(),
             "EOF = cancelled"
         );
+        std::fs::remove_dir_all(&base).ok();
     }
 
     /// End-to-end over injected io: the file lands stamped + checkable.
