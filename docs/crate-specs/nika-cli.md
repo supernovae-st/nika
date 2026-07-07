@@ -24,13 +24,13 @@ chrome ≤30%, zero decorative noise). And the human always keeps the hand.
 |---|---|---|
 | `nika run <file>` | execute a workflow · live render (§3) | 0 ok · 1 workflow failed |
 | `nika check <file>` | the ADR-092 static ladder (schema→DAG→CEL→effects→permits→cost) | 0 clean · 2 findings |
-| `nika init` | scaffold a repo (.vscode schema wiring · AGENTS.md templates) | 0 · 3 env |
+| `nika init` | scaffold a repo (.vscode schema wiring · AGENTS.md templates) · bare on a terminal it then OFFERS the guided first workflow (`--yes`/pipe/CI = the classic non-interactive shape byte-for-byte · prompts never appear off-terminal) | 0 · 3 env |
 | `nika inspect <file>` | static anatomy: tasks · verbs · DAG (ASCII §6) · permits · cost interval | 0 · 2 |
 | `nika graph <file> --mermaid\|dot\|json` | the ONE graph projector (§6) | 0 · 2 |
 | `nika doctor` | environment diagnosis (PATH · providers reachable · keys present-not-printed · config) | 0 · 3 |
 | `nika explain NIKA-XXXX` | teach one error code (cause · fix-form · doc link) | 0 · 2 unknown code |
 | `nika completions <shell>` | shell completions (clap-generated) | 0 |
-| `nika new --from <template>` | instantiate one of the 6 skeletons | 0 |
+| `nika new --from <template\|intent>` | instantiate one of the 6 skeletons (plain words BM25-route to the closest) · `--from '?'` = first-class discovery listing (exit 0 · the `embedded set:` line is the editor wire contract) · bare `nika new` on a terminal = the guided three-question flow (template → file → model · Enter-only path lands on the offline mock) · bare in a pipe fails fast naming `--from` | 0 · 2 unknown/bare-in-pipe · 3 env |
 | `nika spec` / `nika examples list\|show\|run` / `nika schema` | the embedded self-contained surface | 0 |
 | `nika lsp` | the in-binary language server (stdio) | — |
 | `nika mcp` | the in-binary MCP server | — |

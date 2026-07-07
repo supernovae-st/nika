@@ -431,17 +431,33 @@ fn new_writes_a_template_that_passes_its_own_check() {
 }
 
 #[test]
-fn new_refuses_an_unknown_template_and_names_the_set() {
-    // `?` is the canonical discovery query — it shares no term with any
-    // template, so it hits the unknown() path that names the embedded set.
-    // (A garbage string like "no-such-template" spuriously ROUTES: its term
-    // "template" matches the `…-template` placeholder inside the bodies.)
+fn new_answers_the_discovery_query_as_a_success() {
+    // `?` is the canonical discovery query — first-class since the
+    // 2026-07-07 field walk (it used to reuse the unknown-template error
+    // and exit 2 · a documented command must not read as a failure). The
+    // `embedded set:` wire line survives verbatim for the editor probes,
+    // and a passed dest is never written.
     let out = new::run("?", Some("/tmp/never-written.nika.yaml"), false);
-    assert_eq!(out.code, exit::FILE);
-    assert!(out.text.contains("unknown template"));
+    assert_eq!(out.code, exit::OK, "{}", out.text);
+    assert!(out.text.contains("embedded set:"), "{}", out.text);
+    assert!(!std::path::Path::new("/tmp/never-written.nika.yaml").exists());
     for name in nika_pack::template_names() {
         assert!(out.text.contains(&name), "set names {name}");
     }
+}
+
+#[test]
+fn new_refuses_gibberish_and_names_the_set() {
+    // Zero-evidence text (no shared term with any template body) keeps
+    // the honest unknown-template error + the wire-contract set line.
+    let out = new::run(
+        "zzzz qqqq xxxx",
+        Some("/tmp/never-written.nika.yaml"),
+        false,
+    );
+    assert_eq!(out.code, exit::FILE);
+    assert!(out.text.contains("unknown template"));
+    assert!(out.text.contains("embedded set:"));
 }
 
 #[test]
