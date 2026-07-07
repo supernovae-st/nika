@@ -81,11 +81,105 @@ impl TokenUsage {
             num_requests: None,
         }
     }
+
+    /// Fold another round-trip's usage into this accumulator — the one
+    /// arithmetic for multi-call tasks (schema retries · agent turns), so
+    /// every consumer sums the same way and the ledger bills what was
+    /// actually spent.
+    ///
+    /// Scalars saturate (a corrupt provider count must not wrap a bill).
+    /// Optional meters sum when both sides report; when only one side
+    /// reports, its value carries — `None` means "not reported", not zero,
+    /// so a provider that reports a meter on one round-trip and omits it on
+    /// the next still totals honestly.
+    pub fn absorb(&mut self, other: &Self) {
+        /// `Option` meters: saturating sum when both report · the reporting
+        /// side wins otherwise.
+        fn fold(a: Option<u64>, b: Option<u64>) -> Option<u64> {
+            match (a, b) {
+                (Some(x), Some(y)) => Some(x.saturating_add(y)),
+                (x, y) => x.or(y),
+            }
+        }
+        self.input_tokens = self.input_tokens.saturating_add(other.input_tokens);
+        self.output_tokens = self.output_tokens.saturating_add(other.output_tokens);
+        self.cache_read_tokens = fold(self.cache_read_tokens, other.cache_read_tokens);
+        self.cache_write_tokens = fold(self.cache_write_tokens, other.cache_write_tokens);
+        self.cache_creation_tokens = fold(self.cache_creation_tokens, other.cache_creation_tokens);
+        self.reasoning_tokens = fold(self.reasoning_tokens, other.reasoning_tokens);
+        self.thinking_tokens = fold(self.thinking_tokens, other.thinking_tokens);
+        self.audio_input_tokens = fold(self.audio_input_tokens, other.audio_input_tokens);
+        self.audio_output_tokens = fold(self.audio_output_tokens, other.audio_output_tokens);
+        self.image_input_tokens = fold(self.image_input_tokens, other.image_input_tokens);
+        self.image_output_tokens = fold(self.image_output_tokens, other.image_output_tokens);
+        self.video_input_tokens = fold(self.video_input_tokens, other.video_input_tokens);
+        self.accepted_prediction_tokens = fold(
+            self.accepted_prediction_tokens,
+            other.accepted_prediction_tokens,
+        );
+        self.rejected_prediction_tokens = fold(
+            self.rejected_prediction_tokens,
+            other.rejected_prediction_tokens,
+        );
+        self.total_tokens = fold(self.total_tokens, other.total_tokens);
+        self.search_context_tokens = fold(self.search_context_tokens, other.search_context_tokens);
+        self.citation_tokens = fold(self.citation_tokens, other.citation_tokens);
+        self.num_requests = match (self.num_requests, other.num_requests) {
+            (Some(x), Some(y)) => Some(x.saturating_add(y)),
+            (x, y) => x.or(y),
+        };
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn absorb_sums_scalars_and_saturates() {
+        let mut a = TokenUsage::new(10, 5);
+        a.absorb(&TokenUsage::new(20, 7));
+        assert_eq!(a.input_tokens, 30);
+        assert_eq!(a.output_tokens, 12);
+        // A corrupt provider count must not wrap the bill.
+        let mut top = TokenUsage::new(u64::MAX, 1);
+        top.absorb(&TokenUsage::new(1, u64::MAX));
+        assert_eq!(top.input_tokens, u64::MAX);
+        assert_eq!(top.output_tokens, u64::MAX);
+    }
+
+    #[test]
+    fn absorb_option_meters_report_honestly() {
+        // Some+Some sums · Some+None keeps the reporting side (None means
+        // "not reported", never zero) · None+None stays unreported.
+        let mut a = TokenUsage::new(0, 0);
+        a.reasoning_tokens = Some(100);
+        a.thinking_tokens = None;
+        a.cache_read_tokens = Some(3);
+        let mut b = TokenUsage::new(0, 0);
+        b.reasoning_tokens = Some(50);
+        b.thinking_tokens = Some(9);
+        b.cache_read_tokens = None;
+        a.absorb(&b);
+        assert_eq!(a.reasoning_tokens, Some(150), "both report → sum");
+        assert_eq!(
+            a.thinking_tokens,
+            Some(9),
+            "only the other reports → carried"
+        );
+        assert_eq!(a.cache_read_tokens, Some(3), "only self reports → kept");
+        assert_eq!(a.total_tokens, None, "neither reports → stays unreported");
+    }
+
+    #[test]
+    fn absorb_counts_requests() {
+        let mut a = TokenUsage::new(1, 1);
+        a.num_requests = Some(1);
+        let mut b = TokenUsage::new(1, 1);
+        b.num_requests = Some(2);
+        a.absorb(&b);
+        assert_eq!(a.num_requests, Some(3));
+    }
 
     #[test]
     fn token_usage_new() {

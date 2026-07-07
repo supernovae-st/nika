@@ -128,23 +128,34 @@ pub enum InferValue {
 pub struct InferOutput {
     /// The shaped output value (`.output` in spec terms).
     pub output: InferValue,
-    /// Token usage from the (final) provider round-trip — a convenience
-    /// duplicate of `response.usage` (intentional · ergonomic access).
+    /// Token usage summed across EVERY provider round-trip this task spent
+    /// (schema retries included) — the number the ledger bills. Before this
+    /// was the FINAL round-trip alone, so a structured task that retried
+    /// twice billed ~⅓ of its real spend. The final round-trip by itself
+    /// stays available as `response.usage`.
     pub usage: TokenUsage,
     /// The model string that was resolved (`provider/name`).
     pub model_resolved: String,
-    /// The full kernel response of the final round-trip (engine surface:
-    /// events · cost · trace propagation).
+    /// The full kernel response of the FINAL round-trip (engine surface:
+    /// events · cost · trace propagation). Its `usage` is that round-trip
+    /// alone — the task total lives in `self.usage`.
     pub response: InferResponse,
 }
 
 impl InferOutput {
-    /// Construct from the final round-trip pieces.
+    /// Construct from the final round-trip + the task-total usage the run
+    /// loop accumulated across every round-trip (single-shot tasks pass the
+    /// one response's usage — total and final coincide).
     #[must_use]
-    pub fn new(output: InferValue, model_resolved: String, response: InferResponse) -> Self {
+    pub fn new(
+        output: InferValue,
+        model_resolved: String,
+        response: InferResponse,
+        usage: TokenUsage,
+    ) -> Self {
         Self {
             output,
-            usage: response.usage.clone(),
+            usage,
             model_resolved,
             response,
         }
@@ -231,6 +242,11 @@ where
         // u32 counter: a u8 would saturate at budget = u8::MAX and loop
         // forever on paid calls (review lens 1 · P1).
         let mut attempts: u32 = 0;
+        // EVERY round-trip's usage folds in — a schema retry is a real paid
+        // call and the ledger bills `InferOutput::usage`. Keeping only the
+        // final response's usage under-billed retried tasks by up to
+        // budget+1 × (the cost-undercount finding · deep review 2026-07-07).
+        let mut usage_total = TokenUsage::default();
         loop {
             attempts += 1;
             let request = build_request(&input, provider.name(), messages.clone(), wire);
@@ -238,6 +254,7 @@ where
                 .infer(request)
                 .await
                 .map_err(|source| VerbInferError::ProviderCall { source })?;
+            usage_total.absorb(&response.usage);
             let text = response_text(&response);
 
             let (Some(schema), Some(validator)) = (input.schema.as_ref(), validator.as_ref())
@@ -246,6 +263,7 @@ where
                     InferValue::Text(text),
                     model.to_owned(),
                     response,
+                    usage_total,
                 ));
             };
 
@@ -255,6 +273,7 @@ where
                         InferValue::Structured(value),
                         model.to_owned(),
                         response,
+                        usage_total,
                     ));
                 }
                 structured::Validation::Invalid(detail) => {
@@ -848,6 +867,38 @@ mod tests {
             .as_str()
             .expect("prompt text");
         assert!(prompt.contains("JSON Schema"), "{prompt}");
+    }
+
+    /// A retried structured task bills EVERY round-trip: the first reply
+    /// misses the schema (10+5 tokens), the retry conforms (20+7) — the
+    /// task total is the sum, while `response.usage` stays the final
+    /// round-trip alone. Before the fix the first call's tokens vanished
+    /// (the cost-undercount finding · deep review 2026-07-07).
+    #[tokio::test]
+    async fn retried_structured_task_bills_every_round_trip() {
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":7}}"#,
+        ]);
+        let mut input = InferInput::new("extract the person");
+        input.schema = Some(json!({
+            "type": "object",
+            "properties": { "name": { "type": "string" }, "age": { "type": "integer" } },
+            "required": ["name", "age"],
+            "additionalProperties": false
+        }));
+        let out = openai_verb(&seam)
+            .run(input)
+            .await
+            .expect("the retry conforms");
+        assert!(matches!(out.output, InferValue::Structured(_)));
+        assert_eq!(out.usage.input_tokens, 30, "task total sums both calls");
+        assert_eq!(out.usage.output_tokens, 12);
+        assert_eq!(
+            out.response.usage.input_tokens, 20,
+            "the final round-trip alone stays on response.usage"
+        );
+        assert_eq!(seam.captured().len(), 2, "exactly two round-trips");
     }
 
     /// A structured reply cut off at the token limit reports the TRUNCATION

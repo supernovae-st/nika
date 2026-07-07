@@ -125,7 +125,7 @@ pub nika_verb_infer::InferOutput::output: nika_verb_infer::InferValue
 pub nika_verb_infer::InferOutput::response: nika_kernel_ai::provider::InferResponse
 pub nika_verb_infer::InferOutput::usage: nika_types::token_usage::TokenUsage
 impl nika_verb_infer::InferOutput
-pub fn nika_verb_infer::InferOutput::new(output: nika_verb_infer::InferValue, model_resolved: alloc::string::String, response: nika_kernel_ai::provider::InferResponse) -> Self
+pub fn nika_verb_infer::InferOutput::new(output: nika_verb_infer::InferValue, model_resolved: alloc::string::String, response: nika_kernel_ai::provider::InferResponse, usage: nika_types::token_usage::TokenUsage) -> Self
 impl core::fmt::Debug for nika_verb_infer::InferOutput
 pub fn nika_verb_infer::InferOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_verb_infer::InferOutput

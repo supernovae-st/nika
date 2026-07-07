@@ -3178,6 +3178,7 @@ pub nika_types::prelude::TokenUsage::thinking_tokens: core::option::Option<u64>
 pub nika_types::prelude::TokenUsage::total_tokens: core::option::Option<u64>
 pub nika_types::prelude::TokenUsage::video_input_tokens: core::option::Option<u64>
 impl nika_types::token_usage::TokenUsage
+pub fn nika_types::token_usage::TokenUsage::absorb(&mut self, other: &Self)
 pub fn nika_types::token_usage::TokenUsage::new(input_tokens: u64, output_tokens: u64) -> Self
 impl core::clone::Clone for nika_types::token_usage::TokenUsage
 pub fn nika_types::token_usage::TokenUsage::clone(&self) -> nika_types::token_usage::TokenUsage
@@ -4067,6 +4068,7 @@ pub nika_types::token_usage::TokenUsage::thinking_tokens: core::option::Option<u
 pub nika_types::token_usage::TokenUsage::total_tokens: core::option::Option<u64>
 pub nika_types::token_usage::TokenUsage::video_input_tokens: core::option::Option<u64>
 impl nika_types::token_usage::TokenUsage
+pub fn nika_types::token_usage::TokenUsage::absorb(&mut self, other: &Self)
 pub fn nika_types::token_usage::TokenUsage::new(input_tokens: u64, output_tokens: u64) -> Self
 impl core::clone::Clone for nika_types::token_usage::TokenUsage
 pub fn nika_types::token_usage::TokenUsage::clone(&self) -> nika_types::token_usage::TokenUsage
@@ -5825,6 +5827,7 @@ pub nika_types::TokenUsage::thinking_tokens: core::option::Option<u64>
 pub nika_types::TokenUsage::total_tokens: core::option::Option<u64>
 pub nika_types::TokenUsage::video_input_tokens: core::option::Option<u64>
 impl nika_types::token_usage::TokenUsage
+pub fn nika_types::token_usage::TokenUsage::absorb(&mut self, other: &Self)
 pub fn nika_types::token_usage::TokenUsage::new(input_tokens: u64, output_tokens: u64) -> Self
 impl core::clone::Clone for nika_types::token_usage::TokenUsage
 pub fn nika_types::token_usage::TokenUsage::clone(&self) -> nika_types::token_usage::TokenUsage
