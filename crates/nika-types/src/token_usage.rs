@@ -15,13 +15,18 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct TokenUsage {
-    /// Input/prompt tokens.
+    /// Input/prompt tokens — INCLUDES the cache subsets (`cache_read_*`
+    /// / `cache_write_*` / `cache_creation_*`), per the `OTel` `gen_ai`
+    /// semantics (`gen_ai.usage.input_tokens` "SHOULD include cached
+    /// tokens"). Wires whose provider reports cache tokens EXCLUSIVE of
+    /// input (Anthropic) fold them in at the parse seam; the cost math
+    /// subtracts the subsets to price each portion at its own rate.
     pub input_tokens: u64,
-    /// Output/completion tokens.
+    /// Output/completion tokens (reasoning/thinking subsets included).
     pub output_tokens: u64,
-    /// Tokens read from cache (prompt caching).
+    /// Tokens read from cache (prompt caching). Subset of `input_tokens`.
     pub cache_read_tokens: Option<u64>,
-    /// Tokens written to cache.
+    /// Tokens written to cache. Subset of `input_tokens`.
     pub cache_write_tokens: Option<u64>,
     // ─── New fields (v0.81 ADR-033 expansion) ─────────────────────
     /// Cache creation tokens (Anthropic-specific).

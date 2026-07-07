@@ -249,6 +249,7 @@ pub nika_cli::display::state::RunView::elapsed_ms: u64
 pub nika_cli::display::state::RunView::permits: core::option::Option<alloc::string::String>
 pub nika_cli::display::state::RunView::retries: u32
 pub nika_cli::display::state::RunView::token_samples: alloc::vec::Vec<u64>
+pub nika_cli::display::state::RunView::unpriced_calls: u64
 pub nika_cli::display::state::RunView::verdict: core::option::Option<bool>
 pub nika_cli::display::state::RunView::workflow: alloc::string::String
 pub nika_cli::display::state::RunView::workflow_detail: core::option::Option<alloc::string::String>
@@ -958,7 +959,7 @@ pub fn nika_cli::verbs::run::fs_boundary_of(wf: &nika_schema::raw::workflow::Raw
 pub fn nika_cli::verbs::run::net_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_http::NetBoundary
 pub fn nika_cli::verbs::run::production_runtime(default_model: &str, caps: nika_cli::verbs::run::RuntimeCapabilities) -> core::result::Result<nika_cli::verbs::run::ProdRuntime, nika_kernel_core::io::http::HttpError>
 pub fn nika_cli::verbs::run::recover_events(raw: &str, label: &str) -> core::result::Result<nika_cli::verbs::run::RecoveredTrace, alloc::string::String>
-pub fn nika_cli::verbs::run::run(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_cli::display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>, vars: &[alloc::string::String], resume: core::option::Option<&nika_cli::verbs::run::ResumeRequest>, no_trace_file: bool, task_filter: core::option::Option<&str>, no_outputs: bool) -> u8
+pub fn nika_cli::verbs::run::run(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_cli::display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>, vars: &[alloc::string::String], resume: core::option::Option<&nika_cli::verbs::run::ResumeRequest>, no_trace_file: bool, task_filter: core::option::Option<&str>, no_outputs: bool, max_cost_usd: core::option::Option<f64>) -> u8
 pub type nika_cli::verbs::run::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_cli::verbs::run::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_cli::verbs::run::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_cli::verbs::run::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::SystemClock>
 pub mod nika_cli::verbs::test
 pub fn nika_cli::verbs::test::run(file: &str, update: bool, theme: nika_cli::display::theme::Theme) -> u8
@@ -1189,6 +1190,7 @@ pub nika_cli::RunView::elapsed_ms: u64
 pub nika_cli::RunView::permits: core::option::Option<alloc::string::String>
 pub nika_cli::RunView::retries: u32
 pub nika_cli::RunView::token_samples: alloc::vec::Vec<u64>
+pub nika_cli::RunView::unpriced_calls: u64
 pub nika_cli::RunView::verdict: core::option::Option<bool>
 pub nika_cli::RunView::workflow: alloc::string::String
 pub nika_cli::RunView::workflow_detail: core::option::Option<alloc::string::String>

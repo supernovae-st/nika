@@ -331,6 +331,55 @@ pub unsafe fn nika_types::compression::CompressionPolicy::clone_to_uninit(&self,
 impl<T> core::convert::From<T> for nika_types::compression::CompressionPolicy
 pub fn nika_types::compression::CompressionPolicy::from(t: T) -> T
 pub mod nika_types::cost
+#[non_exhaustive] pub enum nika_types::cost::UnpricedReason
+pub nika_types::cost::UnpricedReason::LocalModel
+pub nika_types::cost::UnpricedReason::MissingCatalogPrice
+pub nika_types::cost::UnpricedReason::MockProvider
+pub nika_types::cost::UnpricedReason::ProviderDidNotReportUsage
+impl nika_types::cost::UnpricedReason
+pub const fn nika_types::cost::UnpricedReason::as_str(self) -> &'static str
+impl core::clone::Clone for nika_types::cost::UnpricedReason
+pub fn nika_types::cost::UnpricedReason::clone(&self) -> nika_types::cost::UnpricedReason
+impl core::cmp::Eq for nika_types::cost::UnpricedReason
+impl core::cmp::PartialEq for nika_types::cost::UnpricedReason
+pub fn nika_types::cost::UnpricedReason::eq(&self, other: &nika_types::cost::UnpricedReason) -> bool
+impl core::fmt::Debug for nika_types::cost::UnpricedReason
+pub fn nika_types::cost::UnpricedReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::cost::UnpricedReason
+pub fn nika_types::cost::UnpricedReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::cost::UnpricedReason
+pub fn nika_types::cost::UnpricedReason::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::cost::UnpricedReason
+impl core::marker::StructuralPartialEq for nika_types::cost::UnpricedReason
+impl serde_core::ser::Serialize for nika_types::cost::UnpricedReason
+pub fn nika_types::cost::UnpricedReason::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::cost::UnpricedReason
+pub fn nika_types::cost::UnpricedReason::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::cost::UnpricedReason where U: core::convert::From<T>
+pub fn nika_types::cost::UnpricedReason::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::cost::UnpricedReason where U: core::convert::Into<T>
+pub type nika_types::cost::UnpricedReason::Error = core::convert::Infallible
+pub fn nika_types::cost::UnpricedReason::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::cost::UnpricedReason where U: core::convert::TryFrom<T>
+pub type nika_types::cost::UnpricedReason::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::cost::UnpricedReason::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::cost::UnpricedReason where T: core::clone::Clone
+pub type nika_types::cost::UnpricedReason::Owned = T
+pub fn nika_types::cost::UnpricedReason::clone_into(&self, target: &mut T)
+pub fn nika_types::cost::UnpricedReason::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::cost::UnpricedReason where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::cost::UnpricedReason::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::cost::UnpricedReason where T: 'static + ?core::marker::Sized
+pub fn nika_types::cost::UnpricedReason::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::cost::UnpricedReason where T: ?core::marker::Sized
+pub fn nika_types::cost::UnpricedReason::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::cost::UnpricedReason where T: ?core::marker::Sized
+pub fn nika_types::cost::UnpricedReason::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::cost::UnpricedReason where T: core::clone::Clone
+pub unsafe fn nika_types::cost::UnpricedReason::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::cost::UnpricedReason
+pub fn nika_types::cost::UnpricedReason::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::cost::UnpricedReason where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::cost::Cost
 pub nika_types::cost::Cost::nano_usd: i128
 impl nika_types::cost::Cost

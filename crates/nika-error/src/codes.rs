@@ -903,6 +903,15 @@ pub const NIKA_1703: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "runtime-when-unsupported",
 };
+/// NIKA-1704: The run crossed its operator budget (`--max-cost-usd`) —
+/// in-flight work completed and was counted; unstarted tasks were
+/// cancelled. The detail carries spent vs budget.
+pub const NIKA_1704: NikaCode = NikaCode {
+    num: 1704,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-budget-exceeded",
+};
 
 /// All registered codes within nika-error's own ranges + the M2
 /// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
@@ -929,7 +938,7 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401,
     NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502, NIKA_1503,
     NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605, NIKA_1700,
-    NIKA_1701, NIKA_1702, NIKA_1703,
+    NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704,
 ];
 
 /// Returns an actionable help message for a given code.
@@ -1082,6 +1091,9 @@ pub fn code_help(code: NikaCode) -> &'static str {
         }
         1703 => {
             "This `when:` form is not in the v0 subset. Supported: `${{ <ref> == '<lit>' }}`, `!=`, or a bare `${{ <ref> }}` truthy gate."
+        }
+        1704 => {
+            "The run crossed its `--max-cost-usd` budget: in-flight work completed and was counted, unstarted tasks were cancelled. Raise the budget, trim the workflow, or check the envelope with `nika check` (the budget bounds METERED spend — local/mock work never trips it)."
         }
         700..=749 => {
             "WASM plugin host reported an error. Check plugin manifest and capability grants."

@@ -29,7 +29,11 @@ pub const EMBEDDINGS_SCHEMA: &str = "nika/embeddings@1.0";
 pub const CAPABILITIES_SCHEMA: &str = "nika/model-capabilities@1.0";
 
 /// Schema version for `data/model-pricing.toml`.
-pub const PRICING_SCHEMA: &str = "nika/model-pricing@1.0";
+///
+/// `@1.1` (2026-07-07): required `[meta]` table — snapshot provenance
+/// (`source` · `as_of` · `source_sha256_16`) promoted from TOML comments to
+/// machine-readable fields, emitted as `PRICING_SNAPSHOT`.
+pub const PRICING_SCHEMA: &str = "nika/model-pricing@1.1";
 
 /// Hard-fail when the file's `schema = "..."` field doesn't match `expected`.
 ///
@@ -107,6 +111,6 @@ mod tests {
         assert_eq!(LLM_PROVIDERS_SCHEMA, "nika/llm-providers@1.0");
         assert_eq!(EMBEDDINGS_SCHEMA, "nika/embeddings@1.0");
         assert_eq!(CAPABILITIES_SCHEMA, "nika/model-capabilities@1.0");
-        assert_eq!(PRICING_SCHEMA, "nika/model-pricing@1.0");
+        assert_eq!(PRICING_SCHEMA, "nika/model-pricing@1.1");
     }
 }

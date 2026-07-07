@@ -103,10 +103,7 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
     // Footer meter: progress · live cost vs ceiling · wall clock. The
     // spend speaks the ONE cost formatter (format.rs) — the meter and the
     // verdict card can never again disagree on the same run's dollars.
-    let cost = match view.ceiling_usd {
-        Some(c) => format!("{} of ≤{}", fmt_cost_usd(view.cost_usd), fmt_cost_usd(c)),
-        None => fmt_cost_usd(view.cost_usd),
-    };
+    let cost = spend_meter(view);
     #[allow(clippy::cast_precision_loss)] // display-only seconds
     let secs = view.elapsed_ms as f64 / 1000.0;
     let meter = format!(
@@ -306,10 +303,7 @@ pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
         Some(false) => theme.glyph(TaskState::Failed, 0),
         None => theme.glyph(TaskState::Pending, 0),
     };
-    let cost = match view.ceiling_usd {
-        Some(c) => format!("{} of ≤{}", fmt_cost_usd(view.cost_usd), fmt_cost_usd(c)),
-        None => fmt_cost_usd(view.cost_usd),
-    };
+    let cost = spend_meter(view);
     #[allow(clippy::cast_precision_loss)] // display-only seconds
     let secs = view.elapsed_ms as f64 / 1000.0;
     lines.push(format!(
@@ -371,6 +365,23 @@ fn append_failure_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
 }
 
 /// Extend a meter line with rule dashes to a stable width.
+/// The run-level spend string — the ONE composition both the footer
+/// meter and the verdict card speak: `X of ≤Y` against a static
+/// ceiling when one is known, and a `≥ … (N unpriced)` marker when
+/// part of the run carried no meterable price (a partial total must
+/// never read as complete).
+fn spend_meter(view: &RunView) -> String {
+    let base = match view.ceiling_usd {
+        Some(c) => format!("{} of ≤{}", fmt_cost_usd(view.cost_usd), fmt_cost_usd(c)),
+        None => fmt_cost_usd(view.cost_usd),
+    };
+    if view.unpriced_calls > 0 {
+        format!("≥ {base} ({} unpriced)", view.unpriced_calls)
+    } else {
+        base
+    }
+}
+
 fn pad_rule(text: &str, width: usize) -> String {
     let len = text.chars().count();
     if len >= width {

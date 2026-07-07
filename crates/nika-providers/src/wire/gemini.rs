@@ -396,6 +396,9 @@ fn usage_from(v: &Value) -> TokenUsage {
         candidates.saturating_add(thoughts.unwrap_or_default()),
     );
     usage.thinking_tokens = thoughts;
+    // OTel `gen_ai` semantics hold by construction: Google's
+    // `promptTokenCount` already INCLUDES `cachedContentTokenCount` (a
+    // subset), so `input_tokens` needs no fold — only the meter rides.
     usage.cache_read_tokens = v
         .pointer("/usageMetadata/cachedContentTokenCount")
         .and_then(Value::as_u64);

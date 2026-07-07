@@ -818,13 +818,16 @@ pub fn nika_verb_agent::AgentInput::__clone_box(&self, _: dyn_clone::sealed::Pri
 impl<T> nika_error::traits::AsAny for nika_verb_agent::AgentInput where T: 'static
 pub fn nika_verb_agent::AgentInput::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_verb_agent::AgentOutput
+pub nika_verb_agent::AgentOutput::model_resolved: core::option::Option<alloc::string::String>
 pub nika_verb_agent::AgentOutput::output: nika_verb_agent::AgentValue
 pub nika_verb_agent::AgentOutput::stop_reason: nika_kernel_runtime::agent::AgentStopReason
 pub nika_verb_agent::AgentOutput::tools_cost_usd: core::option::Option<f64>
 pub nika_verb_agent::AgentOutput::total_tokens: u64
 pub nika_verb_agent::AgentOutput::turns: u32
+pub nika_verb_agent::AgentOutput::usage: nika_types::token_usage::TokenUsage
 impl nika_verb_agent::AgentOutput
 pub fn nika_verb_agent::AgentOutput::new(output: nika_verb_agent::AgentValue, stop_reason: nika_kernel_runtime::agent::AgentStopReason, turns: u32, total_tokens: u64) -> Self
+pub fn nika_verb_agent::AgentOutput::with_spend_identity(self, usage: nika_types::token_usage::TokenUsage, model_resolved: alloc::string::String) -> Self
 pub fn nika_verb_agent::AgentOutput::with_tools_cost_usd(self, cost: core::option::Option<f64>) -> Self
 impl core::fmt::Debug for nika_verb_agent::AgentOutput
 pub fn nika_verb_agent::AgentOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result

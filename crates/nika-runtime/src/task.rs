@@ -136,8 +136,14 @@ pub(crate) enum RunResult {
         value: Value,
         tokens: Option<i64>,
         warning: Option<String>,
-        /// Real spend (catalog × usage split) · None = unpriced · honest.
+        /// Real spend (catalog × usage split + tool-reported) · None =
+        /// unpriced · honest. (The by-source attribution key lives on
+        /// `DispatchOk` — the ledger debits at that leaf, before the
+        /// result folds to this settle shape.)
         cost_usd: Option<f64>,
+        /// Why (part of) the spend is NOT in `cost_usd` — rides the
+        /// terminal frame as `cost_unpriced`.
+        cost_unpriced: Option<nika_types::cost::UnpricedReason>,
     },
     /// `on_error: skip` — skipped with the original error readable
     /// (spec 05 · the one coexist state).
@@ -161,6 +167,9 @@ where
     /// reference each other (checker law), so freezing at wave entry
     /// is sound and keeps the read side shareable across the wave's
     /// concurrent pipelines.
+    // REASON: the pipeline threads the run's shared read surfaces + the
+    // spend ledger — 8 params, each one a distinct run-scoped seam.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn run_task_pipeline(
         &self,
         task: &RawTask,
@@ -169,6 +178,7 @@ where
         secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
         resume_ctx: &crate::resume::ResumeContext,
+        ledger: &crate::ledger::RunLedger,
     ) -> Finish {
         let id = task.id.value.clone();
 
@@ -206,10 +216,21 @@ where
 
         // ── `for_each:` fan-out or the single lane ──────────────────
         let mut settle = match task.for_each.as_ref() {
-            None => self.run_single(task, records, vars, secrets, permits).await,
-            Some(spanned) => {
-                self.run_fan_out(task, &spanned.value, records, vars, secrets, permits)
+            None => {
+                self.run_single(task, records, vars, secrets, permits, ledger)
                     .await
+            }
+            Some(spanned) => {
+                self.run_fan_out(
+                    task,
+                    &spanned.value,
+                    records,
+                    vars,
+                    secrets,
+                    permits,
+                    ledger,
+                )
+                .await
             }
         };
         // `output:` named bindings (spec 04 §Output binding) — evaluated
@@ -308,6 +329,7 @@ where
         vars: &BTreeMap<String, Value>,
         secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
+        ledger: &crate::ledger::RunLedger,
     ) -> SettleAs {
         // `with:` renders ONCE here (per-iteration in the fan-out lane).
         let with_ns = match render_with(task, records, vars, secrets, None, None) {
@@ -329,7 +351,7 @@ where
             permits,
         };
         let started = self.clock.now();
-        let mut ran = self.attempt_loop(task, &scope).await;
+        let mut ran = self.attempt_loop(task, &scope, ledger).await;
         // `on_finally:` — the task STARTED (spec 03 · success AND
         // failure · before the failure propagates in the DAG).
         self.run_finally(task, &scope, &ran).await;
@@ -338,6 +360,8 @@ where
     }
 
     /// The `for_each:` fan-out lane (spec 03 · closed at v1).
+    // REASON: same run-scoped seams as the pipeline — 8 distinct params.
+    #[allow(clippy::too_many_arguments)]
     async fn run_fan_out(
         &self,
         task: &RawTask,
@@ -346,6 +370,7 @@ where
         vars: &BTreeMap<String, Value>,
         secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
+        ledger: &crate::ledger::RunLedger,
     ) -> SettleAs {
         let scope = Scope::workflow_with_secrets(records, vars, secrets);
         let items = match resolve_collection(collection, &scope) {
@@ -372,14 +397,29 @@ where
         // Iterations dispatch concurrently (cap = `max_parallel`) ·
         // settle in INPUT order (the same ordered-settlement law as
         // waves · positions stay aligned · spec 03 §null-at-index).
-        let mut stream =
-            futures_util::stream::iter(items.iter().enumerate().map(|(index, item)| {
-                self.run_iteration(task, records, vars, secrets, item, index, permits)
-            }))
-            .buffered(cap);
+        // Budget gate at ADMISSION (`take_while` runs at `buffered` PULL):
+        // in-flight complete and count · unpulled never start · with
+        // `max_parallel` ≥ items, only a capped fan-out starves mid-run.
+        let mut stream = futures_util::stream::iter(
+            items
+                .iter()
+                .enumerate()
+                .take_while(|_| !ledger.tripped())
+                .map(|(index, item)| {
+                    self.run_iteration(task, records, vars, secrets, item, index, permits, ledger)
+                }),
+        )
+        .buffered(cap);
 
-        let acc = collect_fan_out(&mut stream, total, fail_fast).await;
+        let mut acc = collect_fan_out(&mut stream, total, fail_fast).await;
         drop(stream);
+
+        // Budget starvation: iterations that were never admitted leave
+        // the accumulation short — the task fails with the budget code
+        // (same class as `fail_fast`'s early stop · partial array).
+        if acc.outputs.len() < total && ledger.tripped() && acc.first_error.is_none() {
+            acc.first_error = Some(budget_stop_record(total - acc.outputs.len()));
+        }
 
         let result = match acc.first_error {
             None => RunResult::Success {
@@ -389,7 +429,10 @@ where
                 // success carries no single warning (a per-element note
                 // would need its own channel · out of scope here).
                 warning: None,
+                // The leaf iterations already debited the ledger — this
+                // sum is presentation-only (never re-debited).
                 cost_usd: acc.cost_sum,
+                cost_unpriced: acc.unpriced,
             },
             Some(error) => RunResult::Failed { error },
         };
@@ -422,6 +465,9 @@ where
 
     /// One `for_each` iteration · per-iteration `with:` + locals +
     /// attempt loop (`retry:`/`timeout:`/`on_error:` per iteration).
+    // REASON: the per-iteration seams (item · index) on top of the
+    // pipeline's run-scoped ones — each param is distinct state.
+    #[allow(clippy::too_many_arguments)]
     async fn run_iteration(
         &self,
         task: &RawTask,
@@ -431,6 +477,7 @@ where
         item: &Value,
         index: usize,
         permits: Option<&Permits>,
+        ledger: &crate::ledger::RunLedger,
     ) -> RanTask {
         let with_ns = match render_with(task, records, vars, secrets, Some(item), Some(index)) {
             Ok(ns) => ns,
@@ -455,7 +502,7 @@ where
             index: Some(index),
             permits,
         };
-        let mut ran = self.attempt_loop(task, &scope).await;
+        let mut ran = self.attempt_loop(task, &scope, ledger).await;
         // Stamp the lane: without it a 2-iteration fan-out and a retried
         // single lane produce indistinguishable flat streams (review F3).
         #[allow(clippy::cast_possible_truncation)] // fan-out ≪ u32::MAX
@@ -469,7 +516,12 @@ where
     /// full-jitter backoff via the clock seam) racing the task's ONE
     /// `timeout:` budget (spec 03 · "including any retries and their
     /// backoff sleeps") · then `on_error:` (spec 05).
-    async fn attempt_loop(&self, task: &RawTask, scope: &Scope<'_>) -> RanTask {
+    async fn attempt_loop(
+        &self,
+        task: &RawTask,
+        scope: &Scope<'_>,
+        ledger: &crate::ledger::RunLedger,
+    ) -> RanTask {
         let started = self.clock.now();
         let max_attempts = task
             .retry
@@ -497,7 +549,10 @@ where
                     note.clone_from(&dispatched.note);
                     attempt_marks.push(agent_buffer.len());
                     match dispatched.result {
-                        Ok(ok) => return Ok(ok),
+                        Ok(ok) => {
+                            ledger.debit_ok(&ok); // THE leaf debit site
+                            return Ok(ok);
+                        }
                         Err(error) => {
                             // Retry iff attempts remain AND the policy
                             // admits the error (spec 05) — the config is
@@ -525,30 +580,7 @@ where
                 }
             };
 
-            match budget {
-                None => attempts.await,
-                Some(limit) => {
-                    let attempts = std::pin::pin!(attempts);
-                    let timer = std::pin::pin!(self.clock.sleep(limit));
-                    match futures_util::future::select(attempts, timer).await {
-                        futures_util::future::Either::Left((result, _)) => result,
-                        futures_util::future::Either::Right(((), _)) => {
-                            // The attempt loop is dropped — futures
-                            // cancellation at the await point · exec
-                            // subprocesses die via the runner's
-                            // kill-on-drop contract.
-                            Err(TaskErrorRecord {
-                                code: TIMEOUT_CODE.to_owned(),
-                                message: format!(
-                                    "task exceeded its timeout of {} ms",
-                                    limit.as_millis()
-                                ),
-                                transient: false, // never retryable (spec 03)
-                            })
-                        }
-                    }
-                }
-            }
+            self.race_budget(attempts, budget).await
         };
 
         let duration_ms = self.since_ms(started);
@@ -567,6 +599,42 @@ where
             ),
             duration_ms,
             result,
+        }
+    }
+
+    /// Race the attempt future against the task's ONE `timeout:` budget
+    /// (spec 03 · the total across retries and their backoff sleeps).
+    async fn race_budget<F>(
+        &self,
+        attempts: F,
+        budget: Option<Duration>,
+    ) -> Result<DispatchOk, TaskErrorRecord>
+    where
+        F: Future<Output = Result<DispatchOk, TaskErrorRecord>>,
+    {
+        match budget {
+            None => attempts.await,
+            Some(limit) => {
+                let attempts = std::pin::pin!(attempts);
+                let timer = std::pin::pin!(self.clock.sleep(limit));
+                match futures_util::future::select(attempts, timer).await {
+                    futures_util::future::Either::Left((result, _)) => result,
+                    futures_util::future::Either::Right(((), _)) => {
+                        // The attempt loop is dropped — futures
+                        // cancellation at the await point · exec
+                        // subprocesses die via the runner's
+                        // kill-on-drop contract.
+                        Err(TaskErrorRecord {
+                            code: TIMEOUT_CODE.to_owned(),
+                            message: format!(
+                                "task exceeded its timeout of {} ms",
+                                limit.as_millis()
+                            ),
+                            transient: false, // never retryable (spec 03)
+                        })
+                    }
+                }
+            }
         }
     }
 
@@ -654,6 +722,9 @@ struct FanOutAccum {
     /// Per-iteration USD spend SUMMED the same way (same-model iterations ·
     /// per-turn pricing sums exactly) · None until any priced call reports.
     cost_sum: Option<f64>,
+    /// The FIRST unpriced reason across iterations (they share one model,
+    /// so the first is the class) — rides the parent's terminal frame.
+    unpriced: Option<nika_types::cost::UnpricedReason>,
 }
 
 /// Drain the buffered iteration stream, reducing it to a [`FanOutAccum`] in
@@ -671,6 +742,7 @@ where
         first_error: None,
         tokens_sum: None,
         cost_sum: None,
+        unpriced: None,
     };
 
     while let Some(iter_ran) = stream.next().await {
@@ -683,6 +755,7 @@ where
                 value,
                 tokens,
                 cost_usd,
+                cost_unpriced,
                 ..
             } => {
                 acc.outputs.push(value);
@@ -691,6 +764,9 @@ where
                 }
                 if let Some(c) = cost_usd {
                     acc.cost_sum = Some(acc.cost_sum.unwrap_or(0.0) + c);
+                }
+                if acc.unpriced.is_none() {
+                    acc.unpriced = cost_unpriced;
                 }
             }
             // Per-iteration `on_error: skip` contributes null at its
@@ -1004,13 +1080,30 @@ fn dispatch_result(
             tokens,
             warning,
             cost_usd,
+            cost_source: _,
+            cost_unpriced,
         }) => RunResult::Success {
             value,
             tokens,
             warning,
             cost_usd,
+            cost_unpriced,
         },
         Err(error) => apply_on_error(task, scope, error),
+    }
+}
+
+/// The fan-out budget-starvation error — iterations the ledger refused
+/// to admit (NIKA-1704 · the workflow-level abort follows at the wave
+/// boundary).
+fn budget_stop_record(denied: usize) -> TaskErrorRecord {
+    TaskErrorRecord {
+        code: nika_error::codes::NIKA_1704.to_string(),
+        message: format!(
+            "run budget (--max-cost-usd) reached — {denied} iteration(s) were not started \
+             (in-flight work completed and was counted)"
+        ),
+        transient: false, // spending more will not help
     }
 }
 
@@ -1031,6 +1124,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, error: TaskErrorRecord) -> 
                 // A recovered value is author-supplied · no model reasoning.
                 warning: None,
                 cost_usd: None,
+                cost_unpriced: None,
             },
             // Recovery itself failed → the task fails as if
             // `on_error:` were absent (spec 05 §recover resolution).

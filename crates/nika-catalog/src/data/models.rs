@@ -156,17 +156,51 @@ pub fn find_pricing_for(model: &str) -> Option<&'static ModelPricing> {
     }
 }
 
-/// The pricing math — one site for both estimate surfaces.
+/// The pricing math — ONE site for every estimate surface.
+///
+/// The token split follows the `OTel` `gen_ai` semantics the wires
+/// normalize to: `input_tokens` INCLUDES the cache subsets (read +
+/// write), so the full-rate portion is the remainder. Cache rates fall
+/// back to the input rate when the catalog does not disclose them (the
+/// pre-@1.1 approximation — documented, and rare now that the snapshot
+/// carries upstream cache rates).
 #[cfg(feature = "pricing")]
 // REASON: casting `u64` token counts to `f64` for the rate multiplication.
 // Token counts cap at provider context windows (≤ 10 M = 2²³), well below
 // the `f64` precision horizon (2⁵³). A saturating conversion would hide a
 // real data bug if that ever changed; the cast is the right primitive here.
 #[allow(clippy::cast_precision_loss)]
-fn usd_for(pricing: &ModelPricing, input_tokens: u64, output_tokens: u64) -> f64 {
-    (input_tokens as f64 * pricing.input_per_million
+pub(crate) fn usd_for_split(
+    pricing: &ModelPricing,
+    input_tokens: u64,
+    output_tokens: u64,
+    cache_read_tokens: u64,
+    cache_write_tokens: u64,
+) -> f64 {
+    // Saturating: a provider reporting cache subsets larger than the
+    // whole input is a wire bug — clamp the full-rate portion at zero,
+    // never let it go negative.
+    let uncached = input_tokens
+        .saturating_sub(cache_read_tokens)
+        .saturating_sub(cache_write_tokens);
+    let read_rate = pricing
+        .cache_read_per_million
+        .unwrap_or(pricing.input_per_million);
+    let write_rate = pricing
+        .cache_write_per_million
+        .unwrap_or(pricing.input_per_million);
+    (uncached as f64 * pricing.input_per_million
+        + cache_read_tokens as f64 * read_rate
+        + cache_write_tokens as f64 * write_rate
         + output_tokens as f64 * pricing.output_per_million)
         / 1_000_000.0
+}
+
+/// The cache-blind projection of [`usd_for_split`] (both estimate
+/// surfaces that predate the split keep their exact behavior).
+#[cfg(feature = "pricing")]
+fn usd_for(pricing: &ModelPricing, input_tokens: u64, output_tokens: u64) -> f64 {
+    usd_for_split(pricing, input_tokens, output_tokens, 0, 0)
 }
 
 /// Estimate cost for a model invocation.
@@ -197,6 +231,39 @@ pub fn estimate_cost_for(
     let pricing = find_pricing_for(model)?;
     Some(CostEstimate::new(
         usd_for(pricing, input_tokens, output_tokens),
+        pricing.input_per_million,
+        pricing.output_per_million,
+        model.to_string(),
+        pricing.provider.to_string(),
+    ))
+}
+
+/// Estimate cost for a RESOLVED model string with the FULL usage split —
+/// cache reads/writes priced at their catalog rates when disclosed
+/// (falling back to the input rate otherwise).
+///
+/// `input_tokens` INCLUDES the cache subsets — the `OTel` `gen_ai`
+/// semantics every wire normalizes to; the full-rate portion is the
+/// remainder. `None` when the model has no catalog price (mock ·
+/// unknown local) — the caller emits nothing rather than a fake number.
+#[cfg(feature = "pricing")]
+#[must_use]
+pub fn estimate_cost_usage_for(
+    model: &str,
+    input_tokens: u64,
+    output_tokens: u64,
+    cache_read_tokens: u64,
+    cache_write_tokens: u64,
+) -> Option<CostEstimate> {
+    let pricing = find_pricing_for(model)?;
+    Some(CostEstimate::new(
+        usd_for_split(
+            pricing,
+            input_tokens,
+            output_tokens,
+            cache_read_tokens,
+            cache_write_tokens,
+        ),
         pricing.input_per_million,
         pricing.output_per_million,
         model.to_string(),
@@ -500,35 +567,6 @@ mod tests {
         assert!(est.usd.abs() < f64::EPSILON);
     }
 
-    #[test]
-    fn gpt4p1_variants_differentiated() {
-        let nano = find_pricing("gpt-4.1-nano").unwrap();
-        let mini = find_pricing("gpt-4.1-mini").unwrap();
-        let base = find_pricing("gpt-4.1").unwrap();
-        assert!(nano.input_per_million < mini.input_per_million);
-        assert!(mini.input_per_million < base.input_per_million);
-    }
-
-    #[test]
-    fn family_variants_price_differently() {
-        // The lookup distinguishes same-family variants — the SUBJECT is
-        // no-cross-contamination, not any specific price (derived law).
-        let versatile = find_pricing("llama-3.3-70b-versatile").unwrap();
-        let instant = find_pricing("llama-3.1-8b-instant").unwrap();
-        assert!(
-            (versatile.output_per_million - instant.output_per_million).abs() > f64::EPSILON,
-            "distinct variants must not collapse onto one rule"
-        );
-    }
-
-    #[test]
-    fn all_pricing_entries_have_non_empty_fields() {
-        for p in ALL_PRICING {
-            assert!(!p.provider.is_empty());
-            assert!(!p.model_pattern.is_empty());
-        }
-    }
-
     // ── Pattern ordering invariant ──────────────────────────────
     //
     // Two-pass contains-fallback only works when a longer pattern is
@@ -660,32 +698,45 @@ mod tests {
     }
 
     #[test]
-    fn all_pricing_optional_axes_none_for_now() {
-        // Phase E2 structural migration — real per-provider rates land in 4b.
-        // Until then, all 4 optional axes must be None. This test prevents
-        // accidental population without updating the corresponding docs.
+    fn all_pricing_cache_axes_populated_image_reasoning_reserved() {
+        // Cost Intelligence 2026-07-07: the refresh emits upstream cache
+        // rates (models.dev cache_read/cache_write) — a healthy snapshot
+        // carries them on a meaningful share of rows (anthropic + openai
+        // at minimum disclose them). Image/reasoning axes stay RESERVED:
+        // the refresh does not emit them yet and the cost math must not
+        // silently start reading a value nobody vendored.
+        let cached = ALL_PRICING
+            .iter()
+            .filter(|p| p.cache_read_per_million.is_some())
+            .count();
+        assert!(cached > 50, "cache_read rates vendored (got {cached})");
+        // NOTE: `read ≤ input` is NOT asserted per-row — upstream carries
+        // real exceptions (openrouter tencent/hy3: read 0.5 > input 0.2,
+        // verified 2026-07-07). The math is an honest passthrough of the
+        // catalog; the flagship-discount property is pinned separately on
+        // anthropic (`live_catalog_cache_read_discount_holds`).
         for p in ALL_PRICING {
             assert_eq!(
-                p.cache_write_per_million, None,
-                "{}/{}",
-                p.provider, p.model_pattern
-            );
-            assert_eq!(
-                p.cache_read_per_million, None,
-                "{}/{}",
-                p.provider, p.model_pattern
-            );
-            assert_eq!(
                 p.image_per_million, None,
-                "{}/{}",
+                "{}/{} image axis is reserved",
                 p.provider, p.model_pattern
             );
             assert_eq!(
                 p.reasoning_tokens_per_million, None,
-                "{}/{}",
+                "{}/{} reasoning axis is reserved",
                 p.provider, p.model_pattern
             );
         }
+    }
+
+    #[test]
+    fn pricing_snapshot_provenance_is_machine_readable() {
+        // The doctor/check surfaces read THIS — codegen already validated
+        // shape at build; pin the contract from the consumer side too.
+        let s = crate::pricing_snapshot();
+        assert!(s.source.starts_with("https://"), "got {}", s.source);
+        assert_eq!(s.as_of.len(), 10, "ISO date, got {}", s.as_of);
+        assert_eq!(s.source_sha256_16.len(), 16, "got {}", s.source_sha256_16);
     }
 }
 

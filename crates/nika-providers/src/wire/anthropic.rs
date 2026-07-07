@@ -296,16 +296,26 @@ fn parse_response(
         }
     }
 
-    let mut usage = TokenUsage::new(
-        u64_at(&v, "/usage/input_tokens"),
-        u64_at(&v, "/usage/output_tokens"),
-    );
-    usage.cache_read_tokens = v
+    // OTel `gen_ai` normalization: `TokenUsage::input_tokens` INCLUDES
+    // the cache subsets. Anthropic's wire reports them EXCLUSIVE of its
+    // `input_tokens` (cache_read/cache_creation are sibling fields), so
+    // the fold happens HERE — the one seam where the provider semantics
+    // are known. The subsets stay readable as meters (the cost math
+    // prices them at their catalog rates).
+    let cache_read = v
         .pointer("/usage/cache_read_input_tokens")
         .and_then(Value::as_u64);
-    usage.cache_creation_tokens = v
+    let cache_creation = v
         .pointer("/usage/cache_creation_input_tokens")
         .and_then(Value::as_u64);
+    let mut usage = TokenUsage::new(
+        u64_at(&v, "/usage/input_tokens")
+            .saturating_add(cache_read.unwrap_or(0))
+            .saturating_add(cache_creation.unwrap_or(0)),
+        u64_at(&v, "/usage/output_tokens"),
+    );
+    usage.cache_read_tokens = cache_read;
+    usage.cache_creation_tokens = cache_creation;
 
     let raw_stop = v.pointer("/stop_reason").and_then(Value::as_str);
     let mut resp = InferResponse::new(content, usage, map_stop(raw_stop));
@@ -342,7 +352,12 @@ fn map_stop(raw: Option<&str>) -> StopReason {
 #[derive(Default)]
 struct AnthropicMapper {
     request_id: Option<String>,
+    /// OTel-normalized input (cache subsets folded in at `message_start`).
     input_tokens: u64,
+    /// Cache meters captured at `message_start` (Anthropic reports them
+    /// there, exclusive of `input_tokens`) — ride the final Usage event.
+    cache_read_tokens: Option<u64>,
+    cache_creation_tokens: Option<u64>,
     stop_reason: Option<String>,
     /// `content_block` index → tool id (for `input_json_delta` routing).
     tools: BTreeMap<u64, String>,
@@ -382,7 +397,18 @@ impl EventMapper for AnthropicMapper {
                     .pointer("/message/id")
                     .and_then(Value::as_str)
                     .map(ToOwned::to_owned);
-                self.input_tokens = u64_at(&v, "/message/usage/input_tokens");
+                // Same OTel fold as the non-streaming parse: Anthropic's
+                // input_tokens EXCLUDES the cache subsets — normalize once,
+                // here, and keep the meters for the final Usage event.
+                self.cache_read_tokens = v
+                    .pointer("/message/usage/cache_read_input_tokens")
+                    .and_then(Value::as_u64);
+                self.cache_creation_tokens = v
+                    .pointer("/message/usage/cache_creation_input_tokens")
+                    .and_then(Value::as_u64);
+                self.input_tokens = u64_at(&v, "/message/usage/input_tokens")
+                    .saturating_add(self.cache_read_tokens.unwrap_or(0))
+                    .saturating_add(self.cache_creation_tokens.unwrap_or(0));
             }
             Some("content_block_start") => {
                 if v.pointer("/content_block/type").and_then(Value::as_str) == Some("tool_use") {
@@ -415,10 +441,11 @@ impl EventMapper for AnthropicMapper {
                 if let Some(s) = v.pointer("/delta/stop_reason").and_then(Value::as_str) {
                     self.stop_reason = Some(s.to_owned());
                 }
-                out.push(Ok(InferEvent::Usage(TokenUsage::new(
-                    self.input_tokens,
-                    u64_at(&v, "/usage/output_tokens"),
-                ))));
+                let mut usage =
+                    TokenUsage::new(self.input_tokens, u64_at(&v, "/usage/output_tokens"));
+                usage.cache_read_tokens = self.cache_read_tokens;
+                usage.cache_creation_tokens = self.cache_creation_tokens;
+                out.push(Ok(InferEvent::Usage(usage)));
             }
             Some("message_stop") => out.push(Ok(self.done())),
             Some("error") => {
@@ -491,10 +518,13 @@ mod tests {
 
         let resp = infer(&rp, request).await.expect("infer ok");
 
-        // Response mapping.
+        // Response mapping. The OTel fold: 12 fresh + 3 cache-read = 15
+        // input tokens (cache subsets INCLUDED per gen_ai semantics —
+        // Anthropic reports them exclusive, the wire normalizes).
         assert!(matches!(resp.stop_reason, StopReason::EndTurn));
-        assert_eq!(resp.usage.input_tokens, 12);
+        assert_eq!(resp.usage.input_tokens, 15);
         assert_eq!(resp.usage.output_tokens, 5);
+        assert_eq!(resp.usage.cache_read_tokens, Some(3));
         assert_eq!(resp.cached_tokens, Some(3));
         assert_eq!(resp.request_id.as_deref(), Some("msg_1"));
         assert_eq!(
@@ -632,6 +662,38 @@ mod tests {
             .iter()
             .any(|e| matches!(e, Ok(InferEvent::Usage(u)) if u.input_tokens == 7 && u.output_tokens == 2));
         assert!(usage_seen, "usage emitted from message_delta");
+    }
+
+    #[tokio::test]
+    async fn stream_folds_cache_subsets_into_input_like_the_sync_parse() {
+        // The streaming path used to DROP the cache meters entirely —
+        // a cached run under-normalized vs the sync parse. Both paths
+        // must report the SAME OTel shape: input INCLUDES the subsets,
+        // the meters ride for the cost math.
+        let sse = concat!(
+            "event: message_start\n",
+            "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_c\",\"usage\":{\"input_tokens\":10,\"cache_read_input_tokens\":40,\"cache_creation_input_tokens\":50}}}\n\n",
+            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n\n",
+            "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":3}}\n\n",
+            "data: {\"type\":\"message_stop\"}\n\n",
+        );
+        let fake = FakeHttp::with_stream(200, sse, 7);
+        let rp = resolved_with(&fake, "anthropic", "sk-ant-test");
+        let stream = infer_stream(&rp, req(vec![Message::text(Role::User, "salut")]))
+            .await
+            .expect("stream opens");
+        let events = collect(stream).await;
+        let usage = events
+            .iter()
+            .find_map(|e| match e {
+                Ok(InferEvent::Usage(u)) => Some(u.clone()),
+                _ => None,
+            })
+            .expect("usage event");
+        assert_eq!(usage.input_tokens, 100, "10 fresh + 40 read + 50 creation");
+        assert_eq!(usage.output_tokens, 3);
+        assert_eq!(usage.cache_read_tokens, Some(40));
+        assert_eq!(usage.cache_creation_tokens, Some(50));
     }
 
     #[test]

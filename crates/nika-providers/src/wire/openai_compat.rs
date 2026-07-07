@@ -503,6 +503,9 @@ fn parse_response(
             .and_then(Value::as_u64)
             .unwrap_or_default(),
     );
+    // OTel `gen_ai` semantics hold by construction here: OpenAI's
+    // `prompt_tokens` already INCLUDES `cached_tokens` (a details
+    // subset), so `input_tokens` needs no fold — only the meter rides.
     usage.cache_read_tokens = v
         .pointer("/usage/prompt_tokens_details/cached_tokens")
         .and_then(Value::as_u64);

@@ -44,6 +44,7 @@ mod dispatch;
 mod errors;
 mod expr;
 mod jq;
+mod ledger;
 mod pause;
 mod record;
 pub mod resume;
@@ -95,6 +96,13 @@ pub struct RuntimeConfig {
     /// Seed for the retry full-jitter PRNG — pure splitmix64 over
     /// `(seed, task, attempt)` · replay-stable by construction.
     pub jitter_seed: u64,
+    /// Operator run budget (`--max-cost-usd`) over METERED spend. Once
+    /// crossed, the run stops admitting new work: in-flight tasks
+    /// complete and count, unstarted ones cancel, the run fails with
+    /// NIKA-1704. `None` = no budget (the default). Unmetered work
+    /// (local · mock · unpriced) can never trip it — the budget bounds
+    /// what the ledger can SEE, said loudly at the preflight.
+    pub max_cost_usd: Option<f64>,
 }
 
 impl RuntimeConfig {
@@ -104,7 +112,15 @@ impl RuntimeConfig {
         Self {
             wave_parallelism,
             jitter_seed,
+            max_cost_usd: None,
         }
+    }
+
+    /// Attach an operator run budget (builder — `new()` stays stable).
+    #[must_use]
+    pub fn with_max_cost_usd(mut self, budget: Option<f64>) -> Self {
+        self.max_cost_usd = budget;
+        self
     }
 }
 
@@ -133,6 +149,17 @@ pub struct RunOutcome {
     /// rider · run state `paused` · `ok` stays true — a pause is a
     /// decision point, never a failure). The payload the CLI surfaces.
     pub paused: Option<WorkflowPause>,
+    /// Σ of METERED spend across the run (the same fold the terminal
+    /// frame carries) · `None` when nothing was priced — absent is
+    /// honest, a `0.0` nobody metered is not.
+    pub total_cost_usd: Option<f64>,
+    /// Leaf executions whose spend is in `total_cost_usd`.
+    pub priced_calls: u32,
+    /// Leaf executions that carried an unpriced reason (local · mock ·
+    /// uncataloged · provider silent) — spend NOT in the total.
+    pub unpriced_calls: u32,
+    /// Whether the run stopped on `--max-cost-usd` (NIKA-1704).
+    pub budget_exceeded: bool,
 }
 
 impl RunOutcome {
@@ -149,7 +176,21 @@ impl RunOutcome {
             outputs,
             cache_hits: Vec::new(),
             paused: None,
+            total_cost_usd: None,
+            priced_calls: 0,
+            unpriced_calls: 0,
+            budget_exceeded: false,
         }
+    }
+
+    /// Fold the run ledger's terminal snapshot onto the outcome (one
+    /// site — normal · paused · budget-abort all flow through).
+    fn with_ledger(mut self, snap: &ledger::LedgerSnapshot) -> Self {
+        self.total_cost_usd = snap.any_priced.then_some(snap.spent_usd);
+        self.priced_calls = snap.priced_calls;
+        self.unpriced_calls = snap.unpriced_calls;
+        self.budget_exceeded = snap.tripped;
+        self
     }
 }
 
@@ -246,6 +287,16 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_var_overrides(mut self, overrides: BTreeMap<String, Value>) -> Self {
         self.var_overrides = overrides;
+        self
+    }
+
+    /// Attach the operator run budget (`--max-cost-usd` · builder):
+    /// once METERED spend crosses it the run stops admitting new work —
+    /// the crossing call completes and counts, unstarted tasks cancel,
+    /// the run fails NIKA-1704 with spent-vs-budget.
+    #[must_use]
+    pub fn with_max_cost_usd(mut self, budget: Option<f64>) -> Self {
+        self.config.max_cost_usd = budget;
         self
     }
 
@@ -460,32 +511,20 @@ where
         let mut records: BTreeMap<String, TaskRecord> = BTreeMap::new();
         let mut ok = true;
         let mut cache_hits: Vec<String> = Vec::new();
+        // The spend ledger (leaf debits) + the `--max-cost-usd` gate.
+        let run_ledger = ledger::RunLedger::new(self.config.max_cost_usd);
 
         for wave in &report.waves {
-            // Resolve indices up front — a bad index is a schedule
-            // breach (NIKA-1701 · run abort · the one system error).
-            let mut members = Vec::with_capacity(wave.len());
-            for &index in wave {
-                let task = wf.tasks.get(index).ok_or(RuntimeError::WaveOutOfBounds {
-                    index,
-                    task_count: wf.tasks.len(),
-                })?;
-                members.push(&task.value);
-            }
-
-            // Dispatch concurrently over the wave-frozen records (same-
-            // wave tasks never reference each other — checker law) ·
-            // collect in submission order · settle sequentially below.
-            let cap = self
-                .config
-                .wave_parallelism
-                .map_or_else(|| members.len().max(1), NonZeroUsize::get);
-            let finishes: Vec<Finish> = futures_util::stream::iter(members.iter().map(|&task| {
-                self.run_task_pipeline(task, &records, &vars, &secrets, permits, &resume_ctx)
-            }))
-            .buffered(cap)
-            .collect()
-            .await;
+            let finishes = self
+                .dispatch_wave(
+                    wave,
+                    wf,
+                    &records,
+                    (&vars, &secrets, permits),
+                    &resume_ctx,
+                    &run_ledger,
+                )
+                .await?;
 
             if let Some(outcome) = self.settle_wave(
                 finishes,
@@ -499,6 +538,21 @@ where
                 stamper,
                 sink,
             ) {
+                return Ok(outcome.with_ledger(&run_ledger.snapshot()));
+            }
+
+            // The budget boundary: settle what ran, cancel what never
+            // started, fail the run with spent-vs-budget (NIKA-1704).
+            if run_ledger.tripped() {
+                let outcome = abort_on_budget(
+                    wf,
+                    &workflow_name,
+                    records,
+                    cache_hits,
+                    &run_ledger.snapshot(),
+                    stamper,
+                    sink,
+                );
                 return Ok(outcome);
             }
         }
@@ -508,11 +562,61 @@ where
         // of the callable contract (spec 01 §engine-MUST rule 6 · NIKA-VAR-009 ·
         // symmetric with the typed-`vars:` input validation).
         let outputs = resolve_outputs(wf, &records, &vars, &secrets);
-        let ok = finalize_outputs(wf, &outputs, &workflow_name, ok, stamper, sink);
+        let snapshot = run_ledger.snapshot();
+        let ok = finalize_outputs(wf, &outputs, &workflow_name, ok, &snapshot, stamper, sink);
 
-        let mut outcome = RunOutcome::new(ok, records, outputs);
+        let mut outcome = RunOutcome::new(ok, records, outputs).with_ledger(&snapshot);
         outcome.cache_hits = cache_hits;
         Ok(outcome)
+    }
+
+    /// Resolve one wave's members + dispatch concurrently over the
+    /// wave-frozen records (checker law) · collect in submission order.
+    /// Budget gate: `take_while` runs when `buffered` PULLS — a tripped
+    /// ledger stops NEW tasks; in-flight complete and count. The default
+    /// cap (= wave width) pulls the whole wave before any debit lands:
+    /// the gate stops later waves + capped fan-outs, never already-
+    /// admitted same-wave siblings. Errors: NIKA-1701 schedule breach.
+    async fn dispatch_wave(
+        &self,
+        wave: &[usize],
+        wf: &RawWorkflow,
+        records: &BTreeMap<String, TaskRecord>,
+        scope: (
+            &BTreeMap<String, Value>,
+            &BTreeMap<String, Value>,
+            Option<&nika_schema::types::Permits>,
+        ),
+        resume_ctx: &resume::ResumeContext,
+        ledger: &ledger::RunLedger,
+    ) -> Result<Vec<Finish>, RuntimeError> {
+        let (vars, secrets, permits) = scope;
+        // Resolve indices up front — a bad index is a schedule breach
+        // (NIKA-1701 · run abort · the one system error).
+        let mut members = Vec::with_capacity(wave.len());
+        for &index in wave {
+            let task = wf.tasks.get(index).ok_or(RuntimeError::WaveOutOfBounds {
+                index,
+                task_count: wf.tasks.len(),
+            })?;
+            members.push(&task.value);
+        }
+        let cap = self
+            .config
+            .wave_parallelism
+            .map_or_else(|| members.len().max(1), NonZeroUsize::get);
+        Ok(
+            futures_util::stream::iter(members.iter().take_while(|_| !ledger.tripped()).map(
+                |&task| {
+                    self.run_task_pipeline(
+                        task, records, vars, secrets, permits, resume_ctx, ledger,
+                    )
+                },
+            ))
+            .buffered(cap)
+            .collect()
+            .await,
+        )
     }
 
     /// Settle one wave's finishes in order — `Some(outcome)` iff the wave
@@ -731,6 +835,7 @@ fn settle_ran(
             tokens,
             warning,
             cost_usd,
+            cost_unpriced,
         } => {
             let ended = emit_completed(
                 id,
@@ -738,6 +843,7 @@ fn settle_ran(
                 duration,
                 tokens,
                 cost_usd,
+                cost_unpriced,
                 warning.as_deref(),
                 resume,
                 &value,
@@ -790,7 +896,7 @@ fn settle_ran(
 /// when present + the ADR-099 checkpoint trio (`def_hash` · `input_hash`
 /// · `output` as ONE compact JSON text) when the task carries a resume
 /// stamp. Returns the terminal timestamp.
-// The 7 payload knobs mirror the frame's field surface — a builder
+// The payload knobs mirror the frame's field surface — a builder
 // struct would just restate them.
 #[allow(clippy::too_many_arguments)]
 fn emit_completed(
@@ -799,6 +905,7 @@ fn emit_completed(
     duration: i64,
     tokens: Option<i64>,
     cost_usd: Option<f64>,
+    cost_unpriced: Option<nika_types::cost::UnpricedReason>,
     warning: Option<&str>,
     resume: Option<&resume::ResumeStamp>,
     value: &Value,
@@ -817,6 +924,12 @@ fn emit_completed(
     // (mock · local) — the render layer already treats absent as honest.
     if let Some(c) = cost_usd {
         fields.push(("cost_usd", FieldValue::Float(c)));
+    }
+    // …and WHY it is absent (or partial), when it is — `unknown` is
+    // never masked: `local_model` · `mock_provider` ·
+    // `missing_catalog_price` · `provider_did_not_report_usage`.
+    if let Some(reason) = cost_unpriced {
+        fields.push(("cost_unpriced", s(reason.as_str())));
     }
     // OBS-E · a non-fatal diagnostic rides the success frame as a
     // `warning` field (the reasoning-model blank-answer footgun) · the
@@ -873,6 +986,7 @@ fn finalize_outputs(
     outputs: &BTreeMap<String, Value>,
     workflow_name: &str,
     mut ok: bool,
+    snapshot: &ledger::LedgerSnapshot,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) -> bool {
@@ -891,26 +1005,94 @@ fn finalize_outputs(
     } else {
         EventKind::WorkflowFailed
     };
+    let mut fields = vec![("workflow", s(workflow_name))];
     if let Some(v) = &violation {
-        emit(
-            stamper,
-            sink,
-            kind,
-            &[
-                ("workflow", s(workflow_name)),
-                (
-                    "detail",
-                    s(&format!(
-                        "NIKA-VAR-009 · output `{}` is {}, declared type: {}",
-                        v.name, v.actual, v.expected
-                    )),
-                ),
-            ],
-        );
-    } else {
-        emit(stamper, sink, kind, &[("workflow", s(workflow_name))]);
+        fields.push((
+            "detail",
+            s(&format!(
+                "NIKA-VAR-009 · output `{}` is {}, declared type: {}",
+                v.name, v.actual, v.expected
+            )),
+        ));
     }
+    fields.extend(terminal_cost_fields(snapshot));
+    emit(stamper, sink, kind, &fields);
     ok
+}
+
+/// The run-level cost summary the terminal frame carries — ONLY when
+/// there is something honest to say: totals ride iff at least one leaf
+/// METERED real spend (a mock/local run stays field-free — a
+/// `total_cost_usd: 0.0` nobody metered would be the fake zero at the
+/// run level); the unpriced count rides independently so `≥ $X` renders
+/// can say what the total does NOT cover.
+fn terminal_cost_fields(snap: &ledger::LedgerSnapshot) -> Vec<(&'static str, FieldValue)> {
+    let mut fields = Vec::new();
+    if snap.any_priced {
+        fields.push(("total_cost_usd", FieldValue::Float(snap.spent_usd)));
+        fields.push(("priced_calls", i(i64::from(snap.priced_calls))));
+        // The snapshot identity the total was priced against — the
+        // point-in-time honesty stamp (prices move; the trace says
+        // WHICH prices billed this run).
+        fields.push(("pricing_as_of", s(nika_catalog::pricing_snapshot().as_of)));
+        // Micro-USD rounding at the serialization edge: consumers must
+        // never see f64 accumulation dust (`0.030000000000000002`).
+        let by_source: std::collections::BTreeMap<&String, f64> = snap
+            .by_source
+            .iter()
+            .map(|(k, v)| (k, (v * 1e6).round() / 1e6))
+            .collect();
+        if let Ok(json) = serde_json::to_string(&by_source) {
+            fields.push(("cost_by_source", s(&json)));
+        }
+    }
+    if snap.unpriced_calls > 0 {
+        fields.push(("unpriced_calls", i(i64::from(snap.unpriced_calls))));
+    }
+    fields
+}
+
+/// The `--max-cost-usd` stop: settle-what-ran is already done (the wave
+/// settled before the check); every task that never STARTED cancels
+/// with the budget note, then the run fails with spent-vs-budget — the
+/// LiteLLM-shaped error message (both numbers, always).
+fn abort_on_budget(
+    wf: &RawWorkflow,
+    workflow_name: &str,
+    mut records: BTreeMap<String, TaskRecord>,
+    cache_hits: Vec<String>,
+    snapshot: &ledger::LedgerSnapshot,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) -> RunOutcome {
+    for task in &wf.tasks {
+        let id = &task.value.id.value;
+        if !records.contains_key(id) {
+            emit(
+                stamper,
+                sink,
+                EventKind::TaskCancelled,
+                &[
+                    ("task", s(id)),
+                    ("note", s("budget · --max-cost-usd reached")),
+                ],
+            );
+            records.insert(id.clone(), TaskRecord::unran(TaskStatus::Cancelled));
+        }
+    }
+    let detail = format!(
+        "NIKA-1704 · run budget exceeded — spent ${:.6} of ${:.6} (--max-cost-usd) · \
+         in-flight work completed and was counted · unstarted tasks were cancelled",
+        snapshot.spent_usd,
+        snapshot.budget.unwrap_or(0.0),
+    );
+    let mut fields = vec![("workflow", s(workflow_name)), ("detail", s(&detail))];
+    fields.extend(terminal_cost_fields(snapshot));
+    emit(stamper, sink, EventKind::WorkflowFailed, &fields);
+
+    let mut outcome = RunOutcome::new(false, records, BTreeMap::new()).with_ledger(snapshot);
+    outcome.cache_hits = cache_hits;
+    outcome
 }
 
 /// One typed-`outputs:` contract violation (spec 01 rule 6 · NIKA-VAR-009).
@@ -1092,6 +1274,7 @@ outputs:
                 tokens: Some(84),
                 warning: Some("infer produced an empty answer · …".to_owned()),
                 cost_usd: Some(0.0125),
+                cost_unpriced: None,
             },
         };
         let mut ok = true;
@@ -1140,6 +1323,7 @@ outputs:
                 tokens: None,
                 warning: None,
                 cost_usd: None,
+                cost_unpriced: None,
             },
         };
         let mut ok = true;
@@ -1159,6 +1343,53 @@ outputs:
         assert!(
             !completed.fields.iter().any(|f| f.key == "cost_usd"),
             "an unpriced success carries NO cost field — absent is honest, never a fake zero"
+        );
+        assert!(
+            !completed.fields.iter().any(|f| f.key == "cost_unpriced"),
+            "an exec success is not COST-unpriced — no reason noise on verbs that spend nothing"
+        );
+    }
+
+    /// The WHY channel: an unpriced INFER success carries the reason —
+    /// `unknown` is never masked (a local model says « local compute ·
+    /// not priced », never a blank).
+    #[test]
+    fn cost_unpriced_reason_rides_task_completed() {
+        let ran = task::RanTask {
+            note: "infer · ollama/llama3.2".to_owned(),
+            retries: Vec::new(),
+            agent_events: Vec::new(),
+            duration_ms: 0,
+            result: task::RunResult::Success {
+                value: Value::String("bonjour".to_owned()),
+                tokens: Some(12),
+                warning: None,
+                cost_usd: None,
+                cost_unpriced: Some(nika_types::cost::UnpricedReason::LocalModel),
+            },
+        };
+        let mut ok = true;
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        settle_ran("ask", ran, None, &mut ok, &mut stamper, &mut sink);
+
+        let completed = sink
+            .events()
+            .iter()
+            .find(|e| e.kind == EventKind::TaskCompleted)
+            .expect("a TaskCompleted frame");
+        assert!(
+            !completed.fields.iter().any(|f| f.key == "cost_usd"),
+            "no fake zero next to the reason"
+        );
+        let reason = completed
+            .fields
+            .iter()
+            .find(|f| f.key == "cost_unpriced")
+            .expect("the WHY rides the frame");
+        assert!(
+            matches!(&reason.value, FieldValue::String(s) if s == "local_model"),
+            "snake_case wire form"
         );
     }
 }

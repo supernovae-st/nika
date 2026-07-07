@@ -18,7 +18,8 @@ pub use crate::data::generated::find_provider;
 pub use crate::data::models::model_capabilities;
 #[cfg(feature = "pricing")]
 pub use crate::data::models::{
-    estimate_cost, estimate_cost_for, find_pricing, find_pricing_for, find_pricing_scoped,
+    estimate_cost, estimate_cost_for, estimate_cost_usage_for, find_pricing, find_pricing_for,
+    find_pricing_scoped,
 };
 #[cfg(feature = "builtins-transforms")]
 pub use crate::data::transforms::{find_transform, is_known_transform};

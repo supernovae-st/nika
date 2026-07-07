@@ -59,7 +59,8 @@ pub use lookup::find_provider;
 pub use lookup::model_capabilities;
 #[cfg(feature = "pricing")]
 pub use lookup::{
-    estimate_cost, estimate_cost_for, find_pricing, find_pricing_for, find_pricing_scoped,
+    estimate_cost, estimate_cost_for, estimate_cost_usage_for, find_pricing, find_pricing_for,
+    find_pricing_scoped,
 };
 #[cfg(feature = "builtins-transforms")]
 pub use lookup::{find_builtin, find_transform, is_known_builtin, is_known_transform};
@@ -108,6 +109,15 @@ pub fn all_transforms() -> &'static [types::TransformDef] {
 #[must_use]
 pub fn all_pricing() -> &'static [types::ModelPricing] {
     data::ALL_PRICING
+}
+
+/// Provenance of the vendored pricing snapshot — source URL · `as_of`
+/// date · upstream sha256 prefix. Counts (rules · providers) derive from
+/// [`all_pricing`] at read time, never embedded (the born-stale law).
+#[cfg(feature = "pricing")]
+#[must_use]
+pub fn pricing_snapshot() -> &'static types::PricingSnapshot {
+    &data::PRICING_SNAPSHOT
 }
 
 #[cfg(all(

@@ -249,11 +249,15 @@ pub fn nika_runtime::NoSecrets::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_runtime::NoSecrets where T: core::marker::Copy
 pub fn nika_runtime::NoSecrets::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub struct nika_runtime::RunOutcome
+pub nika_runtime::RunOutcome::budget_exceeded: bool
 pub nika_runtime::RunOutcome::cache_hits: alloc::vec::Vec<alloc::string::String>
 pub nika_runtime::RunOutcome::ok: bool
 pub nika_runtime::RunOutcome::outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub nika_runtime::RunOutcome::paused: core::option::Option<nika_runtime::WorkflowPause>
+pub nika_runtime::RunOutcome::priced_calls: u32
 pub nika_runtime::RunOutcome::records: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::TaskRecord>
+pub nika_runtime::RunOutcome::total_cost_usd: core::option::Option<f64>
+pub nika_runtime::RunOutcome::unpriced_calls: u32
 impl nika_runtime::RunOutcome
 pub fn nika_runtime::RunOutcome::new(ok: bool, records: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::TaskRecord>, outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
 impl core::fmt::Debug for nika_runtime::RunOutcome
@@ -282,6 +286,7 @@ impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C> where S: nika_ker
 pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_schema::check::CheckReport, stamper: &mut dyn nika_runtime::Stamper, sink: &mut dyn nika_runtime::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime::RuntimeError>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecVerb<S>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, infer: nika_verb_infer::InferVerb<H>, agent: nika_verb_agent::AgentVerb<P, T, D>, clock: C, config: nika_runtime::RuntimeConfig) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_answers(self, answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_pause(self, pause: bool) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_plan(self, plan: nika_runtime::resume::ResumePlan) -> Self
@@ -310,9 +315,11 @@ impl<T> nika_error::traits::AsAny for nika_runtime::Runtime<S, T, H, P, D, C> wh
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_runtime::RuntimeConfig
 pub nika_runtime::RuntimeConfig::jitter_seed: u64
+pub nika_runtime::RuntimeConfig::max_cost_usd: core::option::Option<f64>
 pub nika_runtime::RuntimeConfig::wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>
 impl nika_runtime::RuntimeConfig
 pub fn nika_runtime::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
+pub fn nika_runtime::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 impl core::clone::Clone for nika_runtime::RuntimeConfig
 pub fn nika_runtime::RuntimeConfig::clone(&self) -> nika_runtime::RuntimeConfig
 impl core::default::Default for nika_runtime::RuntimeConfig

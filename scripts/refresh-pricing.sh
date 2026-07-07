@@ -84,33 +84,68 @@ for engine_id, upstream_id in PROVIDERS.items():
     for mid, m in prov["models"].items():
         cost = m.get("cost")
         if not cost or "input" not in cost or "output" not in cost:
-            continue  # unpriced (previews · embeddings without rates)
+            continue  # unpriced (previews · embeddings without rates) — absent ≠ free
         key = (engine_id, mid)
         if key in seen:
             continue
         seen.add(key)
-        rules.append((engine_id, mid, float(cost["input"]), float(cost["output"])))
+        # Cache axes when upstream discloses them (2026-07: cache_read on
+        # 2209 models · cache_write on 756). The cost math prices the
+        # cache subsets at these rates; without them it falls back to the
+        # input rate (documented approximation).
+        cr = cost.get("cache_read")
+        cw = cost.get("cache_write")
+        rules.append((
+            engine_id, mid, float(cost["input"]), float(cost["output"]),
+            None if cr is None else float(cr),
+            None if cw is None else float(cw),
+        ))
 
 for prov, mid, inp, outp in SUPPLEMENTS:
     if (prov, mid) not in seen:
         seen.add((prov, mid))
-        rules.append((prov, mid, inp, outp))
+        rules.append((prov, mid, inp, outp, None, None))
 
 # Contains-fallback safety: longest pattern first within each provider.
 rules.sort(key=lambda r: (r[0], -len(r[1]), r[1]))
 
+# Shrink guard (the LiteLLM pattern): a refresh that loses more than half
+# the previous rules is a corrupted/partial upstream, not a real catalog
+# move — refuse instead of silently shipping a gutted snapshot.
+target = "crates/nika-catalog/data/model-pricing.toml"
+try:
+    prev = open(target).read().count("[[rules]]")
+except OSError:
+    prev = 0
+if prev and len(rules) < prev // 2:
+    print(
+        f"ERROR: refreshed catalog shrank {prev} → {len(rules)} rules "
+        f"(more than half) — corrupted upstream? refusing to write. "
+        f"Set NIKA_PRICING_FORCE=1 to override.",
+        file=sys.stderr,
+    )
+    import os
+    if not os.environ.get("NIKA_PRICING_FORCE"):
+        sys.exit(1)
+
 out = []
-out.append('schema = "nika/model-pricing@1.0"')
+out.append('schema = "nika/model-pricing@1.1"')
+out.append("")
+out.append("[meta]")
+out.append('source = "https://models.dev/api.json"')
+out.append(f'as_of = "{date.today().isoformat()}"')
+out.append(f'source_sha256_16 = "{sha}"')
 out.append("")
 out.append("# ── GENERATED · do not hand-edit ────────────────────────────")
-out.append("# Source: https://models.dev/api.json (MIT · sst/models.dev)")
-out.append(f"# as_of: {date.today().isoformat()} · source sha256[:16]: {sha}")
+out.append("# Source: models.dev (MIT · anomalyco/models.dev) — see [meta].")
 out.append("# Refresh: bash scripts/refresh-pricing.sh")
 out.append("# Values: USD per 1M tokens. Lookup: exact match, then contains()")
 out.append("# fallback (first hit wins — longest patterns emitted first).")
+out.append("# Cache axes ride along when upstream discloses them; the cost")
+out.append("# math prices cache subsets at these rates (input-rate fallback).")
 
 current = None
-for prov, mid, inp, outp in rules:
+for prov, mid, inp, outp, cr, cw in rules:
     if prov != current:
         out.append("")
         out.append(f"# ── {prov} ({sum(1 for r in rules if r[0] == prov)} models) ──")
@@ -121,11 +156,18 @@ for prov, mid, inp, outp in rules:
     out.append(f'model_pattern = "{mid}"')
     out.append(f"input_per_million = {toml_float(inp)}")
     out.append(f"output_per_million = {toml_float(outp)}")
+    if cr is not None:
+        out.append(f"cache_read_per_million = {toml_float(cr)}")
+    if cw is not None:
+        out.append(f"cache_write_per_million = {toml_float(cw)}")
 
-target = "crates/nika-catalog/data/model-pricing.toml"
 open(target, "w").write("\n".join(out) + "\n")
 per = {}
+cached = sum(1 for r in rules if r[4] is not None)
 for r in rules:
     per[r[0]] = per.get(r[0], 0) + 1
-print(f"wrote {target}: {len(rules)} rules · " + " · ".join(f"{k}:{v}" for k, v in sorted(per.items())))
+print(
+    f"wrote {target}: {len(rules)} rules ({cached} with cache rates) · "
+    + " · ".join(f"{k}:{v}" for k, v in sorted(per.items()))
+)
 PYEOF

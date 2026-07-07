@@ -37,6 +37,7 @@ pub use sink::{FoldSink, JsonSink, RenderMode};
 use sink::{TraceNote, surface_trace};
 pub use stamp::SystemStamper;
 
+mod budget;
 mod scope;
 use scope::scope_to_task;
 pub(crate) use source_id::{lf_normal_form, sha256_hex};
@@ -104,6 +105,7 @@ pub fn run(
     no_trace_file: bool,
     task_filter: Option<&str>,
     no_outputs: bool,
+    max_cost_usd: Option<f64>,
 ) -> u8 {
     // `--output` validated up front so an unknown format fails before any
     // work (machine-result mode · see `output_mode`).
@@ -116,16 +118,14 @@ pub fn run(
     let (source, wf, report) = match crate::verbs::load_checked_with_source(file) {
         Ok(pair) => pair,
         Err(out) => {
-            // Pre-run diagnostics obey the export contract too: in machine
-            // mode they go to stderr so a `capture: stdout` consumer never
-            // mistakes the "cannot read" text for the JSON result.
+            // Machine mode: diagnostics ride stderr so a `capture: stdout`
+            // consumer never mistakes them for the JSON result.
             emit_diagnostic(&refusal_text(&out), output_json);
             return out.code;
         }
     };
 
-    // ── `--task` scope + clean gate + `--var` overrides (all before
-    //    any effect — the whole operator-input preflight) ──
+    // ── `--task` scope + clean gate + `--var` overrides (pre-effect) ──
     let (wf, report) =
         match scoped_clean_gate(wf, report, task_filter, file, json, theme, output_json) {
             Ok(pair) => pair,
@@ -141,14 +141,18 @@ pub fn run(
         return render_dry_run(file, theme.ascii);
     }
 
+    // ── `--max-cost-usd` preflight — BEFORE any spend (budget.rs) ──
+    if let Err(code) = budget::preflight(&report, max_cost_usd, output_json) {
+        return code;
+    }
+
     // ── `--resume` / `--answer` (ADR-099) — plan + answers up front ──
     let setup = match resume_setup(resume, &wf, output_json) {
         Ok(setup) => setup,
         Err(code) => return code,
     };
     // ADR-099: the pause rider binds to the NON-INTERACTIVE machine
-    // surfaces only (`--json` · `--output json`); human TTY/plain
-    // surfaces keep today's PROMPT-001 contract untouched.
+    // surfaces only — human TTY/plain keep the PROMPT-001 contract.
     let pause_on_prompt = json || output_json;
 
     // ── Compose the production runtime (real seams · env keys) ──────
@@ -160,6 +164,7 @@ pub fn run(
         setup.plan,
         setup.answers,
         pause_on_prompt,
+        max_cost_usd,
         output_json,
     ) {
         Ok(rt) => rt,
@@ -171,13 +176,7 @@ pub fn run(
         Ok(rt) => rt,
         Err(code) => return code,
     };
-    // The run journal (spec §3.3) — composed HERE like the other seams;
-    // `execute` receives the sink, never a flag.
-    let trace = if no_trace_file {
-        TraceFileSink::disabled()
-    } else {
-        TraceFileSink::new(TRACE_DIR)
-    };
+    let trace = trace_sink(no_trace_file);
     rt.block_on(execute(
         &runtime,
         (file, &wf),
@@ -342,6 +341,7 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         // Examples always run whole (tiny by design · no scoping surface).
         None,
         false,
+        None,
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the tip then never
@@ -481,6 +481,7 @@ fn composed_runtime(
     resume_plan: Option<ResumePlan>,
     answers: BTreeMap<String, Value>,
     pause_on_prompt: bool,
+    max_cost_usd: Option<f64>,
     output_json: bool,
 ) -> Result<ProdRuntime, u8> {
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
@@ -490,6 +491,7 @@ fn composed_runtime(
         Ok(rt) => {
             let rt = rt
                 .with_var_overrides(overrides)
+                .with_max_cost_usd(max_cost_usd)
                 .with_prompt_pause(pause_on_prompt)
                 .with_prompt_answers(answers)
                 // The run's identity: the journal names the definition it
@@ -966,6 +968,16 @@ fn outputs_json_line(outputs: &BTreeMap<String, Value>) -> String {
 /// contract · `capture: stdout` composition), stdout in the human modes.
 /// In machine mode the failure ALSO lands on stdout as the `{"error":{…}}`
 /// envelope (F6) — the machine surface is self-sufficient, success or not.
+/// The run journal (spec §3.3) — composed like the other seams;
+/// `execute` receives the sink, never a flag.
+fn trace_sink(no_trace_file: bool) -> TraceFileSink {
+    if no_trace_file {
+        TraceFileSink::disabled()
+    } else {
+        TraceFileSink::new(TRACE_DIR)
+    }
+}
+
 fn emit_diagnostic(text: &str, output_json: bool) {
     if output_json {
         eprint!("{text}");
@@ -1170,6 +1182,7 @@ mod tests {
             true, // tests never write .nika/traces (cwd hygiene)
             None, // whole-workflow runs (scoping has its own tests)
             false,
+            None,
         );
         assert_eq!(
             code,
@@ -1202,6 +1215,7 @@ mod tests {
             true, // tests never write .nika/traces (cwd hygiene)
             None, // whole-workflow runs (scoping has its own tests)
             false,
+            None,
         );
         assert_eq!(
             overridden,
@@ -1231,6 +1245,7 @@ mod tests {
             true, // tests never write .nika/traces (cwd hygiene)
             None, // whole-workflow runs (scoping has its own tests)
             false,
+            None,
         )
     }
 
