@@ -25,6 +25,7 @@ pub mod test;
 pub mod tools;
 pub mod trace;
 pub mod trace_otel;
+pub mod trace_reproduce;
 pub mod trace_verify;
 pub mod wire;
 
