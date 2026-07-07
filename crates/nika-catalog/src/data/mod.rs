@@ -38,5 +38,7 @@ pub(crate) use generated::ALL_MCP_SERVERS;
 pub(crate) use generated::ALL_PRICING;
 #[cfg(feature = "providers")]
 pub(crate) use generated::ALL_PROVIDERS;
+#[cfg(feature = "pricing")]
+pub(crate) use generated::PRICING_SNAPSHOT;
 #[cfg(feature = "capabilities")]
 pub(crate) use generated::{CAPABILITY_DEFAULTS, CAPABILITY_RULES, find_provider};

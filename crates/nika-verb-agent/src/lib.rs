@@ -95,7 +95,7 @@ use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ProviderMeta,
-    ResponseFormat, Role, ToolDef,
+    ResponseFormat, Role, TokenUsage, ToolDef,
 };
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::runtime::agent::AgentStopReason;
@@ -205,9 +205,17 @@ pub struct AgentOutput {
     /// Real spend reported by the loop's TOOLS (a tool whose structured
     /// output carries a top-level numeric `cost_usd` — the image builtin
     /// on tick-billed providers · future paid tools). `None` when no tool
-    /// reported spend — never a fake zero. The LLM turns' own cost is a
-    /// separate (documented) seam.
+    /// reported spend — never a fake zero. The LLM turns' own cost is
+    /// priced by the DISPATCH layer from [`Self::usage`].
     pub tools_cost_usd: Option<f64>,
+    /// The absorbed usage split across every provider round-trip of the
+    /// loop (turns + schema re-asks) — the input/output/cache meters the
+    /// cost layer prices with the same resolver `infer` uses. Zero-valued
+    /// on harness-built outputs that never touched a provider.
+    pub usage: TokenUsage,
+    /// The model the loop resolved and ran (`provider/name`) — the
+    /// pricing/attribution key. `None` on harness-built outputs.
+    pub model_resolved: Option<String>,
 }
 
 impl AgentOutput {
@@ -226,6 +234,8 @@ impl AgentOutput {
             turns,
             total_tokens,
             tools_cost_usd: None,
+            usage: TokenUsage::default(),
+            model_resolved: None,
         }
     }
 
@@ -234,6 +244,15 @@ impl AgentOutput {
     #[must_use]
     pub fn with_tools_cost_usd(mut self, cost: Option<f64>) -> Self {
         self.tools_cost_usd = cost;
+        self
+    }
+
+    /// Attach the loop's absorbed usage split + resolved model (builder —
+    /// decorated once at the loop's single return site).
+    #[must_use]
+    pub fn with_spend_identity(mut self, usage: TokenUsage, model_resolved: String) -> Self {
+        self.usage = usage;
+        self.model_resolved = Some(model_resolved);
         self
     }
 }
@@ -367,6 +386,10 @@ where
         let mut messages = opening_messages(&input);
         let mut turns: u32 = 0;
         let mut total_tokens: u64 = 0;
+        // The FULL usage split absorbed across every provider round-trip —
+        // `total_tokens` stays the budget-gate scalar (unchanged semantics);
+        // this is the pricing-grade record the dispatch layer bills from.
+        let mut usage_total = TokenUsage::default();
         let mut tools_cost_usd = 0.0_f64;
         let mut last_text = String::new();
         let mut last_observations = String::new();
@@ -390,7 +413,14 @@ where
 
             let request = build_request(&model, messages.clone(), &input, offered);
             let response = self
-                .infer_turn(observer, turns, request, &mut total_tokens, &input)
+                .infer_turn(
+                    observer,
+                    turns,
+                    request,
+                    &mut total_tokens,
+                    &mut usage_total,
+                    &input,
+                )
                 .await?;
             let text = joined_text(&response.content);
             if !text.is_empty() {
@@ -410,7 +440,7 @@ where
             // shaped to `schema:` here · BUG#11); Dispatch feeds results
             // back and iterates. One Finished event, one exit point.
             let output = match classify_turn(&response, &text, &ctx)? {
-                TurnVerdict::Done(output) => output,
+                TurnVerdict::Done(output) => *output,
                 TurnVerdict::FinalText { text, stop_reason } => {
                     self.finalize_schema(
                         observer,
@@ -421,6 +451,7 @@ where
                         stop_reason,
                         &input,
                         &mut total_tokens,
+                        &mut usage_total,
                         turns,
                     )
                     .await?
@@ -449,8 +480,12 @@ where
                 total_tokens,
             });
             // The loop's accumulated TOOL spend rides the output — absent
-            // (never zero) when no tool reported real cost.
-            return Ok(output.with_tools_cost_usd((tools_cost_usd > 0.0).then_some(tools_cost_usd)));
+            // (never zero) when no tool reported real cost. The usage
+            // split + resolved model ride along so the dispatch layer can
+            // price the LLM turns with the same resolver `infer` uses.
+            return Ok(output
+                .with_tools_cost_usd((tools_cost_usd > 0.0).then_some(tools_cost_usd))
+                .with_spend_identity(usage_total, model));
         }
     }
 
@@ -535,6 +570,7 @@ where
         turn: u32,
         request: InferRequest,
         total_tokens: &mut u64,
+        usage_acc: &mut TokenUsage,
         input: &AgentInput,
     ) -> Result<InferResponse, VerbAgentError> {
         let response = self
@@ -548,6 +584,9 @@ where
                 .input_tokens
                 .saturating_add(response.usage.output_tokens),
         );
+        // The pricing-grade fold — every meter (cache · reasoning ·
+        // thinking), not just the budget scalar above.
+        usage_acc.absorb(&response.usage);
         observer.on_event(&AgentEvent::BudgetCheckpoint {
             turn,
             total_tokens: *total_tokens,
@@ -582,6 +621,7 @@ where
         stop_reason: AgentStopReason,
         input: &AgentInput,
         total_tokens: &mut u64,
+        usage_acc: &mut TokenUsage,
         turn: u32,
     ) -> Result<AgentOutput, VerbAgentError> {
         // `FinalText` is only produced under a `schema:` task; if it is
@@ -636,7 +676,7 @@ where
             ));
             let request = schema_request(model, messages.clone(), input, schema, native);
             let response = self
-                .infer_turn(observer, turn, request, total_tokens, input)
+                .infer_turn(observer, turn, request, total_tokens, usage_acc, input)
                 .await?;
             let text = joined_text(&response.content);
             match shape::validate_text(&text, &validator) {
@@ -1072,7 +1112,7 @@ enum TurnVerdict {
     /// A terminal was reached and the output is FINALIZED — return it as
     /// is. Covers every no-schema completion and the `nika:done` result
     /// (a deliberate structured value · validated directly · BUG#11).
-    Done(AgentOutput),
+    Done(Box<AgentOutput>),
     /// A free-text final answer under a `schema:` task — the loop must turn
     /// it into a conforming object (validate · re-ask the provider WITH the
     /// schema constrained if it does not yet conform · BUG#11). Carries the
@@ -1152,12 +1192,12 @@ fn classify_turn(
                     AgentValue::Structured(result.clone()),
                     ctx.input.schema.as_ref(),
                 )?;
-                Ok(TurnVerdict::Done(AgentOutput::new(
+                Ok(TurnVerdict::Done(Box::new(AgentOutput::new(
                     value,
                     AgentStopReason::ExplicitCompletion,
                     ctx.turns,
                     ctx.total_tokens,
-                )))
+                ))))
             }
             None => Ok(final_text_verdict(
                 ctx.last_text.to_owned(),
@@ -1193,12 +1233,12 @@ fn final_text_verdict(
     if ctx.input.schema.is_some() {
         TurnVerdict::FinalText { text, stop_reason }
     } else {
-        TurnVerdict::Done(AgentOutput::new(
+        TurnVerdict::Done(Box::new(AgentOutput::new(
             AgentValue::Text(text),
             stop_reason,
             ctx.turns,
             ctx.total_tokens,
-        ))
+        )))
     }
 }
 

@@ -38,7 +38,7 @@ pub use json_mode::{JsonMode, ParseJsonModeError};
 pub use mcp_server::{McpPricing, McpServer};
 #[cfg(feature = "capabilities")]
 pub use modality::{Modality, ParseModalityError};
-pub use model::{CostEstimate, ModelCapabilities, ModelPricing, TokenLimitParam};
+pub use model::{CostEstimate, ModelCapabilities, ModelPricing, PricingSnapshot, TokenLimitParam};
 #[cfg(feature = "capabilities")]
 pub use param_flag::{ParamFlag, ParseParamFlagError};
 pub use provider::{Provider, ProviderModel, validate_key_format};

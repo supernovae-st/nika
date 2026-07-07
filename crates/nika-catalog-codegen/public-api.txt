@@ -343,6 +343,7 @@ impl<T> core::convert::From<T> for nika_catalog_codegen::PricingEntry
 pub fn nika_catalog_codegen::PricingEntry::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::PricingEntry where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_catalog_codegen::PricingFile
+pub nika_catalog_codegen::PricingFile::meta: nika_catalog_codegen::PricingMeta
 pub nika_catalog_codegen::PricingFile::rules: alloc::vec::Vec<nika_catalog_codegen::PricingEntry>
 pub nika_catalog_codegen::PricingFile::schema: alloc::string::String
 impl core::fmt::Debug for nika_catalog_codegen::PricingFile
@@ -366,6 +367,39 @@ pub fn nika_catalog_codegen::PricingFile::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_catalog_codegen::PricingFile
 pub fn nika_catalog_codegen::PricingFile::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::PricingFile where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::PricingMeta
+pub nika_catalog_codegen::PricingMeta::as_of: alloc::string::String
+pub nika_catalog_codegen::PricingMeta::source: alloc::string::String
+pub nika_catalog_codegen::PricingMeta::source_sha256_16: alloc::string::String
+impl core::clone::Clone for nika_catalog_codegen::PricingMeta
+pub fn nika_catalog_codegen::PricingMeta::clone(&self) -> nika_catalog_codegen::PricingMeta
+impl core::fmt::Debug for nika_catalog_codegen::PricingMeta
+pub fn nika_catalog_codegen::PricingMeta::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::PricingMeta
+pub fn nika_catalog_codegen::PricingMeta::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::PricingMeta where U: core::convert::From<T>
+pub fn nika_catalog_codegen::PricingMeta::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::PricingMeta where U: core::convert::Into<T>
+pub type nika_catalog_codegen::PricingMeta::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::PricingMeta::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::PricingMeta where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::PricingMeta::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::PricingMeta::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog_codegen::PricingMeta where T: core::clone::Clone
+pub type nika_catalog_codegen::PricingMeta::Owned = T
+pub fn nika_catalog_codegen::PricingMeta::clone_into(&self, target: &mut T)
+pub fn nika_catalog_codegen::PricingMeta::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog_codegen::PricingMeta where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::PricingMeta::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::PricingMeta where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::PricingMeta::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::PricingMeta where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::PricingMeta::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog_codegen::PricingMeta where T: core::clone::Clone
+pub unsafe fn nika_catalog_codegen::PricingMeta::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog_codegen::PricingMeta
+pub fn nika_catalog_codegen::PricingMeta::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::PricingMeta where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_catalog_codegen::ProviderEntry
 pub nika_catalog_codegen::ProviderEntry::aliases: alloc::vec::Vec<alloc::string::String>
 pub nika_catalog_codegen::ProviderEntry::api_dialect: core::option::Option<alloc::string::String>
@@ -467,4 +501,4 @@ pub fn nika_catalog_codegen::generate(data_dir: &std::path::Path, out_dir: &std:
 pub fn nika_catalog_codegen::parse_embeddings_bytes(raw: &[u8], path: &std::path::Path, providers: &[nika_catalog_codegen::ProviderEntry]) -> core::result::Result<alloc::vec::Vec<nika_catalog_codegen::EmbeddingEntry>, nika_catalog_codegen::CodegenError>
 pub fn nika_catalog_codegen::parse_llm_providers_bytes(raw: &[u8], path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<nika_catalog_codegen::ProviderEntry>, nika_catalog_codegen::CodegenError>
 pub fn nika_catalog_codegen::parse_mcp_servers_bytes(raw: &[u8], path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<nika_catalog_codegen::McpServerEntry>, nika_catalog_codegen::CodegenError>
-pub fn nika_catalog_codegen::parse_pricing_bytes(raw: &[u8], path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<nika_catalog_codegen::PricingEntry>, nika_catalog_codegen::CodegenError>
+pub fn nika_catalog_codegen::parse_pricing_bytes(raw: &[u8], path: &std::path::Path) -> core::result::Result<nika_catalog_codegen::PricingFile, nika_catalog_codegen::CodegenError>

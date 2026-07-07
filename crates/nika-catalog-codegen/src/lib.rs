@@ -134,7 +134,9 @@ pub use crate::mcp_servers::{
     EnvVarEntry, McpServerEntry, McpServersFile, PackageEntry, RemoteEntry, codegen_mcp_servers,
     parse_mcp_servers_bytes,
 };
-pub use crate::pricing::{PricingEntry, PricingFile, codegen_pricing, parse_pricing_bytes};
+pub use crate::pricing::{
+    PricingEntry, PricingFile, PricingMeta, codegen_pricing, parse_pricing_bytes,
+};
 pub use crate::providers::{
     LlmProvidersFile, ProviderEntry, ProviderModelEntry, codegen_providers,
     parse_llm_providers_bytes,

@@ -19,6 +19,7 @@ use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::{RawAction, RawCommand};
 use nika_schema::types::CaptureMode as SpecCaptureMode;
+use nika_types::cost::UnpricedReason;
 use nika_verb_agent::{AgentInput, AgentValue};
 use nika_verb_exec::{CaptureMode, ExecInput, ExecValue};
 use nika_verb_infer::{InferInput, InferValue};
@@ -50,9 +51,16 @@ pub(crate) struct DispatchOk {
     pub tokens: Option<i64>,
     pub warning: Option<String>,
     /// Real spend in USD (catalog pricing × the provider's reported
-    /// usage split) · None for unpriced models (mock · local · unknown):
-    /// absent is honest — never a fake zero.
+    /// usage split · plus tool-reported spend) · None for unpriced
+    /// models (mock · local · unknown): absent is honest — never a
+    /// fake zero.
     pub cost_usd: Option<f64>,
+    /// The by-source attribution key (`provider/model` · tool id) the
+    /// run ledger folds `cost_usd` under.
+    pub cost_source: Option<String>,
+    /// Why (part of) this leaf's spend is NOT in `cost_usd` — the
+    /// honest-absence WHY channel (`cost_unpriced` on the trace frame).
+    pub cost_unpriced: Option<UnpricedReason>,
 }
 
 impl Dispatched {
@@ -64,19 +72,22 @@ impl Dispatched {
                 tokens,
                 warning: None,
                 cost_usd: None,
+                cost_source: None,
+                cost_unpriced: None,
             }),
         }
     }
 
-    /// `ok_warned` + real spend — the infer path (the one verb whose
-    /// provider reports a priced usage split today · agent's loop only
-    /// accumulates a total, its split is the documented follow-up seam).
+    /// `ok` + spend telemetry — the metered verbs (infer · agent ·
+    /// invoke's tool-reported spend channel).
     fn ok_metered(
         note: String,
         value: Value,
         tokens: Option<i64>,
         warning: Option<String>,
         cost_usd: Option<f64>,
+        cost_source: Option<String>,
+        cost_unpriced: Option<UnpricedReason>,
     ) -> Self {
         Self {
             note,
@@ -85,6 +96,8 @@ impl Dispatched {
                 tokens,
                 warning,
                 cost_usd,
+                cost_source,
+                cost_unpriced,
             }),
         }
     }
@@ -219,12 +232,17 @@ where
                 // run ledger (`nika:image_generate` on tick-billed
                 // providers · future paid tools/MCP) — the same honest-
                 // spend channel infer rides. Absent/invalid → unmetered,
-                // never a guess.
+                // never a guess (and never an unpriced REASON either: most
+                // tools legitimately cost nothing — tagging every free
+                // invoke would drown the honest signal).
                 let cost_usd = value
                     .get("cost_usd")
                     .and_then(Value::as_f64)
                     .filter(|c| c.is_finite() && *c >= 0.0);
-                Dispatched::ok_metered(note, value, None, None, cost_usd)
+                let cost_source = cost_usd
+                    .is_some()
+                    .then(|| note.trim_start_matches("invoke · ").to_owned());
+                Dispatched::ok_metered(note, value, None, None, cost_usd, cost_source, None)
             }
             Err(err) => Dispatched::verb_err(note, &err),
         }
@@ -373,17 +391,23 @@ where
                 // reasoning model that ate its budget on thinking) as a
                 // non-fatal warning · the task still succeeds.
                 let warning = empty_thinking_warning(&value, &out.usage);
-                // Real spend: catalog pricing × the provider's usage split ·
-                // the SAME resolver as the check-time floor (they can never
-                // disagree on which row prices a model) · unpriced models
-                // (mock · local · unknown) emit nothing.
-                let cost_usd = nika_catalog::estimate_cost_for(
-                    &out.model_resolved,
-                    out.usage.input_tokens,
-                    out.usage.output_tokens,
+                // Real spend: catalog pricing × the provider's FULL usage
+                // split (cache subsets at their own rates) · the SAME
+                // resolver as the check-time floor (they can never disagree
+                // on which row prices a model) · unpriced models emit
+                // nothing PLUS the honest WHY (local · mock · uncataloged ·
+                // provider silent).
+                let (cost_usd, cost_unpriced) = spend_for_model(&out.model_resolved, &out.usage);
+                let cost_source = Some(out.model_resolved.clone());
+                Dispatched::ok_metered(
+                    note,
+                    value,
+                    tokens,
+                    warning,
+                    cost_usd,
+                    cost_source,
+                    cost_unpriced,
                 )
-                .map(|e| e.usd);
-                Dispatched::ok_metered(note, value, tokens, warning, cost_usd)
             }
             Err(err) => Dispatched::verb_err("infer · ?".to_owned(), &err),
         }
@@ -433,14 +457,94 @@ where
                     }
                 };
                 let tokens = Some(i64::try_from(out.total_tokens).unwrap_or(i64::MAX));
-                // The loop's TOOL spend (exact · tool-reported) rides the
-                // ledger — an agent-driven $0.02 render must never show as
-                // $0.00. The LLM turns' own cost stays the documented
-                // follow-up seam (the loop keeps no input/output split).
-                Dispatched::ok_metered(note, value, tokens, None, out.tools_cost_usd)
+                // BOTH spend channels: the loop's TOOL spend (exact ·
+                // tool-reported — an agent-driven $0.02 render must never
+                // show as $0.00) PLUS the LLM turns priced from the loop's
+                // absorbed usage split via the same resolver `infer` uses
+                // (the seam closed 2026-07-08). Either alone still rides;
+                // an unpriced LLM leg names its reason next to whatever
+                // tool spend DID meter.
+                let (llm_cost, llm_unpriced) = match out.model_resolved.as_deref() {
+                    Some(model) => spend_for_model(model, &out.usage),
+                    // Harness-built outputs that never touched a provider.
+                    None => (None, None),
+                };
+                let cost_usd = match (llm_cost, out.tools_cost_usd) {
+                    (None, None) => None,
+                    (llm, tools) => Some(llm.unwrap_or(0.0) + tools.unwrap_or(0.0)),
+                };
+                Dispatched::ok_metered(
+                    note,
+                    value,
+                    tokens,
+                    None,
+                    cost_usd,
+                    out.model_resolved.clone(),
+                    llm_unpriced,
+                )
             }
             Err(err) => Dispatched::verb_err("agent · ?".to_owned(), &err),
         }
+    }
+}
+
+/// The ONE model-spend computation — catalog price × the FULL usage
+/// split, with the honest WHY when no number can exist.
+///
+/// Order matters: an unpriced model class (mock · local · uncataloged)
+/// outranks a silent provider — « local compute · not priced » is the
+/// actionable truth for a local model even when it also reported no
+/// usage. A PRICED model with a degenerate split (all meters zero —
+/// e.g. a stream that never carried usage) must NOT price to $0.00:
+/// the spend is real but unknowable, so it stays absent + named
+/// (`provider_did_not_report_usage`) — the fake-zero gate.
+fn spend_for_model(
+    model: &str,
+    usage: &nika_kernel::provider::TokenUsage,
+) -> (Option<f64>, Option<UnpricedReason>) {
+    if nika_catalog::find_pricing_for(model).is_none() {
+        return (None, Some(unpriced_reason_for(model)));
+    }
+    if !usage_has_signal(usage) {
+        return (None, Some(UnpricedReason::ProviderDidNotReportUsage));
+    }
+    let cache_write = usage
+        .cache_write_tokens
+        .unwrap_or(0)
+        .saturating_add(usage.cache_creation_tokens.unwrap_or(0));
+    let cost = nika_catalog::estimate_cost_usage_for(
+        model,
+        usage.input_tokens,
+        usage.output_tokens,
+        usage.cache_read_tokens.unwrap_or(0),
+        cache_write,
+    )
+    .map(|e| e.usd);
+    (cost, None)
+}
+
+/// Whether the provider reported ANY billable meter — zero-everything is
+/// « did not report », never a $0.00.
+fn usage_has_signal(usage: &nika_kernel::provider::TokenUsage) -> bool {
+    usage.input_tokens > 0
+        || usage.output_tokens > 0
+        || usage.cache_read_tokens.is_some_and(|n| n > 0)
+        || usage.cache_write_tokens.is_some_and(|n| n > 0)
+        || usage.cache_creation_tokens.is_some_and(|n| n > 0)
+}
+
+/// Classify WHY a model string has no catalog price. The provider
+/// prefix is the discriminator: `mock` = the test backend · a keyless
+/// catalog provider = a local server (sovereign path — not priced,
+/// never « free ») · anything else = not in the vendored catalog.
+fn unpriced_reason_for(model: &str) -> UnpricedReason {
+    match model.split_once('/').map(|(provider, _)| provider) {
+        Some("mock") => UnpricedReason::MockProvider,
+        Some(prefix) => match nika_catalog::find_provider(prefix) {
+            Some(row) if !row.requires_key => UnpricedReason::LocalModel,
+            _ => UnpricedReason::MissingCatalogPrice,
+        },
+        None => UnpricedReason::MissingCatalogPrice,
     }
 }
 

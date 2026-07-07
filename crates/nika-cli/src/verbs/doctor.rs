@@ -96,6 +96,26 @@ pub(crate) struct Probe {
     /// `--ping` observations per local surface (empty = not requested ·
     /// the default run stays fully offline).
     pub local_pings: Vec<(String, String, PingState)>,
+    /// The vendored pricing snapshot's identity + age — the staleness
+    /// surface no other CLI ships (2026-07 survey).
+    pub pricing: PricingProbe,
+}
+
+/// The pricing-catalog facts — all derived from the vendored snapshot
+/// (zero network · the born-stale law keeps counts read-time-derived).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct PricingProbe {
+    /// Snapshot date (ISO `YYYY-MM-DD`).
+    pub as_of: String,
+    /// Upstream sha256 prefix (provenance pin).
+    pub sha: String,
+    /// Pricing rules vendored.
+    pub rules: usize,
+    /// Distinct providers covered.
+    pub providers: usize,
+    /// Whole days between the snapshot date and today (`None` when the
+    /// system clock/date could not be compared — never a guess).
+    pub age_days: Option<u32>,
 }
 
 /// The TTS-plane environment facts (presence only, never values).
@@ -202,6 +222,7 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
 
     out.push(image_finding(&probe.image));
     out.push(tts_finding(&probe.tts));
+    out.push(pricing_finding(&probe.pricing));
 
     // The ONE Fail that drives exit 3 · no inference path AT ALL (a broken or
     // empty catalog). A merely-unset cloud key is a ⚠ above, never fatal.
@@ -254,6 +275,40 @@ fn image_finding(img: &ImageProbe) -> Finding {
             )
         },
         fix: None,
+    }
+}
+
+/// How old the vendored pricing snapshot may grow before the doctor
+/// flags it — prices move monthly-ish upstream; 120 days of drift is
+/// where a cost report stops being trustworthy without saying so.
+const PRICING_STALE_DAYS: u32 = 120;
+
+/// The pricing-catalog line — identity always (which snapshot prices
+/// this binary's cost reports), a staleness ⚠ past the threshold. The
+/// age warning is the gap no surveyed tool closes (2026-07): a stale
+/// vendored price table silently mis-prices every report.
+fn pricing_finding(p: &PricingProbe) -> Finding {
+    let identity = format!(
+        "{} models · {} providers · snapshot {} · models.dev {}",
+        p.rules, p.providers, p.as_of, p.sha
+    );
+    match p.age_days {
+        Some(age) if age > PRICING_STALE_DAYS => Finding {
+            level: Level::Warn,
+            label: "pricing".to_owned(),
+            detail: format!("{identity} — {age} days old · cost reports may drift"),
+            fix: Some(
+                "upgrade nika — the pricing snapshot ships with releases \
+                 (from source: bash scripts/refresh-pricing.sh)"
+                    .to_owned(),
+            ),
+        },
+        _ => Finding {
+            level: Level::Ok,
+            label: "pricing".to_owned(),
+            detail: identity,
+            fix: None,
+        },
     }
 }
 
@@ -569,6 +624,7 @@ pub fn run(ping: bool, json: bool) -> VerbOutput {
             local_url: std::env::var("NIKA_TTS_LOCAL_URL").ok().filter(|u| !u.is_empty()),
         },
         local_pings: Vec::new(),
+        pricing: pricing_probe(),
     };
     let probe = if ping {
         let local_pings = collect_local_pings(
@@ -701,6 +757,64 @@ fn home_dir() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+/// Fill the pricing probe from the vendored snapshot — zero network,
+/// counts DERIVED at read time (the born-stale law).
+fn pricing_probe() -> PricingProbe {
+    let snap = nika_catalog::pricing_snapshot();
+    let rules = nika_catalog::all_pricing();
+    let providers: std::collections::BTreeSet<&str> = rules.iter().map(|p| p.provider).collect();
+    PricingProbe {
+        as_of: snap.as_of.to_owned(),
+        sha: snap.source_sha256_16.to_owned(),
+        rules: rules.len(),
+        providers: providers.len(),
+        age_days: snapshot_age_days(snap.as_of, epoch_days_now()),
+    }
+}
+
+/// Today as whole days since the Unix epoch (UTC) — `None` if the
+/// system clock reads before 1970 (never a guess).
+fn epoch_days_now() -> Option<i64> {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|d| i64::try_from(d.as_secs() / 86_400).ok())
+}
+
+/// Whole days between an ISO `YYYY-MM-DD` and `today` (epoch days) —
+/// `None` on unparseable input or a snapshot "from the future" (clock
+/// skew reads as fresh, never as stale).
+fn snapshot_age_days(as_of: &str, today: Option<i64>) -> Option<u32> {
+    let snapshot = iso_to_epoch_days(as_of)?;
+    u32::try_from(today?.checked_sub(snapshot)?).ok()
+}
+
+/// `YYYY-MM-DD` → days since the Unix epoch (Howard Hinnant's civil
+/// algorithm — no chrono dep for one subtraction).
+fn iso_to_epoch_days(iso: &str) -> Option<i64> {
+    let bytes = iso.as_bytes();
+    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+        return None;
+    }
+    let year: i64 = iso.get(0..4)?.parse().ok()?;
+    let month: u32 = iso.get(5..7)?.parse().ok()?;
+    let day: u32 = iso.get(8..10)?.parse().ok()?;
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+    let shifted_year = if month <= 2 { year - 1 } else { year };
+    let era = if shifted_year >= 0 {
+        shifted_year
+    } else {
+        shifted_year - 399
+    } / 400;
+    let year_of_era = shifted_year - era * 400;
+    let shifted_month = (i64::from(month) + 9) % 12;
+    let day_of_year = (153 * shifted_month + 2) / 5 + i64::from(day) - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    Some(era * 146_097 + day_of_era - 719_468)
+}
+
 /// Whether an env var is SET and non-empty — PRESENT-NOT-PRINTED. The value is
 /// never bound (`var_os(...).is_some`), so no secret can surface (alignment
 /// Rule 1). This is the doctor verb's sanctioned `std::env` boundary — the same
@@ -754,6 +868,7 @@ mod tests {
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
         };
         let f = diagnose(&probe);
         let prov = f
@@ -780,6 +895,7 @@ mod tests {
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
         };
         let f = diagnose(&probe);
         let prov = f
@@ -811,6 +927,7 @@ mod tests {
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("OPENAI_API_KEY"), "names the var: {text}");
@@ -832,6 +949,7 @@ mod tests {
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
         };
         let f = diagnose(&probe);
         assert!(f.iter().any(|f| f.level == Level::Fail));
@@ -848,6 +966,7 @@ mod tests {
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
         };
         let f = diagnose(&probe);
         let loc = f.iter().find(|f| f.label == "local").expect("local line");
@@ -880,6 +999,86 @@ mod tests {
         assert_eq!(json["findings"][1]["fix"], "nika wire claude");
     }
 
+    // ── The pricing snapshot line (Cost Intelligence 2026-07-08) ──
+
+    fn pricing(age_days: Option<u32>) -> PricingProbe {
+        PricingProbe {
+            as_of: "2026-07-07".to_owned(),
+            sha: "d31a39603aa5419d".to_owned(),
+            rules: 606,
+            providers: 10,
+            age_days,
+        }
+    }
+
+    #[test]
+    fn pricing_line_names_the_snapshot_identity() {
+        let f = pricing_finding(&pricing(Some(3)));
+        assert_eq!(f.level, Level::Ok);
+        assert!(f.detail.contains("606 models"), "{}", f.detail);
+        assert!(f.detail.contains("10 providers"), "{}", f.detail);
+        assert!(f.detail.contains("2026-07-07"), "{}", f.detail);
+        assert!(f.detail.contains("d31a39603aa5419d"), "{}", f.detail);
+        assert!(f.fix.is_none());
+    }
+
+    #[test]
+    fn stale_pricing_snapshot_warns_with_the_upgrade_fix() {
+        // The staleness gap no surveyed tool closes: past the threshold
+        // the line flips ⚠ and prints the exact remedy.
+        let f = pricing_finding(&pricing(Some(PRICING_STALE_DAYS + 1)));
+        assert_eq!(f.level, Level::Warn);
+        assert!(f.detail.contains("days old"), "{}", f.detail);
+        assert!(
+            f.fix.as_deref().is_some_and(|x| x.contains("upgrade nika")),
+            "{:?}",
+            f.fix
+        );
+        // AT the threshold stays green (stale means PAST it).
+        assert_eq!(
+            pricing_finding(&pricing(Some(PRICING_STALE_DAYS))).level,
+            Level::Ok
+        );
+        // An uncomputable age never guesses stale.
+        assert_eq!(pricing_finding(&pricing(None)).level, Level::Ok);
+    }
+
+    #[test]
+    fn iso_to_epoch_days_civil_math() {
+        assert_eq!(iso_to_epoch_days("1970-01-01"), Some(0));
+        assert_eq!(iso_to_epoch_days("1970-01-02"), Some(1));
+        // The leap day: 2000-02-29 exists, 03-01 is exactly one later.
+        let feb29 = iso_to_epoch_days("2000-02-29").expect("leap day");
+        let mar01 = iso_to_epoch_days("2000-03-01").expect("march 1");
+        assert_eq!(mar01 - feb29, 1);
+        assert!(iso_to_epoch_days("2026-07-07").expect("modern date") > 20_000);
+        for bad in ["2026-13-01", "2026-7-07", "garbage", ""] {
+            assert_eq!(iso_to_epoch_days(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn snapshot_age_never_reads_the_future_as_stale() {
+        let today = iso_to_epoch_days("2026-07-08");
+        assert_eq!(snapshot_age_days("2026-07-07", today), Some(1));
+        assert_eq!(snapshot_age_days("2026-07-08", today), Some(0));
+        // Clock skew: a snapshot "from tomorrow" reads unknowable, never stale.
+        assert_eq!(snapshot_age_days("2026-07-09", today), None);
+        assert_eq!(snapshot_age_days("garbage", today), None);
+        assert_eq!(snapshot_age_days("2026-07-07", None), None);
+    }
+
+    #[test]
+    fn the_real_probe_fills_pricing_from_the_vendored_snapshot() {
+        // Derived counts (born-stale law): non-empty · providers ≥ the
+        // cloud set · identity mirrors the catalog accessor.
+        let p = pricing_probe();
+        assert!(p.rules > 100, "got {}", p.rules);
+        assert!(p.providers >= 5, "got {}", p.providers);
+        assert_eq!(p.as_of, nika_catalog::pricing_snapshot().as_of);
+        assert_eq!(p.sha, nika_catalog::pricing_snapshot().source_sha256_16);
+    }
+
     /// Each severity prints a DISTINCT glyph — a `Default::default()` mutant
     /// (the null char `'\0'`) would erase the level cue the operator scans for.
     #[test]
@@ -905,6 +1104,7 @@ mod tests {
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("stale MCP args"), "{text}");
@@ -1073,6 +1273,7 @@ mod tests {
             image: ImageProbe::default(),
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
         };
         let findings = diagnose(&base);
         let local = findings

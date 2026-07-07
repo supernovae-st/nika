@@ -373,6 +373,60 @@ impl ModelPricing {
     }
 }
 
+/// Provenance of the vendored pricing snapshot — the machine-readable
+/// answer to « how old is your pricing, and where did it come from? ».
+///
+/// Generated from `data/model-pricing.toml` `[meta]` at build time
+/// (schema `@1.1`; the date/sha lived in TOML comments before and no
+/// surface could report them). Counts (rules · providers) are NEVER
+/// carried here — they derive from [`crate::all_pricing`] at read time
+/// (the born-stale law: an embedded count drifts, a derived one can't).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PricingSnapshot {
+    /// Upstream source URL (e.g. `https://models.dev/api.json`).
+    pub source: &'static str,
+    /// Snapshot date, ISO `YYYY-MM-DD` (the day the refresh ran).
+    pub as_of: &'static str,
+    /// First 16 hex chars of the upstream payload's sha256.
+    pub source_sha256_16: &'static str,
+}
+
+impl PricingSnapshot {
+    /// Explicit constructor — required because [`PricingSnapshot`] is
+    /// `#[non_exhaustive]` (invariant #19) and the generated static is
+    /// const-constructed.
+    #[must_use]
+    pub const fn new(
+        source: &'static str,
+        as_of: &'static str,
+        source_sha256_16: &'static str,
+    ) -> Self {
+        Self {
+            source,
+            as_of,
+            source_sha256_16,
+        }
+    }
+}
+
+#[cfg(test)]
+mod pricing_snapshot_tests {
+    use super::PricingSnapshot;
+
+    #[test]
+    fn new_builds_all_fields() {
+        const S: PricingSnapshot = PricingSnapshot::new(
+            "https://models.dev/api.json",
+            "2026-07-07",
+            "aabbccddeeff0011",
+        );
+        assert_eq!(S.source, "https://models.dev/api.json");
+        assert_eq!(S.as_of, "2026-07-07");
+        assert_eq!(S.source_sha256_16, "aabbccddeeff0011");
+    }
+}
+
 /// Cost estimate result.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

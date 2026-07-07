@@ -103,6 +103,7 @@ pub fn run(
     no_trace_file: bool,
     task_filter: Option<&str>,
     no_outputs: bool,
+    max_cost_usd: Option<f64>,
 ) -> u8 {
     // `--output` validated up front so an unknown format fails before any
     // work (machine-result mode · see `output_mode`).
@@ -140,6 +141,35 @@ pub fn run(
         return render_dry_run(file, theme.ascii);
     }
 
+    // ── `--max-cost-usd` preflight — BEFORE any spend ────────────────
+    // Refuse when the STATIC floor (cheapest path · gates closed ·
+    // first-try · the unavoidable exposure `nika check` computes)
+    // already exceeds the budget; warn loud when the ceiling cannot
+    // bound everything (the budget gates METERED spend only).
+    if let Some(budget) = max_cost_usd {
+        let floor = report.cost.min_path_total_usd;
+        if floor > budget {
+            emit_diagnostic(
+                &format!(
+                    "refusing to start: the workflow's unavoidable cost floor \
+                     ${floor:.6} exceeds --max-cost-usd ${budget:.6} (cheapest \
+                     static path · gates closed · first-try) — raise the budget \
+                     or trim the workflow (`nika check` shows the envelope)\n"
+                ),
+                output_json,
+            );
+            return exit::FILE;
+        }
+        if report.cost.has_unbounded {
+            let unbounded = report.cost.tasks.iter().filter(|t| t.usd.is_none()).count();
+            eprintln!(
+                "⚠ --max-cost-usd {budget}: {unbounded} task(s) have no static ceiling \
+                 (no token bound · unknown iterations · unpriced model) — the budget \
+                 bounds METERED spend only; local/mock work never trips it"
+            );
+        }
+    }
+
     // ── `--resume` / `--answer` (ADR-099) — plan + answers up front ──
     let setup = match resume_setup(resume, &wf, output_json) {
         Ok(setup) => setup,
@@ -159,6 +189,7 @@ pub fn run(
         setup.plan,
         setup.answers,
         pause_on_prompt,
+        max_cost_usd,
         output_json,
     ) {
         Ok(rt) => rt,
@@ -341,6 +372,7 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         // Examples always run whole (tiny by design · no scoping surface).
         None,
         false,
+        None,
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the tip then never
@@ -480,6 +512,7 @@ fn composed_runtime(
     resume_plan: Option<ResumePlan>,
     answers: BTreeMap<String, Value>,
     pause_on_prompt: bool,
+    max_cost_usd: Option<f64>,
     output_json: bool,
 ) -> Result<ProdRuntime, u8> {
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
@@ -489,6 +522,7 @@ fn composed_runtime(
         Ok(rt) => {
             let rt = rt
                 .with_var_overrides(overrides)
+                .with_max_cost_usd(max_cost_usd)
                 .with_prompt_pause(pause_on_prompt)
                 .with_prompt_answers(answers)
                 // The run's identity: the journal names the definition it
@@ -1169,6 +1203,7 @@ mod tests {
             true, // tests never write .nika/traces (cwd hygiene)
             None, // whole-workflow runs (scoping has its own tests)
             false,
+            None,
         );
         assert_eq!(
             code,
@@ -1201,6 +1236,7 @@ mod tests {
             true, // tests never write .nika/traces (cwd hygiene)
             None, // whole-workflow runs (scoping has its own tests)
             false,
+            None,
         );
         assert_eq!(
             overridden,
@@ -1230,6 +1266,7 @@ mod tests {
             true, // tests never write .nika/traces (cwd hygiene)
             None, // whole-workflow runs (scoping has its own tests)
             false,
+            None,
         )
     }
 

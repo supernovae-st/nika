@@ -1,11 +1,17 @@
-schema = "nika/model-pricing@1.0"
+schema = "nika/model-pricing@1.1"
+
+[meta]
+source = "https://models.dev/api.json"
+as_of = "2026-07-07"
+source_sha256_16 = "d31a39603aa5419d"
 
 # ── GENERATED · do not hand-edit ────────────────────────────
-# Source: https://models.dev/api.json (MIT · sst/models.dev)
-# as_of: 2026-07-06 · source sha256[:16]: ad917b2482fa6b38
+# Source: models.dev (MIT · anomalyco/models.dev) — see [meta].
 # Refresh: bash scripts/refresh-pricing.sh
 # Values: USD per 1M tokens. Lookup: exact match, then contains()
 # fallback (first hit wins — longest patterns emitted first).
+# Cache axes ride along when upstream discloses them; the cost
+# math prices cache subsets at these rates (input-rate fallback).
 
 # ── anthropic (15 models) ──
 
@@ -14,72 +20,96 @@ provider = "anthropic"
 model_pattern = "claude-sonnet-4-5-20250929"
 input_per_million = 3.0
 output_per_million = 15.0
+cache_read_per_million = 0.3
+cache_write_per_million = 3.75
 
 [[rules]]
 provider = "anthropic"
 model_pattern = "claude-haiku-4-5-20251001"
 input_per_million = 1.0
 output_per_million = 5.0
+cache_read_per_million = 0.1
+cache_write_per_million = 1.25
 
 [[rules]]
 provider = "anthropic"
 model_pattern = "claude-opus-4-1-20250805"
 input_per_million = 15.0
 output_per_million = 75.0
+cache_read_per_million = 1.5
+cache_write_per_million = 18.75
 
 [[rules]]
 provider = "anthropic"
 model_pattern = "claude-opus-4-5-20251101"
 input_per_million = 5.0
 output_per_million = 25.0
+cache_read_per_million = 0.5
+cache_write_per_million = 6.25
 
 [[rules]]
 provider = "anthropic"
 model_pattern = "claude-sonnet-4-5"
 input_per_million = 3.0
 output_per_million = 15.0
+cache_read_per_million = 0.3
+cache_write_per_million = 3.75
 
 [[rules]]
 provider = "anthropic"
 model_pattern = "claude-sonnet-4-6"
 input_per_million = 3.0
 output_per_million = 15.0
+cache_read_per_million = 0.3
+cache_write_per_million = 3.75
 
 [[rules]]
 provider = "anthropic"
 model_pattern = "claude-haiku-4-5"
 input_per_million = 1.0
 output_per_million = 5.0
+cache_read_per_million = 0.1
+cache_write_per_million = 1.25
 
 [[rules]]
 provider = "anthropic"
 model_pattern = "claude-opus-4-1"
 input_per_million = 15.0
 output_per_million = 75.0
+cache_read_per_million = 1.5
+cache_write_per_million = 18.75
 
 [[rules]]
 provider = "anthropic"
 model_pattern = "claude-opus-4-5"
 input_per_million = 5.0
 output_per_million = 25.0
+cache_read_per_million = 0.5
+cache_write_per_million = 6.25
 
 [[rules]]
 provider = "anthropic"
 model_pattern = "claude-opus-4-6"
 input_per_million = 5.0
 output_per_million = 25.0
+cache_read_per_million = 0.5
+cache_write_per_million = 6.25
 
 [[rules]]
 provider = "anthropic"
 model_pattern = "claude-opus-4-7"
 input_per_million = 5.0
 output_per_million = 25.0
+cache_read_per_million = 0.5
+cache_write_per_million = 6.25
 
 [[rules]]
 provider = "anthropic"
 model_pattern = "claude-opus-4-8"
 input_per_million = 5.0
 output_per_million = 25.0
+cache_read_per_million = 0.5
+cache_write_per_million = 6.25
 
 [[rules]]
 provider = "anthropic"
@@ -92,12 +122,16 @@ provider = "anthropic"
 model_pattern = "claude-sonnet-5"
 input_per_million = 2.0
 output_per_million = 10.0
+cache_read_per_million = 0.2
+cache_write_per_million = 2.5
 
 [[rules]]
 provider = "anthropic"
 model_pattern = "claude-fable-5"
 input_per_million = 10.0
 output_per_million = 50.0
+cache_read_per_million = 1.0
+cache_write_per_million = 12.5
 
 # ── deepseek (4 models) ──
 
@@ -106,24 +140,28 @@ provider = "deepseek"
 model_pattern = "deepseek-reasoner"
 input_per_million = 0.14
 output_per_million = 0.28
+cache_read_per_million = 0.0028
 
 [[rules]]
 provider = "deepseek"
 model_pattern = "deepseek-v4-flash"
 input_per_million = 0.14
 output_per_million = 0.28
+cache_read_per_million = 0.0028
 
 [[rules]]
 provider = "deepseek"
 model_pattern = "deepseek-v4-pro"
 input_per_million = 0.435
 output_per_million = 0.87
+cache_read_per_million = 0.003625
 
 [[rules]]
 provider = "deepseek"
 model_pattern = "deepseek-chat"
 input_per_million = 0.14
 output_per_million = 0.28
+cache_read_per_million = 0.0028
 
 # ── google (20 models) ──
 
@@ -132,6 +170,7 @@ provider = "google"
 model_pattern = "gemini-3.1-pro-preview-customtools"
 input_per_million = 2.0
 output_per_million = 12.0
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "google"
@@ -144,6 +183,7 @@ provider = "google"
 model_pattern = "gemini-3.1-flash-lite-preview"
 input_per_million = 0.25
 output_per_million = 1.5
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "google"
@@ -168,24 +208,28 @@ provider = "google"
 model_pattern = "gemini-flash-lite-latest"
 input_per_million = 0.1
 output_per_million = 0.4
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "google"
 model_pattern = "gemini-2.5-flash-image"
 input_per_million = 0.3
 output_per_million = 30.0
+cache_read_per_million = 0.075
 
 [[rules]]
 provider = "google"
 model_pattern = "gemini-3-flash-preview"
 input_per_million = 0.5
 output_per_million = 3.0
+cache_read_per_million = 0.05
 
 [[rules]]
 provider = "google"
 model_pattern = "gemini-3.1-pro-preview"
 input_per_million = 2.0
 output_per_million = 12.0
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "google"
@@ -198,18 +242,21 @@ provider = "google"
 model_pattern = "gemini-2.5-flash-lite"
 input_per_million = 0.1
 output_per_million = 0.4
+cache_read_per_million = 0.01
 
 [[rules]]
 provider = "google"
 model_pattern = "gemini-3.1-flash-lite"
 input_per_million = 0.25
 output_per_million = 1.5
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "google"
 model_pattern = "gemini-3-pro-preview"
 input_per_million = 2.0
 output_per_million = 12.0
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "google"
@@ -222,30 +269,35 @@ provider = "google"
 model_pattern = "gemini-flash-latest"
 input_per_million = 0.3
 output_per_million = 2.5
+cache_read_per_million = 0.075
 
 [[rules]]
 provider = "google"
 model_pattern = "gemini-2.0-flash"
 input_per_million = 0.1
 output_per_million = 0.4
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "google"
 model_pattern = "gemini-2.5-flash"
 input_per_million = 0.3
 output_per_million = 2.5
+cache_read_per_million = 0.03
 
 [[rules]]
 provider = "google"
 model_pattern = "gemini-3.5-flash"
 input_per_million = 1.5
 output_per_million = 9.0
+cache_read_per_million = 0.15
 
 [[rules]]
 provider = "google"
 model_pattern = "gemini-2.5-pro"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
 
 # ── groq (9 models) ──
 
@@ -290,12 +342,14 @@ provider = "groq"
 model_pattern = "openai/gpt-oss-120b"
 input_per_million = 0.15
 output_per_million = 0.6
+cache_read_per_million = 0.075
 
 [[rules]]
 provider = "groq"
 model_pattern = "openai/gpt-oss-20b"
 input_per_million = 0.075
 output_per_million = 0.3
+cache_read_per_million = 0.0375
 
 [[rules]]
 provider = "groq"
@@ -303,7 +357,7 @@ model_pattern = "qwen/qwen3-32b"
 input_per_million = 0.29
 output_per_million = 0.59
 
-# ── huggingface (50 models) ──
+# ── huggingface (51 models) ──
 
 [[rules]]
 provider = "huggingface"
@@ -364,6 +418,7 @@ provider = "huggingface"
 model_pattern = "deepseek-ai/DeepSeek-V4-Pro"
 input_per_million = 0.435
 output_per_million = 0.87
+cache_read_per_million = 0.003625
 
 [[rules]]
 provider = "huggingface"
@@ -376,6 +431,7 @@ provider = "huggingface"
 model_pattern = "moonshotai/Kimi-K2-Thinking"
 input_per_million = 0.6
 output_per_million = 2.5
+cache_read_per_million = 0.15
 
 [[rules]]
 provider = "huggingface"
@@ -448,12 +504,14 @@ provider = "huggingface"
 model_pattern = "MiniMaxAI/MiniMax-M2.5"
 input_per_million = 0.3
 output_per_million = 1.2
+cache_read_per_million = 0.03
 
 [[rules]]
 provider = "huggingface"
 model_pattern = "MiniMaxAI/MiniMax-M2.7"
 input_per_million = 0.3
 output_per_million = 1.2
+cache_read_per_million = 0.06
 
 [[rules]]
 provider = "huggingface"
@@ -520,12 +578,14 @@ provider = "huggingface"
 model_pattern = "moonshotai/Kimi-K2.5"
 input_per_million = 0.6
 output_per_million = 3.0
+cache_read_per_million = 0.1
 
 [[rules]]
 provider = "huggingface"
 model_pattern = "moonshotai/Kimi-K2.6"
 input_per_million = 0.95
 output_per_million = 4.0
+cache_read_per_million = 0.16
 
 [[rules]]
 provider = "huggingface"
@@ -538,6 +598,12 @@ provider = "huggingface"
 model_pattern = "zai-org/GLM-4.5-Air"
 input_per_million = 0.13
 output_per_million = 0.85
+
+[[rules]]
+provider = "huggingface"
+model_pattern = "openai/gpt-oss-20b"
+input_per_million = 0.1
+output_per_million = 0.5
 
 [[rules]]
 provider = "huggingface"
@@ -580,12 +646,14 @@ provider = "huggingface"
 model_pattern = "zai-org/GLM-4.7"
 input_per_million = 0.6
 output_per_million = 2.2
+cache_read_per_million = 0.11
 
 [[rules]]
 provider = "huggingface"
 model_pattern = "zai-org/GLM-5.1"
 input_per_million = 1.0
 output_per_million = 3.2
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "huggingface"
@@ -604,6 +672,7 @@ provider = "huggingface"
 model_pattern = "zai-org/GLM-5"
 input_per_million = 1.0
 output_per_million = 3.2
+cache_read_per_million = 0.2
 
 # ── mistral (30 models) ──
 
@@ -914,6 +983,7 @@ provider = "nvidia"
 model_pattern = "nvidia/nemotron-3-ultra-550b-a55b"
 input_per_million = 0.5
 output_per_million = 2.5
+cache_read_per_million = 0.15
 
 [[rules]]
 provider = "nvidia"
@@ -1004,6 +1074,7 @@ provider = "nvidia"
 model_pattern = "deepseek-ai/deepseek-v4-flash"
 input_per_million = 0.14
 output_per_million = 0.28
+cache_read_per_million = 0.0028
 
 [[rules]]
 provider = "nvidia"
@@ -1034,6 +1105,7 @@ provider = "nvidia"
 model_pattern = "deepseek-ai/deepseek-v4-pro"
 input_per_million = 0.435
 output_per_million = 0.87
+cache_read_per_million = 0.003625
 
 [[rules]]
 provider = "nvidia"
@@ -1318,36 +1390,42 @@ provider = "openai"
 model_pattern = "o4-mini-deep-research"
 input_per_million = 2.0
 output_per_million = 8.0
+cache_read_per_million = 0.5
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.1-chat-latest"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.2-chat-latest"
 input_per_million = 1.75
 output_per_million = 14.0
+cache_read_per_million = 0.175
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.3-chat-latest"
 input_per_million = 1.75
 output_per_million = 14.0
+cache_read_per_million = 0.175
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.3-codex-spark"
 input_per_million = 1.75
 output_per_million = 14.0
+cache_read_per_million = 0.175
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.1-codex-mini"
 input_per_million = 0.25
 output_per_million = 2.0
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "openai"
@@ -1360,78 +1438,91 @@ provider = "openai"
 model_pattern = "gpt-4o-2024-08-06"
 input_per_million = 2.5
 output_per_million = 10.0
+cache_read_per_million = 1.25
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-4o-2024-11-20"
 input_per_million = 2.5
 output_per_million = 10.0
+cache_read_per_million = 1.25
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5-chat-latest"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.1-codex-max"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
 
 [[rules]]
 provider = "openai"
 model_pattern = "o3-deep-research"
 input_per_million = 10.0
 output_per_million = 40.0
+cache_read_per_million = 2.5
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-3.5-turbo"
 input_per_million = 0.5
 output_per_million = 1.5
+cache_read_per_million = 0.0
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.1-codex"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.2-codex"
 input_per_million = 1.75
 output_per_million = 14.0
+cache_read_per_million = 0.175
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.3-codex"
 input_per_million = 1.75
 output_per_million = 14.0
+cache_read_per_million = 0.175
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-4.1-mini"
 input_per_million = 0.4
 output_per_million = 1.6
+cache_read_per_million = 0.1
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-4.1-nano"
 input_per_million = 0.1
 output_per_million = 0.4
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.4-mini"
 input_per_million = 0.75
 output_per_million = 4.5
+cache_read_per_million = 0.075
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.4-nano"
 input_per_million = 0.2
 output_per_million = 1.25
+cache_read_per_million = 0.02
 
 [[rules]]
 provider = "openai"
@@ -1444,12 +1535,14 @@ provider = "openai"
 model_pattern = "gpt-4o-mini"
 input_per_million = 0.15
 output_per_million = 0.6
+cache_read_per_million = 0.075
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5-codex"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
 
 [[rules]]
 provider = "openai"
@@ -1474,18 +1567,21 @@ provider = "openai"
 model_pattern = "gpt-image-2"
 input_per_million = 5.0
 output_per_million = 30.0
+cache_read_per_million = 1.25
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5-mini"
 input_per_million = 0.25
 output_per_million = 2.0
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5-nano"
 input_per_million = 0.05
 output_per_million = 0.4
+cache_read_per_million = 0.005
 
 [[rules]]
 provider = "openai"
@@ -1498,48 +1594,56 @@ provider = "openai"
 model_pattern = "gpt-4.1"
 input_per_million = 2.0
 output_per_million = 8.0
+cache_read_per_million = 0.5
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.1"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.2"
 input_per_million = 1.75
 output_per_million = 14.0
+cache_read_per_million = 0.175
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.4"
 input_per_million = 2.5
 output_per_million = 15.0
+cache_read_per_million = 0.25
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-5.5"
 input_per_million = 5.0
 output_per_million = 30.0
+cache_read_per_million = 0.5
 
 [[rules]]
 provider = "openai"
 model_pattern = "o3-mini"
 input_per_million = 1.1
 output_per_million = 4.4
+cache_read_per_million = 0.55
 
 [[rules]]
 provider = "openai"
 model_pattern = "o4-mini"
 input_per_million = 1.1
 output_per_million = 4.4
+cache_read_per_million = 0.275
 
 [[rules]]
 provider = "openai"
 model_pattern = "gpt-4o"
 input_per_million = 2.5
 output_per_million = 10.0
+cache_read_per_million = 1.25
 
 [[rules]]
 provider = "openai"
@@ -1564,20 +1668,23 @@ provider = "openai"
 model_pattern = "gpt-5"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
 
 [[rules]]
 provider = "openai"
 model_pattern = "o1"
 input_per_million = 15.0
 output_per_million = 60.0
+cache_read_per_million = 7.5
 
 [[rules]]
 provider = "openai"
 model_pattern = "o3"
 input_per_million = 2.0
 output_per_million = 8.0
+cache_read_per_million = 0.5
 
-# ── openrouter (336 models) ──
+# ── openrouter (339 models) ──
 
 [[rules]]
 provider = "openrouter"
@@ -1596,12 +1703,16 @@ provider = "openrouter"
 model_pattern = "google/gemini-2.5-flash-lite-preview-09-2025"
 input_per_million = 0.1
 output_per_million = 0.4
+cache_read_per_million = 0.01
+cache_write_per_million = 0.083333
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "google/gemini-3.1-pro-preview-customtools"
 input_per_million = 2.0
 output_per_million = 12.0
+cache_read_per_million = 0.2
+cache_write_per_million = 0.375
 
 [[rules]]
 provider = "openrouter"
@@ -1692,6 +1803,8 @@ provider = "openrouter"
 model_pattern = "google/gemini-3.1-flash-lite-preview"
 input_per_million = 0.25
 output_per_million = 1.5
+cache_read_per_million = 0.025
+cache_write_per_million = 0.083333
 
 [[rules]]
 provider = "openrouter"
@@ -1710,6 +1823,8 @@ provider = "openrouter"
 model_pattern = "google/gemini-2.5-pro-preview-05-06"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
+cache_write_per_million = 0.375
 
 [[rules]]
 provider = "openrouter"
@@ -1740,6 +1855,7 @@ provider = "openrouter"
 model_pattern = "qwen/qwen-plus-2025-07-28:thinking"
 input_per_million = 0.26
 output_per_million = 0.78
+cache_write_per_million = 0.325
 
 [[rules]]
 provider = "openrouter"
@@ -1752,6 +1868,8 @@ provider = "openrouter"
 model_pattern = "google/gemini-3-pro-image-preview"
 input_per_million = 2.0
 output_per_million = 12.0
+cache_read_per_million = 0.2
+cache_write_per_million = 0.375
 
 [[rules]]
 provider = "openrouter"
@@ -1788,6 +1906,7 @@ provider = "openrouter"
 model_pattern = "nvidia/nemotron-3-ultra-550b-a55b"
 input_per_million = 0.5
 output_per_million = 2.2
+cache_read_per_million = 0.1
 
 [[rules]]
 provider = "openrouter"
@@ -1816,20 +1935,22 @@ output_per_million = 0.201
 [[rules]]
 provider = "openrouter"
 model_pattern = "meta-llama/llama-3.2-3b-instruct"
-input_per_million = 0.0509
-output_per_million = 0.335
+input_per_million = 0.05
+output_per_million = 0.33
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "mistralai/mixtral-8x22b-instruct"
 input_per_million = 2.0
 output_per_million = 6.0
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "mistralai/voxtral-small-24b-2507"
 input_per_million = 0.1
 output_per_million = 0.3
+cache_read_per_million = 0.01
 
 [[rules]]
 provider = "openrouter"
@@ -1866,6 +1987,7 @@ provider = "openrouter"
 model_pattern = "qwen/qwen3-vl-235b-a22b-instruct"
 input_per_million = 0.2
 output_per_million = 0.88
+cache_read_per_million = 0.11
 
 [[rules]]
 provider = "openrouter"
@@ -1878,12 +2000,14 @@ provider = "openrouter"
 model_pattern = "arcee-ai/trinity-large-thinking"
 input_per_million = 0.25
 output_per_million = 0.8
+cache_read_per_million = 0.06
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "deepseek/deepseek-v3.1-terminus"
 input_per_million = 0.27
 output_per_million = 0.95
+cache_read_per_million = 0.13
 
 [[rules]]
 provider = "openrouter"
@@ -1902,6 +2026,8 @@ provider = "openrouter"
 model_pattern = "~anthropic/claude-sonnet-latest"
 input_per_million = 2.0
 output_per_million = 10.0
+cache_read_per_million = 0.2
+cache_write_per_million = 2.5
 
 [[rules]]
 provider = "openrouter"
@@ -1914,18 +2040,23 @@ provider = "openrouter"
 model_pattern = "anthropic/claude-opus-4.7-fast"
 input_per_million = 30.0
 output_per_million = 150.0
+cache_read_per_million = 3.0
+cache_write_per_million = 37.5
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-opus-4.8-fast"
 input_per_million = 10.0
 output_per_million = 50.0
+cache_read_per_million = 1.0
+cache_write_per_million = 12.5
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "deepseek/deepseek-chat-v3-0324"
 input_per_million = 0.24
 output_per_million = 0.9
+cache_read_per_million = 0.135
 
 [[rules]]
 provider = "openrouter"
@@ -1974,12 +2105,16 @@ provider = "openrouter"
 model_pattern = "~anthropic/claude-fable-latest"
 input_per_million = 10.0
 output_per_million = 50.0
+cache_read_per_million = 1.0
+cache_write_per_million = 12.5
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "~anthropic/claude-haiku-latest"
 input_per_million = 1.0
 output_per_million = 5.0
+cache_read_per_million = 0.1
+cache_write_per_million = 1.25
 
 [[rules]]
 provider = "openrouter"
@@ -1998,18 +2133,24 @@ provider = "openrouter"
 model_pattern = "google/gemini-2.5-flash-image"
 input_per_million = 0.3
 output_per_million = 2.5
+cache_read_per_million = 0.03
+cache_write_per_million = 0.083333
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "google/gemini-2.5-pro-preview"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
+cache_write_per_million = 0.375
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "google/gemini-3-flash-preview"
 input_per_million = 0.5
 output_per_million = 3.0
+cache_read_per_million = 0.05
+cache_write_per_million = 0.083333
 
 [[rules]]
 provider = "openrouter"
@@ -2022,6 +2163,8 @@ provider = "openrouter"
 model_pattern = "google/gemini-3.1-pro-preview"
 input_per_million = 2.0
 output_per_million = 12.0
+cache_read_per_million = 0.2
+cache_write_per_million = 0.375
 
 [[rules]]
 provider = "openrouter"
@@ -2034,6 +2177,7 @@ provider = "openrouter"
 model_pattern = "openai/gpt-4o-mini-2024-07-18"
 input_per_million = 0.15
 output_per_million = 0.6
+cache_read_per_million = 0.075
 
 [[rules]]
 provider = "openrouter"
@@ -2046,6 +2190,8 @@ provider = "openrouter"
 model_pattern = "~anthropic/claude-opus-latest"
 input_per_million = 5.0
 output_per_million = 25.0
+cache_read_per_million = 0.5
+cache_write_per_million = 6.25
 
 [[rules]]
 provider = "openrouter"
@@ -2076,12 +2222,16 @@ provider = "openrouter"
 model_pattern = "google/gemini-2.5-flash-lite"
 input_per_million = 0.1
 output_per_million = 0.4
+cache_read_per_million = 0.01
+cache_write_per_million = 0.083333
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "google/gemini-3.1-flash-lite"
 input_per_million = 0.25
 output_per_million = 1.5
+cache_read_per_million = 0.025
+cache_write_per_million = 0.083333
 
 [[rules]]
 provider = "openrouter"
@@ -2094,18 +2244,21 @@ provider = "openrouter"
 model_pattern = "mistralai/ministral-14b-2512"
 input_per_million = 0.2
 output_per_million = 0.2
+cache_read_per_million = 0.02
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "mistralai/mistral-large-2407"
 input_per_million = 2.0
 output_per_million = 6.0
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "mistralai/mistral-large-2512"
 input_per_million = 0.5
 output_per_million = 1.5
+cache_read_per_million = 0.05
 
 [[rules]]
 provider = "openrouter"
@@ -2118,12 +2271,14 @@ provider = "openrouter"
 model_pattern = "mistralai/mistral-medium-3.1"
 input_per_million = 0.4
 output_per_million = 2.0
+cache_read_per_million = 0.04
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "mistralai/mistral-small-2603"
 input_per_million = 0.15
 output_per_million = 0.6
+cache_read_per_million = 0.015
 
 [[rules]]
 provider = "openrouter"
@@ -2136,30 +2291,37 @@ provider = "openrouter"
 model_pattern = "openai/gpt-oss-safeguard-20b"
 input_per_million = 0.075
 output_per_million = 0.3
+cache_read_per_million = 0.0375
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/o4-mini-deep-research"
 input_per_million = 2.0
 output_per_million = 8.0
+cache_read_per_million = 0.5
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "qwen/qwen2.5-vl-72b-instruct"
 input_per_million = 0.8
 output_per_million = 1.0
+cache_read_per_million = 0.4
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-sonnet-4.5"
 input_per_million = 3.0
 output_per_million = 15.0
+cache_read_per_million = 0.3
+cache_write_per_million = 3.75
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-sonnet-4.6"
 input_per_million = 3.0
 output_per_million = 15.0
+cache_read_per_million = 0.3
+cache_write_per_million = 3.75
 
 [[rules]]
 provider = "openrouter"
@@ -2178,6 +2340,7 @@ provider = "openrouter"
 model_pattern = "deepseek/deepseek-chat-v3.1"
 input_per_million = 0.21
 output_per_million = 0.79
+cache_read_per_million = 0.13
 
 [[rules]]
 provider = "openrouter"
@@ -2196,18 +2359,21 @@ provider = "openrouter"
 model_pattern = "mistralai/ministral-3b-2512"
 input_per_million = 0.1
 output_per_million = 0.1
+cache_read_per_million = 0.01
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "mistralai/ministral-8b-2512"
 input_per_million = 0.15
 output_per_million = 0.15
+cache_read_per_million = 0.015
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "moonshotai/kimi-k2-thinking"
 input_per_million = 0.6
 output_per_million = 2.5
+cache_read_per_million = 0.15
 
 [[rules]]
 provider = "openrouter"
@@ -2226,18 +2392,23 @@ provider = "openrouter"
 model_pattern = "thedrummer/cydonia-24b-v4.1"
 input_per_million = 0.3
 output_per_million = 0.5
+cache_read_per_million = 0.15
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "~google/gemini-flash-latest"
 input_per_million = 1.5
 output_per_million = 9.0
+cache_read_per_million = 0.15
+cache_write_per_million = 0.083333
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-haiku-4.5"
 input_per_million = 1.0
 output_per_million = 5.0
+cache_read_per_million = 0.1
+cache_write_per_million = 1.25
 
 [[rules]]
 provider = "openrouter"
@@ -2256,6 +2427,7 @@ provider = "openrouter"
 model_pattern = "deepseek/deepseek-v4-flash"
 input_per_million = 0.09
 output_per_million = 0.18
+cache_read_per_million = 0.018
 
 [[rules]]
 provider = "openrouter"
@@ -2274,12 +2446,14 @@ provider = "openrouter"
 model_pattern = "ibm-granite/granite-4.1-8b"
 input_per_million = 0.05
 output_per_million = 0.1
+cache_read_per_million = 0.05
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "inclusionai/ling-2.6-flash"
 input_per_million = 0.01
 output_per_million = 0.03
+cache_read_per_million = 0.002
 
 [[rules]]
 provider = "openrouter"
@@ -2292,6 +2466,7 @@ provider = "openrouter"
 model_pattern = "kwaipilot/kat-coder-pro-v2"
 input_per_million = 0.3
 output_per_million = 1.2
+cache_read_per_million = 0.06
 
 [[rules]]
 provider = "openrouter"
@@ -2304,6 +2479,7 @@ provider = "openrouter"
 model_pattern = "mistralai/mistral-medium-3"
 input_per_million = 0.4
 output_per_million = 2.0
+cache_read_per_million = 0.04
 
 [[rules]]
 provider = "openrouter"
@@ -2334,66 +2510,85 @@ provider = "openrouter"
 model_pattern = "qwen/qwen3.5-plus-20260420"
 input_per_million = 0.3
 output_per_million = 1.8
+cache_write_per_million = 0.375
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "x-ai/grok-4.20-multi-agent"
 input_per_million = 1.25
 output_per_million = 2.5
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-opus-4.1"
 input_per_million = 15.0
 output_per_million = 75.0
+cache_read_per_million = 1.5
+cache_write_per_million = 18.75
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-opus-4.5"
 input_per_million = 5.0
 output_per_million = 25.0
+cache_read_per_million = 0.5
+cache_write_per_million = 6.25
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-opus-4.6"
 input_per_million = 5.0
 output_per_million = 25.0
+cache_read_per_million = 0.5
+cache_write_per_million = 6.25
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-opus-4.7"
 input_per_million = 5.0
 output_per_million = 25.0
+cache_read_per_million = 0.5
+cache_write_per_million = 6.25
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-opus-4.8"
 input_per_million = 5.0
 output_per_million = 25.0
+cache_read_per_million = 0.5
+cache_write_per_million = 6.25
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-sonnet-4"
 input_per_million = 3.0
 output_per_million = 15.0
+cache_read_per_million = 0.3
+cache_write_per_million = 3.75
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-sonnet-5"
 input_per_million = 2.0
 output_per_million = 10.0
+cache_read_per_million = 0.2
+cache_write_per_million = 2.5
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "deepseek/deepseek-r1-0528"
 input_per_million = 0.5
 output_per_million = 2.15
+cache_read_per_million = 0.35
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "google/gemini-3-pro-image"
 input_per_million = 2.0
 output_per_million = 12.0
+cache_read_per_million = 0.2
+cache_write_per_million = 0.375
 
 [[rules]]
 provider = "openrouter"
@@ -2406,6 +2601,7 @@ provider = "openrouter"
 model_pattern = "moonshotai/kimi-k2.7-code"
 input_per_million = 0.74
 output_per_million = 3.5
+cache_read_per_million = 0.15
 
 [[rules]]
 provider = "openrouter"
@@ -2424,6 +2620,7 @@ provider = "openrouter"
 model_pattern = "openai/gpt-5.1-codex-mini"
 input_per_million = 0.25
 output_per_million = 2.0
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "openrouter"
@@ -2478,6 +2675,7 @@ provider = "openrouter"
 model_pattern = "thedrummer/skyfall-36b-v2"
 input_per_million = 0.55
 output_per_million = 0.8
+cache_read_per_million = 0.25
 
 [[rules]]
 provider = "openrouter"
@@ -2490,6 +2688,8 @@ provider = "openrouter"
 model_pattern = "~google/gemini-pro-latest"
 input_per_million = 2.0
 output_per_million = 12.0
+cache_read_per_million = 0.2
+cache_write_per_million = 0.375
 
 [[rules]]
 provider = "openrouter"
@@ -2502,18 +2702,23 @@ provider = "openrouter"
 model_pattern = "anthropic/claude-3-haiku"
 input_per_million = 0.25
 output_per_million = 1.25
+cache_read_per_million = 0.03
+cache_write_per_million = 0.3
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-fable-5"
 input_per_million = 10.0
 output_per_million = 50.0
+cache_read_per_million = 1.0
+cache_write_per_million = 12.5
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "bytedance/ui-tars-1.5-7b"
 input_per_million = 0.1
 output_per_million = 0.2
+cache_read_per_million = 0.1
 
 [[rules]]
 provider = "openrouter"
@@ -2526,6 +2731,7 @@ provider = "openrouter"
 model_pattern = "deepseek/deepseek-v4-pro"
 input_per_million = 0.435
 output_per_million = 0.87
+cache_read_per_million = 0.003625
 
 [[rules]]
 provider = "openrouter"
@@ -2538,6 +2744,7 @@ provider = "openrouter"
 model_pattern = "mistralai/codestral-2508"
 input_per_million = 0.3
 output_per_million = 0.9
+cache_read_per_million = 0.03
 
 [[rules]]
 provider = "openrouter"
@@ -2556,18 +2763,21 @@ provider = "openrouter"
 model_pattern = "openai/gpt-4o-2024-08-06"
 input_per_million = 2.5
 output_per_million = 10.0
+cache_read_per_million = 1.25
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-4o-2024-11-20"
 input_per_million = 2.5
 output_per_million = 10.0
+cache_read_per_million = 1.25
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.1-codex-max"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
 
 [[rules]]
 provider = "openrouter"
@@ -2592,6 +2802,7 @@ provider = "openrouter"
 model_pattern = "qwen/qwen3.6-max-preview"
 input_per_million = 1.04
 output_per_million = 6.24
+cache_write_per_million = 1.3
 
 [[rules]]
 provider = "openrouter"
@@ -2607,15 +2818,18 @@ output_per_million = 0.65
 
 [[rules]]
 provider = "openrouter"
-model_pattern = "aion-labs/aion-1.0-mini"
+model_pattern = "aion-labs/aion-3.0-mini"
 input_per_million = 0.7
 output_per_million = 1.4
+cache_read_per_million = 0.18
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "anthropic/claude-opus-4"
 input_per_million = 15.0
 output_per_million = 75.0
+cache_read_per_million = 1.5
+cache_write_per_million = 18.75
 
 [[rules]]
 provider = "openrouter"
@@ -2634,36 +2848,44 @@ provider = "openrouter"
 model_pattern = "google/gemini-2.5-flash"
 input_per_million = 0.3
 output_per_million = 2.5
+cache_read_per_million = 0.03
+cache_write_per_million = 0.083333
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "google/gemini-3.5-flash"
 input_per_million = 1.5
 output_per_million = 9.0
+cache_read_per_million = 0.15
+cache_write_per_million = 0.083333
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "inclusionai/ling-2.6-1t"
 input_per_million = 0.075
 output_per_million = 0.625
+cache_read_per_million = 0.015
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "inclusionai/ring-2.6-1t"
 input_per_million = 0.075
 output_per_million = 0.625
+cache_read_per_million = 0.015
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "mistralai/devstral-2512"
 input_per_million = 0.4
 output_per_million = 2.0
+cache_read_per_million = 0.04
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "mistralai/mistral-large"
 input_per_million = 2.0
 output_per_million = 6.0
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "openrouter"
@@ -2676,6 +2898,7 @@ provider = "openrouter"
 model_pattern = "openai/gpt-5-image-mini"
 input_per_million = 2.5
 output_per_million = 2.0
+cache_read_per_million = 0.25
 
 [[rules]]
 provider = "openrouter"
@@ -2688,6 +2911,7 @@ provider = "openrouter"
 model_pattern = "openai/o3-deep-research"
 input_per_million = 10.0
 output_per_million = 40.0
+cache_read_per_million = 2.5
 
 [[rules]]
 provider = "openrouter"
@@ -2718,18 +2942,21 @@ provider = "openrouter"
 model_pattern = "~moonshotai/kimi-latest"
 input_per_million = 0.66
 output_per_million = 3.41
+cache_read_per_million = 0.14
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "~openai/gpt-mini-latest"
 input_per_million = 0.75
 output_per_million = 4.5
+cache_read_per_million = 0.075
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "amazon/nova-premier-v1"
 input_per_million = 2.5
 output_per_million = 12.5
+cache_read_per_million = 0.625
 
 [[rules]]
 provider = "openrouter"
@@ -2742,6 +2969,7 @@ provider = "openrouter"
 model_pattern = "deepseek/deepseek-v3.2"
 input_per_million = 0.2288
 output_per_million = 0.3432
+cache_read_per_million = 0.02288
 
 [[rules]]
 provider = "openrouter"
@@ -2760,6 +2988,7 @@ provider = "openrouter"
 model_pattern = "minimax/minimax-m2-her"
 input_per_million = 0.3
 output_per_million = 1.2
+cache_read_per_million = 0.03
 
 [[rules]]
 provider = "openrouter"
@@ -2772,30 +3001,36 @@ provider = "openrouter"
 model_pattern = "mistralai/mistral-saba"
 input_per_million = 0.2
 output_per_million = 0.6
+cache_read_per_million = 0.02
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.4-image-2"
 input_per_million = 8.0
 output_per_million = 15.0
+cache_read_per_million = 2.0
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-chat-latest"
 input_per_million = 5.0
 output_per_million = 30.0
+cache_read_per_million = 0.5
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "poolside/laguna-xs-2.1"
 input_per_million = 0.06
 output_per_million = 0.12
+cache_read_per_million = 0.03
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "qwen/qwen3-coder-flash"
 input_per_million = 0.195
 output_per_million = 0.975
+cache_read_per_million = 0.039
+cache_write_per_million = 0.24375
 
 [[rules]]
 provider = "openrouter"
@@ -2808,6 +3043,7 @@ provider = "openrouter"
 model_pattern = "qwen/qwen3.5-397b-a17b"
 input_per_million = 0.385
 output_per_million = 2.45
+cache_read_per_million = 0.111
 
 [[rules]]
 provider = "openrouter"
@@ -2820,6 +3056,7 @@ provider = "openrouter"
 model_pattern = "stepfun/step-3.7-flash"
 input_per_million = 0.2
 output_per_million = 1.15
+cache_read_per_million = 0.04
 
 [[rules]]
 provider = "openrouter"
@@ -2838,6 +3075,8 @@ provider = "openrouter"
 model_pattern = "google/gemini-2.5-pro"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
+cache_write_per_million = 0.375
 
 [[rules]]
 provider = "openrouter"
@@ -2862,6 +3101,7 @@ provider = "openrouter"
 model_pattern = "google/gemma-4-31b-it"
 input_per_million = 0.12
 output_per_million = 0.35
+cache_read_per_million = 0.09
 
 [[rules]]
 provider = "openrouter"
@@ -2874,12 +3114,15 @@ provider = "openrouter"
 model_pattern = "qwen/qwen3-coder-next"
 input_per_million = 0.11
 output_per_million = 0.8
+cache_read_per_million = 0.07
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "qwen/qwen3-coder-plus"
 input_per_million = 0.65
 output_per_million = 3.25
+cache_read_per_million = 0.13
+cache_write_per_million = 0.8125
 
 [[rules]]
 provider = "openrouter"
@@ -2934,6 +3177,7 @@ provider = "openrouter"
 model_pattern = "minimax/minimax-m2.1"
 input_per_million = 0.3
 output_per_million = 1.2
+cache_read_per_million = 0.03
 
 [[rules]]
 provider = "openrouter"
@@ -2952,12 +3196,14 @@ provider = "openrouter"
 model_pattern = "moonshotai/kimi-k2.5"
 input_per_million = 0.375
 output_per_million = 2.025
+cache_read_per_million = 0.203
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "moonshotai/kimi-k2.6"
 input_per_million = 0.66
 output_per_million = 3.41
+cache_read_per_million = 0.14
 
 [[rules]]
 provider = "openrouter"
@@ -2976,18 +3222,21 @@ provider = "openrouter"
 model_pattern = "openai/gpt-5.1-codex"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.13
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.2-codex"
 input_per_million = 1.75
 output_per_million = 14.0
+cache_read_per_million = 0.175
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.3-codex"
 input_per_million = 1.75
 output_per_million = 14.0
+cache_read_per_million = 0.175
 
 [[rules]]
 provider = "openrouter"
@@ -3000,6 +3249,7 @@ provider = "openrouter"
 model_pattern = "poolside/laguna-xs.2"
 input_per_million = 0.1
 output_per_million = 0.2
+cache_read_per_million = 0.05
 
 [[rules]]
 provider = "openrouter"
@@ -3012,6 +3262,7 @@ provider = "openrouter"
 model_pattern = "qwen/qwen3.5-35b-a3b"
 input_per_million = 0.14
 output_per_million = 1.0
+cache_read_per_million = 0.05
 
 [[rules]]
 provider = "openrouter"
@@ -3036,6 +3287,7 @@ provider = "openrouter"
 model_pattern = "xiaomi/mimo-v2.5-pro"
 input_per_million = 0.435
 output_per_million = 0.87
+cache_read_per_million = 0.0036
 
 [[rules]]
 provider = "openrouter"
@@ -3048,6 +3300,7 @@ provider = "openrouter"
 model_pattern = "inception/mercury-2"
 input_per_million = 0.25
 output_per_million = 0.75
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "openrouter"
@@ -3057,45 +3310,59 @@ output_per_million = 1.2
 
 [[rules]]
 provider = "openrouter"
+model_pattern = "nex-agi/nex-n2-mini"
+input_per_million = 0.025
+output_per_million = 0.1
+cache_read_per_million = 0.0025
+
+[[rules]]
+provider = "openrouter"
 model_pattern = "openai/gpt-4.1-mini"
 input_per_million = 0.4
 output_per_million = 1.6
+cache_read_per_million = 0.1
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-4.1-nano"
 input_per_million = 0.1
 output_per_million = 0.4
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.1-chat"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.13
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.2-chat"
 input_per_million = 1.75
 output_per_million = 14.0
+cache_read_per_million = 0.175
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.3-chat"
 input_per_million = 1.75
 output_per_million = 14.0
+cache_read_per_million = 0.175
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.4-mini"
 input_per_million = 0.75
 output_per_million = 4.5
+cache_read_per_million = 0.075
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.4-nano"
 input_per_million = 0.2
 output_per_million = 1.25
+cache_read_per_million = 0.02
 
 [[rules]]
 provider = "openrouter"
@@ -3108,18 +3375,21 @@ provider = "openrouter"
 model_pattern = "openai/o3-mini-high"
 input_per_million = 1.1
 output_per_million = 4.4
+cache_read_per_million = 0.55
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/o4-mini-high"
 input_per_million = 1.1
 output_per_million = 4.4
+cache_read_per_million = 0.275
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "poolside/laguna-m.1"
 input_per_million = 0.2
 output_per_million = 0.4
+cache_read_per_million = 0.1
 
 [[rules]]
 provider = "openrouter"
@@ -3132,30 +3402,35 @@ provider = "openrouter"
 model_pattern = "tencent/hy3-preview"
 input_per_million = 0.063
 output_per_million = 0.21
+cache_read_per_million = 0.021
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "upstage/solar-pro-3"
 input_per_million = 0.15
 output_per_million = 0.6
+cache_read_per_million = 0.015
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "x-ai/grok-build-0.1"
 input_per_million = 1.0
 output_per_million = 2.0
-
-[[rules]]
-provider = "openrouter"
-model_pattern = "aion-labs/aion-1.0"
-input_per_million = 4.0
-output_per_million = 8.0
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "aion-labs/aion-2.0"
 input_per_million = 0.8
 output_per_million = 1.6
+cache_read_per_million = 0.2
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "aion-labs/aion-3.0"
+input_per_million = 3.0
+output_per_million = 6.0
+cache_read_per_million = 0.75
 
 [[rules]]
 provider = "openrouter"
@@ -3186,6 +3461,7 @@ provider = "openrouter"
 model_pattern = "minimax/minimax-m3"
 input_per_million = 0.3
 output_per_million = 1.2
+cache_read_per_million = 0.06
 
 [[rules]]
 provider = "openrouter"
@@ -3198,6 +3474,7 @@ provider = "openrouter"
 model_pattern = "nex-agi/nex-n2-pro"
 input_per_million = 0.25
 output_per_million = 1.0
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "openrouter"
@@ -3210,18 +3487,21 @@ provider = "openrouter"
 model_pattern = "openai/gpt-4o-mini"
 input_per_million = 0.15
 output_per_million = 0.6
+cache_read_per_million = 0.075
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5-codex"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5-image"
 input_per_million = 10.0
 output_per_million = 10.0
+cache_read_per_million = 1.25
 
 [[rules]]
 provider = "openrouter"
@@ -3258,6 +3538,7 @@ provider = "openrouter"
 model_pattern = "qwen/qwen3.6-flash"
 input_per_million = 0.1875
 output_per_million = 1.125
+cache_write_per_million = 0.234375
 
 [[rules]]
 provider = "openrouter"
@@ -3270,48 +3551,57 @@ provider = "openrouter"
 model_pattern = "z-ai/glm-4.7-flash"
 input_per_million = 0.06
 output_per_million = 0.4
+cache_read_per_million = 0.01
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "~openai/gpt-latest"
 input_per_million = 5.0
 output_per_million = 30.0
+cache_read_per_million = 0.5
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5-chat"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5-mini"
 input_per_million = 0.25
 output_per_million = 2.0
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5-nano"
 input_per_million = 0.05
 output_per_million = 0.4
+cache_read_per_million = 0.01
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "qwen/qwen3.6-plus"
 input_per_million = 0.325
 output_per_million = 1.95
+cache_write_per_million = 0.40625
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "qwen/qwen3.7-plus"
 input_per_million = 0.32
 output_per_million = 1.28
+cache_read_per_million = 0.064
+cache_write_per_million = 0.4
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "sakana/fugu-ultra"
 input_per_million = 5.0
 output_per_million = 30.0
+cache_read_per_million = 0.5
 
 [[rules]]
 provider = "openrouter"
@@ -3324,6 +3614,7 @@ provider = "openrouter"
 model_pattern = "z-ai/glm-5v-turbo"
 input_per_million = 1.2
 output_per_million = 4.0
+cache_read_per_million = 0.24
 
 [[rules]]
 provider = "openrouter"
@@ -3366,12 +3657,15 @@ provider = "openrouter"
 model_pattern = "qwen/qwen3.6-27b"
 input_per_million = 0.285
 output_per_million = 2.4
+cache_read_per_million = 0.15
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "qwen/qwen3.7-max"
 input_per_million = 1.25
 output_per_million = 3.75
+cache_read_per_million = 0.25
+cache_write_per_million = 1.5625
 
 [[rules]]
 provider = "openrouter"
@@ -3381,21 +3675,30 @@ output_per_million = 0.1
 
 [[rules]]
 provider = "openrouter"
+model_pattern = "tencent/hy3:free"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "openrouter"
 model_pattern = "xiaomi/mimo-v2.5"
 input_per_million = 0.105
 output_per_million = 0.28
+cache_read_per_million = 0.028
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "z-ai/glm-4.5-air"
 input_per_million = 0.13
 output_per_million = 0.85
+cache_read_per_million = 0.025
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "z-ai/glm-5-turbo"
 input_per_million = 1.2
 output_per_million = 4.0
+cache_read_per_million = 0.24
 
 [[rules]]
 provider = "openrouter"
@@ -3420,48 +3723,57 @@ provider = "openrouter"
 model_pattern = "openai/gpt-4.1"
 input_per_million = 2.0
 output_per_million = 8.0
+cache_read_per_million = 0.5
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.1"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.13
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.2"
 input_per_million = 1.75
 output_per_million = 14.0
+cache_read_per_million = 0.175
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.4"
 input_per_million = 2.5
 output_per_million = 15.0
+cache_read_per_million = 0.25
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/gpt-5.5"
 input_per_million = 5.0
 output_per_million = 30.0
+cache_read_per_million = 0.5
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/o3-mini"
 input_per_million = 1.1
 output_per_million = 4.4
+cache_read_per_million = 0.55
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/o4-mini"
 input_per_million = 1.1
 output_per_million = 4.4
+cache_read_per_million = 0.275
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "qwen/qwen-plus"
 input_per_million = 0.26
 output_per_million = 0.78
+cache_read_per_million = 0.052
+cache_write_per_million = 0.325
 
 [[rules]]
 provider = "openrouter"
@@ -3480,12 +3792,15 @@ provider = "openrouter"
 model_pattern = "qwen/qwen3-max"
 input_per_million = 0.78
 output_per_million = 3.9
+cache_read_per_million = 0.156
+cache_write_per_million = 0.975
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "x-ai/grok-4.20"
 input_per_million = 1.25
 output_per_million = 2.5
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "openrouter"
@@ -3522,18 +3837,21 @@ provider = "openrouter"
 model_pattern = "x-ai/grok-4.3"
 input_per_million = 1.25
 output_per_million = 2.5
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "z-ai/glm-4.5v"
 input_per_million = 0.6
 output_per_million = 1.8
+cache_read_per_million = 0.11
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "z-ai/glm-4.6v"
 input_per_million = 0.3
 output_per_million = 0.9
+cache_read_per_million = 0.055
 
 [[rules]]
 provider = "openrouter"
@@ -3546,54 +3864,70 @@ provider = "openrouter"
 model_pattern = "openai/gpt-5"
 input_per_million = 1.25
 output_per_million = 10.0
+cache_read_per_million = 0.125
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "z-ai/glm-4.5"
 input_per_million = 0.6
 output_per_million = 2.2
+cache_read_per_million = 0.11
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "z-ai/glm-4.6"
 input_per_million = 0.43
 output_per_million = 1.74
+cache_read_per_million = 0.08
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "z-ai/glm-4.7"
 input_per_million = 0.4
 output_per_million = 1.75
+cache_read_per_million = 0.08
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "z-ai/glm-5.1"
 input_per_million = 0.966
 output_per_million = 3.036
+cache_read_per_million = 0.1794
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "z-ai/glm-5.2"
-input_per_million = 0.686
-output_per_million = 2.156
+input_per_million = 0.93
+output_per_million = 3.0
+cache_read_per_million = 0.18
+
+[[rules]]
+provider = "openrouter"
+model_pattern = "tencent/hy3"
+input_per_million = 0.2
+output_per_million = 0.8
+cache_read_per_million = 0.5
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "z-ai/glm-5"
 input_per_million = 0.6
 output_per_million = 1.92
+cache_read_per_million = 0.12
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/o1"
 input_per_million = 15.0
 output_per_million = 60.0
+cache_read_per_million = 7.5
 
 [[rules]]
 provider = "openrouter"
 model_pattern = "openai/o3"
 input_per_million = 2.0
 output_per_million = 8.0
+cache_read_per_million = 0.5
 
 # ── xai (7 models) ──
 
@@ -3602,18 +3936,21 @@ provider = "xai"
 model_pattern = "grok-4.20-0309-non-reasoning"
 input_per_million = 1.25
 output_per_million = 2.5
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "xai"
 model_pattern = "grok-4.20-multi-agent-0309"
 input_per_million = 1.25
 output_per_million = 2.5
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "xai"
 model_pattern = "grok-4.20-0309-reasoning"
 input_per_million = 1.25
 output_per_million = 2.5
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "xai"
@@ -3626,12 +3963,14 @@ provider = "xai"
 model_pattern = "grok-build-0.1"
 input_per_million = 1.0
 output_per_million = 2.0
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "xai"
 model_pattern = "grok-4.3"
 input_per_million = 1.25
 output_per_million = 2.5
+cache_read_per_million = 0.2
 
 [[rules]]
 provider = "xai"

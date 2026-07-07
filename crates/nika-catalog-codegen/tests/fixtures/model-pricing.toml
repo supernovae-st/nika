@@ -1,4 +1,9 @@
-schema = "nika/model-pricing@1.0"
+schema = "nika/model-pricing@1.1"
+
+[meta]
+source = "https://models.dev/api.json"
+as_of = "2026-07-07"
+source_sha256_16 = "0123456789abcdef"
 
 # ── Anthropic ───────────────────────────────────────────────
 [[rules]]
@@ -18,6 +23,8 @@ provider = "Anthropic"
 model_pattern = "sonnet-4"
 input_per_million = 3.0
 output_per_million = 15.0
+cache_read_per_million = 0.3
+cache_write_per_million = 3.75
 
 [[rules]]
 provider = "Anthropic"

@@ -350,7 +350,19 @@ fn totals_row(view: &RunView) -> String {
     if tokens > 0 {
         let _ = write!(row, " · {tokens} tok");
     }
-    let _ = write!(row, " · {}", fmt_cost_usd(view.cost_usd));
+    // Partial totals never read as complete: `≥` + the unpriced count
+    // when some calls carried no meterable price (local · mock ·
+    // uncataloged · provider silent) — never silently sum nulls as zero.
+    if view.unpriced_calls > 0 {
+        let _ = write!(
+            row,
+            " · ≥ {} ({} unpriced)",
+            fmt_cost_usd(view.cost_usd),
+            view.unpriced_calls
+        );
+    } else {
+        let _ = write!(row, " · {}", fmt_cost_usd(view.cost_usd));
+    }
     let mut models: Vec<&str> = Vec::new();
     for r in view.rows() {
         if let Some(m) = r.model.as_deref()

@@ -148,6 +148,22 @@ fn totals_line(view: &RunView, trace: &str, theme: Theme) -> String {
     if tokens > 0 {
         let _ = write!(line, " · {tokens} tok");
     }
+    // Recorded spend — `≥` + the unpriced count when part of the run
+    // carried no meterable price (never a silent partial-as-total).
+    if view.unpriced_calls > 0 {
+        let _ = write!(
+            line,
+            " · ≥ {} ({} unpriced)",
+            crate::display::format::fmt_cost_usd(view.cost_usd),
+            view.unpriced_calls
+        );
+    } else if view.cost_usd > 0.0 {
+        let _ = write!(
+            line,
+            " · {}",
+            crate::display::format::fmt_cost_usd(view.cost_usd)
+        );
+    }
     // The trace path is CLICKABLE on link-capable terminals (OSC-8).
     let _ = write!(
         line,

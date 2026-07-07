@@ -112,6 +112,11 @@ pub struct RunView {
     pub permits: Option<String>,
     /// Folded spend so far (sums `cost_usd` fields).
     pub cost_usd: f64,
+    /// Calls whose spend is NOT in `cost_usd` (local · mock · uncataloged
+    /// · provider silent) — folded live from per-task `cost_unpriced`
+    /// fields, then OVERWRITTEN by the terminal frame's authoritative
+    /// `unpriced_calls` (leaf-level: a fan-out counts its iterations).
+    pub unpriced_calls: u64,
     /// Token-arrival samples for the sparkline.
     pub token_samples: Vec<u64>,
     /// Terminal verdict: `Some(true)` completed · `Some(false)` failed.
@@ -216,6 +221,11 @@ impl RunView {
                         self.rows[i].tokens = u64::try_from(tokens).ok();
                     }
                 }
+                // Live approximation (per-task) — the terminal frame's
+                // leaf-level `unpriced_calls` overwrites it at run end.
+                if str_field(event, "cost_unpriced").is_some() {
+                    self.unpriced_calls = self.unpriced_calls.saturating_add(1);
+                }
                 if let Some(usd) = usd {
                     self.cost_usd += usd;
                 }
@@ -258,12 +268,16 @@ impl RunView {
                     self.rows[i].ended_ms = Some(ts);
                 }
             }
-            EventKind::WorkflowCompleted => self.verdict = Some(true),
+            EventKind::WorkflowCompleted => {
+                self.verdict = Some(true);
+                self.absorb_terminal_cost(event);
+            }
             EventKind::WorkflowFailed => {
                 self.verdict = Some(false);
                 // A workflow-level reason (run-end NIKA-VAR-009) rides the
                 // terminal frame's `detail` field, if present.
                 self.workflow_detail = str_field(event, "detail").map(str::to_owned);
+                self.absorb_terminal_cost(event);
             }
             // ADR-099 rider — the run paused on a human gate: no verdict
             // (neither success nor failure) · the detail names the
@@ -281,6 +295,15 @@ impl RunView {
 
     /// Stamp a ran-to-terminal row (completed · failed): the end stamp,
     /// the runtime-measured duration, the per-task spend.
+    /// Fold the terminal frame's authoritative cost summary — the
+    /// leaf-level `unpriced_calls` (a fan-out counts its iterations)
+    /// overwrites the live per-task approximation.
+    fn absorb_terminal_cost(&mut self, event: &Event) {
+        if let Some(n) = int_field(event, "unpriced_calls") {
+            self.unpriced_calls = u64::try_from(n).unwrap_or(self.unpriced_calls);
+        }
+    }
+
     fn stamp_terminal(&mut self, i: usize, ts: i64, event: &Event, usd: Option<f64>) {
         let row = &mut self.rows[i];
         row.ended_ms = Some(ts);

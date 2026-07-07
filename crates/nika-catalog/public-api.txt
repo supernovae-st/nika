@@ -1209,6 +1209,7 @@ pub fn nika_catalog::json_mode::ParseJsonModeError::as_any(&self) -> &(dyn core:
 pub mod nika_catalog::lookup
 pub fn nika_catalog::lookup::estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
 pub fn nika_catalog::lookup::estimate_cost_for(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
+pub fn nika_catalog::lookup::estimate_cost_usage_for(model: &str, input_tokens: u64, output_tokens: u64, cache_read_tokens: u64, cache_write_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
 pub fn nika_catalog::lookup::find_builtin(name: &str) -> core::option::Option<&'static nika_catalog::builtin::Builtin>
 pub fn nika_catalog::lookup::find_embedding(id: &str) -> core::option::Option<&'static nika_catalog::embedding::Embedding>
 pub fn nika_catalog::lookup::find_mcp_server(name: &str) -> core::option::Option<&'static nika_catalog::mcp_server::McpServer>
@@ -1615,6 +1616,46 @@ impl<T> core::convert::From<T> for nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::ModelPricing where T: 'static
 pub fn nika_catalog::model::ModelPricing::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::model::PricingSnapshot
+pub nika_catalog::model::PricingSnapshot::as_of: &'static str
+pub nika_catalog::model::PricingSnapshot::source: &'static str
+pub nika_catalog::model::PricingSnapshot::source_sha256_16: &'static str
+impl nika_catalog::model::PricingSnapshot
+pub const fn nika_catalog::model::PricingSnapshot::new(source: &'static str, as_of: &'static str, source_sha256_16: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::clone(&self) -> nika_catalog::model::PricingSnapshot
+impl core::cmp::Eq for nika_catalog::model::PricingSnapshot
+impl core::cmp::PartialEq for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::eq(&self, other: &nika_catalog::model::PricingSnapshot) -> bool
+impl core::fmt::Debug for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::model::PricingSnapshot
+impl core::marker::StructuralPartialEq for nika_catalog::model::PricingSnapshot
+impl<D> owo_colors::OwoColorize for nika_catalog::model::PricingSnapshot
+impl<T, U> core::convert::Into<U> for nika_catalog::model::PricingSnapshot where U: core::convert::From<T>
+pub fn nika_catalog::model::PricingSnapshot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::model::PricingSnapshot where U: core::convert::Into<T>
+pub type nika_catalog::model::PricingSnapshot::Error = core::convert::Infallible
+pub fn nika_catalog::model::PricingSnapshot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::model::PricingSnapshot where U: core::convert::TryFrom<T>
+pub type nika_catalog::model::PricingSnapshot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::model::PricingSnapshot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::model::PricingSnapshot where T: core::clone::Clone
+pub type nika_catalog::model::PricingSnapshot::Owned = T
+pub fn nika_catalog::model::PricingSnapshot::clone_into(&self, target: &mut T)
+pub fn nika_catalog::model::PricingSnapshot::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::model::PricingSnapshot where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::model::PricingSnapshot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::model::PricingSnapshot where T: ?core::marker::Sized
+pub fn nika_catalog::model::PricingSnapshot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::model::PricingSnapshot where T: ?core::marker::Sized
+pub fn nika_catalog::model::PricingSnapshot::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::model::PricingSnapshot where T: core::clone::Clone
+pub unsafe fn nika_catalog::model::PricingSnapshot::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::model::PricingSnapshot where T: 'static
+pub fn nika_catalog::model::PricingSnapshot::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_catalog::param_flag
 #[non_exhaustive] pub enum nika_catalog::param_flag::ParamFlag
 pub nika_catalog::param_flag::ParamFlag::BatchApi
@@ -3803,6 +3844,46 @@ impl<T> core::convert::From<T> for nika_catalog::model::ModelPricing
 pub fn nika_catalog::model::ModelPricing::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::ModelPricing where T: 'static
 pub fn nika_catalog::model::ModelPricing::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::types::model::PricingSnapshot
+pub nika_catalog::types::model::PricingSnapshot::as_of: &'static str
+pub nika_catalog::types::model::PricingSnapshot::source: &'static str
+pub nika_catalog::types::model::PricingSnapshot::source_sha256_16: &'static str
+impl nika_catalog::model::PricingSnapshot
+pub const fn nika_catalog::model::PricingSnapshot::new(source: &'static str, as_of: &'static str, source_sha256_16: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::clone(&self) -> nika_catalog::model::PricingSnapshot
+impl core::cmp::Eq for nika_catalog::model::PricingSnapshot
+impl core::cmp::PartialEq for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::eq(&self, other: &nika_catalog::model::PricingSnapshot) -> bool
+impl core::fmt::Debug for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::model::PricingSnapshot
+impl core::marker::StructuralPartialEq for nika_catalog::model::PricingSnapshot
+impl<D> owo_colors::OwoColorize for nika_catalog::model::PricingSnapshot
+impl<T, U> core::convert::Into<U> for nika_catalog::model::PricingSnapshot where U: core::convert::From<T>
+pub fn nika_catalog::model::PricingSnapshot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::model::PricingSnapshot where U: core::convert::Into<T>
+pub type nika_catalog::model::PricingSnapshot::Error = core::convert::Infallible
+pub fn nika_catalog::model::PricingSnapshot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::model::PricingSnapshot where U: core::convert::TryFrom<T>
+pub type nika_catalog::model::PricingSnapshot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::model::PricingSnapshot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::model::PricingSnapshot where T: core::clone::Clone
+pub type nika_catalog::model::PricingSnapshot::Owned = T
+pub fn nika_catalog::model::PricingSnapshot::clone_into(&self, target: &mut T)
+pub fn nika_catalog::model::PricingSnapshot::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::model::PricingSnapshot where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::model::PricingSnapshot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::model::PricingSnapshot where T: ?core::marker::Sized
+pub fn nika_catalog::model::PricingSnapshot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::model::PricingSnapshot where T: ?core::marker::Sized
+pub fn nika_catalog::model::PricingSnapshot::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::model::PricingSnapshot where T: core::clone::Clone
+pub unsafe fn nika_catalog::model::PricingSnapshot::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::model::PricingSnapshot where T: 'static
+pub fn nika_catalog::model::PricingSnapshot::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_catalog::types::param_flag
 #[non_exhaustive] pub enum nika_catalog::types::param_flag::ParamFlag
 pub nika_catalog::types::param_flag::ParamFlag::BatchApi
@@ -6354,6 +6435,46 @@ impl<T> core::convert::From<T> for nika_catalog::tokenizer::ParseTokenizerFamily
 pub fn nika_catalog::tokenizer::ParseTokenizerFamilyError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::tokenizer::ParseTokenizerFamilyError where T: 'static
 pub fn nika_catalog::tokenizer::ParseTokenizerFamilyError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::types::PricingSnapshot
+pub nika_catalog::types::PricingSnapshot::as_of: &'static str
+pub nika_catalog::types::PricingSnapshot::source: &'static str
+pub nika_catalog::types::PricingSnapshot::source_sha256_16: &'static str
+impl nika_catalog::model::PricingSnapshot
+pub const fn nika_catalog::model::PricingSnapshot::new(source: &'static str, as_of: &'static str, source_sha256_16: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::clone(&self) -> nika_catalog::model::PricingSnapshot
+impl core::cmp::Eq for nika_catalog::model::PricingSnapshot
+impl core::cmp::PartialEq for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::eq(&self, other: &nika_catalog::model::PricingSnapshot) -> bool
+impl core::fmt::Debug for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::model::PricingSnapshot
+impl core::marker::StructuralPartialEq for nika_catalog::model::PricingSnapshot
+impl<D> owo_colors::OwoColorize for nika_catalog::model::PricingSnapshot
+impl<T, U> core::convert::Into<U> for nika_catalog::model::PricingSnapshot where U: core::convert::From<T>
+pub fn nika_catalog::model::PricingSnapshot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::model::PricingSnapshot where U: core::convert::Into<T>
+pub type nika_catalog::model::PricingSnapshot::Error = core::convert::Infallible
+pub fn nika_catalog::model::PricingSnapshot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::model::PricingSnapshot where U: core::convert::TryFrom<T>
+pub type nika_catalog::model::PricingSnapshot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::model::PricingSnapshot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::model::PricingSnapshot where T: core::clone::Clone
+pub type nika_catalog::model::PricingSnapshot::Owned = T
+pub fn nika_catalog::model::PricingSnapshot::clone_into(&self, target: &mut T)
+pub fn nika_catalog::model::PricingSnapshot::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::model::PricingSnapshot where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::model::PricingSnapshot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::model::PricingSnapshot where T: ?core::marker::Sized
+pub fn nika_catalog::model::PricingSnapshot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::model::PricingSnapshot where T: ?core::marker::Sized
+pub fn nika_catalog::model::PricingSnapshot::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::model::PricingSnapshot where T: core::clone::Clone
+pub unsafe fn nika_catalog::model::PricingSnapshot::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::model::PricingSnapshot where T: 'static
+pub fn nika_catalog::model::PricingSnapshot::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::types::Provider
 pub nika_catalog::types::Provider::aliases: &'static [&'static str]
 pub nika_catalog::types::Provider::api_dialect: core::option::Option<&'static str>
@@ -8429,6 +8550,46 @@ impl<T> core::convert::From<T> for nika_catalog::tokenizer::ParseTokenizerFamily
 pub fn nika_catalog::tokenizer::ParseTokenizerFamilyError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::tokenizer::ParseTokenizerFamilyError where T: 'static
 pub fn nika_catalog::tokenizer::ParseTokenizerFamilyError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::PricingSnapshot
+pub nika_catalog::PricingSnapshot::as_of: &'static str
+pub nika_catalog::PricingSnapshot::source: &'static str
+pub nika_catalog::PricingSnapshot::source_sha256_16: &'static str
+impl nika_catalog::model::PricingSnapshot
+pub const fn nika_catalog::model::PricingSnapshot::new(source: &'static str, as_of: &'static str, source_sha256_16: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::clone(&self) -> nika_catalog::model::PricingSnapshot
+impl core::cmp::Eq for nika_catalog::model::PricingSnapshot
+impl core::cmp::PartialEq for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::eq(&self, other: &nika_catalog::model::PricingSnapshot) -> bool
+impl core::fmt::Debug for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::model::PricingSnapshot
+impl core::marker::StructuralPartialEq for nika_catalog::model::PricingSnapshot
+impl<D> owo_colors::OwoColorize for nika_catalog::model::PricingSnapshot
+impl<T, U> core::convert::Into<U> for nika_catalog::model::PricingSnapshot where U: core::convert::From<T>
+pub fn nika_catalog::model::PricingSnapshot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::model::PricingSnapshot where U: core::convert::Into<T>
+pub type nika_catalog::model::PricingSnapshot::Error = core::convert::Infallible
+pub fn nika_catalog::model::PricingSnapshot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::model::PricingSnapshot where U: core::convert::TryFrom<T>
+pub type nika_catalog::model::PricingSnapshot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::model::PricingSnapshot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::model::PricingSnapshot where T: core::clone::Clone
+pub type nika_catalog::model::PricingSnapshot::Owned = T
+pub fn nika_catalog::model::PricingSnapshot::clone_into(&self, target: &mut T)
+pub fn nika_catalog::model::PricingSnapshot::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::model::PricingSnapshot where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::model::PricingSnapshot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::model::PricingSnapshot where T: ?core::marker::Sized
+pub fn nika_catalog::model::PricingSnapshot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::model::PricingSnapshot where T: ?core::marker::Sized
+pub fn nika_catalog::model::PricingSnapshot::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::model::PricingSnapshot where T: core::clone::Clone
+pub unsafe fn nika_catalog::model::PricingSnapshot::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::model::PricingSnapshot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::model::PricingSnapshot where T: 'static
+pub fn nika_catalog::model::PricingSnapshot::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::Provider
 pub nika_catalog::Provider::aliases: &'static [&'static str]
 pub nika_catalog::Provider::api_dialect: core::option::Option<&'static str>
@@ -8609,6 +8770,7 @@ pub fn nika_catalog::all_providers() -> &'static [nika_catalog::provider::Provid
 pub fn nika_catalog::all_transforms() -> &'static [nika_catalog::transform::TransformDef]
 pub fn nika_catalog::estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
 pub fn nika_catalog::estimate_cost_for(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
+pub fn nika_catalog::estimate_cost_usage_for(model: &str, input_tokens: u64, output_tokens: u64, cache_read_tokens: u64, cache_write_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
 pub fn nika_catalog::find_builtin(name: &str) -> core::option::Option<&'static nika_catalog::builtin::Builtin>
 pub fn nika_catalog::find_embedding(id: &str) -> core::option::Option<&'static nika_catalog::embedding::Embedding>
 pub fn nika_catalog::find_mcp_server(name: &str) -> core::option::Option<&'static nika_catalog::mcp_server::McpServer>
@@ -8621,6 +8783,7 @@ pub fn nika_catalog::is_known_builtin(name: &str) -> bool
 pub fn nika_catalog::is_known_mcp_server(name: &str) -> bool
 pub fn nika_catalog::is_known_transform(name: &str) -> bool
 pub fn nika_catalog::model_capabilities(provider: &str, model: &str) -> nika_catalog::model::ModelCapabilities
+pub fn nika_catalog::pricing_snapshot() -> &'static nika_catalog::model::PricingSnapshot
 pub fn nika_catalog::resolve_mcp_name(name: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_catalog::suggest(query: &str) -> alloc::vec::Vec<nika_catalog::suggest::Suggestion>
 pub fn nika_catalog::suggest_in(query: &str, namespace: nika_catalog::suggest::Namespace) -> alloc::vec::Vec<nika_catalog::suggest::Suggestion>

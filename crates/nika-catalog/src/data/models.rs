@@ -156,17 +156,51 @@ pub fn find_pricing_for(model: &str) -> Option<&'static ModelPricing> {
     }
 }
 
-/// The pricing math — one site for both estimate surfaces.
+/// The pricing math — ONE site for every estimate surface.
+///
+/// The token split follows the `OTel` `gen_ai` semantics the wires
+/// normalize to: `input_tokens` INCLUDES the cache subsets (read +
+/// write), so the full-rate portion is the remainder. Cache rates fall
+/// back to the input rate when the catalog does not disclose them (the
+/// pre-@1.1 approximation — documented, and rare now that the snapshot
+/// carries upstream cache rates).
 #[cfg(feature = "pricing")]
 // REASON: casting `u64` token counts to `f64` for the rate multiplication.
 // Token counts cap at provider context windows (≤ 10 M = 2²³), well below
 // the `f64` precision horizon (2⁵³). A saturating conversion would hide a
 // real data bug if that ever changed; the cast is the right primitive here.
 #[allow(clippy::cast_precision_loss)]
-fn usd_for(pricing: &ModelPricing, input_tokens: u64, output_tokens: u64) -> f64 {
-    (input_tokens as f64 * pricing.input_per_million
+fn usd_for_split(
+    pricing: &ModelPricing,
+    input_tokens: u64,
+    output_tokens: u64,
+    cache_read_tokens: u64,
+    cache_write_tokens: u64,
+) -> f64 {
+    // Saturating: a provider reporting cache subsets larger than the
+    // whole input is a wire bug — clamp the full-rate portion at zero,
+    // never let it go negative.
+    let uncached = input_tokens
+        .saturating_sub(cache_read_tokens)
+        .saturating_sub(cache_write_tokens);
+    let read_rate = pricing
+        .cache_read_per_million
+        .unwrap_or(pricing.input_per_million);
+    let write_rate = pricing
+        .cache_write_per_million
+        .unwrap_or(pricing.input_per_million);
+    (uncached as f64 * pricing.input_per_million
+        + cache_read_tokens as f64 * read_rate
+        + cache_write_tokens as f64 * write_rate
         + output_tokens as f64 * pricing.output_per_million)
         / 1_000_000.0
+}
+
+/// The cache-blind projection of [`usd_for_split`] (both estimate
+/// surfaces that predate the split keep their exact behavior).
+#[cfg(feature = "pricing")]
+fn usd_for(pricing: &ModelPricing, input_tokens: u64, output_tokens: u64) -> f64 {
+    usd_for_split(pricing, input_tokens, output_tokens, 0, 0)
 }
 
 /// Estimate cost for a model invocation.
@@ -197,6 +231,39 @@ pub fn estimate_cost_for(
     let pricing = find_pricing_for(model)?;
     Some(CostEstimate::new(
         usd_for(pricing, input_tokens, output_tokens),
+        pricing.input_per_million,
+        pricing.output_per_million,
+        model.to_string(),
+        pricing.provider.to_string(),
+    ))
+}
+
+/// Estimate cost for a RESOLVED model string with the FULL usage split —
+/// cache reads/writes priced at their catalog rates when disclosed
+/// (falling back to the input rate otherwise).
+///
+/// `input_tokens` INCLUDES the cache subsets — the `OTel` `gen_ai`
+/// semantics every wire normalizes to; the full-rate portion is the
+/// remainder. `None` when the model has no catalog price (mock ·
+/// unknown local) — the caller emits nothing rather than a fake number.
+#[cfg(feature = "pricing")]
+#[must_use]
+pub fn estimate_cost_usage_for(
+    model: &str,
+    input_tokens: u64,
+    output_tokens: u64,
+    cache_read_tokens: u64,
+    cache_write_tokens: u64,
+) -> Option<CostEstimate> {
+    let pricing = find_pricing_for(model)?;
+    Some(CostEstimate::new(
+        usd_for_split(
+            pricing,
+            input_tokens,
+            output_tokens,
+            cache_read_tokens,
+            cache_write_tokens,
+        ),
         pricing.input_per_million,
         pricing.output_per_million,
         model.to_string(),
@@ -500,6 +567,90 @@ mod tests {
         assert!(est.usd.abs() < f64::EPSILON);
     }
 
+    // ── usd_for_split / estimate_cost_usage_for (cache-aware math) ──
+
+    /// A synthetic row with disclosed cache rates (anthropic-shaped:
+    /// read = 0.1× input · write = 1.25× input).
+    fn cached_pricing() -> ModelPricing {
+        ModelPricing::new(
+            "demo",
+            "demo-cached",
+            3.0,
+            15.0,
+            Some(3.75),
+            Some(0.30),
+            None,
+            None,
+        )
+    }
+
+    #[test]
+    fn split_prices_cache_subsets_at_their_rates() {
+        // 1000 input = 600 uncached + 300 read + 100 write · 200 output.
+        let p = cached_pricing();
+        let usd = usd_for_split(&p, 1000, 200, 300, 100);
+        let expected = (600.0 * 3.0 + 300.0 * 0.30 + 100.0 * 3.75 + 200.0 * 15.0) / 1e6;
+        assert!((usd - expected).abs() < 1e-12, "got {usd}, want {expected}");
+    }
+
+    #[test]
+    fn split_cache_reads_are_cheaper_writes_dearer() {
+        // The two directions of the pre-split lie: reads billed at the
+        // full input rate OVERCOUNTED · writes not billed UNDERCOUNTED.
+        let p = cached_pricing();
+        let blind = usd_for_split(&p, 1000, 0, 0, 0);
+        assert!(usd_for_split(&p, 1000, 0, 1000, 0) < blind, "read discount");
+        assert!(usd_for_split(&p, 1000, 0, 0, 1000) > blind, "write premium");
+    }
+
+    #[test]
+    fn split_without_disclosed_rates_falls_back_to_input_rate() {
+        // No cache rates in the row → the subsets bill at the input rate:
+        // exactly the cache-blind figure, never a silent different number.
+        let p = ModelPricing::new("demo", "demo-plain", 3.0, 15.0, None, None, None, None);
+        let blind = usd_for_split(&p, 1000, 50, 0, 0);
+        let split = usd_for_split(&p, 1000, 50, 700, 300);
+        assert!((split - blind).abs() < 1e-12);
+    }
+
+    #[test]
+    fn split_clamps_oversized_subsets() {
+        // A wire bug reporting subsets larger than the whole input must
+        // clamp the full-rate portion at zero — never negative math.
+        let p = cached_pricing();
+        let usd = usd_for_split(&p, 100, 0, 200, 0);
+        let expected = (200.0 * 0.30) / 1e6;
+        assert!((usd - expected).abs() < 1e-12, "got {usd}, want {expected}");
+    }
+
+    #[test]
+    fn estimate_cost_usage_for_zero_subsets_matches_estimate_cost_for() {
+        let a = estimate_cost_usage_for("openai/gpt-4o-mini", 1000, 500, 0, 0).expect("priced");
+        let b = estimate_cost_for("openai/gpt-4o-mini", 1000, 500).expect("priced");
+        assert!((a.usd - b.usd).abs() < 1e-15, "zero split = the same math");
+        assert_eq!(a.model, b.model);
+        assert_eq!(a.provider, b.provider);
+    }
+
+    #[test]
+    fn estimate_cost_usage_for_unpriced_is_none() {
+        assert!(estimate_cost_usage_for("mock/mock-echo", 100, 50, 10, 0).is_none());
+        assert!(estimate_cost_usage_for("ollama/qwen3.5:4b", 100, 50, 10, 0).is_none());
+    }
+
+    #[test]
+    fn live_catalog_cache_read_discount_holds() {
+        // Integration over the REAL snapshot: anthropic discloses cache
+        // rates upstream — a fully-cached-read prompt must cost LESS than
+        // the same prompt uncached (rate ordering, not pinned dollars —
+        // the born-stale law).
+        let p = find_pricing_for("anthropic/claude-sonnet-4-5").expect("priced");
+        let read_rate = p
+            .cache_read_per_million
+            .expect("anthropic discloses cache_read");
+        assert!(read_rate < p.input_per_million, "read is a discount");
+    }
+
     #[test]
     fn gpt4p1_variants_differentiated() {
         let nano = find_pricing("gpt-4.1-nano").unwrap();
@@ -660,32 +811,45 @@ mod tests {
     }
 
     #[test]
-    fn all_pricing_optional_axes_none_for_now() {
-        // Phase E2 structural migration — real per-provider rates land in 4b.
-        // Until then, all 4 optional axes must be None. This test prevents
-        // accidental population without updating the corresponding docs.
+    fn all_pricing_cache_axes_populated_image_reasoning_reserved() {
+        // Cost Intelligence 2026-07-07: the refresh emits upstream cache
+        // rates (models.dev cache_read/cache_write) — a healthy snapshot
+        // carries them on a meaningful share of rows (anthropic + openai
+        // at minimum disclose them). Image/reasoning axes stay RESERVED:
+        // the refresh does not emit them yet and the cost math must not
+        // silently start reading a value nobody vendored.
+        let cached = ALL_PRICING
+            .iter()
+            .filter(|p| p.cache_read_per_million.is_some())
+            .count();
+        assert!(cached > 50, "cache_read rates vendored (got {cached})");
+        // NOTE: `read ≤ input` is NOT asserted per-row — upstream carries
+        // real exceptions (openrouter tencent/hy3: read 0.5 > input 0.2,
+        // verified 2026-07-07). The math is an honest passthrough of the
+        // catalog; the flagship-discount property is pinned separately on
+        // anthropic (`live_catalog_cache_read_discount_holds`).
         for p in ALL_PRICING {
             assert_eq!(
-                p.cache_write_per_million, None,
-                "{}/{}",
-                p.provider, p.model_pattern
-            );
-            assert_eq!(
-                p.cache_read_per_million, None,
-                "{}/{}",
-                p.provider, p.model_pattern
-            );
-            assert_eq!(
                 p.image_per_million, None,
-                "{}/{}",
+                "{}/{} image axis is reserved",
                 p.provider, p.model_pattern
             );
             assert_eq!(
                 p.reasoning_tokens_per_million, None,
-                "{}/{}",
+                "{}/{} reasoning axis is reserved",
                 p.provider, p.model_pattern
             );
         }
+    }
+
+    #[test]
+    fn pricing_snapshot_provenance_is_machine_readable() {
+        // The doctor/check surfaces read THIS — codegen already validated
+        // shape at build; pin the contract from the consumer side too.
+        let s = crate::pricing_snapshot();
+        assert!(s.source.starts_with("https://"), "got {}", s.source);
+        assert_eq!(s.as_of.len(), 10, "ISO date, got {}", s.as_of);
+        assert_eq!(s.source_sha256_16.len(), 16, "got {}", s.source_sha256_16);
     }
 }
 

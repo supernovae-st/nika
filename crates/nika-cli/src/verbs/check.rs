@@ -89,6 +89,10 @@ pub fn run(path: &str, json: bool, native_strict: bool, theme: Theme) -> VerbOut
 /// UNKNOWN is null, never 0.00 — a missing price must look missing.
 /// Rates only (USD per 1M tokens): token counts are unknowable
 /// statically; the estimate with honest bounds is the next arc.
+///
+/// `snapshot` = the vendored catalog's provenance (source · `as_of` ·
+/// sha) + derived counts — the machine-readable answer to « priced
+/// against WHAT, from WHEN? » (no surveyed tool ships this · 2026-07).
 fn pricing_section(report: &nika_schema::check::CheckReport) -> serde_json::Value {
     let models: Vec<serde_json::Value> = report
         .requirements
@@ -103,7 +107,20 @@ fn pricing_section(report: &nika_schema::check::CheckReport) -> serde_json::Valu
             })
         })
         .collect();
-    serde_json::json!({ "models": models })
+    let snap = nika_catalog::pricing_snapshot();
+    let rules = nika_catalog::all_pricing();
+    let providers: std::collections::BTreeSet<&str> = rules.iter().map(|p| p.provider).collect();
+    serde_json::json!({
+        "snapshot": {
+            "source": snap.source,
+            "as_of": snap.as_of,
+            "source_sha256_16": snap.source_sha256_16,
+            // DERIVED at read time, never embedded (the born-stale law).
+            "rules": rules.len(),
+            "providers": providers.len(),
+        },
+        "models": models,
+    })
 }
 
 /// Section mark: `✔`-class verdict glyphs through the theme seam.

@@ -18,6 +18,49 @@ use core::ops::{Add, Sub};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+/// Why a task that could have carried real spend reports no (or a
+/// partial) `cost_usd` — the honest-absence contract's WHY channel.
+///
+/// Absent cost was already honest (never a fake zero); this names the
+/// reason so `unknown` is never masked: a trace consumer can distinguish
+/// « local compute · not priced » from « the provider went silent ».
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[non_exhaustive]
+pub enum UnpricedReason {
+    /// The model runs on a local server (ollama · lmstudio · llama.cpp ·
+    /// localai · vllm) — local compute is not priced. Never « free ».
+    LocalModel,
+    /// The mock/test provider — spends nothing by construction.
+    MockProvider,
+    /// The model string resolved to no row in the vendored pricing
+    /// catalog (custom endpoint · brand-new model · private deal).
+    MissingCatalogPrice,
+    /// The provider's response carried no usable usage split — a priced
+    /// model whose spend is REAL but unknowable (never guessed).
+    ProviderDidNotReportUsage,
+}
+
+impl UnpricedReason {
+    /// The `snake_case` wire form (the `cost_unpriced` trace field).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::LocalModel => "local_model",
+            Self::MockProvider => "mock_provider",
+            Self::MissingCatalogPrice => "missing_catalog_price",
+            Self::ProviderDidNotReportUsage => "provider_did_not_report_usage",
+        }
+    }
+}
+
+impl fmt::Display for UnpricedReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Cost in nano-USD (1e-9 USD). Signed to support credits/refunds.
 ///
 /// # Display

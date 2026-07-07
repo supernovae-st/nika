@@ -481,6 +481,14 @@ struct RunArgs {
     /// never carry them anyway.
     #[arg(long)]
     no_outputs: bool,
+    /// Operator run budget over METERED spend (USD). Refuses to start
+    /// when the static cost floor already exceeds it; during the run the
+    /// crossing call completes and counts, nothing new starts, unstarted
+    /// tasks cancel (NIKA-1704 carries spent-vs-budget). Local · mock ·
+    /// unpriced work is never blocked — the budget bounds what the
+    /// pricing catalog can meter (the preflight says so when it applies).
+    #[arg(long = "max-cost-usd", value_name = "USD")]
+    max_cost_usd: Option<f64>,
 }
 
 #[derive(Args)]
@@ -711,6 +719,7 @@ fn run_verb(args: &RunArgs, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
         args.no_trace_file || env_flag("NIKA_NO_TRACE_FILE"),
         args.task.as_deref(),
         args.no_outputs,
+        args.max_cost_usd,
     )
 }
 
