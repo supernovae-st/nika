@@ -61,6 +61,15 @@ fn serve<R: std::io::BufRead, W: std::io::Write>(mut wire: Wire<R, W>) -> u8 {
                             }),
                         );
                     }
+                    if let Some(note) = &s.truncated_note {
+                        wire.emit(
+                            "output",
+                            serde_json::json!({
+                                "category": "console",
+                                "output": format!("⚠ {note} — this replay shows the run's valid prefix only\n"),
+                            }),
+                        );
+                    }
                     if s.drifted == Some(true) {
                         wire.emit(
                             "output",
