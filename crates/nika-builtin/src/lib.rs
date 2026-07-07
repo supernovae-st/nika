@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika-builtin` — the 24 canonical stdlib v0.1 builtins (L1.5).
+//! `nika-builtin` — the canonical stdlib v0.1 builtins (L1.5 · the
+//! live count is the catalog's, never prose).
 //!
 //! ONE dispatcher ([`BuiltinDispatcher`]) implements the three kernel tool
 //! seams the verbs consume — [`ToolExecuteDyn`] + [`ToolBatchDyn`]
@@ -36,14 +37,17 @@ pub mod image;
 pub mod inspect;
 pub(crate) mod media;
 pub mod net;
+pub(crate) mod net_payload;
+pub(crate) mod net_traverse;
 pub mod permits;
 pub mod tts;
+pub(crate) mod wire;
 
 use std::sync::Arc;
 
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::io::clock::ClockDyn;
-use nika_kernel::io::fs::{FsListDyn, FsReadDyn, FsWriteDyn};
+use nika_kernel::io::fs::{FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
 use nika_kernel::io::http::{HttpGetDyn, HttpPostDyn};
 use nika_kernel::runtime::tool_executor::{
     ToolBatchDyn, ToolCall, ToolErrorMeta, ToolExecError, ToolExecuteDyn, ToolResult,
@@ -342,7 +346,7 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
 
 impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W>
 where
-    F: FsReadDyn + FsWriteDyn + FsListDyn,
+    F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn,
     H: HttpGetDyn + HttpPostDyn,
     C: ClockDyn,
     Em: Emitter,
@@ -424,8 +428,16 @@ where
             "uuid" => Ok(date::uuid(args)),
             "date" => Ok(date::date(self.clock.as_ref(), args)),
             "hash" => Ok(data::hash(args)),
-            // network 2
-            "fetch" => Ok(net::fetch(self.http.as_ref(), args).await),
+            // network 2 — fetch's `multipart:` file parts ride the SAME
+            // permits.fs READ boundary as the file builtins (gated inside
+            // resolve_multipart · before any byte is read).
+            "fetch" => Ok(net::fetch(
+                self.http.as_ref(),
+                self.fs.as_ref(),
+                &self.fs_boundary,
+                args,
+            )
+            .await),
             "notify" => Ok(net::notify(self.http.as_ref(), args).await),
             // media 1 — provider calls ride the IMAGE PLANE (a dedicated
             // seam · const endpoints); saves ride the permits.fs boundary
@@ -562,7 +574,7 @@ fn render(call_id: &str, outcome: BuiltinOutcome) -> ToolResult {
 
 impl<F, H, C, Em, P, W> ToolExecuteDyn for BuiltinDispatcher<F, H, C, Em, P, W>
 where
-    F: FsReadDyn + FsWriteDyn + FsListDyn + Send + Sync,
+    F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync,
     H: HttpGetDyn + HttpPostDyn + Send + Sync,
     C: ClockDyn + Send + Sync,
     Em: Emitter,
@@ -577,7 +589,7 @@ where
 
 impl<F, H, C, Em, P, W> ToolBatchDyn for BuiltinDispatcher<F, H, C, Em, P, W>
 where
-    F: FsReadDyn + FsWriteDyn + FsListDyn + Send + Sync,
+    F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync,
     H: HttpGetDyn + HttpPostDyn + Send + Sync,
     C: ClockDyn + Send + Sync,
     Em: Emitter,
@@ -595,7 +607,7 @@ where
 
 impl<F, H, C, Em, P, W> ToolDefinitionProviderDyn for BuiltinDispatcher<F, H, C, Em, P, W>
 where
-    F: FsReadDyn + FsWriteDyn + FsListDyn + Send + Sync,
+    F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync,
     H: HttpGetDyn + HttpPostDyn + Send + Sync,
     C: ClockDyn + Send + Sync,
     Em: Emitter,

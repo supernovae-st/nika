@@ -7,13 +7,15 @@
 //! L1 http effect (3-layer · s5), this layer never re-implements it.
 //!
 //! `nika:fetch` is web-CONTENT acquisition: the kernel http GET/POST,
-//! then the `mode:` extraction (`nika-extract` · 8 modes) — `mode: jq`
+//! then the `mode:` extraction (`nika-extract`) — `mode: jq`
 //! composes THIS crate's one jq engine (`data::jq`), never a second one.
 
 use bytes::Bytes;
 use nika_extract::{ExtractMode, ExtractOptions};
+use nika_kernel::io::fs::{FsMetaDyn, FsReadDyn};
 use nika_kernel::io::http::{HttpError, HttpGetDyn, HttpMethod, HttpPostDyn, HttpRequest};
 
+use crate::permits::FsBoundary;
 use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str};
 
 /// Map the two NET SECURITY-BOUNDARY errors to their spec-plane codes, shared
@@ -23,7 +25,7 @@ use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str};
 /// are `security_error` · non-transient · never fed back to an `agent:` model
 /// (a boundary is not negotiation material). `None` for transport-plane
 /// errors — the caller maps those per its own retry contract.
-fn net_security_failure(e: &HttpError) -> Option<BuiltinFailure> {
+pub(crate) fn net_security_failure(e: &HttpError) -> Option<BuiltinFailure> {
     match e {
         HttpError::HostNotAllowed { host } => Some(BuiltinFailure::new(
             crate::permits::SEC_DENIED,
@@ -53,9 +55,20 @@ fn net_security_failure(e: &HttpError) -> Option<BuiltinFailure> {
 /// mode is otherwise linear in the (capped) body. A panic inside the
 /// closure unwinds (workspace `panic = "unwind"`) to a `JoinError`
 /// handled at the call site — it is never a process-wide abort.
-pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutcome {
+pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn + FsMetaDyn>(
+    http: &H,
+    fs: &F,
+    boundary: &FsBoundary,
+    args: &Args,
+) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-FETCH-001";
     let url = req_str(args, "url", C)?;
+    // `traverse:` is the bounded-crawl family — it owns its whole arg
+    // surface (exclusivity · GET-only · closed spec) and its own output
+    // shape, so it branches before any single-fetch vetting.
+    if args.contains_key("traverse") {
+        return crate::net_traverse::traverse(http, url, args).await;
+    }
     let method = opt_str(args, "method", C)?.unwrap_or("GET").to_uppercase();
     // Vet the mode + arg pairings BEFORE the network call — a bad
     // `mode:` or a silently-droppable `selector:`/`jq:` should fail
@@ -80,7 +93,7 @@ pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn>(http: &H, args: &Args) ->
     // ONE method parse — routing + the wire request both derive from
     // the enum (no string re-match to desync).
     let http_method = parse_method(&method).map_err(|m| BuiltinFailure::new(C, m))?;
-    let request = build_request(http_method, url, args).map_err(|m| BuiltinFailure::new(C, m))?;
+    let request = crate::net_payload::prepare_request(http_method, url, fs, boundary, args).await?;
     // MUTATION (equivalent under the mock): GET/HEAD route to .get(), all
     // else to .post() — but a test double serves both identically and the
     // recorded request carries its own method, so deleting this arm is
@@ -104,11 +117,16 @@ pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn>(http: &H, args: &Args) ->
         // `details.status_code` carries the status (stdlib §fetch ·
         // normative) — branching on 403 vs 429 must never mean parsing
         // the human message.
-        return Err(
-            BuiltinFailure::new(C, format!("HTTP {} from {url}", response.status))
-                .with_transient(is_transient_status(response.status))
-                .with_details(serde_json::json!({ "status_code": response.status })),
-        );
+        return Err(BuiltinFailure::new(
+            C,
+            format!(
+                "HTTP {} from {}",
+                response.status,
+                crate::wire::redact_url(url)
+            ),
+        )
+        .with_transient(is_transient_status(response.status))
+        .with_details(serde_json::json!({ "status_code": response.status })));
     }
 
     // Gather the extraction inputs (owned) BEFORE handing off, so the
@@ -262,7 +280,10 @@ fn decode_utf8_strict(body: &[u8], code: &'static str) -> Result<String, Builtin
 /// Lossy by design — extraction is best-effort cleanup, a stray byte
 /// must not sink the page (the strict path is `raw`/`jq` above). `Cow`:
 /// clean UTF-8 (the web's majority) BORROWS — no copy.
-fn decode_charset<'a>(body: &'a [u8], content_type: Option<&str>) -> std::borrow::Cow<'a, str> {
+pub(crate) fn decode_charset<'a>(
+    body: &'a [u8],
+    content_type: Option<&str>,
+) -> std::borrow::Cow<'a, str> {
     let encoding = encoding_rs::Encoding::for_bom(body)
         .map(|(enc, _bom_len)| enc)
         .or_else(|| {
@@ -409,7 +430,11 @@ fn parse_method(method: &str) -> Result<HttpMethod, String> {
     }
 }
 
-fn build_request(method: HttpMethod, url: &str, args: &Args) -> Result<HttpRequest, String> {
+pub(super) fn build_request(
+    method: HttpMethod,
+    url: &str,
+    args: &Args,
+) -> Result<HttpRequest, String> {
     let mut request = HttpRequest::get(url);
     request.method = method;
     if let Some(headers) = args.get("headers").and_then(serde_json::Value::as_object) {
@@ -435,7 +460,7 @@ fn build_request(method: HttpMethod, url: &str, args: &Args) -> Result<HttpReque
 
 /// The spec's status→retryability table (stdlib §fetch · normative):
 /// 5xx, 408 (request timeout) and 429 (rate limit) are transient.
-fn is_transient_status(status: u16) -> bool {
+pub(crate) fn is_transient_status(status: u16) -> bool {
     matches!(status, 500..=599 | 408 | 429)
 }
 
@@ -495,13 +520,20 @@ pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutc
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nika_kernel_mock::MockHttp;
+    use nika_kernel_mock::{MockFs, MockHttp};
 
     fn args(v: serde_json::Value) -> Args {
         match v {
             serde_json::Value::Object(map) => map,
             other => panic!("test arg must be an object, got {other}"),
         }
+    }
+
+    /// Test adapter — shadows `super::fetch` with the no-fs/no-boundary
+    /// shape most cases need (multipart file-part tests call
+    /// `super::fetch` with a real `MockFs` + declared boundary).
+    async fn fetch(http: &MockHttp, args: &Args) -> BuiltinOutcome {
+        super::fetch(http, &MockFs::new(), &FsBoundary::unbounded(), args).await
     }
 
     #[tokio::test]
@@ -521,6 +553,25 @@ mod tests {
         assert!(
             matches!(fail, Err(f) if f.code == "NIKA-BUILTIN-FETCH-001" && f.message.contains("404"))
         );
+    }
+
+    #[tokio::test]
+    async fn non_2xx_failure_message_never_echoes_userinfo() {
+        let http = MockHttp::new().enqueue_ok(404, Vec::new());
+        let fail = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "https://user:hunter2@x.test/a" })),
+        )
+        .await;
+        let Err(f) = fail else {
+            panic!("404 must fail")
+        };
+        assert!(
+            !f.message.contains("hunter2"),
+            "credential echoed: {}",
+            f.message
+        );
+        assert!(f.message.contains("https://x.test/a"), "{}", f.message);
     }
 
     #[tokio::test]

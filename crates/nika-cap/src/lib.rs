@@ -23,6 +23,7 @@
 mod algebra;
 mod fit;
 mod permits;
+mod shape;
 
 // Public surface = the 4 capability types + their inherent methods (allows_* ·
 // union · intersect · new). The glob/normalize helpers stay crate-internal:
@@ -30,3 +31,4 @@ mod permits;
 // pub(crate)→pub later is additive, narrowing pub→pub(crate) would break. So the
 // surface starts minimal (Gate-11 rust-pro + spn-nika L1).
 pub use permits::{ExecPermit, FsPermits, NetPermits, Permits};
+pub use shape::builtin_shape_findings;

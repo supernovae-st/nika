@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · media-asset-pack · brief → generate assets → manifest.
+# The shape for « generate image (or audio) assets from a creative brief ».
+#
+# Instantiate (agents · deterministic) ·
+#   1. Copy this file · rename per the job (kebab-case).
+#   2. Fill every `# SLOT:` line · delete slot comments when filled.
+#   3. Validate · `nika check <file>` (or conformance/runner.py validate).
+#   4. Repair using the error's fix line · re-check until valid.
+# Native-first · generation is `nika:image_generate` (no provider curl ·
+# no OpenAI helper script); the manifest is `nika:jq` + `nika:write`.
+nika: v1
+workflow: media-asset-pack-template # SLOT: kebab-case workflow id
+description: "brief → render → manifest"  # SLOT: one honest sentence
+
+model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
+
+vars:
+  subject: "a calm cosmic landing hero"   # SLOT: what the asset is about
+  out_dir: "./out/assets"           # SLOT: where assets land
+
+tasks:
+  - id: brief
+    infer:
+      max_tokens: 600
+      prompt: |
+        # SLOT: the creative direction · style · constraints
+        Write one vivid, concrete image prompt for: ${{ vars.subject }}.
+        No text in the image · no watermark · a calm central zone.
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          image_prompt: { type: string }
+        required: [image_prompt]
+
+  - id: render
+    depends_on: [brief]
+    invoke:
+      tool: "nika:image_generate"
+      args:
+        provider: mock              # SLOT: local | openai | gemini | xai (local/mock first)
+        prompt: "${{ tasks.brief.output.image_prompt }}"
+        output_dir: "${{ vars.out_dir }}"
+        filename_prefix: "asset"    # SLOT: filename stem
+
+  - id: manifest
+    depends_on: [brief, render]
+    invoke:
+      tool: "nika:jq"
+      args:
+        expression: "{ brief: .[0], images: .[1].images }"
+        input:
+          - "${{ tasks.brief.output }}"
+          - "${{ tasks.render.output }}"
+
+  - id: persist
+    depends_on: [manifest]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "${{ vars.out_dir }}/manifest.json"
+        create_dirs: true
+        content: "${{ tasks.manifest.output }}"
+
+outputs:
+  manifest: ${{ tasks.manifest.output }}  # SLOT: the callable contract

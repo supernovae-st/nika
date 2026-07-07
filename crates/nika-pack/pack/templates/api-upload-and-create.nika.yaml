@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · api-upload-and-create · upload a file → create a resource from it.
+# The shape for « call a product API: multipart upload, then a JSON create ».
+#
+# Instantiate (agents · deterministic) ·
+#   1. Copy this file · rename per the job (kebab-case).
+#   2. Fill every `# SLOT:` line · delete slot comments when filled.
+#   3. Validate · `nika check <file>` (or conformance/runner.py validate).
+#   4. Repair using the error's fix line · re-check until valid.
+# Native-first · the upload is fetch `multipart:` (file parts ride the
+# permits.fs READ boundary); auth rides a masked secrets header; the
+# create is fetch JSON; extraction is the mode/jq pairing. Zero exec ·
+# no upload helper script.
+nika: v1
+workflow: api-upload-and-create-template  # SLOT: kebab-case workflow id
+description: "upload → create → result"   # SLOT: one honest sentence
+
+model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
+
+vars:
+  api_base: "https://api.example.com"     # SLOT: the product API base
+  asset_path: "./out/assets/asset-1.png"  # SLOT: the file to upload
+
+secrets:
+  API_KEY:
+    source: env
+    key: EXAMPLE_API_KEY            # SLOT: the OS env var holding the key
+    egress:
+      - to: "nika:fetch"            # the ONE sanctioned sink · default-deny otherwise
+
+tasks:
+  - id: upload
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ vars.api_base }}/upload"   # SLOT: the upload endpoint
+        method: POST
+        headers:
+          x-api-key: "${{ secrets.API_KEY }}"  # SLOT: the auth header name
+        multipart:
+          - { name: file, path: "${{ vars.asset_path }}" }
+          # SLOT: extra text fields · { name: directory, value: "assets" }
+        mode: jq
+        jq: ".url"                  # SLOT: where the response carries the asset URL
+
+  - id: create
+    depends_on: [upload]
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ vars.api_base }}/create"   # SLOT: the create endpoint
+        method: POST
+        headers:
+          x-api-key: "${{ secrets.API_KEY }}"
+        body:                       # SLOT: the create payload (objects auto-JSON)
+          asset_url: "${{ tasks.upload.output }}"
+        mode: jq
+        jq: "{ id: .id, url: .url }"   # SLOT: the fields downstream needs
+
+outputs:
+  result: ${{ tasks.create.output }}   # SLOT: the callable contract

@@ -160,6 +160,21 @@ fn v4_is_blocked(v4: core::net::Ipv4Addr) -> bool {
         || (o[0] == 192 && o[1] == 88 && o[2] == 99)
 }
 
+/// `nika:fetch` `traverse:` page ceiling — the bound shared by the
+/// static checker (`nika-schema` · the arg range rule + the effect
+/// certificate's worst-case) and the runtime crawl loop
+/// (`nika-builtin`), so the check-time bound and the run-time cap can
+/// never drift (the same one-definition rule as the host matcher
+/// above). Spec `stdlib/builtins-v0.1.md` §nika:fetch · traverse.
+pub const MAX_TRAVERSE_PAGES: u64 = 25;
+
+/// `nika:fetch` `multipart:` part-key vocabulary — the CLOSED shape
+/// (`{name, value}` text XOR `{name, path, filename?, content_type?}`
+/// file), shared by the static shape rule (`nika-schema`) and the
+/// runtime part resolver (`nika-builtin`) — one definition, no drift
+/// (the same rule as the traverse bound above).
+pub const MULTIPART_PART_KEYS: [&str; 5] = ["name", "value", "path", "filename", "content_type"];
+
 #[cfg(test)]
 mod tests {
     use super::*;

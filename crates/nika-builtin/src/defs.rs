@@ -9,7 +9,7 @@
 
 use nika_kernel::ai::provider::ToolDef;
 
-/// A small JSON-Schema object builder — keeps the 24 defs declarative.
+/// A small JSON-Schema object builder — keeps the defs declarative.
 fn schema(properties: serde_json::Value, required: &[&str]) -> serde_json::Value {
     let mut obj = serde_json::Map::new();
     obj.insert(
@@ -37,8 +37,8 @@ fn def(name: &str, desc: &str, properties: serde_json::Value, required: &[&str])
     ToolDef::new(format!("nika:{name}"), desc, schema(properties, required))
 }
 
-/// Every builtin's model-facing definition — the canonical 24 (core 6 +
-/// file 5 + data 8 + network 2 + introspection 2 + media 1).
+/// Every builtin's model-facing definition — the canonical set (the
+/// live count is the catalog's · asserted by the parity tests below).
 #[must_use]
 pub fn tool_defs() -> Vec<ToolDef> {
     let mut defs = core_defs();
@@ -304,8 +304,10 @@ fn net_defs() -> Vec<ToolDef> {
             serde_json::json!({
                 "url": s("the URL"),
                 "method": s("GET (default) | POST | PUT | DELETE | PATCH | HEAD"),
-                "headers": { "type": "object" },
-                "body": { "description": "request body (objects auto-JSON)" },
+                "headers": { "type": "object", "description": "string map · auth rides here: { x-api-key: \"${{ secrets.KEY }}\" }" },
+                "body": { "description": "request body (objects auto-JSON) · at most one of body/form/multipart" },
+                "form": { "type": "object", "description": "application/x-www-form-urlencoded scalar fields · POST/PUT/PATCH only" },
+                "multipart": { "type": "array", "description": "multipart/form-data parts · {name, value} text or {name, path, filename?, content_type?} file (path is permits.fs.read-gated · ≤32 MiB total) · POST/PUT/PATCH only" },
                 "mode": s("markdown (default) | article | text | selector | jq | metadata | links | feed | sitemap | raw"),
                 "selector": s("CSS selector (mode: selector only)"),
                 "jq": s("a jq expression (mode: jq only · the one data language)")
