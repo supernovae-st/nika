@@ -109,6 +109,18 @@ impl RunLedger {
         }
     }
 
+    /// Fold one successful dispatch — THE leaf debit site (plain tasks
+    /// and fan-out iterations both flow through the attempt loop; the
+    /// parent fan-out sum is presentation-only, so nothing double-counts
+    /// — the Sentry hierarchy lesson).
+    pub(crate) fn debit_ok(&self, ok: &crate::dispatch::DispatchOk) {
+        self.debit(
+            ok.cost_source.as_deref(),
+            ok.cost_usd,
+            ok.cost_unpriced.is_some(),
+        );
+    }
+
     /// Whether the budget has been crossed — the admission gates (wave
     /// members · fan-out iterations) consult this at pull time. Poison
     /// recovers via `into_inner` — the gate NEVER fails open.

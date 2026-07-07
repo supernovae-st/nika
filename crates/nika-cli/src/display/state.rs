@@ -212,27 +212,7 @@ impl RunView {
                     }
                 }
             }
-            EventKind::TaskCompleted => {
-                let usd = float_field(event, "cost_usd");
-                if let Some(i) = self.touch(event, TaskState::Ok) {
-                    self.stamp_terminal(i, ts, event, usd);
-                    self.keep_output(i, event);
-                    if let Some(tokens) = int_field(event, "tokens") {
-                        self.rows[i].tokens = u64::try_from(tokens).ok();
-                    }
-                }
-                // Live approximation (per-task) — the terminal frame's
-                // leaf-level `unpriced_calls` overwrites it at run end.
-                if str_field(event, "cost_unpriced").is_some() {
-                    self.unpriced_calls = self.unpriced_calls.saturating_add(1);
-                }
-                if let Some(usd) = usd {
-                    self.cost_usd += usd;
-                }
-                if let Some(tokens) = int_field(event, "tokens") {
-                    self.token_samples.push(u64::try_from(tokens).unwrap_or(0));
-                }
-            }
+            EventKind::TaskCompleted => self.apply_task_completed(event, ts),
             // ADR-099 `--resume` — a rehydrated success: the row reads Ok
             // with the "cache hit" note the frame carries (VISIBLE, never
             // silent); zero duration/spend (the task never ran here). The
@@ -290,6 +270,31 @@ impl RunView {
             // row state today. `#[non_exhaustive]` future kinds render
             // nothing rather than lying.
             _ => {}
+        }
+    }
+
+    /// One `task_completed` frame — row terminal stamp · output · tokens
+    /// · the live spend/unpriced fold (terminal-frame authoritative
+    /// values overwrite these at run end).
+    fn apply_task_completed(&mut self, event: &Event, ts: i64) {
+        let usd = float_field(event, "cost_usd");
+        if let Some(i) = self.touch(event, TaskState::Ok) {
+            self.stamp_terminal(i, ts, event, usd);
+            self.keep_output(i, event);
+            if let Some(tokens) = int_field(event, "tokens") {
+                self.rows[i].tokens = u64::try_from(tokens).ok();
+            }
+        }
+        // Live approximation (per-task) — the terminal frame's
+        // leaf-level `unpriced_calls` overwrites it at run end.
+        if str_field(event, "cost_unpriced").is_some() {
+            self.unpriced_calls = self.unpriced_calls.saturating_add(1);
+        }
+        if let Some(usd) = usd {
+            self.cost_usd += usd;
+        }
+        if let Some(tokens) = int_field(event, "tokens") {
+            self.token_samples.push(u64::try_from(tokens).unwrap_or(0));
         }
     }
 

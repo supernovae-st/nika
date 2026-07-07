@@ -22,6 +22,8 @@ pub mod generated;
 
 #[cfg(any(feature = "pricing", feature = "capabilities"))]
 pub mod models;
+#[cfg(all(test, feature = "pricing"))]
+mod pricing_math_tests;
 
 #[cfg(feature = "builtins-transforms")]
 pub mod transforms;

@@ -397,13 +397,9 @@ where
         // Iterations dispatch concurrently (cap = `max_parallel`) ·
         // settle in INPUT order (the same ordered-settlement law as
         // waves · positions stay aligned · spec 03 §null-at-index).
-        // The budget gate sits at ADMISSION (`take_while` — evaluated
-        // when `buffered` pulls the next future): once the ledger trips,
-        // in-flight iterations complete and count, unpulled ones never
-        // start — a cancelled provider call would spend unrecorded money.
-        // Serialization matters: with `max_parallel` ≥ the item count the
-        // whole fan-out is pulled before any debit lands — only a capped
-        // fan-out can starve mid-flight.
+        // Budget gate at ADMISSION (`take_while` runs at `buffered` PULL):
+        // in-flight complete and count · unpulled never start · with
+        // `max_parallel` ≥ items, only a capped fan-out starves mid-run.
         let mut stream = futures_util::stream::iter(
             items
                 .iter()
@@ -554,15 +550,7 @@ where
                     attempt_marks.push(agent_buffer.len());
                     match dispatched.result {
                         Ok(ok) => {
-                            // THE one leaf debit site (plain tasks + fan-out
-                            // iterations both flow here) — the parent fan-out
-                            // sum is presentation-only, so nothing double-
-                            // counts (the Sentry hierarchy lesson).
-                            ledger.debit(
-                                ok.cost_source.as_deref(),
-                                ok.cost_usd,
-                                ok.cost_unpriced.is_some(),
-                            );
+                            ledger.debit_ok(&ok); // THE leaf debit site
                             return Ok(ok);
                         }
                         Err(error) => {
@@ -592,30 +580,7 @@ where
                 }
             };
 
-            match budget {
-                None => attempts.await,
-                Some(limit) => {
-                    let attempts = std::pin::pin!(attempts);
-                    let timer = std::pin::pin!(self.clock.sleep(limit));
-                    match futures_util::future::select(attempts, timer).await {
-                        futures_util::future::Either::Left((result, _)) => result,
-                        futures_util::future::Either::Right(((), _)) => {
-                            // The attempt loop is dropped — futures
-                            // cancellation at the await point · exec
-                            // subprocesses die via the runner's
-                            // kill-on-drop contract.
-                            Err(TaskErrorRecord {
-                                code: TIMEOUT_CODE.to_owned(),
-                                message: format!(
-                                    "task exceeded its timeout of {} ms",
-                                    limit.as_millis()
-                                ),
-                                transient: false, // never retryable (spec 03)
-                            })
-                        }
-                    }
-                }
-            }
+            self.race_budget(attempts, budget).await
         };
 
         let duration_ms = self.since_ms(started);
@@ -634,6 +599,42 @@ where
             ),
             duration_ms,
             result,
+        }
+    }
+
+    /// Race the attempt future against the task's ONE `timeout:` budget
+    /// (spec 03 · the total across retries and their backoff sleeps).
+    async fn race_budget<F>(
+        &self,
+        attempts: F,
+        budget: Option<Duration>,
+    ) -> Result<DispatchOk, TaskErrorRecord>
+    where
+        F: Future<Output = Result<DispatchOk, TaskErrorRecord>>,
+    {
+        match budget {
+            None => attempts.await,
+            Some(limit) => {
+                let attempts = std::pin::pin!(attempts);
+                let timer = std::pin::pin!(self.clock.sleep(limit));
+                match futures_util::future::select(attempts, timer).await {
+                    futures_util::future::Either::Left((result, _)) => result,
+                    futures_util::future::Either::Right(((), _)) => {
+                        // The attempt loop is dropped — futures
+                        // cancellation at the await point · exec
+                        // subprocesses die via the runner's
+                        // kill-on-drop contract.
+                        Err(TaskErrorRecord {
+                            code: TIMEOUT_CODE.to_owned(),
+                            message: format!(
+                                "task exceeded its timeout of {} ms",
+                                limit.as_millis()
+                            ),
+                            transient: false, // never retryable (spec 03)
+                        })
+                    }
+                }
+            }
         }
     }
 

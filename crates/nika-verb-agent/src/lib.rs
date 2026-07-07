@@ -386,28 +386,22 @@ where
         let mut messages = opening_messages(&input);
         let mut turns: u32 = 0;
         let mut total_tokens: u64 = 0;
-        // The FULL usage split absorbed across every provider round-trip —
-        // `total_tokens` stays the budget-gate scalar (unchanged semantics);
-        // this is the pricing-grade record the dispatch layer bills from.
+        // Pricing-grade record (dispatch bills from it) — `total_tokens`
+        // stays the budget-gate scalar, unchanged semantics.
         let mut usage_total = TokenUsage::default();
         let mut tools_cost_usd = 0.0_f64;
         let mut last_text = String::new();
         let mut last_observations = String::new();
 
-        // `loop`, not `while turns < max_turns`: the Dispatch arm below is
-        // the SOLE max_turns authority (it fires BEFORE spending the final
-        // batch). A trailing `while`-condition exit could never be
-        // reached — every turn at the budget returns from inside — so a
-        // duplicate trailing `Err(MaxTurns)` would be dead, untestable
-        // code (J2 review fold).
+        // `loop`, not `while turns < max_turns`: the Dispatch arm is the
+        // SOLE max_turns authority (fires BEFORE spending the final batch)
+        // — a trailing `while` exit would be dead code (J2 review fold).
         loop {
             turns += 1;
             observer.on_event(&AgentEvent::TurnStarted { turn: turns });
 
             // Per-turn routing: rank the universe against the LIVE task
-            // context (prompt + the model's last words + last observations),
-            // each component budgeted so a long prompt can't evict the live
-            // tail the routing is supposed to read.
+            // context (prompt + last words + last observations · budgeted).
             let query = routing_query(&input.prompt, &last_text, &last_observations);
             let offered = route_turn(observer, &router, &defs, &query, turns);
 
@@ -427,8 +421,7 @@ where
                 last_text.clone_from(&text);
             }
 
-            // Decide this turn (terminals · security batch · budget) — the
-            // ONE place the loop's exit conditions live (spec §2 ordering).
+            // Decide this turn — the ONE exit-conditions site (spec §2).
             let ctx = TurnCtx {
                 input: &input,
                 whitelist: &whitelist,
@@ -436,9 +429,8 @@ where
                 total_tokens,
                 last_text: &last_text,
             };
-            // Terminal verdicts return one output (a `FinalText` answer is
-            // shaped to `schema:` here · BUG#11); Dispatch feeds results
-            // back and iterates. One Finished event, one exit point.
+            // Terminals return one output (FinalText shapes to `schema:` ·
+            // BUG#11); Dispatch feeds back and iterates. One exit point.
             let output = match classify_turn(&response, &text, &ctx)? {
                 TurnVerdict::Done(output) => *output,
                 TurnVerdict::FinalText { text, stop_reason } => {
@@ -475,17 +467,12 @@ where
                     continue;
                 }
             };
-            observer.on_event(&AgentEvent::Finished {
-                turns,
-                total_tokens,
-            });
-            // The loop's accumulated TOOL spend rides the output — absent
-            // (never zero) when no tool reported real cost. The usage
-            // split + resolved model ride along so the dispatch layer can
-            // price the LLM turns with the same resolver `infer` uses.
-            return Ok(output
-                .with_tools_cost_usd((tools_cost_usd > 0.0).then_some(tools_cost_usd))
-                .with_spend_identity(usage_total, model));
+            return Ok(finished(
+                observer,
+                output,
+                (turns, total_tokens),
+                (usage_total, model, tools_cost_usd),
+            ));
         }
     }
 
@@ -1033,6 +1020,27 @@ fn schema_request(
         request.response_format = ResponseFormat::JsonSchema(schema.clone());
     }
     request
+}
+
+/// Emit the `Finished` event + decorate the output with its spend
+/// identity: tool spend absent (never zero) when nothing reported ·
+/// the absorbed usage split + resolved model ride so the dispatch
+/// layer prices the LLM turns with the same resolver `infer` uses.
+fn finished(
+    observer: &dyn AgentObserver,
+    output: AgentOutput,
+    turn_totals: (u32, u64),
+    spend: (TokenUsage, String, f64),
+) -> AgentOutput {
+    let (turns, total_tokens) = turn_totals;
+    let (usage_total, model, tools_cost_usd) = spend;
+    observer.on_event(&AgentEvent::Finished {
+        turns,
+        total_tokens,
+    });
+    output
+        .with_tools_cost_usd((tools_cost_usd > 0.0).then_some(tools_cost_usd))
+        .with_spend_identity(usage_total, model)
 }
 
 /// Assemble a finalized structured output (INV-019 constructor reuse).
