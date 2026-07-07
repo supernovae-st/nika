@@ -23,6 +23,8 @@ foundation:
 templates:
   - file: templates/agent-loop.nika.yaml
     sha256_16: 305b7b4b04c2beaf
+  - file: templates/api-upload-and-create.nika.yaml
+    sha256_16: 11bf108efc4f6880
   - file: templates/chain.nika.yaml
     sha256_16: 8f4cfd3538943b22
   - file: templates/etl-state.nika.yaml
@@ -33,6 +35,10 @@ templates:
     sha256_16: e8a0c5e7f60f5e60
   - file: templates/human-gated-ship.nika.yaml
     sha256_16: 8a0675f074eecb75
+  - file: templates/media-asset-pack.nika.yaml
+    sha256_16: 1958bcdaac3dd2b9
+  - file: templates/website-brief.nika.yaml
+    sha256_16: 9f00bc97aa37b7da
 showcase:
   - file: examples/showcase/t1-meeting-actions.nika.yaml
     workflow: meeting-actions

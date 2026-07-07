@@ -47,6 +47,7 @@ counts:
   builtins: 25
   providers: 16
   extract_modes: 9
+  templates: 9
   error_namespaces: 14
   error_categories: 12
   error_codes: 50
@@ -172,6 +173,26 @@ extract_modes:
     - selector
     - sitemap
     - text
+
+# ---------------------------------------------------------------- templates
+# The instantiable skeletons (templates/*.nika.yaml · the deterministic
+# authoring path · agents instantiate, never invent). Additive per the
+# stress-to-ratchet trigger: a routing intent with no skeleton that
+# recurs across authoring sessions earns one. templates/README.md is
+# the prose home (the routing table).
+templates:
+  count: 9
+  reference: templates/README.md
+  items:
+    - agent-loop
+    - api-upload-and-create
+    - chain
+    - etl-state
+    - fanout
+    - gate-and-act
+    - human-gated-ship
+    - media-asset-pack
+    - website-brief
 
 # ---------------------------------------------------------------- error namespaces
 # Post NIKA-FETCH fold into NIKA-BUILTIN (commit b14bf091c · 2026-05-27 ·
