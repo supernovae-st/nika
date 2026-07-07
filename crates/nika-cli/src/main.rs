@@ -482,13 +482,31 @@ struct RunArgs {
     #[arg(long)]
     no_outputs: bool,
     /// Operator run budget over METERED spend (USD). Refuses to start
-    /// when the static cost floor already exceeds it; during the run the
-    /// crossing call completes and counts, nothing new starts, unstarted
-    /// tasks cancel (NIKA-1704 carries spent-vs-budget). Local · mock ·
-    /// unpriced work is never blocked — the budget bounds what the
-    /// pricing catalog can meter (the preflight says so when it applies).
-    #[arg(long = "max-cost-usd", value_name = "USD")]
+    /// (exit 2) when the static cost floor already exceeds it; during the
+    /// run the crossing call completes and counts, nothing new starts,
+    /// unstarted tasks cancel and the run fails NIKA-1704 (exit 1) with
+    /// spent-vs-budget — workflow `outputs:` are not resolved on a budget
+    /// stop (per-task values live in the trace). Spending EXACTLY the
+    /// budget does not trip it. Costs use LIST RATES from the vendored
+    /// public catalog — private/proxy/negotiated pricing is not
+    /// reflected; local · mock · unpriced work is never blocked (the
+    /// budget bounds what the catalog can meter).
+    #[arg(long = "max-cost-usd", value_name = "USD", value_parser = parse_budget_usd)]
     max_cost_usd: Option<f64>,
+}
+
+/// `--max-cost-usd` must be a real, non-negative dollar amount — `NaN`
+/// or `inf` would make every comparison false and silently DISARM the
+/// guard the operator believes is armed (the exact silent-no-protection
+/// class the budget exists to kill).
+fn parse_budget_usd(raw: &str) -> Result<f64, String> {
+    let value: f64 = raw.parse().map_err(|e| format!("not a number: {e}"))?;
+    if !value.is_finite() || value < 0.0 {
+        return Err(format!(
+            "must be a finite, non-negative USD amount (got {raw})"
+        ));
+    }
+    Ok(value)
 }
 
 #[derive(Args)]

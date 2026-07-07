@@ -293,17 +293,24 @@ impl RunView {
         }
     }
 
-    /// Stamp a ran-to-terminal row (completed · failed): the end stamp,
-    /// the runtime-measured duration, the per-task spend.
-    /// Fold the terminal frame's authoritative cost summary — the
-    /// leaf-level `unpriced_calls` (a fan-out counts its iterations)
-    /// overwrites the live per-task approximation.
+    /// Fold the terminal frame's AUTHORITATIVE cost summary over the
+    /// live per-task approximation: `unpriced_calls` is leaf-level (a
+    /// fan-out counts its iterations), and `total_cost_usd` also covers
+    /// spend the task frames cannot carry (a billed attempt whose task
+    /// later settled FAILED emits no `cost_usd` on `task_failed` — only
+    /// the run total remembers it; ignoring it would be the exact
+    /// partial-as-total lie this arc bans).
     fn absorb_terminal_cost(&mut self, event: &Event) {
         if let Some(n) = int_field(event, "unpriced_calls") {
             self.unpriced_calls = u64::try_from(n).unwrap_or(self.unpriced_calls);
         }
+        if let Some(total) = float_field(event, "total_cost_usd") {
+            self.cost_usd = total;
+        }
     }
 
+    /// Stamp a ran-to-terminal row (completed · failed): the end stamp,
+    /// the runtime-measured duration, the per-task spend.
     fn stamp_terminal(&mut self, i: usize, ts: i64, event: &Event, usd: Option<f64>) {
         let row = &mut self.rows[i];
         row.ended_ms = Some(ts);

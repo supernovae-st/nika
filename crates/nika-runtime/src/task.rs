@@ -401,6 +401,9 @@ where
         // when `buffered` pulls the next future): once the ledger trips,
         // in-flight iterations complete and count, unpulled ones never
         // start — a cancelled provider call would spend unrecorded money.
+        // Serialization matters: with `max_parallel` ≥ the item count the
+        // whole fan-out is pulled before any debit lands — only a capped
+        // fan-out can starve mid-flight.
         let mut stream = futures_util::stream::iter(
             items
                 .iter()

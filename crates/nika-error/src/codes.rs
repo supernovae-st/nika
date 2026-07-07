@@ -895,6 +895,14 @@ pub const NIKA_1702: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "runtime-unresolved-template",
 };
+/// NIKA-1703: A `when:` expression is outside the v0 gate subset
+/// (`<ref> == '<lit>'` · `<ref> != '<lit>'` · bare `<ref>`).
+pub const NIKA_1703: NikaCode = NikaCode {
+    num: 1703,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-when-unsupported",
+};
 /// NIKA-1704: The run crossed its operator budget (`--max-cost-usd`) —
 /// in-flight work completed and was counted; unstarted tasks were
 /// cancelled. The detail carries spent vs budget.
@@ -903,14 +911,6 @@ pub const NIKA_1704: NikaCode = NikaCode {
     category: Category::Runtime,
     severity: Severity::Error,
     slug: "runtime-budget-exceeded",
-};
-/// NIKA-1703: A `when:` expression is outside the v0 gate subset
-/// (`<ref> == '<lit>'` · `<ref> != '<lit>'` · bare `<ref>`).
-pub const NIKA_1703: NikaCode = NikaCode {
-    num: 1703,
-    category: Category::Runtime,
-    severity: Severity::Error,
-    slug: "runtime-when-unsupported",
 };
 
 /// All registered codes within nika-error's own ranges + the M2

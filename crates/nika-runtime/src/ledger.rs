@@ -12,6 +12,22 @@
 //! real money and drop it from the record — the one thing this ledger
 //! must never do). Unstarted tasks settle `cancelled`; the terminal
 //! frame carries spent-vs-budget (NIKA-1704).
+//!
+//! Precision stance: sums are `f64` BY CHOICE — the trace wire is f64
+//! JSON and these are display/gate-grade totals (~1e-13 relative error
+//! at run scale), not invoices. The nano-USD [`nika_types::cost::Cost`]
+//! newtype exists for billing-grade ledgers; migrating this fold to it
+//! is deliberate future work, not an oversight. The budget comparison
+//! rounds both sides to micro-USD so accumulation dust one ULP over the
+//! nominal budget can never print « spent $X of $X — exceeded ».
+//!
+//! Known unmetered classes (documented, not silent): a provider
+//! round-trip that BILLS but whose verb then fails (schema repair
+//! exhausted · an agent erroring after N absorbed turns) reports no
+//! usage on the error path today — invisible to totals AND to the
+//! gate; threading usage through verb errors is the committed
+//! follow-up. `on_finally` cleanups ride the best-effort lane
+//! (outcome dropped by design) and never debit.
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -62,10 +78,14 @@ impl RunLedger {
     ///
     /// [`UnpricedReason`]: nika_types::cost::UnpricedReason
     pub(crate) fn debit(&self, source: Option<&str>, cost: Option<f64>, unpriced: bool) {
-        // A poisoned lock = a panicking sibling task in a test harness —
-        // the ledger degrades to not-counting rather than propagating.
-        let Ok(mut inner) = self.inner.lock() else {
-            return;
+        // A poisoned lock = a sibling panicked mid-fold (test harness
+        // class). The data is a plain accumulator with no invariant a
+        // partial write could break — recover it and KEEP COUNTING:
+        // dropping a debit (or failing the gate open) is the one thing
+        // this ledger must never do.
+        let mut inner = match self.inner.lock() {
+            Ok(inner) => inner,
+            Err(poisoned) => poisoned.into_inner(),
         };
         if let Some(c) = cost {
             inner.spent_usd += c;
@@ -74,8 +94,12 @@ impl RunLedger {
             if let Some(key) = source {
                 *inner.by_source.entry(key.to_owned()).or_insert(0.0) += c;
             }
+            // Micro-USD rounding on BOTH sides: accumulation dust one
+            // ULP over the nominal budget must never trip (and then
+            // print « spent $X of $X — exceeded »). Spending EXACTLY
+            // the budget does not trip — crossing it does.
             if let Some(budget) = self.budget
-                && inner.spent_usd > budget
+                && micro_usd(inner.spent_usd) > micro_usd(budget)
             {
                 inner.tripped = true;
             }
@@ -86,38 +110,40 @@ impl RunLedger {
     }
 
     /// Whether the budget has been crossed — the admission gates (wave
-    /// members · fan-out iterations) consult this at pull time.
+    /// members · fan-out iterations) consult this at pull time. Poison
+    /// recovers via `into_inner` — the gate NEVER fails open.
     pub(crate) fn tripped(&self) -> bool {
-        self.inner
-            .lock()
-            .map(|inner| inner.tripped)
-            .unwrap_or(false)
+        match self.inner.lock() {
+            Ok(inner) => inner.tripped,
+            Err(poisoned) => poisoned.into_inner().tripped,
+        }
     }
 
     pub(crate) fn snapshot(&self) -> LedgerSnapshot {
-        let (spent_usd, any_priced, priced_calls, unpriced_calls, tripped, by_source) = self
-            .inner
-            .lock()
-            .map(|inner| {
-                (
-                    inner.spent_usd,
-                    inner.any_priced,
-                    inner.priced_calls,
-                    inner.unpriced_calls,
-                    inner.tripped,
-                    inner.by_source.clone(),
-                )
-            })
-            .unwrap_or((0.0, false, 0, 0, false, BTreeMap::new()));
+        let inner = match self.inner.lock() {
+            Ok(inner) => inner,
+            Err(poisoned) => poisoned.into_inner(),
+        };
         LedgerSnapshot {
-            spent_usd,
-            any_priced,
-            priced_calls,
-            unpriced_calls,
-            tripped,
+            spent_usd: inner.spent_usd,
+            any_priced: inner.any_priced,
+            priced_calls: inner.priced_calls,
+            unpriced_calls: inner.unpriced_calls,
+            tripped: inner.tripped,
             budget: self.budget,
-            by_source,
+            by_source: inner.by_source.clone(),
         }
+    }
+}
+
+/// Whole micro-USD (1e-6) — the budget-comparison grain.
+fn micro_usd(usd: f64) -> i64 {
+    // REASON: budgets/spend are operator-scale dollars (≪ the i64 micro
+    // range); a non-finite value cannot reach here (the CLI rejects
+    // NaN/inf budgets · provider costs are validated finite).
+    #[allow(clippy::cast_possible_truncation)]
+    {
+        (usd * 1_000_000.0).round() as i64
     }
 }
 

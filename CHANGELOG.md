@@ -8,6 +8,69 @@ Nika Diamond is a ground-up rewrite on the `nika-diamond` orphan branch.
 Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ---
+## [Unreleased]
+
+**Nika never lies about costs.** The pricing catalog identifies itself,
+the math prices what providers actually billed, agents stop hiding
+their LLM spend, `unknown` always says WHY, and the operator gets a
+real budget lever.
+
+### ✨ Features
+
+- **The pricing snapshot identifies itself** — `[meta]` (source ·
+  `as_of` · sha256 prefix) is machine-readable (schema `@1.1`):
+  `nika doctor` prints the identity line and WARNS past 120 days (the
+  staleness surface no surveyed tool ships), `check --json` carries
+  `pricing.snapshot`, and a priced run stamps `pricing_as_of` on its
+  terminal frame — every cost figure names the prices that produced it.
+- **Cache-aware cost math** — the snapshot now vendors upstream
+  `cache_read`/`cache_write` rates (248 rules) and the runtime prices
+  cache subsets at their OWN rates instead of full input price. Wires
+  normalize to the OTel `gen_ai` semantics (`input_tokens` INCLUDES the
+  cache subsets — Anthropic folds at the parse seam, sync + streaming).
+  Scope honesty: this bills what providers REPORT — live today for
+  implicit caching (OpenAI `cached_tokens` · Gemini
+  `cachedContentTokenCount`); Anthropic's opt-in `cache_control` is not
+  yet emitted by Nika's own requests, so its cache meters stay absent
+  until that ships (roadmapped, with the 1h-TTL write-premium axis).
+- **Agents meter their LLM spend** — the loop absorbs every turn's
+  usage split and the dispatch prices it with the same resolver `infer`
+  uses, on top of tool-reported spend. An agent task's `cost_usd` is
+  now the whole bill, not just its tools.
+- **`unknown` says why** — an unpriced task carries `cost_unpriced`:
+  `local_model` · `mock_provider` · `missing_catalog_price` ·
+  `provider_did_not_report_usage`. A PRICED model whose provider
+  reports no usage is absent+named — never a fake `$0.00`.
+- **Run cost totals on the trace** — the terminal frame carries
+  `total_cost_usd` · `priced_calls` · `unpriced_calls` ·
+  `cost_by_source` · `pricing_as_of` (only when honest: an unmetered
+  run stays field-free). `RunOutcome` mirrors them for embedders.
+- **`nika run --max-cost-usd <usd>`** — the operator budget (NIKA-1704):
+  refuses pre-run when the static cost floor already exceeds it, and
+  mid-run stops ADMITTING new work once metered spend crosses it —
+  in-flight calls complete and count (a killed call would spend
+  unrecorded money), unstarted tasks cancel, the error carries
+  spent-vs-budget. Unpriced work never trips it — said loudly upfront.
+- **Partial totals never read as complete** — the run meter, verdict
+  card and `trace outputs` render `≥ $X (N unpriced)` whenever part of
+  the run carried no meterable price.
+
+### 📖 Documentation
+
+- `scripts/refresh-pricing.sh` grows a LiteLLM-style shrink guard
+  (a refresh losing >half the rules refuses to write) and emits the
+  `[meta]` provenance block.
+- **Known limits (named, not silent — the honest-cost roadmap):**
+  costs use LIST RATES from the vendored public catalog (private/proxy/
+  Azure deals need the roadmapped override file) · long-context pricing
+  tiers are vendored at the BASE rate (a >200K-token gemini-2.5-pro
+  call bills ~2× the estimate) · a provider round-trip that bills but
+  whose verb then FAILS (schema retries exhausted · an agent hitting
+  `max_turns`/`max_tokens_total`) reports no usage on the error path
+  yet — that spend is invisible to totals and to the budget gate;
+  threading usage through verb errors is the committed follow-up.
+
+---
 ## [0.97.0](https://github.com/supernovae-st/nika/compare/v0.96.0..v0.97.0) - 2026-07-07
 
 **The run becomes evidence.** 0.96 made the run a place you can visit;

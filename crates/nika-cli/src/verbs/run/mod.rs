@@ -147,17 +147,8 @@ pub fn run(
     // already exceeds the budget; warn loud when the ceiling cannot
     // bound everything (the budget gates METERED spend only).
     if let Some(budget) = max_cost_usd {
-        let floor = report.cost.min_path_total_usd;
-        if floor > budget {
-            emit_diagnostic(
-                &format!(
-                    "refusing to start: the workflow's unavoidable cost floor \
-                     ${floor:.6} exceeds --max-cost-usd ${budget:.6} (cheapest \
-                     static path · gates closed · first-try) — raise the budget \
-                     or trim the workflow (`nika check` shows the envelope)\n"
-                ),
-                output_json,
-            );
+        if let Some(refusal) = budget_floor_refusal(report.cost.min_path_total_usd, budget) {
+            emit_diagnostic(&refusal, output_json);
             return exit::FILE;
         }
         if report.cost.has_unbounded {
@@ -999,6 +990,48 @@ fn outputs_json_line(outputs: &BTreeMap<String, Value>) -> String {
 /// contract · `capture: stdout` composition), stdout in the human modes.
 /// In machine mode the failure ALSO lands on stdout as the `{"error":{…}}`
 /// envelope (F6) — the machine surface is self-sufficient, success or not.
+/// The `--max-cost-usd` pre-run gate — `Some(refusal)` when the STATIC
+/// floor (cheapest path · gates closed · first-try: the unavoidable
+/// exposure `nika check` computes) already exceeds the budget. Pure so
+/// the operator-facing gate is unit-testable; a floor AT the budget
+/// passes (spending exactly the budget is not over it).
+fn budget_floor_refusal(floor: f64, budget: f64) -> Option<String> {
+    (floor > budget).then(|| {
+        format!(
+            "refusing to start: the workflow's unavoidable cost floor \
+             ${floor:.6} exceeds --max-cost-usd ${budget:.6} (cheapest \
+             static path · gates closed · first-try) — raise the budget \
+             or trim the workflow (`nika check` shows the envelope)\n"
+        )
+    })
+}
+
+/// The operator-facing budget preflight — pure-fn pinned (F4.2: the
+/// gate the operator actually touches must not ride untested).
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod budget_preflight_tests {
+    use super::budget_floor_refusal;
+
+    #[test]
+    fn floor_above_budget_refuses_with_both_numbers() {
+        let msg = budget_floor_refusal(0.000_019, 0.000_001).expect("refuses");
+        assert!(msg.contains("$0.000019"), "floor rides: {msg}");
+        assert!(msg.contains("$0.000001"), "budget rides: {msg}");
+        assert!(msg.contains("refusing to start"), "{msg}");
+        assert!(msg.contains("nika check"), "points at the envelope: {msg}");
+    }
+
+    #[test]
+    fn floor_at_or_under_budget_passes() {
+        // Spending exactly the budget is not over it (mirrors the
+        // ledger's crossing semantics).
+        assert!(budget_floor_refusal(0.05, 0.05).is_none());
+        assert!(budget_floor_refusal(0.0, 0.05).is_none());
+        assert!(budget_floor_refusal(0.0, 0.0).is_none());
+    }
+}
+
 fn emit_diagnostic(text: &str, output_json: bool) {
     if output_json {
         eprint!("{text}");

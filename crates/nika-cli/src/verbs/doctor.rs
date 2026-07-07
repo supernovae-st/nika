@@ -288,8 +288,11 @@ const PRICING_STALE_DAYS: u32 = 120;
 /// age warning is the gap no surveyed tool closes (2026-07): a stale
 /// vendored price table silently mis-prices every report.
 fn pricing_finding(p: &PricingProbe) -> Finding {
+    // LIST RATES said here on purpose: private/proxy/negotiated pricing
+    // is not reflected (the override file is the roadmapped answer) —
+    // silent wrong-cost is the honesty law's blind spot otherwise.
     let identity = format!(
-        "{} models · {} providers · snapshot {} · models.dev {}",
+        "{} models · {} providers · snapshot {} · {} · list rates (public catalog)",
         p.rules, p.providers, p.as_of, p.sha
     );
     match p.age_days {
@@ -1019,6 +1022,12 @@ mod tests {
         assert!(f.detail.contains("10 providers"), "{}", f.detail);
         assert!(f.detail.contains("2026-07-07"), "{}", f.detail);
         assert!(f.detail.contains("d31a39603aa5419d"), "{}", f.detail);
+        assert!(
+            f.detail.contains("list rates"),
+            "the public-catalog basis is named — private/proxy deals are \
+             not reflected and the line must say so: {}",
+            f.detail
+        );
         assert!(f.fix.is_none());
     }
 

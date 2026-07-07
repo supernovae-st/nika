@@ -533,7 +533,10 @@ where
             // collect in submission order · settle sequentially below.
             // Budget admission gate: `take_while` is consulted when
             // `buffered` pulls the next member — a tripped ledger stops
-            // NEW tasks, in-flight ones complete and count.
+            // NEW tasks, in-flight ones complete and count. NOTE the
+            // default cap (= wave width) pulls the WHOLE wave before any
+            // debit lands: the gate stops LATER waves and capped
+            // fan-outs, never same-wave siblings already admitted.
             let cap = self
                 .config
                 .wave_parallelism
@@ -1018,7 +1021,14 @@ fn terminal_cost_fields(snap: &ledger::LedgerSnapshot) -> Vec<(&'static str, Fie
         // point-in-time honesty stamp (prices move; the trace says
         // WHICH prices billed this run).
         fields.push(("pricing_as_of", s(nika_catalog::pricing_snapshot().as_of)));
-        if let Ok(json) = serde_json::to_string(&snap.by_source) {
+        // Micro-USD rounding at the serialization edge: consumers must
+        // never see f64 accumulation dust (`0.030000000000000002`).
+        let by_source: std::collections::BTreeMap<&String, f64> = snap
+            .by_source
+            .iter()
+            .map(|(k, v)| (k, (v * 1e6).round() / 1e6))
+            .collect();
+        if let Ok(json) = serde_json::to_string(&by_source) {
             fields.push(("cost_by_source", s(&json)));
         }
     }
