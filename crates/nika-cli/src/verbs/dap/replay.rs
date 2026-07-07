@@ -36,6 +36,9 @@ pub(crate) struct ReplaySession {
     /// The chain check (P2): the journal fails verification — its
     /// claims are unverified. False for intact/torn/unchained.
     pub(crate) chain_broken: bool,
+    /// The torn-tail diagnostic from journal recovery, when the last
+    /// line was cut mid-write — surfaced as a launch output event.
+    pub(crate) truncated_note: Option<String>,
     /// `(task id, 1-based start line)` in document order.
     task_lines: Vec<(String, u32)>,
     pub(crate) stops: Vec<Stop>,
@@ -45,15 +48,44 @@ pub(crate) struct ReplaySession {
     breakpoints: Vec<u32>,
 }
 
+/// File-side twin of the wire's `MAX_FRAME_BYTES`: launch paths come
+/// from the DAP client, and an unbounded `read_to_string` turned a
+/// special file (`/dev/zero` · a FIFO) into a silent hang and a huge
+/// file into a 1:1 RAM map — the exact class the stdio layer already
+/// refuses before allocating. 64 MiB fits any real journal (a 50k-settle
+/// run measures ~12 MiB) with headroom.
+const MAX_LAUNCH_FILE_BYTES: u64 = 64 * 1024 * 1024;
+
+/// `read_to_string` with the guards the stdio frames get: regular files
+/// only (a device/FIFO would hang the read), size checked BEFORE the
+/// allocation.
+fn bounded_read(path: &str, what: &str) -> Result<String, String> {
+    let meta = std::fs::metadata(path).map_err(|e| format!("cannot read {what} {path}: {e}"))?;
+    if !meta.is_file() {
+        return Err(format!("cannot read {what} {path}: not a regular file"));
+    }
+    if meta.len() > MAX_LAUNCH_FILE_BYTES {
+        return Err(format!(
+            "cannot read {what} {path}: {} bytes exceeds the {} MiB launch cap",
+            meta.len(),
+            MAX_LAUNCH_FILE_BYTES / (1024 * 1024)
+        ));
+    }
+    std::fs::read_to_string(path).map_err(|e| format!("cannot read {what} {path}: {e}"))
+}
+
 impl ReplaySession {
     /// Build from the launch arguments' two files.
     pub(crate) fn load(workflow_path: &str, replay_path: &str) -> Result<Self, String> {
-        let yaml = std::fs::read_to_string(workflow_path)
-            .map_err(|e| format!("cannot read workflow {workflow_path}: {e}"))?;
-        let raw = std::fs::read_to_string(replay_path)
-            .map_err(|e| format!("cannot read journal {replay_path}: {e}"))?;
+        let yaml = bounded_read(workflow_path, "workflow")?;
+        let raw = bounded_read(replay_path, "journal")?;
         let recovered = super::super::run::recover_events(&raw, replay_path)?;
         let mut session = Self::from_parts(workflow_path, &yaml, &recovered.events)?;
+        // A torn tail is the crashed-run scenario this debugger exists
+        // for — the note was computed and then silently dropped here
+        // (the 0.96.0 review's finding): the person debugging a crash
+        // must know they are seeing a partial run.
+        session.truncated_note = recovered.truncated_note;
         // Verify before trusting: a broken chain replays (warn, never
         // block — coherent with tamper-EVIDENT), but the debugger says
         // so before the first stop.
@@ -134,6 +166,7 @@ impl ReplaySession {
             workflow_name,
             drifted: Self::drift_of(yaml, events),
             chain_broken: false,
+            truncated_note: None,
             task_lines,
             stops,
             cursor: 0,
@@ -362,6 +395,39 @@ mod tests {
         };
         assert_eq!(make(&sha).drifted, Some(false));
         assert_eq!(make(&"ab".repeat(32)).drifted, Some(true));
+    }
+
+    #[test]
+    fn bounded_read_refuses_a_non_regular_file() {
+        // /dev/zero hung the adapter for the full client timeout (the
+        // 0.96.0 review's finding) — a device is refused BEFORE the read.
+        let err = bounded_read("/dev/zero", "journal").expect_err("device refused");
+        assert!(err.contains("not a regular file"), "{err}");
+    }
+
+    #[test]
+    fn load_surfaces_the_torn_tail_note() {
+        // A journal cut mid-write replays its valid prefix — WITH the
+        // note (it was computed and silently dropped before). Real files
+        // through the real load(): events serialized with the module's
+        // own helper, the last line torn.
+        let dir = std::env::temp_dir().join(format!("nika-dap-torn-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let wf = dir.join("t.nika.yaml");
+        std::fs::write(&wf, YAML).expect("wf");
+        let journal = dir.join("torn.ndjson");
+        let lines = [
+            serde_json::to_string(&ev(1, EventKind::WorkflowStarted, &[("workflow", "demo")]))
+                .expect("json"),
+            serde_json::to_string(&ev(2, EventKind::TaskCompleted, &[("task", "alpha")]))
+                .expect("json"),
+            "{\"kind\":\"task_star".to_owned(), // torn mid-write
+        ];
+        std::fs::write(&journal, lines.join("\n")).expect("journal");
+        let s = ReplaySession::load(wf.to_str().expect("utf8"), journal.to_str().expect("utf8"))
+            .expect("valid prefix replays");
+        assert!(s.truncated_note.is_some(), "the torn tail must be surfaced");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
