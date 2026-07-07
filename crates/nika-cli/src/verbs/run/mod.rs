@@ -824,12 +824,14 @@ enum TraceNote {
 /// contract: journaling is a rider, a broken rider is a note, not a
 /// failure). An fs error goes to stderr with the path when one was opened;
 /// a written journal prints its `trace:` pointer per [`TraceNote`].
-fn surface_trace(trace: TraceFileSink, note: TraceNote) {
+fn surface_trace(mut trace: TraceFileSink, note: TraceNote) {
+    // Durability BEFORE advertisement: the anchor must describe bytes
+    // that survive a power loss (flush reaches the page cache only).
+    trace.finalize();
     let path = trace.path().map(std::path::Path::to_path_buf);
-    // The printed head is the chain's free external anchor: CI logs and
-    // scrollback hold it, so a rewritten-whole journal no longer matches
-    // the record of the run that printed it (tamper-EVIDENT → checkable).
-    let head8 = trace.chain_head()[..16].to_owned();
+    // Read the anchor parts BEFORE into_error consumes the sink — they
+    // are only ADVERTISED after the error gate below passes.
+    let head = trace.chain_head().chars().take(32).collect::<String>();
     let count = trace.chain_len();
     if let Some(e) = trace.into_error() {
         // Name the file when the failure struck AFTER the open (a partial
@@ -846,16 +848,19 @@ fn surface_trace(trace: TraceFileSink, note: TraceNote) {
     let Some(path) = path else {
         return; // disabled · or a run that emitted zero events
     };
+    // The anchor: 32 hex (128-bit) — the scrollback head is the ONE
+    // thing a whole-file rewrite cannot touch; 16 hex capped forgery at
+    // ~2^63 with a malleable final line (the writer-side review's M4).
     match note {
         TraceNote::Stdout => {
             println!(
-                "    trace: {} · {count} events · chain {head8}",
+                "    trace: {} · {count} events · chain {head}",
                 path.display()
             );
         }
         TraceNote::Stderr => {
             eprintln!(
-                "nika run: trace: {} · {count} events · chain {head8}",
+                "nika run: trace: {} · {count} events · chain {head}",
                 path.display()
             );
         }

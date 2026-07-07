@@ -111,7 +111,7 @@ enum Lane {
     Open(BufWriter<File>),
 }
 
-/// The run journal — writes the SAME NDJSON stream as [`JsonSink`] into
+/// The run journal — the same EVENT stream as [`JsonSink`], each line
 /// `<dir>/<ISO-compact>-<short-id>.ndjson` (spec §3.3 final frame ·
 /// `.nika/traces/` in production). The flight recorder (`nika trace
 /// show|replay`), `--resume`, and the editor extension's runs view all
@@ -207,6 +207,25 @@ impl TraceFileSink {
         self.written
     }
 
+    /// Durability point — called ONCE before the anchor is advertised:
+    /// `flush()` reaches the page cache only; a power loss after the
+    /// anchor printed but before writeback would leave a shorter-but-
+    /// clean prefix on disk, and the anchor mismatch would FORGE a
+    /// tamper alarm against the operator's own hardware. One fsync per
+    /// run buys an honest anchor.
+    pub(super) fn finalize(&mut self) {
+        if self.error.is_some() {
+            return;
+        }
+        if let Lane::Open(writer) = &mut self.lane {
+            let result = writer.flush().and_then(|()| writer.get_ref().sync_data());
+            if let Err(e) = result {
+                self.error = Some(e);
+                self.lane = Lane::Disabled;
+            }
+        }
+    }
+
     /// Create the directory + the journal file, named from the first
     /// event's identity.
     ///
@@ -269,24 +288,41 @@ impl EventSink for TraceFileSink {
         // re-serialization, is what makes `trace verify` total: no
         // canonical-JSON contract to drift. Event consumers ignore the
         // extra field (tolerant serde — pinned in verify tests).
+        let chain = self.chain.clone();
         let result = serde_json::to_value(&event)
             .map_err(std::io::Error::from)
             .and_then(|mut value| {
-                if let Some(obj) = value.as_object_mut() {
-                    obj.insert(
-                        "chain".to_owned(),
-                        serde_json::Value::String(self.chain.clone()),
-                    );
-                }
+                let Some(obj) = value.as_object_mut() else {
+                    // A non-object event is a WRITER defect — fail loudly
+                    // here; a silent chainless line would read as an
+                    // Unchained/Broken verdict (an attack) downstream.
+                    return Err(std::io::Error::other(
+                        "event did not serialize to a JSON object",
+                    ));
+                };
+                obj.insert("chain".to_owned(), serde_json::Value::String(chain));
                 let line = serde_json::to_string(&value).map_err(std::io::Error::from)?;
-                self.chain = sha256_hex(line.as_bytes());
-                self.written += 1;
                 writer.write_all(line.as_bytes())?;
                 writer.write_all(b"\n")?;
-                writer.flush()
+                writer.flush()?;
+                Ok(sha256_hex(line.as_bytes()))
             });
-        if let Err(e) = result {
-            self.error = Some(e);
+        // Chain state commits only AFTER the bytes landed: a failed
+        // write must never advance the head (a later "N events · chain
+        // X" note would otherwise describe bytes no file holds).
+        match result {
+            Ok(next) => {
+                self.chain = next;
+                self.written += 1;
+            }
+            Err(e) => {
+                self.error = Some(e);
+                // L4: retire the lane NOW — BufWriter's Drop re-flushes
+                // ignoring errors, and a recovered fs would complete the
+                // torn line AFTER the error was reported (the file's
+                // post-error content must not depend on the environment).
+                self.lane = Lane::Disabled;
+            }
         }
     }
 }
@@ -674,10 +710,11 @@ mod tests {
         assert!(!dir.exists(), "no emit → the directory is never created");
     }
 
-    /// The journal is the `--json` lane byte-for-byte: same events in,
-    /// identical NDJSON out (the file must parse wherever the stream does).
+    /// The journal is the `--json` lane SEMANTICALLY: same events in,
+    /// each line carrying one extra committed key (`chain`) — key order
+    /// is NOT byte-mirrored (the Value round-trip sorts keys).
     #[test]
-    fn trace_sink_journal_mirrors_the_json_lane_bytes() {
+    fn trace_sink_journal_mirrors_the_json_lane_semantically() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let dir = tmp.path().join("traces");
         let events = demo::success();
