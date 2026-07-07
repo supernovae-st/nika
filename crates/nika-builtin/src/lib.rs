@@ -37,6 +37,7 @@ pub mod image;
 pub mod inspect;
 pub(crate) mod media;
 pub mod net;
+pub(crate) mod net_payload;
 pub(crate) mod net_traverse;
 pub mod permits;
 pub mod tts;

@@ -10,7 +10,7 @@
 //!   "colors": ["#0400ff", ..≤20], "text": "…≤4000 chars" }
 //! ```
 //!
-//! NOT an author-facing [`ExtractMode`] — the single-fetch `mode:` set
+//! NOT an author-facing [`crate::ExtractMode`] — the single-fetch `mode:` set
 //! stays the closed canonical 9; the digest is the fixed shape a crawl
 //! yields per page (a 1-page digest = `traverse: { max_pages: 1 }`).
 //! TOTAL like every HTML mode: malformed markup yields what html5ever
