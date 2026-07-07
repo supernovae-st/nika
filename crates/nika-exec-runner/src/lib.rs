@@ -237,28 +237,20 @@ impl ShellRunDyn for TokioShell {
 
         let mut child = spawn_classified(&mut cmd, &command.program)?;
 
-        if let Some(data) = &command.stdin
-            && let Some(mut stdin) = child.stdin.take()
-        {
-            let _ = stdin.write_all(data.as_bytes()).await;
-            drop(stdin); // close → EOF for the child
-        }
-
         // Register for out-of-band cancel-by-pid (ADR-016).
         let pid = child.id();
         let notify = pid.map(|p| self.register(p));
 
-        // INV-012: drain stdout+stderr CONCURRENTLY with wait() — a child that
-        // writes past the OS pipe buffer would deadlock on wait-then-read.
-        let child_fut = async move {
-            let out = child.stdout.take();
-            let err = child.stderr.take();
-            tokio::try_join!(
-                child.wait(),
-                drain(out, MAX_OUTPUT_BYTES),
-                drain(err, MAX_OUTPUT_BYTES)
-            )
-        };
+        // Take stdin before `child` moves into `wait_drain_feed`, which drains
+        // stdout/stderr AND feeds this stdin CONCURRENTLY under the timeout
+        // `select!` below. The pre-fix code wrote stdin SEQUENTIALLY, before
+        // the timeout was armed, so a child echoing a larger-than-pipe-buffer
+        // stdin (`cat`) deadlocked forever (review · HIGH).
+        let stdin_feed = command
+            .stdin
+            .clone()
+            .and_then(|data| child.stdin.take().map(|si| (si, data)));
+        let child_fut = wait_drain_feed(child, stdin_feed);
 
         let timeout_fut = async {
             match command.timeout {
@@ -299,6 +291,36 @@ impl ShellRunDyn for TokioShell {
 /// arms first SIGTERM→SIGKILL the whole process group (detached grandchildren
 /// die too · `terminate_group`) before reporting; a clean exit becomes a
 /// [`ShellResult`] with the captured stdout/stderr.
+/// Wait for the child while draining BOTH output streams (bounded · INV-012)
+/// AND feeding its stdin, all concurrently. Feeding must NOT precede the drain:
+/// a child that echoes a stdin larger than the OS pipe buffer fills its stdout
+/// and stops reading, so a sequential `write_all` deadlocks — and doing it
+/// before the caller arms the timeout makes that hang unbreakable (review ·
+/// HIGH). The feed never surfaces an error (a write to an early-exited child is
+/// benign · its status rides `wait()`), so it cannot cancel the join; the
+/// 4-tuple maps back to the 3-tuple the [`Outcome::Done`] contract expects.
+async fn wait_drain_feed(
+    mut child: tokio::process::Child,
+    stdin_feed: Option<(tokio::process::ChildStdin, String)>,
+) -> std::io::Result<(std::process::ExitStatus, Vec<u8>, Vec<u8>)> {
+    let out = child.stdout.take();
+    let err = child.stderr.take();
+    let feed = async move {
+        if let Some((mut stdin, data)) = stdin_feed {
+            let _ = stdin.write_all(data.as_bytes()).await;
+            // `stdin` drops at this scope end → EOF for the child.
+        }
+        Ok::<(), std::io::Error>(())
+    };
+    let (status, out_bytes, err_bytes, ()) = tokio::try_join!(
+        child.wait(),
+        drain(out, MAX_OUTPUT_BYTES),
+        drain(err, MAX_OUTPUT_BYTES),
+        feed,
+    )?;
+    Ok((status, out_bytes, err_bytes))
+}
+
 async fn outcome_to_result(
     outcome: Outcome,
     pid: Option<u32>,
@@ -617,6 +639,34 @@ mod tests {
         sh.shell = true;
         sh.args = vec!["a".into(), "b".into()];
         let _ = build_command(&sh);
+    }
+
+    #[tokio::test]
+    async fn large_stdin_with_echoing_child_does_not_deadlock() {
+        // Regression (review · HIGH): `cat` echoes stdin to stdout. A stdin
+        // LARGER than the OS pipe buffer (~64 KiB) fills cat's stdout while we
+        // are still writing, so cat stops reading stdin — a SEQUENTIAL
+        // `write_all` (pre-fix) blocked there, and because it ran BEFORE the
+        // timeout `select!` was armed, nothing could break it: a hang forever.
+        // The feed now runs concurrently with the drain under the timeout, so
+        // this completes and echoes every byte back. The outer test timeout
+        // guards the SUITE against a re-introduced hang.
+        let payload = "x".repeat(256 * 1024); // 4× a typical pipe buffer
+        let mut cmd = ShellCommand::new("cat");
+        cmd.stdin = Some(payload.clone());
+        cmd.timeout = Some(std::time::Duration::from_secs(10));
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(8),
+            TokioShell::new().run(cmd),
+        )
+        .await
+        .expect("must not deadlock — stdin is fed concurrently with the drain")
+        .expect("cat succeeds");
+        assert_eq!(
+            result.stdout.len(),
+            payload.len(),
+            "cat echoes all of stdin back"
+        );
     }
 
     // ── output cap (NIKA-054): unbounded capture is an OOM vector ──
