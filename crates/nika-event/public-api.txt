@@ -233,6 +233,7 @@ pub nika_event::kind::EventKind::TaskCacheHit
 pub nika_event::kind::EventKind::TaskCancelled
 pub nika_event::kind::EventKind::TaskCompleted
 pub nika_event::kind::EventKind::TaskFailed
+pub nika_event::kind::EventKind::TaskRecovered
 pub nika_event::kind::EventKind::TaskRetrying
 pub nika_event::kind::EventKind::TaskScheduled
 pub nika_event::kind::EventKind::TaskSkipped
@@ -398,6 +399,7 @@ pub nika_event::prelude::EventKind::TaskCacheHit
 pub nika_event::prelude::EventKind::TaskCancelled
 pub nika_event::prelude::EventKind::TaskCompleted
 pub nika_event::prelude::EventKind::TaskFailed
+pub nika_event::prelude::EventKind::TaskRecovered
 pub nika_event::prelude::EventKind::TaskRetrying
 pub nika_event::prelude::EventKind::TaskScheduled
 pub nika_event::prelude::EventKind::TaskSkipped
@@ -686,6 +688,7 @@ pub nika_event::EventKind::TaskCacheHit
 pub nika_event::EventKind::TaskCancelled
 pub nika_event::EventKind::TaskCompleted
 pub nika_event::EventKind::TaskFailed
+pub nika_event::EventKind::TaskRecovered
 pub nika_event::EventKind::TaskRetrying
 pub nika_event::EventKind::TaskScheduled
 pub nika_event::EventKind::TaskSkipped
