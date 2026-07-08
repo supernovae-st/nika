@@ -962,6 +962,33 @@ mod tests {
     #![allow(clippy::expect_used)]
     use super::*;
 
+    /// The scaffolded AGENTS.md must teach the LIVE clap tree — a verb
+    /// the binary ships and the guide never names is a verb a wired
+    /// agent will never reach (inherited from the stalled 2026-07-05
+    /// field-fixes branch: the scaffold then taught zero of the new
+    /// train). Derived from the tree itself so it can never lag again.
+    #[test]
+    fn the_scaffolded_agents_md_teaches_the_live_clap_tree() {
+        let agents = nika_cli::verbs::init::agents_md();
+        for sub in Cli::command().get_subcommands() {
+            let name = sub.get_name();
+            if name == "help" {
+                continue; // clap's auto subcommand — not a teaching target
+            }
+            assert!(
+                agents.contains(name),
+                "the scaffolded AGENTS.md must teach `nika {name}`"
+            );
+        }
+        // The flags an agent needs daily — inputs, resume, goldens, scaffold.
+        for flag in ["--var", "--resume", "--answer", "--update", "--from"] {
+            assert!(
+                agents.contains(flag),
+                "the scaffolded AGENTS.md must teach `{flag}`"
+            );
+        }
+    }
+
     #[test]
     fn max_cost_usd_help_names_its_three_real_limits() {
         // The rust-pro review's meta-point: the budget's real boundary

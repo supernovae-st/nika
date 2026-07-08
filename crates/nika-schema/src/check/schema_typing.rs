@@ -23,8 +23,9 @@
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-use crate::expression::{scan_templates, task_output_paths};
-use crate::raw::{RawAction, RawTask, RawWorkflow};
+use crate::expression::{Expr, scan_templates, task_output_paths};
+use crate::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
+use crate::types::{VarDecl, VarType};
 
 use crate::suggest::{did_you_mean, suggestion_clause};
 
@@ -56,11 +57,14 @@ enum Shape<'a> {
 /// `tasks.<id>.output.<path…>` references against declared shapes.
 #[must_use]
 pub(super) fn scan_types(wf: &RawWorkflow) -> Vec<SchemaTypeFinding> {
+    let mut findings = Vec::new();
+    // for_each source typing reads VAR declarations, not output shapes —
+    // it must run even when no task carries a `schema:`/`output:`.
+    scan_for_each_sources(wf, &mut findings);
     let shapes = declared_shapes(wf);
     if shapes.is_empty() {
-        return Vec::new(); // nothing is typed → nothing to check
+        return findings; // no output shapes → only the for_each findings
     }
-    let mut findings = Vec::new();
     for task in &wf.tasks {
         let id = task.value.id.value.as_str();
         for text in task_texts(&task.value) {
@@ -82,6 +86,75 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> Vec<SchemaTypeFinding> {
         check_text("outputs", &decl.value().value, &shapes, &mut findings);
     }
     findings
+}
+
+/// A `for_each:` source that is a BARE `${{ vars.X }}` whose var is
+/// DECLARED a non-array type can never be an array — the runtime refuses
+/// it (NIKA-VAR-006 « `for_each` collection must be an array ») and the
+/// check must catch that BEFORE the run (audit-before-run), or a
+/// `for_each: ${{ vars.locales }}` with `locales: { type: string }`
+/// audits clean then dies at dispatch. Scoped for zero false positives:
+/// ONLY a bare `vars.X` reference to a `Typed` non-array var — an
+/// untyped var (a `--var` override could pass an array), a `tasks.*`
+/// source, or any transformed expression (`split()` etc.) is left alone.
+fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>) {
+    for task in &wf.tasks {
+        let Some(fe) = &task.value.for_each else {
+            continue;
+        };
+        let ForEachValue::Expression(src) = &fe.value else {
+            continue; // an inline list literal is already an array
+        };
+        let Some(var_name) = bare_vars_reference(src) else {
+            continue; // not a plain `vars.X` — could resolve to an array
+        };
+        let declared = wf.vars.iter().find(|(n, _)| n.value == var_name);
+        if let Some((_, VarDecl::Typed { r#type, .. })) = declared
+            && *r#type != VarType::Array
+        {
+            findings.push(SchemaTypeFinding {
+                site: task.value.id.value.clone(),
+                reference: format!("for_each: ${{{{ vars.{var_name} }}}}"),
+                target: format!("vars.{var_name}"),
+                detail: format!(
+                    "`vars.{var_name}` is declared `type: {}` — `for_each` needs an array \
+                     (the run rejects it · NIKA-VAR-006)",
+                    var_type_word(*r#type)
+                ),
+            });
+        }
+    }
+}
+
+/// The var name of a source that is EXACTLY `${{ vars.X }}` (one template
+/// island covering the whole value, a bare `Member { Ident("vars"), X }`
+/// with no further path), else `None`. `for_each` sources carry the raw
+/// `${{ … }}` wrapper, so the island's pre-parsed `expr` is the entry.
+fn bare_vars_reference(src: &str) -> Option<String> {
+    let islands = scan_templates(src).ok()?;
+    let [island] = islands.as_slice() else {
+        return None; // zero, or more than one → not a bare reference
+    };
+    // The island must BE the whole value (no `prefix ${{ … }} suffix`).
+    if src[..island.start].trim().is_empty()
+        && src[island.end..].trim().is_empty()
+        && let Expr::Member { base, field } = &island.expr
+        && matches!(**base, Expr::Ident(ref r) if r == "vars")
+    {
+        return Some(field.clone());
+    }
+    None
+}
+
+fn var_type_word(t: VarType) -> &'static str {
+    match t {
+        VarType::String => "string",
+        VarType::Number => "number",
+        VarType::Integer => "integer",
+        VarType::Boolean => "boolean",
+        VarType::Object => "object",
+        VarType::Array => "array",
+    }
 }
 
 /// Collect each task's declared output address space. `output:` bindings
@@ -306,6 +379,54 @@ mod tests {
 
     fn findings_of(yaml: &str) -> Vec<SchemaTypeFinding> {
         scan_types(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    fn for_each_wf(var_decl: &str) -> String {
+        format!(
+            "nika: v1\nworkflow: w\nmodel: mock/echo\nvars:\n  xs: {var_decl}\n\
+             tasks:\n  - id: fan\n    for_each: ${{{{ vars.xs }}}}\n    \
+             with: {{ it: \"${{{{ item }}}}\" }}\n    infer: {{ prompt: \"do ${{{{ with.it }}}}\" }}\n"
+        )
+    }
+
+    #[test]
+    fn for_each_over_a_typed_non_array_var_is_caught_before_run() {
+        // The runtime refuses a non-array for_each collection (NIKA-VAR-006);
+        // a var DECLARED type:string can NEVER be an array, so the check
+        // must catch it BEFORE the run (audit-before-run).
+        for t in ["string", "number", "integer", "boolean", "object"] {
+            let f = findings_of(&for_each_wf(&format!("{{ type: {t}, required: true }}")));
+            assert_eq!(f.len(), 1, "type {t} flagged: {f:?}");
+            assert!(
+                f[0].detail.contains("for_each") && f[0].detail.contains(t),
+                "{:?}",
+                f[0]
+            );
+        }
+    }
+
+    #[test]
+    fn for_each_over_a_valid_or_unknown_source_is_never_flagged() {
+        // Zero false positives: a typed ARRAY var, an UNTYPED var (a --var
+        // override could pass an array), an inline list, and a `tasks.*`
+        // source are all left alone.
+        assert!(findings_of(&for_each_wf("{ type: array, required: true }")).is_empty());
+        assert!(findings_of(&for_each_wf("[\"a\", \"b\"]")).is_empty()); // untyped literal array
+        assert!(findings_of(&for_each_wf("\"hello\"")).is_empty()); // untyped literal string (override-able)
+        // An inline list literal source never resolves to bare vars.X.
+        let inline = "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: fan\n    \
+                      for_each: [1, 2, 3]\n    with: { it: \"${{ item }}\" }\n    \
+                      infer: { prompt: \"do ${{ with.it }}\" }\n";
+        assert!(findings_of(inline).is_empty());
+    }
+
+    #[test]
+    fn bare_vars_reference_matches_only_a_whole_value_vars_ref() {
+        assert_eq!(bare_vars_reference("${{ vars.x }}"), Some("x".to_owned()));
+        assert_eq!(bare_vars_reference("${{ vars.x.field }}"), None); // path → not bare
+        assert_eq!(bare_vars_reference("size(${{ vars.x }})"), None); // wrapped → not bare
+        assert_eq!(bare_vars_reference("${{ tasks.a.output }}"), None); // not vars
+        assert_eq!(bare_vars_reference("prefix ${{ vars.x }}"), None); // surrounding text
     }
 
     /// An infer task with a 2-field object schema, consumed by `use_it`.

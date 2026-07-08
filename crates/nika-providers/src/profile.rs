@@ -42,15 +42,20 @@ impl WireFormat {
     /// provider) and `ProviderRegistry::supports_response_format`
     /// (keyless · per model string) answer through here.
     ///
-    /// v0.1 approximation, per wire family: `OpenAiCompat` (some local
-    /// servers lack strict `json_schema`, but the family does) and
-    /// `Gemini` (an OpenAPI-style subset via `responseSchema`) support it;
-    /// `Anthropic` does NOT (the wire rejects `response_format` outright ·
-    /// callers must fall back to a schema instruction). `Mock` answers
-    /// `true` so structured-output tests need no live provider.
+    /// Per wire family: `OpenAiCompat` (some local servers lack strict
+    /// `json_schema`, but the family does), `Gemini` (an OpenAPI-style
+    /// subset via `responseSchema`) and `Anthropic` (grammar-constrained
+    /// `output_config.format` · GA 2026-01-29 · the wire normalizes to
+    /// its narrower dialect) all carry a native mode. `Mock` answers
+    /// `true` so structured-output tests need no live provider. Every
+    /// family being native today, the matches! stays — a future wire
+    /// variant defaults to the instruction fallback until proven.
     #[must_use]
     pub fn supports_response_format(self) -> bool {
-        matches!(self, Self::OpenAiCompat | Self::Mock | Self::Gemini)
+        matches!(
+            self,
+            Self::OpenAiCompat | Self::Mock | Self::Gemini | Self::Anthropic
+        )
     }
 
     /// Whether this wire family's STRICT structured mode rejects an
@@ -59,14 +64,16 @@ impl WireFormat {
     ///
     /// The real strict modes do: `OpenAI`'s `json_schema`+`strict` 400s
     /// on exactly this class (the whole family is treated as its peer),
-    /// and gemini's `responseSchema` `OpenAPI` subset carries its own
-    /// rejection surface — callers fall back to the native JSON mode + LOCAL
-    /// validation there. `Mock` SYNTHESIZES a conformant instance from
-    /// ANY schema (F3 · the offline-CI base) and `Anthropic` has no
-    /// native mode at all (instruction fallback) — neither rejects.
+    /// gemini's `responseSchema` `OpenAPI` subset carries its own
+    /// rejection surface, and `Anthropic`'s grammar compiler rejects a
+    /// free-form object (`additionalProperties` must be `false`) — all
+    /// three fall back to the native JSON mode + LOCAL validation (on
+    /// anthropic the JSON mode is a wire no-op: the schema instruction
+    /// rides the prompt). `Mock` SYNTHESIZES a conformant instance from
+    /// ANY schema (F3 · the offline-CI base) — never rejects.
     #[must_use]
     pub fn strict_rejects_underspecified(self) -> bool {
-        matches!(self, Self::OpenAiCompat | Self::Gemini)
+        matches!(self, Self::OpenAiCompat | Self::Gemini | Self::Anthropic)
     }
 }
 
@@ -112,6 +119,20 @@ impl Profile {
     /// `wire::transport_deadline`).
     pub(crate) fn is_local(&self) -> bool {
         LOCAL.iter().any(|(id, _)| *id == self.id)
+    }
+
+    /// Whether THIS provider supports native `response_format:
+    /// json_schema` — the wire-family answer with one per-provider
+    /// correction: deepseek's API accepts only `text | json_object`
+    /// (api-docs.deepseek.com create-chat-completion · fetched
+    /// 2026-07-08 · `json_schema` is out-of-enum → 4xx), so it takes
+    /// the instruction fallback + local validation like a non-native
+    /// wire. Capability is a PROVIDER fact, not only a wire fact —
+    /// every consumer (resolved provider · keyless registry query)
+    /// answers through here.
+    #[must_use]
+    pub fn supports_response_format(&self) -> bool {
+        self.id != "deepseek" && self.wire.supports_response_format()
     }
 
     /// Resolve a model nickname through the catalog row (`"sonnet"` →
@@ -359,14 +380,17 @@ mod tests {
     #[test]
     fn wire_response_format_capability_is_the_single_source() {
         // The one matrix both the resolved provider and the keyless
-        // registry query answer through.
+        // registry query answer through. Anthropic joined 2026-07-07
+        // (output_config.format · GA 2026-01-29) — the instruction
+        // fallback is no longer its schema path.
         assert!(WireFormat::OpenAiCompat.supports_response_format());
         assert!(WireFormat::Gemini.supports_response_format());
         assert!(WireFormat::Mock.supports_response_format());
-        assert!(
-            !WireFormat::Anthropic.supports_response_format(),
-            "anthropic rejects response_format · instruction fallback required"
-        );
+        assert!(WireFormat::Anthropic.supports_response_format());
+        // The strict-reject nuance rides with it: anthropic's grammar
+        // compiler rejects free-form objects → ADR-098 fallback applies.
+        assert!(WireFormat::Anthropic.strict_rejects_underspecified());
+        assert!(!WireFormat::Mock.strict_rejects_underspecified());
     }
 
     #[test]
