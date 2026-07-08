@@ -30,7 +30,7 @@ use super::vocab::{self, Entry};
 /// Compute completion items for the cursor at `offset` in `text`.
 #[must_use]
 pub fn completion(text: &str, offset: usize) -> Vec<CompletionItem> {
-    let offset = offset.min(text.len());
+    let offset = floor_char_boundary(text, offset);
     let line = current_line(text, offset);
     let prefix = line_prefix(text, offset);
 
@@ -55,6 +55,20 @@ pub fn completion(text: &str, offset: usize) -> Vec<CompletionItem> {
         return items;
     }
     Vec::new()
+}
+
+/// Clamp `offset` to a valid UTF-8 char boundary ≤ `text.len()`. A request
+/// offset may sit past the end, or — for a non-server caller — mid-char;
+/// every slice below indexes `text` on this value, so flooring it here once
+/// keeps the whole primitive panic-free (a panic in the sync serve loop
+/// takes the language server down). `str::floor_char_boundary` is still
+/// unstable, so it is spelled out — the same shape as `LineIndex`'s.
+fn floor_char_boundary(text: &str, offset: usize) -> usize {
+    let mut idx = offset.min(text.len());
+    while idx > 0 && !text.is_char_boundary(idx) {
+        idx -= 1;
+    }
+    idx
 }
 
 /// The line text containing `offset` (without the trailing newline).
@@ -905,5 +919,21 @@ mod tests {
             vec!["first", "second"],
             "source order, deduplicated — `first` appears once"
         );
+    }
+
+    #[test]
+    fn completion_is_total_over_a_mid_char_offset() {
+        // The entry clamps a past-the-end offset (`offset.min(len)`) but the
+        // clamp does not land on a char BOUNDARY — a mid-multibyte offset
+        // slices `text[..offset]` mid-char and panics, which in the sync
+        // serve loop takes the WHOLE language server down. `completion` must
+        // be total over `(text, offset)`: any offset returns, never panics.
+        // (The server floors offsets via `LineIndex::offset`, so this is
+        // defence-in-depth for a public analysis primitive, not a reachable
+        // crash today — the bar for an LSP is « no input panics ».)
+        let _ = completion("é", 1); // byte 1 is inside the 2-byte 'é'
+        let _ = completion("nika: v1\n", 99_999); // far past the end
+        let doc = "nika: v1\nmodel: 🦋";
+        let _ = completion(doc, doc.len() - 1); // inside the trailing 4-byte 🦋
     }
 }

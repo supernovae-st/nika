@@ -833,6 +833,7 @@ version = "0.97.0"
 dependencies = [
  "nika-types",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
