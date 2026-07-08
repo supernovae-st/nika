@@ -28,6 +28,22 @@ use nika_bm25::{BmIndex, BmParams};
 use crate::display::theme::{Role, Theme};
 use crate::verbs::{VerbOutput, exit};
 
+/// POSIX shell-quote a path for a COPY-PASTEABLE command suggestion — a
+/// workflow named « My Cool Flow » becomes `My Cool Flow.nika.yaml`, and
+/// the wizard's `nika run <dest>` hint would parse as four arguments and
+/// fail the moment the user pastes it. Only quote when a shell-special
+/// char is present (the common kebab-case path stays bare). Single
+/// quotes with the `'\''` escape — the one form that is total.
+fn shell_quote(path: &str) -> std::borrow::Cow<'_, str> {
+    let safe =
+        |c: char| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '/' | '@' | '+');
+    if !path.is_empty() && path.chars().all(safe) {
+        std::borrow::Cow::Borrowed(path)
+    } else {
+        std::borrow::Cow::Owned(format!("'{}'", path.replace('\'', "'\\''")))
+    }
+}
+
 /// `nika new` — resolve the missing `--from` per clig.dev: a terminal
 /// gets the guided flow (prompt for the missing argument) · a pipe/CI
 /// fails fast naming the flag (never REQUIRE interactivity).
@@ -114,7 +130,8 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> VerbOutput {
     let routing = if routed { "routed intent → " } else { "" };
     VerbOutput {
         text: format!(
-            "{dest} ← {routing}template `{name}` · fill the `# SLOT:` lines then `nika check {dest}`"
+            "{dest} ← {routing}template `{name}` · fill the `# SLOT:` lines then `nika check {q}`",
+            q = shell_quote(dest)
         ),
         code: exit::OK,
     }
@@ -583,11 +600,12 @@ fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme) -> VerbOutput 
     // is the product's argument (a red ladder would honestly propagate,
     // but a fresh scaffold checks clean by the templates' own-corpus law).
     let audit = crate::verbs::check::run(&dest, false, false, theme);
+    let q = shell_quote(&dest);
     let next = format!(
-        "next ·\n  $EDITOR {dest}                   # fill the remaining `# SLOT:` lines\n  nika run {dest}                  # execute · live render (mock is offline · $0.00)\n\n{}",
+        "next ·\n  $EDITOR {q}                   # fill the remaining `# SLOT:` lines\n  nika run {q}                  # execute · live render (mock is offline · $0.00)\n\n{}",
         theme.paint(
             Role::Dim,
-            &format!("scriptable form · nika new --from {} {dest}", w.template)
+            &format!("scriptable form · nika new --from {} {q}", w.template)
         ),
     );
     VerbOutput {
@@ -715,6 +733,23 @@ mod tests {
     use super::*;
 
     const PLAIN: Theme = Theme::new(false, false, false);
+
+    #[test]
+    fn shell_quote_wraps_only_when_needed() {
+        // A kebab path stays bare (the common case · no visual noise);
+        // a spaced path is single-quoted so `nika run <it>` survives the
+        // copy-paste (a wizard hand-off must not emit a broken command).
+        assert_eq!(shell_quote("my-flow.nika.yaml"), "my-flow.nika.yaml");
+        assert_eq!(shell_quote("a/b/c.nika.yaml"), "a/b/c.nika.yaml");
+        assert_eq!(
+            shell_quote("My Cool Flow.nika.yaml"),
+            "'My Cool Flow.nika.yaml'"
+        );
+        // The `'` escape is the total POSIX form (close · escaped · open).
+        assert_eq!(shell_quote("it's.nika.yaml"), r"'it'\''s.nika.yaml'");
+        // Shell metacharacters (a `;`/`$`/`&` in a pasted name) are quoted.
+        assert_eq!(shell_quote("a;rm -rf.yaml"), "'a;rm -rf.yaml'");
+    }
 
     /// A unique EMPTY dir per test — the collision-aware default reads
     /// the base, so shared temp dirs would leak state between tests.
