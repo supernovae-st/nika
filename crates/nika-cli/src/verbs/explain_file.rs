@@ -225,7 +225,8 @@ fn render_human(
         s,
         "{} — {}",
         doc.workflow,
-        description.unwrap_or("(no description: — the file can say what it is for)")
+        description
+            .unwrap_or("(no description yet — one line under `description:` says what it is for)")
     );
     let _ = writeln!(
         s,
@@ -412,14 +413,18 @@ fn run_section(s: &mut String, path: &str, report: &CheckReport) {
     }
 }
 
-/// The flight recorder — what already happened here, and that it is provable.
+/// The flight recorder — what already happened here, and that it is
+/// provable. The full path prints ONCE (the read command); verify names
+/// the same file with « it » — three repetitions of a 45-char path was
+/// the wall-of-text tell the 80-column read caught.
 fn recorder_section(s: &mut String, traces: Option<&(usize, String)>) {
     match traces {
         Some((n, latest)) => {
             let _ = writeln!(
                 s,
-                "\nflight recorder\n  {n} run(s) in .nika/traces · latest {latest}\n  \
-                 nika trace show {latest} · verify the hash chain: nika trace verify {latest}"
+                "\nflight recorder\n  {n} run(s) in .nika/traces · latest:\n  \
+                 nika trace show {latest}\n  \
+                 nika trace verify <same file>   # prove the hash chain"
             );
         }
         None => {

@@ -19,18 +19,21 @@
 use std::fmt::Write as _;
 use std::path::Path;
 
+use crate::display::theme::{Role, Theme};
 use crate::verbs::probe::{Probe, ProviderProbe};
 use crate::verbs::{VerbOutput, probe};
 
 /// The three next moves — the SAME golden path the bare-`nika` footer and
 /// `init`'s hand-off teach (one story across every lost-user surface).
+/// Comments stay ≤26 chars: the widest command pads to 45 and the whole
+/// row must live inside 80 columns (the width nobody configures).
 const START: [(&str, &str); 3] = [
     (
         "nika examples run 01-hello --model mock/echo",
         "offline proof · zero keys",
     ),
-    ("nika new", "your first workflow — guided on a terminal"),
-    ("nika init", "wire this repo (editor · agents)"),
+    ("nika new", "guided first workflow"),
+    ("nika init", "brief editor + agents"),
 ];
 
 /// What the current directory already holds — the workspace half of the
@@ -57,9 +60,11 @@ struct EngineCounts {
 }
 
 /// The `nika welcome` verb. `json` emits the versioned machine projection
-/// (`welcome_version: 1` · additive-only, like every machine envelope).
+/// (`welcome_version: 1` · additive-only, like every machine envelope);
+/// the human mirror renders through the ONE colour seam (`Theme` ·
+/// semantic never decorative — the same law every other surface obeys).
 #[must_use]
-pub fn run(json: bool) -> VerbOutput {
+pub fn run(json: bool, theme: Theme) -> VerbOutput {
     let probe = probe::collect(false);
     let glance = glance(Path::new("."));
     let counts = EngineCounts {
@@ -72,7 +77,7 @@ pub fn run(json: bool) -> VerbOutput {
     if json {
         return VerbOutput::ok(render_json(&probe, glance, counts));
     }
-    VerbOutput::ok(render_human(&probe, glance, counts))
+    VerbOutput::ok(render_human(&probe, glance, counts, theme))
 }
 
 /// The workspace glance — a bounded, dot-dir-skipping walk (depth ≤ 4 ·
@@ -134,23 +139,57 @@ fn count_workflows(dir: &Path, depth: u8, budget: &mut usize) -> usize {
     n
 }
 
-/// One client's cell in the editors row (`cursor ✓` · `vscode ✗`).
-fn client_cell(c: &crate::verbs::probe::ClientProbe) -> String {
-    if c.current {
-        format!("{} ✓", c.id)
-    } else {
-        format!("{} ✗", c.id)
-    }
+/// The wired/unwired glyph pair — ✓/✗ with an ASCII column (`+`/`x`),
+/// painted Good/Dim: an unwired editor is an opportunity, never a
+/// failure (Bad stays the run-verdict red, nothing here earns it).
+fn mark(theme: Theme, on: bool) -> String {
+    let raw = match (theme.ascii, on) {
+        (false, true) => "✓",
+        (false, false) => "✗",
+        (true, true) => "+",
+        (true, false) => "x",
+    };
+    theme.paint(if on { Role::Good } else { Role::Dim }, raw)
 }
 
+/// One client's cell in the editors row (`cursor ✓` · `vscode ✗`).
+fn client_cell(theme: Theme, c: &crate::verbs::probe::ClientProbe) -> String {
+    format!("{} {}", c.id, mark(theme, c.current))
+}
+
+/// The six-line taste of the language — shown ONLY when the workspace has
+/// zero workflows (the stranger's moment; a workspace with files already
+/// knows). The SAME shape as the embedded `01-hello` example, so the
+/// START block's `nika examples run 01-hello` runs exactly what the eye
+/// just read — a test pins that the sample checks clean for real.
+pub(crate) const SAMPLE: &str = r#"nika: v1
+workflow: hello
+model: mock/echo
+tasks:
+  - id: greet
+    infer: { prompt: "say hello to the operator", max_tokens: 50 }"#;
+
 /// The human mirror — sections: identity · this machine · this binary ·
-/// start here. Pure over its inputs (tests pass synthetic probes).
-fn render_human(probe: &Probe, glance: Glance, counts: EngineCounts) -> String {
+/// (the language, first time only) · start here · learn. One helper per
+/// beat (the 100-line fn cap forced this shape here too, and the shape
+/// is better); pure over its inputs (tests pass synthetic probes + a
+/// plain theme).
+fn render_human(probe: &Probe, glance: Glance, counts: EngineCounts, theme: Theme) -> String {
     let mut s = String::new();
+    identity_section(&mut s, probe, theme);
+    machine_section(&mut s, probe, glance, theme);
+    binary_section(&mut s, counts, glance, theme);
+    start_section(&mut s, theme);
+    s
+}
+
+/// Who nika is — logo · version · the three-line identity.
+fn identity_section(s: &mut String, probe: &Probe, theme: Theme) {
     let _ = writeln!(
         s,
-        "🦋 nika {} — Intent as Code. The workflow language for AI.",
-        probe.version
+        "{} {} — Intent as Code. The workflow language for AI.",
+        theme.logo(),
+        theme.paint(Role::Strong, &format!("nika {}", probe.version)),
     );
     let _ = writeln!(
         s,
@@ -161,18 +200,27 @@ fn render_human(probe: &Probe, glance: Glance, counts: EngineCounts) -> String {
         "   every run records a tamper-evident, hash-chained trace"
     );
     let _ = writeln!(s);
+}
 
-    let _ = writeln!(s, "this machine");
-    let editors: Vec<String> = probe.clients.iter().map(client_cell).collect();
+/// The machine half of the mirror — editors · local · keys · workspace.
+fn machine_section(s: &mut String, probe: &Probe, glance: Glance, theme: Theme) {
+    let _ = writeln!(s, "{}", theme.paint(Role::Strong, "this machine"));
+    let editors: Vec<String> = probe
+        .clients
+        .iter()
+        .map(|c| client_cell(theme, c))
+        .collect();
     let unwired = probe.clients.iter().any(|c| !c.current);
     let _ = writeln!(
         s,
         "  editors    {}{}",
         editors.join(" · "),
         if unwired {
-            "   → nika wire <client|all>"
+            // Four unwired ids + a long hint broke 80 — the short form
+            // still names the exact command.
+            theme.paint(Role::Dim, "   → nika wire all")
         } else {
-            ""
+            String::new()
         }
     );
     let locals: Vec<&str> = probe
@@ -184,56 +232,106 @@ fn render_human(probe: &Probe, glance: Glance, counts: EngineCounts) -> String {
     if locals.is_empty() {
         let _ = writeln!(s, "  local      no local providers in this build");
     } else {
+        // The five ids alone take 47 columns — the dim tail must stay
+        // ≤15 for the row to live inside 80 (doctor --ping teaches the
+        // port probe; this row only says « keyless exists »).
         let _ = writeln!(
             s,
-            "  local      {} — no key needed · nika doctor --ping probes the ports",
-            locals.join(" · ")
+            "  local      {} {}",
+            locals.join(" · "),
+            theme.paint(Role::Dim, "· no key needed"),
         );
     }
     let (present, total) = cloud_key_counts(&probe.providers);
     let _ = writeln!(
         s,
-        "  keys       {present}/{total} cloud keys present · details + fixes → nika doctor"
+        "  keys       {present}/{total} cloud keys present {}",
+        theme.paint(Role::Dim, "· details + fixes → nika doctor"),
     );
     let _ = writeln!(
         s,
         "  workspace  git {} · {} · agents {}",
-        tick(glance.git),
+        mark(theme, glance.git),
         match glance.workflows {
             0 => "no workflows yet".to_owned(),
             1 => "1 workflow".to_owned(),
             n => format!("{n} workflows"),
         },
         if glance.agents_md {
-            "briefed ✓ (AGENTS.md)".to_owned()
+            format!("briefed {} (AGENTS.md)", mark(theme, true))
         } else {
-            "not briefed → nika init".to_owned()
+            format!("not briefed {}", theme.paint(Role::Dim, "→ nika init"))
         }
     );
     let _ = writeln!(s);
+}
 
-    let _ = writeln!(s, "this binary");
+/// What this binary carries — derived counts, and (first contact only)
+/// the six-line taste of the language itself.
+fn binary_section(s: &mut String, counts: EngineCounts, glance: Glance, theme: Theme) {
+    let _ = writeln!(s, "{}", theme.paint(Role::Strong, "this binary"));
     let _ = writeln!(
         s,
-        "  4 verbs · {} builtins · {} local + {} cloud providers · {} runnable examples · {} templates",
-        counts.builtins, counts.locals, counts.clouds, counts.examples, counts.templates
+        "  4 verbs · {} builtins · {} providers · {} examples · {} templates",
+        counts.builtins,
+        counts.locals + counts.clouds,
+        counts.examples,
+        counts.templates
     );
     let _ = writeln!(s);
+    if glance.workflows == 0 {
+        let _ = writeln!(
+            s,
+            "{}",
+            theme.paint(Role::Strong, "a whole workflow is one file")
+        );
+        for line in SAMPLE.lines() {
+            let _ = writeln!(s, "  {line}");
+        }
+        let _ = writeln!(s);
+    }
+}
 
-    let _ = writeln!(s, "start here (offline · zero keys)");
+/// The hand-off — three offline commands, then where to learn more.
+fn start_section(s: &mut String, theme: Theme) {
+    let _ = writeln!(
+        s,
+        "{}",
+        theme.paint(Role::Strong, "start here (offline · zero keys)")
+    );
     let width = START
         .iter()
         .map(|(cmd, _)| cmd.chars().count())
         .max()
         .unwrap_or(0);
-    for (cmd, why) in START {
-        let _ = writeln!(s, "  {cmd:<width$}   # {why}");
+    // The gh/bun law (2026 survey): exactly ONE next command carries the
+    // maximum visual weight — the first row is the thing to run NOW, the
+    // other two stay plain (a journey, not a menu of equals).
+    for (i, (cmd, why)) in START.iter().enumerate() {
+        let painted = if i == 0 {
+            theme.paint(Role::Strong, &format!("{cmd:<width$}"))
+        } else {
+            format!("{cmd:<width$}")
+        };
+        let _ = writeln!(
+            s,
+            "  {painted}   {}",
+            theme.paint(Role::Dim, &format!("# {why}"))
+        );
     }
-    s
-}
-
-fn tick(on: bool) -> &'static str {
-    if on { "✓" } else { "—" }
+    let _ = writeln!(s);
+    let _ = writeln!(
+        s,
+        "{}",
+        theme.paint(
+            Role::Dim,
+            &format!(
+                "learn: {} · docs: {}",
+                theme.link("https://nika.sh", "nika.sh"),
+                theme.link("https://docs.nika.sh", "docs.nika.sh"),
+            )
+        )
+    );
 }
 
 /// Cloud keys: how many of the key-requiring providers have one PRESENT
@@ -355,6 +453,10 @@ mod tests {
         }
     }
 
+    fn plain() -> Theme {
+        Theme::new(false, false, false)
+    }
+
     #[test]
     fn human_mirror_carries_the_four_sections_and_no_key_names() {
         let text = render_human(
@@ -365,6 +467,7 @@ mod tests {
                 agents_md: false,
             },
             counts(),
+            plain(),
         );
         for needle in [
             "Intent as Code",
@@ -378,6 +481,7 @@ mod tests {
             "1/2 cloud keys present",
             "not briefed → nika init",
             "mock/echo",
+            "learn: nika.sh",
         ] {
             assert!(text.contains(needle), "missing `{needle}`:\n{text}");
         }
@@ -386,6 +490,160 @@ mod tests {
         assert!(
             !text.contains("API_KEY"),
             "welcome must not name key variables:\n{text}"
+        );
+        // A workspace that already HAS workflows skips the language taste
+        // (progressive disclosure — the sample is the stranger's moment).
+        assert!(
+            !text.contains("a whole workflow is one file"),
+            "2 workflows → no sample:\n{text}"
+        );
+    }
+
+    /// A probe shaped like the REAL shipped catalog (5 locals · 10
+    /// clouds · 4 clients) — the 80-column gate must hold on the widest
+    /// TRUE rows, not on a slim synthetic (the first cut passed on a
+    /// 1-local probe while the real machine rendered 102 columns).
+    fn shipped_shape_probe() -> Probe {
+        let local = |id: &str| ProviderProbe {
+            id: id.to_owned(),
+            requires_key: false,
+            key_present: false,
+            fix_var: String::new(),
+            structured_native: true,
+        };
+        let cloud = |id: &str| ProviderProbe {
+            id: id.to_owned(),
+            requires_key: true,
+            key_present: false,
+            fix_var: String::new(),
+            structured_native: true,
+        };
+        let client = |id: &str| ClientProbe {
+            id: id.to_owned(),
+            path: String::new(),
+            present: false,
+            current: false,
+            stale: false,
+        };
+        Probe {
+            version: "0.98.0".to_owned(),
+            config_path: None,
+            providers: ["ollama", "lmstudio", "llamacpp", "localai", "vllm"]
+                .into_iter()
+                .map(local)
+                .chain(
+                    [
+                        "mistral",
+                        "anthropic",
+                        "openai",
+                        "gemini",
+                        "deepseek",
+                        "xai",
+                        "groq",
+                        "openrouter",
+                        "huggingface",
+                        "nvidia",
+                    ]
+                    .into_iter()
+                    .map(cloud),
+                )
+                .collect(),
+            clients: ["cursor", "windsurf", "claude", "vscode"]
+                .into_iter()
+                .map(client)
+                .collect(),
+            image: ImageProbe::default(),
+            tts: TtsProbe::default(),
+            local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
+        }
+    }
+
+    #[test]
+    fn the_stranger_sees_the_language_and_it_fits_eighty_columns() {
+        // Zero workflows = the first-contact moment: the mirror SHOWS a
+        // whole workflow (the abstract tagline made concrete) — and every
+        // line of the whole render stays ≤80 display columns (the one
+        // terminal width nobody configures), measured on the REAL
+        // catalog shape.
+        let text = render_human(
+            &shipped_shape_probe(),
+            Glance {
+                git: false,
+                workflows: 0,
+                agents_md: false,
+            },
+            EngineCounts {
+                builtins: 25,
+                locals: 5,
+                clouds: 10,
+                examples: 28,
+                templates: 9,
+            },
+            plain(),
+        );
+        assert!(
+            text.contains("a whole workflow is one file"),
+            "0 workflows → the sample shows:\n{text}"
+        );
+        assert!(text.contains("nika: v1"), "{text}");
+        assert!(text.contains("infer:"), "{text}");
+        for line in text.lines() {
+            assert!(
+                line.chars().count() <= 80,
+                "line exceeds 80 cols ({}): `{line}`",
+                line.chars().count()
+            );
+        }
+    }
+
+    #[test]
+    fn ascii_theme_swaps_every_glyph() {
+        // CI logs and legacy terminals get a first-class column: no 🦋,
+        // no ✓/✗ — the [nika] mark and +/x, same meaning (colour law:
+        // meaning never lives in glyph loss either).
+        let text = render_human(
+            &synthetic_probe(),
+            Glance {
+                git: true,
+                workflows: 1,
+                agents_md: true,
+            },
+            counts(),
+            Theme::new(false, true, false),
+        );
+        assert!(text.contains("[nika]"), "{text}");
+        assert!(text.contains("cursor +"), "{text}");
+        assert!(text.contains("vscode x"), "{text}");
+        for glyph in ['🦋', '✓', '✗'] {
+            assert!(
+                !text.contains(glyph),
+                "unicode {glyph} leaked into --ascii:\n{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_sample_is_a_real_workflow_that_checks_clean() {
+        // The honesty law, applied to marketing: the six lines the
+        // stranger reads must BE a checkable workflow, not pseudo-yaml.
+        let path = std::env::temp_dir().join(format!(
+            "nika-welcome-sample-{}.nika.yaml",
+            std::process::id()
+        ));
+        std::fs::write(&path, format!("{SAMPLE}\n")).expect("sample written");
+        let out = crate::verbs::check::run(
+            path.to_str().expect("utf8"),
+            false,
+            false,
+            Theme::new(false, false, false),
+        );
+        std::fs::remove_file(&path).ok();
+        assert_eq!(
+            out.code,
+            exit::OK,
+            "the welcome sample must check clean:\n{}",
+            out.text
         );
     }
 
@@ -437,10 +695,10 @@ mod tests {
     fn welcome_is_always_a_success() {
         // A greeting is never a failure — even on a bare machine the verb
         // routes (doctor owns the gate semantics, welcome never gates).
-        let out = run(false);
+        let out = run(false, plain());
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(out.text.contains("start here"), "{}", out.text);
-        let json = run(true);
+        let json = run(true, plain());
         assert_eq!(json.code, exit::OK);
         assert!(json.text.contains("\"welcome_version\":1"), "{}", json.text);
     }
