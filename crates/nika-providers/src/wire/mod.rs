@@ -9,10 +9,10 @@
 
 pub(crate) mod anthropic;
 pub(crate) mod gemini;
-mod gemini_schema;
 pub(crate) mod mock;
 mod mock_schema;
 pub(crate) mod openai_compat;
+mod openai_schema;
 
 use std::collections::VecDeque;
 use std::pin::Pin;

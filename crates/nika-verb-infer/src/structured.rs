@@ -15,8 +15,10 @@ pub(crate) enum Validation {
     /// The candidate parsed and satisfied the schema.
     Valid(serde_json::Value),
     /// No JSON candidate could be extracted, or it failed the schema.
-    /// Carries the human-readable detail used for the retry message.
-    Invalid(String),
+    /// Carries one rendered line per validation error (≤5) — the terminal
+    /// detail joins them; the retry message numbers them as repair
+    /// instructions (see [`retry_message`]).
+    Invalid(Vec<String>),
 }
 
 /// Cap on the schema text re-injected into prompts (retry + instruction
@@ -53,7 +55,7 @@ pub(crate) fn render_schema(schema: &serde_json::Value) -> String {
 /// fenced block, then the first balanced `{…}` or `[…]` span.
 pub(crate) fn extract_and_validate(text: &str, validator: &jsonschema::Validator) -> Validation {
     let Some(candidate) = extract_json(text) else {
-        return Validation::Invalid("no JSON value found in the model output".to_owned());
+        return Validation::Invalid(vec!["no JSON value found in the model output".to_owned()]);
     };
 
     let rendered: Vec<String> = validator
@@ -71,7 +73,7 @@ pub(crate) fn extract_and_validate(text: &str, validator: &jsonschema::Validator
     if rendered.is_empty() {
         Validation::Valid(candidate)
     } else {
-        Validation::Invalid(rendered.join("; "))
+        Validation::Invalid(rendered)
     }
 }
 
@@ -146,13 +148,31 @@ fn push_subschemas<'a>(
     }
 }
 
-/// The corrective user message appended on a validation retry.
-pub(crate) fn retry_message(detail: &str, schema: &serde_json::Value) -> String {
+/// The corrective user message appended on a validation retry — a NUMBERED
+/// repair list plus the localized-edit framing (« fix exactly these · keep
+/// everything else identical »), not a prose dump.
+///
+/// The shape is evidence-picked: machine-readable per-error repair
+/// instructions beat raw validator prose by +37-40pp task completion in
+/// the only direct eval (Self-Reflective APIs · arxiv.org/abs/2606.05037),
+/// and localized critique beats generic feedback (arxiv.org/abs/2407.02397)
+/// — a full regeneration invites NEW errors in the parts that were already
+/// right. The schema still renders (capped): on the native path it
+/// traveled server-side, so the retry is the model's only in-context look.
+pub(crate) fn retry_message(errors: &[String], schema: &serde_json::Value) -> String {
     let rendered = render_schema(schema);
+    let list = errors
+        .iter()
+        .enumerate()
+        .map(|(i, e)| format!("{}. {e}", i + 1))
+        .collect::<Vec<_>>()
+        .join("\n");
     format!(
-        "The previous reply did not satisfy the required output schema. \
-         Validation failed with: {detail}. Reply again with ONLY a JSON value \
-         that satisfies this JSON Schema, no prose, no code fences:\n{rendered}"
+        "The previous reply did not satisfy the required output schema.\n\
+         Repair instructions — fix exactly these, keep everything else identical:\n\
+         {list}\n\
+         Reply again with ONLY the corrected JSON value, no prose, no code \
+         fences. The schema:\n{rendered}"
     )
 }
 
@@ -348,7 +368,7 @@ mod tests {
         let v = extract_and_validate(r#"{"name":"Ada","age":36}"#, &validator(&person_schema()));
         match v {
             Validation::Valid(val) => assert_eq!(val["name"], "Ada"),
-            Validation::Invalid(d) => panic!("expected valid, got: {d}"),
+            Validation::Invalid(d) => panic!("expected valid, got: {d:?}"),
         }
     }
 
@@ -379,7 +399,7 @@ mod tests {
         let text = r#"noise {"name":"A{d}a","age":1} trail"#;
         match extract_and_validate(text, &validator(&person_schema())) {
             Validation::Valid(val) => assert_eq!(val["name"], "A{d}a"),
-            Validation::Invalid(d) => panic!("expected valid, got: {d}"),
+            Validation::Invalid(d) => panic!("expected valid, got: {d:?}"),
         }
     }
 
@@ -387,7 +407,9 @@ mod tests {
     fn schema_violation_reports_path() {
         let v = extract_and_validate(r#"{"name":"Ada","age":-3}"#, &validator(&person_schema()));
         match v {
-            Validation::Invalid(d) => assert!(d.contains("age"), "detail names the path: {d}"),
+            Validation::Invalid(d) => {
+                assert!(d.iter().any(|e| e.contains("age")), "path named: {d:?}");
+            }
             Validation::Valid(_) => panic!("expected invalid"),
         }
     }
@@ -484,7 +506,10 @@ mod tests {
 
     #[test]
     fn retry_message_carries_detail_and_schema() {
-        let msg = retry_message("at `/age`: -3 is less than 0", &person_schema());
+        let msg = retry_message(
+            &["at `/age`: -3 is less than 0".to_owned()],
+            &person_schema(),
+        );
         assert!(msg.contains("/age"));
         assert!(msg.contains("\"required\""));
     }
@@ -558,7 +583,7 @@ mod tests {
         let v = extract_and_validate(r#"{"name":"Ada","age":36,}"#, &validator(&person_schema()));
         match v {
             Validation::Valid(val) => assert_eq!(val["age"], 36),
-            Validation::Invalid(d) => panic!("expected repair to valid, got: {d}"),
+            Validation::Invalid(d) => panic!("expected repair to valid, got: {d:?}"),
         }
     }
 

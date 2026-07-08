@@ -137,13 +137,13 @@ impl<H> ProviderRegistry<H> {
     /// `resolve()` (which would also demand a key). An unknown provider or
     /// a malformed model string answers `false` — the SAFE default: a
     /// caller that can't confirm native support falls back to a schema
-    /// INSTRUCTION, which is correct on every wire (anthropic REQUIRES it).
+    /// INSTRUCTION — correct (if no longer required) on every wire.
     #[must_use]
     pub fn supports_response_format(&self, model: &str) -> bool {
         model
             .split_once('/')
             .and_then(|(provider_id, _)| self.profiles.iter().find(|p| p.id == provider_id))
-            .is_some_and(|profile| profile.wire.supports_response_format())
+            .is_some_and(Profile::supports_response_format)
     }
 }
 
@@ -327,7 +327,7 @@ where
     /// The resolved provider's actual capability · delegates to the
     /// wire-family source of truth ([`WireFormat::supports_response_format`]).
     fn supports_response_format(&self) -> bool {
-        self.profile.wire.supports_response_format()
+        self.profile.supports_response_format()
     }
 }
 
@@ -369,12 +369,15 @@ mod tests {
         // gemini + openai-family → native structured output (robust).
         assert!(reg.supports_response_format("gemini/flash"));
         assert!(reg.supports_response_format("openai/gpt-4o"));
-        assert!(reg.supports_response_format("deepseek/chat")); // openai-compat
+        // deepseek is the per-PROFILE correction on an openai-compat wire:
+        // its API accepts only text|json_object (json_schema out-of-enum →
+        // 4xx · api-docs.deepseek.com · 2026-07-08) → instruction fallback.
+        assert!(!reg.supports_response_format("deepseek/chat"));
         assert!(reg.supports_response_format("ollama/llama3")); // openai-compat local
         assert!(reg.supports_response_format("mock/echo"));
-        // anthropic → false (its wire rejects response_format · instruction
-        // fallback REQUIRED).
-        assert!(!reg.supports_response_format("anthropic/sonnet"));
+        // anthropic → native since 2026-07-07 (output_config.format ·
+        // GA 2026-01-29 · the wire normalizes to its narrower dialect).
+        assert!(reg.supports_response_format("anthropic/sonnet"));
     }
 
     #[test]

@@ -18,6 +18,7 @@ use nika_kernel::ai::provider::{
 use nika_kernel::http::{HttpPostDyn, HttpRequest};
 use serde_json::{Value, json};
 
+use super::openai_schema::normalize_strict_schema;
 use super::{EventMapper, SseEventStream, ToolNameMap, gen_ai_system, map_http_err, status_error};
 use crate::registry::ResolvedProvider;
 
@@ -229,162 +230,6 @@ fn response_format_value(format: &ResponseFormat, provider_id: &str) -> Option<V
             Some(json!({ "type": "json_schema", "json_schema": json_schema }))
         }
         ResponseFormat::Text | _ => None,
-    }
-}
-
-/// Recursively rewrite a JSON Schema into `OpenAI` strict-mode shape.
-///
-/// On every `"type":"object"` node it (1) injects
-/// `additionalProperties:false` and (2) sets `required` to ALL declared
-/// property keys — a field the author left out of `required` is made
-/// *nullable* (`"type":[T,"null"]`, `OpenAI`'s documented optional
-/// workaround) rather than dropped, so optionality survives. On every node
-/// it also rewrites `oneOf` → `anyOf` (`OpenAI` strict rejects `oneOf` with
-/// HTTP 400 "'oneOf' is not permitted"; a well-formed `anyOf` is accepted
-/// by both `OpenAI` and gemini). The walk descends into `properties.*`,
-/// `items` (single + tuple/`prefixItems`), every `$defs`/`definitions`
-/// entry, and the `anyOf`/`allOf`/`oneOf` branches.
-fn normalize_strict_schema(schema: &Value) -> Value {
-    let mut out = schema.clone();
-    normalize_node(&mut out);
-    out
-}
-
-/// In-place strict-mode rewrite of one schema node and its descendants.
-fn normalize_node(node: &mut Value) {
-    let Some(obj) = node.as_object_mut() else {
-        return;
-    };
-    descend_subschemas(obj);
-    rename_oneof_to_anyof(obj);
-    simplify_unsupported(obj);
-    if obj.get("type").and_then(Value::as_str) == Some("object") {
-        tighten_object(obj);
-    }
-}
-
-/// Rewrite two keywords `OpenAI` strict does not accept:
-/// - `const: X` → `enum: [X]` (`X`'s JSON type is preserved verbatim;
-///   `const` 400s "must have a type" / "not permitted", `enum` is
-///   supported and a one-member `enum` is the equivalent constraint).
-/// - `uniqueItems` → stripped (array-validation-only; not expressible in
-///   the structured-output dialect, so it is dropped at the wire — the
-///   model is still steered by the prompt + item schema).
-fn simplify_unsupported(obj: &mut serde_json::Map<String, Value>) {
-    if let Some(c) = obj.remove("const") {
-        obj.entry("enum").or_insert_with(|| Value::Array(vec![c]));
-    }
-    obj.remove("uniqueItems");
-}
-
-/// `oneOf` → `anyOf` (`OpenAI` strict permits `anyOf`, not `oneOf`). Runs
-/// after [`descend_subschemas`], so the branches are already normalized;
-/// this only swaps the keyword. If the node already carries an `anyOf`, the
-/// `oneOf` branches are appended to it (both forms must hold under
-/// JSON-Schema, and `anyOf`'s "at least one" is the accepted superset of
-/// `oneOf`'s "exactly one") — either way no `oneOf` survives.
-fn rename_oneof_to_anyof(obj: &mut serde_json::Map<String, Value>) {
-    let Some(Value::Array(one_of)) = obj.remove("oneOf") else {
-        return;
-    };
-    match obj.get_mut("anyOf").and_then(Value::as_array_mut) {
-        Some(any_of) => any_of.extend(one_of),
-        None => {
-            obj.insert("anyOf".to_owned(), Value::Array(one_of));
-        }
-    }
-}
-
-/// Recurse into every child that is itself a schema (the composition +
-/// container keywords). `properties` optionality is handled by the parent
-/// in [`tighten_object`]; here we only recurse to normalize nested objects.
-fn descend_subschemas(obj: &mut serde_json::Map<String, Value>) {
-    if let Some(props) = obj.get_mut("properties").and_then(Value::as_object_mut) {
-        for prop in props.values_mut() {
-            normalize_node(prop);
-        }
-    }
-    // `items` is a single subschema (array element) or a tuple array;
-    // `prefixItems` (2020-12) is always a tuple array.
-    for key in ["items", "prefixItems", "additionalItems"] {
-        match obj.get_mut(key) {
-            Some(Value::Array(items)) => items.iter_mut().for_each(normalize_node),
-            Some(child) => normalize_node(child),
-            None => {}
-        }
-    }
-    for key in ["$defs", "definitions"] {
-        if let Some(defs) = obj.get_mut(key).and_then(Value::as_object_mut) {
-            for def in defs.values_mut() {
-                normalize_node(def);
-            }
-        }
-    }
-    for key in ["anyOf", "allOf", "oneOf"] {
-        if let Some(branches) = obj.get_mut(key).and_then(Value::as_array_mut) {
-            branches.iter_mut().for_each(normalize_node);
-        }
-    }
-}
-
-/// Apply the two object-node invariants: `additionalProperties:false` and
-/// `required` = all property keys (optionals made nullable first).
-fn tighten_object(obj: &mut serde_json::Map<String, Value>) {
-    let all_keys: Vec<String> = obj
-        .get("properties")
-        .and_then(Value::as_object)
-        .map(|p| p.keys().cloned().collect())
-        .unwrap_or_default();
-
-    // Keys the author already marked required keep their type as written;
-    // the rest become nullable so they can stay in `required` (OpenAI's
-    // optional shape) without forcing the model to invent a value.
-    let already: std::collections::BTreeSet<String> = obj
-        .get("required")
-        .and_then(Value::as_array)
-        .map(|r| {
-            r.iter()
-                .filter_map(|v| v.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default();
-    if let Some(props) = obj.get_mut("properties").and_then(Value::as_object_mut) {
-        for (name, prop) in props.iter_mut() {
-            if !already.contains(name) {
-                make_nullable(prop);
-            }
-        }
-    }
-
-    obj.insert("additionalProperties".to_owned(), Value::Bool(false));
-    obj.insert(
-        "required".to_owned(),
-        Value::Array(all_keys.into_iter().map(Value::String).collect()),
-    );
-}
-
-/// Widen a schema node's `type` to include `"null"` (idempotent). A scalar
-/// `"type":"string"` becomes `["string","null"]`; an existing array gains
-/// `"null"` only if absent; a typeless node (e.g. a `$ref`/`anyOf` form) is
-/// left untouched — there is no `type` to widen.
-fn make_nullable(prop: &mut Value) {
-    let Some(obj) = prop.as_object_mut() else {
-        return;
-    };
-    match obj.get_mut("type") {
-        Some(Value::String(t)) => {
-            let widened = vec![
-                Value::String(std::mem::take(t)),
-                Value::String("null".to_owned()),
-            ];
-            obj.insert("type".to_owned(), Value::Array(widened));
-        }
-        Some(Value::Array(types)) => {
-            if !types.iter().any(|v| v.as_str() == Some("null")) {
-                types.push(Value::String("null".to_owned()));
-            }
-        }
-        _ => {}
     }
 }
 
@@ -1245,6 +1090,96 @@ mod tests {
         // the rest of the array schema is intact.
         assert_eq!(fruits["type"], "array");
         assert_eq!(fruits["items"]["type"], "string");
+    }
+
+    // ── negation/conditional strip + allOf flatten (live-verified 400s · 2026-07-08) ──
+
+    #[test]
+    fn strict_strips_negation_and_conditional_family() {
+        // `not` / `if`/`then`/`else` / `dependentRequired` all 400 at
+        // request time ("Unsupported keywords") — stripped at the wire,
+        // held by the verb's local validation.
+        let out = strict_schema(json!({
+            "type": "object",
+            "required": ["x"],
+            "properties": {
+                "x": {"type": "string", "not": {"enum": ["forbidden"]}}
+            },
+            "if": { "properties": { "x": { "enum": ["a"] } } },
+            "then": { "required": ["x"] },
+            "dependentRequired": { "x": ["y"] }
+        }));
+        assert!(out["properties"]["x"].get("not").is_none(), "{out}");
+        assert!(out.get("if").is_none());
+        assert!(out.get("then").is_none());
+        assert!(out.get("dependentRequired").is_none());
+    }
+
+    #[test]
+    fn strict_flattens_single_branch_allof() {
+        // "'allOf' is not permitted" — a single branch inlines into the
+        // node and the merged object still earns the strict invariants.
+        let out = strict_schema(json!({
+            "type": "object",
+            "required": ["p"],
+            "properties": {
+                "p": { "allOf": [{
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": { "name": {"type": "string"} }
+                }]}
+            }
+        }));
+        let p = &out["properties"]["p"];
+        assert!(p.get("allOf").is_none(), "no allOf survives: {p}");
+        assert_eq!(p["type"], "object", "branch keys inlined");
+        assert_eq!(p["properties"]["name"]["type"], "string");
+        assert_eq!(p["additionalProperties"], false, "merged node tightened");
+    }
+
+    #[test]
+    fn strict_flattens_multi_branch_allof_with_unions() {
+        // A conjunction of two object branches: properties union +
+        // required union — the wire shape covers every branch's keys and
+        // the local validator still enforces the authored conjunction.
+        let out = strict_schema(json!({
+            "type": "object",
+            "required": ["p"],
+            "properties": {
+                "p": { "allOf": [
+                    {"type": "object", "required": ["a"],
+                     "properties": {"a": {"type": "string"}}},
+                    {"type": "object", "required": ["b"],
+                     "properties": {"b": {"type": "integer"}}}
+                ]}
+            }
+        }));
+        let p = &out["properties"]["p"];
+        assert!(p.get("allOf").is_none());
+        assert!(p["properties"]["a"].is_object() && p["properties"]["b"].is_object());
+        let req = p["required"].as_array().expect("required union");
+        assert!(
+            req.contains(&json!("a")) && req.contains(&json!("b")),
+            "conjunction requires both branches' keys: {req:?}"
+        );
+    }
+
+    #[test]
+    fn peer_keeps_allof_and_not_verbatim() {
+        // The strip is an OPENAI-dialect rewrite — a compat peer (groq ·
+        // local servers) still receives the author's composition as
+        // written.
+        let schema = json!({
+            "type": "object",
+            "properties": { "p": { "allOf": [{"type": "object"}], "not": {"enum": [1]} } }
+        });
+        let mut r = req(vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::JsonSchema(schema.clone());
+        let body = body_of("m", &r, false, true, "groq").expect("body");
+        assert_eq!(
+            body["response_format"]["json_schema"]["schema"], schema,
+            "peer schema byte-for-byte"
+        );
     }
 
     // ── BUG#5 · tool-name sanitization on the openai-compat wire (NIKA-463) ──

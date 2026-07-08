@@ -834,9 +834,9 @@ mod tests {
     #[test]
     fn registry_provider_reports_the_resolved_models_capability() {
         // BUG#11 robustness: the per-call bridge reports its `default_model`'s
-        // ACTUAL wire capability (was hardcoded false). gemini/openai-family
-        // → native structured output (robust under a tight budget) · anthropic
-        // → false (the instruction fallback its wire requires).
+        // ACTUAL wire capability (was hardcoded false). Every wired cloud
+        // family is native today — anthropic joined 2026-07-07
+        // (output_config.format · GA 2026-01-29).
         use nika_kernel::ai::provider::ProviderMeta;
 
         let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::new()));
@@ -846,8 +846,8 @@ mod tests {
         assert!(openai.supports_response_format(), "openai → native");
         let anthropic = RegistryProvider::new(Arc::clone(&registry), "anthropic/sonnet");
         assert!(
-            !anthropic.supports_response_format(),
-            "anthropic → instruction fallback (wire rejects response_format)"
+            anthropic.supports_response_format(),
+            "anthropic → native (output_config.format)"
         );
         // An exec-only workflow has no envelope model → safe fallback.
         let none = RegistryProvider::new(registry, "");

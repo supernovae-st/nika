@@ -24,8 +24,9 @@
 //! - **no boundary** (`permits`) — effectful tasks and no `permits:`
 //!   block: `--infer-permits` writes the tightest one.
 //! - **open schema** (`strictness`) — an object schema admitting
-//!   undeclared keys: close it (`additionalProperties: false`) and the
-//!   structured-output shape is deterministic across providers.
+//!   undeclared keys: close it and the output shape is deterministic.
+//! - **grammar-blind constraint** (`schema-portability`) — keywords no
+//!   provider grammar enforces — see [`push_portability_hint`].
 //! - **redundant success-gate** (`redundant-gate`) — `when: ${{
 //!   tasks.D.status == 'success' }}` where `D` is a dep that can never
 //!   be `skipped`: the spec names this the discouraged restatement of
@@ -50,10 +51,9 @@ use crate::types::OnErrorAction;
 #[non_exhaustive]
 pub struct Hint {
     /// The hint class — the closed set today: `cost` · `dead-spend` ·
-    /// `typing` · `permits` · `strictness` · `redundant-gate` ·
-    /// `retry-effects` · `parallel-writers` · `secrets-store` ·
-    /// `native-first` (additive · agents route on it; the module doc
-    /// describes each).
+    /// `typing` · `permits` · `strictness` · `schema-portability` ·
+    /// `redundant-gate` · `retry-effects` · `parallel-writers` ·
+    /// `secrets-store` · `native-first` (additive · agents route on it).
     pub kind: &'static str,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,
@@ -112,6 +112,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                     )));
                 }
                 push_strictness_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
+                push_portability_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
             }
             RawAction::Agent(a) => {
                 if a.max_tokens_total.is_none() {
@@ -120,6 +121,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                     )));
                 }
                 push_strictness_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
+                push_portability_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
                 any_effect = true; // an agent dispatches tools
             }
             RawAction::Exec(_) | RawAction::Invoke(_) => any_effect = true,
@@ -312,33 +314,69 @@ fn push_strictness_hint(hints: &mut Vec<Hint>, id: &str, schema: Option<&serde_j
     }
 }
 
+/// Visit every child subschema of one node — the ONE composite descent the
+/// schema walkers share (`properties` values · `items` · branch keywords).
+fn for_each_subschema(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    f: &mut impl FnMut(&serde_json::Value),
+) {
+    let props = obj.get("properties").and_then(serde_json::Value::as_object);
+    props
+        .into_iter()
+        .flat_map(serde_json::Map::values)
+        .for_each(&mut *f);
+    for key in [
+        "items", "not", "if", "then", "else", "anyOf", "oneOf", "allOf",
+    ] {
+        match obj.get(key) {
+            Some(serde_json::Value::Array(kids)) => kids.iter().for_each(&mut *f),
+            Some(kid) => f(kid),
+            None => {}
+        }
+    }
+}
+
 /// Whether any object node in the schema declares `properties` without
-/// closing `additionalProperties`. Descends the same composite shapes
-/// the lint walks (`properties` · `items` · `anyOf`/`oneOf`/`allOf`);
-/// `$ref` is opaque (no claim).
+/// closing `additionalProperties`; `$ref` is opaque (no claim).
 fn has_open_object(node: &serde_json::Value) -> bool {
-    let Some(obj) = node.as_object() else {
-        return false;
-    };
-    if obj.contains_key("$ref") {
-        return false;
+    node.as_object()
+        .filter(|o| !o.contains_key("$ref"))
+        .is_some_and(|obj| {
+            let closed = obj.get("additionalProperties") == Some(&serde_json::Value::Bool(false));
+            let has_props = obj
+                .get("properties")
+                .and_then(serde_json::Value::as_object)
+                .is_some();
+            let mut open = !closed && has_props;
+            for_each_subschema(obj, &mut |child| open = open || has_open_object(child));
+            open
+        })
+}
+
+/// The `schema-portability` hint: keywords NO provider grammar enforces
+/// (proven live 2026-07-07) — only LOCAL validation holds them, per-retry.
+fn push_portability_hint(hints: &mut Vec<Hint>, id: &str, schema: Option<&serde_json::Value>) {
+    let mut found = BTreeSet::new();
+    schema.inspect(|s| collect_grammar_blind(s, &mut found));
+    if !found.is_empty() {
+        let list = found.into_iter().collect::<Vec<_>>().join("` · `");
+        hints.push(hint("schema-portability", id, format!(
+            "`{id}`'s schema relies on `{list}` — provider grammars accept but do NOT enforce these keywords (constrained decoding emits violating values unchecked); only Nika's local validation holds them, spending schema retries when the model strays. Express the constraint structurally (`enum` · item bounds · closed objects) where possible"
+        )));
     }
-    if let Some(props) = obj.get("properties").and_then(serde_json::Value::as_object) {
-        if obj.get("additionalProperties") != Some(&serde_json::Value::Bool(false)) {
-            return true;
-        }
-        if props.values().any(has_open_object) {
-            return true;
-        }
+}
+
+/// Binding occurrences only (`uniqueItems: false` / a bare `if` constrain
+/// nothing — no claim); property NAMES are never keywords; `$ref` opaque.
+fn collect_grammar_blind(node: &serde_json::Value, out: &mut BTreeSet<&'static str>) {
+    if let Some(obj) = node.as_object().filter(|o| !o.contains_key("$ref")) {
+        let cond = obj.contains_key("if") && (obj.contains_key("then") || obj.contains_key("else"));
+        let unique = obj.get("uniqueItems").and_then(serde_json::Value::as_bool) == Some(true);
+        out.extend(unique.then_some("uniqueItems"));
+        out.extend(obj.contains_key("not").then_some("not"));
+        out.extend(cond.then_some("if/then/else"));
+        for_each_subschema(obj, &mut |kid| collect_grammar_blind(kid, out));
     }
-    if obj.get("items").is_some_and(has_open_object) {
-        return true;
-    }
-    ["anyOf", "oneOf", "allOf"].iter().any(|key| {
-        obj.get(*key)
-            .and_then(serde_json::Value::as_array)
-            .is_some_and(|branches| branches.iter().any(has_open_object))
-    })
 }
 
 /// Task ids whose output is referenced ANYWHERE (any `tasks.X.output…`
@@ -656,6 +694,66 @@ mod tests {
             1,
             "{h:?}"
         );
+    }
+
+    // ─── schema-portability hint · grammar-blind keywords ─────────────
+
+    #[test]
+    fn grammar_blind_keywords_get_the_portability_hint() {
+        // uniqueItems:true + not — every provider wire ACCEPTS this
+        // schema and no grammar enforces either keyword (llama.cpp +
+        // ollama proven live 2026-07-07); the hint names the local-
+        // validation-only reality, once per task, listing both.
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: false\n        properties:\n          tags:\n            type: array\n            uniqueItems: true\n            items:\n              type: string\n              not: { enum: [forbidden] }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+        );
+        let hit = h
+            .iter()
+            .find(|x| x.kind == "schema-portability")
+            .expect("hint");
+        assert_eq!(hit.task, "a");
+        assert!(
+            hit.advice.contains("`uniqueItems`") && hit.advice.contains("`not`"),
+            "{hit:?}"
+        );
+        assert_eq!(
+            h.iter().filter(|x| x.kind == "schema-portability").count(),
+            1,
+            "one hint per task: {h:?}"
+        );
+    }
+
+    #[test]
+    fn conditional_family_flags_only_when_it_binds() {
+        // `if` + `then` binds → hinted; a bare `if` without then/else
+        // constrains nothing anywhere — not even locally — so no claim.
+        let bound = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: false\n        properties:\n          x: { type: string }\n        if:\n          properties:\n            x: { const: a }\n        then:\n          required: [x]\noutputs:\n  r: ${{ tasks.a.output }}\n",
+        );
+        assert!(
+            bound
+                .iter()
+                .any(|x| x.kind == "schema-portability" && x.advice.contains("`if/then/else`")),
+            "{bound:?}"
+        );
+        let bare = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: false\n        properties:\n          x: { type: string }\n        if:\n          required: [x]\noutputs:\n  r: ${{ tasks.a.output }}\n",
+        );
+        assert!(
+            !bare.iter().any(|x| x.kind == "schema-portability"),
+            "{bare:?}"
+        );
+    }
+
+    #[test]
+    fn portability_hint_reads_keywords_not_property_names() {
+        // a property NAMED `not` + `uniqueItems: false` (the default,
+        // binds nothing) → silence; the walker reads keys only at
+        // schema-node positions.
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: false\n        properties:\n          not: { type: string }\n          tags:\n            type: array\n            uniqueItems: false\n            items: { type: string }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+        );
+        assert!(!h.iter().any(|x| x.kind == "schema-portability"), "{h:?}");
     }
 
     #[test]

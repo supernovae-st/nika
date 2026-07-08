@@ -271,12 +271,32 @@ fn meta_is_coherent_across_the_fourteen() {
             .unwrap_or_else(|e| panic!("[{}] resolves: {e}", p.id));
         assert_eq!(rp.name(), p.id, "[{}] ProviderMeta::name", p.id);
         let supports = rp.supports_response_format();
-        match p.wire {
-            WireFormat::OpenAiCompat | WireFormat::Mock | WireFormat::Gemini => {
-                assert!(supports, "[{}] response_format supported", p.id);
-            }
-            _ => assert!(!supports, "[{}] honest capability answer", p.id),
-        }
+        // Capability is a PROVIDER fact, not only a wire fact: the resolved
+        // provider must agree with the profile it was resolved from, and
+        // exactly ONE provider corrects its family answer today — deepseek
+        // (text|json_object only · json_schema is out-of-enum → 4xx ·
+        // api-docs.deepseek.com · 2026-07-08). Every wire family is native
+        // (anthropic joined 2026-07-07 · output_config.format · live-proven
+        // 2026-07-08).
+        assert_eq!(
+            supports,
+            p.supports_response_format(),
+            "[{}] resolved answer == profile answer",
+            p.id
+        );
+        let family = matches!(
+            p.wire,
+            WireFormat::OpenAiCompat
+                | WireFormat::Mock
+                | WireFormat::Gemini
+                | WireFormat::Anthropic
+        );
+        assert_eq!(
+            supports,
+            family && p.id != "deepseek",
+            "[{}] deepseek is the one family-corrected cloud",
+            p.id
+        );
     }
 }
 
@@ -301,24 +321,23 @@ async fn json_mode_encodes_per_dialect_across_every_wired_profile() {
         let result = rp.infer(req).await;
 
         match wire {
-            // Anthropic has no response_format at v0.1 — the HONEST refusal
-            // fires in request-build, BEFORE any HTTP call (capability == false
-            // per meta_is_coherent). The error is typed and names the field.
+            // Anthropic has no bare JSON mode — `Json` is a deliberate wire
+            // NO-OP, not an error: the verb's ADR-098 JsonMode fallback (how
+            // an underspecified schema reaches this wire) carries the schema
+            // instruction in the prompt and validates locally. The request
+            // SUCCEEDS and carries neither `response_format` nor
+            // `output_config` (JsonSchema is the native path — the
+            // per-dialect tests pin that shape).
             WireFormat::Anthropic => {
-                let err = result
-                    .err()
-                    .unwrap_or_else(|| panic!("[{id}] anthropic must refuse response_format"));
+                result.unwrap_or_else(|e| panic!("[{id}] json-mode no-op must infer: {e}"));
+                let sent = fake.captured();
+                let body: serde_json::Value =
+                    serde_json::from_slice(sent[0].body.as_ref().expect("request body"))
+                        .expect("request body is json");
+                assert!(body.get("response_format").is_none(), "[{id}] no alien key");
                 assert!(
-                    matches!(err, ProviderError::Other { .. }),
-                    "[{id}] refusal typed Other, got {err:?}"
-                );
-                assert!(
-                    err.to_string().contains("response_format"),
-                    "[{id}] refusal names the field: {err}"
-                );
-                assert!(
-                    fake.captured().is_empty(),
-                    "[{id}] no request leaves on an honest refusal"
+                    body.get("output_config").is_none(),
+                    "[{id}] Json is not JsonSchema — no output_config"
                 );
             }
             WireFormat::OpenAiCompat => {
