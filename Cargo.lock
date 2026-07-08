@@ -3979,7 +3979,7 @@ dependencies = [
 
 [[package]]
 name = "nika-pck-manifest"
-version = "0.97.0"
+version = "0.98.0"
 dependencies = [
  "proptest",
  "serde",
