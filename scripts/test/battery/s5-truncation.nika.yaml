@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Battery S5 — TRUNCATION fast-fail (#268): a demanding schema under
+# max_tokens: 16 cuts at the token limit; re-asking at the same budget is
+# a paid call spent on a known failure, so the engine must fail FAST.
+# Expected: exit NON-ZERO · the error names the token limit · attempts=1
+# (no blind re-ask at the same budget).
+nika: v1
+workflow: battery-s5-truncation
+model: mock/echo
+
+tasks:
+  - id: bio
+    infer:
+      prompt: |
+        Write a detailed three-paragraph biography of Ada Lovelace, then
+        list her five key achievements with a sentence each.
+      max_tokens: 16
+      schema:
+        type: object
+        required: [biography, achievements]
+        additionalProperties: false
+        properties:
+          biography: { type: string }
+          achievements:
+            type: array
+            items: { type: string }
+            minItems: 5
+
+outputs:
+  bio:
+    value: ${{ tasks.bio.output }}
+    type: object
+    description: "never reached — the task fails on truncation"

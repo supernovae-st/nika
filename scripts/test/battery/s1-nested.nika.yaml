@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Battery S1 — the structured floor: nested object + enum + required +
+# closed objects. Expected: exit 0 · task success · usage > 0 · output
+# validates against the schema (the engine already enforced it).
+# Model is a placeholder — the runner overrides per manifest row (--model).
+nika: v1
+workflow: battery-s1-nested
+model: mock/echo
+
+tasks:
+  - id: subject
+    infer:
+      prompt: |
+        Invent the profile of a fictional botanist: her full name, her age,
+        which hemisphere she works in, and her favorite plant (its common
+        name and its latin name). Be brief and factual in tone.
+      max_tokens: 300
+      schema:
+        type: object
+        required: [name, age, hemisphere, plant]
+        additionalProperties: false
+        properties:
+          name: { type: string }
+          age: { type: integer }
+          hemisphere: { type: string, enum: [north, south] }
+          plant:
+            type: object
+            required: [common_name, latin_name]
+            additionalProperties: false
+            properties:
+              common_name: { type: string }
+              latin_name: { type: string }
+
+outputs:
+  profile:
+    value: ${{ tasks.subject.output }}
+    type: object
+    description: "the schema-validated profile"
