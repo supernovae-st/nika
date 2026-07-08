@@ -4012,6 +4012,7 @@ dependencies = [
  "nika-pack",
  "nika-providers",
  "nika-schema",
+ "nika-tmpl",
  "nika-types",
  "nika-verb-agent",
  "nika-verb-exec",
@@ -4049,6 +4050,7 @@ dependencies = [
  "nika-error",
  "nika-event",
  "nika-pack",
+ "nika-tmpl",
  "nika-types",
  "proptest",
  "rstest",
@@ -4070,6 +4072,13 @@ dependencies = [
  "proptest",
  "tokio",
  "xcap",
+]
+
+[[package]]
+name = "nika-tmpl"
+version = "0.97.0"
+dependencies = [
+ "proptest",
 ]
 
 [[package]]

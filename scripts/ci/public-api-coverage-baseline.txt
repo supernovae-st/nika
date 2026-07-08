@@ -84,3 +84,4 @@ nika-cap
 nika-builtin
 nika-cel
 nika-cli
+nika-tmpl

@@ -833,6 +833,7 @@ version = "0.97.0"
 dependencies = [
  "nika-types",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -885,6 +886,7 @@ dependencies = [
  "nika-cap",
  "nika-catalog",
  "nika-error",
+ "nika-tmpl",
  "nika-types",
  "serde",
  "serde-saphyr",
@@ -900,6 +902,10 @@ dependencies = [
  "libfuzzer-sys",
  "nika-schema",
 ]
+
+[[package]]
+name = "nika-tmpl"
+version = "0.97.0"
 
 [[package]]
 name = "nika-types"
