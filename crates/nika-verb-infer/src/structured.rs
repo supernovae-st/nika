@@ -53,7 +53,11 @@ pub(crate) fn render_schema(schema: &serde_json::Value) -> String {
 /// Extraction is lenient by design — models wrap JSON in prose and code
 /// fences. Strategy: try the whole trimmed text first, then the first
 /// fenced block, then the first balanced `{…}` or `[…]` span.
-pub(crate) fn extract_and_validate(text: &str, validator: &jsonschema::Validator) -> Validation {
+pub(crate) fn extract_and_validate(
+    text: &str,
+    validator: &jsonschema::Validator,
+    schema: &serde_json::Value,
+) -> Validation {
     let Some(candidate) = extract_json(text) else {
         return Validation::Invalid(vec!["no JSON value found in the model output".to_owned()]);
     };
@@ -71,10 +75,19 @@ pub(crate) fn extract_and_validate(text: &str, validator: &jsonschema::Validator
         })
         .collect();
     if rendered.is_empty() {
-        Validation::Valid(candidate)
-    } else {
-        Validation::Invalid(rendered)
+        return Validation::Valid(candidate);
     }
+    // SAP-lite rescue: one deterministic coercion pass (string-encoded
+    // scalars · single-element array wrap · enum case-snap), accepted
+    // ONLY when the FULL schema validates afterwards — each landed
+    // rescue deletes an entire paid retry round-trip. A rescue that
+    // falls short changes nothing: the retry proceeds on the ORIGINAL
+    // errors (the model is shown its own text, not our repair).
+    let repaired = crate::coerce::coerce_toward(&candidate, schema);
+    if repaired != candidate && validator.iter_errors(&repaired).next().is_none() {
+        return Validation::Valid(repaired);
+    }
+    Validation::Invalid(rendered)
 }
 
 /// Is the task schema UNDERSPECIFIED for a strict provider mode? — any
@@ -365,7 +378,11 @@ mod tests {
 
     #[test]
     fn bare_json_validates() {
-        let v = extract_and_validate(r#"{"name":"Ada","age":36}"#, &validator(&person_schema()));
+        let v = extract_and_validate(
+            r#"{"name":"Ada","age":36}"#,
+            &validator(&person_schema()),
+            &person_schema(),
+        );
         match v {
             Validation::Valid(val) => assert_eq!(val["name"], "Ada"),
             Validation::Invalid(d) => panic!("expected valid, got: {d:?}"),
@@ -376,7 +393,7 @@ mod tests {
     fn fenced_json_is_extracted() {
         let text = "Here you go:\n```json\n{\"name\":\"Ada\",\"age\":36}\n```\nDone.";
         assert!(matches!(
-            extract_and_validate(text, &validator(&person_schema())),
+            extract_and_validate(text, &validator(&person_schema()), &person_schema()),
             Validation::Valid(_)
         ));
     }
@@ -389,7 +406,7 @@ mod tests {
         // REAL providers' noisy replies.)
         let text = r#"mock(echo) · {"name":"Ada","age":36}"#;
         assert!(matches!(
-            extract_and_validate(text, &validator(&person_schema())),
+            extract_and_validate(text, &validator(&person_schema()), &person_schema()),
             Validation::Valid(_)
         ));
     }
@@ -397,7 +414,7 @@ mod tests {
     #[test]
     fn balanced_span_ignores_braces_inside_strings() {
         let text = r#"noise {"name":"A{d}a","age":1} trail"#;
-        match extract_and_validate(text, &validator(&person_schema())) {
+        match extract_and_validate(text, &validator(&person_schema()), &person_schema()) {
             Validation::Valid(val) => assert_eq!(val["name"], "A{d}a"),
             Validation::Invalid(d) => panic!("expected valid, got: {d:?}"),
         }
@@ -405,7 +422,11 @@ mod tests {
 
     #[test]
     fn schema_violation_reports_path() {
-        let v = extract_and_validate(r#"{"name":"Ada","age":-3}"#, &validator(&person_schema()));
+        let v = extract_and_validate(
+            r#"{"name":"Ada","age":-3}"#,
+            &validator(&person_schema()),
+            &person_schema(),
+        );
         match v {
             Validation::Invalid(d) => {
                 assert!(d.iter().any(|e| e.contains("age")), "path named: {d:?}");
@@ -417,7 +438,11 @@ mod tests {
     #[test]
     fn no_json_at_all_is_invalid() {
         assert!(matches!(
-            extract_and_validate("plain prose, nothing else", &validator(&person_schema())),
+            extract_and_validate(
+                "plain prose, nothing else",
+                &validator(&person_schema()),
+                &person_schema(),
+            ),
             Validation::Invalid(_)
         ));
     }
@@ -426,7 +451,7 @@ mod tests {
     fn arrays_are_supported() {
         let schema = json!({ "type": "array", "items": { "type": "integer" } });
         assert!(matches!(
-            extract_and_validate("the list is [1, 2, 3] ok", &validator(&schema)),
+            extract_and_validate("the list is [1, 2, 3] ok", &validator(&schema), &schema),
             Validation::Valid(_)
         ));
     }
@@ -580,7 +605,11 @@ mod tests {
     #[test]
     fn trailing_comma_in_object_is_repaired() {
         // The dominant local-model near-miss: a trailing comma before `}`.
-        let v = extract_and_validate(r#"{"name":"Ada","age":36,}"#, &validator(&person_schema()));
+        let v = extract_and_validate(
+            r#"{"name":"Ada","age":36,}"#,
+            &validator(&person_schema()),
+            &person_schema(),
+        );
         match v {
             Validation::Valid(val) => assert_eq!(val["age"], 36),
             Validation::Invalid(d) => panic!("expected repair to valid, got: {d:?}"),
@@ -591,7 +620,7 @@ mod tests {
     fn trailing_comma_in_array_and_nested_is_repaired() {
         let schema = json!({ "type": "array", "items": { "type": "integer" } });
         assert!(matches!(
-            extract_and_validate("[1, 2, 3, ]", &validator(&schema)),
+            extract_and_validate("[1, 2, 3, ]", &validator(&schema), &schema),
             Validation::Valid(_)
         ));
         // Nested + whitespace before the closer.
@@ -638,7 +667,7 @@ mod tests {
         // the real object that follows — the multi-candidate scan reaches it.
         let text = r#"I think [maybe] the answer is {"name":"Ada","age":36}."#;
         assert!(matches!(
-            extract_and_validate(text, &validator(&person_schema())),
+            extract_and_validate(text, &validator(&person_schema()), &person_schema()),
             Validation::Valid(_)
         ));
     }

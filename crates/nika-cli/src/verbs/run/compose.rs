@@ -213,17 +213,29 @@ where
 /// time is NOT an error here: `resolve()` surfaces the typed
 /// `AuthFailed` (with the env-ladder hint) only if a workflow actually
 /// targets that provider.
+/// The documented key ladder for one provider (`Profile::env_candidates`
+/// · what `nika doctor` reports): `NIKA_<ID>_API_KEY` overrides the
+/// conventional variable, so an operator can point ONE provider at a
+/// different key (billing split · a scoped test key) without touching
+/// the shared var every other tool reads. The runtime ignoring the
+/// override while doctor honored it was a green-doctor → dead-run drift.
+/// Empty values count as absent on BOTH rungs.
+fn ladder_key(lookup: &dyn Fn(&str) -> Option<String>, id: &str, env_var: &str) -> Option<String> {
+    let nika = format!("NIKA_{}_API_KEY", id.to_uppercase());
+    lookup(&nika)
+        .filter(|v| !v.is_empty())
+        .or_else(|| lookup(env_var).filter(|v| !v.is_empty()))
+}
+
 pub(crate) fn config_from_env() -> ProvidersConfig {
     let mut config = ProvidersConfig::new();
+    #[allow(clippy::disallowed_methods)] // the sanctioned env→secret boundary (see doc)
+    let lookup = |name: &str| std::env::var(name).ok();
     for provider in nika_catalog::all_providers() {
         if provider.env_var.is_empty() {
             continue;
         }
-        #[allow(clippy::disallowed_methods)] // the sanctioned env→secret boundary (see doc)
-        let present = std::env::var(provider.env_var);
-        if let Ok(value) = present
-            && !value.is_empty()
-        {
+        if let Some(value) = ladder_key(&lookup, provider.id, provider.env_var) {
             config = config.with_key(provider.id, Secret::new(value));
         }
     }
@@ -829,6 +841,44 @@ mod tests {
             runtime.is_ok(),
             "the production runtime composes (TLS init is the only failure)"
         );
+    }
+
+    #[test]
+    fn ladder_prefers_the_nika_prefix_and_skips_empties() {
+        // The documented ladder (Profile::env_candidates · doctor's
+        // report): NIKA_<ID>_API_KEY wins · empty counts as absent on
+        // both rungs · conventional is the fallback. Pure lookup — no
+        // process-env mutation (parallel tests stay hermetic).
+        let env = |pairs: &'static [(&'static str, &'static str)]| {
+            move |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(k, _)| *k == name)
+                    .map(|(_, v)| (*v).to_owned())
+            }
+        };
+        let both = env(&[
+            ("NIKA_MISTRAL_API_KEY", "scoped"),
+            ("MISTRAL_API_KEY", "shared"),
+        ]);
+        assert_eq!(
+            ladder_key(&both, "mistral", "MISTRAL_API_KEY").as_deref(),
+            Some("scoped"),
+            "the NIKA_ override wins"
+        );
+        let conventional = env(&[("MISTRAL_API_KEY", "shared")]);
+        assert_eq!(
+            ladder_key(&conventional, "mistral", "MISTRAL_API_KEY").as_deref(),
+            Some("shared")
+        );
+        let empty_override = env(&[("NIKA_MISTRAL_API_KEY", ""), ("MISTRAL_API_KEY", "shared")]);
+        assert_eq!(
+            ladder_key(&empty_override, "mistral", "MISTRAL_API_KEY").as_deref(),
+            Some("shared"),
+            "an empty override falls through to the conventional rung"
+        );
+        let nothing = env(&[]);
+        assert_eq!(ladder_key(&nothing, "mistral", "MISTRAL_API_KEY"), None);
     }
 
     #[test]
