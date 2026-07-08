@@ -683,6 +683,7 @@ pub fn nika_cli::verbs::graph::run(path: &str, format: nika_cli::verbs::graph::G
 pub fn nika_cli::verbs::graph::to_dot(doc: &nika_cli::verbs::graph::GraphDoc) -> alloc::string::String
 pub fn nika_cli::verbs::graph::to_mermaid(doc: &nika_cli::verbs::graph::GraphDoc) -> alloc::string::String
 pub mod nika_cli::verbs::init
+pub fn nika_cli::verbs::init::agents_md() -> &'static str
 pub fn nika_cli::verbs::init::run(dir: &str, force: bool, yes: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::inspect
 pub fn nika_cli::verbs::inspect::run(path: &str, ascii: bool) -> nika_cli::verbs::VerbOutput

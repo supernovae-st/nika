@@ -36,11 +36,16 @@ const VSCODE_SETTINGS: &str = r#"{
 "#;
 
 /// `AGENTS.md` — the repo's agent guide: the loop, the four verbs, the
-/// discipline. Concise on purpose (the engine teaches the rest via `check`).
+/// discipline. Concise on purpose (the engine teaches the rest via `check`)
+/// — but COMPLETE over the live clap tree: a verb the binary ships and the
+/// guide never names is a verb a wired agent will never reach (found stale
+/// 2026-07-05 — the scaffold taught zero of the then-new train). The bin
+/// test `the_scaffolded_agents_md_teaches_the_live_clap_tree` pins the
+/// parity, derived from the tree itself.
 const AGENTS_MD: &str = r"# AGENTS.md — Nika workflows in this repo
 
 Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
-**audited before they run**.
+**audited before they run**. (This guide is scaffolded by `nika init`.)
 
 ## The loop
 - **Author** · `nika new --from <template> <file>.nika.yaml` (or write one —
@@ -48,6 +53,12 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
 - **Check** · `nika check <file>` — the static audit BEFORE any run (schema ·
   DAG · CEL · effects · permits · cost). Exit `0` clean · `2` findings.
 - **Run** · `nika run <file>` — execute · live render. Exit `0` ok · `1` failed.
+  Inputs ride `--var key=value` (repeatable · unknown keys refused); a run
+  paused on a `nika:prompt` resumes with `--resume <trace> --answer
+  <task>=<value>` (confirm gates take booleans: `--answer approve=true`).
+- **Pin** · `nika test <file> --update` writes `<file>.golden.json` from an
+  offline mock run; `nika test <file>` replays and compares — deterministic,
+  zero keys, the CI gate.
 - **Diagnose** · `nika doctor` — the environment (providers · keys · config).
 - **Explain** · `nika explain NIKA-XXXX` — teach one error code.
 - **Wire** · `nika wire <cursor|vscode|windsurf|claude|codex|all>` — point an
@@ -72,7 +83,19 @@ or MCP tool) · `agent` (a multi-turn ReAct loop).
 ## Don't invent structure — route to a skeleton
 `nika new --from '?'` lists the 6 skeletons · `nika examples list` / `show
 <slug>` reads a runnable example that exercises a construct · `nika schema`
-is the JSON Schema · `nika spec --canon` is the SSOT. Copy, fill, check.
+is the JSON Schema · `nika spec --canon` is the SSOT · `nika catalog` names
+the providers/models · `nika tools` names the `nika:` builtins. Copy, fill,
+check.
+
+## Understand · replay
+- `nika inspect <file>` — static anatomy: tasks · verbs · wave groups · cost.
+- `nika graph <file> --format mermaid|dot|json` — the ONE graph projector.
+- `nika trace show|replay <run>` — the flight recorder (every run records).
+- `nika dap` — step a recorded run under a debugger UI, forward AND back.
+
+## Servers (stdio · for editors and agent clients)
+`nika lsp` (language server) · `nika mcp` (MCP: check/explain/schema/examples
+as tools) · `nika completions <shell>` generates shell completions.
 
 ## Discipline
 - Every effect is gated by `permits:` (default-deny · `nika check --infer-permits`
@@ -128,6 +151,16 @@ const AGENT_SKILL: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../.agents/plugins/nika/skills/nika-authoring/SKILL.md"
 ));
+
+/// The scaffolded agent guide, exposed for the bin-side parity test —
+/// a verb the binary ships and the guide never names is a verb a wired
+/// agent will never reach (found stale 2026-07-05: the scaffold taught
+/// zero of the then-new train). The test derives the expectation from
+/// the live clap tree itself, so the guide can never silently lag.
+#[must_use]
+pub fn agents_md() -> &'static str {
+    AGENTS_MD
+}
 
 /// The scaffold set · (relative path, body). The ONE source of what `init`
 /// writes — `plan` and the docs both read it.
