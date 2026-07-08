@@ -185,6 +185,11 @@ pub(crate) enum RunResult {
     },
 }
 
+struct IterationLocals<'a> {
+    item: &'a Value,
+    index: usize,
+}
+
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
 where
     S: ShellRunDyn + Sync,
@@ -208,22 +213,22 @@ where
         task: &RawTask,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
+        env: &BTreeMap<String, Value>,
         secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
         resume_ctx: &crate::resume::ResumeContext,
         ledger: &crate::ledger::RunLedger,
     ) -> Finish {
         let id = task.id.value.clone();
-
         // ── The gate (spec 03 §task states) — an early settle exits ──
-        if let Some(finish) = gate_finish(task, id.clone(), records, vars, secrets) {
+        if let Some(finish) = gate_finish(task, id.clone(), records, vars, env, secrets) {
             return finish;
         }
 
         // ── ADR-099 resume identity — computed from the task AS
         //    AUTHORED (an `--answer` never re-keys: a prompt's answer is
         //    output non-determinism, like an infer's — §4 replays it) ──
-        let resume = crate::resume::stamp(task, records, vars, resume_ctx);
+        let resume = crate::resume::stamp(task, records, vars, env, resume_ctx);
 
         // ── ADR-099 `--resume` skip — BOTH hashes must match a journaled
         //    success (an edited task or a changed input re-runs · §1). A
@@ -250,7 +255,7 @@ where
         // ── `for_each:` fan-out or the single lane ──────────────────
         let mut settle = match task.for_each.as_ref() {
             None => {
-                self.run_single(task, records, vars, secrets, permits, ledger)
+                self.run_single(task, records, vars, env, secrets, permits, ledger)
                     .await
             }
             Some(spanned) => {
@@ -259,6 +264,7 @@ where
                     &spanned.value,
                     records,
                     vars,
+                    env,
                     secrets,
                     permits,
                     ledger,
@@ -360,12 +366,13 @@ where
         task: &RawTask,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
+        env: &BTreeMap<String, Value>,
         secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
         ledger: &crate::ledger::RunLedger,
     ) -> SettleAs {
         // `with:` renders ONCE here (per-iteration in the fan-out lane).
-        let with_ns = match render_with(task, records, vars, secrets, None, None) {
+        let with_ns = match render_with(task, records, vars, env, secrets, None, None) {
             Ok(ns) => ns,
             Err(err) => {
                 return SettleAs::FailedBeforeStart {
@@ -377,6 +384,7 @@ where
         let scope = Scope {
             records,
             vars,
+            env,
             secrets,
             with_ns: Some(&with_ns),
             item: None,
@@ -401,11 +409,12 @@ where
         collection: &ForEachValue,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
+        env: &BTreeMap<String, Value>,
         secrets: &BTreeMap<String, Value>,
         permits: Option<&Permits>,
         ledger: &crate::ledger::RunLedger,
     ) -> SettleAs {
-        let scope = Scope::workflow_with_secrets(records, vars, secrets);
+        let scope = Scope::workflow_with_env_and_secrets(records, vars, env, secrets);
         let items = match resolve_collection(collection, &scope) {
             Ok(items) => items,
             Err(settle) => return *settle,
@@ -439,7 +448,8 @@ where
                 .enumerate()
                 .take_while(|_| !ledger.tripped())
                 .map(|(index, item)| {
-                    self.run_iteration(task, records, vars, secrets, item, index, permits, ledger)
+                    let locals = IterationLocals { item, index };
+                    self.run_iteration(task, records, vars, env, secrets, locals, permits, ledger)
                 }),
         )
         .buffered(cap);
@@ -476,6 +486,7 @@ where
         let finally_scope = Scope {
             records,
             vars,
+            env,
             secrets,
             with_ns: None,
             item: None,
@@ -497,17 +508,25 @@ where
         task: &RawTask,
         records: &BTreeMap<String, TaskRecord>,
         vars: &BTreeMap<String, Value>,
+        env: &BTreeMap<String, Value>,
         secrets: &BTreeMap<String, Value>,
-        item: &Value,
-        index: usize,
+        locals: IterationLocals<'_>,
         permits: Option<&Permits>,
         ledger: &crate::ledger::RunLedger,
     ) -> RanTask {
-        let with_ns = match render_with(task, records, vars, secrets, Some(item), Some(index)) {
+        let with_ns = match render_with(
+            task,
+            records,
+            vars,
+            env,
+            secrets,
+            Some(locals.item),
+            Some(locals.index),
+        ) {
             Ok(ns) => ns,
             Err(err) => {
                 return RanTask {
-                    note: format!("for_each[{index}]"),
+                    note: format!("for_each[{}]", locals.index),
                     retries: Vec::new(),
                     agent_events: Vec::new(),
                     duration_ms: 0,
@@ -522,10 +541,11 @@ where
         let scope = Scope {
             records,
             vars,
+            env,
             secrets,
             with_ns: Some(&with_ns),
-            item: Some(item),
-            index: Some(index),
+            item: Some(locals.item),
+            index: Some(locals.index),
             permits,
         };
         let mut ran = self.attempt_loop(task, &scope, ledger).await;
@@ -533,7 +553,7 @@ where
         // single lane produce indistinguishable flat streams (review F3).
         #[allow(clippy::cast_possible_truncation)] // fan-out ≪ u32::MAX
         for stamped in &mut ran.agent_events {
-            stamped.iteration = Some(index as u32);
+            stamped.iteration = Some(locals.index as u32);
         }
         ran
     }
@@ -722,6 +742,7 @@ where
         let cleanup_scope = Scope {
             records: &records,
             vars: scope.vars,
+            env: scope.env,
             secrets: scope.secrets, // a cleanup may reference secrets.X too
             with_ns: scope.with_ns,
             item: None, // locals out of scope after the fan-out (spec 03)
@@ -1042,9 +1063,10 @@ fn gate_finish(
     id: String,
     records: &BTreeMap<String, TaskRecord>,
     vars: &BTreeMap<String, Value>,
+    env: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
 ) -> Option<Finish> {
-    let gate_scope = Scope::workflow_with_secrets(records, vars, secrets);
+    let gate_scope = Scope::workflow_with_env_and_secrets(records, vars, env, secrets);
     let settle = match task.when.as_ref() {
         // Default gate · run iff ALL deps ∈ {success, skipped} · else
         // `cancelled` (Dead-Path-Elimination · the cascade). A gate-
@@ -1304,6 +1326,7 @@ fn render_with(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
     vars: &BTreeMap<String, Value>,
+    env: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
     item: Option<&Value>,
     index: Option<usize>,
@@ -1311,6 +1334,7 @@ fn render_with(
     let scope = Scope {
         records,
         vars,
+        env,
         secrets, // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B)
         with_ns: None,
         item,

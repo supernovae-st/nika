@@ -238,6 +238,15 @@ pub struct Runtime<S, T, H, P, D, C> {
     source_sha256_lf: Option<String>,
 }
 
+/// One wave's read-only value scope — (`vars` · `env` · `secrets` ·
+/// `permits`), a single loan the pipeline fan-out threads whole.
+type WaveScope<'a> = (
+    &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
+    Option<&'a nika_schema::types::Permits>,
+);
+
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     /// Assemble the runtime from its four verbs + the kernel clock
     /// (the composer wires seams + envelope defaults · spec §2). Secrets are
@@ -427,9 +436,14 @@ fn emit_prologue(
     }
 }
 
-/// The envelope's value view · `vars` defaults + the workflow name.
-fn envelope_values(wf: &RawWorkflow) -> (BTreeMap<String, Value>, String) {
-    let vars = wf
+/// The envelope's value view · `vars` defaults (operator `--var`
+/// overrides win — F4 · they also give a `required: true` var without a
+/// default its value) + `env` config + the workflow name.
+fn envelope_values(
+    wf: &RawWorkflow,
+    overrides: &BTreeMap<String, Value>,
+) -> (BTreeMap<String, Value>, BTreeMap<String, Value>, String) {
+    let mut vars: BTreeMap<String, Value> = wf
         .vars
         .iter()
         .filter_map(|(key, decl)| {
@@ -442,11 +456,17 @@ fn envelope_values(wf: &RawWorkflow) -> (BTreeMap<String, Value>, String) {
             Some((key.value.clone(), value))
         })
         .collect();
+    vars.extend(overrides.iter().map(|(k, v)| (k.clone(), v.clone())));
+    let env = wf
+        .env
+        .iter()
+        .map(|(key, value)| (key.value.clone(), Value::String(value.value.clone())))
+        .collect();
     let name = wf
         .workflow
         .as_ref()
         .map_or_else(|| "workflow".to_owned(), |w| w.value.clone());
-    (vars, name)
+    (vars, env, name)
 }
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
@@ -479,12 +499,7 @@ where
         if !report.is_clean() {
             return Err(RuntimeError::DirtyReport);
         }
-        let (mut vars, workflow_name) = envelope_values(wf);
-        // Operator `--var` overrides win over the envelope defaults (F4) —
-        // and give a `required: true` var without a default its value.
-        for (key, value) in &self.var_overrides {
-            vars.insert(key.clone(), value.clone());
-        }
+        let (vars, env, workflow_name) = envelope_values(wf, &self.var_overrides);
         // Resolve the `secrets:` namespace ONCE at run start (MINOR-B · the
         // injected composer resolver reads env/file). A miss leaves that
         // secret unbound → its `${{ secrets.X }}` reference raises NIKA-1702
@@ -520,7 +535,7 @@ where
                     wave,
                     wf,
                     &records,
-                    (&vars, &secrets, permits),
+                    (&vars, &env, &secrets, permits),
                     &resume_ctx,
                     &run_ledger,
                 )
@@ -530,6 +545,7 @@ where
                 finishes,
                 wf,
                 &vars,
+                &env,
                 &resume_ctx,
                 &workflow_name,
                 &mut records,
@@ -561,7 +577,7 @@ where
         // that breaks its declared `type:` can fail the run — the output half
         // of the callable contract (spec 01 §engine-MUST rule 6 · NIKA-VAR-009 ·
         // symmetric with the typed-`vars:` input validation).
-        let outputs = resolve_outputs(wf, &records, &vars, &secrets);
+        let outputs = resolve_outputs(wf, &records, &vars, &env, &secrets);
         let snapshot = run_ledger.snapshot();
         let ok = finalize_outputs(wf, &outputs, &workflow_name, ok, &snapshot, stamper, sink);
 
@@ -582,15 +598,11 @@ where
         wave: &[usize],
         wf: &RawWorkflow,
         records: &BTreeMap<String, TaskRecord>,
-        scope: (
-            &BTreeMap<String, Value>,
-            &BTreeMap<String, Value>,
-            Option<&nika_schema::types::Permits>,
-        ),
+        scope: WaveScope<'_>,
         resume_ctx: &resume::ResumeContext,
         ledger: &ledger::RunLedger,
     ) -> Result<Vec<Finish>, RuntimeError> {
-        let (vars, secrets, permits) = scope;
+        let (vars, env, secrets, permits) = scope;
         // Resolve indices up front — a bad index is a schedule breach
         // (NIKA-1701 · run abort · the one system error).
         let mut members = Vec::with_capacity(wave.len());
@@ -609,7 +621,7 @@ where
             futures_util::stream::iter(members.iter().take_while(|_| !ledger.tripped()).map(
                 |&task| {
                     self.run_task_pipeline(
-                        task, records, vars, secrets, permits, resume_ctx, ledger,
+                        task, records, vars, env, secrets, permits, resume_ctx, ledger,
                     )
                 },
             ))
@@ -633,6 +645,7 @@ where
         finishes: Vec<Finish>,
         wf: &RawWorkflow,
         vars: &BTreeMap<String, Value>,
+        env: &BTreeMap<String, Value>,
         resume_ctx: &resume::ResumeContext,
         workflow_name: &str,
         records: &mut BTreeMap<String, TaskRecord>,
@@ -646,7 +659,7 @@ where
             if self.pause_on_prompt
                 && paused.is_none()
                 && let Some(p) =
-                    pause::prompt_block(&finish, wf, records, vars, resume_ctx.markers())
+                    pause::prompt_block(&finish, wf, records, vars, env, resume_ctx.markers())
             {
                 paused = Some(p);
                 continue;
@@ -994,9 +1007,10 @@ fn resolve_outputs(
     wf: &RawWorkflow,
     records: &BTreeMap<String, TaskRecord>,
     vars: &BTreeMap<String, Value>,
+    env: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
 ) -> BTreeMap<String, Value> {
-    let scope = Scope::workflow_with_secrets(records, vars, secrets);
+    let scope = Scope::workflow_with_env_and_secrets(records, vars, env, secrets);
     wf.outputs
         .iter()
         .filter_map(|(key, decl)| {
@@ -1223,6 +1237,8 @@ mod tests {
         let yaml = r#"
 nika: v1
 workflow: vals
+env:
+  API_BASE: "https://api.example.test"
 vars:
   plain: "text"
   urls: ["a", "b"]
@@ -1237,8 +1253,12 @@ tasks:
             nika_schema::ParseMode::Strict,
         )
         .expect("parses");
-        let (vars, name) = envelope_values(&wf);
+        let (vars, env, name) = envelope_values(&wf, &BTreeMap::new());
         assert_eq!(name, "vals");
+        assert_eq!(
+            env["API_BASE"],
+            Value::String("https://api.example.test".into())
+        );
         assert_eq!(vars["plain"], Value::String("text".into()));
         assert_eq!(vars["urls"], serde_json::json!(["a", "b"]));
         assert_eq!(vars["topic"], Value::String("news".into()));
