@@ -51,6 +51,7 @@ pub nika_providers::profile::Profile::wire: nika_providers::profile::WireFormat
 impl nika_providers::profile::Profile
 pub fn nika_providers::profile::Profile::env_candidates(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_providers::profile::Profile::resolve_model<'m>(&self, name: &'m str) -> &'m str
+pub fn nika_providers::profile::Profile::supports_response_format(&self) -> bool
 impl core::clone::Clone for nika_providers::profile::Profile
 pub fn nika_providers::profile::Profile::clone(&self) -> nika_providers::profile::Profile
 impl core::fmt::Debug for nika_providers::profile::Profile
@@ -318,6 +319,7 @@ pub nika_providers::Profile::wire: nika_providers::profile::WireFormat
 impl nika_providers::profile::Profile
 pub fn nika_providers::profile::Profile::env_candidates(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_providers::profile::Profile::resolve_model<'m>(&self, name: &'m str) -> &'m str
+pub fn nika_providers::profile::Profile::supports_response_format(&self) -> bool
 impl core::clone::Clone for nika_providers::profile::Profile
 pub fn nika_providers::profile::Profile::clone(&self) -> nika_providers::profile::Profile
 impl core::fmt::Debug for nika_providers::profile::Profile

@@ -11,6 +11,7 @@
 use nika_error::codes::{self, NikaCode};
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::ai::provider::ProviderError;
+use nika_types::cost::SpendOnFailure;
 
 /// Errors from the `infer` verb executor.
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
@@ -23,6 +24,12 @@ pub enum VerbInferError {
         /// The underlying provider error.
         #[source]
         source: ProviderError,
+        /// The spend of the round-trips that DID run before this call
+        /// failed (a schema-repair loop bills every round-trip; the
+        /// failing call itself reports no usage — providers do not
+        /// bill errored requests). Boxed: the split would otherwise
+        /// dominate the whole error's size (`result_large_err`).
+        spend: Box<SpendOnFailure>,
     },
 
     /// The output never satisfied the task `schema:` within the retry budget.
@@ -33,6 +40,9 @@ pub enum VerbInferError {
         attempts: u32,
         /// The last validation failure, human-readable.
         detail: String,
+        /// The spend of those billed round-trips — real money whether
+        /// or not the shape converged (the ledger + budget see it).
+        spend: Box<SpendOnFailure>,
     },
 
     /// An `infer` parameter is invalid (empty prompt · temperature out of 0-2).
@@ -55,6 +65,22 @@ pub enum VerbInferError {
         #[source]
         source: ProviderError,
     },
+}
+
+impl VerbInferError {
+    /// The spend the failed execution had already incurred, when the
+    /// variant carries one AND it could price to anything (a
+    /// zero-signal spend — e.g. the FIRST call failing — reads as
+    /// `None`: nothing was billed, nothing to meter).
+    #[must_use]
+    pub fn spend(&self) -> Option<&SpendOnFailure> {
+        match self {
+            Self::ProviderCall { spend, .. } | Self::SchemaValidation { spend, .. } => {
+                spend.has_signal().then_some(spend)
+            }
+            Self::InvalidParam { .. } | Self::ModelResolution { .. } => None,
+        }
+    }
 }
 
 impl NikaErrorCode for VerbInferError {
@@ -85,7 +111,7 @@ impl NikaErrorCode for VerbInferError {
         match self {
             // Inherit the provider's own retry classification (rate limits
             // and 5xx are transient; auth and model-not-found are not).
-            Self::ProviderCall { source } => source.is_transient(),
+            Self::ProviderCall { source, .. } => source.is_transient(),
             Self::SchemaValidation { .. }
             | Self::InvalidParam { .. }
             | Self::ModelResolution { .. } => false,
@@ -110,6 +136,7 @@ mod tests {
             (
                 VerbInferError::ProviderCall {
                     source: provider_err(),
+                    spend: Box::default(),
                 },
                 codes::NIKA_430,
             ),
@@ -117,6 +144,7 @@ mod tests {
                 VerbInferError::SchemaValidation {
                     attempts: 3,
                     detail: "missing field".to_owned(),
+                    spend: Box::default(),
                 },
                 codes::NIKA_431,
             ),
@@ -149,6 +177,7 @@ mod tests {
             !VerbInferError::SchemaValidation {
                 attempts: 1,
                 detail: String::new(),
+                spend: Box::default(),
             }
             .is_transient()
         );
@@ -169,6 +198,7 @@ mod tests {
         // Provider transience is inherited, not overridden — both branches.
         let transient = VerbInferError::ProviderCall {
             source: provider_err(),
+            spend: Box::default(),
         };
         assert!(provider_err().is_transient(), "500 is retry-eligible");
         assert!(transient.is_transient());
@@ -176,6 +206,12 @@ mod tests {
             reason: "bad key".to_owned(),
         };
         assert!(!auth().is_transient(), "auth failure is terminal");
-        assert!(!VerbInferError::ProviderCall { source: auth() }.is_transient());
+        assert!(
+            !VerbInferError::ProviderCall {
+                source: auth(),
+                spend: Box::default(),
+            }
+            .is_transient()
+        );
     }
 }

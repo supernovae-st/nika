@@ -1195,6 +1195,57 @@ mod tests {
         std::fs::remove_dir_all(&base).ok();
     }
 
+    /// Answering everything and THEN hitting an existing typed dest is
+    /// the one wizard dead-end left by design (the refuse-overwrite law
+    /// on a HUMAN-chosen name) — pin the honest ENV exit + the --force
+    /// override (rust-pro e2e review finding #4).
+    #[test]
+    fn wizard_io_refuses_a_typed_existing_dest_and_force_overrides() {
+        let base = fresh_base("refuse");
+        std::fs::write(base.join("my-first.nika.yaml"), "taken").expect("seed");
+
+        let mut input = std::io::Cursor::new(b"\nmy-first\n\n".to_vec());
+        let mut out = Vec::new();
+        let v = wizard_io(
+            base.to_str().expect("utf8"),
+            None,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+        );
+        assert_eq!(v.code, exit::ENV, "{}", v.text);
+        assert!(
+            v.text.contains("--force"),
+            "teaches the override: {}",
+            v.text
+        );
+        assert_eq!(
+            std::fs::read_to_string(base.join("my-first.nika.yaml")).expect("read"),
+            "taken",
+            "refused = untouched"
+        );
+
+        let mut input2 = std::io::Cursor::new(b"\nmy-first\n\n".to_vec());
+        let mut out2 = Vec::new();
+        let v2 = wizard_io(
+            base.to_str().expect("utf8"),
+            None,
+            true,
+            PLAIN,
+            &mut input2,
+            &mut out2,
+        );
+        assert_eq!(v2.code, exit::OK, "{}", v2.text);
+        assert!(
+            std::fs::read_to_string(base.join("my-first.nika.yaml"))
+                .expect("read")
+                .contains("workflow: my-first"),
+            "--force overwrote with the stamped template"
+        );
+        std::fs::remove_dir_all(&base).ok();
+    }
+
     /// End-to-end over injected io: the file lands stamped + checkable.
     #[test]
     fn wizard_io_materializes_a_stamped_file() {
