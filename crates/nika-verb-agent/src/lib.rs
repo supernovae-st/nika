@@ -99,6 +99,7 @@ use nika_kernel::ai::provider::{
 };
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::runtime::agent::AgentStopReason;
+use nika_types::cost::SpendOnFailure;
 use nika_verb_invoke::{InvokeInput, InvokeVerb, VerbInvokeError};
 
 use crate::guard::{Guard, GuardVerdict};
@@ -380,16 +381,49 @@ where
         input: AgentInput,
         observer: &dyn AgentObserver,
     ) -> Result<AgentOutput, VerbAgentError> {
+        // arm_run failures precede any billed call — no spend to decorate.
         let (whitelist, defs, model, max_turns) = self.arm_run(&input).await?;
-        let (mut router, mut guard) = self.arm_loop(observer, &model, &defs);
+        // The pricing-grade accumulators live HERE so the failure path
+        // decorates at ONE seam below: billed turns are real money
+        // whether or not the loop concludes — the dispatch layer prices
+        // this, the run ledger debits it, `--max-cost-usd` sees it.
+        let mut usage_total = TokenUsage::default();
+        let mut tools_cost_usd = 0.0_f64;
+        let out = self
+            .run_loop(
+                input,
+                observer,
+                (&whitelist, &defs, &model, max_turns),
+                &mut usage_total,
+                &mut tools_cost_usd,
+            )
+            .await;
+        out.map_err(|e| {
+            e.with_spend(SpendOnFailure::new(
+                usage_total,
+                (tools_cost_usd > 0.0).then_some(tools_cost_usd),
+                Some(model),
+            ))
+        })
+    }
+
+    /// The turn loop proper — armed context by reference, the spend
+    /// accumulators borrowed from [`Self::run_observed`] (the failure-
+    /// decoration seam). Same contract as `run_observed` otherwise.
+    async fn run_loop(
+        &self,
+        input: AgentInput,
+        observer: &dyn AgentObserver,
+        armed: (&Whitelist, &[ToolDef], &str, u32),
+        usage_total: &mut TokenUsage,
+        tools_cost_usd: &mut f64,
+    ) -> Result<AgentOutput, VerbAgentError> {
+        let (whitelist, defs, model, max_turns) = armed;
+        let (mut router, mut guard) = self.arm_loop(observer, model, defs);
 
         let mut messages = opening_messages(&input);
         let mut turns: u32 = 0;
         let mut total_tokens: u64 = 0;
-        // Pricing-grade record (dispatch bills from it) — `total_tokens`
-        // stays the budget-gate scalar, unchanged semantics.
-        let mut usage_total = TokenUsage::default();
-        let mut tools_cost_usd = 0.0_f64;
         let mut last_text = String::new();
         let mut last_observations = String::new();
 
@@ -403,16 +437,16 @@ where
             // Per-turn routing: rank the universe against the LIVE task
             // context (prompt + last words + last observations · budgeted).
             let query = routing_query(&input.prompt, &last_text, &last_observations);
-            let offered = route_turn(observer, &router, &defs, &query, turns);
+            let offered = route_turn(observer, &router, defs, &query, turns);
 
-            let request = build_request(&model, messages.clone(), &input, offered);
+            let request = build_request(model, messages.clone(), &input, offered);
             let response = self
                 .infer_turn(
                     observer,
                     turns,
                     request,
                     &mut total_tokens,
-                    &mut usage_total,
+                    usage_total,
                     &input,
                 )
                 .await?;
@@ -424,7 +458,7 @@ where
             // Decide this turn — the ONE exit-conditions site (spec §2).
             let ctx = TurnCtx {
                 input: &input,
-                whitelist: &whitelist,
+                whitelist,
                 turns,
                 total_tokens,
                 last_text: &last_text,
@@ -437,13 +471,13 @@ where
                     self.finalize_schema(
                         observer,
                         &mut messages,
-                        &model,
+                        model,
                         text,
                         &response,
                         stop_reason,
                         &input,
                         &mut total_tokens,
-                        &mut usage_total,
+                        usage_total,
                         turns,
                     )
                     .await?
@@ -462,7 +496,7 @@ where
                             &last_text,
                         )
                         .await?;
-                    tools_cost_usd += batch_cost;
+                    *tools_cost_usd += batch_cost;
                     last_observations = digest;
                     continue;
                 }
@@ -471,7 +505,7 @@ where
                 observer,
                 output,
                 (turns, total_tokens),
-                (usage_total, model, tools_cost_usd),
+                (usage_total.clone(), model.to_owned(), *tools_cost_usd),
             ));
         }
     }
@@ -499,6 +533,7 @@ where
             return Err(VerbAgentError::MaxTurns {
                 turns,
                 partial_output: last_text.to_owned(),
+                spend: Box::default(), // decorated at the return seam
             });
         }
         // All-whitelisted, non-sentinel tools · feed results back.
@@ -509,6 +544,7 @@ where
                 period,
                 repeats,
                 partial_output: last_text.to_owned(),
+                spend: Box::default(), // decorated at the return seam
             })
     }
 
@@ -560,11 +596,14 @@ where
         usage_acc: &mut TokenUsage,
         input: &AgentInput,
     ) -> Result<InferResponse, VerbAgentError> {
-        let response = self
-            .provider
-            .infer(request)
-            .await
-            .map_err(|source| VerbAgentError::Inference { source })?;
+        let response =
+            self.provider
+                .infer(request)
+                .await
+                .map_err(|source| VerbAgentError::Inference {
+                    source,
+                    spend: Box::default(), // decorated at the return seam
+                })?;
         *total_tokens = total_tokens.saturating_add(
             response
                 .usage
@@ -676,7 +715,10 @@ where
                 }
             }
         }
-        Err(VerbAgentError::SchemaValidation { detail })
+        Err(VerbAgentError::SchemaValidation {
+            detail,
+            spend: Box::default(), // decorated at the return seam
+        })
     }
 
     /// One Dispatch turn: run the batch, feed results into the
@@ -1181,6 +1223,7 @@ fn classify_turn(
         {
             return Err(VerbAgentError::WhitelistViolation {
                 tool: redact_tool_name(&u.name),
+                spend: Box::default(), // decorated at the return seam
             });
         }
     }
@@ -1223,6 +1266,7 @@ fn classify_turn(
         return Err(VerbAgentError::MaxTokens {
             total_tokens: ctx.total_tokens,
             partial_output: ctx.last_text.to_owned(),
+            spend: Box::default(), // decorated at the return seam
         });
     }
 

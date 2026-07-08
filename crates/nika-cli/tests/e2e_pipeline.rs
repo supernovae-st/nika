@@ -956,7 +956,7 @@ async fn e2e_agent_whitelist_violation_is_an_immediate_stop_fs_untouched() {
     input.tools = vec!["nika:jq".to_owned()];
     let err = agent.run(input).await.expect_err("security stop");
     assert!(
-        matches!(err, VerbAgentError::WhitelistViolation { ref tool } if tool == "nika:write"),
+        matches!(err, VerbAgentError::WhitelistViolation { ref tool, .. } if tool == "nika:write"),
         "{err:?}"
     );
     assert!(
