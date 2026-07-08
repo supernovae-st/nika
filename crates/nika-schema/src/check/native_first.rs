@@ -139,8 +139,13 @@ pub(crate) fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
             ),
         ));
     }
-    // 004 · a media provider endpoint in the command.
-    if has_marker(&MEDIA_MARKERS) {
+    // 004 · a media provider endpoint in the command. Bare head only —
+    // a PATHED head (`./deploy.sh …`) is the author's own tool and must
+    // not be second-guessed because a media-provider domain appears in
+    // its args, exactly as 001/002/003 suppress a pathed head (the
+    // rust-pro review's F2: `./deploy.sh --host api.elevenlabs.io`
+    // false-fired 004 while the same pathed head is silent for HTTP).
+    if !pathed && has_marker(&MEDIA_MARKERS) {
         return Some((
             "native-first/004",
             format!(
@@ -301,6 +306,25 @@ mod tests {
             "\"python3 -c 'import urllib; fetch(\\\"https://x.test\\\")'\"",
         ));
         assert!(h.advice.contains("native-first/001"), "{h:?}");
+    }
+
+    #[test]
+    fn pathed_head_never_fires_media_004() {
+        // The author's own script whose ARG names a media-provider domain
+        // must not be second-guessed into `nika:image_generate` — a
+        // pathed head is silent for 001/002/003 and now for 004 too
+        // (the review's F2 false-dirty: `./deploy.sh --host
+        // api.elevenlabs.io` fired 004 while a pathed curl stays silent).
+        for command in [
+            "[\"./deploy.sh\", \"--host\", \"api.elevenlabs.io\"]",
+            "\"./tools/publish.sh https://api.openai.com/v1/images/generations\"",
+        ] {
+            let hints = hints_of(&exec_wf(command));
+            assert!(
+                !hints.iter().any(|h| h.advice.contains("native-first/004")),
+                "pathed head must not fire media 004: {hints:?}"
+            );
+        }
     }
 
     #[test]
