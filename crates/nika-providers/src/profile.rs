@@ -121,6 +121,20 @@ impl Profile {
         LOCAL.iter().any(|(id, _)| *id == self.id)
     }
 
+    /// Whether THIS provider supports native `response_format:
+    /// json_schema` — the wire-family answer with one per-provider
+    /// correction: deepseek's API accepts only `text | json_object`
+    /// (api-docs.deepseek.com create-chat-completion · fetched
+    /// 2026-07-08 · `json_schema` is out-of-enum → 4xx), so it takes
+    /// the instruction fallback + local validation like a non-native
+    /// wire. Capability is a PROVIDER fact, not only a wire fact —
+    /// every consumer (resolved provider · keyless registry query)
+    /// answers through here.
+    #[must_use]
+    pub fn supports_response_format(&self) -> bool {
+        self.id != "deepseek" && self.wire.supports_response_format()
+    }
+
     /// Resolve a model nickname through the catalog row (`"sonnet"` →
     /// `"claude-sonnet-4-20250514"`). Unknown names pass through verbatim —
     /// the wire model namespace is the provider's, not ours.

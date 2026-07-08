@@ -271,18 +271,32 @@ fn meta_is_coherent_across_the_fourteen() {
             .unwrap_or_else(|e| panic!("[{}] resolves: {e}", p.id));
         assert_eq!(rp.name(), p.id, "[{}] ProviderMeta::name", p.id);
         let supports = rp.supports_response_format();
-        // Every wire family carries a native structured mode today
-        // (anthropic joined 2026-07-07 · output_config.format). A FUTURE
-        // variant fails this exhaustive match at compile time — its author
-        // writes the honest arm.
-        match p.wire {
+        // Capability is a PROVIDER fact, not only a wire fact: the resolved
+        // provider must agree with the profile it was resolved from, and
+        // exactly ONE provider corrects its family answer today — deepseek
+        // (text|json_object only · json_schema is out-of-enum → 4xx ·
+        // api-docs.deepseek.com · 2026-07-08). Every wire family is native
+        // (anthropic joined 2026-07-07 · output_config.format · live-proven
+        // 2026-07-08).
+        assert_eq!(
+            supports,
+            p.supports_response_format(),
+            "[{}] resolved answer == profile answer",
+            p.id
+        );
+        let family = matches!(
+            p.wire,
             WireFormat::OpenAiCompat
-            | WireFormat::Mock
-            | WireFormat::Gemini
-            | WireFormat::Anthropic => {
-                assert!(supports, "[{}] response_format supported", p.id);
-            }
-        }
+                | WireFormat::Mock
+                | WireFormat::Gemini
+                | WireFormat::Anthropic
+        );
+        assert_eq!(
+            supports,
+            family && p.id != "deepseek",
+            "[{}] deepseek is the one family-corrected cloud",
+            p.id
+        );
     }
 }
 

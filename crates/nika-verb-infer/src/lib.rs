@@ -878,6 +878,43 @@ mod tests {
         assert!(prompt.contains("JSON Schema"), "{prompt}");
     }
 
+    /// deepseek is the ONE cloud whose API has no `json_schema`
+    /// (`response_format` enum = `text`|`json_object` · out-of-enum → 4xx ·
+    /// api-docs.deepseek.com · 2026-07-08): a fully-specified schema takes
+    /// the INSTRUCTION wire there — no `response_format` on the body at
+    /// all, the schema riding the prompt, validation local. Before the
+    /// per-profile capability correction this request died at the wire.
+    #[tokio::test]
+    async fn deepseek_schema_takes_the_instruction_wire() {
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{}}"#,
+        ]);
+        let registry = Registry::new(
+            Arc::clone(&seam),
+            ProvidersConfig::new().with_key("deepseek", Secret::new("sk-test")),
+        );
+        let verb = InferVerb::new(Arc::new(registry), "deepseek/deepseek-chat");
+        let mut input = InferInput::new("extract the person");
+        input.schema = Some(json!({
+            "type": "object",
+            "properties": { "name": { "type": "string" }, "age": { "type": "integer" } },
+            "required": ["name", "age"],
+            "additionalProperties": false
+        }));
+        let out = verb.run(input).await.expect("the instruction path lands");
+        assert!(matches!(out.output, InferValue::Structured(_)));
+        let body = wire_body(&seam);
+        assert!(
+            body.get("response_format").is_none(),
+            "no out-of-enum json_schema may reach deepseek: {body}"
+        );
+        let prompt = body["messages"][0]["content"].as_str().expect("prompt");
+        assert!(
+            prompt.contains("JSON Schema"),
+            "the schema rides the prompt"
+        );
+    }
+
     /// A retried structured task bills EVERY round-trip: the first reply
     /// misses the schema (10+5 tokens), the retry conforms (20+7) — the
     /// task total is the sum, while `response.usage` stays the final
