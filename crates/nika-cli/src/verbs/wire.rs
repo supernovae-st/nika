@@ -22,6 +22,7 @@ pub enum WireTarget {
     Windsurf,
     Claude,
     Codex,
+    Zed,
     All,
 }
 
@@ -32,6 +33,10 @@ enum WireAction {
     Migrated(String),
     Current(String),
     Skipped(String),
+    /// The config exists but cannot be rewritten losslessly (Zed's
+    /// settings.json is JSONC — comments would be destroyed): hand the
+    /// user the exact snippet instead. A successful outcome, not a skip.
+    Manual(String),
 }
 
 #[must_use]
@@ -65,6 +70,7 @@ fn expand_target(target: WireTarget) -> Vec<WireTarget> {
             WireTarget::Windsurf,
             WireTarget::Claude,
             WireTarget::Codex,
+            WireTarget::Zed,
         ],
         other => vec![other],
     }
@@ -92,8 +98,86 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
             false,
         ),
         WireTarget::Codex => patch_codex(&home_path(&[".codex", "config.toml"])?),
+        // Zed keeps its settings under ~/.config on EVERY platform (macOS
+        // included — deliberate upstream choice, zed.dev/docs).
+        WireTarget::Zed => patch_zed(&home_path(&[".config", "zed", "settings.json"])?),
         WireTarget::All => unreachable!("expanded before dispatch"),
     }
+}
+
+/// Zed reads MCP servers from `context_servers` in `settings.json`
+/// (zed.dev/docs/ai/mcp · the `{"command","args","env"}` shape). The file
+/// is JSONC — Zed's DEFAULT settings ship with comments — so the contract
+/// is: only rewrite a file we can round-trip losslessly (a plain-JSON parse
+/// succeeding ⇒ no comments existed); otherwise return
+/// [`WireAction::Manual`] with the exact snippet and leave the user's file
+/// byte-identical.
+fn patch_zed(path: &Path) -> Result<WireAction, String> {
+    let existed = path.exists();
+    let label_path = format!("zed: {}", path.display());
+    let mut root = if existed {
+        match read_json(path) {
+            Ok(value) => value,
+            Err(_) => {
+                return Ok(WireAction::Manual(format!(
+                    "{label_path} is JSONC (comments) — add this to \
+                     \"context_servers\" yourself:\n  \"nika\": {{ \
+                     \"command\": \"nika\", \"args\": [\"mcp\"], \"env\": {{}} }}"
+                )));
+            }
+        }
+    } else {
+        Value::Object(Map::new())
+    };
+
+    let object = root
+        .as_object_mut()
+        .ok_or_else(|| format!("zed: {} is not a JSON object", path.display()))?;
+    let servers_value = object
+        .entry("context_servers".to_owned())
+        .or_insert_with(|| Value::Object(Map::new()));
+    if !servers_value.is_object() {
+        *servers_value = Value::Object(Map::new());
+    }
+    let servers = servers_value
+        .as_object_mut()
+        .ok_or_else(|| "zed: context_servers is not a JSON object".to_owned())?;
+
+    let existing = servers.get("nika").cloned();
+    let desired = zed_server();
+    let migrated = existing.as_ref().is_some_and(is_stale_server);
+    if existing.as_ref() == Some(&desired) {
+        return Ok(WireAction::Current(label_path));
+    }
+
+    servers.insert("nika".to_owned(), desired);
+    write_json(path, &root)?;
+
+    if migrated {
+        Ok(WireAction::Migrated(label_path))
+    } else if existed {
+        Ok(WireAction::Updated(label_path))
+    } else {
+        Ok(WireAction::Created(label_path))
+    }
+}
+
+/// The documented Zed entry: `command` + `args` + `env` (the `env` key is
+/// in the upstream example for command-based servers — kept for fidelity).
+fn zed_server() -> Value {
+    let mut server = Map::new();
+    server.insert("command".to_owned(), Value::String("nika".to_owned()));
+    server.insert(
+        "args".to_owned(),
+        Value::Array(
+            NIKA_MCP_ARGS
+                .iter()
+                .map(|arg| Value::String((*arg).to_owned()))
+                .collect(),
+        ),
+    );
+    server.insert("env".to_owned(), Value::Object(Map::new()));
+    Value::Object(server)
 }
 
 fn patch_vscode(path: &Path) -> Result<WireAction, String> {
@@ -295,6 +379,7 @@ fn render(actions: &[WireAction]) -> String {
             }
             WireAction::Current(path) => format!("· current {path}"),
             WireAction::Skipped(message) => format!("✖ skipped {message}"),
+            WireAction::Manual(message) => format!("✋ manual {message}"),
         };
         lines.push(line);
     }
@@ -417,6 +502,77 @@ args = ["mcp"]
         let _ = patch_cursor_like(&path, "mcpServers", "cursor", false).expect("wire");
         let action = patch_cursor_like(&path, "mcpServers", "cursor", false).expect("wire");
         assert!(matches!(action, WireAction::Current(_)));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn zed_config_created_under_context_servers() {
+        let dir = temp_dir("zed-create");
+        let path = dir.join("settings.json");
+        let action = patch_zed(&path).expect("wire");
+        assert!(matches!(action, WireAction::Created(_)));
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["context_servers"]["nika"]["command"], "nika");
+        assert_eq!(doc["context_servers"]["nika"]["args"], json!(["mcp"]));
+        assert_eq!(doc["context_servers"]["nika"]["env"], json!({}));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn zed_jsonc_settings_are_never_destroyed() {
+        // Zed's settings.json is JSONC — the DEFAULT file ships with comments.
+        // A naive parse-rewrite would strip them; the contract is: never
+        // rewrite a file we cannot round-trip losslessly — hand the user the
+        // exact snippet instead.
+        let dir = temp_dir("zed-jsonc");
+        let path = dir.join("settings.json");
+        let jsonc = "{\n  // Zed settings\n  \"theme\": \"One Dark\"\n}\n";
+        std::fs::write(&path, jsonc).expect("fixture");
+
+        let action = patch_zed(&path).expect("wire");
+        assert!(
+            matches!(
+                &action,
+                WireAction::Manual(message)
+                    if message.contains("context_servers")
+                        && message.contains("\"command\": \"nika\"")
+            ),
+            "expected Manual with the snippet, got {action:?}"
+        );
+        let body = std::fs::read_to_string(&path).expect("read");
+        assert_eq!(
+            body, jsonc,
+            "JSONC file must be byte-identical (never destroyed)"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn zed_preserves_other_context_servers_and_migrates_stale() {
+        let dir = temp_dir("zed-migrate");
+        let path = dir.join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+  "theme": "One Dark",
+  "context_servers": {
+    "github": { "command": "gh", "args": ["mcp"] },
+    "nika": { "command": "nika", "args": ["mcp", "serve", "--stdio"] }
+  }
+}
+"#,
+        )
+        .expect("fixture");
+
+        let action = patch_zed(&path).expect("wire");
+        assert!(matches!(action, WireAction::Migrated(_)));
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["theme"], "One Dark", "unrelated settings preserved");
+        assert_eq!(doc["context_servers"]["github"]["command"], "gh");
+        assert_eq!(doc["context_servers"]["nika"]["args"], json!(["mcp"]));
+
+        let again = patch_zed(&path).expect("wire twice");
+        assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(dir);
     }
 
