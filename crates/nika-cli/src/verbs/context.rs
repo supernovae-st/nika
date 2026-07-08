@@ -21,8 +21,9 @@
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
+use nika_event::fold::{self, RunFact};
 use serde::Serialize;
 
 use crate::display::theme::{Role, Theme};
@@ -70,24 +71,6 @@ struct WorkflowFact {
     permits_declared: bool,
 }
 
-/// One recorded run's facts, folded from a journal's first + last lines.
-#[derive(Debug, Clone, Serialize)]
-struct RunFact {
-    /// Root-relative journal path.
-    trace: String,
-    /// The workflow id the journal opened with (`None` = unreadable head).
-    workflow: Option<String>,
-    /// The closing event kind (`workflow_completed` · `workflow_failed` ·
-    /// `workflow_paused` · `None` = truncated tail, run may have crashed).
-    verdict: Option<String>,
-    /// Recorded spend when the closing event carried it.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    cost_usd: Option<f64>,
-    /// Calls with no catalog price (local models — unpriced, never free).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    unpriced_calls: Option<u64>,
-}
-
 /// The workspace half of the aggregate (pure over collected facts).
 #[derive(Debug, Serialize)]
 struct Workspace {
@@ -126,7 +109,8 @@ struct Rollups {
 pub fn run(json: bool, theme: Theme) -> VerbOutput {
     let root = Path::new(".");
     let (facts, capped, found) = collect_workflows(root);
-    let (runs, runs_capped, runs_found) = fold_traces(&root.join(".nika").join("traces"));
+    let (runs, runs_capped, runs_found) =
+        fold::fold_traces(&root.join(".nika").join("traces"), MAX_RUNS);
     let probe = probe::collect(false);
     let workspace = Workspace {
         root: ".".to_owned(),
@@ -226,91 +210,6 @@ fn audit(root: &Path, rel: &Path) -> WorkflowFact {
         cost_bounded_usd: report.cost.bounded_total_usd,
         cost_is_floor: report.cost.has_unbounded,
         permits_declared: wf.permits.is_some(),
-    }
-}
-
-/// Fold the newest journals (first + last line each — never a full read).
-fn fold_traces(dir: &Path) -> (Vec<RunFact>, bool, usize) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return (Vec::new(), false, 0);
-    };
-    let mut journals: Vec<(std::time::SystemTime, PathBuf)> = entries
-        .flatten()
-        .filter_map(|e| {
-            let path = e.path();
-            path.extension().is_some_and(|x| x == "ndjson").then(|| {
-                let mtime = e
-                    .metadata()
-                    .and_then(|m| m.modified())
-                    .unwrap_or(std::time::UNIX_EPOCH);
-                (mtime, path)
-            })
-        })
-        .collect();
-    journals.sort_by(|a, b| b.0.cmp(&a.0));
-    let found = journals.len();
-    let capped = found > MAX_RUNS;
-    journals.truncate(MAX_RUNS);
-    let runs = journals
-        .into_iter()
-        .map(|(_, path)| fold_one(&path))
-        .collect();
-    (runs, capped, found)
-}
-
-/// One journal → facts from its head + tail lines (a truncated tail —
-/// a crashed run — folds to `verdict: None`, honestly unknown).
-fn fold_one(path: &Path) -> RunFact {
-    let trace = path.file_name().map_or_else(
-        || path.display().to_string(),
-        |n| format!(".nika/traces/{}", n.to_string_lossy()),
-    );
-    let Ok(body) = std::fs::read_to_string(path) else {
-        return RunFact {
-            trace,
-            workflow: None,
-            verdict: None,
-            cost_usd: None,
-            unpriced_calls: None,
-        };
-    };
-    let mut lines = body.lines().filter(|l| !l.trim().is_empty());
-    let head: Option<serde_json::Value> = lines.next().and_then(|l| serde_json::from_str(l).ok());
-    let tail: Option<serde_json::Value> = body
-        .lines()
-        .rev()
-        .find(|l| !l.trim().is_empty())
-        .and_then(|l| serde_json::from_str(l).ok());
-    let field = |v: &serde_json::Value, key: &str| -> Option<serde_json::Value> {
-        v.get("fields")?
-            .as_array()?
-            .iter()
-            .find_map(|f| (f.get("key")?.as_str()? == key).then(|| f.get("value").cloned())?)
-    };
-    let workflow = head
-        .as_ref()
-        .and_then(|h| field(h, "workflow"))
-        .and_then(|v| v.as_str().map(str::to_owned));
-    let verdict = tail
-        .as_ref()
-        .and_then(|t| t.get("kind"))
-        .and_then(|k| k.as_str())
-        .filter(|k| k.starts_with("workflow_"))
-        .map(str::to_owned);
-    let cost_usd = tail
-        .as_ref()
-        .and_then(|t| field(t, "total_cost_usd"))
-        .and_then(|v| v.as_f64());
-    let unpriced_calls = tail
-        .as_ref()
-        .and_then(|t| field(t, "unpriced_calls"))
-        .and_then(|v| v.as_u64());
-    RunFact {
-        trace,
-        workflow,
-        verdict,
-        cost_usd,
-        unpriced_calls,
     }
 }
 
@@ -419,6 +318,8 @@ fn render_human(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
     use crate::verbs::exit;
 
@@ -493,7 +394,7 @@ mod tests {
     #[test]
     fn journals_fold_from_head_and_tail_only() {
         let dir = scratch();
-        let (runs, capped, found) = fold_traces(&dir.join(".nika/traces"));
+        let (runs, capped, found) = fold::fold_traces(&dir.join(".nika/traces"), MAX_RUNS);
         std::fs::remove_dir_all(&dir).ok();
         assert!(!capped);
         assert_eq!(found, 1);
@@ -520,7 +421,7 @@ mod tests {
             ),
         )
         .expect("write");
-        let fact = fold_one(&journal);
+        let fact = fold::fold_one(&journal);
         std::fs::remove_dir_all(&dir).ok();
         assert_eq!(fact.workflow.as_deref(), Some("w"));
         assert_eq!(fact.verdict, None, "a cut tail is unknown, never a claim");
@@ -566,7 +467,8 @@ mod tests {
         // the wire shape is what we pin here).
         let dir = scratch();
         let (facts, capped, found) = collect_workflows(&dir);
-        let (runs, runs_capped, runs_found) = fold_traces(&dir.join(".nika/traces"));
+        let (runs, runs_capped, runs_found) =
+            fold::fold_traces(&dir.join(".nika/traces"), MAX_RUNS);
         std::fs::remove_dir_all(&dir).ok();
         let workspace = Workspace {
             root: ".".to_owned(),
