@@ -38,7 +38,7 @@ use nika_event::Event;
     // The lost-user footer (clig.dev · suggest the next command): a bare
     // `nika` is someone asking where to start, not someone reading a
     // reference. Three commands, zero keys, offline.
-    after_help = "start here:\n  nika init                                      # wire this repo (editor · agents)\n  nika new                                       # your first workflow — guided on a terminal\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika doctor                                    # what's configured · what's missing"
+    after_help = "start here:\n  nika welcome                                   # what this machine has · where to start\n  nika init                                      # wire this repo (editor · agents)\n  nika new                                       # your first workflow — guided on a terminal\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika doctor                                    # what's configured · what's missing"
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
@@ -101,6 +101,14 @@ impl ColorWhenArg {
 
 #[derive(Subcommand)]
 enum Command {
+    /// The mirror: what Nika is · what this machine already has (editors ·
+    /// local models · key presence · this workspace) · the next commands.
+    /// Offline · presence-only · always exit 0 — a greeting, not a gate.
+    Welcome {
+        /// Emit the versioned machine mirror (`welcome_version: 1`).
+        #[arg(long)]
+        json: bool,
+    },
     /// Static pre-flight: the ADR-092 ladder (audit BEFORE run).
     Check {
         /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
@@ -156,10 +164,17 @@ enum Command {
         #[arg(long, value_enum, default_value_t = GraphFormatArg::Json)]
         format: GraphFormatArg,
     },
-    /// Teach one error code (cause · category · fix-form).
+    /// Teach one error code (cause · category · fix-form) — or narrate a
+    /// workflow FILE: what it does · the waves · cost before a token is
+    /// spent · what it touches · how to run it.
     Explain {
-        /// The code (`NIKA-440` or bare `440`).
+        /// An error code (`NIKA-440` · bare `440` · `DAG-003`) or a
+        /// workflow file path (`*.nika.yaml` · `-` reads stdin).
         code: String,
+        /// File form only: emit the versioned machine twin
+        /// (`explain_version: 1` · the check report's own vocabulary).
+        #[arg(long)]
+        json: bool,
     },
     /// Diagnose the environment (binary · config · provider keys · spec §8).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
@@ -601,7 +616,8 @@ fn main() -> std::process::ExitCode {
             };
             emit(&verbs::graph::run(&file, format))
         }
-        Command::Explain { code } => emit(&verbs::explain::run(&code)),
+        Command::Welcome { json } => emit(&verbs::welcome::run(json)),
+        Command::Explain { code, json } => emit(&verbs::explain_file::dispatch(&code, json)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json)),
         Command::Init { dir, force, yes } => emit(&verbs::init::run(&dir, force, yes, plain_theme)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target.into(), &dir)),

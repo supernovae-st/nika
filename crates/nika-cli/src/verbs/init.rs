@@ -60,7 +60,10 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
   offline mock run; `nika test <file>` replays and compares — deterministic,
   zero keys, the CI gate.
 - **Diagnose** · `nika doctor` — the environment (providers · keys · config).
-- **Explain** · `nika explain NIKA-XXXX` — teach one error code.
+  `nika welcome` is the short mirror (machine · workspace · next commands).
+- **Explain** · `nika explain NIKA-XXXX` teaches one error code ·
+  `nika explain <file>` narrates a workflow (waves · cost · touches · how
+  to run) — read it before handing a workflow to a human.
 - **Wire** · `nika wire <cursor|vscode|windsurf|claude|codex|all>` — point an
   agent client's MCP config at the real oracle (idempotent · preserves other
   servers).
@@ -81,16 +84,25 @@ or MCP tool) · `agent` (a multi-turn ReAct loop).
 - snake_case task ids · kebab-case `workflow:`.
 
 ## Don't invent structure — route to a skeleton
-`nika new --from '?'` lists the 6 skeletons · `nika examples list` / `show
-<slug>` reads a runnable example that exercises a construct · `nika schema`
-is the JSON Schema · `nika spec --canon` is the SSOT · `nika catalog` names
-the providers/models · `nika tools` names the `nika:` builtins. Copy, fill,
-check.
+`nika new --from '?'` lists the embedded skeletons · `nika examples list` /
+`show <slug>` reads a runnable example that exercises a construct ·
+`nika schema` is the JSON Schema · `nika spec --canon` is the SSOT ·
+`nika catalog` names the providers/models · `nika tools` names the `nika:`
+builtins. Copy, fill, check.
 
-## Understand · replay
+## Cost honesty (never hide unknown spend)
+- `nika check` prints the ceiling BEFORE any token · `≥ $X FLOOR` means an
+  unbounded task exists — name why, never round unknown to $0.
+- A local model is unpriced compute, **never « free »**.
+- `nika run <file> --max-cost-usd <n>` blocks BEFORE the call that would
+  cross the cap.
+
+## Understand · replay · prove
 - `nika inspect <file>` — static anatomy: tasks · verbs · wave groups · cost.
 - `nika graph <file> --format mermaid|dot|json` — the ONE graph projector.
 - `nika trace show|replay <run>` — the flight recorder (every run records).
+- `nika trace verify <run>` — the journal is hash-chained: verify it after a
+  run that matters, cite the trace instead of trusting a memory of the run.
 - `nika dap` — step a recorded run under a debugger UI, forward AND back.
 
 ## Servers (stdio · for editors and agent clients)
@@ -133,6 +145,43 @@ Envelope: `nika: v1` (always · frozen forever). Extension: `.nika.yaml`.
 - Unknown code? Run `nika explain NIKA-XXXX`.
 "#;
 
+/// `.github/copilot-instructions.md` — the GitHub Copilot repo brief.
+/// Compact on purpose: the loop + the four hard rules that catch most
+/// LLM authoring errors; AGENTS.md carries the full contract.
+const COPILOT_INSTRUCTIONS: &str = r"# Nika workflows (`*.nika.yaml`) — Copilot brief
+
+Nika workflows are audited BEFORE they run. The loop: author from a
+skeleton (`nika new --from '?'` lists them) → `nika check <file>` after
+EVERY edit → repair from the diagnostics (`nika explain NIKA-XXXX`) →
+only a clean file reaches a human.
+
+Rules the validator enforces:
+- Envelope `nika: v1` · one verb per task (`infer` · `exec` · `invoke` ·
+  `agent`) · the verb IS the task key.
+- Any `${{ tasks.X }}` reference needs `depends_on: [X]`.
+- `invoke` arguments live under `args:` · secrets come from the
+  environment (`${{ secrets.X }}`) — never inline.
+- Never invent syntax: `nika schema` is the JSON Schema · `nika catalog`
+  / `nika tools` name the providers and builtins.
+- Cost honesty: unknown spend is declared, never rounded to $0 · a local
+  model is unpriced, never « free ».
+
+See AGENTS.md (scaffolded by `nika init`) for the full contract.
+";
+
+/// `CLAUDE.md` — a thin pointer, zero-drift by construction: Claude Code
+/// auto-loads it, and the ONE contract it needs lives in AGENTS.md (the
+/// scaffold parity-tested against the live clap tree).
+const CLAUDE_MD: &str = r"# Nika workflows in this repo
+
+Read `AGENTS.md` — it is the Nika contract for every agent (the loop ·
+the four verbs · the hard rules · cost honesty · trace proof). It is
+scaffolded by `nika init` and stays parity-tested against the binary.
+
+Quick oracle: `nika check <file>` after every edit · `nika explain
+<code|file>` teaches · `nika welcome` mirrors this machine.
+";
+
 /// What `init` does (or declines to do) for one target file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Action {
@@ -163,13 +212,17 @@ pub fn agents_md() -> &'static str {
 }
 
 /// The scaffold set · (relative path, body). The ONE source of what `init`
-/// writes — `plan` and the docs both read it.
-fn targets() -> [(&'static str, &'static str); 4] {
+/// writes — `plan` and the docs both read it. AGENTS.md is the contract;
+/// the per-client briefs (Cursor rule · Copilot instructions · CLAUDE.md
+/// pointer) stay thin so they cannot drift from it.
+fn targets() -> [(&'static str, &'static str); 6] {
     [
         (".vscode/settings.json", VSCODE_SETTINGS),
         ("AGENTS.md", AGENTS_MD),
         (".cursor/rules/nika.mdc", CURSOR_RULES),
         (".agents/skills/nika-authoring/SKILL.md", AGENT_SKILL),
+        (".github/copilot-instructions.md", COPILOT_INSTRUCTIONS),
+        ("CLAUDE.md", CLAUDE_MD),
     ]
 }
 
@@ -318,9 +371,9 @@ mod tests {
     #[test]
     fn plan_creates_both_when_nothing_exists() {
         let p = plan(".", &|_| false, false);
-        assert_eq!(p.len(), 4);
+        assert_eq!(p.len(), 6);
         assert!(p.iter().all(|a| matches!(a, Action::Create { .. })));
-        // Schema wiring + agent guide + Cursor rule + agent skill are the targets.
+        // Schema wiring + agent guide + per-client briefs are the targets.
         let paths: Vec<&str> = p
             .iter()
             .map(|a| match a {
@@ -334,6 +387,31 @@ mod tests {
             paths
                 .iter()
                 .any(|p| p.ends_with(".agents/skills/nika-authoring/SKILL.md"))
+        );
+        assert!(
+            paths
+                .iter()
+                .any(|p| p.ends_with(".github/copilot-instructions.md"))
+        );
+        assert!(paths.iter().any(|p| p.ends_with("CLAUDE.md")));
+    }
+
+    #[test]
+    fn the_client_briefs_stay_thin_pointers_to_the_contract() {
+        // The per-client briefs must ROUTE to AGENTS.md (the parity-tested
+        // contract), teach the check loop, and carry the cost-honesty law —
+        // thin by design so they cannot drift into a second truth.
+        for (name, body) in [("copilot", COPILOT_INSTRUCTIONS), ("claude", CLAUDE_MD)] {
+            assert!(body.contains("AGENTS.md"), "{name} routes to the contract");
+            assert!(body.contains("nika check"), "{name} teaches the loop");
+        }
+        assert!(
+            COPILOT_INSTRUCTIONS.contains("never « free »"),
+            "cost honesty reaches the Copilot brief"
+        );
+        assert!(
+            CLAUDE_MD.contains("nika welcome"),
+            "the Claude pointer names the mirror"
         );
     }
 

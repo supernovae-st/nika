@@ -481,6 +481,9 @@ pub const nika_cli::verbs::exit::PAUSED: u8
 pub const nika_cli::verbs::exit::WORKFLOW: u8
 pub mod nika_cli::verbs::explain
 pub fn nika_cli::verbs::explain::run(wire: &str) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::explain_file
+pub fn nika_cli::verbs::explain_file::dispatch(query: &str, json: bool) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::explain_file::run(path: &str, json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::graph
 pub enum nika_cli::verbs::graph::GraphFormat
 pub nika_cli::verbs::graph::GraphFormat::Dot
@@ -976,6 +979,8 @@ pub mod nika_cli::verbs::trace_reproduce
 pub fn nika_cli::verbs::trace_reproduce::reproduce(recorded: &str, fresh: &str) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::trace_verify
 pub fn nika_cli::verbs::trace_verify::verify(trace: &str) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::welcome
+pub fn nika_cli::verbs::welcome::run(json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::wire
 pub enum nika_cli::verbs::wire::WireTarget
 pub nika_cli::verbs::wire::WireTarget::All

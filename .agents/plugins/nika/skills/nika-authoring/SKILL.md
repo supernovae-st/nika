@@ -33,6 +33,23 @@ oracle; the human runs it.
 7. Pin it for CI: `nika test <file> --update` writes
    `<file>.golden.json` from an offline mock run; `nika test <file>`
    replays and compares — deterministic, zero keys.
+8. **Prove a run that mattered**: every run writes a hash-chained
+   journal to `.nika/traces/` — `nika trace verify <trace>` checks the
+   chain (tamper-evidence), `nika trace show <trace>` reads the card.
+   Cite the trace, never a memory of the run.
+
+## Cost honesty (never hide unknown spend)
+
+- `nika check` prints the cost ceiling BEFORE any token: `≤ $X` is a
+  ceiling · `≥ $X FLOOR` means at least one task is unbounded — name
+  the reason (a missing `max_tokens`, an uncataloged model, an
+  expression fan-out), never round it to $0.
+- A local model (`ollama/…`) is **unpriced compute, not « free »** —
+  say "unpriced", never "$0" or "free".
+- A spend cap rides the run: `nika run <file> --max-cost-usd <n>`
+  blocks BEFORE the call that would cross the cap.
+- `nika explain <file>` narrates all of this (waves · cost · touches ·
+  how to run) — use it before handing a workflow to a human.
 
 ## The four verbs (exactly one per task)
 
