@@ -720,3 +720,126 @@ fn lsp_serves_initialize_diagnostics_and_clean_exit() {
         "didOpen published diagnostics: {stdout}"
     );
 }
+
+/// The mirror renders offline, exits 0, and never leaks a key VALUE —
+/// canary env vars seeded here must be absent from every output byte
+/// (presence may be COUNTED, the value must not exist in the render).
+#[test]
+fn welcome_greets_offline_and_leaks_no_secret() {
+    let canary = "hunter2-THE-CANARY-VALUE-nobody-prints";
+    let out = bin()
+        .arg("welcome")
+        .env("ANTHROPIC_API_KEY", canary)
+        .env("OPENAI_API_KEY", canary)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(0), "a greeting is never a failure");
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    for needle in ["Intent as Code", "this machine", "start here", "mock/echo"] {
+        assert!(text.contains(needle), "welcome carries `{needle}`: {text}");
+    }
+    assert!(
+        !text.contains(canary),
+        "a key VALUE must never surface: {text}"
+    );
+
+    // The machine mirror: versioned, parseable, value-free.
+    let json_out = bin()
+        .arg("welcome")
+        .arg("--json")
+        .env("ANTHROPIC_API_KEY", canary)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(json_out.status.code(), Some(0));
+    let raw = String::from_utf8_lossy(&json_out.stdout);
+    let v: serde_json::Value = serde_json::from_str(raw.trim()).expect("welcome --json parses");
+    assert_eq!(v["welcome_version"], 1);
+    assert!(!raw.contains(canary), "no value in the JSON mirror: {raw}");
+}
+
+/// `explain <file>` narrates a checked workflow end to end at the binary
+/// plane — and the SAME positional still teaches error codes.
+#[test]
+fn explain_narrates_a_file_and_still_teaches_codes() {
+    let dir = std::env::temp_dir().join(format!("nika-smoke-explain-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let wf = write_fixture(
+        &dir,
+        "story.nika.yaml",
+        "nika: v1\nworkflow: smoke-story\ndescription: a two-step story\n\nmodel: mock/echo\n\ntasks:\n  - id: draft\n    infer: { prompt: \"draft\", max_tokens: 10 }\n  - id: polish\n    depends_on: [draft]\n    infer: { prompt: \"polish\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.polish.output }}\n",
+    );
+    let out = bin()
+        .arg("explain")
+        .arg(&wf)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "clean file narrates: {text}");
+    for needle in [
+        "smoke-story — a two-step story",
+        "the story",
+        "cost before a token is spent",
+        "run it",
+        "flight recorder",
+    ] {
+        assert!(text.contains(needle), "explain carries `{needle}`: {text}");
+    }
+
+    // The code form is untouched by the overload.
+    let code_out = bin()
+        .arg("explain")
+        .arg("NIKA-DAG-003")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(code_out.status.code(), Some(0));
+    assert!(
+        String::from_utf8_lossy(&code_out.stdout).contains("NIKA-DAG-003"),
+        "codes still teach"
+    );
+
+    // The machine twin parses and speaks the report dialect.
+    let json_out = bin()
+        .arg("explain")
+        .arg(&wf)
+        .arg("--json")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(json_out.status.code(), Some(0));
+    let v: serde_json::Value =
+        serde_json::from_str(String::from_utf8_lossy(&json_out.stdout).trim())
+            .expect("explain --json parses");
+    assert_eq!(v["explain_version"], 1);
+    assert_eq!(v["clean"], true);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `init` scaffolds the per-client briefs alongside the contract — and
+/// the briefs route back to AGENTS.md instead of forking the truth.
+#[test]
+fn init_scaffolds_the_client_briefs() {
+    let dir = std::env::temp_dir().join(format!("nika-smoke-init6-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let out = bin()
+        .arg("init")
+        .arg(&dir)
+        .arg("--yes")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(0));
+    for rel in [".github/copilot-instructions.md", "CLAUDE.md"] {
+        let body = std::fs::read_to_string(dir.join(rel)).expect(rel);
+        assert!(body.contains("AGENTS.md"), "{rel} routes to the contract");
+        assert!(body.contains("nika check"), "{rel} teaches the loop");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
