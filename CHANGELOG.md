@@ -10,75 +10,89 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
-**Nika never lies about costs.** The pricing catalog identifies itself,
-the math prices what providers actually billed, agents stop hiding
-their LLM spend, `unknown` always says WHY, and the operator gets a
-real budget lever.
+**Structured output goes native, the checker closes its gaps — and the
+engine gets its one lexer.** Four arcs land together: the answer now
+rides each provider's own grammar; `nika check` catches what used to
+fail at run; costs stopped lying last cycle and now the budget can't be
+dodged; and the `${{ }}` scanner becomes a crate both the checker and
+the runtime share — parity by construction.
 
-### ✨ Features
+### The native-answer arc
 
-- **The pricing snapshot identifies itself** — `[meta]` (source ·
-  `as_of` · sha256 prefix) is machine-readable (schema `@1.1`):
-  `nika doctor` prints the identity line and WARNS past 120 days (the
-  staleness surface no surveyed tool ships), `check --json` carries
-  `pricing.snapshot`, and a priced run stamps `pricing_as_of` on its
-  terminal frame — every cost figure names the prices that produced it.
-- **Cache-aware cost math** — the snapshot now vendors upstream
-  `cache_read`/`cache_write` rates (248 rules) and the runtime prices
-  cache subsets at their OWN rates instead of full input price. Wires
-  normalize to the OTel `gen_ai` semantics (`input_tokens` INCLUDES the
-  cache subsets — Anthropic folds at the parse seam, sync + streaming).
-  Scope honesty: this bills what providers REPORT — live today for
-  implicit caching (OpenAI `cached_tokens` · Gemini
-  `cachedContentTokenCount`); Anthropic's opt-in `cache_control` is not
-  yet emitted by Nika's own requests, so its cache meters stay absent
-  until that ships (roadmapped, with the 1h-TTL write-premium axis).
-- **Agents meter their LLM spend** — the loop absorbs every turn's
-  usage split and the dispatch prices it with the same resolver `infer`
-  uses, on top of tool-reported spend. An agent task's `cost_usd` is
-  now the whole bill, not just its tools.
-- **`unknown` says why** — an unpriced task carries `cost_unpriced`:
-  `local_model` · `mock_provider` · `missing_catalog_price` ·
-  `provider_did_not_report_usage`. A PRICED model whose provider
-  reports no usage is absent+named — never a fake `$0.00`.
-- **Run cost totals on the trace** — the terminal frame carries
-  `total_cost_usd` · `priced_calls` · `unpriced_calls` ·
-  `cost_by_source` · `pricing_as_of` (only when honest: an unmetered
-  run stays field-free). `RunOutcome` mirrors them for embedders.
-- **`nika run --max-cost-usd <usd>`** — the operator budget (NIKA-1704):
-  refuses pre-run when the static cost floor already exceeds it, and
-  mid-run stops ADMITTING new work once metered spend crosses it —
-  in-flight calls complete and count (a killed call would spend
-  unrecorded money), unstarted tasks cancel, the error carries
-  spent-vs-budget. Unpriced work never trips it — said loudly upfront.
-- **Partial totals never read as complete** — the run meter, verdict
-  card and `trace outputs` render `≥ $X (N unpriced)` whenever part of
-  the run carried no meterable price.
+- **Anthropic native structured output** — `output_config.format`
+  replaces the instruction fallback on claude models that support it.
+- **Gemini rides `responseJsonSchema`** — the lossy OpenAPI converter
+  dies; the author's JSON Schema reaches the wire as written.
+- **OpenAI strict-mode honesty** — schemas carrying `not`/`allOf` are
+  stripped and flattened at the wire instead of 400ing; gpt-5/o-series
+  get `max_completion_tokens` (legacy models and every compatible peer
+  keep `max_tokens` — and the two spellings are ONE logical key, a raw
+  extras `max_tokens` can no longer ride alongside the routed one).
+- **Capability is a PROVIDER fact** — deepseek has no `json_schema`;
+  the profile says so instead of failing live. `nika doctor` names the
+  clouds that fall back to instruction mode.
+- **The coercion ladder** — SAP-lite repair (case-fold enums · string
+  numbers · singleton arrays) before any PAID retry; retry-loop
+  economics send a numbered repair list and fast-fail on truncation.
 
-### 📖 Documentation
+### The audit-before-run arc
 
-- `scripts/refresh-pricing.sh` grows a LiteLLM-style shrink guard
-  (a refresh losing >half the rules refuses to write) and emits the
-  `[meta]` provenance block.
-- **Billed-then-failed spend is visible** — a loop that burns real
-  money and then dies (schema retries exhausted · `max_turns` ·
-  `max_tokens_total` · a provider dying mid-loop) now carries that
-  spend on its error: `task_failed`/`task_skipped` frames ride
-  `cost_usd` (+ the unpriced WHY), run totals include it, and the
-  `--max-cost-usd` gate debits it PER ATTEMPT — a retry storm can no
-  longer spend past the budget invisibly. A recovered (`on_error:
-  recover`) task keeps its burned spend on the frame (recovery is not
-  a refund).
-- **Known limits (named, not silent — the honest-cost roadmap):**
-  costs use LIST RATES from the vendored public catalog (private/proxy/
-  Azure deals need the roadmapped override file) · long-context pricing
-  tiers are vendored at the BASE rate (a >200K-token gemini-2.5-pro
-  call bills ~2× the estimate) · a task KILLED BY ITS `timeout:` cannot
-  report the cancelled attempt's server-side spend (nothing was
-  reported, nothing can honestly ride) · `on_finally` cleanups stay the
-  best-effort unmetered lane.
+- **The compact block-sequence bomb is dead (CRITICAL)** — `- `×4000 on
+  one line used to stack-overflow-ABORT every `nika check`/`run` and
+  the LSP with them; the dash-run cap catches it as NIKA-PARSE-001. The
+  LSP additionally proves it SERVES the bomb as a document and keeps
+  answering (e2e), and floors mid-char offsets instead of panicking.
+- **`max_turns` out of 1-1000** and **`for_each` over a typed
+  non-array var** are check-time findings now, not run-time surprises.
+- **`env:` binds at run** — a green check referencing `${{ env.X }}`
+  used to fail with NIKA-VAR-001 because the runtime never bound the
+  namespace it was checked against. The exact parity class
+  audit-before-run exists to prevent; threaded end-to-end (gates ·
+  pause payloads · resume identity — an env change re-keys, never
+  wrong-skips).
+- **New hints**: `exec-json-capture` (a `capture: structured` task
+  whose bindings parse `.stdout | fromjson` and read nothing else of
+  the record — use `capture: stdout` so a failing helper errors as
+  NIKA-EXEC-001 instead of becoming data) · `native-first` (the check
+  names the builtin/MCP path an exec shells out to) ·
+  `schema-portability` (the grammar-blind keywords named).
+- **A dirty MCP check is `isError:true`** — the agent repair loop
+  (template → fill → check → repair) triggers again.
 
----
+### nika-tmpl — the 41st crate
+
+The `${{ … }}` island lexer, extracted from its two hand-duplicated
+copies (the drift already shipped one check-passed/run-broke bug) into
+a zero-dependency L0 leaf both consumers now share. Quote-aware close,
+`\${{` escape, byte-spans, AST-free. Mutation 46/51 (90.2%) with the 5
+survivors certified unkillable in-spec; parity pre-proven byte-identical
+across ~337k exhaustive inputs.
+
+### And
+
+- The wizard escapes user strings into YAML (a backslash in the intent
+  no longer scaffolds a file that fails its own check), survives spaced
+  filenames, and never promises what the file doesn't carry — with PTY
+  e2e coverage driving the real conversation.
+- fetch vNext: form posts · multipart · bounded traverse, then the
+  hardening pass (multipart cap unbypassable · cross-origin redirects
+  re-pin · userinfo redacted · robots.txt bounded).
+- The LSP honors `$/cancelRequest` — a request the editor discarded
+  (superseded completion · rapid typing) dies before its analysis runs.
+- `NIKA_<ID>_BASE_URL` reaches the CLOUDS — the locked long-tail hatch
+  (D-2026-06-10-N2) gets its operator surface: point any cloud profile
+  at an OpenAI-compatible endpoint (an EU host · a corporate gateway)
+  with zero catalog change, paired with the scoped `NIKA_<ID>_API_KEY`.
+- exec feeds stdin concurrently (a large input can no longer deadlock)
+  · the runtime honors the documented key ladder (`NIKA_` prefix wins)
+  · `nika init`'s AGENTS.md teaches the live clap tree · `nika welcome`
+  + `nika explain <file>` — the 30-seconds narrative layer.
+
+**Nika never lies about costs** (the cost arc, continued from 0.97):
+the pricing catalog identifies itself, the math prices what providers
+actually billed, agents stop hiding their LLM spend, `unknown` always
+says WHY, and the operator gets a real budget lever.
+
 ## [0.97.0](https://github.com/supernovae-st/nika/compare/v0.96.0..v0.97.0) - 2026-07-07
 
 **The run becomes evidence.** 0.96 made the run a place you can visit;
