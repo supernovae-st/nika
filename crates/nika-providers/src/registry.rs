@@ -137,7 +137,7 @@ impl<H> ProviderRegistry<H> {
     /// `resolve()` (which would also demand a key). An unknown provider or
     /// a malformed model string answers `false` — the SAFE default: a
     /// caller that can't confirm native support falls back to a schema
-    /// INSTRUCTION, which is correct on every wire (anthropic REQUIRES it).
+    /// INSTRUCTION — correct (if no longer required) on every wire.
     #[must_use]
     pub fn supports_response_format(&self, model: &str) -> bool {
         model
@@ -372,9 +372,9 @@ mod tests {
         assert!(reg.supports_response_format("deepseek/chat")); // openai-compat
         assert!(reg.supports_response_format("ollama/llama3")); // openai-compat local
         assert!(reg.supports_response_format("mock/echo"));
-        // anthropic → false (its wire rejects response_format · instruction
-        // fallback REQUIRED).
-        assert!(!reg.supports_response_format("anthropic/sonnet"));
+        // anthropic → native since 2026-07-07 (output_config.format ·
+        // GA 2026-01-29 · the wire normalizes to its narrower dialect).
+        assert!(reg.supports_response_format("anthropic/sonnet"));
     }
 
     #[test]
