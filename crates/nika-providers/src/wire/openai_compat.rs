@@ -191,13 +191,27 @@ fn request_body(
         obj.insert("response_format".to_owned(), rf);
     }
     // Provider extras never override the structural keys this adapter set
-    // (model · messages · stream · tools · …) — first-write-wins.
+    // (model · messages · stream · tools · …) — first-write-wins. The two
+    // token-budget spellings are ONE logical key: when the adapter already
+    // routed the budget (`max_completion_tokens` for gpt-5/o-series), a raw
+    // extras `max_tokens` must not ride alongside it — OpenAI rejects a body
+    // carrying both.
     for (k, v) in &req.extra.params {
-        if !obj.contains_key(k) {
+        let sibling_present = budget_key_sibling(k).is_some_and(|alt| obj.contains_key(alt));
+        if !obj.contains_key(k) && !sibling_present {
             obj.insert(k.clone(), v.clone());
         }
     }
     Ok(body)
+}
+
+/// The other spelling of the token-budget key, if `k` is one of the pair.
+fn budget_key_sibling(k: &str) -> Option<&'static str> {
+    match k {
+        "max_tokens" => Some("max_completion_tokens"),
+        "max_completion_tokens" => Some("max_tokens"),
+        _ => None,
+    }
 }
 
 /// `OpenAI` keeps legacy Chat Completions models on `max_tokens`, while GPT-5
@@ -677,6 +691,35 @@ mod tests {
         let peer = body_of("gpt-5.2", &r, false, true, "groq").expect("peer body");
         assert_eq!(peer["max_tokens"], 64);
         assert!(peer.get("max_completion_tokens").is_none());
+    }
+
+    #[test]
+    fn extras_max_tokens_never_rides_alongside_the_routed_budget_key() {
+        // A raw extras `max_tokens` (the escape hatch's legacy spelling) must
+        // not join a body whose budget was already routed to
+        // `max_completion_tokens` — OpenAI rejects a request carrying both.
+        let mut r = req(vec![Message::text(Role::User, "hi")]);
+        r.max_tokens = Some(64);
+        r.extra
+            .params
+            .insert("max_tokens".to_owned(), serde_json::json!(128));
+        let body = body_of("gpt-5.2", &r, false, true, "openai").expect("body");
+        assert_eq!(body["max_completion_tokens"], 64, "structural key wins");
+        assert!(
+            body.get("max_tokens").is_none(),
+            "the sibling spelling must not ride alongside: {body}"
+        );
+
+        // The hatch stays verbatim when nothing structural was routed: an
+        // extras-only budget passes through untouched (caller owns the wire).
+        let mut hatch = req(vec![Message::text(Role::User, "hi")]);
+        hatch
+            .extra
+            .params
+            .insert("max_completion_tokens".to_owned(), serde_json::json!(99));
+        let hatch_body = body_of("gpt-5.2", &hatch, false, true, "openai").expect("body");
+        assert_eq!(hatch_body["max_completion_tokens"], 99);
+        assert!(hatch_body.get("max_tokens").is_none());
     }
 
     #[test]
