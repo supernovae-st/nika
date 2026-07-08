@@ -336,6 +336,16 @@ fn client_probes() -> Vec<ClientProbe> {
             &home.join(".claude.json"),
             &["mcpServers", "nika"],
         ));
+        // Zed: ~/.config on EVERY platform (upstream choice) · the MCP
+        // entry lives under `context_servers` (zed.dev/docs/ai/mcp). The
+        // JSON probe is best-effort on Zed's JSONC settings: a commented
+        // file parses as not-wired → the fix line says `nika wire zed`,
+        // which itself degrades to the ✋ manual snippet. Honest chain.
+        probes.push(client_probe(
+            "zed",
+            &home.join(".config").join("zed").join("settings.json"),
+            &["context_servers", "nika"],
+        ));
     } else {
         probes.push(client_probe(
             "cursor",
