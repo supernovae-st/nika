@@ -1,0 +1,543 @@
+pub mod nika_pck_manifest
+#[non_exhaustive] pub enum nika_pck_manifest::ArtifactKind
+pub nika_pck_manifest::ArtifactKind::AgentPreset
+pub nika_pck_manifest::ArtifactKind::BenchSuite
+pub nika_pck_manifest::ArtifactKind::ConformanceFixture
+pub nika_pck_manifest::ArtifactKind::CustomTool(nika_pck_manifest::CustomKind)
+pub nika_pck_manifest::ArtifactKind::McpConfig
+pub nika_pck_manifest::ArtifactKind::ModelPointer
+pub nika_pck_manifest::ArtifactKind::Pack
+pub nika_pck_manifest::ArtifactKind::PolicyPreset
+pub nika_pck_manifest::ArtifactKind::ProviderProfile
+pub nika_pck_manifest::ArtifactKind::Skill
+pub nika_pck_manifest::ArtifactKind::TemplateVariant
+pub nika_pck_manifest::ArtifactKind::Workflow
+impl nika_pck_manifest::ArtifactKind
+pub fn nika_pck_manifest::ArtifactKind::as_wire(&self) -> &str
+pub fn nika_pck_manifest::ArtifactKind::from_wire(s: &str) -> Self
+impl core::clone::Clone for nika_pck_manifest::ArtifactKind
+pub fn nika_pck_manifest::ArtifactKind::clone(&self) -> nika_pck_manifest::ArtifactKind
+impl core::cmp::Eq for nika_pck_manifest::ArtifactKind
+impl core::cmp::PartialEq for nika_pck_manifest::ArtifactKind
+pub fn nika_pck_manifest::ArtifactKind::eq(&self, other: &nika_pck_manifest::ArtifactKind) -> bool
+impl core::fmt::Debug for nika_pck_manifest::ArtifactKind
+pub fn nika_pck_manifest::ArtifactKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_pck_manifest::ArtifactKind
+pub fn nika_pck_manifest::ArtifactKind::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_pck_manifest::ArtifactKind
+impl serde_core::ser::Serialize for nika_pck_manifest::ArtifactKind
+pub fn nika_pck_manifest::ArtifactKind::serialize<S: serde_core::ser::Serializer>(&self, ser: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
+impl<'de> serde_core::de::Deserialize<'de> for nika_pck_manifest::ArtifactKind
+pub fn nika_pck_manifest::ArtifactKind::deserialize<D: serde_core::de::Deserializer<'de>>(de: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error>
+impl<T, U> core::convert::Into<U> for nika_pck_manifest::ArtifactKind where U: core::convert::From<T>
+pub fn nika_pck_manifest::ArtifactKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pck_manifest::ArtifactKind where U: core::convert::Into<T>
+pub type nika_pck_manifest::ArtifactKind::Error = core::convert::Infallible
+pub fn nika_pck_manifest::ArtifactKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pck_manifest::ArtifactKind where U: core::convert::TryFrom<T>
+pub type nika_pck_manifest::ArtifactKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pck_manifest::ArtifactKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pck_manifest::ArtifactKind where T: core::clone::Clone
+pub type nika_pck_manifest::ArtifactKind::Owned = T
+pub fn nika_pck_manifest::ArtifactKind::clone_into(&self, target: &mut T)
+pub fn nika_pck_manifest::ArtifactKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_pck_manifest::ArtifactKind where T: 'static + ?core::marker::Sized
+pub fn nika_pck_manifest::ArtifactKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pck_manifest::ArtifactKind where T: ?core::marker::Sized
+pub fn nika_pck_manifest::ArtifactKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pck_manifest::ArtifactKind where T: ?core::marker::Sized
+pub fn nika_pck_manifest::ArtifactKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pck_manifest::ArtifactKind where T: core::clone::Clone
+pub unsafe fn nika_pck_manifest::ArtifactKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pck_manifest::ArtifactKind
+pub fn nika_pck_manifest::ArtifactKind::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_pck_manifest::ArtifactKind where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_pck_manifest::CertVerdict
+pub nika_pck_manifest::CertVerdict::Fail
+pub nika_pck_manifest::CertVerdict::Pass
+impl core::clone::Clone for nika_pck_manifest::CertVerdict
+pub fn nika_pck_manifest::CertVerdict::clone(&self) -> nika_pck_manifest::CertVerdict
+impl core::cmp::Eq for nika_pck_manifest::CertVerdict
+impl core::cmp::PartialEq for nika_pck_manifest::CertVerdict
+pub fn nika_pck_manifest::CertVerdict::eq(&self, other: &nika_pck_manifest::CertVerdict) -> bool
+impl core::fmt::Debug for nika_pck_manifest::CertVerdict
+pub fn nika_pck_manifest::CertVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_pck_manifest::CertVerdict
+impl core::marker::StructuralPartialEq for nika_pck_manifest::CertVerdict
+impl serde_core::ser::Serialize for nika_pck_manifest::CertVerdict
+pub fn nika_pck_manifest::CertVerdict::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_pck_manifest::CertVerdict
+pub fn nika_pck_manifest::CertVerdict::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_pck_manifest::CertVerdict where U: core::convert::From<T>
+pub fn nika_pck_manifest::CertVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pck_manifest::CertVerdict where U: core::convert::Into<T>
+pub type nika_pck_manifest::CertVerdict::Error = core::convert::Infallible
+pub fn nika_pck_manifest::CertVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pck_manifest::CertVerdict where U: core::convert::TryFrom<T>
+pub type nika_pck_manifest::CertVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pck_manifest::CertVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pck_manifest::CertVerdict where T: core::clone::Clone
+pub type nika_pck_manifest::CertVerdict::Owned = T
+pub fn nika_pck_manifest::CertVerdict::clone_into(&self, target: &mut T)
+pub fn nika_pck_manifest::CertVerdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_pck_manifest::CertVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_pck_manifest::CertVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pck_manifest::CertVerdict where T: ?core::marker::Sized
+pub fn nika_pck_manifest::CertVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pck_manifest::CertVerdict where T: ?core::marker::Sized
+pub fn nika_pck_manifest::CertVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pck_manifest::CertVerdict where T: core::clone::Clone
+pub unsafe fn nika_pck_manifest::CertVerdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pck_manifest::CertVerdict
+pub fn nika_pck_manifest::CertVerdict::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_pck_manifest::CertVerdict where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_pck_manifest::ManifestError
+pub nika_pck_manifest::ManifestError::HashInvalid
+pub nika_pck_manifest::ManifestError::HashInvalid::got: alloc::string::String
+pub nika_pck_manifest::ManifestError::HashInvalid::what: &'static str
+pub nika_pck_manifest::ManifestError::SchemaUnsupported
+pub nika_pck_manifest::ManifestError::SchemaUnsupported::got: alloc::string::String
+impl core::clone::Clone for nika_pck_manifest::ManifestError
+pub fn nika_pck_manifest::ManifestError::clone(&self) -> nika_pck_manifest::ManifestError
+impl core::cmp::Eq for nika_pck_manifest::ManifestError
+impl core::cmp::PartialEq for nika_pck_manifest::ManifestError
+pub fn nika_pck_manifest::ManifestError::eq(&self, other: &nika_pck_manifest::ManifestError) -> bool
+impl core::error::Error for nika_pck_manifest::ManifestError
+impl core::fmt::Debug for nika_pck_manifest::ManifestError
+pub fn nika_pck_manifest::ManifestError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_pck_manifest::ManifestError
+pub fn nika_pck_manifest::ManifestError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_pck_manifest::ManifestError
+impl<T, U> core::convert::Into<U> for nika_pck_manifest::ManifestError where U: core::convert::From<T>
+pub fn nika_pck_manifest::ManifestError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pck_manifest::ManifestError where U: core::convert::Into<T>
+pub type nika_pck_manifest::ManifestError::Error = core::convert::Infallible
+pub fn nika_pck_manifest::ManifestError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pck_manifest::ManifestError where U: core::convert::TryFrom<T>
+pub type nika_pck_manifest::ManifestError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pck_manifest::ManifestError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pck_manifest::ManifestError where T: core::clone::Clone
+pub type nika_pck_manifest::ManifestError::Owned = T
+pub fn nika_pck_manifest::ManifestError::clone_into(&self, target: &mut T)
+pub fn nika_pck_manifest::ManifestError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_pck_manifest::ManifestError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_pck_manifest::ManifestError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_pck_manifest::ManifestError where T: 'static + ?core::marker::Sized
+pub fn nika_pck_manifest::ManifestError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pck_manifest::ManifestError where T: ?core::marker::Sized
+pub fn nika_pck_manifest::ManifestError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pck_manifest::ManifestError where T: ?core::marker::Sized
+pub fn nika_pck_manifest::ManifestError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pck_manifest::ManifestError where T: core::clone::Clone
+pub unsafe fn nika_pck_manifest::ManifestError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pck_manifest::ManifestError
+pub fn nika_pck_manifest::ManifestError::from(t: T) -> T
+#[non_exhaustive] pub struct nika_pck_manifest::Blake3Hash(_)
+impl nika_pck_manifest::Blake3Hash
+pub fn nika_pck_manifest::Blake3Hash::as_hex(&self) -> &str
+pub fn nika_pck_manifest::Blake3Hash::new(s: &str) -> core::result::Result<Self, nika_pck_manifest::ManifestError>
+impl core::clone::Clone for nika_pck_manifest::Blake3Hash
+pub fn nika_pck_manifest::Blake3Hash::clone(&self) -> nika_pck_manifest::Blake3Hash
+impl core::cmp::Eq for nika_pck_manifest::Blake3Hash
+impl core::cmp::Ord for nika_pck_manifest::Blake3Hash
+pub fn nika_pck_manifest::Blake3Hash::cmp(&self, other: &nika_pck_manifest::Blake3Hash) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_pck_manifest::Blake3Hash
+pub fn nika_pck_manifest::Blake3Hash::eq(&self, other: &nika_pck_manifest::Blake3Hash) -> bool
+impl core::cmp::PartialOrd for nika_pck_manifest::Blake3Hash
+pub fn nika_pck_manifest::Blake3Hash::partial_cmp(&self, other: &nika_pck_manifest::Blake3Hash) -> core::option::Option<core::cmp::Ordering>
+impl core::convert::TryFrom<&str> for nika_pck_manifest::Blake3Hash
+pub type nika_pck_manifest::Blake3Hash::Error = nika_pck_manifest::ManifestError
+pub fn nika_pck_manifest::Blake3Hash::try_from(s: &str) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for nika_pck_manifest::Blake3Hash
+pub fn nika_pck_manifest::Blake3Hash::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_pck_manifest::Blake3Hash
+pub fn nika_pck_manifest::Blake3Hash::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_pck_manifest::Blake3Hash
+pub fn nika_pck_manifest::Blake3Hash::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_pck_manifest::Blake3Hash
+impl core::str::traits::FromStr for nika_pck_manifest::Blake3Hash
+pub type nika_pck_manifest::Blake3Hash::Err = nika_pck_manifest::ManifestError
+pub fn nika_pck_manifest::Blake3Hash::from_str(s: &str) -> core::result::Result<Self, Self::Err>
+impl serde_core::ser::Serialize for nika_pck_manifest::Blake3Hash
+pub fn nika_pck_manifest::Blake3Hash::serialize<S: serde_core::ser::Serializer>(&self, ser: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
+impl<'de> serde_core::de::Deserialize<'de> for nika_pck_manifest::Blake3Hash
+pub fn nika_pck_manifest::Blake3Hash::deserialize<D: serde_core::de::Deserializer<'de>>(de: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error>
+impl<T, U> core::convert::Into<U> for nika_pck_manifest::Blake3Hash where U: core::convert::From<T>
+pub fn nika_pck_manifest::Blake3Hash::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pck_manifest::Blake3Hash where U: core::convert::Into<T>
+pub type nika_pck_manifest::Blake3Hash::Error = core::convert::Infallible
+pub fn nika_pck_manifest::Blake3Hash::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pck_manifest::Blake3Hash where U: core::convert::TryFrom<T>
+pub type nika_pck_manifest::Blake3Hash::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pck_manifest::Blake3Hash::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pck_manifest::Blake3Hash where T: core::clone::Clone
+pub type nika_pck_manifest::Blake3Hash::Owned = T
+pub fn nika_pck_manifest::Blake3Hash::clone_into(&self, target: &mut T)
+pub fn nika_pck_manifest::Blake3Hash::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_pck_manifest::Blake3Hash where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_pck_manifest::Blake3Hash::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_pck_manifest::Blake3Hash where T: 'static + ?core::marker::Sized
+pub fn nika_pck_manifest::Blake3Hash::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pck_manifest::Blake3Hash where T: ?core::marker::Sized
+pub fn nika_pck_manifest::Blake3Hash::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pck_manifest::Blake3Hash where T: ?core::marker::Sized
+pub fn nika_pck_manifest::Blake3Hash::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pck_manifest::Blake3Hash where T: core::clone::Clone
+pub unsafe fn nika_pck_manifest::Blake3Hash::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pck_manifest::Blake3Hash
+pub fn nika_pck_manifest::Blake3Hash::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_pck_manifest::Blake3Hash where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_pck_manifest::Cert
+pub nika_pck_manifest::Cert::cost_floor_usd: core::option::Option<alloc::string::String>
+pub nika_pck_manifest::Cert::effects: alloc::vec::Vec<alloc::string::String>
+pub nika_pck_manifest::Cert::engine: alloc::string::String
+pub nika_pck_manifest::Cert::manifest_hash: nika_pck_manifest::Blake3Hash
+pub nika_pck_manifest::Cert::permits: alloc::vec::Vec<alloc::string::String>
+pub nika_pck_manifest::Cert::schema: alloc::string::String
+pub nika_pck_manifest::Cert::secrets_read: alloc::vec::Vec<alloc::string::String>
+pub nika_pck_manifest::Cert::verdict: nika_pck_manifest::CertVerdict
+impl nika_pck_manifest::Cert
+pub fn nika_pck_manifest::Cert::new(manifest_hash: nika_pck_manifest::Blake3Hash, engine: impl core::convert::Into<alloc::string::String>, verdict: nika_pck_manifest::CertVerdict) -> Self
+pub fn nika_pck_manifest::Cert::validate(&self) -> core::result::Result<(), nika_pck_manifest::ManifestError>
+impl core::clone::Clone for nika_pck_manifest::Cert
+pub fn nika_pck_manifest::Cert::clone(&self) -> nika_pck_manifest::Cert
+impl core::cmp::Eq for nika_pck_manifest::Cert
+impl core::cmp::PartialEq for nika_pck_manifest::Cert
+pub fn nika_pck_manifest::Cert::eq(&self, other: &nika_pck_manifest::Cert) -> bool
+impl core::fmt::Debug for nika_pck_manifest::Cert
+pub fn nika_pck_manifest::Cert::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_pck_manifest::Cert
+impl serde_core::ser::Serialize for nika_pck_manifest::Cert
+pub fn nika_pck_manifest::Cert::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_pck_manifest::Cert
+pub fn nika_pck_manifest::Cert::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_pck_manifest::Cert where U: core::convert::From<T>
+pub fn nika_pck_manifest::Cert::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pck_manifest::Cert where U: core::convert::Into<T>
+pub type nika_pck_manifest::Cert::Error = core::convert::Infallible
+pub fn nika_pck_manifest::Cert::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pck_manifest::Cert where U: core::convert::TryFrom<T>
+pub type nika_pck_manifest::Cert::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pck_manifest::Cert::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pck_manifest::Cert where T: core::clone::Clone
+pub type nika_pck_manifest::Cert::Owned = T
+pub fn nika_pck_manifest::Cert::clone_into(&self, target: &mut T)
+pub fn nika_pck_manifest::Cert::to_owned(&self) -> T
+impl<T> core::any::Any for nika_pck_manifest::Cert where T: 'static + ?core::marker::Sized
+pub fn nika_pck_manifest::Cert::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pck_manifest::Cert where T: ?core::marker::Sized
+pub fn nika_pck_manifest::Cert::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pck_manifest::Cert where T: ?core::marker::Sized
+pub fn nika_pck_manifest::Cert::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pck_manifest::Cert where T: core::clone::Clone
+pub unsafe fn nika_pck_manifest::Cert::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pck_manifest::Cert
+pub fn nika_pck_manifest::Cert::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_pck_manifest::Cert where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_pck_manifest::CustomKind(_)
+impl nika_pck_manifest::CustomKind
+pub fn nika_pck_manifest::CustomKind::as_str(&self) -> &str
+impl core::clone::Clone for nika_pck_manifest::CustomKind
+pub fn nika_pck_manifest::CustomKind::clone(&self) -> nika_pck_manifest::CustomKind
+impl core::cmp::Eq for nika_pck_manifest::CustomKind
+impl core::cmp::PartialEq for nika_pck_manifest::CustomKind
+pub fn nika_pck_manifest::CustomKind::eq(&self, other: &nika_pck_manifest::CustomKind) -> bool
+impl core::fmt::Debug for nika_pck_manifest::CustomKind
+pub fn nika_pck_manifest::CustomKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_pck_manifest::CustomKind
+pub fn nika_pck_manifest::CustomKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_pck_manifest::CustomKind
+pub fn nika_pck_manifest::CustomKind::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_pck_manifest::CustomKind
+impl<T, U> core::convert::Into<U> for nika_pck_manifest::CustomKind where U: core::convert::From<T>
+pub fn nika_pck_manifest::CustomKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pck_manifest::CustomKind where U: core::convert::Into<T>
+pub type nika_pck_manifest::CustomKind::Error = core::convert::Infallible
+pub fn nika_pck_manifest::CustomKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pck_manifest::CustomKind where U: core::convert::TryFrom<T>
+pub type nika_pck_manifest::CustomKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pck_manifest::CustomKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pck_manifest::CustomKind where T: core::clone::Clone
+pub type nika_pck_manifest::CustomKind::Owned = T
+pub fn nika_pck_manifest::CustomKind::clone_into(&self, target: &mut T)
+pub fn nika_pck_manifest::CustomKind::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_pck_manifest::CustomKind where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_pck_manifest::CustomKind::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_pck_manifest::CustomKind where T: 'static + ?core::marker::Sized
+pub fn nika_pck_manifest::CustomKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pck_manifest::CustomKind where T: ?core::marker::Sized
+pub fn nika_pck_manifest::CustomKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pck_manifest::CustomKind where T: ?core::marker::Sized
+pub fn nika_pck_manifest::CustomKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pck_manifest::CustomKind where T: core::clone::Clone
+pub unsafe fn nika_pck_manifest::CustomKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pck_manifest::CustomKind
+pub fn nika_pck_manifest::CustomKind::from(t: T) -> T
+#[non_exhaustive] pub struct nika_pck_manifest::FileEntry
+pub nika_pck_manifest::FileEntry::path: alloc::string::String
+pub nika_pck_manifest::FileEntry::sha256: nika_pck_manifest::Sha256Hash
+impl nika_pck_manifest::FileEntry
+pub fn nika_pck_manifest::FileEntry::new(path: impl core::convert::Into<alloc::string::String>, sha256: nika_pck_manifest::Sha256Hash) -> Self
+impl core::clone::Clone for nika_pck_manifest::FileEntry
+pub fn nika_pck_manifest::FileEntry::clone(&self) -> nika_pck_manifest::FileEntry
+impl core::cmp::Eq for nika_pck_manifest::FileEntry
+impl core::cmp::PartialEq for nika_pck_manifest::FileEntry
+pub fn nika_pck_manifest::FileEntry::eq(&self, other: &nika_pck_manifest::FileEntry) -> bool
+impl core::fmt::Debug for nika_pck_manifest::FileEntry
+pub fn nika_pck_manifest::FileEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_pck_manifest::FileEntry
+impl serde_core::ser::Serialize for nika_pck_manifest::FileEntry
+pub fn nika_pck_manifest::FileEntry::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_pck_manifest::FileEntry
+pub fn nika_pck_manifest::FileEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_pck_manifest::FileEntry where U: core::convert::From<T>
+pub fn nika_pck_manifest::FileEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pck_manifest::FileEntry where U: core::convert::Into<T>
+pub type nika_pck_manifest::FileEntry::Error = core::convert::Infallible
+pub fn nika_pck_manifest::FileEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pck_manifest::FileEntry where U: core::convert::TryFrom<T>
+pub type nika_pck_manifest::FileEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pck_manifest::FileEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pck_manifest::FileEntry where T: core::clone::Clone
+pub type nika_pck_manifest::FileEntry::Owned = T
+pub fn nika_pck_manifest::FileEntry::clone_into(&self, target: &mut T)
+pub fn nika_pck_manifest::FileEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_pck_manifest::FileEntry where T: 'static + ?core::marker::Sized
+pub fn nika_pck_manifest::FileEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pck_manifest::FileEntry where T: ?core::marker::Sized
+pub fn nika_pck_manifest::FileEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pck_manifest::FileEntry where T: ?core::marker::Sized
+pub fn nika_pck_manifest::FileEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pck_manifest::FileEntry where T: core::clone::Clone
+pub unsafe fn nika_pck_manifest::FileEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pck_manifest::FileEntry
+pub fn nika_pck_manifest::FileEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_pck_manifest::FileEntry where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_pck_manifest::LockEntry
+pub nika_pck_manifest::LockEntry::content_hash: nika_pck_manifest::Blake3Hash
+pub nika_pck_manifest::LockEntry::reference: nika_pck_manifest::PackageRef
+impl nika_pck_manifest::LockEntry
+pub fn nika_pck_manifest::LockEntry::new(reference: nika_pck_manifest::PackageRef, content_hash: nika_pck_manifest::Blake3Hash) -> Self
+impl core::clone::Clone for nika_pck_manifest::LockEntry
+pub fn nika_pck_manifest::LockEntry::clone(&self) -> nika_pck_manifest::LockEntry
+impl core::cmp::Eq for nika_pck_manifest::LockEntry
+impl core::cmp::PartialEq for nika_pck_manifest::LockEntry
+pub fn nika_pck_manifest::LockEntry::eq(&self, other: &nika_pck_manifest::LockEntry) -> bool
+impl core::fmt::Debug for nika_pck_manifest::LockEntry
+pub fn nika_pck_manifest::LockEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_pck_manifest::LockEntry
+impl serde_core::ser::Serialize for nika_pck_manifest::LockEntry
+pub fn nika_pck_manifest::LockEntry::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_pck_manifest::LockEntry
+pub fn nika_pck_manifest::LockEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_pck_manifest::LockEntry where U: core::convert::From<T>
+pub fn nika_pck_manifest::LockEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pck_manifest::LockEntry where U: core::convert::Into<T>
+pub type nika_pck_manifest::LockEntry::Error = core::convert::Infallible
+pub fn nika_pck_manifest::LockEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pck_manifest::LockEntry where U: core::convert::TryFrom<T>
+pub type nika_pck_manifest::LockEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pck_manifest::LockEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pck_manifest::LockEntry where T: core::clone::Clone
+pub type nika_pck_manifest::LockEntry::Owned = T
+pub fn nika_pck_manifest::LockEntry::clone_into(&self, target: &mut T)
+pub fn nika_pck_manifest::LockEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_pck_manifest::LockEntry where T: 'static + ?core::marker::Sized
+pub fn nika_pck_manifest::LockEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pck_manifest::LockEntry where T: ?core::marker::Sized
+pub fn nika_pck_manifest::LockEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pck_manifest::LockEntry where T: ?core::marker::Sized
+pub fn nika_pck_manifest::LockEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pck_manifest::LockEntry where T: core::clone::Clone
+pub unsafe fn nika_pck_manifest::LockEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pck_manifest::LockEntry
+pub fn nika_pck_manifest::LockEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_pck_manifest::LockEntry where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_pck_manifest::Lockfile
+pub nika_pck_manifest::Lockfile::entries: alloc::vec::Vec<nika_pck_manifest::LockEntry>
+pub nika_pck_manifest::Lockfile::schema: alloc::string::String
+impl nika_pck_manifest::Lockfile
+pub fn nika_pck_manifest::Lockfile::new(entries: alloc::vec::Vec<nika_pck_manifest::LockEntry>) -> Self
+pub fn nika_pck_manifest::Lockfile::validate(&self) -> core::result::Result<(), nika_pck_manifest::ManifestError>
+impl core::clone::Clone for nika_pck_manifest::Lockfile
+pub fn nika_pck_manifest::Lockfile::clone(&self) -> nika_pck_manifest::Lockfile
+impl core::cmp::Eq for nika_pck_manifest::Lockfile
+impl core::cmp::PartialEq for nika_pck_manifest::Lockfile
+pub fn nika_pck_manifest::Lockfile::eq(&self, other: &nika_pck_manifest::Lockfile) -> bool
+impl core::fmt::Debug for nika_pck_manifest::Lockfile
+pub fn nika_pck_manifest::Lockfile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_pck_manifest::Lockfile
+impl serde_core::ser::Serialize for nika_pck_manifest::Lockfile
+pub fn nika_pck_manifest::Lockfile::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_pck_manifest::Lockfile
+pub fn nika_pck_manifest::Lockfile::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_pck_manifest::Lockfile where U: core::convert::From<T>
+pub fn nika_pck_manifest::Lockfile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pck_manifest::Lockfile where U: core::convert::Into<T>
+pub type nika_pck_manifest::Lockfile::Error = core::convert::Infallible
+pub fn nika_pck_manifest::Lockfile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pck_manifest::Lockfile where U: core::convert::TryFrom<T>
+pub type nika_pck_manifest::Lockfile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pck_manifest::Lockfile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pck_manifest::Lockfile where T: core::clone::Clone
+pub type nika_pck_manifest::Lockfile::Owned = T
+pub fn nika_pck_manifest::Lockfile::clone_into(&self, target: &mut T)
+pub fn nika_pck_manifest::Lockfile::to_owned(&self) -> T
+impl<T> core::any::Any for nika_pck_manifest::Lockfile where T: 'static + ?core::marker::Sized
+pub fn nika_pck_manifest::Lockfile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pck_manifest::Lockfile where T: ?core::marker::Sized
+pub fn nika_pck_manifest::Lockfile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pck_manifest::Lockfile where T: ?core::marker::Sized
+pub fn nika_pck_manifest::Lockfile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pck_manifest::Lockfile where T: core::clone::Clone
+pub unsafe fn nika_pck_manifest::Lockfile::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pck_manifest::Lockfile
+pub fn nika_pck_manifest::Lockfile::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_pck_manifest::Lockfile where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_pck_manifest::Manifest
+pub nika_pck_manifest::Manifest::author: core::option::Option<alloc::string::String>
+pub nika_pck_manifest::Manifest::content_hash: nika_pck_manifest::Blake3Hash
+pub nika_pck_manifest::Manifest::description: core::option::Option<alloc::string::String>
+pub nika_pck_manifest::Manifest::files: alloc::vec::Vec<nika_pck_manifest::FileEntry>
+pub nika_pck_manifest::Manifest::kind: nika_pck_manifest::ArtifactKind
+pub nika_pck_manifest::Manifest::license: core::option::Option<alloc::string::String>
+pub nika_pck_manifest::Manifest::name: alloc::string::String
+pub nika_pck_manifest::Manifest::schema: alloc::string::String
+pub nika_pck_manifest::Manifest::version: alloc::string::String
+impl nika_pck_manifest::Manifest
+pub fn nika_pck_manifest::Manifest::new(name: impl core::convert::Into<alloc::string::String>, version: impl core::convert::Into<alloc::string::String>, kind: nika_pck_manifest::ArtifactKind, files: alloc::vec::Vec<nika_pck_manifest::FileEntry>, content_hash: nika_pck_manifest::Blake3Hash) -> Self
+pub fn nika_pck_manifest::Manifest::validate(&self) -> core::result::Result<(), nika_pck_manifest::ManifestError>
+impl core::clone::Clone for nika_pck_manifest::Manifest
+pub fn nika_pck_manifest::Manifest::clone(&self) -> nika_pck_manifest::Manifest
+impl core::cmp::Eq for nika_pck_manifest::Manifest
+impl core::cmp::PartialEq for nika_pck_manifest::Manifest
+pub fn nika_pck_manifest::Manifest::eq(&self, other: &nika_pck_manifest::Manifest) -> bool
+impl core::fmt::Debug for nika_pck_manifest::Manifest
+pub fn nika_pck_manifest::Manifest::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_pck_manifest::Manifest
+impl serde_core::ser::Serialize for nika_pck_manifest::Manifest
+pub fn nika_pck_manifest::Manifest::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_pck_manifest::Manifest
+pub fn nika_pck_manifest::Manifest::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_pck_manifest::Manifest where U: core::convert::From<T>
+pub fn nika_pck_manifest::Manifest::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pck_manifest::Manifest where U: core::convert::Into<T>
+pub type nika_pck_manifest::Manifest::Error = core::convert::Infallible
+pub fn nika_pck_manifest::Manifest::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pck_manifest::Manifest where U: core::convert::TryFrom<T>
+pub type nika_pck_manifest::Manifest::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pck_manifest::Manifest::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pck_manifest::Manifest where T: core::clone::Clone
+pub type nika_pck_manifest::Manifest::Owned = T
+pub fn nika_pck_manifest::Manifest::clone_into(&self, target: &mut T)
+pub fn nika_pck_manifest::Manifest::to_owned(&self) -> T
+impl<T> core::any::Any for nika_pck_manifest::Manifest where T: 'static + ?core::marker::Sized
+pub fn nika_pck_manifest::Manifest::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pck_manifest::Manifest where T: ?core::marker::Sized
+pub fn nika_pck_manifest::Manifest::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pck_manifest::Manifest where T: ?core::marker::Sized
+pub fn nika_pck_manifest::Manifest::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pck_manifest::Manifest where T: core::clone::Clone
+pub unsafe fn nika_pck_manifest::Manifest::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pck_manifest::Manifest
+pub fn nika_pck_manifest::Manifest::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_pck_manifest::Manifest where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_pck_manifest::PackageRef
+pub nika_pck_manifest::PackageRef::path: core::option::Option<alloc::string::String>
+pub nika_pck_manifest::PackageRef::url: alloc::string::String
+pub nika_pck_manifest::PackageRef::version: alloc::string::String
+impl nika_pck_manifest::PackageRef
+pub fn nika_pck_manifest::PackageRef::new(url: impl core::convert::Into<alloc::string::String>, path: core::option::Option<alloc::string::String>, version: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_pck_manifest::PackageRef
+pub fn nika_pck_manifest::PackageRef::clone(&self) -> nika_pck_manifest::PackageRef
+impl core::cmp::Eq for nika_pck_manifest::PackageRef
+impl core::cmp::PartialEq for nika_pck_manifest::PackageRef
+pub fn nika_pck_manifest::PackageRef::eq(&self, other: &nika_pck_manifest::PackageRef) -> bool
+impl core::fmt::Debug for nika_pck_manifest::PackageRef
+pub fn nika_pck_manifest::PackageRef::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_pck_manifest::PackageRef
+pub fn nika_pck_manifest::PackageRef::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_pck_manifest::PackageRef
+impl serde_core::ser::Serialize for nika_pck_manifest::PackageRef
+pub fn nika_pck_manifest::PackageRef::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_pck_manifest::PackageRef
+pub fn nika_pck_manifest::PackageRef::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_pck_manifest::PackageRef where U: core::convert::From<T>
+pub fn nika_pck_manifest::PackageRef::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pck_manifest::PackageRef where U: core::convert::Into<T>
+pub type nika_pck_manifest::PackageRef::Error = core::convert::Infallible
+pub fn nika_pck_manifest::PackageRef::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pck_manifest::PackageRef where U: core::convert::TryFrom<T>
+pub type nika_pck_manifest::PackageRef::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pck_manifest::PackageRef::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pck_manifest::PackageRef where T: core::clone::Clone
+pub type nika_pck_manifest::PackageRef::Owned = T
+pub fn nika_pck_manifest::PackageRef::clone_into(&self, target: &mut T)
+pub fn nika_pck_manifest::PackageRef::to_owned(&self) -> T
+impl<T> core::any::Any for nika_pck_manifest::PackageRef where T: 'static + ?core::marker::Sized
+pub fn nika_pck_manifest::PackageRef::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pck_manifest::PackageRef where T: ?core::marker::Sized
+pub fn nika_pck_manifest::PackageRef::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pck_manifest::PackageRef where T: ?core::marker::Sized
+pub fn nika_pck_manifest::PackageRef::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pck_manifest::PackageRef where T: core::clone::Clone
+pub unsafe fn nika_pck_manifest::PackageRef::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pck_manifest::PackageRef
+pub fn nika_pck_manifest::PackageRef::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_pck_manifest::PackageRef where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_pck_manifest::Sha256Hash(_)
+impl nika_pck_manifest::Sha256Hash
+pub fn nika_pck_manifest::Sha256Hash::as_hex(&self) -> &str
+pub fn nika_pck_manifest::Sha256Hash::new(s: &str) -> core::result::Result<Self, nika_pck_manifest::ManifestError>
+impl core::clone::Clone for nika_pck_manifest::Sha256Hash
+pub fn nika_pck_manifest::Sha256Hash::clone(&self) -> nika_pck_manifest::Sha256Hash
+impl core::cmp::Eq for nika_pck_manifest::Sha256Hash
+impl core::cmp::Ord for nika_pck_manifest::Sha256Hash
+pub fn nika_pck_manifest::Sha256Hash::cmp(&self, other: &nika_pck_manifest::Sha256Hash) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_pck_manifest::Sha256Hash
+pub fn nika_pck_manifest::Sha256Hash::eq(&self, other: &nika_pck_manifest::Sha256Hash) -> bool
+impl core::cmp::PartialOrd for nika_pck_manifest::Sha256Hash
+pub fn nika_pck_manifest::Sha256Hash::partial_cmp(&self, other: &nika_pck_manifest::Sha256Hash) -> core::option::Option<core::cmp::Ordering>
+impl core::convert::TryFrom<&str> for nika_pck_manifest::Sha256Hash
+pub type nika_pck_manifest::Sha256Hash::Error = nika_pck_manifest::ManifestError
+pub fn nika_pck_manifest::Sha256Hash::try_from(s: &str) -> core::result::Result<Self, Self::Error>
+impl core::fmt::Debug for nika_pck_manifest::Sha256Hash
+pub fn nika_pck_manifest::Sha256Hash::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_pck_manifest::Sha256Hash
+pub fn nika_pck_manifest::Sha256Hash::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_pck_manifest::Sha256Hash
+pub fn nika_pck_manifest::Sha256Hash::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_pck_manifest::Sha256Hash
+impl core::str::traits::FromStr for nika_pck_manifest::Sha256Hash
+pub type nika_pck_manifest::Sha256Hash::Err = nika_pck_manifest::ManifestError
+pub fn nika_pck_manifest::Sha256Hash::from_str(s: &str) -> core::result::Result<Self, Self::Err>
+impl serde_core::ser::Serialize for nika_pck_manifest::Sha256Hash
+pub fn nika_pck_manifest::Sha256Hash::serialize<S: serde_core::ser::Serializer>(&self, ser: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
+impl<'de> serde_core::de::Deserialize<'de> for nika_pck_manifest::Sha256Hash
+pub fn nika_pck_manifest::Sha256Hash::deserialize<D: serde_core::de::Deserializer<'de>>(de: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error>
+impl<T, U> core::convert::Into<U> for nika_pck_manifest::Sha256Hash where U: core::convert::From<T>
+pub fn nika_pck_manifest::Sha256Hash::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pck_manifest::Sha256Hash where U: core::convert::Into<T>
+pub type nika_pck_manifest::Sha256Hash::Error = core::convert::Infallible
+pub fn nika_pck_manifest::Sha256Hash::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pck_manifest::Sha256Hash where U: core::convert::TryFrom<T>
+pub type nika_pck_manifest::Sha256Hash::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pck_manifest::Sha256Hash::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pck_manifest::Sha256Hash where T: core::clone::Clone
+pub type nika_pck_manifest::Sha256Hash::Owned = T
+pub fn nika_pck_manifest::Sha256Hash::clone_into(&self, target: &mut T)
+pub fn nika_pck_manifest::Sha256Hash::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_pck_manifest::Sha256Hash where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_pck_manifest::Sha256Hash::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_pck_manifest::Sha256Hash where T: 'static + ?core::marker::Sized
+pub fn nika_pck_manifest::Sha256Hash::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pck_manifest::Sha256Hash where T: ?core::marker::Sized
+pub fn nika_pck_manifest::Sha256Hash::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pck_manifest::Sha256Hash where T: ?core::marker::Sized
+pub fn nika_pck_manifest::Sha256Hash::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pck_manifest::Sha256Hash where T: core::clone::Clone
+pub unsafe fn nika_pck_manifest::Sha256Hash::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pck_manifest::Sha256Hash
+pub fn nika_pck_manifest::Sha256Hash::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_pck_manifest::Sha256Hash where T: for<'de> serde_core::de::Deserialize<'de>
+pub const nika_pck_manifest::PCK_SCHEMA: &str

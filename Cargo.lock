@@ -3978,6 +3978,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-pck-manifest"
+version = "0.97.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "toml",
+]
+
+[[package]]
 name = "nika-providers"
 version = "0.97.0"
 dependencies = [
