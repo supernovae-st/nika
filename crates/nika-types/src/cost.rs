@@ -12,6 +12,7 @@
 //! - Stripe uses i64 micro-units; `OpenAI` uses Decimal server-side.
 //! - Migration from f64 after 1M runs in `SQLite` = pain.
 
+use alloc::string::String;
 use core::fmt;
 use core::ops::{Add, Sub};
 
