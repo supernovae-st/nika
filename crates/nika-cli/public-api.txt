@@ -486,6 +486,7 @@ pub fn nika_cli::verbs::explain_file::dispatch(query: &str, json: bool) -> nika_
 pub fn nika_cli::verbs::explain_file::run(path: &str, json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::graph
 pub enum nika_cli::verbs::graph::GraphFormat
+pub nika_cli::verbs::graph::GraphFormat::Ascii
 pub nika_cli::verbs::graph::GraphFormat::Dot
 pub nika_cli::verbs::graph::GraphFormat::Json
 pub nika_cli::verbs::graph::GraphFormat::Mermaid

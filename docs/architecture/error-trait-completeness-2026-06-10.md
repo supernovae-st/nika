@@ -88,5 +88,12 @@ timeout boundary (spec 03 · catchable · never retryable).
    not a semantics change). **Trigger** · the L2 retry layer's first
    real workload decides whether shell/http timeouts are
    retry-eligible · change then, with its own test + rationale.
+3. **`ManifestError`** (nika-pck-manifest `lib.rs`) — the 42nd
+   admission (#306 · 2026-07-08) landed without the trait; the
+   one-voice gate went RED on every subsequent push. Exempted
+   `deferred-with-trigger` (allowlist row · push-train unblock
+   2026-07-08 · the InferLocalError precedent). **Trigger** · the
+   admitting arc's follow-up allocates a registry range + Pattern A
+   impl · the allowlist row dies with it.
 
 🦋
