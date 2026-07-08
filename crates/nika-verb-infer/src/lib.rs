@@ -53,6 +53,7 @@
 mod errors;
 mod structured;
 
+use nika_types::cost::SpendOnFailure;
 use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
@@ -247,13 +248,20 @@ where
         // final response's usage under-billed retried tasks by up to
         // budget+1 × (the cost-undercount finding · deep review 2026-07-07).
         let mut usage_total = TokenUsage::default();
+        // Failure decoration — billed round-trips ride the error.
+        let incurred =
+            |u: &TokenUsage| Box::new(SpendOnFailure::new(u.clone(), None, Some(model.to_owned())));
         loop {
             attempts += 1;
             let request = build_request(&input, provider.name(), messages.clone(), wire);
-            let response = provider
-                .infer(request)
-                .await
-                .map_err(|source| VerbInferError::ProviderCall { source })?;
+            let response =
+                provider
+                    .infer(request)
+                    .await
+                    .map_err(|source| VerbInferError::ProviderCall {
+                        source,
+                        spend: incurred(&usage_total),
+                    })?;
             usage_total.absorb(&response.usage);
             let text = response_text(&response);
 
@@ -285,7 +293,11 @@ where
                         // a tightened instruction can fix VERBOSE truncation —
                         // so this only annotates the terminal failure.
                         let detail = format!("{detail}{}", stop_reason_hint(&response.stop_reason));
-                        return Err(VerbInferError::SchemaValidation { attempts, detail });
+                        return Err(VerbInferError::SchemaValidation {
+                            attempts,
+                            detail,
+                            spend: incurred(&usage_total),
+                        });
                     }
                     messages.push(Message::text(Role::Assistant, text));
                     messages.push(Message::text(

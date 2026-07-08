@@ -43,9 +43,13 @@ pub nika_verb_infer::VerbInferError::ModelResolution::model: alloc::string::Stri
 pub nika_verb_infer::VerbInferError::ModelResolution::source: nika_kernel_ai::provider::ProviderError
 pub nika_verb_infer::VerbInferError::ProviderCall
 pub nika_verb_infer::VerbInferError::ProviderCall::source: nika_kernel_ai::provider::ProviderError
+pub nika_verb_infer::VerbInferError::ProviderCall::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_infer::VerbInferError::SchemaValidation
 pub nika_verb_infer::VerbInferError::SchemaValidation::attempts: u32
 pub nika_verb_infer::VerbInferError::SchemaValidation::detail: alloc::string::String
+pub nika_verb_infer::VerbInferError::SchemaValidation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+impl nika_verb_infer::VerbInferError
+pub fn nika_verb_infer::VerbInferError::spend(&self) -> core::option::Option<&nika_types::cost::SpendOnFailure>
 impl core::error::Error for nika_verb_infer::VerbInferError
 pub fn nika_verb_infer::VerbInferError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 impl core::fmt::Debug for nika_verb_infer::VerbInferError

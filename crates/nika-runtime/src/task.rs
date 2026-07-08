@@ -126,6 +126,29 @@ pub(crate) struct RetryStamp {
     pub delay_ms: u64,
 }
 
+/// A settled attempt-loop failure — the error + the spend the failed
+/// attempts had already incurred (per-attempt debits happened live;
+/// these fields feed the terminal frame).
+pub(crate) struct FailedOutcome {
+    pub record: TaskErrorRecord,
+    pub cost_usd: Option<f64>,
+    pub cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+}
+
+impl FailedOutcome {
+    fn new(
+        record: TaskErrorRecord,
+        cost_usd: Option<f64>,
+        cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+    ) -> Self {
+        Self {
+            record,
+            cost_usd,
+            cost_unpriced,
+        }
+    }
+}
+
 /// The task's terminal result.
 pub(crate) enum RunResult {
     /// Success — the verb's value (or the `on_error: recover` value) +
@@ -146,10 +169,20 @@ pub(crate) enum RunResult {
         cost_unpriced: Option<nika_types::cost::UnpricedReason>,
     },
     /// `on_error: skip` — skipped with the original error readable
-    /// (spec 05 · the one coexist state).
-    SkippedWithError { error: TaskErrorRecord },
-    /// Failed after retries with no recovery.
-    Failed { error: TaskErrorRecord },
+    /// (spec 05 · the one coexist state). The billed-then-skipped spend
+    /// rides so the frame says what the attempt cost.
+    SkippedWithError {
+        error: TaskErrorRecord,
+        cost_usd: Option<f64>,
+        cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+    },
+    /// Failed after retries with no recovery — with the spend the
+    /// billed attempts incurred (already ledger-debited per attempt).
+    Failed {
+        error: TaskErrorRecord,
+        cost_usd: Option<f64>,
+        cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+    },
 }
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
@@ -421,21 +454,12 @@ where
             acc.first_error = Some(budget_stop_record(total - acc.outputs.len()));
         }
 
-        let result = match acc.first_error {
-            None => RunResult::Success {
-                value: Value::Array(acc.outputs),
-                tokens: acc.tokens_sum,
-                // OBS-E is a per-CALL diagnostic; a fan-out's aggregate
-                // success carries no single warning (a per-element note
-                // would need its own channel · out of scope here).
-                warning: None,
-                // The leaf iterations already debited the ledger — this
-                // sum is presentation-only (never re-debited).
-                cost_usd: acc.cost_sum,
-                cost_unpriced: acc.unpriced,
-            },
-            Some(error) => RunResult::Failed { error },
-        };
+        let result = fan_out_result(
+            acc.outputs,
+            acc.tokens_sum,
+            acc.first_error,
+            (acc.cost_sum, acc.unpriced),
+        );
         let retries = acc.retries;
         let agent_events = acc.agent_events;
         let mut ran = RanTask {
@@ -489,6 +513,8 @@ where
                     duration_ms: 0,
                     result: RunResult::Failed {
                         error: runtime_error_record(&err),
+                        cost_usd: None,
+                        cost_unpriced: None,
                     },
                 };
             }
@@ -542,6 +568,10 @@ where
             let budget = task.timeout.as_ref().map(|t| t.value);
             let attempts = async {
                 let mut attempt = 1_u32;
+                // Spend of FAILED attempts (ledger-debited per attempt) —
+                // folded onto the terminal frame at the end.
+                let mut failed_cost: Option<f64> = None;
+                let mut failed_unpriced: Option<nika_types::cost::UnpricedReason> = None;
                 loop {
                     let dispatched = self
                         .dispatch(&task.action, scope, &agent_buffer, budget)
@@ -549,25 +579,33 @@ where
                     note.clone_from(&dispatched.note);
                     attempt_marks.push(agent_buffer.len());
                     match dispatched.result {
-                        Ok(ok) => {
-                            ledger.debit_ok(&ok); // THE leaf debit site
+                        Ok(mut ok) => {
+                            // THE leaf debit site (its OWN spend — failed
+                            // attempts debited theirs already; the frame
+                            // then reports the whole task's cost).
+                            ledger.debit_ok(&ok);
+                            ok.fold_failed_spend(failed_cost, failed_unpriced);
                             return Ok(ok);
                         }
-                        Err(error) => {
-                            // Retry iff attempts remain AND the policy
-                            // admits the error (spec 05) — the config is
-                            // present by construction past this gate.
-                            let eligible = attempt < max_attempts && retry_eligible(task, &error);
-                            let Some(cfg) =
-                                task.retry.as_ref().filter(|_| eligible).map(|r| &r.value)
-                            else {
-                                return Err(error);
-                            };
-                            let delay = delay_ms(
-                                cfg,
-                                attempt,
-                                rand_unit(self.config.jitter_seed, &jitter_key, attempt),
+                        Err(failed) => {
+                            // Debits PER ATTEMPT — a retry storm is never
+                            // invisible to `--max-cost-usd`.
+                            let error = failed.debit_and_fold(
+                                ledger,
+                                &mut failed_cost,
+                                &mut failed_unpriced,
                             );
+                            // Retry iff attempts remain AND the policy
+                            // admits the error (spec 05).
+                            let Some(delay) =
+                                self.retry_delay(task, &error, attempt, max_attempts, &jitter_key)
+                            else {
+                                return Err(FailedOutcome::new(
+                                    error,
+                                    failed_cost,
+                                    failed_unpriced,
+                                ));
+                            };
                             retries.push(RetryStamp {
                                 attempt,
                                 max_attempts,
@@ -602,15 +640,35 @@ where
         }
     }
 
+    /// The retry decision — `Some(delay_ms)` when attempts remain AND
+    /// the policy admits the error (spec 05 · the config is present by
+    /// construction past the gate) · `None` = the failure is final.
+    fn retry_delay(
+        &self,
+        task: &RawTask,
+        error: &TaskErrorRecord,
+        attempt: u32,
+        max_attempts: u32,
+        jitter_key: &str,
+    ) -> Option<u64> {
+        let eligible = attempt < max_attempts && retry_eligible(task, error);
+        let cfg = task.retry.as_ref().filter(|_| eligible).map(|r| &r.value)?;
+        Some(delay_ms(
+            cfg,
+            attempt,
+            rand_unit(self.config.jitter_seed, jitter_key, attempt),
+        ))
+    }
+
     /// Race the attempt future against the task's ONE `timeout:` budget
     /// (spec 03 · the total across retries and their backoff sleeps).
     async fn race_budget<F>(
         &self,
         attempts: F,
         budget: Option<Duration>,
-    ) -> Result<DispatchOk, TaskErrorRecord>
+    ) -> Result<DispatchOk, FailedOutcome>
     where
-        F: Future<Output = Result<DispatchOk, TaskErrorRecord>>,
+        F: Future<Output = Result<DispatchOk, FailedOutcome>>,
     {
         match budget {
             None => attempts.await,
@@ -624,13 +682,21 @@ where
                         // cancellation at the await point · exec
                         // subprocesses die via the runner's
                         // kill-on-drop contract.
-                        Err(TaskErrorRecord {
-                            code: TIMEOUT_CODE.to_owned(),
-                            message: format!(
-                                "task exceeded its timeout of {} ms",
-                                limit.as_millis()
-                            ),
-                            transient: false, // never retryable (spec 03)
+                        Err(FailedOutcome {
+                            record: TaskErrorRecord {
+                                code: TIMEOUT_CODE.to_owned(),
+                                message: format!(
+                                    "task exceeded its timeout of {} ms",
+                                    limit.as_millis()
+                                ),
+                                transient: false, // never retryable (spec 03)
+                            },
+                            // The cancelled in-flight attempt may have
+                            // billed server-side; nothing was reported, so
+                            // nothing can honestly ride (the documented
+                            // timeout-cancellation class).
+                            cost_usd: None,
+                            cost_unpriced: None,
                         })
                     }
                 }
@@ -772,7 +838,7 @@ where
             // Per-iteration `on_error: skip` contributes null at its
             // index — positional alignment survives (spec 03).
             RunResult::SkippedWithError { .. } => acc.outputs.push(Value::Null),
-            RunResult::Failed { error } => {
+            RunResult::Failed { error, .. } => {
                 acc.outputs.push(Value::Null);
                 if acc.first_error.is_none() {
                     acc.first_error = Some(error);
@@ -939,7 +1005,21 @@ fn eval_all_bindings(
 fn replace_success_with_failure(settle: &mut SettleAs, error: TaskErrorRecord) {
     match settle {
         SettleAs::Ran(ran) if matches!(ran.result, RunResult::Success { .. }) => {
-            ran.result = RunResult::Failed { error };
+            // The dispatch DID run and may have billed — its spend stays
+            // on the failed frame (the binding failure is downstream).
+            let (cost_usd, cost_unpriced) = match &ran.result {
+                RunResult::Success {
+                    cost_usd,
+                    cost_unpriced,
+                    ..
+                } => (*cost_usd, *cost_unpriced),
+                _ => (None, None),
+            };
+            ran.result = RunResult::Failed {
+                error,
+                cost_usd,
+                cost_unpriced,
+            };
         }
         // A binding that fails over a REHYDRATED output fails the task
         // the same way (it never started — the pre-start failure shape).
@@ -1045,7 +1125,7 @@ fn preview_record(ran: &RanTask) -> TaskRecord {
     });
     match &ran.result {
         RunResult::Success { value, .. } => record.output = value.clone(),
-        RunResult::SkippedWithError { error } | RunResult::Failed { error } => {
+        RunResult::SkippedWithError { error, .. } | RunResult::Failed { error, .. } => {
             record.error = Some(error.clone());
         }
     }
@@ -1072,7 +1152,7 @@ fn eval_gate(gate: &WhenGate, scope: &Scope<'_>) -> Result<bool, RuntimeError> {
 fn dispatch_result(
     task: &RawTask,
     scope: &Scope<'_>,
-    outcome: Result<DispatchOk, TaskErrorRecord>,
+    outcome: Result<DispatchOk, FailedOutcome>,
 ) -> RunResult {
     match outcome {
         Ok(DispatchOk {
@@ -1089,7 +1169,34 @@ fn dispatch_result(
             cost_usd,
             cost_unpriced,
         },
-        Err(error) => apply_on_error(task, scope, error),
+        Err(failed) => apply_on_error(task, scope, failed),
+    }
+}
+
+/// Reduce a drained fan-out to its terminal [`RunResult`]. The leaf
+/// iterations already debited the ledger — the aggregate spend here is
+/// presentation-only (never re-debited). OBS-E warnings stay per-call
+/// (no single aggregate warning channel).
+fn fan_out_result(
+    outputs: Vec<Value>,
+    tokens_sum: Option<i64>,
+    first_error: Option<TaskErrorRecord>,
+    spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
+) -> RunResult {
+    let (cost_usd, cost_unpriced) = spend;
+    match first_error {
+        None => RunResult::Success {
+            value: Value::Array(outputs),
+            tokens: tokens_sum,
+            warning: None,
+            cost_usd,
+            cost_unpriced,
+        },
+        Some(error) => RunResult::Failed {
+            error,
+            cost_usd,
+            cost_unpriced,
+        },
     }
 }
 
@@ -1108,32 +1215,57 @@ fn budget_stop_record(denied: usize) -> TaskErrorRecord {
 }
 
 /// `on_error:` (spec 05) — filter (`on_codes`) → ONE action.
-fn apply_on_error(task: &RawTask, scope: &Scope<'_>, error: TaskErrorRecord) -> RunResult {
+fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> RunResult {
+    let FailedOutcome {
+        record: error,
+        cost_usd,
+        cost_unpriced,
+    } = failed;
     let Some(on_error) = task.on_error.as_ref() else {
-        return RunResult::Failed { error };
+        return RunResult::Failed {
+            error,
+            cost_usd,
+            cost_unpriced,
+        };
     };
     if !on_error_applies(&on_error.value, &error) {
         // Unlisted code falls through to the default fail (spec 05).
-        return RunResult::Failed { error };
+        return RunResult::Failed {
+            error,
+            cost_usd,
+            cost_unpriced,
+        };
     }
     match &on_error.value.action {
         OnErrorAction::Recover(value) => match expr::render_json(&value.value, scope) {
             Ok(recovered) => RunResult::Success {
                 value: recovered,
                 tokens: None,
-                // A recovered value is author-supplied · no model reasoning.
+                // A recovered value is author-supplied · no model reasoning
+                // — but the FAILED attempts' spend already happened and
+                // stays on the frame (recovery does not refund it).
                 warning: None,
-                cost_usd: None,
-                cost_unpriced: None,
+                cost_usd,
+                cost_unpriced,
             },
             // Recovery itself failed → the task fails as if
             // `on_error:` were absent (spec 05 §recover resolution).
             Err(err) => RunResult::Failed {
                 error: runtime_error_record(&err),
+                cost_usd,
+                cost_unpriced,
             },
         },
-        OnErrorAction::Skip => RunResult::SkippedWithError { error },
-        OnErrorAction::FailWorkflow => RunResult::Failed { error },
+        OnErrorAction::Skip => RunResult::SkippedWithError {
+            error,
+            cost_usd,
+            cost_unpriced,
+        },
+        OnErrorAction::FailWorkflow => RunResult::Failed {
+            error,
+            cost_usd,
+            cost_unpriced,
+        },
         // #[non_exhaustive] · refuse loudly.
         other => RunResult::Failed {
             error: TaskErrorRecord {
@@ -1141,6 +1273,8 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, error: TaskErrorRecord) -> 
                 message: format!("on_error action not wired in the runtime yet: {other:?}"),
                 transient: false,
             },
+            cost_usd,
+            cost_unpriced,
         },
     }
 }

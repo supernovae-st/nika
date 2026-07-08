@@ -61,6 +61,57 @@ impl fmt::Display for UnpricedReason {
     }
 }
 
+/// The spend a FAILED verb execution had already incurred — billed
+/// turns/round-trips are real money whether or not the task succeeds.
+///
+/// Rides the loop-scoped error variants of `infer`/`agent` (decorated
+/// once at the verb's return seam) so the dispatch layer can price it,
+/// the run ledger can debit it, and the `--max-cost-usd` gate can see
+/// it — a retry storm of billed-then-failed attempts must never be
+/// invisible to the budget (Cost Intelligence follow-up · 2026-07-08).
+#[derive(Debug, Clone, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
+pub struct SpendOnFailure {
+    /// The absorbed usage split across the round-trips that DID run
+    /// (zero-valued when the failure preceded any billed call).
+    pub usage: crate::token_usage::TokenUsage,
+    /// Tool-reported spend accumulated before the failure (`agent`
+    /// loops) — absent when no tool reported real cost, never zero.
+    pub tools_cost_usd: Option<f64>,
+    /// The model the verb resolved (`provider/name`) — the pricing key.
+    /// `None` when the failure preceded model resolution.
+    pub model_resolved: Option<String>,
+}
+
+impl SpendOnFailure {
+    /// Construct (INV-019 · `new()` on every `#[non_exhaustive]` struct).
+    #[must_use]
+    pub fn new(
+        usage: crate::token_usage::TokenUsage,
+        tools_cost_usd: Option<f64>,
+        model_resolved: Option<String>,
+    ) -> Self {
+        Self {
+            usage,
+            tools_cost_usd,
+            model_resolved,
+        }
+    }
+
+    /// Whether anything here could carry a price — a default (pre-call
+    /// failure) spend prices to nothing and should decorate nothing.
+    #[must_use]
+    pub fn has_signal(&self) -> bool {
+        self.tools_cost_usd.is_some()
+            || self.usage.input_tokens > 0
+            || self.usage.output_tokens > 0
+            || self.usage.cache_read_tokens.is_some_and(|n| n > 0)
+            || self.usage.cache_write_tokens.is_some_and(|n| n > 0)
+            || self.usage.cache_creation_tokens.is_some_and(|n| n > 0)
+    }
+}
+
 /// Cost in nano-USD (1e-9 USD). Signed to support credits/refunds.
 ///
 /// # Display

@@ -446,6 +446,49 @@ pub unsafe fn nika_types::cost::Cost::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::cost::Cost
 pub fn nika_types::cost::Cost::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::cost::Cost where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::cost::SpendOnFailure
+pub nika_types::cost::SpendOnFailure::model_resolved: core::option::Option<alloc::string::String>
+pub nika_types::cost::SpendOnFailure::tools_cost_usd: core::option::Option<f64>
+pub nika_types::cost::SpendOnFailure::usage: nika_types::token_usage::TokenUsage
+impl nika_types::cost::SpendOnFailure
+pub fn nika_types::cost::SpendOnFailure::has_signal(&self) -> bool
+pub fn nika_types::cost::SpendOnFailure::new(usage: nika_types::token_usage::TokenUsage, tools_cost_usd: core::option::Option<f64>, model_resolved: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_types::cost::SpendOnFailure
+pub fn nika_types::cost::SpendOnFailure::clone(&self) -> nika_types::cost::SpendOnFailure
+impl core::cmp::PartialEq for nika_types::cost::SpendOnFailure
+pub fn nika_types::cost::SpendOnFailure::eq(&self, other: &nika_types::cost::SpendOnFailure) -> bool
+impl core::default::Default for nika_types::cost::SpendOnFailure
+pub fn nika_types::cost::SpendOnFailure::default() -> nika_types::cost::SpendOnFailure
+impl core::fmt::Debug for nika_types::cost::SpendOnFailure
+pub fn nika_types::cost::SpendOnFailure::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::cost::SpendOnFailure
+impl serde_core::ser::Serialize for nika_types::cost::SpendOnFailure
+pub fn nika_types::cost::SpendOnFailure::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::cost::SpendOnFailure
+pub fn nika_types::cost::SpendOnFailure::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::cost::SpendOnFailure where U: core::convert::From<T>
+pub fn nika_types::cost::SpendOnFailure::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::cost::SpendOnFailure where U: core::convert::Into<T>
+pub type nika_types::cost::SpendOnFailure::Error = core::convert::Infallible
+pub fn nika_types::cost::SpendOnFailure::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::cost::SpendOnFailure where U: core::convert::TryFrom<T>
+pub type nika_types::cost::SpendOnFailure::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::cost::SpendOnFailure::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::cost::SpendOnFailure where T: core::clone::Clone
+pub type nika_types::cost::SpendOnFailure::Owned = T
+pub fn nika_types::cost::SpendOnFailure::clone_into(&self, target: &mut T)
+pub fn nika_types::cost::SpendOnFailure::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::cost::SpendOnFailure where T: 'static + ?core::marker::Sized
+pub fn nika_types::cost::SpendOnFailure::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::cost::SpendOnFailure where T: ?core::marker::Sized
+pub fn nika_types::cost::SpendOnFailure::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::cost::SpendOnFailure where T: ?core::marker::Sized
+pub fn nika_types::cost::SpendOnFailure::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::cost::SpendOnFailure where T: core::clone::Clone
+pub unsafe fn nika_types::cost::SpendOnFailure::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::cost::SpendOnFailure
+pub fn nika_types::cost::SpendOnFailure::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::cost::SpendOnFailure where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_types::embedding
 #[non_exhaustive] pub enum nika_types::embedding::DistanceMetric
 pub nika_types::embedding::DistanceMetric::Cosine
