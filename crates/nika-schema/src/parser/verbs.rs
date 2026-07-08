@@ -215,7 +215,7 @@ fn parse_agent_body(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawAgentAct
     for tool in &action.tools {
         validate_whitelist_namespace(tool)?;
     }
-    action.max_turns = parse_u32_field(cx, body, "max_turns")?;
+    action.max_turns = parse_max_turns(cx, body)?;
     action.max_tokens_total = parse_u64_field(cx, body, "max_tokens_total")?;
     action.temperature = parse_temperature(cx, body)?;
     action.schema = parse_schema(cx, body)?;
@@ -242,6 +242,40 @@ fn parse_temperature(
     if !(0.0..=2.0).contains(&value) {
         return Err(SchemaError::Validation {
             message: format!("`temperature` must be in 0-2 (got {value})"),
+            span: cx.span(node.span()),
+        });
+    }
+    Ok(Some(Spanned::new(value, cx.span_or_zero(node.span()))))
+}
+
+/// `max_turns` — the agent loop bound. A LITERAL integer only (templates
+/// are rejected by the u32 parse), so its range is statically knowable:
+/// the runtime refuses anything outside 1..=1000 (NIKA-465), and
+/// `nika check` must catch that BEFORE the run — a `max_turns: 0` that
+/// audits clean then dies at dispatch breaks audit-before-run.
+///
+/// The ceiling MUST equal `nika_verb_agent::MAX_TURNS_CEILING` (this
+/// crate cannot import the runtime one — dependency direction); the
+/// runtime stays the enforcer, this is the early mirror.
+const MAX_TURNS_CEILING: u32 = 1000;
+
+fn parse_max_turns(
+    cx: &Cx<'_>,
+    body: &MarkedMappingNode,
+) -> Result<Option<Spanned<u32>>, SchemaError> {
+    let Some(node) = body.get_node("max_turns") else {
+        return Ok(None);
+    };
+    let value = node
+        .as_scalar()
+        .and_then(MarkedScalarNode::as_u32)
+        .ok_or_else(|| SchemaError::Validation {
+            message: "`max_turns` must be a non-negative integer".to_owned(),
+            span: cx.span(node.span()),
+        })?;
+    if !(1..=MAX_TURNS_CEILING).contains(&value) {
+        return Err(SchemaError::Validation {
+            message: format!("`max_turns` must be 1-{MAX_TURNS_CEILING} (got {value})"),
             span: cx.span(node.span()),
         });
     }
@@ -532,6 +566,37 @@ mod tests {
             .remove(0)
             .value
             .action
+    }
+
+    // ── agent max_turns range (audit-before-run · NIKA-465 mirror) ──
+
+    fn agent_wf(max_turns: &str) -> String {
+        format!(
+            "tasks:\n  - id: go\n    agent:\n      system: \"do\"\n      \
+             prompt: \"task\"\n      tools: [\"nika:done\"]\n      \
+             max_turns: {max_turns}\n      max_tokens_total: 1000\n"
+        )
+    }
+
+    #[test]
+    fn max_turns_range_is_caught_at_parse_not_deferred_to_runtime() {
+        // The runtime refuses max_turns outside 1..=1000 (NIKA-465); the
+        // static check must catch a LITERAL out-of-range value BEFORE the
+        // run, or a `max_turns: 0` audits clean then dies at dispatch.
+        for ok in ["1", "3", "1000"] {
+            assert!(
+                parse_strict(&agent_wf(ok)).is_ok(),
+                "max_turns {ok} is valid"
+            );
+        }
+        for bad in ["0", "1001", "99999"] {
+            let err = parse_strict(&agent_wf(bad)).expect_err("out of range");
+            let msg = format!("{err:?}");
+            assert!(
+                msg.contains("max_turns") && msg.contains("1-1000"),
+                "{bad}: {msg}"
+            );
+        }
     }
 
     // ── infer ───────────────────────────────────────────────────────
