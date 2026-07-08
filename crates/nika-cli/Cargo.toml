@@ -58,6 +58,8 @@ path = "src/main.rs"
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.97.0" }
 proptest = { workspace = true }   # Gate 6 · the fold's order-independence property (tests/fold_property.rs)
 tempfile = { workspace = true }   # trace-file sink fixtures (`.nika/traces/` journal · sink.rs tests)
+expectrl = { workspace = true }   # PTY e2e · the wizard conversation is TTY-gated — unreachable
+                                  # from piped harnesses by construction (tests/wizard_pty.rs · unix)
 
 [package.metadata.lore]
 daemon        = "messager"
