@@ -367,6 +367,43 @@ enum TraceAction {
     Replay(TraceArgs),
     /// Print the final card only.
     Show(TraceArgs),
+    /// List the workspace trace store (`.nika/traces/`): age · size ·
+    /// workflow · terminal state (completed/failed/paused) · the
+    /// resume-candidate marker (★ — the newest of each workflow, the
+    /// trace retention never collects · ADR-100).
+    Ls {
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+    },
+    /// Remove traces from the store — one by name/path, `--older-than
+    /// <dur>`, or `--all`. Removing a paused trace refuses without
+    /// `--force` and names the unanswered prompt it would destroy
+    /// (ADR-100).
+    Rm {
+        /// The trace to remove — a name from `trace ls` or a path.
+        #[arg(required_unless_present_any = ["older_than", "all"],
+              conflicts_with_all = ["older_than", "all"])]
+        trace: Option<String>,
+        /// Remove every trace older than this (`45s` · `30m` · `12h` · `7d`).
+        #[arg(long, value_name = "DURATION", conflicts_with = "all")]
+        older_than: Option<String>,
+        /// Remove every trace in the store.
+        #[arg(long)]
+        all: bool,
+        /// Remove even a paused trace (destroys its unanswered prompt).
+        #[arg(long)]
+        force: bool,
+        /// Force the ASCII glyph theme.
+        #[arg(long)]
+        ascii: bool,
+        /// Disable colour output.
+        #[arg(long)]
+        no_color: bool,
+    },
     /// Browse per-task outputs: verb · duration · tokens · bounded
     /// preview (full value: `trace peek`).
     Outputs {
@@ -555,6 +592,12 @@ struct RunArgs {
     ///     (custom endpoint · brand-new id) runs with no budget protection.
     #[arg(long = "max-cost-usd", value_name = "USD", value_parser = parse_budget_usd)]
     max_cost_usd: Option<f64>,
+    /// Skip the opportunistic trace collection for this invocation
+    /// (ADR-100: `.nika/traces/` is bounded by default — retention
+    /// rides every run start; a collection that removes anything says
+    /// so on stderr).
+    #[arg(long)]
+    no_gc: bool,
 }
 
 /// `--max-cost-usd` must be a real, non-negative dollar amount — `NaN`
@@ -717,6 +760,43 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
     match action {
         TraceAction::Replay(args) => trace_render(&args, true, color, link_when),
         TraceAction::Show(args) => trace_render(&args, false, color, link_when),
+        TraceAction::Ls { ascii, no_color } => emit(&verbs::trace::manage::ls(term_theme(
+            color.with_no_color(no_color),
+            ascii,
+            link_when,
+        ))),
+        TraceAction::Rm {
+            trace,
+            older_than,
+            all,
+            force,
+            ascii,
+            no_color,
+        } => {
+            let target = if all {
+                verbs::trace::manage::RmTarget::All
+            } else if let Some(raw) = older_than {
+                match verbs::trace::manage::parse_older_than(&raw) {
+                    Ok(cutoff) => verbs::trace::manage::RmTarget::OlderThan(cutoff),
+                    Err(message) => {
+                        eprintln!("nika-cli: {message}");
+                        return verbs::exit::ENV;
+                    }
+                }
+            } else {
+                // clap's required_unless_present_any guarantees the handle.
+                let Some(handle) = trace else {
+                    eprintln!("nika-cli: trace rm needs a trace, --older-than, or --all");
+                    return verbs::exit::ENV;
+                };
+                verbs::trace::manage::RmTarget::One(handle)
+            };
+            emit(&verbs::trace::manage::rm(
+                &target,
+                force,
+                term_theme(color.with_no_color(no_color), ascii, link_when),
+            ))
+        }
         TraceAction::Outputs {
             trace,
             ascii,
@@ -799,6 +879,7 @@ fn run_verb(args: &RunArgs, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
         args.task.as_deref(),
         args.no_outputs,
         args.max_cost_usd,
+        args.no_gc,
     )
 }
 

@@ -966,13 +966,59 @@ pub fn nika_cli::verbs::run::fs_boundary_of(wf: &nika_schema::raw::workflow::Raw
 pub fn nika_cli::verbs::run::net_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_http::NetBoundary
 pub fn nika_cli::verbs::run::production_runtime(default_model: &str, caps: nika_cli::verbs::run::RuntimeCapabilities) -> core::result::Result<nika_cli::verbs::run::ProdRuntime, nika_kernel_core::io::http::HttpError>
 pub fn nika_cli::verbs::run::recover_events(raw: &str, label: &str) -> core::result::Result<nika_cli::verbs::run::RecoveredTrace, alloc::string::String>
-pub fn nika_cli::verbs::run::run(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_cli::display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>, vars: &[alloc::string::String], resume: core::option::Option<&nika_cli::verbs::run::ResumeRequest>, no_trace_file: bool, task_filter: core::option::Option<&str>, no_outputs: bool, max_cost_usd: core::option::Option<f64>) -> u8
+pub fn nika_cli::verbs::run::run(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_cli::display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>, vars: &[alloc::string::String], resume: core::option::Option<&nika_cli::verbs::run::ResumeRequest>, no_trace_file: bool, task_filter: core::option::Option<&str>, no_outputs: bool, max_cost_usd: core::option::Option<f64>, no_gc: bool) -> u8
 pub type nika_cli::verbs::run::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_cli::verbs::run::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_cli::verbs::run::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_cli::verbs::run::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::SystemClock>
 pub mod nika_cli::verbs::test
 pub fn nika_cli::verbs::test::run(file: &str, update: bool, theme: nika_cli::display::theme::Theme) -> u8
 pub mod nika_cli::verbs::tools
 pub fn nika_cli::verbs::tools::run(json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::trace
+pub mod nika_cli::verbs::trace::manage
+pub enum nika_cli::verbs::trace::manage::RmTarget
+pub nika_cli::verbs::trace::manage::RmTarget::All
+pub nika_cli::verbs::trace::manage::RmTarget::OlderThan(core::time::Duration)
+pub nika_cli::verbs::trace::manage::RmTarget::One(alloc::string::String)
+impl core::clone::Clone for nika_cli::verbs::trace::manage::RmTarget
+pub fn nika_cli::verbs::trace::manage::RmTarget::clone(&self) -> nika_cli::verbs::trace::manage::RmTarget
+impl core::fmt::Debug for nika_cli::verbs::trace::manage::RmTarget
+pub fn nika_cli::verbs::trace::manage::RmTarget::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::trace::manage::RmTarget
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::trace::manage::RmTarget where U: core::convert::From<T>
+pub fn nika_cli::verbs::trace::manage::RmTarget::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::trace::manage::RmTarget where U: core::convert::Into<T>
+pub type nika_cli::verbs::trace::manage::RmTarget::Error = core::convert::Infallible
+pub fn nika_cli::verbs::trace::manage::RmTarget::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::trace::manage::RmTarget where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::trace::manage::RmTarget::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::trace::manage::RmTarget::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::verbs::trace::manage::RmTarget where T: core::clone::Clone
+pub type nika_cli::verbs::trace::manage::RmTarget::Owned = T
+pub fn nika_cli::verbs::trace::manage::RmTarget::clone_into(&self, target: &mut T)
+pub fn nika_cli::verbs::trace::manage::RmTarget::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::verbs::trace::manage::RmTarget where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::trace::manage::RmTarget::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::trace::manage::RmTarget where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::manage::RmTarget::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::trace::manage::RmTarget where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::manage::RmTarget::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::verbs::trace::manage::RmTarget where T: core::clone::Clone
+pub unsafe fn nika_cli::verbs::trace::manage::RmTarget::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::verbs::trace::manage::RmTarget
+pub fn nika_cli::verbs::trace::manage::RmTarget::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::verbs::trace::manage::RmTarget where T: core::clone::Clone
+pub fn nika_cli::verbs::trace::manage::RmTarget::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::trace::manage::RmTarget where T: 'static
+pub fn nika_cli::verbs::trace::manage::RmTarget::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::trace::manage::RmTarget where T: ?core::marker::Sized
+pub fn nika_cli::verbs::trace::manage::RmTarget::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::trace::manage::RmTarget::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::manage::RmTarget
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::manage::RmTarget
+impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::manage::RmTarget
+pub type nika_cli::verbs::trace::manage::RmTarget::Output = T
+pub fn nika_cli::verbs::trace::manage::ls(theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::trace::manage::parse_older_than(raw: &str) -> core::result::Result<core::time::Duration, alloc::string::String>
+pub fn nika_cli::verbs::trace::manage::rm(target: &nika_cli::verbs::trace::manage::RmTarget, force: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::flow(trace: &str, workflow: &str, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::outputs(trace: &str, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::peek(trace: &str, task: &str, raw: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
@@ -992,6 +1038,7 @@ pub nika_cli::verbs::wire::WireTarget::Codex
 pub nika_cli::verbs::wire::WireTarget::Cursor
 pub nika_cli::verbs::wire::WireTarget::Vscode
 pub nika_cli::verbs::wire::WireTarget::Windsurf
+pub nika_cli::verbs::wire::WireTarget::Zed
 impl core::clone::Clone for nika_cli::verbs::wire::WireTarget
 pub fn nika_cli::verbs::wire::WireTarget::clone(&self) -> nika_cli::verbs::wire::WireTarget
 impl core::cmp::Eq for nika_cli::verbs::wire::WireTarget

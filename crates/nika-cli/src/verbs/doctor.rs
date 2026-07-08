@@ -92,6 +92,7 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
         detail: "available via `nika lsp` (editor language server)".to_owned(),
         fix: None,
     });
+    out.extend(retention_findings(&probe.retention, &probe.retention_notes));
     out.push(Finding {
         level: Level::Ok,
         label: "mcp".to_owned(),
@@ -255,6 +256,34 @@ fn tts_finding(tts: &TtsProbe) -> Finding {
         },
         fix: None,
     }
+}
+
+/// ADR-100 D4 — the trace-retention knobs ride the env config surface;
+/// doctor reports the values GC actually enforces, and additionally
+/// speaks when a typo'd knob fell back to its default (a knob silently
+/// doing nothing would be hidden magic).
+fn retention_findings(
+    retention: &crate::verbs::trace::retention::RetentionConfig,
+    notes: &[String],
+) -> Vec<Finding> {
+    let mut out = vec![Finding {
+        level: Level::Ok,
+        label: "traces".to_owned(),
+        detail: format!(
+            "{} (NIKA_TRACE_KEEP · NIKA_TRACE_MAX_AGE_DAYS · NIKA_TRACE_BUDGET_MB)",
+            retention.summary()
+        ),
+        fix: None,
+    }];
+    for note in notes {
+        out.push(Finding {
+            level: Level::Warn,
+            label: "traces".to_owned(),
+            detail: note.clone(),
+            fix: Some("set a whole number · or unset to keep the default".to_owned()),
+        });
+    }
+    out
 }
 
 fn client_finding(client: &ClientProbe) -> Finding {
@@ -490,6 +519,8 @@ mod tests {
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
             pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let f = diagnose(&probe);
         let prov = f
@@ -517,6 +548,8 @@ mod tests {
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
             pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let f = diagnose(&probe);
         let prov = f
@@ -549,6 +582,8 @@ mod tests {
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
             pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("OPENAI_API_KEY"), "names the var: {text}");
@@ -571,6 +606,8 @@ mod tests {
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
             pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let f = diagnose(&probe);
         assert!(f.iter().any(|f| f.level == Level::Fail));
@@ -588,6 +625,8 @@ mod tests {
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
             pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let f = diagnose(&probe);
         let loc = f.iter().find(|f| f.label == "local").expect("local line");
@@ -696,6 +735,8 @@ mod tests {
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
             pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let text = render(&diagnose(&probe));
         assert!(text.contains("stale MCP args"), "{text}");
@@ -905,6 +946,8 @@ mod tests {
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
             pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
         };
         let findings = diagnose(&base);
         let local = findings
