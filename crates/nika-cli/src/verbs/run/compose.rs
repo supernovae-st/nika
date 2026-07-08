@@ -227,6 +227,15 @@ fn ladder_key(lookup: &dyn Fn(&str) -> Option<String>, id: &str, env_var: &str) 
         .or_else(|| lookup(env_var).filter(|v| !v.is_empty()))
 }
 
+/// The cloud-endpoint override for one provider: `NIKA_<ID>_BASE_URL`,
+/// verbatim (a COMPLETE endpoint URL · empty counts as absent). Only the
+/// explicit `NIKA_` form exists here — cloud providers have no
+/// `OLLAMA_HOST`-style convention to honor, and inventing one would
+/// widen the trust surface for no one.
+fn cloud_base_url(lookup: &dyn Fn(&str) -> Option<String>, id: &str) -> Option<String> {
+    lookup(&format!("NIKA_{}_BASE_URL", id.to_uppercase())).filter(|v| !v.is_empty())
+}
+
 pub(crate) fn config_from_env() -> ProvidersConfig {
     let mut config = ProvidersConfig::new();
     #[allow(clippy::disallowed_methods)] // the sanctioned env→secret boundary (see doc)
@@ -237,6 +246,31 @@ pub(crate) fn config_from_env() -> ProvidersConfig {
         }
         if let Some(value) = ladder_key(&lookup, provider.id, provider.env_var) {
             config = config.with_key(provider.id, Secret::new(value));
+        }
+    }
+    // CLOUD endpoints honor the same override family — the locked
+    // long-tail escape hatch (D-2026-06-10-N2: « the openai+base_url
+    // hatch stays for the long tail ») finally gets its operator
+    // surface: `NIKA_<ID>_BASE_URL` points a CLOUD profile at any
+    // OpenAI-compatible endpoint (Scaleway EU · Together · Fireworks ·
+    // a corporate gateway) with ZERO catalog change. The value is the
+    // COMPLETE endpoint URL (gemini keeps its STEM contract — see
+    // `ProvidersConfig::with_base_url`), taken verbatim: no loopback
+    // normalization (that convenience grammar is the locals'). Pair it
+    // with `NIKA_<ID>_API_KEY` (the #286 ladder) so the override rides
+    // a SCOPED key — the provider's Bearer goes wherever the override
+    // points, which is exactly the operator's intent and nobody else's
+    // (both variables are theirs · sovereignty Rule 1). Live-proven
+    // against Scaleway Generative APIs 2026-07-08 (vLLM-class · EU):
+    // json_schema enforced through the openai dialect, strict tolerated.
+    for provider in nika_catalog::all_providers() {
+        // the locals own the NEXT loop (loopback-normalized grammar) —
+        // catalog rows exist for them too, so exclude by id.
+        if LOCAL_BASE_ENV.iter().any(|(id, _, _)| *id == provider.id) {
+            continue;
+        }
+        if let Some(url) = cloud_base_url(&lookup, provider.id) {
+            config = config.with_base_url(provider.id, url);
         }
     }
     // The LOCAL servers' base URLs cross the SAME sanctioned boundary
@@ -879,6 +913,32 @@ mod tests {
         );
         let nothing = env(&[]);
         assert_eq!(ladder_key(&nothing, "mistral", "MISTRAL_API_KEY"), None);
+    }
+
+    #[test]
+    fn cloud_base_url_is_verbatim_and_explicit_only() {
+        // The long-tail hatch surface: NIKA_<ID>_BASE_URL, complete URL,
+        // verbatim — no loopback grammar, no conventional-var fallback.
+        let env = |pairs: &'static [(&'static str, &'static str)]| {
+            move |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(k, _)| *k == name)
+                    .map(|(_, v)| (*v).to_owned())
+            }
+        };
+        let set = env(&[(
+            "NIKA_OPENAI_BASE_URL",
+            "https://api.scaleway.ai/v1/chat/completions",
+        )]);
+        assert_eq!(
+            cloud_base_url(&set, "openai").as_deref(),
+            Some("https://api.scaleway.ai/v1/chat/completions")
+        );
+        let empty = env(&[("NIKA_OPENAI_BASE_URL", "")]);
+        assert_eq!(cloud_base_url(&empty, "openai"), None, "empty = absent");
+        let unset = env(&[]);
+        assert_eq!(cloud_base_url(&unset, "openai"), None);
     }
 
     #[test]
