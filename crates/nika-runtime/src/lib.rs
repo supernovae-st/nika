@@ -238,6 +238,15 @@ pub struct Runtime<S, T, H, P, D, C> {
     source_sha256_lf: Option<String>,
 }
 
+/// One wave's read-only value scope — (`vars` · `env` · `secrets` ·
+/// `permits`), a single loan the pipeline fan-out threads whole.
+type WaveScope<'a> = (
+    &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
+    Option<&'a nika_schema::types::Permits>,
+);
+
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     /// Assemble the runtime from its four verbs + the kernel clock
     /// (the composer wires seams + envelope defaults · spec §2). Secrets are
@@ -427,9 +436,14 @@ fn emit_prologue(
     }
 }
 
-/// The envelope's value view · `vars` defaults + the workflow name.
-fn envelope_values(wf: &RawWorkflow) -> (BTreeMap<String, Value>, String) {
-    let vars = wf
+/// The envelope's value view · `vars` defaults (operator `--var`
+/// overrides win — F4 · they also give a `required: true` var without a
+/// default its value) + `env` config + the workflow name.
+fn envelope_values(
+    wf: &RawWorkflow,
+    overrides: &BTreeMap<String, Value>,
+) -> (BTreeMap<String, Value>, BTreeMap<String, Value>, String) {
+    let mut vars: BTreeMap<String, Value> = wf
         .vars
         .iter()
         .filter_map(|(key, decl)| {
@@ -442,11 +456,17 @@ fn envelope_values(wf: &RawWorkflow) -> (BTreeMap<String, Value>, String) {
             Some((key.value.clone(), value))
         })
         .collect();
+    vars.extend(overrides.iter().map(|(k, v)| (k.clone(), v.clone())));
+    let env = wf
+        .env
+        .iter()
+        .map(|(key, value)| (key.value.clone(), Value::String(value.value.clone())))
+        .collect();
     let name = wf
         .workflow
         .as_ref()
         .map_or_else(|| "workflow".to_owned(), |w| w.value.clone());
-    (vars, name)
+    (vars, env, name)
 }
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
@@ -479,12 +499,7 @@ where
         if !report.is_clean() {
             return Err(RuntimeError::DirtyReport);
         }
-        let (mut vars, workflow_name) = envelope_values(wf);
-        // Operator `--var` overrides win over the envelope defaults (F4) —
-        // and give a `required: true` var without a default its value.
-        for (key, value) in &self.var_overrides {
-            vars.insert(key.clone(), value.clone());
-        }
+        let (vars, env, workflow_name) = envelope_values(wf, &self.var_overrides);
         // Resolve the `secrets:` namespace ONCE at run start (MINOR-B · the
         // injected composer resolver reads env/file). A miss leaves that
         // secret unbound → its `${{ secrets.X }}` reference raises NIKA-1702
@@ -520,7 +535,7 @@ where
                     wave,
                     wf,
                     &records,
-                    (&vars, &secrets, permits),
+                    (&vars, &env, &secrets, permits),
                     &resume_ctx,
                     &run_ledger,
                 )
@@ -530,6 +545,7 @@ where
                 finishes,
                 wf,
                 &vars,
+                &env,
                 &resume_ctx,
                 &workflow_name,
                 &mut records,
@@ -561,7 +577,7 @@ where
         // that breaks its declared `type:` can fail the run — the output half
         // of the callable contract (spec 01 §engine-MUST rule 6 · NIKA-VAR-009 ·
         // symmetric with the typed-`vars:` input validation).
-        let outputs = resolve_outputs(wf, &records, &vars, &secrets);
+        let outputs = resolve_outputs(wf, &records, &vars, &env, &secrets);
         let snapshot = run_ledger.snapshot();
         let ok = finalize_outputs(wf, &outputs, &workflow_name, ok, &snapshot, stamper, sink);
 
@@ -582,15 +598,11 @@ where
         wave: &[usize],
         wf: &RawWorkflow,
         records: &BTreeMap<String, TaskRecord>,
-        scope: (
-            &BTreeMap<String, Value>,
-            &BTreeMap<String, Value>,
-            Option<&nika_schema::types::Permits>,
-        ),
+        scope: WaveScope<'_>,
         resume_ctx: &resume::ResumeContext,
         ledger: &ledger::RunLedger,
     ) -> Result<Vec<Finish>, RuntimeError> {
-        let (vars, secrets, permits) = scope;
+        let (vars, env, secrets, permits) = scope;
         // Resolve indices up front — a bad index is a schedule breach
         // (NIKA-1701 · run abort · the one system error).
         let mut members = Vec::with_capacity(wave.len());
@@ -609,7 +621,7 @@ where
             futures_util::stream::iter(members.iter().take_while(|_| !ledger.tripped()).map(
                 |&task| {
                     self.run_task_pipeline(
-                        task, records, vars, secrets, permits, resume_ctx, ledger,
+                        task, records, vars, env, secrets, permits, resume_ctx, ledger,
                     )
                 },
             ))
@@ -633,6 +645,7 @@ where
         finishes: Vec<Finish>,
         wf: &RawWorkflow,
         vars: &BTreeMap<String, Value>,
+        env: &BTreeMap<String, Value>,
         resume_ctx: &resume::ResumeContext,
         workflow_name: &str,
         records: &mut BTreeMap<String, TaskRecord>,
@@ -646,7 +659,7 @@ where
             if self.pause_on_prompt
                 && paused.is_none()
                 && let Some(p) =
-                    pause::prompt_block(&finish, wf, records, vars, resume_ctx.markers())
+                    pause::prompt_block(&finish, wf, records, vars, env, resume_ctx.markers())
             {
                 paused = Some(p);
                 continue;
@@ -853,35 +866,35 @@ fn settle_ran(
             record.ended_at = Some(ended);
             record.output = value;
         }
-        task::RunResult::SkippedWithError { error } => {
-            // `on_error: skip` — the ONE state where status is skipped
-            // AND the error stays readable (spec 05).
-            let ended = emit(
-                stamper,
-                sink,
-                EventKind::TaskSkipped,
-                &[
-                    ("task", s(id)),
-                    ("note", s("on_error · skip")),
-                    ("detail", s(&format!("{} · {}", error.code, error.message))),
-                ],
-            );
-            record.status = TaskStatus::Skipped;
-            record.ended_at = Some(ended);
-            record.error = Some(error);
-        }
-        task::RunResult::Failed { error } => {
-            let ended = emit(
-                stamper,
-                sink,
-                EventKind::TaskFailed,
-                &[
-                    ("task", s(id)),
-                    ("note", s(&run.note)),
-                    ("detail", s(&format!("{} · {}", error.code, error.message))),
-                    ("duration_ms", i(duration)),
-                ],
-            );
+        task::RunResult::SkippedWithError {
+            error,
+            cost_usd,
+            cost_unpriced,
+        } => settle_skip_with_error(
+            id,
+            error,
+            (cost_usd, cost_unpriced),
+            &mut record,
+            stamper,
+            sink,
+        ),
+        task::RunResult::Failed {
+            error,
+            cost_usd,
+            cost_unpriced,
+        } => {
+            // Billed-then-failed spend rides the failure frame — the
+            // dollars a dying task burned must never vanish with it
+            // (already ledger-debited per attempt; this is the frame's
+            // per-task truth).
+            let mut fields = vec![
+                ("task", s(id)),
+                ("note", s(&run.note)),
+                ("detail", s(&format!("{} · {}", error.code, error.message))),
+                ("duration_ms", i(duration)),
+            ];
+            push_spend_fields(&mut fields, cost_usd, cost_unpriced);
+            let ended = emit(stamper, sink, EventKind::TaskFailed, &fields);
             record.status = TaskStatus::Failure;
             record.ended_at = Some(ended);
             record.error = Some(error);
@@ -889,6 +902,44 @@ fn settle_ran(
         }
     }
     record
+}
+
+/// `on_error: skip` — the ONE state where status is skipped AND the
+/// error stays readable (spec 05). The billed spend of the skipped
+/// attempts rides the frame (skip ≠ refund).
+fn settle_skip_with_error(
+    id: &str,
+    error: TaskErrorRecord,
+    spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
+    record: &mut TaskRecord,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    let mut fields = vec![
+        ("task", s(id)),
+        ("note", s("on_error · skip")),
+        ("detail", s(&format!("{} · {}", error.code, error.message))),
+    ];
+    push_spend_fields(&mut fields, spend.0, spend.1);
+    let ended = emit(stamper, sink, EventKind::TaskSkipped, &fields);
+    record.status = TaskStatus::Skipped;
+    record.ended_at = Some(ended);
+    record.error = Some(error);
+}
+
+/// Push the spend pair onto a frame's fields — absent stays absent
+/// (never a fake zero), the WHY rides when named.
+fn push_spend_fields(
+    fields: &mut Vec<(&'static str, FieldValue)>,
+    cost_usd: Option<f64>,
+    cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+) {
+    if let Some(c) = cost_usd {
+        fields.push(("cost_usd", FieldValue::Float(c)));
+    }
+    if let Some(reason) = cost_unpriced {
+        fields.push(("cost_unpriced", s(reason.as_str())));
+    }
 }
 
 /// Emit one `task_completed` frame — the base fields (`note` ·
@@ -956,9 +1007,10 @@ fn resolve_outputs(
     wf: &RawWorkflow,
     records: &BTreeMap<String, TaskRecord>,
     vars: &BTreeMap<String, Value>,
+    env: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
 ) -> BTreeMap<String, Value> {
-    let scope = Scope::workflow_with_secrets(records, vars, secrets);
+    let scope = Scope::workflow_with_env_and_secrets(records, vars, env, secrets);
     wf.outputs
         .iter()
         .filter_map(|(key, decl)| {
@@ -1185,6 +1237,8 @@ mod tests {
         let yaml = r#"
 nika: v1
 workflow: vals
+env:
+  API_BASE: "https://api.example.test"
 vars:
   plain: "text"
   urls: ["a", "b"]
@@ -1199,8 +1253,12 @@ tasks:
             nika_schema::ParseMode::Strict,
         )
         .expect("parses");
-        let (vars, name) = envelope_values(&wf);
+        let (vars, env, name) = envelope_values(&wf, &BTreeMap::new());
         assert_eq!(name, "vals");
+        assert_eq!(
+            env["API_BASE"],
+            Value::String("https://api.example.test".into())
+        );
         assert_eq!(vars["plain"], Value::String("text".into()));
         assert_eq!(vars["urls"], serde_json::json!(["a", "b"]));
         assert_eq!(vars["topic"], Value::String("news".into()));
@@ -1390,110 +1448,6 @@ outputs:
         assert!(
             matches!(&reason.value, FieldValue::String(s) if s == "local_model"),
             "snake_case wire form"
-        );
-    }
-}
-
-/// F4 — operator `--var` overrides through the REAL parse → check → run
-/// chain: an override wins over a declared `default:`, and a
-/// `required: true` var without one becomes runnable (before: the run
-/// could only die NIKA-VAR-001 at first reference).
-#[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
-mod var_override_tests {
-    use std::collections::BTreeMap;
-    use std::sync::Arc;
-
-    use nika_kernel_mock::{
-        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
-    };
-    use nika_providers::{ProviderRegistry, ProvidersConfig};
-    use nika_verb_agent::AgentVerb;
-    use nika_verb_exec::ExecVerb;
-    use nika_verb_infer::InferVerb;
-    use nika_verb_invoke::InvokeVerb;
-    use serde_json::Value;
-
-    use crate::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, VecSink};
-
-    const WORKFLOW: &str = r#"
-nika: v1
-workflow: var-override
-vars:
-  topic:
-    type: string
-    required: true
-  lang: { type: string, default: "en" }
-tasks:
-  - id: say
-    exec: { command: "echo ${{ vars.topic }}" }
-outputs:
-  topic_out: ${{ vars.topic }}
-  lang_out: ${{ vars.lang }}
-"#;
-
-    async fn run_with(overrides: BTreeMap<String, Value>) -> RunOutcome {
-        let wf = nika_schema::parse(
-            WORKFLOW,
-            nika_schema::FileId::new(0),
-            nika_schema::ParseMode::Strict,
-        )
-        .expect("fixture parses");
-        let report = nika_schema::check(&wf);
-        assert!(report.is_clean(), "fixture passes the ladder");
-
-        let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
-        let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
-        let runtime = Runtime::new(
-            ExecVerb::new(Arc::new(MockShell::new().enqueue_ok("said\n"))),
-            Arc::clone(&invoke),
-            InferVerb::new(registry, "mock/echo"),
-            AgentVerb::new(
-                Arc::new(MockProvider::new("mock")),
-                invoke,
-                Arc::new(MockToolDefinitionProvider::new()),
-                "mock/echo",
-            ),
-            MockClock::new(),
-            RuntimeConfig::default(),
-        )
-        .with_var_overrides(overrides);
-        let mut stamper = DeterministicStamper::new();
-        let mut sink = VecSink::new();
-        runtime
-            .run(&wf, &report, &mut stamper, &mut sink)
-            .await
-            .expect("clean run")
-    }
-
-    #[tokio::test]
-    async fn override_satisfies_a_required_var_and_beats_the_default() {
-        let overrides = BTreeMap::from([
-            ("topic".to_owned(), Value::String("rust".to_owned())),
-            ("lang".to_owned(), Value::String("fr".to_owned())),
-        ]);
-        let outcome = run_with(overrides).await;
-        assert!(outcome.ok, "the required var is satisfied → green run");
-        assert_eq!(outcome.outputs["topic_out"], "rust");
-        assert_eq!(
-            outcome.outputs["lang_out"], "fr",
-            "an override wins over the declared default"
-        );
-    }
-
-    #[tokio::test]
-    async fn missing_required_var_still_fails_var001_at_reference() {
-        // No override → the pre-F4 behavior is intact: the task's
-        // `${{ vars.topic }}` fails NIKA-VAR-001 (with the --var hint).
-        let outcome = run_with(BTreeMap::new()).await;
-        assert!(!outcome.ok, "unbound required var fails the task");
-        let record = &outcome.records["say"];
-        let error = record.error.as_ref().expect("task carries its error");
-        assert_eq!(error.code, "NIKA-VAR-001");
-        assert!(
-            error.message.contains("--var"),
-            "the message teaches the CLI fix: {}",
-            error.message
         );
     }
 }

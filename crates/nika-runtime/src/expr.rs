@@ -55,6 +55,10 @@ use crate::record::{TaskRecord, render_value};
 static EMPTY_SECRETS: std::sync::LazyLock<BTreeMap<String, Value>> =
     std::sync::LazyLock::new(BTreeMap::new);
 
+#[cfg(test)]
+static EMPTY_ENV: std::sync::LazyLock<BTreeMap<String, Value>> =
+    std::sync::LazyLock::new(BTreeMap::new);
+
 /// The dataflow scope one render sees (spec 04 namespaces).
 #[derive(Clone, Copy)]
 pub(crate) struct Scope<'a> {
@@ -62,6 +66,10 @@ pub(crate) struct Scope<'a> {
     pub records: &'a BTreeMap<String, TaskRecord>,
     /// `vars.<key>` — envelope defaults (typed or untyped · JSON values).
     pub vars: &'a BTreeMap<String, Value>,
+    /// `env.<key>` — envelope runtime config (`env:`), non-sensitive by
+    /// construction. Values are strings in v1, represented as JSON strings so
+    /// the CEL object path stays uniform with `vars` and `secrets`.
+    pub env: &'a BTreeMap<String, Value>,
     /// `secrets.<name>` — RESOLVED secret values (spec 01 §secrets ·
     /// MINOR-B). Empty when the composer injected no resolver — then a
     /// `secrets.X` reference is unresolved (NIKA-1702), never a silent
@@ -91,19 +99,32 @@ impl<'a> Scope<'a> {
         records: &'a BTreeMap<String, TaskRecord>,
         vars: &'a BTreeMap<String, Value>,
     ) -> Self {
-        Self::workflow_with_secrets(records, vars, &EMPTY_SECRETS)
+        Self::workflow_with_env_and_secrets(records, vars, &EMPTY_ENV, &EMPTY_SECRETS)
     }
 
     /// A workflow-level scope carrying the resolved `secrets:` namespace
     /// (the production gate / `outputs:` / cleanup path · MINOR-B).
+    #[cfg(test)]
     pub(crate) fn workflow_with_secrets(
         records: &'a BTreeMap<String, TaskRecord>,
         vars: &'a BTreeMap<String, Value>,
         secrets: &'a BTreeMap<String, Value>,
     ) -> Self {
+        Self::workflow_with_env_and_secrets(records, vars, &EMPTY_ENV, secrets)
+    }
+
+    /// A workflow-level scope carrying both envelope `env:` config and
+    /// resolved `secrets:` values. This is the production constructor.
+    pub(crate) fn workflow_with_env_and_secrets(
+        records: &'a BTreeMap<String, TaskRecord>,
+        vars: &'a BTreeMap<String, Value>,
+        env: &'a BTreeMap<String, Value>,
+        secrets: &'a BTreeMap<String, Value>,
+    ) -> Self {
         Self {
             records,
             vars,
+            env,
             secrets,
             with_ns: None,
             item: None,
@@ -166,8 +187,11 @@ impl Resolver for ScopeResolver<'_, '_> {
             // value is DATA bound here, never expression text (injection-safe
             // · same boundary as every other namespace).
             "secrets" if !scope.secrets.is_empty() => Some(ns_object(scope.secrets)),
-            // `env` exists in the grammar but is unbound in the runtime today
-            // · an unprovided `secrets` falls here too → unresolved (1702).
+            // `env.<name>` → envelope non-sensitive runtime config. `check`
+            // already proves names against `wf.env`; runtime must bind the
+            // same namespace or a green workflow fails with NIKA-VAR-001.
+            "env" if !scope.env.is_empty() => Some(ns_object(scope.env)),
+            // an unprovided namespace falls here → unresolved (1702).
             _ => None,
         }
     }
@@ -363,6 +387,20 @@ mod tests {
         .expect("renders");
         // Containers render as canonical compact JSON (spec 04).
         assert_eq!(out, "read ./news.json got {\"a\":1}");
+    }
+
+    #[test]
+    fn render_resolves_envelope_env_namespace() {
+        let (records, vars) = fixture();
+        let env = BTreeMap::from([(
+            "API_BASE".to_owned(),
+            Value::String("https://odin.example".to_owned()),
+        )]);
+        let scope = Scope::workflow_with_env_and_secrets(&records, &vars, &env, &EMPTY_SECRETS);
+        assert_eq!(
+            render("${{ env.API_BASE }}", &scope).expect("env resolves"),
+            "https://odin.example"
+        );
     }
 
     #[test]
@@ -741,6 +779,7 @@ mod tests {
         let scope = Scope {
             records: &records,
             vars: &vars,
+            env: &EMPTY_ENV,
             secrets: &EMPTY_SECRETS,
             with_ns: None,
             item: Some(&item),
@@ -809,6 +848,7 @@ mod tests {
         let scope = Scope {
             records: &records,
             vars: &vars,
+            env: &EMPTY_ENV,
             secrets: &EMPTY_SECRETS,
             with_ns: Some(&with_ns),
             item: Some(&item),

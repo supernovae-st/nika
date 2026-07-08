@@ -73,12 +73,13 @@ pub(crate) fn prompt_block(
     wf: &RawWorkflow,
     records: &BTreeMap<String, TaskRecord>,
     vars: &BTreeMap<String, Value>,
+    env: &BTreeMap<String, Value>,
     markers: &BTreeMap<String, Value>,
 ) -> Option<WorkflowPause> {
     let SettleAs::Ran(ran) = &finish.settle else {
         return None;
     };
-    let RunResult::Failed { error } = &ran.result else {
+    let RunResult::Failed { error, .. } = &ran.result else {
         return None;
     };
     if error.code != PROMPT_BLOCKED_CODE {
@@ -105,9 +106,11 @@ pub(crate) fn prompt_block(
         return None;
     }
     // Secret values NEVER reach the journal payload — markers only.
+    // (`env:` is non-sensitive by construction — real values render.)
     let scope = Scope {
         records,
         vars,
+        env,
         secrets: markers,
         with_ns: None,
         item: None,
@@ -180,6 +183,8 @@ mod tests {
                         message: "non-interactive and no `default:`".to_owned(),
                         transient: false,
                     },
+                    cost_usd: None,
+                    cost_unpriced: None,
                 },
             }),
             named: BTreeMap::new(),
@@ -200,6 +205,7 @@ mod tests {
             &wf,
             &records,
             &vars,
+            &BTreeMap::new(),
             &markers,
         )
         .expect("the blocking branch pauses");
@@ -220,6 +226,7 @@ mod tests {
                 &wf,
                 &records,
                 &vars,
+                &BTreeMap::new(),
                 &markers
             )
             .is_none()
@@ -233,6 +240,7 @@ mod tests {
                 &exec_wf,
                 &records,
                 &vars,
+                &BTreeMap::new(),
                 &markers
             )
             .is_none()
@@ -253,6 +261,7 @@ mod tests {
                 &wf,
                 &records,
                 &vars,
+                &BTreeMap::new(),
                 &markers
             )
             .is_none()
@@ -476,6 +485,7 @@ mod tests {
             &wf,
             &records,
             &vars,
+            &BTreeMap::new(),
             &markers,
         )
         .expect("pauses with the raw fallback");

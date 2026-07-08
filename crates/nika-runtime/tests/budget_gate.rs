@@ -237,3 +237,138 @@ async fn unpriced_spend_never_trips_a_budget() {
         "mock classifies as mock_provider"
     );
 }
+
+/// Cost Intelligence follow-up (billed-then-failed): a loop that BURNS
+/// real spend and then dies must surface that spend — on the
+/// `task_failed` frame, in the run totals, and to the budget gate.
+mod billed_then_failed {
+    use std::sync::Arc;
+
+    use nika_event::EventKind;
+    use nika_kernel::ai::provider::{
+        ContentBlock, InferResponse, ProviderError, StopReason, TokenUsage,
+    };
+    use nika_kernel::tool_executor::ToolResult;
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+    use nika_runtime::{DeterministicStamper, Runtime, RuntimeConfig, VecSink};
+    use nika_types::resource::Value as FieldValue;
+    use nika_verb_agent::AgentVerb;
+    use nika_verb_exec::ExecVerb;
+    use nika_verb_infer::InferVerb;
+    use nika_verb_invoke::InvokeVerb;
+
+    /// Turn 1: the model calls a tool that reports REAL spend ($0.06) ·
+    /// turn 2: the provider dies — the loop fails after burning money.
+    fn dying_priced_agent() -> (MockProvider, MockToolExecutor) {
+        let tool_turn = InferResponse::new(
+            vec![ContentBlock::ToolUse {
+                id: "c1".to_owned(),
+                name: "nika:jq".to_owned(),
+                input: serde_json::json!({ "input": {"x": 1}, "expression": "." }),
+            }],
+            TokenUsage::new(40, 12),
+            StopReason::ToolUse,
+        );
+        let provider = MockProvider::new("mock")
+            .enqueue_response(tool_turn)
+            .enqueue_error(ProviderError::Api {
+                status: 500,
+                message: "upstream 500".to_owned(),
+            });
+        let tools = MockToolExecutor::new().enqueue_ok(
+            ToolResult::success("c1", "done")
+                .with_structured(serde_json::json!({ "ok": true, "cost_usd": 0.06 })),
+        );
+        (provider, tools)
+    }
+
+    async fn run_agent_yaml(
+        yaml: &str,
+        provider: MockProvider,
+        tools: MockToolExecutor,
+        budget: Option<f64>,
+    ) -> (nika_runtime::RunOutcome, VecSink) {
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        assert!(report.is_clean(), "fixture passes the ladder");
+        let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+        let invoke = Arc::new(InvokeVerb::new(Arc::new(tools)));
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new())),
+            Arc::clone(&invoke),
+            InferVerb::new(registry, "mock/echo"),
+            AgentVerb::new(
+                Arc::new(provider),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "mock/agent",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default().with_max_cost_usd(budget),
+        );
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("clean run");
+        (outcome, sink)
+    }
+
+    const DYING_AGENT: &str = "nika: v1\nworkflow: w\ntasks:\n  - id: work\n    agent:\n      prompt: \"burn a paid tool then die\"\n      tools: [\"nika:jq\"]\n";
+
+    #[tokio::test]
+    async fn failed_task_frame_carries_the_burned_spend() {
+        let (provider, tools) = dying_priced_agent();
+        let (outcome, sink) = run_agent_yaml(DYING_AGENT, provider, tools, None).await;
+        assert!(!outcome.ok, "the loop died");
+        let failed = sink
+            .events()
+            .iter()
+            .find(|e| e.kind == EventKind::TaskFailed)
+            .expect("a task_failed frame");
+        let cost = failed
+            .fields
+            .iter()
+            .find(|f| f.key == "cost_usd")
+            .expect("the burned tool spend rides the FAILURE frame");
+        assert!(
+            matches!(&cost.value, FieldValue::Float(c) if (*c - 0.06).abs() < 1e-12),
+            "the $0.06 the dying loop spent is on the frame"
+        );
+        // …and the WHY for the unpriced LLM leg rides next to it (the
+        // mock model's turns cannot price — partial + named).
+        let reason = failed
+            .fields
+            .iter()
+            .find(|f| f.key == "cost_unpriced")
+            .expect("the unpriced LLM leg is named");
+        assert!(matches!(&reason.value, FieldValue::String(s) if s == "mock_provider"));
+        // The run totals see the failed task's spend too.
+        assert_eq!(outcome.total_cost_usd, Some(0.06));
+        assert_eq!(outcome.priced_calls, 1, "the failed attempt debited");
+    }
+
+    #[tokio::test]
+    async fn budget_sees_billed_then_failed_spend() {
+        // The refuter's exact scenario: without failure-spend threading,
+        // a dying loop's dollars were invisible to `--max-cost-usd`.
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: work\n    agent:\n      prompt: \"burn then die\"\n      tools: [\"nika:jq\"]\n  - id: after\n    depends_on: [work]\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ tasks.work.output }}\", expression: \".\" } }\n";
+        let (provider, tools) = dying_priced_agent();
+        let (outcome, _sink) = run_agent_yaml(yaml, provider, tools, Some(0.05)).await;
+        assert!(!outcome.ok);
+        assert!(
+            outcome.budget_exceeded,
+            "the failed task's $0.06 crossed the $0.05 budget — the gate SAW it"
+        );
+        assert_eq!(outcome.total_cost_usd, Some(0.06));
+    }
+}

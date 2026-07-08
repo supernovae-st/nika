@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Battery S3 — the UNDERSPECIFIED schema ({type: object} · no properties):
+# strict wires would reject it, so the engine must take the ADR-098
+# fallback (provider JSON mode + local validation) and still succeed.
+# Expected: exit 0 · task success · usage > 0.
+nika: v1
+workflow: battery-s3-underspecified
+model: mock/echo
+
+tasks:
+  - id: note
+    infer:
+      prompt: |
+        Write a small structured note about today's weather: a couple of
+        short labelled facts of your choosing.
+      # 300 (not 200): thinking-DEFAULT models (gemini-2.5-flash) sometimes
+      # burn a tight budget on reasoning before emitting the object on the
+      # JSON-mode fallback path — the engine then (correctly) truncation
+      # fast-fails. Empirical: 200 flaked ~1/3 on gemini, 2026-07-08.
+      max_tokens: 300
+      schema:
+        type: object
+
+outputs:
+  note:
+    value: ${{ tasks.note.output }}
+    type: object
+    description: "any object — the ADR-098 fallback path"

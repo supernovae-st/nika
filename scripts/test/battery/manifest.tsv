@@ -1,0 +1,14 @@
+# structured-live-battery manifest — provider dimension as DATA (one row = one cell column).
+# columns: id	model	key_env(auto=NIKA_<ID>_API_KEY then this)	base_url_env(- = none)	notes
+anthropic	anthropic/claude-haiku-4-5	ANTHROPIC_API_KEY	-	native output_config.format since #264
+openai	openai/gpt-4o-mini	OPENAI_API_KEY	-	strict json_schema wire (+strip walker #267)
+gemini	gemini/gemini-2.5-flash	GEMINI_API_KEY	-	responseJsonSchema (#269)
+xai	xai/grok-3-mini	XAI_API_KEY	-	live-proven first 2026-07-08
+deepseek	deepseek/deepseek-chat	DEEPSEEK_API_KEY	-	instruction wire (capability = provider fact · #283)
+groq	groq/llama-3.3-70b-versatile	GROQ_API_KEY	-	row present · skip until key
+mistral	mistral/mistral-small-latest	MISTRAL_API_KEY	-	row present · skip until key
+openrouter	openrouter/qwen/qwen3.5-7b-instruct	OPENROUTER_API_KEY	-	row present · skip until key
+scaleway	openai/mistral-small-3.2-24b-instruct-2506	SCW_SECRET_KEY	NIKA_OPENAI_BASE_URL	the openai+base_url hatch (EU) · skip unless base url set
+ollama	ollama/llama3.2:3b	-	-	local · probed at http://localhost:11434 · NON-thinking model (a thinking model burns the ≤300-token battery budget on reasoning → truncation fast-fail fires on S1, empirically qwen3.5:4b 2026-07-08)
+llamacpp	llamacpp/qwen3-0.6b	-	-	local · probed at http://localhost:8080
+localai	localai/Qwen3-0.6B-Q8_0.gguf	-	-	local · probed at http://localhost:8081

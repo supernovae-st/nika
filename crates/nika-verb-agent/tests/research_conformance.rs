@@ -201,6 +201,7 @@ async fn identical_action_observation_cycles_stall_as_nika_467_with_evidence() {
         period,
         repeats,
         partial_output,
+        ..
     } = &err
     else {
         panic!("expected Stalled, got {err}");

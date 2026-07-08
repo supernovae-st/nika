@@ -720,3 +720,261 @@ fn lsp_serves_initialize_diagnostics_and_clean_exit() {
         "didOpen published diagnostics: {stdout}"
     );
 }
+
+/// The mirror renders offline, exits 0, and never leaks a key VALUE —
+/// canary env vars seeded here must be absent from every output byte
+/// (presence may be COUNTED, the value must not exist in the render).
+#[test]
+fn welcome_greets_offline_and_leaks_no_secret() {
+    let canary = "hunter2-THE-CANARY-VALUE-nobody-prints";
+    let out = bin()
+        .arg("welcome")
+        .env("ANTHROPIC_API_KEY", canary)
+        .env("OPENAI_API_KEY", canary)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(0), "a greeting is never a failure");
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    for needle in ["Intent as Code", "this machine", "start here", "mock/echo"] {
+        assert!(text.contains(needle), "welcome carries `{needle}`: {text}");
+    }
+    assert!(
+        !text.contains(canary),
+        "a key VALUE must never surface: {text}"
+    );
+
+    // The machine mirror: versioned, parseable, value-free.
+    let json_out = bin()
+        .arg("welcome")
+        .arg("--json")
+        .env("ANTHROPIC_API_KEY", canary)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(json_out.status.code(), Some(0));
+    let raw = String::from_utf8_lossy(&json_out.stdout);
+    let v: serde_json::Value = serde_json::from_str(raw.trim()).expect("welcome --json parses");
+    assert_eq!(v["welcome_version"], 1);
+    assert!(!raw.contains(canary), "no value in the JSON mirror: {raw}");
+}
+
+/// `explain <file>` narrates a checked workflow end to end at the binary
+/// plane — and the SAME positional still teaches error codes.
+#[test]
+fn explain_narrates_a_file_and_still_teaches_codes() {
+    let dir = std::env::temp_dir().join(format!("nika-smoke-explain-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let wf = write_fixture(
+        &dir,
+        "story.nika.yaml",
+        "nika: v1\nworkflow: smoke-story\ndescription: a two-step story\n\nmodel: mock/echo\n\ntasks:\n  - id: draft\n    infer: { prompt: \"draft\", max_tokens: 10 }\n  - id: polish\n    depends_on: [draft]\n    infer: { prompt: \"polish\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.polish.output }}\n",
+    );
+    let out = bin()
+        .arg("explain")
+        .arg(&wf)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "clean file narrates: {text}");
+    for needle in [
+        "smoke-story — a two-step story",
+        "the story",
+        "cost before a token is spent",
+        "run it",
+        "flight recorder",
+    ] {
+        assert!(text.contains(needle), "explain carries `{needle}`: {text}");
+    }
+
+    // The code form is untouched by the overload.
+    let code_out = bin()
+        .arg("explain")
+        .arg("NIKA-DAG-003")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(code_out.status.code(), Some(0));
+    assert!(
+        String::from_utf8_lossy(&code_out.stdout).contains("NIKA-DAG-003"),
+        "codes still teach"
+    );
+
+    // The machine twin parses and speaks the report dialect.
+    let json_out = bin()
+        .arg("explain")
+        .arg(&wf)
+        .arg("--json")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(json_out.status.code(), Some(0));
+    let v: serde_json::Value =
+        serde_json::from_str(String::from_utf8_lossy(&json_out.stdout).trim())
+            .expect("explain --json parses");
+    assert_eq!(v["explain_version"], 1);
+    assert_eq!(v["clean"], true);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `init` scaffolds the per-client briefs alongside the contract — and
+/// the briefs route back to AGENTS.md instead of forking the truth.
+#[test]
+fn init_scaffolds_the_client_briefs() {
+    let dir = std::env::temp_dir().join(format!("nika-smoke-init6-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let out = bin()
+        .arg("init")
+        .arg(&dir)
+        .arg("--yes")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(0));
+    for rel in [".github/copilot-instructions.md", "CLAUDE.md"] {
+        let body = std::fs::read_to_string(dir.join(rel)).expect(rel);
+        assert!(body.contains("AGENTS.md"), "{rel} routes to the contract");
+        assert!(body.contains("nika check"), "{rel} teaches the loop");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The compact-block-sequence bomb (`- ` ×4000) that once aborted the whole
+/// process (#282 · CRITICAL, marked-yaml recurses one stack frame per level)
+/// reaches the server as a DOCUMENT via didOpen — the exact path an editor
+/// takes when a user opens such a file. It must produce ONE graceful
+/// stack-safety diagnostic, and — the survival proof — the server must keep
+/// serving: a SECOND document opened AFTER the bomb still publishes, and a
+/// request after it still gets a reply. A regression (a real stack overflow)
+/// aborts the process → the exit code is non-zero and none of the post-bomb
+/// work appears. This is the LSP-level guard the unit fix (#282) did not have.
+#[test]
+fn lsp_survives_a_compact_block_bomb_and_keeps_serving() {
+    use std::process::Stdio;
+    let bomb = format!("{}x", "- ".repeat(4000));
+    let mut child = bin()
+        .arg("lsp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn nika lsp");
+    {
+        let mut stdin = child.stdin.take().expect("stdin");
+        let msgs = [
+            serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize",
+                "params":{"processId":null,"rootUri":null,"capabilities":{}}}),
+            serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+            // the bomb, delivered as a document.
+            serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":"file:///t/bomb.nika.yaml",
+                    "languageId":"nika","version":1,"text":bomb}}}),
+            // a SECOND document, opened AFTER the bomb — its diagnostics only
+            // publish if the server survived and kept draining the stream.
+            serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":"file:///t/after.nika.yaml",
+                    "languageId":"nika","version":1,"text":VALID}}}),
+            // a request AFTER the bomb — a reply proves it still answers.
+            serde_json::json!({"jsonrpc":"2.0","id":7,"method":"textDocument/hover",
+                "params":{"textDocument":{"uri":"file:///t/after.nika.yaml"},
+                    "position":{"line":0,"character":0}}}),
+            serde_json::json!({"jsonrpc":"2.0","id":2,"method":"shutdown","params":null}),
+            serde_json::json!({"jsonrpc":"2.0","method":"exit"}),
+        ];
+        for m in &msgs {
+            stdin.write_all(&lsp_frame(m)).expect("write frame");
+        }
+    }
+    let out = child.wait_with_output().expect("wait");
+    // (1) the bomb did not abort the process — the #282 regression guard.
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "the compact-block bomb must not crash the server (shutdown → exit 0)"
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    // (2) it produced the graceful stack-safety diagnostic (not silence, not
+    // a crash) — the exact bounded-parse rejection, pinned by code.
+    assert!(
+        stdout.contains("compact block") && stdout.contains("NIKA-PARSE-001"),
+        "the bomb produced the graceful stack-safety diagnostic: {stdout}"
+    );
+    // (3) survival: the post-bomb document published AND the post-bomb request
+    // was answered. A crashed or wedged server would show neither.
+    assert!(
+        stdout.contains("after.nika.yaml"),
+        "the server kept serving — the post-bomb document published: {stdout}"
+    );
+    assert!(
+        stdout.contains("\"id\":7"),
+        "the server kept answering requests after the bomb (hover id 7): {stdout}"
+    );
+}
+
+/// Requests carrying adversarial `Position`s — past-EOF, `u32::MAX`, and
+/// mid-multibyte (a byte inside a 🦋 surrogate pair) — must never panic the
+/// sync serve loop. Driven over real stdio against a multibyte document
+/// across all four read features. A panic in any handler aborts the process
+/// → non-zero exit and the four request replies never arrive.
+#[test]
+fn lsp_survives_adversarial_request_positions_over_stdio() {
+    use std::process::Stdio;
+    // butterfly + é in a value, a multibyte task id — every position below
+    // lands in, or past, one of this document's multibyte spans.
+    let multi = "nika: v1\nworkflow: 🦋é\ntasks:\n  - id: café\n    exec: { command: \"echo ${{ tasks.café.output }}\" }\n";
+    let uri = "file:///t/multi.nika.yaml";
+    let max = u32::MAX;
+    let mut child = bin()
+        .arg("lsp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn nika lsp");
+    {
+        let mut stdin = child.stdin.take().expect("stdin");
+        let msgs = [
+            serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize",
+                "params":{"processId":null,"rootUri":null,"capabilities":{}}}),
+            serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+            serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen",
+                "params":{"textDocument":{"uri":uri,"languageId":"nika","version":1,"text":multi}}}),
+            // hover at (u32::MAX, u32::MAX) — line and column both past the doc
+            serde_json::json!({"jsonrpc":"2.0","id":50,"method":"textDocument/hover",
+                "params":{"textDocument":{"uri":uri},"position":{"line":max,"character":max}}}),
+            // completion at (0, u32::MAX) — column far past the first line
+            serde_json::json!({"jsonrpc":"2.0","id":51,"method":"textDocument/completion",
+                "params":{"textDocument":{"uri":uri},"position":{"line":0,"character":max}}}),
+            // definition mid-surrogate — line 1 is `workflow: 🦋é`, UTF-16
+            // column 11 is the second half of the 🦋 surrogate pair
+            serde_json::json!({"jsonrpc":"2.0","id":52,"method":"textDocument/definition",
+                "params":{"textDocument":{"uri":uri},"position":{"line":1,"character":11}}}),
+            // documentSymbol over the whole multibyte document
+            serde_json::json!({"jsonrpc":"2.0","id":53,"method":"textDocument/documentSymbol",
+                "params":{"textDocument":{"uri":uri}}}),
+            serde_json::json!({"jsonrpc":"2.0","id":2,"method":"shutdown","params":null}),
+            serde_json::json!({"jsonrpc":"2.0","method":"exit"}),
+        ];
+        for m in &msgs {
+            stdin.write_all(&lsp_frame(m)).expect("write frame");
+        }
+    }
+    let out = child.wait_with_output().expect("wait");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "no adversarial position may crash the server (shutdown → exit 0)"
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    for id in [50, 51, 52, 53] {
+        assert!(
+            stdout.contains(&format!("\"id\":{id}")),
+            "request {id} got a reply (the server answered, did not crash): {stdout}"
+        );
+    }
+}

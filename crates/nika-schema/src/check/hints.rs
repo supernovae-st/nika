@@ -39,12 +39,18 @@
 //!   `check/native_first.rs` pass (the `native-first/001..005` ruleset:
 //!   http/file/data/media/helper commands a builtin or MCP tool
 //!   covers); `nika check --native-strict` promotes them to failures.
+//! - **exec JSON stdout capture** (`exec-json-capture`) — an `exec:` task
+//!   declares `capture: structured`, a binding parses `.stdout | fromjson`,
+//!   and NO binding reads `exit_code`/`stderr`; use `capture: stdout` for
+//!   JSON-producing helpers so non-zero exits fail as `NIKA-EXEC-001`
+//!   instead of becoming data (a task branching on the record keeps
+//!   `structured` — the hint stays silent there).
 
 use std::collections::BTreeSet;
 
 use crate::expression::{Expr, Literal, RelOp, scan_templates, task_output_paths};
-use crate::raw::{RawAction, RawWorkflow};
-use crate::types::OnErrorAction;
+use crate::raw::{RawAction, RawTask, RawWorkflow};
+use crate::types::{CaptureMode, OnErrorAction};
 
 /// One advisory improvement with its concrete unlock.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -53,7 +59,8 @@ pub struct Hint {
     /// The hint class — the closed set today: `cost` · `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
     /// `redundant-gate` · `retry-effects` · `parallel-writers` ·
-    /// `secrets-store` · `native-first` (additive · agents route on it).
+    /// `secrets-store` · `native-first` · `exec-json-capture` (additive ·
+    /// agents route on it; the module doc describes each).
     pub kind: &'static str,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,
@@ -124,7 +131,11 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                 push_portability_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
                 any_effect = true; // an agent dispatches tools
             }
-            RawAction::Exec(_) | RawAction::Invoke(_) => any_effect = true,
+            RawAction::Exec(exec) => {
+                push_exec_json_capture_hint(&mut hints, t, exec);
+                any_effect = true;
+            }
+            RawAction::Invoke(_) => any_effect = true,
         }
         push_retry_effects_hint(&mut hints, t);
     }
@@ -138,6 +149,53 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     }
     push_unresolvable_secret_hints(&mut hints, wf);
     hints
+}
+
+/// `capture: structured` is for branching on `{stdout, stderr, exit_code}`
+/// as data. When a binding parses `.stdout` as JSON and NO binding reads the
+/// record's other fields (`exit_code` · `stderr`), the one-obvious-way is
+/// `capture: stdout` + `fromjson`: a missing helper or non-zero subprocess
+/// then fails as `NIKA-EXEC-001` with stderr preserved, rather than
+/// surfacing later as an output-binding cardinality error. A task that DOES
+/// branch on `exit_code`/`stderr` uses `structured` legitimately — the hint
+/// stays silent there (its own advice would break that binding).
+fn push_exec_json_capture_hint(
+    hints: &mut Vec<Hint>,
+    task: &RawTask,
+    action: &crate::raw::RawExecAction,
+) {
+    if !matches!(
+        action.capture.as_ref().map(|capture| capture.value),
+        Some(CaptureMode::Structured)
+    ) {
+        return;
+    }
+    // The `.stdout | fromjson` chain, whitespace-insensitive — an unrelated
+    // field that merely CONTAINS the substrings (`.stderr | fromjson |
+    // .stdout_field`) is not the pattern.
+    let parses_stdout_json = task.output.iter().any(|(_, binding)| {
+        let compact: String = binding
+            .value
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
+        compact.contains(".stdout|fromjson")
+    });
+    // Another binding consuming the structured record's OTHER fields means
+    // `structured` is the point, not an accident.
+    let reads_record_fields = task.output.iter().any(|(_, binding)| {
+        binding.value.contains(".exit_code") || binding.value.contains(".stderr")
+    });
+    if parses_stdout_json && !reads_record_fields {
+        let id = task.id.value.as_str();
+        hints.push(hint(
+            "exec-json-capture",
+            id,
+            format!(
+                "`{id}` parses `.stdout | fromjson` while using `capture: structured` and no binding reads `exit_code`/`stderr` — for a JSON-producing helper, use `capture: stdout` and bindings like `fromjson`: a failing subprocess then errors as NIKA-EXEC-001 instead of becoming data"
+            ),
+        ));
+    }
 }
 
 /// The `secrets-store` hint (MINOR-B): a referenced `secrets.X` whose
@@ -639,6 +697,49 @@ mod tests {
             "nika: v1\nworkflow: w\npermits: { exec: true }\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n",
         );
         assert!(!h2.iter().any(|x| x.kind == "permits"), "{h2:?}");
+    }
+
+    #[test]
+    fn structured_exec_parsing_stdout_json_gets_capture_hint() {
+        let h = hints_of(
+            "nika: v1\nworkflow: w\npermits: { exec: true }\ntasks:\n  - id: crawl\n    exec:\n      command: [\"node\", \"helper.mjs\"]\n      capture: structured\n    output:\n      crawl: \".stdout | fromjson\"\n      url: \".stdout | fromjson | .url\"\n",
+        );
+        let hit = h
+            .iter()
+            .find(|x| x.kind == "exec-json-capture" && x.task == "crawl")
+            .expect("capture hint");
+        assert!(hit.advice.contains("capture: stdout"), "{hit:?}");
+        assert!(hit.advice.contains("exit_code"), "{hit:?}");
+
+        let intentional = hints_of(
+            "nika: v1\nworkflow: w\npermits: { exec: true }\ntasks:\n  - id: probe\n    exec:\n      command: [\"false\"]\n      capture: structured\n    output:\n      exit_code: \".exit_code\"\n",
+        );
+        assert!(
+            !intentional.iter().any(|x| x.kind == "exec-json-capture"),
+            "{intentional:?}"
+        );
+
+        // The MIXED task — one binding parses stdout JSON, ANOTHER branches on
+        // exit_code. `structured` is the point (switching would break `ok`);
+        // the hint must stay silent (Gate-11 review: the any-vs-all misfire).
+        let mixed = hints_of(
+            "nika: v1\nworkflow: w\npermits: { exec: true }\ntasks:\n  - id: health\n    exec:\n      command: [\"curl\", \"-s\", \"https://api.example/health\"]\n      capture: structured\n    output:\n      body: \".stdout | fromjson\"\n      ok: \".exit_code == 0\"\n",
+        );
+        assert!(
+            !mixed.iter().any(|x| x.kind == "exec-json-capture"),
+            "{mixed:?}"
+        );
+
+        // Substring lookalike — the binding CONTAINS both `.stdout` and
+        // `fromjson` (the old independent-substring predicate fired) but they
+        // never form the `.stdout | fromjson` chain; no hint.
+        let lookalike = hints_of(
+            "nika: v1\nworkflow: w\npermits: { exec: true }\ntasks:\n  - id: diag\n    exec:\n      command: [\"node\", \"diag.mjs\"]\n      capture: structured\n    output:\n      log: \".raw | fromjson | .stdout_field\"\n",
+        );
+        assert!(
+            !lookalike.iter().any(|x| x.kind == "exec-json-capture"),
+            "{lookalike:?}"
+        );
     }
 
     #[test]

@@ -16,6 +16,7 @@ use nika_error::codes::{
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::ai::provider::ProviderError;
 use nika_kernel::ai::tool_defs::ToolDefsError;
+use nika_types::cost::SpendOnFailure;
 
 /// The `agent` verb error surface.
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
@@ -29,6 +30,9 @@ pub enum VerbAgentError {
         turns: u32,
         /// The last assistant text (the spec's `partial_output`).
         partial_output: String,
+        /// The spend the loop had already incurred (billed turns are
+        /// real money — decorated at the verb's return seam).
+        spend: Box<SpendOnFailure>,
     },
 
     /// The loop exhausted `max_tokens_total` (NIKA-461).
@@ -39,6 +43,8 @@ pub enum VerbAgentError {
         total_tokens: u64,
         /// The last assistant text (the spec's `partial_output`).
         partial_output: String,
+        /// The spend the loop had already incurred.
+        spend: Box<SpendOnFailure>,
     },
 
     /// The model requested a tool outside the whitelist (NIKA-462).
@@ -48,6 +54,9 @@ pub enum VerbAgentError {
     WhitelistViolation {
         /// The denied tool id.
         tool: String,
+        /// The spend the loop had already incurred (a mid-loop denial
+        /// arrives after billed turns).
+        spend: Box<SpendOnFailure>,
     },
 
     /// A provider call failed mid-loop (NIKA-463).
@@ -57,6 +66,10 @@ pub enum VerbAgentError {
         /// The underlying provider error.
         #[source]
         source: ProviderError,
+        /// The spend of the turns that DID run before this call failed
+        /// (the failing call itself reports no usage — providers do not
+        /// bill errored requests).
+        spend: Box<SpendOnFailure>,
     },
 
     /// The final message failed `schema:` validation (NIKA-464).
@@ -65,6 +78,8 @@ pub enum VerbAgentError {
     SchemaValidation {
         /// Why validation failed (parse or schema detail).
         detail: String,
+        /// The spend of the billed turns + re-ask round-trips.
+        spend: Box<SpendOnFailure>,
     },
 
     /// An `agent` parameter is invalid (NIKA-465).
@@ -102,7 +117,48 @@ pub enum VerbAgentError {
         repeats: u32,
         /// The last assistant text (the spec's `partial_output`).
         partial_output: String,
+        /// The spend the stalled loop had already incurred.
+        spend: Box<SpendOnFailure>,
     },
+}
+
+impl VerbAgentError {
+    /// Attach the loop's already-incurred spend — decorated ONCE at the
+    /// verb's return seam (billed turns are real money whether or not
+    /// the task succeeds; the dispatch layer prices this, the run
+    /// ledger debits it, the `--max-cost-usd` gate sees it). Pre-loop
+    /// variants (`InvalidParam` · `ToolDefs`) carry none by
+    /// construction and pass through unchanged.
+    #[must_use]
+    pub fn with_spend(mut self, incurred: SpendOnFailure) -> Self {
+        let incurred = Box::new(incurred);
+        match &mut self {
+            Self::MaxTurns { spend, .. }
+            | Self::MaxTokens { spend, .. }
+            | Self::WhitelistViolation { spend, .. }
+            | Self::Inference { spend, .. }
+            | Self::SchemaValidation { spend, .. }
+            | Self::Stalled { spend, .. } => *spend = incurred,
+            Self::InvalidParam { .. } | Self::ToolDefs { .. } => {}
+        }
+        self
+    }
+
+    /// The spend the failed loop had already incurred, when the variant
+    /// carries one AND it could price to anything (a zero-signal spend
+    /// reads as `None` — nothing to meter, nothing to decorate).
+    #[must_use]
+    pub fn spend(&self) -> Option<&SpendOnFailure> {
+        match self {
+            Self::MaxTurns { spend, .. }
+            | Self::MaxTokens { spend, .. }
+            | Self::WhitelistViolation { spend, .. }
+            | Self::Inference { spend, .. }
+            | Self::SchemaValidation { spend, .. }
+            | Self::Stalled { spend, .. } => spend.has_signal().then_some(spend),
+            Self::InvalidParam { .. } | Self::ToolDefs { .. } => None,
+        }
+    }
 }
 
 impl NikaErrorCode for VerbAgentError {
@@ -154,7 +210,7 @@ impl NikaErrorCode for VerbAgentError {
             | Self::Stalled { .. } => false,
             // Mid-loop provider failures inherit the provider's verdict
             // (rate limits ARE transient).
-            Self::Inference { source } => source.is_transient(),
+            Self::Inference { source, .. } => source.is_transient(),
             // The kernel seam is terminal-by-default (its own contract).
             Self::ToolDefs { source } => source.is_transient(),
         }
@@ -172,6 +228,7 @@ mod tests {
                 VerbAgentError::MaxTurns {
                     turns: 10,
                     partial_output: String::new(),
+                    spend: Box::default(),
                 },
                 460,
             ),
@@ -179,18 +236,21 @@ mod tests {
                 VerbAgentError::MaxTokens {
                     total_tokens: 1,
                     partial_output: String::new(),
+                    spend: Box::default(),
                 },
                 461,
             ),
             (
                 VerbAgentError::WhitelistViolation {
                     tool: "nika:rm".to_owned(),
+                    spend: Box::default(),
                 },
                 462,
             ),
             (
                 VerbAgentError::SchemaValidation {
                     detail: "x".to_owned(),
+                    spend: Box::default(),
                 },
                 464,
             ),
@@ -214,6 +274,7 @@ mod tests {
                     period: 2,
                     repeats: 5,
                     partial_output: String::new(),
+                    spend: Box::default(),
                 },
                 467,
             ),
@@ -233,6 +294,7 @@ mod tests {
             source: ProviderError::RateLimited {
                 retry_after_ms: Some(2000),
             },
+            spend: Box::default(),
         };
         assert_eq!(transient.nika_code().num, 463);
         assert!(
@@ -246,6 +308,7 @@ mod tests {
                 status: 400,
                 message: "bad request".to_owned(),
             },
+            spend: Box::default(),
         };
         assert!(!terminal.is_transient(), "a 400 is a verdict");
     }
@@ -255,6 +318,7 @@ mod tests {
         let err = VerbAgentError::MaxTurns {
             turns: 3,
             partial_output: "draft so far".to_owned(),
+            spend: Box::default(),
         };
         if let VerbAgentError::MaxTurns { partial_output, .. } = &err {
             assert_eq!(partial_output, "draft so far");
