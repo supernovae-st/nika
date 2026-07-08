@@ -89,10 +89,10 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | branch           | `chore/release-0.98.0`                                      |
 | HEAD             | `25db7137d` (`25db7137dddbe6fdb7782663d1a07096cafb3bad`)             |
 | workspace        | v0.98.0                                  |
-| crates (workspace)| 41                                              |
-| crates (admitted)| 41 / 42                                   |
+| crates (workspace)| 42                                              |
+| crates (admitted)| 42 / 42                                   |
 | crates (WIP)     | 0 —                                   |
-| L0               | 10                                              |
+| L0               | 11                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
 | L1.5             | 4                                              |
