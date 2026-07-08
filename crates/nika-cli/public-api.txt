@@ -1036,6 +1036,7 @@ pub nika_cli::verbs::wire::WireTarget::Codex
 pub nika_cli::verbs::wire::WireTarget::Cursor
 pub nika_cli::verbs::wire::WireTarget::Vscode
 pub nika_cli::verbs::wire::WireTarget::Windsurf
+pub nika_cli::verbs::wire::WireTarget::Zed
 impl core::clone::Clone for nika_cli::verbs::wire::WireTarget
 pub fn nika_cli::verbs::wire::WireTarget::clone(&self) -> nika_cli::verbs::wire::WireTarget
 impl core::cmp::Eq for nika_cli::verbs::wire::WireTarget
