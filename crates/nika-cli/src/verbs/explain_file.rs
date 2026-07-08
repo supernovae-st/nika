@@ -245,6 +245,19 @@ fn render_human(
 
 /// The story, wave by wave — projection order IS wave order.
 fn story_section(s: &mut String, doc: &GraphDoc, report: &CheckReport) {
+    // The shape FIRST — the eye reads the wiring before the prose (real
+    // wires when the layout can be truthful; multi-task graphs only, a
+    // single box is noise). Plain theme: explain's wires stay copyable.
+    if doc.nodes.len() > 1
+        && let Some(art) = crate::display::wires::render(
+            doc,
+            &report.waves,
+            crate::display::theme::Theme::new(false, false, false),
+        )
+    {
+        let _ = writeln!(s, "\nthe shape");
+        let _ = writeln!(s, "{art}");
+    }
     let _ = writeln!(s, "\nthe story");
     let wave_sizes: Vec<usize> = report.waves.iter().map(Vec::len).collect();
     let mut cursor = 0usize;

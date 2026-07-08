@@ -265,6 +265,9 @@ pub enum GraphFormat {
     Mermaid,
     /// Graphviz dot text.
     Dot,
+    /// The terminal drawing (waves as columns · real wires) — falls back
+    /// to the wave listing when the one-rail layout cannot be truthful.
+    Ascii,
 }
 
 /// The `nika graph <file>` verb.
@@ -289,8 +292,31 @@ pub fn run(path: &str, format: GraphFormat) -> VerbOutput {
         },
         GraphFormat::Mermaid => to_mermaid(&doc),
         GraphFormat::Dot => to_dot(&doc),
+        GraphFormat::Ascii => to_ascii(&doc, &report),
     };
     VerbOutput::ok(text)
+}
+
+/// The terminal drawing — real wires when the layout can be truthful,
+/// the wave listing otherwise (never a wrong picture). Plain theme:
+/// `graph` is a projector surface, its text is often piped.
+fn to_ascii(doc: &GraphDoc, report: &CheckReport) -> String {
+    let theme = crate::display::theme::Theme::new(false, false, false);
+    if let Some(art) = crate::display::wires::render(doc, &report.waves, theme) {
+        return format!("{art}\n");
+    }
+    // Honest fallback: one row per wave — order without invented wires.
+    let mut text = String::new();
+    let mut cursor = 0usize;
+    for (i, wave) in report.waves.iter().enumerate() {
+        let ids: Vec<&str> = doc.nodes[cursor..cursor + wave.len()]
+            .iter()
+            .map(|n| n.id.as_str())
+            .collect();
+        cursor += wave.len();
+        let _ = writeln!(text, "  wave {} · {}", i + 1, ids.join(" · "));
+    }
+    text
 }
 
 #[cfg(test)]

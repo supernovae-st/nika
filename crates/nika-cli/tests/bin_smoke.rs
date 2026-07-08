@@ -1064,3 +1064,44 @@ fn the_thirty_second_journey_holds_end_to_end() {
 
     let _ = std::fs::remove_dir_all(&home);
 }
+
+/// The terminal DAG reaches both surfaces: `graph --format ascii` draws
+/// real wires for a diamond, and `explain <file>` opens with the shape.
+#[test]
+fn the_dag_draws_in_the_terminal() {
+    let dir = std::env::temp_dir().join(format!("nika-smoke-wires-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let wf = write_fixture(
+        &dir,
+        "diamond.nika.yaml",
+        "nika: v1\nworkflow: smoke-diamond\nmodel: mock/echo\ntasks:\n  - id: fetch\n    infer: { prompt: \"g\", max_tokens: 10 }\n  - id: sum\n    depends_on: [fetch]\n    infer: { prompt: \"s\", max_tokens: 10 }\n  - id: crit\n    depends_on: [fetch]\n    infer: { prompt: \"c\", max_tokens: 10 }\n  - id: publish\n    depends_on: [sum, crit]\n    infer: { prompt: \"p\", max_tokens: 10 }\n",
+    );
+    let out = bin()
+        .arg("graph")
+        .arg(&wf)
+        .arg("--format")
+        .arg("ascii")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{text}");
+    assert!(
+        text.contains("fetch ─┬─▶ sum") && text.contains("╰─▶ crit"),
+        "the diamond draws real wires: {text}"
+    );
+
+    let out = bin()
+        .arg("explain")
+        .arg(&wf)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{text}");
+    assert!(
+        text.contains("the shape") && text.contains("─▶"),
+        "explain opens with the drawing: {text}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -14,3 +14,4 @@ pub(crate) mod snippet;
 pub mod state;
 pub mod theme;
 pub(crate) mod vocab;
+pub(crate) mod wires;

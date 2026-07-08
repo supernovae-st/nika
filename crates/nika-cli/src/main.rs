@@ -289,6 +289,8 @@ enum GraphFormatArg {
     Mermaid,
     /// Graphviz dot.
     Dot,
+    /// Terminal drawing (waves as columns · real wires · honest fallback).
+    Ascii,
 }
 
 impl From<GraphFormatArg> for verbs::graph::GraphFormat {
@@ -297,6 +299,7 @@ impl From<GraphFormatArg> for verbs::graph::GraphFormat {
             GraphFormatArg::Json => Self::Json,
             GraphFormatArg::Mermaid => Self::Mermaid,
             GraphFormatArg::Dot => Self::Dot,
+            GraphFormatArg::Ascii => Self::Ascii,
         }
     }
 }
