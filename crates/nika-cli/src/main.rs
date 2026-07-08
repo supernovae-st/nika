@@ -494,6 +494,20 @@ struct RunArgs {
     /// public catalog — private/proxy/negotiated pricing is not
     /// reflected; local · mock · unpriced work is never blocked (the
     /// budget bounds what the catalog can meter).
+    ///
+    /// KNOW THREE LIMITS (the budget is a floor-refusal + between-admission
+    /// meter, not a per-token cap):
+    ///   · CONCURRENCY — the guard stops NEW admissions, so a single WIDE
+    ///     wave of parallel tasks dispatches together and may overshoot by
+    ///     up to that wave's spend before the crossing is seen. Cap it with
+    ///     `max_parallel:` to tighten the window.
+    ///   · FLOOR is an OUTPUT-token estimate (`max_tokens` × output rate) —
+    ///     input/prompt tokens are not priced statically, so a huge
+    ///     `max_tokens` safety ceiling can over-refuse, and an input-heavy
+    ///     workflow under-floors (the ledger catches it at run time).
+    ///   · UNCATALOGED ≠ FREE — a model absent from the catalog meters as
+    ///     $0 (same as local/mock), so a genuinely PAID uncataloged model
+    ///     (custom endpoint · brand-new id) runs with no budget protection.
     #[arg(long = "max-cost-usd", value_name = "USD", value_parser = parse_budget_usd)]
     max_cost_usd: Option<f64>,
 }
@@ -947,6 +961,23 @@ fn env_value(name: &str) -> Option<String> {
 mod tests {
     #![allow(clippy::expect_used)]
     use super::*;
+
+    #[test]
+    fn max_cost_usd_help_names_its_three_real_limits() {
+        // The rust-pro review's meta-point: the budget's real boundary
+        // was disclosed in code, not at the operator's point of use. The
+        // help must keep naming all three so a future trim can't silently
+        // restore the false comfort.
+        let mut cmd = Cli::command();
+        let run = cmd.find_subcommand_mut("run").expect("run subcommand");
+        let help = run.render_long_help().to_string();
+        for limit in ["CONCURRENCY", "FLOOR", "UNCATALOGED"] {
+            assert!(
+                help.contains(limit),
+                "--max-cost-usd help must name `{limit}`"
+            );
+        }
+    }
 
     /// Bare `nika examples` answers with the LIST, not the usage
     /// screen — init's « next · » sends users here (user-sim finding).
