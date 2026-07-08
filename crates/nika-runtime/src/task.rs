@@ -158,6 +158,10 @@ pub(crate) enum RunResult {
     Success {
         value: Value,
         tokens: Option<i64>,
+        /// `Some(code)` when `on_error.recover` repaired this success —
+        /// the settle path emits `task_recovered` (one site · INV#24)
+        /// before the terminal `task_completed`.
+        recovered_from: Option<String>,
         warning: Option<String>,
         /// Real spend (catalog × usage split + tool-reported) · None =
         /// unpriced · honest. (The by-source attribution key lives on
@@ -1187,6 +1191,7 @@ fn dispatch_result(
         }) => RunResult::Success {
             value,
             tokens,
+            recovered_from: None,
             warning,
             cost_usd,
             cost_unpriced,
@@ -1210,6 +1215,7 @@ fn fan_out_result(
         None => RunResult::Success {
             value: Value::Array(outputs),
             tokens: tokens_sum,
+            recovered_from: None,
             warning: None,
             cost_usd,
             cost_unpriced,
@@ -1263,6 +1269,8 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             Ok(recovered) => RunResult::Success {
                 value: recovered,
                 tokens: None,
+                // the ONE producer of the marker (spec 05 §recover)
+                recovered_from: Some(error.code),
                 // A recovered value is author-supplied · no model reasoning
                 // — but the FAILED attempts' spend already happened and
                 // stays on the frame (recovery does not refund it).

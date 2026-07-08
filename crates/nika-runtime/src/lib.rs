@@ -41,6 +41,7 @@
 
 mod agent_events;
 mod dispatch;
+mod emit_task;
 mod errors;
 mod expr;
 mod jq;
@@ -364,7 +365,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
 }
 
 /// Emit one stamped event with the given fields.
-fn emit(
+pub(crate) fn emit(
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
     kind: EventKind,
@@ -379,11 +380,11 @@ fn emit(
     ts
 }
 
-fn s(v: &str) -> FieldValue {
+pub(crate) fn s(v: &str) -> FieldValue {
     FieldValue::String(v.to_owned())
 }
 
-fn i(v: i64) -> FieldValue {
+pub(crate) fn i(v: i64) -> FieldValue {
     FieldValue::Int(v)
 }
 
@@ -846,11 +847,15 @@ fn settle_ran(
         task::RunResult::Success {
             value,
             tokens,
+            recovered_from,
             warning,
             cost_usd,
             cost_unpriced,
         } => {
-            let ended = emit_completed(
+            if let Some(code) = recovered_from.as_deref() {
+                emit_task::emit_recovered(id, code, stamper, sink);
+            }
+            let ended = emit_task::emit_completed(
                 id,
                 &run.note,
                 duration,
@@ -940,64 +945,6 @@ fn push_spend_fields(
     if let Some(reason) = cost_unpriced {
         fields.push(("cost_unpriced", s(reason.as_str())));
     }
-}
-
-/// Emit one `task_completed` frame — the base fields (`note` ·
-/// `duration_ms`) + spend (`tokens`) + the OBS-E `warning` diagnostic
-/// when present + the ADR-099 checkpoint trio (`def_hash` · `input_hash`
-/// · `output` as ONE compact JSON text) when the task carries a resume
-/// stamp. Returns the terminal timestamp.
-// The payload knobs mirror the frame's field surface — a builder
-// struct would just restate them.
-#[allow(clippy::too_many_arguments)]
-fn emit_completed(
-    id: &str,
-    note: &str,
-    duration: i64,
-    tokens: Option<i64>,
-    cost_usd: Option<f64>,
-    cost_unpriced: Option<nika_types::cost::UnpricedReason>,
-    warning: Option<&str>,
-    resume: Option<&resume::ResumeStamp>,
-    value: &Value,
-    stamper: &mut dyn Stamper,
-    sink: &mut dyn EventSink,
-) -> nika_types::timestamp::Timestamp {
-    let mut fields = vec![
-        ("task", s(id)),
-        ("note", s(note)),
-        ("duration_ms", i(duration)),
-    ];
-    if let Some(n) = tokens {
-        fields.push(("tokens", i(n)));
-    }
-    // Real spend rides next to the tokens it prices · absent = unpriced
-    // (mock · local) — the render layer already treats absent as honest.
-    if let Some(c) = cost_usd {
-        fields.push(("cost_usd", FieldValue::Float(c)));
-    }
-    // …and WHY it is absent (or partial), when it is — `unknown` is
-    // never masked: `local_model` · `mock_provider` ·
-    // `missing_catalog_price` · `provider_did_not_report_usage`.
-    if let Some(reason) = cost_unpriced {
-        fields.push(("cost_unpriced", s(reason.as_str())));
-    }
-    // OBS-E · a non-fatal diagnostic rides the success frame as a
-    // `warning` field (the reasoning-model blank-answer footgun) · the
-    // task still completes.
-    if let Some(msg) = warning {
-        fields.push(("warning", s(msg)));
-    }
-    // ADR-099 · the checkpoint fields — only a stamped success carries
-    // them (additive trace fields).
-    let output_text =
-        resume.map(|_| serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()));
-    if let (Some(stamp), Some(text)) = (resume, output_text.as_deref()) {
-        fields.push((resume::fields::DEF_HASH, s(&stamp.def_hash)));
-        fields.push((resume::fields::INPUT_HASH, s(&stamp.input_hash)));
-        fields.push((resume::fields::OUTPUT, s(text)));
-    }
-    emit(stamper, sink, EventKind::TaskCompleted, &fields)
 }
 
 /// Resolve workflow `outputs:` from the final records · an output whose
@@ -1317,6 +1264,52 @@ outputs:
         assert!(value_matches_vartype(&json!(true), VarType::Boolean));
     }
 
+    /// A recovered success emits `task_recovered` BEFORE the terminal
+    /// `task_completed` (engine#301 · D-2026-07-08-N4 sequence lock:
+    /// `… > task_recovered > task_completed`) — and carries WHAT it
+    /// recovered from as a `code` field. A clean success emits no such
+    /// frame (pinned by every other Success test in this file).
+    #[test]
+    fn recovered_success_emits_task_recovered_before_completed() {
+        let ran = task::RanTask {
+            note: "exec · sh".to_owned(),
+            retries: Vec::new(),
+            agent_events: Vec::new(),
+            duration_ms: 0,
+            result: task::RunResult::Success {
+                value: Value::Number(99.into()),
+                tokens: None,
+                recovered_from: Some("NIKA-EXEC-001".to_owned()),
+                warning: None,
+                cost_usd: None,
+                cost_unpriced: None,
+            },
+        };
+        let mut ok = true;
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        settle_ran("risky", ran, None, &mut ok, &mut stamper, &mut sink);
+
+        let kinds: Vec<EventKind> = sink.events().iter().map(|e| e.kind).collect();
+        let rec = kinds
+            .iter()
+            .position(|k| *k == EventKind::TaskRecovered)
+            .expect("a TaskRecovered frame");
+        let done = kinds
+            .iter()
+            .position(|k| *k == EventKind::TaskCompleted)
+            .expect("a TaskCompleted frame — completed STAYS the one success terminal");
+        assert!(rec < done, "task_recovered inserts BEFORE the terminal");
+
+        let frame = &sink.events()[rec];
+        assert!(
+            frame.fields.iter().any(|f| f.key == "code"
+                && matches!(&f.value, FieldValue::String(s) if s == "NIKA-EXEC-001")),
+            "the frame names what was recovered FROM"
+        );
+        assert!(ok, "a recovered task is a SUCCESS at workflow level");
+    }
+
     /// A settled success carrying an OBS-E `warning` puts it on the
     /// `TaskCompleted` frame as a `warning` field — the wiring proof that
     /// the dispatch's diagnostic actually reaches the event stream.
@@ -1330,6 +1323,7 @@ outputs:
             result: task::RunResult::Success {
                 value: Value::String(String::new()),
                 tokens: Some(84),
+                recovered_from: None,
                 warning: Some("infer produced an empty answer · …".to_owned()),
                 cost_usd: Some(0.0125),
                 cost_unpriced: None,
@@ -1379,6 +1373,7 @@ outputs:
             result: task::RunResult::Success {
                 value: Value::String("ok".to_owned()),
                 tokens: None,
+                recovered_from: None,
                 warning: None,
                 cost_usd: None,
                 cost_unpriced: None,
@@ -1421,6 +1416,7 @@ outputs:
             result: task::RunResult::Success {
                 value: Value::String("bonjour".to_owned()),
                 tokens: Some(12),
+                recovered_from: None,
                 warning: None,
                 cost_usd: None,
                 cost_unpriced: Some(nika_types::cost::UnpricedReason::LocalModel),

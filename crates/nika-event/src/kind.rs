@@ -55,6 +55,16 @@ pub enum EventKind {
     /// A task attempt failed and a retry is scheduled (`attempt` /
     /// `max_attempts` fields carry the counter — contract §3.1 `↻`).
     TaskRetrying,
+    /// A task's `on_error.recover` repaired a failure into a success —
+    /// emitted BETWEEN the (absorbed) failure and the terminal
+    /// [`EventKind::TaskCompleted`], which stays the ONE success
+    /// terminal (D-2026-07-08-N4: `… > task_recovered > task_completed`
+    /// · additive · completed-only consumers unaffected). The `code`
+    /// field carries what was recovered FROM; without this kind a
+    /// repaired success is byte-identical to a clean one in the kind
+    /// stream (empirically pinned by the corpus events-asserts,
+    /// 2026-07-08 · engine#301).
+    TaskRecovered,
     /// A task was cancelled (an upstream failure made the default gate
     /// unsatisfiable · operator stop · budget kill — contract §3.1 `◼`;
     /// distinct from [`EventKind::TaskFailed`]: cancellation is a
@@ -141,6 +151,7 @@ impl EventKind {
             Self::ToolInvoked => "tool_invoked",
             Self::CheckpointWritten => "checkpoint_written",
             Self::TaskRetrying => "task_retrying",
+            Self::TaskRecovered => "task_recovered",
             Self::TaskCancelled => "task_cancelled",
             Self::WorkflowCancelled => "workflow_cancelled",
             Self::CostIncurred => "cost_incurred",
@@ -216,6 +227,7 @@ impl EventKind {
             | Self::TaskFailed
             | Self::TaskSkipped
             | Self::TaskRetrying
+            | Self::TaskRecovered
             | Self::TaskCancelled
             | Self::TaskCacheHit => EventClass::Task,
             Self::VerbInvoked | Self::ToolInvoked => EventClass::Dispatch,
@@ -288,6 +300,7 @@ mod tests {
         EventKind::ToolInvoked,
         EventKind::CheckpointWritten,
         EventKind::TaskRetrying,
+        EventKind::TaskRecovered,
         EventKind::TaskCancelled,
         EventKind::WorkflowCancelled,
         EventKind::CostIncurred,
@@ -321,6 +334,7 @@ mod tests {
                 | EventKind::ToolInvoked
                 | EventKind::CheckpointWritten
                 | EventKind::TaskRetrying
+                | EventKind::TaskRecovered
                 | EventKind::TaskCancelled
                 | EventKind::WorkflowCancelled
                 | EventKind::CostIncurred
@@ -335,7 +349,7 @@ mod tests {
                 | EventKind::WorkflowPaused => {}
             }
         }
-        assert_eq!(ALL.len(), 24, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 25, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
