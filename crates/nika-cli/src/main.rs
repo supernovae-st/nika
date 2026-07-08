@@ -311,6 +311,7 @@ enum WireTargetArg {
     Windsurf,
     Claude,
     Codex,
+    Zed,
     All,
 }
 
@@ -322,6 +323,7 @@ impl From<WireTargetArg> for verbs::wire::WireTarget {
             WireTargetArg::Windsurf => Self::Windsurf,
             WireTargetArg::Claude => Self::Claude,
             WireTargetArg::Codex => Self::Codex,
+            WireTargetArg::Zed => Self::Zed,
             WireTargetArg::All => Self::All,
         }
     }

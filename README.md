@@ -312,7 +312,7 @@ key, then see what's wired:
 ```sh
 nika doctor                  # provider keys + local servers, with the exact fix
 nika init                    # schema wiring + AGENTS.md for this repo
-nika wire cursor             # explicit MCP wiring · also: vscode · windsurf · claude · codex · all
+nika wire cursor             # explicit MCP wiring · also: vscode · windsurf · claude · codex · zed · all
 nika examples list           # browse the embedded examples
 nika examples run 01-hello --model ollama/llama3.2:3b   # a real local run
 ```
