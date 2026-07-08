@@ -88,7 +88,27 @@ use crate::verbs::exit;
 /// shape tails on the Live storyboard. Only the interactive TTY surface
 /// ever grows tails — pipes · CI · the machine modes stay byte-unchanged
 /// with or without the flag.
-// Ten independent CLI parameters ARE the clap surface — the same idiom
+///
+/// `no_gc` — `--no-gc` (ADR-100 D2): skip the opportunistic trace
+/// collection for this invocation. Retention otherwise rides every run
+/// start (bounded by default · no daemon).
+/// Opportunistic trace GC (ADR-100 D2) — maintenance rides usage. Before
+/// the run · `--no-gc` skips · `--dry-run` never collects (plan only ·
+/// zero effects) · fail-open (a broken collection never blocks a run). A
+/// collection that removed anything speaks EXACTLY ONE stderr line —
+/// silent deletion is forbidden, and stderr keeps the machine surfaces
+/// (`--json` · `--output json` stdout) byte-frozen.
+fn run_start_gc(no_gc: bool, dry_run: bool) {
+    if let Some(line) = super::trace::retention::gc_at_run_start(
+        std::path::Path::new(super::trace::store::TRACE_DIR),
+        no_gc,
+        dry_run,
+    ) {
+        eprintln!("{line}");
+    }
+}
+
+// Fourteen independent CLI parameters ARE the clap surface — the same idiom
 // as TraceArgs' bools, not a state machine to encode in a struct.
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 #[must_use]
@@ -106,6 +126,7 @@ pub fn run(
     task_filter: Option<&str>,
     no_outputs: bool,
     max_cost_usd: Option<f64>,
+    no_gc: bool,
 ) -> u8 {
     // `--output` validated up front so an unknown format fails before any
     // work (machine-result mode · see `output_mode`).
@@ -113,6 +134,7 @@ pub fn run(
         Ok(flag) => flag,
         Err(code) => return code,
     };
+    run_start_gc(no_gc, dry_run);
 
     // ── Audit BEFORE run (spec §3 · INV the runtime also enforces) ──
     let (source, wf, report) = match crate::verbs::load_checked_with_source(file) {
@@ -342,6 +364,9 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         None,
         false,
         None,
+        // An example runs a TEMP-staged file, not a workspace run — the
+        // workspace's trace store is not this invocation's to collect.
+        true,
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the tip then never
@@ -1183,6 +1208,7 @@ mod tests {
             None, // whole-workflow runs (scoping has its own tests)
             false,
             None,
+            true,
         );
         assert_eq!(
             code,
@@ -1216,6 +1242,7 @@ mod tests {
             None, // whole-workflow runs (scoping has its own tests)
             false,
             None,
+            true,
         );
         assert_eq!(
             overridden,
@@ -1246,6 +1273,7 @@ mod tests {
             None, // whole-workflow runs (scoping has its own tests)
             false,
             None,
+            true,
         )
     }
 
