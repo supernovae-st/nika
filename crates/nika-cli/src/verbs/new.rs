@@ -996,6 +996,57 @@ mod tests {
     }
 
     #[test]
+    fn every_embedded_template_audits_clean_or_is_a_documented_gap() {
+        // The own-corpus law (#261): every embedded skeleton a fresh
+        // scaffold can produce MUST audit clean — a red ladder on a first
+        // scaffold is the self-contradiction the wizard exists to avoid.
+        // This ratchet was MISSING (pack-integrity only hashes text), so
+        // `api-upload-and-create` shipped in #257 failing its OWN
+        // SECRETS-egress check, unnoticed, until a user-sim caught it.
+        //
+        // KNOWN GAP — an operator design call, NOT a template typo: the
+        // ADR-092 flow model taints an authenticated `invoke`'s OUTPUT (a
+        // secret in a fetch auth-header taints the response, exactly as a
+        // secret in the body would), with no `infer`/`agent`-style prompt
+        // exception and no output-declassification construct. So
+        // `api-upload-and-create` (upload+create, both secret-authed, the
+        // create response piped to `outputs:`) cannot surface its result
+        // to ANY sink — outputs, a local `nika:write`, or another tool
+        // all trip the egress. Resolving it needs a header-position
+        // exception in the taint analysis OR an output-declassification
+        // feature; both are design decisions. Until then it is the ONE
+        // documented exception: a SECOND dirty template — or this one
+        // becoming clean (the gap resolved) — fails this ratchet.
+        const KNOWN_GAP: &[&str] = &["api-upload-and-create"];
+        let mut clean = 0_usize;
+        for name in nika_pack::template_names() {
+            let body = nika_pack::template(&name).expect("template embedded");
+            let parsed = nika_schema::parse(
+                body,
+                nika_schema::FileId::new(0),
+                nika_schema::ParseMode::Strict,
+            );
+            assert!(parsed.is_ok(), "{name}: template must parse: {parsed:?}");
+            let wf = parsed.expect("asserted ok above");
+            let is_gap = KNOWN_GAP.contains(&name.as_str());
+            if nika_schema::check::check(&wf).is_clean() {
+                assert!(
+                    !is_gap,
+                    "{name}: now audits CLEAN — remove it from KNOWN_GAP, the design gap is resolved"
+                );
+                clean += 1;
+            } else {
+                assert!(
+                    is_gap,
+                    "{name}: a fresh scaffold FAILS its own `nika check` (own-corpus law · #261) — \
+                     fix the template, or (if a genuine flow-model design gap) document it in KNOWN_GAP"
+                );
+            }
+        }
+        assert!(clean >= 8, "expected >= 8 clean templates, got {clean}");
+    }
+
+    #[test]
     fn stamp_fills_exactly_the_three_known_slots() {
         for name in nika_pack::template_names() {
             let body = nika_pack::template(&name).expect("embedded");
