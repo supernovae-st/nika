@@ -440,6 +440,8 @@ mod tests {
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
             pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
         }
     }
 
@@ -556,6 +558,8 @@ mod tests {
             tts: TtsProbe::default(),
             local_pings: Vec::new(),
             pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
         }
     }
 

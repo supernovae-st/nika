@@ -17,6 +17,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use nika_providers::ProviderRegistry;
+
+use crate::verbs::trace::retention::RetentionConfig;
 use serde_json::Value;
 
 /// One `--ping` observation · a local port either answered a TCP connect
@@ -63,6 +65,12 @@ pub(crate) struct Probe {
     /// The vendored pricing snapshot's identity + age — the staleness
     /// surface no other CLI ships (2026-07 survey).
     pub pricing: PricingProbe,
+    /// The active trace-retention knobs (ADR-100 D4 — doctor reports the
+    /// values GC actually enforces).
+    pub retention: RetentionConfig,
+    /// Knob values that would not parse (each fell back LOUDLY to its
+    /// default — a typo'd knob silently doing nothing is hidden magic).
+    pub retention_notes: Vec<String>,
 }
 
 /// The pricing-catalog facts — all derived from the vendored snapshot
@@ -119,6 +127,9 @@ pub(crate) struct ClientProbe {
 /// second truth.
 #[must_use]
 pub(crate) fn collect(ping: bool) -> Probe {
+    // ADR-100 D4 — the knobs GC actually enforces, observed once here so
+    // `diagnose` stays pure over the Probe.
+    let (retention, retention_notes) = RetentionConfig::from_env();
     // The SAME env composition a run uses: the probe observes the world
     // the runtime will see, overrides included (ProvidersConfig::new()
     // here made --ping probe seeds the operator had redirected away).
@@ -171,6 +182,8 @@ pub(crate) fn collect(ping: bool) -> Probe {
         },
         local_pings: Vec::new(),
         pricing: pricing_probe(),
+        retention,
+        retention_notes,
     };
     if ping {
         let local_pings = collect_local_pings(

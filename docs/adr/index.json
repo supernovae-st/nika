@@ -933,7 +933,7 @@
     {
       "id": "ADR-094",
       "title": "nika-pck · content-addressed sharing — identity decentralized, discovery a forkable index, trust in the artifact",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-06-11",
       "filename": "adr-094-nika-pck-registry-architecture.md",
       "tags": ["pck","registry","packages","cas","signing","conformance","supply-chain"],
@@ -1021,8 +1021,24 @@
       "affects_layers": ["L2","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-106"],
+      "related": ["ADR-100","ADR-106"],
       "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-100",
+      "title": "Trace retention — bounded by default, never silently, never a pending gate",
+      "status": "accepted",
+      "date": "2026-07-05",
+      "filename": "adr-100-trace-retention.md",
+      "tags": ["trace","retention","gc","resume","pause","cli","storage"],
+      "affects_crates": ["nika-cli","nika-runtime"],
+      "affects_layers": ["L2","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-099"],
+      "requires": ["ADR-099"],
       "enables": []
     }
     ,
