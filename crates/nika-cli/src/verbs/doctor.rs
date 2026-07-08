@@ -24,6 +24,7 @@ use std::fmt::Write as _;
 // The probe layer (structs + collectors) lives in `verbs::probe` — the ONE
 // detection engine `doctor` and `welcome` share. Re-exported `pub(crate)` so
 // this module's tests (and historical importers) keep their names.
+use crate::display::theme::{Role, Theme};
 pub(crate) use crate::verbs::probe::{
     ClientProbe, ImageProbe, PingState, PricingProbe, Probe, ProviderProbe, TtsProbe,
 };
@@ -42,6 +43,17 @@ pub(crate) enum Level {
 }
 
 impl Level {
+    /// The semantic colour role — the SAME closed vocabulary the run
+    /// storyboard speaks (`Role` · theme.rs): green ok · yellow advisory ·
+    /// red hard-fail. Never decorative.
+    const fn role(self) -> Role {
+        match self {
+            Self::Ok => Role::Good,
+            Self::Warn => Role::Warn,
+            Self::Fail => Role::Bad,
+        }
+    }
+
     fn glyph(self) -> char {
         match self {
             Self::Ok => '✔',
@@ -350,19 +362,65 @@ pub(crate) fn render_json(findings: &[Finding]) -> String {
     format!("{payload:#}")
 }
 
-pub(crate) fn render(findings: &[Finding]) -> String {
+/// The fixed label column (nextest school: one grid, computed on RAW text).
+/// Every label `diagnose` can emit fits STRICTLY inside it (pinned by
+/// `every_label_fits_the_fixed_column`) so the detail column never shears.
+const LABEL_COL: usize = 10;
+
+/// Render the findings through the ONE colour seam (`Theme` · semantic
+/// never decorative — the same law welcome/run obey). Doctor rows carry NO
+/// durations, so the nextest discipline reduces to the status/label
+/// columns — a fixed 1-cell status glyph + the fixed [`LABEL_COL`] label
+/// cell, both laid out on RAW text and painted AFTER (ANSI escapes never
+/// enter width arithmetic — the same law as `Theme::glyph`). The sober
+/// register (colour off · links off · every pipe) is byte-identical to the
+/// themeless render it replaces.
+pub(crate) fn render(findings: &[Finding], theme: Theme) -> String {
     let mut s = String::new();
     let count = |level: Level| findings.iter().filter(|f| f.level == level).count();
     let (ok, warn, fail) = (count(Level::Ok), count(Level::Warn), count(Level::Fail));
     let verdict = if fail > 0 { Level::Fail } else { Level::Ok };
-    let _ = writeln!(s, "{} {ok} ok · {warn} warn · {fail} fail", verdict.glyph());
+    let glyph = |level: Level| theme.paint(level.role(), &level.glyph().to_string());
+    let _ = writeln!(s, "{} {ok} ok · {warn} warn · {fail} fail", glyph(verdict));
     for f in findings {
-        let _ = writeln!(s, "{} {:<10} {}", f.level.glyph(), f.label, f.detail);
+        let _ = writeln!(
+            s,
+            "{} {:<LABEL_COL$} {}",
+            glyph(f.level),
+            f.label,
+            link_targets(theme, &f.detail)
+        );
         if let Some(fix) = &f.fix {
-            let _ = writeln!(s, "  fix: {fix}");
+            let _ = writeln!(s, "  fix: {}", link_targets(theme, fix));
         }
     }
     s
+}
+
+/// OSC-8-wrap the linkable targets inside ONE printed doctor line — an
+/// existing file path (`/…` or `./…` · canonicalize-gated through the
+/// [`crate::verbs::linked_path`] seam: a link that cannot open stays plain)
+/// or an `https://` URL. Token-bounded on spaces, and the printed TEXT never
+/// changes — with the `links` capability off (every pipe · `--hyperlink
+/// never`) the line is returned VERBATIM, so the sober register stays
+/// byte-frozen.
+fn link_targets(theme: Theme, text: &str) -> String {
+    if !theme.links {
+        return text.to_owned();
+    }
+    let linked: Vec<String> = text
+        .split(' ')
+        .map(|token| {
+            if token.starts_with("https://") {
+                theme.link(token, token)
+            } else if token.starts_with('/') || token.starts_with("./") {
+                crate::verbs::linked_path(theme, token)
+            } else {
+                token.to_owned()
+            }
+        })
+        .collect();
+    linked.join(" ")
 }
 
 /// One cloud-provider row (✔ key present · ⚠ unset, with the export fix).
@@ -447,9 +505,11 @@ fn redact_userinfo(url: &str) -> String {
 
 /// Diagnose the environment: build the real probe (the shared
 /// `verbs::probe` engine · PRESENCE-only · offline unless `ping`), then
-/// render the findings.
+/// render the findings. The theme comes from the global
+/// `--color`/`--hyperlink` chain (main.rs) — a piped doctor keeps its
+/// exact bytes; `--json` never colours.
 #[must_use]
-pub fn run(ping: bool, json: bool) -> VerbOutput {
+pub fn run(ping: bool, json: bool, theme: Theme) -> VerbOutput {
     let probe = crate::verbs::probe::collect(ping);
     let findings = diagnose(&probe);
     let code = exit_code(&findings);
@@ -457,7 +517,7 @@ pub fn run(ping: bool, json: bool) -> VerbOutput {
         text: if json {
             render_json(&findings)
         } else {
-            render(&findings)
+            render(&findings, theme)
         },
         code,
     }
@@ -472,6 +532,9 @@ mod tests {
 
     use super::*;
     use crate::verbs::probe::{client_probe_any, env_present, ping_addr, spawn_ping};
+
+    /// The sober register — the byte-frozen baseline every pipe reads.
+    const PLAIN: Theme = Theme::new(false, false, false);
 
     fn cloud(id: &str, var: &str, present: bool) -> ProviderProbe {
         ProviderProbe {
@@ -585,7 +648,7 @@ mod tests {
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
         };
-        let text = render(&diagnose(&probe));
+        let text = render(&diagnose(&probe), PLAIN);
         assert!(text.contains("OPENAI_API_KEY"), "names the var: {text}");
         assert!(
             !text.contains("sk-"),
@@ -738,7 +801,7 @@ mod tests {
             retention: crate::verbs::trace::retention::RetentionConfig::default(),
             retention_notes: vec![],
         };
-        let text = render(&diagnose(&probe));
+        let text = render(&diagnose(&probe), PLAIN);
         assert!(text.contains("stale MCP args"), "{text}");
         assert!(text.contains("fix: nika wire cursor"), "{text}");
     }
@@ -777,7 +840,7 @@ mod tests {
         // The wired run() over the canonical catalog: local providers exist, so
         // there is never a hard Fail (exit 0) even with no keys in the test env.
         // ping=false — the default run stays fully offline, in tests too.
-        let out = run(false, false);
+        let out = run(false, false, PLAIN);
         assert_eq!(out.code, exit::OK, "the catalog always offers a path");
         assert!(out.text.contains("binary"), "renders the binary line");
         // The LLM test backend stays hidden (no `mock — key` provider row);
@@ -808,7 +871,7 @@ mod tests {
             detail: "x — KEY unset".to_owned(),
             fix: Some("export KEY=…".to_owned()),
         };
-        let text = render(&[ok.clone(), ok.clone(), warn.clone()]);
+        let text = render(&[ok.clone(), ok.clone(), warn.clone()], PLAIN);
         let first = text.lines().next().expect("verdict line");
         assert_eq!(first, "✔ 2 ok · 1 warn · 0 fail");
         assert!(text.contains("binary"), "sections unchanged: {text}");
@@ -819,7 +882,7 @@ mod tests {
             detail: "no path".to_owned(),
             fix: None,
         };
-        let red = render(&[ok, warn, fail]);
+        let red = render(&[ok, warn, fail], PLAIN);
         assert!(
             red.starts_with("✖ 1 ok · 1 warn · 1 fail"),
             "a fail flips the verdict glyph: {red}"
@@ -986,5 +1049,59 @@ mod tests {
             .find(|f| f.label == "local")
             .expect("local line");
         assert!(local.fix.is_none(), "pinged run drops the hand-off");
+    }
+
+    /// Every label `diagnose` can emit fits STRICTLY inside the fixed
+    /// [`LABEL_COL`] cell — the grid never shears (nextest school).
+    #[test]
+    fn every_label_fits_the_fixed_column() {
+        for label in [
+            "binary",
+            "config",
+            "lsp",
+            "mcp",
+            "traces",
+            "agent",
+            "provider",
+            "providers",
+            "local",
+            "ping",
+            "image",
+            "tts",
+            "pricing",
+        ] {
+            assert!(
+                label.len() <= LABEL_COL,
+                "label `{label}` ({}) exceeds LABEL_COL ({LABEL_COL})",
+                label.len()
+            );
+        }
+    }
+
+    /// Item-3 wiring: on the linked register an https target inside a
+    /// detail line rides the OSC-8 wrapper (text unchanged); the sober
+    /// register — every pipe — keeps its exact bytes, zero escapes.
+    #[test]
+    fn linked_register_wraps_https_targets_and_sober_stays_frozen() {
+        let f = vec![Finding {
+            level: Level::Ok,
+            label: "pricing".to_owned(),
+            detail: "snapshot · see https://docs.nika.sh/errors for codes".to_owned(),
+            fix: None,
+        }];
+        let sober = render(&f, PLAIN);
+        assert!(
+            !sober.contains('\x1b'),
+            "sober register is escape-free: {sober:?}"
+        );
+        let mut linked = PLAIN;
+        linked.links = true;
+        let out = render(&f, linked);
+        assert!(
+            out.contains(
+                "\x1b]8;;https://docs.nika.sh/errors\x1b\\https://docs.nika.sh/errors\x1b]8;;\x1b\\"
+            ),
+            "https target rides OSC-8: {out:?}"
+        );
     }
 }

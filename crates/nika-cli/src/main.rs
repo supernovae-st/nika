@@ -22,6 +22,7 @@ use std::time::Duration;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use nika_cli::display::format::{ColorChoice, ColorEnv, LinkChoice, color_enabled, links_enabled};
+use nika_cli::verbs::explain_file::dispatch as explain_dispatch;
 use nika_cli::verbs::{self, VerbOutput};
 use nika_cli::{RunView, Theme, frame};
 use nika_event::Event;
@@ -677,8 +678,8 @@ fn main() -> std::process::ExitCode {
             };
             emit(&verbs::welcome::run(json, theme))
         }
-        Command::Explain { code, json } => emit(&verbs::explain_file::dispatch(&code, json)),
-        Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json)),
+        Command::Explain { code, json } => emit(&explain_dispatch(&code, json, plain_theme)),
+        Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
         Command::Init { dir, force, yes } => emit(&verbs::init::run(&dir, force, yes, plain_theme)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target.into(), &dir)),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),

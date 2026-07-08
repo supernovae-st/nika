@@ -11,12 +11,24 @@
 
 use nika_error::codes::{code_help, lookup};
 
+use crate::display::theme::Theme;
 use crate::verbs::VerbOutput;
 
+/// The doc-site home for the error-code registry — the ONE https target the
+/// explain surface names. Printed scheme-less (the established prose form);
+/// the OSC-8 wrapper carries the scheme.
+const DOCS_ERRORS_URL: &str = "https://docs.nika.sh/errors";
+const DOCS_ERRORS_TEXT: &str = "docs.nika.sh/errors";
+
 /// The `nika explain <code>` verb. Accepts `NIKA-440`, `NIKA-DAG-003`,
-/// or the bare forms (`440` · `DAG-003`).
+/// or the bare forms (`440` · `DAG-003`). The theme comes from the global
+/// `--color`/`--hyperlink` chain: on a TTY the doc-site reference rides an
+/// OSC-8 hyperlink; a piped explain keeps its exact bytes.
 #[must_use]
-pub fn run(wire: &str) -> VerbOutput {
+pub fn run(wire: &str, theme: Theme) -> VerbOutput {
+    // The seam (`Theme::link` → `format::osc8`): text unchanged, escapes
+    // only when the links capability resolved on.
+    let docs = theme.link(DOCS_ERRORS_URL, DOCS_ERRORS_TEXT);
     let normalized = if wire.starts_with("NIKA-") {
         wire.to_owned()
     } else {
@@ -41,7 +53,7 @@ pub fn run(wire: &str) -> VerbOutput {
                  NIKA-BUILTIN-<NAME>-001..099). Valid in `retry.on_codes:` and \
                  `on_error.on_codes:`. The specific cause is the builtin's own \
                  arg/runtime contract — see spec stdlib (builtins) · \
-                 docs.nika.sh/errors.\n"
+                 {docs}.\n"
             ));
         }
         // Per-provider runtime codes (`NIKA-PROVIDER-<NNN>`) — 001-099 are
@@ -55,14 +67,14 @@ pub fn run(wire: &str) -> VerbOutput {
                  NIKA-PROVIDER-001..099). The specific cause is provider-defined \
                  (transport · quota · auth · response shape from that provider). \
                  Valid in `retry.on_codes:` and `on_error.on_codes:` — see \
-                 spec/05-errors.md §NIKA-PROVIDER · docs.nika.sh/errors.\n"
+                 spec/05-errors.md §NIKA-PROVIDER · {docs}.\n"
             ));
         }
         return VerbOutput::file(format!(
             "unknown code `{wire}` — the registry knows NIKA-001..NIKA-9999 \
              (allocated ranges), the spec conformance codes \
              (NIKA-DAG-* · NIKA-VAR-* · …), per-builtin NIKA-BUILTIN-<NAME>-NNN \
-             and per-provider NIKA-PROVIDER-NNN codes; see docs.nika.sh/errors"
+             and per-provider NIKA-PROVIDER-NNN codes; see {docs}"
         ));
     };
     // The category/severity labels are the OWNING crate's canonical
@@ -138,6 +150,12 @@ fn is_provider_code(code: &str) -> bool {
 mod tests {
     use super::*;
     use crate::verbs::exit;
+
+    /// The sober register (links off) — the byte-frozen baseline every
+    /// machine surface reads.
+    fn run(wire: &str) -> VerbOutput {
+        super::run(wire, Theme::new(false, false, false))
+    }
 
     #[test]
     fn numeric_registry_codes_answer_exit_zero() {
@@ -258,5 +276,33 @@ mod tests {
         let out = run("NIKA-VAR-002");
         assert_eq!(out.code, exit::OK);
         assert!(out.text.contains("zero or multiple values"), "{}", out.text);
+    }
+
+    /// On the linked register the doc-site reference rides the OSC-8
+    /// wrapper (scheme in the URL · prose text unchanged); the sober
+    /// register — every pipe — keeps its exact bytes, zero escapes.
+    #[test]
+    fn doc_site_reference_links_on_the_linked_register() {
+        let mut linked = Theme::new(false, false, false);
+        linked.links = true;
+        for wire in [
+            "NIKA-BUILTIN-WRITE-001",
+            "NIKA-PROVIDER-001",
+            "NIKA-ZZZ-999",
+        ] {
+            let out = super::run(wire, linked);
+            assert!(
+                out.text.contains(
+                    "\x1b]8;;https://docs.nika.sh/errors\x1b\\docs.nika.sh/errors\x1b]8;;\x1b\\"
+                ),
+                "{wire} links the doc site: {:?}",
+                out.text
+            );
+            let sober = run(wire);
+            assert!(
+                !sober.text.contains('\x1b'),
+                "{wire} sober register is escape-free"
+            );
+        }
     }
 }

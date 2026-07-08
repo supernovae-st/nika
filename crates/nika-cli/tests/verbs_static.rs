@@ -333,7 +333,7 @@ fn infer_permits_emits_a_paste_ready_boundary() {
 #[test]
 fn explain_teaches_a_registered_code_in_both_wire_forms() {
     for wire in ["NIKA-440", "440"] {
-        let out = explain::run(wire);
+        let out = explain::run(wire, PLAIN);
         assert_eq!(out.code, exit::OK, "{wire}");
         // The stable output contract: code · category · severity · slug.
         assert!(
@@ -348,7 +348,7 @@ fn explain_teaches_a_registered_code_in_both_wire_forms() {
 
 #[test]
 fn explain_refuses_an_unknown_code_exit_2() {
-    let out = explain::run("NIKA-9999");
+    let out = explain::run("NIKA-9999", PLAIN);
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("unknown code"));
 }

@@ -32,7 +32,7 @@ use crate::verbs::{VerbOutput, load_checked};
 /// like a code still routes as a file when it exists on disk — the
 /// pathological tie goes to the thing that provably exists.
 #[must_use]
-pub fn dispatch(query: &str, json: bool) -> VerbOutput {
+pub fn dispatch(query: &str, json: bool, theme: crate::display::theme::Theme) -> VerbOutput {
     let yaml_ext = Path::new(query)
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("yaml") || e.eq_ignore_ascii_case("yml"));
@@ -52,7 +52,7 @@ pub fn dispatch(query: &str, json: bool) -> VerbOutput {
                 .to_owned(),
         );
     }
-    super::explain::run(query)
+    super::explain::run(query, theme)
 }
 
 /// The `nika explain <file>` verb.
@@ -642,19 +642,31 @@ mod tests {
     fn dispatch_routes_codes_and_files() {
         // Codes: registry + spec + bare forms stay the teaching surface.
         for code in ["NIKA-440", "440", "DAG-003"] {
-            let out = dispatch(code, false);
+            let out = dispatch(
+                code,
+                false,
+                crate::display::theme::Theme::new(false, false, false),
+            );
             assert_eq!(out.code, exit::OK, "{code}: {}", out.text);
         }
         // A path-shaped query routes to the file narrator — missing file
         // = the loader's own error, never a "unknown code" 404.
-        let out = dispatch("no/such/dir/flow.nika.yaml", false);
+        let out = dispatch(
+            "no/such/dir/flow.nika.yaml",
+            false,
+            crate::display::theme::Theme::new(false, false, false),
+        );
         assert!(
             !out.text.contains("unknown code"),
             "paths never 404 as codes: {}",
             out.text
         );
         // The code form refuses --json loudly instead of ignoring it.
-        let out = dispatch("NIKA-440", true);
+        let out = dispatch(
+            "NIKA-440",
+            true,
+            crate::display::theme::Theme::new(false, false, false),
+        );
         assert_eq!(out.code, exit::FILE);
         assert!(out.text.contains("--json"), "{}", out.text);
     }
