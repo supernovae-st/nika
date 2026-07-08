@@ -156,7 +156,7 @@ fn request_body(
         obj.insert("temperature".to_owned(), json!(t));
     }
     if let Some(mt) = req.max_tokens {
-        obj.insert("max_tokens".to_owned(), json!(mt));
+        obj.insert(token_budget_key(provider_id, model).to_owned(), json!(mt));
     }
     if !req.stop_sequences.is_empty() {
         obj.insert("stop".to_owned(), json!(req.stop_sequences));
@@ -198,6 +198,23 @@ fn request_body(
         }
     }
     Ok(body)
+}
+
+/// `OpenAI` keeps legacy Chat Completions models on `max_tokens`, while GPT-5
+/// and o-series reject it and require `max_completion_tokens`.
+fn token_budget_key(provider_id: &str, model: &str) -> &'static str {
+    if provider_id == "openai" && openai_uses_max_completion_tokens(model) {
+        "max_completion_tokens"
+    } else {
+        "max_tokens"
+    }
+}
+
+fn openai_uses_max_completion_tokens(model: &str) -> bool {
+    let model = model.to_ascii_lowercase();
+    ["gpt-5", "o1", "o3", "o4"]
+        .iter()
+        .any(|prefix| model.starts_with(prefix))
 }
 
 /// Build the `response_format` value for one request, or `None` for plain
@@ -634,6 +651,32 @@ mod tests {
             body["response_format"]["json_schema"]["schema"]["additionalProperties"], false,
             "openai schema is normalized to satisfy the strict claim"
         );
+    }
+
+    #[test]
+    fn openai_gpt5_uses_max_completion_tokens() {
+        let mut r = req(vec![Message::text(Role::User, "hi")]);
+        r.max_tokens = Some(64);
+        let body = body_of("gpt-5.2", &r, false, true, "openai").expect("body");
+        assert_eq!(body["max_completion_tokens"], 64);
+        assert!(
+            body.get("max_tokens").is_none(),
+            "gpt-5 rejects max_tokens on the OpenAI wire"
+        );
+    }
+
+    #[test]
+    fn non_openai_compat_and_legacy_openai_keep_max_tokens() {
+        let mut r = req(vec![Message::text(Role::User, "hi")]);
+        r.max_tokens = Some(64);
+
+        let legacy = body_of("gpt-4o-mini", &r, false, true, "openai").expect("legacy body");
+        assert_eq!(legacy["max_tokens"], 64);
+        assert!(legacy.get("max_completion_tokens").is_none());
+
+        let peer = body_of("gpt-5.2", &r, false, true, "groq").expect("peer body");
+        assert_eq!(peer["max_tokens"], 64);
+        assert!(peer.get("max_completion_tokens").is_none());
     }
 
     #[test]
