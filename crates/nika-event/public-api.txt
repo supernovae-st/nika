@@ -168,6 +168,46 @@ pub fn nika_event::event::Event::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_event::event::Event where T: 'static
 pub fn nika_event::event::Event::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_event::event::Event where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_event::fold
+pub struct nika_event::fold::RunFact
+pub nika_event::fold::RunFact::cost_usd: core::option::Option<f64>
+pub nika_event::fold::RunFact::trace: alloc::string::String
+pub nika_event::fold::RunFact::unpriced_calls: core::option::Option<u64>
+pub nika_event::fold::RunFact::verdict: core::option::Option<alloc::string::String>
+pub nika_event::fold::RunFact::workflow: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_event::fold::RunFact
+pub fn nika_event::fold::RunFact::clone(&self) -> nika_event::fold::RunFact
+impl core::fmt::Debug for nika_event::fold::RunFact
+pub fn nika_event::fold::RunFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_event::fold::RunFact
+pub fn nika_event::fold::RunFact::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_event::fold::RunFact
+impl<T, U> core::convert::Into<U> for nika_event::fold::RunFact where U: core::convert::From<T>
+pub fn nika_event::fold::RunFact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::fold::RunFact where U: core::convert::Into<T>
+pub type nika_event::fold::RunFact::Error = core::convert::Infallible
+pub fn nika_event::fold::RunFact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::fold::RunFact where U: core::convert::TryFrom<T>
+pub type nika_event::fold::RunFact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::fold::RunFact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::fold::RunFact where T: core::clone::Clone
+pub type nika_event::fold::RunFact::Owned = T
+pub fn nika_event::fold::RunFact::clone_into(&self, target: &mut T)
+pub fn nika_event::fold::RunFact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_event::fold::RunFact where T: 'static + ?core::marker::Sized
+pub fn nika_event::fold::RunFact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::fold::RunFact where T: ?core::marker::Sized
+pub fn nika_event::fold::RunFact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::fold::RunFact where T: ?core::marker::Sized
+pub fn nika_event::fold::RunFact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::fold::RunFact where T: core::clone::Clone
+pub unsafe fn nika_event::fold::RunFact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::fold::RunFact
+pub fn nika_event::fold::RunFact::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::fold::RunFact where T: 'static
+pub fn nika_event::fold::RunFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_event::fold::fold_one(path: &std::path::Path) -> nika_event::fold::RunFact
+pub fn nika_event::fold::fold_traces(dir: &std::path::Path, max: usize) -> (alloc::vec::Vec<nika_event::fold::RunFact>, bool, usize)
 pub mod nika_event::kind
 #[non_exhaustive] pub enum nika_event::kind::EventClass
 pub nika_event::kind::EventClass::Agent

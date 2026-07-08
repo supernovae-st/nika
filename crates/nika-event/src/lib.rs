@@ -49,6 +49,8 @@
 pub mod emitter;
 pub mod error;
 pub mod event;
+#[cfg(feature = "serde")]
+pub mod fold;
 pub mod kind;
 
 pub use emitter::{Emitter, InMemoryEmitter, NoOpEmitter};

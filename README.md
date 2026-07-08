@@ -139,8 +139,11 @@ meters real spend, and provenance is structural, not a promise:
 ## Daily commands
 
 ```sh
+nika welcome                         # the mirror · what Nika is + what it sees here · offline
+nika context --json                  # the whole workspace, audited, one JSON (agents start here)
 nika inspect flow.nika.yaml          # anatomy · tasks · waves · cost floor
 nika check flow.nika.yaml            # the audit · exit 0 clean · 2 findings
+nika explain flow.nika.yaml          # the story · waves · cost BEFORE a token · what it touches
 nika explain NIKA-VAR-001            # any code · cause · category · fix-form
 nika run flow.nika.yaml --var topic=rust   # launch inputs · repeatable
 nika test flow.nika.yaml --update    # pin the golden · then `nika test` = offline CI
@@ -264,7 +267,7 @@ Install (macOS · Linux):
 ```sh
 # Homebrew (macOS · Linux): on your PATH immediately
 brew install supernovae-st/tap/nika
-nika --version
+nika welcome   # thirty seconds: what Nika is + what it sees on this machine · offline
 
 # …or, without Homebrew: the install script. It downloads the verified release
 # binary into ~/.nika/bin and prints the single PATH line to add to your shell

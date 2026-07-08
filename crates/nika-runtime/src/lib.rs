@@ -807,6 +807,30 @@ fn with_named(mut record: TaskRecord, named: BTreeMap<String, Value>) -> TaskRec
 /// the terminal frame · the result record (spec §3.9). A SUCCESS with a
 /// resume stamp carries the ADR-099 identity + output on its
 /// `task_completed` frame (additive trace fields · the checkpoint).
+/// The attempt history, one `TaskRetrying` frame per retry — split from
+/// [`settle_ran`] at the 100-line cap (the block is self-contained: it
+/// reads only the retry ledger and touches no record state).
+fn emit_retry_history(
+    id: &str,
+    retries: &[task::RetryStamp],
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    for r in retries {
+        emit(
+            stamper,
+            sink,
+            EventKind::TaskRetrying,
+            &[
+                ("task", s(id)),
+                ("attempt", i(i64::from(r.attempt))),
+                ("max_attempts", i(i64::from(r.max_attempts))),
+                ("delay_ms", i(i64::try_from(r.delay_ms).unwrap_or(i64::MAX))),
+            ],
+        );
+    }
+}
+
 fn settle_ran(
     id: &str,
     run: task::RanTask,
@@ -821,19 +845,7 @@ fn settle_ran(
         EventKind::TaskStarted,
         &[("task", s(id)), ("note", s(&run.note))],
     );
-    for r in &run.retries {
-        emit(
-            stamper,
-            sink,
-            EventKind::TaskRetrying,
-            &[
-                ("task", s(id)),
-                ("attempt", i(i64::from(r.attempt))),
-                ("max_attempts", i(i64::from(r.max_attempts))),
-                ("delay_ms", i(i64::try_from(r.delay_ms).unwrap_or(i64::MAX))),
-            ],
-        );
-    }
+    emit_retry_history(id, &run.retries, stamper, sink);
     // The agent loop's decisions (ADR-096 · buffered per dispatch · in
     // order across attempts) land between the attempt history and the
     // terminal frame — readers reconstruct per-attempt interleaving
