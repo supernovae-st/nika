@@ -50,9 +50,11 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+mod coerce;
 mod errors;
 mod structured;
 
+use nika_types::cost::SpendOnFailure;
 use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
@@ -247,13 +249,20 @@ where
         // final response's usage under-billed retried tasks by up to
         // budget+1 × (the cost-undercount finding · deep review 2026-07-07).
         let mut usage_total = TokenUsage::default();
+        // Failure decoration — billed round-trips ride the error.
+        let incurred =
+            |u: &TokenUsage| Box::new(SpendOnFailure::new(u.clone(), None, Some(model.to_owned())));
         loop {
             attempts += 1;
             let request = build_request(&input, provider.name(), messages.clone(), wire);
-            let response = provider
-                .infer(request)
-                .await
-                .map_err(|source| VerbInferError::ProviderCall { source })?;
+            let response =
+                provider
+                    .infer(request)
+                    .await
+                    .map_err(|source| VerbInferError::ProviderCall {
+                        source,
+                        spend: incurred(&usage_total),
+                    })?;
             usage_total.absorb(&response.usage);
             let text = response_text(&response);
 
@@ -267,7 +276,7 @@ where
                 ));
             };
 
-            match structured::extract_and_validate(&text, validator) {
+            match structured::extract_and_validate(&text, validator, schema) {
                 structured::Validation::Valid(value) => {
                     return Ok(InferOutput::new(
                         InferValue::Structured(value),
@@ -277,24 +286,14 @@ where
                     ));
                 }
                 structured::Validation::Invalid(errors) => {
-                    // Terminal on either: (a) the retry budget is spent, or
-                    // (b) TRUNCATION fast-fail — a reply cut at `max_tokens`
-                    // cannot be repaired by re-asking at the SAME budget (the
-                    // identical request cuts again, and the retry message
-                    // makes the prompt LONGER), so every re-ask is a paid
-                    // call spent on a known failure class whose remedy is
-                    // the budget, not the schema. Providers document
-                    // length-exhaustion as its own escape hatch (structured
-                    // output explicitly does NOT hold across it); the
-                    // stop_reason_hint prints the actionable fix either way.
                     let truncated = matches!(response.stop_reason, StopReason::MaxTokens);
                     if truncated || attempts > u32::from(self.schema_retry_budget) {
-                        let detail = format!(
-                            "{}{}",
-                            errors.join("; "),
-                            stop_reason_hint(&response.stop_reason)
-                        );
-                        return Err(VerbInferError::SchemaValidation { attempts, detail });
+                        return Err(schema_failure(
+                            attempts,
+                            &errors,
+                            &response.stop_reason,
+                            incurred(&usage_total),
+                        ));
                     }
                     messages.push(Message::text(Role::Assistant, text));
                     messages.push(Message::text(
@@ -415,6 +414,30 @@ fn build_request(
 /// stopped for a reason that EXPLAINS the failure — truncation and content
 /// filtering otherwise masquerade as a bare schema mismatch, hiding the real
 /// cause. Empty for a normal stop (the schema genuinely went unmet).
+/// The terminal schema failure. Reached on either: (a) the retry budget
+/// is spent, or (b) TRUNCATION fast-fail — a reply cut at `max_tokens`
+/// cannot be repaired by re-asking at the SAME budget (the identical
+/// request cuts again, and the retry message makes the prompt LONGER),
+/// so every re-ask is a paid call spent on a known failure class whose
+/// remedy is the budget, not the schema. Providers document
+/// length-exhaustion as its own escape hatch (structured output
+/// explicitly does NOT hold across it); the `stop_reason_hint` prints
+/// the actionable fix either way. The billed round-trips ride the error
+/// as `spend` — a failed task is not a refunded task.
+fn schema_failure(
+    attempts: u32,
+    errors: &[String],
+    stop: &StopReason,
+    spend: Box<SpendOnFailure>,
+) -> VerbInferError {
+    let detail = format!("{}{}", errors.join("; "), stop_reason_hint(stop));
+    VerbInferError::SchemaValidation {
+        attempts,
+        detail,
+        spend,
+    }
+}
+
 fn stop_reason_hint(stop: &StopReason) -> &'static str {
     match stop {
         StopReason::MaxTokens => {
@@ -1001,8 +1024,16 @@ mod tests {
             .await
             .expect_err("truncation is terminal on first sight");
         match &err {
-            VerbInferError::SchemaValidation { attempts, detail } => {
+            VerbInferError::SchemaValidation {
+                attempts,
+                detail,
+                spend,
+            } => {
                 assert_eq!(*attempts, 1, "no blind re-ask at the same budget");
+                assert!(
+                    !spend.has_signal(),
+                    "the mock reports no usage — spend must not invent one"
+                );
                 assert!(
                     detail.contains("token limit"),
                     "the real fix named: {detail}"
@@ -1062,6 +1093,66 @@ mod tests {
             retry_prompt.contains("\"age\""),
             "the failed path is named: {retry_prompt}"
         );
+    }
+
+    /// The SAP-lite rescue deletes a paid retry: a reply whose only sin is
+    /// STRING-ENCODED scalars ("36" where an integer is declared · a
+    /// case-drifted enum) is repaired locally and lands in ONE round-trip —
+    /// the scripted second reply must never be requested.
+    #[tokio::test]
+    async fn coercible_reply_lands_in_one_round_trip() {
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":\"36\",\"field\":\" Mathematics \"}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":4}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36,\"field\":\"mathematics\"}"},"finish_reason":"stop"}],"usage":{}}"#,
+        ]);
+        let mut input = InferInput::new("extract the person");
+        input.schema = Some(json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" },
+                "age": { "type": "integer" },
+                "field": { "type": "string", "enum": ["physics", "mathematics"] }
+            },
+            "required": ["name", "age", "field"],
+            "additionalProperties": false
+        }));
+        let out = openai_verb(&seam)
+            .run(input)
+            .await
+            .expect("the rescue repairs locally");
+        match &out.output {
+            InferValue::Structured(v) => {
+                assert_eq!(v["age"], 36, "string-encoded integer coerced");
+                assert_eq!(v["field"], "mathematics", "enum case-snapped");
+            }
+            other => panic!("expected structured, got {other:?}"),
+        }
+        assert_eq!(
+            seam.captured().len(),
+            1,
+            "the coercion DELETED the retry round-trip"
+        );
+        assert_eq!(out.usage.input_tokens, 9, "one round-trip billed");
+    }
+
+    /// A miss the ladder cannot repair (a missing required member) still
+    /// takes the ordinary retry path — the rescue never masks real gaps.
+    #[tokio::test]
+    async fn uncoercible_miss_still_retries() {
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"stop"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{}}"#,
+        ]);
+        let mut input = InferInput::new("extract the person");
+        input.schema = Some(json!({
+            "type": "object",
+            "properties": { "name": { "type": "string" }, "age": { "type": "integer" } },
+            "required": ["name", "age"],
+            "additionalProperties": false
+        }));
+        let out = openai_verb(&seam).run(input).await.expect("retry conforms");
+        assert!(matches!(out.output, InferValue::Structured(_)));
+        assert_eq!(seam.captured().len(), 2, "a real gap still costs a retry");
     }
 
     /// A NORMAL stop that fails the schema stays a plain schema mismatch —
@@ -1190,10 +1281,11 @@ mod proptests {
         /// when it extracts, the candidate is real JSON.
         #[test]
         fn extraction_total_on_arbitrary_text(s in ".{0,400}") {
-            // Total function — must not panic.
-            let v = crate::structured::compile_schema(&serde_json::json!({ "type": "object" }))
+            // Total function — must not panic (the coercion pass included).
+            let schema = serde_json::json!({ "type": "object" });
+            let v = crate::structured::compile_schema(&schema)
                 .expect("trivial schema compiles");
-            let _ = crate::structured::extract_and_validate(&s, &v);
+            let _ = crate::structured::extract_and_validate(&s, &v, &schema);
         }
     }
 }

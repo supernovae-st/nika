@@ -30,6 +30,7 @@ const SCHEMA_RENDER_CAP: usize = 4096;
 /// task-authoring error mapped to NIKA-464 BEFORE any provider call).
 pub(crate) fn compile(schema: &serde_json::Value) -> Result<jsonschema::Validator, VerbAgentError> {
     jsonschema::validator_for(schema).map_err(|e| VerbAgentError::SchemaValidation {
+        spend: Box::default(),
         detail: format!("schema does not compile: {e}"),
     })
 }
@@ -72,6 +73,7 @@ pub(crate) fn shape_output(
     if let Err(error) = validator.validate(&candidate) {
         return Err(VerbAgentError::SchemaValidation {
             detail: error.to_string(),
+            spend: Box::default(),
         });
     }
     Ok(AgentValue::Structured(candidate))
@@ -87,6 +89,7 @@ pub(crate) fn candidate_of(value: AgentValue) -> Result<serde_json::Value, VerbA
         AgentValue::Text(text) => {
             extract_json(&text).ok_or_else(|| VerbAgentError::SchemaValidation {
                 detail: "final message contains no extractable JSON".to_owned(),
+                spend: Box::default(),
             })
         }
     }

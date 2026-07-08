@@ -21,13 +21,14 @@
 //! rounds both sides to micro-USD so accumulation dust one ULP over the
 //! nominal budget can never print « spent $X of $X — exceeded ».
 //!
-//! Known unmetered classes (documented, not silent): a provider
-//! round-trip that BILLS but whose verb then fails (schema repair
-//! exhausted · an agent erroring after N absorbed turns) reports no
-//! usage on the error path today — invisible to totals AND to the
-//! gate; threading usage through verb errors is the committed
-//! follow-up. `on_finally` cleanups ride the best-effort lane
-//! (outcome dropped by design) and never debit.
+//! Billed-then-failed spend IS metered (2026-07-08): the verbs
+//! decorate their loop-scoped errors with the incurred spend, the
+//! dispatch prices it, and the attempt loop debits it PER ATTEMPT —
+//! a retry storm cannot spend past the budget invisibly. Remaining
+//! unmetered classes (documented, not silent): a `timeout:`-killed
+//! attempt (the cancelled future reported nothing — nothing can
+//! honestly ride) and `on_finally` cleanups (best-effort lane ·
+//! outcome dropped by design).
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;

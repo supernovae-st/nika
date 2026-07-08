@@ -1,7 +1,7 @@
 ---
 id: ADR-094
 title: "nika-pck · content-addressed sharing — identity decentralized, discovery a forkable index, trust in the artifact"
-status: proposed
+status: accepted
 date: 2026-06-11
 phase: "Phase 3+ · post-v0.81 (v0.9x sharing suite)"
 deciders: ["@ThibautMelen"]
@@ -23,6 +23,14 @@ follow_ups:
 ---
 
 # ADR-094: nika-pck — content-addressed sharing with trust in the artifact
+
+> **ACCEPTED 2026-07-08** (operator ratification · D-2026-07-08-N2): the D4
+> reserved-core taxonomy is LOCKED and FCI-004's pck-types list is amended to
+> match in the same PR (the prior 9-list was aspirational — `recipe`/`shield`/
+> `lints` had zero code usage). This unblocks `nika-pck-manifest`, the 42nd
+> crate (the 42/42 master plan §2: closed `#[non_exhaustive]` ArtifactKind of
+> the 11 named classes + `CustomTool(String)` for `x-<vendor>:*`, total
+> deserialization).
 
 ## Context
 
