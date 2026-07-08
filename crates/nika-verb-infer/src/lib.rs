@@ -276,21 +276,30 @@ where
                         usage_total,
                     ));
                 }
-                structured::Validation::Invalid(detail) => {
-                    if attempts > u32::from(self.schema_retry_budget) {
-                        // Un-mask a truncated or filtered reply: without this,
-                        // "cut off before the JSON closed" reads as a plain
-                        // schema mismatch and sends the author chasing the
-                        // wrong fix (review lens 5). The retries already ran —
-                        // a tightened instruction can fix VERBOSE truncation —
-                        // so this only annotates the terminal failure.
-                        let detail = format!("{detail}{}", stop_reason_hint(&response.stop_reason));
+                structured::Validation::Invalid(errors) => {
+                    // Terminal on either: (a) the retry budget is spent, or
+                    // (b) TRUNCATION fast-fail — a reply cut at `max_tokens`
+                    // cannot be repaired by re-asking at the SAME budget (the
+                    // identical request cuts again, and the retry message
+                    // makes the prompt LONGER), so every re-ask is a paid
+                    // call spent on a known failure class whose remedy is
+                    // the budget, not the schema. Providers document
+                    // length-exhaustion as its own escape hatch (structured
+                    // output explicitly does NOT hold across it); the
+                    // stop_reason_hint prints the actionable fix either way.
+                    let truncated = matches!(response.stop_reason, StopReason::MaxTokens);
+                    if truncated || attempts > u32::from(self.schema_retry_budget) {
+                        let detail = format!(
+                            "{}{}",
+                            errors.join("; "),
+                            stop_reason_hint(&response.stop_reason)
+                        );
                         return Err(VerbInferError::SchemaValidation { attempts, detail });
                     }
                     messages.push(Message::text(Role::Assistant, text));
                     messages.push(Message::text(
                         Role::User,
-                        structured::retry_message(&detail, schema),
+                        structured::retry_message(&errors, schema),
                     ));
                 }
             }
@@ -928,6 +937,93 @@ mod tests {
         assert!(
             msg.contains("token limit"),
             "the cause must be named: {msg}"
+        );
+    }
+
+    /// The truncation FAST-FAIL: a reply cut at `max_tokens` is terminal on
+    /// FIRST sight even with retry budget remaining — the identical request
+    /// would cut again (same budget · longer prompt), so every re-ask is a
+    /// paid call spent on a failure class whose remedy is the budget, not
+    /// the schema. The scripted SECOND reply must never be requested.
+    #[tokio::test]
+    async fn truncated_reply_fails_fast_without_burning_the_retry_budget() {
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"length"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{}}"#,
+        ]);
+        let mut input = InferInput::new("extract the person");
+        input.schema = Some(json!({
+            "type": "object",
+            "properties": { "name": { "type": "string" }, "age": { "type": "integer" } },
+            "required": ["name", "age"],
+            "additionalProperties": false
+        }));
+        let err = openai_verb(&seam)
+            .with_schema_retry_budget(3)
+            .run(input)
+            .await
+            .expect_err("truncation is terminal on first sight");
+        match &err {
+            VerbInferError::SchemaValidation { attempts, detail } => {
+                assert_eq!(*attempts, 1, "no blind re-ask at the same budget");
+                assert!(
+                    detail.contains("token limit"),
+                    "the real fix named: {detail}"
+                );
+            }
+            other => panic!("expected SchemaValidation, got {other:?}"),
+        }
+        assert_eq!(
+            seam.captured().len(),
+            1,
+            "exactly one paid round-trip — the budget was NOT burned"
+        );
+    }
+
+    /// The retry message is a NUMBERED repair list with the localized-edit
+    /// framing (« fix exactly these · keep everything else identical ») —
+    /// not a prose dump. Pinned at the wire: the SECOND request's last user
+    /// message carries the list, the framing and the failed path.
+    #[tokio::test]
+    async fn retry_message_is_a_numbered_repair_list_at_the_wire() {
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"stop"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{}}"#,
+        ]);
+        let mut input = InferInput::new("extract the person");
+        input.schema = Some(json!({
+            "type": "object",
+            "properties": { "name": { "type": "string" }, "age": { "type": "integer" } },
+            "required": ["name", "age"],
+            "additionalProperties": false
+        }));
+        let out = openai_verb(&seam).run(input).await.expect("retry conforms");
+        assert!(matches!(out.output, InferValue::Structured(_)));
+
+        let captured = seam.captured();
+        assert_eq!(captured.len(), 2, "one miss · one repair");
+        let second: serde_json::Value =
+            serde_json::from_slice(captured[1].body.as_ref().expect("retry body")).expect("json");
+        let messages = second["messages"].as_array().expect("messages");
+        let retry_prompt = messages
+            .last()
+            .and_then(|m| m["content"].as_str())
+            .expect("the retry user message");
+        assert!(
+            retry_prompt.contains("Repair instructions"),
+            "{retry_prompt}"
+        );
+        assert!(
+            retry_prompt.contains("\n1. "),
+            "numbered list: {retry_prompt}"
+        );
+        assert!(
+            retry_prompt.contains("keep everything else identical"),
+            "localized-edit framing: {retry_prompt}"
+        );
+        assert!(
+            retry_prompt.contains("\"age\""),
+            "the failed path is named: {retry_prompt}"
         );
     }
 
