@@ -108,6 +108,9 @@ enum Command {
         /// Emit the versioned machine mirror (`welcome_version: 1`).
         #[arg(long)]
         json: bool,
+        /// Force the ASCII glyph theme (CI logs · legacy terminals).
+        #[arg(long)]
+        ascii: bool,
     },
     /// Static pre-flight: the ADR-092 ladder (audit BEFORE run).
     Check {
@@ -286,6 +289,16 @@ enum GraphFormatArg {
     Mermaid,
     /// Graphviz dot.
     Dot,
+}
+
+impl From<GraphFormatArg> for verbs::graph::GraphFormat {
+    fn from(arg: GraphFormatArg) -> Self {
+        match arg {
+            GraphFormatArg::Json => Self::Json,
+            GraphFormatArg::Mermaid => Self::Mermaid,
+            GraphFormatArg::Dot => Self::Dot,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -608,15 +621,14 @@ fn main() -> std::process::ExitCode {
             term_theme(color.with_no_color(no_color), ascii, link_when),
         ),
         Command::Inspect { file, ascii } => emit(&verbs::inspect::run(&file, ascii)),
-        Command::Graph { file, format } => {
-            let format = match format {
-                GraphFormatArg::Json => verbs::graph::GraphFormat::Json,
-                GraphFormatArg::Mermaid => verbs::graph::GraphFormat::Mermaid,
-                GraphFormatArg::Dot => verbs::graph::GraphFormat::Dot,
+        Command::Graph { file, format } => emit(&verbs::graph::run(&file, format.into())),
+        Command::Welcome { json, ascii } => {
+            let theme = Theme {
+                ascii,
+                ..plain_theme
             };
-            emit(&verbs::graph::run(&file, format))
+            emit(&verbs::welcome::run(json, theme))
         }
-        Command::Welcome { json } => emit(&verbs::welcome::run(json)),
         Command::Explain { code, json } => emit(&verbs::explain_file::dispatch(&code, json)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json)),
         Command::Init { dir, force, yes } => emit(&verbs::init::run(&dir, force, yes, plain_theme)),
