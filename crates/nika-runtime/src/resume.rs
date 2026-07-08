@@ -307,10 +307,11 @@ pub(crate) fn stamp(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
     vars: &BTreeMap<String, Value>,
+    env: &BTreeMap<String, Value>,
     ctx: &ResumeContext,
 ) -> Option<ResumeStamp> {
     let definition = definition_value(task)?;
-    let inputs = input_value(task, records, vars, &ctx.markers)?;
+    let inputs = input_value(task, records, vars, env, &ctx.markers)?;
     let key = ResumeKey::new(
         task.id.value.clone(),
         task.action.verb().to_owned(),
@@ -440,11 +441,13 @@ fn input_value(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
     vars: &BTreeMap<String, Value>,
+    env: &BTreeMap<String, Value>,
     markers: &BTreeMap<String, Value>,
 ) -> Option<Value> {
     let workflow_scope = Scope {
         records,
         vars,
+        env,
         secrets: markers,
         with_ns: None,
         item: None,
@@ -473,6 +476,7 @@ fn input_value(
     let base = Scope {
         records,
         vars,
+        env,
         secrets: markers,
         with_ns: None,
         item,
@@ -650,7 +654,7 @@ mod tests {
     ) -> Option<ResumeStamp> {
         let wf = parse(yaml);
         let ctx = no_secrets();
-        stamp(&wf.tasks[0].value, records, vars, &ctx)
+        stamp(&wf.tasks[0].value, records, vars, &BTreeMap::new(), &ctx)
     }
 
     fn success_record(output: Value) -> TaskRecord {
@@ -729,8 +733,22 @@ mod tests {
             &wf,
             &BTreeMap::from([("tok".to_owned(), json!("secret-value-2"))]),
         );
-        let a = stamp(&wf.tasks[0].value, &records, &vars, &ctx_v1).expect("eligible");
-        let b = stamp(&wf.tasks[0].value, &records, &vars, &ctx_v2).expect("eligible");
+        let a = stamp(
+            &wf.tasks[0].value,
+            &records,
+            &vars,
+            &BTreeMap::new(),
+            &ctx_v1,
+        )
+        .expect("eligible");
+        let b = stamp(
+            &wf.tasks[0].value,
+            &records,
+            &vars,
+            &BTreeMap::new(),
+            &ctx_v2,
+        )
+        .expect("eligible");
         assert_eq!(a, b, "a rotated secret VALUE does not re-key (by-name)");
 
         // A different declared reference (key path) IS a different identity.
@@ -740,7 +758,14 @@ mod tests {
             &wf2,
             &BTreeMap::from([("tok".to_owned(), json!("secret-value-1"))]),
         );
-        let c = stamp(&wf2.tasks[0].value, &records, &vars, &ctx2).expect("eligible");
+        let c = stamp(
+            &wf2.tasks[0].value,
+            &records,
+            &vars,
+            &BTreeMap::new(),
+            &ctx2,
+        )
+        .expect("eligible");
         assert_ne!(a.input_hash, c.input_hash, "reference identity re-keys");
     }
 
@@ -761,12 +786,12 @@ mod tests {
             success_record(json!("prefix hunter2-secret suffix")),
         )]);
         assert!(
-            stamp(&wf.tasks[0].value, &leaked, &vars, &ctx).is_none(),
+            stamp(&wf.tasks[0].value, &leaked, &vars, &BTreeMap::new(), &ctx).is_none(),
             "a secret value in the rendered inputs → not resume-eligible"
         );
         let clean = BTreeMap::from([("up".to_owned(), success_record(json!("safe")))]);
         assert!(
-            stamp(&wf.tasks[0].value, &clean, &vars, &ctx).is_some(),
+            stamp(&wf.tasks[0].value, &clean, &vars, &BTreeMap::new(), &ctx).is_some(),
             "the same task without the leak stays eligible"
         );
     }
@@ -946,8 +971,14 @@ mod trace_carry_tests {
         // Recompute the stamp from the same coordinates — it matches the
         // journaled fields (the skip predicate `--resume` evaluates).
         let ctx = super::ResumeContext::of(&wf, &BTreeMap::new());
-        let stamp = super::stamp(&wf.tasks[0].value, &BTreeMap::new(), &BTreeMap::new(), &ctx)
-            .expect("eligible");
+        let stamp = super::stamp(
+            &wf.tasks[0].value,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            &ctx,
+        )
+        .expect("eligible");
         assert_eq!(stamp.def_hash, def);
         assert_eq!(stamp.input_hash, input);
     }

@@ -809,6 +809,35 @@ mod tests {
     }
 
     #[test]
+    fn exec_env_can_forward_envelope_env_config() {
+        // The spec has two env layers: envelope `env:` config and
+        // `exec.env` subprocess variables. The latter commonly forwards the
+        // former (`QRCODE_AI_API_BASE: ${{ env.QRCODE_AI_API_BASE }}`); this
+        // must render after a green `nika check`.
+        let records = BTreeMap::new();
+        let vars = BTreeMap::new();
+        let env = BTreeMap::from([(
+            "QRCODE_AI_API_BASE".to_owned(),
+            Value::String("https://odin.qrcode-ai.com".to_owned()),
+        )]);
+        let secrets = BTreeMap::new();
+        let scope = Scope::workflow_with_env_and_secrets(&records, &vars, &env, &secrets);
+
+        let mut action = RawExecAction::with_command(RawCommand::Shell(spanned("printenv")));
+        action.env = vec![(
+            spanned("QRCODE_AI_API_BASE"),
+            spanned("${{ env.QRCODE_AI_API_BASE }}"),
+        )];
+
+        let mut input = ExecInput::shell("printenv");
+        render_exec_io(&mut input, &action, &scope).expect("renders");
+        assert_eq!(
+            input.env.get("QRCODE_AI_API_BASE").map(String::as_str),
+            Some("https://odin.qrcode-ai.com")
+        );
+    }
+
+    #[test]
     fn absent_exec_io_leaves_the_input_at_its_defaults() {
         let records = BTreeMap::new();
         let vars = BTreeMap::new();
