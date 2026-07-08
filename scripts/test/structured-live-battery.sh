@@ -93,7 +93,7 @@ while IFS=$'\t' read -r id model key_env base_url_env _notes; do
     t0=$(date +%s)
     out="$( { timeout 240 "$NIKA" run "$wf" --model "$model" --no-color --json; } 2>&1 )"; rc=$?
     # one retry ONLY on transport-class failures (5xx/timeout/connect) — never on assertion failures
-    if [ $rc -ne 0 ] && echo "$out" | grep -qiE 'HTTP 5[0-9][0-9]|timed? ?out|connection|temporar'; then
+    if [ $rc -ne 0 ] && echo "$out" | grep -qiE 'HTTP 5[0-9][0-9]|timed? ?out|connection|temporary|temporarily'; then
       sleep 3
       out="$( { timeout 240 "$NIKA" run "$wf" --model "$model" --no-color --json; } 2>&1 )"; rc=$?
     fi
