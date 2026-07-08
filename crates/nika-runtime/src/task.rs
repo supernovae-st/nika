@@ -448,16 +448,8 @@ where
                 .enumerate()
                 .take_while(|_| !ledger.tripped())
                 .map(|(index, item)| {
-                    self.run_iteration(
-                        task,
-                        records,
-                        vars,
-                        env,
-                        secrets,
-                        IterationLocals { item, index },
-                        permits,
-                        ledger,
-                    )
+                    let locals = IterationLocals { item, index };
+                    self.run_iteration(task, records, vars, env, secrets, locals, permits, ledger)
                 }),
         )
         .buffered(cap);

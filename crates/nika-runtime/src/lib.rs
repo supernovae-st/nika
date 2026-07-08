@@ -436,9 +436,14 @@ fn emit_prologue(
     }
 }
 
-/// The envelope's value view · `vars` defaults + `env` config + workflow name.
-fn envelope_values(wf: &RawWorkflow) -> (BTreeMap<String, Value>, BTreeMap<String, Value>, String) {
-    let vars = wf
+/// The envelope's value view · `vars` defaults (operator `--var`
+/// overrides win — F4 · they also give a `required: true` var without a
+/// default its value) + `env` config + the workflow name.
+fn envelope_values(
+    wf: &RawWorkflow,
+    overrides: &BTreeMap<String, Value>,
+) -> (BTreeMap<String, Value>, BTreeMap<String, Value>, String) {
+    let mut vars: BTreeMap<String, Value> = wf
         .vars
         .iter()
         .filter_map(|(key, decl)| {
@@ -451,6 +456,7 @@ fn envelope_values(wf: &RawWorkflow) -> (BTreeMap<String, Value>, BTreeMap<Strin
             Some((key.value.clone(), value))
         })
         .collect();
+    vars.extend(overrides.iter().map(|(k, v)| (k.clone(), v.clone())));
     let env = wf
         .env
         .iter()
@@ -493,12 +499,7 @@ where
         if !report.is_clean() {
             return Err(RuntimeError::DirtyReport);
         }
-        let (mut vars, env, workflow_name) = envelope_values(wf);
-        // Operator `--var` overrides win over the envelope defaults (F4) —
-        // and give a `required: true` var without a default its value.
-        for (key, value) in &self.var_overrides {
-            vars.insert(key.clone(), value.clone());
-        }
+        let (vars, env, workflow_name) = envelope_values(wf, &self.var_overrides);
         // Resolve the `secrets:` namespace ONCE at run start (MINOR-B · the
         // injected composer resolver reads env/file). A miss leaves that
         // secret unbound → its `${{ secrets.X }}` reference raises NIKA-1702
@@ -1252,7 +1253,7 @@ tasks:
             nika_schema::ParseMode::Strict,
         )
         .expect("parses");
-        let (vars, env, name) = envelope_values(&wf);
+        let (vars, env, name) = envelope_values(&wf, &BTreeMap::new());
         assert_eq!(name, "vals");
         assert_eq!(
             env["API_BASE"],
