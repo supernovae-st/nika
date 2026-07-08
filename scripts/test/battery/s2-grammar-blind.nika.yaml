@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Battery S2 — the LOCAL-validation floor: `uniqueItems` + `not` are
+# grammar-BLIND on every provider's constrained-decoding engine, so the
+# run only passes if the ENGINE validates locally after extraction.
+# Expected: exit 0 · task success · usage > 0.
+nika: v1
+workflow: battery-s2-grammar-blind
+model: mock/echo
+
+tasks:
+  - id: primes
+    infer:
+      prompt: |
+        Name four distinct prime numbers under fifty, smallest first.
+      max_tokens: 200
+      schema:
+        type: object
+        required: [primes]
+        additionalProperties: false
+        not:
+          required: [error]
+        properties:
+          primes:
+            type: array
+            items: { type: integer }
+            uniqueItems: true
+            minItems: 4
+            maxItems: 4
+
+outputs:
+  primes:
+    value: ${{ tasks.primes.output }}
+    type: object
+    description: "four distinct primes — uniqueItems enforced locally"
