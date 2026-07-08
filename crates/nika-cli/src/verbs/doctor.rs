@@ -531,7 +531,8 @@ mod tests {
     use nika_providers::ProviderRegistry;
 
     use super::*;
-    use crate::verbs::probe::{client_probe_any, env_present, ping_addr, spawn_ping};
+    use crate::verbs::probe::client_probe_any;
+    use nika_providers::probe::{env_present, ping_addr, spawn_ping};
 
     /// The sober register — the byte-frozen baseline every pipe reads.
     const PLAIN: Theme = Theme::new(false, false, false);

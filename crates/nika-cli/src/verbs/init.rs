@@ -61,6 +61,9 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
   zero keys, the CI gate.
 - **Diagnose** · `nika doctor` — the environment (providers · keys · config).
   `nika welcome` is the short mirror (machine · workspace · next commands).
+- **Context** · `nika context --json` — the whole workspace truth in one
+  call (every workflow audited · recent runs · costs · capped and says
+  so). Read it before proposing edits.
 - **Explain** · `nika explain NIKA-XXXX` teaches one error code ·
   `nika explain <file>` narrates a workflow (waves · cost · touches · how
   to run) — read it before handing a workflow to a human.

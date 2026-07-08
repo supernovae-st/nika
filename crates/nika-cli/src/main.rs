@@ -113,6 +113,18 @@ enum Command {
         #[arg(long)]
         ascii: bool,
     },
+    /// The whole workspace truth in ONE call — every workflow audited
+    /// (verdict · tasks · waves · cost honesty · permits), recent runs
+    /// folded from the flight recorder, the machine facts. Capped and
+    /// says so; facts, never file contents.
+    Context {
+        /// Emit the versioned machine aggregate (`context_version: 1`).
+        #[arg(long)]
+        json: bool,
+        /// Force the ASCII glyph theme (CI logs · legacy terminals).
+        #[arg(long)]
+        ascii: bool,
+    },
     /// Static pre-flight: the ADR-092 ladder (audit BEFORE run).
     Check {
         /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
@@ -671,12 +683,11 @@ fn main() -> std::process::ExitCode {
         ),
         Command::Inspect { file, ascii } => emit(&verbs::inspect::run(&file, ascii)),
         Command::Graph { file, format } => emit(&verbs::graph::run(&file, format.into())),
+        Command::Context { json, ascii } => {
+            emit(&verbs::context::run(json, with_ascii(plain_theme, ascii)))
+        }
         Command::Welcome { json, ascii } => {
-            let theme = Theme {
-                ascii,
-                ..plain_theme
-            };
-            emit(&verbs::welcome::run(json, theme))
+            emit(&verbs::welcome::run(json, with_ascii(plain_theme, ascii)))
         }
         Command::Explain { code, json } => emit(&explain_dispatch(&code, json, plain_theme)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
@@ -1044,6 +1055,12 @@ fn recover_events(raw: &str, label: &str) -> Result<Vec<Event>, String> {
         eprintln!("nika-cli: {note} — rendering the recovered prefix");
     }
     Ok(recovered.events)
+}
+
+/// Fold a verb's `--ascii` flag onto the shared plain theme — the
+/// mirror-family verbs (welcome · context) all speak it.
+fn with_ascii(base: Theme, ascii: bool) -> Theme {
+    Theme { ascii, ..base }
 }
 
 /// Read a boolean presentation flag from the environment.

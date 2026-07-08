@@ -1105,3 +1105,66 @@ fn the_dag_draws_in_the_terminal() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// `nika context` — the workspace aggregate at the binary plane: the
+/// inventory audits, the wire versions, relative paths only, and the
+/// canary key VALUE never reaches a byte (the aggregate reads the SAME
+/// presence-only probe as welcome/doctor).
+#[test]
+fn context_aggregates_the_workspace_value_free() {
+    let canary = "hunter2-CONTEXT-CANARY-never-printed";
+    let dir = std::env::temp_dir().join(format!("nika-smoke-context-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("flows")).expect("mkdir");
+    write_fixture(
+        &dir,
+        "good.nika.yaml",
+        "nika: v1\nworkflow: smoke-good\nmodel: mock/echo\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
+    );
+    write_fixture(
+        &dir.join("flows"),
+        "bad.nika.yaml",
+        "nika: v1\nworkflow: smoke-bad\ntasks:\n  - id: a\n    exec: { command: \"echo x\" }\n  - id: b\n    depends_on: [a]\n    when: maybe\n    exec: { command: \"echo y\" }\n",
+    );
+    let out = bin()
+        .arg("context")
+        .arg("--json")
+        .current_dir(&dir)
+        .env("ANTHROPIC_API_KEY", canary)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    let raw = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{raw}");
+    assert!(
+        !raw.contains(canary),
+        "no key VALUE in the aggregate: {raw}"
+    );
+    let v: serde_json::Value = serde_json::from_str(raw.trim()).expect("context --json parses");
+    assert_eq!(v["context_version"], 1);
+    let flows = v["workspace"]["workflows"].as_array().expect("array");
+    assert_eq!(flows.len(), 2, "{raw}");
+    assert!(
+        flows
+            .iter()
+            .all(|f| !f["path"].as_str().unwrap_or("/").starts_with('/')),
+        "relative paths only: {raw}"
+    );
+    assert_eq!(v["rollups"]["workflows_clean"], 1);
+    assert_eq!(v["rollups"]["workflows_with_findings"], 1);
+
+    // The human map renders both rows and hands over to the twin.
+    let human = bin()
+        .arg("context")
+        .current_dir(&dir)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    let text = String::from_utf8_lossy(&human.stdout);
+    assert_eq!(human.status.code(), Some(0), "{text}");
+    assert!(
+        text.contains("good.nika.yaml") && text.contains("clean"),
+        "{text}"
+    );
+    assert!(text.contains("nika context --json"), "{text}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

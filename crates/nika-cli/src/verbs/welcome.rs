@@ -90,53 +90,14 @@ fn glance(dir: &Path) -> Glance {
         .ancestors()
         .any(|a| a.join(".git").exists());
     let mut budget = 4000usize;
-    let workflows = count_workflows(dir, 4, &mut budget);
+    let mut paths = Vec::new();
+    probe::collect_workflow_paths(dir, dir, 4, &mut budget, &mut paths);
+    let workflows = paths.len();
     Glance {
         git,
         workflows,
         agents_md: dir.join("AGENTS.md").exists(),
     }
-}
-
-/// Directories a glance never enters — dependency/build trees dwarf the
-/// workspace and a greeting has a latency budget, not a completeness one.
-const SKIP_DIRS: [&str; 8] = [
-    ".git",
-    "node_modules",
-    "target",
-    ".venv",
-    "venv",
-    "dist",
-    "build",
-    "vendor",
-];
-
-fn count_workflows(dir: &Path, depth: u8, budget: &mut usize) -> usize {
-    if depth == 0 || *budget == 0 {
-        return 0;
-    }
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return 0;
-    };
-    let mut n = 0;
-    for entry in entries.flatten() {
-        if *budget == 0 {
-            break;
-        }
-        *budget -= 1;
-        let path = entry.path();
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if path.is_dir() {
-            if name.starts_with('.') || SKIP_DIRS.contains(&name.as_ref()) {
-                continue;
-            }
-            n += count_workflows(&path, depth - 1, budget);
-        } else if name.ends_with(".nika.yaml") || name.ends_with(".nika.yml") {
-            n += 1;
-        }
-    }
-    n
 }
 
 /// The wired/unwired glyph pair — ✓/✗ with an ASCII column (`+`/`x`),
@@ -346,29 +307,13 @@ fn cloud_key_counts(providers: &[ProviderProbe]) -> (usize, usize) {
 /// Names and booleans and counts, by construction: nothing in the probe
 /// carries a value a secret could ride.
 fn render_json(probe: &Probe, glance: Glance, counts: EngineCounts) -> String {
-    let (present, total) = cloud_key_counts(&probe.providers);
-    let clients: Vec<serde_json::Value> = probe
-        .clients
-        .iter()
-        .map(|c| serde_json::json!({ "id": c.id, "wired": c.current }))
-        .collect();
-    let locals: Vec<&str> = probe
-        .providers
-        .iter()
-        .filter(|p| !p.requires_key)
-        .map(|p| p.id.as_str())
-        .collect();
     let start: Vec<&str> = START.iter().map(|(cmd, _)| *cmd).collect();
+    let mut machine = probe::environment_json(probe);
+    machine["config"] = serde_json::json!(probe.config_path);
     serde_json::json!({
         "welcome_version": 1,
         "version": probe.version,
-        "machine": {
-            "clients": clients,
-            "local_providers": locals,
-            "cloud_keys_present": present,
-            "cloud_keys_total": total,
-            "config": probe.config_path,
-        },
+        "machine": machine,
         "workspace": {
             "git": glance.git,
             "workflows": glance.workflows,
