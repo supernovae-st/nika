@@ -12,6 +12,7 @@
 
 pub mod catalog;
 pub mod check;
+pub mod context;
 pub mod dap;
 pub mod doctor;
 pub mod explain;
