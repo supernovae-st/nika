@@ -78,7 +78,7 @@ pub(crate) fn prompt_block(
     let SettleAs::Ran(ran) = &finish.settle else {
         return None;
     };
-    let RunResult::Failed { error } = &ran.result else {
+    let RunResult::Failed { error, .. } = &ran.result else {
         return None;
     };
     if error.code != PROMPT_BLOCKED_CODE {
@@ -180,6 +180,8 @@ mod tests {
                         message: "non-interactive and no `default:`".to_owned(),
                         transient: false,
                     },
+                    cost_usd: None,
+                    cost_unpriced: None,
                 },
             }),
             named: BTreeMap::new(),

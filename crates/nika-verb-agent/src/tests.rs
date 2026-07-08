@@ -307,7 +307,7 @@ async fn max_turns_fails_with_partial_output() {
     let err = r.verb.run(input).await.expect_err("budget failure");
     assert!(matches!(
         &err,
-        VerbAgentError::MaxTurns { turns: 3, partial_output }
+        VerbAgentError::MaxTurns { turns: 3, partial_output, .. }
             if partial_output == "calling nika:read"
     ));
 }
@@ -331,7 +331,7 @@ async fn max_tokens_total_fails_at_the_exact_boundary_before_dispatch() {
     assert!(
         matches!(
             &err,
-            VerbAgentError::MaxTokens { total_tokens: 15, partial_output }
+            VerbAgentError::MaxTokens { total_tokens: 15, partial_output, .. }
                 if partial_output == "calling nika:read"
         ),
         "{err}"
@@ -438,7 +438,7 @@ async fn whitelist_violation_on_second_tool_dispatches_neither() {
     let err = r.verb.run(input).await.expect_err("security stop");
     assert!(matches!(
         &err,
-        VerbAgentError::WhitelistViolation { tool } if tool == "nika:write"
+        VerbAgentError::WhitelistViolation { tool, .. } if tool == "nika:write"
     ));
     assert!(
         r.tools.captured_calls().is_empty(),
@@ -564,6 +564,70 @@ async fn inference_error_mid_loop_maps_to_463() {
     let err = r.verb.run(input).await.expect_err("provider error");
     assert!(matches!(err, VerbAgentError::Inference { .. }), "{err}");
     assert_eq!(nika_error::traits::NikaErrorCode::nika_code(&err).num, 463);
+    // Cost Intelligence follow-up: the turns that DID run are real
+    // money — the error carries their spend (usage + model) so the
+    // dispatch layer can price it and the budget gate can see it.
+    let spend = err
+        .spend()
+        .expect("a billed turn preceded the failure — spend rides the error");
+    assert!(
+        spend.usage.input_tokens + spend.usage.output_tokens > 0,
+        "turn 1's absorbed usage survives the turn-2 failure"
+    );
+    assert_eq!(spend.model_resolved.as_deref(), Some("mock/agent"));
+}
+
+// ── Cost Intelligence · billed-then-failed spend rides the error ────
+
+#[tokio::test]
+async fn failed_loop_carries_tool_spend_for_the_ledger() {
+    // Turn 1 dispatches a PRICED tool ($0.06 via the honest-spend
+    // channel) · turn 2's provider call dies — the loop's tool spend
+    // must not vanish with the failure (it already happened).
+    use nika_kernel::ai::provider::ProviderError;
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(tool_use_response("c", "nika:read", serde_json::json!({})))
+            .enqueue_error(ProviderError::Api {
+                status: 500,
+                message: "upstream 500".to_owned(),
+            }),
+        MockToolExecutor::new().enqueue_ok(
+            ToolResult::success("c", "rendered")
+                .with_structured(serde_json::json!({"ok": true, "cost_usd": 0.06})),
+        ),
+        vec![def("nika:read")],
+    );
+    let mut input = AgentInput::new("burns a paid tool then dies");
+    input.tools = vec!["nika:read".to_owned()];
+    let err = r.verb.run(input).await.expect_err("provider error");
+    let spend = err.spend().expect("spend rides");
+    assert_eq!(
+        spend.tools_cost_usd,
+        Some(0.06),
+        "the tool's real spend survives the loop failure"
+    );
+}
+
+#[tokio::test]
+async fn pre_loop_failures_carry_no_spend() {
+    // InvalidParam fires before any provider call — nothing was billed,
+    // nothing rides (a zero-signal spend must read as None).
+    let r = rig(
+        MockProvider::new("mock"),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let err = r
+        .verb
+        .run(AgentInput::new(""))
+        .await
+        .expect_err("empty prompt refused");
+    assert!(matches!(err, VerbAgentError::InvalidParam { .. }), "{err}");
+    assert!(
+        err.spend().is_none(),
+        "no billed call → no spend decoration"
+    );
 }
 
 // ── §6 · whitelist violation = immediate, zero dispatch ─────────────
@@ -584,7 +648,7 @@ async fn whitelist_violation_fails_immediately_with_zero_dispatch() {
     let err = r.verb.run(input).await.expect_err("security stop");
     assert!(matches!(
         &err,
-        VerbAgentError::WhitelistViolation { tool } if tool == "nika:write"
+        VerbAgentError::WhitelistViolation { tool, .. } if tool == "nika:write"
     ));
     assert!(
         r.tools.captured_calls().is_empty(),
@@ -976,7 +1040,7 @@ async fn control_char_tool_name_is_a_redacted_violation_zero_dispatch() {
     let mut input = AgentInput::new("inject");
     input.tools = vec!["nika:*".to_owned()];
     let err = r.verb.run(input).await.expect_err("violation");
-    let VerbAgentError::WhitelistViolation { tool } = &err else {
+    let VerbAgentError::WhitelistViolation { tool, .. } = &err else {
         panic!("expected WhitelistViolation, got {err}");
     };
     assert!(

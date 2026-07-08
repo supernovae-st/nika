@@ -123,25 +123,34 @@ pub mod nika_verb_agent::errors
 #[non_exhaustive] pub enum nika_verb_agent::errors::VerbAgentError
 pub nika_verb_agent::errors::VerbAgentError::Inference
 pub nika_verb_agent::errors::VerbAgentError::Inference::source: nika_kernel_ai::provider::ProviderError
+pub nika_verb_agent::errors::VerbAgentError::Inference::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::InvalidParam
 pub nika_verb_agent::errors::VerbAgentError::InvalidParam::detail: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::InvalidParam::param: &'static str
 pub nika_verb_agent::errors::VerbAgentError::MaxTokens
 pub nika_verb_agent::errors::VerbAgentError::MaxTokens::partial_output: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::MaxTokens::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::MaxTokens::total_tokens: u64
 pub nika_verb_agent::errors::VerbAgentError::MaxTurns
 pub nika_verb_agent::errors::VerbAgentError::MaxTurns::partial_output: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::MaxTurns::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::MaxTurns::turns: u32
 pub nika_verb_agent::errors::VerbAgentError::SchemaValidation
 pub nika_verb_agent::errors::VerbAgentError::SchemaValidation::detail: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::SchemaValidation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::Stalled
 pub nika_verb_agent::errors::VerbAgentError::Stalled::partial_output: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::Stalled::period: u32
 pub nika_verb_agent::errors::VerbAgentError::Stalled::repeats: u32
+pub nika_verb_agent::errors::VerbAgentError::Stalled::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::ToolDefs
 pub nika_verb_agent::errors::VerbAgentError::ToolDefs::source: nika_kernel_ai::tool_defs::ToolDefsError
 pub nika_verb_agent::errors::VerbAgentError::WhitelistViolation
+pub nika_verb_agent::errors::VerbAgentError::WhitelistViolation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::WhitelistViolation::tool: alloc::string::String
+impl nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::spend(&self) -> core::option::Option<&nika_types::cost::SpendOnFailure>
+pub fn nika_verb_agent::errors::VerbAgentError::with_spend(self, incurred: nika_types::cost::SpendOnFailure) -> Self
 impl core::error::Error for nika_verb_agent::errors::VerbAgentError
 pub fn nika_verb_agent::errors::VerbAgentError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 impl core::fmt::Debug for nika_verb_agent::errors::VerbAgentError
@@ -684,25 +693,34 @@ pub fn nika_verb_agent::observe::ToolSource::as_out(&mut self) -> outref::Out<'_
 #[non_exhaustive] pub enum nika_verb_agent::VerbAgentError
 pub nika_verb_agent::VerbAgentError::Inference
 pub nika_verb_agent::VerbAgentError::Inference::source: nika_kernel_ai::provider::ProviderError
+pub nika_verb_agent::VerbAgentError::Inference::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::InvalidParam
 pub nika_verb_agent::VerbAgentError::InvalidParam::detail: alloc::string::String
 pub nika_verb_agent::VerbAgentError::InvalidParam::param: &'static str
 pub nika_verb_agent::VerbAgentError::MaxTokens
 pub nika_verb_agent::VerbAgentError::MaxTokens::partial_output: alloc::string::String
+pub nika_verb_agent::VerbAgentError::MaxTokens::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::MaxTokens::total_tokens: u64
 pub nika_verb_agent::VerbAgentError::MaxTurns
 pub nika_verb_agent::VerbAgentError::MaxTurns::partial_output: alloc::string::String
+pub nika_verb_agent::VerbAgentError::MaxTurns::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::MaxTurns::turns: u32
 pub nika_verb_agent::VerbAgentError::SchemaValidation
 pub nika_verb_agent::VerbAgentError::SchemaValidation::detail: alloc::string::String
+pub nika_verb_agent::VerbAgentError::SchemaValidation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::Stalled
 pub nika_verb_agent::VerbAgentError::Stalled::partial_output: alloc::string::String
 pub nika_verb_agent::VerbAgentError::Stalled::period: u32
 pub nika_verb_agent::VerbAgentError::Stalled::repeats: u32
+pub nika_verb_agent::VerbAgentError::Stalled::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::ToolDefs
 pub nika_verb_agent::VerbAgentError::ToolDefs::source: nika_kernel_ai::tool_defs::ToolDefsError
 pub nika_verb_agent::VerbAgentError::WhitelistViolation
+pub nika_verb_agent::VerbAgentError::WhitelistViolation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::WhitelistViolation::tool: alloc::string::String
+impl nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::spend(&self) -> core::option::Option<&nika_types::cost::SpendOnFailure>
+pub fn nika_verb_agent::errors::VerbAgentError::with_spend(self, incurred: nika_types::cost::SpendOnFailure) -> Self
 impl core::error::Error for nika_verb_agent::errors::VerbAgentError
 pub fn nika_verb_agent::errors::VerbAgentError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 impl core::fmt::Debug for nika_verb_agent::errors::VerbAgentError

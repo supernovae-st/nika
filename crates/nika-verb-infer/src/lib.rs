@@ -54,6 +54,7 @@ mod coerce;
 mod errors;
 mod structured;
 
+use nika_types::cost::SpendOnFailure;
 use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
@@ -248,13 +249,20 @@ where
         // final response's usage under-billed retried tasks by up to
         // budget+1 × (the cost-undercount finding · deep review 2026-07-07).
         let mut usage_total = TokenUsage::default();
+        // Failure decoration — billed round-trips ride the error.
+        let incurred =
+            |u: &TokenUsage| Box::new(SpendOnFailure::new(u.clone(), None, Some(model.to_owned())));
         loop {
             attempts += 1;
             let request = build_request(&input, provider.name(), messages.clone(), wire);
-            let response = provider
-                .infer(request)
-                .await
-                .map_err(|source| VerbInferError::ProviderCall { source })?;
+            let response =
+                provider
+                    .infer(request)
+                    .await
+                    .map_err(|source| VerbInferError::ProviderCall {
+                        source,
+                        spend: incurred(&usage_total),
+                    })?;
             usage_total.absorb(&response.usage);
             let text = response_text(&response);
 
@@ -278,24 +286,14 @@ where
                     ));
                 }
                 structured::Validation::Invalid(errors) => {
-                    // Terminal on either: (a) the retry budget is spent, or
-                    // (b) TRUNCATION fast-fail — a reply cut at `max_tokens`
-                    // cannot be repaired by re-asking at the SAME budget (the
-                    // identical request cuts again, and the retry message
-                    // makes the prompt LONGER), so every re-ask is a paid
-                    // call spent on a known failure class whose remedy is
-                    // the budget, not the schema. Providers document
-                    // length-exhaustion as its own escape hatch (structured
-                    // output explicitly does NOT hold across it); the
-                    // stop_reason_hint prints the actionable fix either way.
                     let truncated = matches!(response.stop_reason, StopReason::MaxTokens);
                     if truncated || attempts > u32::from(self.schema_retry_budget) {
-                        let detail = format!(
-                            "{}{}",
-                            errors.join("; "),
-                            stop_reason_hint(&response.stop_reason)
-                        );
-                        return Err(VerbInferError::SchemaValidation { attempts, detail });
+                        return Err(schema_failure(
+                            attempts,
+                            &errors,
+                            &response.stop_reason,
+                            incurred(&usage_total),
+                        ));
                     }
                     messages.push(Message::text(Role::Assistant, text));
                     messages.push(Message::text(
@@ -416,6 +414,30 @@ fn build_request(
 /// stopped for a reason that EXPLAINS the failure — truncation and content
 /// filtering otherwise masquerade as a bare schema mismatch, hiding the real
 /// cause. Empty for a normal stop (the schema genuinely went unmet).
+/// The terminal schema failure. Reached on either: (a) the retry budget
+/// is spent, or (b) TRUNCATION fast-fail — a reply cut at `max_tokens`
+/// cannot be repaired by re-asking at the SAME budget (the identical
+/// request cuts again, and the retry message makes the prompt LONGER),
+/// so every re-ask is a paid call spent on a known failure class whose
+/// remedy is the budget, not the schema. Providers document
+/// length-exhaustion as its own escape hatch (structured output
+/// explicitly does NOT hold across it); the `stop_reason_hint` prints
+/// the actionable fix either way. The billed round-trips ride the error
+/// as `spend` — a failed task is not a refunded task.
+fn schema_failure(
+    attempts: u32,
+    errors: &[String],
+    stop: &StopReason,
+    spend: Box<SpendOnFailure>,
+) -> VerbInferError {
+    let detail = format!("{}{}", errors.join("; "), stop_reason_hint(stop));
+    VerbInferError::SchemaValidation {
+        attempts,
+        detail,
+        spend,
+    }
+}
+
 fn stop_reason_hint(stop: &StopReason) -> &'static str {
     match stop {
         StopReason::MaxTokens => {
@@ -1002,8 +1024,16 @@ mod tests {
             .await
             .expect_err("truncation is terminal on first sight");
         match &err {
-            VerbInferError::SchemaValidation { attempts, detail } => {
+            VerbInferError::SchemaValidation {
+                attempts,
+                detail,
+                spend,
+            } => {
                 assert_eq!(*attempts, 1, "no blind re-ask at the same budget");
+                assert!(
+                    !spend.has_signal(),
+                    "the mock reports no usage — spend must not invent one"
+                );
                 assert!(
                     detail.contains("token limit"),
                     "the real fix named: {detail}"
