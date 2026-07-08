@@ -19,41 +19,54 @@
 //! proofs paid for. Deep assertions go past exit codes: the stamped file
 //! must re-`check` clean through a second binary invocation, cancel must
 //! leave the directory empty, `NO_COLOR` must strip every escape even on
-//! a terminal.
+//! a terminal. Panic safety is structural: scenario dirs are RAII
+//! (`tempfile`) and `ptyprocess::Drop` force-exits a still-alive child,
+//! so a failing assertion leaks neither files nor processes.
 
 use std::process::Command;
 use std::time::Duration;
 
-use expectrl::process::unix::WaitStatus;
-use expectrl::session::OsSession;
+use expectrl::process::unix::{PtyStream, UnixProcess, WaitStatus};
+use expectrl::session::{OsSession, Session};
+use expectrl::stream::log::LogStream;
 use expectrl::{ControlCode, Eof, Expect};
+
+/// The session type with its transcript teed to the test's stderr —
+/// invisible on success (the harness captures it), PRICELESS on a CI
+/// timeout: `ExpectTimeout` carries no buffer, so without the tee a
+/// headless failure is undebuggable (rust-pro finding #3).
+type LoggedSession = Session<UnixProcess, LogStream<PtyStream, std::io::Stderr>>;
 
 fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_nika-cli")
 }
 
-fn fresh_dir(tag: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("nika-pty-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("tmp dir");
-    dir
+/// RAII scenario dir — cleans itself even when an assertion PANICS
+/// (the manual `remove_dir_all` version provably leaked orphan dirs on
+/// the suite's first red run).
+fn fresh_dir(tag: &str) -> tempfile::TempDir {
+    tempfile::Builder::new()
+        .prefix(&format!("nika-pty-{tag}-"))
+        .tempdir()
+        .expect("tmp dir")
 }
 
 /// Spawn `nika <args>` on a PTY in `dir`. `plain` = `NO_COLOR` (keeps the
 /// transcript byte-assertable); one test drops it to prove colour lives.
-fn spawn_pty(dir: &std::path::Path, args: &[&str], plain: bool) -> OsSession {
+fn spawn_pty(dir: &std::path::Path, args: &[&str], plain: bool) -> LoggedSession {
     let mut cmd = Command::new(bin());
     cmd.args(args).current_dir(dir);
     if plain {
         cmd.env("NO_COLOR", "1");
     }
-    let mut session = OsSession::spawn(cmd).expect("pty spawn");
+    let session = OsSession::spawn(cmd).expect("pty spawn");
+    let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(30)));
     session
 }
 
 /// Exit code of the finished session (unix wait status).
-fn exit_code(session: &mut OsSession) -> i32 {
+fn exit_code(session: &mut LoggedSession) -> i32 {
     match session.get_process_mut().wait().expect("wait") {
         WaitStatus::Exited(_, code) => code,
         other => panic!("process did not exit cleanly: {other:?}"),
@@ -63,7 +76,8 @@ fn exit_code(session: &mut OsSession) -> i32 {
 #[test]
 fn golden_path_lands_a_checked_workflow() {
     let dir = fresh_dir("golden");
-    let mut p = spawn_pty(&dir, &["new"], true);
+    let dir = dir.path();
+    let mut p = spawn_pty(dir, &["new"], true);
 
     p.expect("your first workflow").expect("header");
     p.expect("what should it do?").expect("q1");
@@ -83,7 +97,7 @@ fn golden_path_lands_a_checked_workflow() {
     let m = p.expect(Eof).expect("conversation ends");
     assert!(
         !String::from_utf8_lossy(m.as_bytes()).contains("error"),
-        "clean transcript"
+        "clean TAIL after the last anchor (the tee holds the full transcript)"
     );
     assert_eq!(exit_code(&mut p), 0, "spec §4 · success");
 
@@ -91,7 +105,7 @@ fn golden_path_lands_a_checked_workflow() {
     // re-audits the stamped file clean (own-corpus law end to end).
     let check = Command::new(bin())
         .args(["check", "my-first.nika.yaml"])
-        .current_dir(&dir)
+        .current_dir(dir)
         .output()
         .expect("check runs");
     assert_eq!(
@@ -100,13 +114,13 @@ fn golden_path_lands_a_checked_workflow() {
         "the wizard's file re-checks clean: {}",
         String::from_utf8_lossy(&check.stdout)
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn intent_routes_and_the_file_is_stamped() {
     let dir = fresh_dir("intent");
-    let mut p = spawn_pty(&dir, &["new"], true);
+    let dir = dir.path();
+    let mut p = spawn_pty(dir, &["new"], true);
 
     p.expect("what should it do?").expect("q1");
     p.send_line("summarize every item in parallel")
@@ -130,13 +144,13 @@ fn intent_routes_and_the_file_is_stamped() {
         "the intent is the description"
     );
     assert!(written.contains("model: mock/echo"), "menu pick stamped");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn no_model_skeleton_completes_in_two_answers() {
     let dir = fresh_dir("permodel");
-    let mut p = spawn_pty(&dir, &["new"], true);
+    let dir = dir.path();
+    let mut p = spawn_pty(dir, &["new"], true);
 
     p.expect("what should it do?").expect("q1");
     p.send_line("gate-and-act").expect("exact template name");
@@ -159,14 +173,36 @@ fn no_model_skeleton_completes_in_two_answers() {
     assert!(transcript.contains("models per-task"), "honest summary");
     assert!(transcript.contains("audited"), "ladder still runs");
     assert_eq!(exit_code(&mut p), 0);
-    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn dest_hint_door_honors_the_given_name() {
+    // The third door: `nika new some-name.nika.yaml` bare on a terminal —
+    // a dest but no --from. The wizard runs with the GIVEN name as the
+    // file default (dispatch passes it as dest_hint), so Enter keeps it.
+    let dir = fresh_dir("hint");
+    let dir = dir.path();
+    let mut p = spawn_pty(dir, &["new", "team-standup"], true);
+
+    p.expect("what should it do?").expect("q1");
+    p.send_line("").expect("enter");
+    p.expect("[team-standup]").expect("the hint IS the default");
+    p.send_line("").expect("enter");
+    p.expect("a number, or any provider/model").expect("q3");
+    p.send_line("").expect("enter");
+    p.expect("stamped workflow `team-standup`")
+        .expect("id from the hint");
+    p.expect(Eof).expect("ends");
+    assert_eq!(exit_code(&mut p), 0);
+    assert!(dir.join("team-standup.nika.yaml").is_file());
 }
 
 #[test]
 fn collision_walk_defaults_to_my_second() {
     let dir = fresh_dir("collide");
+    let dir = dir.path();
     std::fs::write(dir.join("my-first.nika.yaml"), "taken").expect("seed");
-    let mut p = spawn_pty(&dir, &["new"], true);
+    let mut p = spawn_pty(dir, &["new"], true);
 
     p.expect("what should it do?").expect("q1");
     p.send_line("").expect("enter");
@@ -188,13 +224,13 @@ fn collision_walk_defaults_to_my_second() {
         "taken",
         "the taken file is untouched"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn init_offer_accepted_flows_into_the_wizard() {
     let dir = fresh_dir("init-yes");
-    let mut p = spawn_pty(&dir, &["init", "."], true);
+    let dir = dir.path();
+    let mut p = spawn_pty(dir, &["init", "."], true);
 
     p.expect("created").expect("scaffold report first");
     p.expect("scaffold your first workflow now?")
@@ -219,13 +255,13 @@ fn init_offer_accepted_flows_into_the_wizard() {
         "wiring written"
     );
     assert!(dir.join("my-first.nika.yaml").is_file(), "workflow written");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn init_offer_declined_prints_the_classic_block() {
     let dir = fresh_dir("init-no");
-    let mut p = spawn_pty(&dir, &["init", "."], true);
+    let dir = dir.path();
+    let mut p = spawn_pty(dir, &["init", "."], true);
 
     p.expect("scaffold your first workflow now?")
         .expect("the offer");
@@ -244,13 +280,13 @@ fn init_offer_declined_prints_the_classic_block() {
         !dir.join("my-first.nika.yaml").exists(),
         "no workflow on decline"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn eof_cancels_without_writing() {
     let dir = fresh_dir("cancel");
-    let mut p = spawn_pty(&dir, &["new"], true);
+    let dir = dir.path();
+    let mut p = spawn_pty(dir, &["new"], true);
 
     p.expect("what should it do?").expect("q1");
     // ^D = EOF mid-conversation: the human left. Cancel, never loop.
@@ -260,14 +296,13 @@ fn eof_cancels_without_writing() {
     p.expect(Eof).expect("ends");
     assert_eq!(exit_code(&mut p), 3, "spec §4 · environment (cancelled)");
 
-    let leftovers: Vec<_> = std::fs::read_dir(&dir)
+    let leftovers: Vec<_> = std::fs::read_dir(dir)
         .expect("dir")
         .filter_map(Result::ok)
         .map(|e| e.file_name().to_string_lossy().into_owned())
         .filter(|n| n.ends_with(".nika.yaml"))
         .collect();
     assert!(leftovers.is_empty(), "nothing written: {leftovers:?}");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -275,7 +310,8 @@ fn colour_lives_on_a_terminal_and_no_color_kills_every_escape() {
     // Half 1 · a real PTY without NO_COLOR: the semantic accents exist
     // (the wizard resolves --color auto → TTY → on).
     let dir = fresh_dir("colour");
-    let mut p = spawn_pty(&dir, &["new"], false);
+    let dir = dir.path();
+    let mut p = spawn_pty(dir, &["new"], false);
     p.expect("what should it do?").expect("q1");
     p.send_line("").expect("enter");
     p.send_line("").expect("enter");
@@ -292,7 +328,8 @@ fn colour_lives_on_a_terminal_and_no_color_kills_every_escape() {
     // Half 2 · NO_COLOR on the SAME terminal: zero escapes — the sober
     // register is a promise even where colour is possible.
     let dir2 = fresh_dir("nocolour");
-    let mut q = spawn_pty(&dir2, &["new"], true);
+    let dir2 = dir2.path();
+    let mut q = spawn_pty(dir2, &["new"], true);
     q.expect("what should it do?").expect("q1");
     q.send_line("").expect("enter");
     q.send_line("").expect("enter");
@@ -304,6 +341,4 @@ fn colour_lives_on_a_terminal_and_no_color_kills_every_escape() {
         "NO_COLOR strips every escape, even on a terminal"
     );
     assert_eq!(exit_code(&mut q), 0);
-    let _ = std::fs::remove_dir_all(&dir);
-    let _ = std::fs::remove_dir_all(&dir2);
 }
