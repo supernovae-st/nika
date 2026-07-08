@@ -39,18 +39,6 @@ const MAX_RUNS: usize = 20;
 /// instant on a monorepo and never wander into dependency trees.
 const WALK_BUDGET: usize = 20_000;
 
-/// Directories the walk never enters (the welcome glance's list).
-const SKIP_DIRS: [&str; 8] = [
-    ".git",
-    "node_modules",
-    "target",
-    ".venv",
-    "venv",
-    "dist",
-    "build",
-    "vendor",
-];
-
 /// One workflow file's audited facts — verdicts, never contents.
 // Independent verdict FLAGS on a wire struct, not a state machine —
 // the same flags-are-flags exemption the Theme struct carries.
@@ -166,7 +154,7 @@ pub fn run(json: bool, theme: Theme) -> VerbOutput {
 fn collect_workflows(root: &Path) -> (Vec<WorkflowFact>, bool, usize) {
     let mut paths = Vec::new();
     let mut budget = WALK_BUDGET;
-    walk(root, root, 6, &mut budget, &mut paths);
+    probe::collect_workflow_paths(root, root, 6, &mut budget, &mut paths);
     paths.sort();
     let found = paths.len();
     let capped = found > MAX_WORKFLOWS;
@@ -176,32 +164,6 @@ fn collect_workflows(root: &Path) -> (Vec<WorkflowFact>, bool, usize) {
         capped,
         found,
     )
-}
-
-fn walk(root: &Path, dir: &Path, depth: u8, budget: &mut usize, out: &mut Vec<PathBuf>) {
-    if depth == 0 || *budget == 0 {
-        return;
-    }
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        if *budget == 0 {
-            return;
-        }
-        *budget -= 1;
-        let path = entry.path();
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if path.is_dir() {
-            if name.starts_with('.') || SKIP_DIRS.contains(&name.as_ref()) {
-                continue;
-            }
-            walk(root, &path, depth - 1, budget, out);
-        } else if name.ends_with(".nika.yaml") || name.ends_with(".nika.yml") {
-            out.push(path.strip_prefix(root).unwrap_or(&path).to_path_buf());
-        }
-    }
 }
 
 /// Audit one file — parse + the check ladder, folded to verdict facts.
@@ -367,23 +329,6 @@ fn rollups(facts: &[WorkflowFact], runs: &[RunFact]) -> Rollups {
 
 /// The versioned machine aggregate (`context_version: 1` · additive-only).
 fn render_json(workspace: &Workspace, rollups: &Rollups, probe: &probe::Probe) -> String {
-    let clients: Vec<serde_json::Value> = probe
-        .clients
-        .iter()
-        .map(|c| serde_json::json!({ "id": c.id, "wired": c.current }))
-        .collect();
-    let locals: Vec<&str> = probe
-        .providers
-        .iter()
-        .filter(|p| !p.requires_key)
-        .map(|p| p.id.as_str())
-        .collect();
-    let cloud_present = probe
-        .providers
-        .iter()
-        .filter(|p| p.requires_key && p.key_present)
-        .count();
-    let cloud_total = probe.providers.iter().filter(|p| p.requires_key).count();
     serde_json::json!({
         "context_version": 1,
         "identity": {
@@ -392,12 +337,7 @@ fn render_json(workspace: &Workspace, rollups: &Rollups, probe: &probe::Probe) -
         },
         "workspace": workspace,
         "rollups": rollups,
-        "environment": {
-            "clients": clients,
-            "local_providers": locals,
-            "cloud_keys_present": cloud_present,
-            "cloud_keys_total": cloud_total,
-        },
+        "environment": probe::environment_json(probe),
     })
     .to_string()
 }

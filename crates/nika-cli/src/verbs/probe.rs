@@ -12,39 +12,13 @@
 //! only (loopback defaults or the operator's own `NIKA_*_LOCAL_URL`),
 //! never a vendor endpoint, never a request body, 300ms cap per port.
 
-use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 
 use nika_providers::ProviderRegistry;
+pub(crate) use nika_providers::probe::{PingState, ProviderProbe, env_present};
 
 use crate::verbs::trace::retention::RetentionConfig;
 use serde_json::Value;
-
-/// One `--ping` observation · a local port either answered a TCP connect
-/// within the cap or it did not (no request is ever sent on the socket).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PingState {
-    /// The port accepted the connection (round-trip in ms).
-    Reachable(u64),
-    /// Nothing listening (or slower than the 300ms cap).
-    Unreachable,
-}
-
-/// A provider's environment facts — key PRESENCE only, never the value.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ProviderProbe {
-    pub id: String,
-    pub requires_key: bool,
-    pub key_present: bool,
-    /// The conventional env var to name in the fix (e.g. `ANTHROPIC_API_KEY`).
-    pub fix_var: String,
-    /// Whether structured output rides the provider's NATIVE `json_schema`
-    /// mode (`Profile::supports_response_format` — a PROVIDER fact:
-    /// deepseek is the one cloud whose schema path is the instruction
-    /// fallback + local validation).
-    pub structured_native: bool,
-}
 
 /// The injected environment facts `diagnose` reasons over — PURE · testable.
 /// The CLI fills it from the real env; tests pass synthetic probes.
@@ -134,30 +108,7 @@ pub(crate) fn collect(ping: bool) -> Probe {
     // the runtime will see, overrides included (ProvidersConfig::new()
     // here made --ping probe seeds the operator had redirected away).
     let registry = ProviderRegistry::without_http(crate::verbs::run::config_from_env());
-    let providers = registry
-        .profiles()
-        .iter()
-        // `mock` is the in-crate test backend, not an operator-facing provider.
-        .filter(|p| p.id != "mock")
-        .map(|p| {
-            let candidates = p.env_candidates();
-            ProviderProbe {
-                id: p.id.to_owned(),
-                requires_key: p.requires_key,
-                // PRESENT-NOT-PRINTED: only presence is observed · the value is
-                // never bound (alignment Rule 1 · no secret ever surfaces).
-                key_present: candidates.iter().any(|v| env_present(v)),
-                structured_native: p.supports_response_format(),
-                // The conventional var (last candidate · `ANTHROPIC_API_KEY`)
-                // is the friendliest fix; the `NIKA_<ID>_API_KEY` form always
-                // works too but reads less familiar.
-                fix_var: candidates
-                    .last()
-                    .cloned()
-                    .unwrap_or_else(|| format!("NIKA_{}_API_KEY", p.id.to_uppercase())),
-            }
-        })
-        .collect();
+    let providers = nika_providers::probe::collect_provider_probes(&registry);
     let probe = Probe {
         version: env!("CARGO_PKG_VERSION").to_owned(),
         config_path: config_path(),
@@ -186,7 +137,7 @@ pub(crate) fn collect(ping: bool) -> Probe {
         retention_notes,
     };
     if ping {
-        let local_pings = collect_local_pings(
+        let local_pings = nika_providers::probe::collect_local_pings(
             &registry,
             probe.image.local_url.as_deref(),
             probe.tts.local_url.as_deref(),
@@ -198,119 +149,6 @@ pub(crate) fn collect(ping: bool) -> Probe {
     } else {
         probe
     }
-}
-
-/// `host:port` extracted from a base URL, for a connect-only probe.
-/// No URL crate: scheme-strip, authority up to the first `/`, default
-/// port per scheme. `None` = unparseable (probed as unreachable).
-pub(crate) fn ping_addr(url: &str) -> Option<String> {
-    let (default_port, rest) = if let Some(r) = url.strip_prefix("https://") {
-        ("443", r)
-    } else if let Some(r) = url.strip_prefix("http://") {
-        ("80", r)
-    } else {
-        return None;
-    };
-    let authority = rest.split('/').next().unwrap_or_default();
-    // Userinfo is display/credential noise, never part of the dial —
-    // `user:pass@host` must resolve (and print) as `host`.
-    let authority = authority
-        .rsplit_once('@')
-        .map_or(authority, |(_, host)| host);
-    if authority.is_empty() {
-        return None;
-    }
-    if authority.contains(':') {
-        Some(authority.to_owned())
-    } else {
-        Some(format!("{authority}:{default_port}"))
-    }
-}
-
-/// Connect-only TCP probe (nothing is ever written on the socket).
-///
-/// The whole probe — DNS resolution INCLUDED — honours the cap.
-/// `to_socket_addrs` is a synchronous OS resolver call with no timeout of
-/// its own; on a dead resolver it can stall for seconds, and the review
-/// caught the first cut capping only the connect. Resolution + connect
-/// run on a worker thread and the caller waits `recv_timeout(cap)`; on
-/// expiry the port is reported unreachable and the worker is left to
-/// finish in the background (a one-shot diagnostic can afford one
-/// parked thread; it exits with the process).
-/// Launch one probe worker; the caller awaits the returned channel —
-/// [`collect_local_pings`] starts EVERY probe first and then collects
-/// against one shared deadline, so seven surfaces answer in ~one cap
-/// total instead of seven caps end to end.
-pub(crate) fn spawn_ping(addr: &str, timeout: Duration) -> std::sync::mpsc::Receiver<Option<u64>> {
-    let (tx, rx) = std::sync::mpsc::channel();
-    let addr = addr.to_owned();
-    // Doctor is a synchronous one-shot diagnostic (no tokio runtime on this
-    // path); plain worker threads are the whole async story here.
-    #[allow(clippy::disallowed_methods)]
-    std::thread::spawn(move || {
-        // The round-trip is measured HERE, in the worker: collection-side
-        // elapsed was inflated by every earlier slot's wait (a live 3ms
-        // ollama reported "(300ms)" behind a dead port — a 100× lie on a
-        // diagnostic surface). DNS included: resolution is part of what
-        // the operator's run will pay.
-        let started = Instant::now();
-        // A dropped receiver (cap expired) makes every send a no-op.
-        let rtt = addr
-            .to_socket_addrs()
-            .ok()
-            .and_then(|mut candidates| candidates.next())
-            .filter(|sock| TcpStream::connect_timeout(sock, timeout).is_ok())
-            .map(|_| u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX));
-        let _ = tx.send(rtt);
-    });
-    rx
-}
-
-/// `--ping` collection · the LOCAL surfaces only (infer locals + the media
-/// planes when their URL is configured) · 300ms cap per port.
-fn collect_local_pings(
-    registry: &ProviderRegistry,
-    image_url: Option<&str>,
-    tts_url: Option<&str>,
-) -> Vec<(String, String, PingState)> {
-    const CAP: Duration = Duration::from_millis(300);
-    // Start every probe first, then collect against ONE shared deadline:
-    // the whole sweep answers in ~CAP total (results stay surface-ordered)
-    // instead of paying the cap once per dead port.
-    let mut pending = Vec::new();
-    for p in registry.profiles() {
-        if p.requires_key || p.id == "mock" {
-            continue;
-        }
-        // Probe what a run would ACTUALLY hit — the operator override
-        // (NIKA_<ID>_BASE_URL · OLLAMA_HOST) when present, else the seed.
-        // Pinging 127.0.0.1 while runs talk to the GPU box is an
-        // anti-doctor.
-        let url = registry.effective_base_url(p.id).unwrap_or(p.base_url);
-        if let Some(addr) = ping_addr(url) {
-            let rx = spawn_ping(&addr, CAP);
-            pending.push((p.id.to_owned(), addr, rx));
-        }
-    }
-    for (id, url) in [("image-local", image_url), ("tts-local", tts_url)] {
-        if let Some(addr) = url.and_then(ping_addr) {
-            let rx = spawn_ping(&addr, CAP);
-            pending.push((id.to_owned(), addr, rx));
-        }
-    }
-
-    let deadline = Instant::now() + CAP;
-    pending
-        .into_iter()
-        .map(|(id, addr, rx)| {
-            let budget = deadline.saturating_duration_since(Instant::now());
-            let state = match rx.recv_timeout(budget) {
-                Ok(Some(ms)) => PingState::Reachable(ms),
-                _ => PingState::Unreachable,
-            };
-            (id, addr, state)
-        })
-        .collect()
 }
 
 fn client_probes() -> Vec<ClientProbe> {
@@ -481,15 +319,83 @@ fn iso_to_epoch_days(iso: &str) -> Option<i64> {
     Some(era * 146_097 + day_of_era - 719_468)
 }
 
-/// Whether an env var is SET and non-empty — PRESENT-NOT-PRINTED. The value is
-/// never bound (`var_os(...).is_some`), so no secret can surface (alignment
-/// Rule 1). This is the probe layer's sanctioned `std::env` boundary — the same
-/// justification the compose root's key-read carries: checking key PRESENCE is
-/// not a secret READ, and routing a presence-bool through the kernel vault seam
-/// would be ceremony with no payoff.
-#[allow(clippy::disallowed_methods)]
-pub(crate) fn env_present(name: &str) -> bool {
-    std::env::var_os(name).is_some_and(|v| !v.is_empty())
+/// Directories the mirror-family workspace walks never enter —
+/// dependency/build trees dwarf the workspace and these surfaces have
+/// a latency budget, not a completeness one (welcome · context).
+pub(crate) const SKIP_DIRS: [&str; 8] = [
+    ".git",
+    "node_modules",
+    "target",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    "vendor",
+];
+
+/// Bounded workspace walk: collect root-relative `*.nika.yaml` paths
+/// (depth- and budget-capped · dot/dep dirs skipped). The ONE walk the
+/// mirror family shares — welcome counts it, context audits it.
+pub(crate) fn collect_workflow_paths(
+    root: &Path,
+    dir: &Path,
+    depth: u8,
+    budget: &mut usize,
+    out: &mut Vec<PathBuf>,
+) {
+    if depth == 0 || *budget == 0 {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if *budget == 0 {
+            return;
+        }
+        *budget -= 1;
+        let path = entry.path();
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if path.is_dir() {
+            if name.starts_with('.') || SKIP_DIRS.contains(&name.as_ref()) {
+                continue;
+            }
+            collect_workflow_paths(root, &path, depth - 1, budget, out);
+        } else if name.ends_with(".nika.yaml") || name.ends_with(".nika.yml") {
+            out.push(path.strip_prefix(root).unwrap_or(&path).to_path_buf());
+        }
+    }
+}
+
+/// The environment fragment both machine mirrors emit (welcome ·
+/// context): client wiring booleans · local provider ids · cloud key
+/// COUNTS. Names and counts by construction — no value exists to leak.
+#[must_use]
+pub(crate) fn environment_json(probe: &Probe) -> serde_json::Value {
+    let clients: Vec<serde_json::Value> = probe
+        .clients
+        .iter()
+        .map(|c| serde_json::json!({ "id": c.id, "wired": c.current }))
+        .collect();
+    let locals: Vec<&str> = probe
+        .providers
+        .iter()
+        .filter(|p| !p.requires_key)
+        .map(|p| p.id.as_str())
+        .collect();
+    let present = probe
+        .providers
+        .iter()
+        .filter(|p| p.requires_key && p.key_present)
+        .count();
+    let total = probe.providers.iter().filter(|p| p.requires_key).count();
+    serde_json::json!({
+        "clients": clients,
+        "local_providers": locals,
+        "cloud_keys_present": present,
+        "cloud_keys_total": total,
+    })
 }
 
 /// `~/.nika/config.toml` when it exists (presence only · never read). `HOME` is
@@ -506,25 +412,6 @@ fn config_path() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn ping_addr_extracts_host_and_default_port() {
-        assert_eq!(
-            ping_addr("http://localhost:11434"),
-            Some("localhost:11434".to_owned())
-        );
-        assert_eq!(
-            ping_addr("https://gpu.lan/v1"),
-            Some("gpu.lan:443".to_owned())
-        );
-        // Userinfo never reaches the dial.
-        assert_eq!(
-            ping_addr("http://user:pass@host:8080/x"),
-            Some("host:8080".to_owned())
-        );
-        assert_eq!(ping_addr("ftp://nope"), None);
-        assert_eq!(ping_addr("http://"), None);
-    }
 
     #[test]
     fn iso_to_epoch_days_civil_math() {

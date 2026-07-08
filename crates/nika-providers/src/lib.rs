@@ -41,6 +41,7 @@
 
 #[cfg(test)]
 mod parity_tests;
+pub mod probe;
 pub mod profile;
 pub mod registry;
 mod sse;
