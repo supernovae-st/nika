@@ -662,13 +662,14 @@ fn mcp_tools_call_check_carries_the_did_you_mean() {
         .expect("tools/call reply");
     let doc: serde_json::Value = serde_json::from_str(reply).expect("json reply");
     assert_eq!(
-        doc["result"]["isError"], false,
-        "findings are content, not a tool failure: {reply}"
+        doc["result"]["isError"], true,
+        "a dirty check is isError:true so the agent's repair loop fires \
+         (mirrors the CLI's exit-2-on-dirty): {reply}"
     );
     let text = doc["result"]["content"][0]["text"].as_str().expect("text");
     assert!(
         text.contains("mesage") && text.contains("message"),
-        "the did-you-mean rides the reply: {text}"
+        "the did-you-mean still rides the reply so the agent repairs: {text}"
     );
 }
 
