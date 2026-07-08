@@ -169,9 +169,46 @@ const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 /// spaces is not a workflow).
 const MAX_INDENT_BYTES: usize = 1024;
 
+/// Maximum COMPACT block-sequence nesting per line — a run of inline
+/// `- ` markers (`- - - … x`) nests one YAML level EACH with ZERO
+/// leading spaces, so the indent guard above never sees it and
+/// marked-yaml recurses one frame per marker → an ~8 KB single line
+/// (≈3000 markers) overflows the 8 MB stack and ABORTS the process (a
+/// crash-DoS on every `nika check`/`run`/`lsp` over untrusted text).
+/// 512 levels mirrors the indent budget with a 4×+ margin under the
+/// empirical abort point; a real workflow never chains `- ` on one line.
+const MAX_BLOCK_DASH_RUN: usize = 512;
+
 /// The pre-parse resource guards — byte size + indentation depth, both
 /// LOUD and both before marked-yaml allocates/recurses. One O(n) pass
 /// over lines (leading spaces only — YAML forbids tabs in indentation).
+/// Count the leading run of compact block-sequence markers — `- `
+/// (dash + at least one space) repeated. Each is one nesting level in
+/// YAML's compact form; a trailing `-` at EOL (no space) opens a level
+/// too, so it counts as the final one.
+fn compact_dash_run(rest: &str) -> usize {
+    let mut n = 0;
+    let mut b = rest.as_bytes();
+    loop {
+        if b.first() != Some(&b'-') {
+            return n;
+        }
+        match b.get(1) {
+            Some(&b' ') => {
+                n += 1;
+                // skip the dash + all following spaces to the next marker
+                b = &b[1..];
+                while b.first() == Some(&b' ') {
+                    b = &b[1..];
+                }
+            }
+            // `-` at end of line (or `-\t`, not a marker) — the last level.
+            None => return n + 1,
+            _ => return n,
+        }
+    }
+}
+
 fn check_source_bounds(source: &str) -> Result<(), SchemaError> {
     if source.len() > MAX_SOURCE_BYTES {
         return Err(SchemaError::YamlSyntax {
@@ -190,6 +227,22 @@ fn check_source_bounds(source: &str) -> Result<(), SchemaError> {
                 message: format!(
                     "line {} is indented {indent} spaces (max {MAX_INDENT_BYTES}) — \
                      nesting this deep is rejected (stack-safety bound)",
+                    line_no + 1
+                ),
+                span: None,
+            });
+        }
+        // Compact block-sequence depth: a leading run of `- ` markers
+        // nests one level EACH with no indentation, so the indent guard
+        // misses it (the `- - - … x` stack-overflow bomb). Count the run
+        // after leading whitespace and cap it before marked-yaml recurses.
+        let dashes = compact_dash_run(&line[indent..]);
+        if dashes > MAX_BLOCK_DASH_RUN {
+            return Err(SchemaError::YamlSyntax {
+                message: format!(
+                    "line {} opens {dashes} compact block levels (`- - …`, max \
+                     {MAX_BLOCK_DASH_RUN}) — nesting this deep is rejected \
+                     (stack-safety bound)",
                     line_no + 1
                 ),
                 span: None,
@@ -780,6 +833,44 @@ tasks:
             err.to_string().contains("memory-safety bound"),
             "loud + actionable: {err}",
         );
+    }
+
+    #[test]
+    fn compact_block_dash_run_at_exactly_max_is_accepted() {
+        // A run of EXACTLY MAX_BLOCK_DASH_RUN `- ` markers passes (the
+        // `>`→`>=` mutant would reject it). Real workflows never chain
+        // this many on one line, but the boundary must be exact.
+        let line = format!("{}x", "- ".repeat(MAX_BLOCK_DASH_RUN));
+        check_source_bounds(&line).expect("exactly-max compact dash run is accepted");
+    }
+
+    #[test]
+    fn compact_block_dash_run_bomb_is_rejected_not_a_stack_overflow() {
+        // THE bomb: `- - - … x` nests one YAML level per marker with no
+        // leading spaces, so the indent guard misses it and marked-yaml
+        // recursed to a process ABORT (stack overflow) on ~3000 markers —
+        // a crash-DoS on every check/run/lsp over untrusted text. The
+        // dash-run cap rejects it LOUD before marked-yaml recurses.
+        let line = format!("{}x", "- ".repeat(MAX_BLOCK_DASH_RUN + 1));
+        let err = check_source_bounds(&line).expect_err("over-cap compact dash run rejects");
+        assert!(
+            err.to_string().contains("compact block levels")
+                && err.to_string().contains("stack-safety bound"),
+            "loud + names the vector: {err}",
+        );
+    }
+
+    #[test]
+    fn compact_dash_run_counts_only_leading_markers() {
+        // A `-` inside a value (`key: a-b`) or a lone list item (`- one`)
+        // is not a nesting run — the cap must not false-fire on real YAML.
+        assert_eq!(super::compact_dash_run("- one"), 1);
+        assert_eq!(super::compact_dash_run("key: a-b-c"), 0);
+        assert_eq!(super::compact_dash_run("- - - x"), 3);
+        assert_eq!(super::compact_dash_run("-"), 1); // dash at EOL is a level
+        assert_eq!(super::compact_dash_run(""), 0);
+        // A normal short workflow list never trips it.
+        check_source_bounds("tasks:\n  - id: a\n  - id: b\n").expect("a real 2-item list is fine");
     }
 
     #[test]
