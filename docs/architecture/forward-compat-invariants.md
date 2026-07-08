@@ -113,8 +113,17 @@ per spec 02-verbs · engine-specific tools route through `mcp:` · the
 spec reserves `x-` as a possible future additive minor).
 
 **Locked namespaces**:
-- **pck types**: `workflow` / `skill` / `agent` / `provider` / `mcp` /
-  `eval` / `recipe` / `shield` / `lints` (9 core) + `x-*` community
+- **pck types** (reserved-core AMENDED 2026-07-08 · operator ratification of
+  ADR-094 D4 · the prior aspirational 9-list `workflow/skill/agent/provider/
+  mcp/eval/recipe/shield/lints` had zero code usage for `recipe`/`shield`/
+  `lints` and predated the 2026 registry-survey norm of closed-class +
+  vendor-namespaced escape): `workflow` / `pack` / `skill` / `agent-preset` /
+  `template-variant` / `model-pointer` / `mcp-config` / `conformance-fixture` /
+  `provider-profile` / `policy-preset` / `bench-suite` (11 core) +
+  `custom-tool` declarations under `x-<vendor>:*` (the open escape — the
+  namespace pattern itself is unchanged: reserved core + `x-*` community).
+  A 12th-class future reservation (cognitive-machinery bundles) is named in
+  ADR-094 D4, reserved not built.
 - **builtins**: `nika:tool` core + `mcp:server/tool` MCP-namespaced
 - **EventKind**: core variants + `Extension { ns, name, payload }` escape hatch
 - **Skill targets**: `claude-code`, `cursor`, `windsurf`, `zed` (4 IDEs) +

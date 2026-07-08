@@ -11,6 +11,7 @@ homepage.workspace     = true
 publish                = false  # Internal L2 verb crate (the binary ships, the lib doesn't).
 
 [dependencies]
+nika-types      = { path = "../nika-types", version = "0.97.0", features = ["serde"] } # SpendOnFailure (billed-then-failed spend · Cost Intelligence)
 nika-kernel      = { path = "../nika-kernel", version = "0.97.0" }       # ai::provider seam · ai::tool_defs seam · runtime agent DTOs
 nika-error       = { path = "../nika-error", version = "0.97.0" }        # NIKA_460..467 registry constants
 nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.97.0" }  # tool dispatch (same-layer L2 · spec §0.5)
