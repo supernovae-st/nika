@@ -129,43 +129,25 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `release/0.97.0`                                      |
-| HEAD             | `54838424f` (`54838424f7e256b86501af51550007a7968f2fc0`)             |
+| branch           | `feat/nika-tmpl`                                      |
+| HEAD             | `c6f4f0b54` (`c6f4f0b54f084022389c7b8f04f7d644ed0cd77d`)             |
 | workspace        | v0.97.0                                  |
-| crates (workspace)| 40                                              |
-| crates (admitted)| 40 / 42                                   |
+| crates (workspace)| 41                                              |
+| crates (admitted)| 41 / 42                                   |
 | crates (WIP)     | 0 —                                   |
-| L0               | 9                                              |
+| L0               | 10                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 4                                              |
-| lib tests        | 3411 passed, 0 failed                              |
-| clippy           | 0 warnings                              |
-
-| field            | value                                          |
-|------------------|------------------------------------------------|
-| branch           | `chore/release-0.96.0`                                      |
-| HEAD             | `05cdaab1e` (`05cdaab1ec68217f3a7fb03841dbe5f7720767d4`)             |
-| workspace        | v0.96.0                                  |
-| crates (workspace)| 40                                              |
-| crates (admitted)| 40 / 42                                   |
-| crates (WIP)     | 0 —                                   |
-| L0               | 9                                              |
-| L0.5             | 6                                              |
-| L1               | 12                                              |
-| L1.5             | 4                                              |
-| L2               | 4                                              |
-| L3               | 1                                              |
-| L4               | 4                                              |
-| lib tests        | 3362 passed, 0 failed                              |
+| lib tests        | 3516 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
 
-- L0 admitted: nika-types, nika-error, nika-catalog, nika-catalog-codegen, nika-event, nika-pack, nika-cel, nika-schema (parser + analyzer + static-check · admitted 2026-06-18 · Gate-5 budget 290≤300 · O(n²) when-gate DoS fixed + origin's gate-list cap, both integrated), nika-cap (the permits: capability boundary as pure data + fits predicate + set-algebra · extracted from nika-schema · admitted 2026-07-03 · Gate-5 100% · the ONE host matcher consolidated, third copy removed).
+- L0 admitted: nika-types, nika-error, nika-catalog, nika-catalog-codegen, nika-event, nika-pack, nika-cel, nika-schema (parser + analyzer + static-check · admitted 2026-06-18 · Gate-5 budget 290≤300 · O(n²) when-gate DoS fixed + origin's gate-list cap, both integrated), nika-cap (the permits: capability boundary as pure data + fits predicate + set-algebra · extracted from nika-schema · admitted 2026-07-03 · Gate-5 100% · the ONE host matcher consolidated, third copy removed), nika-tmpl (the ONE ${{ }} island lexer — quote/escape-aware byte-spans shared by checker AND runtime · check⇄run parity by construction · admitted 2026-07-08 · Gate-5 46/51 = 90.2% with the 5 survivors certified unkillable · parity pre-proven on ~337k exhaustive inputs).
 - L0.5 admitted: nika-kernel (facade + range-registry hub post 4-way split 2026-06-10), nika-kernel-core, nika-kernel-ai, nika-kernel-runtime, nika-kernel-plugin, nika-kernel-mock.
 - L1 admitted: nika-clock, nika-bm25, nika-screen, nika-ocr, nika-a11y, nika-input (M2.4 · Guards 1+2), nika-browser (M2.5 · Guard 5 + occlusion hit-test), nika-fs (atomic write · s4), nika-http (reqwest+rustls · 3-layer SSRF + cross-origin cred-strip · s5), nika-blob (blake3 CAS · sidecar mime · s6), nika-exec-runner (shell/process effect · s7).
 - L1.5 admitted: nika-providers (s8.5 · 14/14 providers wired across 3 wire formats incl gemini s8.6 · kernel http seam), nika-infer-local (sovereign local inference sidecar · ADR-091), nika-builtin (s16 · the 23 stdlib builtins behind ONE dispatcher · the 3 tool seams · the agent's first real tool source), nika-extract (the 9 fetch extract modes · article Trafilatura cascade · feed/sitemap/metadata/microdata · admitted 2026-06-21 · Gate-5 93% · totality proptest · the `nika:fetch` extract step).

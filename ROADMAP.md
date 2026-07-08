@@ -86,20 +86,20 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `release/0.97.0`                                      |
-| HEAD             | `54838424f` (`54838424f7e256b86501af51550007a7968f2fc0`)             |
+| branch           | `feat/nika-tmpl`                                      |
+| HEAD             | `c6f4f0b54` (`c6f4f0b54f084022389c7b8f04f7d644ed0cd77d`)             |
 | workspace        | v0.97.0                                  |
-| crates (workspace)| 40                                              |
-| crates (admitted)| 40 / 42                                   |
+| crates (workspace)| 41                                              |
+| crates (admitted)| 41 / 42                                   |
 | crates (WIP)     | 0 —                                   |
-| L0               | 9                                              |
+| L0               | 10                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 4                                              |
-| lib tests        | 3411 passed, 0 failed                              |
+| lib tests        | 3516 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 | field            | value                                          |

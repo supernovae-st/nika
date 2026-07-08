@@ -1,0 +1,26 @@
+[package]
+name          = "nika-tmpl"
+description   = "The ${{ }} template-island lexer as pure data — quote/escape-aware island boundaries, AST-free. The ONE scanner the checker and the runtime share (parity-by-construction). Layer L0 — pure, zero I/O, zero async, zero deps."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io. See ADR-022.
+
+[dependencies]
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "scribe"
+archetype     = "island-reader"
+spirit_role   = "trouve les îles ${{ }} dans le texte · une seule lecture · check et run s'accordent par construction"
+voice_pattern = "silent"
+layer         = "L0"
+
+[lints]
+workspace = true
