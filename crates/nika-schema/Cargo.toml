@@ -13,14 +13,18 @@ publish                = false  # Foundation crate — never on crates.io. See f
 [dependencies]
 # L0-DEP-FANOUT-EXEMPT: nika-schema is the workflow AST/parser/analyzer hub — it
 # assembles the closed vocabularies from the L0 leaf crates it depends on
-# (nika-error codes · nika-types base+ExtractMode · nika-catalog capability vocab ·
-# nika-cap permits). The 4th (nika-cap) is the permits boundary extracted 2026-07-03
-# for reuse by nika-policy/runtime WITHOUT pulling the parser; inlining it back to
-# stay at 3 would defeat the extraction. High fan-in is intentional here (ADR-027).
+# (nika-error codes · nika-types base+ExtractMode · nika-catalog capability
+# vocab · nika-cap permits · nika-tmpl the shared island lexer). The 4th (nika-cap
+# permits) + 5th (nika-tmpl · the ${{ }} island lexer the runtime ALSO consumes for
+# check⇄run parity) are dependency-light L0 leaves extracted FROM this crate for
+# reuse without pulling the parser; inlining them back to stay at 3 would defeat the
+# extractions + re-introduce the check⇄run scanner drift. High fan-in is intentional
+# for the schema assembler hub (ADR-027 · marker-based exemption).
 nika-error   = { path = "../nika-error", version = "0.97.0" }
 nika-catalog = { path = "../nika-catalog", version = "0.97.0" }
 nika-types   = { path = "../nika-types", version = "0.97.0" }   # ExtractMode — fetch arg-shape rules (one closed vocabulary)
 nika-cap     = { path = "../nika-cap", version = "0.97.0" }   # the permits vocab lives here now (extracted 2026-07-03)
+nika-tmpl    = { path = "../nika-tmpl", version = "0.97.0" }   # the ONE ${{ }} island lexer · shared with nika-runtime (check⇄run parity)
 
 thiserror  = { workspace = true }
 serde      = { workspace = true }

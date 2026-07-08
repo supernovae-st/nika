@@ -10,6 +10,7 @@
 use super::ast::Expr;
 use super::error::ExprError;
 use super::parser::parse_expression;
+use nika_tmpl::scan_islands;
 
 /// One `${{ … }}` island found in a string.
 #[derive(Debug, Clone, PartialEq)]
@@ -50,66 +51,20 @@ impl TemplateIsland {
 /// Returns [`ExprError::UnterminatedTemplate`] when a `${{` has no
 /// closing `}}`, or the inner expression's parse error.
 pub fn scan_templates(s: &str) -> Result<Vec<TemplateIsland>, ExprError> {
-    let bytes = s.as_bytes();
-    let mut islands = Vec::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        // Byte-level probe — `i` walks bytes and may sit inside a
-        // multi-byte char; `${{` is pure ASCII so this is exact.
-        if !bytes[i..].starts_with(b"${{") {
-            i += 1;
-            continue;
-        }
-        // `\${{` — escaped literal · not an island.
-        if i > 0 && bytes[i - 1] == b'\\' {
-            i += 3;
-            continue;
-        }
-        let start = i;
-        let body_start = i + 3;
-        let body_end = find_island_close(s, body_start)
-            .ok_or(ExprError::UnterminatedTemplate { offset: start })?;
-        let src = s[body_start..body_end].trim().to_owned();
-        let expr = parse_expression(&src)?;
-        let end = body_end + 2;
-        islands.push(TemplateIsland::new(expr, src, start, end));
-        i = end;
-    }
-    Ok(islands)
-}
-
-/// Find the offset of the closing `}}`, skipping CEL string literals
-/// (a `}}` inside `'…'` / `"…"` does not close the island).
-fn find_island_close(s: &str, from: usize) -> Option<usize> {
-    let bytes = s.as_bytes();
-    let mut i = from;
-    let mut quote: Option<u8> = None;
-    while i < bytes.len() {
-        let b = bytes[i];
-        match quote {
-            Some(q) => {
-                if b == b'\\' {
-                    i += 2;
-                    continue;
-                }
-                if b == q {
-                    quote = None;
-                }
-                i += 1;
-            }
-            None => {
-                if b == b'\'' || b == b'"' {
-                    quote = Some(b);
-                    i += 1;
-                } else if b == b'}' && bytes.get(i + 1) == Some(&b'}') {
-                    return Some(i);
-                } else {
-                    i += 1;
-                }
-            }
-        }
-    }
-    None
+    // Lexing is delegated to `nika_tmpl` — the ONE island scanner the runtime
+    // resolver ALSO consumes, so `check` ⇄ `run` agree on island bounds by
+    // construction (parity-by-construction · the drift that shipped the
+    // 2026-06-18 escape bug is now structurally impossible). The checker then
+    // layers its static expression parse on top of the shared spans.
+    scan_islands(s)
+        .map_err(|e| ExprError::UnterminatedTemplate { offset: e.offset() })?
+        .into_iter()
+        .map(|isl| {
+            let src = isl.body.trim().to_owned();
+            let expr = parse_expression(&src)?;
+            Ok(TemplateIsland::new(expr, src, isl.start, isl.end))
+        })
+        .collect()
 }
 
 #[cfg(test)]

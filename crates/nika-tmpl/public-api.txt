@@ -1,0 +1,82 @@
+pub mod nika_tmpl
+#[non_exhaustive] pub enum nika_tmpl::ScanError
+pub nika_tmpl::ScanError::Unterminated
+pub nika_tmpl::ScanError::Unterminated::offset: usize
+impl nika_tmpl::ScanError
+pub fn nika_tmpl::ScanError::offset(&self) -> usize
+impl core::clone::Clone for nika_tmpl::ScanError
+pub fn nika_tmpl::ScanError::clone(&self) -> nika_tmpl::ScanError
+impl core::cmp::Eq for nika_tmpl::ScanError
+impl core::cmp::PartialEq for nika_tmpl::ScanError
+pub fn nika_tmpl::ScanError::eq(&self, other: &nika_tmpl::ScanError) -> bool
+impl core::error::Error for nika_tmpl::ScanError
+impl core::fmt::Debug for nika_tmpl::ScanError
+pub fn nika_tmpl::ScanError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_tmpl::ScanError
+pub fn nika_tmpl::ScanError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tmpl::ScanError
+impl<T, U> core::convert::Into<U> for nika_tmpl::ScanError where U: core::convert::From<T>
+pub fn nika_tmpl::ScanError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tmpl::ScanError where U: core::convert::Into<T>
+pub type nika_tmpl::ScanError::Error = core::convert::Infallible
+pub fn nika_tmpl::ScanError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tmpl::ScanError where U: core::convert::TryFrom<T>
+pub type nika_tmpl::ScanError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tmpl::ScanError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tmpl::ScanError where T: core::clone::Clone
+pub type nika_tmpl::ScanError::Owned = T
+pub fn nika_tmpl::ScanError::clone_into(&self, target: &mut T)
+pub fn nika_tmpl::ScanError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_tmpl::ScanError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_tmpl::ScanError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_tmpl::ScanError where T: 'static + ?core::marker::Sized
+pub fn nika_tmpl::ScanError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tmpl::ScanError where T: ?core::marker::Sized
+pub fn nika_tmpl::ScanError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tmpl::ScanError where T: ?core::marker::Sized
+pub fn nika_tmpl::ScanError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tmpl::ScanError where T: core::clone::Clone
+pub unsafe fn nika_tmpl::ScanError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tmpl::ScanError
+pub fn nika_tmpl::ScanError::from(t: T) -> T
+#[non_exhaustive] pub struct nika_tmpl::IslandSpan<'a>
+pub nika_tmpl::IslandSpan::body: &'a str
+pub nika_tmpl::IslandSpan::body_start: usize
+pub nika_tmpl::IslandSpan::end: usize
+pub nika_tmpl::IslandSpan::start: usize
+impl<'a> nika_tmpl::IslandSpan<'a>
+pub fn nika_tmpl::IslandSpan<'a>::new(start: usize, body: &'a str, body_start: usize, end: usize) -> Self
+impl<'a> core::clone::Clone for nika_tmpl::IslandSpan<'a>
+pub fn nika_tmpl::IslandSpan<'a>::clone(&self) -> nika_tmpl::IslandSpan<'a>
+impl<'a> core::cmp::Eq for nika_tmpl::IslandSpan<'a>
+impl<'a> core::cmp::PartialEq for nika_tmpl::IslandSpan<'a>
+pub fn nika_tmpl::IslandSpan<'a>::eq(&self, other: &nika_tmpl::IslandSpan<'a>) -> bool
+impl<'a> core::fmt::Debug for nika_tmpl::IslandSpan<'a>
+pub fn nika_tmpl::IslandSpan<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_tmpl::IslandSpan<'a>
+impl<'a> core::marker::StructuralPartialEq for nika_tmpl::IslandSpan<'a>
+impl<T, U> core::convert::Into<U> for nika_tmpl::IslandSpan<'a> where U: core::convert::From<T>
+pub fn nika_tmpl::IslandSpan<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tmpl::IslandSpan<'a> where U: core::convert::Into<T>
+pub type nika_tmpl::IslandSpan<'a>::Error = core::convert::Infallible
+pub fn nika_tmpl::IslandSpan<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tmpl::IslandSpan<'a> where U: core::convert::TryFrom<T>
+pub type nika_tmpl::IslandSpan<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tmpl::IslandSpan<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tmpl::IslandSpan<'a> where T: core::clone::Clone
+pub type nika_tmpl::IslandSpan<'a>::Owned = T
+pub fn nika_tmpl::IslandSpan<'a>::clone_into(&self, target: &mut T)
+pub fn nika_tmpl::IslandSpan<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tmpl::IslandSpan<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_tmpl::IslandSpan<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tmpl::IslandSpan<'a> where T: ?core::marker::Sized
+pub fn nika_tmpl::IslandSpan<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tmpl::IslandSpan<'a> where T: ?core::marker::Sized
+pub fn nika_tmpl::IslandSpan<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tmpl::IslandSpan<'a> where T: core::clone::Clone
+pub unsafe fn nika_tmpl::IslandSpan<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tmpl::IslandSpan<'a>
+pub fn nika_tmpl::IslandSpan<'a>::from(t: T) -> T
+pub fn nika_tmpl::find_island_close(s: &str, from: usize) -> core::option::Option<usize>
+pub fn nika_tmpl::scan_islands(s: &str) -> core::result::Result<alloc::vec::Vec<nika_tmpl::IslandSpan<'_>>, nika_tmpl::ScanError>
+pub fn nika_tmpl::single_island(s: &str) -> core::option::Option<&str>

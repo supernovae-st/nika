@@ -40,6 +40,7 @@ use std::collections::BTreeMap;
 
 use nika_cel::{Resolver, compute, compute_bool, parse};
 use nika_schema::types::Permits;
+use nika_tmpl::{scan_islands, single_island};
 use serde_json::Value;
 
 use crate::errors::RuntimeError;
@@ -240,41 +241,19 @@ fn record_object(rec: &TaskRecord) -> Value {
     Value::Object(map)
 }
 
-/// Find the `}}` that closes an island body — QUOTE-AWARE: a `}}` inside a
-/// CEL string literal (`'…'` / `"…"`, honoring `\` escapes) does NOT close
-/// the island. Mirrors the static analyzer's scanner (nika-schema
-/// `expression::template::find_island_close`, which has its own tests) so
-/// `check` ⇄ runtime agree on island bounds. A naive `find("}}")` truncated
-/// `${{ vars.x == "}}" }}` mid-string-literal — a template that checks clean
-/// (the analyzer accepts the inner `}}`) but then failed to render.
-fn find_island_close(after: &str) -> Option<usize> {
-    let bytes = after.as_bytes();
-    let mut i = 0;
-    let mut quote: Option<u8> = None;
-    while i < bytes.len() {
-        let b = bytes[i];
-        if let Some(q) = quote {
-            // Inside a string literal: a backslash escapes the next byte;
-            // the matching quote closes; everything else is body text.
-            if b == b'\\' {
-                i += 2;
-                continue;
-            }
-            if b == q {
-                quote = None;
-            }
-            i += 1;
-        } else if b == b'\'' || b == b'"' {
-            // Outside a string: a quote opens one; `}}` closes the island.
-            quote = Some(b);
-            i += 1;
-        } else if b == b'}' && bytes.get(i + 1) == Some(&b'}') {
-            return Some(i);
-        } else {
-            i += 1;
-        }
+/// Emit `s` into `out`, applying the `\${{` literal-escape (spec 04 §Escaping):
+/// each `\${{` becomes a literal `${{`. This is render's escape-STRIPPING — the
+/// checker does not need it. Island FINDING + escape DETECTION is
+/// `nika_tmpl::scan_islands`'s job (the ONE lexer shared with the checker · zero
+/// drift), so this only handles the text BETWEEN real islands.
+fn push_unescaped(out: &mut String, s: &str) {
+    let mut rest = s;
+    while let Some(p) = rest.find("\\${{") {
+        out.push_str(&rest[..p]);
+        out.push_str("${{");
+        rest = &rest[p + 4..];
     }
-    None
+    out.push_str(rest);
 }
 
 /// Render every `${{ <ref> }}` island in `text` from the scope (spec 04
@@ -288,37 +267,23 @@ fn find_island_close(after: &str) -> Option<usize> {
 /// ship as literal output). [`RuntimeError::WhenUnsupported`] when the
 /// reference form is outside the v0 subset (NIKA-1703).
 pub(crate) fn render(text: &str, scope: &Scope<'_>) -> Result<String, RuntimeError> {
+    // Island finding (open + `\${{` escape + quote-aware close) is delegated to
+    // `nika_tmpl::scan_islands` — the SAME lexer the checker uses, so `check` ⇄
+    // `run` agree on island bounds by construction (the 2026-06-18 escape-drift
+    // bug is structurally impossible now). Scanning runs over the AUTHOR's text
+    // ENTIRELY before any resolution, so resolved values are never re-scanned
+    // (injection-safe · sister invariant to render_never_rescans_injected_values).
+    let islands = scan_islands(text).map_err(|e| RuntimeError::UnresolvedTemplate {
+        reference: text[e.offset() + 3..].trim().to_owned(),
+    })?;
     let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-    while let Some(start) = rest.find("${{") {
-        // `\${{` — the literal escape (spec 04 §Escaping · "the engine MUST
-        // honor this"): emit a LITERAL `${{`, consume the one backslash, and
-        // resume the scan AFTER the opener so the inner reference is NEVER
-        // resolved. Mirrors the static analyzer's island scan
-        // (nika-schema `expression::template`, which skips `${{` when
-        // `bytes[i-1] == '\\'`) so `check` ⇄ runtime agree — otherwise a
-        // template that checks clean would render wrong (or raise 1702 on a
-        // documentation reference). The escape only ever applies to the
-        // AUTHOR's template text walked here; resolved values are pushed
-        // out and never re-scanned, so injection safety is unchanged.
-        if start > 0 && rest.as_bytes()[start - 1] == b'\\' {
-            out.push_str(&rest[..start - 1]);
-            out.push_str("${{");
-            rest = &rest[start + 3..];
-            continue;
-        }
-        out.push_str(&rest[..start]);
-        let after = &rest[start + 3..];
-        let Some(end) = find_island_close(after) else {
-            return Err(RuntimeError::UnresolvedTemplate {
-                reference: after.trim().to_owned(),
-            });
-        };
-        let reference = after[..end].trim();
-        out.push_str(&render_value(&scope.resolve_expr(reference)?));
-        rest = &after[end + 2..];
+    let mut cursor = 0;
+    for isl in islands {
+        push_unescaped(&mut out, &text[cursor..isl.start]);
+        out.push_str(&render_value(&scope.resolve_expr(isl.body.trim())?));
+        cursor = isl.end;
     }
-    out.push_str(rest);
+    push_unescaped(&mut out, &text[cursor..]);
     Ok(out)
 }
 
@@ -347,16 +312,6 @@ pub(crate) fn render_json(value: &Value, scope: &Scope<'_>) -> Result<Value, Run
         ),
         other => other.clone(),
     })
-}
-
-/// `Some(ref)` when the whole string is exactly one `${{ ref }}` island.
-fn single_island(text: &str) -> Option<&str> {
-    let body = text.trim().strip_prefix("${{")?.strip_suffix("}}")?;
-    // A second island inside would mean `}}…${{` — reject (textual).
-    if body.contains("${{") || body.contains("}}") {
-        return None;
-    }
-    Some(body.trim())
 }
 
 /// Evaluate a `when:` expression body to a boolean (spec 03 · the full
@@ -664,13 +619,38 @@ mod tests {
     }
 
     #[test]
-    fn find_island_close_skips_quoted_braces() {
-        // Direct unit on the close-finder (mirrors nika-schema's scanner):
-        // a `}}` inside a CEL string literal is body text, not the close.
-        assert_eq!(find_island_close(" vars.x }}"), Some(8)); // plain close
-        assert_eq!(find_island_close(" '}}' }}"), Some(6)); // skip single-quoted
-        assert_eq!(find_island_close(" \"}}\" }}"), Some(6)); // skip double-quoted
-        assert_eq!(find_island_close(" no real close "), None); // unterminated
+    fn shared_scanner_is_wired_and_quote_aware() {
+        // Smoke that the runtime resolves islands through the ONE shared lexer
+        // (exhaustively tested in nika-tmpl); a `}}` inside a literal is body.
+        assert_eq!(nika_tmpl::find_island_close(" vars.x }}", 0), Some(8));
+        assert_eq!(nika_tmpl::find_island_close(" '}}' }}", 0), Some(6));
+        assert_eq!(nika_tmpl::find_island_close(" \"}}\" }}", 0), Some(6));
+        assert_eq!(nika_tmpl::find_island_close(" no real close ", 0), None);
+    }
+
+    #[test]
+    fn structural_error_precedes_semantic_on_doubly_malformed_template() {
+        // Gate-11 (rust-pro P1 · ACCEPTED as intentional · pinned): a template
+        // with BOTH a resolvable-but-erroring island AND a later UNTERMINATED
+        // opener now surfaces the STRUCTURAL fault first — `render` pre-scans via
+        // `nika_tmpl::scan_islands`, which errors on the unterminated opener
+        // before any island is resolved. Structural-before-semantic is standard
+        // parser discipline; both are hard errors either way, and a passed
+        // `nika check` never reaches this (the checker rejects unterminated
+        // islands). This locks the ordering as intentional, not accidental.
+        let (records, vars) = fixture();
+        let scope = Scope::workflow(&records, &vars);
+        // island #1 `vars.nope` is unknown (a semantic fault); island #2 is
+        // unterminated (a structural fault). The structural fault wins, and the
+        // surfaced reference is the DANGLING body — not `vars.nope`.
+        assert!(
+            matches!(
+                render("${{ vars.nope }} ${{ dangling", &scope)
+                    .expect_err("doubly-malformed template must error"),
+                RuntimeError::UnresolvedTemplate { ref reference } if reference == "dangling"
+            ),
+            "the structural (unterminated) fault must win over the earlier semantic one"
+        );
     }
 
     #[test]
