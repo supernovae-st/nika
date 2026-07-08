@@ -472,7 +472,7 @@ pub fn nika_cli::verbs::check::run_infer_permits(path: &str, json: bool) -> nika
 pub mod nika_cli::verbs::dap
 pub fn nika_cli::verbs::dap::run_stdio() -> u8
 pub mod nika_cli::verbs::doctor
-pub fn nika_cli::verbs::doctor::run(ping: bool, json: bool) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::doctor::run(ping: bool, json: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::exit
 pub const nika_cli::verbs::exit::ENV: u8
 pub const nika_cli::verbs::exit::FILE: u8
@@ -480,9 +480,9 @@ pub const nika_cli::verbs::exit::OK: u8
 pub const nika_cli::verbs::exit::PAUSED: u8
 pub const nika_cli::verbs::exit::WORKFLOW: u8
 pub mod nika_cli::verbs::explain
-pub fn nika_cli::verbs::explain::run(wire: &str) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::explain::run(wire: &str, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::explain_file
-pub fn nika_cli::verbs::explain_file::dispatch(query: &str, json: bool) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::explain_file::dispatch(query: &str, json: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::explain_file::run(path: &str, json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::graph
 pub enum nika_cli::verbs::graph::GraphFormat
