@@ -103,6 +103,8 @@ Every surviving `exec:` gets a row in the workflow's header comment:
   `depends_on: [<id>]`.
 - Models are `provider/name` (`ollama/llama3.2:3b` local-first ·
   `mock/echo` offline preview).
+- Timeouts are quoted Go-durations (`timeout: "7m"`) — give local
+  providers ≥300s: thinking models routinely think past 30s.
 - Declare the blast radius: `nika check --infer-permits <file>` prints
   the tightest `permits:` block — paste it in (default-deny from then on).
 - Structured output: give `infer:` a `schema:`; add
