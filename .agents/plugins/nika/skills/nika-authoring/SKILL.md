@@ -26,6 +26,13 @@ oracle; the human runs it.
    every remaining `exec:` is in the exec ledger (below).
 6. The human (or CI) runs it: `nika run <file>`. Preview offline with
    `--model mock/echo`; run locally with `--model ollama/<model>`.
+   Inputs ride `--var key=value` (repeatable · unknown keys refused);
+   a run paused on a `nika:prompt` resumes with
+   `nika run <file> --resume <trace> --answer <task>=<value>`
+   (confirm gates take booleans: `--answer approve=true`).
+7. Pin it for CI: `nika test <file> --update` writes
+   `<file>.golden.json` from an offline mock run; `nika test <file>`
+   replays and compares — deterministic, zero keys.
 
 ## The four verbs (exactly one per task)
 
