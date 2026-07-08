@@ -1,0 +1,30 @@
+[package]
+name          = "nika-pck-manifest"
+description   = "The pck sharing layer's data contract as pure types — manifest · cert · lockfile · package ref · hash newtypes · the D4 artifact taxonomy (ADR-094). Layer L0 — pure, zero I/O, zero async, zero nika-* deps."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io. See ADR-022.
+
+[dependencies]
+serde     = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json   = { workspace = true }
+toml_convert = { workspace = true }   # nika/pck@1 is a TOML format (FCI-003) — round-trip proven
+proptest     = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "scribe"
+archetype     = "cargo-ledger"
+spirit_role   = "tient le manifeste de ce qui se partage · chaque artefact est son hash · rien ne bouge sans être nommé"
+voice_pattern = "silent"
+layer         = "L0"
+
+[lints]
+workspace = true
