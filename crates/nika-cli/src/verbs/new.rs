@@ -28,6 +28,23 @@ use nika_bm25::{BmIndex, BmParams};
 use crate::display::theme::{Role, Theme};
 use crate::verbs::{VerbOutput, exit};
 
+/// Emit a value as a SAFE YAML scalar. A plain token (`provider/model`,
+/// a one-word description) stays bare; anything with a YAML-significant
+/// char — a space, a `:`, a `\` (a Windows path · a regex), a quote —
+/// is SINGLE-quoted with `''` escaping. Single-quoted YAML takes every
+/// other byte literally (no backslash-escape maze), so a user's intent
+/// prose or an exotic model string can never turn the stamped file
+/// invalid (the rust-pro review's HIGH: user strings reached YAML
+/// unescaped → a fresh scaffold failed its OWN check under a green ✔).
+fn yaml_scalar(value: &str) -> String {
+    let plain = |c: char| c.is_ascii_alphanumeric() || matches!(c, '/' | '.' | '_' | '-');
+    if !value.is_empty() && value.chars().all(plain) {
+        value.to_owned()
+    } else {
+        format!("'{}'", value.replace('\'', "''"))
+    }
+}
+
 /// POSIX shell-quote a path for a COPY-PASTEABLE command suggestion — a
 /// workflow named « My Cool Flow » becomes `My Cool Flow.nika.yaml`, and
 /// the wizard's `nika run <dest>` hint would parse as four arguments and
@@ -360,9 +377,9 @@ fn stamp(body: &str, id: &str, description: &str, model: Option<&str>) -> String
             if line.starts_with("workflow: ") {
                 format!("workflow: {id}")
             } else if line.starts_with("description: ") && !description.is_empty() {
-                format!("description: \"{description}\"")
+                format!("description: {}", yaml_scalar(description))
             } else if let (true, Some(model)) = (line.starts_with("model: "), model) {
-                format!("model: {model}")
+                format!("model: {}", yaml_scalar(model))
             } else {
                 line.to_owned()
             }
@@ -576,8 +593,8 @@ fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme) -> VerbOutput 
         };
     }
     let id = workflow_id(&dest);
-    let description = w.intent.replace('"', "");
-    let stamped = stamp(body, &id, &description, w.model.as_deref());
+    let description = w.intent.as_str();
+    let stamped = stamp(body, &id, description, w.model.as_deref());
     if let Err(e) = std::fs::write(&dest, &stamped) {
         return VerbOutput {
             text: format!("cannot write {dest}: {e}"),
@@ -934,6 +951,51 @@ mod tests {
     }
 
     #[test]
+    fn yaml_scalar_keeps_plain_bare_and_single_quotes_the_rest() {
+        assert_eq!(yaml_scalar("mock/echo"), "mock/echo");
+        assert_eq!(yaml_scalar("summarize"), "summarize");
+        // Space · colon · backslash · quote → single-quoted, literal.
+        assert_eq!(
+            yaml_scalar("save to C:\\Users\\me"),
+            "'save to C:\\Users\\me'"
+        );
+        assert_eq!(yaml_scalar("foo/bar: baz"), "'foo/bar: baz'");
+        assert_eq!(yaml_scalar("it's a test"), "'it''s a test'");
+        assert_eq!(yaml_scalar(""), "''");
+    }
+
+    #[test]
+    fn stamped_file_survives_a_hostile_intent_and_model_string() {
+        // The rust-pro HIGH: a backslash in the intent (a Windows path ·
+        // a regex) and a YAML-significant model pick BOTH reached the
+        // scalar unescaped → the fresh scaffold failed its OWN check
+        // under a green ✔. Every stamp must now round-trip through the
+        // REAL parser+check clean.
+        let body = nika_pack::template("chain").expect("embedded");
+        for (desc, model) in [
+            ("save to C:\\Users\\me", "mock/echo"),
+            ("match \\d+ then ship", "mock/echo"),
+            ("it's a \"quoted\" job", "mock/echo"),
+            ("a job", "foo/bar: baz"),
+        ] {
+            let stamped = stamp(body, "hostile", desc, Some(model));
+            let parsed = nika_schema::parse(
+                &stamped,
+                nika_schema::FileId::new(0),
+                nika_schema::ParseMode::Strict,
+            );
+            assert!(
+                parsed.is_ok(),
+                "desc={desc:?} model={model:?} must parse: {parsed:?}"
+            );
+            // The check ladder must not choke either (a dirty audit is
+            // fine; a PARSE error at this point is the bug).
+            let wf = parsed.expect("asserted ok above");
+            let _ = nika_schema::check::check(&wf);
+        }
+    }
+
+    #[test]
     fn stamp_fills_exactly_the_three_known_slots() {
         for name in nika_pack::template_names() {
             let body = nika_pack::template(&name).expect("embedded");
@@ -947,8 +1009,8 @@ mod tests {
                 "{name}: no template id remnant"
             );
             assert!(
-                stamped.contains("description: \"their problem\""),
-                "{name}: description stamped"
+                stamped.contains("description: 'their problem'"),
+                "{name}: description stamped (single-quoted YAML scalar)"
             );
             if body.lines().any(|l| l.starts_with("model: ")) {
                 assert!(
