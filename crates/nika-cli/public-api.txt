@@ -980,7 +980,7 @@ pub fn nika_cli::verbs::trace_reproduce::reproduce(recorded: &str, fresh: &str) 
 pub mod nika_cli::verbs::trace_verify
 pub fn nika_cli::verbs::trace_verify::verify(trace: &str) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::welcome
-pub fn nika_cli::verbs::welcome::run(json: bool) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::welcome::run(json: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::wire
 pub enum nika_cli::verbs::wire::WireTarget
 pub nika_cli::verbs::wire::WireTarget::All
