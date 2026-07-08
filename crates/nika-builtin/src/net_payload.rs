@@ -202,6 +202,49 @@ async fn resolve_multipart<F: FsReadDyn + FsMetaDyn>(
 }
 
 /// Resolve one part (text value XOR permit-gated file read).
+/// Read a multipart file part under the 32 MiB payload cap, refusing:
+/// a NON-regular file (FIFO · device · /proc · dir stats as len 0,
+/// sailing past the size check then streaming unbounded into `read` →
+/// OOM — the rust-pro HIGH) BY TYPE before the read; an oversized file
+/// from its metadata; and a file that GREW past the cap between the stat
+/// and the read (TOCTOU) via the post-read re-check.
+async fn read_capped_file<F: FsReadDyn + FsMetaDyn>(
+    fs: &F,
+    name: &str,
+    path: &str,
+) -> Result<bytes::Bytes, BuiltinFailure> {
+    const C: &str = "NIKA-BUILTIN-FETCH-001";
+    let fail = |m: String| BuiltinFailure::new(C, m);
+    if let Ok(meta) = fs.metadata(std::path::Path::new(path)).await {
+        if !meta.is_file {
+            return Err(fail(format!(
+                "multipart part `{name}`: `{path}` is not a regular file \
+                 (a FIFO/device/directory cannot be a bounded upload)"
+            )));
+        }
+        if meta.len > MAX_MULTIPART_BYTES as u64 {
+            return Err(fail(format!(
+                "multipart part `{name}`: `{path}` is {} bytes — the payload cap \
+                 is {MAX_MULTIPART_BYTES} (~32 MiB) · ship large assets by URL",
+                meta.len
+            )));
+        }
+    }
+    let bytes = fs.read(std::path::Path::new(path)).await.map_err(|e| {
+        fail(format!(
+            "multipart part `{name}`: `{path}` could not be read: {e}"
+        ))
+    })?;
+    if bytes.len() > MAX_MULTIPART_BYTES {
+        return Err(fail(format!(
+            "multipart part `{name}`: `{path}` read {} bytes — over the \
+             {MAX_MULTIPART_BYTES} (~32 MiB) payload cap",
+            bytes.len()
+        )));
+    }
+    Ok(bytes)
+}
+
 async fn resolve_part<F: FsReadDyn + FsMetaDyn>(
     fs: &F,
     boundary: &FsBoundary,
@@ -243,24 +286,7 @@ async fn resolve_part<F: FsReadDyn + FsMetaDyn>(
                 )));
             };
             boundary.enforce(fs, path, FsAccess::Read).await?;
-            // Pre-read cap: refuse an oversized file from its metadata,
-            // BEFORE buffering it (a metadata error falls through — the
-            // read below surfaces the real failure; the post-read total
-            // check stays the authority the mock-less path relies on).
-            if let Ok(meta) = fs.metadata(std::path::Path::new(path)).await
-                && meta.len > MAX_MULTIPART_BYTES as u64
-            {
-                return Err(fail(format!(
-                    "multipart part `{name}`: `{path}` is {} bytes — the payload cap \
-                     is {MAX_MULTIPART_BYTES} (~32 MiB) · ship large assets by URL",
-                    meta.len
-                )));
-            }
-            let bytes = fs.read(std::path::Path::new(path)).await.map_err(|e| {
-                fail(format!(
-                    "multipart part `{name}`: `{path}` could not be read: {e}"
-                ))
-            })?;
+            let bytes = read_capped_file(fs, name, path).await?;
             *total += bytes.len();
             let filename = match map.get("filename") {
                 Some(serde_json::Value::String(f)) => Some(f.clone()),
@@ -346,6 +372,35 @@ mod tests {
         assert!(text.contains("filename=\"bg.png\"") && text.contains("Content-Type: image/png"));
         let ct = req.headers.get("content-type").expect("content-type set");
         assert!(ct.starts_with("multipart/form-data; boundary="), "{ct}");
+    }
+
+    #[tokio::test]
+    async fn multipart_non_regular_file_is_refused_before_read() {
+        // A path that is NOT a regular file (here a directory — a FIFO or
+        // /dev/zero stats the same way: is_file == false, len == 0) sailed
+        // past the len cap and streamed unbounded into `read` → OOM. It is
+        // now refused by TYPE, before any read (the rust-pro review HIGH).
+        let fs = MockFs::new().with_file("assets/logo.png", b"x".to_vec());
+        let http = MockHttp::new().enqueue_ok(200, b"ok".to_vec());
+        let fail = crate::net::fetch(
+            &http,
+            &fs,
+            &FsBoundary::unbounded(),
+            &args(serde_json::json!({
+                "url": "https://api.test/upload", "method": "POST",
+                // `assets` is an implicit directory (is_file == false).
+                "multipart": [ { "name": "file", "path": "assets" } ]
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&fail, Err(f) if f.message.contains("not a regular file")),
+            "non-regular multipart path refused by type: {fail:?}"
+        );
+        assert!(
+            http.sent_requests().is_empty(),
+            "no byte leaves the machine"
+        );
     }
 
     #[tokio::test]

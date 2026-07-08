@@ -57,6 +57,13 @@ const C: &str = "NIKA-BUILTIN-FETCH-001";
 /// Aggregate-asset caps (across the whole crawl · first-seen order).
 const MAX_ASSET_IMAGES: usize = 40;
 const MAX_ASSET_COLORS: usize = 30;
+/// robots.txt is bounded by the L1 64 MiB response cap — far too much to
+/// PARSE. A real robots.txt is a few KiB; cap the parse input + the
+/// disallow set so a hostile crawl target can't turn a 64 MiB body of
+/// `Disallow:` lines into hundreds of MB of `String` + billions of
+/// prefix compares on the frontier (the rust-pro review's amplification).
+const MAX_ROBOTS_BYTES: usize = 512 * 1024;
+const MAX_ROBOTS_DISALLOWS: usize = 4096;
 /// Frontier multiplier — pending links per page budget.
 const FRONTIER_PER_PAGE: u64 = 8;
 
@@ -81,7 +88,14 @@ pub(crate) async fn traverse<H: HttpGetDyn>(http: &H, root: &str, args: &Args) -
             ),
         ));
     }
-    let origin = root_url.origin();
+    // The filter origin starts at the seed but is RE-PINNED to wherever
+    // the root actually LANDS (a cross-origin redirect: apex→www ·
+    // http→https · both ubiquitous). Fixed to the pre-redirect seed, it
+    // filtered out every descendant link (resolved against the landed
+    // origin) → the crawl silently truncated to one page (the rust-pro
+    // review's redirect-truncation finding). The landed origin was itself
+    // vetted by the L1 guard on the redirect hop.
+    let mut origin = root_url.origin();
 
     let disallows = root_disallows(http, &root_url, &spec).await?;
 
@@ -102,45 +116,29 @@ pub(crate) async fn traverse<H: HttpGetDyn>(http: &H, root: &str, args: &Args) -
         visited.push(page_url.clone());
         let is_root = pages.is_empty();
 
-        let response = match http.get(HttpRequest::get(&page_url)).await {
-            Ok(response) => response,
-            Err(e) => {
-                // The root failing IS the builtin failing (single-fetch
-                // contract); a descendant records an honest error entry —
-                // security blocks included (the request was BLOCKED,
-                // nothing left the machine · recording is honest).
-                if is_root {
-                    return Err(crate::net::net_security_failure(&e).unwrap_or_else(|| {
-                        BuiltinFailure::new(C, format!("request failed: {e}"))
-                    }));
-                }
-                pages.push(serde_json::json!({ "url": page_url, "error": e.to_string() }));
+        let response = match fetch_page(http, &page_url, is_root).await? {
+            Fetched::Ok(response) => response,
+            Fetched::Recorded(entry) => {
+                pages.push(entry);
                 continue;
             }
         };
-        if !(200..300).contains(&response.status) {
-            if is_root {
-                return Err(BuiltinFailure::new(
-                    C,
-                    format!("HTTP {} from {page_url}", response.status),
-                )
-                .with_transient(crate::net::is_transient_status(response.status))
-                .with_details(serde_json::json!({ "status_code": response.status })));
-            }
-            pages.push(serde_json::json!({ "url": page_url, "status": response.status }));
-            continue;
-        }
 
         let text = crate::net::decode_charset(
             &response.body,
             response.headers.get("content-type").map(String::as_str),
         )
         .into_owned();
-        let base = if response.final_url.is_empty() {
-            page_url.clone()
-        } else {
-            response.final_url.clone()
-        };
+        // The link-resolution base: where the page LANDED (post-redirect),
+        // userinfo-stripped so a crawled asset never carries the crawl's
+        // own basic-auth into the digest.
+        let base = resolution_base(&page_url, &response.final_url);
+        // Re-pin the same-origin filter to where the ROOT landed, so
+        // apex→www / http→https canonicalization does not empty the
+        // frontier (descendants still match the landed origin).
+        if is_root && let Ok(landed) = url::Url::parse(&base) {
+            origin = landed.origin();
+        }
         let status = response.status;
         // CPU-heavy DOM parse rides the blocking pool (the single-fetch
         // extraction precedent — same bounded-orphan cancel contract).
@@ -154,7 +152,7 @@ pub(crate) async fn traverse<H: HttpGetDyn>(http: &H, root: &str, args: &Args) -
     }
 
     Ok(serde_json::json!({
-        "url": root,
+        "url": crate::wire::redact_url(root),
         "page_count": pages.len(),
         "pages": pages,
         "assets": { "images": asset_images, "colors": asset_colors },
@@ -186,11 +184,80 @@ async fn root_disallows<H: HttpGetDyn>(
     Ok(disallows)
 }
 
+/// One page's fetch outcome: a usable 2xx response, or an entry already
+/// shaped for the `pages` list (a descendant's error/non-2xx — recorded,
+/// not fatal). The ROOT failing propagates as the builtin failing.
+enum Fetched {
+    Ok(nika_kernel::http::HttpResponse),
+    Recorded(serde_json::Value),
+}
+
+/// GET one crawl page. A descendant error/non-2xx is recorded (honest:
+/// the request was made, or BLOCKED and nothing left the machine); the
+/// root failing IS the single-fetch contract failing. Userinfo redacted
+/// in every echo.
+async fn fetch_page<H: HttpGetDyn>(
+    http: &H,
+    page_url: &str,
+    is_root: bool,
+) -> Result<Fetched, BuiltinFailure> {
+    let response = match http.get(HttpRequest::get(page_url)).await {
+        Ok(response) => response,
+        Err(e) => {
+            if is_root {
+                return Err(crate::net::net_security_failure(&e)
+                    .unwrap_or_else(|| BuiltinFailure::new(C, format!("request failed: {e}"))));
+            }
+            return Ok(Fetched::Recorded(serde_json::json!({
+                "url": crate::wire::redact_url(page_url), "error": e.to_string()
+            })));
+        }
+    };
+    if !(200..300).contains(&response.status) {
+        if is_root {
+            return Err(BuiltinFailure::new(
+                C,
+                format!(
+                    "HTTP {} from {}",
+                    response.status,
+                    crate::wire::redact_url(page_url)
+                ),
+            )
+            .with_transient(crate::net::is_transient_status(response.status))
+            .with_details(serde_json::json!({ "status_code": response.status })));
+        }
+        return Ok(Fetched::Recorded(serde_json::json!({
+            "url": crate::wire::redact_url(page_url), "status": response.status
+        })));
+    }
+    Ok(Fetched::Ok(response))
+}
+
+/// The base a page's links/images resolve against: the post-redirect
+/// landing URL (else the request URL), with userinfo stripped — a
+/// crawled asset URL must never echo the crawl's own basic-auth.
+fn resolution_base(page_url: &str, final_url: &str) -> String {
+    let landed = if final_url.is_empty() {
+        page_url
+    } else {
+        final_url
+    };
+    crate::wire::redact_url(landed)
+}
+
 /// Vet the whole-arg surface + parse the spec: `traverse:` excludes the
 /// single-fetch extraction/payload families, forces GET, and its own
 /// shape is closed. All of it fails BEFORE any request is spent.
 fn parse_traverse_args(args: &Args) -> Result<TraverseSpec, BuiltinFailure> {
-    for key in ["mode", "selector", "jq", "body", "form", "multipart"] {
+    for key in [
+        "mode",
+        "selector",
+        "jq",
+        "body",
+        "form",
+        "multipart",
+        "headers",
+    ] {
         if args.contains_key(key) {
             return Err(BuiltinFailure::new(
                 C,
@@ -313,7 +380,10 @@ fn collect_assets(digest: &serde_json::Value, images: &mut Vec<String>, colors: 
 /// One page entry: `{url, status}` + every digest facet.
 fn page_entry(page_url: &str, status: u16, digest: serde_json::Value) -> serde_json::Value {
     let mut entry = serde_json::Map::new();
-    entry.insert("url".to_owned(), page_url.into());
+    // Userinfo never persists into the crawl output (journal · logs ·
+    // agent tool-result) — the single-fetch path already redacts; the
+    // crawl output must match (the review's credential-leak finding).
+    entry.insert("url".to_owned(), crate::wire::redact_url(page_url).into());
     entry.insert("status".to_owned(), status.into());
     if let serde_json::Value::Object(fields) = digest {
         entry.extend(fields);
@@ -335,7 +405,10 @@ async fn fetch_robots_disallows<H: HttpGetDyn>(http: &H, root: &url::Url) -> Vec
     };
     match http.get(HttpRequest::get(robots_url.as_str())).await {
         Ok(response) if (200..300).contains(&response.status) => {
-            robots_disallows(&String::from_utf8_lossy(&response.body))
+            // Parse only the first MAX_ROBOTS_BYTES — a real robots.txt is
+            // KiB; anything past that is amplification fuel, not policy.
+            let cap = response.body.len().min(MAX_ROBOTS_BYTES);
+            robots_disallows(&String::from_utf8_lossy(&response.body[..cap]))
         }
         _ => Vec::new(),
     }
@@ -370,7 +443,11 @@ fn robots_disallows(body: &str) -> Vec<String> {
             group_is_star |= value == "*";
         } else {
             in_agent_run = false;
-            if field.eq_ignore_ascii_case("disallow") && group_is_star && !value.is_empty() {
+            if field.eq_ignore_ascii_case("disallow")
+                && group_is_star
+                && !value.is_empty()
+                && disallows.len() < MAX_ROBOTS_DISALLOWS
+            {
                 disallows.push(value.to_owned());
             }
         }
@@ -407,6 +484,85 @@ mod tests {
              <h1>{title}</h1><img src=\"/img/{title}.png\"> #0400ff {anchors}</body></html>"
         )
         .into_bytes()
+    }
+
+    #[tokio::test]
+    async fn traverse_follows_a_cross_origin_root_redirect() {
+        // apex → www canonicalization (ubiquitous): the root LANDS on
+        // www, its links resolve against www, and the same-origin filter
+        // must re-pin to www or the frontier empties (a 1-page crawl).
+        let http = MockHttp::new()
+            .enqueue_ok(404, Vec::new()) // robots
+            .enqueue_ok_final_url(200, page("home", &["/a"]), "https://www.acme.test/")
+            .enqueue_ok(200, page("a", &[]));
+        let out = traverse(
+            &http,
+            "https://acme.test/",
+            &args(serde_json::json!({
+                "url": "https://acme.test/", "traverse": { "max_pages": 5 }
+            })),
+        )
+        .await
+        .expect("crawl succeeds");
+        assert_eq!(
+            out["page_count"], 2,
+            "the www descendant is followed: {out}"
+        );
+    }
+
+    #[tokio::test]
+    async fn traverse_output_redacts_url_userinfo() {
+        // The crawl output must not persist basic-auth into the journal —
+        // the single-fetch path redacts; the crawl must match.
+        let http = MockHttp::new()
+            .enqueue_ok(404, Vec::new())
+            .enqueue_ok(200, page("root", &[]));
+        let out = traverse(
+            &http,
+            "https://user:s3cret@acme.test/",
+            &args(serde_json::json!({
+                "url": "https://user:s3cret@acme.test/", "traverse": { "max_pages": 3 }
+            })),
+        )
+        .await
+        .expect("crawl succeeds");
+        let dump = out.to_string();
+        assert!(
+            !dump.contains("s3cret"),
+            "no userinfo in the crawl output: {dump}"
+        );
+        assert!(dump.contains("acme.test"), "the host still shows: {dump}");
+    }
+
+    #[tokio::test]
+    async fn traverse_excludes_headers_loudly() {
+        // headers were silently dropped on the crawl (every hop went
+        // unauthenticated) — now a loud exclusion, never a silent drop.
+        let http = MockHttp::new().enqueue_ok(404, Vec::new());
+        let err = traverse(
+            &http,
+            "https://acme.test/",
+            &args(serde_json::json!({
+                "url": "https://acme.test/",
+                "headers": { "Authorization": "Bearer x" },
+                "traverse": { "max_pages": 3 }
+            })),
+        )
+        .await
+        .expect_err("headers + traverse is refused");
+        assert!(err.message.contains("headers"), "{}", err.message);
+    }
+
+    #[test]
+    fn robots_disallows_are_capped() {
+        // A hostile robots.txt of millions of Disallow lines can't turn
+        // into an unbounded Vec (amplification cap).
+        use std::fmt::Write as _;
+        let mut body = String::from("User-agent: *\n");
+        for i in 0..(MAX_ROBOTS_DISALLOWS + 500) {
+            let _ = writeln!(body, "Disallow: /p{i}");
+        }
+        assert_eq!(robots_disallows(&body).len(), MAX_ROBOTS_DISALLOWS);
     }
 
     #[tokio::test]
