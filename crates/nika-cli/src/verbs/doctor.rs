@@ -78,6 +78,11 @@ pub(crate) struct ProviderProbe {
     pub key_present: bool,
     /// The conventional env var to name in the fix (e.g. `ANTHROPIC_API_KEY`).
     pub fix_var: String,
+    /// Whether structured output rides the provider's NATIVE `json_schema`
+    /// mode (`Profile::supports_response_format` — a PROVIDER fact:
+    /// deepseek is the one cloud whose schema path is the instruction
+    /// fallback + local validation).
+    pub structured_native: bool,
 }
 
 /// The injected environment facts `diagnose` reasons over — PURE · testable.
@@ -428,10 +433,23 @@ pub(crate) fn render(findings: &[Finding]) -> String {
 /// One cloud-provider row (✔ key present · ⚠ unset, with the export fix).
 fn provider_finding(p: &ProviderProbe) -> Finding {
     if p.key_present {
+        // The exception gets the ink, not the norm: every provider is
+        // schema-native except the instruction-fallback clouds (deepseek —
+        // no json_schema in its API), and an operator picking a model for
+        // a structured workflow wants that fact on the health surface.
+        let detail = if p.structured_native {
+            format!("{} — key present", p.id)
+        } else {
+            format!(
+                "{} — key present · structured output via instruction + local validation \
+                 (no native json_schema)",
+                p.id
+            )
+        };
         Finding {
             level: Level::Ok,
             label: "provider".to_owned(),
-            detail: format!("{} — key present", p.id),
+            detail,
             fix: None,
         }
     } else {
@@ -626,6 +644,7 @@ pub fn run(ping: bool, json: bool) -> VerbOutput {
                 // PRESENT-NOT-PRINTED: only presence is observed · the value is
                 // never bound (alignment Rule 1 · no secret ever surfaces).
                 key_present: candidates.iter().any(|v| env_present(v)),
+                structured_native: p.supports_response_format(),
                 // The conventional var (last candidate · `ANTHROPIC_API_KEY`)
                 // is the friendliest fix; the `NIKA_<ID>_API_KEY` form always
                 // works too but reads less familiar.
@@ -882,6 +901,7 @@ mod tests {
             requires_key: true,
             key_present: present,
             fix_var: var.to_owned(),
+            structured_native: id != "deepseek",
         }
     }
     fn local(id: &str) -> ProviderProbe {
@@ -890,7 +910,24 @@ mod tests {
             requires_key: false,
             key_present: false,
             fix_var: String::new(),
+            structured_native: true,
         }
+    }
+
+    #[test]
+    fn instruction_fallback_cloud_is_named_on_the_health_surface() {
+        // deepseek carries a key but no native json_schema — the doctor
+        // row says so; a native provider's row stays unannotated.
+        let deepseek = cloud("deepseek", "DEEPSEEK_API_KEY", true);
+        let f = provider_finding(&deepseek);
+        assert!(
+            f.detail.contains("instruction + local validation"),
+            "{}",
+            f.detail
+        );
+        let openai = cloud("openai", "OPENAI_API_KEY", true);
+        let f = provider_finding(&openai);
+        assert!(!f.detail.contains("instruction"), "{}", f.detail);
     }
 
     #[test]
@@ -1348,6 +1385,7 @@ mod tests {
                 requires_key: false,
                 key_present: false,
                 fix_var: String::new(),
+                structured_native: true,
             }],
             clients: Vec::new(),
             image: ImageProbe::default(),
