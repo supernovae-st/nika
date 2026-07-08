@@ -13,19 +13,34 @@
 //! `initialized` → the main loop over `Request`/`Notification` →
 //! `shutdown`/`exit`. Diagnostics publish on `didOpen` and `didChange`.
 //!
+//! Cancellation · each turn drains everything already queued behind the
+//! blocking head message into one BATCH, harvests the batch's
+//! `$/cancelRequest` notifications, and answers a request cancelled
+//! BEFORE it was computed with `-32800 RequestCancelled` instead of a
+//! result the client already discarded (a fast-typing burst queues
+//! stale requests behind their cancels). Message ORDER is untouched —
+//! the batch replays in arrival order; only cancelled requests skip
+//! their compute. A cancel for an already-answered request is a no-op
+//! per the spec. Because the batch may already hold the post-shutdown
+//! `exit`, the loop owns the shutdown dance itself (lsp-server's
+//! `handle_shutdown` recv-s the live channel and would stall on an
+//! `exit` sitting in the batch).
+//!
 //! The open documents are keyed by the URI's STRING form (not the `Uri`
 //! type itself) — `Uri` carries interior mutability (its internal offset
 //! cache), so it is not a valid map key, and a `BTreeMap<String, _>` is
 //! deterministic (the studio's BTree-everywhere discipline).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use lsp_server::{Connection, ExtractError, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
-    DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument,
+    Cancel, DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument,
     Notification as NotificationTrait, PublishDiagnostics,
 };
-use lsp_types::request::{Completion, GotoDefinition, HoverRequest, Request as RequestTrait};
+use lsp_types::request::{
+    Completion, GotoDefinition, HoverRequest, Request as RequestTrait, Shutdown,
+};
 use lsp_types::{
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
@@ -52,31 +67,100 @@ const EXIT_METHOD: &str = "exit";
 const INVALID_PARAMS: i32 = -32602;
 const INTERNAL_ERROR: i32 = -32603;
 
+/// LSP reserved error code: the client cancelled the request
+/// (`$/cancelRequest`) before the server computed it.
+const REQUEST_CANCELLED: i32 = -32800;
+
+/// How long the post-shutdown wait for `exit` may block (mirrors
+/// `lsp_server::Connection::handle_shutdown`).
+const EXIT_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// Run the language server over `connection` until the client shuts it
 /// down. The `connection` is already past the initialize handshake.
+///
+/// See the module docs for the batch/cancellation model.
 pub(crate) fn serve(connection: &Connection) -> Result<(), LspError> {
     let mut docs: Docs = BTreeMap::new();
-    for msg in &connection.receiver {
-        match msg {
-            Message::Request(req) => {
-                if connection
-                    .handle_shutdown(&req)
-                    .map_err(|e| LspError::Protocol(e.to_string()))?
-                {
-                    return Ok(());
+    while let Ok(head) = connection.receiver.recv() {
+        let mut batch = VecDeque::from([head]);
+        while let Ok(msg) = connection.receiver.try_recv() {
+            batch.push_back(msg);
+        }
+        let mut cancelled = harvest_cancellations(&batch);
+        while let Some(msg) = batch.pop_front() {
+            match msg {
+                Message::Request(req) if req.method == Shutdown::METHOD => {
+                    send(connection, Response::new_ok(req.id, ()).into())?;
+                    return await_exit(connection, batch);
                 }
-                let response = handle_request(req, &docs);
-                send(connection, response.into())?;
+                Message::Request(req) => {
+                    let response = if cancelled.remove(&req.id) {
+                        Response::new_err(
+                            req.id,
+                            REQUEST_CANCELLED,
+                            "request cancelled by the client".to_owned(),
+                        )
+                    } else {
+                        handle_request(req, &docs)
+                    };
+                    send(connection, response.into())?;
+                }
+                // Harvested above. A leftover id at the end of the batch
+                // names a request answered in an EARLIER batch — a
+                // completed request's cancel is a no-op per the spec, and
+                // rebuilding the set per batch keeps it bounded.
+                Message::Notification(note) if note.method == Cancel::METHOD => {}
+                Message::Notification(note) => {
+                    handle_notification(connection, note, &mut docs)?;
+                }
+                // Responses to server→client requests — v0.1 sends none, so
+                // any response is unexpected and safely ignored.
+                Message::Response(_) => {}
             }
-            Message::Notification(note) => {
-                handle_notification(connection, note, &mut docs)?;
-            }
-            // Responses to server→client requests — v0.1 sends none, so any
-            // response is unexpected and safely ignored.
-            Message::Response(_) => {}
         }
     }
     Ok(())
+}
+
+/// Collect the request ids named by the batch's `$/cancelRequest`
+/// notifications. Malformed cancel params are ignored — never crash the
+/// loop on one bad notification.
+fn harvest_cancellations(batch: &VecDeque<Message>) -> BTreeSet<RequestId> {
+    batch
+        .iter()
+        .filter_map(|msg| match msg {
+            Message::Notification(n) if n.method == Cancel::METHOD => {
+                serde_json::from_value::<lsp_types::CancelParams>(n.params.clone()).ok()
+            }
+            _ => None,
+        })
+        .map(|p| match p.id {
+            lsp_types::NumberOrString::Number(n) => RequestId::from(n),
+            lsp_types::NumberOrString::String(s) => RequestId::from(s),
+        })
+        .collect()
+}
+
+/// Consume the post-shutdown `exit`: first from the tail of the already
+/// drained batch, then from the live receiver. Mirrors the strictness of
+/// `lsp_server::Connection::handle_shutdown` (the very next message must
+/// be `exit`) — which this loop cannot call: its internal `recv` would
+/// never see an `exit` already drained into the batch and would stall
+/// the shutdown for its full timeout.
+fn await_exit(connection: &Connection, mut batch: VecDeque<Message>) -> Result<(), LspError> {
+    let next = match batch.pop_front() {
+        Some(msg) => msg,
+        None => connection
+            .receiver
+            .recv_timeout(EXIT_WAIT)
+            .map_err(|e| LspError::Protocol(format!("waiting for exit notification: {e}")))?,
+    };
+    match next {
+        Message::Notification(n) if n.method == EXIT_METHOD => Ok(()),
+        other => Err(LspError::Protocol(format!(
+            "unexpected message during shutdown: {other:?}"
+        ))),
+    }
 }
 
 /// Run the full stdio lifecycle: connect, initialize, serve, join threads.
@@ -542,6 +626,25 @@ mod tests {
     }
 
     #[test]
+    fn harvest_cancellations_collects_ids_and_ignores_garbage() {
+        // Number ids and string ids both collect; a malformed cancel and an
+        // unrelated notification contribute nothing (and never crash).
+        let cancel_note = |params: serde_json::Value| -> Message {
+            Notification::new(Cancel::METHOD.to_owned(), params).into()
+        };
+        let batch = VecDeque::from([
+            cancel_note(serde_json::json!({ "id": 7 })),
+            cancel_note(serde_json::json!({ "id": "abc" })),
+            cancel_note(serde_json::json!({ "garbage": true })),
+            Notification::new("initialized".to_owned(), serde_json::json!({})).into(),
+        ]);
+        let set = harvest_cancellations(&batch);
+        assert_eq!(set.len(), 2, "exactly the two well-formed cancel ids");
+        assert!(set.contains(&RequestId::from(7)));
+        assert!(set.contains(&RequestId::from("abc".to_owned())));
+    }
+
+    #[test]
     fn unrelated_notification_is_ignored_without_error() {
         // The default arm (e.g. `initialized`) does nothing and returns Ok —
         // no doc mutation, no publish.
@@ -594,6 +697,17 @@ mod canary {
             .sender
             .send(Request::new(id.into(), method.to_owned(), params).into())
             .expect("send request");
+    }
+
+    /// Send a `$/cancelRequest` notification for request `id`.
+    fn cancel(client: &Connection, id: i32) {
+        let params = lsp_types::CancelParams {
+            id: lsp_types::NumberOrString::Number(id),
+        };
+        client
+            .sender
+            .send(Notification::new(Cancel::METHOD.to_owned(), params).into())
+            .expect("send cancel");
     }
 
     /// Open an arbitrary URI with the given text.
@@ -797,6 +911,196 @@ mod canary {
         assert!(
             completion.to_string().contains("ollama/"),
             "completion: {completion}"
+        );
+    }
+
+    /// A hover request over `hello_uri` at the verb position.
+    fn hover_at(client: &Connection, id: i32, hello_uri: &Uri, pos: Position) {
+        request(
+            client,
+            id,
+            HoverRequest::METHOD,
+            lsp_types::HoverParams {
+                text_document_position_params: at(hello_uri, pos),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+            },
+        );
+    }
+
+    #[test]
+    fn cancelled_queued_request_answers_request_cancelled_without_compute() {
+        // Fast typing: a burst [hover · cancel · hover] is already queued
+        // when the server picks the batch up. The cancelled request must
+        // come back as a -32800 RequestCancelled ERROR — never a computed
+        // result the client already discarded — and the live request after
+        // it must still compute normally.
+        let (server, client) = Connection::memory();
+        request(&client, 1, "initialize", InitializeParams::default());
+        client
+            .sender
+            .send(Notification::new("initialized".to_owned(), serde_json::json!({})).into())
+            .expect("initialized");
+        let hello = "nika: v1\nworkflow: hello\ntasks:\n  - id: greet\n    infer: { prompt: \"hi\", max_tokens: 10 }\n";
+        let hello_uri = Uri::from_str("file:///hello.nika.yaml").expect("uri");
+        open_uri(&client, &hello_uri, hello);
+        let idx = crate::analysis::position::LineIndex::new(hello);
+        let verb = idx.position(hello.find("infer").expect("verb") + 1);
+        hover_at(&client, 10, &hello_uri, verb);
+        cancel(&client, 10);
+        hover_at(&client, 11, &hello_uri, verb);
+        request(&client, 99, "shutdown", serde_json::Value::Null);
+        client
+            .sender
+            .send(Notification::new("exit".to_owned(), serde_json::Value::Null).into())
+            .expect("exit");
+
+        let (_diags, responses) = run_server_and_drain(server, &client);
+
+        let by_id = |id: i32| {
+            responses
+                .iter()
+                .find(|r| r.id == id.into())
+                .unwrap_or_else(|| panic!("response {id} present"))
+        };
+        let cancelled = by_id(10);
+        let err = cancelled
+            .error
+            .as_ref()
+            .expect("cancelled request → an error response, not a computed result");
+        assert_eq!(err.code, -32800, "LSP RequestCancelled reserved code");
+        assert!(
+            cancelled.result.is_none(),
+            "no result alongside the cancellation"
+        );
+        let live = by_id(11);
+        assert!(live.error.is_none(), "the live request still computes");
+        let hover = live.result.clone().expect("hover result");
+        assert!(hover.to_string().contains("infer"), "hover: {hover}");
+    }
+
+    #[test]
+    fn cancel_after_the_answer_is_a_quiet_noop() {
+        // A cancel landing AFTER its request was answered (the common case
+        // in a sync loop) must not crash the loop, must not produce a
+        // second response for the id, and must not disturb later requests.
+        //
+        // The scope body only DRIVES the interleaving — every assertion
+        // happens after the scope. A panic inside the scope would deadlock
+        // the join against a server still blocked on `recv` (the client
+        // side of the memory connection stays alive through the unwind).
+        let (server, client) = Connection::memory();
+        request(&client, 1, "initialize", InitializeParams::default());
+        client
+            .sender
+            .send(Notification::new("initialized".to_owned(), serde_json::json!({})).into())
+            .expect("initialized");
+        let hover_params = lsp_types::HoverParams {
+            text_document_position_params: at(&uri(), Position::new(0, 0)),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let mut responses: Vec<Response> = Vec::new();
+        let server_ref = &server;
+        thread::scope(|scope| {
+            scope.spawn(move || {
+                let caps = serde_json::to_value(server_capabilities()).expect("caps");
+                server_ref.initialize(caps).expect("initialize");
+                serve(server_ref).expect("serve");
+            });
+            // Collect responses (≤10s) until `id` answers; never panics.
+            let await_response = |sink: &mut Vec<Response>, id: i32| {
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+                while std::time::Instant::now() < deadline {
+                    if let Ok(Message::Response(r)) = client
+                        .receiver
+                        .recv_timeout(std::time::Duration::from_millis(200))
+                    {
+                        let hit = r.id == id.into();
+                        sink.push(r);
+                        if hit {
+                            return;
+                        }
+                    }
+                }
+            };
+            // An unopened doc hovers to ok-null — but it IS answered.
+            request(&client, 10, HoverRequest::METHOD, hover_params.clone());
+            await_response(&mut responses, 10);
+            // The cancel arrives in a LATER batch than its target.
+            cancel(&client, 10);
+            request(&client, 11, HoverRequest::METHOD, hover_params.clone());
+            await_response(&mut responses, 11);
+            // Always shut the server down so the scope can join.
+            request(&client, 99, "shutdown", serde_json::Value::Null);
+            client
+                .sender
+                .send(Notification::new("exit".to_owned(), serde_json::Value::Null).into())
+                .expect("exit");
+            await_response(&mut responses, 99);
+        });
+        assert_eq!(
+            responses.iter().filter(|r| r.id == 10.into()).count(),
+            1,
+            "exactly ONE response for the answered-then-cancelled request"
+        );
+        let live = responses
+            .iter()
+            .find(|r| r.id == 11.into())
+            .expect("response 11 present");
+        assert!(
+            live.error.is_none(),
+            "request 11 unaffected by the stale cancel"
+        );
+        assert!(
+            responses.iter().any(|r| r.id == 99.into()),
+            "shutdown acknowledged"
+        );
+    }
+
+    #[test]
+    fn shutdown_with_exit_already_queued_terminates_cleanly() {
+        // The whole tail [didOpen · shutdown · exit] drains into ONE batch.
+        // The loop must find the exit inside its own batch — blindly
+        // recv-ing from the live channel after the shutdown response
+        // (lsp-server's `handle_shutdown`) would stall 30 seconds here and
+        // then die on a protocol error.
+        let (server, client) = Connection::memory();
+        request(&client, 1, "initialize", InitializeParams::default());
+        client
+            .sender
+            .send(Notification::new("initialized".to_owned(), serde_json::json!({})).into())
+            .expect("initialized");
+        did_open(&client, "nika: v1\n");
+        request(&client, 99, "shutdown", serde_json::Value::Null);
+        client
+            .sender
+            .send(Notification::new("exit".to_owned(), serde_json::Value::Null).into())
+            .expect("exit");
+        let (_diags, responses) = run_server_and_drain(server, &client);
+        let shutdown = responses
+            .iter()
+            .find(|r| r.id == 99.into())
+            .expect("shutdown response");
+        assert!(shutdown.error.is_none(), "shutdown acknowledged ok");
+    }
+
+    #[test]
+    fn unexpected_message_between_shutdown_and_exit_is_a_protocol_error() {
+        // Mirrors lsp-server's `handle_shutdown` strictness: after the
+        // shutdown response the NEXT message must be `exit` — anything else
+        // ends the loop with a protocol error (non-zero exit).
+        let (server, client) = Connection::memory();
+        request(&client, 99, "shutdown", serde_json::Value::Null);
+        request(&client, 100, HoverRequest::METHOD, serde_json::Value::Null);
+        client
+            .sender
+            .send(Notification::new("exit".to_owned(), serde_json::Value::Null).into())
+            .expect("exit");
+        // serve is already past the handshake by contract — run it directly
+        // over the pre-queued tail.
+        let result = serve(&server);
+        assert!(
+            matches!(result, Err(LspError::Protocol(_))),
+            "a request between shutdown and exit is a protocol violation: {result:?}"
         );
     }
 }
