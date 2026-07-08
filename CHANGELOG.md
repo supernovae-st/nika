@@ -60,15 +60,23 @@ real budget lever.
 - `scripts/refresh-pricing.sh` grows a LiteLLM-style shrink guard
   (a refresh losing >half the rules refuses to write) and emits the
   `[meta]` provenance block.
+- **Billed-then-failed spend is visible** — a loop that burns real
+  money and then dies (schema retries exhausted · `max_turns` ·
+  `max_tokens_total` · a provider dying mid-loop) now carries that
+  spend on its error: `task_failed`/`task_skipped` frames ride
+  `cost_usd` (+ the unpriced WHY), run totals include it, and the
+  `--max-cost-usd` gate debits it PER ATTEMPT — a retry storm can no
+  longer spend past the budget invisibly. A recovered (`on_error:
+  recover`) task keeps its burned spend on the frame (recovery is not
+  a refund).
 - **Known limits (named, not silent — the honest-cost roadmap):**
   costs use LIST RATES from the vendored public catalog (private/proxy/
   Azure deals need the roadmapped override file) · long-context pricing
   tiers are vendored at the BASE rate (a >200K-token gemini-2.5-pro
-  call bills ~2× the estimate) · a provider round-trip that bills but
-  whose verb then FAILS (schema retries exhausted · an agent hitting
-  `max_turns`/`max_tokens_total`) reports no usage on the error path
-  yet — that spend is invisible to totals and to the budget gate;
-  threading usage through verb errors is the committed follow-up.
+  call bills ~2× the estimate) · a task KILLED BY ITS `timeout:` cannot
+  report the cancelled attempt's server-side spend (nothing was
+  reported, nothing can honestly ride) · `on_finally` cleanups stay the
+  best-effort unmetered lane.
 
 ---
 ## [0.97.0](https://github.com/supernovae-st/nika/compare/v0.96.0..v0.97.0) - 2026-07-07

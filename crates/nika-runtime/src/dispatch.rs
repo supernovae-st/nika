@@ -39,7 +39,55 @@ pub(crate) struct Dispatched {
     /// `<verb> · <subject>` (the display contract's `TaskStarted` note).
     pub note: String,
     /// The verb's value (spec-04 typed) or the task error.
-    pub result: Result<DispatchOk, TaskErrorRecord>,
+    pub result: Result<DispatchOk, FailedDispatch>,
+}
+
+/// A failed dispatch — the task error PLUS the spend the verb had
+/// already incurred before dying (billed-then-failed round-trips are
+/// real money: the ledger debits it, `task_failed` carries it, the
+/// `--max-cost-usd` gate sees it — Cost Intelligence follow-up).
+pub(crate) struct FailedDispatch {
+    pub record: TaskErrorRecord,
+    /// Metered spend of the attempt that failed (absent = nothing billed).
+    pub cost_usd: Option<f64>,
+    /// The by-source attribution key for the ledger.
+    pub cost_source: Option<String>,
+    /// Why (part of) the incurred spend is NOT in `cost_usd`.
+    pub cost_unpriced: Option<UnpricedReason>,
+}
+
+impl FailedDispatch {
+    /// A failure that spent nothing (template errors · security refusals
+    /// · verbs without provider round-trips).
+    fn unspent(record: TaskErrorRecord) -> Self {
+        Self {
+            record,
+            cost_usd: None,
+            cost_source: None,
+            cost_unpriced: None,
+        }
+    }
+
+    /// Debit this attempt's incurred spend to the run ledger and fold
+    /// it onto the task-level accumulators — returns the bare error
+    /// record for the retry policy. One call per failed attempt.
+    pub(crate) fn debit_and_fold(
+        self,
+        ledger: &crate::ledger::RunLedger,
+        failed_cost: &mut Option<f64>,
+        failed_unpriced: &mut Option<UnpricedReason>,
+    ) -> TaskErrorRecord {
+        ledger.debit(
+            self.cost_source.as_deref(),
+            self.cost_usd,
+            self.cost_unpriced.is_some(),
+        );
+        if let Some(c) = self.cost_usd {
+            *failed_cost = Some(failed_cost.unwrap_or(0.0) + c);
+        }
+        *failed_unpriced = failed_unpriced.or(self.cost_unpriced);
+        self.record
+    }
 }
 
 /// A successful dispatch — the output value + token spend when the
@@ -61,6 +109,22 @@ pub(crate) struct DispatchOk {
     /// Why (part of) this leaf's spend is NOT in `cost_usd` — the
     /// honest-absence WHY channel (`cost_unpriced` on the trace frame).
     pub cost_unpriced: Option<UnpricedReason>,
+}
+
+impl DispatchOk {
+    /// Fold the FAILED attempts' spend onto this success so the frame
+    /// reports what the whole task cost (the ledger already debited
+    /// those attempts individually — this is event-surface only).
+    pub(crate) fn fold_failed_spend(
+        &mut self,
+        failed_cost: Option<f64>,
+        failed_unpriced: Option<UnpricedReason>,
+    ) {
+        if failed_cost.is_some() {
+            self.cost_usd = Some(self.cost_usd.unwrap_or(0.0) + failed_cost.unwrap_or(0.0));
+        }
+        self.cost_unpriced = self.cost_unpriced.or(failed_unpriced);
+    }
 }
 
 impl Dispatched {
@@ -105,7 +169,7 @@ impl Dispatched {
     fn verb_err(note: String, err: &dyn NikaErrorCode) -> Self {
         Self {
             note,
-            result: Err(TaskErrorRecord {
+            result: Err(FailedDispatch::unspent(TaskErrorRecord {
                 // The USER-FACING spec code (`NIKA-EXEC-001` · not the engine
                 // `NIKA-440`) — the identifier the author is forced (by `nika
                 // check`) to write in `on_codes:`, and the one `tasks.X.error
@@ -114,6 +178,30 @@ impl Dispatched {
                 code: err.spec_code(),
                 message: err.to_string(),
                 transient: err.is_transient(),
+            })),
+        }
+    }
+
+    /// `verb_err` + the spend the failed verb had already incurred —
+    /// the infer/agent error path (their typed errors carry a
+    /// [`nika_types::cost::SpendOnFailure`] decorated at the verb seam).
+    fn verb_err_spent(
+        note: String,
+        err: &dyn NikaErrorCode,
+        spend: (Option<f64>, Option<String>, Option<UnpricedReason>),
+    ) -> Self {
+        let (cost_usd, cost_source, cost_unpriced) = spend;
+        Self {
+            note,
+            result: Err(FailedDispatch {
+                record: TaskErrorRecord {
+                    code: err.spec_code(),
+                    message: err.to_string(),
+                    transient: err.is_transient(),
+                },
+                cost_usd,
+                cost_source,
+                cost_unpriced,
             }),
         }
     }
@@ -121,7 +209,7 @@ impl Dispatched {
     fn template_err(note: &str, err: &RuntimeError) -> Self {
         Self {
             note: note.to_owned(),
-            result: Err(TaskErrorRecord {
+            result: Err(FailedDispatch::unspent(TaskErrorRecord {
                 // The SPEC-PLANE wire code (`NIKA-VAR-001` unresolved ·
                 // `NIKA-VAR-005` out-of-subset) the author filters on — never
                 // the engine-internal `nika_code()` (spec 05 §142 · the
@@ -130,18 +218,18 @@ impl Dispatched {
                 code: err.spec_code(),
                 message: err.wire_message(),
                 transient: false, // static expression class · retry never helps
-            }),
+            })),
         }
     }
 
     fn unwired(note: &str, detail: String) -> Self {
         Self {
             note: note.to_owned(),
-            result: Err(TaskErrorRecord {
+            result: Err(FailedDispatch::unspent(TaskErrorRecord {
                 code: nika_error::codes::NIKA_1703.to_string(),
                 message: detail,
                 transient: false,
-            }),
+            })),
         }
     }
 
@@ -151,11 +239,11 @@ impl Dispatched {
     fn security_err(note: &str, reason: impl Into<String>) -> Self {
         Self {
             note: note.to_owned(),
-            result: Err(TaskErrorRecord {
+            result: Err(FailedDispatch::unspent(TaskErrorRecord {
                 code: "NIKA-SEC-004".to_owned(),
                 message: reason.into(),
                 transient: false,
-            }),
+            })),
         }
     }
 }
@@ -409,7 +497,10 @@ where
                     cost_unpriced,
                 )
             }
-            Err(err) => Dispatched::verb_err("infer · ?".to_owned(), &err),
+            Err(err) => {
+                let spend = price_failed_spend(err.spend());
+                Dispatched::verb_err_spent("infer · ?".to_owned(), &err, spend)
+            }
         }
     }
 
@@ -483,9 +574,33 @@ where
                     llm_unpriced,
                 )
             }
-            Err(err) => Dispatched::verb_err("agent · ?".to_owned(), &err),
+            Err(err) => {
+                let spend = price_failed_spend(err.spend());
+                Dispatched::verb_err_spent("agent · ?".to_owned(), &err, spend)
+            }
         }
     }
+}
+
+/// Price the spend a FAILED verb had already incurred (decorated on
+/// its error at the verb seam): the LLM leg through the same resolver
+/// successes use, plus any tool-reported spend — either alone still
+/// rides. `None`-everything when the failure preceded any billed call.
+fn price_failed_spend(
+    spend: Option<&nika_types::cost::SpendOnFailure>,
+) -> (Option<f64>, Option<String>, Option<UnpricedReason>) {
+    let Some(incurred) = spend else {
+        return (None, None, None);
+    };
+    let (llm, unpriced) = match incurred.model_resolved.as_deref() {
+        Some(model) if usage_has_signal(&incurred.usage) => spend_for_model(model, &incurred.usage),
+        _ => (None, None),
+    };
+    let cost_usd = match (llm, incurred.tools_cost_usd) {
+        (None, None) => None,
+        (a, b) => Some(a.unwrap_or(0.0) + b.unwrap_or(0.0)),
+    };
+    (cost_usd, incurred.model_resolved.clone(), unpriced)
 }
 
 /// The ONE model-spend computation — catalog price × the FULL usage

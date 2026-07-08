@@ -13,6 +13,7 @@ homepage.workspace     = true
 publish                = false  # Internal L2 verb crate.
 
 [dependencies]
+nika-types      = { path = "../nika-types", version = "0.97.0", features = ["serde"] } # SpendOnFailure (billed-then-failed spend · Cost Intelligence)
 nika-error     = { path = "../nika-error", version = "0.97.0" }
 nika-kernel    = { path = "../nika-kernel", version = "0.97.0" }
 nika-providers = { path = "../nika-providers", version = "0.97.0" }
