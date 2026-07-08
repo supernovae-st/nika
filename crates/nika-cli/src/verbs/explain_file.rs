@@ -24,7 +24,8 @@ use std::path::Path;
 use nika_schema::check::{CheckReport, UnboundedReason};
 
 use crate::verbs::graph::{GraphDoc, Node, project};
-use crate::verbs::{VerbOutput, load_checked};
+use crate::verbs::run::{lf_normal_form, sha256_hex};
+use crate::verbs::{VerbOutput, load_checked_with_source};
 
 /// Route `explain`'s positional: an existing path or a path-shaped string
 /// (`/` · `.yaml`/`.yml` · `-`) narrates the FILE; everything else teaches
@@ -32,7 +33,12 @@ use crate::verbs::{VerbOutput, load_checked};
 /// like a code still routes as a file when it exists on disk — the
 /// pathological tie goes to the thing that provably exists.
 #[must_use]
-pub fn dispatch(query: &str, json: bool, theme: crate::display::theme::Theme) -> VerbOutput {
+pub fn dispatch(
+    query: &str,
+    json: bool,
+    forecast: bool,
+    theme: crate::display::theme::Theme,
+) -> VerbOutput {
     let yaml_ext = Path::new(query)
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("yaml") || e.eq_ignore_ascii_case("yml"));
@@ -42,7 +48,7 @@ pub fn dispatch(query: &str, json: bool, theme: crate::display::theme::Theme) ->
         || yaml_ext
         || Path::new(query).exists();
     if file_shaped {
-        return run(query, json);
+        return run(query, json, forecast);
     }
     if json {
         // The code form is prose-by-design (one paragraph, one voice) —
@@ -57,9 +63,9 @@ pub fn dispatch(query: &str, json: bool, theme: crate::display::theme::Theme) ->
 
 /// The `nika explain <file>` verb.
 #[must_use]
-pub fn run(path: &str, json: bool) -> VerbOutput {
-    let (wf, report) = match load_checked(path) {
-        Ok(pair) => pair,
+pub fn run(path: &str, json: bool, forecast: bool) -> VerbOutput {
+    let (yaml, wf, report) = match load_checked_with_source(path) {
+        Ok(triple) => triple,
         Err(out) => return out,
     };
     let description = wf.description.as_ref().map(|d| d.value.clone());
@@ -71,7 +77,25 @@ pub fn run(path: &str, json: bool) -> VerbOutput {
         return dirty(path, description.as_deref(), &report, json);
     }
     let doc = project(&wf, &report);
-    let traces = traces_glance(Path::new(".nika").join("traces").as_path());
+    let traces_dir = Path::new(".nika").join("traces");
+    let traces = traces_glance(traces_dir.as_path());
+    // Learned truth rides beside the static story: gather is bounded +
+    // fail-open, and skipped entirely when nothing was ever recorded
+    // (the glance already knows) unless the flag asks explicitly.
+    let fc = if forecast || traces.is_some() {
+        let identity = super::forecast::WorkflowIdentity {
+            name: doc.workflow.clone(),
+            sha256: sha256_hex(yaml.as_bytes()),
+            sha256_lf: sha256_hex(lf_normal_form(&yaml).as_bytes()),
+        };
+        let gathered = super::forecast::gather::gather(traces_dir.as_path(), &identity.name);
+        Some(super::forecast::compute(&identity, &gathered))
+    } else {
+        None
+    };
+    let fc_view = fc
+        .as_ref()
+        .filter(|r| forecast || r.runs.total >= super::forecast::AUTO_FORECAST_MIN_RUNS);
     if json {
         return VerbOutput::ok(render_json(
             path,
@@ -80,6 +104,7 @@ pub fn run(path: &str, json: bool) -> VerbOutput {
             &report,
             permits_declared,
             traces.as_ref(),
+            fc_view,
         ));
     }
     VerbOutput::ok(render_human(
@@ -89,6 +114,7 @@ pub fn run(path: &str, json: bool) -> VerbOutput {
         &report,
         permits_declared,
         traces.as_ref(),
+        fc_view,
     ))
 }
 
@@ -219,6 +245,7 @@ fn render_human(
     report: &CheckReport,
     permits_declared: bool,
     traces: Option<&(usize, String)>,
+    forecast: Option<&super::forecast::ForecastReport>,
 ) -> String {
     let mut s = String::new();
     let _ = writeln!(
@@ -238,6 +265,9 @@ fn render_human(
     cost_section(&mut s, report);
     touches_section(&mut s, doc, report, permits_declared);
     risks_section(&mut s, path, report);
+    if let Some(fc) = forecast {
+        super::forecast::render::forecast_section(&mut s, fc);
+    }
     run_section(&mut s, path, report);
     recorder_section(&mut s, traces);
     s
@@ -459,6 +489,7 @@ fn render_json(
     report: &CheckReport,
     permits_declared: bool,
     traces: Option<&(usize, String)>,
+    forecast: Option<&super::forecast::ForecastReport>,
 ) -> String {
     let wave_sizes: Vec<usize> = report.waves.iter().map(Vec::len).collect();
     let mut waves: Vec<Vec<&str>> = Vec::with_capacity(wave_sizes.len());
@@ -487,7 +518,7 @@ fn render_json(
             })
         })
         .collect();
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "explain_version": 1,
         "file": path,
         "workflow": doc.workflow,
@@ -501,8 +532,15 @@ fn render_json(
         "hints": report.hints,
         "analysis": report.analysis,
         "traces": traces.map(|(n, latest)| serde_json::json!({"count": n, "latest": latest})),
-    })
-    .to_string()
+    });
+    // Under --forecast the key is ALWAYS present (an agent that asked
+    // receives the honest empty shape); without the flag, presence is
+    // gated at the auto threshold — an absent key is the deliberate
+    // "not gathered" signal, never an ambiguous null.
+    if let Some(fc) = forecast {
+        v["forecast"] = serde_json::to_value(fc).unwrap_or(serde_json::Value::Null);
+    }
+    v.to_string()
 }
 
 #[cfg(test)]
@@ -524,7 +562,7 @@ mod tests {
     #[test]
     fn narrates_the_diamond_with_cost_and_handoff() {
         let path = tmp("diamond", DIAMOND);
-        let out = run(path.to_str().expect("utf8"), false);
+        let out = run(path.to_str().expect("utf8"), false, false);
         std::fs::remove_file(&path).ok();
         assert_eq!(out.code, exit::OK, "{}", out.text);
         for needle in [
@@ -569,7 +607,7 @@ mod tests {
             "floor",
             "nika: v1\nworkflow: floor-story\ntasks:\n  - id: think\n    infer: { prompt: \"x\" }\n",
         );
-        let out = run(path.to_str().expect("utf8"), false);
+        let out = run(path.to_str().expect("utf8"), false, false);
         std::fs::remove_file(&path).ok();
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(out.text.contains("FLOOR"), "{}", out.text);
@@ -588,7 +626,7 @@ mod tests {
     #[test]
     fn json_twin_is_versioned_and_speaks_the_report_dialect() {
         let path = tmp("json", DIAMOND);
-        let out = run(path.to_str().expect("utf8"), true);
+        let out = run(path.to_str().expect("utf8"), true, false);
         std::fs::remove_file(&path).ok();
         assert_eq!(out.code, exit::OK, "{}", out.text);
         let v: serde_json::Value = serde_json::from_str(&out.text).expect("parses");
@@ -611,7 +649,7 @@ mod tests {
             "dirty",
             "nika: v1\nworkflow: dirty\ntasks:\n  - id: a\n    exec: { command: \"echo x\" }\n  - id: b\n    depends_on: [a]\n    when: maybe\n    exec: { command: \"echo y\" }\n",
         );
-        let out = run(path.to_str().expect("utf8"), false);
+        let out = run(path.to_str().expect("utf8"), false, false);
         std::fs::remove_file(&path).ok();
         assert_eq!(out.code, exit::FILE, "{}", out.text);
         assert!(out.text.contains("does not check clean"), "{}", out.text);
@@ -645,6 +683,7 @@ mod tests {
             let out = dispatch(
                 code,
                 false,
+                false,
                 crate::display::theme::Theme::new(false, false, false),
             );
             assert_eq!(out.code, exit::OK, "{code}: {}", out.text);
@@ -653,6 +692,7 @@ mod tests {
         // = the loader's own error, never a "unknown code" 404.
         let out = dispatch(
             "no/such/dir/flow.nika.yaml",
+            false,
             false,
             crate::display::theme::Theme::new(false, false, false),
         );
@@ -665,6 +705,7 @@ mod tests {
         let out = dispatch(
             "NIKA-440",
             true,
+            false,
             crate::display::theme::Theme::new(false, false, false),
         );
         assert_eq!(out.code, exit::FILE);

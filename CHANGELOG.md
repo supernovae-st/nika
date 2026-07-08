@@ -10,6 +10,21 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **`nika explain --forecast` — learned truth before a run.** Duration,
+  cost and risk priors computed from YOUR local traces (`.nika/traces/`)
+  — deterministic stats, never a model call, never the network. The
+  honesty ladder is a type: never-run says so · one run is « last run » ·
+  2-4 runs earn a min–max range · p50/p90 bands are earned at n ≥ 5
+  (Hyndman & Fan type-7, the numpy/R default). Costs compose the `≥`
+  floor whenever unpriced spend participates — absence stays a dash,
+  never `$0`. Retried-then-passed counts as flaky, never failed; cache
+  hits and other-model runs are excluded from bands and named. The
+  section auto-appears in `nika explain <file>` once 3 runs exist; the
+  flag forces it, and `--json` gains a versioned `forecast` key
+  (internally-tagged rungs — consumers tolerate unknown kinds).
+
 ## [0.98.0](https://github.com/supernovae-st/nika/compare/v0.97.0..v0.98.0) - 2026-07-08
 
 **Structured output goes native, the checker closes its gaps — and the
