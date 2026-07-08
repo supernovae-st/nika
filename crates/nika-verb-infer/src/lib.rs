@@ -50,6 +50,7 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+mod coerce;
 mod errors;
 mod structured;
 
@@ -267,7 +268,7 @@ where
                 ));
             };
 
-            match structured::extract_and_validate(&text, validator) {
+            match structured::extract_and_validate(&text, validator, schema) {
                 structured::Validation::Valid(value) => {
                     return Ok(InferOutput::new(
                         InferValue::Structured(value),
@@ -1064,6 +1065,66 @@ mod tests {
         );
     }
 
+    /// The SAP-lite rescue deletes a paid retry: a reply whose only sin is
+    /// STRING-ENCODED scalars ("36" where an integer is declared · a
+    /// case-drifted enum) is repaired locally and lands in ONE round-trip —
+    /// the scripted second reply must never be requested.
+    #[tokio::test]
+    async fn coercible_reply_lands_in_one_round_trip() {
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":\"36\",\"field\":\" Mathematics \"}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":4}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36,\"field\":\"mathematics\"}"},"finish_reason":"stop"}],"usage":{}}"#,
+        ]);
+        let mut input = InferInput::new("extract the person");
+        input.schema = Some(json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" },
+                "age": { "type": "integer" },
+                "field": { "type": "string", "enum": ["physics", "mathematics"] }
+            },
+            "required": ["name", "age", "field"],
+            "additionalProperties": false
+        }));
+        let out = openai_verb(&seam)
+            .run(input)
+            .await
+            .expect("the rescue repairs locally");
+        match &out.output {
+            InferValue::Structured(v) => {
+                assert_eq!(v["age"], 36, "string-encoded integer coerced");
+                assert_eq!(v["field"], "mathematics", "enum case-snapped");
+            }
+            other => panic!("expected structured, got {other:?}"),
+        }
+        assert_eq!(
+            seam.captured().len(),
+            1,
+            "the coercion DELETED the retry round-trip"
+        );
+        assert_eq!(out.usage.input_tokens, 9, "one round-trip billed");
+    }
+
+    /// A miss the ladder cannot repair (a missing required member) still
+    /// takes the ordinary retry path — the rescue never masks real gaps.
+    #[tokio::test]
+    async fn uncoercible_miss_still_retries() {
+        let seam = SeamHttp::with_json(&[
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\"}"},"finish_reason":"stop"}],"usage":{}}"#,
+            r#"{"choices":[{"message":{"content":"{\"name\":\"Ada\",\"age\":36}"},"finish_reason":"stop"}],"usage":{}}"#,
+        ]);
+        let mut input = InferInput::new("extract the person");
+        input.schema = Some(json!({
+            "type": "object",
+            "properties": { "name": { "type": "string" }, "age": { "type": "integer" } },
+            "required": ["name", "age"],
+            "additionalProperties": false
+        }));
+        let out = openai_verb(&seam).run(input).await.expect("retry conforms");
+        assert!(matches!(out.output, InferValue::Structured(_)));
+        assert_eq!(seam.captured().len(), 2, "a real gap still costs a retry");
+    }
+
     /// A NORMAL stop that fails the schema stays a plain schema mismatch —
     /// no truncation hint bolted onto an ordinary validation failure.
     #[tokio::test]
@@ -1190,10 +1251,11 @@ mod proptests {
         /// when it extracts, the candidate is real JSON.
         #[test]
         fn extraction_total_on_arbitrary_text(s in ".{0,400}") {
-            // Total function — must not panic.
-            let v = crate::structured::compile_schema(&serde_json::json!({ "type": "object" }))
+            // Total function — must not panic (the coercion pass included).
+            let schema = serde_json::json!({ "type": "object" });
+            let v = crate::structured::compile_schema(&schema)
                 .expect("trivial schema compiles");
-            let _ = crate::structured::extract_and_validate(&s, &v);
+            let _ = crate::structured::extract_and_validate(&s, &v, &schema);
         }
     }
 }
