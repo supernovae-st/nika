@@ -285,28 +285,14 @@ where
                     ));
                 }
                 structured::Validation::Invalid(errors) => {
-                    // Terminal on either: (a) the retry budget is spent, or
-                    // (b) TRUNCATION fast-fail — a reply cut at `max_tokens`
-                    // cannot be repaired by re-asking at the SAME budget (the
-                    // identical request cuts again, and the retry message
-                    // makes the prompt LONGER), so every re-ask is a paid
-                    // call spent on a known failure class whose remedy is
-                    // the budget, not the schema. Providers document
-                    // length-exhaustion as its own escape hatch (structured
-                    // output explicitly does NOT hold across it); the
-                    // stop_reason_hint prints the actionable fix either way.
                     let truncated = matches!(response.stop_reason, StopReason::MaxTokens);
                     if truncated || attempts > u32::from(self.schema_retry_budget) {
-                        let detail = format!(
-                            "{}{}",
-                            errors.join("; "),
-                            stop_reason_hint(&response.stop_reason)
-                        );
-                        return Err(VerbInferError::SchemaValidation {
+                        return Err(schema_failure(
                             attempts,
-                            detail,
-                            spend: incurred(&usage_total),
-                        });
+                            &errors,
+                            &response.stop_reason,
+                            incurred(&usage_total),
+                        ));
                     }
                     messages.push(Message::text(Role::Assistant, text));
                     messages.push(Message::text(
@@ -427,6 +413,30 @@ fn build_request(
 /// stopped for a reason that EXPLAINS the failure — truncation and content
 /// filtering otherwise masquerade as a bare schema mismatch, hiding the real
 /// cause. Empty for a normal stop (the schema genuinely went unmet).
+/// The terminal schema failure. Reached on either: (a) the retry budget
+/// is spent, or (b) TRUNCATION fast-fail — a reply cut at `max_tokens`
+/// cannot be repaired by re-asking at the SAME budget (the identical
+/// request cuts again, and the retry message makes the prompt LONGER),
+/// so every re-ask is a paid call spent on a known failure class whose
+/// remedy is the budget, not the schema. Providers document
+/// length-exhaustion as its own escape hatch (structured output
+/// explicitly does NOT hold across it); the `stop_reason_hint` prints
+/// the actionable fix either way. The billed round-trips ride the error
+/// as `spend` — a failed task is not a refunded task.
+fn schema_failure(
+    attempts: u32,
+    errors: &[String],
+    stop: &StopReason,
+    spend: Box<SpendOnFailure>,
+) -> VerbInferError {
+    let detail = format!("{}{}", errors.join("; "), stop_reason_hint(stop));
+    VerbInferError::SchemaValidation {
+        attempts,
+        detail,
+        spend,
+    }
+}
+
 fn stop_reason_hint(stop: &StopReason) -> &'static str {
     match stop {
         StopReason::MaxTokens => {
@@ -1013,7 +1023,11 @@ mod tests {
             .await
             .expect_err("truncation is terminal on first sight");
         match &err {
-            VerbInferError::SchemaValidation { attempts, detail, spend } => {
+            VerbInferError::SchemaValidation {
+                attempts,
+                detail,
+                spend,
+            } => {
                 assert_eq!(*attempts, 1, "no blind re-ask at the same budget");
                 assert!(
                     !spend.has_signal(),
