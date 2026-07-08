@@ -9,7 +9,6 @@
 
 pub(crate) mod anthropic;
 pub(crate) mod gemini;
-mod gemini_schema;
 pub(crate) mod mock;
 mod mock_schema;
 pub(crate) mod openai_compat;

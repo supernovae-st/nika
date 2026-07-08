@@ -27,7 +27,6 @@ use nika_kernel::ai::provider::{
 use nika_kernel::http::{HttpPostDyn, HttpRequest};
 use serde_json::{Value, json};
 
-use super::gemini_schema::adapt_gemini_schema;
 use super::{EventMapper, SseEventStream, gen_ai_system, map_http_err, status_error, str_at};
 use crate::registry::ResolvedProvider;
 
@@ -150,7 +149,7 @@ fn request_body(req: &InferRequest) -> Result<Value, ProviderError> {
         );
     }
 
-    let gen_config = generation_config(req)?;
+    let gen_config = generation_config(req);
     if !gen_config.is_empty() {
         obj.insert("generationConfig".to_owned(), Value::Object(gen_config));
     }
@@ -196,11 +195,15 @@ fn request_body(req: &InferRequest) -> Result<Value, ProviderError> {
 }
 
 /// Assemble `generationConfig` (sampling + thinking + structured-output).
-/// `responseSchema` rides the gemini schema adapter (the JSON-Schema →
-/// OpenAPI-3.0-subset rewrite · see [`adapt_gemini_schema`]). Fallible: a
-/// schema the adapter cannot represent (e.g. a cyclic `$ref`) is a clean
-/// typed error, not a malformed request.
-fn generation_config(req: &InferRequest) -> Result<serde_json::Map<String, Value>, ProviderError> {
+/// A task `schema:` rides **`responseJsonSchema`** — standard JSON Schema
+/// accepted VERBATIM (GA on every live model; the 2.0 family that needed
+/// the OpenAPI-subset `responseSchema` conversion is retired from the API
+/// — 404 "no longer available", probed live 2026-07-08, which is when the
+/// 727-line converter died). Upstream ignores unsupported keywords (the
+/// documented opposite of openai's hard 400) and rejects only its own
+/// depth/$ref limits server-side — either way the verb's LOCAL validation
+/// keeps the authored contract.
+fn generation_config(req: &InferRequest) -> serde_json::Map<String, Value> {
     let mut gen_config = serde_json::Map::new();
     if let Some(t) = req.temperature {
         gen_config.insert("temperature".to_owned(), json!(t));
@@ -223,11 +226,11 @@ fn generation_config(req: &InferRequest) -> Result<serde_json::Map<String, Value
         }
         ResponseFormat::JsonSchema(schema) => {
             gen_config.insert("responseMimeType".to_owned(), json!("application/json"));
-            gen_config.insert("responseSchema".to_owned(), adapt_gemini_schema(schema)?);
+            gen_config.insert("responseJsonSchema".to_owned(), schema.clone());
         }
         ResponseFormat::Text | _ => {}
     }
-    Ok(gen_config)
+    gen_config
 }
 
 /// One kernel message → one `contents[]` entry. Tool results become
@@ -633,7 +636,7 @@ mod tests {
             body["generationConfig"]["responseMimeType"],
             "application/json"
         );
-        assert!(body["generationConfig"]["responseSchema"].is_object());
+        assert!(body["generationConfig"]["responseJsonSchema"].is_object());
     }
 
     #[test]
@@ -978,21 +981,27 @@ mod tests {
     }
 
     #[test]
-    fn request_body_routes_schema_through_the_adapter() {
-        let mut r = req(vec![Message::text(Role::User, "x")]);
-        r.response_format = ResponseFormat::JsonSchema(json!({
+    fn request_body_sends_the_author_schema_verbatim() {
+        // responseJsonSchema takes STANDARD JSON Schema — no OpenAPI
+        // conversion, no keyword rewriting: additionalProperties and the
+        // ["string","null"] union reach the wire exactly as authored
+        // (live-proven 2026-07-08 · gemini-2.5-flash · enum enforced).
+        let authored = json!({
             "type": "object",
             "additionalProperties": false,
             "properties": { "x": {"type": ["string", "null"]} }
-        }));
+        });
+        let mut r = req(vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::JsonSchema(authored.clone());
         let body = request_body(&r).expect("body");
-        let schema = &body["generationConfig"]["responseSchema"];
-        assert!(
-            schema.get("additionalProperties").is_none(),
-            "the wire schema is adapted, not verbatim"
+        assert_eq!(
+            body["generationConfig"]["responseJsonSchema"], authored,
+            "byte-for-byte the author's schema"
         );
-        assert_eq!(schema["properties"]["x"]["type"], "string");
-        assert_eq!(schema["properties"]["x"]["nullable"], true);
+        assert!(
+            body["generationConfig"].get("responseSchema").is_none(),
+            "the legacy OpenAPI-subset field is gone"
+        );
         assert_eq!(
             body["generationConfig"]["responseMimeType"],
             "application/json"
