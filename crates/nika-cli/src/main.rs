@@ -191,6 +191,11 @@ enum Command {
         /// (`explain_version: 1` · the check report's own vocabulary).
         #[arg(long)]
         json: bool,
+        /// File form only: include the learned-truth forecast — duration/
+        /// cost/risk priors from YOUR local traces (stats over
+        /// `.nika/traces/` · never a model call · never the network).
+        #[arg(long)]
+        forecast: bool,
     },
     /// Diagnose the environment (binary · config · provider keys · spec §8).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
@@ -689,7 +694,11 @@ fn main() -> std::process::ExitCode {
         Command::Welcome { json, ascii } => {
             emit(&verbs::welcome::run(json, with_ascii(plain_theme, ascii)))
         }
-        Command::Explain { code, json } => emit(&explain_dispatch(&code, json, plain_theme)),
+        Command::Explain {
+            code,
+            json,
+            forecast,
+        } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
         Command::Init { dir, force, yes } => emit(&verbs::init::run(&dir, force, yes, plain_theme)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target.into(), &dir)),
