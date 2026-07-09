@@ -53,8 +53,6 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   private sha256 copies unified), and the source-identity hashes.
   `nika-cli` re-exports every seam at its old path — zero behavior
   change, `nika dap` answers exactly as before.
-- `nika-runtime`: `settle_ran` sheds its retry-frame loop into
-  `emit_task::emit_retries` (the fn-length cap · the cohesive-cut law).
 
 ## [0.98.0](https://github.com/supernovae-st/nika/compare/v0.97.0..v0.98.0) - 2026-07-08
 
