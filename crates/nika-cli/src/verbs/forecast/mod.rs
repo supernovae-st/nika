@@ -222,7 +222,10 @@ pub(crate) fn compute(id: &WorkflowIdentity, gathered: &Gathered) -> ForecastRep
             TraceState::Failed => runs.failed += 1,
             TraceState::Cancelled => runs.cancelled += 1,
             TraceState::Paused => runs.paused += 1,
-            TraceState::Running => runs.no_terminal += 1,
+            // `#[non_exhaustive]` future states fold with the in-flight
+            // (the store's own unknown-terminal stance) — never a
+            // settle this census would invent a verdict for.
+            _ => runs.no_terminal += 1,
         }
         if let Some(total) = sample.total_cost_usd {
             push_finite(&mut run_costs, total, &mut window.nonfinite_dropped);

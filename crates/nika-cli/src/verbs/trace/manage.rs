@@ -103,8 +103,11 @@ fn state_cell(state: TraceState, theme: Theme) -> String {
         TraceState::Completed => Role::Good,
         TraceState::Failed => Role::Bad,
         TraceState::Paused => Role::Warn,
-        TraceState::Cancelled => Role::Dim,
         TraceState::Running => Role::Accent,
+        // A cancelled run reads calm — and `#[non_exhaustive]` future
+        // states fold here too: the forensics crate names the word
+        // (`as_str`), this CLI just keeps the cell quiet.
+        _ => Role::Dim,
     };
     theme.paint(role, state.as_str())
 }
