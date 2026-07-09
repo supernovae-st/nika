@@ -1,0 +1,40 @@
+name: I was confused here
+description: Nothing crashed — but something was unclear, surprising, or hard to find
+labels: ["confusing-ux", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Paper cuts matter here. A confusing moment is a bug in the product's
+        teaching, and we treat it like one. Two minutes of your memory of the
+        moment is enough.
+  - type: input
+    id: where
+    attributes:
+      label: Where were you?
+      description: The command, screen, panel, or docs page.
+      placeholder: "nika check output · the DAG canvas · docs quickstart …"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      description: What you thought would happen, or what you were looking for.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What did you find instead?
+      description: What actually happened, or where you ended up.
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What would have made it obvious?
+      description: Optional — a wording, a hint, a link, a different default.
+  - type: input
+    id: version
+    attributes:
+      label: Version (optional)
+      placeholder: "nika 0.98.0 · extension 0.98.0 · docs"

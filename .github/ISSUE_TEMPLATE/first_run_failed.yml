@@ -1,0 +1,66 @@
+name: First run failed
+description: You installed Nika and something in the first minutes did not work
+labels: ["first-run", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks — this is the highest-priority feedback we can get. A stumble
+        in the first minutes is a bug, even when nothing crashed.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `nika --version` (or "install itself failed").
+      placeholder: "nika 0.98.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How did you install?
+      options:
+        - Homebrew (brew install supernovae-st/tap/nika)
+        - install.sh
+        - GitHub release binary
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: stopped-at
+    attributes:
+      label: Where did it stop?
+      description: The first command or step that surprised you.
+      options:
+        - install
+        - nika welcome
+        - nika init
+        - nika new
+        - nika check
+        - nika run
+        - nika explain
+        - VS Code extension
+        - docs / website
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you typed, what you expected, what you got. Rough timing welcome ("stuck ~2 min").
+    validations:
+      required: true
+  - type: textarea
+    id: terminal-output
+    attributes:
+      label: Terminal output
+      description: Paste what the terminal showed (never paste secret values — Nika itself prints names only).
+      render: shell
+  - type: textarea
+    id: machine-mirror
+    attributes:
+      label: Output of `nika welcome`
+      description: The machine mirror — presence-only, it never prints secret values.
+      render: shell
