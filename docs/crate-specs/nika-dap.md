@@ -63,6 +63,10 @@ seams). The DAP protocol/replay internals stay private.
 
 ## 4. Gates at admission (2026-07-09)
 
+| Gate | Name | Verdict |
+|---|---|---|
+| 5 | MUTATION | ✅ 98.6% killed (144/146 viable · 142 caught + 2 timeouts · 21 unviable) — survivors: the two `run_stdio` stubs (the seamless stdio composition root) |
+
 - Tests: 34 in-crate — 25 moved WITH their code (chain walk 8 · replay 12 ·
   protocol 3 · recover 1 · source_id 1) + 9 mutation-killers added at
   admission (the documented cap boundaries · every terminal-kind fold arm ·
