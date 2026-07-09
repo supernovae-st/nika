@@ -512,6 +512,23 @@ mod tests {
     use crate::demo;
 
     #[test]
+    fn anchor_advertises_the_full_64_hex_head() {
+        // #333 · byte-exact parity with `trace verify`: the taught loop
+        // (compare the two printed heads) must close with `==`, so the
+        // anchor carries the WHOLE sha256 hex — never a truncated form.
+        let head = "a".repeat(64);
+        let line = anchor_line(std::path::Path::new(".nika/traces/x.ndjson"), 7, &head);
+        assert_eq!(
+            line,
+            format!("trace: .nika/traces/x.ndjson · 7 events · chain {head}")
+        );
+        assert!(
+            line.ends_with(&head),
+            "the head is printed whole, byte-comparable against trace verify's"
+        );
+    }
+
+    #[test]
     fn json_sink_writes_one_ndjson_line_per_event() {
         let events = demo::success();
         let n = events.len();
@@ -913,7 +930,7 @@ pub(super) fn surface_trace(mut trace: TraceFileSink, note: TraceNote, autopsy: 
     let path = trace.path().map(std::path::Path::to_path_buf);
     // Read the anchor parts BEFORE into_error consumes the sink — they
     // are only ADVERTISED after the error gate below passes.
-    let head = trace.chain_head().chars().take(32).collect::<String>();
+    let head = trace.chain_head().to_owned();
     let count = trace.chain_len();
     if let Some(e) = trace.into_error() {
         // Name the file when the failure struck AFTER the open (a partial
@@ -930,15 +947,10 @@ pub(super) fn surface_trace(mut trace: TraceFileSink, note: TraceNote, autopsy: 
     let Some(path) = path else {
         return; // disabled · or a run that emitted zero events
     };
-    // The anchor: 32 hex (128-bit) — the scrollback head is the ONE
-    // thing a whole-file rewrite cannot touch; 16 hex capped forgery at
-    // ~2^63 with a malleable final line (the writer-side review's M4).
+    let anchor = anchor_line(&path, count, &head);
     match note {
         TraceNote::Stdout => {
-            println!(
-                "    trace: {} · {count} events · chain {head}",
-                path.display()
-            );
+            println!("    {anchor}");
             // The autopsy line — a FAILED run teaches its own forensics:
             // the journal it just wrote replays, peeks and time-travels.
             if let Some(task) = autopsy {
@@ -950,11 +962,18 @@ pub(super) fn surface_trace(mut trace: TraceFileSink, note: TraceNote, autopsy: 
             }
         }
         TraceNote::Stderr => {
-            eprintln!(
-                "nika run: trace: {} · {count} events · chain {head}",
-                path.display()
-            );
+            eprintln!("nika run: {anchor}");
         }
         TraceNote::Silent => {}
     }
+}
+
+/// The advertised anchor: the FULL 64-hex chain head — byte-exact parity
+/// with what `nika trace verify` prints, so the taught loop (compare the
+/// two heads) closes with `==`, never a prefix match (#333). The scrollback
+/// head is the ONE thing a whole-file rewrite cannot touch (the writer-side
+/// review's M4 — 32 hex was already unforgeable; full width costs only
+/// line length and buys equality).
+fn anchor_line(path: &std::path::Path, count: usize, head: &str) -> String {
+    format!("trace: {} · {count} events · chain {head}", path.display())
 }
