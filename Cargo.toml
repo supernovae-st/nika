@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-extract", "crates/nika-exec-runner", "crates/nika-sandbox-seatbelt", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke", "crates/nika-verb-agent", "crates/nika-builtin", "crates/nika-cel", "crates/nika-runtime", "crates/nika-cli", "crates/nika-lsp", "crates/nika-mcp", "crates/nika-cap", "crates/nika-pck-manifest", "crates/nika-tmpl"]
+members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-extract", "crates/nika-exec-runner", "crates/nika-sandbox-seatbelt", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-fx", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke", "crates/nika-verb-agent", "crates/nika-builtin", "crates/nika-cel", "crates/nika-runtime", "crates/nika-cli", "crates/nika-lsp", "crates/nika-mcp", "crates/nika-cap", "crates/nika-pck-manifest", "crates/nika-tmpl"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
@@ -34,7 +34,7 @@ homepage     = "https://supernovae.studio"
 # is the projector that reads this; refresh-status.sh + check-crate-specs.sh
 # query the projector (never re-hardcode the list). When a crate is admitted,
 # remove it from this array — one edit, here, period.
-wip = []
+wip = ["nika-fx"]
 # nika-pack · the embedded language pack (spec snapshot + manifest hashes ·
 # proposal branch feat/nika-pack · pure data · include_dir · zero I/O).
 layers.nika-pack = "L0"
@@ -58,6 +58,10 @@ layers.nika-clock = "L1"
 # atomic write (temp+rename per kernel CANCEL SAFETY contract) · typed FsError
 # (Pattern A · FCI-023bis · NIKA-110..119).
 layers.nika-fs = "L1"
+# nika-fx · deterministic artistic image effects (dither · palette · duotone ·
+# halftone · retro · glitch · ascii) · pure-algo zero-dep · byte-identical
+# artifacts (attested styled media) · behind nika:image_fx · FX master plan.
+layers.nika-fx = "L1"
 # nika-blob · Phase-B slice step 6 (announce ladder · D-2026-06-10-N6 cascade) ·
 # implements kernel io::blob BlobStore via blake3 CAS · sharded fs layout ·
 # atomic temp+rename (unique temp) · sidecar .mime (put/stat round-trip) · size cap.

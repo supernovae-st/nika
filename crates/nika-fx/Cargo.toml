@@ -1,0 +1,23 @@
+[package]
+name          = "nika-fx"
+description   = "Deterministic artistic image effects for the Nika engine (dither · palette · duotone · halftone · retro · glitch · ascii). L1 · pure-algo · zero-dep · byte-identical outputs forever — the attested-styled-media substrate behind nika:image_fx."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = true  # L1 pure-algo — publishable standalone (nika-bm25 class).
+
+# ZERO runtime dependencies — the determinism contract (G2 · operator lock
+# 2026-07-09 · chart precedent). Codec (PNG both directions incl. full RFC 1951
+# inflate), sha256, PCG32, sRGB/Oklab fixed-point math: all hand-rolled from
+# primary specs. See docs/crate-specs/nika-fx.md + the FX master plan §3bis.
+
+[dependencies]
+
+[dev-dependencies]
+
+[lints]
+workspace = true
