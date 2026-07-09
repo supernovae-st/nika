@@ -25,11 +25,11 @@ fails mutation testing, it doesn't ship. If it leaks an `.unwrap()` into
 production, it doesn't ship. If it can't explain itself in under 1,500
 lines, it gets split. This is slow on purpose.
 
-The butterfly on the logo is not what Nika is. It's what Nika becomes
-on v0.90 emergence, when the chrysalis opens. Until then, Nika is a
-chrysalis — and you are welcome to watch it transform, week by week,
-cell by cell.
+The butterfly on the logo is not what Nika is. It's what Nika became
+on v0.90 emergence — June 2026 — when the chrysalis opened and the first
+public binaries flew. The craft did not stop there; it never does. You
+are welcome to watch it sharpen, release by release, cell by cell.
 
 Rust. AGPL. Paris. SuperNovae.
 
-Welcome inside the chrysalis. 🦋
+The chrysalis opened. Welcome to the flight. 🦋

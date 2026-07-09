@@ -7,6 +7,7 @@
 [![Spec](https://img.shields.io/badge/spec-Apache--2.0-brightgreen.svg)](https://github.com/supernovae-st/nika-spec)
 [![Rust](https://img.shields.io/badge/built_in-Rust-orange.svg)](Cargo.toml)
 [![CI](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml/badge.svg?branch=main)](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml)
+[![Release](https://img.shields.io/github/v/release/supernovae-st/nika?label=release)](https://github.com/supernovae-st/nika/releases/latest)
 
 Useful AI work shouldn't disappear into chats. **Nika turns repeatable AI
 work into files you can run, review, diff and share.** If you do the same
@@ -178,9 +179,10 @@ of them with `--model ollama/qwen3.5:4b` (or offline with `--model mock/echo`):
 | Screen resumes against a role | `nika examples run showcase/t3-resume-screener` | hiring |
 | Build a Monday operating brief | `nika examples run showcase/t4-ceo-monday-brief` | founders |
 
-The full gallery (27 workflows + 6 templates) lives in
+The full gallery — every workflow sha256-pinned and proven in CI — lives in
 [`examples/`](examples/): foundation patterns, business showcases, and the
-skeletons `nika new --from <template>` instantiates.
+skeletons `nika new --from <template>` instantiates (`nika examples` and
+`nika new --from '?'` list the live shelves).
 
 Shared workflows live on [**nika-registry**](https://github.com/supernovae-st/nika-registry) —
 every entry pinned to a full commit + sha256 and re-proven by CI (the
@@ -248,9 +250,11 @@ Nika is built in the open.
 
 The **language** (the `nika: v1` envelope and its four verbs) is stable and
 won't break. The **engine** is a strict, modular Rust workspace. The latest
-tagged public release is **v0.91.0**; `main` moves immediately to the next
-`-dev` version after each release so local contributor binaries cannot be
-confused with Homebrew assets. The 1.0.0 launch remains gated by the release
+tagged public release is whatever the badge at the top of this page says —
+always [the releases page](https://github.com/supernovae-st/nika/releases/latest),
+never a number typed here (numbers in prose rot). `main` moves immediately
+to the next `-dev` version after each release so local contributor binaries
+cannot be confused with Homebrew assets. The 1.0.0 launch remains gated by the release
 checklist, not by a date. The code, the
 [spec](https://github.com/supernovae-st/nika-spec), and the
 [example workflows](examples/) are all readable, and development happens on

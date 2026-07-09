@@ -37,7 +37,7 @@ the `NikaErrorCode` trait + `nika_error::codes` registry (one-voice ·
 
 **Writing a `.nika.yaml` workflow?** That is a LANGUAGE task, not an
 engine task — follow the deterministic protocol in the spec repo:
-instantiate a template (`nika-spec/templates/` · 6 valid skeletons),
+instantiate a template (`nika-spec/templates/` — the live shelf: `nika new --from '?'`),
 fill the SLOT lines, validate, repair from the error. Protocol:
 `nika-spec/AGENTS.md` §Writing a workflow ·
 https://docs.nika.sh/guides/agent-authoring.
