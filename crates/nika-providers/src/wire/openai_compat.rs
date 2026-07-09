@@ -110,6 +110,13 @@ fn build_request(
             format!("Bearer {}", key.expose()),
         );
     }
+    if rp.profile.id == "openrouter" {
+        // OpenRouter app attribution (their optional-but-recommended pair):
+        // calls show up as `Nika` on openrouter.ai/rankings instead of an
+        // anonymous key. openrouter-only — peers may 400 on surprise headers.
+        headers.insert("http-referer".to_owned(), "https://nika.sh".to_owned());
+        headers.insert("x-title".to_owned(), "Nika".to_owned());
+    }
 
     let mut http_req = HttpRequest::post(rp.base_url.clone());
     http_req.headers = headers;
@@ -614,6 +621,47 @@ mod tests {
             "keyless local call"
         );
         assert!(sent[0].url.starts_with("http://127.0.0.1:11434"));
+    }
+
+    #[tokio::test]
+    async fn openrouter_sends_app_attribution_headers() {
+        let fake = FakeHttp::with_json(
+            200,
+            r#"{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{}}"#,
+        );
+        let rp = resolved_with(&fake, "openrouter", "sk-or-test");
+        let _ = infer(&rp, req(vec![Message::text(Role::User, "x")]))
+            .await
+            .expect("ok");
+        let sent = fake.captured();
+        assert_eq!(
+            sent[0].headers.get("http-referer").map(String::as_str),
+            Some("https://nika.sh"),
+            "openrouter app attribution · referer"
+        );
+        assert_eq!(
+            sent[0].headers.get("x-title").map(String::as_str),
+            Some("Nika"),
+            "openrouter app attribution · title"
+        );
+    }
+
+    #[tokio::test]
+    async fn attribution_headers_stay_openrouter_only() {
+        let fake = FakeHttp::with_json(
+            200,
+            r#"{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{}}"#,
+        );
+        let rp = resolved_with(&fake, "groq", "gsk-test");
+        let _ = infer(&rp, req(vec![Message::text(Role::User, "x")]))
+            .await
+            .expect("ok");
+        let sent = fake.captured();
+        assert!(
+            !sent[0].headers.contains_key("http-referer")
+                && !sent[0].headers.contains_key("x-title"),
+            "attribution is an openrouter contract, not an openai-compat one"
+        );
     }
 
     #[test]
