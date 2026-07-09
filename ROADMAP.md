@@ -30,6 +30,13 @@
 > 1.x minors, driven by the 11-crate Connectome cluster (1 L2 orchestrator + 10
 > L1 satellites · ratified 2026-06-11), `nika-embed`, WASM + sandbox. See
 > §Crate sequence.
+>
+> The target counts **architectural units, not workspace members**
+> (D-2026-07-09-N1): a size-cap descent (one crate splitting at the 15k
+> prod-LOC wall — `nika-cap` out of `nika-schema` · `nika-dap` out of
+> `nika-cli`) is the SAME unit in two members, named by parentage in the
+> descending crate's spec. A `43 / 42` census line is two members of the
+> cli unit, not a 43rd unit.
 
 **Philosophy: diamond-grade at every release, real semver toward 1.0**
 (amended D-2026-06-20-N1 · was "forever v0.x"). Nika ships a **1.0** at its first
