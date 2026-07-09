@@ -290,6 +290,8 @@ mod tests {
             panic!("text")
         };
         assert_eq!(*ext, "txt");
+        // Kills the applied-counter mutants: grayscale + ascii = exactly 2.
+        assert_eq!(out.ops_applied, 2);
         assert!(body.lines().count() >= 4);
         // ANSI emit
         let args2 = FxArgs {
@@ -401,6 +403,226 @@ mod tests {
             0,
         );
         transform(&test_card(200, 120), &ok, "t").expect("normal ascii png renders");
+    }
+
+    /// Per-op golden matrix — one pinned artifact hash per single-op
+    /// pipeline over the standard card. Kills the arithmetic-mutant class
+    /// inside every op (a flipped `*`/`+`/shift anywhere flips the hash).
+    /// Regenerate: run with `RENDER_GOLDENS=1` and copy the printed table.
+    #[test]
+    #[allow(clippy::too_many_lines, clippy::print_stdout)] // the length IS the pin table · regen prints
+    fn golden_per_op_matrix_sha256_pinned() {
+        let input = test_card(64, 48);
+        let table: Vec<(&str, Op, &str)> = vec![
+            (
+                "resize_auto",
+                Op::Resize {
+                    width: Some(32),
+                    height: None,
+                    filter: ResizeFilter::Auto,
+                },
+                "62441f33e273cb25a4d40ba65b32687401ca277582debaae8199cf23f5a42847",
+            ),
+            (
+                "resize_nearest",
+                Op::Resize {
+                    width: Some(128),
+                    height: Some(96),
+                    filter: ResizeFilter::Nearest,
+                },
+                "50936568f084dbd1339bd2a2e46d21f834e63496db518b0164a20600a931669c",
+            ),
+            (
+                "resize_bilinear",
+                Op::Resize {
+                    width: Some(50),
+                    height: Some(40),
+                    filter: ResizeFilter::Bilinear,
+                },
+                "afc5186a52e4e6144f8ff90d1930a8d8f8bf36820d5c3ab376e56d9caad0e3c8",
+            ),
+            (
+                "crop",
+                Op::Crop {
+                    x: 5,
+                    y: 7,
+                    width: 40,
+                    height: 30,
+                },
+                "763f32401591595c027c923900f48aeef9ba6783368d67cabb38f0285e71e54c",
+            ),
+            (
+                "levels",
+                Op::Levels {
+                    brightness: 25,
+                    contrast: 40,
+                },
+                "ee431d70df86a2a22824d8aae955d653e2f527d32ec576ebde94a94bf073b508",
+            ),
+            (
+                "grayscale",
+                Op::Grayscale,
+                "c93adcc975c3868844a2bc5925ae326578d68affca552ffc8da33ea003a918c7",
+            ),
+            (
+                "palette_map",
+                Op::PaletteMap {
+                    palette: Palette::Preset(PresetPalette::OkabeIto),
+                },
+                "be44bc2c65de285bdcf763994d5c936d678bebed62237ed8b265029d4215020d",
+            ),
+            (
+                "dither_bayer4",
+                Op::Dither {
+                    mode: DitherMode::Bayer4,
+                    palette: Palette::Preset(PresetPalette::Gameboy),
+                },
+                "34b38c0b5be46496ee887df372091c5bcedd24df4ce96a5756d9f30f795227f4",
+            ),
+            (
+                "dither_bayer8",
+                Op::Dither {
+                    mode: DitherMode::Bayer8,
+                    palette: Palette::Preset(PresetPalette::Cga),
+                },
+                "42c765d3d74500f51a0ca27ffc35b8bc198a48054ef1964534c2dc276f1e9df3",
+            ),
+            (
+                "dither_bluenoise",
+                Op::Dither {
+                    mode: DitherMode::BlueNoise,
+                    palette: Palette::Preset(PresetPalette::Bw),
+                },
+                "c50d748d8ea89578e40b455aa1593f3fa1728c28ff02832dc6b5f49916d38f68",
+            ),
+            (
+                "dither_ign",
+                Op::Dither {
+                    mode: DitherMode::Ign,
+                    palette: Palette::Preset(PresetPalette::Gray4),
+                },
+                "899330480b501e9e522950efbc79169b01fc2d72fc3b96015192c6bbf60b9987",
+            ),
+            (
+                "dither_fs",
+                Op::Dither {
+                    mode: DitherMode::FloydSteinberg,
+                    palette: Palette::Preset(PresetPalette::Gameboy),
+                },
+                "c4946df33737a0db914efcc9177ec94182bdf789a08d5affec50802b4714f937",
+            ),
+            (
+                "dither_atkinson",
+                Op::Dither {
+                    mode: DitherMode::Atkinson,
+                    palette: Palette::Preset(PresetPalette::Bw),
+                },
+                "b069a112babc267d71011d3aa94d7e95f89c61d8eb7d5d9de4eb3f834862fe9e",
+            ),
+            (
+                "dither_jjn",
+                Op::Dither {
+                    mode: DitherMode::Jjn,
+                    palette: Palette::Preset(PresetPalette::Cga),
+                },
+                "c39833e52f40c217905ced667da366839006642492926e90231a51c7b331694a",
+            ),
+            (
+                "duotone",
+                Op::Duotone {
+                    dark: [20, 12, 60],
+                    light: [245, 240, 220],
+                },
+                "fa0f78d802d56700e6d126460a45c3a30883284a52b8955c55683ebeda1890aa",
+            ),
+            (
+                "pixelate",
+                Op::Pixelate { block: 5 },
+                "8165783f2d31d56628601224c147178ccf3a1a364b2f19b8c5e2af29dab66b06",
+            ),
+            (
+                "halftone_45",
+                Op::Halftone {
+                    cell: 6,
+                    angle: ScreenAngle::A45,
+                },
+                "27a6c6089cb2caecb16322ef44c93c7af089171ac7a9c4ddc6f92721c3920f5a",
+            ),
+            (
+                "halftone_15",
+                Op::Halftone {
+                    cell: 8,
+                    angle: ScreenAngle::A15,
+                },
+                "925b34065d7f278170f2b05fa7eb00db0630989b1ae8c63cfeaa2e6b91912730",
+            ),
+            (
+                "grain",
+                Op::Grain { intensity: 64 },
+                "b832397d10fdd50b6477e5465fdba60e882df60287db924388fca3a70c65c1dd",
+            ),
+            (
+                "vignette",
+                Op::Vignette { strength: 200 },
+                "05dbe1f4bc75192dd4a95e30cdc76bf82a96b08d53ade30ceed4df83d11db403",
+            ),
+            (
+                "chromatic",
+                Op::ChromaticAberration { shift: 6 },
+                "dc120f96ed4fb1951b22c7c9549d1ef3a8e38fa4a6bf2360588b5800da1158f6",
+            ),
+            (
+                "scanlines",
+                Op::Scanlines {
+                    strength: 128,
+                    period: 3,
+                },
+                "01f218556e20f583efe3eb112e6b806a96a5384ec07cb076cbf9c03da63b85e2",
+            ),
+            (
+                "glitch",
+                Op::Glitch {
+                    line_shift: 12,
+                    channel_shift: 4,
+                    blocks: 4,
+                },
+                "7e918025cd8ca342d44baa79b5ca7035e08800418f0730ab6900b847489ba597",
+            ),
+            (
+                "ascii_png",
+                Op::Ascii {
+                    cols: 24,
+                    emit: AsciiEmit::Png,
+                },
+                "627d69b21220c3dd0097b3ba253dc0d4d99eff7f6d24a9eda28348c0e2d183ae",
+            ),
+        ];
+        let mut regen = String::new();
+        let mut failures = Vec::new();
+        for (name, op, pinned) in &table {
+            let out = transform(&input, &FxArgs::new(vec![op.clone()], 7), "t")
+                .unwrap_or_else(|e| panic!("op {name} failed: {e}"));
+            let Artifact::Png(bytes) = &out.artifact else {
+                panic!("{name}: png")
+            };
+            let hash = det::sha256_hex(bytes);
+            {
+                use std::fmt::Write;
+                let _ = writeln!(regen, "{name} {hash}");
+            }
+            if &hash != pinned {
+                failures.push(format!("{name}: {hash} (pinned {pinned})"));
+            }
+        }
+        if std::env::var("RENDER_GOLDENS").is_ok() {
+            println!("{regen}");
+            return;
+        }
+        assert!(
+            failures.is_empty(),
+            "golden matrix drift (deliberate? re-pin + document):\n{}",
+            failures.join("\n")
+        );
     }
 
     #[test]

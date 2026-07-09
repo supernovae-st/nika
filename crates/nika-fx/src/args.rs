@@ -512,6 +512,338 @@ mod tests {
         assert!(matches!(validate(&bad_palette), Err(FxError::Args(_))));
     }
 
+    /// Boundary matrix — every validated range at its exact limits.
+    /// Kills the `>`↔`>=` / `||`↔`&&` mutant class: at-limit MUST pass,
+    /// one-past MUST fail, for every knob.
+    #[test]
+    #[allow(clippy::too_many_lines)] // the length IS the case table
+    fn validate_boundary_matrix() {
+        let ok_pal = || Palette::Preset(PresetPalette::Bw);
+        let cases: Vec<(Op, bool)> = vec![
+            // resize dims: 1..=16384
+            (
+                Op::Resize {
+                    width: Some(16384),
+                    height: None,
+                    filter: ResizeFilter::Auto,
+                },
+                true,
+            ),
+            (
+                Op::Resize {
+                    width: Some(16385),
+                    height: None,
+                    filter: ResizeFilter::Auto,
+                },
+                false,
+            ),
+            (
+                Op::Resize {
+                    width: Some(1),
+                    height: None,
+                    filter: ResizeFilter::Auto,
+                },
+                true,
+            ),
+            (
+                Op::Resize {
+                    width: Some(0),
+                    height: None,
+                    filter: ResizeFilter::Auto,
+                },
+                false,
+            ),
+            (
+                Op::Resize {
+                    width: None,
+                    height: Some(16385),
+                    filter: ResizeFilter::Auto,
+                },
+                false,
+            ),
+            (
+                Op::Resize {
+                    width: None,
+                    height: None,
+                    filter: ResizeFilter::Auto,
+                },
+                false,
+            ),
+            // crop dims: ≥1 (bounds against the image are runtime)
+            (
+                Op::Crop {
+                    x: 0,
+                    y: 0,
+                    width: 1,
+                    height: 1,
+                },
+                true,
+            ),
+            (
+                Op::Crop {
+                    x: 0,
+                    y: 0,
+                    width: 0,
+                    height: 1,
+                },
+                false,
+            ),
+            (
+                Op::Crop {
+                    x: 0,
+                    y: 0,
+                    width: 1,
+                    height: 0,
+                },
+                false,
+            ),
+            // levels: ±255 / ±128
+            (
+                Op::Levels {
+                    brightness: 255,
+                    contrast: 128,
+                },
+                true,
+            ),
+            (
+                Op::Levels {
+                    brightness: -255,
+                    contrast: -128,
+                },
+                true,
+            ),
+            (
+                Op::Levels {
+                    brightness: 256,
+                    contrast: 0,
+                },
+                false,
+            ),
+            (
+                Op::Levels {
+                    brightness: -256,
+                    contrast: 0,
+                },
+                false,
+            ),
+            (
+                Op::Levels {
+                    brightness: 0,
+                    contrast: 129,
+                },
+                false,
+            ),
+            (
+                Op::Levels {
+                    brightness: 0,
+                    contrast: -129,
+                },
+                false,
+            ),
+            // palette: 2..=256 colors
+            (
+                Op::PaletteMap {
+                    palette: Palette::Custom(vec![[0, 0, 0]; 2]),
+                },
+                true,
+            ),
+            (
+                Op::PaletteMap {
+                    palette: Palette::Custom(vec![[0, 0, 0]; 256]),
+                },
+                true,
+            ),
+            (
+                Op::PaletteMap {
+                    palette: Palette::Custom(vec![[0, 0, 0]; 1]),
+                },
+                false,
+            ),
+            (
+                Op::PaletteMap {
+                    palette: Palette::Custom(vec![[0, 0, 0]; 257]),
+                },
+                false,
+            ),
+            // pixelate: 2..=256
+            (Op::Pixelate { block: 2 }, true),
+            (Op::Pixelate { block: 256 }, true),
+            (Op::Pixelate { block: 1 }, false),
+            (Op::Pixelate { block: 257 }, false),
+            // halftone cell: 3..=64
+            (
+                Op::Halftone {
+                    cell: 3,
+                    angle: ScreenAngle::A45,
+                },
+                true,
+            ),
+            (
+                Op::Halftone {
+                    cell: 64,
+                    angle: ScreenAngle::A45,
+                },
+                true,
+            ),
+            (
+                Op::Halftone {
+                    cell: 2,
+                    angle: ScreenAngle::A45,
+                },
+                false,
+            ),
+            (
+                Op::Halftone {
+                    cell: 65,
+                    angle: ScreenAngle::A45,
+                },
+                false,
+            ),
+            // grain: 0..=128
+            (Op::Grain { intensity: 128 }, true),
+            (Op::Grain { intensity: 129 }, false),
+            // vignette: 0..=255
+            (Op::Vignette { strength: 255 }, true),
+            (Op::Vignette { strength: 256 }, false),
+            // chromatic_aberration: 1..=16
+            (Op::ChromaticAberration { shift: 1 }, true),
+            (Op::ChromaticAberration { shift: 16 }, true),
+            (Op::ChromaticAberration { shift: 0 }, false),
+            (Op::ChromaticAberration { shift: 17 }, false),
+            // scanlines: strength ≤255 · period 2..=64
+            (
+                Op::Scanlines {
+                    strength: 255,
+                    period: 2,
+                },
+                true,
+            ),
+            (
+                Op::Scanlines {
+                    strength: 255,
+                    period: 64,
+                },
+                true,
+            ),
+            (
+                Op::Scanlines {
+                    strength: 256,
+                    period: 4,
+                },
+                false,
+            ),
+            (
+                Op::Scanlines {
+                    strength: 0,
+                    period: 1,
+                },
+                false,
+            ),
+            (
+                Op::Scanlines {
+                    strength: 0,
+                    period: 65,
+                },
+                false,
+            ),
+            // glitch: ≤64/≤16/≤64 · ≥1 non-zero
+            (
+                Op::Glitch {
+                    line_shift: 64,
+                    channel_shift: 16,
+                    blocks: 64,
+                },
+                true,
+            ),
+            (
+                Op::Glitch {
+                    line_shift: 65,
+                    channel_shift: 0,
+                    blocks: 1,
+                },
+                false,
+            ),
+            (
+                Op::Glitch {
+                    line_shift: 0,
+                    channel_shift: 17,
+                    blocks: 1,
+                },
+                false,
+            ),
+            (
+                Op::Glitch {
+                    line_shift: 0,
+                    channel_shift: 0,
+                    blocks: 65,
+                },
+                false,
+            ),
+            (
+                Op::Glitch {
+                    line_shift: 0,
+                    channel_shift: 0,
+                    blocks: 0,
+                },
+                false,
+            ),
+            (
+                Op::Glitch {
+                    line_shift: 1,
+                    channel_shift: 0,
+                    blocks: 0,
+                },
+                true,
+            ),
+            // ascii cols: 2..=1024 (as last op — always true here)
+            (
+                Op::Ascii {
+                    cols: 2,
+                    emit: AsciiEmit::Text,
+                },
+                true,
+            ),
+            (
+                Op::Ascii {
+                    cols: 1024,
+                    emit: AsciiEmit::Text,
+                },
+                true,
+            ),
+            (
+                Op::Ascii {
+                    cols: 1,
+                    emit: AsciiEmit::Text,
+                },
+                false,
+            ),
+            (
+                Op::Ascii {
+                    cols: 1025,
+                    emit: AsciiEmit::Text,
+                },
+                false,
+            ),
+            // dither shares the palette rule
+            (
+                Op::Dither {
+                    mode: DitherMode::Bayer4,
+                    palette: ok_pal(),
+                },
+                true,
+            ),
+        ];
+        for (op, expect_ok) in cases {
+            let r = validate(&FxArgs::new(vec![op.clone()], 0));
+            assert_eq!(r.is_ok(), expect_ok, "op {op:?} → {r:?}");
+        }
+        // ops-list cap: 32 ok · 33 rejected · 0 rejected
+        let op = Op::Grayscale;
+        assert!(validate(&FxArgs::new(vec![op.clone(); 32], 0)).is_ok());
+        assert!(validate(&FxArgs::new(vec![op.clone(); 33], 0)).is_err());
+        assert!(validate(&FxArgs::new(vec![], 0)).is_err());
+    }
+
     #[test]
     fn recipe_json_is_deterministic_and_ascii() {
         let args = FxArgs {
