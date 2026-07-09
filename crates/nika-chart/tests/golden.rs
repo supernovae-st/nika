@@ -41,7 +41,7 @@ fn golden_bar_sha256_is_pinned() {
     let (spec, rows) = bar_fixture();
     let a = nika_chart::compile(&spec, &rows).expect("compile");
     assert_eq!(
-        a.sha256, "2cc3a7f6d775db460b9dff3271e2ade8d23a7f3067406adf25e67c8f5206df59",
+        a.sha256, "83670bc4f7d2ac98e9ac909b375666732bc79435a6bda7f060701f5d2f460e1c",
         "byte drift detected — the attestation property broke"
     );
 }

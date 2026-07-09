@@ -213,10 +213,16 @@ fn cost_per_provider() -> (ChartSpec, Vec<Row>) {
                 n(0.0035 + x * 0.00022 + if i % 4 == 0 { 0.0012 } else { 0.0 }),
             ),
         ]));
+        // Third series: another CLOUD provider — local runs are UNPRICED,
+        // never plotted as $0 (the cost-honesty law: a flat line at zero
+        // would teach the exact conjured-price class the engine refuses).
         rows.push(row(&[
             ("run", n(x)),
-            ("provider", s("ollama")),
-            ("usd", n(0.0002)),
+            ("provider", s("mistral")),
+            (
+                "usd",
+                n(0.0018 + x * 0.00012 + if i % 5 == 0 { 0.0006 } else { 0.0 }),
+            ),
         ]));
     }
     (spec, rows)
