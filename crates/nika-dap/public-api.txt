@@ -107,4 +107,65 @@ pub fn nika_dap::recover::recover_events(raw: &str, label: &str) -> core::result
 pub mod nika_dap::source_id
 pub fn nika_dap::source_id::lf_normal_form(source: &str) -> alloc::borrow::Cow<'_, str>
 pub fn nika_dap::source_id::sha256_hex(bytes: &[u8]) -> alloc::string::String
+pub mod nika_dap::stats
+#[non_exhaustive] pub enum nika_dap::stats::Prior
+pub nika_dap::stats::Prior::Bands
+pub nika_dap::stats::Prior::Bands::max: f64
+pub nika_dap::stats::Prior::Bands::min: f64
+pub nika_dap::stats::Prior::Bands::n: usize
+pub nika_dap::stats::Prior::Bands::p50: f64
+pub nika_dap::stats::Prior::Bands::p90: f64
+pub nika_dap::stats::Prior::LastRun
+pub nika_dap::stats::Prior::LastRun::value: f64
+pub nika_dap::stats::Prior::NeverRan
+pub nika_dap::stats::Prior::Range
+pub nika_dap::stats::Prior::Range::max: f64
+pub nika_dap::stats::Prior::Range::min: f64
+pub nika_dap::stats::Prior::Range::n: usize
+impl nika_dap::stats::Prior
+pub fn nika_dap::stats::Prior::from_finite(values: &[f64]) -> Self
+pub const fn nika_dap::stats::Prior::n(&self) -> usize
+impl core::clone::Clone for nika_dap::stats::Prior
+pub fn nika_dap::stats::Prior::clone(&self) -> nika_dap::stats::Prior
+impl core::cmp::PartialEq for nika_dap::stats::Prior
+pub fn nika_dap::stats::Prior::eq(&self, other: &nika_dap::stats::Prior) -> bool
+impl core::fmt::Debug for nika_dap::stats::Prior
+pub fn nika_dap::stats::Prior::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::stats::Prior
+impl core::marker::StructuralPartialEq for nika_dap::stats::Prior
+impl serde_core::ser::Serialize for nika_dap::stats::Prior
+pub fn nika_dap::stats::Prior::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_dap::stats::Prior
+impl<T, U> core::convert::Into<U> for nika_dap::stats::Prior where U: core::convert::From<T>
+pub fn nika_dap::stats::Prior::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::stats::Prior where U: core::convert::Into<T>
+pub type nika_dap::stats::Prior::Error = core::convert::Infallible
+pub fn nika_dap::stats::Prior::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::stats::Prior where U: core::convert::TryFrom<T>
+pub type nika_dap::stats::Prior::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::stats::Prior::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::stats::Prior where T: core::clone::Clone
+pub type nika_dap::stats::Prior::Owned = T
+pub fn nika_dap::stats::Prior::clone_into(&self, target: &mut T)
+pub fn nika_dap::stats::Prior::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::stats::Prior where T: 'static + ?core::marker::Sized
+pub fn nika_dap::stats::Prior::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::stats::Prior where T: ?core::marker::Sized
+pub fn nika_dap::stats::Prior::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::stats::Prior where T: ?core::marker::Sized
+pub fn nika_dap::stats::Prior::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::stats::Prior where T: core::clone::Clone
+pub unsafe fn nika_dap::stats::Prior::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::stats::Prior
+pub fn nika_dap::stats::Prior::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::stats::Prior where T: core::clone::Clone
+pub fn nika_dap::stats::Prior::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::stats::Prior where T: 'static
+pub fn nika_dap::stats::Prior::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::stats::Prior where T: core::marker::Copy
+pub fn nika_dap::stats::Prior::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_dap::stats::Prior
+pub type nika_dap::stats::Prior::Output = T
+pub const nika_dap::stats::BANDS_MIN_N: usize
+pub fn nika_dap::stats::quantile_h7(sorted: &[f64], q: f64) -> core::option::Option<f64>
 pub fn nika_dap::run_stdio() -> u8

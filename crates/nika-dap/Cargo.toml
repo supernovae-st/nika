@@ -22,6 +22,7 @@ thiserror  = { workspace = true }                             # RecoverError —
 [dev-dependencies]
 uuid     = { workspace = true }   # test EventIds (the replay fixtures)
 tempfile = { workspace = true }   # replay fixtures on disk
+proptest = { workspace = true }   # stats totality (quantile_h7 over arbitrary finite samples)
 
 [package.metadata.lore]
 daemon        = "scribe"

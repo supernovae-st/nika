@@ -4,7 +4,7 @@
 |---|---|
 | Status | **ADMITTED 2026-07-09** — Gate 1 authored at the split (a descent, not a greenfield: every line arrived tested from `nika-cli`). |
 | Layer | L4 — interface crate (stdio protocol server + the forensic read seams) |
-| Design | The trace-forensics plane: the DAP replay debugger (`nika dap`) plus the three seams every forensic reader shares — the tolerant NDJSON reader (`recover`), the tamper-evidence chain walk (`chain`), and the source-identity hashes (`source_id`). One home so the sink that WRITES the chain and every walker that CHECKS it share one genesis tag and one hash primitive. |
+| Design | The trace-forensics plane: the DAP replay debugger (`nika dap`) plus the three seams every forensic reader shares — the tolerant NDJSON reader (`recover`), the tamper-evidence chain walk (`chain`), the source-identity hashes (`source_id`), and the forensic statistics (`stats` — the Prior honesty ladder + Hyndman-Fan-7 quantiles every learned-truth reader speaks · descended from nika-cli at the 15060-LOC wall, the same session as the crate itself). One home so the sink that WRITES the chain and every walker that CHECKS it share one genesis tag and one hash primitive. |
 | LOC budget | ≤2,500 src (at admission ~1,450 incl. in-file tests) — headroom for live DAP sessions (breakpoint gates on the durable-pause substrate) after replay proves the wiring |
 | File cap | ≤1,500 LOC each (max at admission: `replay.rs` ~490) |
 | Function cap | ≤100 lines each |
@@ -53,9 +53,10 @@ same wall (2026-07-07).
 
 ```text
 pub fn run_stdio() -> u8
-pub mod recover    { RecoveredTrace · recover_events }
+pub mod recover    { RecoveredTrace · RecoverError · recover_events }
 pub mod chain      { CHAIN_GENESIS · Verdict · walk }
 pub mod source_id  { sha256_hex · lf_normal_form }
+pub mod stats      { Prior (#[non_exhaustive]) · BANDS_MIN_N · quantile_h7 }
 ```
 
 Consumers: `nika-cli` (the bin's `Command::Dap` arm + the re-exported

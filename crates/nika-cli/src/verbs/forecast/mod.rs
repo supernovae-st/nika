@@ -10,7 +10,6 @@
 //! counted; a suggestion never outweighs a proof.
 
 pub(crate) mod gather;
-pub(crate) mod math;
 pub(crate) mod render;
 
 use std::collections::BTreeMap;
@@ -19,7 +18,7 @@ use crate::display::state::TaskState;
 use crate::verbs::trace::store::TraceState;
 
 use gather::{Gathered, RunSample, TaskSample};
-use math::Prior;
+use nika_dap::stats::Prior;
 
 /// `explain <file>` includes the section unprompted once the window
 /// holds this many runs (under it, the recorder glance suffices);

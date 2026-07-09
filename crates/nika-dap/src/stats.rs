@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The forecast math — one exact quantile (Hyndman & Fan type-7, the
+//! Forensic statistics — the fourth shared seam: the honesty
+//! ladder every learned-truth reader speaks. one exact quantile (Hyndman & Fan type-7, the
 //! numpy/R default) and the honesty ladder as a TYPE: a p50 under
 //! `BANDS_MIN_N` samples cannot be constructed, not merely not
 //! rendered. Learned truth stays learned — bands, never points; the
@@ -13,7 +14,8 @@
 /// teaches).
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub(crate) enum Prior {
+#[non_exhaustive]
+pub enum Prior {
     /// n = 0 — no numbers exist. « never run », never an invention.
     NeverRan,
     /// n = 1 — the one observation, named as such (no percentile words).
@@ -47,13 +49,13 @@ pub(crate) enum Prior {
 
 /// C3: percentile vocabulary is earned at n ≥ 5 (p90 ≈ max until
 /// n > 1/(1−p) — the 1/(1-p) rule).
-pub(crate) const BANDS_MIN_N: usize = 5;
+pub const BANDS_MIN_N: usize = 5;
 
 impl Prior {
     /// Build the rung the sample size earns. Input must already be
     /// finite-filtered (the caller counts the drops — C2 accounting).
     #[must_use]
-    pub(crate) fn from_finite(values: &[f64]) -> Self {
+    pub fn from_finite(values: &[f64]) -> Self {
         let mut xs = values.to_vec();
         xs.sort_unstable_by(f64::total_cmp);
         match xs.as_slice() {
@@ -83,7 +85,7 @@ impl Prior {
 
     /// Sample count on any rung (render's « based on last N runs »).
     #[must_use]
-    pub(crate) const fn n(&self) -> usize {
+    pub const fn n(&self) -> usize {
         match self {
             Self::NeverRan => 0,
             Self::LastRun { .. } => 1,
@@ -97,7 +99,7 @@ impl Prior {
 /// non-finite `q` refuses (never NaN out). Plain lerp — golden parity
 /// over cleverness (no `mul_add`).
 #[must_use]
-pub(crate) fn quantile_h7(sorted: &[f64], q: f64) -> Option<f64> {
+pub fn quantile_h7(sorted: &[f64], q: f64) -> Option<f64> {
     if !q.is_finite() {
         return None;
     }

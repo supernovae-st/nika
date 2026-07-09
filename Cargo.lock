@@ -3733,6 +3733,7 @@ dependencies = [
  "nika-event",
  "nika-schema",
  "nika-types",
+ "proptest",
  "serde",
  "serde_json",
  "sha2",

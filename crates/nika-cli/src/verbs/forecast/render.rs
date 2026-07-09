@@ -12,8 +12,8 @@ use std::fmt::Write as _;
 use crate::display::flow::fmt_wall_ms;
 use crate::display::format::fmt_cost_usd;
 
-use super::math::Prior;
 use super::{ForecastReport, TaskPrior};
+use nika_dap::stats::Prior;
 
 /// Low-confidence tag threshold: p90 ≈ max until n > 10 (1/(1−p)).
 const LOW_CONFIDENCE_N: usize = 10;
@@ -196,8 +196,10 @@ const fn hedge_line() -> &'static str {
     "estimates vary with `when` branches, inputs, and provider latency"
 }
 
-/// A duration prior cell — the rung decides the vocabulary (EXHAUSTIVE
-/// match: this is OUR enum, four arms, never a `_`).
+/// A duration prior cell — the rung decides the vocabulary. The ladder
+/// lives in the forensics crate now (`#[non_exhaustive]` — the same
+/// tolerate-unknown-kinds law the JSON twin teaches): a NEWER rung this
+/// renderer cannot speak renders as its honest sample count.
 fn prior_cell(prior: &Prior) -> String {
     match *prior {
         Prior::NeverRan => "never ran".to_owned(),
@@ -212,6 +214,7 @@ fn prior_cell(prior: &Prior) -> String {
                 fmt_wall_ms(to_ms(p90))
             )
         }
+        _ => format!("learned (n={})", prior.n()),
     }
 }
 
@@ -239,6 +242,8 @@ fn cost_cell(prior: Option<&Prior>, unpriced: bool) -> String {
                 fmt_cost_usd(*p90)
             )
         }
+        // A NEWER rung this renderer cannot speak — honest floor only.
+        Some(p) => format!("{floor}learned (n={})", p.n()),
     }
 }
 

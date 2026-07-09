@@ -18,6 +18,7 @@
 pub mod chain;
 pub mod recover;
 pub mod source_id;
+pub mod stats;
 
 mod protocol;
 mod replay;
@@ -364,11 +365,12 @@ mod tests {
         assert!(out.contains("not supported in a replay session"));
     }
 
-    /// The full journey against REAL files — launch → breakpoints →
-    /// configurationDone → threads → stackTrace → variables → next →
-    /// stepBack → continue-off-the-end → terminated.
-    #[test]
-    fn replay_journey_over_real_files() {
+    /// Journey fixture on disk: the two-task workflow + its recorded
+    /// journal, hand-authored in the journal's REAL serde shape
+    /// (untagged Value · flat ns — pinned from a live line, not
+    /// imagined; the `floor_deep` lesson). Returns (dir, wf, journal) —
+    /// the tempdir rides along so it outlives the session.
+    fn journey_fixture() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
         let dir = tempfile::tempdir().expect("tmpdir");
         let wf = dir.path().join("w.nika.yaml");
         std::fs::write(
@@ -377,9 +379,6 @@ mod tests {
         )
         .expect("write wf");
         let journal = dir.path().join("run.ndjson");
-        // Two settles, hand-authored in the journal's own NDJSON shape.
-        // The journal's REAL serde shape (untagged Value · flat ns):
-        // pinned from a live line, not imagined — the floor_deep lesson.
         let lines = [
             serde_json::json!({"id": {"uuid": "01912345-0000-7000-8000-000000000001"},
                 "timestamp": 1000, "kind": "workflow_started", "run": null, "correlation": null,
@@ -401,7 +400,15 @@ mod tests {
             let _ = writeln!(ndjson, "{l}");
         }
         std::fs::write(&journal, ndjson).expect("write journal");
+        (dir, wf, journal)
+    }
 
+    /// The full journey against REAL files — launch → breakpoints →
+    /// configurationDone → threads → stackTrace → variables → next →
+    /// stepBack → continue-off-the-end → terminated.
+    #[test]
+    fn replay_journey_over_real_files() {
+        let (_dir, wf, journal) = journey_fixture();
         let out = drive(&[
             req(1, "initialize", &serde_json::json!({"adapterID": "nika"})),
             req(
