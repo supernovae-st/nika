@@ -554,6 +554,20 @@ mod tests {
         s.cursor = 999;
         s.run_backward();
         assert_eq!(s.current().task, "beta");
+
+        // The clamp must land ON the last stop, not past it: standing
+        // (clamped) on gamma, a breakpoint on gamma itself is BEHIND
+        // no one — backward floors to the first stop, never re-lands
+        // on the stop it stands on (kills the len-vs-len-1 mutant).
+        let gamma_line = s.task_lines[2].1;
+        s.set_breakpoints(&[gamma_line]);
+        s.cursor = 999;
+        s.run_backward();
+        assert_eq!(
+            s.current().task,
+            "alpha",
+            "wild cursor stands ON the last stop — backward never re-visits it"
+        );
     }
 
     #[test]

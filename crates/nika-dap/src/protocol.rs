@@ -294,10 +294,11 @@ mod tests {
             "header spam without a separator is hostile"
         );
 
-        // 60 junk headers + a real frame: inside the cap, parses fine
-        // (kills the > vs >= mutant at the boundary's working side).
+        // 62 junk + Content-Length + separator = exactly 64 header
+        // iterations: parses under `>`, refuses under `>=` — the
+        // at-the-cap acceptance IS the boundary pin.
         let mut ok = Vec::new();
-        for i in 0..60 {
+        for i in 0..62 {
             ok.extend(format!("X-{i}: y\r\n").into_bytes());
         }
         let body = br#"{"seq":2,"type":"request","command":"threads"}"#;
