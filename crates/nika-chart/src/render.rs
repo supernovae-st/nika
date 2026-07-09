@@ -171,14 +171,19 @@ pub fn bar(
 
     let zero_y = ys.map(0.0);
     for (i, v) in vals.iter().enumerate() {
-        let (x, w) = band.slot(i);
+        let (sx, sw) = band.slot(i);
+        // Mark spec: a bar never fills its slot — cap the mark and let the
+        // band's leftover be air (thick saturated blocks read loud). 48
+        // viewBox units = 24 displayed px on the 2× grid.
+        let w = sw.min(48.0);
+        let x = sx + (sw - w) / 2.0;
         let yv = ys.map(*v);
-        let (top, h) = if yv <= zero_y {
-            (yv, zero_y - yv)
+        let (top, h, up) = if yv <= zero_y {
+            (yv, zero_y - yv, true)
         } else {
-            (zero_y, yv - zero_y)
+            (zero_y, yv - zero_y, false)
         };
-        svg.rect(x, top, w, h.max(0.0), palette::categorical(0), None);
+        svg.bar(x, top, w, h.max(0.0), palette::categorical(0), up);
         // Value label above the bar when it fits.
         let vl = fmt::label(*v, spec.y.semantic);
         if metrics::measure(&vl, 10.0) <= band.step_width() {
@@ -491,20 +496,36 @@ pub fn scatter(
     Ok(svg.close())
 }
 
-/// Normalized ramp color for a heatmap cell value.
-fn heat_color(v: f64, min: f64, max: f64, sem: Semantic) -> String {
+/// A heatmap fill, quantized onto the legend's own bins — cells and legend
+/// share ONE scale (the legend swore « never a gradient »; the cells keep
+/// the same promise).
+enum HeatFill {
+    /// Diverging (delta) — the bin index IS the per-mode CSS class.
+    Div(usize),
+    /// Sequential (viridis · perceptually uniform, legible on both
+    /// surfaces) — a quantized inline fill.
+    Seq(String),
+}
+
+fn heat_fill(v: f64, min: f64, max: f64, sem: Semantic) -> HeatFill {
     if sem == Semantic::Delta {
         let m = min.abs().max(max.abs());
-        if m <= 0.0 {
-            return palette::coolwarm(0.5);
-        }
-        palette::coolwarm(0.5 + v / (2.0 * m))
+        let t = if m <= 0.0 { 0.5 } else { 0.5 + v / (2.0 * m) };
+        HeatFill::Div(palette::diverging_bin(t))
     } else {
         let span = max - min;
-        if span <= 0.0 {
-            return palette::viridis(0.5);
-        }
-        palette::viridis((v - min) / span)
+        let t = if span <= 0.0 { 0.5 } else { (v - min) / span };
+        let bin = palette::diverging_bin(t); // same bin count · shared law
+        HeatFill::Seq(palette::viridis(
+            (bin as f64 + 0.5) / palette::DIVERGING_BINS as f64,
+        ))
+    }
+}
+
+fn paint_cell(svg: &mut Svg, x: f64, y: f64, w: f64, h: f64, fill: &HeatFill) {
+    match fill {
+        HeatFill::Div(bin) => svg.cell_bin(x, y, w, h, *bin),
+        HeatFill::Seq(hex) => svg.cell_soft(x, y, w, h, hex),
     }
 }
 
@@ -524,10 +545,11 @@ fn heat_legend(svg: &mut Svg, frame: &Frame, vmin: f64, vmax: f64, sem: Semantic
         None,
     );
     lx += metrics::measure(&min_l, 10.0) + 6.0;
-    for i in 0..7 {
-        let tt = f64::from(i) / 6.0;
+    // One swatch per shared bin — the exact classes/fills the cells wear.
+    for bin in 0..palette::DIVERGING_BINS {
+        let tt = (bin as f64 + 0.5) / palette::DIVERGING_BINS as f64;
         let v = vmin + tt * (vmax - vmin);
-        svg.cell(lx, ly - 7.0, 14.0, 9.0, &heat_color(v, vmin, vmax, sem));
+        paint_cell(svg, lx, ly - 7.0, 14.0, 9.0, &heat_fill(v, vmin, vmax, sem));
         lx += 14.0;
     }
     lx += 6.0;
@@ -580,12 +602,13 @@ pub fn heatmap(
         let xi = xcats.iter().position(|c| c == x).unwrap_or(0);
         let yi = ycats.iter().position(|c| c == y).unwrap_or(0);
         if filled.insert((xi, yi)) {
-            svg.cell(
+            paint_cell(
+                &mut svg,
                 frame.x0 + cw * (xi as f64),
                 frame.y0 + ch * (yi as f64),
                 cw,
                 ch,
-                &heat_color(*v, vmin, vmax, val_ch.semantic),
+                &heat_fill(*v, vmin, vmax, val_ch.semantic),
             );
         }
     }
