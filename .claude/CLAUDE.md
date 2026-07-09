@@ -129,20 +129,20 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/terminal-dag`                                      |
-| HEAD             | `ca94a7b37` (`ca94a7b376c154c45c8f00f05b821bcf917ec682`)             |
+| branch           | `feat/image-fx-builtin`                                      |
+| HEAD             | `ff8e37833` (`ff8e378331b4c2f793d6c6cf7021cd6bb6fd4fa1`)             |
 | workspace        | v0.98.0                                  |
-| crates (workspace)| 42                                              |
+| crates (workspace)| 43                                              |
 | crates (admitted)| 42 / 42                                   |
-| crates (WIP)     | 0 —                                   |
+| crates (WIP)     | 1 — nika-fx                                  |
 | L0               | 11                                              |
 | L0.5             | 6                                              |
-| L1               | 12                                              |
+| L1               | 13                                              |
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 4                                              |
-| lib tests        | 3579 passed, 0 failed                              |
+| lib tests        | 3677 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 | field            | value                                          |

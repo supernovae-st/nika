@@ -441,9 +441,8 @@ where
             )
             .await),
             "notify" => Ok(net::notify(self.http.as_ref(), args).await),
-            // media 1 — provider calls ride the IMAGE PLANE (a dedicated
-            // seam · const endpoints); saves ride the permits.fs boundary
-            // (each final path is gated inside save_all, before any I/O).
+            // media 3 — provider calls ride dedicated planes (const endpoints);
+            // saves gate each final path on the permits.fs boundary before I/O.
             "image_generate" => Ok(image::generate(
                 self.fs.as_ref(),
                 self.image_http.as_deref(),
@@ -455,16 +454,7 @@ where
             )
             .await),
             "tts_generate" => Ok(self.route_tts(args).await),
-            // media 3 — pure deterministic transform (NO provider plane ·
-            // NO keys · NO clock): input read + `out:` write both ride the
-            // permits.fs boundary; pixel work runs on the blocking pool.
-            "image_fx" => Ok(image_fx::run(
-                self.fs.as_ref(),
-                self.emitter.as_ref(),
-                &self.fs_boundary,
-                args,
-            )
-            .await),
+            "image_fx" => Ok(self.route_image_fx(args).await),
             // introspection 2
             "compose" => Ok(core_tools::compose()),
             "inspect" => Ok(inspect::inspect(self.workflow.as_ref(), args)),
@@ -472,6 +462,21 @@ where
                 name: name.to_owned(),
             }),
         }
+    }
+
+    /// The `nika:image_fx` plumbing (kept out of `route`'s match for the
+    /// fn-length budget — pure delegation). Media 3: a pure deterministic
+    /// transform — NO provider plane, NO keys, NO clock; input read + `out:`
+    /// write both ride the permits.fs boundary; pixel work runs on the
+    /// blocking pool.
+    async fn route_image_fx(&self, args: &Args) -> BuiltinOutcome {
+        image_fx::run(
+            self.fs.as_ref(),
+            self.emitter.as_ref(),
+            &self.fs_boundary,
+            args,
+        )
+        .await
     }
 
     /// The `nika:tts_generate` plumbing (kept out of `route`'s match for
