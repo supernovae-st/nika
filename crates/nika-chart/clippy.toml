@@ -1,0 +1,19 @@
+# Determinism law (master plan CHT §3bis) — std float transcendentals are
+# documented non-deterministic (« varies by platform, Rust version, and can
+# even differ within the same execution » · std f64 docs). Route everything
+# through det-safe paths (POW10 table · pure-arithmetic series).
+disallowed-methods = [
+    { path = "f64::ln", reason = "non-deterministic per std docs · use ticks::ilog10/POW10 or a det series" },
+    { path = "f64::log10", reason = "non-deterministic per std docs · use ticks::ilog10" },
+    { path = "f64::log2", reason = "non-deterministic per std docs" },
+    { path = "f64::powf", reason = "non-deterministic per std docs · use POW10 table" },
+    { path = "f64::powi", reason = "non-deterministic per std docs · use POW10 table or repeated mul" },
+    { path = "f64::exp", reason = "non-deterministic per std docs" },
+    { path = "f64::sin", reason = "non-deterministic per std docs" },
+    { path = "f64::cos", reason = "non-deterministic per std docs" },
+]
+
+disallowed-types = [
+    { path = "std::collections::HashMap", reason = "RandomState iteration order breaks byte-determinism · use BTreeMap/Vec" },
+    { path = "std::collections::HashSet", reason = "RandomState iteration order breaks byte-determinism · use BTreeSet/Vec" },
+]
