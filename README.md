@@ -346,6 +346,11 @@ the engine — idempotent, and it preserves your other servers. `nika mcp`
 exposes a read-only oracle — 8 tools, `nika_check` and `nika_explain` through
 `nika_catalog` and `nika_tools` — any MCP client can call. `nika lsp` speaks LSP to every editor.
 
+Wondering which model on your machine can actually drive a workflow? The
+[model bench](https://docs.nika.sh/examples/model-bench) is a workflow that
+benches your models — same tasks, every local/cloud model you point it at,
+an honest scorecard out (unpriced never reads as free).
+
 Or install everything as a plugin — this repo hosts one plugin (the
 `nika-authoring` skill + the MCP oracle) for both ecosystems:
 
