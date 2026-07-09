@@ -98,6 +98,30 @@ def main():
     if pack and spec and pack != spec:
         FINDINGS.append(("FAIL", "pack", f"engine pack {pack} != spec {spec} — re-vendor before the next tag"))
 
+    # The VERSION pin above goes green while CONTENT drifts inside one
+    # version (proven 2026-07-09: pack canon said 9 templates, spec said
+    # 10, both files read 0.1.0-draft — the MCP oracle taught a stale
+    # shelf). Hash the vendored canon against the spec's: a pin at the
+    # wrong granularity is worse than no pin.
+    import hashlib
+    pack_canon = grab(f"{RAW}/supernovae-st/nika/main/crates/nika-pack/pack/canon.yaml", str, "pack canon")
+    spec_canon = grab(f"{RAW}/supernovae-st/nika-spec/main/canon.yaml", str, "spec canon")
+    if pack_canon and spec_canon and pack_canon != spec_canon:
+        ph = hashlib.sha256(pack_canon.encode()).hexdigest()[:12]
+        sh = hashlib.sha256(spec_canon.encode()).hexdigest()[:12]
+        FINDINGS.append(("WARN", "pack content",
+                         f"vendored canon {ph} != spec canon {sh} (same VERSION possible) — sync-pack before the next tag"))
+
+    # The marketplace mirror (nika-agents) claims byte-parity with engine
+    # main; its own gate only fires on push/PR + a daily cron. This pin
+    # gives the nightly issue the same eye (drift proven to reappear
+    # within 24h of a resync, 2026-07-09).
+    eng_skill = grab(f"{RAW}/supernovae-st/nika/main/.agents/plugins/nika/skills/nika-authoring/SKILL.md", str, "agents mirror")
+    mir_skill = grab(f"{RAW}/supernovae-st/nika-agents/main/.agents/plugins/nika/skills/nika-authoring/SKILL.md", str, "agents mirror")
+    if eng_skill and mir_skill and eng_skill != mir_skill:
+        FINDINGS.append(("WARN", "agents mirror",
+                         "nika-agents SKILL.md != engine main — the byte-parity claim drifted; resync the mirror"))
+
     vscode_repo = grab(f"{RAW}/supernovae-st/nika-vscode/main/package.json",
                        lambda t: json.loads(t)["version"], "vscode repo")
     ovsx = grab("https://open-vsx.org/api/supernovae/nika-lang",
