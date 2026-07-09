@@ -44,6 +44,16 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **`nika-dap::stats::conformal_upper` — the forecast's first THEOREM.**
+  A distribution-free, finite-sample upper prediction bound (split
+  conformal, order-statistic form): for exchangeable runs the NEXT one
+  falls at or below the k-th order statistic with probability ≥ k/(n+1),
+  exactly k/(n+1) for continuous data (arXiv:2411.11824 Thm 3.2). The
+  level arrives as a rational (the f64 route mis-computes the exact
+  feasibility frontier — 0.9·10 ceils to 10); nine runs earn a
+  guaranteed 90% bound, nineteen earn 95%. Proven by a deterministic
+  leave-one-out property test that COUNTS the theorem, never samples
+  it. Renderer wiring lands with forecast-R3.
 - **`nika-dap` is its own crate — the trace-forensics plane has one
   home.** The DAP replay server moves out of `nika-cli` (the crate sat
   at 98.9% of its size cap before the forecast landed), and the seams

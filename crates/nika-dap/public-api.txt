@@ -166,6 +166,54 @@ impl<T> outref::AsOut<T> for nika_dap::stats::Prior where T: core::marker::Copy
 pub fn nika_dap::stats::Prior::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_dap::stats::Prior
 pub type nika_dap::stats::Prior::Output = T
+#[non_exhaustive] pub struct nika_dap::stats::ConformalUpper
+pub nika_dap::stats::ConformalUpper::bound: f64
+pub nika_dap::stats::ConformalUpper::k: usize
+pub nika_dap::stats::ConformalUpper::n: usize
+impl nika_dap::stats::ConformalUpper
+pub fn nika_dap::stats::ConformalUpper::new(bound: f64, k: usize, n: usize) -> Self
+impl core::clone::Clone for nika_dap::stats::ConformalUpper
+pub fn nika_dap::stats::ConformalUpper::clone(&self) -> nika_dap::stats::ConformalUpper
+impl core::cmp::PartialEq for nika_dap::stats::ConformalUpper
+pub fn nika_dap::stats::ConformalUpper::eq(&self, other: &nika_dap::stats::ConformalUpper) -> bool
+impl core::fmt::Debug for nika_dap::stats::ConformalUpper
+pub fn nika_dap::stats::ConformalUpper::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::stats::ConformalUpper
+impl core::marker::StructuralPartialEq for nika_dap::stats::ConformalUpper
+impl serde_core::ser::Serialize for nika_dap::stats::ConformalUpper
+pub fn nika_dap::stats::ConformalUpper::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_dap::stats::ConformalUpper
+impl<T, U> core::convert::Into<U> for nika_dap::stats::ConformalUpper where U: core::convert::From<T>
+pub fn nika_dap::stats::ConformalUpper::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::stats::ConformalUpper where U: core::convert::Into<T>
+pub type nika_dap::stats::ConformalUpper::Error = core::convert::Infallible
+pub fn nika_dap::stats::ConformalUpper::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::stats::ConformalUpper where U: core::convert::TryFrom<T>
+pub type nika_dap::stats::ConformalUpper::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::stats::ConformalUpper::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::stats::ConformalUpper where T: core::clone::Clone
+pub type nika_dap::stats::ConformalUpper::Owned = T
+pub fn nika_dap::stats::ConformalUpper::clone_into(&self, target: &mut T)
+pub fn nika_dap::stats::ConformalUpper::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::stats::ConformalUpper where T: 'static + ?core::marker::Sized
+pub fn nika_dap::stats::ConformalUpper::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::stats::ConformalUpper where T: ?core::marker::Sized
+pub fn nika_dap::stats::ConformalUpper::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::stats::ConformalUpper where T: ?core::marker::Sized
+pub fn nika_dap::stats::ConformalUpper::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::stats::ConformalUpper where T: core::clone::Clone
+pub unsafe fn nika_dap::stats::ConformalUpper::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::stats::ConformalUpper
+pub fn nika_dap::stats::ConformalUpper::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::stats::ConformalUpper where T: core::clone::Clone
+pub fn nika_dap::stats::ConformalUpper::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::stats::ConformalUpper where T: 'static
+pub fn nika_dap::stats::ConformalUpper::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::stats::ConformalUpper where T: core::marker::Copy
+pub fn nika_dap::stats::ConformalUpper::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_dap::stats::ConformalUpper
+pub type nika_dap::stats::ConformalUpper::Output = T
 pub const nika_dap::stats::BANDS_MIN_N: usize
+pub fn nika_dap::stats::conformal_upper(sorted: &[f64], num: u32, den: u32) -> core::option::Option<nika_dap::stats::ConformalUpper>
 pub fn nika_dap::stats::quantile_h7(sorted: &[f64], q: f64) -> core::option::Option<f64>
 pub fn nika_dap::run_stdio() -> u8

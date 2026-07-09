@@ -94,6 +94,70 @@ impl Prior {
     }
 }
 
+/// A finite-sample upper prediction bound — split-conformal in its
+/// order-statistic form. For exchangeable samples the NEXT observation
+/// falls at or below `bound` with probability **at least** `k/(n+1)`,
+/// and **exactly** `k/(n+1)` when the distribution is continuous (ties
+/// only push true coverage higher — conservative, never invalid). A
+/// distribution-free THEOREM about the next run, not an estimate
+/// (Angelopoulos–Barber–Bates, CUP 2026 · arXiv:2411.11824 Thm 3.2).
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
+#[non_exhaustive]
+pub struct ConformalUpper {
+    /// The bound — the k-th order statistic, a RAW sample value:
+    /// interpolating between order statistics would break the theorem.
+    pub bound: f64,
+    /// Coverage numerator: P(next ≤ bound) ≥ k/(n+1).
+    pub k: usize,
+    /// Sample count (the coverage denominator is n+1).
+    pub n: usize,
+}
+
+impl ConformalUpper {
+    /// Assemble a bound (invariant #19: `#[non_exhaustive]` structs
+    /// construct through `new`, never a literal).
+    #[must_use]
+    pub fn new(bound: f64, k: usize, n: usize) -> Self {
+        Self { bound, k, n }
+    }
+}
+
+/// The level-`num/den` conformal upper bound over an ASCENDING-sorted,
+/// all-finite slice (the [`quantile_h7`] contract — and finiteness is
+/// load-bearing HERE: `total_cmp` sorts NaN above `+∞`, which would
+/// poison exactly this order statistic).
+///
+/// `k = ⌈(num/den)·(n+1)⌉` is computed in INTEGER arithmetic. The f64
+/// route fails at the exact boundary: `0.9` is not representable,
+/// `0.9_f64 * 10.0 == 9.000000000000002`, and its ceil declares n = 9
+/// infeasible when the mathematics says k = 9 works.
+///
+/// `None` = honestly infeasible — no distribution-free level-`num/den`
+/// bound exists at this n (feasibility law: `n ≥ num/(den−num)` · nine
+/// samples for 90%, nineteen for 95%). Never a number without its
+/// theorem. Degenerate levels refuse the same way: `num == 0` and
+/// `den == 0` are guarded (k would underflow · division by zero);
+/// `num ≥ den` needs NO guard — it forces `k ≥ n+1`, and the
+/// feasibility law already refuses it (every clause load-bearing).
+#[must_use]
+pub fn conformal_upper(sorted: &[f64], num: u32, den: u32) -> Option<ConformalUpper> {
+    if num == 0 || den == 0 {
+        return None;
+    }
+    let n = sorted.len();
+    let np1 = u64::try_from(n).ok()?.checked_add(1)?;
+    // k = ⌈num·(n+1)/den⌉ — exact, total, no transcendentals.
+    let k_exact = u64::from(num)
+        .checked_mul(np1)?
+        .checked_add(u64::from(den) - 1)?
+        / u64::from(den);
+    let k = usize::try_from(k_exact).ok()?;
+    if k > n {
+        return None;
+    }
+    Some(ConformalUpper::new(sorted.get(k - 1).copied()?, k, n))
+}
+
 /// Hyndman & Fan type-7 (numpy/R default · C1) over an ASCENDING-sorted,
 /// all-finite slice. `None` on empty input; `q` outside `[0, 1]` clamps; a
 /// non-finite `q` refuses (never NaN out). Plain lerp — golden parity
@@ -141,6 +205,81 @@ mod tests {
         let five = [120.0, 150.0, 180.0, 200.0, 240.0];
         close(quantile_h7(&five, 0.5).expect("test value"), 180.0); // exact-hit g=0
         close(quantile_h7(&five, 0.9).expect("test value"), 224.0); // interpolation g=0.6
+    }
+
+    #[test]
+    fn conformal_bound_is_a_raw_order_statistic() {
+        let five = [120.0, 150.0, 180.0, 200.0, 240.0];
+        // τ=1/2, n=5: k=⌈6/2⌉=3 → the third value, coverage ≥ 3/6.
+        let c = conformal_upper(&five, 1, 2).expect("feasible");
+        assert_eq!((c.bound, c.k, c.n), (180.0, 3, 5));
+        // τ=4/5, n=5: k=⌈24/5⌉=5 → the max, coverage 5/6 — never an
+        // interpolated value (the theorem lives on raw samples).
+        let c = conformal_upper(&five, 4, 5).expect("feasible");
+        assert_eq!((c.bound, c.k), (240.0, 5));
+    }
+
+    #[test]
+    fn the_feasibility_frontier_is_integer_exact_not_floating() {
+        // τ=9/10 needs n ≥ 9 — and AT n=9, k=⌈9·10/10⌉=9 EXACTLY. The
+        // f64 route (0.9_f64 * 10.0 = 9.000000000000002 → ceil = 10)
+        // declares this infeasible; the integer route keeps the
+        // theorem's frontier where the mathematics puts it.
+        let nine: Vec<f64> = (1..=9).map(f64::from).collect();
+        let c = conformal_upper(&nine, 9, 10).expect("n=9 IS feasible at 90%");
+        assert_eq!((c.k, c.bound), (9, 9.0));
+        let eight: Vec<f64> = (1..=8).map(f64::from).collect();
+        assert_eq!(conformal_upper(&eight, 9, 10), None, "n=8 is not");
+        // τ=19/20 needs n ≥ 19.
+        let nineteen: Vec<f64> = (1..=19).map(f64::from).collect();
+        assert!(conformal_upper(&nineteen, 19, 20).is_some());
+        assert!(conformal_upper(&nineteen[..18], 19, 20).is_none());
+        // Degenerate levels refuse: zero parts · τ ≥ 1 · empty sample.
+        assert_eq!(conformal_upper(&nine, 0, 10), None);
+        assert_eq!(conformal_upper(&nine, 10, 0), None);
+        assert_eq!(conformal_upper(&nine, 10, 10), None);
+        assert_eq!(conformal_upper(&nine, 11, 10), None);
+        assert_eq!(conformal_upper(&[], 1, 2), None);
+    }
+
+    proptest! {
+        /// The coverage THEOREM as a deterministic property — counted,
+        /// never sampled. For n+1 DISTINCT exchangeable values, each
+        /// leave-one-out split is equally likely, and the k-th order
+        /// statistic of the kept n covers the held-out value in
+        /// EXACTLY k of the n+1 splits (continuous case ·
+        /// arXiv:2411.11824 Thm 3.2): hold out y_(j) — the kept k-th
+        /// smallest is y_(k+1) when j ≤ k (covers) and y_(k) when
+        /// j > k (does not). No Monte-Carlo, no seed sensitivity.
+        #[test]
+        fn leave_one_out_coverage_is_exactly_k_over_n_plus_1(
+            values in proptest::collection::btree_set(0u32..1_000_000, 2..40),
+            num in 1u32..20,
+            den in 2u32..21,
+        ) {
+            prop_assume!(num < den);
+            let all: Vec<f64> = values.iter().copied().map(f64::from).collect();
+            let n = all.len() - 1; // n kept per split · n+1 total
+            if conformal_upper(&all[..n], num, den).is_none() {
+                return Ok(()); // infeasible (num, den, n) — nothing to count
+            }
+            let mut covered = 0usize;
+            let mut k_seen = 0usize;
+            for holdout in 0..all.len() {
+                let kept: Vec<f64> = all
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| *i != holdout)
+                    .map(|(_, v)| *v)
+                    .collect();
+                let c = conformal_upper(&kept, num, den).expect("same n, same k");
+                k_seen = c.k;
+                if all[holdout] <= c.bound {
+                    covered += 1;
+                }
+            }
+            prop_assert_eq!(covered, k_seen);
+        }
     }
 
     #[test]

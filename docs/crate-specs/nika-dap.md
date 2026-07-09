@@ -56,7 +56,7 @@ pub fn run_stdio() -> u8
 pub mod recover    { RecoveredTrace · RecoverError · recover_events }
 pub mod chain      { CHAIN_GENESIS · Verdict · walk }
 pub mod source_id  { sha256_hex · lf_normal_form }
-pub mod stats      { Prior (#[non_exhaustive]) · BANDS_MIN_N · quantile_h7 }
+pub mod stats      { Prior (#[non_exhaustive]) · BANDS_MIN_N · quantile_h7 · ConformalUpper · conformal_upper }
 ```
 
 Consumers: `nika-cli` (the bin's `Command::Dap` arm + the re-exported
