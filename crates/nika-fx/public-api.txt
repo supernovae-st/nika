@@ -1,0 +1,1035 @@
+pub mod nika_fx
+pub mod nika_fx::args
+#[non_exhaustive] pub enum nika_fx::args::AsciiEmit
+pub nika_fx::args::AsciiEmit::Ansi
+pub nika_fx::args::AsciiEmit::Png
+pub nika_fx::args::AsciiEmit::Text
+impl core::clone::Clone for nika_fx::args::AsciiEmit
+pub fn nika_fx::args::AsciiEmit::clone(&self) -> nika_fx::args::AsciiEmit
+impl core::cmp::Eq for nika_fx::args::AsciiEmit
+impl core::cmp::PartialEq for nika_fx::args::AsciiEmit
+pub fn nika_fx::args::AsciiEmit::eq(&self, other: &nika_fx::args::AsciiEmit) -> bool
+impl core::fmt::Debug for nika_fx::args::AsciiEmit
+pub fn nika_fx::args::AsciiEmit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fx::args::AsciiEmit
+impl core::marker::StructuralPartialEq for nika_fx::args::AsciiEmit
+impl<T, U> core::convert::Into<U> for nika_fx::args::AsciiEmit where U: core::convert::From<T>
+pub fn nika_fx::args::AsciiEmit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::AsciiEmit where U: core::convert::Into<T>
+pub type nika_fx::args::AsciiEmit::Error = core::convert::Infallible
+pub fn nika_fx::args::AsciiEmit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::AsciiEmit where U: core::convert::TryFrom<T>
+pub type nika_fx::args::AsciiEmit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::AsciiEmit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::AsciiEmit where T: core::clone::Clone
+pub type nika_fx::args::AsciiEmit::Owned = T
+pub fn nika_fx::args::AsciiEmit::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::AsciiEmit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::AsciiEmit where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::AsciiEmit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::AsciiEmit where T: ?core::marker::Sized
+pub fn nika_fx::args::AsciiEmit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::AsciiEmit where T: ?core::marker::Sized
+pub fn nika_fx::args::AsciiEmit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::AsciiEmit where T: core::clone::Clone
+pub unsafe fn nika_fx::args::AsciiEmit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::AsciiEmit
+pub fn nika_fx::args::AsciiEmit::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::args::DitherMode
+pub nika_fx::args::DitherMode::Atkinson
+pub nika_fx::args::DitherMode::Bayer2
+pub nika_fx::args::DitherMode::Bayer4
+pub nika_fx::args::DitherMode::Bayer8
+pub nika_fx::args::DitherMode::BlueNoise
+pub nika_fx::args::DitherMode::FloydSteinberg
+pub nika_fx::args::DitherMode::Ign
+pub nika_fx::args::DitherMode::Jjn
+impl core::clone::Clone for nika_fx::args::DitherMode
+pub fn nika_fx::args::DitherMode::clone(&self) -> nika_fx::args::DitherMode
+impl core::cmp::Eq for nika_fx::args::DitherMode
+impl core::cmp::PartialEq for nika_fx::args::DitherMode
+pub fn nika_fx::args::DitherMode::eq(&self, other: &nika_fx::args::DitherMode) -> bool
+impl core::fmt::Debug for nika_fx::args::DitherMode
+pub fn nika_fx::args::DitherMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fx::args::DitherMode
+impl core::marker::StructuralPartialEq for nika_fx::args::DitherMode
+impl<T, U> core::convert::Into<U> for nika_fx::args::DitherMode where U: core::convert::From<T>
+pub fn nika_fx::args::DitherMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::DitherMode where U: core::convert::Into<T>
+pub type nika_fx::args::DitherMode::Error = core::convert::Infallible
+pub fn nika_fx::args::DitherMode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::DitherMode where U: core::convert::TryFrom<T>
+pub type nika_fx::args::DitherMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::DitherMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::DitherMode where T: core::clone::Clone
+pub type nika_fx::args::DitherMode::Owned = T
+pub fn nika_fx::args::DitherMode::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::DitherMode::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::DitherMode where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::DitherMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::DitherMode where T: ?core::marker::Sized
+pub fn nika_fx::args::DitherMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::DitherMode where T: ?core::marker::Sized
+pub fn nika_fx::args::DitherMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::DitherMode where T: core::clone::Clone
+pub unsafe fn nika_fx::args::DitherMode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::DitherMode
+pub fn nika_fx::args::DitherMode::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::args::Op
+pub nika_fx::args::Op::Ascii
+pub nika_fx::args::Op::Ascii::cols: u32
+pub nika_fx::args::Op::Ascii::emit: nika_fx::args::AsciiEmit
+pub nika_fx::args::Op::ChromaticAberration
+pub nika_fx::args::Op::ChromaticAberration::shift: u32
+pub nika_fx::args::Op::Crop
+pub nika_fx::args::Op::Crop::height: u32
+pub nika_fx::args::Op::Crop::width: u32
+pub nika_fx::args::Op::Crop::x: u32
+pub nika_fx::args::Op::Crop::y: u32
+pub nika_fx::args::Op::Dither
+pub nika_fx::args::Op::Dither::mode: nika_fx::args::DitherMode
+pub nika_fx::args::Op::Dither::palette: nika_fx::args::Palette
+pub nika_fx::args::Op::Duotone
+pub nika_fx::args::Op::Duotone::dark: [u8; 3]
+pub nika_fx::args::Op::Duotone::light: [u8; 3]
+pub nika_fx::args::Op::Glitch
+pub nika_fx::args::Op::Glitch::blocks: u32
+pub nika_fx::args::Op::Glitch::channel_shift: u32
+pub nika_fx::args::Op::Glitch::line_shift: u32
+pub nika_fx::args::Op::Grain
+pub nika_fx::args::Op::Grain::intensity: u32
+pub nika_fx::args::Op::Grayscale
+pub nika_fx::args::Op::Halftone
+pub nika_fx::args::Op::Halftone::angle: nika_fx::args::ScreenAngle
+pub nika_fx::args::Op::Halftone::cell: u32
+pub nika_fx::args::Op::Levels
+pub nika_fx::args::Op::Levels::brightness: i32
+pub nika_fx::args::Op::Levels::contrast: i32
+pub nika_fx::args::Op::PaletteMap
+pub nika_fx::args::Op::PaletteMap::palette: nika_fx::args::Palette
+pub nika_fx::args::Op::Pixelate
+pub nika_fx::args::Op::Pixelate::block: u32
+pub nika_fx::args::Op::Resize
+pub nika_fx::args::Op::Resize::filter: nika_fx::args::ResizeFilter
+pub nika_fx::args::Op::Resize::height: core::option::Option<u32>
+pub nika_fx::args::Op::Resize::width: core::option::Option<u32>
+pub nika_fx::args::Op::Scanlines
+pub nika_fx::args::Op::Scanlines::period: u32
+pub nika_fx::args::Op::Scanlines::strength: u32
+pub nika_fx::args::Op::Vignette
+pub nika_fx::args::Op::Vignette::strength: u32
+impl core::clone::Clone for nika_fx::args::Op
+pub fn nika_fx::args::Op::clone(&self) -> nika_fx::args::Op
+impl core::cmp::Eq for nika_fx::args::Op
+impl core::cmp::PartialEq for nika_fx::args::Op
+pub fn nika_fx::args::Op::eq(&self, other: &nika_fx::args::Op) -> bool
+impl core::fmt::Debug for nika_fx::args::Op
+pub fn nika_fx::args::Op::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::args::Op
+impl<T, U> core::convert::Into<U> for nika_fx::args::Op where U: core::convert::From<T>
+pub fn nika_fx::args::Op::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::Op where U: core::convert::Into<T>
+pub type nika_fx::args::Op::Error = core::convert::Infallible
+pub fn nika_fx::args::Op::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::Op where U: core::convert::TryFrom<T>
+pub type nika_fx::args::Op::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::Op::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::Op where T: core::clone::Clone
+pub type nika_fx::args::Op::Owned = T
+pub fn nika_fx::args::Op::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::Op::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::Op where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::Op::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::Op where T: ?core::marker::Sized
+pub fn nika_fx::args::Op::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::Op where T: ?core::marker::Sized
+pub fn nika_fx::args::Op::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::Op where T: core::clone::Clone
+pub unsafe fn nika_fx::args::Op::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::Op
+pub fn nika_fx::args::Op::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::args::Palette
+pub nika_fx::args::Palette::Custom(alloc::vec::Vec<[u8; 3]>)
+pub nika_fx::args::Palette::Preset(nika_fx::args::PresetPalette)
+impl nika_fx::args::Palette
+pub fn nika_fx::args::Palette::colors(&self) -> alloc::vec::Vec<[u8; 3]>
+impl core::clone::Clone for nika_fx::args::Palette
+pub fn nika_fx::args::Palette::clone(&self) -> nika_fx::args::Palette
+impl core::cmp::Eq for nika_fx::args::Palette
+impl core::cmp::PartialEq for nika_fx::args::Palette
+pub fn nika_fx::args::Palette::eq(&self, other: &nika_fx::args::Palette) -> bool
+impl core::fmt::Debug for nika_fx::args::Palette
+pub fn nika_fx::args::Palette::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::args::Palette
+impl<T, U> core::convert::Into<U> for nika_fx::args::Palette where U: core::convert::From<T>
+pub fn nika_fx::args::Palette::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::Palette where U: core::convert::Into<T>
+pub type nika_fx::args::Palette::Error = core::convert::Infallible
+pub fn nika_fx::args::Palette::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::Palette where U: core::convert::TryFrom<T>
+pub type nika_fx::args::Palette::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::Palette::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::Palette where T: core::clone::Clone
+pub type nika_fx::args::Palette::Owned = T
+pub fn nika_fx::args::Palette::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::Palette::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::Palette where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::Palette::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::Palette where T: ?core::marker::Sized
+pub fn nika_fx::args::Palette::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::Palette where T: ?core::marker::Sized
+pub fn nika_fx::args::Palette::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::Palette where T: core::clone::Clone
+pub unsafe fn nika_fx::args::Palette::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::Palette
+pub fn nika_fx::args::Palette::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::args::PresetPalette
+pub nika_fx::args::PresetPalette::Bw
+pub nika_fx::args::PresetPalette::Cga
+pub nika_fx::args::PresetPalette::Gameboy
+pub nika_fx::args::PresetPalette::Gray4
+pub nika_fx::args::PresetPalette::OkabeIto
+impl nika_fx::args::PresetPalette
+pub fn nika_fx::args::PresetPalette::colors(self) -> &'static [[u8; 3]]
+pub fn nika_fx::args::PresetPalette::name(self) -> &'static str
+impl core::clone::Clone for nika_fx::args::PresetPalette
+pub fn nika_fx::args::PresetPalette::clone(&self) -> nika_fx::args::PresetPalette
+impl core::cmp::Eq for nika_fx::args::PresetPalette
+impl core::cmp::PartialEq for nika_fx::args::PresetPalette
+pub fn nika_fx::args::PresetPalette::eq(&self, other: &nika_fx::args::PresetPalette) -> bool
+impl core::fmt::Debug for nika_fx::args::PresetPalette
+pub fn nika_fx::args::PresetPalette::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fx::args::PresetPalette
+impl core::marker::StructuralPartialEq for nika_fx::args::PresetPalette
+impl<T, U> core::convert::Into<U> for nika_fx::args::PresetPalette where U: core::convert::From<T>
+pub fn nika_fx::args::PresetPalette::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::PresetPalette where U: core::convert::Into<T>
+pub type nika_fx::args::PresetPalette::Error = core::convert::Infallible
+pub fn nika_fx::args::PresetPalette::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::PresetPalette where U: core::convert::TryFrom<T>
+pub type nika_fx::args::PresetPalette::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::PresetPalette::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::PresetPalette where T: core::clone::Clone
+pub type nika_fx::args::PresetPalette::Owned = T
+pub fn nika_fx::args::PresetPalette::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::PresetPalette::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::PresetPalette where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::PresetPalette::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::PresetPalette where T: ?core::marker::Sized
+pub fn nika_fx::args::PresetPalette::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::PresetPalette where T: ?core::marker::Sized
+pub fn nika_fx::args::PresetPalette::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::PresetPalette where T: core::clone::Clone
+pub unsafe fn nika_fx::args::PresetPalette::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::PresetPalette
+pub fn nika_fx::args::PresetPalette::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::args::ResizeFilter
+pub nika_fx::args::ResizeFilter::Auto
+pub nika_fx::args::ResizeFilter::Bilinear
+pub nika_fx::args::ResizeFilter::Nearest
+impl core::clone::Clone for nika_fx::args::ResizeFilter
+pub fn nika_fx::args::ResizeFilter::clone(&self) -> nika_fx::args::ResizeFilter
+impl core::cmp::Eq for nika_fx::args::ResizeFilter
+impl core::cmp::PartialEq for nika_fx::args::ResizeFilter
+pub fn nika_fx::args::ResizeFilter::eq(&self, other: &nika_fx::args::ResizeFilter) -> bool
+impl core::fmt::Debug for nika_fx::args::ResizeFilter
+pub fn nika_fx::args::ResizeFilter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fx::args::ResizeFilter
+impl core::marker::StructuralPartialEq for nika_fx::args::ResizeFilter
+impl<T, U> core::convert::Into<U> for nika_fx::args::ResizeFilter where U: core::convert::From<T>
+pub fn nika_fx::args::ResizeFilter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::ResizeFilter where U: core::convert::Into<T>
+pub type nika_fx::args::ResizeFilter::Error = core::convert::Infallible
+pub fn nika_fx::args::ResizeFilter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::ResizeFilter where U: core::convert::TryFrom<T>
+pub type nika_fx::args::ResizeFilter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::ResizeFilter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::ResizeFilter where T: core::clone::Clone
+pub type nika_fx::args::ResizeFilter::Owned = T
+pub fn nika_fx::args::ResizeFilter::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::ResizeFilter::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::ResizeFilter where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::ResizeFilter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::ResizeFilter where T: ?core::marker::Sized
+pub fn nika_fx::args::ResizeFilter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::ResizeFilter where T: ?core::marker::Sized
+pub fn nika_fx::args::ResizeFilter::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::ResizeFilter where T: core::clone::Clone
+pub unsafe fn nika_fx::args::ResizeFilter::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::ResizeFilter
+pub fn nika_fx::args::ResizeFilter::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::args::ScreenAngle
+pub nika_fx::args::ScreenAngle::A0
+pub nika_fx::args::ScreenAngle::A15
+pub nika_fx::args::ScreenAngle::A45
+pub nika_fx::args::ScreenAngle::A75
+impl core::clone::Clone for nika_fx::args::ScreenAngle
+pub fn nika_fx::args::ScreenAngle::clone(&self) -> nika_fx::args::ScreenAngle
+impl core::cmp::Eq for nika_fx::args::ScreenAngle
+impl core::cmp::PartialEq for nika_fx::args::ScreenAngle
+pub fn nika_fx::args::ScreenAngle::eq(&self, other: &nika_fx::args::ScreenAngle) -> bool
+impl core::fmt::Debug for nika_fx::args::ScreenAngle
+pub fn nika_fx::args::ScreenAngle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fx::args::ScreenAngle
+impl core::marker::StructuralPartialEq for nika_fx::args::ScreenAngle
+impl<T, U> core::convert::Into<U> for nika_fx::args::ScreenAngle where U: core::convert::From<T>
+pub fn nika_fx::args::ScreenAngle::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::ScreenAngle where U: core::convert::Into<T>
+pub type nika_fx::args::ScreenAngle::Error = core::convert::Infallible
+pub fn nika_fx::args::ScreenAngle::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::ScreenAngle where U: core::convert::TryFrom<T>
+pub type nika_fx::args::ScreenAngle::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::ScreenAngle::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::ScreenAngle where T: core::clone::Clone
+pub type nika_fx::args::ScreenAngle::Owned = T
+pub fn nika_fx::args::ScreenAngle::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::ScreenAngle::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::ScreenAngle where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::ScreenAngle::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::ScreenAngle where T: ?core::marker::Sized
+pub fn nika_fx::args::ScreenAngle::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::ScreenAngle where T: ?core::marker::Sized
+pub fn nika_fx::args::ScreenAngle::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::ScreenAngle where T: core::clone::Clone
+pub unsafe fn nika_fx::args::ScreenAngle::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::ScreenAngle
+pub fn nika_fx::args::ScreenAngle::from(t: T) -> T
+#[non_exhaustive] pub struct nika_fx::args::FxArgs
+pub nika_fx::args::FxArgs::ops: alloc::vec::Vec<nika_fx::args::Op>
+pub nika_fx::args::FxArgs::seed: u64
+impl nika_fx::args::FxArgs
+pub fn nika_fx::args::FxArgs::new(ops: alloc::vec::Vec<nika_fx::args::Op>, seed: u64) -> Self
+impl core::clone::Clone for nika_fx::args::FxArgs
+pub fn nika_fx::args::FxArgs::clone(&self) -> nika_fx::args::FxArgs
+impl core::cmp::Eq for nika_fx::args::FxArgs
+impl core::cmp::PartialEq for nika_fx::args::FxArgs
+pub fn nika_fx::args::FxArgs::eq(&self, other: &nika_fx::args::FxArgs) -> bool
+impl core::fmt::Debug for nika_fx::args::FxArgs
+pub fn nika_fx::args::FxArgs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::args::FxArgs
+impl<T, U> core::convert::Into<U> for nika_fx::args::FxArgs where U: core::convert::From<T>
+pub fn nika_fx::args::FxArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::FxArgs where U: core::convert::Into<T>
+pub type nika_fx::args::FxArgs::Error = core::convert::Infallible
+pub fn nika_fx::args::FxArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::FxArgs where U: core::convert::TryFrom<T>
+pub type nika_fx::args::FxArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::FxArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::FxArgs where T: core::clone::Clone
+pub type nika_fx::args::FxArgs::Owned = T
+pub fn nika_fx::args::FxArgs::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::FxArgs::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::FxArgs where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::FxArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::FxArgs where T: ?core::marker::Sized
+pub fn nika_fx::args::FxArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::FxArgs where T: ?core::marker::Sized
+pub fn nika_fx::args::FxArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::FxArgs where T: core::clone::Clone
+pub unsafe fn nika_fx::args::FxArgs::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::FxArgs
+pub fn nika_fx::args::FxArgs::from(t: T) -> T
+pub const nika_fx::args::MAX_OPS: usize
+pub const nika_fx::args::MAX_PALETTE: usize
+pub fn nika_fx::args::recipe_json(args: &nika_fx::args::FxArgs, input_sha256: &str, engine: &str) -> alloc::string::String
+pub fn nika_fx::args::validate(args: &nika_fx::args::FxArgs) -> core::result::Result<(), nika_fx::error::FxError>
+pub mod nika_fx::codec
+pub mod nika_fx::codec::inflate
+pub const nika_fx::codec::inflate::LEN_BASE: [u16; 29]
+pub const nika_fx::codec::inflate::LEN_EXTRA: [u16; 29]
+pub fn nika_fx::codec::inflate::adler32(data: &[u8]) -> u32
+pub fn nika_fx::codec::inflate::inflate_zlib(data: &[u8], max_out: usize) -> core::result::Result<alloc::vec::Vec<u8>, alloc::string::String>
+pub mod nika_fx::codec::png
+pub const nika_fx::codec::png::MAX_DIMENSION: u32
+pub const nika_fx::codec::png::MAX_PIXELS: u64
+pub const nika_fx::codec::png::SIG: [u8; 8]
+pub fn nika_fx::codec::png::crc32(data: &[u8]) -> u32
+pub fn nika_fx::codec::png::decode(data: &[u8]) -> core::result::Result<nika_fx::pix::PixBuf, nika_fx::error::FxError>
+pub fn nika_fx::codec::png::encode(img: &nika_fx::pix::PixBuf, recipe_json: core::option::Option<&str>) -> alloc::vec::Vec<u8>
+pub mod nika_fx::det
+pub struct nika_fx::det::Pcg32
+impl nika_fx::det::Pcg32
+pub fn nika_fx::det::Pcg32::below(&mut self, n: u32) -> u32
+pub fn nika_fx::det::Pcg32::new(seed: u64) -> nika_fx::det::Pcg32
+pub fn nika_fx::det::Pcg32::next_u32(&mut self) -> u32
+impl<T, U> core::convert::Into<U> for nika_fx::det::Pcg32 where U: core::convert::From<T>
+pub fn nika_fx::det::Pcg32::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::det::Pcg32 where U: core::convert::Into<T>
+pub type nika_fx::det::Pcg32::Error = core::convert::Infallible
+pub fn nika_fx::det::Pcg32::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::det::Pcg32 where U: core::convert::TryFrom<T>
+pub type nika_fx::det::Pcg32::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::det::Pcg32::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_fx::det::Pcg32 where T: 'static + ?core::marker::Sized
+pub fn nika_fx::det::Pcg32::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::det::Pcg32 where T: ?core::marker::Sized
+pub fn nika_fx::det::Pcg32::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::det::Pcg32 where T: ?core::marker::Sized
+pub fn nika_fx::det::Pcg32::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_fx::det::Pcg32
+pub fn nika_fx::det::Pcg32::from(t: T) -> T
+pub fn nika_fx::det::gamma_luma(p: [u8; 3]) -> u8
+pub fn nika_fx::det::ign_threshold(x: u32, y: u32) -> u8
+pub fn nika_fx::det::linear_luma_q13(p: [u8; 3]) -> u32
+pub fn nika_fx::det::linear_to_srgb(q13: u16) -> u8
+pub fn nika_fx::det::oklab_dist_sq(a: [i32; 3], b: [i32; 3]) -> i64
+pub fn nika_fx::det::oklab_q12_to_srgb(lab: [i32; 3]) -> [u8; 3]
+pub fn nika_fx::det::pixel_hash(x: u32, y: u32, seed: u64) -> u32
+pub fn nika_fx::det::sha256_hex(data: &[u8]) -> alloc::string::String
+pub fn nika_fx::det::srgb_to_linear(v: u8) -> u16
+pub fn nika_fx::det::srgb_to_oklab_q12(p: [u8; 3]) -> [i32; 3]
+pub mod nika_fx::error
+#[non_exhaustive] pub enum nika_fx::error::FxError
+pub nika_fx::error::FxError::Args(alloc::string::String)
+pub nika_fx::error::FxError::Budget
+pub nika_fx::error::FxError::Budget::max: u64
+pub nika_fx::error::FxError::Budget::pixels: u64
+pub nika_fx::error::FxError::Decode(alloc::string::String)
+pub nika_fx::error::FxError::Encode(alloc::string::String)
+pub nika_fx::error::FxError::UnsupportedFormat(alloc::string::String)
+impl core::clone::Clone for nika_fx::error::FxError
+pub fn nika_fx::error::FxError::clone(&self) -> nika_fx::error::FxError
+impl core::cmp::Eq for nika_fx::error::FxError
+impl core::cmp::PartialEq for nika_fx::error::FxError
+pub fn nika_fx::error::FxError::eq(&self, other: &nika_fx::error::FxError) -> bool
+impl core::error::Error for nika_fx::error::FxError
+impl core::fmt::Debug for nika_fx::error::FxError
+pub fn nika_fx::error::FxError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_fx::error::FxError
+pub fn nika_fx::error::FxError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::error::FxError
+impl<T, U> core::convert::Into<U> for nika_fx::error::FxError where U: core::convert::From<T>
+pub fn nika_fx::error::FxError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::error::FxError where U: core::convert::Into<T>
+pub type nika_fx::error::FxError::Error = core::convert::Infallible
+pub fn nika_fx::error::FxError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::error::FxError where U: core::convert::TryFrom<T>
+pub type nika_fx::error::FxError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::error::FxError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::error::FxError where T: core::clone::Clone
+pub type nika_fx::error::FxError::Owned = T
+pub fn nika_fx::error::FxError::clone_into(&self, target: &mut T)
+pub fn nika_fx::error::FxError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_fx::error::FxError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_fx::error::FxError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_fx::error::FxError where T: 'static + ?core::marker::Sized
+pub fn nika_fx::error::FxError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::error::FxError where T: ?core::marker::Sized
+pub fn nika_fx::error::FxError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::error::FxError where T: ?core::marker::Sized
+pub fn nika_fx::error::FxError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::error::FxError where T: core::clone::Clone
+pub unsafe fn nika_fx::error::FxError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::error::FxError
+pub fn nika_fx::error::FxError::from(t: T) -> T
+pub mod nika_fx::ops
+pub mod nika_fx::ops::ascii
+pub enum nika_fx::ops::ascii::AsciiArtifact
+pub nika_fx::ops::ascii::AsciiArtifact::Raster(nika_fx::pix::PixBuf)
+pub nika_fx::ops::ascii::AsciiArtifact::Text
+pub nika_fx::ops::ascii::AsciiArtifact::Text::body: alloc::string::String
+pub nika_fx::ops::ascii::AsciiArtifact::Text::ext: &'static str
+impl<T, U> core::convert::Into<U> for nika_fx::ops::ascii::AsciiArtifact where U: core::convert::From<T>
+pub fn nika_fx::ops::ascii::AsciiArtifact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::ops::ascii::AsciiArtifact where U: core::convert::Into<T>
+pub type nika_fx::ops::ascii::AsciiArtifact::Error = core::convert::Infallible
+pub fn nika_fx::ops::ascii::AsciiArtifact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::ops::ascii::AsciiArtifact where U: core::convert::TryFrom<T>
+pub type nika_fx::ops::ascii::AsciiArtifact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::ops::ascii::AsciiArtifact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_fx::ops::ascii::AsciiArtifact where T: 'static + ?core::marker::Sized
+pub fn nika_fx::ops::ascii::AsciiArtifact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::ops::ascii::AsciiArtifact where T: ?core::marker::Sized
+pub fn nika_fx::ops::ascii::AsciiArtifact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::ops::ascii::AsciiArtifact where T: ?core::marker::Sized
+pub fn nika_fx::ops::ascii::AsciiArtifact::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_fx::ops::ascii::AsciiArtifact
+pub fn nika_fx::ops::ascii::AsciiArtifact::from(t: T) -> T
+pub const nika_fx::ops::ascii::RAMP: &[u8; 10]
+pub fn nika_fx::ops::ascii::png_raster_dims(img: &nika_fx::pix::PixBuf, cols: u32) -> (u64, u64)
+pub fn nika_fx::ops::ascii::render(img: &nika_fx::pix::PixBuf, cols: u32, emit: nika_fx::args::AsciiEmit) -> nika_fx::ops::ascii::AsciiArtifact
+pub mod nika_fx::ops::dither
+pub fn nika_fx::ops::dither::dither(img: &nika_fx::pix::PixBuf, mode: nika_fx::args::DitherMode, palette: &nika_fx::args::Palette) -> nika_fx::pix::PixBuf
+pub mod nika_fx::ops::duotone
+pub fn nika_fx::ops::duotone::duotone(img: &nika_fx::pix::PixBuf, dark: [u8; 3], light: [u8; 3]) -> nika_fx::pix::PixBuf
+pub mod nika_fx::ops::geometry
+pub fn nika_fx::ops::geometry::crop(img: &nika_fx::pix::PixBuf, x: u32, y: u32, width: u32, height: u32) -> core::result::Result<nika_fx::pix::PixBuf, nika_fx::error::FxError>
+pub fn nika_fx::ops::geometry::resize(img: &nika_fx::pix::PixBuf, width: core::option::Option<u32>, height: core::option::Option<u32>, filter: nika_fx::args::ResizeFilter) -> core::result::Result<nika_fx::pix::PixBuf, nika_fx::error::FxError>
+pub mod nika_fx::ops::glitch
+pub fn nika_fx::ops::glitch::glitch(img: &nika_fx::pix::PixBuf, line_shift: u32, channel_shift: u32, blocks: u32, rng: &mut nika_fx::det::Pcg32) -> nika_fx::pix::PixBuf
+pub mod nika_fx::ops::halftone
+pub fn nika_fx::ops::halftone::halftone(img: &nika_fx::pix::PixBuf, cell: u32, angle: nika_fx::args::ScreenAngle) -> nika_fx::pix::PixBuf
+pub mod nika_fx::ops::palette
+pub struct nika_fx::ops::palette::LabPalette
+pub nika_fx::ops::palette::LabPalette::colors: alloc::vec::Vec<[u8; 3]>
+impl nika_fx::ops::palette::LabPalette
+pub fn nika_fx::ops::palette::LabPalette::nearest(&self, p: [u8; 3]) -> usize
+pub fn nika_fx::ops::palette::LabPalette::new(palette: &nika_fx::args::Palette) -> nika_fx::ops::palette::LabPalette
+impl<T, U> core::convert::Into<U> for nika_fx::ops::palette::LabPalette where U: core::convert::From<T>
+pub fn nika_fx::ops::palette::LabPalette::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::ops::palette::LabPalette where U: core::convert::Into<T>
+pub type nika_fx::ops::palette::LabPalette::Error = core::convert::Infallible
+pub fn nika_fx::ops::palette::LabPalette::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::ops::palette::LabPalette where U: core::convert::TryFrom<T>
+pub type nika_fx::ops::palette::LabPalette::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::ops::palette::LabPalette::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_fx::ops::palette::LabPalette where T: 'static + ?core::marker::Sized
+pub fn nika_fx::ops::palette::LabPalette::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::ops::palette::LabPalette where T: ?core::marker::Sized
+pub fn nika_fx::ops::palette::LabPalette::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::ops::palette::LabPalette where T: ?core::marker::Sized
+pub fn nika_fx::ops::palette::LabPalette::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_fx::ops::palette::LabPalette
+pub fn nika_fx::ops::palette::LabPalette::from(t: T) -> T
+pub fn nika_fx::ops::palette::palette_map(img: &nika_fx::pix::PixBuf, palette: &nika_fx::args::Palette) -> nika_fx::pix::PixBuf
+pub mod nika_fx::ops::retro
+pub fn nika_fx::ops::retro::chromatic_aberration(img: &nika_fx::pix::PixBuf, shift: u32) -> nika_fx::pix::PixBuf
+pub fn nika_fx::ops::retro::grain(img: &nika_fx::pix::PixBuf, intensity: u32, seed: u64) -> nika_fx::pix::PixBuf
+pub fn nika_fx::ops::retro::scanlines(img: &nika_fx::pix::PixBuf, strength: u32, period: u32) -> nika_fx::pix::PixBuf
+pub fn nika_fx::ops::retro::vignette(img: &nika_fx::pix::PixBuf, strength: u32) -> nika_fx::pix::PixBuf
+pub mod nika_fx::ops::tone
+pub fn nika_fx::ops::tone::grayscale(img: &nika_fx::pix::PixBuf) -> nika_fx::pix::PixBuf
+pub fn nika_fx::ops::tone::levels(img: &nika_fx::pix::PixBuf, brightness: i32, contrast: i32) -> nika_fx::pix::PixBuf
+pub fn nika_fx::ops::tone::pixelate(img: &nika_fx::pix::PixBuf, block: u32) -> nika_fx::pix::PixBuf
+pub fn nika_fx::ops::apply(img: &nika_fx::pix::PixBuf, op: &nika_fx::args::Op, rng: &mut nika_fx::det::Pcg32, seed: u64) -> core::result::Result<nika_fx::pix::PixBuf, nika_fx::error::FxError>
+pub mod nika_fx::pix
+pub struct nika_fx::pix::PixBuf
+pub nika_fx::pix::PixBuf::h: usize
+pub nika_fx::pix::PixBuf::w: usize
+impl nika_fx::pix::PixBuf
+pub fn nika_fx::pix::PixBuf::from_pixels(w: usize, h: usize, px: alloc::vec::Vec<[u8; 3]>) -> core::option::Option<nika_fx::pix::PixBuf>
+pub fn nika_fx::pix::PixBuf::get(&self, x: usize, y: usize) -> [u8; 3]
+pub fn nika_fx::pix::PixBuf::get_clamped(&self, x: i64, y: i64) -> [u8; 3]
+pub fn nika_fx::pix::PixBuf::new(w: usize, h: usize) -> nika_fx::pix::PixBuf
+pub fn nika_fx::pix::PixBuf::pixels(&self) -> &[[u8; 3]]
+pub fn nika_fx::pix::PixBuf::pixels_mut(&mut self) -> &mut [[u8; 3]]
+pub fn nika_fx::pix::PixBuf::set(&mut self, x: usize, y: usize, p: [u8; 3])
+impl core::clone::Clone for nika_fx::pix::PixBuf
+pub fn nika_fx::pix::PixBuf::clone(&self) -> nika_fx::pix::PixBuf
+impl core::cmp::Eq for nika_fx::pix::PixBuf
+impl core::cmp::PartialEq for nika_fx::pix::PixBuf
+pub fn nika_fx::pix::PixBuf::eq(&self, other: &nika_fx::pix::PixBuf) -> bool
+impl core::fmt::Debug for nika_fx::pix::PixBuf
+pub fn nika_fx::pix::PixBuf::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::pix::PixBuf
+impl<T, U> core::convert::Into<U> for nika_fx::pix::PixBuf where U: core::convert::From<T>
+pub fn nika_fx::pix::PixBuf::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::pix::PixBuf where U: core::convert::Into<T>
+pub type nika_fx::pix::PixBuf::Error = core::convert::Infallible
+pub fn nika_fx::pix::PixBuf::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::pix::PixBuf where U: core::convert::TryFrom<T>
+pub type nika_fx::pix::PixBuf::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::pix::PixBuf::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::pix::PixBuf where T: core::clone::Clone
+pub type nika_fx::pix::PixBuf::Owned = T
+pub fn nika_fx::pix::PixBuf::clone_into(&self, target: &mut T)
+pub fn nika_fx::pix::PixBuf::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::pix::PixBuf where T: 'static + ?core::marker::Sized
+pub fn nika_fx::pix::PixBuf::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::pix::PixBuf where T: ?core::marker::Sized
+pub fn nika_fx::pix::PixBuf::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::pix::PixBuf where T: ?core::marker::Sized
+pub fn nika_fx::pix::PixBuf::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::pix::PixBuf where T: core::clone::Clone
+pub unsafe fn nika_fx::pix::PixBuf::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::pix::PixBuf
+pub fn nika_fx::pix::PixBuf::from(t: T) -> T
+pub mod nika_fx::tables
+pub const nika_fx::tables::BAYER2: [u16; 4]
+pub const nika_fx::tables::BAYER4: [u16; 16]
+pub const nika_fx::tables::BAYER8: [u16; 64]
+pub const nika_fx::tables::BLUE_NOISE_64: [u16; 4096]
+pub const nika_fx::tables::CBRT_Q15: [u16; 4097]
+pub const nika_fx::tables::OKLAB_M1_INV_Q16: [[i64; 3]; 3]
+pub const nika_fx::tables::OKLAB_M1_Q16: [[i64; 3]; 3]
+pub const nika_fx::tables::OKLAB_M2_INV_Q16: [[i64; 3]; 3]
+pub const nika_fx::tables::OKLAB_M2_Q16: [[i64; 3]; 3]
+pub const nika_fx::tables::SRGB_DECODE_Q13: [u16; 256]
+#[non_exhaustive] pub enum nika_fx::Artifact
+pub nika_fx::Artifact::Png(alloc::vec::Vec<u8>)
+pub nika_fx::Artifact::Text
+pub nika_fx::Artifact::Text::body: alloc::string::String
+pub nika_fx::Artifact::Text::ext: &'static str
+impl core::clone::Clone for nika_fx::Artifact
+pub fn nika_fx::Artifact::clone(&self) -> nika_fx::Artifact
+impl core::cmp::Eq for nika_fx::Artifact
+impl core::cmp::PartialEq for nika_fx::Artifact
+pub fn nika_fx::Artifact::eq(&self, other: &nika_fx::Artifact) -> bool
+impl core::fmt::Debug for nika_fx::Artifact
+pub fn nika_fx::Artifact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::Artifact
+impl<T, U> core::convert::Into<U> for nika_fx::Artifact where U: core::convert::From<T>
+pub fn nika_fx::Artifact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::Artifact where U: core::convert::Into<T>
+pub type nika_fx::Artifact::Error = core::convert::Infallible
+pub fn nika_fx::Artifact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::Artifact where U: core::convert::TryFrom<T>
+pub type nika_fx::Artifact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::Artifact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::Artifact where T: core::clone::Clone
+pub type nika_fx::Artifact::Owned = T
+pub fn nika_fx::Artifact::clone_into(&self, target: &mut T)
+pub fn nika_fx::Artifact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::Artifact where T: 'static + ?core::marker::Sized
+pub fn nika_fx::Artifact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::Artifact where T: ?core::marker::Sized
+pub fn nika_fx::Artifact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::Artifact where T: ?core::marker::Sized
+pub fn nika_fx::Artifact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::Artifact where T: core::clone::Clone
+pub unsafe fn nika_fx::Artifact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::Artifact
+pub fn nika_fx::Artifact::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::AsciiEmit
+pub nika_fx::AsciiEmit::Ansi
+pub nika_fx::AsciiEmit::Png
+pub nika_fx::AsciiEmit::Text
+impl core::clone::Clone for nika_fx::args::AsciiEmit
+pub fn nika_fx::args::AsciiEmit::clone(&self) -> nika_fx::args::AsciiEmit
+impl core::cmp::Eq for nika_fx::args::AsciiEmit
+impl core::cmp::PartialEq for nika_fx::args::AsciiEmit
+pub fn nika_fx::args::AsciiEmit::eq(&self, other: &nika_fx::args::AsciiEmit) -> bool
+impl core::fmt::Debug for nika_fx::args::AsciiEmit
+pub fn nika_fx::args::AsciiEmit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fx::args::AsciiEmit
+impl core::marker::StructuralPartialEq for nika_fx::args::AsciiEmit
+impl<T, U> core::convert::Into<U> for nika_fx::args::AsciiEmit where U: core::convert::From<T>
+pub fn nika_fx::args::AsciiEmit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::AsciiEmit where U: core::convert::Into<T>
+pub type nika_fx::args::AsciiEmit::Error = core::convert::Infallible
+pub fn nika_fx::args::AsciiEmit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::AsciiEmit where U: core::convert::TryFrom<T>
+pub type nika_fx::args::AsciiEmit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::AsciiEmit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::AsciiEmit where T: core::clone::Clone
+pub type nika_fx::args::AsciiEmit::Owned = T
+pub fn nika_fx::args::AsciiEmit::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::AsciiEmit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::AsciiEmit where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::AsciiEmit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::AsciiEmit where T: ?core::marker::Sized
+pub fn nika_fx::args::AsciiEmit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::AsciiEmit where T: ?core::marker::Sized
+pub fn nika_fx::args::AsciiEmit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::AsciiEmit where T: core::clone::Clone
+pub unsafe fn nika_fx::args::AsciiEmit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::AsciiEmit
+pub fn nika_fx::args::AsciiEmit::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::DitherMode
+pub nika_fx::DitherMode::Atkinson
+pub nika_fx::DitherMode::Bayer2
+pub nika_fx::DitherMode::Bayer4
+pub nika_fx::DitherMode::Bayer8
+pub nika_fx::DitherMode::BlueNoise
+pub nika_fx::DitherMode::FloydSteinberg
+pub nika_fx::DitherMode::Ign
+pub nika_fx::DitherMode::Jjn
+impl core::clone::Clone for nika_fx::args::DitherMode
+pub fn nika_fx::args::DitherMode::clone(&self) -> nika_fx::args::DitherMode
+impl core::cmp::Eq for nika_fx::args::DitherMode
+impl core::cmp::PartialEq for nika_fx::args::DitherMode
+pub fn nika_fx::args::DitherMode::eq(&self, other: &nika_fx::args::DitherMode) -> bool
+impl core::fmt::Debug for nika_fx::args::DitherMode
+pub fn nika_fx::args::DitherMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fx::args::DitherMode
+impl core::marker::StructuralPartialEq for nika_fx::args::DitherMode
+impl<T, U> core::convert::Into<U> for nika_fx::args::DitherMode where U: core::convert::From<T>
+pub fn nika_fx::args::DitherMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::DitherMode where U: core::convert::Into<T>
+pub type nika_fx::args::DitherMode::Error = core::convert::Infallible
+pub fn nika_fx::args::DitherMode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::DitherMode where U: core::convert::TryFrom<T>
+pub type nika_fx::args::DitherMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::DitherMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::DitherMode where T: core::clone::Clone
+pub type nika_fx::args::DitherMode::Owned = T
+pub fn nika_fx::args::DitherMode::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::DitherMode::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::DitherMode where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::DitherMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::DitherMode where T: ?core::marker::Sized
+pub fn nika_fx::args::DitherMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::DitherMode where T: ?core::marker::Sized
+pub fn nika_fx::args::DitherMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::DitherMode where T: core::clone::Clone
+pub unsafe fn nika_fx::args::DitherMode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::DitherMode
+pub fn nika_fx::args::DitherMode::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::FxError
+pub nika_fx::FxError::Args(alloc::string::String)
+pub nika_fx::FxError::Budget
+pub nika_fx::FxError::Budget::max: u64
+pub nika_fx::FxError::Budget::pixels: u64
+pub nika_fx::FxError::Decode(alloc::string::String)
+pub nika_fx::FxError::Encode(alloc::string::String)
+pub nika_fx::FxError::UnsupportedFormat(alloc::string::String)
+impl core::clone::Clone for nika_fx::error::FxError
+pub fn nika_fx::error::FxError::clone(&self) -> nika_fx::error::FxError
+impl core::cmp::Eq for nika_fx::error::FxError
+impl core::cmp::PartialEq for nika_fx::error::FxError
+pub fn nika_fx::error::FxError::eq(&self, other: &nika_fx::error::FxError) -> bool
+impl core::error::Error for nika_fx::error::FxError
+impl core::fmt::Debug for nika_fx::error::FxError
+pub fn nika_fx::error::FxError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_fx::error::FxError
+pub fn nika_fx::error::FxError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::error::FxError
+impl<T, U> core::convert::Into<U> for nika_fx::error::FxError where U: core::convert::From<T>
+pub fn nika_fx::error::FxError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::error::FxError where U: core::convert::Into<T>
+pub type nika_fx::error::FxError::Error = core::convert::Infallible
+pub fn nika_fx::error::FxError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::error::FxError where U: core::convert::TryFrom<T>
+pub type nika_fx::error::FxError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::error::FxError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::error::FxError where T: core::clone::Clone
+pub type nika_fx::error::FxError::Owned = T
+pub fn nika_fx::error::FxError::clone_into(&self, target: &mut T)
+pub fn nika_fx::error::FxError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_fx::error::FxError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_fx::error::FxError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_fx::error::FxError where T: 'static + ?core::marker::Sized
+pub fn nika_fx::error::FxError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::error::FxError where T: ?core::marker::Sized
+pub fn nika_fx::error::FxError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::error::FxError where T: ?core::marker::Sized
+pub fn nika_fx::error::FxError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::error::FxError where T: core::clone::Clone
+pub unsafe fn nika_fx::error::FxError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::error::FxError
+pub fn nika_fx::error::FxError::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::Op
+pub nika_fx::Op::Ascii
+pub nika_fx::Op::Ascii::cols: u32
+pub nika_fx::Op::Ascii::emit: nika_fx::args::AsciiEmit
+pub nika_fx::Op::ChromaticAberration
+pub nika_fx::Op::ChromaticAberration::shift: u32
+pub nika_fx::Op::Crop
+pub nika_fx::Op::Crop::height: u32
+pub nika_fx::Op::Crop::width: u32
+pub nika_fx::Op::Crop::x: u32
+pub nika_fx::Op::Crop::y: u32
+pub nika_fx::Op::Dither
+pub nika_fx::Op::Dither::mode: nika_fx::args::DitherMode
+pub nika_fx::Op::Dither::palette: nika_fx::args::Palette
+pub nika_fx::Op::Duotone
+pub nika_fx::Op::Duotone::dark: [u8; 3]
+pub nika_fx::Op::Duotone::light: [u8; 3]
+pub nika_fx::Op::Glitch
+pub nika_fx::Op::Glitch::blocks: u32
+pub nika_fx::Op::Glitch::channel_shift: u32
+pub nika_fx::Op::Glitch::line_shift: u32
+pub nika_fx::Op::Grain
+pub nika_fx::Op::Grain::intensity: u32
+pub nika_fx::Op::Grayscale
+pub nika_fx::Op::Halftone
+pub nika_fx::Op::Halftone::angle: nika_fx::args::ScreenAngle
+pub nika_fx::Op::Halftone::cell: u32
+pub nika_fx::Op::Levels
+pub nika_fx::Op::Levels::brightness: i32
+pub nika_fx::Op::Levels::contrast: i32
+pub nika_fx::Op::PaletteMap
+pub nika_fx::Op::PaletteMap::palette: nika_fx::args::Palette
+pub nika_fx::Op::Pixelate
+pub nika_fx::Op::Pixelate::block: u32
+pub nika_fx::Op::Resize
+pub nika_fx::Op::Resize::filter: nika_fx::args::ResizeFilter
+pub nika_fx::Op::Resize::height: core::option::Option<u32>
+pub nika_fx::Op::Resize::width: core::option::Option<u32>
+pub nika_fx::Op::Scanlines
+pub nika_fx::Op::Scanlines::period: u32
+pub nika_fx::Op::Scanlines::strength: u32
+pub nika_fx::Op::Vignette
+pub nika_fx::Op::Vignette::strength: u32
+impl core::clone::Clone for nika_fx::args::Op
+pub fn nika_fx::args::Op::clone(&self) -> nika_fx::args::Op
+impl core::cmp::Eq for nika_fx::args::Op
+impl core::cmp::PartialEq for nika_fx::args::Op
+pub fn nika_fx::args::Op::eq(&self, other: &nika_fx::args::Op) -> bool
+impl core::fmt::Debug for nika_fx::args::Op
+pub fn nika_fx::args::Op::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::args::Op
+impl<T, U> core::convert::Into<U> for nika_fx::args::Op where U: core::convert::From<T>
+pub fn nika_fx::args::Op::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::Op where U: core::convert::Into<T>
+pub type nika_fx::args::Op::Error = core::convert::Infallible
+pub fn nika_fx::args::Op::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::Op where U: core::convert::TryFrom<T>
+pub type nika_fx::args::Op::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::Op::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::Op where T: core::clone::Clone
+pub type nika_fx::args::Op::Owned = T
+pub fn nika_fx::args::Op::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::Op::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::Op where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::Op::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::Op where T: ?core::marker::Sized
+pub fn nika_fx::args::Op::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::Op where T: ?core::marker::Sized
+pub fn nika_fx::args::Op::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::Op where T: core::clone::Clone
+pub unsafe fn nika_fx::args::Op::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::Op
+pub fn nika_fx::args::Op::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::Palette
+pub nika_fx::Palette::Custom(alloc::vec::Vec<[u8; 3]>)
+pub nika_fx::Palette::Preset(nika_fx::args::PresetPalette)
+impl nika_fx::args::Palette
+pub fn nika_fx::args::Palette::colors(&self) -> alloc::vec::Vec<[u8; 3]>
+impl core::clone::Clone for nika_fx::args::Palette
+pub fn nika_fx::args::Palette::clone(&self) -> nika_fx::args::Palette
+impl core::cmp::Eq for nika_fx::args::Palette
+impl core::cmp::PartialEq for nika_fx::args::Palette
+pub fn nika_fx::args::Palette::eq(&self, other: &nika_fx::args::Palette) -> bool
+impl core::fmt::Debug for nika_fx::args::Palette
+pub fn nika_fx::args::Palette::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::args::Palette
+impl<T, U> core::convert::Into<U> for nika_fx::args::Palette where U: core::convert::From<T>
+pub fn nika_fx::args::Palette::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::Palette where U: core::convert::Into<T>
+pub type nika_fx::args::Palette::Error = core::convert::Infallible
+pub fn nika_fx::args::Palette::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::Palette where U: core::convert::TryFrom<T>
+pub type nika_fx::args::Palette::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::Palette::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::Palette where T: core::clone::Clone
+pub type nika_fx::args::Palette::Owned = T
+pub fn nika_fx::args::Palette::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::Palette::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::Palette where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::Palette::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::Palette where T: ?core::marker::Sized
+pub fn nika_fx::args::Palette::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::Palette where T: ?core::marker::Sized
+pub fn nika_fx::args::Palette::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::Palette where T: core::clone::Clone
+pub unsafe fn nika_fx::args::Palette::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::Palette
+pub fn nika_fx::args::Palette::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::PresetPalette
+pub nika_fx::PresetPalette::Bw
+pub nika_fx::PresetPalette::Cga
+pub nika_fx::PresetPalette::Gameboy
+pub nika_fx::PresetPalette::Gray4
+pub nika_fx::PresetPalette::OkabeIto
+impl nika_fx::args::PresetPalette
+pub fn nika_fx::args::PresetPalette::colors(self) -> &'static [[u8; 3]]
+pub fn nika_fx::args::PresetPalette::name(self) -> &'static str
+impl core::clone::Clone for nika_fx::args::PresetPalette
+pub fn nika_fx::args::PresetPalette::clone(&self) -> nika_fx::args::PresetPalette
+impl core::cmp::Eq for nika_fx::args::PresetPalette
+impl core::cmp::PartialEq for nika_fx::args::PresetPalette
+pub fn nika_fx::args::PresetPalette::eq(&self, other: &nika_fx::args::PresetPalette) -> bool
+impl core::fmt::Debug for nika_fx::args::PresetPalette
+pub fn nika_fx::args::PresetPalette::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fx::args::PresetPalette
+impl core::marker::StructuralPartialEq for nika_fx::args::PresetPalette
+impl<T, U> core::convert::Into<U> for nika_fx::args::PresetPalette where U: core::convert::From<T>
+pub fn nika_fx::args::PresetPalette::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::PresetPalette where U: core::convert::Into<T>
+pub type nika_fx::args::PresetPalette::Error = core::convert::Infallible
+pub fn nika_fx::args::PresetPalette::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::PresetPalette where U: core::convert::TryFrom<T>
+pub type nika_fx::args::PresetPalette::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::PresetPalette::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::PresetPalette where T: core::clone::Clone
+pub type nika_fx::args::PresetPalette::Owned = T
+pub fn nika_fx::args::PresetPalette::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::PresetPalette::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::PresetPalette where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::PresetPalette::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::PresetPalette where T: ?core::marker::Sized
+pub fn nika_fx::args::PresetPalette::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::PresetPalette where T: ?core::marker::Sized
+pub fn nika_fx::args::PresetPalette::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::PresetPalette where T: core::clone::Clone
+pub unsafe fn nika_fx::args::PresetPalette::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::PresetPalette
+pub fn nika_fx::args::PresetPalette::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::ResizeFilter
+pub nika_fx::ResizeFilter::Auto
+pub nika_fx::ResizeFilter::Bilinear
+pub nika_fx::ResizeFilter::Nearest
+impl core::clone::Clone for nika_fx::args::ResizeFilter
+pub fn nika_fx::args::ResizeFilter::clone(&self) -> nika_fx::args::ResizeFilter
+impl core::cmp::Eq for nika_fx::args::ResizeFilter
+impl core::cmp::PartialEq for nika_fx::args::ResizeFilter
+pub fn nika_fx::args::ResizeFilter::eq(&self, other: &nika_fx::args::ResizeFilter) -> bool
+impl core::fmt::Debug for nika_fx::args::ResizeFilter
+pub fn nika_fx::args::ResizeFilter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fx::args::ResizeFilter
+impl core::marker::StructuralPartialEq for nika_fx::args::ResizeFilter
+impl<T, U> core::convert::Into<U> for nika_fx::args::ResizeFilter where U: core::convert::From<T>
+pub fn nika_fx::args::ResizeFilter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::ResizeFilter where U: core::convert::Into<T>
+pub type nika_fx::args::ResizeFilter::Error = core::convert::Infallible
+pub fn nika_fx::args::ResizeFilter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::ResizeFilter where U: core::convert::TryFrom<T>
+pub type nika_fx::args::ResizeFilter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::ResizeFilter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::ResizeFilter where T: core::clone::Clone
+pub type nika_fx::args::ResizeFilter::Owned = T
+pub fn nika_fx::args::ResizeFilter::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::ResizeFilter::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::ResizeFilter where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::ResizeFilter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::ResizeFilter where T: ?core::marker::Sized
+pub fn nika_fx::args::ResizeFilter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::ResizeFilter where T: ?core::marker::Sized
+pub fn nika_fx::args::ResizeFilter::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::ResizeFilter where T: core::clone::Clone
+pub unsafe fn nika_fx::args::ResizeFilter::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::ResizeFilter
+pub fn nika_fx::args::ResizeFilter::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::ScreenAngle
+pub nika_fx::ScreenAngle::A0
+pub nika_fx::ScreenAngle::A15
+pub nika_fx::ScreenAngle::A45
+pub nika_fx::ScreenAngle::A75
+impl core::clone::Clone for nika_fx::args::ScreenAngle
+pub fn nika_fx::args::ScreenAngle::clone(&self) -> nika_fx::args::ScreenAngle
+impl core::cmp::Eq for nika_fx::args::ScreenAngle
+impl core::cmp::PartialEq for nika_fx::args::ScreenAngle
+pub fn nika_fx::args::ScreenAngle::eq(&self, other: &nika_fx::args::ScreenAngle) -> bool
+impl core::fmt::Debug for nika_fx::args::ScreenAngle
+pub fn nika_fx::args::ScreenAngle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fx::args::ScreenAngle
+impl core::marker::StructuralPartialEq for nika_fx::args::ScreenAngle
+impl<T, U> core::convert::Into<U> for nika_fx::args::ScreenAngle where U: core::convert::From<T>
+pub fn nika_fx::args::ScreenAngle::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::ScreenAngle where U: core::convert::Into<T>
+pub type nika_fx::args::ScreenAngle::Error = core::convert::Infallible
+pub fn nika_fx::args::ScreenAngle::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::ScreenAngle where U: core::convert::TryFrom<T>
+pub type nika_fx::args::ScreenAngle::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::ScreenAngle::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::ScreenAngle where T: core::clone::Clone
+pub type nika_fx::args::ScreenAngle::Owned = T
+pub fn nika_fx::args::ScreenAngle::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::ScreenAngle::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::ScreenAngle where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::ScreenAngle::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::ScreenAngle where T: ?core::marker::Sized
+pub fn nika_fx::args::ScreenAngle::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::ScreenAngle where T: ?core::marker::Sized
+pub fn nika_fx::args::ScreenAngle::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::ScreenAngle where T: core::clone::Clone
+pub unsafe fn nika_fx::args::ScreenAngle::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::ScreenAngle
+pub fn nika_fx::args::ScreenAngle::from(t: T) -> T
+#[non_exhaustive] pub struct nika_fx::FxArgs
+pub nika_fx::FxArgs::ops: alloc::vec::Vec<nika_fx::args::Op>
+pub nika_fx::FxArgs::seed: u64
+impl nika_fx::args::FxArgs
+pub fn nika_fx::args::FxArgs::new(ops: alloc::vec::Vec<nika_fx::args::Op>, seed: u64) -> Self
+impl core::clone::Clone for nika_fx::args::FxArgs
+pub fn nika_fx::args::FxArgs::clone(&self) -> nika_fx::args::FxArgs
+impl core::cmp::Eq for nika_fx::args::FxArgs
+impl core::cmp::PartialEq for nika_fx::args::FxArgs
+pub fn nika_fx::args::FxArgs::eq(&self, other: &nika_fx::args::FxArgs) -> bool
+impl core::fmt::Debug for nika_fx::args::FxArgs
+pub fn nika_fx::args::FxArgs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::args::FxArgs
+impl<T, U> core::convert::Into<U> for nika_fx::args::FxArgs where U: core::convert::From<T>
+pub fn nika_fx::args::FxArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::args::FxArgs where U: core::convert::Into<T>
+pub type nika_fx::args::FxArgs::Error = core::convert::Infallible
+pub fn nika_fx::args::FxArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::args::FxArgs where U: core::convert::TryFrom<T>
+pub type nika_fx::args::FxArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::args::FxArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::args::FxArgs where T: core::clone::Clone
+pub type nika_fx::args::FxArgs::Owned = T
+pub fn nika_fx::args::FxArgs::clone_into(&self, target: &mut T)
+pub fn nika_fx::args::FxArgs::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::args::FxArgs where T: 'static + ?core::marker::Sized
+pub fn nika_fx::args::FxArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::args::FxArgs where T: ?core::marker::Sized
+pub fn nika_fx::args::FxArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::args::FxArgs where T: ?core::marker::Sized
+pub fn nika_fx::args::FxArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::args::FxArgs where T: core::clone::Clone
+pub unsafe fn nika_fx::args::FxArgs::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::args::FxArgs
+pub fn nika_fx::args::FxArgs::from(t: T) -> T
+#[non_exhaustive] pub struct nika_fx::FxOutput
+pub nika_fx::FxOutput::artifact: nika_fx::Artifact
+pub nika_fx::FxOutput::height: u32
+pub nika_fx::FxOutput::input_sha256: alloc::string::String
+pub nika_fx::FxOutput::ops_applied: u32
+pub nika_fx::FxOutput::recipe: alloc::string::String
+pub nika_fx::FxOutput::width: u32
+impl core::clone::Clone for nika_fx::FxOutput
+pub fn nika_fx::FxOutput::clone(&self) -> nika_fx::FxOutput
+impl core::cmp::Eq for nika_fx::FxOutput
+impl core::cmp::PartialEq for nika_fx::FxOutput
+pub fn nika_fx::FxOutput::eq(&self, other: &nika_fx::FxOutput) -> bool
+impl core::fmt::Debug for nika_fx::FxOutput
+pub fn nika_fx::FxOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::FxOutput
+impl<T, U> core::convert::Into<U> for nika_fx::FxOutput where U: core::convert::From<T>
+pub fn nika_fx::FxOutput::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::FxOutput where U: core::convert::Into<T>
+pub type nika_fx::FxOutput::Error = core::convert::Infallible
+pub fn nika_fx::FxOutput::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::FxOutput where U: core::convert::TryFrom<T>
+pub type nika_fx::FxOutput::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::FxOutput::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::FxOutput where T: core::clone::Clone
+pub type nika_fx::FxOutput::Owned = T
+pub fn nika_fx::FxOutput::clone_into(&self, target: &mut T)
+pub fn nika_fx::FxOutput::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::FxOutput where T: 'static + ?core::marker::Sized
+pub fn nika_fx::FxOutput::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::FxOutput where T: ?core::marker::Sized
+pub fn nika_fx::FxOutput::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::FxOutput where T: ?core::marker::Sized
+pub fn nika_fx::FxOutput::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::FxOutput where T: core::clone::Clone
+pub unsafe fn nika_fx::FxOutput::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::FxOutput
+pub fn nika_fx::FxOutput::from(t: T) -> T
+pub struct nika_fx::PixBuf
+pub nika_fx::PixBuf::h: usize
+pub nika_fx::PixBuf::w: usize
+impl nika_fx::pix::PixBuf
+pub fn nika_fx::pix::PixBuf::from_pixels(w: usize, h: usize, px: alloc::vec::Vec<[u8; 3]>) -> core::option::Option<nika_fx::pix::PixBuf>
+pub fn nika_fx::pix::PixBuf::get(&self, x: usize, y: usize) -> [u8; 3]
+pub fn nika_fx::pix::PixBuf::get_clamped(&self, x: i64, y: i64) -> [u8; 3]
+pub fn nika_fx::pix::PixBuf::new(w: usize, h: usize) -> nika_fx::pix::PixBuf
+pub fn nika_fx::pix::PixBuf::pixels(&self) -> &[[u8; 3]]
+pub fn nika_fx::pix::PixBuf::pixels_mut(&mut self) -> &mut [[u8; 3]]
+pub fn nika_fx::pix::PixBuf::set(&mut self, x: usize, y: usize, p: [u8; 3])
+impl core::clone::Clone for nika_fx::pix::PixBuf
+pub fn nika_fx::pix::PixBuf::clone(&self) -> nika_fx::pix::PixBuf
+impl core::cmp::Eq for nika_fx::pix::PixBuf
+impl core::cmp::PartialEq for nika_fx::pix::PixBuf
+pub fn nika_fx::pix::PixBuf::eq(&self, other: &nika_fx::pix::PixBuf) -> bool
+impl core::fmt::Debug for nika_fx::pix::PixBuf
+pub fn nika_fx::pix::PixBuf::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::pix::PixBuf
+impl<T, U> core::convert::Into<U> for nika_fx::pix::PixBuf where U: core::convert::From<T>
+pub fn nika_fx::pix::PixBuf::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::pix::PixBuf where U: core::convert::Into<T>
+pub type nika_fx::pix::PixBuf::Error = core::convert::Infallible
+pub fn nika_fx::pix::PixBuf::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::pix::PixBuf where U: core::convert::TryFrom<T>
+pub type nika_fx::pix::PixBuf::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::pix::PixBuf::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::pix::PixBuf where T: core::clone::Clone
+pub type nika_fx::pix::PixBuf::Owned = T
+pub fn nika_fx::pix::PixBuf::clone_into(&self, target: &mut T)
+pub fn nika_fx::pix::PixBuf::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::pix::PixBuf where T: 'static + ?core::marker::Sized
+pub fn nika_fx::pix::PixBuf::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::pix::PixBuf where T: ?core::marker::Sized
+pub fn nika_fx::pix::PixBuf::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::pix::PixBuf where T: ?core::marker::Sized
+pub fn nika_fx::pix::PixBuf::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::pix::PixBuf where T: core::clone::Clone
+pub unsafe fn nika_fx::pix::PixBuf::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::pix::PixBuf
+pub fn nika_fx::pix::PixBuf::from(t: T) -> T
+pub const nika_fx::CONTRACT_TAG: &str
+pub fn nika_fx::transform(input_png: &[u8], args: &nika_fx::args::FxArgs, engine_tag: &str) -> core::result::Result<nika_fx::FxOutput, nika_fx::error::FxError>
+pub fn nika_fx::verify(input_png: &[u8], args: &nika_fx::args::FxArgs, engine_tag: &str, artifact: &nika_fx::Artifact) -> core::result::Result<bool, nika_fx::error::FxError>

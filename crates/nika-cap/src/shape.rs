@@ -49,12 +49,143 @@ pub fn builtin_shape_findings(tool: &str, args: Option<&serde_json::Value>) -> V
             }
         }
         "nika:fetch" => check_fetch_shape(args, &mut out),
-        "nika:chart" => check_chart_shape(args, &mut out),
         "nika:image_generate" => check_image_generate_shape(args, &mut out),
+        "nika:chart" => check_chart_shape(args, &mut out),
+        "nika:image_fx" => check_image_fx_shape(args, &mut out),
         "nika:tts_generate" => check_tts_generate_shape(args, &mut out),
         _ => {}
     }
     out
+}
+
+/// `nika:image_fx` static contracts (stdlib §Media): the op list is a
+/// list of single-key maps over a closed vocabulary; enums checked when
+/// literal — templated values are runtime business (statically silent).
+fn check_image_fx_shape(args: Option<&serde_json::Value>, out: &mut Vec<String>) {
+    const OPS: [&str; 15] = [
+        "resize",
+        "crop",
+        "levels",
+        "grayscale",
+        "palette_map",
+        "dither",
+        "duotone",
+        "pixelate",
+        "halftone",
+        "grain",
+        "vignette",
+        "chromatic_aberration",
+        "scanlines",
+        "glitch",
+        "ascii",
+    ];
+    let Some(object) = args.and_then(serde_json::Value::as_object) else {
+        return;
+    };
+    let Some(ops) = object.get("ops") else { return };
+    let Some(list) = ops.as_array() else {
+        out.push(
+            "`ops:` must be a LIST of single-key op maps (builtins-v0.1.md §nika:image_fx)"
+                .to_owned(),
+        );
+        return;
+    };
+    for (i, entry) in list.iter().enumerate() {
+        let Some(map) = entry.as_object() else {
+            out.push(format!(
+                "ops[{i}] must be a single-key map, e.g. `- dither: {{mode: bayer4}}`"
+            ));
+            continue;
+        };
+        if map.len() != 1 {
+            out.push(format!(
+                "ops[{i}] must carry exactly ONE op key (got {})",
+                map.len()
+            ));
+            continue;
+        }
+        if let Some(name) = map.keys().next() {
+            if !OPS.contains(&name.as_str()) {
+                out.push(format!(
+                    "ops[{i}]: unknown op `{name}` (v1: resize · crop · levels · grayscale · \
+                     palette_map · dither · duotone · pixelate · halftone · grain · vignette · \
+                     chromatic_aberration · scanlines · glitch · ascii)"
+                ));
+            }
+            if name == "ascii" && i + 1 != list.len() {
+                out.push(format!(
+                    "ops[{i}]: `ascii` must be the LAST op (it changes the artifact type)"
+                ));
+            }
+            check_image_fx_op_enums(i, name, map.get(name), out);
+        }
+    }
+}
+
+/// Per-op literal enum checks for `nika:image_fx` — closed vocabularies
+/// mirrored from the runtime parser; `${{…}}`-templated values are runtime
+/// business (statically silent · the tts pattern).
+fn check_image_fx_op_enums(
+    i: usize,
+    op: &str,
+    body: Option<&serde_json::Value>,
+    out: &mut Vec<String>,
+) {
+    let literal = |key: &str| -> Option<String> {
+        let value = body?.as_object()?.get(key)?;
+        let text = value.as_str()?;
+        (!text.contains("${{")).then(|| text.to_owned())
+    };
+    let check = |key: &str, allowed: &[&str], out: &mut Vec<String>| {
+        if let Some(v) = literal(key)
+            && !allowed.contains(&v.as_str())
+        {
+            out.push(format!(
+                "ops[{i}]: {op} `{key}: {v}` is not in the closed set ({})",
+                allowed.join(" | ")
+            ));
+        }
+    };
+    match op {
+        "dither" | "palette_map" => {
+            if op == "dither" {
+                check(
+                    "mode",
+                    &[
+                        "bayer2",
+                        "bayer4",
+                        "bayer8",
+                        "blue_noise",
+                        "ign",
+                        "floyd_steinberg",
+                        "atkinson",
+                        "jjn",
+                    ],
+                    out,
+                );
+            }
+            check(
+                "palette",
+                &["bw", "gray4", "gameboy", "cga", "okabe_ito"],
+                out,
+            );
+        }
+        "resize" => check("filter", &["auto", "nearest", "bilinear"], out),
+        "ascii" => check("emit", &["png", "text", "ansi"], out),
+        "halftone" => {
+            if let Some(n) = body
+                .and_then(serde_json::Value::as_object)
+                .and_then(|m| m.get("angle"))
+                .and_then(serde_json::Value::as_i64)
+                && ![0, 15, 45, 75].contains(&n)
+            {
+                out.push(format!(
+                    "ops[{i}]: halftone `angle: {n}` (0 | 15 | 45 | 75)"
+                ));
+            }
+        }
+        _ => {}
+    }
 }
 
 /// `nika:chart` static contracts (stdlib §Media · CHT): the closed

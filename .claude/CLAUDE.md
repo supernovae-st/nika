@@ -15,11 +15,11 @@ merges both at load time.
 
 ## 🔐 Authority hierarchy
 
-1. `~/.claude/projects/-Users-thibaut-dev-supernovae-hq/memory/POST_AUDIT_REVISIONS.md` — SUPREME AUTHORITY, overrides all other docs.
-2. `~/.claude/.../PRE_LAUNCH_GATES.md` — 7 shadow zones mandatory before the 1.0 launch (amended D-2026-06-20-N1 · was "v0.90").
-3. `~/.claude/.../HANDOFF_PHASE_1_REVISED.md` — current execution plan.
-4. `.claude/rules/*.md` (this directory) — project-specific enforcement.
-5. `~/.claude/.../project_ai_velocity_north_star.md` — WHY diamond (decision filter).
+1. Studio-internal authority docs (POST_AUDIT_REVISIONS · PRE_LAUNCH_GATES ·
+   HANDOFF · the velocity north-star) — private overlay on the operator's
+   machine, wired via `.claude/settings.local.json` (gitignored) — SUPREME
+   AUTHORITY when present locally, overrides all other docs.
+2. `.claude/rules/*.md` (this directory) — project-specific enforcement.
 
 If any doc contradicts another, **POST_AUDIT_REVISIONS wins**.
 
@@ -129,22 +129,39 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/chart-admission`                                      |
-| HEAD             | `54938ac57` (`54938ac578f4c22593ee2d1242d205ebea3b2f38`)             |
+| branch           | `feat/image-fx-builtin`                                      |
+| HEAD             | `a5ac4b913` (`a5ac4b9132b276008d22ee66631af60907c96fe4`)             |
 | workspace        | v0.98.0                                  |
 | crates (workspace)| 44                                              |
 | crates (admitted)| 43 / 42                                   |
-| crates (WIP)     | 1 — nika-chart                                  |
-| L0               | 12                                              |
+| crates (WIP)     | 1 — nika-fx                                  |
+| L0               | 11                                              |
+| L0.5             | 6                                              |
+| L1               | 13                                              |
+| L1.5             | 4                                              |
+| L2               | 4                                              |
+| L3               | 1                                              |
+| L4               | 5                                              |
+| lib tests        | 3743 passed, 0 failed                              |
+| clippy           | 0 warnings                              |
+
+| field            | value                                          |
+|------------------|------------------------------------------------|
+| branch           | `chore/release-0.98.0`                                      |
+| HEAD             | `25db7137d` (`25db7137dddbe6fdb7782663d1a07096cafb3bad`)             |
+| workspace        | v0.98.0                                  |
+| crates (workspace)| 42                                              |
+| crates (admitted)| 42 / 42                                   |
+| crates (WIP)     | 0 —                                   |
+| L0               | 11                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
-| L4               | 5                                              |
-| lib tests        | 3769 passed, 0 failed                              |
+| L4               | 4                                              |
+| lib tests        | 3545 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
-
 
 Narrative context (manually maintained):
 

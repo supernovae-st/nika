@@ -93,22 +93,57 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/chart-admission`                                      |
-| HEAD             | `54938ac57` (`54938ac578f4c22593ee2d1242d205ebea3b2f38`)             |
+| branch           | `feat/image-fx-builtin`                                      |
+| HEAD             | `a5ac4b913` (`a5ac4b9132b276008d22ee66631af60907c96fe4`)             |
 | workspace        | v0.98.0                                  |
 | crates (workspace)| 44                                              |
 | crates (admitted)| 43 / 42                                   |
-| crates (WIP)     | 1 — nika-chart                                  |
-| L0               | 12                                              |
+| crates (WIP)     | 1 — nika-fx                                  |
+| L0               | 11                                              |
+| L0.5             | 6                                              |
+| L1               | 13                                              |
+| L1.5             | 4                                              |
+| L2               | 4                                              |
+| L3               | 1                                              |
+| L4               | 5                                              |
+| lib tests        | 3743 passed, 0 failed                              |
+| clippy           | 0 warnings                              |
+
+| field            | value                                          |
+|------------------|------------------------------------------------|
+| branch           | `chore/release-0.98.0`                                      |
+| HEAD             | `25db7137d` (`25db7137dddbe6fdb7782663d1a07096cafb3bad`)             |
+| workspace        | v0.98.0                                  |
+| crates (workspace)| 42                                              |
+| crates (admitted)| 42 / 42                                   |
+| crates (WIP)     | 0 —                                   |
+| L0               | 11                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
-| L4               | 5                                              |
-| lib tests        | 3769 passed, 0 failed                              |
+| L4               | 4                                              |
+| lib tests        | 3545 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
+| field            | value                                          |
+|------------------|------------------------------------------------|
+| branch           | `chore/release-0.96.0`                                      |
+| HEAD             | `05cdaab1e` (`05cdaab1ec68217f3a7fb03841dbe5f7720767d4`)             |
+| workspace        | v0.96.0                                  |
+| crates (workspace)| 40                                              |
+| crates (admitted)| 40 / 42                                   |
+| crates (WIP)     | 0 —                                   |
+| L0               | 9                                              |
+| L0.5             | 6                                              |
+| L1               | 12                                              |
+| L1.5             | 4                                              |
+| L2               | 4                                              |
+| L3               | 1                                              |
+| L4               | 4                                              |
+| lib tests        | 3362 passed, 0 failed                              |
+| clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
 WIP · per-layer) are in the AUTO-GENERATED status block above (the

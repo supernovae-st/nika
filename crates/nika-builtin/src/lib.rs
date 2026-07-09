@@ -35,6 +35,7 @@ pub mod date;
 pub mod defs;
 pub mod file;
 pub mod image;
+pub mod image_fx;
 pub mod inspect;
 pub(crate) mod media;
 pub mod net;
@@ -247,7 +248,8 @@ impl WorkflowIntrospect for NoWorkflow {
 
 // ─── the dispatcher ──────────────────────────────────────────────────────
 
-/// The 24-builtin dispatcher over its injected seams.
+/// The stdlib-builtin dispatcher over its injected seams (live count = the
+/// catalog's, never prose).
 ///
 /// Kernel seams: `F` filesystem (file 5) · `H` http (fetch · notify · the
 /// image plane) · `C` clock (wait · date). Local seams: `Em` event content
@@ -439,9 +441,8 @@ where
             )
             .await),
             "notify" => Ok(net::notify(self.http.as_ref(), args).await),
-            // media 1 — provider calls ride the IMAGE PLANE (a dedicated
-            // seam · const endpoints); saves ride the permits.fs boundary
-            // (each final path is gated inside save_all, before any I/O).
+            // media 3 — provider calls ride dedicated planes (const endpoints);
+            // saves gate each final path on the permits.fs boundary before I/O.
             "image_generate" => Ok(image::generate(
                 self.fs.as_ref(),
                 self.image_http.as_deref(),
@@ -454,6 +455,7 @@ where
             .await),
             "tts_generate" => Ok(self.route_tts(args).await),
             "chart" => Ok(self.guarded_chart(args).await),
+            "image_fx" => Ok(self.route_image_fx(args).await),
             // introspection 2
             "compose" => Ok(core_tools::compose()),
             "inspect" => Ok(inspect::inspect(self.workflow.as_ref(), args)),
@@ -461,6 +463,21 @@ where
                 name: name.to_owned(),
             }),
         }
+    }
+
+    /// The `nika:image_fx` plumbing (kept out of `route`'s match for the
+    /// fn-length budget — pure delegation). Media 3: a pure deterministic
+    /// transform — NO provider plane, NO keys, NO clock; input read + `out:`
+    /// write both ride the permits.fs boundary; pixel work runs on the
+    /// blocking pool.
+    async fn route_image_fx(&self, args: &Args) -> BuiltinOutcome {
+        image_fx::run(
+            self.fs.as_ref(),
+            self.emitter.as_ref(),
+            &self.fs_boundary,
+            args,
+        )
+        .await
     }
 
     /// The `nika:tts_generate` plumbing (kept out of `route`'s match for
@@ -823,10 +840,9 @@ mod tests {
             let outcome = rig.execute(call(&def.name, serde_json::json!({}))).await;
             assert!(outcome.is_ok(), "{} must route (got {outcome:?})", def.name);
         }
-        // …and the count is the canonical 26 (stdlib v0.1 · +compose per
-        // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio ·
-        // +chart stdlib §Media graduate #3).
-        assert_eq!(tool_defs().len(), 26);
+        // …and the count is the canonical 27 (stdlib v0.1 · +compose per
+        // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio).
+        assert_eq!(tool_defs().len(), 27);
     }
 
     #[tokio::test]
@@ -886,7 +902,7 @@ mod tests {
         let defs = ToolDefinitionProviderDyn::tool_defs(&rig())
             .await
             .expect("enumerates");
-        assert_eq!(defs.len(), 26);
+        assert_eq!(defs.len(), 27);
         assert!(defs.iter().all(|d| d.name.starts_with(NAMESPACE)));
         assert!(defs.iter().all(|d| !d.description.is_empty()));
         assert!(

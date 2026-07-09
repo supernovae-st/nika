@@ -101,6 +101,15 @@ pub static ALL_BUILTINS: &[Builtin] = &[
         &["pattern"],
     ),
     Builtin::with_required("hash", Data, &["content", "algo", "encoding"], &["content"]),
+    // `image_fx` (stdlib §Media · deferred-media graduate #3: the `image
+    // editing` row · deterministic pure transform — byte-identical artifacts,
+    // recipe-in-chunk, NIKA-BUILTIN-IMAGE_FX-001..006 · FX master plan).
+    Builtin::with_required(
+        "image_fx",
+        Media,
+        &["input", "out", "ops", "seed"],
+        &["input", "out", "ops"],
+    ),
     // `image_generate` (stdlib §Media · the first deferred-media graduate ·
     // local/openai/gemini/xai/mock — local-first per sovereignty Rule 3 ·
     // assets land on disk, outputs carry paths+hashes, never base64 ·
@@ -225,7 +234,7 @@ mod tests {
 
     #[test]
     fn builtin_count() {
-        assert_eq!(ALL_BUILTINS.len(), 26);
+        assert_eq!(ALL_BUILTINS.len(), 27);
     }
 
     #[test]
@@ -326,13 +335,13 @@ mod tests {
             "expected 2 introspection builtins (inspect runtime · compose static · ADR-096)"
         );
         assert_eq!(
-            media, 3,
-            "expected 3 media builtins (chart §Media · image_generate §Media · tts_generate §Audio)"
+            media, 4,
+            "expected 4 media builtins (chart §Media · image_fx §Media · image_generate §Media · tts_generate §Audio)"
         );
         assert_eq!(
             core + file + data + network + intro + media,
-            26,
-            "total must equal 26"
+            27,
+            "total must equal 27"
         );
     }
 

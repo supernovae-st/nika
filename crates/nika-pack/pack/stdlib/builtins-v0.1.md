@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtins
 
-> **<!-- canon:builtins -->26<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
+> **<!-- canon:builtins -->27<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
 > Invoked via `invoke: tool: "nika:<name>"`. Plus the remaining media
 > builtins deferred to stdlib v0.x (opt-in feature flag).
 >
@@ -364,9 +364,10 @@ Throws · `NIKA-BUILTIN-INSPECT-001` if `view:` value not in the canonical enum.
 
 ---
 
-## Media builtins (3)
+## Media builtins (4)
 
-### `nika:chart` · deterministic chart artifacts (§Media graduate #3)
+
+### `nika:chart` · deterministic chart artifacts (§Media graduate #4)
 
 ```yaml
 invoke:
@@ -546,6 +547,86 @@ mismatch · dimension/byte bounds · `tool_error`). Plus the boundary
 
 ---
 
+### `nika:image_fx` · deterministic artistic image effects
+
+```yaml
+invoke:
+  tool: "nika:image_fx"
+  args:
+    input: out/hero-openai-gptimage2-0-a1b2c3d4.png   # source PNG (read-gated)
+    out: out/hero-styled.png                          # artifact path (write-gated)
+    seed: 42                                          # optional · default 0
+    ops:                                              # ordered · single-key op maps
+      - resize: { width: 320 }                        # linear-light · auto|nearest|bilinear
+      - dither: { mode: floyd_steinberg, palette: gameboy }
+      - grain: { intensity: 32 }
+      - scanlines: { strength: 110, period: 4 }
+      - vignette: { strength: 140 }
+```
+
+The §Media graduate #3 (the `image editing` deferred row) — the
+DETERMINISTIC sibling of `image_generate`: pure pixel transform, NO
+provider, NO network, NO clock. **Byte-identical output forever** for
+identical `(input bytes, args)` — the artifact's sha256 joins the
+hash-chained trace, re-render IS the tamper check, and the full recipe
+(contract tag `image_fx/v1` · input sha256 · seed · ops) rides the artifact itself
+as a PNG `nika` tEXt chunk (no timestamp — determinism holds).
+Identical bytes already at `out:` = idempotent skip (`skipped_existing`).
+
+| Arg | Contract |
+|---|---|
+| `input` | REQUIRED · source path · **PNG v1** (depth 8 · gray/RGB/RGBA · no Adam7) — non-PNG fails `-003` with the honest hint (produce PNG upstream via `image_generate format: png`) · read rides `permits.fs.read` · decoded-pixel budget gated from the header BEFORE any decompression (`-005`) |
+| `out` | REQUIRED · artifact path · extension must match the pipeline (`.png` · `.txt`/`.ans` for ascii text/ansi emits) · write rides `permits.fs.write` |
+| `ops` | REQUIRED · 1..=32 ordered single-key maps over the closed v1 vocabulary: `resize {width,height,filter}` · `crop {x,y,width,height}` · `levels {brightness,contrast}` · `grayscale` · `palette_map {palette}` · `dither {mode: bayer2\|bayer4\|bayer8\|blue_noise\|ign\|floyd_steinberg\|atkinson\|jjn, palette}` · `duotone {dark,light}` · `pixelate {block}` · `halftone {cell, angle: 0\|15\|45\|75}` · `grain {intensity}` · `vignette {strength}` · `chromatic_aberration {shift}` · `scanlines {strength,period}` · `glitch {line_shift,channel_shift,blocks}` · `ascii {cols, emit: png\|text\|ansi}` (ascii MUST be last — it changes the artifact type). Branching/fan-out is the WORKFLOW's job (`depends_on` · `for_each`) — `ops` is a linear pipeline by design · unknown op parameters are rejected (`-001` — no silent style lies) |
+| `palette` (in ops) | preset (`bw` · `gray4` · `gameboy` · `cga` · `okabe_ito`) or inline list of `#rrggbb` / `[r,g,b]` (2..=256 colors) · nearest-color mapping is perceptual (Oklab distance) |
+| `seed` | stochastic-op seed (`grain` · `glitch`) · default 0 · **the seed IS the style** — same seed, same bytes |
+
+Per-op defaults + acceptance ranges (NORMATIVE — for a byte-deterministic
+builtin the defaults ARE the wire contract; a second engine choosing other
+defaults emits different bytes for the same YAML) ·
+
+| Op | Defaults | Ranges |
+|---|---|---|
+| `resize` | `filter: auto` | width/height 1..=16384 (≥1 required) |
+| `crop` | `x: 0` · `y: 0` | width/height ≥1 · rect inside image |
+| `levels` | `brightness: 0` · `contrast: 0` | brightness −255..=255 · contrast −128..=128 |
+| `dither` | `mode: floyd_steinberg` · `palette: bw` | palette 2..=256 colors |
+| `palette_map` | `palette: bw` | palette 2..=256 colors |
+| `pixelate` | — | block 2..=256 |
+| `halftone` | `cell: 8` · `angle: 45` | cell 3..=64 |
+| `grain` | `intensity: 48` | 0..=128 |
+| `vignette` | `strength: 160` | 0..=255 |
+| `chromatic_aberration` | `shift: 4` | 1..=16 |
+| `scanlines` | `strength: 96` · `period: 4` | strength 0..=255 · period 2..=64 |
+| `glitch` | all 0 | line_shift ≤64 · channel_shift ≤16 · blocks ≤64 · ≥1 non-zero |
+| `ascii` | `cols: 96` · `emit: png` | cols 2..=1024 |
+
+Input caps (normative) · per-dimension ≤16384 · decoded pixels ≤2^26
+(gated from the header BEFORE any decompression · `-005`).
+
+Output · `{ input, input_sha256, path, sha256, size_bytes, width, height,
+format, ops_applied, seed, skipped_existing }` — artifact bytes NEVER
+ride outputs (the disk law, inherited verbatim). Text artifacts (ascii
+`text`/`ansi` emits) report `width`/`height` `0` and `format` `txt`/`ans`.
+
+Determinism contract (normative) · no wall-clock · no randomness beyond
+the seeded stream · no float transcendentals · integer/fixed-point pixel
+math · identical `(input, args)` MUST produce byte-identical artifacts
+across platforms and releases within a stdlib major (the recipe carries
+the stable contract tag `image_fx/v1`, never the engine build). An
+engine that cannot honor this is not conformant (07-conformance §3).
+
+Throws · `NIKA-BUILTIN-IMAGE_FX-001` invalid arguments (unknown op ·
+out-of-range param · extension mismatch · `validation_error`) · `-002`
+input read failed (`tool_error`) · `-003` unsupported input format
+(non-PNG · exotic depth/interlace · `validation_error`) · `-004` decode
+failed (structural corruption · CRC/Adler mismatch · `tool_error`) ·
+`-005` decoded-pixel budget exceeded (`security_error` · never
+transient) · `-006` artifact save failed (`tool_error`). Plus the
+boundary `NIKA-SEC-004` (paths outside `permits.fs`).
+
+---
+
 ### `nika:tts_generate` · provider-backed speech synthesis (§Audio)
 
 ```yaml
@@ -630,8 +711,9 @@ Also cut · `nika:task_status` (use `${{ tasks.X.status }}`) · `nika:orchestrat
 ## Media builtins · the REST stays DEFERRED (stdlib v0.x)
 
 `image_generate` graduated 2026-07-05 · `tts_generate` same arc ·
-`chart` graduated 2026-07-09 (above · §Media #3). The remaining media class
-(pdf_extract · svg_render · phash · provenance · image *editing* ·
+`image_fx` graduated 2026-07-09 (the image *editing* row · §Media #3) ·
+`chart` graduated 2026-07-09 (above · §Media #4). The remaining media class
+(pdf_extract · svg_render · phash · provenance ·
 …) is NOT enumerated in v0.1 (feature-flag in the reference engine · MAY
 graduate builtin-by-builtin per the 3-razor admission test). Deliberate
 « less but better » (Rams 10).
@@ -656,4 +738,4 @@ external users · before the forever-clock).
 
 ---
 
-🦋 *<!-- canon:builtins -->26<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*
+🦋 *<!-- canon:builtins -->27<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*

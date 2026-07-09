@@ -565,6 +565,7 @@
               "description": "`nika:*` builtin \u00b7 the closed canonical stdlib (Core \u00b7 File \u00b7 Data \u00b7 Network \u00b7 Introspection \u00b7 Media \u00b7 counts live in canon.yaml). Closed enum for `yaml-language-server` autocomplete.",
               "enum": [
                 "nika:assert",
+                "nika:chart",
                 "nika:compose",
                 "nika:convert",
                 "nika:date",
@@ -575,6 +576,7 @@
                 "nika:glob",
                 "nika:grep",
                 "nika:hash",
+                "nika:image_fx",
                 "nika:image_generate",
                 "nika:inspect",
                 "nika:jq",

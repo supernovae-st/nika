@@ -47,6 +47,8 @@ projet     = "projet"
 mesure     = "mesure"
 correspondant = "correspondant"
 # Code identifiers / domain shorthand
+CLEN       = "CLEN"      # RFC 1951 HCLEN code-length alphabet (nika-fx inflate)
+clen       = "clen"      # its lowercase binding in the dynamic-Huffman header parse
 ser        = "ser"       # serde serialize shorthand (`ser`/`de`)
 numer      = "numer"     # numerator (BM25 scorer: numer/denom)
 nd         = "nd"        # binding in `Ok(nd) => …`
@@ -57,6 +59,8 @@ magent     = "magent"    # ANSI SGR `\x1b[1;35m` + `agent` concatenation
 failer     = "failer"    # test mock name (a thing that fails)
 observ     = "observ"    # `unstable-observ` Cargo feature name
 # Proper nouns / library names
+Paeth      = "Paeth"     # Alan W. Paeth — the PNG filter type 4 bears his name (spec term)
+paeth      = "paeth"     # lowercase form in fn names + comments (nika-fx PNG codec)
 ratatui    = "ratatui"   # the Ratatui TUI library
 Hashi      = "Hashi"     # HashiCorp (proper noun)
 OLY        = "OLY"       # OLY- prefix in a negative test (wrong-prefix rejection)

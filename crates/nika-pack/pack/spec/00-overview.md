@@ -123,7 +123,7 @@ outputs:                              # what the workflow returns · symmetric t
 | [07 conformance](./07-conformance.md) | What « v0.1-compliant » means |
 | [08 out of scope](./08-out-of-scope.md) | Explicit defer list (memory · macros · etc.) |
 
-**Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/): **<!-- canon:providers -->16<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->26<!-- /canon --> builtins** (6 core · 5 file · 8 data · 2 network · 2 introspection · 2 media).
+**Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/): **<!-- canon:providers -->16<!-- /canon --> providers · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · <!-- canon:builtins -->27<!-- /canon --> builtins** (6 core · 5 file · 8 data · 2 network · 2 introspection · 4 media).
 
 ---
 

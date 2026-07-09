@@ -5,7 +5,7 @@
 //! `data:` typo caught statically, each with the deterministic « did you
 //! mean ___? » (rustc's diagnostic model).
 //!
-//! The `nika:` namespace is CLOSED (23 canonical builtins · stdlib v0.1 ·
+//! The `nika:` namespace is CLOSED (26 canonical builtins · stdlib v0.1 ·
 //! the same `nika_catalog::all_builtins()` the codegen enum reads — one
 //! source, no drift), and so is each builtin's `args:` key set (the
 //! `Builtin::args` vocabulary in the same catalog). A typo'd builtin OR a

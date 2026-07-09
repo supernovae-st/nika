@@ -114,8 +114,9 @@ as the contract's R-rules).
 ## Related
 
 - nika-spec `registry/registry-v0.1.md` — the contract this implements.
-- `ventures/nika/01-product/strategy/nika-marketplace-model-v1.md` — the
-  sovereign-hub canon (identity ⊥ discovery · conformance-as-trust).
+- the sovereign-hub canon (identity ⊥ discovery · conformance-as-trust) —
+  studio-internal strategy; the public contract it produced is the
+  nika-spec registry chapter above.
 - ADR-092 (check ladder · the local re-proof) · ADR-099 (dot-dir + trace
   conventions) · supernovae-st/nika-registry `scripts/get.py` (the
   behavioral reference · cert-driven hand-off included).

@@ -410,6 +410,17 @@ fn media_defs() -> Vec<ToolDef> {
             }),
             &["prompt", "output_dir"],
         ),
+        def(
+            "image_fx",
+            "Apply deterministic artistic effects to a PNG (dither · palette · duotone · pixelate · halftone · grain · vignette · chromatic_aberration · scanlines · glitch · ascii) — byte-identical forever for identical input+args; the recipe rides the artifact (tEXt) and outputs carry path + sha256, bytes never inline.",
+            serde_json::json!({
+                "input": s("source PNG path (read · permit-gated fs.read · PNG v1: produce upstream via image_generate format png)"),
+                "out": s("output artifact path (.png · .txt/.ans for ascii text/ansi emits) — rides the declared permits.fs boundary"),
+                "ops": { "type": "array", "description": "ordered single-key op maps · resize{width,height,filter} · crop{x,y,width,height} · levels{brightness,contrast} · grayscale · palette_map{palette} · dither{mode,palette} · duotone{dark,light} · pixelate{block} · halftone{cell,angle} · grain{intensity} · vignette{strength} · chromatic_aberration{shift} · scanlines{strength,period} · glitch{line_shift,channel_shift,blocks} · ascii{cols,emit} (ascii must be last)" },
+                "seed": { "type": "integer", "description": "stochastic-op seed (grain · glitch) · default 0 · the seed IS the style" }
+            }),
+            &["input", "out", "ops"],
+        ),
     ]
 }
 
@@ -480,9 +491,10 @@ mod tests {
         let defs = tool_defs();
         assert_eq!(
             defs.len(),
-            26,
-            "stdlib ships exactly 25 (22 Rams-swept + nika:compose ADR-096 + \
-             nika:image_generate stdlib §Media + nika:tts_generate stdlib §Audio + nika:chart stdlib §Media)"
+            27,
+            "stdlib ships exactly 27 (22 Rams-swept + nika:compose ADR-096 + \
+             nika:image_generate stdlib §Media + nika:tts_generate stdlib §Audio + \
+             nika:image_fx stdlib §Media)"
         );
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         names.sort_unstable();

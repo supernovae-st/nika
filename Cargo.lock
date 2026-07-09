@@ -3595,6 +3595,7 @@ dependencies = [
  "nika-chart",
  "nika-extract",
  "nika-fs",
+ "nika-fx",
  "nika-kernel",
  "nika-kernel-mock",
  "nika-types",
@@ -3821,6 +3822,10 @@ dependencies = [
  "tempfile",
  "tokio",
 ]
+
+[[package]]
+name = "nika-fx"
+version = "0.98.0"
 
 [[package]]
 name = "nika-http"
