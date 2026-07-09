@@ -65,7 +65,7 @@ impl Window {
     pub(crate) fn new() -> Self {
         Self {
             k: gather::WINDOW_RUNS,
-            days: 30,
+            days: gather::WINDOW_DAYS,
             files_examined: 0,
             files_unreadable: 0,
             files_truncated: 0,
@@ -124,8 +124,10 @@ pub(crate) struct RunCensus {
 pub(crate) struct TaskPrior {
     /// The task id.
     pub id: String,
-    /// Runs the task actually appeared in (≠ total when `when`-gated —
-    /// the hedge line exists for this).
+    /// Runs where the task actually EXECUTED (ok · failed · torn
+    /// mid-attempt · cache-satisfied). A `when` skip or an upstream
+    /// cancellation is a decision, not a run — the when-gate hedge
+    /// (« ran in K/N runs ») depends on this split.
     pub ran_in_runs: usize,
     /// Hard failures (terminal Failed) — C5: never mixed with flaky.
     pub failed: usize,
@@ -292,27 +294,37 @@ fn fold_tasks(samples: &[RunSample], nonfinite: &mut usize) -> Vec<TaskPrior> {
 /// (cache exclusion · C5 retry split · R-modèle scoping) live HERE,
 /// in one place.
 fn fold_occurrence(acc: &mut TaskAcc, occ: &TaskSample, nonfinite: &mut usize) {
-    acc.ran_in_runs += 1;
     if let Some(slug) = &occ.unpriced {
         *acc.unpriced.entry(slug.clone()).or_insert(0) += 1;
     }
     if occ.cached {
+        // Rehydrated: the task was SATISFIED here (counts as ran for the
+        // when-gate hedge) — never a duration/cost/failure sample.
+        acc.ran_in_runs += 1;
         acc.cache_hits += 1;
-        return; // rehydrated — never a duration/cost/failure sample
+        return;
     }
     match occ.state {
         TaskState::Failed => {
+            acc.ran_in_runs += 1;
             acc.failed += 1;
             return; // task_failed carries no duration/cost sample
         }
+        // Attempted, torn before a terminal — it RAN, no sample.
+        TaskState::Running | TaskState::Retrying => {
+            acc.ran_in_runs += 1;
+            return;
+        }
         TaskState::Ok => {
+            acc.ran_in_runs += 1;
             if occ.retried {
                 acc.passed_on_retry += 1; // C5 · flaky, NEVER failed
             }
         }
-        // Pending/Running (torn) · Retrying (no terminal) · Skipped ·
-        // Cancelled: not a completed occurrence — no sample.
-        _ => return,
+        // Pending (never started) · Skipped (a `when` decision) ·
+        // Cancelled (upstream died): the task did NOT run here — a skip
+        // counting as « ran » would kill the when-gate hedge signal.
+        TaskState::Pending | TaskState::Skipped | TaskState::Cancelled => return,
     }
     // R-modèle: the newest occurrence (seen first) fixes the model
     // bucket; other models are counted out, never mixed in.

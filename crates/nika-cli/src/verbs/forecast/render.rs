@@ -37,7 +37,7 @@ pub(crate) fn forecast_section(s: &mut String, report: &ForecastReport) {
         .unwrap_or(4)
         .max(4);
     for task in &report.tasks {
-        let _ = writeln!(s, "{}", task_row(task, width));
+        let _ = writeln!(s, "{}", task_row(task, width, report.runs.total));
     }
     let _ = writeln!(s, "  {}", "─".repeat(width + 34));
     let _ = writeln!(s, "{}", run_line(report, width));
@@ -63,7 +63,11 @@ fn window_line(report: &ForecastReport) -> String {
     if runs.unknown_hash > 0 {
         let _ = write!(line, " · {} unverifiable", runs.unknown_hash);
     }
-    if w.retention_keep > 0 && runs.total == w.retention_keep {
+    // `>=`, never `==`: GC rides `nika run` START, so right after a run
+    // the dir holds keep+1 matching traces — the saturated-window case
+    // is the COMMON shape, not an exact hit (e2e-proven: 12 runs → 11
+    // seen · keep 10 · the annotation must still fire).
+    if w.retention_keep > 0 && runs.total >= w.retention_keep {
         let _ = write!(line, " · trace retention keeps last {}", w.retention_keep);
     }
     if w.files_unreadable > 0 {
@@ -88,14 +92,27 @@ fn window_line(report: &ForecastReport) -> String {
 }
 
 /// One task line: duration prior · cost prior · the risk notes.
-fn task_row(task: &TaskPrior, width: usize) -> String {
+fn task_row(task: &TaskPrior, width: usize, total_runs: usize) -> String {
+    // A task that RAN but never completed (failures · torn attempts ·
+    // cache-only) has no duration sample — that is a dash, NEVER the
+    // « never ran » words (it visibly ran; the failed count sits beside).
+    let duration = if matches!(task.duration_ms, Prior::NeverRan) && task.ran_in_runs > 0 {
+        "—".to_owned()
+    } else {
+        prior_cell(&task.duration_ms)
+    };
     let mut line = format!(
         "  {:width$}  {:22} {:10}",
         task.id,
-        prior_cell(&task.duration_ms),
+        duration,
         cost_cell(task.cost_usd.as_ref(), task.unpriced.is_some()),
     );
     let mut notes: Vec<String> = Vec::new();
+    // The when-gate hedge made visible (C6): the task executed in fewer
+    // runs than the window holds — say so, in run units.
+    if task.ran_in_runs < total_runs {
+        notes.push(format!("ran in {}/{} runs", task.ran_in_runs, total_runs));
+    }
     if task.failed > 0 {
         notes.push(format!("failed {}/{}", task.failed, task.ran_in_runs));
     }
@@ -132,15 +149,24 @@ fn task_row(task: &TaskPrior, width: usize) -> String {
 /// prior · what was excluded, named.
 fn run_line(report: &ForecastReport, width: usize) -> String {
     let any_unpriced = report.tasks.iter().any(|t| t.unpriced.is_some());
+    let dn = report.run_duration.n();
+    // Same dash law as the task rows: runs happened but none completed →
+    // no duration sample, never « never ran » beside a real census.
+    let duration = if matches!(report.run_duration, Prior::NeverRan) && report.runs.total > 0 {
+        "—".to_owned()
+    } else {
+        prior_cell(&report.run_duration)
+    };
     let mut line = format!(
         "  {:width$}  {:22} {:10}",
         "run",
-        prior_cell(&report.run_duration),
+        duration,
         cost_cell(report.run_cost.as_ref(), any_unpriced),
     );
     let mut notes: Vec<String> = Vec::new();
-    let dn = report.run_duration.n();
-    if dn > 0 && dn != report.runs.total {
+    // Including dn == 0: « duration from 0 completed » names why the
+    // cell is a dash — the count only stays silent when EVERY run fed it.
+    if dn != report.runs.total {
         notes.push(format!("duration from {dn} completed"));
     }
     if report.runs.failed > 0 {
@@ -311,5 +337,76 @@ mod tests {
         forecast_section(&mut s, &r);
         assert!(s.contains("1 paused run excluded"));
         assert!(!s.contains("incomplete"));
+    }
+
+    /// R-8 (e2e-proven): GC rides run START, so the post-run dir holds
+    /// keep+1 — the saturation annotation fires at `>=`, never only `==`.
+    #[test]
+    fn retention_annotation_fires_above_the_keep_knob_too() {
+        let mut r = report(11);
+        r.window.retention_keep = 10;
+        let mut s = String::new();
+        forecast_section(&mut s, &r);
+        assert!(
+            s.contains("trace retention keeps last 10"),
+            "total 11 ≥ keep 10 must name retention:\n{s}"
+        );
+    }
+
+    /// R-2: a task that ran and only FAILED shows a dash — « never ran »
+    /// beside « failed 2/2 » would be a contradiction.
+    #[test]
+    fn failed_only_task_is_a_dash_never_never_ran() {
+        let mut r = report(2);
+        r.tasks.push(TaskPrior {
+            id: "flaky".into(),
+            ran_in_runs: 2,
+            failed: 2,
+            passed_on_retry: 0,
+            cache_hits: 0,
+            other_model: 0,
+            duration_ms: Prior::NeverRan,
+            cost_usd: None,
+            unpriced: None,
+        });
+        let mut s = String::new();
+        forecast_section(&mut s, &r);
+        assert!(!s.contains("never ran"), "{s}");
+        assert!(s.contains("failed 2/2"), "{s}");
+    }
+
+    /// C6 made visible: a when-gated task names its own run count.
+    #[test]
+    fn when_gated_task_names_its_run_share() {
+        let mut r = report(3);
+        r.tasks.push(TaskPrior {
+            id: "gated".into(),
+            ran_in_runs: 1,
+            failed: 0,
+            passed_on_retry: 0,
+            cache_hits: 0,
+            other_model: 0,
+            duration_ms: Prior::LastRun { value: 40.0 },
+            cost_usd: None,
+            unpriced: None,
+        });
+        let mut s = String::new();
+        forecast_section(&mut s, &r);
+        assert!(s.contains("ran in 1/3 runs"), "{s}");
+    }
+
+    /// R-2 at run level: a census with zero completions dashes the cell
+    /// and NAMES the zero (« duration from 0 completed »).
+    #[test]
+    fn zero_completed_runs_dash_the_run_cell_and_say_why() {
+        let mut r = report(2);
+        r.runs.completed = 0;
+        r.runs.failed = 2;
+        r.run_duration = Prior::NeverRan;
+        let mut s = String::new();
+        forecast_section(&mut s, &r);
+        assert!(!s.contains("never ran"), "{s}");
+        assert!(s.contains("duration from 0 completed"), "{s}");
+        assert!(s.contains("failed 2/2"), "{s}");
     }
 }
