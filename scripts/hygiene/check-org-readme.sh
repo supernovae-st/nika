@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Vector 9: Org profile README mentions all 6 canonical repos.
+# Vector 9: Org profile README mentions every canonical public repo.
 set -u
 if ! command -v gh >/dev/null; then
   echo "gh not installed"
@@ -13,9 +13,10 @@ content="$(gh api repos/supernovae-st/.github/contents/profile/README.md --jq .c
 }
 
 missing=""
-# homebrew-tap was RENAMED homebrew-nika (2026-07-02 · GitHub redirects both);
-# nika-spec/nika-docs/nika-vscode joined the canonical set with the profile refresh.
-for repo in nika nika.sh nika-client nika-spec nika-docs nika-vscode homebrew-nika nika-site-audit; do
+# homebrew-nika was RENAMED homebrew-tap (canonical per api .full_name · GitHub
+# redirects the old name); nika-agents + nika-registry joined the profile with
+# the 2026-07-09 storefront-truth pass (.github#1).
+for repo in nika nika.sh nika-client nika-spec nika-docs nika-vscode nika-agents nika-registry homebrew-tap nika-site-audit; do
   echo "$content" | grep -q "$repo" || missing="${missing}${repo} "
 done
 
@@ -23,5 +24,5 @@ if [ -n "$missing" ]; then
   echo "missing from profile: ${missing}"
   exit 1
 fi
-echo "OK (all 6 repos listed)"
+echo "OK (all canonical repos listed)"
 exit 0

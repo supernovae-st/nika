@@ -55,7 +55,7 @@ change. `brew install supernovae-st/tap/nika` then pulls the new version.
 
 ## 3. One-time secret for the auto-formula-bump
 
-Create a fine-grained PAT with **contents:write** on `supernovae-st/homebrew-nika`,
+Create a fine-grained PAT with **contents:write** on `supernovae-st/homebrew-tap`,
 then add it to the engine repo:
 
 ```bash
