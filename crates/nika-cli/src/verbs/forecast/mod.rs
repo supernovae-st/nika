@@ -5,7 +5,7 @@
 //! history: duration/cost/risk priors BEFORE a run, computed
 //! deterministically from `.nika/traces/` (stats, never a model call,
 //! never the network — Rule 1). The honesty ladder is a TYPE
-//! ([`math::Prior`]): never-run says so · one run is « last run » ·
+//! ([`nika_dap::stats::Prior`]): never-run says so · one run is « last run » ·
 //! 2-4 runs earn a range · bands are earned at n ≥ 5. Every skip is
 //! counted; a suggestion never outweighs a proof.
 
