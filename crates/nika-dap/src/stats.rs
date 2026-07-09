@@ -101,6 +101,12 @@ impl Prior {
 /// only push true coverage higher — conservative, never invalid). A
 /// distribution-free THEOREM about the next run, not an estimate
 /// (Angelopoulos–Barber–Bates, CUP 2026 · arXiv:2411.11824 Thm 3.2).
+///
+/// Scope of the promise: « next » means the next observation drawn
+/// from the SAME population the sample was gathered from — the
+/// gather's filters define it (same workflow content · same model ·
+/// completed runs). The guarantee says nothing about a run the
+/// filters would have excluded.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 #[non_exhaustive]
 pub struct ConformalUpper {
@@ -141,6 +147,14 @@ impl ConformalUpper {
 /// feasibility law already refuses it (every clause load-bearing).
 #[must_use]
 pub fn conformal_upper(sorted: &[f64], num: u32, den: u32) -> Option<ConformalUpper> {
+    // Unsorted input would not degrade into a wrong VALUE here — it
+    // degrades into a wrong GUARANTEE (the worst failure class this
+    // crate can produce), so the contract is checked where debug
+    // builds can see it.
+    debug_assert!(
+        sorted.is_sorted(),
+        "conformal_upper needs ascending-sorted input — the guarantee fails silently otherwise"
+    );
     if num == 0 || den == 0 {
         return None;
     }
@@ -280,6 +294,16 @@ mod tests {
             }
             prop_assert_eq!(covered, k_seen);
         }
+    }
+
+    /// The sortedness contract is ENFORCED in debug builds (and this
+    /// test pins the assert against deletion — a mutant that drops it
+    /// stops panicking and fails the expectation).
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "ascending-sorted")]
+    fn unsorted_input_is_refused_loudly_in_debug() {
+        let _ = conformal_upper(&[3.0, 1.0, 2.0], 1, 2);
     }
 
     #[test]
