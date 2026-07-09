@@ -155,6 +155,17 @@ jobs:
           tarball="nika-${ASSET_NAME}-${version}.tar.gz"
           tar -czf "${tarball}" -C "${stage}" nika
           shasum -a 256 "${tarball}" | tee "${tarball}.sha256"
+      - name: Funnel e2e (gate before upload)
+        # The stranger's first path, played against the TARBALL that is
+        # about to ship (untarred into a clean HOME · offline · content
+        # asserts, never bare exit codes) — the deno pattern: a broken
+        # first-run never uploads. scripts/ci/funnel-e2e.sh is the spec.
+        # No workflow inputs reach the script: it takes one local path.
+        run: |
+          set -euo pipefail
+          smoke="$(mktemp -d)"
+          tar -xzf nika-*.tar.gz -C "$smoke"
+          bash scripts/ci/funnel-e2e.sh "$smoke/nika"
       - uses: actions/upload-artifact@v4
         with:
           name: nika-${{ matrix.name }}
