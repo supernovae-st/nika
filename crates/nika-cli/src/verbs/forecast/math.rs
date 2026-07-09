@@ -93,7 +93,7 @@ impl Prior {
 }
 
 /// Hyndman & Fan type-7 (numpy/R default · C1) over an ASCENDING-sorted,
-/// all-finite slice. `None` on empty input; `q` outside [0,1] clamps; a
+/// all-finite slice. `None` on empty input; `q` outside `[0, 1]` clamps; a
 /// non-finite `q` refuses (never NaN out). Plain lerp — golden parity
 /// over cleverness (no `mul_add`).
 #[must_use]
