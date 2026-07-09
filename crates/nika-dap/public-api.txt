@@ -38,6 +38,8 @@ impl<T> typenum::type_operators::Same for nika_dap::chain::Verdict
 pub type nika_dap::chain::Verdict::Output = T
 pub const nika_dap::chain::CHAIN_GENESIS: &[u8]
 pub fn nika_dap::chain::walk(raw: &str) -> nika_dap::chain::Verdict
+pub mod nika_dap::otel
+pub fn nika_dap::otel::project(events: &[nika_event::event::Event], include_content: bool, chain: core::option::Option<&nika_dap::chain::Verdict>, exporter_version: &str) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub mod nika_dap::recover
 #[non_exhaustive] pub enum nika_dap::recover::RecoverError
 pub nika_dap::recover::RecoverError::BadFirstLine
@@ -104,6 +106,279 @@ pub fn nika_dap::recover::RecoveredTrace::as_any(&self) -> &(dyn core::any::Any 
 impl<T> typenum::type_operators::Same for nika_dap::recover::RecoveredTrace
 pub type nika_dap::recover::RecoveredTrace::Output = T
 pub fn nika_dap::recover::recover_events(raw: &str, label: &str) -> core::result::Result<nika_dap::recover::RecoveredTrace, nika_dap::recover::RecoverError>
+pub mod nika_dap::reproduce
+#[non_exhaustive] pub enum nika_dap::reproduce::Verdict
+pub nika_dap::reproduce::Verdict::Added
+pub nika_dap::reproduce::Verdict::Authored
+pub nika_dap::reproduce::Verdict::Environment
+pub nika_dap::reproduce::Verdict::Missing
+pub nika_dap::reproduce::Verdict::Nondeterministic
+pub nika_dap::reproduce::Verdict::Reproduced
+#[non_exhaustive] pub nika_dap::reproduce::Verdict::StatusChanged
+pub nika_dap::reproduce::Verdict::StatusChanged::fresh: alloc::string::String
+pub nika_dap::reproduce::Verdict::StatusChanged::recorded: alloc::string::String
+pub nika_dap::reproduce::Verdict::Unverifiable
+impl core::clone::Clone for nika_dap::reproduce::Verdict
+pub fn nika_dap::reproduce::Verdict::clone(&self) -> nika_dap::reproduce::Verdict
+impl core::cmp::Eq for nika_dap::reproduce::Verdict
+impl core::cmp::PartialEq for nika_dap::reproduce::Verdict
+pub fn nika_dap::reproduce::Verdict::eq(&self, other: &nika_dap::reproduce::Verdict) -> bool
+impl core::fmt::Debug for nika_dap::reproduce::Verdict
+pub fn nika_dap::reproduce::Verdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::reproduce::Verdict
+impl<D> owo_colors::OwoColorize for nika_dap::reproduce::Verdict
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::reproduce::Verdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::reproduce::Verdict::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::reproduce::Verdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::reproduce::Verdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::reproduce::Verdict::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::reproduce::Verdict::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::reproduce::Verdict where U: core::convert::From<T>
+pub fn nika_dap::reproduce::Verdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::reproduce::Verdict where U: core::convert::Into<T>
+pub type nika_dap::reproduce::Verdict::Error = core::convert::Infallible
+pub fn nika_dap::reproduce::Verdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::reproduce::Verdict where U: core::convert::TryFrom<T>
+pub type nika_dap::reproduce::Verdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::reproduce::Verdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::reproduce::Verdict where T: core::clone::Clone
+pub type nika_dap::reproduce::Verdict::Owned = T
+pub fn nika_dap::reproduce::Verdict::clone_into(&self, target: &mut T)
+pub fn nika_dap::reproduce::Verdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::reproduce::Verdict where T: 'static + ?core::marker::Sized
+pub fn nika_dap::reproduce::Verdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::reproduce::Verdict where T: ?core::marker::Sized
+pub fn nika_dap::reproduce::Verdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::reproduce::Verdict where T: ?core::marker::Sized
+pub fn nika_dap::reproduce::Verdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::reproduce::Verdict where T: core::clone::Clone
+pub unsafe fn nika_dap::reproduce::Verdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::reproduce::Verdict
+pub fn nika_dap::reproduce::Verdict::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::reproduce::Verdict where T: core::clone::Clone
+pub fn nika_dap::reproduce::Verdict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::reproduce::Verdict where T: 'static
+pub fn nika_dap::reproduce::Verdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::reproduce::Verdict
+pub type nika_dap::reproduce::Verdict::Output = T
+#[non_exhaustive] pub struct nika_dap::reproduce::Report
+pub nika_dap::reproduce::Report::fresh_env: core::option::Option<alloc::string::String>
+pub nika_dap::reproduce::Report::recorded_env: core::option::Option<alloc::string::String>
+pub nika_dap::reproduce::Report::rows: alloc::vec::Vec<nika_dap::reproduce::Row>
+impl nika_dap::reproduce::Report
+pub fn nika_dap::reproduce::Report::diverged(&self) -> bool
+pub fn nika_dap::reproduce::Report::new(rows: alloc::vec::Vec<nika_dap::reproduce::Row>, recorded_env: core::option::Option<alloc::string::String>, fresh_env: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_dap::reproduce::Report::nothing_verified(&self) -> bool
+impl core::fmt::Debug for nika_dap::reproduce::Report
+pub fn nika_dap::reproduce::Report::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::reproduce::Report
+impl<T, U> core::convert::Into<U> for nika_dap::reproduce::Report where U: core::convert::From<T>
+pub fn nika_dap::reproduce::Report::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::reproduce::Report where U: core::convert::Into<T>
+pub type nika_dap::reproduce::Report::Error = core::convert::Infallible
+pub fn nika_dap::reproduce::Report::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::reproduce::Report where U: core::convert::TryFrom<T>
+pub type nika_dap::reproduce::Report::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::reproduce::Report::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::reproduce::Report where T: 'static + ?core::marker::Sized
+pub fn nika_dap::reproduce::Report::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::reproduce::Report where T: ?core::marker::Sized
+pub fn nika_dap::reproduce::Report::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::reproduce::Report where T: ?core::marker::Sized
+pub fn nika_dap::reproduce::Report::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::reproduce::Report
+pub fn nika_dap::reproduce::Report::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::reproduce::Report where T: 'static
+pub fn nika_dap::reproduce::Report::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::reproduce::Report
+pub type nika_dap::reproduce::Report::Output = T
+#[non_exhaustive] pub struct nika_dap::reproduce::Row
+pub nika_dap::reproduce::Row::task: alloc::string::String
+pub nika_dap::reproduce::Row::verdict: nika_dap::reproduce::Verdict
+impl nika_dap::reproduce::Row
+pub fn nika_dap::reproduce::Row::new(task: alloc::string::String, verdict: nika_dap::reproduce::Verdict) -> Self
+impl core::fmt::Debug for nika_dap::reproduce::Row
+pub fn nika_dap::reproduce::Row::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::reproduce::Row
+impl<T, U> core::convert::Into<U> for nika_dap::reproduce::Row where U: core::convert::From<T>
+pub fn nika_dap::reproduce::Row::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::reproduce::Row where U: core::convert::Into<T>
+pub type nika_dap::reproduce::Row::Error = core::convert::Infallible
+pub fn nika_dap::reproduce::Row::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::reproduce::Row where U: core::convert::TryFrom<T>
+pub type nika_dap::reproduce::Row::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::reproduce::Row::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::reproduce::Row where T: 'static + ?core::marker::Sized
+pub fn nika_dap::reproduce::Row::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::reproduce::Row where T: ?core::marker::Sized
+pub fn nika_dap::reproduce::Row::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::reproduce::Row where T: ?core::marker::Sized
+pub fn nika_dap::reproduce::Row::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::reproduce::Row
+pub fn nika_dap::reproduce::Row::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::reproduce::Row where T: 'static
+pub fn nika_dap::reproduce::Row::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::reproduce::Row
+pub type nika_dap::reproduce::Row::Output = T
+pub fn nika_dap::reproduce::compare(recorded: &[nika_event::event::Event], fresh: &[nika_event::event::Event]) -> nika_dap::reproduce::Report
+pub fn nika_dap::reproduce::workflow_of(events: &[nika_event::event::Event]) -> core::option::Option<&str>
+pub mod nika_dap::retention
+#[non_exhaustive] pub enum nika_dap::retention::Reason
+pub nika_dap::retention::Reason::Aged
+pub nika_dap::retention::Reason::OverBudget
+pub nika_dap::retention::Reason::Rotated
+impl nika_dap::retention::Reason
+pub const fn nika_dap::retention::Reason::as_str(self) -> &'static str
+impl core::clone::Clone for nika_dap::retention::Reason
+pub fn nika_dap::retention::Reason::clone(&self) -> nika_dap::retention::Reason
+impl core::cmp::Eq for nika_dap::retention::Reason
+impl core::cmp::Ord for nika_dap::retention::Reason
+pub fn nika_dap::retention::Reason::cmp(&self, other: &nika_dap::retention::Reason) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_dap::retention::Reason
+pub fn nika_dap::retention::Reason::eq(&self, other: &nika_dap::retention::Reason) -> bool
+impl core::cmp::PartialOrd for nika_dap::retention::Reason
+pub fn nika_dap::retention::Reason::partial_cmp(&self, other: &nika_dap::retention::Reason) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_dap::retention::Reason
+pub fn nika_dap::retention::Reason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::retention::Reason
+impl core::marker::StructuralPartialEq for nika_dap::retention::Reason
+impl<D> owo_colors::OwoColorize for nika_dap::retention::Reason
+impl<Q, K> equivalent::Comparable<K> for nika_dap::retention::Reason where Q: core::cmp::Ord + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::retention::Reason::compare(&self, key: &K) -> core::cmp::Ordering
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::retention::Reason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::retention::Reason::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::retention::Reason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::retention::Reason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::retention::Reason::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::retention::Reason::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::retention::Reason where U: core::convert::From<T>
+pub fn nika_dap::retention::Reason::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::retention::Reason where U: core::convert::Into<T>
+pub type nika_dap::retention::Reason::Error = core::convert::Infallible
+pub fn nika_dap::retention::Reason::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::retention::Reason where U: core::convert::TryFrom<T>
+pub type nika_dap::retention::Reason::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::retention::Reason::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::retention::Reason where T: core::clone::Clone
+pub type nika_dap::retention::Reason::Owned = T
+pub fn nika_dap::retention::Reason::clone_into(&self, target: &mut T)
+pub fn nika_dap::retention::Reason::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::retention::Reason where T: 'static + ?core::marker::Sized
+pub fn nika_dap::retention::Reason::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::retention::Reason where T: ?core::marker::Sized
+pub fn nika_dap::retention::Reason::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::retention::Reason where T: ?core::marker::Sized
+pub fn nika_dap::retention::Reason::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::retention::Reason where T: core::clone::Clone
+pub unsafe fn nika_dap::retention::Reason::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::retention::Reason
+pub fn nika_dap::retention::Reason::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::retention::Reason where T: core::clone::Clone
+pub fn nika_dap::retention::Reason::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::retention::Reason where T: 'static
+pub fn nika_dap::retention::Reason::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::retention::Reason where T: core::marker::Copy
+pub fn nika_dap::retention::Reason::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_dap::retention::Reason
+pub type nika_dap::retention::Reason::Output = T
+#[non_exhaustive] pub struct nika_dap::retention::GcReport
+pub nika_dap::retention::GcReport::aged: usize
+pub nika_dap::retention::GcReport::kept: usize
+pub nika_dap::retention::GcReport::kept_bytes: u64
+pub nika_dap::retention::GcReport::over_budget: usize
+pub nika_dap::retention::GcReport::rotated: usize
+impl nika_dap::retention::GcReport
+pub const fn nika_dap::retention::GcReport::new(rotated: usize, aged: usize, over_budget: usize, kept: usize, kept_bytes: u64) -> Self
+impl core::cmp::Eq for nika_dap::retention::GcReport
+impl core::cmp::PartialEq for nika_dap::retention::GcReport
+pub fn nika_dap::retention::GcReport::eq(&self, other: &nika_dap::retention::GcReport) -> bool
+impl core::fmt::Debug for nika_dap::retention::GcReport
+pub fn nika_dap::retention::GcReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::retention::GcReport
+impl<D> owo_colors::OwoColorize for nika_dap::retention::GcReport
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::retention::GcReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::retention::GcReport::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::retention::GcReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::retention::GcReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::retention::GcReport::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::retention::GcReport::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::retention::GcReport where U: core::convert::From<T>
+pub fn nika_dap::retention::GcReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::retention::GcReport where U: core::convert::Into<T>
+pub type nika_dap::retention::GcReport::Error = core::convert::Infallible
+pub fn nika_dap::retention::GcReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::retention::GcReport where U: core::convert::TryFrom<T>
+pub type nika_dap::retention::GcReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::retention::GcReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::retention::GcReport where T: 'static + ?core::marker::Sized
+pub fn nika_dap::retention::GcReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::retention::GcReport where T: ?core::marker::Sized
+pub fn nika_dap::retention::GcReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::retention::GcReport where T: ?core::marker::Sized
+pub fn nika_dap::retention::GcReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::retention::GcReport
+pub fn nika_dap::retention::GcReport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::retention::GcReport where T: 'static
+pub fn nika_dap::retention::GcReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::retention::GcReport
+pub type nika_dap::retention::GcReport::Output = T
+#[non_exhaustive] pub struct nika_dap::retention::RetentionConfig
+pub nika_dap::retention::RetentionConfig::budget_bytes: u64
+pub nika_dap::retention::RetentionConfig::keep_last: usize
+pub nika_dap::retention::RetentionConfig::max_age: core::time::Duration
+impl nika_dap::retention::RetentionConfig
+pub fn nika_dap::retention::RetentionConfig::from_env() -> (Self, alloc::vec::Vec<alloc::string::String>)
+pub const fn nika_dap::retention::RetentionConfig::new(keep_last: usize, max_age: core::time::Duration, budget_bytes: u64) -> Self
+pub fn nika_dap::retention::RetentionConfig::resolve(keep: core::option::Option<&str>, age_days: core::option::Option<&str>, budget_mb: core::option::Option<&str>) -> (Self, alloc::vec::Vec<alloc::string::String>)
+pub fn nika_dap::retention::RetentionConfig::summary(&self) -> alloc::string::String
+impl core::clone::Clone for nika_dap::retention::RetentionConfig
+pub fn nika_dap::retention::RetentionConfig::clone(&self) -> nika_dap::retention::RetentionConfig
+impl core::cmp::Eq for nika_dap::retention::RetentionConfig
+impl core::cmp::PartialEq for nika_dap::retention::RetentionConfig
+pub fn nika_dap::retention::RetentionConfig::eq(&self, other: &nika_dap::retention::RetentionConfig) -> bool
+impl core::default::Default for nika_dap::retention::RetentionConfig
+pub fn nika_dap::retention::RetentionConfig::default() -> Self
+impl core::fmt::Debug for nika_dap::retention::RetentionConfig
+pub fn nika_dap::retention::RetentionConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::retention::RetentionConfig
+impl<D> owo_colors::OwoColorize for nika_dap::retention::RetentionConfig
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::retention::RetentionConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::retention::RetentionConfig::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::retention::RetentionConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::retention::RetentionConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::retention::RetentionConfig::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::retention::RetentionConfig::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::retention::RetentionConfig where U: core::convert::From<T>
+pub fn nika_dap::retention::RetentionConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::retention::RetentionConfig where U: core::convert::Into<T>
+pub type nika_dap::retention::RetentionConfig::Error = core::convert::Infallible
+pub fn nika_dap::retention::RetentionConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::retention::RetentionConfig where U: core::convert::TryFrom<T>
+pub type nika_dap::retention::RetentionConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::retention::RetentionConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::retention::RetentionConfig where T: core::clone::Clone
+pub type nika_dap::retention::RetentionConfig::Owned = T
+pub fn nika_dap::retention::RetentionConfig::clone_into(&self, target: &mut T)
+pub fn nika_dap::retention::RetentionConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::retention::RetentionConfig where T: 'static + ?core::marker::Sized
+pub fn nika_dap::retention::RetentionConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::retention::RetentionConfig where T: ?core::marker::Sized
+pub fn nika_dap::retention::RetentionConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::retention::RetentionConfig where T: ?core::marker::Sized
+pub fn nika_dap::retention::RetentionConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::retention::RetentionConfig where T: core::clone::Clone
+pub unsafe fn nika_dap::retention::RetentionConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::retention::RetentionConfig
+pub fn nika_dap::retention::RetentionConfig::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::retention::RetentionConfig where T: core::clone::Clone
+pub fn nika_dap::retention::RetentionConfig::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::retention::RetentionConfig where T: 'static
+pub fn nika_dap::retention::RetentionConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::retention::RetentionConfig
+pub type nika_dap::retention::RetentionConfig::Output = T
+pub fn nika_dap::retention::collect(dir: &std::path::Path, cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> core::option::Option<nika_dap::retention::GcReport>
+pub fn nika_dap::retention::newest_per_workflow(traces: &[nika_dap::store::TraceMeta]) -> alloc::collections::btree::set::BTreeSet<usize>
+pub fn nika_dap::retention::plan(traces: &[nika_dap::store::TraceMeta], cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> alloc::vec::Vec<(usize, nika_dap::retention::Reason)>
 pub mod nika_dap::source_id
 pub fn nika_dap::source_id::lf_normal_form(source: &str) -> alloc::borrow::Cow<'_, str>
 pub fn nika_dap::source_id::sha256_hex(bytes: &[u8]) -> alloc::string::String
@@ -216,4 +491,106 @@ pub type nika_dap::stats::ConformalUpper::Output = T
 pub const nika_dap::stats::BANDS_MIN_N: usize
 pub fn nika_dap::stats::conformal_upper(sorted: &[f64], num: u32, den: u32) -> core::option::Option<nika_dap::stats::ConformalUpper>
 pub fn nika_dap::stats::quantile_h7(sorted: &[f64], q: f64) -> core::option::Option<f64>
+pub mod nika_dap::store
+#[non_exhaustive] pub enum nika_dap::store::TraceState
+pub nika_dap::store::TraceState::Cancelled
+pub nika_dap::store::TraceState::Completed
+pub nika_dap::store::TraceState::Failed
+pub nika_dap::store::TraceState::Paused
+pub nika_dap::store::TraceState::Running
+impl nika_dap::store::TraceState
+pub const fn nika_dap::store::TraceState::as_str(self) -> &'static str
+pub const fn nika_dap::store::TraceState::is_finished(self) -> bool
+impl core::clone::Clone for nika_dap::store::TraceState
+pub fn nika_dap::store::TraceState::clone(&self) -> nika_dap::store::TraceState
+impl core::cmp::Eq for nika_dap::store::TraceState
+impl core::cmp::PartialEq for nika_dap::store::TraceState
+pub fn nika_dap::store::TraceState::eq(&self, other: &nika_dap::store::TraceState) -> bool
+impl core::fmt::Debug for nika_dap::store::TraceState
+pub fn nika_dap::store::TraceState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::store::TraceState
+impl core::marker::StructuralPartialEq for nika_dap::store::TraceState
+impl<D> owo_colors::OwoColorize for nika_dap::store::TraceState
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::store::TraceState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::store::TraceState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::store::TraceState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::store::TraceState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::store::TraceState::equivalent(&self, key: &K) -> bool
+pub fn nika_dap::store::TraceState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::store::TraceState where U: core::convert::From<T>
+pub fn nika_dap::store::TraceState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::store::TraceState where U: core::convert::Into<T>
+pub type nika_dap::store::TraceState::Error = core::convert::Infallible
+pub fn nika_dap::store::TraceState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::store::TraceState where U: core::convert::TryFrom<T>
+pub type nika_dap::store::TraceState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::store::TraceState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::store::TraceState where T: core::clone::Clone
+pub type nika_dap::store::TraceState::Owned = T
+pub fn nika_dap::store::TraceState::clone_into(&self, target: &mut T)
+pub fn nika_dap::store::TraceState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::store::TraceState where T: 'static + ?core::marker::Sized
+pub fn nika_dap::store::TraceState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::store::TraceState where T: ?core::marker::Sized
+pub fn nika_dap::store::TraceState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::store::TraceState where T: ?core::marker::Sized
+pub fn nika_dap::store::TraceState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::store::TraceState where T: core::clone::Clone
+pub unsafe fn nika_dap::store::TraceState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::store::TraceState
+pub fn nika_dap::store::TraceState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::store::TraceState where T: core::clone::Clone
+pub fn nika_dap::store::TraceState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::store::TraceState where T: 'static
+pub fn nika_dap::store::TraceState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::store::TraceState where T: core::marker::Copy
+pub fn nika_dap::store::TraceState::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_dap::store::TraceState
+pub type nika_dap::store::TraceState::Output = T
+#[non_exhaustive] pub struct nika_dap::store::TraceMeta
+pub nika_dap::store::TraceMeta::bytes: u64
+pub nika_dap::store::TraceMeta::modified: std::time::SystemTime
+pub nika_dap::store::TraceMeta::name: alloc::string::String
+pub nika_dap::store::TraceMeta::path: std::path::PathBuf
+pub nika_dap::store::TraceMeta::paused_task: core::option::Option<alloc::string::String>
+pub nika_dap::store::TraceMeta::state: nika_dap::store::TraceState
+pub nika_dap::store::TraceMeta::workflow: alloc::string::String
+impl nika_dap::store::TraceMeta
+pub fn nika_dap::store::TraceMeta::new(path: std::path::PathBuf, name: alloc::string::String, workflow: alloc::string::String, state: nika_dap::store::TraceState, paused_task: core::option::Option<alloc::string::String>, bytes: u64, modified: std::time::SystemTime) -> Self
+impl core::clone::Clone for nika_dap::store::TraceMeta
+pub fn nika_dap::store::TraceMeta::clone(&self) -> nika_dap::store::TraceMeta
+impl core::fmt::Debug for nika_dap::store::TraceMeta
+pub fn nika_dap::store::TraceMeta::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::store::TraceMeta
+impl<T, U> core::convert::Into<U> for nika_dap::store::TraceMeta where U: core::convert::From<T>
+pub fn nika_dap::store::TraceMeta::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::store::TraceMeta where U: core::convert::Into<T>
+pub type nika_dap::store::TraceMeta::Error = core::convert::Infallible
+pub fn nika_dap::store::TraceMeta::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::store::TraceMeta where U: core::convert::TryFrom<T>
+pub type nika_dap::store::TraceMeta::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::store::TraceMeta::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::store::TraceMeta where T: core::clone::Clone
+pub type nika_dap::store::TraceMeta::Owned = T
+pub fn nika_dap::store::TraceMeta::clone_into(&self, target: &mut T)
+pub fn nika_dap::store::TraceMeta::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::store::TraceMeta where T: 'static + ?core::marker::Sized
+pub fn nika_dap::store::TraceMeta::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::store::TraceMeta where T: ?core::marker::Sized
+pub fn nika_dap::store::TraceMeta::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::store::TraceMeta where T: ?core::marker::Sized
+pub fn nika_dap::store::TraceMeta::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::store::TraceMeta where T: core::clone::Clone
+pub unsafe fn nika_dap::store::TraceMeta::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::store::TraceMeta
+pub fn nika_dap::store::TraceMeta::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::store::TraceMeta where T: core::clone::Clone
+pub fn nika_dap::store::TraceMeta::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::store::TraceMeta where T: 'static
+pub fn nika_dap::store::TraceMeta::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::store::TraceMeta
+pub type nika_dap::store::TraceMeta::Output = T
+pub const nika_dap::store::TRACE_DIR: &str
+pub fn nika_dap::store::fold_facts(events: &[nika_event::event::Event]) -> (alloc::string::String, nika_dap::store::TraceState, core::option::Option<alloc::string::String>)
+pub fn nika_dap::store::scan(dir: &std::path::Path) -> alloc::vec::Vec<nika_dap::store::TraceMeta>
 pub fn nika_dap::run_stdio() -> u8
