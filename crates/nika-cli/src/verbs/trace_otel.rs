@@ -40,7 +40,7 @@ pub fn export(trace: &str, out: Option<&str>, include_content: bool) -> VerbOutp
     };
     let recovered = match super::run::recover_events(&raw, trace) {
         Ok(recovered) => recovered,
-        Err(e) => return VerbOutput::env(e),
+        Err(e) => return VerbOutput::env(e.to_string()),
     };
     // Verify before trusting (the git index-pack model — affordable at
     // 0.4µs/line): a BROKEN chain still exports, but says so; the head

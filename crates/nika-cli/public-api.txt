@@ -471,8 +471,6 @@ pub fn nika_cli::verbs::check::run(path: &str, json: bool, native_strict: bool, 
 pub fn nika_cli::verbs::check::run_infer_permits(path: &str, json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::context
 pub fn nika_cli::verbs::context::run(json: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
-pub mod nika_cli::verbs::dap
-pub fn nika_cli::verbs::dap::run_stdio() -> u8
 pub mod nika_cli::verbs::doctor
 pub fn nika_cli::verbs::doctor::run(ping: bool, json: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::exit
@@ -484,8 +482,8 @@ pub const nika_cli::verbs::exit::WORKFLOW: u8
 pub mod nika_cli::verbs::explain
 pub fn nika_cli::verbs::explain::run(wire: &str, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::explain_file
-pub fn nika_cli::verbs::explain_file::dispatch(query: &str, json: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
-pub fn nika_cli::verbs::explain_file::run(path: &str, json: bool) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::explain_file::dispatch(query: &str, json: bool, forecast: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::explain_file::run(path: &str, json: bool, forecast: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::graph
 pub enum nika_cli::verbs::graph::GraphFormat
 pub nika_cli::verbs::graph::GraphFormat::Ascii
@@ -702,6 +700,8 @@ pub fn nika_cli::verbs::pack_surface::examples_show(slug: &str) -> nika_cli::ver
 pub fn nika_cli::verbs::pack_surface::schema() -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::pack_surface::spec(canon: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::run
+pub use nika_cli::verbs::run::RecoveredTrace
+pub use nika_cli::verbs::run::recover_events
 #[non_exhaustive] pub enum nika_cli::verbs::run::RenderMode
 pub nika_cli::verbs::run::RenderMode::Live
 pub nika_cli::verbs::run::RenderMode::Plain
@@ -825,35 +825,6 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::JsonSink<W>
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::JsonSink<W>
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::JsonSink<W>
 pub type nika_cli::verbs::run::JsonSink<W>::Output = T
-pub struct nika_cli::verbs::run::RecoveredTrace
-pub nika_cli::verbs::run::RecoveredTrace::events: alloc::vec::Vec<nika_event::event::Event>
-pub nika_cli::verbs::run::RecoveredTrace::truncated_note: core::option::Option<alloc::string::String>
-impl<D> owo_colors::OwoColorize for nika_cli::verbs::run::RecoveredTrace
-impl<T, U> core::convert::Into<U> for nika_cli::verbs::run::RecoveredTrace where U: core::convert::From<T>
-pub fn nika_cli::verbs::run::RecoveredTrace::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::run::RecoveredTrace where U: core::convert::Into<T>
-pub type nika_cli::verbs::run::RecoveredTrace::Error = core::convert::Infallible
-pub fn nika_cli::verbs::run::RecoveredTrace::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::run::RecoveredTrace where U: core::convert::TryFrom<T>
-pub type nika_cli::verbs::run::RecoveredTrace::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli::verbs::run::RecoveredTrace::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_cli::verbs::run::RecoveredTrace where T: 'static + ?core::marker::Sized
-pub fn nika_cli::verbs::run::RecoveredTrace::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli::verbs::run::RecoveredTrace where T: ?core::marker::Sized
-pub fn nika_cli::verbs::run::RecoveredTrace::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::run::RecoveredTrace where T: ?core::marker::Sized
-pub fn nika_cli::verbs::run::RecoveredTrace::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_cli::verbs::run::RecoveredTrace
-pub fn nika_cli::verbs::run::RecoveredTrace::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_cli::verbs::run::RecoveredTrace where T: 'static
-pub fn nika_cli::verbs::run::RecoveredTrace::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::run::RecoveredTrace where T: ?core::marker::Sized
-pub fn nika_cli::verbs::run::RecoveredTrace::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli::verbs::run::RecoveredTrace::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::RecoveredTrace
-impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::RecoveredTrace
-impl<T> typenum::type_operators::Same for nika_cli::verbs::run::RecoveredTrace
-pub type nika_cli::verbs::run::RecoveredTrace::Output = T
 pub struct nika_cli::verbs::run::ResumeRequest
 pub nika_cli::verbs::run::ResumeRequest::answers: alloc::vec::Vec<alloc::string::String>
 pub nika_cli::verbs::run::ResumeRequest::from: core::option::Option<alloc::string::String>
@@ -965,7 +936,6 @@ pub fn nika_cli::verbs::run::example(slug: &str, model_override: core::option::O
 pub fn nika_cli::verbs::run::fs_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_builtin::permits::FsBoundary
 pub fn nika_cli::verbs::run::net_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_http::NetBoundary
 pub fn nika_cli::verbs::run::production_runtime(default_model: &str, caps: nika_cli::verbs::run::RuntimeCapabilities) -> core::result::Result<nika_cli::verbs::run::ProdRuntime, nika_kernel_core::io::http::HttpError>
-pub fn nika_cli::verbs::run::recover_events(raw: &str, label: &str) -> core::result::Result<nika_cli::verbs::run::RecoveredTrace, alloc::string::String>
 pub fn nika_cli::verbs::run::run(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_cli::display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>, vars: &[alloc::string::String], resume: core::option::Option<&nika_cli::verbs::run::ResumeRequest>, no_trace_file: bool, task_filter: core::option::Option<&str>, no_outputs: bool, max_cost_usd: core::option::Option<f64>, no_gc: bool) -> u8
 pub type nika_cli::verbs::run::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_cli::verbs::run::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_cli::verbs::run::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::SystemClock, nika_cli::verbs::run::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::SystemClock>
 pub mod nika_cli::verbs::test

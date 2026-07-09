@@ -136,7 +136,7 @@ fn read_meta(path: &Path) -> Option<TraceMeta> {
 /// awaiting task): the FIRST `workflow_started` names the run; the
 /// LAST workflow-level terminal event decides the state (none →
 /// `Running`) and, when paused, names the unanswered task.
-fn fold_facts(events: &[Event]) -> (String, TraceState, Option<String>) {
+pub(crate) fn fold_facts(events: &[Event]) -> (String, TraceState, Option<String>) {
     let workflow = events
         .iter()
         .find(|e| e.kind == EventKind::WorkflowStarted)

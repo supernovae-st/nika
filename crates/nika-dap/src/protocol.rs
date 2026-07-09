@@ -65,6 +65,11 @@ const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 /// not grow the line buffer unboundedly (`read_line` reads to \n).
 const MAX_HEADER_LINE: u64 = 8 * 1024;
 
+/// Header-line COUNT ceiling — a peer streaming endless short header
+/// lines must not spin the frame loop forever. Real DAP frames carry
+/// 1-2 headers + the separator; 64 is 30x headroom.
+const MAX_HEADER_LINES: usize = 64;
+
 /// The wire: reads framed requests, writes framed responses/events,
 /// owns the outgoing `seq` counter.
 pub(crate) struct Wire<R, W> {
@@ -101,7 +106,12 @@ impl<R: BufRead, W: Write> Wire<R, W> {
     /// One `Content-Length`-framed body.
     fn read_frame(&mut self) -> Option<Vec<u8>> {
         let mut content_length: Option<usize> = None;
+        let mut header_lines = 0usize;
         loop {
+            header_lines += 1;
+            if header_lines > MAX_HEADER_LINES {
+                return None; // hostile: header spam without a separator
+            }
             let mut line = String::new();
             // `take` bounds ONE line: a newline-less stream ends the
             // session at the cap instead of growing the buffer.
@@ -254,6 +264,119 @@ mod tests {
         assert!(
             wire.read_request().is_none(),
             "a frame beyond MAX_FRAME_BYTES is refused, never allocated"
+        );
+    }
+
+    #[test]
+    fn the_wire_caps_sit_at_their_documented_boundaries() {
+        // All three figures are contracts the hostile-input guards lean
+        // on — arithmetic drift in a constant must not move them.
+        assert_eq!(MAX_FRAME_BYTES, 16_777_216);
+        assert_eq!(MAX_HEADER_LINE, 8192);
+        assert_eq!(MAX_HEADER_LINES, 64);
+    }
+
+    #[test]
+    fn header_spam_ends_the_session_but_headroom_headers_parse() {
+        // 65 junk headers with no separator: the count cap refuses —
+        // an endless short-header stream must not spin the loop.
+        let mut spam = Vec::new();
+        for i in 0..65 {
+            spam.extend(format!("X-{i}: y\r\n").into_bytes());
+        }
+        spam.extend(frame(&serde_json::json!({
+            "seq": 1, "type": "request", "command": "threads"
+        })));
+        let mut out: Vec<u8> = Vec::new();
+        let mut wire = Wire::new(std::io::Cursor::new(spam), &mut out);
+        assert!(
+            wire.read_request().is_none(),
+            "header spam without a separator is hostile"
+        );
+
+        // 62 junk + Content-Length + separator = exactly 64 header
+        // iterations: parses under `>`, refuses under `>=` — the
+        // at-the-cap acceptance IS the boundary pin.
+        let mut ok = Vec::new();
+        for i in 0..62 {
+            ok.extend(format!("X-{i}: y\r\n").into_bytes());
+        }
+        let body = br#"{"seq":2,"type":"request","command":"threads"}"#;
+        ok.extend(format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes());
+        ok.extend(body.as_slice());
+        let mut out2: Vec<u8> = Vec::new();
+        let mut wire2 = Wire::new(std::io::Cursor::new(ok), &mut out2);
+        assert_eq!(
+            wire2
+                .read_request()
+                .expect("headroom headers parse")
+                .command,
+            "threads"
+        );
+    }
+
+    #[test]
+    fn outgoing_seq_counts_one_then_two() {
+        // The wire owns its OWN counter — a stubbed or regressing seq
+        // would desync a real client's message correlation.
+        let input = frame(&serde_json::json!({
+            "seq": 7, "type": "request", "command": "threads"
+        }));
+        let mut out: Vec<u8> = Vec::new();
+        {
+            let mut wire = Wire::new(std::io::Cursor::new(input), &mut out);
+            let req = wire.read_request().expect("one request");
+            wire.respond(&req, serde_json::Value::Null);
+            wire.emit("stopped", serde_json::Value::Null);
+        }
+        let text = String::from_utf8(out).expect("utf8");
+        assert!(text.contains(r#""seq":1"#), "first frame: {text}");
+        assert!(text.contains(r#""seq":2"#), "second frame: {text}");
+    }
+
+    #[test]
+    fn a_header_line_ending_exactly_at_the_cap_is_legal() {
+        // 8191 junk bytes + '\n': the capped read returns exactly
+        // MAX_HEADER_LINE bytes but the line IS terminated — only the
+        // UNTERMINATED case is hostile, and the guard needs both facts.
+        let mut input = vec![b'X'; 8191];
+        input.push(b'\n');
+        input.extend(frame(&serde_json::json!({
+            "seq": 1, "type": "request", "command": "threads"
+        })));
+        let mut out: Vec<u8> = Vec::new();
+        let mut wire = Wire::new(std::io::Cursor::new(input), &mut out);
+        assert_eq!(
+            wire.read_request()
+                .expect("the frame after the long-but-terminated line")
+                .command,
+            "threads"
+        );
+    }
+
+    #[test]
+    fn a_frame_at_the_cap_reads_and_one_byte_over_refuses() {
+        let json = br#"{"seq":1,"type":"request","command":"threads"}"#;
+        let mut body = json.to_vec();
+        body.resize(MAX_FRAME_BYTES, b' '); // trailing whitespace is legal JSON
+        let mut input = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
+        input.extend(&body);
+        let mut out: Vec<u8> = Vec::new();
+        let mut wire = Wire::new(std::io::Cursor::new(input), &mut out);
+        assert_eq!(
+            wire.read_request().expect("at-cap frame reads").command,
+            "threads"
+        );
+
+        let mut body = json.to_vec();
+        body.resize(MAX_FRAME_BYTES + 1, b' ');
+        let mut input = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
+        input.extend(&body);
+        let mut out: Vec<u8> = Vec::new();
+        let mut wire = Wire::new(std::io::Cursor::new(input), &mut out);
+        assert!(
+            wire.read_request().is_none(),
+            "one byte past the cap is refused before the allocation"
         );
     }
 

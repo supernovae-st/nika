@@ -95,5 +95,12 @@ timeout boundary (spec 03 · catchable · never retryable).
    2026-07-08 · the InferLocalError precedent). **Trigger** · the
    admitting arc's follow-up allocates a registry range + Pattern A
    impl · the allowlist row dies with it.
+4. **`RecoverError`** (nika-dap `recover.rs`) — born typed at the
+   crate's admission (2026-07-09 · the Gate-11 swarm's FCI-019 fix:
+   `recover_events` returned a bare `String`). Exempted
+   `transport-surface` (allowlist row · the LspError/McpError class):
+   an L4 forensic-read error that never crosses into the
+   workflow/verb plane — every consumer renders `Display` as its
+   env-class message. Zero NIKA range owed.
 
 🦋

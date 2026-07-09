@@ -191,6 +191,11 @@ enum Command {
         /// (`explain_version: 1` · the check report's own vocabulary).
         #[arg(long)]
         json: bool,
+        /// File form only: include the learned-truth forecast — duration/
+        /// cost/risk priors from YOUR local traces (stats over
+        /// `.nika/traces/` · never a model call · never the network).
+        #[arg(long)]
+        forecast: bool,
     },
     /// Diagnose the environment (binary · config · provider keys · spec §8).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
@@ -689,7 +694,11 @@ fn main() -> std::process::ExitCode {
         Command::Welcome { json, ascii } => {
             emit(&verbs::welcome::run(json, with_ascii(plain_theme, ascii)))
         }
-        Command::Explain { code, json } => emit(&explain_dispatch(&code, json, plain_theme)),
+        Command::Explain {
+            code,
+            json,
+            forecast,
+        } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
         Command::Init { dir, force, yes } => emit(&verbs::init::run(&dir, force, yes, plain_theme)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target.into(), &dir)),
@@ -697,14 +706,7 @@ fn main() -> std::process::ExitCode {
         Command::Schema => emit(&verbs::pack_surface::schema()),
         Command::Catalog { json } => emit(&verbs::catalog::run(json)),
         Command::Tools { json } => emit(&verbs::tools::run(json)),
-        Command::Examples { action } => match action.unwrap_or(ExamplesAction::List) {
-            ExamplesAction::List => emit(&verbs::pack_surface::examples_list()),
-            ExamplesAction::Show { slug } => emit(&verbs::pack_surface::examples_show(&slug)),
-            // The L3 run verb shipped — execute the embedded example for real.
-            ExamplesAction::Run { slug, model } => {
-                verbs::run::example(&slug, model.as_deref(), plain_theme)
-            }
-        },
+        Command::Examples { action } => examples_verb(action, plain_theme),
         Command::New { from, dest, force } => emit(&verbs::new::dispatch(
             from.as_deref(),
             dest.as_deref(),
@@ -721,7 +723,7 @@ fn main() -> std::process::ExitCode {
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
         // `exit` without a prior `shutdown`) — the server-process
         // convention, NOT the verb FILE/WORKFLOW/ENV taxonomy.
-        Command::Dap => verbs::dap::run_stdio(),
+        Command::Dap => nika_dap::run_stdio(),
         Command::Lsp => match nika_lsp::run_stdio() {
             Ok(()) => verbs::exit::OK,
             Err(err) => {
@@ -757,6 +759,18 @@ fn emit(out: &VerbOutput) -> u8 {
 
 /// Dispatch the `trace` verb family: the live renders (replay · show)
 /// plus the static readers (outputs · peek · flow).
+/// The `examples` sub-verbs — list · show · run-for-real (L3 shipped).
+fn examples_verb(action: Option<ExamplesAction>, plain_theme: Theme) -> u8 {
+    match action.unwrap_or(ExamplesAction::List) {
+        ExamplesAction::List => emit(&verbs::pack_surface::examples_list()),
+        ExamplesAction::Show { slug } => emit(&verbs::pack_surface::examples_show(&slug)),
+        // The L3 run verb shipped — execute the embedded example for real.
+        ExamplesAction::Run { slug, model } => {
+            verbs::run::example(&slug, model.as_deref(), plain_theme)
+        }
+    }
+}
+
 fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
     match action {
         TraceAction::Replay(args) => trace_render(&args, true, color, link_when),
@@ -1050,7 +1064,7 @@ fn load_events(args: &TraceArgs) -> Result<Vec<Event>, String> {
 /// tolerant reader (the SAME one `nika run --resume` folds through — one
 /// recovery contract, two consumers) and surfaces the truncation note here.
 fn recover_events(raw: &str, label: &str) -> Result<Vec<Event>, String> {
-    let recovered = verbs::run::recover_events(raw, label)?;
+    let recovered = verbs::run::recover_events(raw, label).map_err(|e| e.to_string())?;
     if let Some(note) = &recovered.truncated_note {
         eprintln!("nika-cli: {note} — rendering the recovered prefix");
     }

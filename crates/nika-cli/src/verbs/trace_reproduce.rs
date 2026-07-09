@@ -40,11 +40,11 @@ pub fn reproduce(recorded: &str, fresh: &str) -> VerbOutput {
     };
     let rec = match super::run::recover_events(&rec_raw, recorded) {
         Ok(r) => r,
-        Err(e) => return VerbOutput::env(e),
+        Err(e) => return VerbOutput::env(e.to_string()),
     };
     let new = match super::run::recover_events(&new_raw, fresh) {
         Ok(r) => r,
-        Err(e) => return VerbOutput::env(e),
+        Err(e) => return VerbOutput::env(e.to_string()),
     };
 
     // The identity guard: reproduce pairs two runs of the SAME
