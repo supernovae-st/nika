@@ -93,20 +93,20 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/explain-forecast`                                      |
-| HEAD             | `330be3969` (`330be39692d8d6a307e299a340a74b3af86bad25`)             |
+| branch           | `feat/image-fx-builtin`                                      |
+| HEAD             | `a5ac4b913` (`a5ac4b9132b276008d22ee66631af60907c96fe4`)             |
 | workspace        | v0.98.0                                  |
-| crates (workspace)| 43                                              |
+| crates (workspace)| 44                                              |
 | crates (admitted)| 43 / 42                                   |
-| crates (WIP)     | 0 —                                   |
+| crates (WIP)     | 1 — nika-fx                                  |
 | L0               | 11                                              |
 | L0.5             | 6                                              |
-| L1               | 12                                              |
+| L1               | 13                                              |
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 5                                              |
-| lib tests        | 3659 passed, 0 failed                              |
+| lib tests        | 3740 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 | field            | value                                          |
