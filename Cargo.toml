@@ -41,6 +41,10 @@ layers.nika-pack = "L0"
 # nika-cli · the operator surface (D-2026-06-10-N6 first-15-min suite) · seeded
 # 2026-06-11 with the display fold + trace verbs per docs/crate-specs/nika-cli.md.
 layers.nika-cli = "L4"
+# nika-dap · the DAP replay server + the shared forensic seams (recover ·
+# chain · source_id) · split from nika-cli's verbs/dap 2026-07-09 (the
+# crate-size cap · the nika-cap precedent).
+layers.nika-dap = "L4"
 layers.nika-lsp = "L4"
 # nika-mcp · the in-binary MCP server (announce floor `nika mcp`) · hand-rolled
 # newline-delimited JSON-RPC 2.0 over stdio (serde_json only · zero SDK) ·
