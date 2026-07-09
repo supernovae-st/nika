@@ -10,6 +10,60 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **`nika explain --forecast` — learned truth before a run.** Duration,
+  cost and risk priors computed from YOUR local traces (`.nika/traces/`)
+  — deterministic stats, never a model call, never the network. The
+  honesty ladder is a type: never-run says so · one run is « last run » ·
+  2-4 runs earn a min–max range · p50/p90 bands are earned at n ≥ 5
+  (Hyndman & Fan type-7, the numpy/R default). Costs compose the `≥`
+  floor whenever unpriced spend participates — absence stays a dash,
+  never `$0`. Retried-then-passed counts as flaky, never failed; cache
+  hits and other-model runs are excluded from bands and named. The
+  section auto-appears in `nika explain <file>` once 3 runs exist; the
+  flag forces it, and `--json` gains a versioned `forecast` key
+  (internally-tagged rungs — consumers tolerate unknown kinds).
+- **The missing-input trap is taught at check time** — `nika check`
+  prints an `[inputs]` HINT when a `nika:read` path that resolves
+  statically (a literal, or one `${{ vars.X }}` with a literal default)
+  does not exist here; never an error — the file may appear at run
+  time, and anything dynamic is never guessed
+  (`nika_schema::check::static_read_paths`, the pure half).
+- **The release tarball is funnel-gated** — `scripts/ci/funnel-e2e.sh`
+  plays the stranger's first path against the EXACT tarball about to
+  ship (clean HOME · offline · content asserts); a broken first-run
+  never uploads.
+
+### Fixed
+
+- **Fold verdicts are terminal kinds only** — a journal truncated after
+  its opening line no longer surfaces `workflow_started` as if the
+  crashed run had reached a state; `nika context` reads it as
+  honestly-unknown.
+
+### Changed
+
+- **`nika-dap::stats::conformal_upper` — the forecast's first THEOREM.**
+  A distribution-free, finite-sample upper prediction bound (split
+  conformal, order-statistic form): for exchangeable runs the NEXT one
+  falls at or below the k-th order statistic with probability ≥ k/(n+1),
+  exactly k/(n+1) for continuous data (arXiv:2411.11824 Thm 3.2). The
+  level arrives as a rational (the f64 route mis-computes the exact
+  feasibility frontier — 0.9·10 ceils to 10); nine runs earn a
+  guaranteed 90% bound, nineteen earn 95%. Proven by a deterministic
+  leave-one-out property test that COUNTS the theorem, never samples
+  it. Renderer wiring lands with forecast-R3.
+- **`nika-dap` is its own crate — the trace-forensics plane has one
+  home.** The DAP replay server moves out of `nika-cli` (the crate sat
+  at 98.9% of its size cap before the forecast landed), and the seams
+  every forensic reader shares descend with it: the tolerant NDJSON
+  reader (`recover_events`), the tamper-evidence chain walk
+  (`chain::walk` + ONE `CHAIN_GENESIS` the sink now imports — three
+  private sha256 copies unified), and the source-identity hashes.
+  `nika-cli` re-exports every seam at its old path — zero behavior
+  change, `nika dap` answers exactly as before.
+
 ## [0.98.0](https://github.com/supernovae-st/nika/compare/v0.97.0..v0.98.0) - 2026-07-08
 
 **Structured output goes native, the checker closes its gaps — and the

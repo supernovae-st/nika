@@ -30,6 +30,13 @@
 > 1.x minors, driven by the 11-crate Connectome cluster (1 L2 orchestrator + 10
 > L1 satellites · ratified 2026-06-11), `nika-embed`, WASM + sandbox. See
 > §Crate sequence.
+>
+> The target counts **architectural units, not workspace members**
+> (D-2026-07-09-N1): a size-cap descent (one crate splitting at the 15k
+> prod-LOC wall — `nika-cap` out of `nika-schema` · `nika-dap` out of
+> `nika-cli`) is the SAME unit in two members, named by parentage in the
+> descending crate's spec. A `43 / 42` census line is two members of the
+> cli unit, not a 43rd unit.
 
 **Philosophy: diamond-grade at every release, real semver toward 1.0**
 (amended D-2026-06-20-N1 · was "forever v0.x"). Nika ships a **1.0** at its first
@@ -86,20 +93,20 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/image-fx-builtin`                                      |
-| HEAD             | `ff8e37833` (`ff8e378331b4c2f793d6c6cf7021cd6bb6fd4fa1`)             |
+| branch           | `feat/explain-forecast`                                      |
+| HEAD             | `330be3969` (`330be39692d8d6a307e299a340a74b3af86bad25`)             |
 | workspace        | v0.98.0                                  |
 | crates (workspace)| 43                                              |
-| crates (admitted)| 42 / 42                                   |
-| crates (WIP)     | 1 — nika-fx                                  |
+| crates (admitted)| 43 / 42                                   |
+| crates (WIP)     | 0 —                                   |
 | L0               | 11                                              |
 | L0.5             | 6                                              |
-| L1               | 13                                              |
+| L1               | 12                                              |
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
-| L4               | 4                                              |
-| lib tests        | 3677 passed, 0 failed                              |
+| L4               | 5                                              |
+| lib tests        | 3659 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 | field            | value                                          |

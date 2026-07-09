@@ -3691,6 +3691,7 @@ dependencies = [
  "nika-builtin",
  "nika-catalog",
  "nika-clock",
+ "nika-dap",
  "nika-error",
  "nika-event",
  "nika-exec-runner",
@@ -3712,7 +3713,6 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
- "sha2",
  "tempfile",
  "tokio",
  "toml_edit",
@@ -3725,6 +3725,22 @@ version = "0.98.0"
 dependencies = [
  "nika-kernel",
  "tokio",
+]
+
+[[package]]
+name = "nika-dap"
+version = "0.98.0"
+dependencies = [
+ "nika-event",
+ "nika-schema",
+ "nika-types",
+ "proptest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.18",
+ "uuid",
 ]
 
 [[package]]

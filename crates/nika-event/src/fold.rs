@@ -107,7 +107,16 @@ pub fn fold_one(path: &Path) -> RunFact {
         .as_ref()
         .and_then(|t| t.get("kind"))
         .and_then(|k| k.as_str())
-        .filter(|k| k.starts_with("workflow_"))
+        // TERMINAL kinds only — a journal truncated after its opening
+        // line must fold to `None` (honestly unknown), never surface
+        // `workflow_started` as if a crashed run had reached a state
+        // (the V-arc e2e caught exactly that).
+        .filter(|k| {
+            matches!(
+                *k,
+                "workflow_completed" | "workflow_failed" | "workflow_paused"
+            )
+        })
         .map(str::to_owned);
     let cost_usd = tail
         .as_ref()
@@ -123,5 +132,58 @@ pub fn fold_one(path: &Path) -> RunFact {
         verdict,
         cost_usd,
         unpriced_calls,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncated_journal_folds_to_unknown_verdict() {
+        let dir = std::env::temp_dir().join(format!(
+            "nika-fold-test-{}-{}",
+            std::process::id(),
+            std::thread::current().name().map_or(0, str::len)
+        ));
+        std::fs::create_dir_all(&dir).unwrap_or(());
+        let path = dir.join("truncated.ndjson");
+        // A journal cut after its OPENING event — the exact V-arc repro:
+        // the head kind starts with `workflow_` but is NOT terminal.
+        std::fs::write(
+            &path,
+            "{\"kind\":\"workflow_started\",\"fields\":[{\"key\":\"workflow\",\"value\":\"demo\"}]}\n",
+        )
+        .expect("fixture write");
+        let fact = fold_one(&path);
+        assert_eq!(fact.workflow.as_deref(), Some("demo"));
+        assert_eq!(
+            fact.verdict, None,
+            "opening event must never read as a verdict"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn completed_tail_folds_to_terminal_verdict() {
+        let dir = std::env::temp_dir().join(format!(
+            "nika-fold-ok-{}-{}",
+            std::process::id(),
+            std::thread::current().name().map_or(0, str::len)
+        ));
+        std::fs::create_dir_all(&dir).unwrap_or(());
+        let path = dir.join("done.ndjson");
+        std::fs::write(
+            &path,
+            concat!(
+                "{\"kind\":\"workflow_started\",\"fields\":[{\"key\":\"workflow\",\"value\":\"demo\"}]}\n",
+                "{\"kind\":\"workflow_completed\",\"fields\":[{\"key\":\"total_cost_usd\",\"value\":0.5}]}\n",
+            ),
+        )
+        .expect("fixture write");
+        let fact = fold_one(&path);
+        assert_eq!(fact.verdict.as_deref(), Some("workflow_completed"));
+        assert_eq!(fact.cost_usd, Some(0.5));
+        let _ = std::fs::remove_file(&path);
     }
 }

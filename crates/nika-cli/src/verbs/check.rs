@@ -299,6 +299,22 @@ fn hints_and_verdict(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t
             h.advice
         );
     }
+    // The stranger's first trap (V-arc F1): statically-resolvable
+    // `nika:read` paths that do not exist HERE — a hint, never an
+    // error (the file may appear at run time). Analysis is
+    // nika-schema's; only the filesystem question lives at this edge.
+    for (task, path) in nika_schema::check::static_read_paths(wf)
+        .into_iter()
+        .filter(|(_, p)| !std::path::Path::new(p).exists())
+    {
+        hint_count += 1;
+        let _ = writeln!(
+            out,
+            " {} {}     [inputs] `{task}` reads `{path}` which does not exist here — create it (or point its var elsewhere) · the run would fail at that wave",
+            t.paint(Role::Accent, "↳"),
+            t.paint(Role::Strong, "HINT"),
+        );
+    }
     let inputs = required_inputs(wf);
     if !inputs.is_empty() {
         hint_count += 1;
@@ -615,6 +631,29 @@ pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_read_files_flags_static_literal_and_var_default() {
+        let dir = std::env::temp_dir().join(format!("nika-lint-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap_or(());
+        let present = dir.join("present.txt");
+        std::fs::write(&present, "x").expect("fixture");
+        let yaml = format!(
+            "nika: v1\nworkflow: w\nvars:\n  src: \"{missing}\"\ntasks:\n  - id: a\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ vars.src }}}}\" }}\n  - id: b\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{present}\" }}\n  - id: c\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ tasks.a.output }}}}\" }}\n",
+            missing = dir.join("missing.txt").display(),
+            present = present.display(),
+        );
+        let wf = parse_wf(&yaml);
+        let flagged: Vec<(String, String)> = nika_schema::check::static_read_paths(&wf)
+            .into_iter()
+            .filter(|(_, p)| !std::path::Path::new(p).exists())
+            .collect();
+        // `a` via var default → flagged · `b` exists → silent ·
+        // `c` dynamic (task ref) → the lint never guesses.
+        assert_eq!(flagged.len(), 1, "{flagged:?}");
+        assert_eq!(flagged[0].0, "a");
+        let _ = std::fs::remove_file(&present);
+    }
 
     #[test]
     fn pricing_section_rates_known_null_unknown() {

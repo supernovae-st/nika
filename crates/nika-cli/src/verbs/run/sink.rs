@@ -21,20 +21,10 @@ use uuid::Uuid;
 
 use crate::{RunView, Theme, frame, frame_with_outputs, verdict_frame};
 
-/// sha256 hex over exact bytes — the chain primitive (same shape as the
-/// run verb's source hasher; local to keep the sink self-contained).
-fn sha256_hex(bytes: &[u8]) -> String {
-    use sha2::{Digest as _, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(bytes);
-    let digest = hasher.finalize();
-    let mut hex = String::with_capacity(64);
-    for byte in digest {
-        use std::fmt::Write as _;
-        let _ = write!(hex, "{byte:02x}");
-    }
-    hex
-}
+// The chain primitive + genesis tag live in the forensics crate — the
+// sink WRITES the same chain the walk verifies (one constant, one hash).
+use nika_dap::chain::CHAIN_GENESIS;
+use nika_dap::source_id::sha256_hex;
 
 /// Where run journals land, relative to the run's CWD (the workspace
 /// root by convention — the editor extension watches exactly this
@@ -148,10 +138,6 @@ pub(super) struct TraceFileSink {
     /// Lines actually written (the anchor trio's count).
     written: usize,
 }
-
-/// The chain's genesis tag — the first line's `chain` field is the
-/// sha256 of these bytes, so an empty prefix is still committed.
-pub(super) const CHAIN_GENESIS: &[u8] = b"nika-trace-v1";
 
 impl TraceFileSink {
     /// An enabled journal rooted at `dir` (lazy — no fs effect here).

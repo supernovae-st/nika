@@ -42,8 +42,9 @@ pub(crate) struct ReplaySession {
     /// `(task id, 1-based start line)` in document order.
     task_lines: Vec<(String, u32)>,
     pub(crate) stops: Vec<Stop>,
-    /// Current stop index.
-    pub(crate) cursor: usize,
+    /// Current stop index — private: only this module's movement verbs
+    /// may steer it (the totality clamps are belt-and-braces on top).
+    cursor: usize,
     /// Verified breakpoint lines (snapped to task starts).
     breakpoints: Vec<u32>,
 }
@@ -79,7 +80,8 @@ impl ReplaySession {
     pub(crate) fn load(workflow_path: &str, replay_path: &str) -> Result<Self, String> {
         let yaml = bounded_read(workflow_path, "workflow")?;
         let raw = bounded_read(replay_path, "journal")?;
-        let recovered = super::super::run::recover_events(&raw, replay_path)?;
+        let recovered =
+            crate::recover::recover_events(&raw, replay_path).map_err(|e| e.to_string())?;
         let mut session = Self::from_parts(workflow_path, &yaml, &recovered.events)?;
         // A torn tail is the crashed-run scenario this debugger exists
         // for — the note was computed and then silently dropped here
@@ -90,8 +92,8 @@ impl ReplaySession {
         // block — coherent with tamper-EVIDENT), but the debugger says
         // so before the first stop.
         session.chain_broken = matches!(
-            super::super::trace_verify::walk(&raw),
-            super::super::trace_verify::Verdict::Broken { .. }
+            crate::chain::walk(&raw),
+            crate::chain::Verdict::Broken { .. }
         );
         Ok(session)
     }
@@ -108,11 +110,11 @@ impl ReplaySession {
             .iter()
             .find(|e| e.kind == EventKind::WorkflowStarted)?;
         let recorded = field_str(started, "workflow_sha256")?;
-        if super::super::run::sha256_hex(yaml.as_bytes()) == recorded {
+        if crate::source_id::sha256_hex(yaml.as_bytes()) == recorded {
             return Some(false);
         }
         let lf_sha =
-            super::super::run::sha256_hex(super::super::run::lf_normal_form(yaml).as_bytes());
+            crate::source_id::sha256_hex(crate::source_id::lf_normal_form(yaml).as_bytes());
         if lf_sha == recorded || field_str(started, "workflow_sha256_lf") == Some(lf_sha.as_str()) {
             return Some(false);
         }
@@ -233,7 +235,10 @@ impl ReplaySession {
 
     /// Backward to the previous breakpointed stop (floor: first stop).
     pub(crate) fn run_backward(&mut self) {
-        let mut i = self.cursor;
+        // Same totality law as current(): a wild cursor stands on the
+        // last stop (stops is non-empty by construction — from_parts
+        // refuses an empty journal).
+        let mut i = self.cursor.min(self.stops.len() - 1);
         while i > 0 {
             i -= 1;
             if self.breakpoints.contains(&self.stops[i].line) {
@@ -402,7 +407,7 @@ mod tests {
         assert_eq!(session().drifted, None);
 
         // A recorded sha that MATCHES the current bytes → not drifted.
-        let sha = crate::verbs::run::sha256_hex(YAML.as_bytes());
+        let sha = crate::source_id::sha256_hex(YAML.as_bytes());
         let make = |recorded: &str| {
             let events = vec![
                 ev(
@@ -424,7 +429,7 @@ mod tests {
         // the two re-encode cases; the LF normal forms agree — only a
         // content change may say drifted.
         let crlf = YAML.replace('\n', "\r\n");
-        let raw = |text: &str| super::super::super::run::sha256_hex(text.as_bytes());
+        let raw = |text: &str| crate::source_id::sha256_hex(text.as_bytes());
         let started = |fields: &[(&str, &str)]| vec![ev(1, EventKind::WorkflowStarted, fields)];
 
         // LF-recorded · current CRLF → the LF form matches the recorded raw.
@@ -488,5 +493,94 @@ mod tests {
     fn a_journal_without_settles_is_refused() {
         let only_start = vec![ev(1, EventKind::WorkflowStarted, &[("workflow", "demo")])];
         assert!(ReplaySession::from_parts("/w.nika.yaml", YAML, &only_start).is_err());
+    }
+
+    #[test]
+    fn the_launch_cap_sits_at_the_documented_boundary() {
+        // The doc comment and the error message both speak 64 MiB —
+        // arithmetic drift in the constant would silently move the
+        // contract, so the figure and the strictly-greater guard are
+        // both pinned here (sparse files: no real 64 MiB is written).
+        assert_eq!(MAX_LAUNCH_FILE_BYTES, 67_108_864);
+        let dir = std::env::temp_dir().join(format!("nika-dap-cap-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let at_cap = dir.join("at-cap.ndjson");
+        std::fs::File::create(&at_cap)
+            .and_then(|f| f.set_len(MAX_LAUNCH_FILE_BYTES))
+            .expect("sparse at-cap file");
+        assert!(
+            bounded_read(at_cap.to_str().expect("utf8"), "journal").is_ok(),
+            "exactly AT the cap reads — the guard is strictly-greater"
+        );
+        let over = dir.join("over.ndjson");
+        std::fs::File::create(&over)
+            .and_then(|f| f.set_len(MAX_LAUNCH_FILE_BYTES + 1))
+            .expect("sparse over file");
+        let err = bounded_read(over.to_str().expect("utf8"), "journal")
+            .expect_err("one byte over refuses");
+        assert!(err.contains("exceeds the 64 MiB launch cap"), "{err}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn every_terminal_kind_becomes_a_stop() {
+        // failed · cancelled · cache hit each carry their own fold arm —
+        // losing one silently drops that settle from the replay.
+        let events = vec![
+            ev(1, EventKind::WorkflowStarted, &[("workflow", "demo")]),
+            ev(2, EventKind::TaskFailed, &[("task", "alpha")]),
+            ev(3, EventKind::TaskCancelled, &[("task", "beta")]),
+            ev(4, EventKind::TaskCacheHit, &[("task", "gamma")]),
+        ];
+        let s = ReplaySession::from_parts("/w.nika.yaml", YAML, &events).expect("builds");
+        let kinds: Vec<&str> = s.stops.iter().map(|st| st.kind).collect();
+        assert_eq!(kinds, ["failed", "cancelled", "cache hit"]);
+    }
+
+    #[test]
+    fn a_wild_cursor_is_clamped_by_the_total_indexing() {
+        // current()/variables()/run_backward() promise totality even
+        // for a cursor past the end — the defensive min IS the
+        // contract, not decoration.
+        let mut s = session();
+        s.cursor = 999;
+        assert_eq!(s.current().task, "gamma");
+        assert_eq!(s.variables().len(), 3, "the whole settled prefix");
+
+        // run_backward from a wild cursor: clamps to the last stop,
+        // then walks back INTO the breakpoint — no panic, no skip.
+        let beta_line = s.task_lines[1].1;
+        s.set_breakpoints(&[beta_line]);
+        s.cursor = 999;
+        s.run_backward();
+        assert_eq!(s.current().task, "beta");
+
+        // The clamp must land ON the last stop, not past it: standing
+        // (clamped) on gamma, a breakpoint on gamma itself is BEHIND
+        // no one — backward floors to the first stop, never re-lands
+        // on the stop it stands on (kills the len-vs-len-1 mutant).
+        let gamma_line = s.task_lines[2].1;
+        s.set_breakpoints(&[gamma_line]);
+        s.cursor = 999;
+        s.run_backward();
+        assert_eq!(
+            s.current().task,
+            "alpha",
+            "wild cursor stands ON the last stop — backward never re-visits it"
+        );
+    }
+
+    #[test]
+    fn run_backward_stops_at_the_previous_breakpoint() {
+        let mut s = session();
+        let beta_line = s.task_lines[1].1;
+        s.set_breakpoints(&[beta_line]);
+        s.cursor = 2;
+        s.run_backward();
+        assert_eq!(
+            s.current().task,
+            "beta",
+            "walks back INTO the breakpoint, never past it to the floor"
+        );
     }
 }

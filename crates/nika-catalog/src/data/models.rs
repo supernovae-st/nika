@@ -993,14 +993,10 @@ mod provenance_tests {
     /// canonical (provider, model) pair that should trigger it. If a rule
     /// is accidentally shadowed (e.g. `openai-gpt4-family` before
     /// `openai-gpt4o-family`), the corresponding assert below fails with a
-    /// message pointing at the offending rule.
-    // REASON: 120 lines exercise one (provider, model) per rule + a handful
-    // of per-rule assertions. Splitting into 28 one-rule tests would bloat
-    // the file with duplicated `use` + `let caps = …` boilerplate — keeping
-    // a single harness with contiguous asserts reads cleaner.
-    #[allow(clippy::too_many_lines)]
+    /// Session-2B per-rule provenance · [1]-[8] · the openai families (o-series · gpt4o/4p1/4 tokenizers) — one
+    /// (provider, model) probe per rule, failure names the rule.
     #[test]
-    fn session_2b_per_rule_provenance() {
+    fn session_2b_openai_rules() {
         // [1] openai-o-series-exact — o1 + o3 vision YES, developer role.
         let o3 = model_capabilities("openai", "o3");
         assert_eq!(
@@ -1093,7 +1089,12 @@ mod provenance_tests {
             Some(TokenizerFamily::Cl100k),
             "gpt-4 legacy: cl100k (GPT-4 original, not 4.1/4o)"
         );
+    }
 
+    /// Session-2B per-rule provenance · [9] · claude on any provider (PDF + prompt-caching) — one
+    /// (provider, model) probe per rule, failure names the rule.
+    #[test]
+    fn session_2b_claude_any_provider() {
         // [9] claude-family-any-provider — PDF + prompt-caching.
         let claude = model_capabilities("anthropic", "claude-sonnet-4-5-20250929");
         assert_eq!(claude.tokenizer, Some(TokenizerFamily::ClaudeV3));
@@ -1121,7 +1122,12 @@ mod provenance_tests {
             claude.input_modalities.contains(&Modality::Pdf),
             "claude: PDF supported (all active models)"
         );
+    }
 
+    /// Session-2B per-rule provenance · [11]-[15] · deepseek json_object-only + the grok ladder — one
+    /// (provider, model) probe per rule, failure names the rule.
+    #[test]
+    fn session_2b_deepseek_and_xai() {
         // [11-12] deepseek — json_object only (NOT json_schema).
         let deepseek = model_capabilities("deepseek", "deepseek-chat");
         assert!(
@@ -1182,7 +1188,12 @@ mod provenance_tests {
             !grok3.input_modalities.contains(&Modality::Image),
             "grok-3: text-only (MUST override default=true)"
         );
+    }
 
+    /// Session-2B per-rule provenance · [16]-[22] · gemini PDF split + mistral vision/reasoning — one
+    /// (provider, model) probe per rule, failure names the rule.
+    #[test]
+    fn session_2b_gemini_and_mistral() {
         // [16-17] gemini — Pro has PDF, Flash does not.
         let gemini_pro = model_capabilities("gemini", "gemini-2.5-pro");
         assert!(
@@ -1236,7 +1247,12 @@ mod provenance_tests {
             Some(JsonMode::Schema),
             "codestral: json_schema on chat completions endpoint"
         );
+    }
 
+    /// Session-2B per-rule provenance · [23]+ · bedrock/openrouter prefixed claude routing — one
+    /// (provider, model) probe per rule, failure names the rule.
+    #[test]
+    fn session_2b_aggregator_prefixes() {
         // [23] bedrock-claude — anthropic.claude-* prefix.
         let bedrock_claude = model_capabilities("bedrock", "anthropic.claude-sonnet-4-6-v1:0");
         assert_eq!(

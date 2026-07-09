@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Vector 9: Org profile README mentions all 6 canonical repos.
+# Vector 9: Org profile README mentions every canonical public repo.
 set -u
 if ! command -v gh >/dev/null; then
   echo "gh not installed"
@@ -13,9 +13,10 @@ content="$(gh api repos/supernovae-st/.github/contents/profile/README.md --jq .c
 }
 
 missing=""
-# homebrew-tap was RENAMED homebrew-nika (2026-07-02 · GitHub redirects both);
-# nika-spec/nika-docs/nika-vscode joined the canonical set with the profile refresh.
-for repo in nika nika.sh nika-client nika-spec nika-docs nika-vscode homebrew-nika nika-site-audit; do
+# homebrew-nika was RENAMED homebrew-tap (canonical per api .full_name · GitHub
+# redirects the old name); nika-agents + nika-registry joined the profile with
+# the 2026-07-09 storefront-truth pass (.github#1).
+for repo in nika nika.sh nika-client nika-spec nika-docs nika-vscode nika-agents nika-registry homebrew-tap nika-site-audit; do
   echo "$content" | grep -q "$repo" || missing="${missing}${repo} "
 done
 
@@ -23,5 +24,25 @@ if [ -n "$missing" ]; then
   echo "missing from profile: ${missing}"
   exit 1
 fi
-echo "OK (all 6 repos listed)"
+
+# Counts parity · the profile quotes canon.yaml and MUST track it (the
+# 2026-07-09 storefront drift: « 14 providers, 23 builtin tools » lived on
+# the page for weeks while canon said 16/25 · stress-to-ratchet graduation,
+# ≥3 same-class incidents that day). canon.yaml is the SSOT — when a count
+# moves there, this goes RED until the vitrine follows.
+canon="$(curl -fsSL --max-time 15 https://raw.githubusercontent.com/supernovae-st/nika-spec/main/canon.yaml 2>/dev/null)"
+if [ -n "$canon" ]; then
+  verbs="$(echo "$canon" | awk '/^counts:/{f=1} f && /^  verbs:/{print $2; exit}')"
+  providers="$(echo "$canon" | awk '/^counts:/{f=1} f && /^  providers:/{print $2; exit}')"
+  builtins="$(echo "$canon" | awk '/^counts:/{f=1} f && /^  builtins:/{print $2; exit}')"
+  expected="${verbs} verbs, ${providers} providers, ${builtins} builtin tools"
+  if ! echo "$content" | grep -q "$expected"; then
+    echo "counts drift: profile lacks \"$expected\" (canon.yaml is the SSOT)"
+    exit 1
+  fi
+else
+  echo "warn: canon.yaml unreachable — counts parity skipped"
+fi
+
+echo "OK (all canonical repos listed · counts match canon)"
 exit 0

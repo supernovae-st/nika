@@ -50,7 +50,7 @@ use std::collections::BTreeSet;
 
 use crate::expression::{Expr, Literal, RelOp, scan_templates, task_output_paths};
 use crate::raw::{RawAction, RawTask, RawWorkflow};
-use crate::types::{CaptureMode, OnErrorAction};
+use crate::types::{CaptureMode, OnErrorAction, VarDecl};
 
 /// One advisory improvement with its concrete unlock.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -552,6 +552,60 @@ fn visit_json(value: &serde_json::Value, visit: &mut dyn FnMut(&str)) {
         }
         serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {}
     }
+}
+
+/// Resolve an invoke arg to a STATIC string when it is a plain literal
+/// or a single `${{ vars.X }}` whose declaration carries a literal
+/// default — the two shapes a scaffold ships. Anything dynamic (task
+/// refs · env · concatenations) resolves to `None`: analysis never
+/// guesses.
+fn static_string_arg(wf: &RawWorkflow, value: &serde_json::Value) -> Option<String> {
+    let s = value.as_str()?;
+    let trimmed = s.trim();
+    if !trimmed.contains("${{") {
+        return Some(trimmed.to_owned());
+    }
+    let inner = trimmed.strip_prefix("${{")?.strip_suffix("}}")?.trim();
+    let var = inner.strip_prefix("vars.")?;
+    if var.contains(['.', '[']) {
+        return None;
+    }
+    wf.vars.iter().find_map(|(name, decl)| {
+        if name.value != var {
+            return None;
+        }
+        let default = match decl {
+            VarDecl::Untyped(v) => Some(v),
+            VarDecl::Typed { default, .. } => default.as_ref(),
+        };
+        default.and_then(|d| d.as_str()).map(str::to_owned)
+    })
+}
+
+/// Every `nika:read` whose `path` arg resolves STATICALLY — the pure
+/// half of the missing-input lint (V-arc F1 2026-07-09): the analyzer
+/// names the (task · path) pairs, the CALLER decides what existence
+/// means on its side of the I/O boundary (the CLI checks the local
+/// filesystem; a server might check an artifact store).
+#[must_use]
+pub fn static_read_paths(wf: &RawWorkflow) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for task in &wf.tasks {
+        let RawAction::Invoke(invoke) = &task.value.action else {
+            continue;
+        };
+        if invoke.tool.value != "nika:read" {
+            continue;
+        }
+        let Some(args) = &invoke.args else { continue };
+        let Some(path_val) = args.value.get("path") else {
+            continue;
+        };
+        if let Some(path) = static_string_arg(wf, path_val) {
+            out.push((task.value.id.value.clone(), path));
+        }
+    }
+    out
 }
 
 fn hint(kind: &'static str, task: &str, advice: String) -> Hint {

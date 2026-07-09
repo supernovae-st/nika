@@ -1,0 +1,219 @@
+pub mod nika_dap
+pub mod nika_dap::chain
+#[non_exhaustive] pub enum nika_dap::chain::Verdict
+#[non_exhaustive] pub nika_dap::chain::Verdict::Broken
+pub nika_dap::chain::Verdict::Broken::computed: alloc::string::String
+pub nika_dap::chain::Verdict::Broken::line: usize
+pub nika_dap::chain::Verdict::Broken::recorded: alloc::string::String
+pub nika_dap::chain::Verdict::Empty
+#[non_exhaustive] pub nika_dap::chain::Verdict::Intact
+pub nika_dap::chain::Verdict::Intact::events: usize
+pub nika_dap::chain::Verdict::Intact::head: alloc::string::String
+#[non_exhaustive] pub nika_dap::chain::Verdict::TornTail
+pub nika_dap::chain::Verdict::TornTail::events: usize
+pub nika_dap::chain::Verdict::TornTail::head: alloc::string::String
+pub nika_dap::chain::Verdict::Unchained
+#[non_exhaustive] pub nika_dap::chain::Verdict::Unreadable
+pub nika_dap::chain::Verdict::Unreadable::line: usize
+impl<D> owo_colors::OwoColorize for nika_dap::chain::Verdict
+impl<T, U> core::convert::Into<U> for nika_dap::chain::Verdict where U: core::convert::From<T>
+pub fn nika_dap::chain::Verdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::chain::Verdict where U: core::convert::Into<T>
+pub type nika_dap::chain::Verdict::Error = core::convert::Infallible
+pub fn nika_dap::chain::Verdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::chain::Verdict where U: core::convert::TryFrom<T>
+pub type nika_dap::chain::Verdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::chain::Verdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::chain::Verdict where T: 'static + ?core::marker::Sized
+pub fn nika_dap::chain::Verdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::chain::Verdict where T: ?core::marker::Sized
+pub fn nika_dap::chain::Verdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::chain::Verdict where T: ?core::marker::Sized
+pub fn nika_dap::chain::Verdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::chain::Verdict
+pub fn nika_dap::chain::Verdict::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::chain::Verdict where T: 'static
+pub fn nika_dap::chain::Verdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::chain::Verdict
+pub type nika_dap::chain::Verdict::Output = T
+pub const nika_dap::chain::CHAIN_GENESIS: &[u8]
+pub fn nika_dap::chain::walk(raw: &str) -> nika_dap::chain::Verdict
+pub mod nika_dap::recover
+#[non_exhaustive] pub enum nika_dap::recover::RecoverError
+pub nika_dap::recover::RecoverError::BadFirstLine
+pub nika_dap::recover::RecoverError::BadFirstLine::label: alloc::string::String
+pub nika_dap::recover::RecoverError::BadFirstLine::line: usize
+pub nika_dap::recover::RecoverError::BadFirstLine::source: serde_json::error::Error
+pub nika_dap::recover::RecoverError::Empty
+pub nika_dap::recover::RecoverError::Empty::label: alloc::string::String
+impl core::error::Error for nika_dap::recover::RecoverError
+pub fn nika_dap::recover::RecoverError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_dap::recover::RecoverError
+pub fn nika_dap::recover::RecoverError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_dap::recover::RecoverError
+pub fn nika_dap::recover::RecoverError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::recover::RecoverError
+impl<T, U> core::convert::Into<U> for nika_dap::recover::RecoverError where U: core::convert::From<T>
+pub fn nika_dap::recover::RecoverError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::recover::RecoverError where U: core::convert::Into<T>
+pub type nika_dap::recover::RecoverError::Error = core::convert::Infallible
+pub fn nika_dap::recover::RecoverError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::recover::RecoverError where U: core::convert::TryFrom<T>
+pub type nika_dap::recover::RecoverError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::recover::RecoverError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_dap::recover::RecoverError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_dap::recover::RecoverError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_dap::recover::RecoverError where T: 'static + ?core::marker::Sized
+pub fn nika_dap::recover::RecoverError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::recover::RecoverError where T: ?core::marker::Sized
+pub fn nika_dap::recover::RecoverError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::recover::RecoverError where T: ?core::marker::Sized
+pub fn nika_dap::recover::RecoverError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::recover::RecoverError
+pub fn nika_dap::recover::RecoverError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::recover::RecoverError where T: 'static
+pub fn nika_dap::recover::RecoverError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::recover::RecoverError
+pub type nika_dap::recover::RecoverError::Output = T
+#[non_exhaustive] pub struct nika_dap::recover::RecoveredTrace
+pub nika_dap::recover::RecoveredTrace::events: alloc::vec::Vec<nika_event::event::Event>
+pub nika_dap::recover::RecoveredTrace::truncated_note: core::option::Option<alloc::string::String>
+impl nika_dap::recover::RecoveredTrace
+pub fn nika_dap::recover::RecoveredTrace::new(events: alloc::vec::Vec<nika_event::event::Event>, truncated_note: core::option::Option<alloc::string::String>) -> Self
+impl core::fmt::Debug for nika_dap::recover::RecoveredTrace
+pub fn nika_dap::recover::RecoveredTrace::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::recover::RecoveredTrace
+impl<T, U> core::convert::Into<U> for nika_dap::recover::RecoveredTrace where U: core::convert::From<T>
+pub fn nika_dap::recover::RecoveredTrace::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::recover::RecoveredTrace where U: core::convert::Into<T>
+pub type nika_dap::recover::RecoveredTrace::Error = core::convert::Infallible
+pub fn nika_dap::recover::RecoveredTrace::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::recover::RecoveredTrace where U: core::convert::TryFrom<T>
+pub type nika_dap::recover::RecoveredTrace::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::recover::RecoveredTrace::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::recover::RecoveredTrace where T: 'static + ?core::marker::Sized
+pub fn nika_dap::recover::RecoveredTrace::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::recover::RecoveredTrace where T: ?core::marker::Sized
+pub fn nika_dap::recover::RecoveredTrace::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::recover::RecoveredTrace where T: ?core::marker::Sized
+pub fn nika_dap::recover::RecoveredTrace::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::recover::RecoveredTrace
+pub fn nika_dap::recover::RecoveredTrace::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::recover::RecoveredTrace where T: 'static
+pub fn nika_dap::recover::RecoveredTrace::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::recover::RecoveredTrace
+pub type nika_dap::recover::RecoveredTrace::Output = T
+pub fn nika_dap::recover::recover_events(raw: &str, label: &str) -> core::result::Result<nika_dap::recover::RecoveredTrace, nika_dap::recover::RecoverError>
+pub mod nika_dap::source_id
+pub fn nika_dap::source_id::lf_normal_form(source: &str) -> alloc::borrow::Cow<'_, str>
+pub fn nika_dap::source_id::sha256_hex(bytes: &[u8]) -> alloc::string::String
+pub mod nika_dap::stats
+#[non_exhaustive] pub enum nika_dap::stats::Prior
+pub nika_dap::stats::Prior::Bands
+pub nika_dap::stats::Prior::Bands::max: f64
+pub nika_dap::stats::Prior::Bands::min: f64
+pub nika_dap::stats::Prior::Bands::n: usize
+pub nika_dap::stats::Prior::Bands::p50: f64
+pub nika_dap::stats::Prior::Bands::p90: f64
+pub nika_dap::stats::Prior::LastRun
+pub nika_dap::stats::Prior::LastRun::value: f64
+pub nika_dap::stats::Prior::NeverRan
+pub nika_dap::stats::Prior::Range
+pub nika_dap::stats::Prior::Range::max: f64
+pub nika_dap::stats::Prior::Range::min: f64
+pub nika_dap::stats::Prior::Range::n: usize
+impl nika_dap::stats::Prior
+pub fn nika_dap::stats::Prior::from_finite(values: &[f64]) -> Self
+pub const fn nika_dap::stats::Prior::n(&self) -> usize
+impl core::clone::Clone for nika_dap::stats::Prior
+pub fn nika_dap::stats::Prior::clone(&self) -> nika_dap::stats::Prior
+impl core::cmp::PartialEq for nika_dap::stats::Prior
+pub fn nika_dap::stats::Prior::eq(&self, other: &nika_dap::stats::Prior) -> bool
+impl core::fmt::Debug for nika_dap::stats::Prior
+pub fn nika_dap::stats::Prior::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::stats::Prior
+impl core::marker::StructuralPartialEq for nika_dap::stats::Prior
+impl serde_core::ser::Serialize for nika_dap::stats::Prior
+pub fn nika_dap::stats::Prior::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_dap::stats::Prior
+impl<T, U> core::convert::Into<U> for nika_dap::stats::Prior where U: core::convert::From<T>
+pub fn nika_dap::stats::Prior::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::stats::Prior where U: core::convert::Into<T>
+pub type nika_dap::stats::Prior::Error = core::convert::Infallible
+pub fn nika_dap::stats::Prior::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::stats::Prior where U: core::convert::TryFrom<T>
+pub type nika_dap::stats::Prior::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::stats::Prior::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::stats::Prior where T: core::clone::Clone
+pub type nika_dap::stats::Prior::Owned = T
+pub fn nika_dap::stats::Prior::clone_into(&self, target: &mut T)
+pub fn nika_dap::stats::Prior::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::stats::Prior where T: 'static + ?core::marker::Sized
+pub fn nika_dap::stats::Prior::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::stats::Prior where T: ?core::marker::Sized
+pub fn nika_dap::stats::Prior::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::stats::Prior where T: ?core::marker::Sized
+pub fn nika_dap::stats::Prior::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::stats::Prior where T: core::clone::Clone
+pub unsafe fn nika_dap::stats::Prior::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::stats::Prior
+pub fn nika_dap::stats::Prior::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::stats::Prior where T: core::clone::Clone
+pub fn nika_dap::stats::Prior::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::stats::Prior where T: 'static
+pub fn nika_dap::stats::Prior::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::stats::Prior where T: core::marker::Copy
+pub fn nika_dap::stats::Prior::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_dap::stats::Prior
+pub type nika_dap::stats::Prior::Output = T
+#[non_exhaustive] pub struct nika_dap::stats::ConformalUpper
+pub nika_dap::stats::ConformalUpper::bound: f64
+pub nika_dap::stats::ConformalUpper::k: usize
+pub nika_dap::stats::ConformalUpper::n: usize
+impl nika_dap::stats::ConformalUpper
+pub fn nika_dap::stats::ConformalUpper::new(bound: f64, k: usize, n: usize) -> Self
+impl core::clone::Clone for nika_dap::stats::ConformalUpper
+pub fn nika_dap::stats::ConformalUpper::clone(&self) -> nika_dap::stats::ConformalUpper
+impl core::cmp::PartialEq for nika_dap::stats::ConformalUpper
+pub fn nika_dap::stats::ConformalUpper::eq(&self, other: &nika_dap::stats::ConformalUpper) -> bool
+impl core::fmt::Debug for nika_dap::stats::ConformalUpper
+pub fn nika_dap::stats::ConformalUpper::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::stats::ConformalUpper
+impl core::marker::StructuralPartialEq for nika_dap::stats::ConformalUpper
+impl serde_core::ser::Serialize for nika_dap::stats::ConformalUpper
+pub fn nika_dap::stats::ConformalUpper::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_dap::stats::ConformalUpper
+impl<T, U> core::convert::Into<U> for nika_dap::stats::ConformalUpper where U: core::convert::From<T>
+pub fn nika_dap::stats::ConformalUpper::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::stats::ConformalUpper where U: core::convert::Into<T>
+pub type nika_dap::stats::ConformalUpper::Error = core::convert::Infallible
+pub fn nika_dap::stats::ConformalUpper::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::stats::ConformalUpper where U: core::convert::TryFrom<T>
+pub type nika_dap::stats::ConformalUpper::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::stats::ConformalUpper::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::stats::ConformalUpper where T: core::clone::Clone
+pub type nika_dap::stats::ConformalUpper::Owned = T
+pub fn nika_dap::stats::ConformalUpper::clone_into(&self, target: &mut T)
+pub fn nika_dap::stats::ConformalUpper::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::stats::ConformalUpper where T: 'static + ?core::marker::Sized
+pub fn nika_dap::stats::ConformalUpper::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::stats::ConformalUpper where T: ?core::marker::Sized
+pub fn nika_dap::stats::ConformalUpper::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::stats::ConformalUpper where T: ?core::marker::Sized
+pub fn nika_dap::stats::ConformalUpper::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::stats::ConformalUpper where T: core::clone::Clone
+pub unsafe fn nika_dap::stats::ConformalUpper::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::stats::ConformalUpper
+pub fn nika_dap::stats::ConformalUpper::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::stats::ConformalUpper where T: core::clone::Clone
+pub fn nika_dap::stats::ConformalUpper::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::stats::ConformalUpper where T: 'static
+pub fn nika_dap::stats::ConformalUpper::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::stats::ConformalUpper where T: core::marker::Copy
+pub fn nika_dap::stats::ConformalUpper::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_dap::stats::ConformalUpper
+pub type nika_dap::stats::ConformalUpper::Output = T
+pub const nika_dap::stats::BANDS_MIN_N: usize
+pub fn nika_dap::stats::conformal_upper(sorted: &[f64], num: u32, den: u32) -> core::option::Option<nika_dap::stats::ConformalUpper>
+pub fn nika_dap::stats::quantile_h7(sorted: &[f64], q: f64) -> core::option::Option<f64>
+pub fn nika_dap::run_stdio() -> u8
