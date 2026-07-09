@@ -616,7 +616,7 @@ fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme) -> VerbOutput 
     // The audit runs NOW — the ladder on screen inside the first minute
     // is the product's argument (a red ladder would honestly propagate,
     // but a fresh scaffold checks clean by the templates' own-corpus law).
-    let audit = crate::verbs::check::run(&dest, false, false, theme);
+    let audit = crate::verbs::check::run(&dest, false, false, None, theme);
     let q = shell_quote(&dest);
     let next = format!(
         "next ·\n  $EDITOR {q}                   # fill the remaining `# SLOT:` lines\n  nika run {q}                  # execute · live render (mock is offline · $0.00)\n\n{}",
