@@ -52,6 +52,7 @@ pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use cost::{CostCeiling, TaskCost, UnboundedReason};
 pub use flow::{FlowFacts, TaintTrace};
 pub use hints::Hint;
+pub use hints::static_read_paths;
 pub use infer_permits::InferredPermits;
 pub use permits_fit::CapabilityEscape;
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};

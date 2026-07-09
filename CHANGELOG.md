@@ -10,6 +10,26 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **The missing-input trap is taught at check time** — `nika check`
+  prints an `[inputs]` HINT when a `nika:read` path that resolves
+  statically (a literal, or one `${{ vars.X }}` with a literal default)
+  does not exist here; never an error — the file may appear at run
+  time, and anything dynamic is never guessed
+  (`nika_schema::check::static_read_paths`, the pure half).
+- **The release tarball is funnel-gated** — `scripts/ci/funnel-e2e.sh`
+  plays the stranger's first path against the EXACT tarball about to
+  ship (clean HOME · offline · content asserts); a broken first-run
+  never uploads.
+
+### Fixed
+
+- **Fold verdicts are terminal kinds only** — a journal truncated after
+  its opening line no longer surfaces `workflow_started` as if the
+  crashed run had reached a state; `nika context` reads it as
+  honestly-unknown.
+
 ## [0.98.0](https://github.com/supernovae-st/nika/compare/v0.97.0..v0.98.0) - 2026-07-08
 
 **Structured output goes native, the checker closes its gaps — and the
