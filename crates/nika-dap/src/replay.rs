@@ -42,8 +42,9 @@ pub(crate) struct ReplaySession {
     /// `(task id, 1-based start line)` in document order.
     task_lines: Vec<(String, u32)>,
     pub(crate) stops: Vec<Stop>,
-    /// Current stop index.
-    pub(crate) cursor: usize,
+    /// Current stop index — private: only this module's movement verbs
+    /// may steer it (the totality clamps are belt-and-braces on top).
+    cursor: usize,
     /// Verified breakpoint lines (snapped to task starts).
     breakpoints: Vec<u32>,
 }
@@ -234,7 +235,10 @@ impl ReplaySession {
 
     /// Backward to the previous breakpointed stop (floor: first stop).
     pub(crate) fn run_backward(&mut self) {
-        let mut i = self.cursor;
+        // Same totality law as current(): a wild cursor stands on the
+        // last stop (stops is non-empty by construction — from_parts
+        // refuses an empty journal).
+        let mut i = self.cursor.min(self.stops.len() - 1);
         while i > 0 {
             i -= 1;
             if self.breakpoints.contains(&self.stops[i].line) {
@@ -535,12 +539,21 @@ mod tests {
 
     #[test]
     fn a_wild_cursor_is_clamped_by_the_total_indexing() {
-        // current()/variables() promise totality even for a cursor past
-        // the end — the defensive min IS the contract, not decoration.
+        // current()/variables()/run_backward() promise totality even
+        // for a cursor past the end — the defensive min IS the
+        // contract, not decoration.
         let mut s = session();
         s.cursor = 999;
         assert_eq!(s.current().task, "gamma");
         assert_eq!(s.variables().len(), 3, "the whole settled prefix");
+
+        // run_backward from a wild cursor: clamps to the last stop,
+        // then walks back INTO the breakpoint — no panic, no skip.
+        let beta_line = s.task_lines[1].1;
+        s.set_breakpoints(&[beta_line]);
+        s.cursor = 999;
+        s.run_backward();
+        assert_eq!(s.current().task, "beta");
     }
 
     #[test]
