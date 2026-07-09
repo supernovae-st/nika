@@ -1,10 +1,19 @@
 //! Embedded palettes (zero-dep · operator lock « pas de dépendances »).
 //!
-//! · Categorical: Okabe-Ito CVD-safe set (jfly.uni-koeln.de/color · web
-//!   resource, no DOI exists) — series order starts at blue.
+//! · Categorical: Okabe-Ito CVD-safe hues, PER-MODE steps — dark mode is a
+//!   selected palette (its own steps validated against the dark surface),
+//!   never an automatic flip. Both sets pass the six computable checks
+//!   (lightness band L 0.43–0.77 light / 0.48–0.67 dark · chroma ≥ 0.1 ·
+//!   adjacent CVD ΔE ≥ 12 [worst pair 20.7] · contrast vs surface) — run,
+//!   never eyeballed. Light differs from canonical Okabe-Ito in ONE slot:
+//!   #F0E442 (yellow · 1.29:1 on white, invisible as a thin mark) re-steps
+//!   to #A08C00 within the same hue.
 //! · Sequential: viridis 10-anchor LUT (`SciPy` 2015 talk · no paper) · sRGB
 //!   lerp between anchors (Lab-space lerp = v1.5 refinement).
-//! · Diverging: Moreland cool-warm 3-anchor (ISVC 2009) for `delta` (midpoint 0).
+//! · Diverging: Moreland cool-warm 3-anchor (ISVC 2009) for `delta` — the
+//!   midpoint must read as « nothing », so it is per-mode too (light gray on
+//!   light · near-surface graphite on dark; a WHITE midpoint on a dark
+//!   surface makes « no change » the loudest thing on the chart).
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -13,23 +22,45 @@
     clippy::cast_possible_wrap,
     clippy::many_single_char_names
 )] // color ramp lerp (r/g/b/t idiom)
-/// Okabe-Ito series colors (black reserved for text · yellow last — weak on white).
-const OKABE_ITO: [&str; 7] = [
+/// Okabe-Ito hues stepped for the LIGHT surface (#ffffff) — black reserved
+/// for text · the gold slot last (weakest identity work).
+pub const CATEGORICAL_LIGHT: [&str; 7] = [
     "#0072B2", // blue
     "#E69F00", // orange
     "#009E73", // bluish green
     "#D55E00", // vermilion
     "#CC79A7", // reddish purple
     "#56B4E9", // sky blue
-    "#F0E442", // yellow
+    "#A08C00", // gold (Okabe-Ito yellow re-stepped into the lightness band)
+];
+
+/// The SAME seven hues stepped for the DARK surface (#0f1318) — every slot
+/// ≥ 3:1 against it (strict, no relief needed in dark).
+pub const CATEGORICAL_DARK: [&str; 7] = [
+    "#1E88CF", // blue
+    "#BC8100", // orange
+    "#009E73", // bluish green
+    "#D55E00", // vermilion
+    "#C05E93", // reddish purple
+    "#3E9BD6", // sky blue
+    "#A39500", // gold
 ];
 
 /// Categorical color for series index (cycles past 7 — the lint upstream
-/// warns at >8 categories per CHT §3ter).
+/// warns at >8 categories per CHT §3ter). LIGHT step — the single-document
+/// SVG swaps to [`CATEGORICAL_DARK`] via its `<style>` classes; PNG and
+/// Vega-Lite (single-mode surfaces) render this set.
 #[must_use]
 pub fn categorical(i: usize) -> &'static str {
-    let idx = i % OKABE_ITO.len();
-    OKABE_ITO.get(idx).copied().unwrap_or("#0072B2")
+    let idx = i % CATEGORICAL_LIGHT.len();
+    CATEGORICAL_LIGHT.get(idx).copied().unwrap_or("#0072B2")
+}
+
+/// Dark-mode step for the same series index (parity with [`categorical`]).
+#[must_use]
+pub fn categorical_dark(i: usize) -> &'static str {
+    let idx = i % CATEGORICAL_DARK.len();
+    CATEGORICAL_DARK.get(idx).copied().unwrap_or("#1E88CF")
 }
 
 /// Viridis anchors (matplotlib canonical 10-stop).
@@ -48,6 +79,11 @@ const VIRIDIS: [(u8, u8, u8); 10] = [
 
 /// Moreland cool-warm anchors (RGB 59,76,192 · 221,221,221 · 180,4,38).
 const COOLWARM: [(u8, u8, u8); 3] = [(59, 76, 192), (221, 221, 221), (180, 4, 38)];
+
+/// Cool-warm re-anchored for the DARK surface: the arms lift toward
+/// legibility on #0f1318 and the midpoint drops to near-surface graphite —
+/// « no change » must recede, not glow.
+const COOLWARM_DARK: [(u8, u8, u8); 3] = [(110, 139, 239), (58, 65, 73), (226, 91, 99)];
 
 fn lerp_channel(a: u8, b: u8, t: f64) -> u8 {
     let v = (f64::from(a) + (f64::from(b) - f64::from(a)) * t).round();
@@ -80,6 +116,41 @@ pub fn viridis(t: f64) -> String {
 #[must_use]
 pub fn coolwarm(t: f64) -> String {
     ramp(&COOLWARM, t)
+}
+
+/// Dark-mode diverging ramp (near-surface midpoint · lifted arms).
+#[must_use]
+pub fn coolwarm_dark(t: f64) -> String {
+    ramp(&COOLWARM_DARK, t)
+}
+
+/// Heatmap cells and their legend share ONE quantized scale — this many
+/// discrete bins (the legend already swore « never a gradient »; the cells
+/// keep the same promise, and the bin index doubles as the per-mode CSS
+/// class so ONE document renders both themes).
+pub const DIVERGING_BINS: usize = 8;
+
+/// Quantize t ∈ `[0,1]` onto the shared diverging bins → bin index.
+#[must_use]
+pub fn diverging_bin(t: f64) -> usize {
+    let t = t.clamp(0.0, 1.0);
+    ((t * DIVERGING_BINS as f64) as usize).min(DIVERGING_BINS - 1)
+}
+
+/// The LIGHT fill for a diverging bin (bin midpoint sampled on the ramp).
+#[must_use]
+pub fn diverging_bin_light(bin: usize) -> String {
+    coolwarm(bin_center(bin))
+}
+
+/// The DARK fill for a diverging bin.
+#[must_use]
+pub fn diverging_bin_dark(bin: usize) -> String {
+    coolwarm_dark(bin_center(bin))
+}
+
+fn bin_center(bin: usize) -> f64 {
+    (bin.min(DIVERGING_BINS - 1) as f64 + 0.5) / DIVERGING_BINS as f64
 }
 
 /// Chrome constants (one place · one voice).
