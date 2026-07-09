@@ -88,8 +88,9 @@ See [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md).
 + 8 data (jq · json_diff · validate · json_merge_patch · convert · uuid · date · hash)
 + 2 introspection (inspect · view-discriminated · 4 views cost/records/dag_info/threads · compose · agent-loop self-check)
 + 2 network (fetch · notify)
-+ 1 media (image_generate · the first §Media graduate · 2026-07-05)
-= **24 canonical builtins** (Stdlib v0.1 · consolidated · was 42 · `jq` subsumes 13 data builtins · validators merged into `validate` · `task_status`/`orchestrate`/`locale_lookup` cut · `sleep`+`wait_until` merged into unified `nika:wait` per ADR-087 · `cost`+`records`+`dag_info`+`threads` merged into unified `nika:inspect` per ADR-088 · ZERO capability loss)
++ 2 media (image_generate · §Media graduate #1 · 2026-07-05 · image_fx · §Media graduate #3 · deterministic artistic effects · 2026-07-09)
++ 1 audio (tts_generate · §Audio · sovereign-first · 2026-07-05)
+= **26 canonical builtins** (Stdlib v0.1 · consolidated · was 42 · `jq` subsumes 13 data builtins · validators merged into `validate` · `task_status`/`orchestrate`/`locale_lookup` cut · `sleep`+`wait_until` merged into unified `nika:wait` per ADR-087 · `cost`+`records`+`dag_info`+`threads` merged into unified `nika:inspect` per ADR-088 · ZERO capability loss)
 (+ the remaining media class · **deferred** to stdlib v0.x · NOT in the v0.1 count)
 
 See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md).

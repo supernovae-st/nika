@@ -79,7 +79,7 @@ mod tests {
     fn enum_has_25_entries() {
         let schema = nika_builtin_tool_enum_schema();
         let arr = schema["enum"].as_array().expect("enum must be array");
-        assert_eq!(arr.len(), 25, "expected 25 spec-canonical builtins");
+        assert_eq!(arr.len(), 26, "expected 26 spec-canonical builtins");
     }
 
     #[test]

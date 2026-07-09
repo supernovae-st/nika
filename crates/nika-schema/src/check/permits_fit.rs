@@ -256,6 +256,15 @@ pub(super) fn builtin_effect(a: &RawInvokeAction) -> Option<BuiltinEffect> {
             writes: true,
             recursive: true,
         }),
+        // `nika:image_fx` — the WRITE side (`out:`) is the statically-
+        // checkable effect; the `input:` read is runtime-gated inside the
+        // builtin (the image edit-mode precedent · one path_arg per effect).
+        "nika:image_fx" => Some(BuiltinEffect::Fs {
+            path_arg: "out",
+            reads: false,
+            writes: true,
+            recursive: false,
+        }),
         _ => None,
     }
 }

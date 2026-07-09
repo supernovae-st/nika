@@ -4,7 +4,7 @@
 # Consumers · the reference engine embeds this pack (nika examples ·
 # nika spec) · docs + website render projections of the same files.
 pack_version: 0.1.0-draft
-workflow_count: 28
+workflow_count: 29
 foundation:
   - file: examples/01-hello.nika.yaml
     sha256_16: 91fc4a92dfeedafb
@@ -27,6 +27,8 @@ templates:
     sha256_16: 11bf108efc4f6880
   - file: templates/chain.nika.yaml
     sha256_16: 8f4cfd3538943b22
+  - file: templates/docker-report.nika.yaml
+    sha256_16: b4ae2ca559888e0e
   - file: templates/etl-state.nika.yaml
     sha256_16: cba8dcdc952eedc0
   - file: templates/fanout.nika.yaml
@@ -88,6 +90,12 @@ showcase:
     description: "Ledger CSV \u2192 overdue filter \u2192 drafted reminders \u2192 human gate \u2192 drafts file"
     constructs: [local_model, outputs, when]
     sha256_16: 4591dea823c838cc
+  - file: examples/showcase/t2-model-bench.nika.yaml
+    workflow: model-bench
+    tier: T2
+    description: "One question \u2192 three local models \u2192 a measured comparison table"
+    constructs: [local_model, typed_vars]
+    sha256_16: 4eae94b937f78275
   - file: examples/showcase/t2-release-notes.nika.yaml
     workflow: release-notes
     tier: T2

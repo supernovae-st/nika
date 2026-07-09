@@ -34,6 +34,7 @@ pub mod date;
 pub mod defs;
 pub mod file;
 pub mod image;
+pub mod image_fx;
 pub mod inspect;
 pub(crate) mod media;
 pub mod net;
@@ -453,6 +454,16 @@ where
             )
             .await),
             "tts_generate" => Ok(self.route_tts(args).await),
+            // media 3 — pure deterministic transform (NO provider plane ·
+            // NO keys · NO clock): input read + `out:` write both ride the
+            // permits.fs boundary; pixel work runs on the blocking pool.
+            "image_fx" => Ok(image_fx::run(
+                self.fs.as_ref(),
+                self.emitter.as_ref(),
+                &self.fs_boundary,
+                args,
+            )
+            .await),
             // introspection 2
             "compose" => Ok(core_tools::compose()),
             "inspect" => Ok(inspect::inspect(self.workflow.as_ref(), args)),
@@ -803,7 +814,7 @@ mod tests {
         }
         // …and the count is the canonical 25 (stdlib v0.1 · +compose per
         // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio).
-        assert_eq!(tool_defs().len(), 25);
+        assert_eq!(tool_defs().len(), 26);
     }
 
     #[tokio::test]
@@ -863,7 +874,7 @@ mod tests {
         let defs = ToolDefinitionProviderDyn::tool_defs(&rig())
             .await
             .expect("enumerates");
-        assert_eq!(defs.len(), 25);
+        assert_eq!(defs.len(), 26);
         assert!(defs.iter().all(|d| d.name.starts_with(NAMESPACE)));
         assert!(defs.iter().all(|d| !d.description.is_empty()));
         assert!(

@@ -154,7 +154,7 @@ mod tests {
         // introspection → 1) + ADR-087 wait (sleep + wait_until → 1) +
         // ADR-086 convert (csv_to_json → 1) + D-2026-05-22-N6
         // stdlib-collapse 42→26.
-        assert_eq!(all_builtins().len(), 25);
+        assert_eq!(all_builtins().len(), 26);
     }
 
     #[test]

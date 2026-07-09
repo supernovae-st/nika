@@ -419,6 +419,16 @@ infer:
 
 (Note · YAML escaping of backslash · `\\` in double-quoted strings · `\` in single-quoted or block scalars.)
 
+**Backslash runs (normative)** · the escape counts the CONTIGUOUS backslash
+run immediately before `${{` · an **odd** run escapes the opener (the island
+is literal text; the escaping backslash is consumed) · an **even** run
+(including zero) leaves the island **live**. Within that run, each remaining
+backslash PAIR renders as one literal backslash; backslashes anywhere else
+are ordinary characters (there is no general backslash processing). So
+`\${{ x }}` renders the literal `${{ x }}` · `\\${{ x }}` renders one `\`
+followed by the RESOLVED island · `\\\${{ x }}` renders one `\` + the
+literal `${{ x }}`.
+
 An **unclosed `${{`** (an unescaped opener with no closing `}}`) is rejected at
 parse time · `NIKA-VAR-008` · `validation_error`: the substitution surface belongs
 to this section, even though the YAML itself parses fine.
