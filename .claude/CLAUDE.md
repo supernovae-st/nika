@@ -142,7 +142,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 5                                              |
-| lib tests        | 3740 passed, 0 failed                              |
+| lib tests        | 3743 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 | field            | value                                          |

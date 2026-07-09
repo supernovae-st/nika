@@ -405,15 +405,10 @@ mod tests {
         transform(&test_card(200, 120), &ok, "t").expect("normal ascii png renders");
     }
 
-    /// Per-op golden matrix — one pinned artifact hash per single-op
-    /// pipeline over the standard card. Kills the arithmetic-mutant class
-    /// inside every op (a flipped `*`/`+`/shift anywhere flips the hash).
-    /// Regenerate: run with `RENDER_GOLDENS=1` and copy the printed table.
-    #[test]
-    #[allow(clippy::too_many_lines, clippy::print_stdout)] // the length IS the pin table · regen prints
-    fn golden_per_op_matrix_sha256_pinned() {
-        let input = test_card(64, 48);
-        let table: Vec<(&str, Op, &str)> = vec![
+    /// Golden pin table — geometry + tone ops (resize · crop · levels ·
+    /// grayscale · `palette_map`).
+    fn golden_table_geometry_tone() -> Vec<(&'static str, Op, &'static str)> {
+        vec![
             (
                 "resize_auto",
                 Op::Resize {
@@ -471,6 +466,12 @@ mod tests {
                 },
                 "be44bc2c65de285bdcf763994d5c936d678bebed62237ed8b265029d4215020d",
             ),
+        ]
+    }
+
+    /// Golden pin table — the seven dither modes.
+    fn golden_table_dither() -> Vec<(&'static str, Op, &'static str)> {
+        vec![
             (
                 "dither_bayer4",
                 Op::Dither {
@@ -527,6 +528,12 @@ mod tests {
                 },
                 "c39833e52f40c217905ced667da366839006642492926e90231a51c7b331694a",
             ),
+        ]
+    }
+
+    /// Golden pin table — texture + raster ops (duotone → `ascii_png`).
+    fn golden_table_texture_raster() -> Vec<(&'static str, Op, &'static str)> {
+        vec![
             (
                 "duotone",
                 Op::Duotone {
@@ -596,7 +603,20 @@ mod tests {
                 },
                 "627d69b21220c3dd0097b3ba253dc0d4d99eff7f6d24a9eda28348c0e2d183ae",
             ),
-        ];
+        ]
+    }
+
+    /// Per-op golden matrix — one pinned artifact hash per single-op
+    /// pipeline over the standard card. Kills the arithmetic-mutant class
+    /// inside every op (a flipped `*`/`+`/shift anywhere flips the hash).
+    /// Regenerate: run with `RENDER_GOLDENS=1` and copy the printed table.
+    #[test]
+    #[allow(clippy::print_stdout)] // regen prints the table
+    fn golden_per_op_matrix_sha256_pinned() {
+        let input = test_card(64, 48);
+        let mut table = golden_table_geometry_tone();
+        table.extend(golden_table_dither());
+        table.extend(golden_table_texture_raster());
         let mut regen = String::new();
         let mut failures = Vec::new();
         for (name, op, pinned) in &table {

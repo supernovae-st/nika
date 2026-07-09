@@ -512,13 +512,18 @@ mod tests {
         assert!(matches!(validate(&bad_palette), Err(FxError::Args(_))));
     }
 
-    /// Boundary matrix — every validated range at its exact limits.
-    /// Kills the `>`↔`>=` / `||`↔`&&` mutant class: at-limit MUST pass,
-    /// one-past MUST fail, for every knob.
+    /// Boundary runner — at-limit MUST pass, one-past MUST fail, for every
+    /// knob. Kills the `>`↔`>=` / `||`↔`&&` mutant class in `validate`.
+    fn assert_boundary(cases: Vec<(Op, bool)>) {
+        for (op, expect_ok) in cases {
+            let r = validate(&FxArgs::new(vec![op.clone()], 0));
+            assert_eq!(r.is_ok(), expect_ok, "op {op:?} → {r:?}");
+        }
+    }
+
+    /// Boundary matrix — geometry knobs (resize · crop) at exact limits.
     #[test]
-    #[allow(clippy::too_many_lines)] // the length IS the case table
-    fn validate_boundary_matrix() {
-        let ok_pal = || Palette::Preset(PresetPalette::Bw);
+    fn validate_boundary_matrix_geometry() {
         let cases: Vec<(Op, bool)> = vec![
             // resize dims: 1..=16384
             (
@@ -597,6 +602,14 @@ mod tests {
                 },
                 false,
             ),
+        ];
+        assert_boundary(cases);
+    }
+
+    /// Boundary matrix — tone knobs (levels · palette · dither) at limits.
+    #[test]
+    fn validate_boundary_matrix_tone() {
+        let cases: Vec<(Op, bool)> = vec![
             // levels: ±255 / ±128
             (
                 Op::Levels {
@@ -665,6 +678,23 @@ mod tests {
                 },
                 false,
             ),
+            // dither shares the palette rule
+            (
+                Op::Dither {
+                    mode: DitherMode::Bayer4,
+                    palette: Palette::Preset(PresetPalette::Bw),
+                },
+                true,
+            ),
+        ];
+        assert_boundary(cases);
+    }
+
+    /// Boundary matrix — texture knobs (pixelate · halftone · grain ·
+    /// vignette · chromatic aberration · scanlines) at exact limits.
+    #[test]
+    fn validate_boundary_matrix_texture() {
+        let cases: Vec<(Op, bool)> = vec![
             // pixelate: 2..=256
             (Op::Pixelate { block: 2 }, true),
             (Op::Pixelate { block: 256 }, true),
@@ -746,6 +776,14 @@ mod tests {
                 },
                 false,
             ),
+        ];
+        assert_boundary(cases);
+    }
+
+    /// Boundary matrix — glitch + ascii knobs at limits · the ops-list cap.
+    #[test]
+    fn validate_boundary_matrix_glitch_ascii_and_cap() {
+        let cases: Vec<(Op, bool)> = vec![
             // glitch: ≤64/≤16/≤64 · ≥1 non-zero
             (
                 Op::Glitch {
@@ -824,19 +862,8 @@ mod tests {
                 },
                 false,
             ),
-            // dither shares the palette rule
-            (
-                Op::Dither {
-                    mode: DitherMode::Bayer4,
-                    palette: ok_pal(),
-                },
-                true,
-            ),
         ];
-        for (op, expect_ok) in cases {
-            let r = validate(&FxArgs::new(vec![op.clone()], 0));
-            assert_eq!(r.is_ok(), expect_ok, "op {op:?} → {r:?}");
-        }
+        assert_boundary(cases);
         // ops-list cap: 32 ok · 33 rejected · 0 rejected
         let op = Op::Grayscale;
         assert!(validate(&FxArgs::new(vec![op.clone(); 32], 0)).is_ok());
