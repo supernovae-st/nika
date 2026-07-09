@@ -24,7 +24,7 @@ Three nested levels · increasing scope ·
 |---|---|---|
 | **Core** | Parse + validate · DAG semantics · variable resolution · error structure | Linters · spec editors · static analyzers |
 | **Runtime** | Core + verb execution | Working engine (with own provider/tool impls) |
-| **Stdlib v0.1** | Runtime + the <!-- canon:providers -->16<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->26<!-- /canon --> builtins | Full reference-impl-equivalent engine |
+| **Stdlib v0.1** | Runtime + the <!-- canon:providers -->16<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->27<!-- /canon --> builtins | Full reference-impl-equivalent engine |
 
 A higher level **includes** the lower levels.
 

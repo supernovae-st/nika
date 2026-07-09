@@ -3592,6 +3592,7 @@ dependencies = [
  "json-patch",
  "jsonschema",
  "nika-catalog",
+ "nika-chart",
  "nika-extract",
  "nika-fs",
  "nika-fx",
@@ -3677,6 +3678,10 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
 ]
+
+[[package]]
+name = "nika-chart"
+version = "0.98.0"
 
 [[package]]
 name = "nika-cli"

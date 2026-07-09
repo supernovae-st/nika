@@ -29,6 +29,15 @@ use BuiltinCategory::{Core, Data, File, Introspection, Media, Network};
 /// This is validated by a unit test.
 pub static ALL_BUILTINS: &[Builtin] = &[
     Builtin::with_required("assert", Core, &["condition", "message"], &["condition"]),
+    // `chart` (stdlib §Media graduate #3 candidate · CHT master plan ·
+    // deterministic zero-dep renderer · byte-identical SVG · sha256 → trace
+    // chain · NIKA-BUILTIN-CHART-001..008 · pure compute + one gated write).
+    Builtin::with_required(
+        "chart",
+        Media,
+        &["data", "semantics", "chart", "out", "compile_to"],
+        &["data", "chart", "out"],
+    ),
     // `compose` (the agent loop's self-verification intrinsic — checks a
     // workflow draft the model wrote · `nika check`: conformance +
     // secret-flow + permits + the AARA certificate · never executes it ·
@@ -225,7 +234,7 @@ mod tests {
 
     #[test]
     fn builtin_count() {
-        assert_eq!(ALL_BUILTINS.len(), 26);
+        assert_eq!(ALL_BUILTINS.len(), 27);
     }
 
     #[test]
@@ -243,7 +252,15 @@ mod tests {
     #[test]
     fn find_known_builtins() {
         // Sample across all 6 categories.
-        let names = ["wait", "read", "jq", "fetch", "inspect", "image_generate"];
+        let names = [
+            "wait",
+            "read",
+            "jq",
+            "fetch",
+            "inspect",
+            "image_generate",
+            "chart",
+        ];
         for name in names {
             assert!(find_builtin(name).is_some(), "builtin `{name}` not found");
         }
@@ -318,13 +335,13 @@ mod tests {
             "expected 2 introspection builtins (inspect runtime · compose static · ADR-096)"
         );
         assert_eq!(
-            media, 3,
-            "expected 3 media builtins (image_generate §Media · tts_generate §Audio · image_fx §Media)"
+            media, 4,
+            "expected 4 media builtins (chart §Media · image_fx §Media · image_generate §Media · tts_generate §Audio)"
         );
         assert_eq!(
             core + file + data + network + intro + media,
-            26,
-            "total must equal 26"
+            27,
+            "total must equal 27"
         );
     }
 

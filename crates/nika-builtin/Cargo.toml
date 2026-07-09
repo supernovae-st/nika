@@ -1,6 +1,6 @@
 [package]
 name          = "nika-builtin"
-description   = "The 24 canonical stdlib builtins (core 6 · file 5 · data 8 · network 2 · introspection 2 · media 1) behind ONE dispatcher implementing the three kernel tool seams — ToolExecuteDyn + ToolBatchDyn + ToolDefinitionProviderDyn. Spec: docs/crate-specs/nika-builtin.md (normative contracts: nika-spec stdlib/builtins-v0.1.md)."
+description   = "The 26 canonical stdlib builtins (core 6 · file 5 · data 8 · network 2 · introspection 2 · media 3) behind ONE dispatcher implementing the three kernel tool seams — ToolExecuteDyn + ToolBatchDyn + ToolDefinitionProviderDyn. Spec: docs/crate-specs/nika-builtin.md (normative contracts: nika-spec stdlib/builtins-v0.1.md)."
 version.workspace      = true
 edition.workspace      = true
 license.workspace      = true
@@ -15,6 +15,7 @@ nika-kernel = { path = "../nika-kernel", version = "0.98.0" }   # the 3 tool sea
 nika-extract = { path = "../nika-extract", version = "0.98.0" }  # nika:fetch — the extract modes + page digest (L1.5→L1.5 same-layer)
 nika-fx      = { path = "../nika-fx", version = "0.98.0" }  # nika:image_fx — deterministic artistic effects (L1 pure-algo · zero-dep)
 nika-types   = { path = "../nika-types", version = "0.98.0" }    # fetch traverse bound — ONE definition with the static checker
+nika-chart   = { path = "../nika-chart", version = "0.98.0" }    # nika:chart — deterministic artifacts (zero-dep · byte-identical SVG · sha256 → trace chain)
 url           = { workspace = true }   # traverse — same-origin math + normalization (the WHATWG parse the transport uses)
 # data wave
 jaq-core      = { workspace = true }   # nika:jq — THE data language

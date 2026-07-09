@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtins
 
-> **<!-- canon:builtins -->26<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
+> **<!-- canon:builtins -->27<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
 > Invoked via `invoke: tool: "nika:<name>"`. Plus the remaining media
 > builtins deferred to stdlib v0.x (opt-in feature flag).
 >
@@ -40,10 +40,10 @@
 | Data | 8 | `jq` (THE data language) + 7 capabilities jq can't express (json_diff · validate · json_merge_patch · convert · uuid · date · hash) |
 | Introspection | 2 | Self-awareness · `inspect` (runtime state · 4 views) · `compose` (static check of a drafted workflow · agent loops only) |
 | Network | 2 | fetch (HTTP+extraction) · notify (alerts out) |
-| Media | 2 | `image_generate` (§Media · 2026-07-05) · `tts_generate` (§Audio · same day) — the REST of the media class stays deferred to stdlib v0.x |
-| **Total v0.1** | **25** | |
+| Media | 3 | `chart` (§Media #3 · deterministic/attested · 2026-07-09) · `image_generate` (§Media · 2026-07-05) · `tts_generate` (§Audio · same day) — the REST of the media class stays deferred to stdlib v0.x |
+| **Total v0.1** | **26** | |
 
-A Stdlib v0.1-compliant engine MUST ship these 25.
+A Stdlib v0.1-compliant engine MUST ship these 26.
 
 ---
 
@@ -364,7 +364,43 @@ Throws · `NIKA-BUILTIN-INSPECT-001` if `view:` value not in the canonical enum.
 
 ---
 
-## Media builtins (3)
+## Media builtins (4)
+
+
+### `nika:chart` · deterministic chart artifacts (§Media graduate #4)
+
+```yaml
+invoke:
+  tool: "nika:chart"
+  args:
+    data: "${{ steps.metrics.output }}"   # rows · array of flat objects (strings + numbers) · or { path: <json file> }
+    semantics: { period: timestamp, cost: usd, provider: category }
+    chart:
+      type: line                          # bar | line | area_band | scatter | heatmap (closed)
+      x: period                           # field names · y_lo/y_hi = area_band bounds · y2 = actual overlay
+      y: cost                             # color = series split (heatmap: the value field)
+      title: "Cost over time"
+    out: report/cost-over-time.svg        # .svg REQUIRED — SVG is the attestation surface
+    compile_to: vega_lite                 # optional · also writes the .vl.json sibling
+```
+
+Pure compute + ONE permit-gated write (`out:` rides `permits.fs.write` ·
+a `data.path` source rides `permits.fs.read`). No network, no clock, no
+keys — identical `(spec, data)` produce **byte-identical SVG** on every
+platform, re-runs are idempotent (hash-equal artifacts are never
+rewritten), and `outputs:` carries the receipts: `path · sha256 ·
+data_sha256 · width · height · bytes · wrote · warnings`.
+
+The semantic map drives presentation (`usd` money grain · `duration_ms`
+humanized · `tokens` k/M · `delta` ⇒ diverging palette anchored at 0 ·
+`percent` · `timestamp` · `count` · `category` — closed set). Encoding
+honesty is built in: bars always anchor zero · **predictions are dashed,
+observations solid** (area_band) · decimation (LTTB) keeps extremes and
+warns — the DATA hash still covers every row.
+
+Errors are `NIKA-BUILTIN-CHART-001..008` (001 empty data · 002 unknown
+field · 003 non-finite · 004 invalid spec/closed-enum · 005 domain
+collapsed · 006 type mismatch · 007 too many points · 008 I/O).
 
 ### `nika:image_generate` · provider-backed image asset generation
 
@@ -674,11 +710,12 @@ Also cut · `nika:task_status` (use `${{ tasks.X.status }}`) · `nika:orchestrat
 
 ## Media builtins · the REST stays DEFERRED (stdlib v0.x)
 
-`image_generate` graduated 2026-07-05 · `image_fx` (the `image editing`
-row) graduated 2026-07-09 (both above). The remaining media class
-(pdf_extract · svg_render · chart · phash · provenance · …) is NOT
-enumerated in v0.1 (feature-flag in the reference engine · MAY graduate
-builtin-by-builtin per the 3-razor admission test). Deliberate
+`image_generate` graduated 2026-07-05 · `tts_generate` same arc ·
+`image_fx` graduated 2026-07-09 (the image *editing* row · §Media #3) ·
+`chart` graduated 2026-07-09 (above · §Media #4). The remaining media class
+(pdf_extract · svg_render · phash · provenance ·
+…) is NOT enumerated in v0.1 (feature-flag in the reference engine · MAY
+graduate builtin-by-builtin per the 3-razor admission test). Deliberate
 « less but better » (Rams 10).
 
 ---
@@ -701,4 +738,4 @@ external users · before the forever-clock).
 
 ---
 
-🦋 *<!-- canon:builtins -->26<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*
+🦋 *<!-- canon:builtins -->27<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*

@@ -50,6 +50,7 @@ pub fn builtin_shape_findings(tool: &str, args: Option<&serde_json::Value>) -> V
         }
         "nika:fetch" => check_fetch_shape(args, &mut out),
         "nika:image_generate" => check_image_generate_shape(args, &mut out),
+        "nika:chart" => check_chart_shape(args, &mut out),
         "nika:image_fx" => check_image_fx_shape(args, &mut out),
         "nika:tts_generate" => check_tts_generate_shape(args, &mut out),
         _ => {}
@@ -184,6 +185,100 @@ fn check_image_fx_op_enums(
             }
         }
         _ => {}
+    }
+}
+
+/// `nika:chart` static contracts (stdlib §Media · CHT): the closed
+/// `type`/`semantic`/`compile_to` enums + the per-type channel requirements,
+/// mirroring the runtime parser (`nika-builtin::chart` — same values,
+/// caught at check time instead of after compute). Templated values
+/// (`${{ … }}`) are runtime business — statically silent.
+fn check_chart_shape(args: Option<&serde_json::Value>, out: &mut Vec<String>) {
+    let object = args.and_then(serde_json::Value::as_object);
+    let chart = object
+        .and_then(|o| o.get("chart"))
+        .and_then(serde_json::Value::as_object);
+    let literal =
+        |map: Option<&serde_json::Map<String, serde_json::Value>>, key: &str| -> Option<String> {
+            let value = map?.get(key)?.as_str()?;
+            (!value.contains("${{")).then(|| value.to_owned())
+        };
+
+    let chart_type = literal(chart, "type");
+    if let Some(t) = &chart_type
+        && !["bar", "line", "area_band", "scatter", "heatmap"].contains(&t.as_str())
+    {
+        out.push(format!(
+            "`chart.type: {t}` is not a chart type — the set is closed: \
+                 bar | line | area_band | scatter | heatmap \
+                 (NIKA-BUILTIN-CHART-004)"
+        ));
+    }
+    match (chart_type.as_deref(), chart) {
+        (Some("area_band"), Some(c)) => {
+            if !c.contains_key("y_lo") || !c.contains_key("y_hi") {
+                out.push(
+                    "`chart.type: area_band` requires `y_lo:` and `y_hi:` band bounds \
+                     (NIKA-BUILTIN-CHART-004)"
+                        .to_owned(),
+                );
+            }
+        }
+        (Some("heatmap"), Some(c)) => {
+            if !c.contains_key("color") {
+                out.push(
+                    "`chart.type: heatmap` requires `color:` (the value field) \
+                     (NIKA-BUILTIN-CHART-004)"
+                        .to_owned(),
+                );
+            }
+        }
+        _ => {}
+    }
+    if let Some(target) = literal(object, "compile_to")
+        && target != "vega_lite"
+    {
+        out.push(format!(
+            "`compile_to: {target}` is unknown — the set is closed: vega_lite \
+             (NIKA-BUILTIN-CHART-004)"
+        ));
+    }
+    if let Some(path) = literal(object, "out")
+        && !std::path::Path::new(&path)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
+    {
+        out.push(format!(
+            "`out: {path}` must end in .svg — SVG is the attestation surface \
+             (NIKA-BUILTIN-CHART-004)"
+        ));
+    }
+    if let Some(semantics) = object
+        .and_then(|o| o.get("semantics"))
+        .and_then(serde_json::Value::as_object)
+    {
+        const SET: [&str; 8] = [
+            "usd",
+            "duration_ms",
+            "tokens",
+            "count",
+            "delta",
+            "percent",
+            "timestamp",
+            "category",
+        ];
+        for (field, value) in semantics {
+            if let Some(name) = value.as_str()
+                && !name.contains("${{")
+                && !SET.contains(&name)
+            {
+                out.push(format!(
+                    "`semantics.{field}: {name}` is not a semantic — the set is closed: \
+                         usd | duration_ms | tokens | count | delta | percent | timestamp | \
+                         category (NIKA-BUILTIN-CHART-004)"
+                ));
+            }
+        }
     }
 }
 

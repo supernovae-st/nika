@@ -1,0 +1,27 @@
+[package]
+name          = "nika-chart"
+description   = "Deterministic chart compiler+renderer — rows + semantic spec → byte-identical SVG (sha256 → trace chain) · Vega-Lite · TTY · PNG. Zero dependencies. Layer L0 — pure, zero I/O, zero async."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io. See ADR-022.
+
+# ZERO runtime dependencies (operator lock 2026-07-09 · CHT G-gates) —
+# sha256, PNG/deflate, base64, palettes, fonts and tick labeling are
+# implemented in-crate from primary sources (FIPS 180-4 · RFC 1950/1951 ·
+# W3C PNG-3 · RFC 4648 · Talbot-Lin-Hanrahan 2010).
+[dependencies]
+
+[package.metadata.lore]
+daemon        = "scribe"
+archetype     = "receipt-drafter"
+spirit_role   = "dessine les reçus du run · le même trait, éternellement"
+voice_pattern = "silent"
+layer         = "L0"
+
+[lints]
+workspace = true
