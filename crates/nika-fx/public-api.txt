@@ -13,13 +13,6 @@ impl core::fmt::Debug for nika_fx::args::AsciiEmit
 pub fn nika_fx::args::AsciiEmit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_fx::args::AsciiEmit
 impl core::marker::StructuralPartialEq for nika_fx::args::AsciiEmit
-impl core::marker::Freeze for nika_fx::args::AsciiEmit
-impl core::marker::Send for nika_fx::args::AsciiEmit
-impl core::marker::Sync for nika_fx::args::AsciiEmit
-impl core::marker::Unpin for nika_fx::args::AsciiEmit
-impl core::marker::UnsafeUnpin for nika_fx::args::AsciiEmit
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::AsciiEmit
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::AsciiEmit
 impl<T, U> core::convert::Into<U> for nika_fx::args::AsciiEmit where U: core::convert::From<T>
 pub fn nika_fx::args::AsciiEmit::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::AsciiEmit where U: core::convert::Into<T>
@@ -60,13 +53,6 @@ impl core::fmt::Debug for nika_fx::args::DitherMode
 pub fn nika_fx::args::DitherMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_fx::args::DitherMode
 impl core::marker::StructuralPartialEq for nika_fx::args::DitherMode
-impl core::marker::Freeze for nika_fx::args::DitherMode
-impl core::marker::Send for nika_fx::args::DitherMode
-impl core::marker::Sync for nika_fx::args::DitherMode
-impl core::marker::Unpin for nika_fx::args::DitherMode
-impl core::marker::UnsafeUnpin for nika_fx::args::DitherMode
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::DitherMode
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::DitherMode
 impl<T, U> core::convert::Into<U> for nika_fx::args::DitherMode where U: core::convert::From<T>
 pub fn nika_fx::args::DitherMode::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::DitherMode where U: core::convert::Into<T>
@@ -140,13 +126,6 @@ pub fn nika_fx::args::Op::eq(&self, other: &nika_fx::args::Op) -> bool
 impl core::fmt::Debug for nika_fx::args::Op
 pub fn nika_fx::args::Op::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_fx::args::Op
-impl core::marker::Freeze for nika_fx::args::Op
-impl core::marker::Send for nika_fx::args::Op
-impl core::marker::Sync for nika_fx::args::Op
-impl core::marker::Unpin for nika_fx::args::Op
-impl core::marker::UnsafeUnpin for nika_fx::args::Op
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::Op
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::Op
 impl<T, U> core::convert::Into<U> for nika_fx::args::Op where U: core::convert::From<T>
 pub fn nika_fx::args::Op::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::Op where U: core::convert::Into<T>
@@ -182,13 +161,6 @@ pub fn nika_fx::args::Palette::eq(&self, other: &nika_fx::args::Palette) -> bool
 impl core::fmt::Debug for nika_fx::args::Palette
 pub fn nika_fx::args::Palette::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_fx::args::Palette
-impl core::marker::Freeze for nika_fx::args::Palette
-impl core::marker::Send for nika_fx::args::Palette
-impl core::marker::Sync for nika_fx::args::Palette
-impl core::marker::Unpin for nika_fx::args::Palette
-impl core::marker::UnsafeUnpin for nika_fx::args::Palette
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::Palette
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::Palette
 impl<T, U> core::convert::Into<U> for nika_fx::args::Palette where U: core::convert::From<T>
 pub fn nika_fx::args::Palette::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::Palette where U: core::convert::Into<T>
@@ -229,13 +201,6 @@ impl core::fmt::Debug for nika_fx::args::PresetPalette
 pub fn nika_fx::args::PresetPalette::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_fx::args::PresetPalette
 impl core::marker::StructuralPartialEq for nika_fx::args::PresetPalette
-impl core::marker::Freeze for nika_fx::args::PresetPalette
-impl core::marker::Send for nika_fx::args::PresetPalette
-impl core::marker::Sync for nika_fx::args::PresetPalette
-impl core::marker::Unpin for nika_fx::args::PresetPalette
-impl core::marker::UnsafeUnpin for nika_fx::args::PresetPalette
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::PresetPalette
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::PresetPalette
 impl<T, U> core::convert::Into<U> for nika_fx::args::PresetPalette where U: core::convert::From<T>
 pub fn nika_fx::args::PresetPalette::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::PresetPalette where U: core::convert::Into<T>
@@ -271,13 +236,6 @@ impl core::fmt::Debug for nika_fx::args::ResizeFilter
 pub fn nika_fx::args::ResizeFilter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_fx::args::ResizeFilter
 impl core::marker::StructuralPartialEq for nika_fx::args::ResizeFilter
-impl core::marker::Freeze for nika_fx::args::ResizeFilter
-impl core::marker::Send for nika_fx::args::ResizeFilter
-impl core::marker::Sync for nika_fx::args::ResizeFilter
-impl core::marker::Unpin for nika_fx::args::ResizeFilter
-impl core::marker::UnsafeUnpin for nika_fx::args::ResizeFilter
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::ResizeFilter
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::ResizeFilter
 impl<T, U> core::convert::Into<U> for nika_fx::args::ResizeFilter where U: core::convert::From<T>
 pub fn nika_fx::args::ResizeFilter::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::ResizeFilter where U: core::convert::Into<T>
@@ -314,13 +272,6 @@ impl core::fmt::Debug for nika_fx::args::ScreenAngle
 pub fn nika_fx::args::ScreenAngle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_fx::args::ScreenAngle
 impl core::marker::StructuralPartialEq for nika_fx::args::ScreenAngle
-impl core::marker::Freeze for nika_fx::args::ScreenAngle
-impl core::marker::Send for nika_fx::args::ScreenAngle
-impl core::marker::Sync for nika_fx::args::ScreenAngle
-impl core::marker::Unpin for nika_fx::args::ScreenAngle
-impl core::marker::UnsafeUnpin for nika_fx::args::ScreenAngle
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::ScreenAngle
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::ScreenAngle
 impl<T, U> core::convert::Into<U> for nika_fx::args::ScreenAngle where U: core::convert::From<T>
 pub fn nika_fx::args::ScreenAngle::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::ScreenAngle where U: core::convert::Into<T>
@@ -356,13 +307,6 @@ pub fn nika_fx::args::FxArgs::eq(&self, other: &nika_fx::args::FxArgs) -> bool
 impl core::fmt::Debug for nika_fx::args::FxArgs
 pub fn nika_fx::args::FxArgs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_fx::args::FxArgs
-impl core::marker::Freeze for nika_fx::args::FxArgs
-impl core::marker::Send for nika_fx::args::FxArgs
-impl core::marker::Sync for nika_fx::args::FxArgs
-impl core::marker::Unpin for nika_fx::args::FxArgs
-impl core::marker::UnsafeUnpin for nika_fx::args::FxArgs
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::FxArgs
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::FxArgs
 impl<T, U> core::convert::Into<U> for nika_fx::args::FxArgs where U: core::convert::From<T>
 pub fn nika_fx::args::FxArgs::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::FxArgs where U: core::convert::Into<T>
@@ -408,13 +352,6 @@ impl nika_fx::det::Pcg32
 pub fn nika_fx::det::Pcg32::below(&mut self, n: u32) -> u32
 pub fn nika_fx::det::Pcg32::new(seed: u64) -> nika_fx::det::Pcg32
 pub fn nika_fx::det::Pcg32::next_u32(&mut self) -> u32
-impl core::marker::Freeze for nika_fx::det::Pcg32
-impl core::marker::Send for nika_fx::det::Pcg32
-impl core::marker::Sync for nika_fx::det::Pcg32
-impl core::marker::Unpin for nika_fx::det::Pcg32
-impl core::marker::UnsafeUnpin for nika_fx::det::Pcg32
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::det::Pcg32
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::det::Pcg32
 impl<T, U> core::convert::Into<U> for nika_fx::det::Pcg32 where U: core::convert::From<T>
 pub fn nika_fx::det::Pcg32::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::det::Pcg32 where U: core::convert::Into<T>
@@ -461,13 +398,6 @@ pub fn nika_fx::error::FxError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> 
 impl core::fmt::Display for nika_fx::error::FxError
 pub fn nika_fx::error::FxError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_fx::error::FxError
-impl core::marker::Freeze for nika_fx::error::FxError
-impl core::marker::Send for nika_fx::error::FxError
-impl core::marker::Sync for nika_fx::error::FxError
-impl core::marker::Unpin for nika_fx::error::FxError
-impl core::marker::UnsafeUnpin for nika_fx::error::FxError
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::error::FxError
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::error::FxError
 impl<T, U> core::convert::Into<U> for nika_fx::error::FxError where U: core::convert::From<T>
 pub fn nika_fx::error::FxError::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::error::FxError where U: core::convert::Into<T>
@@ -499,13 +429,6 @@ pub nika_fx::ops::ascii::AsciiArtifact::Raster(nika_fx::pix::PixBuf)
 pub nika_fx::ops::ascii::AsciiArtifact::Text
 pub nika_fx::ops::ascii::AsciiArtifact::Text::body: alloc::string::String
 pub nika_fx::ops::ascii::AsciiArtifact::Text::ext: &'static str
-impl core::marker::Freeze for nika_fx::ops::ascii::AsciiArtifact
-impl core::marker::Send for nika_fx::ops::ascii::AsciiArtifact
-impl core::marker::Sync for nika_fx::ops::ascii::AsciiArtifact
-impl core::marker::Unpin for nika_fx::ops::ascii::AsciiArtifact
-impl core::marker::UnsafeUnpin for nika_fx::ops::ascii::AsciiArtifact
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::ops::ascii::AsciiArtifact
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::ops::ascii::AsciiArtifact
 impl<T, U> core::convert::Into<U> for nika_fx::ops::ascii::AsciiArtifact where U: core::convert::From<T>
 pub fn nika_fx::ops::ascii::AsciiArtifact::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::ops::ascii::AsciiArtifact where U: core::convert::Into<T>
@@ -542,13 +465,6 @@ pub nika_fx::ops::palette::LabPalette::colors: alloc::vec::Vec<[u8; 3]>
 impl nika_fx::ops::palette::LabPalette
 pub fn nika_fx::ops::palette::LabPalette::nearest(&self, p: [u8; 3]) -> usize
 pub fn nika_fx::ops::palette::LabPalette::new(palette: &nika_fx::args::Palette) -> nika_fx::ops::palette::LabPalette
-impl core::marker::Freeze for nika_fx::ops::palette::LabPalette
-impl core::marker::Send for nika_fx::ops::palette::LabPalette
-impl core::marker::Sync for nika_fx::ops::palette::LabPalette
-impl core::marker::Unpin for nika_fx::ops::palette::LabPalette
-impl core::marker::UnsafeUnpin for nika_fx::ops::palette::LabPalette
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::ops::palette::LabPalette
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::ops::palette::LabPalette
 impl<T, U> core::convert::Into<U> for nika_fx::ops::palette::LabPalette where U: core::convert::From<T>
 pub fn nika_fx::ops::palette::LabPalette::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::ops::palette::LabPalette where U: core::convert::Into<T>
@@ -596,13 +512,6 @@ pub fn nika_fx::pix::PixBuf::eq(&self, other: &nika_fx::pix::PixBuf) -> bool
 impl core::fmt::Debug for nika_fx::pix::PixBuf
 pub fn nika_fx::pix::PixBuf::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_fx::pix::PixBuf
-impl core::marker::Freeze for nika_fx::pix::PixBuf
-impl core::marker::Send for nika_fx::pix::PixBuf
-impl core::marker::Sync for nika_fx::pix::PixBuf
-impl core::marker::Unpin for nika_fx::pix::PixBuf
-impl core::marker::UnsafeUnpin for nika_fx::pix::PixBuf
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::pix::PixBuf
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::pix::PixBuf
 impl<T, U> core::convert::Into<U> for nika_fx::pix::PixBuf where U: core::convert::From<T>
 pub fn nika_fx::pix::PixBuf::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::pix::PixBuf where U: core::convert::Into<T>
@@ -649,13 +558,6 @@ pub fn nika_fx::Artifact::eq(&self, other: &nika_fx::Artifact) -> bool
 impl core::fmt::Debug for nika_fx::Artifact
 pub fn nika_fx::Artifact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_fx::Artifact
-impl core::marker::Freeze for nika_fx::Artifact
-impl core::marker::Send for nika_fx::Artifact
-impl core::marker::Sync for nika_fx::Artifact
-impl core::marker::Unpin for nika_fx::Artifact
-impl core::marker::UnsafeUnpin for nika_fx::Artifact
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::Artifact
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::Artifact
 impl<T, U> core::convert::Into<U> for nika_fx::Artifact where U: core::convert::From<T>
 pub fn nika_fx::Artifact::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::Artifact where U: core::convert::Into<T>
@@ -691,13 +593,6 @@ impl core::fmt::Debug for nika_fx::args::AsciiEmit
 pub fn nika_fx::args::AsciiEmit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_fx::args::AsciiEmit
 impl core::marker::StructuralPartialEq for nika_fx::args::AsciiEmit
-impl core::marker::Freeze for nika_fx::args::AsciiEmit
-impl core::marker::Send for nika_fx::args::AsciiEmit
-impl core::marker::Sync for nika_fx::args::AsciiEmit
-impl core::marker::Unpin for nika_fx::args::AsciiEmit
-impl core::marker::UnsafeUnpin for nika_fx::args::AsciiEmit
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::AsciiEmit
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::AsciiEmit
 impl<T, U> core::convert::Into<U> for nika_fx::args::AsciiEmit where U: core::convert::From<T>
 pub fn nika_fx::args::AsciiEmit::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::AsciiEmit where U: core::convert::Into<T>
@@ -738,13 +633,6 @@ impl core::fmt::Debug for nika_fx::args::DitherMode
 pub fn nika_fx::args::DitherMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_fx::args::DitherMode
 impl core::marker::StructuralPartialEq for nika_fx::args::DitherMode
-impl core::marker::Freeze for nika_fx::args::DitherMode
-impl core::marker::Send for nika_fx::args::DitherMode
-impl core::marker::Sync for nika_fx::args::DitherMode
-impl core::marker::Unpin for nika_fx::args::DitherMode
-impl core::marker::UnsafeUnpin for nika_fx::args::DitherMode
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::DitherMode
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::DitherMode
 impl<T, U> core::convert::Into<U> for nika_fx::args::DitherMode where U: core::convert::From<T>
 pub fn nika_fx::args::DitherMode::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::DitherMode where U: core::convert::Into<T>
@@ -786,13 +674,6 @@ pub fn nika_fx::error::FxError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> 
 impl core::fmt::Display for nika_fx::error::FxError
 pub fn nika_fx::error::FxError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_fx::error::FxError
-impl core::marker::Freeze for nika_fx::error::FxError
-impl core::marker::Send for nika_fx::error::FxError
-impl core::marker::Sync for nika_fx::error::FxError
-impl core::marker::Unpin for nika_fx::error::FxError
-impl core::marker::UnsafeUnpin for nika_fx::error::FxError
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::error::FxError
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::error::FxError
 impl<T, U> core::convert::Into<U> for nika_fx::error::FxError where U: core::convert::From<T>
 pub fn nika_fx::error::FxError::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::error::FxError where U: core::convert::Into<T>
@@ -868,13 +749,6 @@ pub fn nika_fx::args::Op::eq(&self, other: &nika_fx::args::Op) -> bool
 impl core::fmt::Debug for nika_fx::args::Op
 pub fn nika_fx::args::Op::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_fx::args::Op
-impl core::marker::Freeze for nika_fx::args::Op
-impl core::marker::Send for nika_fx::args::Op
-impl core::marker::Sync for nika_fx::args::Op
-impl core::marker::Unpin for nika_fx::args::Op
-impl core::marker::UnsafeUnpin for nika_fx::args::Op
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::Op
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::Op
 impl<T, U> core::convert::Into<U> for nika_fx::args::Op where U: core::convert::From<T>
 pub fn nika_fx::args::Op::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::Op where U: core::convert::Into<T>
@@ -910,13 +784,6 @@ pub fn nika_fx::args::Palette::eq(&self, other: &nika_fx::args::Palette) -> bool
 impl core::fmt::Debug for nika_fx::args::Palette
 pub fn nika_fx::args::Palette::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_fx::args::Palette
-impl core::marker::Freeze for nika_fx::args::Palette
-impl core::marker::Send for nika_fx::args::Palette
-impl core::marker::Sync for nika_fx::args::Palette
-impl core::marker::Unpin for nika_fx::args::Palette
-impl core::marker::UnsafeUnpin for nika_fx::args::Palette
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::Palette
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::Palette
 impl<T, U> core::convert::Into<U> for nika_fx::args::Palette where U: core::convert::From<T>
 pub fn nika_fx::args::Palette::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::Palette where U: core::convert::Into<T>
@@ -957,13 +824,6 @@ impl core::fmt::Debug for nika_fx::args::PresetPalette
 pub fn nika_fx::args::PresetPalette::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_fx::args::PresetPalette
 impl core::marker::StructuralPartialEq for nika_fx::args::PresetPalette
-impl core::marker::Freeze for nika_fx::args::PresetPalette
-impl core::marker::Send for nika_fx::args::PresetPalette
-impl core::marker::Sync for nika_fx::args::PresetPalette
-impl core::marker::Unpin for nika_fx::args::PresetPalette
-impl core::marker::UnsafeUnpin for nika_fx::args::PresetPalette
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::PresetPalette
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::PresetPalette
 impl<T, U> core::convert::Into<U> for nika_fx::args::PresetPalette where U: core::convert::From<T>
 pub fn nika_fx::args::PresetPalette::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::PresetPalette where U: core::convert::Into<T>
@@ -999,13 +859,6 @@ impl core::fmt::Debug for nika_fx::args::ResizeFilter
 pub fn nika_fx::args::ResizeFilter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_fx::args::ResizeFilter
 impl core::marker::StructuralPartialEq for nika_fx::args::ResizeFilter
-impl core::marker::Freeze for nika_fx::args::ResizeFilter
-impl core::marker::Send for nika_fx::args::ResizeFilter
-impl core::marker::Sync for nika_fx::args::ResizeFilter
-impl core::marker::Unpin for nika_fx::args::ResizeFilter
-impl core::marker::UnsafeUnpin for nika_fx::args::ResizeFilter
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::ResizeFilter
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::ResizeFilter
 impl<T, U> core::convert::Into<U> for nika_fx::args::ResizeFilter where U: core::convert::From<T>
 pub fn nika_fx::args::ResizeFilter::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::ResizeFilter where U: core::convert::Into<T>
@@ -1042,13 +895,6 @@ impl core::fmt::Debug for nika_fx::args::ScreenAngle
 pub fn nika_fx::args::ScreenAngle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_fx::args::ScreenAngle
 impl core::marker::StructuralPartialEq for nika_fx::args::ScreenAngle
-impl core::marker::Freeze for nika_fx::args::ScreenAngle
-impl core::marker::Send for nika_fx::args::ScreenAngle
-impl core::marker::Sync for nika_fx::args::ScreenAngle
-impl core::marker::Unpin for nika_fx::args::ScreenAngle
-impl core::marker::UnsafeUnpin for nika_fx::args::ScreenAngle
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::ScreenAngle
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::ScreenAngle
 impl<T, U> core::convert::Into<U> for nika_fx::args::ScreenAngle where U: core::convert::From<T>
 pub fn nika_fx::args::ScreenAngle::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::ScreenAngle where U: core::convert::Into<T>
@@ -1084,13 +930,6 @@ pub fn nika_fx::args::FxArgs::eq(&self, other: &nika_fx::args::FxArgs) -> bool
 impl core::fmt::Debug for nika_fx::args::FxArgs
 pub fn nika_fx::args::FxArgs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_fx::args::FxArgs
-impl core::marker::Freeze for nika_fx::args::FxArgs
-impl core::marker::Send for nika_fx::args::FxArgs
-impl core::marker::Sync for nika_fx::args::FxArgs
-impl core::marker::Unpin for nika_fx::args::FxArgs
-impl core::marker::UnsafeUnpin for nika_fx::args::FxArgs
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::args::FxArgs
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::args::FxArgs
 impl<T, U> core::convert::Into<U> for nika_fx::args::FxArgs where U: core::convert::From<T>
 pub fn nika_fx::args::FxArgs::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::args::FxArgs where U: core::convert::Into<T>
@@ -1128,13 +967,6 @@ pub fn nika_fx::FxOutput::eq(&self, other: &nika_fx::FxOutput) -> bool
 impl core::fmt::Debug for nika_fx::FxOutput
 pub fn nika_fx::FxOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_fx::FxOutput
-impl core::marker::Freeze for nika_fx::FxOutput
-impl core::marker::Send for nika_fx::FxOutput
-impl core::marker::Sync for nika_fx::FxOutput
-impl core::marker::Unpin for nika_fx::FxOutput
-impl core::marker::UnsafeUnpin for nika_fx::FxOutput
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::FxOutput
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::FxOutput
 impl<T, U> core::convert::Into<U> for nika_fx::FxOutput where U: core::convert::From<T>
 pub fn nika_fx::FxOutput::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::FxOutput where U: core::convert::Into<T>
@@ -1176,13 +1008,6 @@ pub fn nika_fx::pix::PixBuf::eq(&self, other: &nika_fx::pix::PixBuf) -> bool
 impl core::fmt::Debug for nika_fx::pix::PixBuf
 pub fn nika_fx::pix::PixBuf::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_fx::pix::PixBuf
-impl core::marker::Freeze for nika_fx::pix::PixBuf
-impl core::marker::Send for nika_fx::pix::PixBuf
-impl core::marker::Sync for nika_fx::pix::PixBuf
-impl core::marker::Unpin for nika_fx::pix::PixBuf
-impl core::marker::UnsafeUnpin for nika_fx::pix::PixBuf
-impl core::panic::unwind_safe::RefUnwindSafe for nika_fx::pix::PixBuf
-impl core::panic::unwind_safe::UnwindSafe for nika_fx::pix::PixBuf
 impl<T, U> core::convert::Into<U> for nika_fx::pix::PixBuf where U: core::convert::From<T>
 pub fn nika_fx::pix::PixBuf::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_fx::pix::PixBuf where U: core::convert::Into<T>
