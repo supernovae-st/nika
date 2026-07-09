@@ -129,39 +129,22 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/explain-forecast`                                      |
-| HEAD             | `330be3969` (`330be39692d8d6a307e299a340a74b3af86bad25`)             |
+| branch           | `feat/chart-admission`                                      |
+| HEAD             | `54938ac57` (`54938ac578f4c22593ee2d1242d205ebea3b2f38`)             |
 | workspace        | v0.98.0                                  |
-| crates (workspace)| 43                                              |
+| crates (workspace)| 44                                              |
 | crates (admitted)| 43 / 42                                   |
-| crates (WIP)     | 0 —                                   |
-| L0               | 11                                              |
+| crates (WIP)     | 1 — nika-chart                                  |
+| L0               | 12                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 5                                              |
-| lib tests        | 3659 passed, 0 failed                              |
+| lib tests        | 3769 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
-| field            | value                                          |
-|------------------|------------------------------------------------|
-| branch           | `chore/release-0.98.0`                                      |
-| HEAD             | `25db7137d` (`25db7137dddbe6fdb7782663d1a07096cafb3bad`)             |
-| workspace        | v0.98.0                                  |
-| crates (workspace)| 42                                              |
-| crates (admitted)| 42 / 42                                   |
-| crates (WIP)     | 0 —                                   |
-| L0               | 11                                              |
-| L0.5             | 6                                              |
-| L1               | 12                                              |
-| L1.5             | 4                                              |
-| L2               | 4                                              |
-| L3               | 1                                              |
-| L4               | 4                                              |
-| lib tests        | 3545 passed, 0 failed                              |
-| clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
 
