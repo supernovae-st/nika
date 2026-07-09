@@ -723,7 +723,7 @@ fn main() -> std::process::ExitCode {
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
         // `exit` without a prior `shutdown`) — the server-process
         // convention, NOT the verb FILE/WORKFLOW/ENV taxonomy.
-        Command::Dap => verbs::dap::run_stdio(),
+        Command::Dap => nika_dap::run_stdio(),
         Command::Lsp => match nika_lsp::run_stdio() {
             Ok(()) => verbs::exit::OK,
             Err(err) => {
@@ -1064,7 +1064,7 @@ fn load_events(args: &TraceArgs) -> Result<Vec<Event>, String> {
 /// tolerant reader (the SAME one `nika run --resume` folds through — one
 /// recovery contract, two consumers) and surfaces the truncation note here.
 fn recover_events(raw: &str, label: &str) -> Result<Vec<Event>, String> {
-    let recovered = verbs::run::recover_events(raw, label)?;
+    let recovered = verbs::run::recover_events(raw, label).map_err(|e| e.to_string())?;
     if let Some(note) = &recovered.truncated_note {
         eprintln!("nika-cli: {note} — rendering the recovered prefix");
     }

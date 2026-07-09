@@ -42,6 +42,20 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   crashed run had reached a state; `nika context` reads it as
   honestly-unknown.
 
+### Changed
+
+- **`nika-dap` is its own crate — the trace-forensics plane has one
+  home.** The DAP replay server moves out of `nika-cli` (the crate sat
+  at 98.9% of its size cap before the forecast landed), and the seams
+  every forensic reader shares descend with it: the tolerant NDJSON
+  reader (`recover_events`), the tamper-evidence chain walk
+  (`chain::walk` + ONE `CHAIN_GENESIS` the sink now imports — three
+  private sha256 copies unified), and the source-identity hashes.
+  `nika-cli` re-exports every seam at its old path — zero behavior
+  change, `nika dap` answers exactly as before.
+- `nika-runtime`: `settle_ran` sheds its retry-frame loop into
+  `emit_task::emit_retries` (the fn-length cap · the cohesive-cut law).
+
 ## [0.98.0](https://github.com/supernovae-st/nika/compare/v0.97.0..v0.98.0) - 2026-07-08
 
 **Structured output goes native, the checker closes its gaps — and the

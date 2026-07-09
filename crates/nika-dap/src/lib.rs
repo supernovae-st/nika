@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#![cfg_attr(test, allow(clippy::expect_used, clippy::panic, clippy::unwrap_used))]
+
 //! `nika dap` — the Debug Adapter Protocol server (replay sessions).
 //!
 //! The MVP is a READ-ONLY replay debugger over a recorded run journal —
@@ -10,6 +14,10 @@
 //! Lifecycle (the spec's launch sequencing): initialize → capabilities
 //! → `initialized` event → launch → setBreakpoints → configurationDone
 //! → stopped/continue loop → disconnect.
+
+pub mod chain;
+pub mod recover;
+pub mod source_id;
 
 mod protocol;
 mod replay;
@@ -315,6 +323,9 @@ mod tests {
         let out = drive(&[
             req(1, "initialize", &serde_json::json!({"adapterID": "nika"})),
             req(2, "disconnect", &serde_json::Value::Null),
+            // Anything after disconnect must go UNANSWERED — the session
+            // returned, it did not fall through to the reject arm.
+            req(3, "threads", &serde_json::Value::Null),
         ]);
         assert!(out.contains(r#""supportsStepBack":true"#));
         // `initialized` waits for a session (M1): no launch → no event —
@@ -322,6 +333,24 @@ mod tests {
         // "before launch" rejections.
         assert!(!out.contains(r#""event":"initialized""#));
         assert!(out.contains(r#""request_seq":2"#));
+        assert!(
+            !out.contains(r#""request_seq":3"#),
+            "disconnect ENDS the session"
+        );
+    }
+
+    #[test]
+    fn threads_and_scopes_answer_even_before_launch() {
+        // Clients probe both during configuration: the thread answers
+        // with the generic name (no session yet) and the one scope is
+        // fixed — neither may fall to the reject arm.
+        let out = drive(&[
+            req(1, "threads", &serde_json::Value::Null),
+            req(2, "scopes", &serde_json::json!({"frameId": 1})),
+            req(3, "disconnect", &serde_json::Value::Null),
+        ]);
+        assert!(out.contains(r#""name":"workflow""#), "{out}");
+        assert!(out.contains(r#""name":"Outputs""#), "{out}");
     }
 
     #[test]
@@ -397,10 +426,13 @@ mod tests {
                 &serde_json::json!({"variablesReference": 1}),
             ),
             req(8, "next", &serde_json::json!({"threadId": 1})),
-            req(9, "stepBack", &serde_json::json!({"threadId": 1})),
-            req(10, "continue", &serde_json::json!({"threadId": 1})),
+            // The frame AFTER next proves the cursor moved FORWARD —
+            // a `next` that walked backward would still say "step".
+            req(9, "stackTrace", &serde_json::json!({"threadId": 1})),
+            req(10, "stepBack", &serde_json::json!({"threadId": 1})),
             req(11, "continue", &serde_json::json!({"threadId": 1})),
-            req(12, "disconnect", &serde_json::Value::Null),
+            req(12, "continue", &serde_json::json!({"threadId": 1})),
+            req(13, "disconnect", &serde_json::Value::Null),
         ]);
 
         assert!(out.contains(r#""verified":true"#), "breakpoint verifies");
@@ -420,7 +452,15 @@ mod tests {
             out.contains(r#""reason":"entry""#),
             "configurationDone stops at entry"
         );
-        assert!(out.contains(r#""reason":"step""#), "next/stepBack announce");
+        assert!(
+            out.contains(r#""name":"beta (completed)""#),
+            "`next` moved the cursor FORWARD to beta"
+        );
+        assert_eq!(
+            out.matches(r#""reason":"step""#).count(),
+            2,
+            "next AND stepBack each announce their own step stop"
+        );
         assert!(
             out.contains(r#""reason":"breakpoint""#),
             "continue lands on beta"
@@ -428,6 +468,10 @@ mod tests {
         assert!(
             out.contains(r#""event":"terminated""#),
             "running off the total log ends the session"
+        );
+        assert!(
+            !out.contains("workflow changed since this run was recorded"),
+            "a pre-#210 journal (no recorded sha) must not cry drift"
         );
     }
 }

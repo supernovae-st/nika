@@ -1,0 +1,110 @@
+pub mod nika_dap
+pub mod nika_dap::chain
+#[non_exhaustive] pub enum nika_dap::chain::Verdict
+#[non_exhaustive] pub nika_dap::chain::Verdict::Broken
+pub nika_dap::chain::Verdict::Broken::computed: alloc::string::String
+pub nika_dap::chain::Verdict::Broken::line: usize
+pub nika_dap::chain::Verdict::Broken::recorded: alloc::string::String
+pub nika_dap::chain::Verdict::Empty
+#[non_exhaustive] pub nika_dap::chain::Verdict::Intact
+pub nika_dap::chain::Verdict::Intact::events: usize
+pub nika_dap::chain::Verdict::Intact::head: alloc::string::String
+#[non_exhaustive] pub nika_dap::chain::Verdict::TornTail
+pub nika_dap::chain::Verdict::TornTail::events: usize
+pub nika_dap::chain::Verdict::TornTail::head: alloc::string::String
+pub nika_dap::chain::Verdict::Unchained
+#[non_exhaustive] pub nika_dap::chain::Verdict::Unreadable
+pub nika_dap::chain::Verdict::Unreadable::line: usize
+impl<D> owo_colors::OwoColorize for nika_dap::chain::Verdict
+impl<T, U> core::convert::Into<U> for nika_dap::chain::Verdict where U: core::convert::From<T>
+pub fn nika_dap::chain::Verdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::chain::Verdict where U: core::convert::Into<T>
+pub type nika_dap::chain::Verdict::Error = core::convert::Infallible
+pub fn nika_dap::chain::Verdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::chain::Verdict where U: core::convert::TryFrom<T>
+pub type nika_dap::chain::Verdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::chain::Verdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::chain::Verdict where T: 'static + ?core::marker::Sized
+pub fn nika_dap::chain::Verdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::chain::Verdict where T: ?core::marker::Sized
+pub fn nika_dap::chain::Verdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::chain::Verdict where T: ?core::marker::Sized
+pub fn nika_dap::chain::Verdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::chain::Verdict
+pub fn nika_dap::chain::Verdict::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::chain::Verdict where T: 'static
+pub fn nika_dap::chain::Verdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::chain::Verdict
+pub type nika_dap::chain::Verdict::Output = T
+pub const nika_dap::chain::CHAIN_GENESIS: &[u8]
+pub fn nika_dap::chain::walk(raw: &str) -> nika_dap::chain::Verdict
+pub mod nika_dap::recover
+#[non_exhaustive] pub enum nika_dap::recover::RecoverError
+pub nika_dap::recover::RecoverError::BadFirstLine
+pub nika_dap::recover::RecoverError::BadFirstLine::label: alloc::string::String
+pub nika_dap::recover::RecoverError::BadFirstLine::line: usize
+pub nika_dap::recover::RecoverError::BadFirstLine::source: serde_json::error::Error
+pub nika_dap::recover::RecoverError::Empty
+pub nika_dap::recover::RecoverError::Empty::label: alloc::string::String
+impl core::error::Error for nika_dap::recover::RecoverError
+pub fn nika_dap::recover::RecoverError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_dap::recover::RecoverError
+pub fn nika_dap::recover::RecoverError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_dap::recover::RecoverError
+pub fn nika_dap::recover::RecoverError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::recover::RecoverError
+impl<T, U> core::convert::Into<U> for nika_dap::recover::RecoverError where U: core::convert::From<T>
+pub fn nika_dap::recover::RecoverError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::recover::RecoverError where U: core::convert::Into<T>
+pub type nika_dap::recover::RecoverError::Error = core::convert::Infallible
+pub fn nika_dap::recover::RecoverError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::recover::RecoverError where U: core::convert::TryFrom<T>
+pub type nika_dap::recover::RecoverError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::recover::RecoverError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_dap::recover::RecoverError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_dap::recover::RecoverError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_dap::recover::RecoverError where T: 'static + ?core::marker::Sized
+pub fn nika_dap::recover::RecoverError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::recover::RecoverError where T: ?core::marker::Sized
+pub fn nika_dap::recover::RecoverError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::recover::RecoverError where T: ?core::marker::Sized
+pub fn nika_dap::recover::RecoverError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::recover::RecoverError
+pub fn nika_dap::recover::RecoverError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::recover::RecoverError where T: 'static
+pub fn nika_dap::recover::RecoverError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::recover::RecoverError
+pub type nika_dap::recover::RecoverError::Output = T
+#[non_exhaustive] pub struct nika_dap::recover::RecoveredTrace
+pub nika_dap::recover::RecoveredTrace::events: alloc::vec::Vec<nika_event::event::Event>
+pub nika_dap::recover::RecoveredTrace::truncated_note: core::option::Option<alloc::string::String>
+impl nika_dap::recover::RecoveredTrace
+pub fn nika_dap::recover::RecoveredTrace::new(events: alloc::vec::Vec<nika_event::event::Event>, truncated_note: core::option::Option<alloc::string::String>) -> Self
+impl core::fmt::Debug for nika_dap::recover::RecoveredTrace
+pub fn nika_dap::recover::RecoveredTrace::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::recover::RecoveredTrace
+impl<T, U> core::convert::Into<U> for nika_dap::recover::RecoveredTrace where U: core::convert::From<T>
+pub fn nika_dap::recover::RecoveredTrace::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::recover::RecoveredTrace where U: core::convert::Into<T>
+pub type nika_dap::recover::RecoveredTrace::Error = core::convert::Infallible
+pub fn nika_dap::recover::RecoveredTrace::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::recover::RecoveredTrace where U: core::convert::TryFrom<T>
+pub type nika_dap::recover::RecoveredTrace::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::recover::RecoveredTrace::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::recover::RecoveredTrace where T: 'static + ?core::marker::Sized
+pub fn nika_dap::recover::RecoveredTrace::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::recover::RecoveredTrace where T: ?core::marker::Sized
+pub fn nika_dap::recover::RecoveredTrace::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::recover::RecoveredTrace where T: ?core::marker::Sized
+pub fn nika_dap::recover::RecoveredTrace::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::recover::RecoveredTrace
+pub fn nika_dap::recover::RecoveredTrace::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::recover::RecoveredTrace where T: 'static
+pub fn nika_dap::recover::RecoveredTrace::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_dap::recover::RecoveredTrace
+pub type nika_dap::recover::RecoveredTrace::Output = T
+pub fn nika_dap::recover::recover_events(raw: &str, label: &str) -> core::result::Result<nika_dap::recover::RecoveredTrace, nika_dap::recover::RecoverError>
+pub mod nika_dap::source_id
+pub fn nika_dap::source_id::lf_normal_form(source: &str) -> alloc::borrow::Cow<'_, str>
+pub fn nika_dap::source_id::sha256_hex(bytes: &[u8]) -> alloc::string::String
+pub fn nika_dap::run_stdio() -> u8

@@ -78,56 +78,6 @@ pub(crate) fn parse_answers(
     Ok(answers)
 }
 
-/// A recovered NDJSON trace — the valid prefix + an optional truncation
-/// note (a crashed run leaves a half-written last line; recovering the
-/// prefix is the whole point of a flight recorder).
-pub struct RecoveredTrace {
-    /// The parsed events, in journal order.
-    pub events: Vec<Event>,
-    /// Present when the tail was truncated/corrupt — a human diagnostic
-    /// (the caller routes it to stderr).
-    pub truncated_note: Option<String>,
-}
-
-/// Parse an NDJSON trace, tolerating a truncated/corrupt TAIL. Stops at
-/// the first bad line and returns the valid prefix; a bad FIRST line
-/// (nothing recovered) or an empty trace is a genuinely unreadable
-/// trace and errors.
-///
-/// # Errors
-///
-/// A human-readable message naming the file + line (environment class).
-pub fn recover_events(raw: &str, label: &str) -> Result<RecoveredTrace, String> {
-    let mut events = Vec::new();
-    let mut truncated_note = None;
-    for (lineno, line) in raw.lines().enumerate() {
-        if line.trim().is_empty() {
-            continue;
-        }
-        match serde_json::from_str::<Event>(line) {
-            Ok(event) => events.push(event),
-            Err(e) => {
-                if events.is_empty() {
-                    return Err(format!("{label}:{}: bad event: {e}", lineno + 1));
-                }
-                truncated_note = Some(format!(
-                    "{label}:{}: trace truncated ({e}) — recovered {} event(s)",
-                    lineno + 1,
-                    events.len()
-                ));
-                break;
-            }
-        }
-    }
-    if events.is_empty() {
-        return Err(format!("{label}: empty trace"));
-    }
-    Ok(RecoveredTrace {
-        events,
-        truncated_note,
-    })
-}
-
 /// The fold's yield — the skip plan plus the honesty counters the
 /// notices are built from.
 pub(crate) struct PlanFold {
@@ -303,22 +253,6 @@ mod tests {
             "an unreadable record re-runs, never guesses"
         );
         assert_eq!(fold.unreadable, 1);
-    }
-
-    #[test]
-    fn recover_events_keeps_the_valid_prefix_of_a_torn_trace() {
-        let line =
-            serde_json::to_string(&event(EventKind::TaskCompleted, "a", true)).expect("serializes");
-        let raw = format!("{line}\n{line}\n{{\"id\":{{\"uuid\":\"torn");
-        let recovered = recover_events(&raw, "t").expect("prefix recovers");
-        assert_eq!(recovered.events.len(), 2);
-        assert!(recovered.truncated_note.is_some(), "the tear is surfaced");
-
-        assert!(
-            recover_events("{not json\n", "t").is_err(),
-            "bad first line"
-        );
-        assert!(recover_events("", "t").is_err(), "empty trace");
     }
 
     #[test]

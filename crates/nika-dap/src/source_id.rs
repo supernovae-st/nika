@@ -8,7 +8,8 @@
 // and the comparison in dap replay.
 
 /// The run's source identity: sha256 hex over the exact bytes read.
-pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
+#[must_use]
+pub fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::{Digest as _, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(bytes);
@@ -25,7 +26,8 @@ pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
 /// The SAME content re-encoded by an editor hashes identically here —
 /// a re-encode is not an edit (the 0.96.0 dap review proved the raw
 /// byte-compare cried drift on CRLF-only churn).
-pub(crate) fn lf_normal_form(source: &str) -> std::borrow::Cow<'_, str> {
+#[must_use]
+pub fn lf_normal_form(source: &str) -> std::borrow::Cow<'_, str> {
     let stripped = source.strip_prefix('\u{feff}').unwrap_or(source);
     if stripped.contains("\r\n") {
         std::borrow::Cow::Owned(stripped.replace("\r\n", "\n"))

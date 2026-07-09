@@ -48,7 +48,8 @@ pub fn outputs(trace: &str, theme: Theme) -> VerbOutput {
 pub(crate) fn load_view(trace: &str) -> Result<RunView, VerbOutput> {
     let raw = std::fs::read_to_string(trace)
         .map_err(|e| VerbOutput::env(format!("cannot read {trace}: {e}")))?;
-    let recovered = super::run::recover_events(&raw, trace).map_err(VerbOutput::env)?;
+    let recovered =
+        super::run::recover_events(&raw, trace).map_err(|e| VerbOutput::env(e.to_string()))?;
     let mut view = RunView::new();
     for event in &recovered.events {
         view.apply(event);

@@ -258,6 +258,79 @@ mod tests {
     }
 
     #[test]
+    fn the_wire_caps_sit_at_their_documented_boundaries() {
+        // Both figures are contracts the hostile-input guards lean on —
+        // arithmetic drift in a constant must not move them.
+        assert_eq!(MAX_FRAME_BYTES, 16_777_216);
+        assert_eq!(MAX_HEADER_LINE, 8192);
+    }
+
+    #[test]
+    fn outgoing_seq_counts_one_then_two() {
+        // The wire owns its OWN counter — a stubbed or regressing seq
+        // would desync a real client's message correlation.
+        let input = frame(&serde_json::json!({
+            "seq": 7, "type": "request", "command": "threads"
+        }));
+        let mut out: Vec<u8> = Vec::new();
+        {
+            let mut wire = Wire::new(std::io::Cursor::new(input), &mut out);
+            let req = wire.read_request().expect("one request");
+            wire.respond(&req, serde_json::Value::Null);
+            wire.emit("stopped", serde_json::Value::Null);
+        }
+        let text = String::from_utf8(out).expect("utf8");
+        assert!(text.contains(r#""seq":1"#), "first frame: {text}");
+        assert!(text.contains(r#""seq":2"#), "second frame: {text}");
+    }
+
+    #[test]
+    fn a_header_line_ending_exactly_at_the_cap_is_legal() {
+        // 8191 junk bytes + '\n': the capped read returns exactly
+        // MAX_HEADER_LINE bytes but the line IS terminated — only the
+        // UNTERMINATED case is hostile, and the guard needs both facts.
+        let mut input = vec![b'X'; 8191];
+        input.push(b'\n');
+        input.extend(frame(&serde_json::json!({
+            "seq": 1, "type": "request", "command": "threads"
+        })));
+        let mut out: Vec<u8> = Vec::new();
+        let mut wire = Wire::new(std::io::Cursor::new(input), &mut out);
+        assert_eq!(
+            wire.read_request()
+                .expect("the frame after the long-but-terminated line")
+                .command,
+            "threads"
+        );
+    }
+
+    #[test]
+    fn a_frame_at_the_cap_reads_and_one_byte_over_refuses() {
+        let json = br#"{"seq":1,"type":"request","command":"threads"}"#;
+        let mut body = json.to_vec();
+        body.resize(MAX_FRAME_BYTES, b' '); // trailing whitespace is legal JSON
+        let mut input = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
+        input.extend(&body);
+        let mut out: Vec<u8> = Vec::new();
+        let mut wire = Wire::new(std::io::Cursor::new(input), &mut out);
+        assert_eq!(
+            wire.read_request().expect("at-cap frame reads").command,
+            "threads"
+        );
+
+        let mut body = json.to_vec();
+        body.resize(MAX_FRAME_BYTES + 1, b' ');
+        let mut input = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
+        input.extend(&body);
+        let mut out: Vec<u8> = Vec::new();
+        let mut wire = Wire::new(std::io::Cursor::new(input), &mut out);
+        assert!(
+            wire.read_request().is_none(),
+            "one byte past the cap is refused before the allocation"
+        );
+    }
+
+    #[test]
     fn non_request_frames_are_skipped() {
         // A REAL stray event — no command field (the doctored fixture
         // used to smuggle one in, masking the M2 session-kill).

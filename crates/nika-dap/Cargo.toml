@@ -1,0 +1,35 @@
+[package]
+name          = "nika-dap"
+description   = "The Debug Adapter Protocol server (`nika dap`) — a READ-ONLY replay debugger over recorded run journals: breakpoints on task lines, stepping walks task settles, stepBack is free because the log is total (replay = re-render, never re-execute). Layer L4 — split from nika-cli's verbs/dap 2026-07-09 (the crate-size cap · the nika-cap precedent)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L4 interface crate (the binary ships, the lib doesn't).
+
+[dependencies]
+nika-event  = { path = "../nika-event", version = "0.98.0" }   # the journal taxonomy the replayer walks
+nika-schema = { path = "../nika-schema", version = "0.98.0" }  # parse the workflow for breakpoint line-mapping
+nika-types  = { path = "../nika-types", version = "0.98.0" }   # field values on replayed frames
+sha2        = { workspace = true }                              # the chain primitive + source identity (one voice)
+serde      = { workspace = true }                             # protocol frames (Request derive)
+serde_json = { workspace = true }                             # DAP wire bodies + replay journal parse
+thiserror  = { workspace = true }                             # RecoverError — typed, never a bare String (FCI-019)
+
+[dev-dependencies]
+uuid     = { workspace = true }   # test EventIds (the replay fixtures)
+tempfile = { workspace = true }   # replay fixtures on disk
+
+[package.metadata.lore]
+daemon        = "scribe"
+archetype     = "time-walker-scribe"
+spirit_role   = "rejoue le journal pas à pas · le passé répond au débogueur · jamais une ré-exécution"
+voice_pattern = "spoken"
+layer         = "L4"
+err_prefix    = "none"
+
+[lints]
+workspace = true

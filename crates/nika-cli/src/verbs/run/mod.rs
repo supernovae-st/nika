@@ -25,22 +25,22 @@ mod compose;
 pub(crate) use compose::config_from_env;
 mod resume;
 mod sink;
-mod source_id;
 mod stamp;
 
 pub use compose::{
     ProdRuntime, RuntimeCapabilities, capabilities_of, fs_boundary_of, net_boundary_of,
     production_runtime,
 };
-pub use resume::{RecoveredTrace, ResumeRequest, recover_events};
+pub use nika_dap::recover::{RecoveredTrace, recover_events};
+pub use resume::ResumeRequest;
 pub use sink::{FoldSink, JsonSink, RenderMode};
 use sink::{TraceNote, surface_trace};
 pub use stamp::SystemStamper;
 
 mod budget;
 mod scope;
+pub(crate) use nika_dap::source_id::{lf_normal_form, sha256_hex};
 use scope::scope_to_task;
-pub(crate) use source_id::{lf_normal_form, sha256_hex};
 
 use sink::{TRACE_DIR, Tee, TraceFileSink};
 
@@ -285,8 +285,8 @@ fn load_resume_plan(
     };
     let raw = std::fs::read_to_string(&req.trace)
         .map_err(|e| refuse(format!("--resume: cannot read {label}: {e}")))?;
-    let recovered = resume::recover_events(&raw, &label)
-        .map_err(|message| refuse(format!("--resume: {message}")))?;
+    let recovered =
+        recover_events(&raw, &label).map_err(|message| refuse(format!("--resume: {message}")))?;
     if let Some(note) = &recovered.truncated_note {
         eprintln!("nika run: {note}");
     }
