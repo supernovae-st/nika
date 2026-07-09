@@ -58,12 +58,38 @@ pub fn dispatch(
                 .to_owned(),
         );
     }
+    if forecast {
+        // Same law as --json: a forecast is learned from a WORKFLOW's
+        // history — an error code has none. Refuse loudly, never ignore.
+        return VerbOutput::file(
+            "--forecast rides the FILE form (`nika explain <file> --forecast`); error codes have no run history"
+                .to_owned(),
+        );
+    }
     super::explain::run(query, theme)
 }
 
 /// The `nika explain <file>` verb.
 #[must_use]
 pub fn run(path: &str, json: bool, forecast: bool) -> VerbOutput {
+    run_with_traces(
+        path,
+        json,
+        forecast,
+        Path::new(".nika").join("traces").as_path(),
+    )
+}
+
+/// [`run`] with an explicit trace directory — the testable seam: tests
+/// stage their own recorder history; a real invocation keeps the fixed
+/// relative path the sink writes.
+#[must_use]
+pub(crate) fn run_with_traces(
+    path: &str,
+    json: bool,
+    forecast: bool,
+    traces_dir: &Path,
+) -> VerbOutput {
     let (yaml, wf, report) = match load_checked_with_source(path) {
         Ok(triple) => triple,
         Err(out) => return out,
@@ -77,8 +103,7 @@ pub fn run(path: &str, json: bool, forecast: bool) -> VerbOutput {
         return dirty(path, description.as_deref(), &report, json);
     }
     let doc = project(&wf, &report);
-    let traces_dir = Path::new(".nika").join("traces");
-    let traces = traces_glance(traces_dir.as_path());
+    let traces = traces_glance(traces_dir);
     // Learned truth rides beside the static story: gather is bounded +
     // fail-open, and skipped entirely when nothing was ever recorded
     // (the glance already knows) unless the flag asks explicitly.
@@ -88,7 +113,7 @@ pub fn run(path: &str, json: bool, forecast: bool) -> VerbOutput {
             sha256: sha256_hex(yaml.as_bytes()),
             sha256_lf: sha256_hex(lf_normal_form(&yaml).as_bytes()),
         };
-        let gathered = super::forecast::gather::gather(traces_dir.as_path(), &identity.name);
+        let gathered = super::forecast::gather::gather(traces_dir, &identity.name);
         Some(super::forecast::compute(&identity, &gathered))
     } else {
         None
@@ -719,5 +744,247 @@ mod tests {
         assert!(
             unbounded_gloss("t", None, UnboundedReason::UnknownIterations).contains("run time")
         );
+    }
+
+    // ─── the forecast surface · staged-history integration ─────────────
+    // Every case drives the REAL seam (`run_with_traces`) over traces
+    // staged through the SAME serde path the sink writes — the honesty
+    // matrix rules the plan pins, proven at the render/JSON surface.
+
+    use crate::verbs::forecast::gather::tests as fx;
+    use crate::verbs::trace::store::tests::{stage_trace, temp_store};
+    use nika_event::EventKind;
+    use nika_types::resource::Value;
+    use std::time::Duration;
+
+    const FC: &str = "nika: v1\nworkflow: fc-fix\ndescription: forecast fixture\n\nmodel: mock/echo\n\ntasks:\n  - id: fetch\n    exec: { command: \"echo x\" }\n  - id: think\n    depends_on: [fetch]\n    infer: { prompt: \"p\", max_tokens: 10 }\n";
+
+    /// One completed fc-fix run body: fetch (exec) + think (infer),
+    /// distinct durations, optional sha/model/extras.
+    fn fc_run(sha: Option<&str>, at: u64, think_ms: u64, extras: &[nika_event::Event]) -> String {
+        // Extras (retries · notes) precede think's terminal — the fold's
+        // LAST state wins, so a retry after the completion would leave
+        // the row Retrying instead of Ok.
+        let mut tasks = vec![fx::task_done("fetch", at + 10, 20, None, None)];
+        tasks.extend_from_slice(extras);
+        tasks.push(fx::task_done(
+            "think",
+            at + 40,
+            think_ms,
+            None,
+            Some("mock/echo"),
+        ));
+        fx::run_body("fc-fix", sha, at, &tasks, Some(fx::done(at + 50, None)))
+    }
+
+    #[test]
+    fn forecast_flag_forces_the_section_and_absence_stays_silent() {
+        let dir = temp_store("explain-fc-empty");
+        let path = tmp("fc-empty", FC);
+        let p = path.to_str().expect("utf8");
+        let forced = run_with_traces(p, false, true, &dir);
+        assert!(
+            forced
+                .text
+                .contains("no forecast — this workflow has never run here"),
+            "{}",
+            forced.text
+        );
+        let silent = run_with_traces(p, false, false, &dir);
+        assert!(!silent.text.contains("FORECAST"), "{}", silent.text);
+        // JSON twin: ALWAYS present under the flag (honest empty shape) ·
+        // absent without it below the auto threshold.
+        let j = run_with_traces(p, true, true, &dir);
+        let v: serde_json::Value = serde_json::from_str(&j.text).expect("parses");
+        assert_eq!(v["forecast"]["runs"]["total"], 0);
+        assert_eq!(v["forecast"]["run_duration"]["kind"], "never_ran");
+        let j2 = run_with_traces(p, true, false, &dir);
+        let v2: serde_json::Value = serde_json::from_str(&j2.text).expect("parses");
+        assert!(v2.get("forecast").is_none(), "{}", j2.text);
+        std::fs::remove_file(&path).ok();
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn ladder_rungs_render_from_staged_history() {
+        let dir = temp_store("explain-fc-ladder");
+        let path = tmp("fc-ladder", FC);
+        let p = path.to_str().expect("utf8");
+        let sha = crate::verbs::run::sha256_hex(FC.as_bytes());
+        stage_trace(
+            &dir,
+            "2026-07-08T01-00-00Z-0001.ndjson",
+            &fc_run(Some(&sha), 1_000, 100, &[]),
+            Duration::from_secs(60),
+        );
+        let one = run_with_traces(p, false, true, &dir);
+        assert!(one.text.contains("based on last 1 run "), "{}", one.text);
+        assert!(one.text.contains("last run "), "{}", one.text);
+        assert!(!one.text.contains("p90"), "{}", one.text);
+
+        for (i, ms) in [(2u64, 200u64), (3, 300)] {
+            stage_trace(
+                &dir,
+                &format!("2026-07-08T0{i}-00-00Z-000{i}.ndjson"),
+                &fc_run(Some(&sha), i * 10_000, ms, &[]),
+                Duration::from_secs(60 - i),
+            );
+        }
+        // n = 3: the section arrives UNPROMPTED (auto threshold) · range
+        // vocabulary only.
+        let auto = run_with_traces(p, false, false, &dir);
+        assert!(auto.text.contains("based on last 3 runs"), "{}", auto.text);
+        assert!(!auto.text.contains("p90"), "{}", auto.text);
+
+        for i in 4u64..=6 {
+            stage_trace(
+                &dir,
+                &format!("2026-07-08T0{i}-00-00Z-000{i}.ndjson"),
+                &fc_run(Some(&sha), i * 10_000, 100 * i, &[]),
+                Duration::from_secs(60 - i),
+            );
+        }
+        let bands = run_with_traces(p, false, true, &dir);
+        assert!(
+            bands.text.contains("based on last 6 runs"),
+            "{}",
+            bands.text
+        );
+        assert!(bands.text.contains("(p90 "), "{}", bands.text);
+        assert!(
+            bands.text.contains("low confidence (n<10)"),
+            "{}",
+            bands.text
+        );
+        std::fs::remove_file(&path).ok();
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn honesty_composition_stale_unknown_unpriced_and_retry() {
+        let dir = temp_store("explain-fc-honesty");
+        let path = tmp("fc-honesty", FC);
+        let p = path.to_str().expect("utf8");
+        let sha = crate::verbs::run::sha256_hex(FC.as_bytes());
+        // Same-hash run whose think RETRIED then completed (flaky ≠ failed).
+        let retry = fx::ev(
+            EventKind::TaskRetrying,
+            10_020,
+            &[("task", Value::string("think"))],
+        );
+        stage_trace(
+            &dir,
+            "2026-07-08T01-00-00Z-aaaa.ndjson",
+            &fc_run(Some(&sha), 10_000, 100, &[retry]),
+            Duration::from_secs(50),
+        );
+        // A stale-hash run and an unverifiable (hashless) run.
+        stage_trace(
+            &dir,
+            "2026-07-08T02-00-00Z-bbbb.ndjson",
+            &fc_run(Some("beef"), 20_000, 120, &[]),
+            Duration::from_secs(40),
+        );
+        stage_trace(
+            &dir,
+            "2026-07-08T03-00-00Z-cccc.ndjson",
+            &fc_run(None, 30_000, 140, &[]),
+            Duration::from_secs(30),
+        );
+        // An unpriced think occurrence (local-model class) — ≥ composes.
+        let unpriced = fx::ev(
+            EventKind::TaskCompleted,
+            40_040,
+            &[
+                ("task", Value::string("think")),
+                ("duration_ms", Value::Int(160)),
+                ("cost_unpriced", Value::string("local_model")),
+            ],
+        );
+        let body = fx::run_body(
+            "fc-fix",
+            Some(&sha),
+            40_000,
+            &[fx::task_done("fetch", 40_010, 20, None, None), unpriced],
+            Some(fx::done(40_050, None)),
+        );
+        stage_trace(
+            &dir,
+            "2026-07-08T04-00-00Z-dddd.ndjson",
+            &body,
+            Duration::from_secs(20),
+        );
+
+        let out = run_with_traces(p, false, true, &dir);
+        for needle in [
+            "1 predate the last edit",
+            "1 unverifiable",
+            "passed on retry 1/",
+            "unpriced: local_model",
+            "≥",
+        ] {
+            assert!(
+                out.text.contains(needle),
+                "missing `{needle}`:\n{}",
+                out.text
+            );
+        }
+        // fetch is exec: no cost sample and no unpriced slug — the honest
+        // dash, never an invented $. Scope to the FORECAST block: the
+        // shape section's wires line also starts with `fetch`.
+        let fc_start = out.text.find("FORECAST").expect("forecast section");
+        let fetch_row = out.text[fc_start..]
+            .lines()
+            .find(|l| l.trim_start().starts_with("fetch"))
+            .expect("fetch row renders");
+        assert!(fetch_row.contains('—'), "{fetch_row}");
+        assert!(!fetch_row.contains('$'), "{fetch_row}");
+        std::fs::remove_file(&path).ok();
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn json_twin_tags_rungs_census_and_retention_knob() {
+        let dir = temp_store("explain-fc-json");
+        let path = tmp("fc-json", FC);
+        let p = path.to_str().expect("utf8");
+        let sha = crate::verbs::run::sha256_hex(FC.as_bytes());
+        for i in 1u64..=6 {
+            stage_trace(
+                &dir,
+                &format!("2026-07-08T0{i}-00-00Z-json{i}.ndjson"),
+                &fc_run(Some(&sha), i * 10_000, 100 * i, &[]),
+                Duration::from_secs(60 - i),
+            );
+        }
+        let j = run_with_traces(p, true, true, &dir);
+        let v: serde_json::Value = serde_json::from_str(&j.text).expect("parses");
+        let fc = &v["forecast"];
+        assert_eq!(fc["run_duration"]["kind"], "bands");
+        assert_eq!(fc["runs"]["completed"], 6);
+        assert_eq!(fc["runs"]["same_hash"], 6);
+        let expected_keep = crate::verbs::trace::retention::RetentionConfig::from_env()
+            .0
+            .keep_last;
+        assert_eq!(
+            fc["window"]["retention_keep"],
+            serde_json::json!(expected_keep)
+        );
+        std::fs::remove_file(&path).ok();
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// The code form refuses --forecast as loudly as --json — an error
+    /// code has no run history; silence would strand an agent.
+    #[test]
+    fn code_form_refuses_forecast_loudly() {
+        let out = dispatch(
+            "NIKA-440",
+            false,
+            true,
+            crate::display::theme::Theme::new(false, false, false),
+        );
+        assert_eq!(out.code, exit::FILE);
+        assert!(out.text.contains("--forecast"), "{}", out.text);
     }
 }

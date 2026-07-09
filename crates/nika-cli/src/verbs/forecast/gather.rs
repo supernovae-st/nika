@@ -30,10 +30,13 @@ pub(crate) const SCAN_CAP: usize = 200;
 /// The run-count window (C4 · hybrid with [`WINDOW_MS`], first reached).
 pub(crate) const WINDOW_RUNS: usize = 50;
 
-/// The age window: 30 days in milliseconds, anchored on the newest
-/// MATCHING run's `workflow_started` stamp — never on `now()`
-/// (determinism: the same trace directory always forecasts the same).
-pub(crate) const WINDOW_MS: i64 = 2_592_000_000;
+/// The age window in days (C4 · the render's « / 30 days » figure).
+pub(crate) const WINDOW_DAYS: u32 = 30;
+
+/// The age window in milliseconds, anchored on the newest MATCHING
+/// run's `workflow_started` stamp — never on `now()` (determinism: the
+/// same trace directory always forecasts the same).
+pub(crate) const WINDOW_MS: i64 = WINDOW_DAYS as i64 * 86_400_000;
 
 /// One task occurrence inside one recovered run.
 #[derive(Debug, Clone)]
@@ -190,9 +193,11 @@ pub(crate) fn fold_sample(events: &[Event], state: TraceState) -> Option<RunSamp
                     total_cost_usd = Some(total);
                 }
             }
-            // Dispatch/stream/checkpoint kinds carry no forecast fact;
-            // `#[non_exhaustive]` future kinds (task_recovered · #301)
-            // fold nothing rather than guessing.
+            // Dispatch/stream/checkpoint kinds carry no forecast fact —
+            // and so do shipped kinds like `task_recovered` (#313: a
+            // resume repair marker, not a duration/cost sample). Future
+            // `#[non_exhaustive]` kinds ride the same arm: fold nothing
+            // rather than guessing.
             _ => {}
         }
     }
@@ -226,16 +231,11 @@ pub(crate) fn fold_sample(events: &[Event], state: TraceState) -> Option<RunSamp
     })
 }
 
-/// The active retention config — the same knobs GC enforces, so the
-/// window line can say WHY n saturates at keep-last-N.
-#[allow(clippy::disallowed_methods)] // presence+value of NON-secret config vars
+/// The active retention config — the same knobs GC enforces (ONE
+/// resolution path · `RetentionConfig::from_env`), so the window line
+/// can say WHY n saturates at keep-last-N.
 fn resolved_retention() -> RetentionConfig {
-    let (retention, _notes) = RetentionConfig::resolve(
-        std::env::var("NIKA_TRACE_KEEP").ok().as_deref(),
-        std::env::var("NIKA_TRACE_MAX_AGE_DAYS").ok().as_deref(),
-        std::env::var("NIKA_TRACE_BUDGET_MB").ok().as_deref(),
-    );
-    retention
+    RetentionConfig::from_env().0
 }
 
 /// One string field off an event (the journal's additive KV vocabulary
@@ -250,15 +250,19 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
     })
 }
 
-/// One float field off an event.
+/// One float field off an event — the Int arm coerces like the state
+/// fold's twin (state.rs): an integer-typed total is still a total.
 fn float_field(event: &Event, key: &str) -> Option<f64> {
-    event.fields.iter().find(|kv| kv.key == key).and_then(|kv| {
-        if let Value::Float(f) = &kv.value {
-            Some(*f)
-        } else {
-            None
-        }
-    })
+    event
+        .fields
+        .iter()
+        .find(|kv| kv.key == key)
+        .and_then(|kv| match &kv.value {
+            Value::Float(f) => Some(*f),
+            #[allow(clippy::cast_precision_loss)] // display-only magnitude
+            Value::Int(i) => Some(*i as f64),
+            _ => None,
+        })
 }
 
 #[cfg(test)]
@@ -459,18 +463,100 @@ pub(crate) mod tests {
             Duration::from_secs(9),
         );
         let good = run_body("wf", None, 5_000, &[], Some(done(5_010, None)));
-        // A valid prefix + a torn tail: the prefix is USED, the tear COUNTED.
-        let torn = format!("{good}{{\"kind\":\"task_recovered\",\"torn\":");
+        // A valid prefix + a WELL-FORMED line whose kind this binary does
+        // not know (a FUTURE engine's trace): serde refuses the LINE —
+        // truncation counted, prefix USED. (`task_recovered` stopped
+        // qualifying the day #313 shipped it — a genuinely unknown slug
+        // is the only honest fixture here.)
+        let future = format!("{good}{{\"kind\":\"zz_future_kind\",\"x\":1}}\n");
         stage_trace(
             &dir,
-            "2026-07-08T02-00-00Z-torn.ndjson",
-            &torn,
+            "2026-07-08T02-00-00Z-future.ndjson",
+            &future,
             Duration::from_secs(8),
+        );
+        // And the crash shape: a syntactically torn tail.
+        let torn = format!("{good}{{\"kind\":\"task_started\",\"torn\":");
+        stage_trace(
+            &dir,
+            "2026-07-08T03-00-00Z-torn.ndjson",
+            &torn,
+            Duration::from_secs(7),
         );
         let g = gather(&dir, "wf");
         assert_eq!(g.window.files_unreadable, 1, "first-line-dead file counted");
-        assert_eq!(g.window.files_truncated, 1, "torn tail counted");
-        assert_eq!(g.samples.len(), 1, "the torn file's valid prefix is used");
+        assert_eq!(
+            g.window.files_truncated, 2,
+            "unknown-kind line AND torn tail each counted"
+        );
+        assert_eq!(g.samples.len(), 2, "both valid prefixes are used");
+    }
+
+    /// `task_recovered` (#313) DESERIALIZES and folds nothing — the `_`
+    /// arm is load-bearing with a REAL shipped variant, never a forgery.
+    #[test]
+    fn shipped_no_fact_kinds_ride_the_wildcard_arm() {
+        let dir = temp_store("forecast-gather-recovered");
+        let repair = ev(
+            EventKind::TaskRecovered,
+            5_005,
+            &[("task", Value::string("t"))],
+        );
+        let body = run_body(
+            "wf",
+            None,
+            5_000,
+            &[repair, task_done("t", 5_010, 40, None, None)],
+            Some(done(5_020, None)),
+        );
+        stage_trace(
+            &dir,
+            "2026-07-08T06-00-00Z-0006.ndjson",
+            &body,
+            Duration::from_secs(1),
+        );
+        let g = gather(&dir, "wf");
+        assert_eq!(
+            g.window.files_truncated, 0,
+            "a shipped kind never truncates"
+        );
+        assert_eq!(g.samples.len(), 1);
+        let run = &g.samples[0];
+        assert_eq!(run.state, TraceState::Completed);
+        let t = run.tasks.iter().find(|t| t.id == "t").expect("test value");
+        assert_eq!(t.duration_ms, Some(40), "the completion sample survived");
+    }
+
+    /// The plan's retention-interaction fixture: 12 finished traces ·
+    /// default GC keeps 10 · the reader sees EXACTLY the kept window and
+    /// the report carries the knob that explains why.
+    #[test]
+    fn retention_bounds_the_window_and_the_report_names_it() {
+        use crate::verbs::trace::retention;
+        use std::time::SystemTime;
+        let dir = temp_store("forecast-gather-retention");
+        for i in 0..12u64 {
+            let ms = 100_000 + i * 1_000;
+            let body = run_body("wf", None, ms, &[], Some(done(ms + 10, None)));
+            stage_trace(
+                &dir,
+                &format!("2026-07-08T{:02}-00-00Z-{i:04}.ndjson", 1 + i),
+                &body,
+                Duration::from_secs((12 - i) * 3_600),
+            );
+        }
+        let gc = retention::collect(&dir, &RetentionConfig::default(), SystemTime::now());
+        assert!(gc.is_some(), "12 finished under keep-10 → 2 rotate");
+        let g = gather(&dir, "wf");
+        assert_eq!(
+            g.samples.len(),
+            10,
+            "the reader sees exactly the kept window"
+        );
+        assert_eq!(
+            g.window.retention_keep,
+            RetentionConfig::default().keep_last
+        );
     }
 
     #[test]
