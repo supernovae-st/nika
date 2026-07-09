@@ -29,6 +29,7 @@
 #     consumers + regen every baseline. Until then: hold-out.
 # (a11y/ocr also use OS-specific deps but keep them PRIVATE — their public surface is
 #  neutral, verified by a platform-symbol sweep, so they ARE floored.)
+nika-fx
 nika-types
 nika-error
 nika-catalog

@@ -575,6 +575,7 @@
                 "nika:glob",
                 "nika:grep",
                 "nika:hash",
+                "nika:image_fx",
                 "nika:image_generate",
                 "nika:inspect",
                 "nika:jq",

@@ -73,7 +73,10 @@ The order is `invoke: nika:*` → `invoke: mcp:<server>/<tool>` →
    (cat/tee/cp/mkdir) → `nika:read`/`nika:write` (`create_dirs: true`) ·
    JSON shaping (jq/sed) → `nika:jq` (or an `output:` binding) ·
    in-place edits → `nika:edit` · image/speech provider calls →
-   `nika:image_generate`/`nika:tts_generate`.
+   `nika:image_generate`/`nika:tts_generate` · image styling
+   (ImageMagick convert / PIL filters / dither scripts) →
+   `nika:image_fx` (deterministic — same input+args = same bytes,
+   the artifact sha256 joins the trace chain).
 2. **Which MCP tool replaces it?** A product API deserves an MCP
    server, never a helper script.
 3. **Neither?** Name the exact gap — then `exec:` is legitimate

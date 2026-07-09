@@ -44,10 +44,10 @@ schema_version: 1
 counts:
   verbs: 4
   namespaces: 5
-  builtins: 25
+  builtins: 26
   providers: 16
   extract_modes: 9
-  templates: 9
+  templates: 10
   error_namespaces: 14
   error_categories: 12
   error_codes: 50
@@ -92,12 +92,12 @@ namespaces:
     - secrets
 
 # ---------------------------------------------------------------- builtins
-# Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-093 · agent-loop self-check intrinsic, loop-only like done) → 24 (image_generate added 2026-07-05 · the first stdlib §Media graduate · openai/gemini/mock · assets land on disk, never inline) → 25 (tts_generate added 2026-07-05 · §Audio · local/openai/elevenlabs/mock · sovereign-first).
+# Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-093 · agent-loop self-check intrinsic, loop-only like done) → 24 (image_generate added 2026-07-05 · the first stdlib §Media graduate · openai/gemini/mock · assets land on disk, never inline) → 25 (tts_generate added 2026-07-05 · §Audio · local/openai/elevenlabs/mock · sovereign-first) → 26 (image_fx added 2026-07-09 · §Media graduate #3 · the `image editing` deferred row · deterministic artistic effects · byte-identical artifacts · recipe-in-chunk · zero-dep).
 # stdlib/builtins-v0.1.md is the prose home (matches at 25 · cascade complete 2026-07-06 · image providers v1.1 local-first + xai · tts_generate §Audio same arc).
 # Admission test · 3 razors · (1) NOT-expressible-in-jq+CEL+Schema · (2) canonical
 # interop format (RFC-6902/7396/9562 · etc.) · (3) cookbook-clarity.
 builtins:
-  count: 25
+  count: 26
   reference: stdlib/builtins-v0.1.md
   items:
     - assert
@@ -111,6 +111,7 @@ builtins:
     - glob
     - grep
     - hash
+    - image_fx
     - image_generate
     - inspect
     - jq
@@ -181,12 +182,13 @@ extract_modes:
 # recurs across authoring sessions earns one. templates/README.md is
 # the prose home (the routing table).
 templates:
-  count: 9
+  count: 10
   reference: templates/README.md
   items:
     - agent-loop
     - api-upload-and-create
     - chain
+    - docker-report
     - etl-state
     - fanout
     - gate-and-act

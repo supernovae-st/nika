@@ -561,6 +561,15 @@ deps are terminal, whatever their status · `true` → run (the always-pattern �
 `when: true` literally) · `false` → `skipped`. Workflow-failure interaction ·
 [05 §workflow-level semantics](./05-errors.md#workflow-level-error-semantics).
 
+**A gate that fails to EVALUATE is a task failure — outside `on_error`
+scope** (normative) · the gate decides IF the task runs; `on_error` governs
+the run itself. A `when:` expression whose evaluation errors (an
+unresolvable root · a cross-type compare · any `NIKA-VAR` evaluation error)
+settles the task `failure` — its `on_error` is NOT consulted — and
+downstream reads `status: "failure"`. Contrast · the same evaluation error
+in a verb-body position (`args:` · `prompt:` · …) is task-stage work and IS
+recoverable by that task's `on_error`.
+
 > **`depends_on` IS the success-gate.** Do NOT write
 > `when: ${{ tasks.X.status == 'success' }}` as a plain gate: it is **redundant**
 > (`depends_on` already requires success). Use `when:` ONLY for conditions BEYOND
@@ -786,6 +795,34 @@ construct's default is noise; a construct that smuggles another's job is a
 trap. The reference validator ships these as warnings (`one-obvious-way/001`
 …`/007` · table order), never hard errors (the discouraged forms are legal ·
 just not canonical).
+
+## Native-first · preference rules (normative for lints)
+
+The sibling ruleset for the VERB choice: `exec:` is the escape hatch,
+never the default path. An `exec:` whose literal command a stdlib
+builtin (or an MCP tool) covers trades portability, the capability
+boundary and the audit certificate for a subprocess. A conformant
+linter (the reference `native-first` rule set) warns on each class ·
+
+| Rule | Fires on (literal command head/fragments) | The native path |
+|---|---|---|
+| `native-first/001 exec-http` | `curl` · `wget` · `xh` · `http(s)` · an interpreter one-liner around `fetch(`/`axios`/`http.request` | `nika:fetch` (uploads · `multipart:` · crawls · `traverse:`) |
+| `native-first/002 exec-file` | `cat` · `tee` · `cp` · `mv` · `mkdir` · `touch` · `head` · `tail` · `ls` | `nika:read` / `nika:write` (`create_dirs: true`) / `nika:glob` |
+| `native-first/003 exec-data` | `jq` · `sed` · `awk` | `nika:jq` (or an `output:` binding) for JSON · `nika:edit` for in-place literal file edits |
+| `native-first/004 exec-media` | an image/speech provider endpoint in the command (`images/generations` · `/v1/audio/speech` · …) | `nika:image_generate` / `nika:tts_generate` |
+| `native-first/005 exec-helper` | an interpreter (`node` · `python` · `sh` · …) running a script file | inventory the helper · HTTP→`nika:fetch` · files→`nika:read`/`nika:write` · JSON→`nika:jq` · a product API→an MCP server (`mcp:<server>/<tool>`) · keep only a genuine subprocess, recorded in the exec ledger |
+
+Rules are DETERMINISTIC on literal fragments (a templated command head
+makes no claim) · at most one warning per task, most specific first
+(helper ≻ media ≻ http ≻ file ≻ data) · `nika run …` nesting and
+genuine subprocesses (`cargo` · `git` · `make` · a product CLI with no
+MCP surface yet) stay silent. Warnings, never hard errors — but a
+STRICT authoring posture (a CI gate · an agent's final check) MAY
+promote them to failures; the reference engine ships that posture as
+`nika check --native-strict`. When an `exec:` legitimately remains,
+the author records it in the **exec ledger** (task · command · why no
+native path · the unlock that would remove it) — the workflow header
+comment is the conventional home.
 
 ## Forward-compat
 

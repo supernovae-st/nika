@@ -56,7 +56,7 @@ mod tests {
     /// The embedded `canon.yaml` (what `nika spec --canon` prints) is a
     /// vendored snapshot of the spec-repo SSOT. Its `builtins:` count MUST
     /// equal the catalog's `all_builtins()` length — the proven 1:1 (the
-    /// catalog itself asserts `all_builtins().len() == 23`). When the embed
+    /// catalog itself asserts `all_builtins().len() == 26`). When the embed
     /// drifts behind the SSOT (e.g. a builtin is added but `sync-pack.sh`
     /// wasn't re-run), this test is the structural catch: `nika spec
     /// --canon` would otherwise report a stale count to every consumer.

@@ -1,0 +1,17 @@
+# nika-fx determinism law as lint (the chart clippy.toml replayed).
+# std float transcendentals are documented non-deterministic across
+# platforms/versions — every one of them is banned in this crate; the
+# deterministic seams live in det.rs (integer/fixed-point + const tables).
+disallowed-methods = [
+    "f64::ln", "f64::log2", "f64::log10", "f64::powf", "f64::powi",
+    "f64::exp", "f64::exp2", "f64::sqrt", "f64::cbrt", "f64::sin",
+    "f64::cos", "f64::tan", "f64::atan2",
+    "f32::ln", "f32::log2", "f32::log10", "f32::powf", "f32::powi",
+    "f32::exp", "f32::exp2", "f32::sqrt", "f32::cbrt", "f32::sin",
+    "f32::cos", "f32::tan", "f32::atan2",
+]
+# Iteration order is part of the byte contract — no hash-order collections.
+disallowed-types = [
+    "std::collections::HashMap",
+    "std::collections::HashSet",
+]
