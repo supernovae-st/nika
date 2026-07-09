@@ -28,11 +28,8 @@ User asks you to …                    → Load rule
 
 Higher in this list wins when two docs contradict:
 
-1. `~/.claude/projects/-Users-thibaut-dev-supernovae-hq/memory/POST_AUDIT_REVISIONS.md` — supreme authority
-2. `~/.claude/projects/-Users-thibaut-dev-supernovae-hq/memory/PRE_LAUNCH_GATES.md` — 7 shadow zones
-3. `~/.claude/projects/-Users-thibaut-dev-supernovae-hq/memory/HANDOFF_PHASE_1_REVISED.md` — current execution plan
-4. `.claude/rules/*.md` (this directory) — project-specific enforcement
-5. `~/.claude/projects/-Users-thibaut-dev-supernovae-hq/memory/project_ai_velocity_north_star.md` — WHY diamond (decision filter)
+1. Studio-internal authority docs (POST_AUDIT_REVISIONS · PRE_LAUNCH_GATES · HANDOFF · the velocity north-star) — private overlay on the operator's machine (`.claude/settings.local.json` · gitignored) — supreme authority when present locally
+2. `.claude/rules/*.md` (this directory) — project-specific enforcement
 
 ## Loading philosophy
 
