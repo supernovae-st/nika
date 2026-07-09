@@ -39,8 +39,16 @@ where
 }
 
 /// Render a suggestion clause (`" — did you mean ___?"`) or empty.
+/// A suggestion carrying spaces is a TEACHING sentence (e.g. the modeline
+/// cause-namer), not a candidate key — it renders as prose, no question.
 pub(crate) fn suggestion_clause(suggestion: Option<&str>) -> String {
-    suggestion.map_or_else(String::new, |s| format!(" — did you mean `{s}`?"))
+    suggestion.map_or_else(String::new, |s| {
+        if s.contains(' ') {
+            format!(" — {s}")
+        } else {
+            format!(" — did you mean `{s}`?")
+        }
+    })
 }
 
 /// Damerau-Levenshtein distance (optimal string alignment variant) —

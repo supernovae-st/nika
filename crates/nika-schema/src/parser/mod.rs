@@ -97,9 +97,26 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
                 ),
                 span: None,
             },
-            other => SchemaError::YamlSyntax {
-                message: other.to_string(),
-                span: None,
+            // Pre-parse cause lint (the copy-fidelity class · #323): a weak
+            // copier de-comments the editor modeline and YAML reads the bare
+            // `$schema=…` line as a document scalar — the raw error then
+            // points at the SYMPTOM (the first mapping line, e.g. `nika: v1`
+            // at line 14) while the fault is line 1-2, and the repair loop
+            // chases the wrong line forever (0/13 measured on a 14B grid).
+            // Name the CAUSE, span on the offending line.
+            other => match broken_modeline(yaml, file_id) {
+                Some((span, line_no)) => SchemaError::YamlSyntax {
+                    message: format!(
+                        "a bare `$schema=` line (line {line_no}) is a broken editor \
+                         modeline — restore the `# yaml-language-server: $schema=…` \
+                         comment prefix (or delete the line; it is editor-only)"
+                    ),
+                    span: Some(span),
+                },
+                None => SchemaError::YamlSyntax {
+                    message: other.to_string(),
+                    span: None,
+                },
             },
         })?;
 
@@ -209,6 +226,34 @@ fn compact_dash_run(rest: &str) -> usize {
     }
 }
 
+/// The de-commented editor modeline (the copy-fidelity class · #323): an
+/// early line reading `$schema=…` or `yaml-language-server: …` WITHOUT its
+/// `#` prefix. Only consulted when the document already failed to parse —
+/// this is a cause-namer, never a gate on valid YAML. Scans the head of
+/// the file (the modeline contract is « at the top »; 8 lines covers
+/// license headers) and returns the offending line's span + 1-based number.
+fn broken_modeline(yaml: &str, file: FileId) -> Option<(Span, u32)> {
+    let mut offset = 0u32;
+    for (i, line) in yaml.lines().take(8).enumerate() {
+        // Head-of-file offsets: bounded by 8 lines of a MAX_SOURCE_BYTES
+        // (4 MiB) document — u32 holds by construction.
+        let len = u32::try_from(line.len()).ok()?;
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("$schema=") || trimmed.starts_with("yaml-language-server:") {
+            let indent = u32::try_from(line.len() - trimmed.len()).ok()?;
+            let span = Span::new(
+                file,
+                ByteOffset::new(offset + indent),
+                ByteOffset::new(offset + len),
+            );
+            let line_no = u32::try_from(i).ok()? + 1;
+            return Some((span, line_no));
+        }
+        offset += len + 1; // the LF the iterator swallowed
+    }
+    None
+}
+
 fn check_source_bounds(source: &str) -> Result<(), SchemaError> {
     if source.len() > MAX_SOURCE_BYTES {
         return Err(SchemaError::YamlSyntax {
@@ -298,12 +343,27 @@ impl Cx<'_> {
     ) -> Result<(), SchemaError> {
         for (key, _) in mapping.iter() {
             if !known.contains(&key.as_str()) {
+                // The modeline class, valid-YAML form (#323): with the `#`
+                // stripped, `yaml-language-server: $schema=…` parses as a
+                // top-level mapping key — the generic unknown-field message
+                // sends the repairer hunting for a workflow field. Teach the
+                // real fix instead of a Levenshtein guess.
+                let suggestion = if key.as_str() == "yaml-language-server" {
+                    Some(
+                        "this is a de-commented editor modeline, not a workflow \
+                         field — restore the `# ` comment prefix (or delete the \
+                         line; it is editor-only)"
+                            .to_owned(),
+                    )
+                } else {
+                    crate::suggest::did_you_mean(key.as_str(), known.iter().copied())
+                        .map(str::to_owned)
+                };
                 return Err(SchemaError::UnknownField {
                     field: key.as_str().to_owned(),
                     location: location.to_owned(),
                     span: self.span(key.span()),
-                    suggestion: crate::suggest::did_you_mean(key.as_str(), known.iter().copied())
-                        .map(str::to_owned),
+                    suggestion,
                 });
             }
         }
@@ -746,6 +806,73 @@ tasks:
     fn parse_yaml_syntax_error_maps_to_schema_error() {
         let err = parse_strict("workflow: [unclosed\n").expect_err("bad yaml");
         assert!(matches!(err, SchemaError::YamlSyntax { .. }));
+    }
+
+    /// The copy-fidelity class (#323): a weak copier de-comments the
+    /// modeline; the raw YAML error points at the first mapping line (the
+    /// SYMPTOM, e.g. `nika: v1`) — the diagnostic must name the CAUSE with
+    /// the span on the modeline itself, or the repair loop never converges
+    /// (0/13 measured on a 14B grid).
+    #[test]
+    fn bare_modeline_parse_failure_names_the_cause() {
+        let yaml = "$schema=https://nika.sh/schema/v1/workflow.schema.json\n\
+                    nika: v1\nworkflow: hello\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n";
+        let err = parse_strict(yaml).expect_err("bare modeline breaks the doc");
+        let SchemaError::YamlSyntax { message, span } = err else {
+            panic!("expected YamlSyntax, got {err:?}");
+        };
+        assert!(
+            message.contains("broken editor modeline")
+                && message.contains("(line 1)")
+                && message.contains("# yaml-language-server:"),
+            "the diagnostic teaches the fix verbatim: {message}"
+        );
+        let span = span.expect("span lands on the modeline line, not the symptom");
+        assert_eq!(span.start.0, 0, "starts at the offending line");
+    }
+
+    /// The valid-YAML form of the same class: without its `#`, the
+    /// `yaml-language-server:` line PARSES (a top-level key) — it lands as
+    /// an unknown field, and the suggestion must teach the modeline fix,
+    /// never a did-you-mean workflow field.
+    #[test]
+    fn bare_language_server_line_is_the_same_class() {
+        let yaml = "# SPDX-License-Identifier: Apache-2.0\n\
+                    yaml-language-server: $schema=https://nika.sh/x.json\n\
+                    nika: v1\nworkflow: hello\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n";
+        let err = parse_strict(yaml).expect_err("unknown top-level field in strict");
+        let SchemaError::UnknownField {
+            field, suggestion, ..
+        } = err
+        else {
+            panic!("expected UnknownField, got {err:?}");
+        };
+        assert_eq!(field, "yaml-language-server");
+        let s = suggestion.expect("the modeline teaching replaces did-you-mean");
+        assert!(
+            s.contains("editor modeline") && s.contains("comment prefix"),
+            "teaches the real fix: {s}"
+        );
+    }
+
+    #[test]
+    fn commented_modeline_never_fires_the_lint() {
+        // The HEALTHY form — parse succeeds, the lint is never consulted.
+        let yaml = "# yaml-language-server: $schema=https://nika.sh/x.json\n\
+                    nika: v1\nworkflow: hello\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n";
+        parse_strict(yaml).expect("commented modeline is valid YAML");
+    }
+
+    #[test]
+    fn unrelated_syntax_error_keeps_the_raw_message() {
+        let err = parse_strict("workflow: [unclosed\n").expect_err("bad yaml");
+        let SchemaError::YamlSyntax { message, .. } = err else {
+            panic!("expected YamlSyntax");
+        };
+        assert!(
+            !message.contains("modeline"),
+            "no modeline in the file — the raw error stands: {message}"
+        );
     }
 
     #[test]
