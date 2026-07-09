@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtins
 
-> **<!-- canon:builtins -->25<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
+> **<!-- canon:builtins -->26<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
 > Invoked via `invoke: tool: "nika:<name>"`. Plus the remaining media
 > builtins deferred to stdlib v0.x (opt-in feature flag).
 >
@@ -40,10 +40,10 @@
 | Data | 8 | `jq` (THE data language) + 7 capabilities jq can't express (json_diff · validate · json_merge_patch · convert · uuid · date · hash) |
 | Introspection | 2 | Self-awareness · `inspect` (runtime state · 4 views) · `compose` (static check of a drafted workflow · agent loops only) |
 | Network | 2 | fetch (HTTP+extraction) · notify (alerts out) |
-| Media | 2 | `image_generate` (§Media · 2026-07-05) · `tts_generate` (§Audio · same day) — the REST of the media class stays deferred to stdlib v0.x |
-| **Total v0.1** | **25** | |
+| Media | 3 | `chart` (§Media #3 · deterministic/attested · 2026-07-09) · `image_generate` (§Media · 2026-07-05) · `tts_generate` (§Audio · same day) — the REST of the media class stays deferred to stdlib v0.x |
+| **Total v0.1** | **26** | |
 
-A Stdlib v0.1-compliant engine MUST ship these 25.
+A Stdlib v0.1-compliant engine MUST ship these 26.
 
 ---
 
@@ -276,9 +276,32 @@ invoke: { tool: "nika:fetch", args: { url: "https://example.com/article", mode: 
 |---|---|
 | `url` | required · may use `${{ ... }}` |
 | `method` | `GET` (default) · `POST` · `PUT` · `DELETE` · `PATCH` · `HEAD` |
-| `headers` · `body` | extra headers · body (objects auto-JSON) |
+| `headers` · `body` | extra headers · body (objects auto-JSON) · auth rides `headers` (`x-api-key: "${{ secrets.KEY }}"` · masked) |
+| `form` | `application/x-www-form-urlencoded` object of scalar fields (string · number · boolean — nesting refused · reshape with `nika:jq`) · body-bearing method required |
+| `multipart` | `multipart/form-data` parts array · `{name, value}` text XOR `{name, path, filename?, content_type?}` file · every `path` rides the `permits.fs` READ boundary (`NIKA-SEC-004` on escape) · ≤64 parts · ≤32 MiB total · body-bearing method required |
 | `mode` | extraction mode · see `extract-modes-v0.1.md` · default `markdown` |
 | `jq` | a jq expression · only with `mode: jq` (structured JSON extraction · replaces the former JSONPath mode) |
+| `traverse` | bounded same-origin crawl · `{ max_pages: 1..=25 (required), respect_robots?: bool (default true) }` · GET only · excludes `mode`/`selector`/`jq`/`body`/`form`/`multipart` |
+
+**Payload exclusivity (normative)** · at most ONE of `body` · `form` ·
+`multipart`; `form`/`multipart` require a body-bearing method (`POST` ·
+`PUT` · `PATCH`) and OWN their `content-type` (a user-supplied
+`content-type` header alongside them is a refused conflict).
+
+**`traverse` semantics (normative)** · same-origin BFS from `url` ·
+fragment-stripped dedup · per-page output is the fixed page digest
+`{url, status, title, description, headings ≤16, links ≤30, images ≤24,
+colors ≤20, text ≤4000}` · crawl output is `{url, page_count, pages[],
+assets: {images ≤40, colors ≤30}}` · `robots.txt` honored by default
+(RFC 9309 group semantics · `User-agent: *` `Disallow` prefixes · a
+missing/unreadable robots.txt is allow-all · a disallowed ROOT is a loud
+failure · disallowed descendants are silently skipped) · every hop rides
+the engine's SSRF defense · a failing descendant page becomes an honest
+`{url, status|error}` entry and the crawl continues · the effect
+certificate counts `max_pages` page requests (+1 robots probe unless
+`respect_robots: false` is literal) — a bounded crawl is auditable
+before a request is spent. `crawl`/`http`/`website` are intentions, not
+tools — they all route HERE (no `nika:crawl`).
 
 **Non-2xx is failure (normative)** · a non-2xx response throws
 `NIKA-BUILTIN-FETCH-001` (`category: network_error` · `transient: true` for
@@ -341,7 +364,42 @@ Throws · `NIKA-BUILTIN-INSPECT-001` if `view:` value not in the canonical enum.
 
 ---
 
-## Media builtins (2)
+## Media builtins (3)
+
+### `nika:chart` · deterministic chart artifacts (§Media graduate #3)
+
+```yaml
+invoke:
+  tool: "nika:chart"
+  args:
+    data: "${{ steps.metrics.output }}"   # rows · array of flat objects (strings + numbers) · or { path: <json file> }
+    semantics: { period: timestamp, cost: usd, provider: category }
+    chart:
+      type: line                          # bar | line | area_band | scatter | heatmap (closed)
+      x: period                           # field names · y_lo/y_hi = area_band bounds · y2 = actual overlay
+      y: cost                             # color = series split (heatmap: the value field)
+      title: "Cost over time"
+    out: report/cost-over-time.svg        # .svg REQUIRED — SVG is the attestation surface
+    compile_to: vega_lite                 # optional · also writes the .vl.json sibling
+```
+
+Pure compute + ONE permit-gated write (`out:` rides `permits.fs.write` ·
+a `data.path` source rides `permits.fs.read`). No network, no clock, no
+keys — identical `(spec, data)` produce **byte-identical SVG** on every
+platform, re-runs are idempotent (hash-equal artifacts are never
+rewritten), and `outputs:` carries the receipts: `path · sha256 ·
+data_sha256 · width · height · bytes · wrote · warnings`.
+
+The semantic map drives presentation (`usd` money grain · `duration_ms`
+humanized · `tokens` k/M · `delta` ⇒ diverging palette anchored at 0 ·
+`percent` · `timestamp` · `count` · `category` — closed set). Encoding
+honesty is built in: bars always anchor zero · **predictions are dashed,
+observations solid** (area_band) · decimation (LTTB) keeps extremes and
+warns — the DATA hash still covers every row.
+
+Errors are `NIKA-BUILTIN-CHART-001..008` (001 empty data · 002 unknown
+field · 003 non-finite · 004 invalid spec/closed-enum · 005 domain
+collapsed · 006 type mismatch · 007 too many points · 008 I/O).
 
 ### `nika:image_generate` · provider-backed image asset generation
 
@@ -571,8 +629,9 @@ Also cut · `nika:task_status` (use `${{ tasks.X.status }}`) · `nika:orchestrat
 
 ## Media builtins · the REST stays DEFERRED (stdlib v0.x)
 
-`image_generate` graduated 2026-07-05 (above). The remaining media class
-(pdf_extract · svg_render · chart · phash · provenance · image *editing* ·
+`image_generate` graduated 2026-07-05 · `tts_generate` same arc ·
+`chart` graduated 2026-07-09 (above · §Media #3). The remaining media class
+(pdf_extract · svg_render · phash · provenance · image *editing* ·
 …) is NOT enumerated in v0.1 (feature-flag in the reference engine · MAY
 graduate builtin-by-builtin per the 3-razor admission test). Deliberate
 « less but better » (Rams 10).
@@ -597,4 +656,4 @@ external users · before the forever-clock).
 
 ---
 
-🦋 *<!-- canon:builtins -->25<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*
+🦋 *<!-- canon:builtins -->26<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*

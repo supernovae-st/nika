@@ -508,6 +508,40 @@ fn heat_color(v: f64, min: f64, max: f64, sem: Semantic) -> String {
     }
 }
 
+/// Discrete swatch legend strip (never a gradient · §3bis) + min/max labels.
+fn heat_legend(svg: &mut Svg, frame: &Frame, vmin: f64, vmax: f64, sem: Semantic) {
+    // Discrete swatch legend (never a gradient · §3bis) + min/max labels.
+    let ly = frame.y0 - 10.0;
+    let mut lx = frame.x0;
+    let min_l = fmt::label(vmin, sem);
+    svg.text(
+        lx,
+        ly + 1.0,
+        &min_l,
+        10.0,
+        palette::INK_SOFT,
+        Anchor::Start,
+        None,
+    );
+    lx += metrics::measure(&min_l, 10.0) + 6.0;
+    for i in 0..7 {
+        let tt = f64::from(i) / 6.0;
+        let v = vmin + tt * (vmax - vmin);
+        svg.cell(lx, ly - 7.0, 14.0, 9.0, &heat_color(v, vmin, vmax, sem));
+        lx += 14.0;
+    }
+    lx += 6.0;
+    svg.text(
+        lx,
+        ly + 1.0,
+        &fmt::label(vmax, sem),
+        10.0,
+        palette::INK_SOFT,
+        Anchor::Start,
+        None,
+    );
+}
+
 /// Heatmap · category × category → quantity color (step × run flakiness).
 /// The value channel is `spec.color`. Missing cells get an EXPLICIT no-data
 /// fill (philosophy law 6 · never silent-skip).
@@ -580,41 +614,6 @@ pub fn heatmap(
         );
     }
 
-    // Discrete swatch legend (never a gradient · §3bis) + min/max labels.
-    let ly = frame.y0 - 10.0;
-    let mut lx = frame.x0;
-    let min_l = fmt::label(vmin, val_ch.semantic);
-    svg.text(
-        lx,
-        ly + 1.0,
-        &min_l,
-        10.0,
-        palette::INK_SOFT,
-        Anchor::Start,
-        None,
-    );
-    lx += metrics::measure(&min_l, 10.0) + 6.0;
-    for i in 0..7 {
-        let tt = f64::from(i) / 6.0;
-        let v = vmin + tt * (vmax - vmin);
-        svg.cell(
-            lx,
-            ly - 7.0,
-            14.0,
-            9.0,
-            &heat_color(v, vmin, vmax, val_ch.semantic),
-        );
-        lx += 14.0;
-    }
-    lx += 6.0;
-    svg.text(
-        lx,
-        ly + 1.0,
-        &fmt::label(vmax, val_ch.semantic),
-        10.0,
-        palette::INK_SOFT,
-        Anchor::Start,
-        None,
-    );
+    heat_legend(&mut svg, &frame, vmin, vmax, val_ch.semantic);
     Ok(svg.close())
 }

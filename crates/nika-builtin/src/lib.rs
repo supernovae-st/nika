@@ -28,6 +28,7 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+pub(crate) mod chart;
 pub mod core_tools;
 pub mod data;
 pub mod date;
@@ -386,9 +387,8 @@ where
             "done" => Ok(core_tools::done()),
             "wait" => Ok(core_tools::wait(self.clock.as_ref(), args).await),
             // file 5 — each fs op is gated by the declared permits.fs
-            // boundary FIRST (spec §permits · NIKA-SEC-004): a path that
-            // resolves outside the boundary fails before any I/O. An
-            // undeclared boundary is a no-op (the pre-permits floor).
+            // boundary FIRST (spec §permits · NIKA-SEC-004) — outside fails
+            // before I/O · undeclared = no-op (the pre-permits floor).
             "read" => Ok(self
                 .guarded_fs(args, &[permits::FsAccess::Read], file::read)
                 .await),
@@ -453,6 +453,7 @@ where
             )
             .await),
             "tts_generate" => Ok(self.route_tts(args).await),
+            "chart" => Ok(self.guarded_chart(args).await),
             // introspection 2
             "compose" => Ok(core_tools::compose()),
             "inspect" => Ok(inspect::inspect(self.workflow.as_ref(), args)),
@@ -500,6 +501,27 @@ where
             }
         }
         op(self.fs.as_ref(), args).await
+    }
+
+    /// `nika:chart` under the boundary — gate the `out:` artifact (WRITE ·
+    /// its `.vl.json` sibling shares the directory and clearance) and the
+    /// optional `data.path` source (READ) BEFORE any compute.
+    async fn guarded_chart(&self, args: &Args) -> BuiltinOutcome {
+        if let Some(out) = args.get("out").and_then(serde_json::Value::as_str) {
+            self.fs_boundary
+                .enforce(self.fs.as_ref(), out, permits::FsAccess::Write)
+                .await?;
+        }
+        if let Some(src) = args
+            .get("data")
+            .and_then(|d| d.get("path"))
+            .and_then(serde_json::Value::as_str)
+        {
+            self.fs_boundary
+                .enforce(self.fs.as_ref(), src, permits::FsAccess::Read)
+                .await?;
+        }
+        chart::render(self.fs.as_ref(), args).await
     }
 
     /// `nika:grep` under the boundary — a recursive READ rooted at `path:`
@@ -801,9 +823,10 @@ mod tests {
             let outcome = rig.execute(call(&def.name, serde_json::json!({}))).await;
             assert!(outcome.is_ok(), "{} must route (got {outcome:?})", def.name);
         }
-        // …and the count is the canonical 25 (stdlib v0.1 · +compose per
-        // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio).
-        assert_eq!(tool_defs().len(), 25);
+        // …and the count is the canonical 26 (stdlib v0.1 · +compose per
+        // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio ·
+        // +chart stdlib §Media graduate #3).
+        assert_eq!(tool_defs().len(), 26);
     }
 
     #[tokio::test]
@@ -863,7 +886,7 @@ mod tests {
         let defs = ToolDefinitionProviderDyn::tool_defs(&rig())
             .await
             .expect("enumerates");
-        assert_eq!(defs.len(), 25);
+        assert_eq!(defs.len(), 26);
         assert!(defs.iter().all(|d| d.name.starts_with(NAMESPACE)));
         assert!(defs.iter().all(|d| !d.description.is_empty()));
         assert!(

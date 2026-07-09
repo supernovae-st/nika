@@ -350,6 +350,18 @@ fn introspection_defs() -> Vec<ToolDef> {
 fn media_defs() -> Vec<ToolDef> {
     vec![
         def(
+            "chart",
+            "Render a DETERMINISTIC chart artifact from rows + a semantic spec (bar | line | area_band | scatter | heatmap) — byte-identical SVG saved at `out`, sha256 in outputs (the trace-chain receipt) · optional Vega-Lite sibling via compile_to. Pure compute + one permit-gated write: no network, no clock, re-runs are idempotent.",
+            serde_json::json!({
+                "data": s("rows · array of flat objects (strings + numbers) · or { path: <json file> }"),
+                "semantics": { "type": "object", "description": "field → usd | duration_ms | tokens | count | delta | percent | timestamp | category (drives formatting + palettes · delta ⇒ diverging anchored 0)" },
+                "chart": { "type": "object", "description": "{ type, x, y, y_lo?, y_hi? (area_band bounds), y2? (actual overlay), color? (series split · heatmap value), title?, width?, height? } — x/y/… are field names" },
+                "out": s("artifact path ending .svg (fs-permit gated · parents created · idempotent)"),
+                "compile_to": s("vega_lite — also writes the .vl.json sibling next to the svg"),
+            }),
+            &["data", "chart", "out"],
+        ),
+        def(
             "tts_generate",
             "Synthesize speech audio (local compat servers · openai gpt-4o-mini-tts · elevenlabs · mock for offline runs) — saves ONE audio file under output_dir and returns path + format + sha256 + duration (+ a provenance manifest); audio bytes never ride outputs.",
             serde_json::json!({
@@ -464,13 +476,13 @@ mod tests {
     }
 
     #[test]
-    fn the_catalog_is_the_canonical_25_with_no_dupes() {
+    fn the_catalog_is_the_canonical_26_with_no_dupes() {
         let defs = tool_defs();
         assert_eq!(
             defs.len(),
-            25,
+            26,
             "stdlib ships exactly 25 (22 Rams-swept + nika:compose ADR-096 + \
-             nika:image_generate stdlib §Media + nika:tts_generate stdlib §Audio)"
+             nika:image_generate stdlib §Media + nika:tts_generate stdlib §Audio + nika:chart stdlib §Media)"
         );
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         names.sort_unstable();

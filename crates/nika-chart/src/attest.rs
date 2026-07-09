@@ -192,8 +192,14 @@ mod tests {
         Value::Str(v.to_owned())
     }
 
-    #[allow(clippy::too_many_lines)] // fixture builder — 5 chart types inline
     fn all_five() -> Vec<(ChartSpec, Vec<Row>)> {
+        let mut out = point_fixtures();
+        out.extend(band_and_grid_fixtures());
+        out
+    }
+
+    /// bar (hostile title) · multi-series line · scatter.
+    fn point_fixtures() -> Vec<(ChartSpec, Vec<Row>)> {
         let mut out = Vec::new();
         // bar · title with escapes to prove the unescape path
         out.push((
@@ -242,6 +248,12 @@ mod tests {
                 })
                 .collect(),
         ));
+        out
+    }
+
+    /// `area_band` (`y_lo`/`y_hi`/`y2`) · heatmap (`color` value channel).
+    fn band_and_grid_fixtures() -> Vec<(ChartSpec, Vec<Row>)> {
+        let mut out = Vec::new();
         // band
         let bd = ChartSpec {
             chart: ChartType::AreaBand,

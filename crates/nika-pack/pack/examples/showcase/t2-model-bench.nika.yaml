@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 diamond · engineering / model selection
+#
+# The same question, three local models, one honest table — latency and
+# answer length are MEASURED (the flight recorder's clock, not vibes);
+# the answers sit side by side for your own eyes. Zero keys, zero cloud,
+# zero spend: the bench you run BEFORE picking a default model.
+#
+# Demonstrates ·
+#   - per-task `infer.model:` override · one workflow, N engines
+#   - `tasks.X.duration_ms` · the run's own clock as a data source
+#   - `nika:jq` fan-in · three answers → one markdown table, no model call
+#   - `nika:write` · the report lands on disk, diffable run over run
+#
+# Honesty note · the first call to each model pays its load time — run
+# the bench twice and read the WARM numbers. Judgment stays yours: the
+# table measures facts (latency · length); it never scores "quality".
+# Two findings this bench surfaced on its own authoring run (live) · a
+# THINKING model with a bounded max_tokens spends the budget reasoning
+# and returns an EMPTY answer — a bench result, not a bug · on a
+# --resume, rehydrated rows say "cached" — a latency that was not
+# re-measured is never re-printed as fresh.
+#
+# Run · nika run examples/showcase/t2-model-bench.nika.yaml
+#       models · ollama pull qwen2.5:14b · llama3.2:3b · qwen2.5:0.5b
+#       (swap any seat for the models YOU have — or for mistral/… ·
+#        anthropic/… · openai/… · the table doesn't care who competes)
+# Exercise · seat a THINKING model (ollama/qwen3.5:4b) and re-run: at
+#       small max_tokens it spends the whole budget reasoning and returns
+#       an empty row — the finding above, reproduced on your own machine.
+nika: v1
+workflow: model-bench
+description: "One question → three local models → a measured comparison table"
+
+model: ollama/qwen3.5:4b # the house default · contenders below pick their own seats
+
+vars:
+  question:
+    type: string
+    default: "Explain, in five lines, why a workflow should be audited before it runs."
+
+tasks:
+  - id: ask_incumbent
+    infer:
+      model: ollama/qwen2.5:14b # the quality bar · the seat to beat
+      prompt: "${{ vars.question }}"
+      max_tokens: 600
+
+  - id: ask_challenger
+    infer:
+      model: ollama/llama3.2:3b # another family · same size class
+      prompt: "${{ vars.question }}"
+      max_tokens: 600
+
+  - id: ask_tiny
+    infer:
+      model: ollama/qwen2.5:0.5b # the "is small enough?" probe
+      prompt: "${{ vars.question }}"
+      max_tokens: 600
+
+  - id: tabulate
+    depends_on: [ask_incumbent, ask_challenger, ask_tiny]
+    invoke:
+      tool: "nika:jq"
+      args:
+        input:
+          - model: "ollama/qwen2.5:14b"
+            ms: "${{ tasks.ask_incumbent.duration_ms }}"
+            answer: "${{ tasks.ask_incumbent.output }}"
+          - model: "ollama/llama3.2:3b"
+            ms: "${{ tasks.ask_challenger.duration_ms }}"
+            answer: "${{ tasks.ask_challenger.output }}"
+          - model: "ollama/qwen2.5:0.5b"
+            ms: "${{ tasks.ask_tiny.duration_ms }}"
+            answer: "${{ tasks.ask_tiny.output }}"
+        expression: >-
+          "| model | latency | chars | answer (first 160) |\n|---|---|---|---|\n"
+          + (map("| " + .model + " | "
+               + (if .ms == null then "cached" else (.ms | tostring) + "ms" end) + " | "
+               + (.answer | length | tostring) + " | "
+               + (.answer | gsub("\n"; " ") | .[0:160]) + " |")
+             | join("\n"))
+
+  - id: persist
+    depends_on: [tabulate]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./bench/model-bench.md"
+        create_dirs: true
+        content: |
+          # Model bench — same question, measured
+
+          ${{ tasks.tabulate.output }}
+
+          Facts only: latency from the run's clock, length in characters.
+          The answers are side by side — the quality call is yours.

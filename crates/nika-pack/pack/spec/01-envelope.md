@@ -343,6 +343,12 @@ DEFAULT-DENY unless listed** ·
 | `exec` | `false` = no shells · `true` = any (still blocklist-gated) · array = only those program names (argv `command[0]`) | treated as `false` · **no** `exec:` |
 | `tools` | only the matching `nika:` / `mcp:` ids (globs ok) | **no** `invoke:` of any tool |
 
+**A program allowlist verifies the argv form only** (normative) · when
+`exec:` is an array of program names, a task whose `command:` is a shell
+STRING is refused under that allowlist — at check and at run. A
+leading-token heuristic is unsound (`"git log; rm -rf /"` leads with `git`);
+the array `command:` form is the shape an allowlist can actually verify.
+
 So `permits: {}` is a workflow provably limited to pure compute (`infer:` +
 CEL + `nika:jq`): zero fs, zero net, zero shell, zero tools. That property
 is checkable BEFORE the run.
