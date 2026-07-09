@@ -411,6 +411,23 @@ pub fn scatter(spec: &ChartSpec, rows: &[Row], data8: &str) -> Result<Vec<u8>, C
     Ok(r.to_png())
 }
 
+/// The quantized heatmap fill — the SAME bins the SVG cells and legend
+/// wear (the design-pass law « cells and legend share ONE scale », made
+/// cross-surface: the PNG projection of one recipe must tell the same
+/// colors). Light-mode values: PNG is a single-mode surface.
+fn heat_bin_hex(v: f64, vmin: f64, vmax: f64, sem: crate::spec::Semantic) -> String {
+    if sem == crate::spec::Semantic::Delta {
+        let m = vmin.abs().max(vmax.abs());
+        let t = if m <= 0.0 { 0.5 } else { 0.5 + v / (2.0 * m) };
+        crate::palette::diverging_bin_light(crate::palette::diverging_bin(t))
+    } else {
+        let span = vmax - vmin;
+        let t = if span <= 0.0 { 0.5 } else { (v - vmin) / span };
+        let bin = crate::palette::diverging_bin(t);
+        crate::palette::viridis((bin as f64 + 0.5) / crate::palette::DIVERGING_BINS as f64)
+    }
+}
+
 /// Heatmap → PNG · categorical grid + ramp cells + swatch legend.
 /// # Errors
 /// Typed [`crate::error::ChartError`] (`NIKA-BUILTIN-CHART-*`) on invalid spec or data.
@@ -446,17 +463,7 @@ pub fn heatmap(spec: &ChartSpec, rows: &[Row], data8: &str) -> Result<Vec<u8>, C
         let p = |i: usize| u8::from_str_radix(s.get(i..i + 2).unwrap_or("00"), 16).unwrap_or(0);
         (p(1), p(3), p(5))
     };
-    let color_of = |v: f64| -> Rgb {
-        if val_ch.semantic == crate::spec::Semantic::Delta {
-            let m = vmin.abs().max(vmax.abs());
-            let t = if m <= 0.0 { 0.5 } else { 0.5 + v / (2.0 * m) };
-            hex_rgb(&crate::palette::coolwarm(t))
-        } else {
-            let span = vmax - vmin;
-            let t = if span <= 0.0 { 0.5 } else { (v - vmin) / span };
-            hex_rgb(&crate::palette::viridis(t))
-        }
-    };
+    let color_of = |v: f64| -> Rgb { hex_rgb(&heat_bin_hex(v, vmin, vmax, val_ch.semantic)) };
 
     // No-data backdrop, then cells (first-wins on duplicates).
     r.fill_rect(left, top, pw, ph, (0xEC, 0xEE, 0xF0));
@@ -494,14 +501,16 @@ pub fn heatmap(spec: &ChartSpec, rows: &[Row], data8: &str) -> Result<Vec<u8>, C
             INK_SOFT,
         );
     }
-    // Swatch legend strip (7 discrete · min/max labels).
+    // Swatch legend strip — one swatch per shared bin (the SVG law,
+    // cross-surface): every swatch IS a color a cell can wear.
     let min_l = fmt::label(vmin, val_ch.semantic);
     let max_l = fmt::label(vmax, val_ch.semantic);
     let mut lx = left;
     r.text(lx, top - 16, &min_l, 1, INK_SOFT);
     lx += Raster::text_width(&min_l, 1) + 6;
-    for i in 0..7 {
-        let v = vmin + (f64::from(i) / 6.0) * (vmax - vmin);
+    for bin in 0..crate::palette::DIVERGING_BINS {
+        let t = (bin as f64 + 0.5) / crate::palette::DIVERGING_BINS as f64;
+        let v = vmin + t * (vmax - vmin);
         r.fill_rect(lx, top - 18, 14, 10, color_of(v));
         lx += 14;
     }
@@ -510,4 +519,68 @@ pub fn heatmap(spec: &ChartSpec, rows: &[Row], data8: &str) -> Result<Vec<u8>, C
     let fp = format!("nika data {data8}");
     r.text(w - Raster::text_width(&fp, 1) - 4, h - 12, &fp, 1, INK_SOFT);
     Ok(r.to_png())
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)]
+mod tests {
+    use super::heat_bin_hex;
+    use crate::spec::Semantic;
+
+    /// The parity law: a heatmap fill can ONLY be one of the shared bin
+    /// colors — sweep the whole domain and count distinct outputs. This is
+    /// what keeps the PNG projection telling the same quantized story as
+    /// the SVG cells and BOTH legends.
+    #[test]
+    fn heatmap_fills_are_quantized_onto_the_shared_bins() {
+        for (sem, lo, hi) in [
+            (Semantic::Delta, -475.0, 942.0),
+            (Semantic::DurationMs, 12.0, 2412.0),
+        ] {
+            let allowed: std::collections::BTreeSet<String> = (0..crate::palette::DIVERGING_BINS)
+                .map(|bin| {
+                    if sem == Semantic::Delta {
+                        crate::palette::diverging_bin_light(bin)
+                    } else {
+                        crate::palette::viridis(
+                            (bin as f64 + 0.5) / crate::palette::DIVERGING_BINS as f64,
+                        )
+                    }
+                })
+                .collect();
+            let mut distinct = std::collections::BTreeSet::new();
+            for i in 0..=1000 {
+                let v = lo + (hi - lo) * f64::from(i) / 1000.0;
+                distinct.insert(heat_bin_hex(v, lo, hi, sem));
+            }
+            assert!(
+                distinct.is_subset(&allowed),
+                "{sem:?}: a fill escaped the shared bins: {distinct:?}"
+            );
+            assert!(
+                distinct.len() >= crate::palette::DIVERGING_BINS - 1,
+                "{sem:?}: the sweep must exercise (nearly) every bin — an \
+                 asymmetric delta domain may skip ONE tail bin: {}",
+                distinct.len()
+            );
+        }
+    }
+
+    /// The legend swatch at each bin center wears EXACTLY that bin's fill —
+    /// legend and cells share one scale, by construction not by luck.
+    #[test]
+    fn legend_bin_centers_hit_the_exact_cell_colors() {
+        let (lo, hi) = (-100.0, 300.0);
+        for bin in 0..crate::palette::DIVERGING_BINS {
+            let t = (bin as f64 + 0.5) / crate::palette::DIVERGING_BINS as f64;
+            let v = lo + t * (hi - lo);
+            let m: f64 = 300.0_f64.max(100.0);
+            let cell_t = 0.5 + v / (2.0 * m);
+            assert_eq!(
+                heat_bin_hex(v, lo, hi, Semantic::Delta),
+                crate::palette::diverging_bin_light(crate::palette::diverging_bin(cell_t)),
+                "bin {bin}"
+            );
+        }
+    }
 }
