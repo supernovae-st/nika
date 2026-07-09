@@ -100,7 +100,7 @@ impl Prior {
 /// and **exactly** `k/(n+1)` when the distribution is continuous (ties
 /// only push true coverage higher — conservative, never invalid). A
 /// distribution-free THEOREM about the next run, not an estimate
-/// (Angelopoulos–Barber–Bates, CUP 2026 · arXiv:2411.11824 Thm 3.2).
+/// (Angelopoulos–Barber–Bates, CUP 2026 · arXiv:2411.11824 Theorem 3.2).
 ///
 /// Scope of the promise: « next » means the next observation drawn
 /// from the SAME population the sample was gathered from — the
@@ -262,7 +262,7 @@ mod tests {
         /// leave-one-out split is equally likely, and the k-th order
         /// statistic of the kept n covers the held-out value in
         /// EXACTLY k of the n+1 splits (continuous case ·
-        /// arXiv:2411.11824 Thm 3.2): hold out y_(j) — the kept k-th
+        /// arXiv:2411.11824 Theorem 3.2): hold out y_(j) — the kept k-th
         /// smallest is y_(k+1) when j ≤ k (covers) and y_(k) when
         /// j > k (does not). No Monte-Carlo, no seed sensitivity.
         #[test]
