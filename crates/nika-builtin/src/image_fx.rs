@@ -89,10 +89,14 @@ where
 
     // Pixel work on the blocking pool (the jq/ocr precedent).
     let fx_args = parsed.fx.clone();
-    let engine = format!("nika {}", env!("CARGO_PKG_VERSION"));
-    let input_vec: Vec<u8> = bytes.to_vec();
+    // The recipe carries the ALGORITHM contract tag (stable across engine
+    // releases — re-render stays byte-exact until the fx contract majors).
+    // WHICH binary ran lives in the trace/manifest planes.
+    let engine = nika_fx::CONTRACT_TAG;
+    // `Bytes` is a cheap refcount clone (no memcpy) + `'static` for the pool.
+    let input_bytes = bytes.clone();
     let result =
-        tokio::task::spawn_blocking(move || nika_fx::transform(&input_vec, &fx_args, &engine))
+        tokio::task::spawn_blocking(move || nika_fx::transform(&input_bytes, &fx_args, engine))
             .await
             .map_err(|e| fail(C_DECODE, format!("transform task failed: {e}")))?;
     let output = result.map_err(map_fx_error)?;
@@ -111,11 +115,21 @@ where
 
     boundary.enforce(fs, &parsed.out, FsAccess::Write).await?;
     let out_path = Path::new(&parsed.out);
-    // Idempotent skip: identical bytes already on disk (the save.rs law).
-    let skipped = matches!(
-        fs.read(out_path).await,
-        Ok(existing) if existing.as_ref() == artifact_bytes.as_slice()
-    );
+    // Idempotent skip: identical bytes already on disk. The skip-read of the
+    // OUTPUT path is gated on a READ grant for it — without one we never read
+    // (no byte-equality oracle under a write-only boundary), we just re-write.
+    let skipped = if boundary
+        .enforce(fs, &parsed.out, FsAccess::Read)
+        .await
+        .is_ok()
+    {
+        matches!(
+            fs.read(out_path).await,
+            Ok(existing) if existing.as_ref() == artifact_bytes.as_slice()
+        )
+    } else {
+        false
+    };
     if !skipped {
         if let Some(parent) = out_path.parent().filter(|p| !p.as_os_str().is_empty()) {
             fs.create_dir_all(parent)
@@ -150,7 +164,8 @@ fn map_fx_error(e: FxError) -> BuiltinFailure {
         FxError::Budget { pixels, max } => fail(
             C_BUDGET,
             format!("decoded-pixel budget exceeded: {pixels} > {max}"),
-        ),
+        )
+        .with_details(json!({ "pixels": pixels, "max": max })),
         FxError::Encode(m) => fail(C_SAVE, m),
         _ => fail(C_DECODE, format!("unmapped fx error: {e}")),
     }
@@ -177,7 +192,7 @@ fn parse(args: &Args) -> Result<Parsed, BuiltinFailure> {
             .as_u64()
             .ok_or_else(|| fail(C_ARGS, "`seed:` must be a non-negative integer"))?,
     };
-    let fx = FxArgs { ops, seed };
+    let fx = FxArgs::new(ops, seed);
     nika_fx::args::validate(&fx).map_err(map_fx_error)?;
     check_out_extension(&fx, &out)?;
     Ok(Parsed { input, out, fx })
@@ -221,6 +236,7 @@ fn parse_op(entry: &Value) -> Result<Op, String> {
         .filter(|m| m.len() == 1)
         .ok_or("each op is a single-key map, e.g. `- dither: {mode: bayer4, palette: gameboy}`")?;
     let (name, body) = map.iter().next().ok_or("empty op map")?;
+    check_known_keys(name, body)?;
     match name.as_str() {
         "resize" => parse_resize(body),
         "crop" => Ok(Op::Crop {
@@ -283,6 +299,45 @@ fn parse_op(entry: &Value) -> Result<Op, String> {
              chromatic_aberration · scanlines · glitch · ascii)"
         )),
     }
+}
+
+/// Closed per-op key sets — an unknown parameter is rejected loudly
+/// (`-001`), never silently ignored (a typo'd `intensty:` would otherwise
+/// fall back to the default and LIE about the style).
+fn check_known_keys(op: &str, body: &Value) -> Result<(), String> {
+    let allowed: &[&str] = match op {
+        "resize" => &["width", "height", "filter"],
+        "crop" => &["x", "y", "width", "height"],
+        "levels" => &["brightness", "contrast"],
+        "grayscale" => &[],
+        "palette_map" => &["palette"],
+        "dither" => &["mode", "palette"],
+        "duotone" => &["dark", "light"],
+        "pixelate" => &["block"],
+        "halftone" => &["cell", "angle"],
+        "grain" => &["intensity"],
+        "vignette" => &["strength"],
+        "chromatic_aberration" => &["shift"],
+        "scanlines" => &["strength", "period"],
+        "glitch" => &["line_shift", "channel_shift", "blocks"],
+        "ascii" => &["cols", "emit"],
+        _ => return Ok(()), // unknown op — the match below owns that error
+    };
+    if let Some(map) = body.as_object() {
+        for key in map.keys() {
+            if !allowed.contains(&key.as_str()) {
+                return Err(format!(
+                    "{op}: unknown parameter `{key}` (accepted: {})",
+                    if allowed.is_empty() {
+                        "none".to_owned()
+                    } else {
+                        allowed.join(" · ")
+                    }
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn parse_resize(body: &Value) -> Result<Op, String> {
@@ -370,7 +425,10 @@ fn req_rgb(body: &Value, key: &str) -> Result<[u8; 3], String> {
 fn parse_color(v: &Value) -> Result<[u8; 3], String> {
     if let Some(hex) = v.as_str() {
         let hex = hex.strip_prefix('#').unwrap_or(hex);
-        if hex.len() == 6 {
+        // ASCII guard BEFORE any byte-slice: `hex.len()==6` is a BYTE count;
+        // a multi-byte char (e.g. "€abc") is 6 bytes / 4 chars and would slice
+        // mid-codepoint → panic. ASCII-only makes byte-len == char-len.
+        if hex.len() == 6 && hex.is_ascii() {
             let parse = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16);
             if let (Ok(r), Ok(g), Ok(b)) = (parse(0), parse(2), parse(4)) {
                 return Ok([r, g, b]);
@@ -394,7 +452,7 @@ fn parse_color(v: &Value) -> Result<[u8; 3], String> {
 
 fn get_str<'a>(body: &'a Value, key: &str) -> Result<Option<&'a str>, String> {
     match body.get(key) {
-        None => Ok(None),
+        None | Some(Value::Null) => Ok(None),
         Some(v) => v
             .as_str()
             .map(Some)
@@ -404,7 +462,7 @@ fn get_str<'a>(body: &'a Value, key: &str) -> Result<Option<&'a str>, String> {
 
 fn get_u32(body: &Value, key: &str) -> Result<Option<u32>, String> {
     match body.get(key) {
-        None => Ok(None),
+        None | Some(Value::Null) => Ok(None), // explicit null = omitted (recipe round-trip)
         Some(v) => v
             .as_u64()
             .and_then(|n| u32::try_from(n).ok())
@@ -415,7 +473,7 @@ fn get_u32(body: &Value, key: &str) -> Result<Option<u32>, String> {
 
 fn get_i64(body: &Value, key: &str) -> Result<Option<i64>, String> {
     match body.get(key) {
-        None => Ok(None),
+        None | Some(Value::Null) => Ok(None),
         Some(v) => v
             .as_i64()
             .map(Some)
@@ -503,5 +561,156 @@ mod tests {
         assert_eq!(parse(&bad_seed).unwrap_err().code, C_ARGS);
         let no_ops = args(&json!({ "input": "a.png", "out": "b.png" }));
         assert!(parse(&no_ops).unwrap_err().message.contains("`ops:`"));
+    }
+
+    // ── refuter regressions (2026-07-09 wave 2) ──────────────────────────
+
+    #[test]
+    fn parse_color_rejects_multibyte_hex_without_panicking() {
+        // "#€abc" is 6 BYTES / 4 chars — the naive `&hex[i..i+2]` slice would
+        // panic mid-codepoint. The ASCII guard must turn it into a clean Err.
+        let a = args(&json!({
+            "input": "a.png", "out": "b.png",
+            "ops": [ { "duotone": { "dark": "#€abc", "light": "#000000" } } ],
+        }));
+        let e = parse(&a).unwrap_err();
+        assert_eq!(e.code, C_ARGS);
+    }
+
+    #[test]
+    fn parse_accepts_recipe_null_height_as_omitted() {
+        // The recipe emitter prints `"height":null` for an aspect-preserving
+        // resize — re-parsing that exact shape MUST treat null as absent, or
+        // the "re-render IS the tamper check" promise breaks.
+        let a = args(&json!({
+            "input": "a.png", "out": "b.png",
+            "ops": [ { "resize": { "width": 160, "height": null, "filter": "auto" } } ],
+        }));
+        let p = parse(&a).expect("null height reparses");
+        let Op::Resize { width, height, .. } = &p.fx.ops[0] else {
+            panic!("expected resize");
+        };
+        assert_eq!(*width, Some(160));
+        assert_eq!(*height, None);
+    }
+
+    #[test]
+    fn parse_rejects_unknown_op_parameter() {
+        // A typo'd sub-key must fail loudly (-001), never silently default —
+        // a silent default LIES about the style ("the seed IS the style").
+        let a = args(&json!({
+            "input": "a.png", "out": "b.png",
+            "ops": [ { "grain": { "intensty": 90 } } ],
+        }));
+        let e = parse(&a).unwrap_err();
+        assert_eq!(e.code, C_ARGS);
+        assert!(e.message.contains("intensty"), "{}", e.message);
+    }
+
+    // ── full dispatch-path coverage (house-review P0) ────────────────────
+
+    fn tiny_png() -> Vec<u8> {
+        let mut img = nika_fx::PixBuf::new(8, 6);
+        for y in 0..6 {
+            for x in 0..8 {
+                img.set(
+                    x,
+                    y,
+                    [
+                        u8::try_from(x * 30).unwrap_or(255),
+                        u8::try_from(y * 40).unwrap_or(255),
+                        128,
+                    ],
+                );
+            }
+        }
+        nika_fx::codec::png::encode(&img, None)
+    }
+
+    #[tokio::test]
+    async fn dispatch_writes_styled_png_with_hashes() {
+        use nika_kernel_mock::MockFs;
+        let fs = MockFs::new().with_file("./in.png", tiny_png());
+        let out = run(
+            &fs,
+            &crate::NullEmitter,
+            &FsBoundary::declared(vec!["./**".into()], vec!["./**".into()]),
+            &args(&json!({
+                "input": "./in.png", "out": "./styled.png", "seed": 1,
+                "ops": [ { "dither": { "mode": "bayer4", "palette": "gameboy" } } ],
+            })),
+        )
+        .await
+        .expect("dispatch runs");
+        assert_eq!(out["path"], "./styled.png");
+        assert_eq!(out["format"], "png");
+        assert_eq!(out["ops_applied"], 1);
+        let sha = out["sha256"].as_str().expect("sha256 string");
+        assert_eq!(sha.len(), 64);
+        assert_eq!(out["skipped_existing"], false);
+        // The bytes actually landed on the mock fs, hashing to the reported sha.
+        let bytes = fs
+            .read(Path::new("./styled.png"))
+            .await
+            .expect("artifact on disk");
+        assert_eq!(nika_fx::det::sha256_hex(&bytes), sha);
+    }
+
+    #[tokio::test]
+    async fn dispatch_is_idempotent_on_rerun() {
+        use nika_kernel_mock::MockFs;
+        let fs = MockFs::new().with_file("./in.png", tiny_png());
+        let a = args(&json!({
+            "input": "./in.png", "out": "./o.png", "seed": 9,
+            "ops": [ { "grayscale": {} } ],
+        }));
+        let boundary = FsBoundary::declared(vec!["./**".into()], vec!["./**".into()]);
+        let first = run(&fs, &crate::NullEmitter, &boundary, &a)
+            .await
+            .expect("run 1");
+        assert_eq!(first["skipped_existing"], false);
+        let second = run(&fs, &crate::NullEmitter, &boundary, &a)
+            .await
+            .expect("run 2");
+        assert_eq!(second["skipped_existing"], true);
+        assert_eq!(first["sha256"], second["sha256"]);
+    }
+
+    #[tokio::test]
+    async fn dispatch_refuses_out_of_boundary_write() {
+        use nika_kernel_mock::MockFs;
+        let fs = MockFs::new().with_file("./in.png", tiny_png());
+        // Write boundary covers ./out only; the styled artifact aims outside.
+        let boundary = FsBoundary::declared(vec!["./**".into()], vec!["./out/**".into()]);
+        let e = run(
+            &fs,
+            &crate::NullEmitter,
+            &boundary,
+            &args(&json!({
+                "input": "./in.png", "out": "./escape.png",
+                "ops": [ { "grayscale": {} } ],
+            })),
+        )
+        .await
+        .expect_err("boundary must refuse");
+        assert_eq!(e.code, "NIKA-SEC-004");
+    }
+
+    #[tokio::test]
+    async fn dispatch_rejects_non_png_input() {
+        use nika_kernel_mock::MockFs;
+        let fs = MockFs::new().with_file("./in.png", b"not a png at all".to_vec());
+        let e = run(
+            &fs,
+            &crate::NullEmitter,
+            &FsBoundary::declared(vec!["./**".into()], vec!["./**".into()]),
+            &args(&json!({
+                "input": "./in.png", "out": "./o.png",
+                "ops": [ { "grayscale": {} } ],
+            })),
+        )
+        .await
+        .expect_err("non-png rejected");
+        assert_eq!(e.code, C_FORMAT);
     }
 }

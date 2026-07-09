@@ -81,6 +81,18 @@ fn grid(img: &PixBuf, cols: usize) -> Grid {
     Grid { cols, rows, cells }
 }
 
+/// The PNG raster the `emit: png` path WOULD allocate — mirrors `grid()`'s
+/// cell math so the caller can budget-gate BEFORE the (potentially huge)
+/// allocation on a tall/skinny input. Returns `(width_px, height_px)`.
+#[must_use]
+pub fn png_raster_dims(img: &PixBuf, cols: u32) -> (u64, u64) {
+    let cols = (cols as usize).min(img.w).max(1);
+    let cw = img.w.div_ceil(cols);
+    let ch = (2 * cw).max(1);
+    let rows = img.h.div_ceil(ch);
+    (cols as u64 * 8, rows as u64 * 8)
+}
+
 pub enum AsciiArtifact {
     Text { body: String, ext: &'static str },
     Raster(PixBuf),

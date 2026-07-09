@@ -31,6 +31,12 @@ fn target_dims(
         }
         (None, None) => return Err(FxError::Args("resize needs a dimension".into())),
     };
+    let max_dim = crate::codec::png::MAX_DIMENSION as usize;
+    if tw > max_dim || th > max_dim {
+        return Err(FxError::Args(format!(
+            "resize target {tw}x{th} exceeds the {max_dim} per-side cap              (a single-dimension resize on a skewed aspect derives the other)"
+        )));
+    }
     if tw as u64 * th as u64 > crate::codec::png::MAX_PIXELS {
         return Err(FxError::Budget {
             pixels: tw as u64 * th as u64,
@@ -162,7 +168,10 @@ fn src_coord(d: usize, dn: usize, sn: usize) -> (usize, u64) {
 /// `FxError::Args` when the rectangle exceeds the image bounds.
 pub fn crop(img: &PixBuf, x: u32, y: u32, width: u32, height: u32) -> Result<PixBuf, FxError> {
     let (x, y, cw, ch) = (x as usize, y as usize, width as usize, height as usize);
-    if x + cw > img.w || y + ch > img.h {
+    // Checked adds — a near-u32::MAX x/width must reject, never wrap (32-bit).
+    let x_end = x.checked_add(cw);
+    let y_end = y.checked_add(ch);
+    if x_end.is_none_or(|e| e > img.w) || y_end.is_none_or(|e| e > img.h) {
         return Err(FxError::Args(format!(
             "crop {cw}x{ch}+{x}+{y} exceeds image {}x{}",
             img.w, img.h

@@ -147,7 +147,7 @@ mod tests {
 
     #[test]
     fn all_builtins_non_empty() {
-        // Spec 24 · the 22 Rams-swept stdlib builtins + nika:compose (the
+        // Spec 26 · the 22 Rams-swept stdlib builtins + nika:compose + the
         // agent loop's self-verification intrinsic · ADR-096 · loop-only
         // like done) + nika:image_generate (stdlib §Media · the first
         // deferred-media graduate). Cascade · ADR-088 inspect (4

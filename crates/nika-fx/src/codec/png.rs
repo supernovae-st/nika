@@ -71,17 +71,16 @@ fn parse_ihdr(body: &[u8]) -> Result<Ihdr, FxError> {
     if w == 0 || h == 0 {
         return Err(FxError::Decode("zero dimensions".into()));
     }
-    if w > MAX_DIMENSION || h > MAX_DIMENSION {
-        return Err(FxError::Budget {
-            pixels: u64::from(w) * u64::from(h),
-            max: MAX_PIXELS,
-        });
-    }
     if u64::from(w) * u64::from(h) > MAX_PIXELS {
         return Err(FxError::Budget {
             pixels: u64::from(w) * u64::from(h),
             max: MAX_PIXELS,
         });
+    }
+    if w > MAX_DIMENSION || h > MAX_DIMENSION {
+        return Err(FxError::Decode(format!(
+            "dimension {w}x{h} exceeds the {MAX_DIMENSION} per-side cap"
+        )));
     }
     if depth != 8 {
         return Err(FxError::UnsupportedFormat(format!(
@@ -456,7 +455,7 @@ mod tests {
         let img = test_img();
         let png = encode(&img, None);
         let mut rng = crate::det::Pcg32::new(7);
-        for _ in 0..2000 {
+        for _ in 0..10_000 {
             let mut m = png.clone();
             let flips = 1 + rng.below(8) as usize;
             for _ in 0..flips {

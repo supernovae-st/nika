@@ -116,7 +116,74 @@ fn check_image_fx_shape(args: Option<&serde_json::Value>, out: &mut Vec<String>)
                     "ops[{i}]: `ascii` must be the LAST op (it changes the artifact type)"
                 ));
             }
+            check_image_fx_op_enums(i, name, map.get(name), out);
         }
+    }
+}
+
+/// Per-op literal enum checks for `nika:image_fx` — closed vocabularies
+/// mirrored from the runtime parser; `${{…}}`-templated values are runtime
+/// business (statically silent · the tts pattern).
+fn check_image_fx_op_enums(
+    i: usize,
+    op: &str,
+    body: Option<&serde_json::Value>,
+    out: &mut Vec<String>,
+) {
+    let literal = |key: &str| -> Option<String> {
+        let value = body?.as_object()?.get(key)?;
+        let text = value.as_str()?;
+        (!text.contains("${{")).then(|| text.to_owned())
+    };
+    let check = |key: &str, allowed: &[&str], out: &mut Vec<String>| {
+        if let Some(v) = literal(key)
+            && !allowed.contains(&v.as_str())
+        {
+            out.push(format!(
+                "ops[{i}]: {op} `{key}: {v}` is not in the closed set ({})",
+                allowed.join(" | ")
+            ));
+        }
+    };
+    match op {
+        "dither" | "palette_map" => {
+            if op == "dither" {
+                check(
+                    "mode",
+                    &[
+                        "bayer2",
+                        "bayer4",
+                        "bayer8",
+                        "blue_noise",
+                        "ign",
+                        "floyd_steinberg",
+                        "atkinson",
+                        "jjn",
+                    ],
+                    out,
+                );
+            }
+            check(
+                "palette",
+                &["bw", "gray4", "gameboy", "cga", "okabe_ito"],
+                out,
+            );
+        }
+        "resize" => check("filter", &["auto", "nearest", "bilinear"], out),
+        "ascii" => check("emit", &["png", "text", "ansi"], out),
+        "halftone" => {
+            if let Some(n) = body
+                .and_then(serde_json::Value::as_object)
+                .and_then(|m| m.get("angle"))
+                .and_then(serde_json::Value::as_i64)
+                && ![0, 15, 45, 75].contains(&n)
+            {
+                out.push(format!(
+                    "ops[{i}]: halftone `angle: {n}` (0 | 15 | 45 | 75)"
+                ));
+            }
+        }
+        _ => {}
     }
 }
 

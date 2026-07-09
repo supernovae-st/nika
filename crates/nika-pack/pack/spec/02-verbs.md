@@ -230,7 +230,7 @@ spec minor. It never appears silently.
       path: "./config.yaml"
 ```
 
-See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) for the canonical builtin list (<!-- canon:builtins -->25<!-- /canon --> builtins in v0.1).
+See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) for the canonical builtin list (<!-- canon:builtins -->26<!-- /canon --> builtins in v0.1).
 
 > **Grouped paths are grammar-legal · v0.1 ships none.** The reference
 > grammar admits `nika:<group>/<tool>` (the `nika:connectome/recall`

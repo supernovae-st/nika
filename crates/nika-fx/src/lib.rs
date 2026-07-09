@@ -24,6 +24,12 @@ pub use args::{
     AsciiEmit, DitherMode, FxArgs, Op, Palette, PresetPalette, ResizeFilter, ScreenAngle,
 };
 pub use error::FxError;
+
+/// The ALGORITHM contract tag embedded in artifact recipes. Stable across
+/// engine releases — re-render from a recipe stays byte-exact until the fx
+/// contract itself majors (then this becomes `image_fx/v2`). WHICH binary
+/// produced an artifact lives in the trace/manifest planes, never here.
+pub const CONTRACT_TAG: &str = "image_fx/v1";
 pub use pix::PixBuf;
 
 use ops::ascii::AsciiArtifact;
@@ -38,6 +44,7 @@ pub enum Artifact {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct FxOutput {
     pub artifact: Artifact,
     pub width: u32,
@@ -66,6 +73,25 @@ pub fn transform(input_png: &[u8], args: &FxArgs, engine_tag: &str) -> Result<Fx
     for op in &args.ops {
         if let Op::Ascii { cols, emit } = op {
             applied += 1;
+            // The ascii `png` emit derives a raster from the CELL GRID, not
+            // the input dims — a tall/skinny input can blow past the decode
+            // budget on the OUTPUT side. Gate it before render allocates.
+            if *emit == AsciiEmit::Png {
+                let (rw, rh) = ops::ascii::png_raster_dims(&img, *cols);
+                let max_dim = u64::from(codec::png::MAX_DIMENSION);
+                if rw > max_dim || rh > max_dim {
+                    return Err(FxError::Args(format!(
+                        "ascii png raster {rw}x{rh} exceeds the {max_dim} per-side cap \
+                         (reduce cols, or crop/resize the input first)"
+                    )));
+                }
+                if rw * rh > codec::png::MAX_PIXELS {
+                    return Err(FxError::Budget {
+                        pixels: rw * rh,
+                        max: codec::png::MAX_PIXELS,
+                    });
+                }
+            }
             return Ok(finish_ascii(
                 ops::ascii::render(&img, *cols, *emit),
                 &recipe,
@@ -346,6 +372,35 @@ mod tests {
             };
             codec::png::decode(bytes).unwrap_or_else(|e| panic!("op {op:?} self-decode: {e}"));
         }
+    }
+
+    #[test]
+    fn ascii_png_raster_respects_the_output_budget() {
+        // A tall/skinny input with a fine ascii grid derives a huge raster on
+        // the OUTPUT side — the decode-side budget does not cover it. Must be
+        // a typed Args/Budget rejection, never a multi-GiB allocation.
+        let input = test_card(64, 16384);
+        let args = FxArgs::new(
+            vec![Op::Ascii {
+                cols: 64,
+                emit: AsciiEmit::Png,
+            }],
+            0,
+        );
+        let err = transform(&input, &args, "t").unwrap_err();
+        assert!(
+            matches!(err, FxError::Args(_) | FxError::Budget { .. }),
+            "expected a typed budget rejection, got {err:?}"
+        );
+        // A sane ascii raster still succeeds.
+        let ok = FxArgs::new(
+            vec![Op::Ascii {
+                cols: 40,
+                emit: AsciiEmit::Png,
+            }],
+            0,
+        );
+        transform(&test_card(200, 120), &ok, "t").expect("normal ascii png renders");
     }
 
     #[test]

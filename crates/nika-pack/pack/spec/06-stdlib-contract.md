@@ -46,7 +46,7 @@ The stdlib has **independent versioning** ·
 
 - `stdlib/providers-v0.1.md`, the <!-- canon:providers -->16<!-- /canon --> canonical providers for v0.1
 - `stdlib/extract-modes-v0.1.md`, the <!-- canon:extract_modes -->9<!-- /canon --> canonical extract modes for v0.1
-- `stdlib/builtins-v0.1.md`, the <!-- canon:builtins -->25<!-- /canon --> canonical builtins for v0.1
+- `stdlib/builtins-v0.1.md`, the <!-- canon:builtins -->26<!-- /canon --> canonical builtins for v0.1
 
 When the stdlib evolves to v0.2 · those files become `*-v0.2.md` and new versions are published. The core language contract (`nika: v1`) is unchanged.
 
@@ -81,15 +81,14 @@ Selected via a single `model: <provider>/<name>` field. Any other OpenAI-compati
 
 See [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md).
 
-### Builtins (24)
+### Builtins (26)
 
 6 core (log · emit · assert · prompt · done · wait)
 + 5 file (read · write · edit · glob · grep)
 + 8 data (jq · json_diff · validate · json_merge_patch · convert · uuid · date · hash)
 + 2 introspection (inspect · view-discriminated · 4 views cost/records/dag_info/threads · compose · agent-loop self-check)
 + 2 network (fetch · notify)
-+ 2 media (image_generate · §Media graduate #1 · 2026-07-05 · image_fx · §Media graduate #3 · deterministic artistic effects · 2026-07-09)
-+ 1 audio (tts_generate · §Audio · sovereign-first · 2026-07-05)
++ 3 media (image_generate · graduate #1 · 2026-07-05 · tts_generate · §Audio · sovereign-first · 2026-07-05 · image_fx · graduate #3 · deterministic artistic effects · 2026-07-09)
 = **26 canonical builtins** (Stdlib v0.1 · consolidated · was 42 · `jq` subsumes 13 data builtins · validators merged into `validate` · `task_status`/`orchestrate`/`locale_lookup` cut · `sleep`+`wait_until` merged into unified `nika:wait` per ADR-087 · `cost`+`records`+`dag_info`+`threads` merged into unified `nika:inspect` per ADR-088 · ZERO capability loss)
 (+ the remaining media class · **deferred** to stdlib v0.x · NOT in the v0.1 count)
 
@@ -189,7 +188,7 @@ See [07-conformance.md](./07-conformance.md). In summary ·
 |---|---|
 | Core | None · only parse + DAG + variable + error · no execution needed |
 | Runtime | Must execute the 4 verbs · provider/tool implementations engine's choice |
-| Stdlib v0.1 | Must ship the <!-- canon:providers -->16<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->25<!-- /canon --> builtins |
+| Stdlib v0.1 | Must ship the <!-- canon:providers -->16<!-- /canon --> providers + <!-- canon:extract_modes -->9<!-- /canon --> extract modes + <!-- canon:builtins -->26<!-- /canon --> builtins |
 | Stdlib v0.1+media | RESERVED · enumerated when the media set publishes (stdlib v0.x · the 24 names are not yet normative) |
 
 A v0.1-compliant engine for a workflow author depends on which level they need.

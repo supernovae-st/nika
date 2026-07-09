@@ -97,7 +97,7 @@ namespaces:
 # Admission test · 3 razors · (1) NOT-expressible-in-jq+CEL+Schema · (2) canonical
 # interop format (RFC-6902/7396/9562 · etc.) · (3) cookbook-clarity.
 builtins:
-  count: 25
+  count: 26
   reference: stdlib/builtins-v0.1.md
   items:
     - assert

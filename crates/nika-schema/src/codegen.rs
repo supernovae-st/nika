@@ -4,7 +4,7 @@
 //! JSON-Schema codegen primitives for the Nika workflow schema.
 //!
 //! **Today** · pure-Rust helpers that emit JSON-Schema fragments derived
-//! from `nika-catalog` (single source of truth · the canonical 24 builtins
+//! from `nika-catalog` (single source of truth · the canonical 26 builtins
 //! per `nika/spec/stdlib/builtins-v0.1.md` post ADR-084 catalog
 //! reconciliation, ADR-086 convert, ADR-087 wait, ADR-088 inspect,
 //! ADR-096 compose, and `image_generate` — the first stdlib §Media
@@ -38,7 +38,7 @@ use serde_json::{Value, json};
 /// ```jsonc
 /// {
 ///   "type": "string",
-///   "description": "`nika:*` builtin · 24 canonical per stdlib v0.1",
+///   "description": "`nika:*` builtin · 26 canonical per stdlib v0.1",
 ///   "enum": [
 ///     "nika:assert", "nika:compose", "nika:convert", "nika:date",
 ///     "nika:done",   "nika:edit",    "nika:emit",    "nika:fetch",
@@ -64,9 +64,10 @@ pub fn nika_builtin_tool_enum_schema() -> Value {
         .iter()
         .map(|b| format!("nika:{}", b.name))
         .collect();
+    let count = names.len();
     json!({
         "type": "string",
-        "description": "`nika:*` builtin · 24 canonical per stdlib v0.1",
+        "description": format!("`nika:*` builtin · {count} canonical per stdlib v0.1"),
         "enum": names
     })
 }
@@ -76,7 +77,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn enum_has_25_entries() {
+    fn enum_has_26_entries() {
         let schema = nika_builtin_tool_enum_schema();
         let arr = schema["enum"].as_array().expect("enum must be array");
         assert_eq!(arr.len(), 26, "expected 26 spec-canonical builtins");

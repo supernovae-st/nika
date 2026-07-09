@@ -82,8 +82,8 @@ fn main() {
     let demos: Vec<(&str, FxArgs)> = vec![
         (
             "01-gameboy-fs-crt",
-            FxArgs {
-                ops: vec![
+            FxArgs::new(
+                vec![
                     Op::Resize {
                         width: Some(320),
                         height: None,
@@ -100,33 +100,33 @@ fn main() {
                     },
                     Op::Vignette { strength: 140 },
                 ],
-                seed: 42,
-            },
+                42,
+            ),
         ),
         (
             "02-bluenoise-bw",
-            FxArgs {
-                ops: vec![Op::Dither {
+            FxArgs::new(
+                vec![Op::Dither {
                     mode: DitherMode::BlueNoise,
                     palette: Palette::Preset(PresetPalette::Bw),
                 }],
-                seed: 0,
-            },
+                0,
+            ),
         ),
         (
             "03-cga-bayer8",
-            FxArgs {
-                ops: vec![Op::Dither {
+            FxArgs::new(
+                vec![Op::Dither {
                     mode: DitherMode::Bayer8,
                     palette: Palette::Preset(PresetPalette::Cga),
                 }],
-                seed: 0,
-            },
+                0,
+            ),
         ),
         (
             "04-duotone-glitch-ca",
-            FxArgs {
-                ops: vec![
+            FxArgs::new(
+                vec![
                     Op::Duotone {
                         dark: [16, 10, 48],
                         light: [240, 235, 210],
@@ -138,50 +138,50 @@ fn main() {
                     },
                     Op::ChromaticAberration { shift: 5 },
                 ],
-                seed: 7,
-            },
+                7,
+            ),
         ),
         (
             "05-halftone45",
-            FxArgs {
-                ops: vec![Op::Halftone {
+            FxArgs::new(
+                vec![Op::Halftone {
                     cell: 7,
                     angle: ScreenAngle::A45,
                 }],
-                seed: 0,
-            },
+                0,
+            ),
         ),
         (
             "06-pixelate-okabe",
-            FxArgs {
-                ops: vec![
+            FxArgs::new(
+                vec![
                     Op::Pixelate { block: 10 },
                     Op::PaletteMap {
                         palette: Palette::Preset(PresetPalette::OkabeIto),
                     },
                 ],
-                seed: 0,
-            },
+                0,
+            ),
         ),
         (
             "07-ascii",
-            FxArgs {
-                ops: vec![Op::Ascii {
+            FxArgs::new(
+                vec![Op::Ascii {
                     cols: 96,
                     emit: AsciiEmit::Png,
                 }],
-                seed: 0,
-            },
+                0,
+            ),
         ),
         (
             "08-ascii-ansi",
-            FxArgs {
-                ops: vec![Op::Ascii {
+            FxArgs::new(
+                vec![Op::Ascii {
                     cols: 80,
                     emit: AsciiEmit::Ansi,
                 }],
-                seed: 0,
-            },
+                0,
+            ),
         ),
     ];
     for (name, args) in &demos {
@@ -193,28 +193,28 @@ fn main() {
     for (label, args) in [
         (
             "bayer8",
-            FxArgs {
-                ops: vec![Op::Dither {
+            FxArgs::new(
+                vec![Op::Dither {
                     mode: DitherMode::Bayer8,
                     palette: gb.clone(),
                 }],
-                seed: 0,
-            },
+                0,
+            ),
         ),
         (
             "fs",
-            FxArgs {
-                ops: vec![Op::Dither {
+            FxArgs::new(
+                vec![Op::Dither {
                     mode: DitherMode::FloydSteinberg,
                     palette: gb.clone(),
                 }],
-                seed: 0,
-            },
+                0,
+            ),
         ),
         (
             "full-chain",
-            FxArgs {
-                ops: vec![
+            FxArgs::new(
+                vec![
                     Op::Dither {
                         mode: DitherMode::FloydSteinberg,
                         palette: gb.clone(),
@@ -226,8 +226,8 @@ fn main() {
                     },
                     Op::Vignette { strength: 140 },
                 ],
-                seed: 42,
-            },
+                42,
+            ),
         ),
     ] {
         let t = Instant::now();

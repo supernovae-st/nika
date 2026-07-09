@@ -3,7 +3,7 @@
 
 //! Builtin tool definitions (nika:* tools).
 //!
-//! 24 tools across 6 categories. Stored in a sorted array for
+//! 26 tools across 6 categories. Stored in a sorted array for
 //! case-sensitive binary search.
 //!
 //! Reconciled to spec v0.1 stdlib per D-2026-05-22-N6 (42→26 collapse ·
@@ -97,7 +97,7 @@ impl Builtin {
 /// - [`Self::Data`] (8) · `jq` · `json_diff` · `validate` · `json_merge_patch` · `convert` · `uuid` · `date` · `hash`
 /// - [`Self::Network`] (2) · `fetch` · `notify`
 /// - [`Self::Introspection`] (2) · `inspect` (view-discriminated · 4 views) · `compose`
-/// - [`Self::Media`] (1) · `image_generate` (the first of the deferred media class to graduate)
+/// - [`Self::Media`] (3) · `image_generate` · `tts_generate` (§Audio) · `image_fx` (deterministic effects)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "kebab-case"))]
@@ -121,9 +121,9 @@ pub enum BuiltinCategory {
     /// covering DAG state · cost · records · threads (post ADR-088 collapse).
     /// `inspect` (view: `cost` | `records` | `dag_info` | `threads`).
     Introspection,
-    /// Media asset generation — provider-backed, disk-landing outputs
-    /// (paths + hashes, never inline payloads).
-    /// `image_generate` (openai · gemini · mock · stdlib §Media).
+    /// Media builtins — disk-landing outputs (paths + hashes, never inline
+    /// payloads). Provider-backed (`image_generate` · `tts_generate` §Audio)
+    /// AND deterministic pure transforms (`image_fx` — zero provider).
     Media,
 }
 

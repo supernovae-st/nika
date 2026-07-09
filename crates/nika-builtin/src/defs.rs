@@ -475,7 +475,7 @@ mod tests {
     }
 
     #[test]
-    fn the_catalog_is_the_canonical_25_with_no_dupes() {
+    fn the_catalog_is_the_canonical_26_with_no_dupes() {
         let defs = tool_defs();
         assert_eq!(
             defs.len(),

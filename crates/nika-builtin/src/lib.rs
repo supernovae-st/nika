@@ -247,7 +247,8 @@ impl WorkflowIntrospect for NoWorkflow {
 
 // ─── the dispatcher ──────────────────────────────────────────────────────
 
-/// The 24-builtin dispatcher over its injected seams.
+/// The stdlib-builtin dispatcher over its injected seams (live count = the
+/// catalog's, never prose).
 ///
 /// Kernel seams: `F` filesystem (file 5) · `H` http (fetch · notify · the
 /// image plane) · `C` clock (wait · date). Local seams: `Em` event content
@@ -812,7 +813,7 @@ mod tests {
             let outcome = rig.execute(call(&def.name, serde_json::json!({}))).await;
             assert!(outcome.is_ok(), "{} must route (got {outcome:?})", def.name);
         }
-        // …and the count is the canonical 25 (stdlib v0.1 · +compose per
+        // …and the count is the canonical 26 (stdlib v0.1 · +compose per
         // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio).
         assert_eq!(tool_defs().len(), 26);
     }

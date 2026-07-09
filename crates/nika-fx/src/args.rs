@@ -14,9 +14,20 @@
 use crate::error::FxError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct FxArgs {
     pub ops: Vec<Op>,
     pub seed: u64,
+}
+
+impl FxArgs {
+    /// Construct from an ordered op list + seed (the cross-crate builder —
+    /// `#[non_exhaustive]` keeps future fields additive without breaking the
+    /// wiring's call site).
+    #[must_use]
+    pub fn new(ops: Vec<Op>, seed: u64) -> Self {
+        Self { ops, seed }
+    }
 }
 
 #[non_exhaustive]
@@ -94,6 +105,7 @@ pub enum Op {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ResizeFilter {
     /// Auto = iterated 2× box halving in linear light, then bilinear.
     Auto,
@@ -102,6 +114,7 @@ pub enum ResizeFilter {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DitherMode {
     Bayer2,
     Bayer4,
@@ -114,6 +127,7 @@ pub enum DitherMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ScreenAngle {
     A0,
     A15,
@@ -122,6 +136,7 @@ pub enum ScreenAngle {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum AsciiEmit {
     Png,
     Text,
@@ -129,12 +144,14 @@ pub enum AsciiEmit {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Palette {
     Preset(PresetPalette),
     Custom(Vec<[u8; 3]>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PresetPalette {
     Bw,
     Gray4,
@@ -421,12 +438,32 @@ fn op_json(op: &Op) -> String {
     }
 }
 
+/// Minimal JSON string-body escaper (`"` `\\` + control chars) — the recipe
+/// carries only the const contract tag + hex sha today, but the emitter is a
+/// pub API, so it never trusts its inputs to be JSON-clean.
+fn push_json_escaped(s: &mut String, raw: &str) {
+    for c in raw.chars() {
+        match c {
+            '"' => s.push_str("\\\""),
+            '\\' => s.push_str("\\\\"),
+            '\n' => s.push_str("\\n"),
+            '\r' => s.push_str("\\r"),
+            '\t' => s.push_str("\\t"),
+            c if (c as u32) < 0x20 => {
+                use std::fmt::Write;
+                let _ = write!(s, "\\u{:04x}", c as u32);
+            }
+            c => s.push(c),
+        }
+    }
+}
+
 /// The self-describing recipe embedded in the artifact (tEXt `nika`) —
 /// fixed key order · no timestamp · byte-stable forever.
 #[must_use]
 pub fn recipe_json(args: &FxArgs, input_sha256: &str, engine: &str) -> String {
     let mut s = String::from("{\"kind\":\"image_fx\",\"v\":1,\"engine\":\"");
-    s.push_str(engine);
+    push_json_escaped(&mut s, engine);
     s.push_str("\",\"input_sha256\":\"");
     s.push_str(input_sha256);
     s.push_str("\",\"seed\":");
