@@ -126,7 +126,7 @@ pub fn bar(spec: &ChartSpec, rows: &[Row], data8: &str) -> Result<Vec<u8>, Chart
     Ok(r.to_png())
 }
 
-const ORANGE: Rgb = (0xD5, 0x5E, 0x00); // Okabe-Ito vermillion (actual overlay)
+const ORANGE: Rgb = (0xD5, 0x5E, 0x00); // Okabe-Ito vermilion (actual overlay)
 const BAND: Rgb = (0xC2, 0xDA, 0xEC); // light blue band fill (blue @ ~18% on white)
 
 /// Shared numeric-x frame: y ticks + labels + grid + axes → mapping closures.
@@ -280,15 +280,15 @@ pub fn area_band(spec: &ChartSpec, rows: &[Row], data8: &str) -> Result<Vec<u8>,
         });
     };
     let xv = data::numeric_column(rows, &spec.x.field)?;
-    let lov = data::numeric_column(rows, &lo_ch.field)?;
-    let hiv = data::numeric_column(rows, &hi_ch.field)?;
+    let lows = data::numeric_column(rows, &lo_ch.field)?;
+    let highs = data::numeric_column(rows, &hi_ch.field)?;
     let actual = match &spec.y2 {
         Some(ch) => Some(data::numeric_column(rows, &ch.field)?),
         None => None,
     };
     let (xlo, xhi) = data::extent(&xv).ok_or(ChartError::EmptyData)?;
-    let mut all = lov.clone();
-    all.extend_from_slice(&hiv);
+    let mut all = lows.clone();
+    all.extend_from_slice(&highs);
     if let Some(a) = &actual {
         all.extend_from_slice(a);
     }
@@ -323,14 +323,14 @@ pub fn area_band(spec: &ChartSpec, rows: &[Row], data8: &str) -> Result<Vec<u8>,
             };
             Some(y0 + t * (y1 - y0))
         };
-        if let (Some(lo), Some(hi)) = (interp(&lov), interp(&hiv)) {
+        if let (Some(lo), Some(hi)) = (interp(&lows), interp(&highs)) {
             r.vline(px, f.y_of(hi), f.y_of(lo), BAND);
         }
     }
     // Dashed p50: alternate 4-on/3-off segments along x pixels.
     let mid_pts: Vec<(i32, i32)> = xv
         .iter()
-        .zip(&lov)
+        .zip(&lows)
         .map(|(x, y)| (f.x_of(*x), f.y_of(*y)))
         .collect();
     for w2 in mid_pts.windows(2) {

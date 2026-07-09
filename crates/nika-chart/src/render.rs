@@ -352,9 +352,9 @@ pub fn area_band(
         });
     };
     let xv = data::numeric_column(rows, &spec.x.field)?;
-    let lov = data::numeric_column(rows, &lo_ch.field)?;
-    let hiv = data::numeric_column(rows, &hi_ch.field)?;
-    let midv = data::numeric_column(rows, &spec.y.field)?;
+    let lows = data::numeric_column(rows, &lo_ch.field)?;
+    let highs = data::numeric_column(rows, &hi_ch.field)?;
+    let mids = data::numeric_column(rows, &spec.y.field)?;
     let actual = match &spec.y2 {
         Some(ch) => Some(data::numeric_column(rows, &ch.field)?),
         None => None,
@@ -366,7 +366,7 @@ pub fn area_band(
             field: spec.x.field.clone(),
         },
     )?;
-    let mut series: Vec<&[f64]> = vec![&lov, &hiv, &midv];
+    let mut series: Vec<&[f64]> = vec![&lows, &highs, &mids];
     if let Some(a) = &actual {
         series.push(a);
     }
@@ -385,19 +385,19 @@ pub fn area_band(
     let blue = palette::categorical(0);
     let up: Vec<(f64, f64)> = xv
         .iter()
-        .zip(&hiv)
+        .zip(&highs)
         .map(|(x, y)| (xs.map(*x), ys.map(*y)))
         .collect();
     let lo_pts: Vec<(f64, f64)> = xv
         .iter()
-        .zip(&lov)
+        .zip(&lows)
         .map(|(x, y)| (xs.map(*x), ys.map(*y)))
         .collect();
     svg.band_path(&up, &lo_pts, blue, 0.18);
 
     let mid_pts: Vec<(f64, f64)> = xv
         .iter()
-        .zip(&midv)
+        .zip(&mids)
         .map(|(x, y)| (xs.map(*x), ys.map(*y)))
         .collect();
     svg.polyline(&mid_pts, blue, 1.8, Some((4, 3)));

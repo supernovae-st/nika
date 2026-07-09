@@ -89,7 +89,7 @@ fn every_manifest_entry_resolves_and_hashes_clean() {
 
 #[test]
 fn surface_counts_hold() {
-    assert_eq!(nika_pack::template_names().len(), 9);
+    assert_eq!(nika_pack::template_names().len(), 10);
     assert!(nika_pack::example_slugs().len() >= 27);
     assert!(nika_pack::doc_paths().len() >= 12, "spec + stdlib pages");
     assert!(nika_pack::schema_json().contains("\"$schema\""));

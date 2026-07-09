@@ -60,7 +60,7 @@ impl Lcg {
     }
 }
 
-const SEMS: [Semantic; 6] = [
+const SEMANTICS: [Semantic; 6] = [
     Semantic::Usd,
     Semantic::DurationMs,
     Semantic::Tokens,
@@ -77,7 +77,7 @@ fn build_case(r: &mut Lcg, case: u64) -> (ChartSpec, Vec<Row>) {
         3 => ChartType::Scatter,
         _ => ChartType::Heatmap,
     };
-    let sem = SEMS[r.pick(6) as usize];
+    let sem = SEMANTICS[r.pick(6) as usize];
     let n = 1 + r.pick(40) as usize;
     let mut rows = Vec::with_capacity(n);
     for i in 0..n {

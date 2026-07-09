@@ -48,7 +48,7 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   A distribution-free, finite-sample upper prediction bound (split
   conformal, order-statistic form): for exchangeable runs the NEXT one
   falls at or below the k-th order statistic with probability ≥ k/(n+1),
-  exactly k/(n+1) for continuous data (arXiv:2411.11824 Thm 3.2). The
+  exactly k/(n+1) for continuous data (arXiv:2411.11824 Theorem 3.2). The
   level arrives as a rational (the f64 route mis-computes the exact
   feasibility frontier — 0.9·10 ceils to 10); nine runs earn a
   guaranteed 90% bound, nineteen earn 95%. Proven by a deterministic

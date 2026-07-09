@@ -60,7 +60,7 @@ cargo run --release --example png_edge >/dev/null 2>&1
 python3 - <<'PY'
 import struct, zlib, glob, sys
 files = sorted(glob.glob('edge-*.png'))
-assert files, 'no edge PNGs'
+assert files, 'no edge PNG files'
 for name in files:
     raw = open(name,'rb').read(); pos, idat = 8, b''
     assert raw[:8] == bytes([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A])
@@ -70,7 +70,7 @@ for name in files:
         if raw[pos+4:pos+8] == b'IDAT': idat += raw[pos+8:pos+8+ln]
         pos += 12 + ln
     zlib.decompress(idat)
-print(f'{len(files)} edge PNGs · all CRCs + zlib decode OK')
+print(f'{len(files)} edge PNG files · all CRCs + zlib decode OK')
 PY
 ok "python-zlib decodes every edge PNG (CRCs · Adler · filters)"
 if command -v sips >/dev/null; then

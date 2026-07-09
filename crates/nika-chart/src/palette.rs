@@ -18,7 +18,7 @@ const OKABE_ITO: [&str; 7] = [
     "#0072B2", // blue
     "#E69F00", // orange
     "#009E73", // bluish green
-    "#D55E00", // vermillion
+    "#D55E00", // vermilion
     "#CC79A7", // reddish purple
     "#56B4E9", // sky blue
     "#F0E442", // yellow
