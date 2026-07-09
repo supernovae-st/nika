@@ -376,12 +376,26 @@ is published as [`supernovae.nika-lang`](https://marketplace.visualstudio.com/it
 - Source + issues: [supernovae-st/nika-vscode](https://github.com/supernovae-st/nika-vscode).
 - Any other editor: `nika lsp` speaks LSP over stdio. Wire it into any LSP client.
 
-## Documentation
+## The constellation
 
-- **Language spec**: [supernovae-st/nika-spec](https://github.com/supernovae-st/nika-spec) (Apache-2.0), the runtime-agnostic Nika language.
-- **End-user docs**: [docs.nika.sh](https://docs.nika.sh).
-- **Website**: [nika.sh](https://nika.sh).
-- **Examples**: [`examples/`](examples/), the embedded gallery (also `nika examples list`).
+This repo is the engine. Everything around it lives in its own repo,
+each with one job:
+
+| Repo | What it is |
+|---|---|
+| [nika](https://github.com/supernovae-st/nika) | **this engine** — the reference implementation (AGPL-3.0-or-later) |
+| [nika-spec](https://github.com/supernovae-st/nika-spec) | the open language spec + conformance corpus (Apache-2.0) — the law the engine follows |
+| [nika-docs](https://github.com/supernovae-st/nika-docs) | the source of [docs.nika.sh](https://docs.nika.sh) |
+| [nika.sh](https://github.com/supernovae-st/nika.sh) | the source of [nika.sh](https://nika.sh) |
+| [nika-vscode](https://github.com/supernovae-st/nika-vscode) | the editor extension — VS Code, Cursor, Windsurf, VSCodium |
+| [nika-agents](https://github.com/supernovae-st/nika-agents) | the plugin marketplace — the authoring skill + the read-only MCP oracle, for Claude Code and Codex |
+| [nika-registry](https://github.com/supernovae-st/nika-registry) | the verifiable workflow registry — every entry pinned and re-proven in CI |
+| [nika-client](https://github.com/supernovae-st/nika-client) | the TypeScript SDK (targets the `nika serve` HTTP surface) |
+| [homebrew-tap](https://github.com/supernovae-st/homebrew-tap) | the brew formula — `brew install supernovae-st/tap/nika` |
+| [nika-site-audit](https://github.com/supernovae-st/nika-site-audit) | a legacy-era demo of scale (read-only — never learn the syntax there) |
+
+Examples live right here: [`examples/`](examples/) — the embedded
+gallery (`nika examples list` shows the same shelf from the binary).
 
 **Building Nika?** The engine is crafted under a strict workspace discipline:
 context-window-sized crates, a per-crate admission checklist, zero `.unwrap()`
