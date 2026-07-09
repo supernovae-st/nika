@@ -16,9 +16,13 @@
 //! → stopped/continue loop → disconnect.
 
 pub mod chain;
+pub mod otel;
 pub mod recover;
+pub mod reproduce;
+pub mod retention;
 pub mod source_id;
 pub mod stats;
+pub mod store;
 
 mod protocol;
 mod replay;
