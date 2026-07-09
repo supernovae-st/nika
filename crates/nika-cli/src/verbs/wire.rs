@@ -23,6 +23,8 @@ pub enum WireTarget {
     Claude,
     Codex,
     Zed,
+    Opencode,
+    Hermes,
     All,
 }
 
@@ -71,6 +73,8 @@ fn expand_target(target: WireTarget) -> Vec<WireTarget> {
             WireTarget::Claude,
             WireTarget::Codex,
             WireTarget::Zed,
+            WireTarget::Opencode,
+            WireTarget::Hermes,
         ],
         other => vec![other],
     }
@@ -101,6 +105,11 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
         // Zed keeps its settings under ~/.config on EVERY platform (macOS
         // included — deliberate upstream choice, zed.dev/docs).
         WireTarget::Zed => patch_zed(&home_path(&[".config", "zed", "settings.json"])?),
+        // OpenCode merges the PROJECT-local opencode.json over the global
+        // one (opencode.ai/docs/mcp-servers) — the project file is the
+        // least-privilege home (the repo the oracle serves).
+        WireTarget::Opencode => patch_opencode(&Path::new(dir).join("opencode.json")),
+        WireTarget::Hermes => patch_hermes(&home_path(&[".hermes", "config.yaml"])?),
         WireTarget::All => unreachable!("expanded before dispatch"),
     }
 }
@@ -315,6 +324,83 @@ fn codex_entry_is_stale(item: &toml_edit::Item) -> bool {
     codex_args(item) == ["mcp", "serve", "--stdio"]
 }
 
+/// `OpenCode` wires MCP through `opencode.json` — its OWN shape (`mcp.nika`
+/// with `type: local` + the WHOLE argv in `command`), not the
+/// `mcpServers` family — so it gets a dedicated desired-value while
+/// reusing the same read/merge/write mechanics (#330).
+fn patch_opencode(path: &Path) -> Result<WireAction, String> {
+    let existed = path.exists();
+    let mut root = if existed {
+        read_json(path)?
+    } else {
+        Value::Object(Map::new())
+    };
+    let object = root
+        .as_object_mut()
+        .ok_or_else(|| format!("opencode: {} is not a JSON object", path.display()))?;
+    let servers_value = object
+        .entry("mcp".to_owned())
+        .or_insert_with(|| Value::Object(Map::new()));
+    if !servers_value.is_object() {
+        *servers_value = Value::Object(Map::new());
+    }
+    let servers = servers_value
+        .as_object_mut()
+        .ok_or_else(|| "opencode: mcp is not a JSON object".to_owned())?;
+
+    let desired = serde_json::json!({
+        "type": "local",
+        "command": ["nika", "mcp"],
+        "enabled": true,
+    });
+    let existing = servers.get("nika").cloned();
+    if existing.as_ref() == Some(&desired) {
+        return Ok(WireAction::Current(format!("opencode: {}", path.display())));
+    }
+    servers.insert("nika".to_owned(), desired);
+    write_json(path, &root)?;
+    let label_path = format!("opencode: {}", path.display());
+    if existed {
+        Ok(WireAction::Updated(label_path))
+    } else {
+        Ok(WireAction::Created(label_path))
+    }
+}
+
+/// The exact Hermes MCP block (`~/.hermes/config.yaml` ·
+/// `hermes_cli/mcp_config.py` accepts any PATH binary · `/reload-mcp`
+/// refreshes).
+const HERMES_SNIPPET: &str =
+    "mcp_servers:\n  nika:\n    command: nika\n    args: [mcp]\n    timeout: 120\n";
+
+/// Hermes reads `~/.hermes/config.yaml` — YAML, where user files carry
+/// comments and anchors no serializer round-trips. Same contract as Zed
+/// (the JSONC precedent): CREATE the file when missing, recognize a
+/// CURRENT entry, otherwise hand back the exact snippet
+/// ([`WireAction::Manual`]) and leave the user's file byte-identical.
+fn patch_hermes(path: &Path) -> Result<WireAction, String> {
+    if !path.exists() {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+        }
+        std::fs::write(path, HERMES_SNIPPET).map_err(|e| format!("{}: {e}", path.display()))?;
+        return Ok(WireAction::Created(format!("hermes: {}", path.display())));
+    }
+    let body = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    // CURRENT means the canonical block is present verbatim-modulo-indent:
+    // a `nika:` server whose command line names the binary. Anything else
+    // is the operator\u2019s file to edit \u2014 print the snippet, touch nothing.
+    let has_nika = body.contains("nika:") && body.contains("command: nika");
+    if has_nika {
+        return Ok(WireAction::Current(format!("hermes: {}", path.display())));
+    }
+    Ok(WireAction::Manual(format!(
+        "hermes: {} exists — add under `mcp_servers:` (then /reload-mcp):\n{}",
+        path.display(),
+        HERMES_SNIPPET
+    )))
+}
+
 fn nika_server(include_type: bool) -> Value {
     let mut server = Map::new();
     if include_type {
@@ -390,6 +476,67 @@ fn render(actions: &[WireAction]) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// #330 · opencode: its OWN shape (`mcp.nika` · type local · argv in
+    /// `command`) — created project-local, idempotent on re-run, other
+    /// servers preserved.
+    #[test]
+    fn opencode_project_config_created_and_idempotent() {
+        let dir = temp_dir("opencode");
+        let path = dir.join("opencode.json");
+        let first = patch_opencode(&path).expect("create");
+        assert!(matches!(first, WireAction::Created(_)), "{first:?}");
+        let body: Value = read_json(&path).expect("json");
+        assert_eq!(body["mcp"]["nika"]["type"], "local");
+        assert_eq!(body["mcp"]["nika"]["command"][0], "nika");
+        assert_eq!(body["mcp"]["nika"]["command"][1], "mcp");
+        assert_eq!(body["mcp"]["nika"]["enabled"], true);
+        let second = patch_opencode(&path).expect("re-run");
+        assert!(matches!(second, WireAction::Current(_)), "{second:?}");
+    }
+
+    #[test]
+    fn opencode_preserves_other_servers_and_repairs_nika() {
+        let dir = temp_dir("opencode-merge");
+        let path = dir.join("opencode.json");
+        std::fs::write(
+            &path,
+            r#"{"mcp":{"other":{"type":"remote"},"nika":{"type":"local","command":["nika","mcp","serve"]}},"theme":"dark"}"#,
+        )
+        .expect("seed");
+        let action = patch_opencode(&path).expect("repair");
+        assert!(matches!(action, WireAction::Updated(_)), "{action:?}");
+        let body: Value = read_json(&path).expect("json");
+        assert_eq!(
+            body["mcp"]["other"]["type"], "remote",
+            "unrelated server kept"
+        );
+        assert_eq!(body["theme"], "dark", "unrelated key kept");
+        assert_eq!(body["mcp"]["nika"]["command"][1], "mcp", "argv repaired");
+    }
+
+    /// #330 · hermes: YAML — the Zed contract (create-if-missing ·
+    /// current-detect · Manual otherwise, file byte-identical).
+    #[test]
+    fn hermes_yaml_creates_detects_and_never_rewrites() {
+        let dir = temp_dir("hermes");
+        let path = dir.join("config.yaml");
+        let first = patch_hermes(&path).expect("create");
+        assert!(matches!(first, WireAction::Created(_)), "{first:?}");
+        let second = patch_hermes(&path).expect("re-run");
+        assert!(matches!(second, WireAction::Current(_)), "{second:?}");
+        // A pre-existing file WITHOUT our entry: snippet handed back,
+        // bytes untouched (comments/anchors are the operator's).
+        let foreign = "# my hermes\nmodel: hermes-4\nmcp_servers:\n  other: { command: x }\n";
+        std::fs::write(&path, foreign).expect("seed");
+        let third = patch_hermes(&path).expect("manual");
+        let WireAction::Manual(msg) = &third else {
+            unreachable!("expected Manual, got {third:?}");
+        };
+        assert!(msg.contains("mcp_servers:") && msg.contains("command: nika"));
+        let after = std::fs::read_to_string(&path).expect("read");
+        assert_eq!(after, foreign, "the operator file stays byte-identical");
+    }
 
     #[test]
     fn vscode_config_uses_stdio_and_mcp_arg() {
