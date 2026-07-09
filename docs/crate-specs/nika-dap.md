@@ -4,15 +4,15 @@
 |---|---|
 | Status | **ADMITTED 2026-07-09** — Gate 1 authored at the split (a descent, not a greenfield: every line arrived tested from `nika-cli`). |
 | Layer | L4 — interface crate (stdio protocol server + the forensic read seams) |
-| Design | The trace-forensics plane: the DAP replay debugger (`nika dap`) plus the three seams every forensic reader shares — the tolerant NDJSON reader (`recover`), the tamper-evidence chain walk (`chain`), the source-identity hashes (`source_id`), and the forensic statistics (`stats` — the Prior honesty ladder + Hyndman-Fan-7 quantiles every learned-truth reader speaks · descended from nika-cli at the 15060-LOC wall, the same session as the crate itself). One home so the sink that WRITES the chain and every walker that CHECKS it share one genesis tag and one hash primitive. |
-| LOC budget | ≤2,500 src (at admission ~1,450 incl. in-file tests) — headroom for live DAP sessions (breakpoint gates on the durable-pause substrate) after replay proves the wiring |
+| Design | The trace-forensics plane: the DAP replay debugger (`nika dap`) plus the seams every forensic reader shares — the tolerant NDJSON reader (`recover`), the tamper-evidence chain walk (`chain`), the source-identity hashes (`source_id`), the forensic statistics (`stats` — the Prior honesty ladder + Hyndman-Fan-7 quantiles every learned-truth reader speaks · descended from nika-cli at the 15060-LOC wall, the same session as the crate itself), and since the W0 descent (§5) the forensic half of the trace family — the OTLP projection (`otel`), the reproduce comparison (`reproduce`), the store scan (`store`) and the retention policy (`retention`). One home so the sink that WRITES the chain and every walker that CHECKS it share one genesis tag and one hash primitive. |
+| LOC budget | the 15k-prod workspace ratchet governs (≤1,500/file · ≤100/fn as everywhere) — admitted at ~1,450 src incl. in-file tests; the 2026-07-09 W0 trace descent (§5) added the four forensic trace modules (~1.1k prod) with headroom for live DAP sessions intact |
 | File cap | ≤1,500 LOC each (max at admission: `replay.rs` ~490) |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace (`0.98.0` at admission) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L4 interface crate, same stance as `nika-cli` |
-| Extraction source | `crates/nika-cli/src/verbs/dap/{mod,protocol,replay}.rs` (1,202 LOC · git-mv, history preserved) + `run/source_id.rs` (moved) + `run/resume.rs::recover_events` (moved) + `verbs/trace_verify.rs::{walk, Verdict}` (moved) — `nika-cli` re-exports every seam at its old path (zero call-site churn) |
+| Extraction source | `crates/nika-cli/src/verbs/dap/{mod,protocol,replay}.rs` (1,202 LOC · git-mv, history preserved) + `run/source_id.rs` (moved) + `run/resume.rs::recover_events` (moved) + `verbs/trace_verify.rs::{walk, Verdict}` (moved) — `nika-cli` re-exports every seam at its old path (zero call-site churn). **W0 trace descent (2026-07-09 · architecture review v2 §1)**: `verbs/trace_otel.rs` → `otel` · `verbs/trace_reproduce.rs` → `reproduce` · `verbs/trace/{store,retention}.rs` → `store` + `retention` — the compute descends, the render stays (the CLI keeps `export`/`reproduce` file plumbing, the report/line renderers, `fmt_age`/`fmt_bytes` display vocabulary and the `nika run` GC hook as shims). Per D-2026-07-09-N1 the descent is ONE architectural unit in TWO members — this crate spec names the parentage; the unit stays `nika-cli`'s. |
 | NIKA codes | **none** — the DAP wire speaks the protocol's own error responses; the forensic seams return typed verdicts/Results (the trace surface stays non-coded, the same stance the trace verbs hold) |
 
 ---
@@ -57,10 +57,32 @@ pub mod recover    { RecoveredTrace · RecoverError · recover_events }
 pub mod chain      { CHAIN_GENESIS · Verdict · walk }
 pub mod source_id  { sha256_hex · lf_normal_form }
 pub mod stats      { Prior (#[non_exhaustive]) · BANDS_MIN_N · quantile_h7 · ConformalUpper · conformal_upper }
+pub mod otel       { project (journal + chain Verdict → one OTLP/JSON line) }
+pub mod reproduce  { Verdict · Row · Report · compare · workflow_of }
+pub mod store      { TRACE_DIR · TraceState · TraceMeta · scan · fold_facts }
+pub mod retention  { RetentionConfig · Reason · GcReport · plan · newest_per_workflow · collect }
 ```
 
 Consumers: `nika-cli` (the bin's `Command::Dap` arm + the re-exported
 seams). The DAP protocol/replay internals stay private.
+
+## 5. The W0 trace descent (2026-07-09)
+
+`nika-cli` hit the 15k wall a second time the same day (99.8% ·
+14,966/15,000 — two open PRs blocked at the push gate). The
+architecture review v2 §1 designed the descent: **the forensic half of
+the trace family comes home to the forensics plane** — `trace_otel`'s
+projection (embedder-useful without the CLI: OTLP export of any
+recorded journal), `trace_reproduce`'s comparison taxonomy (the
+replayer competency), and the `store` scan + `retention` math. The
+render half STAYS cli-side (`trace/mod.rs` readers · `trace manage` ·
+the report/line renderers · the `Theme`/display vocabulary) — compute
+descends, render stays, the `trace_verify` shim pattern throughout.
+Deps stay L0-only (nika-event · nika-types · sha2 · serde/serde_json ·
+thiserror — the absorption is L4-legal). Every moved type follows
+FCI-002/FCI-016 (`#[non_exhaustive]` + `new()` per invariant #19);
+the two cli-side exhaustive `TraceState` matches gained honest
+wildcard arms.
 
 ## 4. Gates at admission (2026-07-09)
 
