@@ -219,4 +219,18 @@ mod tests {
             assert_eq!(err.to_string(), expected);
         }
     }
+
+    /// The teaching rendering is pinned byte-exact — the `${{{{`→`${{`
+    /// format-escape is the classic silent break, and the message IS the
+    /// product (it must name the jq route and the guard nature verbatim).
+    #[test]
+    fn arithmetic_display_teaches_the_jq_route() {
+        let err = ExprError::ArithmeticUnsupported { op: '+', offset: 7 };
+        assert_eq!(
+            err.to_string(),
+            "arithmetic operator `+` at offset 7 — `${{ … }}` is a boolean guard, \
+             not a calculator (v0.1 CEL subset): compute the value in a `nika:jq` \
+             task and gate on `tasks.<id>.output`"
+        );
+    }
 }
