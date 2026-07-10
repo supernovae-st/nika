@@ -53,34 +53,18 @@ pub fn run(
         .iter()
         .filter(|h| h.kind == "native-first")
         .count();
-    let strict_clean = report.is_clean() && (!native_strict || native_hints == 0);
+    // The MODELS rung (#320): the ladder validated TOOLS but not MODELS —
+    // the exact asymmetry a hallucinating agent hits. A `model:` this
+    // binary cannot resolve is a FINDING (exit 2), never a green audit.
+    let model_findings = unresolvable_models(&report);
+    let clean = report.is_clean() && model_findings.is_empty();
+    let strict_clean = clean && (!native_strict || native_hints == 0);
 
     if json {
-        return match serde_json::to_value(&report) {
-            Ok(mut payload) => {
-                let clean = report.is_clean();
-                if let Some(obj) = payload.as_object_mut() {
-                    obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
-                    obj.insert("pricing".to_owned(), pricing_section(&report));
-                    if native_strict {
-                        obj.insert(
-                            "native_strict_clean".to_owned(),
-                            serde_json::Value::Bool(strict_clean),
-                        );
-                    }
-                }
-                let text = format!("{payload:#}");
-                if strict_clean {
-                    VerbOutput::ok(text)
-                } else {
-                    VerbOutput::file(text)
-                }
-            }
-            Err(e) => VerbOutput::env(format!("cannot serialize report: {e}")),
-        };
+        return json_verdict(&report, &model_findings, clean, strict_clean, native_strict);
     }
 
-    let mut text = render(&report, &wf, &source, path, theme);
+    let mut text = render(&report, &wf, &source, path, theme, &model_findings);
     if native_strict && report.is_clean() && native_hints > 0 {
         let hint_word = if native_hints == 1 { "hint" } else { "hints" };
         let _ = writeln!(
@@ -102,22 +86,132 @@ pub fn run(
     }
 }
 
+/// The `--json` verdict: the full report + the machine keys (`clean` ·
+/// `models_resolve` · `model_findings[]` · `pricing` · the strict flag)
+/// — never coloured, the contract bytes are the contract.
+fn json_verdict(
+    report: &CheckReport,
+    model_findings: &[ModelFinding],
+    clean: bool,
+    strict_clean: bool,
+    native_strict: bool,
+) -> VerbOutput {
+    let mut payload = match serde_json::to_value(report) {
+        Ok(v) => v,
+        Err(e) => return VerbOutput::env(format!("cannot serialize report: {e}")),
+    };
+    if let Some(obj) = payload.as_object_mut() {
+        obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
+        obj.insert(
+            "models_resolve".to_owned(),
+            serde_json::Value::Bool(model_findings.is_empty()),
+        );
+        if !model_findings.is_empty() {
+            obj.insert(
+                "model_findings".to_owned(),
+                serde_json::Value::Array(
+                    model_findings
+                        .iter()
+                        .map(|f| {
+                            serde_json::json!({
+                                "model": f.model,
+                                "tasks": f.tasks,
+                                "why": f.why,
+                            })
+                        })
+                        .collect(),
+                ),
+            );
+        }
+        obj.insert(
+            "pricing".to_owned(),
+            pricing_section(report, model_findings),
+        );
+        if native_strict {
+            obj.insert(
+                "native_strict_clean".to_owned(),
+                serde_json::Value::Bool(strict_clean),
+            );
+        }
+    }
+    let text = format!("{payload:#}");
+    if strict_clean {
+        VerbOutput::ok(text)
+    } else {
+        VerbOutput::file(text)
+    }
+}
+
+/// One MODELS-rung finding — a `model:` this binary cannot run (#320).
+struct ModelFinding {
+    model: String,
+    tasks: Vec<String>,
+    why: String,
+}
+
+/// Cross `requirements.models` against the RESOLVER (the runnable
+/// provider set, [`nika_providers::CANONICAL_IDS`]) — never the vendor
+/// catalog, which advertises providers this binary cannot drive (the
+/// azure class: cataloged, unresolvable, green until the run died).
+fn unresolvable_models(report: &nika_schema::check::CheckReport) -> Vec<ModelFinding> {
+    report
+        .requirements
+        .models
+        .iter()
+        .filter_map(|m| {
+            let why = match m.model.split_once('/') {
+                None => format!(
+                    "`{}` is a bare model id — the contract is `<provider>/<model>` \
+                     (pick the provider that serves it; `nika doctor` names the \
+                     {} runnable providers)",
+                    m.model,
+                    nika_providers::CANONICAL_IDS.len()
+                ),
+                Some((provider, _)) if !nika_providers::CANONICAL_IDS.contains(&provider) => {
+                    format!(
+                        "provider `{provider}` does not resolve in THIS binary \
+                         ({} runnable — `nika doctor` names them); a cataloged \
+                         vendor is not a runnable one",
+                        nika_providers::CANONICAL_IDS.len()
+                    )
+                }
+                Some(_) => return None,
+            };
+            Some(ModelFinding {
+                model: m.model.clone(),
+                tasks: m.tasks.clone(),
+                why,
+            })
+        })
+        .collect()
+}
+
 /// The rates the preflight shows BEFORE the first run: each model the
 /// requirements collected (#213), priced from the vendored catalog.
 /// UNKNOWN is null, never 0.00 — a missing price must look missing.
 /// Rates only (USD per 1M tokens): token counts are unknowable
 /// statically; the estimate with honest bounds is the next arc.
 ///
+/// A model the resolver cannot run is NEVER priced (#320): the pricing
+/// table fuzzy-matches by name, so a hallucinated id could wear a
+/// CONJURED price — unpriced beats conjured, always.
+///
 /// `snapshot` = the vendored catalog's provenance (source · `as_of` ·
 /// sha) + derived counts — the machine-readable answer to « priced
 /// against WHAT, from WHEN? » (no surveyed tool ships this · 2026-07).
-fn pricing_section(report: &nika_schema::check::CheckReport) -> serde_json::Value {
+fn pricing_section(
+    report: &nika_schema::check::CheckReport,
+    model_findings: &[ModelFinding],
+) -> serde_json::Value {
     let models: Vec<serde_json::Value> = report
         .requirements
         .models
         .iter()
         .map(|m| {
-            let priced = nika_catalog::find_pricing_for(&m.model);
+            let resolvable = !model_findings.iter().any(|f| f.model == m.model);
+            let priced = resolvable
+                .then(|| nika_catalog::find_pricing_for(&m.model))
+                .flatten();
             serde_json::json!({
                 "model": m.model,
                 "input_per_million": priced.map(|p| p.input_per_million),
@@ -152,7 +246,14 @@ fn mark(theme: Theme, ok: bool) -> String {
 }
 
 /// Render the human report — every section present, grep-stable keywords.
-fn render(report: &CheckReport, wf: &RawWorkflow, source: &str, path: &str, t: Theme) -> String {
+fn render(
+    report: &CheckReport,
+    wf: &RawWorkflow,
+    source: &str,
+    path: &str,
+    t: Theme,
+    model_findings: &[ModelFinding],
+) -> String {
     let mut out = String::new();
     let name = path.rsplit('/').next().unwrap_or(path);
     let _ = writeln!(
@@ -182,6 +283,7 @@ fn render(report: &CheckReport, wf: &RawWorkflow, source: &str, path: &str, t: T
     }
 
     plan(&mut out, report, wf, t);
+    models(&mut out, report, model_findings, t);
     cost(&mut out, report, t);
 
     section_list(&mut out, t, "SECRETS", "no information-flow escapes", {
@@ -510,6 +612,43 @@ fn verb_of<'w>(action: &'w RawAction, wf: &'w RawWorkflow) -> (&'static str, Opt
     }
 }
 
+/// The MODELS rung (#320): every `model:` must resolve in THIS binary —
+/// green means runnable, never merely cataloged. Renders between PLAN
+/// and COST (resolvability before price).
+fn models(out: &mut String, report: &CheckReport, findings: &[ModelFinding], t: Theme) {
+    if report.requirements.models.is_empty() {
+        return; // no inference tasks — the ladder says so at COST already
+    }
+    if findings.is_empty() {
+        let n = report.requirements.models.len();
+        let noun = if n == 1 {
+            "model resolves"
+        } else {
+            "models resolve"
+        };
+        let _ = writeln!(
+            out,
+            " {} {}   {}",
+            mark(t, true),
+            t.paint(Role::Strong, "MODELS"),
+            t.paint(Role::Dim, &format!("{n} {noun} in this binary"))
+        );
+        return;
+    }
+    for f in findings {
+        let _ = writeln!(
+            out,
+            " {} {}   `{}` (task{} {}) — {}",
+            mark(t, false),
+            t.paint(Role::Strong, "MODELS"),
+            f.model,
+            if f.tasks.len() == 1 { "" } else { "s" },
+            f.tasks.join(", "),
+            f.why
+        );
+    }
+}
+
 fn cost(out: &mut String, report: &CheckReport, t: Theme) {
     if report.cost.tasks.is_empty() {
         let _ = writeln!(
@@ -679,7 +818,7 @@ mod tests {
             "nika: v1\nworkflow: priced\nmodel: anthropic/claude-opus-4-5\ntasks:\n  - id: think\n    infer:\n      prompt: hi\n  - id: odd\n    infer:\n      model: custom/never-heard-of-it\n      prompt: hi\n",
         );
         let report = nika_schema::check(&wf);
-        let section = pricing_section(&report);
+        let section = pricing_section(&report, &unresolvable_models(&report));
         let models = section["models"].as_array().expect("array");
         assert_eq!(models.len(), 2, "one row per requirements model");
         let by_model = |name: &str| {
@@ -760,6 +899,82 @@ mod tests {
             None,
             theme,
         )
+    }
+
+    /// #320 repro 1: a CATALOGED-but-unresolvable provider (`azure/…` —
+    /// the vendor listing knows it, the resolver does not) must be a
+    /// finding, exit 2 — never a green audit that dies at run.
+    #[test]
+    fn models_rung_reds_a_cataloged_but_unresolvable_provider() {
+        let out = checked_output(
+            "models-azure.nika.yaml",
+            "nika: v1\nworkflow: m\ntasks:\n  - id: think\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n",
+            false,
+        );
+        assert_eq!(
+            out.code, 2,
+            "unresolvable provider is a finding: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("MODELS") && out.text.contains("`azure`"),
+            "the rung names the provider: {}",
+            out.text
+        );
+    }
+
+    /// #320 repro 2: a BARE model id (no `<provider>/` prefix) reds the
+    /// rung AND must never wear a conjured price in the pricing section.
+    #[test]
+    fn models_rung_reds_a_bare_model_id_and_never_conjures_a_price() {
+        let out = checked_output(
+            "models-bare.nika.yaml",
+            "nika: v1\nworkflow: m\ntasks:\n  - id: think\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n",
+            false,
+        );
+        assert_eq!(out.code, 2, "bare id is a finding: {}", out.text);
+        assert!(
+            out.text.contains("bare model id"),
+            "teaches the contract: {}",
+            out.text
+        );
+        // The JSON surface: models_resolve false · clean false · the
+        // pricing row is NULL (unpriced beats conjured — the $0.0001
+        // fuzzy-match hole from the live evidence).
+        let dir = std::env::temp_dir().join("nika-cli-killtests");
+        let path = dir.join("models-bare.nika.yaml");
+        let theme = Theme::new(false, true, false);
+        let out = run(path.to_str().expect("utf8 path"), true, false, None, theme);
+        assert_eq!(out.code, 2);
+        let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+        assert_eq!(payload["clean"], false);
+        assert_eq!(payload["models_resolve"], false);
+        assert_eq!(
+            payload["model_findings"][0]["model"], "gpt-5-turbo",
+            "{payload:#}"
+        );
+        let row = &payload["pricing"]["models"][0];
+        assert!(
+            row["input_per_million"].is_null() && row["output_per_million"].is_null(),
+            "an unresolvable model is never priced: {row:#}"
+        );
+    }
+
+    /// The happy path: every model resolvable → the rung is one green
+    /// line and the audit verdict is untouched.
+    #[test]
+    fn models_rung_is_green_when_every_model_resolves() {
+        let out = checked_output(
+            "models-green.nika.yaml",
+            "nika: v1\nworkflow: m\ntasks:\n  - id: think\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
+            false,
+        );
+        assert_eq!(out.code, 0, "{}", out.text);
+        assert!(
+            out.text.contains("MODELS") && out.text.contains("1 model resolves"),
+            "the green rung is visible: {}",
+            out.text
+        );
     }
 
     /// `--json --native-strict`: the payload's `native_strict_clean` and

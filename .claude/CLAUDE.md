@@ -130,7 +130,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `feat/wire-opencode-hermes`                                      |
-| HEAD             | `1bf589f54` (`1bf589f54b84fdad28c0bf4b75a79cddfb80641d`)             |
+| HEAD             | `7e9db878f` (`7e9db878fa4317a19205fa15654e58bc5708c942`)             |
 | workspace        | v0.98.0                                  |
 | crates (workspace)| 45                                              |
 | crates (admitted)| 43 / 42                                   |
@@ -147,8 +147,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/wire-opencode-hermes`                                      |
-| HEAD             | `1bf589f54` (`1bf589f54b84fdad28c0bf4b75a79cddfb80641d`)             |
+| branch           | `chore/release-0.98.0`                                      |
+| HEAD             | `25db7137d` (`25db7137dddbe6fdb7782663d1a07096cafb3bad`)             |
 | workspace        | v0.98.0                                  |
 | crates (workspace)| 42                                              |
 | crates (admitted)| 42 / 42                                   |
