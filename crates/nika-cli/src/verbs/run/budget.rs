@@ -40,7 +40,7 @@ pub(super) fn preflight(
         }
     };
     if let Some(refusal) = floor_refusal(cost.min_path_total_usd, budget) {
-        super::emit_diagnostic(&refusal, output_json);
+        super::epilogue::emit_diagnostic(&refusal, output_json);
         return Err(exit::FILE);
     }
     if cost.has_unbounded {
