@@ -47,6 +47,15 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   fix-forms for the high-traffic conformance codes (DAG-001/002/003 ·
   PARSE-002) and its footer teaches instead of reading inward (#145).
 
+- **The trust battery — and the release gate that runs it.** The
+  runs-as-evidence claims, composed into one offline battery
+  (`scripts/test/trust-battery.sh`): run→resume with visible cache
+  hits · reproduce → REPRODUCED with engine attestation · chain
+  verify · ONE tampered byte exits 2 · one dropped line exits 2 ·
+  OTLP export lands. `release.yml` plays it against the exact tarball
+  about to ship, beside the funnel — a release whose flight recorder
+  lies never uploads.
+
 ### Fixed
 
 - **gemini 2.5 dynamic thinking no longer burns structured budgets** —
@@ -60,6 +69,13 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 - **Parse-fatal `check --json` answers JSON** — the most common CI case
   emitted plain text on stdout; now ONE object (`parse_fatal: true` ·
   a `findings[]` row carrying the NIKA-PARSE code) (#331).
+
+- **The quick-xml DoS advisory pair leaves the default build**
+  (RUSTSEC-2026-0194/0195): feed-rs 2.4.0 ships the 0.41 bump (taken
+  six days before the allow-list's own review date) and the sitemap
+  parser rides 0.41 too. What remains lives only behind the
+  off-by-default screen-capture feature; `cargo audit`: 0
+  vulnerabilities across 759 dependencies.
 
 ### Changed
 
