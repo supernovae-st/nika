@@ -58,6 +58,9 @@ pub unsafe fn nika_tmpl::expression::Expr::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_tmpl::expression::Expr
 pub fn nika_tmpl::expression::Expr::from(t: T) -> T
 #[non_exhaustive] pub enum nika_tmpl::expression::ExprError
+pub nika_tmpl::expression::ExprError::ArithmeticUnsupported
+pub nika_tmpl::expression::ExprError::ArithmeticUnsupported::offset: usize
+pub nika_tmpl::expression::ExprError::ArithmeticUnsupported::op: char
 pub nika_tmpl::expression::ExprError::ChainedRelation
 pub nika_tmpl::expression::ExprError::ChainedRelation::offset: usize
 pub nika_tmpl::expression::ExprError::EmptyExpression
