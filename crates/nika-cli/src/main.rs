@@ -125,7 +125,8 @@ enum Command {
         #[arg(long)]
         ascii: bool,
     },
-    /// Static pre-flight: the ADR-092 ladder (audit BEFORE run).
+    /// Audit a workflow BEFORE it runs: plan · cost ceiling · secret
+    /// flows · types · tools — every finding teaches its fix.
     Check {
         /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
         file: String,
@@ -152,7 +153,7 @@ enum Command {
         #[arg(long)]
         ascii: bool,
     },
-    /// Execute a CHECKED workflow through the L3 runtime (live render).
+    /// Run a workflow (the same audit runs first · live render).
     Run(RunArgs),
     /// Golden test: run under the MOCK provider (offline · deterministic)
     /// and compare the typed `outputs:` against `<file>.golden.json`.
@@ -202,7 +203,7 @@ enum Command {
         #[arg(long)]
         forecast: bool,
     },
-    /// Diagnose the environment (binary · config · provider keys · spec §8).
+    /// Diagnose this machine (binary · config · provider keys · local models).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
     Doctor {
         /// TCP-probe the local provider ports (loopback/configured only ·
@@ -280,7 +281,7 @@ enum Command {
         #[arg(long)]
         force: bool,
     },
-    /// Generate shell completions from the clap tree (spec §9).
+    /// Generate shell completions (bash · zsh · fish · elvish · powershell).
     Completions {
         /// Target shell.
         #[arg(value_enum)]

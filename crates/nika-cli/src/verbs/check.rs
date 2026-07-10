@@ -12,7 +12,7 @@
 
 use std::fmt::Write as _;
 
-use nika_schema::check::{CheckReport, UnboundedReason};
+use nika_schema::check::{CheckReport, ConformanceViolation, UnboundedReason};
 use nika_schema::infer_permits;
 use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::types::VarDecl;
@@ -231,6 +231,34 @@ fn mark(theme: Theme, ok: bool) -> String {
     theme.paint(role, if theme.ascii { asc } else { uni })
 }
 
+/// One CONFORM finding: the ✖ row, the offline+online fix pointer (the
+/// rustc `--explain` move — the same affordance `run` failures print,
+/// #145 P2 · one teaching voice on both surfaces), and the source frame
+/// when the finding carries a span (rustc-grade caret · the CONFORM row
+/// above stays grep-stable).
+fn conformance_row(out: &mut String, c: &ConformanceViolation, source: &str, path: &str, t: Theme) {
+    let _ = writeln!(
+        out,
+        " {} {}  [{}] {}",
+        mark(t, false),
+        t.paint(Role::Strong, "CONFORM"),
+        c.code,
+        c.message
+    );
+    let _ = writeln!(
+        out,
+        "   {}",
+        t.paint(
+            Role::Dim,
+            &format!("fix: nika explain {} · {}", c.code, c.docs_url)
+        )
+    );
+    if let Some(span) = c.span {
+        let frame = crate::display::snippet::paint_span(source, path, span, t);
+        let _ = writeln!(out, "{frame}");
+    }
+}
+
 /// Render the human report — every section present, grep-stable keywords.
 fn render(
     report: &CheckReport,
@@ -250,22 +278,7 @@ fn render(
     );
 
     for c in &report.conformance {
-        let _ = writeln!(
-            out,
-            " {} {}  [{}] {}",
-            mark(t, false),
-            t.paint(Role::Strong, "CONFORM"),
-            c.code,
-            c.message
-        );
-        // The rustc `--explain` move: every code links its own page.
-        let _ = writeln!(out, "   {}", t.paint(Role::Dim, &c.docs_url));
-        // …and span-carrying findings frame the offending source line
-        // (rustc-grade caret · the CONFORM row above stays grep-stable).
-        if let Some(span) = c.span {
-            let frame = crate::display::snippet::paint_span(source, path, span, t);
-            let _ = writeln!(out, "{frame}");
-        }
+        conformance_row(&mut out, c, source, path, t);
     }
 
     plan(&mut out, report, wf, t);
