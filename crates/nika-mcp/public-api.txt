@@ -32,5 +32,30 @@ impl<T> nika_error::traits::AsAny for nika_mcp::McpError where T: 'static
 pub fn nika_mcp::McpError::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_mcp::McpError
 pub type nika_mcp::McpError::Output = T
-pub fn nika_mcp::run_http(bind: &str, port: u16) -> core::result::Result<(), nika_mcp::McpError>
+pub struct nika_mcp::HttpServer
+impl nika_mcp::HttpServer
+pub fn nika_mcp::HttpServer::addr(&self) -> core::result::Result<core::net::socket_addr::SocketAddr, nika_mcp::McpError>
+pub fn nika_mcp::HttpServer::bind(bind: &str, port: u16) -> core::result::Result<Self, nika_mcp::McpError>
+pub fn nika_mcp::HttpServer::serve(&self, token: core::option::Option<&str>) -> never
+impl<D> owo_colors::OwoColorize for nika_mcp::HttpServer
+impl<T, U> core::convert::Into<U> for nika_mcp::HttpServer where U: core::convert::From<T>
+pub fn nika_mcp::HttpServer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::HttpServer where U: core::convert::Into<T>
+pub type nika_mcp::HttpServer::Error = core::convert::Infallible
+pub fn nika_mcp::HttpServer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::HttpServer where U: core::convert::TryFrom<T>
+pub type nika_mcp::HttpServer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::HttpServer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_mcp::HttpServer where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::HttpServer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::HttpServer where T: ?core::marker::Sized
+pub fn nika_mcp::HttpServer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::HttpServer where T: ?core::marker::Sized
+pub fn nika_mcp::HttpServer::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_mcp::HttpServer
+pub fn nika_mcp::HttpServer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_mcp::HttpServer where T: 'static
+pub fn nika_mcp::HttpServer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_mcp::HttpServer
+pub type nika_mcp::HttpServer::Output = T
 pub fn nika_mcp::run_stdio() -> core::result::Result<(), nika_mcp::McpError>
