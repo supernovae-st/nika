@@ -12,6 +12,17 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika mcp --transport http` — the Streamable HTTP transport.** The
+  managed-MCP hosts stdio closed on get their wire: POST-only,
+  conformant-minimal per MCP rev 2025-11-25 (single
+  `application/json` response · `202` notifications · `405` on the
+  push-stream GET and session DELETE — a read-only, stateless audit
+  server), origin-gated on every request (anti DNS-rebinding),
+  loopback bind by default, optional constant-time bearer via
+  `NIKA_MCP_TOKEN`, the stdio pump's own 8 MiB ceiling — zero new
+  dependencies (hand-rolled HTTP/1.1, deliberately sequential). The
+  protocol dispatch was always a pure function; this is just the
+  second pump.
 - **The machine-consumer rung, completed** — three surfaces one release
   promised each other: `nika run --dry-run --json` emits ONE versioned
   plan object (`plan_version: 1` — waves resolved to task ids · per-task
