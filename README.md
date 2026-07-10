@@ -168,6 +168,8 @@ nika run flow.nika.yaml --task hero    # regenerate ONE task + its upstream cone
 nika run flow.nika.yaml --resume .nika/traces/<run>.ndjson   # skip journaled successes
 nika run flow.nika.yaml --resume <trace> --answer approve=true  # re-arm a paused gate
 nika trace show .nika/traces/<run>.ndjson   # re-render any past run
+nika catalog                         # the embedded provider/model catalog · capabilities · env vars
+nika tools                           # the nika:* builtin catalog · what invoke reaches without MCP
 nika doctor --ping                   # are the local servers actually listening?
 ```
 

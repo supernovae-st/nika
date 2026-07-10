@@ -114,6 +114,11 @@ post-commit:
       run: bash scripts/hooks/activity-log.sh
 
     sequence-reminder:
+      # post-commit has no staged set · without an explicit files source the
+      # glob filters NOTHING and the reminder fired on every commit
+      # (empirical 2026-07-10 ×2 on README-only commits). The commit's own
+      # file list is the correct source.
+      files: git diff-tree --no-commit-id --name-only -r HEAD
       glob: 'memory/execution-roadmap/**/*'
       run: >
         printf '\n[reminder] execution-roadmap/ touched — update SEQUENCE.md status.\n'

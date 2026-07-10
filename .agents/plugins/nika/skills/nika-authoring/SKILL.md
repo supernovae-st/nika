@@ -15,7 +15,12 @@ oracle; the human runs it.
    `nika examples list` · `nika examples show <slug>` ·
    `nika new --from <template> <file>.nika.yaml`
 2. **Write the file.** Envelope is always `nika: v1` +
-   `workflow: <kebab-id>` + `tasks:`.
+   `workflow: <kebab-id>` + `tasks:`. Pick models and builtins from
+   the embedded catalogs — `nika catalog` (providers · models ·
+   capabilities · which env var each needs) and `nika tools` (the
+   `nika:*` builtins an `invoke` reaches without MCP); before a run,
+   `nika inspect <file>` shows the anatomy: tasks · waves · the cost
+   floor.
 3. **Check it**: `nika check <file>` (exit 0 = clean · 2 = findings),
    then `nika check --native-strict <file>` — it fails on any
    `native-first` hint (an `exec:` a builtin covers).
