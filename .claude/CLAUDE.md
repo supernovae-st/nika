@@ -129,13 +129,13 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/image-fx-builtin`                                      |
-| HEAD             | `a5ac4b913` (`a5ac4b9132b276008d22ee66631af60907c96fe4`)             |
+| branch           | `feat/wire-opencode-hermes`                                      |
+| HEAD             | `1e544c9f2` (`1e544c9f26bfd643806002acd9b5625a4296a72e`)             |
 | workspace        | v0.98.0                                  |
-| crates (workspace)| 44                                              |
+| crates (workspace)| 45                                              |
 | crates (admitted)| 43 / 42                                   |
-| crates (WIP)     | 1 — nika-fx                                  |
-| L0               | 11                                              |
+| crates (WIP)     | 2 — nika-chart nika-fx                                  |
+| L0               | 12                                              |
 | L0.5             | 6                                              |
 | L1               | 13                                              |
 | L1.5             | 4                                              |
@@ -147,13 +147,13 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `chore/release-0.98.0`                                      |
-| HEAD             | `25db7137d` (`25db7137dddbe6fdb7782663d1a07096cafb3bad`)             |
+| branch           | `feat/wire-opencode-hermes`                                      |
+| HEAD             | `1e544c9f2` (`1e544c9f26bfd643806002acd9b5625a4296a72e`)             |
 | workspace        | v0.98.0                                  |
 | crates (workspace)| 42                                              |
 | crates (admitted)| 42 / 42                                   |
 | crates (WIP)     | 0 —                                   |
-| L0               | 11                                              |
+| L0               | 12                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
 | L1.5             | 4                                              |
