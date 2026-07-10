@@ -150,6 +150,21 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &crate::raw::RawInvoke
     match builtin_effect(a) {
         Some(BuiltinEffect::Net { url_arg }) => {
             match literal_arg(a, url_arg).as_deref().and_then(url_host) {
+                // A floor-blocked host is NEVER inferred into the grants:
+                // the always-on SSRF floor (NIKA-SEC-005) refuses it
+                // regardless of `permits:`, so the entry would be inert —
+                // and the escape scanner would immediately flag the block
+                // this inference just wrote (a self-refusing suggestion,
+                // the same class as suggesting a program allowlist for a
+                // shell string). Honesty note instead of a silent drop.
+                Some(host) if nika_types::net::host_is_blocked(&host) => {
+                    c.notes.push(format!(
+                        "task `{id}` fetches `{host}` — the always-on SSRF floor \
+                         (NIKA-SEC-005) refuses loopback/private/link-local/metadata \
+                         targets, so no `permits.net.http` entry can admit it; not \
+                         inferred (point the task at a public host)"
+                    ));
+                }
                 Some(host) => {
                     c.hosts.insert(host);
                 }
@@ -555,5 +570,22 @@ mod tests {
             parse(&full, FileId::new(0), ParseMode::Strict).is_ok(),
             "the empty mapping form parses"
         );
+    }
+
+    #[test]
+    fn floor_blocked_host_is_never_inferred_into_the_grants() {
+        // A loopback fetch must NOT synthesize `net.http: ["127.0.0.1"]`
+        // — the floor refuses it regardless, so the entry would be inert
+        // and the escape scanner would flag the block this inference just
+        // wrote (a self-refusing suggestion). Public hosts still infer;
+        // the floored one becomes an honesty note.
+        let r = infer_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:9/x\" } }\n  - id: b\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
+        );
+        let net = r.permits.net.as_ref().expect("public host infers net");
+        assert_eq!(net.http, vec!["api.example.com".to_owned()]);
+        assert_eq!(r.notes.len(), 1, "{:?}", r.notes);
+        assert!(r.notes[0].contains("SSRF floor"), "{}", r.notes[0]);
+        assert!(r.notes[0].contains("`127.0.0.1`"), "{}", r.notes[0]);
     }
 }

@@ -107,6 +107,46 @@ pub fn ip_is_blocked(ip: core::net::IpAddr) -> bool {
     }
 }
 
+/// True HOSTNAME strings the SSRF floor always refuses (cloud metadata).
+/// The `localhost` FAMILY (`localhost` + any `*.localhost` label · RFC 6761
+/// reserves the TLD as loopback) is matched structurally in
+/// [`host_is_blocked`], and IP literals do NOT belong here — the literal-IP
+/// parse there is authoritative for every address form (a string entry for
+/// either class would be unreachable dead code · review swarm P2/P0
+/// 2026-06-10/12).
+const BLOCKED_HOSTNAMES: &[&str] = &["metadata.google.internal", "metadata.goog"];
+
+/// The single STATIC SSRF host oracle: `true` when `host` — a hostname or a
+/// literal IP in any spelling (dotted v4 · bracketed or bare v6) — is a
+/// target the always-on SSRF floor refuses (`NIKA-SEC-005`): the `localhost`
+/// family (RFC 6761), a cloud-metadata hostname, or a literal address
+/// [`ip_is_blocked`] classifies as non-public. Case-insensitive and
+/// trailing-dot-normalized (`localhost.` is the absolute-FQDN spelling of
+/// `localhost`). Every egress boundary funnels its STATIC host knowledge
+/// through this one predicate — the http effect (`nika-http`'s `check_url`),
+/// the browser navigate gate (`nika-browser`), and the `nika check` floor
+/// parity pass (`nika-schema`) — so check and run cannot drift. A DNS name
+/// that merely RESOLVES to a private address is invisible statically; the
+/// runtime `GuardedResolver` owns that half.
+#[must_use]
+pub fn host_is_blocked(host: &str) -> bool {
+    let trimmed = host.trim_end_matches('.');
+    let last_label = trimmed.rsplit('.').next().unwrap_or(trimmed);
+    if last_label.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    if BLOCKED_HOSTNAMES
+        .iter()
+        .any(|b| trimmed.eq_ignore_ascii_case(b))
+    {
+        return true;
+    }
+    let literal = trimmed.trim_start_matches('[').trim_end_matches(']');
+    literal
+        .parse::<core::net::IpAddr>()
+        .is_ok_and(ip_is_blocked)
+}
+
 /// The v4 address a transition-format v6 embeds in two segments (NAT64
 /// `64:ff9b::a.b.c.d` in segments 6+7 · 6to4 `2002:a.b:c.d::` in segments 1+2).
 fn embedded_v4(hi: u16, lo: u16) -> core::net::Ipv4Addr {
@@ -271,6 +311,44 @@ mod tests {
         ] {
             let ip: IpAddr = s.parse().expect("ip");
             assert!(!ip_is_blocked(ip), "{s} is public, must be admitted");
+        }
+    }
+
+    #[test]
+    fn host_oracle_blocks_names_and_literals_in_every_spelling() {
+        for h in [
+            "localhost",
+            "LOCALHOST",
+            "localhost.",    // absolute-FQDN spelling
+            "api.localhost", // RFC 6761: the TLD is loopback
+            "a.b.localhost",
+            "metadata.google.internal",
+            "Metadata.Goog.",
+            "127.0.0.1",
+            "0.0.0.0",
+            "10.0.0.1",
+            "169.254.169.254", // cloud metadata IP
+            "::1",
+            "[::1]", // bracketed spelling (URL authority form)
+            "[fe80::1]",
+            "100.100.100.200", // CGN (Alibaba metadata)
+        ] {
+            assert!(host_is_blocked(h), "{h} must be floor-blocked");
+        }
+    }
+
+    #[test]
+    fn host_oracle_admits_public_hosts_and_stays_silent_on_globs() {
+        for h in [
+            "api.example.com",
+            "example.com.", // trailing-dot public FQDN
+            "8.8.8.8",
+            "[2606:4700:4700::1111]",
+            "localhost.example.com", // `localhost` as a NON-last label is a real name
+            "*.github.com",          // a permits glob is not a host — never classified
+            "",
+        ] {
+            assert!(!host_is_blocked(h), "{h} must not be floor-blocked");
         }
     }
 }

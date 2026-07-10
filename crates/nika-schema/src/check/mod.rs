@@ -285,11 +285,15 @@ impl CheckReport {
     pub fn extra_conformance_codes(&self) -> Vec<SpecCode> {
         let builtin = SpecCode::new("BUILTIN", 1, SpecCategory::ValidationError);
         let mut codes = Vec::new();
-        codes.extend(
-            self.capability_escapes
-                .iter()
-                .map(|_| SpecCode::new("SEC", 4, SpecCategory::SecurityError)),
-        );
+        codes.extend(self.capability_escapes.iter().map(|e| {
+            // Floor escapes carry the code the run would emit (SEC-005 ·
+            // the always-on SSRF floor); boundary escapes stay SEC-004.
+            SpecCode::new(
+                "SEC",
+                if e.floor { 5 } else { 4 },
+                SpecCategory::SecurityError,
+            )
+        }));
         codes.extend(self.unknown_tools.iter().map(|_| builtin));
         codes.extend(self.unknown_args.iter().map(|_| builtin));
         codes.extend(self.missing_args.iter().map(|_| builtin));
