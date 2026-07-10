@@ -50,12 +50,14 @@ ceiling, secret flows, types, tool args), then runs it:
 ```text
 $ nika check brief.nika.yaml
  ✔ PLAN     2 wave(s) · 2 task(s) · max parallelism 1
+      wave 1 fetch_notes (exec · sh -c)
+      wave 2 brief (infer · ollama/llama3.2:3b)
  ✔ SECRETS  no information-flow escapes
  ✔ TYPES    every deep output reference fits its declared shape
  ✔ TOOLS    every nika: tool names a canonical builtin
  ✔ ARGS     every invoke arg key is declared + every required arg is present
  ✔ SCHEMA   every authored schema: is satisfiable
- ✔ clean — audited before a single token was spent
+ ✔ audited · 2 task(s) · 2 wave(s) · permits none · est ≥$0.0000
 
 $ nika run brief.nika.yaml
   🦋 nika · daily-brief · 2 tasks
@@ -79,9 +81,12 @@ tasks:
       capture: structured
 
   - id: assess                        # infer: structured LLM judgment
-    with: { patch: ${{ tasks.diff.output.stdout }} }
+    depends_on: [diff]
+    with:
+      patch: ${{ tasks.diff.output.stdout }}
     infer:
       prompt: "Risk-assess this diff (secrets, breaking changes, missing tests). Be terse.\n${{ with.patch }}"
+      max_tokens: 300
       schema:
         type: object
         required: [risk]
@@ -89,10 +94,12 @@ tasks:
           risk: { type: string, enum: [low, medium, high] }
 
   - id: comment                       # invoke: the only write, gated on the verdict
+    depends_on: [assess]
     when: ${{ tasks.assess.output.risk == 'high' }}
     invoke:
       tool: "mcp:github/pr-comment"
-      args: { body: ${{ tasks.assess.output }} }
+      args:
+        body: ${{ tasks.assess.output }}
 ```
 
 ## Check before it runs
