@@ -17,7 +17,7 @@
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
 use std::io::{IsTerminal, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
@@ -422,8 +422,8 @@ enum TraceAction {
     /// Browse per-task outputs: verb · duration · tokens · bounded
     /// preview (full value: `trace peek`).
     Outputs {
-        /// Trace NDJSON path (one `nika-event` Event per line).
-        trace: PathBuf,
+        /// Trace NDJSON path (default: the workspace's latest trace).
+        trace: Option<PathBuf>,
         /// Force the ASCII glyph theme.
         #[arg(long)]
         ascii: bool,
@@ -449,8 +449,8 @@ enum TraceAction {
     /// inserted, dropped or reordered line breaks every hash after it.
     /// Exit 0 intact · 2 broken · 3 unchained (pre-chain journal).
     Verify {
-        /// Trace NDJSON path (one `nika-event` Event per line).
-        trace: PathBuf,
+        /// Trace NDJSON path (default: the workspace's latest trace).
+        trace: Option<PathBuf>,
     },
     /// Is this run reproducible? Compare a recorded journal against a
     /// fresh one and classify every task: reproduced · nondeterministic
@@ -483,11 +483,12 @@ enum TraceAction {
     /// sizes (plan bindings from the workflow file × sizes from the
     /// trace).
     Flow {
-        /// Trace NDJSON path (one `nika-event` Event per line).
-        trace: PathBuf,
+        /// Trace NDJSON path (default: the workspace's latest trace —
+        /// `nika trace flow <workflow>` alone reads the last run).
+        trace: Option<PathBuf>,
         /// The workflow file the run executed (`*.nika.yaml`) — the
         /// trace records values, the definition records the bindings.
-        workflow: String,
+        workflow: Option<String>,
         /// Force the ASCII glyph theme.
         #[arg(long)]
         ascii: bool,
@@ -782,6 +783,57 @@ fn examples_verb(action: Option<ExamplesAction>, plain_theme: Theme) -> u8 {
     }
 }
 
+/// Name the bare-form pick on stderr — the receipt names its subject.
+fn announce_latest(path: &Path) {
+    eprintln!(
+        "nika-cli: reading {} (the workspace latest)",
+        path.display()
+    );
+}
+
+/// The bare form of a static trace reader: no path → the workspace's
+/// latest trace, named on stderr · zero traces → the teaching error,
+/// exit 3 (ADR-098 environment).
+fn resolve_trace(given: Option<PathBuf>) -> Result<PathBuf, u8> {
+    if let Some(path) = given {
+        return Ok(path);
+    }
+    if let Some(path) = verbs::trace::manage::latest() {
+        announce_latest(&path);
+        return Ok(path);
+    }
+    eprintln!(
+        "nika-cli: no traces in .nika/traces yet — run a workflow first, or pass a trace path"
+    );
+    Err(verbs::exit::ENV)
+}
+
+/// `nika trace flow` — two positionals, both optional to clap (a
+/// required one may not follow an optional one): one arg IS the
+/// workflow and the trace defaults, matching the bare-form contract.
+fn flow_verb(trace: Option<PathBuf>, workflow: Option<String>, theme: Theme) -> u8 {
+    let (trace, workflow) = match (trace, workflow) {
+        (trace, Some(workflow)) => (trace, workflow),
+        (Some(only), None) if only.extension().and_then(|e| e.to_str()) != Some("ndjson") => {
+            (None, only.to_string_lossy().into_owned())
+        }
+        _ => {
+            eprintln!(
+                "nika-cli: trace flow needs the workflow file — `nika trace flow [trace] <workflow.nika.yaml>` (the trace records values, the definition records the bindings)"
+            );
+            return verbs::exit::ENV;
+        }
+    };
+    match resolve_trace(trace) {
+        Ok(path) => emit(&verbs::trace::flow(
+            &path.to_string_lossy(),
+            &workflow,
+            theme,
+        )),
+        Err(code) => code,
+    }
+}
+
 fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
     match action {
         TraceAction::Replay(args) => trace_render(&args, true, color, link_when),
@@ -828,14 +880,19 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
             ascii,
             no_color,
         } => {
+            let trace = match resolve_trace(trace) {
+                Ok(path) => path,
+                Err(code) => return code,
+            };
             let mut theme = term_theme(color.with_no_color(no_color), ascii, link_when);
             // The dur column's bracket accents: TTY comfort only.
             theme.accents = std::io::stdout().is_terminal();
             emit(&verbs::trace::outputs(&trace.to_string_lossy(), theme))
         }
-        TraceAction::Verify { trace } => {
-            emit(&verbs::trace_verify::verify(&trace.to_string_lossy()))
-        }
+        TraceAction::Verify { trace } => match resolve_trace(trace) {
+            Ok(path) => emit(&verbs::trace_verify::verify(&path.to_string_lossy())),
+            Err(code) => code,
+        },
         TraceAction::Reproduce { recorded, fresh } => emit(&verbs::trace_reproduce::reproduce(
             &recorded.to_string_lossy(),
             &fresh.to_string_lossy(),
@@ -868,11 +925,11 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
             workflow,
             ascii,
             no_color,
-        } => emit(&verbs::trace::flow(
-            &trace.to_string_lossy(),
-            &workflow,
+        } => flow_verb(
+            trace,
+            workflow,
             term_theme(color.with_no_color(no_color), ascii, link_when),
-        )),
+        ),
     }
 }
 
@@ -1062,10 +1119,24 @@ fn load_events(args: &TraceArgs) -> Result<Vec<Event>, String> {
     if args.demo_fail {
         return Ok(nika_cli::demo::failure());
     }
-    let Some(path) = &args.trace else {
-        return Err("no trace given — pass a .ndjson path or --demo / --demo-fail".to_owned());
+    let path = match &args.trace {
+        Some(path) => path.clone(),
+        // Bare form: the workspace's latest trace (same contract as
+        // verify/outputs/flow).
+        None => match verbs::trace::manage::latest() {
+            Some(path) => {
+                announce_latest(&path);
+                path
+            }
+            None => {
+                return Err("no trace given and no traces in .nika/traces yet — run a \
+                            workflow first, pass a .ndjson path, or try --demo"
+                    .to_owned());
+            }
+        },
     };
-    let raw = std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let raw =
+        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
     recover_events(&raw, &path.display().to_string())
 }
 

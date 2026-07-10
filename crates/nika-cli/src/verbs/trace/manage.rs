@@ -180,6 +180,21 @@ pub fn parse_older_than(raw: &str) -> Result<Duration, String> {
     Ok(Duration::from_secs(seconds))
 }
 
+/// The workspace's most recent trace (mtime · name tie-break) — what a
+/// bare static reader (`show` · `verify` · `outputs` · `flow`) means:
+/// the first thing typed after a run should not demand the path the
+/// run card just printed. `None` when the store is empty or absent —
+/// the caller keeps its teaching error, never a conjured path.
+#[must_use]
+pub fn latest() -> Option<PathBuf> {
+    latest_in(Path::new(store::TRACE_DIR))
+}
+
+/// The dir-injected core (tests point it at a staged store).
+pub(crate) fn latest_in(dir: &Path) -> Option<PathBuf> {
+    store::scan(dir).into_iter().next().map(|meta| meta.path)
+}
+
 /// `nika trace rm` — explicit removal from the workspace store.
 #[must_use]
 pub fn rm(target: &RmTarget, force: bool, theme: Theme) -> VerbOutput {
@@ -308,6 +323,38 @@ mod tests {
 
     fn plain() -> Theme {
         Theme::new(false, false, false)
+    }
+
+    /// Bare-form resolution picks the NEWEST trace by mtime — the run
+    /// just finished is the one meant, even when an older file sorts
+    /// first alphabetically.
+    #[test]
+    fn latest_picks_the_newest_by_mtime_not_by_name() {
+        let dir = temp_store("latest-newest");
+        stage_trace(
+            &dir,
+            "aaa-old.ndjson",
+            &ndjson(&run_events("old", Some(EventKind::WorkflowCompleted))),
+            Duration::from_secs(3_600),
+        );
+        let newest = stage_trace(
+            &dir,
+            "zzz-new.ndjson",
+            &ndjson(&run_events("new", Some(EventKind::WorkflowCompleted))),
+            Duration::from_secs(60),
+        );
+        assert_eq!(latest_in(&dir), Some(newest));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// An empty or absent store resolves to None — the caller keeps its
+    /// teaching error, never a conjured path.
+    #[test]
+    fn latest_answers_none_on_an_empty_or_missing_store() {
+        let dir = temp_store("latest-empty");
+        assert_eq!(latest_in(&dir), None);
+        assert_eq!(latest_in(&dir.join("never-created")), None);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     /// The ls table: one row per trace (newest first) · age · size ·
