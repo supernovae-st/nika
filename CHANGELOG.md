@@ -10,6 +10,10 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.99.0](https://github.com/supernovae-st/nika/compare/v0.98.0..v0.99.0) - 2026-07-10
+
 ### Added
 
 - **`nika:image_fx` — deterministic artistic effects, the 26th builtin

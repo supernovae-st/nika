@@ -16,7 +16,7 @@ publish                = false  # Internal L1 effect crate (not a standalone cra
 adr = ["ADR-003", "ADR-016"]
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.98.0" }
+nika-kernel = { path = "../nika-kernel", version = "0.99.0" }
 unicode-normalization = { workspace = true }  # NFKC confusable-bypass defense
 # tokio::process spawns the child; io-util drains pipes; sync::Notify backs the
 # cancel-by-pid registry; time::timeout enforces the deadline.

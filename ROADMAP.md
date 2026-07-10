@@ -93,9 +93,9 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/mcp-models-rung`                                      |
-| HEAD             | `21f083b22` (`21f083b2242bfd977ed5fdf8179b8d679b22cca0`)             |
-| workspace        | v0.98.0                                  |
+| branch           | `chore/release-0.99.0`                                      |
+| HEAD             | `3d90001b9` (`3d90001b9d3efdc29fc9fce810ecd74476551acd`)             |
+| workspace        | v0.99.0                                  |
 | crates (workspace)| 45                                              |
 | crates (admitted)| 43 / 42                                   |
 | crates (WIP)     | 2 — nika-chart nika-fx                                  |
@@ -106,7 +106,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L2               | 4                                              |
 | L3               | 1                                              |
 | L4               | 5                                              |
-| lib tests        | 3743 passed, 0 failed                              |
+| lib tests        | 3875 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 | field            | value                                          |
