@@ -39,6 +39,7 @@ pub use stamp::SystemStamper;
 
 mod budget;
 mod epilogue;
+mod heartbeat;
 mod scope;
 pub(crate) use nika_dap::source_id::{lf_normal_form, sha256_hex};
 use scope::scope_to_task;
@@ -199,7 +200,6 @@ pub fn run(
         Ok(rt) => rt,
         Err(code) => return code,
     };
-    let trace = trace_sink(no_trace_file);
     rt.block_on(execute(
         &runtime,
         (file, &wf),
@@ -209,8 +209,9 @@ pub fn run(
         theme,
         mode,
         resume.is_some(),
-        trace,
+        trace_sink(no_trace_file),
         !no_outputs,
+        model_override,
     ))
 }
 
@@ -702,6 +703,7 @@ async fn execute(
     resumed: bool,
     trace: TraceFileSink,
     outputs: bool,
+    model_override: Option<&str>,
 ) -> u8 {
     let mut stamper = SystemStamper::new();
     if output_json {
@@ -769,10 +771,9 @@ async fn execute(
             &mut stamper,
             file,
             theme,
-            mode,
-            resumed,
+            (mode, resumed, outputs),
             trace,
-            outputs,
+            model_override,
         )
         .await
     }
@@ -783,6 +784,8 @@ async fn execute(
 /// are peers, not one long body). Storytelling surfaces get the flow
 /// epilogue + the spec §3.3 `trace:` pointer; `--quiet` keeps its
 /// compact-card promise.
+// The mode/resumed/outputs trio rides as one tuple — the same
+// clap-surface idiom as `execute` itself (three independent switches).
 #[allow(clippy::too_many_arguments)]
 async fn execute_fold_lane(
     runtime: &ProdRuntime,
@@ -791,22 +794,42 @@ async fn execute_fold_lane(
     stamper: &mut SystemStamper,
     file: &str,
     theme: Theme,
-    mode: RenderMode,
-    resumed: bool,
+    (mode, resumed, outputs): (RenderMode, bool, bool),
     trace: TraceFileSink,
-    outputs: bool,
+    model_override: Option<&str>,
 ) -> u8 {
+    let plan = plan_waves(wf, report);
     let mut fold = FoldSink::new(std::io::stdout().lock(), theme, mode);
-    fold.set_plan(plan_waves(wf, report));
+    fold.set_plan(plan.clone());
     // The shape tails ride the INTERACTIVE surface only (`Live` = TTY):
     // the piped/`--no-progress`/`--quiet` registers keep their exact
     // bytes — CI logs and scripts never grow tails.
     if mode == RenderMode::Live && outputs {
         fold.show_outputs(true);
     }
-    let mut tee = Tee::new(fold, trace);
+    // #321 — the plain lane's stderr liveness rider (`still running ·
+    // <task> · <n>s · <model>` every ~10s): a piped local-model run
+    // must never read as a hang. Plain ONLY — Live already repaints ·
+    // Quiet promised compactness · the machine lanes stream NDJSON. An
+    // inert handle keeps one code path (the disabled-journal idiom).
+    let pulse = (mode == RenderMode::Plain).then(|| {
+        // The EFFECTIVE default model (the same substitution
+        // composed_runtime made): the beat's static labels must name
+        // what will actually resolve, `--model` override included.
+        let default_model =
+            model_override.unwrap_or_else(|| wf.model.as_ref().map_or("", |m| m.value.as_str()));
+        heartbeat::shared(plan, heartbeat::task_labels(wf, default_model))
+    });
+    let ticker = pulse.clone().map(heartbeat::spawn_ticker);
+    let beat = heartbeat::HeartbeatSink::new(pulse);
+    let mut tee = Tee::new(Tee::new(fold, beat), trace);
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
-    let (mut sink, trace) = tee.into_parts();
+    // The run settled — the rider must not speak over the epilogue.
+    if let Some(ticker) = &ticker {
+        ticker.abort();
+    }
+    let (inner, trace) = tee.into_parts();
+    let (mut sink, _beat) = inner.into_parts();
     // `Live` painted in place during the run; `Plain`/`Quiet` folded
     // silently · print the ONE final frame now.
     if mode != RenderMode::Live {

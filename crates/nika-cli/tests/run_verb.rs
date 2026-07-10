@@ -176,8 +176,9 @@ fn an_infer_workflow_runs_over_mock_echo_without_network() {
 }
 
 #[test]
-fn the_live_lane_paints_one_clean_frame_when_piped() {
-    // Non-TTY (piped): the fold degrades to a single final frame · ZERO
+fn the_plain_lane_narrates_cleanly_when_piped() {
+    // Non-TTY (piped): the fold NARRATES (#321 — header at start · one
+    // storyboard line per settle · the meter as the close) with ZERO
     // cursor escapes in the captured output (the CI-capture contract).
     let wf = fixture("ok2.nika.yaml", OK_EXEC);
     let out = bin()

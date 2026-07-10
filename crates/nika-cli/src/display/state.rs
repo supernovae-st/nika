@@ -440,7 +440,10 @@ fn value_of<'a>(event: &'a Event, key: &str) -> Option<&'a Value> {
         .map(|kv| &kv.value)
 }
 
-fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
+/// A string field off an event (`None` when absent or non-string) —
+/// shared with the sink layer (the plain narration + heartbeat riders
+/// address rows by the same `task` field this fold reads).
+pub(crate) fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
     match value_of(event, key) {
         Some(Value::String(s)) => Some(s.as_str()),
         _ => None,

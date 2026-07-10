@@ -19,6 +19,8 @@ use nika_runtime::EventSink;
 use nika_types::timestamp::Timestamp;
 use uuid::Uuid;
 
+use crate::display::render::{stream_header, stream_settled_line, stream_summary};
+use crate::display::state::str_field;
 use crate::{RunView, Theme, frame, frame_with_outputs, verdict_frame};
 
 // The chain primitive + genesis tag live in the forensics crate — the
@@ -428,13 +430,16 @@ impl<W: Write> FoldSink<W> {
 
     /// Print the final frame once (the `Plain`/`Quiet` lanes · the caller
     /// calls this after the run · a no-op buffered error stays buffered).
-    /// `Quiet` paints the compact verdict card; `Plain` the full storyboard.
+    /// `Quiet` paints the compact verdict card; `Plain` CLOSES its
+    /// narration (#321 — the rows spoke at settle · the meter + the
+    /// failure card end the story, never a repeated storyboard).
     pub fn print_final(&mut self) {
         if self.error.is_some() {
             return;
         }
         let lines = match self.mode {
             RenderMode::Quiet => verdict_frame(&self.view, &self.theme),
+            RenderMode::Plain => stream_summary(&self.view, &self.theme),
             _ if self.outputs => frame_with_outputs(&self.view, &self.theme, 0),
             _ => frame(&self.view, &self.theme, 0),
         };
@@ -486,6 +491,35 @@ impl<W: Write> FoldSink<W> {
         self.last_lines = lines.len();
         self.writer.flush()
     }
+
+    /// The plain narration (#321): the header the moment the workflow
+    /// starts, one storyboard line the moment each task settles — the
+    /// SAME content the final frame would show, streamed (zero cursor
+    /// control · a piped consumer sees progress when it happens, and a
+    /// local-model run never reads as a hang). Non-narrating events
+    /// write nothing (no flush churn on dispatch/checkpoint frames).
+    fn narrate(&mut self, event: &Event) -> std::io::Result<()> {
+        use nika_event::EventKind;
+        let lines: Vec<String> = match event.kind {
+            EventKind::WorkflowStarted => stream_header(&self.view, &self.theme),
+            EventKind::TaskCompleted
+            | EventKind::TaskFailed
+            | EventKind::TaskSkipped
+            | EventKind::TaskCancelled
+            | EventKind::TaskCacheHit => str_field(event, "task")
+                .and_then(|task| stream_settled_line(&self.view, task, &self.theme, self.outputs))
+                .into_iter()
+                .collect(),
+            _ => Vec::new(),
+        };
+        if lines.is_empty() {
+            return Ok(());
+        }
+        for line in &lines {
+            writeln!(self.writer, "{line}")?;
+        }
+        self.writer.flush()
+    }
 }
 
 impl<W: Write> EventSink for FoldSink<W> {
@@ -494,12 +528,15 @@ impl<W: Write> EventSink for FoldSink<W> {
             return;
         }
         self.view.apply(&event);
-        // Only `Live` repaints in place; `Plain`/`Quiet` fold silently (the
-        // caller prints one final frame) — never leak cursor escapes into a
-        // captured log.
-        if self.mode == RenderMode::Live
-            && let Err(e) = self.repaint()
-        {
+        // `Live` repaints in place (TTY cursor control) · `Plain`
+        // narrates at settle (#321 · zero escapes) · `Quiet` folds
+        // silently for the compact final card.
+        let painted = match self.mode {
+            RenderMode::Live => self.repaint(),
+            RenderMode::Plain => self.narrate(&event),
+            _ => Ok(()),
+        };
+        if let Err(e) = painted {
             self.error = Some(e);
         }
     }
@@ -561,13 +598,24 @@ mod tests {
         assert!(!text.contains('\x1b'), "--json carries zero ANSI escapes");
     }
 
+    /// #321 — the plain lane NARRATES: the header at workflow start, one
+    /// storyboard line at each settle, the meter as the close — top to
+    /// bottom ONCE (no repeated frame) · zero cursor escapes (the
+    /// CI-capture contract) · a piped consumer sees progress live.
     #[test]
-    fn fold_sink_non_interactive_folds_silent_then_prints_one_frame() {
+    fn fold_sink_plain_narrates_at_settle_then_closes_with_the_meter() {
         let theme = Theme::new(false, true, false);
         let mut buf = Vec::new();
         {
-            // Plain: no per-event repaint · one final storyboard frame.
             let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Plain);
+            // The run verb injects the plan BEFORE driving — the streamed
+            // header counts from it (rows don't exist at header time).
+            sink.set_plan(vec![
+                vec!["fetch_top".to_owned()],
+                vec!["extract_ai".to_owned()],
+                vec!["summarize".to_owned()],
+                vec!["write_md".to_owned(), "notify_slack".to_owned()],
+            ]);
             for ev in demo::success() {
                 sink.emit(ev);
             }
@@ -576,8 +624,32 @@ mod tests {
             assert!(sink.into_error().is_none());
         }
         let text = String::from_utf8(buf).expect("utf8");
-        // Exactly ONE frame · the storyboard rows · ZERO cursor escapes.
-        assert!(text.contains("fetch_top"), "the run painted: {text}");
+        let lines: Vec<&str> = text.lines().collect();
+        // The header opens the story, plan-counted, permits greeting next.
+        assert!(
+            lines[0].contains("veille-news · 5 tasks"),
+            "header first, counted from the plan: {}",
+            lines[0]
+        );
+        assert!(lines[1].contains("permits"), "the greeting: {}", lines[1]);
+        // One line per settled task, in SETTLE order, exactly once each.
+        assert_eq!(
+            text.matches("fetch_top").count(),
+            1,
+            "a row speaks once — never a repeated storyboard: {text}"
+        );
+        let fetch = lines.iter().position(|l| l.contains("fetch_top"));
+        let write = lines.iter().position(|l| l.contains("write_md"));
+        let meter = lines.iter().position(|l| l.contains("done"));
+        assert!(
+            fetch < write && write < meter,
+            "settle order, then the meter closes: {text}"
+        );
+        assert!(
+            lines[meter.expect("meter")].contains("5/5 done"),
+            "the close counts the run: {text}"
+        );
+        // ZERO cursor escapes — the CI-capture contract survives.
         assert!(
             !text.contains('\x1b'),
             "non-interactive lane leaks no ANSI: {text}"
