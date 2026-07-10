@@ -147,6 +147,55 @@ impl<T> nika_error::traits::AsAny for nika_schema::GateFindingKind where T: 'sta
 pub fn nika_schema::GateFindingKind::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_schema::GateFindingKind where T: core::marker::Copy
 pub fn nika_schema::GateFindingKind::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_schema::check::PermitsSource
+pub nika_schema::check::PermitsSource::Declared
+pub nika_schema::check::PermitsSource::Floor
+impl core::clone::Clone for nika_schema::check::PermitsSource
+pub fn nika_schema::check::PermitsSource::clone(&self) -> nika_schema::check::PermitsSource
+impl core::cmp::Eq for nika_schema::check::PermitsSource
+impl core::cmp::PartialEq for nika_schema::check::PermitsSource
+pub fn nika_schema::check::PermitsSource::eq(&self, other: &nika_schema::check::PermitsSource) -> bool
+impl core::fmt::Debug for nika_schema::check::PermitsSource
+pub fn nika_schema::check::PermitsSource::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::check::PermitsSource
+impl core::marker::StructuralPartialEq for nika_schema::check::PermitsSource
+impl serde_core::ser::Serialize for nika_schema::check::PermitsSource
+pub fn nika_schema::check::PermitsSource::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_schema::check::PermitsSource
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::check::PermitsSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::PermitsSource::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::PermitsSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::check::PermitsSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::check::PermitsSource::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::check::PermitsSource::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::check::PermitsSource where U: core::convert::From<T>
+pub fn nika_schema::check::PermitsSource::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::check::PermitsSource where U: core::convert::Into<T>
+pub type nika_schema::check::PermitsSource::Error = core::convert::Infallible
+pub fn nika_schema::check::PermitsSource::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::check::PermitsSource where U: core::convert::TryFrom<T>
+pub type nika_schema::check::PermitsSource::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::check::PermitsSource::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::check::PermitsSource where T: core::clone::Clone
+pub type nika_schema::check::PermitsSource::Owned = T
+pub fn nika_schema::check::PermitsSource::clone_into(&self, target: &mut T)
+pub fn nika_schema::check::PermitsSource::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::check::PermitsSource where T: 'static + ?core::marker::Sized
+pub fn nika_schema::check::PermitsSource::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::check::PermitsSource where T: ?core::marker::Sized
+pub fn nika_schema::check::PermitsSource::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::check::PermitsSource where T: ?core::marker::Sized
+pub fn nika_schema::check::PermitsSource::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::check::PermitsSource where T: core::clone::Clone
+pub unsafe fn nika_schema::check::PermitsSource::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::check::PermitsSource
+pub fn nika_schema::check::PermitsSource::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::check::PermitsSource where T: core::clone::Clone
+pub fn nika_schema::check::PermitsSource::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::check::PermitsSource where T: 'static
+pub fn nika_schema::check::PermitsSource::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_schema::check::PermitsSource where T: core::marker::Copy
+pub fn nika_schema::check::PermitsSource::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_schema::check::UnboundedReason
 pub nika_schema::check::UnboundedReason::NoPrice
 pub nika_schema::check::UnboundedReason::NoTokenLimit
@@ -401,6 +450,7 @@ pub nika_schema::check::CheckReport::cost: nika_schema::CostCeiling
 pub nika_schema::check::CheckReport::gate_findings: alloc::vec::Vec<nika_schema::GateFinding>
 pub nika_schema::check::CheckReport::hints: alloc::vec::Vec<nika_schema::Hint>
 pub nika_schema::check::CheckReport::missing_args: alloc::vec::Vec<nika_schema::check::MissingArg>
+pub nika_schema::check::CheckReport::permits: nika_schema::check::EffectivePermits
 pub nika_schema::check::CheckReport::report_version: u32
 pub nika_schema::check::CheckReport::requirements: nika_schema::check::Requirements
 pub nika_schema::check::CheckReport::schema_findings: alloc::vec::Vec<nika_schema::SchemaTypeFinding>
@@ -574,6 +624,44 @@ impl<T> dyn_clone::DynClone for nika_schema::check::DagAnalysis where T: core::c
 pub fn nika_schema::check::DagAnalysis::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::check::DagAnalysis where T: 'static
 pub fn nika_schema::check::DagAnalysis::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::check::EffectivePermits
+pub nika_schema::check::EffectivePermits::declared: core::option::Option<nika_cap::permits::Permits>
+pub nika_schema::check::EffectivePermits::needed: nika_cap::permits::Permits
+pub nika_schema::check::EffectivePermits::notes: alloc::vec::Vec<alloc::string::String>
+pub nika_schema::check::EffectivePermits::source: nika_schema::check::PermitsSource
+impl core::clone::Clone for nika_schema::check::EffectivePermits
+pub fn nika_schema::check::EffectivePermits::clone(&self) -> nika_schema::check::EffectivePermits
+impl core::fmt::Debug for nika_schema::check::EffectivePermits
+pub fn nika_schema::check::EffectivePermits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_schema::check::EffectivePermits
+pub fn nika_schema::check::EffectivePermits::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_schema::check::EffectivePermits
+impl<T, U> core::convert::Into<U> for nika_schema::check::EffectivePermits where U: core::convert::From<T>
+pub fn nika_schema::check::EffectivePermits::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::check::EffectivePermits where U: core::convert::Into<T>
+pub type nika_schema::check::EffectivePermits::Error = core::convert::Infallible
+pub fn nika_schema::check::EffectivePermits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::check::EffectivePermits where U: core::convert::TryFrom<T>
+pub type nika_schema::check::EffectivePermits::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::check::EffectivePermits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::check::EffectivePermits where T: core::clone::Clone
+pub type nika_schema::check::EffectivePermits::Owned = T
+pub fn nika_schema::check::EffectivePermits::clone_into(&self, target: &mut T)
+pub fn nika_schema::check::EffectivePermits::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::check::EffectivePermits where T: 'static + ?core::marker::Sized
+pub fn nika_schema::check::EffectivePermits::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::check::EffectivePermits where T: ?core::marker::Sized
+pub fn nika_schema::check::EffectivePermits::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::check::EffectivePermits where T: ?core::marker::Sized
+pub fn nika_schema::check::EffectivePermits::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::check::EffectivePermits where T: core::clone::Clone
+pub unsafe fn nika_schema::check::EffectivePermits::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::check::EffectivePermits
+pub fn nika_schema::check::EffectivePermits::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::check::EffectivePermits where T: core::clone::Clone
+pub fn nika_schema::check::EffectivePermits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::check::EffectivePermits where T: 'static
+pub fn nika_schema::check::EffectivePermits::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::check::FlowFacts
 impl nika_schema::check::FlowFacts
 pub fn nika_schema::check::FlowFacts::effect_leak(&self, task: usize) -> core::option::Option<&nika_schema::check::TaintTrace>
@@ -6298,6 +6386,7 @@ pub nika_schema::CheckReport::cost: nika_schema::CostCeiling
 pub nika_schema::CheckReport::gate_findings: alloc::vec::Vec<nika_schema::GateFinding>
 pub nika_schema::CheckReport::hints: alloc::vec::Vec<nika_schema::Hint>
 pub nika_schema::CheckReport::missing_args: alloc::vec::Vec<nika_schema::check::MissingArg>
+pub nika_schema::CheckReport::permits: nika_schema::check::EffectivePermits
 pub nika_schema::CheckReport::report_version: u32
 pub nika_schema::CheckReport::requirements: nika_schema::check::Requirements
 pub nika_schema::CheckReport::schema_findings: alloc::vec::Vec<nika_schema::SchemaTypeFinding>
