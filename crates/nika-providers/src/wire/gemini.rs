@@ -214,7 +214,10 @@ fn generation_config(req: &InferRequest) -> serde_json::Map<String, Value> {
     if !req.stop_sequences.is_empty() {
         gen_config.insert("stopSequences".to_owned(), json!(req.stop_sequences));
     }
-    if let Some(budget) = req.thinking_budget {
+    if let Some(budget) = req
+        .thinking_budget
+        .or_else(|| structured_thinking_bound(req))
+    {
         gen_config.insert(
             "thinkingConfig".to_owned(),
             json!({ "thinkingBudget": budget }),
@@ -231,6 +234,32 @@ fn generation_config(req: &InferRequest) -> serde_json::Map<String, Value> {
         ResponseFormat::Text | _ => {}
     }
     gen_config
+}
+
+/// The default thinking bound on STRUCTURED, budget-capped calls (#300).
+///
+/// The 2.5 family thinks by default, and dynamic thinking spends the
+/// author's `max_tokens` BEFORE the structured object is emitted — the
+/// pinned class (battery S3 flake at 200 · a private corpus sweep where
+/// 10/10 residual failures were exactly this, budgets 300→1000): the
+/// reply dies at the token limit as NIKA-INFER-002. On a `schema:`/JSON
+/// call that carries an authored `max_tokens` and NO authored
+/// `thinking.budget_tokens`, bound thinking so the author's tokens buy
+/// OUTPUT — their explicit budget always wins (`.or_else` above), and an
+/// uncapped call is left to think freely (no ceiling, no burn).
+///
+/// Per-model floors are the API's own contract: the pro tier refuses to
+/// disable thinking (minimum 128); everything else in the family turns
+/// off at 0. A provider fact, in the provider's adapter (#283).
+fn structured_thinking_bound(req: &InferRequest) -> Option<u32> {
+    let structured = matches!(
+        req.response_format,
+        ResponseFormat::Json | ResponseFormat::JsonSchema(_)
+    );
+    if !structured || req.max_tokens.is_none() || !req.model.starts_with("gemini-2.5") {
+        return None;
+    }
+    Some(if req.model.contains("pro") { 128 } else { 0 })
 }
 
 /// One kernel message → one `contents[]` entry. Tool results become
@@ -1006,5 +1035,80 @@ mod tests {
             body["generationConfig"]["responseMimeType"],
             "application/json"
         );
+    }
+
+    /// The #300 class: structured + authored `max_tokens` + no authored
+    /// thinking budget → thinking is bounded so the author's tokens buy
+    /// OUTPUT (flash-class turns off at 0).
+    #[test]
+    fn structured_capped_call_bounds_thinking_by_default() {
+        let mut r = req(vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::JsonSchema(json!({"type": "object"}));
+        r.max_tokens = Some(200);
+        let body = request_body(&r).expect("body");
+        assert_eq!(
+            body["generationConfig"]["thinkingConfig"]["thinkingBudget"], 0,
+            "dynamic thinking must not burn the structured budget"
+        );
+    }
+
+    /// The pro tier cannot disable thinking (API minimum 128) — the
+    /// bound respects the API's own floor instead of sending a 400.
+    #[test]
+    fn pro_tier_bounds_to_the_api_floor_not_zero() {
+        let mut r = InferRequest::new("gemini-2.5-pro", vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::Json;
+        r.max_tokens = Some(500);
+        let body = request_body(&r).expect("body");
+        assert_eq!(
+            body["generationConfig"]["thinkingConfig"]["thinkingBudget"],
+            128
+        );
+    }
+
+    /// An AUTHORED `thinking.budget_tokens` always wins — the default
+    /// bound never overrides an explicit intent.
+    #[test]
+    fn authored_thinking_budget_beats_the_default_bound() {
+        let mut r = req(vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::JsonSchema(json!({"type": "object"}));
+        r.max_tokens = Some(200);
+        r.thinking_budget = Some(2048);
+        let body = request_body(&r).expect("body");
+        assert_eq!(
+            body["generationConfig"]["thinkingConfig"]["thinkingBudget"],
+            2048
+        );
+    }
+
+    /// No ceiling → no burn possible → the model keeps its default
+    /// dynamic thinking (plain text likewise stays untouched).
+    #[test]
+    fn uncapped_or_plain_calls_keep_default_thinking() {
+        // structured but uncapped: no bound.
+        let mut uncapped = req(vec![Message::text(Role::User, "x")]);
+        uncapped.response_format = ResponseFormat::JsonSchema(json!({"type": "object"}));
+        let body = request_body(&uncapped).expect("body");
+        assert!(
+            body["generationConfig"].get("thinkingConfig").is_none(),
+            "no ceiling, no burn — thinking stays dynamic"
+        );
+        // capped but plain text: no bound.
+        let mut plain = req(vec![Message::text(Role::User, "x")]);
+        plain.max_tokens = Some(200);
+        let body = request_body(&plain).expect("body");
+        assert!(body["generationConfig"].get("thinkingConfig").is_none());
+    }
+
+    /// Outside the thinking-by-default family the wire never conjures a
+    /// thinkingConfig (an unknown key on a non-thinking model is a 400
+    /// risk — proven both directions on the openrouter attribution arc).
+    #[test]
+    fn non_thinking_family_never_gains_a_thinking_config() {
+        let mut r = InferRequest::new("gemma-3-27b-it", vec![Message::text(Role::User, "x")]);
+        r.response_format = ResponseFormat::JsonSchema(json!({"type": "object"}));
+        r.max_tokens = Some(200);
+        let body = request_body(&r).expect("body");
+        assert!(body["generationConfig"].get("thinkingConfig").is_none());
     }
 }
