@@ -171,6 +171,31 @@ pub const CANONICAL_IDS: [&str; 16] = [
     "mock",
 ];
 
+/// The MODELS-rung law (#320): why a `<provider>/<model>` string cannot
+/// resolve in THIS binary — `None` when it can. Lives beside the resolver
+/// (the set it interrogates is [`CANONICAL_IDS`]) and is shared by every
+/// audit surface (CLI check · MCP `nika_check`): a hallucinated model
+/// must red the audit on EVERY lane, never only one — the vendor catalog
+/// advertising a provider does not make it runnable (the azure class).
+#[must_use]
+pub fn resolve_refusal(model: &str) -> Option<String> {
+    match model.split_once('/') {
+        None => Some(format!(
+            "`{model}` is a bare model id — the contract is `<provider>/<model>` \
+             (pick the provider that serves it; `nika doctor` names the \
+             {} runnable providers)",
+            CANONICAL_IDS.len()
+        )),
+        Some((provider, _)) if !CANONICAL_IDS.contains(&provider) => Some(format!(
+            "provider `{provider}` does not resolve in THIS binary \
+             ({} runnable — `nika doctor` names them); a cataloged \
+             vendor is not a runnable one",
+            CANONICAL_IDS.len()
+        )),
+        Some(_) => None,
+    }
+}
+
 /// The 10 cloud rows (catalog-backed) + the in-process mock.
 ///
 /// gemini's `base_url` is a STEM (`…/v1beta`) — the s8.6 adapter appends
@@ -284,6 +309,19 @@ pub fn seed() -> Vec<Profile> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn resolve_refusal_names_the_two_classes_and_clears_the_runnable() {
+        // bare id — teaches the contract
+        let bare = resolve_refusal("gpt-5-turbo").expect("bare id refused");
+        assert!(bare.contains("bare model id") && bare.contains("16 runnable"));
+        // cataloged-but-unresolvable provider — the azure class
+        let azure = resolve_refusal("azure/gpt-4o").expect("azure refused");
+        assert!(azure.contains("`azure`") && azure.contains("not a runnable one"));
+        // every canonical provider clears, inner slashes included
+        assert!(resolve_refusal("mock/echo").is_none());
+        assert!(resolve_refusal("huggingface/Qwen/Qwen3.5-9B:groq").is_none());
+    }
+
     use super::*;
 
     #[test]

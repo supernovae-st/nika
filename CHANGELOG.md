@@ -33,6 +33,17 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   run override: the envelope is re-priced AS IF the flag replaced the
   file's default (per-task `model:` still wins), so what check shows IS
   what run will refuse or allow.
+- **Egress to `outputs` — the workflow boundary earns its valve.** The
+  capture-taint law is deliberate (the provider saw the key — its
+  response is not provably clean), but a workflow that calls an
+  authenticated API and RETURNS the result had no sanctioned path: the
+  embedded `api-upload-and-create` template failed its own audit (the
+  night battery's catch), documented as the one known gap. The gap
+  closes the way its own note asked: `egress: [{ to: "outputs" }]` on
+  the secret declassifies the workflow boundary itself — sink-only,
+  secret-specific, never authorizes a send, default-deny when absent
+  (spec 01-envelope §egress). KNOWN_GAP is empty: every embedded
+  template now passes its own audit, with zero exceptions.
 - **The MODELS rung — every `model:` must resolve in THIS binary.** The
   ladder validated tools but never models: a vendor-cataloged provider
   the resolver cannot drive (`azure/…`) and a bare model id

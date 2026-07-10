@@ -93,13 +93,13 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/image-fx-builtin`                                      |
-| HEAD             | `a5ac4b913` (`a5ac4b9132b276008d22ee66631af60907c96fe4`)             |
+| branch           | `feat/mcp-models-rung`                                      |
+| HEAD             | `21f083b22` (`21f083b2242bfd977ed5fdf8179b8d679b22cca0`)             |
 | workspace        | v0.98.0                                  |
-| crates (workspace)| 44                                              |
+| crates (workspace)| 45                                              |
 | crates (admitted)| 43 / 42                                   |
-| crates (WIP)     | 1 — nika-fx                                  |
-| L0               | 11                                              |
+| crates (WIP)     | 2 — nika-chart nika-fx                                  |
+| L0               | 12                                              |
 | L0.5             | 6                                              |
 | L1               | 13                                              |
 | L1.5             | 4                                              |

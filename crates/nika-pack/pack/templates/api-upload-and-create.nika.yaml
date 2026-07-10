@@ -28,7 +28,8 @@ secrets:
     source: env
     key: EXAMPLE_API_KEY            # SLOT: the OS env var holding the key
     egress:
-      - to: "nika:fetch"            # the ONE sanctioned sink · default-deny otherwise
+      - to: "nika:fetch"            # the send · default-deny otherwise
+      - to: "outputs"               # the return value derives from the authed response
 
 tasks:
   - id: upload

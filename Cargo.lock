@@ -3976,6 +3976,7 @@ dependencies = [
  "nika-catalog",
  "nika-error",
  "nika-pack",
+ "nika-providers",
  "nika-schema",
  "proptest",
  "serde_json",

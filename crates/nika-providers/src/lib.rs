@@ -49,5 +49,5 @@ mod sse;
 mod test_support;
 pub mod wire;
 
-pub use profile::{CANONICAL_IDS, Profile, WireFormat, seed};
+pub use profile::{CANONICAL_IDS, Profile, WireFormat, resolve_refusal, seed};
 pub use registry::{NoHttp, ProviderRegistry, ProvidersConfig, ResolvedProvider};

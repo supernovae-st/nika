@@ -162,6 +162,20 @@ pub(crate) fn load_checked_with_source(
     Ok((yaml, wf, report))
 }
 
+/// The workflow with the CLI `--model` swapped into the envelope default
+/// (#342) — per-task `model:` keeps winning, mirroring the runtime's
+/// precedence. The synthetic span is fine: the pricing surfaces never
+/// render the envelope model's span.
+pub(crate) fn with_model_override(wf: &RawWorkflow, model: &str) -> RawWorkflow {
+    let mut wf = wf.clone();
+    let span = wf
+        .model
+        .as_ref()
+        .map_or_else(nika_schema::Span::default, |m| m.span);
+    wf.model = Some(nika_schema::Spanned::new(model.to_owned(), span));
+    wf
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

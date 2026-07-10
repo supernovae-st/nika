@@ -616,7 +616,7 @@ fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme) -> VerbOutput 
     // The audit runs NOW — the ladder on screen inside the first minute
     // is the product's argument (a red ladder would honestly propagate,
     // but a fresh scaffold checks clean by the templates' own-corpus law).
-    let audit = crate::verbs::check::run(&dest, false, false, theme);
+    let audit = crate::verbs::check::run(&dest, false, false, None, theme);
     let q = shell_quote(&dest);
     let next = format!(
         "next ·\n  $EDITOR {q}                   # fill the remaining `# SLOT:` lines\n  nika run {q}                  # execute · live render (mock is offline · $0.00)\n\n{}",
@@ -1009,15 +1009,15 @@ mod tests {
         // secret in a fetch auth-header taints the response, exactly as a
         // secret in the body would), with no `infer`/`agent`-style prompt
         // exception and no output-declassification construct. So
-        // `api-upload-and-create` (upload+create, both secret-authed, the
-        // create response piped to `outputs:`) cannot surface its result
-        // to ANY sink — outputs, a local `nika:write`, or another tool
-        // all trip the egress. Resolving it needs a header-position
-        // exception in the taint analysis OR an output-declassification
-        // feature; both are design decisions. Until then it is the ONE
-        // documented exception: a SECOND dirty template — or this one
-        // becoming clean (the gap resolved) — fails this ratchet.
-        const KNOWN_GAP: &[&str] = &["api-upload-and-create"];
+        // EMPTY since 2026-07-10: the one former gap
+        // (`api-upload-and-create` — a secret-authed response piped to
+        // `outputs:` had NO sanctioned path) resolved via the
+        // output-declassification this ratchet's note called for:
+        // `egress: [{ to: "outputs" }]` (spec 01-envelope §egress · the
+        // owner declassifies the workflow boundary itself). Every template
+        // now passes its own audit; a dirty one fails this ratchet unless
+        // a genuine flow-model design gap is documented here.
+        const KNOWN_GAP: &[&str] = &[];
         let mut clean = 0_usize;
         for name in nika_pack::template_names() {
             let body = nika_pack::template(&name).expect("template embedded");

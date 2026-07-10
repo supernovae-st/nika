@@ -164,6 +164,7 @@ pub fn nika_providers::profile::Profile::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::profile::Profile where T: 'static
 pub fn nika_providers::profile::Profile::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub const nika_providers::profile::CANONICAL_IDS: [&str; 16]
+pub fn nika_providers::profile::resolve_refusal(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::profile::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
 pub mod nika_providers::registry
 pub struct nika_providers::registry::NoHttp
@@ -537,4 +538,5 @@ pub async fn nika_providers::registry::ResolvedProvider<H>::infer(&self, request
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderStream for nika_providers::registry::ResolvedProvider<H> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderStreamDyn
 pub async fn nika_providers::registry::ResolvedProvider<H>::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::provider::InferEvent, nika_kernel_ai::provider::ProviderError>> + core::marker::Send)>>, nika_kernel_ai::provider::ProviderError>
 pub const nika_providers::CANONICAL_IDS: [&str; 16]
+pub fn nika_providers::resolve_refusal(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
