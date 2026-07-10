@@ -31,12 +31,11 @@ else
   LOG_FILE="${REPO_ROOT}/dx/activity-log.jsonl"
 fi
 
-# Ensure directory exists
+# Absent log dir = the log surface is retired here (memory/execution-roadmap
+# left the engine tree) — the NORMAL state, not a failure. Skip silently:
+# a warning on every commit is noise that trains people to ignore hooks.
 LOG_DIR="$(dirname "$LOG_FILE")"
-if [[ ! -d "$LOG_DIR" ]]; then
-  printf '[activity-log] warning: log directory %s not found — skipping\n' "$LOG_DIR" >&2
-  exit 0
-fi
+[[ -d "$LOG_DIR" ]] || exit 0
 
 # ---------------------------------------------------------------------------
 # Gather commit metadata
