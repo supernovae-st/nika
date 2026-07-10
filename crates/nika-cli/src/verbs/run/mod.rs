@@ -162,7 +162,7 @@ pub fn run(
 
     // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
     if dry_run {
-        return render_dry_run(file, theme.ascii);
+        return dry_run_verdict(file, &wf, &report, json, theme.ascii);
     }
 
     // ── `--max-cost-usd` preflight — BEFORE any spend (budget.rs) ──
@@ -438,6 +438,72 @@ fn render_dry_run(file: &str, ascii: bool) -> u8 {
     }
     println!("\n  dry-run · plan only · no effects executed");
     exit::OK
+}
+
+/// The dry-run fork: the human preview, or the #332 machine plan.
+fn dry_run_verdict(
+    file: &str,
+    wf: &RawWorkflow,
+    report: &nika_schema::check::CheckReport,
+    json: bool,
+    ascii: bool,
+) -> u8 {
+    if json {
+        dry_run_json(file, wf, report)
+    } else {
+        render_dry_run(file, ascii)
+    }
+}
+
+/// `--dry-run --json` (#332): ONE versioned plan object on stdout — what
+/// the run WOULD do, projected from the SAME report the audit already
+/// computed (waves resolved to task ids · per-task verb/model · the cost
+/// ceiling · the affirmative permits · the caller requirements). CI and
+/// PR renderers read this instead of composing `check --json` +
+/// `explain --json` and reconstructing the plan client-side.
+/// `plan_version` follows the check-report discipline: additive keys
+/// never bump it.
+fn dry_run_json(file: &str, wf: &RawWorkflow, report: &nika_schema::check::CheckReport) -> u8 {
+    println!("{:#}", dry_run_payload(file, wf, report));
+    exit::OK
+}
+
+/// The pure projection behind [`dry_run_json`] (unit-pinned): waves
+/// resolved from indices to task ids, one `{id, verb}` row per task,
+/// and the report's own cost/permits/requirements objects verbatim.
+fn dry_run_payload(
+    file: &str,
+    wf: &RawWorkflow,
+    report: &nika_schema::check::CheckReport,
+) -> serde_json::Value {
+    let ids: Vec<&str> = wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect();
+    let waves: Vec<Vec<&str>> = report
+        .waves
+        .iter()
+        .map(|w| w.iter().filter_map(|&i| ids.get(i).copied()).collect())
+        .collect();
+    let tasks: Vec<serde_json::Value> = wf
+        .tasks
+        .iter()
+        .map(|t| {
+            serde_json::json!({
+                "id": t.value.id.value,
+                "verb": t.value.action.verb(),
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "plan_version": 1,
+        "workflow": wf.workflow.as_ref().map(|w| w.value.as_str()),
+        "file": file,
+        "dry_run": true,
+        "effects_executed": false,
+        "waves": waves,
+        "tasks": tasks,
+        "cost": report.cost,
+        "permits": report.permits,
+        "requirements": report.requirements,
+    })
 }
 
 /// Parse the repeatable `--var KEY=VALUE` overrides and validate every
@@ -931,9 +997,33 @@ fn trace_sink(no_trace_file: bool) -> TraceFileSink {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{RenderMode, exit, offline_tip_applies, run, scope_to_task};
+    use super::{RenderMode, dry_run_payload, exit, offline_tip_applies, run, scope_to_task};
     use crate::Theme;
     use serde_json::json;
+
+    /// The #332 plan object: waves resolve indices → task ids, one
+    /// `{id, verb}` row per task, the report's cost/permits/requirements
+    /// ride verbatim, and `effects_executed` states the contract.
+    #[test]
+    fn dry_run_payload_projects_the_versioned_plan() {
+        let yaml = "nika: v1\nworkflow: demo\nmodel: mock/echo\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"x\"] }\n  - id: b\n    depends_on: [a]\n    infer: { prompt: \"go ${{ tasks.a.output }}\", max_tokens: 10 }\n\noutputs:\n  out: \"${{ tasks.b.output }}\"\n";
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::source::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        let p = dry_run_payload("demo.nika.yaml", &wf, &report);
+        assert_eq!(p["plan_version"], 1);
+        assert_eq!(p["workflow"], "demo");
+        assert_eq!(p["waves"], json!([["a"], ["b"]]));
+        assert_eq!(p["tasks"][0]["verb"], "exec");
+        assert_eq!(p["tasks"][1]["verb"], "infer");
+        assert_eq!(p["effects_executed"], false);
+        assert_eq!(p["permits"]["source"], "floor");
+        assert!(p["cost"].is_object() && p["requirements"].is_object());
+    }
 
     /// The offline-hint policy (pure · the heart of the UX decision). The
     /// tip fires ONLY when a non-mock example FAILED with no `--model`
