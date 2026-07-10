@@ -144,6 +144,28 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
             "every workflow starts with three lines — `nika: v1`, \
              `workflow: <name>`, and a non-empty `tasks:` list",
         ),
+        "NIKA-PARSE-001" => Some(
+            "the YAML itself is broken — check the pointed line for a missing \
+             `:`, a stray tab (YAML forbids tabs), or unbalanced quotes; if \
+             line 1 is blamed, a copier may have de-commented the \
+             `# yaml-language-server:` modeline",
+        ),
+        "NIKA-PARSE-005" => Some(
+            "the field is not part of the closed v1 envelope — check the \
+             spelling against `nika schema` (the did-you-mean in the finding \
+             usually names it); custom metadata belongs in `description:`",
+        ),
+        "NIKA-PARSE-019" => Some(
+            "the field's YAML SHAPE is wrong (a string where a list goes, a \
+             list where a map goes) — `tasks:` is a LIST of `- id:` entries, \
+             and the finding names the field whose shape to fix",
+        ),
+        "NIKA-VAR-006" => Some(
+            "the expression mixes types — `when:` must be boolean-shaped, \
+             `for_each:` must reference an ARRAY (a `.output` of a `schema:` \
+             task with `type: array`, or a literal list), and comparisons \
+             need both sides the same type",
+        ),
         _ => None,
     }
 }
