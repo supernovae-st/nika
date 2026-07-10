@@ -129,8 +129,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `fix/effective-model-floor`                                      |
-| HEAD             | `a2788443e` (`a2788443ebbd5a916555ca66bfca2d080fa80a4a`)             |
+| branch           | `feat/mcp-models-rung`                                      |
+| HEAD             | `233f1d6b8` (`233f1d6b881b891c78fb5b05b0d0274426eaf3e8`)             |
 | workspace        | v0.98.0                                  |
 | crates (workspace)| 45                                              |
 | crates (admitted)| 43 / 42                                   |
