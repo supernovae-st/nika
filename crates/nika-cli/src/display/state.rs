@@ -85,6 +85,12 @@ pub struct TaskRow {
     /// `--resume`), never by running here — the render distinguishes
     /// `↷ cache hit (resume)` from a ran-to-green row.
     pub cached: bool,
+    /// The task settled through an `on_error.recover` repair: a
+    /// `task_recovered` frame preceded its terminal (D-2026-07-08-N4
+    /// sequence · engine#313). The FACT survives to every settled
+    /// surface (` · recovered`) — a repaired success must never render
+    /// byte-identical to a clean one (#319).
+    pub recovered: bool,
 }
 
 impl TaskRow {
@@ -171,6 +177,14 @@ impl RunView {
         self.plan_waves.as_deref()
     }
 
+    /// How many rows settled through an `on_error.recover` repair —
+    /// feeds the verdict card and the final meter (the `(N unpriced)`
+    /// honesty style: a non-zero count is never silent).
+    #[must_use]
+    pub fn recovered_count(&self) -> usize {
+        self.rows.iter().filter(|r| r.recovered).count()
+    }
+
     /// How many rows reached a terminal state.
     #[must_use]
     pub fn done_count(&self) -> usize {
@@ -241,6 +255,16 @@ impl RunView {
             EventKind::TaskRetrying => {
                 self.retries = self.retries.saturating_add(1);
                 self.touch(event, TaskState::Retrying);
+            }
+            // D-2026-07-08-N4 (engine#313) — the repair frame: an
+            // `on_error.recover` fallback stood in after a failed attempt;
+            // the terminal `task_completed` follows it. The row stays
+            // in-flight (Running) — only the FACT lands, so the settled
+            // render can say ` · recovered` (#319).
+            EventKind::TaskRecovered => {
+                if let Some(i) = self.touch(event, TaskState::Running) {
+                    self.rows[i].recovered = true;
+                }
             }
             // §3.1 blocked `⊘` — a decision, not a defect (dim · never red).
             EventKind::TaskCancelled => {
@@ -379,6 +403,7 @@ impl RunView {
                 def_hash: None,
                 input_hash: None,
                 cached: false,
+                recovered: false,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);
@@ -638,6 +663,38 @@ mod tests {
         // A row that never started (skipped) keeps None.
         let skipped = view.rows().iter().find(|r| r.id == "notify_slack");
         assert_eq!(skipped.and_then(|r| r.started_note.as_deref()), None);
+    }
+
+    /// D-2026-07-08-N4 / #319 — the repair fact folds: a `task_recovered`
+    /// frame BEFORE the terminal marks the row `recovered`, the row still
+    /// settles Ok, and the view counts exactly the repaired rows. A clean
+    /// sibling stays unmarked (the byte-identical trap this kills).
+    #[test]
+    fn recovered_frame_marks_the_row_and_the_count() {
+        use nika_types::resource::{KeyValue, Value};
+        let task = |n: &str| KeyValue::new("task", Value::String(n.to_owned()));
+
+        let mut view = RunView::new();
+        view.apply(&demo::bare_event(EventKind::TaskStarted, 0).with_field(task("fragile")));
+        view.apply(
+            &demo::bare_event(EventKind::TaskRecovered, 5)
+                .with_field(task("fragile"))
+                .with_field(KeyValue::new(
+                    "code",
+                    Value::String("NIKA-BUILTIN-READ-001".to_owned()),
+                )),
+        );
+        // Mid-repair: the fact landed, the task is still in flight.
+        assert!(view.rows()[0].recovered, "the repair fact folds");
+        assert_eq!(view.rows()[0].state, TaskState::Running);
+
+        view.apply(&demo::bare_event(EventKind::TaskCompleted, 10).with_field(task("fragile")));
+        view.apply(&demo::bare_event(EventKind::TaskCompleted, 20).with_field(task("clean")));
+
+        assert_eq!(view.rows()[0].state, TaskState::Ok, "settles Ok");
+        assert!(view.rows()[0].recovered, "the fact survives the terminal");
+        assert!(!view.rows()[1].recovered, "a clean row stays unmarked");
+        assert_eq!(view.recovered_count(), 1);
     }
 
     /// The retry counter folds every `task_retrying` frame (feeds the

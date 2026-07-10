@@ -103,11 +103,18 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
     // Footer meter: progress · live cost vs ceiling · wall clock. The
     // spend speaks the ONE cost formatter (format.rs) — the meter and the
     // verdict card can never again disagree on the same run's dollars.
+    // The repair count rides beside `done` when non-zero (#319 · the
+    // `(N unpriced)` honesty style): a repaired run's final summary line
+    // must never read byte-identical to a clean one.
     let cost = spend_meter(view);
+    let repaired = match view.recovered_count() {
+        0 => String::new(),
+        n => format!("{n} recovered · "),
+    };
     #[allow(clippy::cast_precision_loss)] // display-only seconds
     let secs = view.elapsed_ms as f64 / 1000.0;
     let meter = format!(
-        "── {}/{} done · {cost} · elapsed {secs:.1}s ",
+        "── {}/{} done · {repaired}{cost} · elapsed {secs:.1}s ",
         view.done_count(),
         view.rows().len(),
     );
@@ -216,7 +223,7 @@ fn task_line(
         theme.paint(Role::Dim, &note),
     );
     let cost = row.cost_usd.map(|c| format!(" · {}", fmt_cost_usd(c)));
-    if time.is_none() && cost.is_none() && !mark && tail.is_none() {
+    if time.is_none() && cost.is_none() && !mark && tail.is_none() && !row.recovered {
         return line;
     }
     // Column pad computed on the RAW note (paint added escapes, the
@@ -233,6 +240,12 @@ fn task_line(
     }
     if let Some(cost) = cost {
         line.push_str(&theme.paint(Role::Dim, &cost));
+    }
+    // The repair fact (#319 · D-2026-07-08-N4): a row that settled
+    // through `on_error.recover` says so — yellow, the retry family's
+    // survived-incident colour (sober themes render it plain).
+    if row.recovered {
+        line.push_str(&theme.paint(Role::Warn, " · recovered"));
     }
     if let Some(tail) = tail {
         // Already painted by the shape module — one metadata unit.
@@ -897,6 +910,70 @@ mod tests {
         assert!(
             running.contains('▇'),
             "tokens reported → spark on the running row: {running}"
+        );
+    }
+
+    /// #319 — a repaired success SAYS so: the settled row gains
+    /// ` · recovered` and the meter line counts the repairs — while a
+    /// clean run's frame stays byte-identical (the golden tests above
+    /// pin that: the demo storyboard carries no `task_recovered`).
+    #[test]
+    fn recovered_rows_and_meter_carry_the_repair_fact() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let task = |n: &str| KeyValue::new("task", Value::String(n.to_owned()));
+
+        let mut view = RunView::new();
+        view.apply(
+            &demo::bare_event(EventKind::TaskStarted, 0)
+                .with_field(task("fragile"))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("invoke · nika:read".to_owned()),
+                )),
+        );
+        view.apply(
+            &demo::bare_event(EventKind::TaskRecovered, 1)
+                .with_field(task("fragile"))
+                .with_field(KeyValue::new(
+                    "code",
+                    Value::String("NIKA-BUILTIN-READ-001".to_owned()),
+                )),
+        );
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 2)
+                .with_field(task("fragile"))
+                .with_field(KeyValue::new("duration_ms", Value::Int(1))),
+        );
+        view.apply(&demo::bare_event(EventKind::WorkflowCompleted, 3));
+
+        let lines = frame(&view, &UNICODE, 0);
+        let row = lines.iter().find(|l| l.contains("fragile")).expect("row");
+        assert!(
+            row.contains("1ms · recovered"),
+            "the settled line says recovered: {row}"
+        );
+        let meter = lines.iter().find(|l| l.contains("done")).expect("meter");
+        assert!(
+            meter.contains("1/1 done · 1 recovered · "),
+            "the summary line counts the repair: {meter}"
+        );
+
+        // The SUCCESS path only — no failure card grew out of the repair.
+        assert!(
+            !lines.iter().any(|l| l.contains("fix:")),
+            "a recovered success is a success: {lines:?}"
+        );
+
+        // Colour ON: the fact paints yellow (the retry family).
+        let coloured = frame(&view, &Theme::new(true, false, false), 0);
+        let painted = coloured
+            .iter()
+            .find(|l| l.contains("fragile"))
+            .expect("row");
+        assert!(
+            painted.contains("\x1b[33m · recovered\x1b[0m"),
+            "recovered paints Warn: {painted:?}"
         );
     }
 

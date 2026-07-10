@@ -287,14 +287,23 @@ pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -
 
     let waves = wave_sizes(view).len();
     let retries_cell = format!("{} retries", view.retries);
-    let mut rows = vec![
-        format!(
-            "{}    {} tasks · {waves} waves · {retries_cell}",
-            dag_shape(view, theme),
-            view.rows().len(),
-        ),
-        totals_row(view),
-    ];
+    // The repair count (#319 · D-2026-07-08-N4) rides beside retries —
+    // only when non-zero (the verdict-count discipline: `0 retries` is
+    // a stable cell, a repair is an EVENT worth a cell only when real).
+    let recovered_cell = match view.recovered_count() {
+        0 => None,
+        n => Some(format!("{n} recovered")),
+    };
+    let mut head = format!(
+        "{}    {} tasks · {waves} waves · {retries_cell}",
+        dag_shape(view, theme),
+        view.rows().len(),
+    );
+    if let Some(cell) = &recovered_cell {
+        use std::fmt::Write as _;
+        let _ = write!(head, " · {cell}");
+    }
+    let mut rows = vec![head, totals_row(view)];
     if let Some(note) = outputs_note {
         rows.push(note.to_owned());
     }
@@ -326,11 +335,15 @@ pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -
         // real retry count paints yellow. The paint lands on the FITTED
         // text AFTER the width math (escapes add zero visible cells; a
         // truncated row simply keeps its plain form).
-        let shown = if view.retries > 0 {
+        let mut shown = if view.retries > 0 {
             fitted.replace(&retries_cell, &theme.paint(Role::Warn, &retries_cell))
         } else {
             fitted
         };
+        // The repair count wears the same survived-incident yellow.
+        if let Some(cell) = &recovered_cell {
+            shown = shown.replace(cell.as_str(), &theme.paint(Role::Warn, cell));
+        }
         lines.push(format!("  {v}  {shown}{}  {v}", " ".repeat(pad)));
     }
     let bottom: String = std::iter::repeat_n(h, inner).collect();
@@ -740,6 +753,73 @@ mod tests {
         assert!(
             bare.iter().all(|w| *w == bare[0]),
             "escape-stripped alignment holds: {bare:?}"
+        );
+    }
+
+    /// #319 — the verdict card carries the repair count beside retries
+    /// when a task settled through `on_error.recover` (and NEVER grows
+    /// the cell on a clean run — the demo card above pins `0 retries`
+    /// with no `recovered` in sight).
+    #[test]
+    fn verdict_card_counts_recovered_beside_retries() {
+        let mut view = RunView::new();
+        view.apply(&ev(EventKind::TaskStarted, 0, &[("task", s("fragile"))]));
+        view.apply(&ev(
+            EventKind::TaskRecovered,
+            5,
+            &[("task", s("fragile")), ("code", s("NIKA-BUILTIN-READ-001"))],
+        ));
+        view.apply(&ev(
+            EventKind::TaskCompleted,
+            10,
+            &[("task", s("fragile")), ("duration_ms", Value::Int(1))],
+        ));
+        view.apply(&ev(EventKind::WorkflowCompleted, 20, &[]));
+
+        let lines = verdict_card(&view, &PLAIN, None);
+        let head = lines.iter().find(|l| l.contains("retries")).expect("row");
+        assert!(
+            head.contains("0 retries · 1 recovered"),
+            "the repair count rides beside retries: {head:?}"
+        );
+
+        // Colour on: the repair cell wears the survived-incident yellow
+        // and the box alignment survives the escapes.
+        let coloured = verdict_card(&view, &Theme::new(true, false, false), None);
+        let head = coloured
+            .iter()
+            .find(|l| l.contains("recovered"))
+            .expect("row");
+        assert!(
+            head.contains("\x1b[33m1 recovered\x1b[0m"),
+            "the repair count paints yellow: {head:?}"
+        );
+        let bare: Vec<usize> = coloured
+            .iter()
+            .map(|l| {
+                l.replace("\x1b[33m", "")
+                    .replace("\x1b[32m", "")
+                    .replace("\x1b[1m", "")
+                    .replace("\x1b[0m", "")
+                    .chars()
+                    .count()
+            })
+            .collect();
+        assert!(
+            bare.iter().all(|w| *w == bare[0]),
+            "escape-stripped alignment holds: {bare:?}"
+        );
+
+        // A clean run never grows the cell.
+        let mut clean = RunView::new();
+        for e in demo::success() {
+            clean.apply(&e);
+        }
+        assert!(
+            !verdict_card(&clean, &PLAIN, None)
+                .iter()
+                .any(|l| l.contains("recovered")),
+            "no repair → no cell"
         );
     }
 
