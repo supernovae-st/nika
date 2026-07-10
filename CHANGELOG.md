@@ -65,6 +65,17 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **Teaching diagnostics from the 147-workflow new-user gauntlet** —
+  arithmetic in a `${{ }}` guard teaches the route instead of the raw
+  tokenizer error: `+ - * / %` → « `${{ }}` is a boolean guard, not a
+  calculator (v0.1 CEL subset): compute the value in a `nika:jq` task »
+  — one voice in the checker lexer (nika-tmpl) AND the runtime lexer
+  (nika-cel), so an uncheck'd run learns the same lesson (#394). An
+  unknown extract mode teaches the canonical route on the measured
+  misses (`json` → `mode: jq` with `jq: "."` · `html` → `raw`/
+  `selector` · `xml`/`rss`/`atom` → `feed`/`raw` — evidence-based rows
+  only, never speculation), the same hint table behind the runtime
+  Display and the check voice (#397).
 - **gemini 2.5 dynamic thinking no longer burns structured budgets** —
   on a `schema:` call with authored `max_tokens` and no authored
   thinking budget, the wire bounds thinking (flash 0 · pro at the API's
@@ -86,6 +97,19 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **The SSRF floor speaks at `check` — down to the wire code** (battery
+  finding F3 · #395): a literal `nika:fetch`/webhook-notify URL — or a
+  `permits.net.http` entry — naming a target the always-on floor
+  refuses (the `localhost` family per RFC 6761 · private ranges · cloud
+  metadata) is now a check escape carrying `NIKA-SEC-005`, the exact
+  code the run would emit, with or without a `permits:` block.
+  Previously check blessed a workflow that could never run. One static
+  host oracle (`nika_types::net::host_is_blocked`) now feeds
+  `nika-http`, the browser navigate gate (which gains the
+  metadata-NAME block that was open there), the escape scanner, and
+  `--infer-permits` (which stops synthesizing floor-blocked grants —
+  honesty note instead). Dynamic URLs and DNS names resolving privately
+  stay the runtime `GuardedResolver`'s half (#403).
 - **The `${{ }}` expression grammar lives in `nika-tmpl`** — descended
   from `nika-schema` at the 15k crate-size wall (the trace→dap
   precedent): the scanner and the language it scans are one home,
