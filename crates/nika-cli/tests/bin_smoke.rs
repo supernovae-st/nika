@@ -243,14 +243,17 @@ fn run_no_progress_emits_no_ansi() {
 
 #[test]
 fn run_human_flags_conflict_with_machine_modes() {
-    // The render/plan flags are HUMAN surfaces · clap REFUSES them alongside
+    // The render flags are HUMAN surfaces · clap REFUSES them alongside
     // the `--json`/`--output json` machine modes, so a parsed-but-ignored flag
     // can never silently corrupt the `capture: stdout` JSON contract.
+    // `--dry-run` left this list in #332: with `--json` it IS a machine
+    // surface (the versioned plan object) — only `--output` still refuses
+    // it (an outputs export of a run that never executed would be a lie).
     let dir = std::env::temp_dir().join(format!("nika-bin-conflict-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let wf = write_fixture(&dir, "ok.nika.yaml", VALID);
 
-    for human in ["--dry-run", "--quiet", "--no-progress"] {
+    for human in ["--quiet", "--no-progress"] {
         let out = bin()
             .arg("run")
             .arg(&wf)
@@ -269,6 +272,45 @@ fn run_human_flags_conflict_with_machine_modes() {
             "clap names the {human}/--json conflict: {stderr}"
         );
     }
+
+    // --dry-run + --json: the #332 plan object (exit 0 · plan_version 1 ·
+    // zero effects — no trace dir appears).
+    let out = bin()
+        .arg("run")
+        .arg(&wf)
+        .arg("--dry-run")
+        .arg("--json")
+        .current_dir(&dir)
+        .output()
+        .expect("binary runs");
+    assert!(
+        out.status.success(),
+        "--dry-run --json is the machine plan: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let plan: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout is ONE JSON object");
+    assert_eq!(plan["plan_version"], 1);
+    assert_eq!(plan["effects_executed"], false);
+    assert!(
+        !dir.join(".nika").exists(),
+        "a dry run never writes the trace store"
+    );
+
+    // --dry-run + --output json: still a usage error.
+    let out = bin()
+        .arg("run")
+        .arg(&wf)
+        .arg("--dry-run")
+        .arg("--output")
+        .arg("json")
+        .output()
+        .expect("binary runs");
+    assert!(
+        !out.status.success(),
+        "--dry-run + --output must stay refused, got {:?}",
+        out.status.code()
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
