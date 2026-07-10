@@ -126,6 +126,17 @@ pub(super) fn tokenize(src: &str) -> Result<Vec<Token>, ExprError> {
                 });
                 i += len;
             }
+            // Binary arithmetic (`+` · `*` · `/` · `%`) is outside the v0.1
+            // CEL boolean-guard subset · a distinct teaching error routes the
+            // user to `nika:jq` instead of a raw `unexpected character`. `-`
+            // opens a numeric literal above, so its binary-minus case is
+            // caught inside `lex_number` (a `-` not followed by a digit).
+            b'+' | b'*' | b'/' | b'%' => {
+                return Err(ExprError::ArithmeticUnsupported {
+                    op: bytes[i] as char,
+                    offset: i,
+                });
+            }
             b'A'..=b'Z' | b'a'..=b'z' | b'_' => {
                 let (kind, len) = lex_ident(src, i);
                 tokens.push(Token {
@@ -220,8 +231,10 @@ fn lex_number(src: &str, start: usize) -> Result<(TokenKind, usize), ExprError> 
     if bytes[i] == b'-' {
         i += 1;
         if !bytes.get(i).copied().is_some_and(|b| b.is_ascii_digit()) {
-            return Err(ExprError::UnexpectedChar {
-                ch: '-',
+            // `-` not opening a numeric literal is a binary-minus attempt —
+            // arithmetic is outside the v0.1 CEL guard subset (teach `nika:jq`).
+            return Err(ExprError::ArithmeticUnsupported {
+                op: '-',
                 offset: start,
             });
         }
@@ -441,10 +454,26 @@ mod tests {
     }
 
     #[test]
-    fn lex_bare_minus_errors() {
-        // No arithmetic in the subset — `-` only opens a numeric literal.
-        let err = tokenize("a - b").expect_err("bare minus");
-        assert!(matches!(err, ExprError::UnexpectedChar { ch: '-', .. }));
+    fn lex_binary_arithmetic_teaches_jq() {
+        // No arithmetic in the CEL guard subset — every binary operator a
+        // new user reaches for surfaces the teaching variant (routes to
+        // `nika:jq`), never a raw `unexpected character`. `-` opens a
+        // numeric literal, so its binary form (not digit-led) lands here too.
+        for (expr, op, offset) in [
+            ("a + b", '+', 2),
+            ("a * b", '*', 2),
+            ("a / b", '/', 2),
+            ("a % b", '%', 2),
+            ("a - b", '-', 2),
+        ] {
+            let err = tokenize(expr).expect_err(expr);
+            assert!(
+                matches!(err, ExprError::ArithmeticUnsupported { op: o, offset: off } if o == op && off == offset),
+                "`{expr}` → {err:?}"
+            );
+        }
+        // A negative numeric literal is NOT arithmetic — it still lexes.
+        assert!(tokenize("-5 < 0").is_ok(), "negative literal must lex");
     }
 
     #[test]
