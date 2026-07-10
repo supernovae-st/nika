@@ -83,6 +83,23 @@ pub(crate) fn lex(src: &str) -> Result<Vec<Token>, CelError> {
             b'\'' | b'"' => lex_string(src, &mut i)?,
             b'-' | b'0'..=b'9' => lex_number(bytes, &mut i)?,
             b if b.is_ascii_alphabetic() || b == b'_' => lex_ident_or_keyword(bytes, &mut i),
+            // Binary arithmetic is outside the cel-subset/0.1 boolean-guard
+            // grammar — teach WHERE it belongs (a `nika:jq` task) with the
+            // SAME voice as the check-side lexer (`nika-tmpl` · one-voice
+            // parity: a workflow run without `check` first must learn the
+            // identical lesson). `-` opens a numeric literal above; its
+            // binary form lands in `lex_number`'s no-digit path.
+            b'+' | b'*' | b'/' | b'%' => {
+                return Err(CelError::static_err(
+                    format!(
+                        "arithmetic operator `{}` — `${{{{ … }}}}` is a boolean guard, not a \
+                         calculator (cel-subset/0.1): compute the value in a `nika:jq` task \
+                         and gate on `tasks.<id>.output`",
+                        b as char
+                    ),
+                    (start, start + 1),
+                ));
+            }
             other => {
                 return Err(CelError::static_err(
                     format!("unexpected character `{}`", other as char),
@@ -194,8 +211,12 @@ fn lex_number(bytes: &[u8], i: &mut usize) -> Result<Tok, CelError> {
         }
     }
     if *i == digits_start {
+        // A `-` that never opened a numeric literal is a binary-minus
+        // attempt — the same arithmetic teaching as the dispatch arm.
         return Err(CelError::static_err(
-            "expected a number",
+            "arithmetic operator `-` — `${{ … }}` is a boolean guard, not a \
+             calculator (cel-subset/0.1): compute the value in a `nika:jq` task \
+             and gate on `tasks.<id>.output`",
             (start, (*i).max(start + 1)),
         ));
     }
@@ -416,5 +437,23 @@ mod tests {
         );
         // Escapes still compose with multibyte content.
         assert_eq!(kinds(r"'é\n☃'"), vec![Tok::Str("é\n☃".into())]);
+    }
+
+    #[test]
+    fn binary_arithmetic_teaches_jq() {
+        // One-voice parity with the check-side lexer (`nika-tmpl`): every
+        // arithmetic operator surfaces the boolean-guard teaching (routes
+        // to `nika:jq`), never a raw `unexpected character` — a run
+        // launched without `check` first learns the identical lesson.
+        for expr in ["a + b", "a * b", "a / b", "a % b", "a - b"] {
+            let err = lex(expr).expect_err(expr);
+            let msg = err.to_string();
+            assert!(
+                msg.contains("arithmetic operator") && msg.contains("nika:jq"),
+                "`{expr}` → {msg}"
+            );
+        }
+        // A negative numeric literal is NOT arithmetic — it still lexes.
+        assert!(lex("-5 < 0").is_ok(), "negative literal must lex");
     }
 }
