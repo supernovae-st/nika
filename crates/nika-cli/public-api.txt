@@ -467,7 +467,7 @@ pub mod nika_cli::verbs
 pub mod nika_cli::verbs::catalog
 pub fn nika_cli::verbs::catalog::run(json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::check
-pub fn nika_cli::verbs::check::run(path: &str, json: bool, native_strict: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::check::run(path: &str, json: bool, native_strict: bool, model_override: core::option::Option<&str>, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::check::run_infer_permits(path: &str, json: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::context
 pub fn nika_cli::verbs::context::run(json: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput

@@ -94,7 +94,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `feat/mcp-models-rung`                                      |
-| HEAD             | `233f1d6b8` (`233f1d6b881b891c78fb5b05b0d0274426eaf3e8`)             |
+| HEAD             | `51f3687ef` (`51f3687efefdc281f5b0e694ab792b7fa673f468`)             |
 | workspace        | v0.98.0                                  |
 | crates (workspace)| 45                                              |
 | crates (admitted)| 43 / 42                                   |
