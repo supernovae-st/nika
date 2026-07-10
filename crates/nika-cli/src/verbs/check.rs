@@ -61,51 +61,7 @@ pub fn run(
     let strict_clean = clean && (!native_strict || native_hints == 0);
 
     if json {
-        return match serde_json::to_value(&report) {
-            Ok(mut payload) => {
-                if let Some(obj) = payload.as_object_mut() {
-                    obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
-                    obj.insert(
-                        "models_resolve".to_owned(),
-                        serde_json::Value::Bool(model_findings.is_empty()),
-                    );
-                    if !model_findings.is_empty() {
-                        obj.insert(
-                            "model_findings".to_owned(),
-                            serde_json::Value::Array(
-                                model_findings
-                                    .iter()
-                                    .map(|f| {
-                                        serde_json::json!({
-                                            "model": f.model,
-                                            "tasks": f.tasks,
-                                            "why": f.why,
-                                        })
-                                    })
-                                    .collect(),
-                            ),
-                        );
-                    }
-                    obj.insert(
-                        "pricing".to_owned(),
-                        pricing_section(&report, &model_findings),
-                    );
-                    if native_strict {
-                        obj.insert(
-                            "native_strict_clean".to_owned(),
-                            serde_json::Value::Bool(strict_clean),
-                        );
-                    }
-                }
-                let text = format!("{payload:#}");
-                if strict_clean {
-                    VerbOutput::ok(text)
-                } else {
-                    VerbOutput::file(text)
-                }
-            }
-            Err(e) => VerbOutput::env(format!("cannot serialize report: {e}")),
-        };
+        return json_verdict(&report, &model_findings, clean, strict_clean, native_strict);
     }
 
     let mut text = render(&report, &wf, &source, path, theme, &model_findings);
@@ -123,6 +79,62 @@ pub fn run(
             )
         );
     }
+    if strict_clean {
+        VerbOutput::ok(text)
+    } else {
+        VerbOutput::file(text)
+    }
+}
+
+/// The `--json` verdict: the full report + the machine keys (`clean` ·
+/// `models_resolve` · `model_findings[]` · `pricing` · the strict flag)
+/// — never coloured, the contract bytes are the contract.
+fn json_verdict(
+    report: &CheckReport,
+    model_findings: &[ModelFinding],
+    clean: bool,
+    strict_clean: bool,
+    native_strict: bool,
+) -> VerbOutput {
+    let mut payload = match serde_json::to_value(report) {
+        Ok(v) => v,
+        Err(e) => return VerbOutput::env(format!("cannot serialize report: {e}")),
+    };
+    if let Some(obj) = payload.as_object_mut() {
+        obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
+        obj.insert(
+            "models_resolve".to_owned(),
+            serde_json::Value::Bool(model_findings.is_empty()),
+        );
+        if !model_findings.is_empty() {
+            obj.insert(
+                "model_findings".to_owned(),
+                serde_json::Value::Array(
+                    model_findings
+                        .iter()
+                        .map(|f| {
+                            serde_json::json!({
+                                "model": f.model,
+                                "tasks": f.tasks,
+                                "why": f.why,
+                            })
+                        })
+                        .collect(),
+                ),
+            );
+        }
+        obj.insert(
+            "pricing".to_owned(),
+            pricing_section(report, model_findings),
+        );
+        if native_strict {
+            obj.insert(
+                "native_strict_clean".to_owned(),
+                serde_json::Value::Bool(strict_clean),
+            );
+        }
+    }
+    let text = format!("{payload:#}");
     if strict_clean {
         VerbOutput::ok(text)
     } else {
