@@ -1,0 +1,321 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! The run's LAST WORDS — the human final frame (flow epilogue · resume
+//! summary) + the machine envelopes (`{"error":…}` · `{"paused":…}` ·
+//! the `outputs:` line) — one seam, so display features land here,
+//! never in the driver (`mod.rs` composes and drives; this module
+//! speaks the ending).
+
+// The epilogue IS a printing surface (the same sanctioned exemption the
+// parent module carries): the render is the run's final frame, it
+// cannot be deferred to a `VerbOutput`.
+#![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
+
+use std::collections::BTreeMap;
+
+use serde_json::Value;
+
+use nika_runtime::{RunOutcome, WorkflowPause};
+
+use super::resume;
+use crate::Theme;
+
+/// The `--resume` post-run summary (`resumed · N skipped · M ran live`) —
+/// printed ONLY when a resume was requested (a fresh run's surfaces stay
+/// byte-identical). Machine modes route it to stderr (stdout is the
+/// contract surface); human modes print it under the final frame.
+pub(super) fn print_resume_summary(outcome: &RunOutcome, resumed: bool, to_stderr: bool) {
+    if !resumed {
+        return;
+    }
+    let ran_live = outcome
+        .records
+        .values()
+        .filter(|r| r.started_at.is_some())
+        .count();
+    let line = resume::summary_line(outcome.cache_hits.len(), ran_live);
+    if to_stderr {
+        eprintln!("{line}");
+    } else {
+        println!("\n  {line}");
+    }
+}
+
+/// The TTY final-frame epilogue: the post-run waterfall (real durations ·
+/// real overlap · pure fold of the run's own event stream) then the
+/// shareable verdict card, its outputs note naming what left the run —
+/// closed by the explore hint. SEAM (stated, not faked): a live run
+/// writes no trace file today, so the hint teaches the two-step that
+/// works NOW (record with `--json`, then browse); when auto-trace
+/// recording ships, this collapses to the recorded path.
+pub(super) fn print_flow_epilogue(
+    view: &crate::RunView,
+    outputs: &BTreeMap<String, Value>,
+    theme: Theme,
+    file: &str,
+) {
+    for line in crate::display::flow::waterfall(view, &theme) {
+        println!("{line}");
+    }
+    let note = outputs_note(outputs);
+    for line in crate::display::flow::verdict_card(view, &theme, note.as_deref()) {
+        println!("{line}");
+    }
+    // The workflow path is CLICKABLE on link-capable terminals (OSC-8 ·
+    // file:// — the one real file in the hint; the ndjson names are the
+    // suggested two-step, not files that exist yet).
+    let file_cell = crate::verbs::linked_path(theme, file);
+    let record =
+        format!("nika run {file_cell} --json > run.ndjson · nika trace outputs run.ndjson");
+    println!(
+        "  {}",
+        crate::display::vocab::hint(theme, "explore", &record)
+    );
+}
+
+/// The card's outputs note: `outputs → key (type) · key2 (type)` — the
+/// export contract's shape at a glance (types only, never a data dump).
+/// Two keys shown, the rest counted.
+pub(super) fn outputs_note(outputs: &BTreeMap<String, Value>) -> Option<String> {
+    if outputs.is_empty() {
+        return None;
+    }
+    let mut parts: Vec<String> = outputs
+        .iter()
+        .take(2)
+        .map(|(key, value)| format!("{key} ({})", json_type_name(value)))
+        .collect();
+    if outputs.len() > 2 {
+        parts.push(format!("+{} more", outputs.len() - 2));
+    }
+    Some(format!("outputs → {}", parts.join(" · ")))
+}
+
+/// The JSON type vocabulary for the outputs pointer — names only, never
+/// values (a summary line, not a data leak into the scrollback).
+pub(super) fn json_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}
+
+/// The export contract's stdout payload (spec 01 §"What leaves a run"): the
+/// resolved workflow `outputs:` as ONE JSON object on a single line. An
+/// empty map (no `outputs:` declared · or references that no longer
+/// resolve) renders `{}` — stdout is ALWAYS a single JSON object in
+/// `--output json` mode, a stable machine contract for the composition
+/// path (`exec: nika run sub --output json` + `capture: stdout`).
+pub(super) fn outputs_json_line(outputs: &BTreeMap<String, Value>) -> String {
+    serde_json::to_string(outputs).unwrap_or_else(|_| "{}".to_owned())
+}
+
+/// Route a human-readable diagnostic to the spec-correct stream: stderr in
+/// `--output json` mode (stdout MUST stay a clean JSON object · the export
+/// contract · `capture: stdout` composition), stdout in the human modes.
+/// In machine mode the failure ALSO lands on stdout as the `{"error":{…}}`
+/// envelope (F6) — the machine surface is self-sufficient, success or not.
+pub(super) fn emit_diagnostic(text: &str, output_json: bool) {
+    if output_json {
+        eprint!("{text}");
+        println!("{}", error_envelope_line(envelope_message(text)));
+    } else {
+        print!("{text}");
+    }
+}
+
+/// Print the machine failure envelope when in `--output json` mode (the
+/// ENV-class exits inside `run` share this one seam).
+pub(super) fn emit_error_envelope(message: &str, output_json: bool) {
+    if output_json {
+        println!("{}", error_envelope_line(message));
+    }
+}
+
+/// ONE `{"paused":{…}}` line — the machine pause contract (ADR-099 rider
+/// · additive beside the success/error envelopes): the prompt payload a
+/// consumer needs to deliver an answer (`--answer <task>=<value>` at
+/// resume · or a serve webhook later).
+pub(super) fn paused_envelope_line(pause: &WorkflowPause) -> String {
+    serde_json::json!({
+        "paused": {
+            "task": pause.task,
+            "mode": pause.mode,
+            "message": pause.message,
+            "choices": pause.choices,
+        }
+    })
+    .to_string()
+}
+
+/// ONE `{"error":{"code":…,"message":…}}` line — the machine failure
+/// contract (F6). `code` is the first NIKA wire code found in the message
+/// (`null` when the failure class carries none, e.g. an unreadable file).
+pub(super) fn error_envelope_line(message: &str) -> String {
+    serde_json::json!({
+        "error": { "code": first_nika_code(message), "message": message }
+    })
+    .to_string()
+}
+
+/// Best-effort wire-code extraction: the first `NIKA-…` token in a
+/// diagnostic (findings render `[NIKA-PARSE-009]` · run details lead with
+/// `NIKA-431 · …`). Never invents — no token, no code.
+pub(super) fn first_nika_code(text: &str) -> Option<&str> {
+    let start = text.find("NIKA-")?;
+    let rest = &text[start..];
+    let end = rest
+        .find(|c: char| !(c.is_ascii_uppercase() || c.is_ascii_digit() || c == '-'))
+        .unwrap_or(rest.len());
+    let code = rest[..end].trim_end_matches('-');
+    // A bare `NIKA-` prefix with no digits is prose, not a code.
+    (code.len() > "NIKA-".len() && code.bytes().any(|b| b.is_ascii_digit())).then_some(code)
+}
+
+/// The one-line message for a findings-render envelope: the first line
+/// carrying a wire code (the render wraps it in section noise), else the
+/// first non-empty line.
+pub(super) fn envelope_message(text: &str) -> &str {
+    let mut lines = text.lines().filter(|l| !l.trim().is_empty());
+    let first = lines.next().unwrap_or(text);
+    std::iter::once(first)
+        .chain(lines)
+        .find(|l| l.contains("NIKA-"))
+        .unwrap_or(first)
+        .trim()
+}
+
+/// The failure envelope for a run that EXECUTED and failed: the first
+/// failed task row's detail (it carries the wire code), else the
+/// workflow-level detail (run-end typed-output breaches), else a stable
+/// fallback — stdout never goes silent on a machine consumer.
+pub(super) fn run_failure_envelope(view: &crate::RunView) -> String {
+    let failed = view
+        .rows()
+        .iter()
+        .find(|r| r.state == crate::TaskState::Failed);
+    let message = match failed {
+        Some(row) if row.detail.is_empty() => format!("task `{}` failed", row.id),
+        Some(row) => format!("task `{}` failed — {}", row.id, row.detail),
+        None => view
+            .workflow_detail
+            .clone()
+            .unwrap_or_else(|| "workflow failed".to_owned()),
+    };
+    error_envelope_line(&message)
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use super::outputs_json_line;
+    use serde_json::{Value, json};
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn outputs_json_line_is_one_sorted_object() {
+        let mut m: BTreeMap<String, Value> = BTreeMap::new();
+        m.insert("total".to_owned(), json!(60));
+        m.insert("count".to_owned(), json!(3));
+        // BTreeMap key order → `count` before `total`: a single line,
+        // deterministic across runs (the machine consumer can jq it).
+        assert_eq!(outputs_json_line(&m), r#"{"count":3,"total":60}"#);
+        assert!(!outputs_json_line(&m).contains('\n'));
+    }
+
+    #[test]
+    fn outputs_json_line_empty_is_braces() {
+        // No `outputs:` declared → still a JSON object on stdout.
+        assert_eq!(outputs_json_line(&BTreeMap::new()), "{}");
+    }
+
+    // ── F6 · the `--output json` machine failure envelope ────────────
+
+    /// The envelope is ONE JSON object with the `{"error":{code,message}}`
+    /// shape · the code is extracted, never invented.
+    #[test]
+    fn error_envelope_is_one_object_with_extracted_code() {
+        let line = super::error_envelope_line("task failed — NIKA-VAR-001 · unresolved reference");
+        let v: Value = serde_json::from_str(&line).expect("envelope is JSON");
+        assert_eq!(v["error"]["code"], json!("NIKA-VAR-001"));
+        assert!(
+            v["error"]["message"]
+                .as_str()
+                .expect("message is a string")
+                .contains("unresolved"),
+        );
+        assert!(!line.contains('\n'), "one line — the machine contract");
+
+        // No wire code in the failure class (unreadable file) → null, not
+        // a hallucinated code.
+        let env_line = super::error_envelope_line("cannot read wf.yaml: No such file");
+        let v: Value = serde_json::from_str(&env_line).expect("envelope is JSON");
+        assert!(v["error"]["code"].is_null());
+    }
+
+    /// Wire-code extraction: bracketed findings, leading run details,
+    /// per-builtin long codes — and NO false positive on bare prose.
+    #[test]
+    fn first_nika_code_finds_real_codes_only() {
+        assert_eq!(
+            super::first_nika_code("PARSE ✗  [NIKA-PARSE-009] two verbs"),
+            Some("NIKA-PARSE-009")
+        );
+        assert_eq!(
+            super::first_nika_code("NIKA-431 · provider API error"),
+            Some("NIKA-431")
+        );
+        assert_eq!(
+            super::first_nika_code("x NIKA-BUILTIN-JQ-001 y"),
+            Some("NIKA-BUILTIN-JQ-001")
+        );
+        assert_eq!(super::first_nika_code("the NIKA- prefix alone"), None);
+        assert_eq!(super::first_nika_code("no code here"), None);
+    }
+
+    /// A findings render condenses to the line that carries the code.
+    #[test]
+    fn envelope_message_prefers_the_code_line() {
+        let text =
+            "nika check · wf.yaml\n X CONFORM  [NIKA-CEL-001] bad when\n  verdict: 1 finding\n";
+        assert_eq!(
+            super::envelope_message(text),
+            "X CONFORM  [NIKA-CEL-001] bad when"
+        );
+        // No code anywhere → the first non-empty line.
+        assert_eq!(
+            super::envelope_message("\ncannot read x: gone\ndetail\n"),
+            "cannot read x: gone"
+        );
+    }
+
+    /// The run-failure envelope reads the folded view: the failed row's
+    /// detail (which carries the wire code) becomes the machine message.
+    #[test]
+    fn run_failure_envelope_carries_the_failed_task_detail() {
+        let mut view = crate::RunView::new();
+        for ev in crate::demo::failure() {
+            view.apply(&ev);
+        }
+        let line = super::run_failure_envelope(&view);
+        let v: Value = serde_json::from_str(&line).expect("envelope is JSON");
+        assert_eq!(v["error"]["code"], json!("NIKA-431"), "{line}");
+        assert!(
+            v["error"]["message"]
+                .as_str()
+                .expect("message present")
+                .contains("task `"),
+            "{line}"
+        );
+
+        // An empty view (nothing folded) still yields a stable envelope.
+        let empty = super::run_failure_envelope(&crate::RunView::new());
+        let v: Value = serde_json::from_str(&empty).expect("fallback is JSON");
+        assert_eq!(v["error"]["message"], json!("workflow failed"));
+    }
+}

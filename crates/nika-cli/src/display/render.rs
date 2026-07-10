@@ -29,25 +29,29 @@ pub fn frame_with_outputs(view: &RunView, theme: &Theme, tick: usize) -> Vec<Str
     frame_impl(view, theme, tick, true)
 }
 
-/// The one frame assembler behind both public forms.
-// `&Theme` to match the public `frame` borrow that threads it here — the
-// same one-calling-convention rationale as `task_line`.
+/// The header block (identity + ceiling + the audit-as-greeting permits
+/// line + one blank): shared by the full frame (task count = the rows)
+/// and the streamed plain narration (count from the injected plan —
+/// rows don't exist yet at the header moment). `tasks = 0` omits the
+/// count cell — a stream without a plan must not open on a lie.
+// `&Theme` to match the frame borrows that thread it here.
 #[allow(clippy::trivially_copy_pass_by_ref)]
-fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<String> {
-    let mut lines = Vec::with_capacity(view.rows().len() + 6);
-
-    // Header: identity + the statically-proven ceiling.
+fn header_lines(view: &RunView, theme: &Theme, tasks: usize) -> Vec<String> {
+    let mut lines = Vec::with_capacity(3);
+    let count = if tasks > 0 {
+        format!(" · {tasks} tasks")
+    } else {
+        String::new()
+    };
     let ceiling = view
         .ceiling_usd
         .map(|c| format!(" · ceiling ≤ {}", fmt_cost_usd(c)))
         .unwrap_or_default();
     lines.push(format!(
-        "  {} nika · {} · {} tasks{ceiling}",
+        "  {} nika · {}{count}{ceiling}",
         theme.logo(),
         theme.paint(Role::Strong, &view.workflow),
-        view.rows().len(),
     ));
-
     // The audit-as-greeting line (the trust moment, every run).
     if let Some(permits) = &view.permits {
         let mark = if theme.ascii { "OK" } else { "✓" };
@@ -58,6 +62,16 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
         ));
     }
     lines.push(String::new());
+    lines
+}
+
+/// The one frame assembler behind both public forms.
+// `&Theme` to match the public `frame` borrow that threads it here — the
+// same one-calling-convention rationale as `task_line`.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<String> {
+    let mut lines = Vec::with_capacity(view.rows().len() + 6);
+    lines.extend(header_lines(view, theme, view.rows().len()));
 
     // Task rows — stable order, aligned ids, notes dimmed. Time and cost
     // are first-class columns: a settled row carries its REAL wall time
@@ -100,24 +114,105 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
         ));
     }
 
-    // Footer meter: progress · live cost vs ceiling · wall clock. The
-    // spend speaks the ONE cost formatter (format.rs) — the meter and the
-    // verdict card can never again disagree on the same run's dollars.
-    let cost = spend_meter(view);
-    #[allow(clippy::cast_precision_loss)] // display-only seconds
-    let secs = view.elapsed_ms as f64 / 1000.0;
-    let meter = format!(
-        "── {}/{} done · {cost} · elapsed {secs:.1}s ",
-        view.done_count(),
-        view.rows().len(),
-    );
-    lines.push(format!(
-        "  {}",
-        theme.paint(Role::Dim, &pad_rule(&meter, 64))
-    ));
+    lines.push(meter_line(view, theme));
 
     // Failure card (only on a failed verdict · derives the explain hint) —
     // the SAME card the compact `--quiet` surface renders (shared helper).
+    if view.verdict == Some(false) {
+        append_failure_card(&mut lines, view, theme);
+    }
+    lines
+}
+
+/// The footer meter: progress · live cost vs ceiling · wall clock. The
+/// spend speaks the ONE cost formatter (format.rs) — the meter and the
+/// verdict card can never again disagree on the same run's dollars.
+/// The repair count rides beside `done` when non-zero (#319 · the
+/// `(N unpriced)` honesty style): a repaired run's final summary line
+/// must never read byte-identical to a clean one. Shared by the full
+/// frame and the streamed plain close (#321).
+// `&Theme` to match the frame borrows that thread it here.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn meter_line(view: &RunView, theme: &Theme) -> String {
+    let cost = spend_meter(view);
+    let repaired = match view.recovered_count() {
+        0 => String::new(),
+        n => format!("{n} recovered · "),
+    };
+    #[allow(clippy::cast_precision_loss)] // display-only seconds
+    let secs = view.elapsed_ms as f64 / 1000.0;
+    let meter = format!(
+        "── {}/{} done · {repaired}{cost} · elapsed {secs:.1}s ",
+        view.done_count(),
+        view.rows().len(),
+    );
+    format!("  {}", theme.paint(Role::Dim, &pad_rule(&meter, 64)))
+}
+
+/// The streamed header (#321 · the plain narration lane): the same
+/// identity + permits lines the frame opens with, printable the moment
+/// `workflow_started` folds. The task count prefers the injected wave
+/// plan (the run verb injects it BEFORE driving — no row exists yet at
+/// the header moment); a plan-less fold (a bare replay) falls back to
+/// the rows seen so far, and a zero count is omitted, never printed.
+// `&Theme` to match the sink borrow that threads it here.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+#[must_use]
+pub(crate) fn stream_header(view: &RunView, theme: &Theme) -> Vec<String> {
+    let tasks = view
+        .plan()
+        .map(|waves| waves.iter().map(Vec::len).sum())
+        .filter(|n| *n > 0)
+        .unwrap_or_else(|| view.rows().len());
+    header_lines(view, theme, tasks)
+}
+
+/// One settled row, streamed at its terminal frame (#321 · the plain
+/// narration lane): the same cells the final frame renders (glyph · id ·
+/// note · wall · spend · the repair fact · ∥ — all final by settle
+/// time) minus the table-wide note alignment (a stream cannot pad
+/// against rows that haven't spoken yet). `None` when the id names no
+/// folded row (a malformed frame renders nothing, never garbage).
+// `&Theme` to match the sink borrow that threads it here.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+#[must_use]
+pub(crate) fn stream_settled_line(
+    view: &RunView,
+    task: &str,
+    theme: &Theme,
+    outputs: bool,
+) -> Option<String> {
+    let (i, row) = view.rows().iter().enumerate().find(|(_, r)| r.id == task)?;
+    let id_w = view.rows().iter().map(|r| r.id.len()).max().unwrap_or(8);
+    let note = display_note(row, view);
+    let time = row_wall(row, view);
+    let time_w = time.as_ref().map_or(0, |t| t.chars().count());
+    let mark = lane_marks(view).get(i).copied().unwrap_or(false);
+    let tail = if outputs {
+        crate::display::shape::output_tail(row.output_json.as_deref(), row.tokens, theme)
+    } else {
+        None
+    };
+    Some(task_line(
+        row,
+        (view, &note),
+        theme,
+        0,
+        (id_w, note.chars().count(), time_w),
+        time.as_deref(),
+        mark,
+        tail.as_deref(),
+    ))
+}
+
+/// The streamed close (#321): the meter + the failure card. The rows
+/// already spoke at their settle — the plain final print never repeats
+/// them (a captured log reads the run ONCE, top to bottom).
+// `&Theme` to match the sink borrow that threads it here.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+#[must_use]
+pub(crate) fn stream_summary(view: &RunView, theme: &Theme) -> Vec<String> {
+    let mut lines = vec![meter_line(view, theme)];
     if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
     }
@@ -216,7 +311,7 @@ fn task_line(
         theme.paint(Role::Dim, &note),
     );
     let cost = row.cost_usd.map(|c| format!(" · {}", fmt_cost_usd(c)));
-    if time.is_none() && cost.is_none() && !mark && tail.is_none() {
+    if time.is_none() && cost.is_none() && !mark && tail.is_none() && !row.recovered {
         return line;
     }
     // Column pad computed on the RAW note (paint added escapes, the
@@ -233,6 +328,12 @@ fn task_line(
     }
     if let Some(cost) = cost {
         line.push_str(&theme.paint(Role::Dim, &cost));
+    }
+    // The repair fact (#319 · D-2026-07-08-N4): a row that settled
+    // through `on_error.recover` says so — yellow, the retry family's
+    // survived-incident colour (sober themes render it plain).
+    if row.recovered {
+        line.push_str(&theme.paint(Role::Warn, " · recovered"));
     }
     if let Some(tail) = tail {
         // Already painted by the shape module — one metadata unit.
@@ -897,6 +998,70 @@ mod tests {
         assert!(
             running.contains('▇'),
             "tokens reported → spark on the running row: {running}"
+        );
+    }
+
+    /// #319 — a repaired success SAYS so: the settled row gains
+    /// ` · recovered` and the meter line counts the repairs — while a
+    /// clean run's frame stays byte-identical (the golden tests above
+    /// pin that: the demo storyboard carries no `task_recovered`).
+    #[test]
+    fn recovered_rows_and_meter_carry_the_repair_fact() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let task = |n: &str| KeyValue::new("task", Value::String(n.to_owned()));
+
+        let mut view = RunView::new();
+        view.apply(
+            &demo::bare_event(EventKind::TaskStarted, 0)
+                .with_field(task("fragile"))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("invoke · nika:read".to_owned()),
+                )),
+        );
+        view.apply(
+            &demo::bare_event(EventKind::TaskRecovered, 1)
+                .with_field(task("fragile"))
+                .with_field(KeyValue::new(
+                    "code",
+                    Value::String("NIKA-BUILTIN-READ-001".to_owned()),
+                )),
+        );
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 2)
+                .with_field(task("fragile"))
+                .with_field(KeyValue::new("duration_ms", Value::Int(1))),
+        );
+        view.apply(&demo::bare_event(EventKind::WorkflowCompleted, 3));
+
+        let lines = frame(&view, &UNICODE, 0);
+        let row = lines.iter().find(|l| l.contains("fragile")).expect("row");
+        assert!(
+            row.contains("1ms · recovered"),
+            "the settled line says recovered: {row}"
+        );
+        let meter = lines.iter().find(|l| l.contains("done")).expect("meter");
+        assert!(
+            meter.contains("1/1 done · 1 recovered · "),
+            "the summary line counts the repair: {meter}"
+        );
+
+        // The SUCCESS path only — no failure card grew out of the repair.
+        assert!(
+            !lines.iter().any(|l| l.contains("fix:")),
+            "a recovered success is a success: {lines:?}"
+        );
+
+        // Colour ON: the fact paints yellow (the retry family).
+        let coloured = frame(&view, &Theme::new(true, false, false), 0);
+        let painted = coloured
+            .iter()
+            .find(|l| l.contains("fragile"))
+            .expect("row");
+        assert!(
+            painted.contains("\x1b[33m · recovered\x1b[0m"),
+            "recovered paints Warn: {painted:?}"
         );
     }
 
