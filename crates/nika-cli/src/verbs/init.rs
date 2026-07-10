@@ -130,10 +130,10 @@ alwaysApply: false
 
 # Nika Workflow Language
 
-Envelope: `nika: v1` (always · frozen forever). Extension: `.nika.yaml`.
+Envelope: `nika: v1` (always · frozen forever). Extensions: `.nika.yaml` (canonical) and `.nika.yml`.
 
 ## 4 Verbs (locked forever)
-- `infer:` LLM call (`prompt`, `system?`, `temperature?`, `schema?`)
+- `infer:` LLM call (`prompt`, `system?`, `temperature?`, `schema?`, `max_tokens?`, `model?`)
 - `exec:` subprocess (`command`, `cwd?`, `capture: text|structured`)
 - `invoke:` builtin/MCP tool (`tool`, `args`) — HTTP fetch = `tool: nika:fetch` (a tool, not a verb)
 - `agent:` multi-turn loop (`prompt`, `tools`, `max_turns`, `max_tokens_total`)
@@ -143,7 +143,7 @@ Envelope: `nika: v1` (always · frozen forever). Extension: `.nika.yaml`.
 - Bindings use `with: { alias: ${{ tasks.id.output }} }` then `${{ with.alias }}`.
 - Models use the combined form `provider/name` (for example `mock/echo`, `ollama/qwen3.5:4b`, `mistral/mistral-small`).
 - `depends_on` is always an array: `depends_on: [task_id]`.
-- Secrets come from the environment — never inline literal keys.
+- Secrets are declared in a top-level `secrets:` block (e.g. `source: env`, `key: MY_KEY`) and referenced as `${{ secrets.name }}` — never inline literal keys; `${{ env.* }}` is for non-sensitive configuration.
 - After every edit, run `nika check <file>` and repair from diagnostics.
 - Unknown code? Run `nika explain NIKA-XXXX`.
 "#;
@@ -328,6 +328,36 @@ fn write_file(path: &str, body: &str) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use crate::verbs::exit;
+
+    /// The cursor rule teaches the REAL binary surface — external review
+    /// (awesome-cursorrules PR 332 · issue #390) caught the generator
+    /// omitting `max_tokens`/`model` from the infer signature, teaching
+    /// env-sourced secrets instead of the declared `secrets:` block, and
+    /// naming one extension while the globs match two. These pins keep
+    /// the teaching surface honest against the schema.
+    #[test]
+    fn cursor_rule_teaches_the_shipped_surface() {
+        assert!(
+            CURSOR_RULES.contains("`max_tokens?`, `model?`"),
+            "infer signature must carry max_tokens/model (issue #390)"
+        );
+        assert!(
+            CURSOR_RULES.contains("${{ secrets.name }}"),
+            "secrets guidance must teach the secrets namespace, not bare env"
+        );
+        assert!(
+            CURSOR_RULES.contains("declared in a top-level `secrets:` block"),
+            "secrets guidance must teach the declared block"
+        );
+        assert!(
+            CURSOR_RULES.contains("`.nika.yaml` (canonical) and `.nika.yml`"),
+            "prose must name both extensions the globs match"
+        );
+        assert!(
+            CURSOR_RULES.contains("**/*.nika.yml"),
+            "the yml glob stays — the prose now matches it"
+        );
+    }
 
     #[test]
     fn successful_init_hands_over_to_the_next_command() {
