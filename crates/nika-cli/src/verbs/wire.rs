@@ -25,6 +25,9 @@ pub enum WireTarget {
     Zed,
     Opencode,
     Hermes,
+    Gemini,
+    Lmstudio,
+    Junie,
     All,
 }
 
@@ -75,6 +78,9 @@ fn expand_target(target: WireTarget) -> Vec<WireTarget> {
             WireTarget::Zed,
             WireTarget::Opencode,
             WireTarget::Hermes,
+            WireTarget::Gemini,
+            WireTarget::Lmstudio,
+            WireTarget::Junie,
         ],
         other => vec![other],
     }
@@ -110,8 +116,51 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
         // least-privilege home (the repo the oracle serves).
         WireTarget::Opencode => patch_opencode(&Path::new(dir).join("opencode.json")),
         WireTarget::Hermes => patch_hermes(&home_path(&[".hermes", "config.yaml"])?),
+        // Gemini CLI reads `mcpServers` from its SHARED `settings.json`
+        // (user scope · docs/tools/mcp-server.md) — `patch_config` only
+        // touches that one key, every other setting survives. Server names
+        // must not contain underscores (upstream policy parser splits on
+        // `_`) — `nika` is safe.
+        WireTarget::Gemini => patch_cursor_like(
+            &home_path(&[".gemini", "settings.json"])?,
+            "mcpServers",
+            "gemini",
+            false,
+        ),
+        WireTarget::Lmstudio => {
+            patch_cursor_like(&lmstudio_mcp_path()?, "mcpServers", "lmstudio", false)
+        }
+        // Junie reads project-scope `.junie/mcp/mcp.json` (`mcpServers`
+        // root · junie-cli-mcp-configuration.html); the global
+        // `~/.junie/mcp/mcp.json` exists but the project file is the
+        // least-privilege home, same reasoning as OpenCode above.
+        WireTarget::Junie => patch_cursor_like(
+            &Path::new(dir).join(".junie").join("mcp").join("mcp.json"),
+            "mcpServers",
+            "junie",
+            false,
+        ),
         WireTarget::All => unreachable!("expanded before dispatch"),
     }
+}
+
+/// LM Studio documents `~/.lmstudio/mcp.json` (blog v0.3.17 · macOS+Linux ·
+/// `%USERPROFILE%\.lmstudio` on Windows), but on some macOS installs the app
+/// actually keeps it under `~/.cache/lm-studio/` (lmstudio-bug-tracker#1371,
+/// open) — writing the documented path there would wire nothing. Resolution:
+/// whichever app-created directory EXISTS wins, documented location first;
+/// neither existing falls back to the documented default (created on write).
+fn lmstudio_mcp_path() -> Result<PathBuf, String> {
+    Ok(lmstudio_mcp_path_from(&home_path(&[])?))
+}
+
+fn lmstudio_mcp_path_from(home: &Path) -> PathBuf {
+    let documented = home.join(".lmstudio");
+    let cache = home.join(".cache").join("lm-studio");
+    if !documented.is_dir() && cache.is_dir() {
+        return cache.join("mcp.json");
+    }
+    documented.join("mcp.json")
 }
 
 /// Zed reads MCP servers from `context_servers` in `settings.json`
@@ -721,6 +770,106 @@ args = ["mcp"]
         let again = patch_zed(&path).expect("wire twice");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// #384 · gemini: `mcpServers` lives inside the SHARED settings.json —
+    /// every unrelated setting survives, stale argv migrates.
+    #[test]
+    fn gemini_settings_preserves_unrelated_keys_and_migrates_stale() {
+        let dir = temp_dir("gemini");
+        let path = dir.join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{
+  "theme": "GitHub",
+  "autoAccept": false,
+  "mcpServers": {
+    "context7": { "command": "npx", "args": ["-y", "@upstash/context7-mcp"] },
+    "nika": { "command": "nika", "args": ["mcp", "serve", "--stdio"] }
+  }
+}
+"#,
+        )
+        .expect("fixture");
+
+        let action = patch_cursor_like(&path, "mcpServers", "gemini", false).expect("wire");
+        assert!(matches!(action, WireAction::Migrated(_)), "{action:?}");
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["theme"], "GitHub", "unrelated settings preserved");
+        assert_eq!(doc["autoAccept"], false, "unrelated settings preserved");
+        assert_eq!(doc["mcpServers"]["context7"]["command"], "npx");
+        assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
+
+        let again = patch_cursor_like(&path, "mcpServers", "gemini", false).expect("re-run");
+        assert!(matches!(again, WireAction::Current(_)));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// #384 · lmstudio: the documented dir wins, the cache dir
+    /// (lmstudio-bug-tracker#1371) is honoured only when it is the ONLY
+    /// app-created root, and a bare home falls back to the documented
+    /// default.
+    #[test]
+    fn lmstudio_path_resolution_truth_table() {
+        let home = temp_dir("lmstudio-home");
+
+        // Bare home — documented default (created on write).
+        assert_eq!(
+            lmstudio_mcp_path_from(&home),
+            home.join(".lmstudio").join("mcp.json")
+        );
+
+        // Only the cache root exists — the app lives there, follow it.
+        std::fs::create_dir_all(home.join(".cache").join("lm-studio")).expect("cache root");
+        assert_eq!(
+            lmstudio_mcp_path_from(&home),
+            home.join(".cache").join("lm-studio").join("mcp.json")
+        );
+
+        // Documented root exists — it wins even beside the cache root.
+        std::fs::create_dir_all(home.join(".lmstudio")).expect("documented root");
+        assert_eq!(
+            lmstudio_mcp_path_from(&home),
+            home.join(".lmstudio").join("mcp.json")
+        );
+        let _ = std::fs::remove_dir_all(home);
+    }
+
+    /// #384 · lmstudio: dedicated `mcp.json` (Cursor-style `mcpServers`) —
+    /// created then idempotent at the resolved path.
+    #[test]
+    fn lmstudio_config_created_and_idempotent() {
+        let home = temp_dir("lmstudio-cfg");
+        std::fs::create_dir_all(home.join(".lmstudio")).expect("root");
+        let path = lmstudio_mcp_path_from(&home);
+
+        let action = patch_cursor_like(&path, "mcpServers", "lmstudio", false).expect("wire");
+        assert!(matches!(action, WireAction::Created(_)), "{action:?}");
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
+        assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
+
+        let again = patch_cursor_like(&path, "mcpServers", "lmstudio", false).expect("re-run");
+        assert!(matches!(again, WireAction::Current(_)));
+        let _ = std::fs::remove_dir_all(home);
+    }
+
+    /// #384 · junie: project-scope `.junie/mcp/mcp.json` — nested dirs
+    /// created, `mcpServers` root, idempotent.
+    #[test]
+    fn junie_project_config_created_nested_and_idempotent() {
+        let project = temp_dir("junie");
+        let path = project.join(".junie").join("mcp").join("mcp.json");
+
+        let action = patch_cursor_like(&path, "mcpServers", "junie", false).expect("wire");
+        assert!(matches!(action, WireAction::Created(_)), "{action:?}");
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
+        assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
+
+        let again = patch_cursor_like(&path, "mcpServers", "junie", false).expect("re-run");
+        assert!(matches!(again, WireAction::Current(_)));
+        let _ = std::fs::remove_dir_all(project);
     }
 
     #[allow(clippy::disallowed_methods)]
