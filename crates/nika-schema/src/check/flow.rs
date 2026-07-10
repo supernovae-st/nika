@@ -201,7 +201,12 @@ pub(super) fn analyze_flow(wf: &RawWorkflow, waves: &[Vec<usize>]) -> FlowFacts 
         }
     }
 
-    // Egress: a workflow `outputs:` entry referencing a tainted slot.
+    // Egress: a workflow `outputs:` entry referencing a tainted slot —
+    // UNLESS the owning secret declassifies the workflow boundary itself
+    // (`egress: [{ to: "outputs" }]` · spec 01-envelope §egress · the DLM
+    // owner's act, same as every sink; absent = default-deny, the report
+    // stands). Sink-only and secret-SPECIFIC: it clears nothing but THIS
+    // secret's taints reaching `outputs:` — never a send.
     for (name, decl) in &wf.outputs {
         if let Some(trace) = taint_of_refs(
             refs_in_str(decl_value(decl)),
@@ -210,6 +215,10 @@ pub(super) fn analyze_flow(wf: &RawWorkflow, waves: &[Vec<usize>]) -> FlowFacts 
             &id_of,
             &facts,
         ) {
+            let egress = egress_of.get(trace.secret.as_str()).copied().unwrap_or(&[]);
+            if egress.iter().any(|rule| rule.to == "outputs") {
+                continue;
+            }
             facts
                 .egress
                 .insert(name.value.clone(), trace.via("outputs".to_owned()));
@@ -666,6 +675,89 @@ mod tests {
             f.effect_taint(idx(&wf, "b")).is_none(),
             "infer output not tainted → downstream stays clean"
         );
+    }
+
+    #[test]
+    fn outputs_egress_declass_clears_the_boundary_report() {
+        // The api-upload class (night battery 2026-07-10): the capture
+        // stays tainted, outputs is where it LEAVES — `to: "outputs"` is
+        // the owner's declassification of the workflow boundary itself.
+        let y = "\
+nika: v1
+workflow: w
+secrets:
+  api_key:
+    source: vault
+    key: x
+    egress:
+      - to: \"nika:fetch\"
+      - to: \"outputs\"
+tasks:
+  - id: up
+    invoke:
+      tool: \"nika:fetch\"
+      args: { url: \"https://api.example.com/u\", headers: { x-api-key: \"${{ secrets.api_key }}\" } }
+outputs:
+  result: \"${{ tasks.up.output }}\"
+";
+        let (_wf, f) = facts(y);
+        assert!(
+            f.egresses().is_empty(),
+            "the declared boundary declass clears the outputs report"
+        );
+    }
+
+    #[test]
+    fn outputs_egress_stays_default_deny_without_the_rule() {
+        // Same workflow, no `to: "outputs"` — the report STANDS.
+        let y = "\
+nika: v1
+workflow: w
+secrets:
+  api_key:
+    source: vault
+    key: x
+    egress:
+      - to: \"nika:fetch\"
+tasks:
+  - id: up
+    invoke:
+      tool: \"nika:fetch\"
+      args: { url: \"https://api.example.com/u\", headers: { x-api-key: \"${{ secrets.api_key }}\" } }
+outputs:
+  result: \"${{ tasks.up.output }}\"
+";
+        let (_wf, f) = facts(y);
+        assert_eq!(f.egresses().len(), 1, "default-deny · the report stands");
+    }
+
+    #[test]
+    fn outputs_egress_never_authorizes_the_send() {
+        // `to: "outputs"` ALONE: the boundary is cleared but the SEND to
+        // nika:fetch is still an unsanctioned leak (no cross-sink grant).
+        let y = "\
+nika: v1
+workflow: w
+secrets:
+  api_key:
+    source: vault
+    key: x
+    egress:
+      - to: \"outputs\"
+tasks:
+  - id: up
+    invoke:
+      tool: \"nika:fetch\"
+      args: { url: \"https://api.example.com/u\", headers: { x-api-key: \"${{ secrets.api_key }}\" } }
+outputs:
+  result: \"${{ tasks.up.output }}\"
+";
+        let (wf, f) = facts(y);
+        assert!(
+            f.effect_leak(idx(&wf, "up")).is_some(),
+            "the send stays a leak — outputs clears only the boundary"
+        );
+        assert!(f.egresses().is_empty(), "the boundary itself is cleared");
     }
 
     #[test]

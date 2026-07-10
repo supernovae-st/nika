@@ -1,0 +1,118 @@
+pillar	namespace	stage	covered_by
+dag	(positive)	positive-run	conformance/dag/diamond-topology.nika.yaml
+dag	(positive)	positive-run	conformance/dag/foreach-empty-skips.nika.yaml
+dag	(positive)	positive-run	conformance/dag/foreach-item-index-bindings.nika.yaml
+dag	(positive)	positive-run	conformance/dag/foreach-over-upstream-output.nika.yaml
+dag	(positive)	positive-run	conformance/dag/when-false-skips.nika.yaml
+dag	(positive)	positive-run	conformance/dag/when-has-null-semantics.nika.yaml
+dag	NIKA-CANCEL	run-fail	conformance/dag/failure-cancels-downstream.nika.yaml
+dag	NIKA-DAG	check-reject	conformance/dag/cycle-reject.nika.yaml
+dag	NIKA-DAG	check-reject	conformance/dag/recover-ref-downstream-reject.nika.yaml
+dag	NIKA-DAG	check-reject	conformance/dag/ref-without-edge-reject.nika.yaml
+dag	NIKA-DAG	check-reject	conformance/dag/undeclared-dep-reject.nika.yaml
+dag	NIKA-EXEC	run-fail	conformance/dag/failure-cancels-downstream.nika.yaml
+dag	NIKA-EXEC	run-fail	conformance/dag/failure-drains-inflight.nika.yaml
+dag	NIKA-EXEC	run-fail	conformance/dag/foreach-fail-fast-false.nika.yaml
+dag	NIKA-EXEC	run-fail	conformance/dag/foreach-fail-fast-true.nika.yaml
+envelope	(positive)	positive-run	conformance/envelope/minimal-valid-workflow.nika.yaml
+envelope	(positive)	positive-run	conformance/envelope/outputs-contract.nika.yaml
+envelope	(positive)	positive-run	conformance/envelope/secrets-infer-egress-sanctioned.nika.yaml
+envelope	NIKA-PARSE	check-reject	conformance/envelope/parse-bad-task-id.nika.yaml
+envelope	NIKA-PARSE	check-reject	conformance/envelope/parse-bad-version.nika.yaml
+envelope	NIKA-PARSE	check-reject	conformance/envelope/parse-duplicate-task-id.nika.yaml
+envelope	NIKA-PARSE	check-reject	conformance/envelope/parse-inline-secret-forbidden.nika.yaml
+envelope	NIKA-PARSE	check-reject	conformance/envelope/parse-missing-workflow-field.nika.yaml
+envelope	NIKA-PARSE	check-reject	conformance/envelope/parse-reserved-binding-name.nika.yaml
+envelope	NIKA-PARSE	check-reject	conformance/envelope/parse-task-no-verb.nika.yaml
+envelope	NIKA-PARSE	check-reject	conformance/envelope/parse-unknown-field.nika.yaml
+envelope	NIKA-PARSE	check-reject	conformance/envelope/parse-yaml-syntax-reject.nika.yaml
+envelope	NIKA-SEC	run-fail	conformance/envelope/sec-exec-array-form-blocklist.nika.yaml
+envelope	NIKA-SEC	run-fail	conformance/envelope/sec-exec-blocklist-rm-rf.nika.yaml
+envelope	NIKA-SEC	run-fail	conformance/envelope/sec-ssrf-localhost-blocked.nika.yaml
+envelope	NIKA-SEC	run-fail	conformance/envelope/sec-ssrf-metadata-blocked.nika.yaml
+envelope	NIKA-SEC	run-fail	conformance/envelope/sec-ssrf-private-range-blocked.nika.yaml
+envelope	NIKA-SEC-gate	check-reject	conformance/envelope/permits-agent-tool-outside-whitelist.nika.yaml
+envelope	NIKA-SEC-gate	check-reject	conformance/envelope/permits-empty-default-deny.nika.yaml
+envelope	NIKA-SEC-gate	check-reject	conformance/envelope/permits-exec-absent.nika.yaml
+envelope	NIKA-SEC-gate	check-reject	conformance/envelope/permits-fs-read-escape.nika.yaml
+envelope	NIKA-SEC-gate	check-reject	conformance/envelope/permits-fs-write-escape-absolute.nika.yaml
+envelope	NIKA-SEC-gate	check-reject	conformance/envelope/permits-net-absent.nika.yaml
+envelope	NIKA-SEC-gate	check-reject	conformance/envelope/permits-tool-not-listed.nika.yaml
+envelope	NIKA-SEC-gate	check-reject	conformance/envelope/secrets-launder-concat.nika.yaml
+envelope	NIKA-SEC-gate	check-reject	conformance/envelope/secrets-leak-exec-sink.nika.yaml
+envelope	NIKA-SEC-gate	check-reject	conformance/envelope/secrets-leak-infer-prompt.nika.yaml
+envelope	NIKA-SEC-gate	check-reject	conformance/envelope/secrets-two-sinks-one-sanctioned.nika.yaml
+errors	NIKA-BUILTIN	recovered	conformance/errors/foreach-recover-null-alignment.nika.yaml
+errors	NIKA-EXEC	recovered	conformance/errors/on-error-on-codes-matched.nika.yaml
+errors	NIKA-EXEC	recovered	conformance/errors/on-error-recover-downstream.nika.yaml
+errors	NIKA-EXEC	recovered	conformance/errors/on-error-recover-literal.nika.yaml
+errors	NIKA-EXEC	recovered	conformance/errors/on-error-skip-status.nika.yaml
+errors	NIKA-EXEC	recovered	conformance/errors/recover-task-ref-with-edge.nika.yaml
+errors	NIKA-EXEC	recovered	conformance/errors/retry-exhausted-then-recover.nika.yaml
+errors	NIKA-EXEC	run-fail	conformance/errors/on-error-fail-workflow.nika.yaml
+errors	NIKA-EXEC	run-fail	conformance/errors/on-error-on-codes-unmatched.nika.yaml
+errors	NIKA-EXEC	run-fail	conformance/errors/on-finally-both-paths.nika.yaml
+errors	NIKA-EXEC	run-fail	conformance/errors/retry-non-transient-single-attempt.nika.yaml
+errors	NIKA-EXEC	run-fail	conformance/errors/retry-on-codes-forces.nika.yaml
+errors	NIKA-EXEC	run-fail	conformance/errors/retry-on-codes-unmatched.nika.yaml
+errors	NIKA-TIMEOUT	recovered	conformance/errors/timeout-recovered.nika.yaml
+errors	NIKA-TIMEOUT	run-fail	conformance/errors/timeout-never-retryable.nika.yaml
+errors	NIKA-VAR	DIVERGENT	conformance/errors/recover-task-ref-no-edge.nika.yaml
+errors	NIKA-VAR	recovered	conformance/errors/error-field-canonical-code.nika.yaml
+variables	(positive)	positive-run	conformance/variables/null-membership-compare.nika.yaml
+variables	(positive)	positive-run	conformance/variables/number-continuum.nika.yaml
+variables	(positive)	positive-run	conformance/variables/typed-vars-declarations.nika.yaml
+variables	NIKA-VAR	check-reject	conformance/variables/arithmetic-rejected.nika.yaml
+variables	NIKA-VAR	check-reject	conformance/variables/jq-expression-static-reject.nika.yaml
+variables	NIKA-VAR	check-reject	conformance/variables/missing-task-ref-reject.nika.yaml
+variables	NIKA-VAR	check-reject	conformance/variables/static-type-error-reject.nika.yaml
+variables	NIKA-VAR	check-reject	conformance/variables/unclosed-island-reject.nika.yaml
+variables	NIKA-VAR	check-reject	conformance/variables/unknown-function-reject.nika.yaml
+variables	NIKA-VAR	check-reject	conformance/variables/unresolved-ref-reject.nika.yaml
+variables	NIKA-VAR	check-reject	conformance/variables/when-bare-ref-reject.nika.yaml
+variables	NIKA-VAR	check-reject	conformance/variables/when-string-literal-reject.nika.yaml
+variables	NIKA-VAR	either	conformance/variables/cross-type-compare-error.nika.yaml
+variables	NIKA-VAR	either	conformance/variables/foreach-non-array-either.nika.yaml
+variables	NIKA-VAR	either	conformance/variables/string-method-type-mismatch.nika.yaml
+variables	NIKA-VAR	run-fail	conformance/variables/binding-bad-syntax-error.nika.yaml
+variables	NIKA-VAR	run-fail	conformance/variables/binding-stream-error.nika.yaml
+variables	NIKA-VAR	run-fail	conformance/variables/foreach-non-array-run.nika.yaml
+variables	NIKA-VAR	run-fail	conformance/variables/typed-outputs-mismatch.nika.yaml
+verbs	(positive)	positive-run	conformance/verbs/agent-injection-contained.nika.yaml
+verbs	(positive)	positive-run	conformance/verbs/agent-pure-conversation.nika.yaml
+verbs	(positive)	positive-run	conformance/verbs/builtin-assert-positive.nika.yaml
+verbs	(positive)	positive-run	conformance/verbs/builtin-extract-inline.nika.yaml
+verbs	(positive)	positive-run	conformance/verbs/builtin-json-diff.nika.yaml
+verbs	(positive)	positive-run	conformance/verbs/builtin-validate-errors-array.nika.yaml
+verbs	(positive)	positive-run	conformance/verbs/builtin-validate-positive.nika.yaml
+verbs	(positive)	positive-run	conformance/verbs/exec-capture-convert-chain.nika.yaml
+verbs	NIKA-BUILTIN	run-fail	conformance/verbs/builtin-assert-fail.nika.yaml
+verbs	NIKA-BUILTIN	run-fail	conformance/verbs/builtin-jq-runtime-error.nika.yaml
+verbs	NIKA-BUILTIN	run-fail	conformance/verbs/builtin-validate-bad-schema.nika.yaml
+verbs	NIKA-BUILTIN	run-fail	conformance/verbs/builtin-write-runtime-gap.nika.yaml
+verbs	NIKA-EXEC	run-fail	conformance/verbs/exec-nonzero-exit.nika.yaml
+verbs	NIKA-EXEC	run-fail	conformance/verbs/exec-spawn-fail.nika.yaml
+verbs	NIKA-SEC-gate	check-reject	conformance/verbs/invoke-unknown-tool-reject.nika.yaml
+verbs	NIKA-TIMEOUT	run-fail	conformance/verbs/timeout-basic.nika.yaml
+verbs	NIKA-TIMEOUT	run-fail	conformance/verbs/timeout-per-iteration.nika.yaml
+verbs	NIKA-INFER	check-reject	EMPTY (no mock infer-namespace check reject; infer statics covered via PARSE-014/SEC-secrets)
+verbs	NIKA-INFER	run-fail	EMPTY (no mock NIKA-INFER-001/002 exemplar in lab)
+verbs	NIKA-INFER	recovered	EMPTY
+verbs	NIKA-INFER	positive-run	covered under envelope pillar (envelope/secrets-infer-egress-sanctioned.nika.yaml — run-level mock infer, upgraded 2026-07-08)
+verbs	NIKA-AGENT	run-fail	EMPTY (cr29-agent-budget-exhausted NIKA-AGENT-001 is gemini-locked; needs mock port)
+verbs	NIKA-AGENT	recovered	EMPTY
+verbs	NIKA-INVOKE	run-fail	EMPTY (runtime invoke failures surface as NIKA-BUILTIN-*; mcp: tool path has no offline exemplar)
+verbs	NIKA-INVOKE	check-reject	covered as gate verdict (verbs/invoke-unknown-tool-reject.nika.yaml — spec-05 INVOKE-001 code not surfaced by reference check; FINDINGS.md F-1)
+verbs	NIKA-BUILTIN	recovered	covered under errors pillar (errors/foreach-recover-null-alignment.nika.yaml)
+verbs	NIKA-TIMEOUT	recovered	covered under errors pillar (errors/timeout-recovered.nika.yaml)
+verbs	(positive)	exec-structured-capture	EMPTY (etl/23 machine-dependent; needs self-contained rewrite)
+verbs	(positive)	builtin-read-glob-grep-hash	EMPTY (cr04/cr17/cr18/etl-08 fixture-dependent; need in-corpus fixtures)
+dag	NIKA-DAG	run-fail	N/A-BY-DESIGN (DAG errors are static)
+envelope	NIKA-PARSE	run-fail	N/A-BY-DESIGN (parse errors are check-stage)
+envelope	NIKA-PARSE-010	check-reject	EMPTY (e31 bad-timeout-value dropped for budget; v0.2)
+envelope	NIKA-SEC	recovered	EMPTY (whether SEC blocks are on_error-recoverable is an open spec question)
+envelope	NIKA-SEC	ssrf-by-name	EMPTY (sec02 localhost-name excluded: DNS-resolution-dependent)
+envelope	NIKA-SEC	secrets-fetch-sink	EMPTY (sec27 dropped for budget; v0.2)
+errors	NIKA-BUILTIN-ASSERT	recovered	EMPTY (w06 dropped for budget; BUILTIN-recovered covered via JQ)
+variables	NIKA-VAR	recovered	partial (errors/error-field-canonical-code.nika.yaml recovers a VAR-006 args error)
+variables	NIKA-VAR	index-out-of-range	EMPTY (c12/c14 fire VAR-001 "unresolved reference"; spec code ambiguous — FINDINGS.md F-2; v0.2 after spec call)
