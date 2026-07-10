@@ -57,7 +57,7 @@ and over-grant-refusal sets.
 | 2 TDD | ✅ unit (profile/escape/grant/wrap) + the adversarial jail suite |
 | 3 IMPL | ✅ no unsafe · no heavy deps (only `nika-kernel`) |
 | 4 CLIPPY 0 | ✅ |
-| 5 MUTATION ≥90% | ⏳ CI (pairs with the Linux backend arc) |
+| 5 MUTATION ≥90% | ✅ 96% killed (26/27 viable · 2026-07-10 · `check-mutation-floor.sh` — the availability decision extracted pure + the confine happy-path pinned to kill the 4 survivors) |
 | 6 PROPERTY | ✅ injection + over-grant refusal batteries |
 | 8 DOCS | ✅ module + per-fn |
 | 9 CANARY | ✅ the jail suite IS the canary (macOS) |

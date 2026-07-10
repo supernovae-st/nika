@@ -57,7 +57,7 @@ impl SeatbeltSandbox {
     /// On any non-macOS target this is `false` (fail-closed).
     #[must_use]
     pub fn available() -> bool {
-        cfg!(target_os = "macos") && Path::new(LAUNCHER).exists()
+        available_given(cfg!(target_os = "macos"), Path::new(LAUNCHER).exists())
     }
 }
 
@@ -79,6 +79,16 @@ impl CommandSandbox for SeatbeltSandbox {
     fn backend(&self) -> &'static str {
         "seatbelt"
     }
+}
+
+/// The availability DECISION, pure — macOS AND the launcher binary both
+/// present, never either alone (fail-closed). Split from [`SeatbeltSandbox::available`]
+/// so the truth table is testable on EVERY platform: the binder reads the
+/// real world (cfg! + fs), this owns the logic — Gate 5's surviving
+/// mutants (`-> true` · `-> false` · `&& → ||`) all lived in the fused
+/// form, unkillable on any single host.
+fn available_given(is_macos: bool, launcher_exists: bool) -> bool {
+    is_macos && launcher_exists
 }
 
 /// Build the SBPL profile string from the spec (deny-default · see module doc).
@@ -293,6 +303,46 @@ const PROFILE_PREAMBLE: &str = r#"(version 1)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The availability truth table — all four rows, platform-free.
+    /// Kills Gate 5's three survivors: `-> true` (row 4 fails), `->
+    /// false` (row 1 fails), `&& → ||` (rows 2+3 fail).
+    #[test]
+    fn available_given_is_the_and_of_both_facts() {
+        assert!(available_given(true, true));
+        assert!(
+            !available_given(true, false),
+            "macOS without the launcher is UNAVAILABLE"
+        );
+        assert!(
+            !available_given(false, true),
+            "a launcher path on non-macOS is UNAVAILABLE"
+        );
+        assert!(!available_given(false, false));
+    }
+
+    /// The binder reflects THIS platform's truth (belt over the seam).
+    #[test]
+    fn available_binder_matches_the_real_world() {
+        let expected = cfg!(target_os = "macos") && Path::new(LAUNCHER).exists();
+        assert_eq!(SeatbeltSandbox::available(), expected);
+    }
+
+    /// On a macOS host with the launcher, confine PROCEEDS — the wrapped
+    /// command execs the launcher, not the original program. Kills the
+    /// `delete !` mutant (which would return Unavailable exactly here).
+    #[test]
+    fn confine_proceeds_when_available() {
+        if !SeatbeltSandbox::available() {
+            return; // linux CI: the truth-table test carries the logic
+        }
+        let spec = SandboxSpec::default();
+        let cmd = ShellCommand::new("/usr/bin/true");
+        let wrapped = SeatbeltSandbox::new()
+            .confine(&spec, cmd)
+            .expect("available host confines");
+        assert_eq!(wrapped.program, LAUNCHER);
+    }
 
     #[test]
     fn literal_prefix_extracts_the_directory_head() {
