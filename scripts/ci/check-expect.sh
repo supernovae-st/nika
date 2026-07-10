@@ -26,7 +26,12 @@ fi
 
 # Python helper written to a temp script so it can be called per-file without
 # bash here-doc-in-subshell limitations.
-_PY_CHECKER="$(mktemp /tmp/check_expect_XXXXXX.py)"
+# No suffix after the Xs: BSD/macOS mktemp only randomizes TRAILING Xs, so
+# `…_XXXXXX.py` degraded to a LITERAL name — two concurrent pre-push hooks
+# (parallel worktree pushes) collided on it with `mkstemp failed: File
+# exists`, blocking whichever push ran second (observed 2026-07-10). Python
+# runs any filename; portability beats the extension.
+_PY_CHECKER="$(mktemp /tmp/check_expect_XXXXXX)"
 trap 'rm -f "$_PY_CHECKER"' EXIT
 
 cat >"$_PY_CHECKER" <<'PYEOF'
