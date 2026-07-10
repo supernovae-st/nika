@@ -82,6 +82,21 @@ pub enum ExprError {
         /// The maximum nesting depth the parser admits.
         limit: usize,
     },
+
+    /// A binary arithmetic operator (`+` · `-` · `*` · `/` · `%`) — the
+    /// v0.1 CEL subset is a BOOLEAN guard grammar (comparisons · `&&`/`||`
+    /// · `!` · `size` · member access), never a calculator (spec `03-dag.md`
+    /// §CEL-subset). A distinct teaching variant so a new user who writes
+    /// `${{ vars.a + vars.b > 5 }}` learns WHERE arithmetic belongs (a
+    /// `nika:jq` task) instead of reading a raw `unexpected character`
+    /// tokenizer error · mirrors [`Self::UnknownFunction`]'s « `size` is
+    /// the only v0.1 callable » teaching.
+    ArithmeticUnsupported {
+        /// The offending operator.
+        op: char,
+        /// Byte offset relative to the expression start.
+        offset: usize,
+    },
 }
 
 impl fmt::Display for ExprError {
@@ -118,6 +133,12 @@ impl fmt::Display for ExprError {
             Self::TooDeep { offset, limit } => write!(
                 f,
                 "expression nests too deeply at offset {offset} (limit {limit})"
+            ),
+            Self::ArithmeticUnsupported { op, offset } => write!(
+                f,
+                "arithmetic operator `{op}` at offset {offset} — `${{{{ … }}}}` is a boolean \
+                 guard, not a calculator (v0.1 CEL subset): compute the value in a `nika:jq` \
+                 task and gate on `tasks.<id>.output`"
             ),
         }
     }
