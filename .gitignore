@@ -93,3 +93,7 @@ media/.frames/
 # execute; journals are artifacts, never sources (the editor watches them,
 # git must not).
 .nika/
+
+# nix build output symlinks (flake.nix)
+result
+result-*

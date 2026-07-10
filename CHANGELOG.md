@@ -12,6 +12,16 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nix run github:supernovae-st/nika` — the flake install path.** A
+  root `flake.nix` builds the exact release binary (`--bin nika-cli`,
+  locked, renamed to its public name) on the four release platforms —
+  zero gatekeeper, no queue, the 2026 Rust-CLI canon (helix · atuin ·
+  jujutsu all ship one). The derivation needs zero native build inputs
+  (the operator crate's dep tree is pure Rust + rustls) and skips tests
+  by design — diamond-ci gates every merge; a dedicated `nix.yml` job
+  proves the build on every PR touching the flake or the lockfile
+  (#388). Pairs with the binstall metadata (#383): together they cover
+  the two big « install without brew » crowds.
 - **`cargo binstall nika-cli` resolves the prebuilt release binaries.** The
   binary crate ships `[package.metadata.binstall]` mapping every release
   asset (macos/linux × arm64/x64 · the binary at tarball root under its

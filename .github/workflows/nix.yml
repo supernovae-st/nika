@@ -1,0 +1,40 @@
+# The flake's prover (#388): the authoring machines carry no nix, so this
+# job IS the proof the derivation builds — same trust model as the linux
+# leg of release.yml. Runs only when the flake inputs can change. No
+# github.event.* interpolation anywhere in run: (workflow-injection safe
+# by construction — static commands, paths trigger).
+name: nix
+
+on:
+  pull_request:
+    paths:
+      - flake.nix
+      - flake.lock
+      - Cargo.lock
+      - .github/workflows/nix.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: nix build (flake)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - name: Flake eval
+        run: nix flake check --no-build --print-build-logs
+      - name: Build the package
+        run: nix build .#nika --print-build-logs
+      - name: Smoke the binary
+        run: |
+          set -euo pipefail
+          ./result/bin/nika --version
+          out="$(./result/bin/nika --version)"
+          case "$out" in
+            nika\ *) echo "version line ok: $out" ;;
+            *) echo "unexpected version line: $out" >&2; exit 1 ;;
+          esac
