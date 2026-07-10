@@ -429,12 +429,17 @@ fn arg_rows(report: &CheckReport) -> Vec<String> {
         .unknown_args
         .iter()
         .map(|u| {
-            format!(
-                "`{}` (task `{}`) has no `{}` arg{}",
-                u.tool,
-                u.task,
-                u.arg,
+            // With a suggestion the fix is the rename; without one (a
+            // wrong-name-entirely miss — `extract` for fetch's `mode`),
+            // the closed declared set is the teaching.
+            let teach = if u.suggestion.is_some() {
                 fix_clause(u.suggestion.as_deref())
+            } else {
+                format!(" — declared: {}", u.declared.join(" · "))
+            };
+            format!(
+                "`{}` (task `{}`) has no `{}` arg{teach}",
+                u.tool, u.task, u.arg,
             )
         })
         .collect();
