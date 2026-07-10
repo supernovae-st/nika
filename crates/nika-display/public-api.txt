@@ -1,0 +1,474 @@
+pub mod nika_display
+pub mod nika_display::demo
+pub fn nika_display::demo::bare_event(kind: nika_event::kind::EventKind, ms: u64) -> nika_event::event::Event
+pub fn nika_display::demo::failure() -> alloc::vec::Vec<nika_event::event::Event>
+pub fn nika_display::demo::retrying() -> alloc::vec::Vec<nika_event::event::Event>
+pub fn nika_display::demo::success() -> alloc::vec::Vec<nika_event::event::Event>
+pub mod nika_display::flow
+pub struct nika_display::flow::Interval
+pub nika_display::flow::Interval::end: i64
+pub nika_display::flow::Interval::start: i64
+impl core::clone::Clone for nika_display::flow::Interval
+pub fn nika_display::flow::Interval::clone(&self) -> nika_display::flow::Interval
+impl core::cmp::Eq for nika_display::flow::Interval
+impl core::cmp::PartialEq for nika_display::flow::Interval
+pub fn nika_display::flow::Interval::eq(&self, other: &nika_display::flow::Interval) -> bool
+impl core::fmt::Debug for nika_display::flow::Interval
+pub fn nika_display::flow::Interval::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::flow::Interval
+impl core::marker::StructuralPartialEq for nika_display::flow::Interval
+impl<D> owo_colors::OwoColorize for nika_display::flow::Interval
+impl<Q, K> equivalent::Equivalent<K> for nika_display::flow::Interval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::flow::Interval::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::flow::Interval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::flow::Interval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::flow::Interval::equivalent(&self, key: &K) -> bool
+pub fn nika_display::flow::Interval::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::flow::Interval where U: core::convert::From<T>
+pub fn nika_display::flow::Interval::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::flow::Interval where U: core::convert::Into<T>
+pub type nika_display::flow::Interval::Error = core::convert::Infallible
+pub fn nika_display::flow::Interval::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::flow::Interval where U: core::convert::TryFrom<T>
+pub type nika_display::flow::Interval::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::flow::Interval::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::flow::Interval where T: core::clone::Clone
+pub type nika_display::flow::Interval::Owned = T
+pub fn nika_display::flow::Interval::clone_into(&self, target: &mut T)
+pub fn nika_display::flow::Interval::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::flow::Interval where T: 'static + ?core::marker::Sized
+pub fn nika_display::flow::Interval::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::flow::Interval where T: ?core::marker::Sized
+pub fn nika_display::flow::Interval::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::flow::Interval where T: ?core::marker::Sized
+pub fn nika_display::flow::Interval::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::flow::Interval where T: core::clone::Clone
+pub unsafe fn nika_display::flow::Interval::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::flow::Interval
+pub fn nika_display::flow::Interval::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::flow::Interval where T: core::clone::Clone
+pub fn nika_display::flow::Interval::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::flow::Interval where T: 'static
+pub fn nika_display::flow::Interval::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::flow::Interval where T: core::marker::Copy
+pub fn nika_display::flow::Interval::as_out(&mut self) -> outref::Out<'_, T>
+pub fn nika_display::flow::dag_shape(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::string::String
+pub fn nika_display::flow::fmt_wall_ms(ms: u64) -> alloc::string::String
+pub fn nika_display::flow::heat_bucket(wall_ms: u64, max_ms: u64) -> usize
+pub fn nika_display::flow::interval_of(row: &nika_display::state::TaskRow, now_ms: core::option::Option<i64>) -> core::option::Option<nika_display::flow::Interval>
+pub fn nika_display::flow::lane_marks(view: &nika_display::state::RunView) -> alloc::vec::Vec<bool>
+pub fn nika_display::flow::verdict_card(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, outputs_note: core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::flow::waterfall(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_display::format
+pub enum nika_display::format::ColorChoice
+pub nika_display::format::ColorChoice::Always
+pub nika_display::format::ColorChoice::Auto
+pub nika_display::format::ColorChoice::Never
+impl core::clone::Clone for nika_display::format::ColorChoice
+pub fn nika_display::format::ColorChoice::clone(&self) -> nika_display::format::ColorChoice
+impl core::cmp::Eq for nika_display::format::ColorChoice
+impl core::cmp::PartialEq for nika_display::format::ColorChoice
+pub fn nika_display::format::ColorChoice::eq(&self, other: &nika_display::format::ColorChoice) -> bool
+impl core::fmt::Debug for nika_display::format::ColorChoice
+pub fn nika_display::format::ColorChoice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::format::ColorChoice
+impl core::marker::StructuralPartialEq for nika_display::format::ColorChoice
+impl<D> owo_colors::OwoColorize for nika_display::format::ColorChoice
+impl<Q, K> equivalent::Equivalent<K> for nika_display::format::ColorChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::format::ColorChoice::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::format::ColorChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::format::ColorChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::format::ColorChoice::equivalent(&self, key: &K) -> bool
+pub fn nika_display::format::ColorChoice::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::format::ColorChoice where U: core::convert::From<T>
+pub fn nika_display::format::ColorChoice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::format::ColorChoice where U: core::convert::Into<T>
+pub type nika_display::format::ColorChoice::Error = core::convert::Infallible
+pub fn nika_display::format::ColorChoice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::format::ColorChoice where U: core::convert::TryFrom<T>
+pub type nika_display::format::ColorChoice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::format::ColorChoice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::format::ColorChoice where T: core::clone::Clone
+pub type nika_display::format::ColorChoice::Owned = T
+pub fn nika_display::format::ColorChoice::clone_into(&self, target: &mut T)
+pub fn nika_display::format::ColorChoice::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::format::ColorChoice where T: 'static + ?core::marker::Sized
+pub fn nika_display::format::ColorChoice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::format::ColorChoice where T: ?core::marker::Sized
+pub fn nika_display::format::ColorChoice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::format::ColorChoice where T: ?core::marker::Sized
+pub fn nika_display::format::ColorChoice::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::format::ColorChoice where T: core::clone::Clone
+pub unsafe fn nika_display::format::ColorChoice::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::format::ColorChoice
+pub fn nika_display::format::ColorChoice::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::format::ColorChoice where T: core::clone::Clone
+pub fn nika_display::format::ColorChoice::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::format::ColorChoice where T: 'static
+pub fn nika_display::format::ColorChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::format::ColorChoice where T: core::marker::Copy
+pub fn nika_display::format::ColorChoice::as_out(&mut self) -> outref::Out<'_, T>
+pub enum nika_display::format::LinkChoice
+pub nika_display::format::LinkChoice::Always
+pub nika_display::format::LinkChoice::Auto
+pub nika_display::format::LinkChoice::Never
+impl core::clone::Clone for nika_display::format::LinkChoice
+pub fn nika_display::format::LinkChoice::clone(&self) -> nika_display::format::LinkChoice
+impl core::cmp::Eq for nika_display::format::LinkChoice
+impl core::cmp::PartialEq for nika_display::format::LinkChoice
+pub fn nika_display::format::LinkChoice::eq(&self, other: &nika_display::format::LinkChoice) -> bool
+impl core::fmt::Debug for nika_display::format::LinkChoice
+pub fn nika_display::format::LinkChoice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::format::LinkChoice
+impl core::marker::StructuralPartialEq for nika_display::format::LinkChoice
+impl<D> owo_colors::OwoColorize for nika_display::format::LinkChoice
+impl<Q, K> equivalent::Equivalent<K> for nika_display::format::LinkChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::format::LinkChoice::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::format::LinkChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::format::LinkChoice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::format::LinkChoice::equivalent(&self, key: &K) -> bool
+pub fn nika_display::format::LinkChoice::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::format::LinkChoice where U: core::convert::From<T>
+pub fn nika_display::format::LinkChoice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::format::LinkChoice where U: core::convert::Into<T>
+pub type nika_display::format::LinkChoice::Error = core::convert::Infallible
+pub fn nika_display::format::LinkChoice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::format::LinkChoice where U: core::convert::TryFrom<T>
+pub type nika_display::format::LinkChoice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::format::LinkChoice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::format::LinkChoice where T: core::clone::Clone
+pub type nika_display::format::LinkChoice::Owned = T
+pub fn nika_display::format::LinkChoice::clone_into(&self, target: &mut T)
+pub fn nika_display::format::LinkChoice::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::format::LinkChoice where T: 'static + ?core::marker::Sized
+pub fn nika_display::format::LinkChoice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::format::LinkChoice where T: ?core::marker::Sized
+pub fn nika_display::format::LinkChoice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::format::LinkChoice where T: ?core::marker::Sized
+pub fn nika_display::format::LinkChoice::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::format::LinkChoice where T: core::clone::Clone
+pub unsafe fn nika_display::format::LinkChoice::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::format::LinkChoice
+pub fn nika_display::format::LinkChoice::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::format::LinkChoice where T: core::clone::Clone
+pub fn nika_display::format::LinkChoice::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::format::LinkChoice where T: 'static
+pub fn nika_display::format::LinkChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::format::LinkChoice where T: core::marker::Copy
+pub fn nika_display::format::LinkChoice::as_out(&mut self) -> outref::Out<'_, T>
+pub struct nika_display::format::ColorEnv
+pub nika_display::format::ColorEnv::clicolor_zero: bool
+pub nika_display::format::ColorEnv::force: bool
+pub nika_display::format::ColorEnv::no_color: bool
+pub nika_display::format::ColorEnv::term_dumb: bool
+impl core::clone::Clone for nika_display::format::ColorEnv
+pub fn nika_display::format::ColorEnv::clone(&self) -> nika_display::format::ColorEnv
+impl core::default::Default for nika_display::format::ColorEnv
+pub fn nika_display::format::ColorEnv::default() -> nika_display::format::ColorEnv
+impl core::fmt::Debug for nika_display::format::ColorEnv
+pub fn nika_display::format::ColorEnv::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::format::ColorEnv
+impl<D> owo_colors::OwoColorize for nika_display::format::ColorEnv
+impl<T, U> core::convert::Into<U> for nika_display::format::ColorEnv where U: core::convert::From<T>
+pub fn nika_display::format::ColorEnv::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::format::ColorEnv where U: core::convert::Into<T>
+pub type nika_display::format::ColorEnv::Error = core::convert::Infallible
+pub fn nika_display::format::ColorEnv::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::format::ColorEnv where U: core::convert::TryFrom<T>
+pub type nika_display::format::ColorEnv::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::format::ColorEnv::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::format::ColorEnv where T: core::clone::Clone
+pub type nika_display::format::ColorEnv::Owned = T
+pub fn nika_display::format::ColorEnv::clone_into(&self, target: &mut T)
+pub fn nika_display::format::ColorEnv::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::format::ColorEnv where T: 'static + ?core::marker::Sized
+pub fn nika_display::format::ColorEnv::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::format::ColorEnv where T: ?core::marker::Sized
+pub fn nika_display::format::ColorEnv::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::format::ColorEnv where T: ?core::marker::Sized
+pub fn nika_display::format::ColorEnv::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::format::ColorEnv where T: core::clone::Clone
+pub unsafe fn nika_display::format::ColorEnv::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::format::ColorEnv
+pub fn nika_display::format::ColorEnv::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::format::ColorEnv where T: core::clone::Clone
+pub fn nika_display::format::ColorEnv::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::format::ColorEnv where T: 'static
+pub fn nika_display::format::ColorEnv::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::format::ColorEnv where T: core::marker::Copy
+pub fn nika_display::format::ColorEnv::as_out(&mut self) -> outref::Out<'_, T>
+pub fn nika_display::format::color_enabled(choice: nika_display::format::ColorChoice, env: nika_display::format::ColorEnv, tty: bool) -> bool
+pub fn nika_display::format::file_url(host: &str, abs_path: &str) -> alloc::string::String
+pub fn nika_display::format::fmt_cost_usd(usd: f64) -> alloc::string::String
+pub fn nika_display::format::links_enabled(choice: nika_display::format::LinkChoice, tty: bool, term_dumb: bool) -> bool
+pub fn nika_display::format::osc8(url: &str, text: &str, id: core::option::Option<&str>) -> alloc::string::String
+pub mod nika_display::render
+pub fn nika_display::render::frame(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::render::frame_with_outputs(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::render::stream_header(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::render::stream_settled_line(view: &nika_display::state::RunView, task: &str, theme: &nika_display::theme::Theme, outputs: bool) -> core::option::Option<alloc::string::String>
+pub fn nika_display::render::stream_summary(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::render::verdict_frame(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_display::shape
+pub const nika_display::shape::SHAPE_CELLS: usize
+pub fn nika_display::shape::fmt_bytes(n: usize) -> alloc::string::String
+pub fn nika_display::shape::output_tail(output_json: core::option::Option<&str>, tokens: core::option::Option<u64>, theme: &nika_display::theme::Theme) -> core::option::Option<alloc::string::String>
+pub fn nika_display::shape::summarize(json_text: &str, max_cells: usize) -> core::option::Option<alloc::string::String>
+pub mod nika_display::snippet
+pub fn nika_display::snippet::paint_span(source: &str, path: &str, span: nika_schema::check::ByteSpan, theme: nika_display::theme::Theme) -> alloc::string::String
+pub mod nika_display::state
+pub enum nika_display::state::TaskState
+pub nika_display::state::TaskState::Cancelled
+pub nika_display::state::TaskState::Failed
+pub nika_display::state::TaskState::Ok
+pub nika_display::state::TaskState::Pending
+pub nika_display::state::TaskState::Retrying
+pub nika_display::state::TaskState::Running
+pub nika_display::state::TaskState::Skipped
+impl core::clone::Clone for nika_display::state::TaskState
+pub fn nika_display::state::TaskState::clone(&self) -> nika_display::state::TaskState
+impl core::cmp::Eq for nika_display::state::TaskState
+impl core::cmp::PartialEq for nika_display::state::TaskState
+pub fn nika_display::state::TaskState::eq(&self, other: &nika_display::state::TaskState) -> bool
+impl core::fmt::Debug for nika_display::state::TaskState
+pub fn nika_display::state::TaskState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::state::TaskState
+impl core::marker::StructuralPartialEq for nika_display::state::TaskState
+impl<D> owo_colors::OwoColorize for nika_display::state::TaskState
+impl<Q, K> equivalent::Equivalent<K> for nika_display::state::TaskState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::state::TaskState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::state::TaskState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::state::TaskState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::state::TaskState::equivalent(&self, key: &K) -> bool
+pub fn nika_display::state::TaskState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::state::TaskState where U: core::convert::From<T>
+pub fn nika_display::state::TaskState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::state::TaskState where U: core::convert::Into<T>
+pub type nika_display::state::TaskState::Error = core::convert::Infallible
+pub fn nika_display::state::TaskState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::state::TaskState where U: core::convert::TryFrom<T>
+pub type nika_display::state::TaskState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::state::TaskState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::state::TaskState where T: core::clone::Clone
+pub type nika_display::state::TaskState::Owned = T
+pub fn nika_display::state::TaskState::clone_into(&self, target: &mut T)
+pub fn nika_display::state::TaskState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::state::TaskState where T: 'static + ?core::marker::Sized
+pub fn nika_display::state::TaskState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::state::TaskState where T: ?core::marker::Sized
+pub fn nika_display::state::TaskState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::state::TaskState where T: ?core::marker::Sized
+pub fn nika_display::state::TaskState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::state::TaskState where T: core::clone::Clone
+pub unsafe fn nika_display::state::TaskState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::state::TaskState
+pub fn nika_display::state::TaskState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::state::TaskState where T: core::clone::Clone
+pub fn nika_display::state::TaskState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::state::TaskState where T: 'static
+pub fn nika_display::state::TaskState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::state::TaskState where T: core::marker::Copy
+pub fn nika_display::state::TaskState::as_out(&mut self) -> outref::Out<'_, T>
+pub struct nika_display::state::RunView
+pub nika_display::state::RunView::ceiling_usd: core::option::Option<f64>
+pub nika_display::state::RunView::cost_usd: f64
+pub nika_display::state::RunView::elapsed_ms: u64
+pub nika_display::state::RunView::permits: core::option::Option<alloc::string::String>
+pub nika_display::state::RunView::retries: u32
+pub nika_display::state::RunView::token_samples: alloc::vec::Vec<u64>
+pub nika_display::state::RunView::unpriced_calls: u64
+pub nika_display::state::RunView::verdict: core::option::Option<bool>
+pub nika_display::state::RunView::workflow: alloc::string::String
+pub nika_display::state::RunView::workflow_detail: core::option::Option<alloc::string::String>
+impl nika_display::state::RunView
+pub fn nika_display::state::RunView::apply(&mut self, event: &nika_event::event::Event)
+pub fn nika_display::state::RunView::done_count(&self) -> usize
+pub fn nika_display::state::RunView::failed_count(&self) -> usize
+pub fn nika_display::state::RunView::last_ts_ms(&self) -> core::option::Option<i64>
+pub fn nika_display::state::RunView::new() -> Self
+pub fn nika_display::state::RunView::plan(&self) -> core::option::Option<&[alloc::vec::Vec<alloc::string::String>]>
+pub fn nika_display::state::RunView::recovered_count(&self) -> usize
+pub fn nika_display::state::RunView::rows(&self) -> &[nika_display::state::TaskRow]
+pub fn nika_display::state::RunView::set_plan(&mut self, waves: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>)
+impl core::default::Default for nika_display::state::RunView
+pub fn nika_display::state::RunView::default() -> nika_display::state::RunView
+impl core::fmt::Debug for nika_display::state::RunView
+pub fn nika_display::state::RunView::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_display::state::RunView
+impl<T, U> core::convert::Into<U> for nika_display::state::RunView where U: core::convert::From<T>
+pub fn nika_display::state::RunView::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::state::RunView where U: core::convert::Into<T>
+pub type nika_display::state::RunView::Error = core::convert::Infallible
+pub fn nika_display::state::RunView::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::state::RunView where U: core::convert::TryFrom<T>
+pub type nika_display::state::RunView::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::state::RunView::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_display::state::RunView where T: 'static + ?core::marker::Sized
+pub fn nika_display::state::RunView::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::state::RunView where T: ?core::marker::Sized
+pub fn nika_display::state::RunView::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::state::RunView where T: ?core::marker::Sized
+pub fn nika_display::state::RunView::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_display::state::RunView
+pub fn nika_display::state::RunView::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_display::state::RunView where T: 'static
+pub fn nika_display::state::RunView::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_display::state::TaskRow
+pub nika_display::state::TaskRow::cached: bool
+pub nika_display::state::TaskRow::cost_usd: core::option::Option<f64>
+pub nika_display::state::TaskRow::def_hash: core::option::Option<alloc::string::String>
+pub nika_display::state::TaskRow::detail: alloc::string::String
+pub nika_display::state::TaskRow::duration_ms: core::option::Option<u64>
+pub nika_display::state::TaskRow::ended_ms: core::option::Option<i64>
+pub nika_display::state::TaskRow::id: alloc::string::String
+pub nika_display::state::TaskRow::input_hash: core::option::Option<alloc::string::String>
+pub nika_display::state::TaskRow::model: core::option::Option<alloc::string::String>
+pub nika_display::state::TaskRow::note: alloc::string::String
+pub nika_display::state::TaskRow::output_json: core::option::Option<alloc::string::String>
+pub nika_display::state::TaskRow::recovered: bool
+pub nika_display::state::TaskRow::started_ms: core::option::Option<i64>
+pub nika_display::state::TaskRow::started_note: core::option::Option<alloc::string::String>
+pub nika_display::state::TaskRow::state: nika_display::state::TaskState
+pub nika_display::state::TaskRow::tokens: core::option::Option<u64>
+impl nika_display::state::TaskRow
+pub fn nika_display::state::TaskRow::wall_ms(&self) -> core::option::Option<u64>
+impl core::clone::Clone for nika_display::state::TaskRow
+pub fn nika_display::state::TaskRow::clone(&self) -> nika_display::state::TaskRow
+impl core::fmt::Debug for nika_display::state::TaskRow
+pub fn nika_display::state::TaskRow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_display::state::TaskRow
+impl<T, U> core::convert::Into<U> for nika_display::state::TaskRow where U: core::convert::From<T>
+pub fn nika_display::state::TaskRow::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::state::TaskRow where U: core::convert::Into<T>
+pub type nika_display::state::TaskRow::Error = core::convert::Infallible
+pub fn nika_display::state::TaskRow::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::state::TaskRow where U: core::convert::TryFrom<T>
+pub type nika_display::state::TaskRow::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::state::TaskRow::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::state::TaskRow where T: core::clone::Clone
+pub type nika_display::state::TaskRow::Owned = T
+pub fn nika_display::state::TaskRow::clone_into(&self, target: &mut T)
+pub fn nika_display::state::TaskRow::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::state::TaskRow where T: 'static + ?core::marker::Sized
+pub fn nika_display::state::TaskRow::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::state::TaskRow where T: ?core::marker::Sized
+pub fn nika_display::state::TaskRow::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::state::TaskRow where T: ?core::marker::Sized
+pub fn nika_display::state::TaskRow::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::state::TaskRow where T: core::clone::Clone
+pub unsafe fn nika_display::state::TaskRow::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::state::TaskRow
+pub fn nika_display::state::TaskRow::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::state::TaskRow where T: core::clone::Clone
+pub fn nika_display::state::TaskRow::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::state::TaskRow where T: 'static
+pub fn nika_display::state::TaskRow::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_display::state::str_field<'a>(event: &'a nika_event::event::Event, key: &str) -> core::option::Option<&'a str>
+pub mod nika_display::theme
+pub enum nika_display::theme::Role
+pub nika_display::theme::Role::Accent
+pub nika_display::theme::Role::Bad
+pub nika_display::theme::Role::Dim
+pub nika_display::theme::Role::Good
+pub nika_display::theme::Role::Strong
+pub nika_display::theme::Role::Warn
+impl core::clone::Clone for nika_display::theme::Role
+pub fn nika_display::theme::Role::clone(&self) -> nika_display::theme::Role
+impl core::cmp::Eq for nika_display::theme::Role
+impl core::cmp::PartialEq for nika_display::theme::Role
+pub fn nika_display::theme::Role::eq(&self, other: &nika_display::theme::Role) -> bool
+impl core::fmt::Debug for nika_display::theme::Role
+pub fn nika_display::theme::Role::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::theme::Role
+impl core::marker::StructuralPartialEq for nika_display::theme::Role
+impl<D> owo_colors::OwoColorize for nika_display::theme::Role
+impl<Q, K> equivalent::Equivalent<K> for nika_display::theme::Role where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::theme::Role::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::theme::Role where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::theme::Role where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::theme::Role::equivalent(&self, key: &K) -> bool
+pub fn nika_display::theme::Role::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::theme::Role where U: core::convert::From<T>
+pub fn nika_display::theme::Role::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::theme::Role where U: core::convert::Into<T>
+pub type nika_display::theme::Role::Error = core::convert::Infallible
+pub fn nika_display::theme::Role::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::theme::Role where U: core::convert::TryFrom<T>
+pub type nika_display::theme::Role::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::theme::Role::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::theme::Role where T: core::clone::Clone
+pub type nika_display::theme::Role::Owned = T
+pub fn nika_display::theme::Role::clone_into(&self, target: &mut T)
+pub fn nika_display::theme::Role::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::theme::Role where T: 'static + ?core::marker::Sized
+pub fn nika_display::theme::Role::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::theme::Role where T: ?core::marker::Sized
+pub fn nika_display::theme::Role::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::theme::Role where T: ?core::marker::Sized
+pub fn nika_display::theme::Role::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::theme::Role where T: core::clone::Clone
+pub unsafe fn nika_display::theme::Role::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::theme::Role
+pub fn nika_display::theme::Role::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::theme::Role where T: core::clone::Clone
+pub fn nika_display::theme::Role::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::theme::Role where T: 'static
+pub fn nika_display::theme::Role::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::theme::Role where T: core::marker::Copy
+pub fn nika_display::theme::Role::as_out(&mut self) -> outref::Out<'_, T>
+pub struct nika_display::theme::Theme
+pub nika_display::theme::Theme::accents: bool
+pub nika_display::theme::Theme::animate: bool
+pub nika_display::theme::Theme::ascii: bool
+pub nika_display::theme::Theme::color: bool
+pub nika_display::theme::Theme::heat: bool
+pub nika_display::theme::Theme::links: bool
+impl nika_display::theme::Theme
+pub fn nika_display::theme::Theme::glyph(&self, state: nika_display::state::TaskState, tick: usize) -> alloc::string::String
+pub fn nika_display::theme::Theme::heat_step(self, step: usize, text: &str) -> alloc::string::String
+pub fn nika_display::theme::Theme::link(&self, url: &str, text: &str) -> alloc::string::String
+pub fn nika_display::theme::Theme::logo(&self) -> &'static str
+pub const fn nika_display::theme::Theme::new(color: bool, ascii: bool, animate: bool) -> Self
+pub fn nika_display::theme::Theme::paint(&self, role: nika_display::theme::Role, text: &str) -> alloc::string::String
+pub fn nika_display::theme::Theme::sparkline(&self, samples: &[u64]) -> alloc::string::String
+impl core::clone::Clone for nika_display::theme::Theme
+pub fn nika_display::theme::Theme::clone(&self) -> nika_display::theme::Theme
+impl core::fmt::Debug for nika_display::theme::Theme
+pub fn nika_display::theme::Theme::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::theme::Theme
+impl<D> owo_colors::OwoColorize for nika_display::theme::Theme
+impl<T, U> core::convert::Into<U> for nika_display::theme::Theme where U: core::convert::From<T>
+pub fn nika_display::theme::Theme::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::theme::Theme where U: core::convert::Into<T>
+pub type nika_display::theme::Theme::Error = core::convert::Infallible
+pub fn nika_display::theme::Theme::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::theme::Theme where U: core::convert::TryFrom<T>
+pub type nika_display::theme::Theme::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::theme::Theme::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::theme::Theme where T: core::clone::Clone
+pub type nika_display::theme::Theme::Owned = T
+pub fn nika_display::theme::Theme::clone_into(&self, target: &mut T)
+pub fn nika_display::theme::Theme::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::theme::Theme where T: 'static + ?core::marker::Sized
+pub fn nika_display::theme::Theme::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::theme::Theme where T: ?core::marker::Sized
+pub fn nika_display::theme::Theme::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::theme::Theme where T: ?core::marker::Sized
+pub fn nika_display::theme::Theme::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::theme::Theme where T: core::clone::Clone
+pub unsafe fn nika_display::theme::Theme::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::theme::Theme
+pub fn nika_display::theme::Theme::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::theme::Theme where T: core::clone::Clone
+pub fn nika_display::theme::Theme::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::theme::Theme where T: 'static
+pub fn nika_display::theme::Theme::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::theme::Theme where T: core::marker::Copy
+pub fn nika_display::theme::Theme::as_out(&mut self) -> outref::Out<'_, T>
+pub const nika_display::theme::HEAT_RAMP: [(u8, u8, u8); 5]
+pub const nika_display::theme::SPARK: [char; 7]
+pub const nika_display::theme::SPINNER: [char; 10]
+pub mod nika_display::vocab
+pub fn nika_display::vocab::arrow(ascii: bool) -> &'static str
+pub fn nika_display::vocab::at_least(ascii: bool) -> &'static str
+pub fn nika_display::vocab::hint(theme: nika_display::theme::Theme, label: &str, command: &str) -> alloc::string::String
