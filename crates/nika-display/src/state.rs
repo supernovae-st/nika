@@ -199,6 +199,17 @@ impl RunView {
             .count()
     }
 
+    /// FAILED rows · rides the final meter beside `recovered` (same honesty
+    /// style — `done` counts every terminal state, so a failing run's meter
+    /// read byte-identical to a clean one · caught live 2026-07-10 · #393).
+    #[must_use]
+    pub fn failed_count(&self) -> usize {
+        self.rows
+            .iter()
+            .filter(|r| r.state == TaskState::Failed)
+            .count()
+    }
+
     /// Fold one event into the view (the ONLY mutation path).
     pub fn apply(&mut self, event: &Event) {
         let ts = event.timestamp.unix_ms();
@@ -482,6 +493,7 @@ mod tests {
         assert_eq!(view.verdict, Some(true));
         assert_eq!(view.rows().len(), 5);
         assert_eq!(view.done_count(), 5);
+        assert_eq!(view.failed_count(), 0);
         assert!((view.cost_usd - 0.011).abs() < 1e-9);
         assert_eq!(view.ceiling_usd, Some(0.04));
         let states: Vec<TaskState> = view.rows().iter().map(|r| r.state).collect();
@@ -511,6 +523,7 @@ mod tests {
             .collect();
         assert_eq!(failed.len(), 1);
         assert!(failed[0].detail.contains("NIKA-431"));
+        assert_eq!(view.failed_count(), 1, "the meter's failed counter");
     }
 
     #[test]
