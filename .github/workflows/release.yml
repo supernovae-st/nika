@@ -166,6 +166,11 @@ jobs:
           smoke="$(mktemp -d)"
           tar -xzf nika-*.tar.gz -C "$smoke"
           bash scripts/ci/funnel-e2e.sh "$smoke/nika"
+          # The operator's trust path against the SAME tarball — the
+          # runs-as-evidence claims (resume · reproduce · chain verify ·
+          # tamper/drop exit 2 · OTLP export). A release whose flight
+          # recorder lies never uploads. scripts/test/trust-battery.sh.
+          bash scripts/test/trust-battery.sh "$smoke/nika"
       - uses: actions/upload-artifact@v4
         with:
           name: nika-${{ matrix.name }}
