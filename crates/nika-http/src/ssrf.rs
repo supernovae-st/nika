@@ -31,29 +31,7 @@
 //! through a translation gateway. (Teredo `2001::/32` obfuscates the
 //! client v4 by XOR; it is dead in practice and not special-cased.)
 
-use std::net::IpAddr;
-
 use nika_kernel::HttpError;
-
-/// True HOSTNAME strings that are always blocked (loopback alias ·
-/// cloud metadata). IP literals — dotted v4, bracketed v6 — do NOT
-/// belong here: `url::Url::host_str()` strips v6 brackets and the
-/// literal-IP parse branch below is authoritative for every address
-/// form (review swarm P2 · 2026-06-10: the former `"[::1]"`/`"[::]"`/
-/// `"0.0.0.0"` entries were unreachable or redundant dead code).
-/// Comparison is case-insensitive and trailing-dot-normalized
-/// (`localhost.` is the absolute-FQDN spelling of `localhost`).
-const BLOCKED_HOSTNAMES: &[&str] = &[
-    "localhost",
-    // Cloud metadata NAMES only. The metadata IP 169.254.169.254 does
-    // NOT belong here: url::Url canonicalizes every IPv4 spelling, so
-    // the literal-IP branch below is the AUTHORITATIVE guard for that
-    // address class (link-local) — a string entry would be unreachable
-    // dead code misleading maintainers about which layer defends it
-    // (review swarm P0 · 2026-06-12).
-    "metadata.google.internal",
-    "metadata.goog",
-];
 
 /// Statically vet a URL before any network activity.
 ///
@@ -105,28 +83,15 @@ pub(crate) fn check_url(raw: &str) -> Result<url::Url, HttpError> {
             url: raw.to_string(),
         });
     }
-    // Strip the absolute-FQDN trailing dot so `localhost.` fails fast
-    // in the static layer (it would still be caught by DNS-resolve).
-    let host_lower = host.trim_end_matches('.').to_ascii_lowercase();
-
-    if BLOCKED_HOSTNAMES.iter().any(|b| host_lower == *b) {
-        return Err(HttpError::SsrfBlocked {
-            url: raw.to_string(),
-        });
-    }
-
-    // Literal IP in the authority — the single, authoritative oracle.
-    // EMPIRICAL (url 2.x · verified 2026-06-10): `host_str()` keeps the
-    // brackets for IPv6 (`"[::1]"`) and canonicalizes every IPv4 spelling
-    // — decimal `2130706433`, octal `0177.0.0.1`, hex — to dotted form.
-    // So we strip the v6 brackets and parse ONCE: that catches dotted v4
-    // AND bracketed v6 literals. (A bare `host.parse()` would miss v6
-    // because of the brackets — the brackets-stripped parse is the only
-    // form that handles both.)
-    let literal = host.trim_start_matches('[').trim_end_matches(']');
-    if let Ok(ip) = literal.parse::<IpAddr>()
-        && ip_is_blocked(ip)
-    {
+    // The single static host oracle (`nika_types::net`): the `localhost`
+    // family + cloud-metadata names + the literal-IP ranges, shared with
+    // the browser navigate gate AND the `nika check` floor-parity pass so
+    // no surface can drift. EMPIRICAL (url 2.x · verified 2026-06-10):
+    // `host_str()` keeps the brackets for IPv6 (`"[::1]"`) and
+    // canonicalizes every IPv4 spelling — decimal `2130706433`, octal
+    // `0177.0.0.1`, hex — to dotted form; the oracle strips brackets and
+    // parses ONCE, so it covers every authority form this layer sees.
+    if nika_types::net::host_is_blocked(host) {
         return Err(HttpError::SsrfBlocked {
             url: raw.to_string(),
         });
@@ -146,7 +111,7 @@ pub(crate) use nika_types::net::ip_is_blocked;
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
+    use std::net::{IpAddr, Ipv4Addr};
 
     use super::*;
 
@@ -157,6 +122,12 @@ mod tests {
         assert!(check_url("http://localhost/api").is_err());
         assert!(check_url("http://127.0.0.1/api").is_err());
         assert!(check_url("http://0.0.0.0/api").is_err());
+        // RFC 6761: the whole `.localhost` TLD is loopback — blocked
+        // statically since the oracle hoist (previously caught one layer
+        // later, at DNS-resolve).
+        assert!(check_url("http://api.localhost/api").is_err());
+        // …but `localhost` as a NON-last label is a real public name.
+        assert!(check_url("http://localhost.example.com/api").is_ok());
     }
 
     #[test]

@@ -351,6 +351,7 @@ pub fn nika_schema::check::ByteSpan::as_out(&mut self) -> outref::Out<'_, T>
 pub nika_schema::check::CapabilityEscape::category: &'static str
 pub nika_schema::check::CapabilityEscape::detail: alloc::string::String
 pub nika_schema::check::CapabilityEscape::fix: core::option::Option<alloc::string::String>
+pub nika_schema::check::CapabilityEscape::floor: bool
 pub nika_schema::check::CapabilityEscape::task: alloc::string::String
 impl core::clone::Clone for nika_schema::CapabilityEscape
 pub fn nika_schema::CapabilityEscape::clone(&self) -> nika_schema::CapabilityEscape
@@ -6330,6 +6331,7 @@ pub fn nika_schema::check::ByteSpan::as_out(&mut self) -> outref::Out<'_, T>
 pub nika_schema::CapabilityEscape::category: &'static str
 pub nika_schema::CapabilityEscape::detail: alloc::string::String
 pub nika_schema::CapabilityEscape::fix: core::option::Option<alloc::string::String>
+pub nika_schema::CapabilityEscape::floor: bool
 pub nika_schema::CapabilityEscape::task: alloc::string::String
 impl core::clone::Clone for nika_schema::CapabilityEscape
 pub fn nika_schema::CapabilityEscape::clone(&self) -> nika_schema::CapabilityEscape

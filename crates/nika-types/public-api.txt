@@ -1651,6 +1651,7 @@ pub const nika_types::net::MAX_TRAVERSE_PAGES: u64
 pub const nika_types::net::MULTIPART_PART_KEYS: [&str; 5]
 pub fn nika_types::net::host_glob_matches(glob: &str, host: &str) -> bool
 pub fn nika_types::net::host_in_allowlist(allowlist: &[alloc::string::String], host: &str) -> bool
+pub fn nika_types::net::host_is_blocked(host: &str) -> bool
 pub fn nika_types::net::ip_is_blocked(ip: core::net::ip_addr::IpAddr) -> bool
 pub mod nika_types::prelude
 #[non_exhaustive] pub enum nika_types::prelude::BudgetDirective

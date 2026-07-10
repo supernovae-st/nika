@@ -45,18 +45,26 @@ pub struct CapabilityEscape {
     /// contains the entry. One idiom = the agent repair loop
     /// pattern-matches once and converges (e2e-tested).
     pub fix: Option<String>,
+    /// True when the escape is the always-on SSRF floor (`NIKA-SEC-005` ·
+    /// spec 05-errors: independent of `permits:`), not the declared
+    /// boundary (`NIKA-SEC-004`). A floor escape never carries a grant
+    /// `fix` — no permits entry can admit the target; the repair is
+    /// pointing the task at a public host. Additive (`#[non_exhaustive]`).
+    pub floor: bool,
 }
 
-/// Scan a workflow for capability escapes. Empty when no `permits:` block
-/// is declared (absent = today's behavior, nothing to enforce). Walks every
-/// task's main action AND its `on_finally:` cleanup actions — a cleanup
-/// runs under the same boundary (and ALWAYS runs, so a blind spot there
-/// breaks every run, not just the failure path).
+/// Scan a workflow for capability escapes. The declared-boundary checks
+/// run only under a `permits:` block (absent = today's behavior, nothing
+/// to enforce); the SSRF-floor parity check runs UNCONDITIONALLY — the
+/// floor itself is independent of `permits:` (spec 05-errors
+/// `NIKA-SEC-005`), so a literal fetch to a floor-blocked target is a
+/// check-time truth with or without a boundary. Walks every task's main
+/// action AND its `on_finally:` cleanup actions — a cleanup runs under
+/// the same boundary (and ALWAYS runs, so a blind spot there breaks
+/// every run, not just the failure path).
 #[must_use]
 pub(super) fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
-    let Some(permits) = wf.permits.as_ref().map(|p| &p.value) else {
-        return Vec::new();
-    };
+    let permits = wf.permits.as_ref().map(|p| &p.value);
     let mut escapes = Vec::new();
     for task in &wf.tasks {
         let id = &task.value.id.value;
@@ -70,12 +78,47 @@ pub(super) fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
             );
         }
     }
+    // Dead grants: a literal `permits.net.http` entry the floor always
+    // refuses can never take effect — the runtime blocks the target
+    // before the allowlist is even consulted. Flagged at the ENTRY (its
+    // own yaml site) so the author learns the grant is inert even when
+    // every task URL is dynamic. Globs are skipped: `*.internal.example`
+    // may match public names, and glob-vs-floor inclusion is DNS
+    // knowledge the static pass does not have.
+    if let Some(net) = permits.and_then(|p| p.net.as_ref()) {
+        for entry in &net.http {
+            if !entry.contains('*') && nika_types::net::host_is_blocked(entry) {
+                escapes.push(CapabilityEscape {
+                    task: "permits".to_owned(),
+                    category: "net",
+                    detail: format!(
+                        "permits.net.http entry `{entry}` can never take effect — the \
+                         always-on SSRF floor (NIKA-SEC-005) refuses loopback/private/\
+                         link-local/metadata targets regardless of `permits:`; remove \
+                         the entry"
+                    ),
+                    fix: None,
+                    floor: true,
+                });
+            }
+        }
+    }
     escapes
 }
 
 /// Check one action (a task's main verb OR an `on_finally` cleanup verb)
-/// against the boundary.
-fn check_action(id: &str, action: &RawAction, permits: &Permits, out: &mut Vec<CapabilityEscape>) {
+/// against the boundary. The floor half runs even with no `permits:`
+/// declared; the boundary half needs one.
+fn check_action(
+    id: &str,
+    action: &RawAction,
+    permits: Option<&Permits>,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    if let RawAction::Invoke(a) = action {
+        check_net_floor(id, a, out);
+    }
+    let Some(permits) = permits else { return };
     match action {
         RawAction::Exec(a) => check_exec(id, &a.command, permits, out),
         RawAction::Invoke(a) => {
@@ -100,6 +143,38 @@ fn check_action(id: &str, action: &RawAction, permits: &Permits, out: &mut Vec<C
     }
 }
 
+/// The check≡run SSRF-floor parity pass (battery finding F3 · issue #395):
+/// a literal net-egress URL whose host the always-on floor refuses can
+/// NEVER succeed at run — `check` blessing it was a false green. Fires on
+/// the same static knowledge the runtime's static layer has (the
+/// `localhost` family · metadata names · literal-IP ranges, via the ONE
+/// `nika_types::net::host_is_blocked` oracle `nika-http` enforces with);
+/// a public DNS name that resolves privately stays the runtime
+/// `GuardedResolver`'s half. No grant `fix` — permits cannot override the
+/// floor, so the repair is the URL itself.
+fn check_net_floor(id: &str, a: &RawInvokeAction, out: &mut Vec<CapabilityEscape>) {
+    let Some(BuiltinEffect::Net { url_arg }) = builtin_effect(a) else {
+        return;
+    };
+    if let Some(host) = literal_arg(a, url_arg).as_deref().and_then(url_host)
+        && nika_types::net::host_is_blocked(&host)
+    {
+        let tool = a.tool.value.as_str();
+        out.push(CapabilityEscape {
+            task: id.to_owned(),
+            category: "net",
+            detail: format!(
+                "`{tool}` host `{host}` is refused by the always-on SSRF floor \
+                 (NIKA-SEC-005): loopback/private/link-local/metadata targets are \
+                 unreachable regardless of `permits:` — point the task at a \
+                 public host"
+            ),
+            fix: None,
+            floor: true,
+        });
+    }
+}
+
 /// Record a tool-surface escape (`invoke`/`agent` tool outside the grant).
 ///
 /// When the tool is a `nika:`-prefixed name that is NOT a canonical
@@ -116,6 +191,7 @@ fn escapes_tool(id: &str, surface: &str, tool: &str, out: &mut Vec<CapabilityEsc
         category: "tools",
         detail: format!("{surface} tool `{tool}` is outside permits.tools"),
         fix: (!is_phantom_builtin).then(|| format!("add \"{tool}\" to permits.tools")),
+        floor: false,
     });
 }
 
@@ -140,6 +216,7 @@ fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<C
                 }
                 RawCommand::Shell(_) => None,
             },
+            floor: false,
         });
         return;
     }
@@ -160,6 +237,7 @@ fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<C
                 // No machine fix: widening the permit would not make the
                 // string form verifiable; the fix is rewriting the command.
                 fix: None,
+                floor: false,
             });
             return;
         }
@@ -171,6 +249,7 @@ fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<C
                 category: "exec",
                 detail: format!("program `{program}` is outside permits.exec allowlist"),
                 fix: Some(format!("add \"{program}\" to permits.exec")),
+                floor: false,
             });
         }
     }
@@ -281,7 +360,11 @@ fn check_builtin_effect(
     let tool = a.tool.value.as_str();
     match builtin_effect(a) {
         Some(BuiltinEffect::Net { url_arg }) => {
+            // A floor-blocked host is already flagged by `check_net_floor`
+            // (and the grant fix would be a lie — no entry can admit it),
+            // so the boundary escape fires only for floor-clean hosts.
             if let Some(host) = literal_arg(a, url_arg).as_deref().and_then(url_host)
+                && !nika_types::net::host_is_blocked(&host)
                 && !permits.allows_host(&host)
             {
                 out.push(CapabilityEscape {
@@ -289,6 +372,7 @@ fn check_builtin_effect(
                     category: "net",
                     detail: format!("`{tool}` host `{host}` is outside permits.net.http"),
                     fix: Some(format!("add \"{host}\" to permits.net.http")),
+                    floor: false,
                 });
             }
         }
@@ -309,6 +393,7 @@ fn check_builtin_effect(
                         category: "fs",
                         detail: format!("`{tool}` path `{path}` is outside permits.{cat}"),
                         fix: Some(format!("add \"{path}\" to permits.{cat}")),
+                        floor: false,
                     });
                 }
             }
@@ -463,12 +548,19 @@ mod tests {
     #[test]
     fn ipv6_bracket_host_is_extracted_not_mangled() {
         // `https://[::1]:8080/x` — the host is `::1`, not `[` (the first-`:`
-        // split bug). Bracket-free in permits, symmetric both sides.
-        let ok = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:fetch\"], net: { http: [\"::1\"] }, exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://[::1]:8080/x\" } }\n";
-        assert!(escapes_of(ok).is_empty(), "::1 is granted");
-        let bad = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:fetch\"], net: { http: [\"api.x.com\"] }, exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://[::1]:8080/x\" } }\n";
-        let e = escapes_of(bad);
-        assert_eq!(e.len(), 1);
+        // split bug). Bracket-free in permits, symmetric both sides. Since
+        // the floor-parity pass (F3 · issue #395), a granted `::1` is no
+        // longer a false green: BOTH the inert grant entry and the task get
+        // the floor escape — the extraction still reads `::1` in each detail.
+        let granted = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:fetch\"], net: { http: [\"::1\"] }, exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://[::1]:8080/x\" } }\n";
+        let e = escapes_of(granted);
+        assert_eq!(e.len(), 2, "the grant is inert AND the task is floored");
+        assert!(e.iter().all(|esc| esc.floor && esc.fix.is_none()));
+        assert!(e.iter().all(|esc| esc.detail.contains("`::1`")), "{e:?}");
+        let ungranted = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:fetch\"], net: { http: [\"api.x.com\"] }, exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://[::1]:8080/x\" } }\n";
+        let e = escapes_of(ungranted);
+        assert_eq!(e.len(), 1, "floor escape only — never the grant fix");
+        assert!(e[0].floor);
         assert!(e[0].detail.contains("`::1`"), "detail: {}", e[0].detail);
     }
 
@@ -775,5 +867,168 @@ tasks:
             "no machine fix — widening the permit would not make the \
              string form verifiable"
         );
+    }
+}
+
+#[cfg(test)]
+mod floor_parity {
+    use super::*;
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
+
+    fn escapes(yaml: &str) -> Vec<CapabilityEscape> {
+        scan_escapes(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    #[test]
+    fn granted_loopback_fetch_is_no_longer_a_false_green() {
+        // THE battery-F3 repro (issue #395): `permits.net.http:
+        // ["127.0.0.1"]` + a literal fetch to it — check said rc=0, run
+        // always NIKA-SEC-005. Now check tells the truth at BOTH yaml
+        // sites: the inert grant entry and the floored task.
+        let y = r#"nika: v1
+workflow: w
+permits:
+  net: { http: ["127.0.0.1"] }
+  tools: ["nika:fetch"]
+tasks:
+  - id: probe
+    invoke: { tool: "nika:fetch", args: { url: "http://127.0.0.1:8080/api" } }
+"#;
+        let e = escapes(y);
+        assert_eq!(e.len(), 2, "entry + task: {e:?}");
+        assert!(e.iter().all(|esc| esc.floor && esc.fix.is_none()));
+        let task = e
+            .iter()
+            .find(|esc| esc.task == "probe")
+            .expect("task escape");
+        assert!(task.detail.contains("NIKA-SEC-005"), "{}", task.detail);
+        assert!(task.detail.contains("public host"), "{}", task.detail);
+        let entry = e
+            .iter()
+            .find(|esc| esc.task == "permits")
+            .expect("entry escape");
+        assert!(
+            entry.detail.contains("never take effect"),
+            "{}",
+            entry.detail
+        );
+    }
+
+    #[test]
+    fn floor_fires_without_any_permits_block() {
+        // The floor is permits-INDEPENDENT — the seam existed with no
+        // boundary declared too (check blessed, run always refused).
+        let y = r#"nika: v1
+workflow: w
+tasks:
+  - id: t
+    invoke: { tool: "nika:fetch", args: { url: "http://localhost:3000/x" } }
+"#;
+        let e = escapes(y);
+        assert_eq!(e.len(), 1, "{e:?}");
+        assert!(e[0].floor);
+        assert!(e[0].detail.contains("`localhost`"), "{}", e[0].detail);
+        // …and a public fetch with no permits stays clean (today's law).
+        let clean = r#"nika: v1
+workflow: w
+tasks:
+  - id: t
+    invoke: { tool: "nika:fetch", args: { url: "https://api.example.com/x" } }
+"#;
+        assert!(escapes(clean).is_empty());
+    }
+
+    #[test]
+    fn metadata_ip_gets_the_floor_teaching_not_a_grant_fix() {
+        // Outside permits AND floor-blocked: the old path would have said
+        // « add "169.254.169.254" to permits.net.http » — a lie (the grant
+        // cannot help). The floor escape must be the ONLY finding.
+        let y = r#"nika: v1
+workflow: w
+permits:
+  net: { http: ["api.x.com"] }
+  tools: ["nika:fetch"]
+tasks:
+  - id: t
+    invoke: { tool: "nika:fetch", args: { url: "http://169.254.169.254/latest/meta-data/" } }
+"#;
+        let e = escapes(y);
+        assert_eq!(e.len(), 1, "{e:?}");
+        assert!(e[0].floor);
+        assert!(e[0].fix.is_none(), "a grant fix here would be a lie");
+    }
+
+    #[test]
+    fn dead_grant_is_flagged_even_when_unused() {
+        // Entry-level truth: the grant is inert whether or not a static
+        // URL exercises it (a dynamic URL to it still floors at run).
+        let y = r#"nika: v1
+workflow: w
+permits:
+  net: { http: ["localhost", "api.x.com"] }
+  tools: ["nika:fetch"]
+tasks:
+  - id: t
+    invoke: { tool: "nika:fetch", args: { url: "https://api.x.com/x" } }
+"#;
+        let e = escapes(y);
+        assert_eq!(e.len(), 1, "{e:?}");
+        assert_eq!(e[0].task, "permits");
+        assert!(e[0].floor);
+        assert!(e[0].detail.contains("`localhost`"), "{}", e[0].detail);
+    }
+
+    #[test]
+    fn glob_entries_and_public_hosts_stay_silent() {
+        // A glob may match public names — glob-vs-floor inclusion is DNS
+        // knowledge the static pass does not have. Never flagged.
+        let y = r#"nika: v1
+workflow: w
+permits:
+  net: { http: ["*.internal.example", "*.localhost"] }
+  tools: ["nika:fetch"]
+tasks:
+  - id: t
+    invoke: { tool: "nika:fetch", args: { url: "https://api.internal.example/x" } }
+"#;
+        assert!(escapes(y).is_empty(), "globs are never floor-classified");
+    }
+
+    #[test]
+    fn webhook_notify_to_private_target_floors() {
+        // The floor speaks for every Net-classified builtin — webhook
+        // notify rides the same nika-http boundary as fetch.
+        let y = r#"nika: v1
+workflow: w
+tasks:
+  - id: t
+    invoke: { tool: "nika:notify", args: { channel: "webhook", target: "http://10.0.0.8/hook", message: "hi" } }
+"#;
+        let e = escapes(y);
+        assert_eq!(e.len(), 1, "{e:?}");
+        assert!(e[0].floor);
+        assert!(e[0].detail.contains("`10.0.0.8`"), "{}", e[0].detail);
+    }
+
+    #[test]
+    fn localhost_family_and_dynamic_urls_split_static_vs_runtime() {
+        // `api.localhost` is loopback BY STRUCTURE (RFC 6761) → static.
+        let family = r#"nika: v1
+workflow: w
+tasks:
+  - id: t
+    invoke: { tool: "nika:fetch", args: { url: "http://api.localhost/x" } }
+"#;
+        assert_eq!(escapes(family).len(), 1, "the localhost FAMILY floors");
+        // A dynamic URL is invisible statically — the runtime floor owns it.
+        let dynamic = r#"nika: v1
+workflow: w
+vars: { target: "http://127.0.0.1/x" }
+tasks:
+  - id: t
+    invoke: { tool: "nika:fetch", args: { url: "${{ vars.target }}" } }
+"#;
+        assert!(escapes(dynamic).is_empty(), "dynamic = runtime concern");
     }
 }
