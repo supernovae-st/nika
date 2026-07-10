@@ -21,8 +21,11 @@
 //! the server surface is read-only by construction. `nika run` stays the
 //! effectful path, gated and audited.
 
+mod http;
 mod protocol;
 mod tools;
+
+pub use http::HttpServer;
 
 use std::io::{BufRead, Read, Write};
 
@@ -60,7 +63,7 @@ pub fn run_stdio() -> Result<(), McpError> {
 /// A message that reaches the ceiling without a newline is refused with a
 /// `-32700`-class error and the pump stops — the stream is unrecoverable for
 /// a line protocol, and draining an unterminated line is itself unbounded.
-const MAX_MSG_BYTES: u64 = 8 * 1024 * 1024;
+pub(crate) const MAX_MSG_BYTES: u64 = 8 * 1024 * 1024;
 
 /// The transport pump over arbitrary byte streams. [`run_stdio`] wires the real
 /// stdio handles; tests drive it with in-memory buffers so every branch — a

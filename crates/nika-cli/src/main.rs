@@ -299,10 +299,32 @@ enum Command {
     Dap,
     /// Run the language server over stdio (drives the editor extension).
     Lsp,
-    /// Run the MCP server over stdio (validate: check/explain · learn:
+    /// Run the MCP server (validate: check/explain · learn:
     /// schema/examples/templates/canon — the in-binary Model Context Protocol
-    /// surface for Cursor · Claude Desktop · agents).
-    Mcp,
+    /// surface for Cursor · Claude Desktop · agents). Default transport:
+    /// stdio; `--transport http` serves Streamable HTTP for managed hosts.
+    Mcp {
+        /// The wire: `stdio` (the editor/agent default) or `http`
+        /// (Streamable HTTP · POST JSON-RPC · spec 2025-11-25).
+        #[arg(long, value_enum, default_value_t = McpTransportArg::Stdio)]
+        transport: McpTransportArg,
+        /// HTTP port (with `--transport http`).
+        #[arg(long, default_value_t = 8123)]
+        port: u16,
+        /// HTTP bind address. Loopback by default — widening this exposes
+        /// the server to your network; put TLS + auth (a reverse proxy ·
+        /// `NIKA_MCP_TOKEN`) in front before you do.
+        #[arg(long, default_value = "127.0.0.1")]
+        bind: String,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum McpTransportArg {
+    /// Newline-delimited JSON-RPC over stdin/stdout.
+    Stdio,
+    /// Streamable HTTP (POST JSON-RPC · origin-gated · loopback default).
+    Http,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -747,13 +769,11 @@ fn main() -> std::process::ExitCode {
         // The MCP server OWNS stdout (JSON-RPC) — like `lsp`, it must not go
         // through `emit`. Same server-process exit convention: 0 on a clean
         // EOF shutdown, 1 on a transport failure.
-        Command::Mcp => match nika_mcp::run_stdio() {
-            Ok(()) => verbs::exit::OK,
-            Err(err) => {
-                eprintln!("nika-cli: mcp: {err}");
-                1
-            }
-        },
+        Command::Mcp {
+            transport,
+            port,
+            bind,
+        } => mcp_verb(transport, port, &bind),
     };
     std::process::ExitCode::from(code)
 }
@@ -832,6 +852,44 @@ fn flow_verb(trace: Option<PathBuf>, workflow: Option<String>, theme: Theme) -> 
             theme,
         )),
         Err(code) => code,
+    }
+}
+
+/// `nika mcp` — serve the read-only MCP surface. stdio owns stdout
+/// (JSON-RPC); http binds first so the banner names the RESOLVED
+/// address, reads `NIKA_MCP_TOKEN` here (the crate is env-free by
+/// discipline), then serves forever.
+fn mcp_verb(transport: McpTransportArg, port: u16, bind: &str) -> u8 {
+    let served = match transport {
+        McpTransportArg::Stdio => nika_mcp::run_stdio(),
+        McpTransportArg::Http => match nika_mcp::HttpServer::bind(bind, port) {
+            Ok(server) => {
+                // The sanctioned env boundary (same seam as config_from_env):
+                // the token is operator config crossing into a server hold.
+                #[allow(clippy::disallowed_methods)]
+                let token = std::env::var("NIKA_MCP_TOKEN").ok();
+                let addr = server
+                    .addr()
+                    .map_or_else(|_| format!("{bind}:{port}"), |a| a.to_string());
+                eprintln!(
+                    "nika mcp · http://{addr}/mcp · POST JSON-RPC (MCP 2025-11-25) · origin-gated · {} · production TLS belongs to a reverse proxy",
+                    if token.is_some() {
+                        "bearer auth ON (NIKA_MCP_TOKEN)"
+                    } else {
+                        "no auth (set NIKA_MCP_TOKEN to require a bearer)"
+                    }
+                );
+                server.serve(token.as_deref())
+            }
+            Err(err) => Err(err),
+        },
+    };
+    match served {
+        Ok(()) => verbs::exit::OK,
+        Err(err) => {
+            eprintln!("nika-cli: mcp: {err}");
+            1
+        }
     }
 }
 
