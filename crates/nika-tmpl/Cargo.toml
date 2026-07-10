@@ -1,6 +1,6 @@
 [package]
 name          = "nika-tmpl"
-description   = "The ${{ }} template-island lexer as pure data — quote/escape-aware island boundaries, AST-free. The ONE scanner the checker and the runtime share (parity-by-construction). Layer L0 — pure, zero I/O, zero async, zero deps."
+description   = "The ${{ }} template language — the quote/escape-aware island scanner (the ONE lexer the checker and the runtime share · parity-by-construction) plus the expression grammar (lexer · AST · parser · refs · renderer, descended from nika-schema). Layer L0 — pure, zero I/O, zero async, zero deps."
 version.workspace      = true
 edition.workspace      = true
 license.workspace      = true

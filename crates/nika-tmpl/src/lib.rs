@@ -13,14 +13,32 @@
 //! assignment**, and identical `${{ }}` semantics between the checker and the
 //! resolver IS that TCB. One lexer ⇒ parity by construction, not by discipline.
 //!
-//! **AST-free by design.** This layer finds island *boundaries* and returns
-//! byte-spans + the raw body slice; it does NOT parse the body. The body
-//! language stays with each consumer (the checker's static-subset parser · the
-//! runtime's `nika-cel`) — this crate sits *below* the expression grammar.
+//! **The scanner stays AST-free; the grammar lives one floor up.** The
+//! root of this crate finds island *boundaries* and returns byte-spans +
+//! the raw body slice — it does NOT parse the body. Since 2026-07-10 the
+//! body's grammar ALSO lives here, as the [`expression`] module (lexer ·
+//! AST · parser · reference walker · template renderer), descended from
+//! `nika-schema` when that crate hit the 15k crate-size wall (the
+//! trace→dap precedent): the scanner and the language it scans are one
+//! home, and `nika_schema::expression` re-exports the module verbatim.
+//! Consumers of the bare scanner (the runtime's `nika-cel`) keep
+//! depending on exactly what they did — the root API is unchanged.
 //!
 //! Layer **L0** — pure, zero I/O, zero async, zero dependencies.
 
 #![forbid(unsafe_code)]
+// The descended expression tests keep the schema crate's test-only
+// allowances (fixtures expect/panic on impossible states — same block,
+// same reasons).
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+    )
+)]
 
 /// A located `${{ … }}` island: byte offsets into the source string plus the
 /// raw (untrimmed) body slice between `${{` and `}}`.
@@ -94,6 +112,10 @@ impl core::fmt::Display for ScanError {
 }
 
 impl core::error::Error for ScanError {}
+
+// The grammar module's own //! docs carry the full story (a /// here
+// would re-anchor its intra-doc links at the crate root and break them).
+pub mod expression;
 
 /// Scan every REAL (non-`\`-escaped) `${{ … }}` island, left to right.
 ///

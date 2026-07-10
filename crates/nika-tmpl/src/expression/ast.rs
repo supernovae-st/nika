@@ -4,9 +4,14 @@
 //! Expression AST — the CEL v0.1 subset (spec `03-dag.md` §CEL-subset ·
 //! grammar version `cel-subset/0.1`).
 
+// The AST enums are deliberately EXHAUSTIVE (no `#[non_exhaustive]`,
+// dropped at descent 2026-07-10): the grammar is spec-locked (CEL v0.1
+// subset) and the checker's walkers downstream MUST break loudly when a
+// node is added — a silent wildcard arm in a secrets/flow walker is an
+// IFC hole, not forward-compat.
+
 /// A parsed CEL v0.1-subset expression.
 #[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
 pub enum Expr {
     /// `a || b` — logical or (left-associative fold).
     Or(Box<Expr>, Box<Expr>),
@@ -75,7 +80,6 @@ pub enum Expr {
 
 /// A scalar literal in the v0.1 subset.
 #[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
 pub enum Literal {
     /// `true` / `false`.
     Bool(bool),
@@ -91,7 +95,6 @@ pub enum Literal {
 
 /// The 1-arg string predicates (`cel-subset/0.1` · boolean-valued).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum StringPredicate {
     /// `x.contains(s)` — substring test.
     Contains,
@@ -115,7 +118,6 @@ impl StringPredicate {
 
 /// The relational operators (spec EBNF `relop`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum RelOp {
     /// `==`
     Eq,
@@ -153,7 +155,6 @@ impl RelOp {
 /// `04-variables.md` §Resolution order · the 5 namespaces + the 2
 /// `for_each` loop-locals).
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum NamespaceRef {
     /// `vars.<name>` — workflow inputs.
     Vars(String),

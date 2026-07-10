@@ -1,4 +1,278 @@
 pub mod nika_tmpl
+pub mod nika_tmpl::expression
+pub enum nika_tmpl::expression::Expr
+pub nika_tmpl::expression::Expr::And(alloc::boxed::Box<nika_tmpl::expression::Expr>, alloc::boxed::Box<nika_tmpl::expression::Expr>)
+pub nika_tmpl::expression::Expr::HasCall(alloc::boxed::Box<nika_tmpl::expression::Expr>)
+pub nika_tmpl::expression::Expr::Ident(alloc::string::String)
+pub nika_tmpl::expression::Expr::Index
+pub nika_tmpl::expression::Expr::Index::base: alloc::boxed::Box<nika_tmpl::expression::Expr>
+pub nika_tmpl::expression::Expr::Index::index: alloc::boxed::Box<nika_tmpl::expression::Expr>
+pub nika_tmpl::expression::Expr::List(alloc::vec::Vec<nika_tmpl::expression::Expr>)
+pub nika_tmpl::expression::Expr::Lit(nika_tmpl::expression::Literal)
+pub nika_tmpl::expression::Expr::Member
+pub nika_tmpl::expression::Expr::Member::base: alloc::boxed::Box<nika_tmpl::expression::Expr>
+pub nika_tmpl::expression::Expr::Member::field: alloc::string::String
+pub nika_tmpl::expression::Expr::Not(alloc::boxed::Box<nika_tmpl::expression::Expr>)
+pub nika_tmpl::expression::Expr::Or(alloc::boxed::Box<nika_tmpl::expression::Expr>, alloc::boxed::Box<nika_tmpl::expression::Expr>)
+pub nika_tmpl::expression::Expr::Relation
+pub nika_tmpl::expression::Expr::Relation::lhs: alloc::boxed::Box<nika_tmpl::expression::Expr>
+pub nika_tmpl::expression::Expr::Relation::op: nika_tmpl::expression::RelOp
+pub nika_tmpl::expression::Expr::Relation::rhs: alloc::boxed::Box<nika_tmpl::expression::Expr>
+pub nika_tmpl::expression::Expr::SizeCall(alloc::boxed::Box<nika_tmpl::expression::Expr>)
+pub nika_tmpl::expression::Expr::SizeMethod(alloc::boxed::Box<nika_tmpl::expression::Expr>)
+pub nika_tmpl::expression::Expr::StringMethod
+pub nika_tmpl::expression::Expr::StringMethod::arg: alloc::boxed::Box<nika_tmpl::expression::Expr>
+pub nika_tmpl::expression::Expr::StringMethod::base: alloc::boxed::Box<nika_tmpl::expression::Expr>
+pub nika_tmpl::expression::Expr::StringMethod::method: nika_tmpl::expression::ast::StringPredicate
+pub nika_tmpl::expression::Expr::Ternary
+pub nika_tmpl::expression::Expr::Ternary::cond: alloc::boxed::Box<nika_tmpl::expression::Expr>
+pub nika_tmpl::expression::Expr::Ternary::else_: alloc::boxed::Box<nika_tmpl::expression::Expr>
+pub nika_tmpl::expression::Expr::Ternary::then: alloc::boxed::Box<nika_tmpl::expression::Expr>
+impl core::clone::Clone for nika_tmpl::expression::Expr
+pub fn nika_tmpl::expression::Expr::clone(&self) -> nika_tmpl::expression::Expr
+impl core::cmp::PartialEq for nika_tmpl::expression::Expr
+pub fn nika_tmpl::expression::Expr::eq(&self, other: &nika_tmpl::expression::Expr) -> bool
+impl core::fmt::Debug for nika_tmpl::expression::Expr
+pub fn nika_tmpl::expression::Expr::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tmpl::expression::Expr
+impl<T, U> core::convert::Into<U> for nika_tmpl::expression::Expr where U: core::convert::From<T>
+pub fn nika_tmpl::expression::Expr::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tmpl::expression::Expr where U: core::convert::Into<T>
+pub type nika_tmpl::expression::Expr::Error = core::convert::Infallible
+pub fn nika_tmpl::expression::Expr::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tmpl::expression::Expr where U: core::convert::TryFrom<T>
+pub type nika_tmpl::expression::Expr::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tmpl::expression::Expr::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tmpl::expression::Expr where T: core::clone::Clone
+pub type nika_tmpl::expression::Expr::Owned = T
+pub fn nika_tmpl::expression::Expr::clone_into(&self, target: &mut T)
+pub fn nika_tmpl::expression::Expr::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tmpl::expression::Expr where T: 'static + ?core::marker::Sized
+pub fn nika_tmpl::expression::Expr::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tmpl::expression::Expr where T: ?core::marker::Sized
+pub fn nika_tmpl::expression::Expr::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tmpl::expression::Expr where T: ?core::marker::Sized
+pub fn nika_tmpl::expression::Expr::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tmpl::expression::Expr where T: core::clone::Clone
+pub unsafe fn nika_tmpl::expression::Expr::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tmpl::expression::Expr
+pub fn nika_tmpl::expression::Expr::from(t: T) -> T
+#[non_exhaustive] pub enum nika_tmpl::expression::ExprError
+pub nika_tmpl::expression::ExprError::ChainedRelation
+pub nika_tmpl::expression::ExprError::ChainedRelation::offset: usize
+pub nika_tmpl::expression::ExprError::EmptyExpression
+pub nika_tmpl::expression::ExprError::TooDeep
+pub nika_tmpl::expression::ExprError::TooDeep::limit: usize
+pub nika_tmpl::expression::ExprError::TooDeep::offset: usize
+pub nika_tmpl::expression::ExprError::TrailingInput
+pub nika_tmpl::expression::ExprError::TrailingInput::offset: usize
+pub nika_tmpl::expression::ExprError::UnexpectedChar
+pub nika_tmpl::expression::ExprError::UnexpectedChar::ch: char
+pub nika_tmpl::expression::ExprError::UnexpectedChar::offset: usize
+pub nika_tmpl::expression::ExprError::UnexpectedToken
+pub nika_tmpl::expression::ExprError::UnexpectedToken::expected: alloc::string::String
+pub nika_tmpl::expression::ExprError::UnexpectedToken::found: alloc::string::String
+pub nika_tmpl::expression::ExprError::UnexpectedToken::offset: usize
+pub nika_tmpl::expression::ExprError::UnknownFunction
+pub nika_tmpl::expression::ExprError::UnknownFunction::name: alloc::string::String
+pub nika_tmpl::expression::ExprError::UnknownFunction::offset: usize
+pub nika_tmpl::expression::ExprError::UnterminatedString
+pub nika_tmpl::expression::ExprError::UnterminatedString::offset: usize
+pub nika_tmpl::expression::ExprError::UnterminatedTemplate
+pub nika_tmpl::expression::ExprError::UnterminatedTemplate::offset: usize
+impl core::clone::Clone for nika_tmpl::expression::ExprError
+pub fn nika_tmpl::expression::ExprError::clone(&self) -> nika_tmpl::expression::ExprError
+impl core::cmp::Eq for nika_tmpl::expression::ExprError
+impl core::cmp::PartialEq for nika_tmpl::expression::ExprError
+pub fn nika_tmpl::expression::ExprError::eq(&self, other: &nika_tmpl::expression::ExprError) -> bool
+impl core::error::Error for nika_tmpl::expression::ExprError
+impl core::fmt::Debug for nika_tmpl::expression::ExprError
+pub fn nika_tmpl::expression::ExprError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_tmpl::expression::ExprError
+pub fn nika_tmpl::expression::ExprError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tmpl::expression::ExprError
+impl<T, U> core::convert::Into<U> for nika_tmpl::expression::ExprError where U: core::convert::From<T>
+pub fn nika_tmpl::expression::ExprError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tmpl::expression::ExprError where U: core::convert::Into<T>
+pub type nika_tmpl::expression::ExprError::Error = core::convert::Infallible
+pub fn nika_tmpl::expression::ExprError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tmpl::expression::ExprError where U: core::convert::TryFrom<T>
+pub type nika_tmpl::expression::ExprError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tmpl::expression::ExprError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tmpl::expression::ExprError where T: core::clone::Clone
+pub type nika_tmpl::expression::ExprError::Owned = T
+pub fn nika_tmpl::expression::ExprError::clone_into(&self, target: &mut T)
+pub fn nika_tmpl::expression::ExprError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_tmpl::expression::ExprError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_tmpl::expression::ExprError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_tmpl::expression::ExprError where T: 'static + ?core::marker::Sized
+pub fn nika_tmpl::expression::ExprError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tmpl::expression::ExprError where T: ?core::marker::Sized
+pub fn nika_tmpl::expression::ExprError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tmpl::expression::ExprError where T: ?core::marker::Sized
+pub fn nika_tmpl::expression::ExprError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tmpl::expression::ExprError where T: core::clone::Clone
+pub unsafe fn nika_tmpl::expression::ExprError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tmpl::expression::ExprError
+pub fn nika_tmpl::expression::ExprError::from(t: T) -> T
+pub enum nika_tmpl::expression::Literal
+pub nika_tmpl::expression::Literal::Bool(bool)
+pub nika_tmpl::expression::Literal::Float(f64)
+pub nika_tmpl::expression::Literal::Int(i64)
+pub nika_tmpl::expression::Literal::Null
+pub nika_tmpl::expression::Literal::Str(alloc::string::String)
+impl core::clone::Clone for nika_tmpl::expression::Literal
+pub fn nika_tmpl::expression::Literal::clone(&self) -> nika_tmpl::expression::Literal
+impl core::cmp::PartialEq for nika_tmpl::expression::Literal
+pub fn nika_tmpl::expression::Literal::eq(&self, other: &nika_tmpl::expression::Literal) -> bool
+impl core::fmt::Debug for nika_tmpl::expression::Literal
+pub fn nika_tmpl::expression::Literal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tmpl::expression::Literal
+impl<T, U> core::convert::Into<U> for nika_tmpl::expression::Literal where U: core::convert::From<T>
+pub fn nika_tmpl::expression::Literal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tmpl::expression::Literal where U: core::convert::Into<T>
+pub type nika_tmpl::expression::Literal::Error = core::convert::Infallible
+pub fn nika_tmpl::expression::Literal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tmpl::expression::Literal where U: core::convert::TryFrom<T>
+pub type nika_tmpl::expression::Literal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tmpl::expression::Literal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tmpl::expression::Literal where T: core::clone::Clone
+pub type nika_tmpl::expression::Literal::Owned = T
+pub fn nika_tmpl::expression::Literal::clone_into(&self, target: &mut T)
+pub fn nika_tmpl::expression::Literal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tmpl::expression::Literal where T: 'static + ?core::marker::Sized
+pub fn nika_tmpl::expression::Literal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tmpl::expression::Literal where T: ?core::marker::Sized
+pub fn nika_tmpl::expression::Literal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tmpl::expression::Literal where T: ?core::marker::Sized
+pub fn nika_tmpl::expression::Literal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tmpl::expression::Literal where T: core::clone::Clone
+pub unsafe fn nika_tmpl::expression::Literal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tmpl::expression::Literal
+pub fn nika_tmpl::expression::Literal::from(t: T) -> T
+pub enum nika_tmpl::expression::NamespaceRef
+pub nika_tmpl::expression::NamespaceRef::Env(alloc::string::String)
+pub nika_tmpl::expression::NamespaceRef::Index
+pub nika_tmpl::expression::NamespaceRef::Item
+pub nika_tmpl::expression::NamespaceRef::Secrets(alloc::string::String)
+pub nika_tmpl::expression::NamespaceRef::Tasks
+pub nika_tmpl::expression::NamespaceRef::Tasks::field: core::option::Option<alloc::string::String>
+pub nika_tmpl::expression::NamespaceRef::Tasks::id: alloc::string::String
+pub nika_tmpl::expression::NamespaceRef::Unknown(alloc::string::String)
+pub nika_tmpl::expression::NamespaceRef::Vars(alloc::string::String)
+pub nika_tmpl::expression::NamespaceRef::With(alloc::string::String)
+impl core::clone::Clone for nika_tmpl::expression::NamespaceRef
+pub fn nika_tmpl::expression::NamespaceRef::clone(&self) -> nika_tmpl::expression::NamespaceRef
+impl core::cmp::Eq for nika_tmpl::expression::NamespaceRef
+impl core::cmp::PartialEq for nika_tmpl::expression::NamespaceRef
+pub fn nika_tmpl::expression::NamespaceRef::eq(&self, other: &nika_tmpl::expression::NamespaceRef) -> bool
+impl core::fmt::Debug for nika_tmpl::expression::NamespaceRef
+pub fn nika_tmpl::expression::NamespaceRef::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tmpl::expression::NamespaceRef
+impl<T, U> core::convert::Into<U> for nika_tmpl::expression::NamespaceRef where U: core::convert::From<T>
+pub fn nika_tmpl::expression::NamespaceRef::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tmpl::expression::NamespaceRef where U: core::convert::Into<T>
+pub type nika_tmpl::expression::NamespaceRef::Error = core::convert::Infallible
+pub fn nika_tmpl::expression::NamespaceRef::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tmpl::expression::NamespaceRef where U: core::convert::TryFrom<T>
+pub type nika_tmpl::expression::NamespaceRef::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tmpl::expression::NamespaceRef::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tmpl::expression::NamespaceRef where T: core::clone::Clone
+pub type nika_tmpl::expression::NamespaceRef::Owned = T
+pub fn nika_tmpl::expression::NamespaceRef::clone_into(&self, target: &mut T)
+pub fn nika_tmpl::expression::NamespaceRef::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tmpl::expression::NamespaceRef where T: 'static + ?core::marker::Sized
+pub fn nika_tmpl::expression::NamespaceRef::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tmpl::expression::NamespaceRef where T: ?core::marker::Sized
+pub fn nika_tmpl::expression::NamespaceRef::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tmpl::expression::NamespaceRef where T: ?core::marker::Sized
+pub fn nika_tmpl::expression::NamespaceRef::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tmpl::expression::NamespaceRef where T: core::clone::Clone
+pub unsafe fn nika_tmpl::expression::NamespaceRef::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tmpl::expression::NamespaceRef
+pub fn nika_tmpl::expression::NamespaceRef::from(t: T) -> T
+pub enum nika_tmpl::expression::RelOp
+pub nika_tmpl::expression::RelOp::Eq
+pub nika_tmpl::expression::RelOp::Ge
+pub nika_tmpl::expression::RelOp::Gt
+pub nika_tmpl::expression::RelOp::In
+pub nika_tmpl::expression::RelOp::Le
+pub nika_tmpl::expression::RelOp::Lt
+pub nika_tmpl::expression::RelOp::Ne
+impl nika_tmpl::expression::RelOp
+pub fn nika_tmpl::expression::RelOp::as_str(self) -> &'static str
+impl core::clone::Clone for nika_tmpl::expression::RelOp
+pub fn nika_tmpl::expression::RelOp::clone(&self) -> nika_tmpl::expression::RelOp
+impl core::cmp::Eq for nika_tmpl::expression::RelOp
+impl core::cmp::PartialEq for nika_tmpl::expression::RelOp
+pub fn nika_tmpl::expression::RelOp::eq(&self, other: &nika_tmpl::expression::RelOp) -> bool
+impl core::fmt::Debug for nika_tmpl::expression::RelOp
+pub fn nika_tmpl::expression::RelOp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tmpl::expression::RelOp
+impl core::marker::StructuralPartialEq for nika_tmpl::expression::RelOp
+impl<T, U> core::convert::Into<U> for nika_tmpl::expression::RelOp where U: core::convert::From<T>
+pub fn nika_tmpl::expression::RelOp::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tmpl::expression::RelOp where U: core::convert::Into<T>
+pub type nika_tmpl::expression::RelOp::Error = core::convert::Infallible
+pub fn nika_tmpl::expression::RelOp::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tmpl::expression::RelOp where U: core::convert::TryFrom<T>
+pub type nika_tmpl::expression::RelOp::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tmpl::expression::RelOp::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tmpl::expression::RelOp where T: core::clone::Clone
+pub type nika_tmpl::expression::RelOp::Owned = T
+pub fn nika_tmpl::expression::RelOp::clone_into(&self, target: &mut T)
+pub fn nika_tmpl::expression::RelOp::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tmpl::expression::RelOp where T: 'static + ?core::marker::Sized
+pub fn nika_tmpl::expression::RelOp::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tmpl::expression::RelOp where T: ?core::marker::Sized
+pub fn nika_tmpl::expression::RelOp::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tmpl::expression::RelOp where T: ?core::marker::Sized
+pub fn nika_tmpl::expression::RelOp::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tmpl::expression::RelOp where T: core::clone::Clone
+pub unsafe fn nika_tmpl::expression::RelOp::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tmpl::expression::RelOp
+pub fn nika_tmpl::expression::RelOp::from(t: T) -> T
+#[non_exhaustive] pub struct nika_tmpl::expression::TemplateIsland
+pub nika_tmpl::expression::TemplateIsland::end: usize
+pub nika_tmpl::expression::TemplateIsland::expr: nika_tmpl::expression::Expr
+pub nika_tmpl::expression::TemplateIsland::src: alloc::string::String
+pub nika_tmpl::expression::TemplateIsland::start: usize
+impl nika_tmpl::expression::TemplateIsland
+pub fn nika_tmpl::expression::TemplateIsland::new(expr: nika_tmpl::expression::Expr, src: alloc::string::String, start: usize, end: usize) -> Self
+impl core::clone::Clone for nika_tmpl::expression::TemplateIsland
+pub fn nika_tmpl::expression::TemplateIsland::clone(&self) -> nika_tmpl::expression::TemplateIsland
+impl core::cmp::PartialEq for nika_tmpl::expression::TemplateIsland
+pub fn nika_tmpl::expression::TemplateIsland::eq(&self, other: &nika_tmpl::expression::TemplateIsland) -> bool
+impl core::fmt::Debug for nika_tmpl::expression::TemplateIsland
+pub fn nika_tmpl::expression::TemplateIsland::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tmpl::expression::TemplateIsland
+impl<T, U> core::convert::Into<U> for nika_tmpl::expression::TemplateIsland where U: core::convert::From<T>
+pub fn nika_tmpl::expression::TemplateIsland::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tmpl::expression::TemplateIsland where U: core::convert::Into<T>
+pub type nika_tmpl::expression::TemplateIsland::Error = core::convert::Infallible
+pub fn nika_tmpl::expression::TemplateIsland::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tmpl::expression::TemplateIsland where U: core::convert::TryFrom<T>
+pub type nika_tmpl::expression::TemplateIsland::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tmpl::expression::TemplateIsland::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tmpl::expression::TemplateIsland where T: core::clone::Clone
+pub type nika_tmpl::expression::TemplateIsland::Owned = T
+pub fn nika_tmpl::expression::TemplateIsland::clone_into(&self, target: &mut T)
+pub fn nika_tmpl::expression::TemplateIsland::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tmpl::expression::TemplateIsland where T: 'static + ?core::marker::Sized
+pub fn nika_tmpl::expression::TemplateIsland::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tmpl::expression::TemplateIsland where T: ?core::marker::Sized
+pub fn nika_tmpl::expression::TemplateIsland::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tmpl::expression::TemplateIsland where T: ?core::marker::Sized
+pub fn nika_tmpl::expression::TemplateIsland::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tmpl::expression::TemplateIsland where T: core::clone::Clone
+pub unsafe fn nika_tmpl::expression::TemplateIsland::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tmpl::expression::TemplateIsland
+pub fn nika_tmpl::expression::TemplateIsland::from(t: T) -> T
+pub fn nika_tmpl::expression::expr_refs(expr: &nika_tmpl::expression::Expr) -> alloc::vec::Vec<nika_tmpl::expression::NamespaceRef>
+pub fn nika_tmpl::expression::is_boolean_shaped(expr: &nika_tmpl::expression::Expr) -> bool
+pub fn nika_tmpl::expression::parse_expression(src: &str) -> core::result::Result<nika_tmpl::expression::Expr, nika_tmpl::expression::ExprError>
+pub fn nika_tmpl::expression::scan_templates(s: &str) -> core::result::Result<alloc::vec::Vec<nika_tmpl::expression::TemplateIsland>, nika_tmpl::expression::ExprError>
+pub fn nika_tmpl::expression::task_output_paths(expr: &nika_tmpl::expression::Expr) -> alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<alloc::string::String>)>
 #[non_exhaustive] pub enum nika_tmpl::ScanError
 pub nika_tmpl::ScanError::Unterminated
 pub nika_tmpl::ScanError::Unterminated::offset: usize

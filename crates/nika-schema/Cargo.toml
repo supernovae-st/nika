@@ -24,7 +24,7 @@ nika-error   = { path = "../nika-error", version = "0.99.0" }
 nika-catalog = { path = "../nika-catalog", version = "0.99.0" }
 nika-types   = { path = "../nika-types", version = "0.99.0" }   # ExtractMode — fetch arg-shape rules (one closed vocabulary)
 nika-cap     = { path = "../nika-cap", version = "0.99.0" }   # the permits vocab lives here now (extracted 2026-07-03)
-nika-tmpl    = { path = "../nika-tmpl", version = "0.99.0" }   # the ONE ${{ }} island lexer · shared with nika-runtime (check⇄run parity)
+nika-tmpl    = { path = "../nika-tmpl", version = "0.99.0" }   # the ${{ }} language crate (island lexer + expression grammar · check⇄run parity)
 
 thiserror  = { workspace = true }
 serde      = { workspace = true }
