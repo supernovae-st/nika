@@ -686,6 +686,8 @@ pub fn nika_types::extract::ExtractMode::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::extract::ExtractMode where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::extract::UnknownExtractMode
 pub nika_types::extract::UnknownExtractMode::input: alloc::string::String
+impl nika_types::extract::UnknownExtractMode
+pub fn nika_types::extract::UnknownExtractMode::hint(&self) -> core::option::Option<&'static str>
 impl core::clone::Clone for nika_types::extract::UnknownExtractMode
 pub fn nika_types::extract::UnknownExtractMode::clone(&self) -> nika_types::extract::UnknownExtractMode
 impl core::cmp::Eq for nika_types::extract::UnknownExtractMode
