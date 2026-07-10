@@ -130,7 +130,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `feat/models-rung`                                      |
-| HEAD             | `493dc32e4` (`493dc32e46cacaaf0823ac494b3c062f9fe13048`)             |
+| HEAD             | `63b85c018` (`63b85c018aee9328619effb27af28683831670b9`)             |
 | workspace        | v0.98.0                                  |
 | crates (workspace)| 45                                              |
 | crates (admitted)| 43 / 42                                   |
@@ -147,13 +147,13 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/models-rung`                                      |
-| HEAD             | `49422aa40` (`49422aa4096131374760624e13b0203fa50c17bb`)             |
+| branch           | `chore/release-0.98.0`                                      |
+| HEAD             | `25db7137d` (`25db7137dddbe6fdb7782663d1a07096cafb3bad`)             |
 | workspace        | v0.98.0                                  |
 | crates (workspace)| 42                                              |
 | crates (admitted)| 42 / 42                                   |
 | crates (WIP)     | 0 —                                   |
-| L0               | 12                                              |
+| L0               | 11                                              |
 | L0.5             | 6                                              |
 | L1               | 12                                              |
 | L1.5             | 4                                              |
