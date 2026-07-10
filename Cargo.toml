@@ -48,6 +48,7 @@ layers.nika-cli = "L4"
 # chain · source_id) · split from nika-cli's verbs/dap 2026-07-09 (the
 # crate-size cap · the nika-cap precedent).
 layers.nika-dap = "L4"
+layers.nika-display = "L4"
 layers.nika-lsp = "L4"
 # nika-mcp · the in-binary MCP server (announce floor `nika mcp`) · hand-rolled
 # newline-delimited JSON-RPC 2.0 over stdio (serde_json only · zero SDK) ·

@@ -96,8 +96,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | branch           | `chore/release-0.99.0`                                      |
 | HEAD             | `3d90001b9` (`3d90001b9d3efdc29fc9fce810ecd74476551acd`)             |
 | workspace        | v0.99.0                                  |
-| crates (workspace)| 45                                              |
-| crates (admitted)| 43 / 42                                   |
+| crates (workspace)| 46                                              |
+| crates (admitted)| 44 / 42                                   |
 | crates (WIP)     | 2 — nika-chart nika-fx                                  |
 | L0               | 12                                              |
 | L0.5             | 6                                              |
@@ -105,7 +105,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
-| L4               | 5                                              |
+| L4               | 6                                              |
 | lib tests        | 3875 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
