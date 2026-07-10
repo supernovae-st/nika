@@ -71,3 +71,25 @@ err_prefix    = "none"
 
 [lints]
 workspace = true
+
+# cargo-binstall resolution (#383). The release tarball carries the binary
+# under its PUBLIC name (`nika`, renamed at packaging — release.yml), and the
+# asset names use macos/linux × arm64/x64 rather than target triples, so the
+# bin-dir and every pkg-url are spelled explicitly — binstall's default
+# heuristics miss the assets and silently fall back to a source build.
+# Verification rides the per-release SHA256SUMS.
+[package.metadata.binstall]
+pkg-fmt = "tgz"
+bin-dir = "nika{ binary-ext }"
+
+[package.metadata.binstall.overrides.aarch64-apple-darwin]
+pkg-url = "{ repo }/releases/download/v{ version }/nika-macos-arm64-{ version }.tar.gz"
+
+[package.metadata.binstall.overrides.x86_64-apple-darwin]
+pkg-url = "{ repo }/releases/download/v{ version }/nika-macos-x64-{ version }.tar.gz"
+
+[package.metadata.binstall.overrides.x86_64-unknown-linux-gnu]
+pkg-url = "{ repo }/releases/download/v{ version }/nika-linux-x64-{ version }.tar.gz"
+
+[package.metadata.binstall.overrides.aarch64-unknown-linux-gnu]
+pkg-url = "{ repo }/releases/download/v{ version }/nika-linux-arm64-{ version }.tar.gz"

@@ -12,6 +12,13 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`cargo binstall nika-cli` resolves the prebuilt release binaries.** The
+  binary crate ships `[package.metadata.binstall]` mapping every release
+  asset (macos/linux × arm64/x64 · the binary at tarball root under its
+  public name) onto binstall's resolver — the Rust-native fast path now
+  fetches the published tarball instead of silently falling back to a
+  source build; verification rides the per-release `SHA256SUMS` (#383).
+  Proven live against the v0.99.0 assets on two targets.
 - **`nika mcp --transport http` — the Streamable HTTP transport.** The
   managed-MCP hosts stdio closed on get their wire: POST-only,
   conformant-minimal per MCP rev 2025-11-25 (single
