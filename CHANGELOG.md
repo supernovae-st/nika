@@ -10,7 +10,53 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **The machine-consumer rung, completed** — three surfaces one release
+  promised each other: `check --json` states the AFFIRMATIVE permits
+  contract (`permits`: source `declared`/`floor` · the authored block
+  spec-shaped · the tightest boundary the body statically needs — the
+  same derivation `--infer-permits` prints · honesty notes) (#346); and
+  every finding class rides ONE `findings[]` list — `{kind, gate,
+  severity, message}` on every row, `code`/`docs_url` only where a
+  canonical spec code exists, with `is_clean() ⇔ findings.is_empty()`
+  pinned per-class so an eleventh class can never go silently missing
+  (#331). Additive: `report_version` stays 1.
+- **Bare `trace show`/`verify`/`outputs`/`flow` read the workspace
+  latest** — the first thing typed after a run no longer demands the
+  path the run card just printed; one stderr line names the pick, zero
+  traces keeps the teaching exit-3, explicit paths are unchanged (#345).
+- **`--help` speaks user** — the ADR/L3/clap vocabulary leaves the first
+  screen; `check` findings print the same `fix: nika explain <CODE>`
+  affordance run failures always had; `explain` grows concrete
+  fix-forms for the high-traffic conformance codes (DAG-001/002/003 ·
+  PARSE-002) and its footer teaches instead of reading inward (#145).
+
+### Fixed
+
+- **gemini 2.5 dynamic thinking no longer burns structured budgets** —
+  on a `schema:` call with authored `max_tokens` and no authored
+  thinking budget, the wire bounds thinking (flash 0 · pro at the API's
+  own 128 floor) so the author's tokens buy OUTPUT; an authored budget
+  always wins, uncapped calls keep dynamic thinking, non-2.5 models
+  never gain a surprise key. Landed twice honestly: the first fix gated
+  on the provider id and never fired — caught by a local capture-server
+  probe and the live battery, re-proven at the wire (#300).
+- **Parse-fatal `check --json` answers JSON** — the most common CI case
+  emitted plain text on stdout; now ONE object (`parse_fatal: true` ·
+  a `findings[]` row carrying the NIKA-PARSE code) (#331).
+
+### Changed
+
+- **The `${{ }}` expression grammar lives in `nika-tmpl`** — descended
+  from `nika-schema` at the 15k crate-size wall (the trace→dap
+  precedent): the scanner and the language it scans are one home,
+  `nika_schema::expression` re-exports verbatim, `ExprError` renders
+  byte-identically through a hand-written Display, and the AST enums
+  are deliberately exhaustive (a silent wildcard arm in a secrets
+  walker would be an IFC hole).
+- `nika-chart` joins the public-api coverage floor (44/44 admitted lib
+  crates surface-locked).
 
 ## [0.99.0](https://github.com/supernovae-st/nika/compare/v0.98.0..v0.99.0) - 2026-07-10
 
