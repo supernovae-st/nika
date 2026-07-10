@@ -988,6 +988,7 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace::manage::RmTa
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace::manage::RmTarget
 impl<T> typenum::type_operators::Same for nika_cli::verbs::trace::manage::RmTarget
 pub type nika_cli::verbs::trace::manage::RmTarget::Output = T
+pub fn nika_cli::verbs::trace::manage::latest() -> core::option::Option<std::path::PathBuf>
 pub fn nika_cli::verbs::trace::manage::ls(theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::manage::parse_older_than(raw: &str) -> core::result::Result<core::time::Duration, alloc::string::String>
 pub fn nika_cli::verbs::trace::manage::rm(target: &nika_cli::verbs::trace::manage::RmTarget, force: bool, theme: nika_cli::display::theme::Theme) -> nika_cli::verbs::VerbOutput
