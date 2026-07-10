@@ -87,6 +87,17 @@ impl VerbInvokeError {
         spec_code: Option<String>,
         transient: bool,
     ) -> Self {
+        // One-voice: a builtin's content opens with its own spec code
+        // (`NIKA-BUILTIN-WRITE-001 · parent directory…`) and the failure
+        // card prints the code again as the outer prefix — strip the house
+        // `CODE · ` opener from the content so the code speaks once
+        // (caught live 2026-07-10 · duplicated code in the run's ✖ card).
+        let content = match &spec_code {
+            Some(code) => content
+                .strip_prefix(&format!("{code} · "))
+                .unwrap_or(content),
+            None => content,
+        };
         Self::ToolReportedError {
             tool: tool.into(),
             content_tail: cap_tail(content),
@@ -234,5 +245,48 @@ mod tests {
             VerbInvokeError::Dispatch { source: timeout() }.is_transient(),
             timeout().is_transient()
         );
+    }
+    /// One-voice: the coded constructor strips the house `CODE · ` opener
+    /// from the content — the failure card owns the code prefix, so the
+    /// display body must not repeat it (caught live 2026-07-10).
+    #[test]
+    fn coded_constructor_strips_its_own_code_prefix() {
+        let err = VerbInvokeError::tool_reported_coded(
+            "nika:write",
+            "NIKA-BUILTIN-WRITE-001 · parent directory `./out` does not exist",
+            Some("NIKA-BUILTIN-WRITE-001".to_owned()),
+            false,
+        );
+        let display = format!("{err}");
+        assert!(
+            !display.contains("NIKA-BUILTIN-WRITE-001"),
+            "the code must not ride the display body: {display}"
+        );
+        assert!(display.contains("parent directory `./out` does not exist"));
+    }
+
+    /// A mismatched or absent code leaves the content untouched.
+    #[test]
+    fn coded_constructor_leaves_foreign_prefixes_alone() {
+        let err = VerbInvokeError::tool_reported_coded(
+            "nika:write",
+            "NIKA-BUILTIN-FETCH-001 · some other tool's phrasing",
+            Some("NIKA-BUILTIN-WRITE-001".to_owned()),
+            false,
+        );
+        match &err {
+            VerbInvokeError::ToolReportedError { content_tail, .. } => {
+                assert!(content_tail.starts_with("NIKA-BUILTIN-FETCH-001"));
+            }
+            other => panic!("wrong variant: {other:?}"),
+        }
+        let plain =
+            VerbInvokeError::tool_reported("nika:jq", "NIKA-X · text-only tools keep everything");
+        match &plain {
+            VerbInvokeError::ToolReportedError { content_tail, .. } => {
+                assert!(content_tail.starts_with("NIKA-X · "));
+            }
+            other => panic!("wrong variant: {other:?}"),
+        }
     }
 }
