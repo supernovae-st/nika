@@ -102,8 +102,16 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
                 None => format!("{} (task `{}`)", c.detail, c.task),
             },
         );
-        f.code = Some("NIKA-SEC-004".to_owned());
-        f.docs_url = Some(format!("{}/NIKA-SEC-004", super::ERROR_DOCS_BASE));
+        // The wire code the RUN would emit for the same violation: the
+        // always-on SSRF floor speaks NIKA-SEC-005, the declared permits
+        // boundary NIKA-SEC-004 (spec 05-errors) — check≡run down to the code.
+        let code = if c.floor {
+            "NIKA-SEC-005"
+        } else {
+            "NIKA-SEC-004"
+        };
+        f.code = Some(code.to_owned());
+        f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
         f.task = Some(c.task.clone());
         out.push(f);
     }
