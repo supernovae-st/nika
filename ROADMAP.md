@@ -94,7 +94,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `feat/models-rung`                                      |
-| HEAD             | `49422aa40` (`49422aa4096131374760624e13b0203fa50c17bb`)             |
+| HEAD             | `493dc32e4` (`493dc32e46cacaaf0823ac494b3c062f9fe13048`)             |
 | workspace        | v0.98.0                                  |
 | crates (workspace)| 45                                              |
 | crates (admitted)| 43 / 42                                   |
