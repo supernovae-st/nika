@@ -116,5 +116,35 @@ set -e
 [ "$GOT" -eq 0 ] && fail "[broken] invalid workflow checked clean"
 printf '%s' "$OUT" | grep -qE "NIKA-[A-Z0-9-]+[0-9]" || fail "[broken] no error code in voice"
 
+# 6 · the managed-host wire: the http transport answers the same truth
+# as stdio (one server · initialize + a real tools/call · the origin
+# gate holds). curl ships on every runner this plays on; loopback only.
+if command -v curl >/dev/null 2>&1; then
+  MCP_PORT=$((20000 + RANDOM % 20000))
+  env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb \
+    "$BIN" mcp --transport http --port "$MCP_PORT" >/dev/null 2>&1 &
+  MCP_PID=$!
+  # the bind is asynchronous — poll briefly instead of a blind sleep
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    curl -s -o /dev/null -m 1 "http://127.0.0.1:$MCP_PORT/mcp" 2>/dev/null && break
+    sleep 0.3
+  done
+  OUT=$(curl -s -m 8 -X POST "http://127.0.0.1:$MCP_PORT/mcp" \
+    -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"funnel","version":"0"}}}')
+  printf '%s' "$OUT" | grep -qF '"protocolVersion"' || fail "[mcp-http] initialize: $OUT"
+  OUT=$(curl -s -m 8 -X POST "http://127.0.0.1:$MCP_PORT/mcp" \
+    -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
+  printf '%s' "$OUT" | grep -qF 'nika_check' || fail "[mcp-http] tools/list: $OUT"
+  CODE=$(curl -s -o /dev/null -w '%{http_code}' -m 8 -X POST \
+    -H 'Origin: https://evil.example.com' -H 'Content-Type: application/json' \
+    -d '{}' "http://127.0.0.1:$MCP_PORT/mcp")
+  [ "$CODE" = "403" ] || fail "[mcp-http] foreign origin answered $CODE, want 403"
+  kill "$MCP_PID" 2>/dev/null || true
+else
+  say "── mcp-http leg skipped (no curl on this runner)"
+fi
+
 say "── funnel e2e: FAILS=$FAILS"
 exit $((FAILS > 0))

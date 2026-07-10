@@ -108,6 +108,7 @@ npm publish                          # needs `npm login` (or NPM_TOKEN)
 - [ ] `nika run --help` from the release asset contains every documented run flag
       (`--json`, `--output`, `--no-progress`, `--quiet`, `--dry-run`)
 - [ ] `nika mcp` smoke (`initialize` + `tools/list`) · no stale `mcp serve --stdio` docs/config
+- [ ] `nika mcp --transport http` smoke (curl `initialize` on loopback · foreign origin → 403) — the funnel's mcp-http leg plays this against the tarball automatically
 - [ ] `nika init` creates `.vscode/settings.json`, `AGENTS.md`, `.cursor/rules/nika.mdc`
 - [ ] `nika wire cursor` migrates stale MCP config and preserves other servers
 - [ ] `nika doctor` reports editor/agent readiness without printing secrets
