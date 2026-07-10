@@ -758,7 +758,11 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
 }
 
 fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
-    if wf.permits.is_none() {
+    // With no boundary declared the panel is informational — UNLESS the
+    // SSRF-floor parity pass found escapes (the floor is permits-
+    // independent): those MUST render, or `✖ findings above` points at
+    // nothing (the mute-diagnostic the battery re-run caught).
+    if wf.permits.is_none() && report.capability_escapes.is_empty() {
         let inferred = infer_permits(wf);
         let _ = writeln!(
             out,
@@ -886,6 +890,44 @@ mod tests {
             nika_schema::ParseMode::Strict,
         )
         .expect("fixture parses")
+    }
+
+    /// The mute-diagnostic regression the battery re-run caught: with NO
+    /// `permits:` block, a floor escape (SSRF-parity pass · permits-
+    /// independent) exited rc=2 while the PERMITS panel printed only the
+    /// informational `○ no boundary declared` line — `✖ findings above`
+    /// pointed at nothing. The panel must render the escape.
+    #[test]
+    fn floor_escape_renders_without_a_permits_block() {
+        let wf = parse_wf(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: probe\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/x\" } }\n",
+        );
+        let report = nika_schema::check(&wf);
+        assert!(
+            !report.capability_escapes.is_empty(),
+            "the floor pass fires without permits"
+        );
+        let theme = Theme::new(false, true, false);
+        let mut out = String::new();
+        permits(&mut out, &report, &wf, theme);
+        assert!(out.contains("SSRF floor"), "escape must render: {out}");
+        assert!(
+            out.contains("NIKA-SEC-005"),
+            "the wire code names it: {out}"
+        );
+        assert!(
+            !out.contains("no boundary declared"),
+            "the informational line must yield to the finding: {out}"
+        );
+        // …and the informational line still renders when there is nothing
+        // to say (the common clean case is unchanged).
+        let clean = parse_wf(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: probe\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
+        );
+        let clean_report = nika_schema::check(&clean);
+        let mut clean_out = String::new();
+        permits(&mut clean_out, &clean_report, &clean, theme);
+        assert!(clean_out.contains("no boundary declared"), "{clean_out}");
     }
 
     /// A `required: true` input with no `default:` is what the operator MUST
