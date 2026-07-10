@@ -13,7 +13,11 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ### Added
 
 - **The machine-consumer rung, completed** — three surfaces one release
-  promised each other: `check --json` states the AFFIRMATIVE permits
+  promised each other: `nika run --dry-run --json` emits ONE versioned
+  plan object (`plan_version: 1` — waves resolved to task ids · per-task
+  verbs · the cost ceiling · the permits contract · caller requirements)
+  instead of refusing with "no machine dry-run form yet" (#332);
+  `check --json` states the AFFIRMATIVE permits
   contract (`permits`: source `declared`/`floor` · the authored block
   spec-shaped · the tightest boundary the body statically needs — the
   same derivation `--infer-permits` prints · honesty notes) (#346); and
