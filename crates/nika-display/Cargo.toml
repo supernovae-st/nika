@@ -1,0 +1,28 @@
+[package]
+name          = "nika-display"
+description   = "The run-comprehension surface — the event fold (RunView), the terminal frames, the colour/glyph theme seam, execution-flow reads, bounded output shapes, painted source spans and the deterministic demo streams. Layer L4 — split from nika-cli's display module 2026-07-10 (the crate-size cap · the nika-dap/nika-cap precedent): one truth in, text out, no I/O."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L4 interface crate (the binary ships, the lib doesn't).
+
+[dependencies]
+nika-event  = { path = "../nika-event", version = "0.99.0" }  # the REAL event taxonomy (the fold input)
+nika-types  = { path = "../nika-types", version = "0.99.0" }  # Timestamp · KeyValue · ids
+nika-schema = { path = "../nika-schema", version = "0.99.0" } # spans the snippet painter maps
+annotate-snippets = { workspace = true }                       # painted spans (rustc-grade frames through the Theme seam)
+anstyle     = { workspace = true }                             # Role→Style mapping for the snippet renderer
+serde_json  = { workspace = true }                             # the shape reader parses task output JSON
+uuid        = { workspace = true }                             # deterministic demo EventIds
+
+[package.metadata.lore]
+daemon        = "messager"
+archetype     = "story-frame-messenger"
+spirit_role   = "plie le flux d'événements en récit lisible · une vérité entre, du texte sort · jamais d'I/O"
+
+[lints]
+workspace = true

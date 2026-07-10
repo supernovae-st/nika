@@ -3687,8 +3687,6 @@ version = "0.99.0"
 name = "nika-cli"
 version = "0.99.0"
 dependencies = [
- "annotate-snippets 0.12.15",
- "anstyle",
  "clap",
  "clap_complete",
  "expectrl",
@@ -3697,6 +3695,7 @@ dependencies = [
  "nika-catalog",
  "nika-clock",
  "nika-dap",
+ "nika-display",
  "nika-error",
  "nika-event",
  "nika-exec-runner",
@@ -3745,6 +3744,19 @@ dependencies = [
  "sha2",
  "tempfile",
  "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
+name = "nika-display"
+version = "0.99.0"
+dependencies = [
+ "annotate-snippets 0.12.15",
+ "anstyle",
+ "nika-event",
+ "nika-schema",
+ "nika-types",
+ "serde_json",
  "uuid",
 ]
 

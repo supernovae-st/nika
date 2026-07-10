@@ -82,21 +82,6 @@ pub enum ExprError {
         /// The maximum nesting depth the parser admits.
         limit: usize,
     },
-
-    /// A binary arithmetic operator (`+` · `-` · `*` · `/` · `%`) — the
-    /// v0.1 CEL subset is a BOOLEAN guard grammar (comparisons · `&&`/`||`
-    /// · `!` · `size` · member access), never a calculator (spec `03-dag.md`
-    /// §CEL-subset). A distinct teaching variant so a new user who writes
-    /// `${{ vars.a + vars.b > 5 }}` learns WHERE arithmetic belongs (a
-    /// `nika:jq` task) instead of reading a raw `unexpected character`
-    /// tokenizer error · mirrors [`Self::UnknownFunction`]'s « `size` is
-    /// the only v0.1 callable » teaching.
-    ArithmeticUnsupported {
-        /// The offending operator.
-        op: char,
-        /// Byte offset relative to the expression start.
-        offset: usize,
-    },
 }
 
 impl fmt::Display for ExprError {
@@ -133,12 +118,6 @@ impl fmt::Display for ExprError {
             Self::TooDeep { offset, limit } => write!(
                 f,
                 "expression nests too deeply at offset {offset} (limit {limit})"
-            ),
-            Self::ArithmeticUnsupported { op, offset } => write!(
-                f,
-                "arithmetic operator `{op}` at offset {offset} — `${{{{ … }}}}` is a boolean \
-                 guard, not a calculator (v0.1 CEL subset): compute the value in a `nika:jq` \
-                 task and gate on `tasks.<id>.output`"
             ),
         }
     }
@@ -218,19 +197,5 @@ mod tests {
         for (err, expected) in cases {
             assert_eq!(err.to_string(), expected);
         }
-    }
-
-    /// The teaching rendering is pinned byte-exact — the `${{{{`→`${{`
-    /// format-escape is the classic silent break, and the message IS the
-    /// product (it must name the jq route and the guard nature verbatim).
-    #[test]
-    fn arithmetic_display_teaches_the_jq_route() {
-        let err = ExprError::ArithmeticUnsupported { op: '+', offset: 7 };
-        assert_eq!(
-            err.to_string(),
-            "arithmetic operator `+` at offset 7 — `${{ … }}` is a boolean guard, \
-             not a calculator (v0.1 CEL subset): compute the value in a `nika:jq` \
-             task and gate on `tasks.<id>.output`"
-        );
     }
 }

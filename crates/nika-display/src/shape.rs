@@ -14,11 +14,11 @@
 //! stamp filter), so no summary here can ever see one. This module adds
 //! NO secret read of its own; the bounded width is defence in depth.
 
-use crate::display::theme::{Role, Theme};
+use crate::theme::{Role, Theme};
 
 /// Widest a shape summary grows (display cells) before it ellipsizes —
 /// keeps a typical storyboard row graceful under 80 columns.
-pub(crate) const SHAPE_CELLS: usize = 24;
+pub const SHAPE_CELLS: usize = 24;
 
 /// A byte size for humans: `89B` · `1.2KB` · `3.4MB` (no space — the
 /// tail vocabulary, distinct from runtime note prose like `34 KB`).
@@ -105,7 +105,7 @@ pub fn output_tail(
     use std::fmt::Write as _;
     let text = output_json?;
     let shape = summarize(text, SHAPE_CELLS)?;
-    let arrow = crate::display::vocab::arrow(theme.ascii);
+    let arrow = crate::vocab::arrow(theme.ascii);
     let mut tail = format!("{arrow} {shape} · {}", fmt_bytes(text.len()));
     if let Some(tok) = tokens {
         let _ = write!(tail, " · {tok} tok");

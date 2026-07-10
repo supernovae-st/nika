@@ -18,9 +18,13 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
-pub mod demo;
-pub mod display;
+// The display surface DESCENDED to `nika-display` (2026-07-10 · the 15k
+// wall · nika-dap/nika-cap precedent) — re-exported at the old paths so
+// every `crate::display::…` / `crate::demo` call site stays untouched.
+pub use nika_display as display;
+pub use nika_display::demo;
 pub mod verbs;
+pub mod wires;
 
 pub use display::render::{frame, frame_with_outputs, verdict_frame};
 pub use display::state::{RunView, TaskRow, TaskState};

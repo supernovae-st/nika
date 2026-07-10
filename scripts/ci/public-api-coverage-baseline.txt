@@ -87,5 +87,6 @@ nika-builtin
 nika-cel
 nika-cli
 nika-dap
+nika-display
 nika-pck-manifest
 nika-tmpl

@@ -36,7 +36,7 @@ Cargo.lock.bak
 # /crates/nika-cli/          -- SEEDED 2026-06-11 (L4 operator surface · WIP · D-2026-06-10-N6)
 /crates/nika-core/
 /crates/nika-daemon/
-/crates/nika-display/
+# /crates/nika-display/  -- ADMITTED 2026-07-10 (L4 · the display descent from nika-cli · D-2026-07-09-N1)
 /crates/nika-engine/
 # /crates/nika-exec-runner/   -- ADMITTED slice s7 (D-2026-06-10-N6)
 # /crates/nika-extract/  -- SEEDED s17 2026-06-12 (L1.5 · the 9 fetch extract modes · admission step 12)

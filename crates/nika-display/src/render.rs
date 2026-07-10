@@ -5,10 +5,10 @@
 //! lines`. No I/O here: the replay loop owns the terminal, this module owns
 //! the truth-to-text mapping. Snapshot tests pin BOTH glyph themes.
 
-use crate::display::flow::{fmt_wall_ms, lane_marks};
-use crate::display::format::fmt_cost_usd;
-use crate::display::state::{RunView, TaskRow, TaskState};
-use crate::display::theme::{Role, Theme};
+use crate::flow::{fmt_wall_ms, lane_marks};
+use crate::format::fmt_cost_usd;
+use crate::state::{RunView, TaskRow, TaskState};
+use crate::theme::{Role, Theme};
 
 /// Widest the note column grows before the time column floats free —
 /// keeps a typical frame graceful under 80 columns.
@@ -98,7 +98,7 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
     for (i, row) in view.rows().iter().enumerate() {
         let mark = marks.get(i).copied().unwrap_or(false);
         let tail = if outputs {
-            crate::display::shape::output_tail(row.output_json.as_deref(), row.tokens, theme)
+            crate::shape::output_tail(row.output_json.as_deref(), row.tokens, theme)
         } else {
             None
         };
@@ -135,6 +135,12 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn meter_line(view: &RunView, theme: &Theme) -> String {
     let cost = spend_meter(view);
+    // Failed rides beside `done` (which counts EVERY terminal state) so a
+    // failing run's meter never reads like a clean one (live 2026-07-10 · #393).
+    let failed = match view.failed_count() {
+        0 => String::new(),
+        n => format!("{n} failed · "),
+    };
     let repaired = match view.recovered_count() {
         0 => String::new(),
         n => format!("{n} recovered · "),
@@ -142,7 +148,7 @@ fn meter_line(view: &RunView, theme: &Theme) -> String {
     #[allow(clippy::cast_precision_loss)] // display-only seconds
     let secs = view.elapsed_ms as f64 / 1000.0;
     let meter = format!(
-        "── {}/{} done · {repaired}{cost} · elapsed {secs:.1}s ",
+        "── {}/{} done · {failed}{repaired}{cost} · elapsed {secs:.1}s ",
         view.done_count(),
         view.rows().len(),
     );
@@ -158,7 +164,7 @@ fn meter_line(view: &RunView, theme: &Theme) -> String {
 // `&Theme` to match the sink borrow that threads it here.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 #[must_use]
-pub(crate) fn stream_header(view: &RunView, theme: &Theme) -> Vec<String> {
+pub fn stream_header(view: &RunView, theme: &Theme) -> Vec<String> {
     let tasks = view
         .plan()
         .map(|waves| waves.iter().map(Vec::len).sum())
@@ -176,7 +182,7 @@ pub(crate) fn stream_header(view: &RunView, theme: &Theme) -> Vec<String> {
 // `&Theme` to match the sink borrow that threads it here.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 #[must_use]
-pub(crate) fn stream_settled_line(
+pub fn stream_settled_line(
     view: &RunView,
     task: &str,
     theme: &Theme,
@@ -189,7 +195,7 @@ pub(crate) fn stream_settled_line(
     let time_w = time.as_ref().map_or(0, |t| t.chars().count());
     let mark = lane_marks(view).get(i).copied().unwrap_or(false);
     let tail = if outputs {
-        crate::display::shape::output_tail(row.output_json.as_deref(), row.tokens, theme)
+        crate::shape::output_tail(row.output_json.as_deref(), row.tokens, theme)
     } else {
         None
     };
@@ -211,7 +217,7 @@ pub(crate) fn stream_settled_line(
 // `&Theme` to match the sink borrow that threads it here.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 #[must_use]
-pub(crate) fn stream_summary(view: &RunView, theme: &Theme) -> Vec<String> {
+pub fn stream_summary(view: &RunView, theme: &Theme) -> Vec<String> {
     let mut lines = vec![meter_line(view, theme)];
     if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
@@ -425,11 +431,36 @@ pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
 /// The failure card (workflow-level detail + per-failed-row detail + the
 /// `nika explain` hint). Shared by the full [`frame`] and the compact
 /// [`verdict_frame`] so the two surfaces can never drift on a failure.
+/// Presentation-only dedup: a builtin's content opens with its own spec
+/// code AND the stamped headline prefixes the same code — the RENDERED
+/// line says it once. The error DATA keeps both (the agent-repair oracle
+/// reads the typed code from the raw string — the #392 CI lesson).
+fn dedup_code_line(detail: &str) -> String {
+    let Some(code) = detail.split_whitespace().find(|w| w.starts_with("NIKA-")) else {
+        return detail.to_owned();
+    };
+    let opener = format!("{code} · ");
+    match detail.find(&opener) {
+        Some(first) => {
+            let tail_at = first + opener.len();
+            match detail[tail_at..].find(&opener) {
+                Some(second) => {
+                    let abs = tail_at + second;
+                    format!("{}{}", &detail[..abs], &detail[abs + opener.len()..])
+                }
+                None => detail.to_owned(),
+            }
+        }
+        None => detail.to_owned(),
+    }
+}
+
 // `&Theme` (not by-value) to match the `frame`/`verdict_frame` borrow that
 // threads it here — one calling convention across the render surface.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn append_failure_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
     if let Some(detail) = &view.workflow_detail {
+        let detail = &dedup_code_line(detail);
         lines.push(String::new());
         lines.push(format!(
             "  {}{}",
@@ -439,26 +470,23 @@ fn append_failure_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
         if let Some(code) = detail.split_whitespace().find(|w| w.starts_with("NIKA-")) {
             lines.push(format!(
                 "    {}",
-                crate::display::vocab::hint(*theme, "fix", &format!("nika explain {code}"))
+                crate::vocab::hint(*theme, "fix", &format!("nika explain {code}"))
             ));
         }
     }
     for row in view.rows() {
         if row.state == TaskState::Failed && !row.detail.is_empty() {
+            let detail = dedup_code_line(&row.detail);
             lines.push(String::new());
             lines.push(format!(
                 "  {}{}",
                 theme.glyph(TaskState::Failed, 0),
-                theme.paint(Role::Strong, &row.detail),
+                theme.paint(Role::Strong, &detail),
             ));
-            if let Some(code) = row
-                .detail
-                .split_whitespace()
-                .find(|w| w.starts_with("NIKA-"))
-            {
+            if let Some(code) = detail.split_whitespace().find(|w| w.starts_with("NIKA-")) {
                 lines.push(format!(
                     "    {}",
-                    crate::display::vocab::hint(*theme, "fix", &format!("nika explain {code}"))
+                    crate::vocab::hint(*theme, "fix", &format!("nika explain {code}"))
                 ));
             }
         }
@@ -572,6 +600,31 @@ mod tests {
         let tail = &lines[lines.len() - 2..];
         assert!(tail[0].contains("NIKA-431"), "headline: {tail:?}");
         assert_eq!(tail[1], "    fix: nika explain NIKA-431");
+        // The meter's honesty counter (#393): a failing run's summary line
+        // never reads byte-identical to a clean one.
+        let meter = lines.iter().find(|l| l.contains("done")).expect("meter");
+        assert!(
+            meter.contains(" failed · "),
+            "meter counts the failure: {meter}"
+        );
+    }
+
+    /// Presentation dedup (#393 · the #392 CI lesson kept the DATA intact):
+    /// a headline carrying the same spec code twice renders it once ·
+    /// foreign or single codes stay untouched.
+    #[test]
+    fn failure_card_dedups_a_double_spec_code() {
+        assert_eq!(
+            dedup_code_line(
+                "NIKA-BUILTIN-WRITE-001 · tool `nika:write` reported an error: NIKA-BUILTIN-WRITE-001 · parent directory missing"
+            ),
+            "NIKA-BUILTIN-WRITE-001 · tool `nika:write` reported an error: parent directory missing"
+        );
+        assert_eq!(
+            dedup_code_line("NIKA-431 · provider refused (429)"),
+            "NIKA-431 · provider refused (429)"
+        );
+        assert_eq!(dedup_code_line("no code here"), "no code here");
     }
 
     /// The cascade rows RENDER as blocked `⊘` (the runtime's
