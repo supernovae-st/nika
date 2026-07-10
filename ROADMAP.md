@@ -93,8 +93,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `fix/effective-model-floor`                                      |
-| HEAD             | `a2788443e` (`a2788443ebbd5a916555ca66bfca2d080fa80a4a`)             |
+| branch           | `feat/models-rung`                                      |
+| HEAD             | `63b85c018` (`63b85c018aee9328619effb27af28683831670b9`)             |
 | workspace        | v0.98.0                                  |
 | crates (workspace)| 45                                              |
 | crates (admitted)| 43 / 42                                   |
