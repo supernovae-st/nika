@@ -225,7 +225,7 @@ fn inspect_draws_the_wave_groups_with_static_facts() {
 #[test]
 fn check_clean_file_exits_0_with_grep_stable_sections() {
     let path = fixture_path("check-clean.nika.yaml", WORKFLOW);
-    let out = check::run(&path, false, false, PLAIN);
+    let out = check::run(&path, false, false, None, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     for section in [
         "PLAN", "COST", "SECRETS", "TYPES", "TOOLS", "SCHEMA", "PERMITS",
@@ -249,7 +249,7 @@ fn check_clean_file_exits_0_with_grep_stable_sections() {
 fn check_dirty_file_exits_2_and_names_the_fix() {
     let dirty = WORKFLOW.replace("\"nika:read\"", "\"nika:reed\"");
     let path = fixture_path("check-dirty.nika.yaml", &dirty);
-    let out = check::run(&path, false, false, PLAIN);
+    let out = check::run(&path, false, false, None, PLAIN);
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("TOOLS"), "{}", out.text);
     assert!(
@@ -265,7 +265,7 @@ fn check_json_is_the_report_plus_clean_flag_never_coloured() {
     let path = fixture_path("check-json.nika.yaml", WORKFLOW);
     // Colour requested — json must ignore it (the contract bytes).
     let coloured = Theme::new(true, false, false);
-    let out = check::run(&path, true, false, coloured);
+    let out = check::run(&path, true, false, None, coloured);
     assert_eq!(out.code, exit::OK);
     assert!(!out.text.contains('\x1b'), "json is never coloured");
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
@@ -281,7 +281,7 @@ fn check_json_conformance_carries_severity_and_docs_url() {
     // form). Consumers link the code without re-deriving anything.
     let broken = WORKFLOW.replace("depends_on: [gather, probe]", "depends_on: [ghost]");
     let path = fixture_path("check-severity.nika.yaml", &broken);
-    let out = check::run(&path, true, false, PLAIN);
+    let out = check::run(&path, true, false, None, PLAIN);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
     let c = &doc["conformance"][0];
     assert_eq!(c["severity"], "error");
@@ -298,14 +298,14 @@ fn check_json_conformance_carries_severity_and_docs_url() {
 #[test]
 fn check_parse_error_is_a_file_finding_exit_2() {
     let path = fixture_path("check-parse.nika.yaml", "nika: v1\nworkflow: [broken");
-    let out = check::run(&path, false, false, PLAIN);
+    let out = check::run(&path, false, false, None, PLAIN);
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("PARSE"), "{}", out.text);
 }
 
 #[test]
 fn check_unreadable_file_is_an_environment_error_exit_3() {
-    let out = check::run("/nonexistent/missing.nika.yaml", false, false, PLAIN);
+    let out = check::run("/nonexistent/missing.nika.yaml", false, false, None, PLAIN);
     assert_eq!(out.code, exit::ENV);
     assert!(out.text.contains("cannot read"));
 }
@@ -414,7 +414,7 @@ fn new_writes_a_template_that_passes_its_own_check() {
     );
 
     // The own-corpus law: what we scaffold must pass our own ladder.
-    let checked = check::run(&dest_str, false, false, PLAIN);
+    let checked = check::run(&dest_str, false, false, None, PLAIN);
     assert_eq!(
         checked.code,
         exit::OK,

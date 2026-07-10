@@ -25,10 +25,28 @@ use crate::verbs::{VerbOutput, load_checked, load_checked_with_source};
 /// spec-validity is unchanged, but an `exec:` with a probable native
 /// path no longer sails through silently.
 #[must_use]
-pub fn run(path: &str, json: bool, native_strict: bool, theme: Theme) -> VerbOutput {
+pub fn run(
+    path: &str,
+    json: bool,
+    native_strict: bool,
+    model_override: Option<&str>,
+    theme: Theme,
+) -> VerbOutput {
     let (source, wf, report) = match load_checked_with_source(path) {
         Ok(triple) => triple,
         Err(out) => return out,
+    };
+    // `--model m` previews the RUN override's static envelope (#342): the
+    // report is recomputed with `m` as the effective envelope default —
+    // the same substitution the run's budget preflight prices, so what
+    // check shows IS what run will refuse or allow.
+    let (wf, report) = match model_override {
+        Some(m) => {
+            let wf = crate::verbs::with_model_override(&wf, m);
+            let report = nika_schema::check(&wf);
+            (wf, report)
+        }
+        None => (wf, report),
     };
     let native_hints = report
         .hints
@@ -724,7 +742,7 @@ mod tests {
         let path = dir.join(name);
         std::fs::write(&path, yaml).expect("fixture body");
         let theme = Theme::new(false, ascii, false);
-        run(path.to_str().expect("utf8 path"), false, false, theme).text
+        run(path.to_str().expect("utf8 path"), false, false, None, theme).text
     }
 
     /// Same fixture plumbing, full `VerbOutput` (exit-code assertions) —
@@ -739,6 +757,7 @@ mod tests {
             path.to_str().expect("utf8 path"),
             false,
             native_strict,
+            None,
             theme,
         )
     }
@@ -753,7 +772,7 @@ mod tests {
         let path = dir.join("native-strict-json.nika.yaml");
         std::fs::write(&path, helper).expect("fixture body");
         let theme = Theme::new(false, true, false);
-        let out = run(path.to_str().expect("utf8 path"), true, true, theme);
+        let out = run(path.to_str().expect("utf8 path"), true, true, None, theme);
         assert_eq!(
             out.code, 2,
             "strict hint-only workflow exits FILE: {}",
