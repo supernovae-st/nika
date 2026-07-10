@@ -31,6 +31,7 @@ mod analysis;
 mod certificate;
 mod cost;
 mod declass;
+mod effective;
 mod flow;
 mod hints;
 mod infer_permits;
@@ -50,6 +51,7 @@ use crate::raw::RawWorkflow;
 pub use analysis::{DagAnalysis, TaskBlast};
 pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use cost::{CostCeiling, TaskCost, UnboundedReason};
+pub use effective::{EffectivePermits, PermitsSource};
 pub use flow::{FlowFacts, TaintTrace};
 pub use hints::Hint;
 pub use hints::static_read_paths;
@@ -168,6 +170,14 @@ pub struct CheckReport {
     /// are degree-1 polynomials in the `for_each` collection sizes.
     /// Additive: `report_version` stays 1.
     pub certificate: RunCertificate,
+    /// The AFFIRMATIVE permits statement — the boundary in force (the
+    /// declared `permits:` block or the engine floor) AND the tightest
+    /// boundary the body statically needs (the `--infer-permits`
+    /// derivation) — so consumers render the positive contract on a
+    /// green check instead of reconstructing it from graph labels;
+    /// violations stay in `capability_escapes` / `secret_*`. Additive:
+    /// `report_version` stays 1.
+    pub permits: EffectivePermits,
     /// What this workflow needs from its caller BEFORE any token is
     /// spent — models per task · declared secrets (facts, no values) ·
     /// env reads vs env defines · required vars. Declaration truth
@@ -333,6 +343,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         cost: cost::ceiling(wf),
         certificate: certificate::certify(wf),
         requirements: requirements::collect(wf),
+        permits: effective::collect(wf),
         secret_leaks: secrets::scan_leaks(wf, &flow),
         secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes: permits_fit::scan_escapes(wf),
