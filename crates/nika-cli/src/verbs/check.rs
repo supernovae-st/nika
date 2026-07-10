@@ -917,7 +917,12 @@ mod tests {
     /// so the assertions pin glyphs/text, not ANSI). The render path is what
     /// the operator reads — these tests pin its exact words.
     fn checked_text(name: &str, yaml: &str, ascii: bool) -> String {
-        let dir = std::env::temp_dir().join("nika-cli-killtests");
+        // Per-PROCESS dir: two concurrent `cargo test` invocations (a CI
+        // matrix · a dev double-run) share the OS tmpdir, and a fixed
+        // name let them stomp each other's fixtures mid-read (flaked
+        // live 2026-07-10 — the same fixed-temp-name class as the
+        // check-expect mktemp collision, #376).
+        let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmp dir");
         let path = dir.join(name);
         std::fs::write(&path, yaml).expect("fixture body");
@@ -928,7 +933,12 @@ mod tests {
     /// Same fixture plumbing, full `VerbOutput` (exit-code assertions) —
     /// the `--native-strict` posture tests read `.code`.
     fn checked_output(name: &str, yaml: &str, native_strict: bool) -> VerbOutput {
-        let dir = std::env::temp_dir().join("nika-cli-killtests");
+        // Per-PROCESS dir: two concurrent `cargo test` invocations (a CI
+        // matrix · a dev double-run) share the OS tmpdir, and a fixed
+        // name let them stomp each other's fixtures mid-read (flaked
+        // live 2026-07-10 — the same fixed-temp-name class as the
+        // check-expect mktemp collision, #376).
+        let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmp dir");
         let path = dir.join(name);
         std::fs::write(&path, yaml).expect("fixture body");
@@ -982,7 +992,12 @@ mod tests {
         // The JSON surface: models_resolve false · clean false · the
         // pricing row is NULL (unpriced beats conjured — the $0.0001
         // fuzzy-match hole from the live evidence).
-        let dir = std::env::temp_dir().join("nika-cli-killtests");
+        // Per-PROCESS dir: two concurrent `cargo test` invocations (a CI
+        // matrix · a dev double-run) share the OS tmpdir, and a fixed
+        // name let them stomp each other's fixtures mid-read (flaked
+        // live 2026-07-10 — the same fixed-temp-name class as the
+        // check-expect mktemp collision, #376).
+        let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
         let path = dir.join("models-bare.nika.yaml");
         let theme = Theme::new(false, true, false);
         let out = run(path.to_str().expect("utf8 path"), true, false, None, theme);
@@ -1023,7 +1038,12 @@ mod tests {
     #[test]
     fn native_strict_json_payload_agrees_with_the_exit_code() {
         let helper = "nika: v1\nworkflow: helper\ntasks:\n  - id: crawl\n    exec: { command: \"curl -s https://acme.test\" }\n";
-        let dir = std::env::temp_dir().join("nika-cli-killtests");
+        // Per-PROCESS dir: two concurrent `cargo test` invocations (a CI
+        // matrix · a dev double-run) share the OS tmpdir, and a fixed
+        // name let them stomp each other's fixtures mid-read (flaked
+        // live 2026-07-10 — the same fixed-temp-name class as the
+        // check-expect mktemp collision, #376).
+        let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmp dir");
         let path = dir.join("native-strict-json.nika.yaml");
         std::fs::write(&path, helper).expect("fixture body");

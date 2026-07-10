@@ -114,15 +114,15 @@ ignore = [
   #
   # RUSTSEC-2026-0194 + RUSTSEC-2026-0195 · quick-xml DoS pair (quadratic
   # dup-attr check + unbounded NsReader namespace allocation · fix >=0.41.0).
-  # Two locked instances, both transitive, neither bump-fixable today:
-  #   · 0.30.0 ← xcb 1.7 ← xcap 0.9.6 ← nika-screen — xcap FEATURE-GATED OFF
-  #     by default (ADR-081 · headless) + Linux-X11-only → not compiled in
-  #     default/release builds.
-  #   · 0.37.5 ← feed-rs 2.3.1 (LATEST · no quick-xml>=0.41 release upstream)
-  #     ← nika-extract. DoS-only (crafted-XML time/memory exhaustion · no
-  #     RCE) · feed sources are operator-declared workflow inputs.
-  # Review: 2026-07-16 · watch github.com/feed-rs/feed-rs · drop both the day
-  # feed-rs releases the quick-xml bump. Mirror: .cargo/audit.toml.
+  # 2026-07-10: the DEFAULT-BUILD graph is CLEAN — feed-rs 2.4.0 shipped the
+  # quick-xml 0.41 bump (taken same-week) and nika-extract's direct sitemap
+  # parser rides 0.41.0. What remains is feature-gated OFF, never in a
+  # default or release build:
+  #   · 0.30.0 ← xcb 1.7 ← xcap 0.9.6 ← nika-screen — xcap OFF by default
+  #     (ADR-081 · headless) + Linux-X11-only.
+  #   · 0.39.4 · same feature-gated screen-capture cluster.
+  # Entries stay ONLY for `--features xcap` dev builds on Linux/X11.
+  # Review: 2026-08-10 · drop when xcb/xcap cross 0.41. Mirror: .cargo/audit.toml.
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
 ]
