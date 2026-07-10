@@ -12,6 +12,15 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika wire gemini|lmstudio|junie` — wave-2 wire targets.** Three more
+  hosts join the explicit, idempotent MCP wiring (#384, sibling of #330):
+  Gemini CLI (`~/.gemini/settings.json` — the shared settings file, every
+  unrelated key preserved), LM Studio (dedicated `mcp.json`, with the real
+  macOS location honoured when the app keeps it under `~/.cache/lm-studio/`
+  — upstream docs and reality disagree, lmstudio-bug-tracker#1371), and
+  JetBrains Junie (project-scope `.junie/mcp/mcp.json`). Same laws as
+  wave 1: create-or-repair, stale-argv migration, other servers untouched,
+  `wire all` covers them. Cline stays marketplace-side by design.
 - **`nix run github:supernovae-st/nika` — the flake install path.** A
   root `flake.nix` builds the exact release binary (`--bin nika-cli`,
   locked, renamed to its public name) on the four release platforms —

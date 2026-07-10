@@ -360,6 +360,9 @@ enum WireTargetArg {
     Zed,
     Opencode,
     Hermes,
+    Gemini,
+    Lmstudio,
+    Junie,
     All,
 }
 
@@ -374,6 +377,9 @@ impl From<WireTargetArg> for verbs::wire::WireTarget {
             WireTargetArg::Zed => Self::Zed,
             WireTargetArg::Opencode => Self::Opencode,
             WireTargetArg::Hermes => Self::Hermes,
+            WireTargetArg::Gemini => Self::Gemini,
+            WireTargetArg::Lmstudio => Self::Lmstudio,
+            WireTargetArg::Junie => Self::Junie,
             WireTargetArg::All => Self::All,
         }
     }
