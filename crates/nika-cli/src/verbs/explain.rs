@@ -103,8 +103,8 @@ fn canon_row(code: &str) -> Option<String> {
         .unwrap_or_default();
     Some(format!(
         "{code} · {category} · transient: {transient}\n\n  {failure}\n\n{fix}\
-         spec conformance code — emitted by `nika check`; prose home: \
-         spec/05-errors.md (embedded canon `error_codes` is the SSOT row).\n",
+         full docs: https://nika.sh/errors/{code} — `nika check` catches \
+         this before a run ever starts.\n",
         category = row.category,
         transient = row.transient,
         failure = row.failure,
@@ -121,6 +121,28 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
             "an unbound workflow var is supplied on the CLI — `nika run <file> \
              --var <key>=<value>` (repeatable) — or given a `default:` in the \
              workflow `vars:` block",
+        ),
+        // The high-traffic conformance codes whose fix is one obvious
+        // YAML edit teach it concretely (#145 P1 — the failure states
+        // WHAT, this states the edit; the canon row never carries
+        // per-CLI affordances, so the fix-form lives here).
+        "NIKA-DAG-001" => Some(
+            "break the loop — one task in the cycle must drop its \
+             `depends_on` on the other (a task can never wait on itself, \
+             directly or through a chain)",
+        ),
+        "NIKA-DAG-002" => Some(
+            "the `depends_on:` entry names a task that does not exist — \
+             match it to a declared task `id:` (check for a typo first)",
+        ),
+        "NIKA-DAG-003" => Some(
+            "declare the edge the reference implies — add `depends_on: \
+             [<that task>]` to the task whose template reads \
+             `tasks.<that task>.output`",
+        ),
+        "NIKA-PARSE-002" => Some(
+            "every workflow starts with three lines — `nika: v1`, \
+             `workflow: <name>`, and a non-empty `tasks:` list",
         ),
         _ => None,
     }
@@ -176,7 +198,16 @@ mod tests {
         );
         assert!(out.text.contains("NIKA-DAG-003"));
         assert!(out.text.contains("validation_error"));
-        assert!(out.text.contains("spec/05-errors.md"));
+        assert!(
+            out.text.contains("https://nika.sh/errors/NIKA-DAG-003"),
+            "the footer links the code's own page:\n{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("depends_on"),
+            "the fix-form states the concrete YAML edit (#145 P1):\n{}",
+            out.text
+        );
     }
 
     #[test]
