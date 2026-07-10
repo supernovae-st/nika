@@ -1,0 +1,746 @@
+pub mod nika_chart
+pub mod nika_chart::attest
+#[non_exhaustive] pub enum nika_chart::attest::Verdict
+pub nika_chart::attest::Verdict::BadManifest
+pub nika_chart::attest::Verdict::ByteMismatch
+pub nika_chart::attest::Verdict::DataMismatch
+pub nika_chart::attest::Verdict::Match
+pub nika_chart::attest::Verdict::NoManifest
+impl core::clone::Clone for nika_chart::attest::Verdict
+pub fn nika_chart::attest::Verdict::clone(&self) -> nika_chart::attest::Verdict
+impl core::cmp::Eq for nika_chart::attest::Verdict
+impl core::cmp::PartialEq for nika_chart::attest::Verdict
+pub fn nika_chart::attest::Verdict::eq(&self, other: &nika_chart::attest::Verdict) -> bool
+impl core::fmt::Debug for nika_chart::attest::Verdict
+pub fn nika_chart::attest::Verdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_chart::attest::Verdict
+impl<T, U> core::convert::Into<U> for nika_chart::attest::Verdict where U: core::convert::From<T>
+pub fn nika_chart::attest::Verdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::attest::Verdict where U: core::convert::Into<T>
+pub type nika_chart::attest::Verdict::Error = core::convert::Infallible
+pub fn nika_chart::attest::Verdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::attest::Verdict where U: core::convert::TryFrom<T>
+pub type nika_chart::attest::Verdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::attest::Verdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::attest::Verdict where T: core::clone::Clone
+pub type nika_chart::attest::Verdict::Owned = T
+pub fn nika_chart::attest::Verdict::clone_into(&self, target: &mut T)
+pub fn nika_chart::attest::Verdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::attest::Verdict where T: 'static + ?core::marker::Sized
+pub fn nika_chart::attest::Verdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::attest::Verdict where T: ?core::marker::Sized
+pub fn nika_chart::attest::Verdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::attest::Verdict where T: ?core::marker::Sized
+pub fn nika_chart::attest::Verdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::attest::Verdict where T: core::clone::Clone
+pub unsafe fn nika_chart::attest::Verdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::attest::Verdict
+pub fn nika_chart::attest::Verdict::from(t: T) -> T
+pub fn nika_chart::attest::extract_manifest(svg: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_chart::attest::verify_artifact(svg: &str, rows: &[nika_chart::data::Row]) -> nika_chart::attest::Verdict
+pub mod nika_chart::data
+#[non_exhaustive] pub enum nika_chart::data::Value
+pub nika_chart::data::Value::Num(f64)
+pub nika_chart::data::Value::Str(alloc::string::String)
+impl core::clone::Clone for nika_chart::data::Value
+pub fn nika_chart::data::Value::clone(&self) -> nika_chart::data::Value
+impl core::cmp::PartialEq for nika_chart::data::Value
+pub fn nika_chart::data::Value::eq(&self, other: &nika_chart::data::Value) -> bool
+impl core::fmt::Debug for nika_chart::data::Value
+pub fn nika_chart::data::Value::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_chart::data::Value
+impl<T, U> core::convert::Into<U> for nika_chart::data::Value where U: core::convert::From<T>
+pub fn nika_chart::data::Value::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::data::Value where U: core::convert::Into<T>
+pub type nika_chart::data::Value::Error = core::convert::Infallible
+pub fn nika_chart::data::Value::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::data::Value where U: core::convert::TryFrom<T>
+pub type nika_chart::data::Value::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::data::Value::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::data::Value where T: core::clone::Clone
+pub type nika_chart::data::Value::Owned = T
+pub fn nika_chart::data::Value::clone_into(&self, target: &mut T)
+pub fn nika_chart::data::Value::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::data::Value where T: 'static + ?core::marker::Sized
+pub fn nika_chart::data::Value::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::data::Value where T: ?core::marker::Sized
+pub fn nika_chart::data::Value::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::data::Value where T: ?core::marker::Sized
+pub fn nika_chart::data::Value::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::data::Value where T: core::clone::Clone
+pub unsafe fn nika_chart::data::Value::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::data::Value
+pub fn nika_chart::data::Value::from(t: T) -> T
+pub fn nika_chart::data::extent(values: &[f64]) -> core::option::Option<(f64, f64)>
+pub fn nika_chart::data::numeric_column(rows: &[nika_chart::data::Row], field: &str) -> core::result::Result<alloc::vec::Vec<f64>, nika_chart::error::ChartError>
+pub fn nika_chart::data::row(pairs: &[(&str, nika_chart::data::Value)]) -> nika_chart::data::Row
+pub fn nika_chart::data::string_column(rows: &[nika_chart::data::Row], field: &str) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, nika_chart::error::ChartError>
+pub type nika_chart::data::Row = alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_chart::data::Value>
+pub mod nika_chart::decimate
+pub fn nika_chart::decimate::lttb(pts: &[(f64, f64)], threshold: usize) -> alloc::vec::Vec<(f64, f64)>
+pub mod nika_chart::det_hash
+pub fn nika_chart::det_hash::sha256_hex(data: &[u8]) -> alloc::string::String
+pub mod nika_chart::error
+#[non_exhaustive] pub enum nika_chart::error::ChartError
+pub nika_chart::error::ChartError::DomainCollapsed
+pub nika_chart::error::ChartError::DomainCollapsed::field: alloc::string::String
+pub nika_chart::error::ChartError::EmptyData
+pub nika_chart::error::ChartError::InvalidSpec
+pub nika_chart::error::ChartError::InvalidSpec::reason: alloc::string::String
+pub nika_chart::error::ChartError::NonFinite
+pub nika_chart::error::ChartError::NonFinite::field: alloc::string::String
+pub nika_chart::error::ChartError::NonFinite::row: usize
+pub nika_chart::error::ChartError::TooManyPoints
+pub nika_chart::error::ChartError::TooManyPoints::cap: usize
+pub nika_chart::error::ChartError::TooManyPoints::got: usize
+pub nika_chart::error::ChartError::TypeMismatch
+pub nika_chart::error::ChartError::TypeMismatch::field: alloc::string::String
+pub nika_chart::error::ChartError::TypeMismatch::row: usize
+pub nika_chart::error::ChartError::UnknownField
+pub nika_chart::error::ChartError::UnknownField::field: alloc::string::String
+impl nika_chart::error::ChartError
+pub fn nika_chart::error::ChartError::code(&self) -> &'static str
+impl core::clone::Clone for nika_chart::error::ChartError
+pub fn nika_chart::error::ChartError::clone(&self) -> nika_chart::error::ChartError
+impl core::cmp::PartialEq for nika_chart::error::ChartError
+pub fn nika_chart::error::ChartError::eq(&self, other: &nika_chart::error::ChartError) -> bool
+impl core::error::Error for nika_chart::error::ChartError
+impl core::fmt::Debug for nika_chart::error::ChartError
+pub fn nika_chart::error::ChartError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_chart::error::ChartError
+pub fn nika_chart::error::ChartError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_chart::error::ChartError
+impl<T, U> core::convert::Into<U> for nika_chart::error::ChartError where U: core::convert::From<T>
+pub fn nika_chart::error::ChartError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::error::ChartError where U: core::convert::Into<T>
+pub type nika_chart::error::ChartError::Error = core::convert::Infallible
+pub fn nika_chart::error::ChartError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::error::ChartError where U: core::convert::TryFrom<T>
+pub type nika_chart::error::ChartError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::error::ChartError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::error::ChartError where T: core::clone::Clone
+pub type nika_chart::error::ChartError::Owned = T
+pub fn nika_chart::error::ChartError::clone_into(&self, target: &mut T)
+pub fn nika_chart::error::ChartError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_chart::error::ChartError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_chart::error::ChartError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_chart::error::ChartError where T: 'static + ?core::marker::Sized
+pub fn nika_chart::error::ChartError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::error::ChartError where T: ?core::marker::Sized
+pub fn nika_chart::error::ChartError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::error::ChartError where T: ?core::marker::Sized
+pub fn nika_chart::error::ChartError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::error::ChartError where T: core::clone::Clone
+pub unsafe fn nika_chart::error::ChartError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::error::ChartError
+pub fn nika_chart::error::ChartError::from(t: T) -> T
+pub mod nika_chart::fmt
+pub fn nika_chart::fmt::label(v: f64, sem: nika_chart::spec::Semantic) -> alloc::string::String
+pub mod nika_chart::font8
+pub const nika_chart::font8::FONT8X8_BASIC: [[u8; 8]; 95]
+pub fn nika_chart::font8::glyph(c: char) -> &'static [u8; 8]
+pub mod nika_chart::layout
+pub struct nika_chart::layout::Frame
+pub nika_chart::layout::Frame::canvas_h: u32
+pub nika_chart::layout::Frame::canvas_w: u32
+pub nika_chart::layout::Frame::ph: f64
+pub nika_chart::layout::Frame::pw: f64
+pub nika_chart::layout::Frame::x0: f64
+pub nika_chart::layout::Frame::y0: f64
+impl core::clone::Clone for nika_chart::layout::Frame
+pub fn nika_chart::layout::Frame::clone(&self) -> nika_chart::layout::Frame
+impl core::fmt::Debug for nika_chart::layout::Frame
+pub fn nika_chart::layout::Frame::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_chart::layout::Frame
+impl<T, U> core::convert::Into<U> for nika_chart::layout::Frame where U: core::convert::From<T>
+pub fn nika_chart::layout::Frame::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::layout::Frame where U: core::convert::Into<T>
+pub type nika_chart::layout::Frame::Error = core::convert::Infallible
+pub fn nika_chart::layout::Frame::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::layout::Frame where U: core::convert::TryFrom<T>
+pub type nika_chart::layout::Frame::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::layout::Frame::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::layout::Frame where T: core::clone::Clone
+pub type nika_chart::layout::Frame::Owned = T
+pub fn nika_chart::layout::Frame::clone_into(&self, target: &mut T)
+pub fn nika_chart::layout::Frame::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::layout::Frame where T: 'static + ?core::marker::Sized
+pub fn nika_chart::layout::Frame::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::layout::Frame where T: ?core::marker::Sized
+pub fn nika_chart::layout::Frame::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::layout::Frame where T: ?core::marker::Sized
+pub fn nika_chart::layout::Frame::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::layout::Frame where T: core::clone::Clone
+pub unsafe fn nika_chart::layout::Frame::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::layout::Frame
+pub fn nika_chart::layout::Frame::from(t: T) -> T
+pub const nika_chart::layout::LABEL_PX: f64
+pub const nika_chart::layout::TITLE_PX: f64
+pub fn nika_chart::layout::frame(canvas_w: u32, canvas_h: u32, y_labels: &[alloc::string::String], has_legend: bool) -> nika_chart::layout::Frame
+pub mod nika_chart::lint
+pub fn nika_chart::lint::advisories(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row]) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_chart::metrics
+pub fn nika_chart::metrics::measure(text: &str, px: f64) -> f64
+pub fn nika_chart::metrics::truncate(text: &str, px: f64, max_px: f64) -> alloc::string::String
+pub mod nika_chart::palette
+pub const nika_chart::palette::AXIS: &str
+pub const nika_chart::palette::BG: &str
+pub const nika_chart::palette::CATEGORICAL_DARK: [&str; 7]
+pub const nika_chart::palette::CATEGORICAL_LIGHT: [&str; 7]
+pub const nika_chart::palette::DIVERGING_BINS: usize
+pub const nika_chart::palette::GRID: &str
+pub const nika_chart::palette::INK: &str
+pub const nika_chart::palette::INK_SOFT: &str
+pub fn nika_chart::palette::categorical(i: usize) -> &'static str
+pub fn nika_chart::palette::categorical_dark(i: usize) -> &'static str
+pub fn nika_chart::palette::coolwarm(t: f64) -> alloc::string::String
+pub fn nika_chart::palette::coolwarm_dark(t: f64) -> alloc::string::String
+pub fn nika_chart::palette::diverging_bin(t: f64) -> usize
+pub fn nika_chart::palette::diverging_bin_dark(bin: usize) -> alloc::string::String
+pub fn nika_chart::palette::diverging_bin_light(bin: usize) -> alloc::string::String
+pub fn nika_chart::palette::viridis(t: f64) -> alloc::string::String
+pub mod nika_chart::png
+pub fn nika_chart::png::encode_rgb(w: u32, h: u32, rgb: &[u8]) -> alloc::vec::Vec<u8>
+pub mod nika_chart::raster
+pub struct nika_chart::raster::Raster
+impl nika_chart::raster::Raster
+pub fn nika_chart::raster::Raster::disc(&mut self, cx: i32, cy: i32, r: i32, c: nika_chart::raster::Rgb)
+pub fn nika_chart::raster::Raster::fill_rect(&mut self, x: i32, y: i32, w: i32, h: i32, c: nika_chart::raster::Rgb)
+pub fn nika_chart::raster::Raster::hline(&mut self, x0: i32, x1: i32, y: i32, c: nika_chart::raster::Rgb)
+pub fn nika_chart::raster::Raster::line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, c: nika_chart::raster::Rgb)
+pub fn nika_chart::raster::Raster::new(w: u32, h: u32, bg: nika_chart::raster::Rgb) -> Self
+pub fn nika_chart::raster::Raster::text(&mut self, x: i32, y: i32, s: &str, scale: i32, c: nika_chart::raster::Rgb)
+pub fn nika_chart::raster::Raster::text_width(s: &str, scale: i32) -> i32
+pub fn nika_chart::raster::Raster::to_png(&self) -> alloc::vec::Vec<u8>
+pub fn nika_chart::raster::Raster::vline(&mut self, x: i32, y0: i32, y1: i32, c: nika_chart::raster::Rgb)
+impl<T, U> core::convert::Into<U> for nika_chart::raster::Raster where U: core::convert::From<T>
+pub fn nika_chart::raster::Raster::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::raster::Raster where U: core::convert::Into<T>
+pub type nika_chart::raster::Raster::Error = core::convert::Infallible
+pub fn nika_chart::raster::Raster::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::raster::Raster where U: core::convert::TryFrom<T>
+pub type nika_chart::raster::Raster::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::raster::Raster::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_chart::raster::Raster where T: 'static + ?core::marker::Sized
+pub fn nika_chart::raster::Raster::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::raster::Raster where T: ?core::marker::Sized
+pub fn nika_chart::raster::Raster::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::raster::Raster where T: ?core::marker::Sized
+pub fn nika_chart::raster::Raster::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_chart::raster::Raster
+pub fn nika_chart::raster::Raster::from(t: T) -> T
+pub type nika_chart::raster::Rgb = (u8, u8, u8)
+pub mod nika_chart::render
+pub fn nika_chart::render::area_band(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row], manifest: &str, data8: &str) -> core::result::Result<alloc::string::String, nika_chart::error::ChartError>
+pub fn nika_chart::render::bar(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row], manifest: &str, data8: &str) -> core::result::Result<alloc::string::String, nika_chart::error::ChartError>
+pub fn nika_chart::render::heatmap(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row], manifest: &str, data8: &str) -> core::result::Result<alloc::string::String, nika_chart::error::ChartError>
+pub fn nika_chart::render::line(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row], manifest: &str, data8: &str) -> core::result::Result<alloc::string::String, nika_chart::error::ChartError>
+pub fn nika_chart::render::scatter(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row], manifest: &str, data8: &str) -> core::result::Result<alloc::string::String, nika_chart::error::ChartError>
+pub mod nika_chart::render_png
+pub fn nika_chart::render_png::area_band(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row], data8: &str) -> core::result::Result<alloc::vec::Vec<u8>, nika_chart::error::ChartError>
+pub fn nika_chart::render_png::bar(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row], data8: &str) -> core::result::Result<alloc::vec::Vec<u8>, nika_chart::error::ChartError>
+pub fn nika_chart::render_png::heatmap(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row], data8: &str) -> core::result::Result<alloc::vec::Vec<u8>, nika_chart::error::ChartError>
+pub fn nika_chart::render_png::line(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row], data8: &str) -> core::result::Result<alloc::vec::Vec<u8>, nika_chart::error::ChartError>
+pub fn nika_chart::render_png::scatter(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row], data8: &str) -> core::result::Result<alloc::vec::Vec<u8>, nika_chart::error::ChartError>
+pub mod nika_chart::report
+pub struct nika_chart::report::ForecastPoint
+pub nika_chart::report::ForecastPoint::actual: f64
+pub nika_chart::report::ForecastPoint::p50: f64
+pub nika_chart::report::ForecastPoint::p90: f64
+pub nika_chart::report::ForecastPoint::seq: f64
+impl core::clone::Clone for nika_chart::report::ForecastPoint
+pub fn nika_chart::report::ForecastPoint::clone(&self) -> nika_chart::report::ForecastPoint
+impl core::fmt::Debug for nika_chart::report::ForecastPoint
+pub fn nika_chart::report::ForecastPoint::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_chart::report::ForecastPoint where U: core::convert::From<T>
+pub fn nika_chart::report::ForecastPoint::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::report::ForecastPoint where U: core::convert::Into<T>
+pub type nika_chart::report::ForecastPoint::Error = core::convert::Infallible
+pub fn nika_chart::report::ForecastPoint::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::report::ForecastPoint where U: core::convert::TryFrom<T>
+pub type nika_chart::report::ForecastPoint::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::report::ForecastPoint::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::report::ForecastPoint where T: core::clone::Clone
+pub type nika_chart::report::ForecastPoint::Owned = T
+pub fn nika_chart::report::ForecastPoint::clone_into(&self, target: &mut T)
+pub fn nika_chart::report::ForecastPoint::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::report::ForecastPoint where T: 'static + ?core::marker::Sized
+pub fn nika_chart::report::ForecastPoint::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::report::ForecastPoint where T: ?core::marker::Sized
+pub fn nika_chart::report::ForecastPoint::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::report::ForecastPoint where T: ?core::marker::Sized
+pub fn nika_chart::report::ForecastPoint::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::report::ForecastPoint where T: core::clone::Clone
+pub unsafe fn nika_chart::report::ForecastPoint::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::report::ForecastPoint
+pub fn nika_chart::report::ForecastPoint::from(t: T) -> T
+pub struct nika_chart::report::RunReport
+pub nika_chart::report::RunReport::chain: alloc::string::String
+pub nika_chart::report::RunReport::forecast: alloc::vec::Vec<nika_chart::report::ForecastPoint>
+pub nika_chart::report::RunReport::history: alloc::vec::Vec<nika_chart::report::RunStat>
+pub nika_chart::report::RunReport::run_id: alloc::string::String
+pub nika_chart::report::RunReport::steps: alloc::vec::Vec<nika_chart::report::StepStat>
+pub nika_chart::report::RunReport::workflow: alloc::string::String
+impl core::clone::Clone for nika_chart::report::RunReport
+pub fn nika_chart::report::RunReport::clone(&self) -> nika_chart::report::RunReport
+impl core::fmt::Debug for nika_chart::report::RunReport
+pub fn nika_chart::report::RunReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_chart::report::RunReport where U: core::convert::From<T>
+pub fn nika_chart::report::RunReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::report::RunReport where U: core::convert::Into<T>
+pub type nika_chart::report::RunReport::Error = core::convert::Infallible
+pub fn nika_chart::report::RunReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::report::RunReport where U: core::convert::TryFrom<T>
+pub type nika_chart::report::RunReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::report::RunReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::report::RunReport where T: core::clone::Clone
+pub type nika_chart::report::RunReport::Owned = T
+pub fn nika_chart::report::RunReport::clone_into(&self, target: &mut T)
+pub fn nika_chart::report::RunReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::report::RunReport where T: 'static + ?core::marker::Sized
+pub fn nika_chart::report::RunReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::report::RunReport where T: ?core::marker::Sized
+pub fn nika_chart::report::RunReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::report::RunReport where T: ?core::marker::Sized
+pub fn nika_chart::report::RunReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::report::RunReport where T: core::clone::Clone
+pub unsafe fn nika_chart::report::RunReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::report::RunReport
+pub fn nika_chart::report::RunReport::from(t: T) -> T
+pub struct nika_chart::report::RunStat
+pub nika_chart::report::RunStat::cost_usd: f64
+pub nika_chart::report::RunStat::duration_ms: f64
+pub nika_chart::report::RunStat::seq: f64
+impl core::clone::Clone for nika_chart::report::RunStat
+pub fn nika_chart::report::RunStat::clone(&self) -> nika_chart::report::RunStat
+impl core::fmt::Debug for nika_chart::report::RunStat
+pub fn nika_chart::report::RunStat::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_chart::report::RunStat where U: core::convert::From<T>
+pub fn nika_chart::report::RunStat::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::report::RunStat where U: core::convert::Into<T>
+pub type nika_chart::report::RunStat::Error = core::convert::Infallible
+pub fn nika_chart::report::RunStat::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::report::RunStat where U: core::convert::TryFrom<T>
+pub type nika_chart::report::RunStat::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::report::RunStat::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::report::RunStat where T: core::clone::Clone
+pub type nika_chart::report::RunStat::Owned = T
+pub fn nika_chart::report::RunStat::clone_into(&self, target: &mut T)
+pub fn nika_chart::report::RunStat::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::report::RunStat where T: 'static + ?core::marker::Sized
+pub fn nika_chart::report::RunStat::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::report::RunStat where T: ?core::marker::Sized
+pub fn nika_chart::report::RunStat::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::report::RunStat where T: ?core::marker::Sized
+pub fn nika_chart::report::RunStat::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::report::RunStat where T: core::clone::Clone
+pub unsafe fn nika_chart::report::RunStat::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::report::RunStat
+pub fn nika_chart::report::RunStat::from(t: T) -> T
+pub struct nika_chart::report::StepStat
+pub nika_chart::report::StepStat::cost_usd: core::option::Option<f64>
+pub nika_chart::report::StepStat::duration_ms: f64
+pub nika_chart::report::StepStat::id: alloc::string::String
+pub nika_chart::report::StepStat::ok: bool
+pub nika_chart::report::StepStat::verb: alloc::string::String
+impl core::clone::Clone for nika_chart::report::StepStat
+pub fn nika_chart::report::StepStat::clone(&self) -> nika_chart::report::StepStat
+impl core::fmt::Debug for nika_chart::report::StepStat
+pub fn nika_chart::report::StepStat::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_chart::report::StepStat where U: core::convert::From<T>
+pub fn nika_chart::report::StepStat::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::report::StepStat where U: core::convert::Into<T>
+pub type nika_chart::report::StepStat::Error = core::convert::Infallible
+pub fn nika_chart::report::StepStat::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::report::StepStat where U: core::convert::TryFrom<T>
+pub type nika_chart::report::StepStat::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::report::StepStat::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::report::StepStat where T: core::clone::Clone
+pub type nika_chart::report::StepStat::Owned = T
+pub fn nika_chart::report::StepStat::clone_into(&self, target: &mut T)
+pub fn nika_chart::report::StepStat::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::report::StepStat where T: 'static + ?core::marker::Sized
+pub fn nika_chart::report::StepStat::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::report::StepStat where T: ?core::marker::Sized
+pub fn nika_chart::report::StepStat::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::report::StepStat where T: ?core::marker::Sized
+pub fn nika_chart::report::StepStat::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::report::StepStat where T: core::clone::Clone
+pub unsafe fn nika_chart::report::StepStat::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::report::StepStat
+pub fn nika_chart::report::StepStat::from(t: T) -> T
+pub fn nika_chart::report::report_html(r: &nika_chart::report::RunReport) -> core::result::Result<alloc::string::String, nika_chart::error::ChartError>
+pub fn nika_chart::report::report_tty(r: &nika_chart::report::RunReport) -> core::result::Result<alloc::string::String, nika_chart::error::ChartError>
+pub fn nika_chart::report::report_with_hash(r: &nika_chart::report::RunReport) -> core::result::Result<(alloc::string::String, alloc::string::String), nika_chart::error::ChartError>
+pub mod nika_chart::scale
+pub struct nika_chart::scale::Band
+impl nika_chart::scale::Band
+pub fn nika_chart::scale::Band::center(&self, i: usize) -> f64
+pub fn nika_chart::scale::Band::new(n: usize, r0: f64, r1: f64) -> Self
+pub fn nika_chart::scale::Band::slot(&self, i: usize) -> (f64, f64)
+pub fn nika_chart::scale::Band::step_width(&self) -> f64
+impl core::clone::Clone for nika_chart::scale::Band
+pub fn nika_chart::scale::Band::clone(&self) -> nika_chart::scale::Band
+impl core::fmt::Debug for nika_chart::scale::Band
+pub fn nika_chart::scale::Band::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_chart::scale::Band
+impl<T, U> core::convert::Into<U> for nika_chart::scale::Band where U: core::convert::From<T>
+pub fn nika_chart::scale::Band::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::scale::Band where U: core::convert::Into<T>
+pub type nika_chart::scale::Band::Error = core::convert::Infallible
+pub fn nika_chart::scale::Band::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::scale::Band where U: core::convert::TryFrom<T>
+pub type nika_chart::scale::Band::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::scale::Band::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::scale::Band where T: core::clone::Clone
+pub type nika_chart::scale::Band::Owned = T
+pub fn nika_chart::scale::Band::clone_into(&self, target: &mut T)
+pub fn nika_chart::scale::Band::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::scale::Band where T: 'static + ?core::marker::Sized
+pub fn nika_chart::scale::Band::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::scale::Band where T: ?core::marker::Sized
+pub fn nika_chart::scale::Band::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::scale::Band where T: ?core::marker::Sized
+pub fn nika_chart::scale::Band::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::scale::Band where T: core::clone::Clone
+pub unsafe fn nika_chart::scale::Band::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::scale::Band
+pub fn nika_chart::scale::Band::from(t: T) -> T
+pub struct nika_chart::scale::Linear
+impl nika_chart::scale::Linear
+pub fn nika_chart::scale::Linear::map(&self, v: f64) -> f64
+pub fn nika_chart::scale::Linear::new(d0: f64, d1: f64, r0: f64, r1: f64) -> Self
+impl core::clone::Clone for nika_chart::scale::Linear
+pub fn nika_chart::scale::Linear::clone(&self) -> nika_chart::scale::Linear
+impl core::fmt::Debug for nika_chart::scale::Linear
+pub fn nika_chart::scale::Linear::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_chart::scale::Linear
+impl<T, U> core::convert::Into<U> for nika_chart::scale::Linear where U: core::convert::From<T>
+pub fn nika_chart::scale::Linear::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::scale::Linear where U: core::convert::Into<T>
+pub type nika_chart::scale::Linear::Error = core::convert::Infallible
+pub fn nika_chart::scale::Linear::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::scale::Linear where U: core::convert::TryFrom<T>
+pub type nika_chart::scale::Linear::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::scale::Linear::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::scale::Linear where T: core::clone::Clone
+pub type nika_chart::scale::Linear::Owned = T
+pub fn nika_chart::scale::Linear::clone_into(&self, target: &mut T)
+pub fn nika_chart::scale::Linear::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::scale::Linear where T: 'static + ?core::marker::Sized
+pub fn nika_chart::scale::Linear::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::scale::Linear where T: ?core::marker::Sized
+pub fn nika_chart::scale::Linear::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::scale::Linear where T: ?core::marker::Sized
+pub fn nika_chart::scale::Linear::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::scale::Linear where T: core::clone::Clone
+pub unsafe fn nika_chart::scale::Linear::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::scale::Linear
+pub fn nika_chart::scale::Linear::from(t: T) -> T
+pub mod nika_chart::spec
+#[non_exhaustive] pub enum nika_chart::spec::ChartType
+pub nika_chart::spec::ChartType::AreaBand
+pub nika_chart::spec::ChartType::Bar
+pub nika_chart::spec::ChartType::Heatmap
+pub nika_chart::spec::ChartType::Line
+pub nika_chart::spec::ChartType::Scatter
+impl core::clone::Clone for nika_chart::spec::ChartType
+pub fn nika_chart::spec::ChartType::clone(&self) -> nika_chart::spec::ChartType
+impl core::cmp::Eq for nika_chart::spec::ChartType
+impl core::cmp::PartialEq for nika_chart::spec::ChartType
+pub fn nika_chart::spec::ChartType::eq(&self, other: &nika_chart::spec::ChartType) -> bool
+impl core::fmt::Debug for nika_chart::spec::ChartType
+pub fn nika_chart::spec::ChartType::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_chart::spec::ChartType
+impl core::marker::StructuralPartialEq for nika_chart::spec::ChartType
+impl<T, U> core::convert::Into<U> for nika_chart::spec::ChartType where U: core::convert::From<T>
+pub fn nika_chart::spec::ChartType::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::spec::ChartType where U: core::convert::Into<T>
+pub type nika_chart::spec::ChartType::Error = core::convert::Infallible
+pub fn nika_chart::spec::ChartType::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::spec::ChartType where U: core::convert::TryFrom<T>
+pub type nika_chart::spec::ChartType::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::spec::ChartType::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::spec::ChartType where T: core::clone::Clone
+pub type nika_chart::spec::ChartType::Owned = T
+pub fn nika_chart::spec::ChartType::clone_into(&self, target: &mut T)
+pub fn nika_chart::spec::ChartType::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::spec::ChartType where T: 'static + ?core::marker::Sized
+pub fn nika_chart::spec::ChartType::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::spec::ChartType where T: ?core::marker::Sized
+pub fn nika_chart::spec::ChartType::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::spec::ChartType where T: ?core::marker::Sized
+pub fn nika_chart::spec::ChartType::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::spec::ChartType where T: core::clone::Clone
+pub unsafe fn nika_chart::spec::ChartType::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::spec::ChartType
+pub fn nika_chart::spec::ChartType::from(t: T) -> T
+#[non_exhaustive] pub enum nika_chart::spec::Semantic
+pub nika_chart::spec::Semantic::Category
+pub nika_chart::spec::Semantic::Count
+pub nika_chart::spec::Semantic::Delta
+pub nika_chart::spec::Semantic::DurationMs
+pub nika_chart::spec::Semantic::Percent
+pub nika_chart::spec::Semantic::Timestamp
+pub nika_chart::spec::Semantic::Tokens
+pub nika_chart::spec::Semantic::Usd
+impl core::clone::Clone for nika_chart::spec::Semantic
+pub fn nika_chart::spec::Semantic::clone(&self) -> nika_chart::spec::Semantic
+impl core::cmp::Eq for nika_chart::spec::Semantic
+impl core::cmp::PartialEq for nika_chart::spec::Semantic
+pub fn nika_chart::spec::Semantic::eq(&self, other: &nika_chart::spec::Semantic) -> bool
+impl core::fmt::Debug for nika_chart::spec::Semantic
+pub fn nika_chart::spec::Semantic::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_chart::spec::Semantic
+impl core::marker::StructuralPartialEq for nika_chart::spec::Semantic
+impl<T, U> core::convert::Into<U> for nika_chart::spec::Semantic where U: core::convert::From<T>
+pub fn nika_chart::spec::Semantic::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::spec::Semantic where U: core::convert::Into<T>
+pub type nika_chart::spec::Semantic::Error = core::convert::Infallible
+pub fn nika_chart::spec::Semantic::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::spec::Semantic where U: core::convert::TryFrom<T>
+pub type nika_chart::spec::Semantic::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::spec::Semantic::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::spec::Semantic where T: core::clone::Clone
+pub type nika_chart::spec::Semantic::Owned = T
+pub fn nika_chart::spec::Semantic::clone_into(&self, target: &mut T)
+pub fn nika_chart::spec::Semantic::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::spec::Semantic where T: 'static + ?core::marker::Sized
+pub fn nika_chart::spec::Semantic::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::spec::Semantic where T: ?core::marker::Sized
+pub fn nika_chart::spec::Semantic::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::spec::Semantic where T: ?core::marker::Sized
+pub fn nika_chart::spec::Semantic::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::spec::Semantic where T: core::clone::Clone
+pub unsafe fn nika_chart::spec::Semantic::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::spec::Semantic
+pub fn nika_chart::spec::Semantic::from(t: T) -> T
+pub struct nika_chart::spec::Channel
+pub nika_chart::spec::Channel::field: alloc::string::String
+pub nika_chart::spec::Channel::semantic: nika_chart::spec::Semantic
+impl nika_chart::spec::Channel
+pub fn nika_chart::spec::Channel::new(field: &str, semantic: nika_chart::spec::Semantic) -> Self
+impl core::clone::Clone for nika_chart::spec::Channel
+pub fn nika_chart::spec::Channel::clone(&self) -> nika_chart::spec::Channel
+impl core::fmt::Debug for nika_chart::spec::Channel
+pub fn nika_chart::spec::Channel::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_chart::spec::Channel where U: core::convert::From<T>
+pub fn nika_chart::spec::Channel::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::spec::Channel where U: core::convert::Into<T>
+pub type nika_chart::spec::Channel::Error = core::convert::Infallible
+pub fn nika_chart::spec::Channel::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::spec::Channel where U: core::convert::TryFrom<T>
+pub type nika_chart::spec::Channel::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::spec::Channel::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::spec::Channel where T: core::clone::Clone
+pub type nika_chart::spec::Channel::Owned = T
+pub fn nika_chart::spec::Channel::clone_into(&self, target: &mut T)
+pub fn nika_chart::spec::Channel::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::spec::Channel where T: 'static + ?core::marker::Sized
+pub fn nika_chart::spec::Channel::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::spec::Channel where T: ?core::marker::Sized
+pub fn nika_chart::spec::Channel::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::spec::Channel where T: ?core::marker::Sized
+pub fn nika_chart::spec::Channel::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::spec::Channel where T: core::clone::Clone
+pub unsafe fn nika_chart::spec::Channel::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::spec::Channel
+pub fn nika_chart::spec::Channel::from(t: T) -> T
+pub struct nika_chart::spec::ChartSpec
+pub nika_chart::spec::ChartSpec::chart: nika_chart::spec::ChartType
+pub nika_chart::spec::ChartSpec::color: core::option::Option<nika_chart::spec::Channel>
+pub nika_chart::spec::ChartSpec::height: u32
+pub nika_chart::spec::ChartSpec::title: alloc::string::String
+pub nika_chart::spec::ChartSpec::width: u32
+pub nika_chart::spec::ChartSpec::x: nika_chart::spec::Channel
+pub nika_chart::spec::ChartSpec::y: nika_chart::spec::Channel
+pub nika_chart::spec::ChartSpec::y2: core::option::Option<nika_chart::spec::Channel>
+pub nika_chart::spec::ChartSpec::y_hi: core::option::Option<nika_chart::spec::Channel>
+pub nika_chart::spec::ChartSpec::y_lo: core::option::Option<nika_chart::spec::Channel>
+impl nika_chart::spec::ChartSpec
+pub const nika_chart::spec::ChartSpec::MAX_DIM: u32
+pub fn nika_chart::spec::ChartSpec::validate(&self) -> core::result::Result<(), nika_chart::error::ChartError>
+impl core::clone::Clone for nika_chart::spec::ChartSpec
+pub fn nika_chart::spec::ChartSpec::clone(&self) -> nika_chart::spec::ChartSpec
+impl core::fmt::Debug for nika_chart::spec::ChartSpec
+pub fn nika_chart::spec::ChartSpec::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_chart::spec::ChartSpec where U: core::convert::From<T>
+pub fn nika_chart::spec::ChartSpec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::spec::ChartSpec where U: core::convert::Into<T>
+pub type nika_chart::spec::ChartSpec::Error = core::convert::Infallible
+pub fn nika_chart::spec::ChartSpec::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::spec::ChartSpec where U: core::convert::TryFrom<T>
+pub type nika_chart::spec::ChartSpec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::spec::ChartSpec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::spec::ChartSpec where T: core::clone::Clone
+pub type nika_chart::spec::ChartSpec::Owned = T
+pub fn nika_chart::spec::ChartSpec::clone_into(&self, target: &mut T)
+pub fn nika_chart::spec::ChartSpec::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::spec::ChartSpec where T: 'static + ?core::marker::Sized
+pub fn nika_chart::spec::ChartSpec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::spec::ChartSpec where T: ?core::marker::Sized
+pub fn nika_chart::spec::ChartSpec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::spec::ChartSpec where T: ?core::marker::Sized
+pub fn nika_chart::spec::ChartSpec::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::spec::ChartSpec where T: core::clone::Clone
+pub unsafe fn nika_chart::spec::ChartSpec::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::spec::ChartSpec
+pub fn nika_chart::spec::ChartSpec::from(t: T) -> T
+pub mod nika_chart::svg
+pub enum nika_chart::svg::Anchor
+pub nika_chart::svg::Anchor::End
+pub nika_chart::svg::Anchor::Middle
+pub nika_chart::svg::Anchor::Start
+impl core::clone::Clone for nika_chart::svg::Anchor
+pub fn nika_chart::svg::Anchor::clone(&self) -> nika_chart::svg::Anchor
+impl core::cmp::Eq for nika_chart::svg::Anchor
+impl core::cmp::PartialEq for nika_chart::svg::Anchor
+pub fn nika_chart::svg::Anchor::eq(&self, other: &nika_chart::svg::Anchor) -> bool
+impl core::fmt::Debug for nika_chart::svg::Anchor
+pub fn nika_chart::svg::Anchor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_chart::svg::Anchor
+impl core::marker::StructuralPartialEq for nika_chart::svg::Anchor
+impl<T, U> core::convert::Into<U> for nika_chart::svg::Anchor where U: core::convert::From<T>
+pub fn nika_chart::svg::Anchor::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::svg::Anchor where U: core::convert::Into<T>
+pub type nika_chart::svg::Anchor::Error = core::convert::Infallible
+pub fn nika_chart::svg::Anchor::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::svg::Anchor where U: core::convert::TryFrom<T>
+pub type nika_chart::svg::Anchor::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::svg::Anchor::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::svg::Anchor where T: core::clone::Clone
+pub type nika_chart::svg::Anchor::Owned = T
+pub fn nika_chart::svg::Anchor::clone_into(&self, target: &mut T)
+pub fn nika_chart::svg::Anchor::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::svg::Anchor where T: 'static + ?core::marker::Sized
+pub fn nika_chart::svg::Anchor::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::svg::Anchor where T: ?core::marker::Sized
+pub fn nika_chart::svg::Anchor::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::svg::Anchor where T: ?core::marker::Sized
+pub fn nika_chart::svg::Anchor::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::svg::Anchor where T: core::clone::Clone
+pub unsafe fn nika_chart::svg::Anchor::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::svg::Anchor
+pub fn nika_chart::svg::Anchor::from(t: T) -> T
+pub struct nika_chart::svg::Svg
+impl nika_chart::svg::Svg
+pub fn nika_chart::svg::Svg::band_path(&mut self, up: &[(f64, f64)], lo: &[(f64, f64)], fill: &str, opacity: f64)
+pub fn nika_chart::svg::Svg::bar(&mut self, x: f64, y: f64, w: f64, h: f64, fill: &str, up: bool)
+pub fn nika_chart::svg::Svg::cell(&mut self, x: f64, y: f64, w: f64, h: f64, fill: &str)
+pub fn nika_chart::svg::Svg::cell_bin(&mut self, x: f64, y: f64, w: f64, h: f64, bin: usize)
+pub fn nika_chart::svg::Svg::cell_soft(&mut self, x: f64, y: f64, w: f64, h: f64, fill: &str)
+pub fn nika_chart::svg::Svg::close(self) -> alloc::string::String
+pub fn nika_chart::svg::Svg::dot(&mut self, cx: f64, cy: f64, r: f64, fill: &str, opacity: core::option::Option<f64>)
+pub fn nika_chart::svg::Svg::h_segments(&mut self, segs: &[(f64, f64, f64)], stroke: &str, width: f64)
+pub fn nika_chart::svg::Svg::nodata(&mut self, x: f64, y: f64, w: f64, h: f64)
+pub fn nika_chart::svg::Svg::open(w: u32, h: u32, title: &str, metadata_json: core::option::Option<&str>) -> Self
+pub fn nika_chart::svg::Svg::polyline(&mut self, pts: &[(f64, f64)], stroke: &str, width: f64, dash: core::option::Option<(u32, u32)>)
+pub fn nika_chart::svg::Svg::rect(&mut self, x: f64, y: f64, w: f64, h: f64, fill: &str, opacity: core::option::Option<f64>)
+pub fn nika_chart::svg::Svg::text(&mut self, x: f64, y: f64, content: &str, size: f64, fill: &str, anchor: nika_chart::svg::Anchor, weight: core::option::Option<u32>)
+pub fn nika_chart::svg::Svg::v_segments(&mut self, segs: &[(f64, f64, f64)], stroke: &str, width: f64)
+impl<T, U> core::convert::Into<U> for nika_chart::svg::Svg where U: core::convert::From<T>
+pub fn nika_chart::svg::Svg::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::svg::Svg where U: core::convert::Into<T>
+pub type nika_chart::svg::Svg::Error = core::convert::Infallible
+pub fn nika_chart::svg::Svg::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::svg::Svg where U: core::convert::TryFrom<T>
+pub type nika_chart::svg::Svg::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::svg::Svg::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_chart::svg::Svg where T: 'static + ?core::marker::Sized
+pub fn nika_chart::svg::Svg::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::svg::Svg where T: ?core::marker::Sized
+pub fn nika_chart::svg::Svg::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::svg::Svg where T: ?core::marker::Sized
+pub fn nika_chart::svg::Svg::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_chart::svg::Svg
+pub fn nika_chart::svg::Svg::from(t: T) -> T
+pub fn nika_chart::svg::escape(s: &str) -> alloc::string::String
+pub mod nika_chart::term_img
+pub fn nika_chart::term_img::base64(data: &[u8]) -> alloc::string::String
+pub fn nika_chart::term_img::iterm2(png: &[u8], name: &str) -> alloc::string::String
+pub fn nika_chart::term_img::kitty(png: &[u8]) -> alloc::string::String
+pub mod nika_chart::ticks
+pub struct nika_chart::ticks::TickSpec
+pub nika_chart::ticks::TickSpec::k: usize
+pub nika_chart::ticks::TickSpec::lmin: f64
+pub nika_chart::ticks::TickSpec::lstep: f64
+impl nika_chart::ticks::TickSpec
+pub fn nika_chart::ticks::TickSpec::lmax(&self) -> f64
+pub fn nika_chart::ticks::TickSpec::values(&self) -> alloc::vec::Vec<f64>
+impl core::clone::Clone for nika_chart::ticks::TickSpec
+pub fn nika_chart::ticks::TickSpec::clone(&self) -> nika_chart::ticks::TickSpec
+impl core::cmp::PartialEq for nika_chart::ticks::TickSpec
+pub fn nika_chart::ticks::TickSpec::eq(&self, other: &nika_chart::ticks::TickSpec) -> bool
+impl core::fmt::Debug for nika_chart::ticks::TickSpec
+pub fn nika_chart::ticks::TickSpec::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_chart::ticks::TickSpec
+impl core::marker::StructuralPartialEq for nika_chart::ticks::TickSpec
+impl<T, U> core::convert::Into<U> for nika_chart::ticks::TickSpec where U: core::convert::From<T>
+pub fn nika_chart::ticks::TickSpec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::ticks::TickSpec where U: core::convert::Into<T>
+pub type nika_chart::ticks::TickSpec::Error = core::convert::Infallible
+pub fn nika_chart::ticks::TickSpec::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::ticks::TickSpec where U: core::convert::TryFrom<T>
+pub type nika_chart::ticks::TickSpec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::ticks::TickSpec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::ticks::TickSpec where T: core::clone::Clone
+pub type nika_chart::ticks::TickSpec::Owned = T
+pub fn nika_chart::ticks::TickSpec::clone_into(&self, target: &mut T)
+pub fn nika_chart::ticks::TickSpec::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::ticks::TickSpec where T: 'static + ?core::marker::Sized
+pub fn nika_chart::ticks::TickSpec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::ticks::TickSpec where T: ?core::marker::Sized
+pub fn nika_chart::ticks::TickSpec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::ticks::TickSpec where T: ?core::marker::Sized
+pub fn nika_chart::ticks::TickSpec::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::ticks::TickSpec where T: core::clone::Clone
+pub unsafe fn nika_chart::ticks::TickSpec::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::ticks::TickSpec
+pub fn nika_chart::ticks::TickSpec::from(t: T) -> T
+pub fn nika_chart::ticks::extended_wilkinson(dmin: f64, dmax: f64, m: f64) -> core::option::Option<nika_chart::ticks::TickSpec>
+pub fn nika_chart::ticks::extended_wilkinson_opts(dmin: f64, dmax: f64, m: f64, integer_only: bool) -> core::option::Option<nika_chart::ticks::TickSpec>
+pub fn nika_chart::ticks::ilog10_ceil(x: f64) -> i32
+pub fn nika_chart::ticks::ilog10_floor(x: f64) -> i32
+pub fn nika_chart::ticks::pow10(z: i32) -> f64
+pub mod nika_chart::tty
+pub fn nika_chart::tty::bars(labels: &[alloc::string::String], values: &[f64], sem: nika_chart::spec::Semantic, width: usize) -> alloc::string::String
+pub fn nika_chart::tty::sparkline(values: &[f64]) -> alloc::string::String
+pub mod nika_chart::vega
+pub fn nika_chart::vega::emit(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row], data_sha256: &str) -> core::option::Option<alloc::string::String>
+pub struct nika_chart::ChartArtifact
+pub nika_chart::ChartArtifact::data_sha256: alloc::string::String
+pub nika_chart::ChartArtifact::height: u32
+pub nika_chart::ChartArtifact::sha256: alloc::string::String
+pub nika_chart::ChartArtifact::svg: alloc::string::String
+pub nika_chart::ChartArtifact::vega_lite: core::option::Option<alloc::string::String>
+pub nika_chart::ChartArtifact::warnings: alloc::vec::Vec<alloc::string::String>
+pub nika_chart::ChartArtifact::width: u32
+impl core::clone::Clone for nika_chart::ChartArtifact
+pub fn nika_chart::ChartArtifact::clone(&self) -> nika_chart::ChartArtifact
+impl core::fmt::Debug for nika_chart::ChartArtifact
+pub fn nika_chart::ChartArtifact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_chart::ChartArtifact where U: core::convert::From<T>
+pub fn nika_chart::ChartArtifact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_chart::ChartArtifact where U: core::convert::Into<T>
+pub type nika_chart::ChartArtifact::Error = core::convert::Infallible
+pub fn nika_chart::ChartArtifact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_chart::ChartArtifact where U: core::convert::TryFrom<T>
+pub type nika_chart::ChartArtifact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_chart::ChartArtifact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_chart::ChartArtifact where T: core::clone::Clone
+pub type nika_chart::ChartArtifact::Owned = T
+pub fn nika_chart::ChartArtifact::clone_into(&self, target: &mut T)
+pub fn nika_chart::ChartArtifact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_chart::ChartArtifact where T: 'static + ?core::marker::Sized
+pub fn nika_chart::ChartArtifact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_chart::ChartArtifact where T: ?core::marker::Sized
+pub fn nika_chart::ChartArtifact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_chart::ChartArtifact where T: ?core::marker::Sized
+pub fn nika_chart::ChartArtifact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_chart::ChartArtifact where T: core::clone::Clone
+pub unsafe fn nika_chart::ChartArtifact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_chart::ChartArtifact
+pub fn nika_chart::ChartArtifact::from(t: T) -> T
+pub const nika_chart::MAX_ROWS: usize
+pub fn nika_chart::compile(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row]) -> core::result::Result<nika_chart::ChartArtifact, nika_chart::error::ChartError>
+pub fn nika_chart::verify(spec: &nika_chart::spec::ChartSpec, rows: &[nika_chart::data::Row], claimed_sha256: &str) -> core::result::Result<bool, nika_chart::error::ChartError>
