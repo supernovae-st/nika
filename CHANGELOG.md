@@ -12,6 +12,63 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika:image_fx` — deterministic artistic effects, the 26th builtin
+  (stdlib §Media graduate #3).** The `image editing` deferred row comes
+  home zero-dep: 15 op families (dither · palette · duotone · pixelate ·
+  halftone · grain · vignette · chromatic aberration · scanlines ·
+  glitch · ascii …) over a hand-rolled PNG codec (full RFC 1951 dynamic
+  Huffman inflate · 5-filter decode · CRC), seeded and byte-identical —
+  the recipe rides the PNG `tEXt` chunk (`image_fx/v1`), the artifact
+  sha256 rides the trace chain, and a re-run with the same inputs
+  idempotently skips.
+- **`nika:chart` — deterministic chart artifacts, the 27th builtin
+  (stdlib §Media graduate #4).** Rows + a semantic spec compile to
+  byte-identical SVG (sha256 → trace chain): five closed types (bar ·
+  line · area_band · scatter · heatmap), typed semantics (usd ·
+  duration_ms · timestamp · category …), `out:` must end in `.svg` (the
+  attestation surface) and `compile_to: vega_lite` writes the `.vl.json`
+  sibling. Zero dependencies; parity proven byte-exact across
+  architectures (wasm32-wasip1 ≡ aarch64).
+- **`nika check --model <provider/model>`** — the static preview of the
+  run override: the envelope is re-priced AS IF the flag replaced the
+  file's default (per-task `model:` still wins), so what check shows IS
+  what run will refuse or allow.
+- **Egress to `outputs` — the workflow boundary earns its valve.** The
+  capture-taint law is deliberate (the provider saw the key — its
+  response is not provably clean), but a workflow that calls an
+  authenticated API and RETURNS the result had no sanctioned path: the
+  embedded `api-upload-and-create` template failed its own audit (the
+  night battery's catch), documented as the one known gap. The gap
+  closes the way its own note asked: `egress: [{ to: "outputs" }]` on
+  the secret declassifies the workflow boundary itself — sink-only,
+  secret-specific, never authorizes a send, default-deny when absent
+  (spec 01-envelope §egress). KNOWN_GAP is empty: every embedded
+  template now passes its own audit, with zero exceptions.
+- **The MODELS rung — every `model:` must resolve in THIS binary.** The
+  ladder validated tools but never models: a vendor-cataloged provider
+  the resolver cannot drive (`azure/…`) and a bare model id
+  (`gpt-5-turbo`) both audited green — the bare one even wore a
+  conjured price. Both are findings now (exit 2) with the fix taught
+  in-line; pricing refuses to price what cannot resolve (unpriced beats
+  conjured); the `--json` payload carries `models_resolve` +
+  `model_findings[]`; and the SAME law guards the MCP `nika_check` lane
+  (`nika_providers::resolve_refusal` — the two machine lanes cannot
+  disagree).
+- **`nika wire` learns `opencode` and `hermes`** — the two ecosystems
+  that natively read what `nika init` writes get first-class MCP wiring
+  (`wire all` now covers 8 targets). OpenCode: project-local
+  `opencode.json`, its own `mcp.nika` shape, idempotent merge. Hermes:
+  `~/.hermes/config.yaml` under the Zed contract — create when missing,
+  recognize current, otherwise hand back the exact snippet and leave a
+  foreign YAML byte-identical.
+- **OpenRouter calls carry the app-attribution pair** (`HTTP-Referer:
+  https://nika.sh` + `X-Title: Nika`) — runs surface as Nika on the
+  public rankings instead of an anonymous key. Openrouter-profile only;
+  peers may 400 on surprise headers (proven both directions).
+- **The plugin ships three slash commands** (`/nika:check` ·
+  `/nika:explain` · `/nika:new`) — born under `.agents/plugins/nika/`
+  per the marketplace mirror law; the commands read the `--json`
+  payload, not the prose.
 - **`nika explain --forecast` — learned truth before a run.** Duration,
   cost and risk priors computed from YOUR local traces (`.nika/traces/`)
   — deterministic stats, never a model call, never the network. The
@@ -37,6 +94,27 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **The run card advertises the full 64-hex chain head** — `trace
+  verify` printed the whole sha256 while the run card truncated to 32,
+  so the taught receipts loop could only prefix-match. Byte-exact `==`
+  now closes it (CI-assertable).
+- **The broken editor modeline names itself — cause, not symptom.** A
+  weak copier de-comments the `# yaml-language-server:` line; YAML then
+  fails at the first mapping (« line 14, `nika: v1` ») while the fault
+  is line 1 — repair loops chased the symptom forever (0/13 measured on
+  a 14B grid). Both forms now teach the fix on the offending line, and
+  the class is mirrored spec-side as conformance fixtures 014/015 —
+  writing them un-crashed the oracle's scan-failure path.
+- **The cost floor prices the EFFECTIVE model.** The delegation idiom
+  agents are taught (`--model <p/m> --max-cost-usd <usd>`) never met
+  the pre-start refusal — the floor was computed from the file's model
+  while the run used the override. The budget preflight now re-prices
+  the effective envelope; the mock-override preview idiom still passes.
+- **The PNG heatmap speaks the SVG's quantized bins** — the design pass
+  quantized the SVG cells onto the legend's 8 shared bins while the PNG
+  projection of the same recipe kept the continuous ramp; one shared
+  fill law now feeds both surfaces (every legend swatch IS a color a
+  cell can wear).
 - **Fold verdicts are terminal kinds only** — a journal truncated after
   its opening line no longer surfaces `workflow_started` as if the
   crashed run had reached a state; `nika context` reads it as
@@ -44,6 +122,19 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **The chart design pass — per-mode palettes, computable, never
+  eyeballed.** The six-check validator refuted « Okabe-Ito is CVD-safe
+  on both modes » (4 slots outside the dark lightness band · the yellow
+  at 1.29:1 on white): dark becomes a SELECTED palette (same seven
+  hues, its own steps, all checks green against `#0f1318`; light
+  re-steps one slot, yellow → gold), series and diverging bins ride CSS
+  classes through the `prefers-color-scheme` seam (ONE byte-stable
+  document renders both themes), heatmap cells quantize onto the
+  legend's 8 shared bins with a 2px surface gap, bars cap at 24px with
+  a rounded data-end and square baseline, and the diverging midpoint
+  goes near-surface graphite in dark — « no change » must recede, never
+  glow. A BOTH-lists-style test guards the style block against palette
+  drift.
 - **`nika-dap::stats::conformal_upper` — the forecast's first THEOREM.**
   A distribution-free, finite-sample upper prediction bound (split
   conformal, order-statistic form): for exchangeable runs the NEXT one
