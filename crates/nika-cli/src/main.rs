@@ -140,6 +140,11 @@ enum Command {
         /// posture; hints stay advisory without it.
         #[arg(long)]
         native_strict: bool,
+        /// Price the static envelope AS IF this `<provider>/<model>`
+        /// replaced the envelope default — the preview of `nika run
+        /// --model` (per-task `model:` still wins, like the runtime).
+        #[arg(long)]
+        model: Option<String>,
         /// Disable colour output.
         #[arg(long)]
         no_color: bool,
@@ -664,6 +669,7 @@ fn main() -> std::process::ExitCode {
             json,
             infer_permits,
             native_strict,
+            model,
             no_color,
             ascii,
         } => {
@@ -674,6 +680,7 @@ fn main() -> std::process::ExitCode {
                     &file,
                     json,
                     native_strict,
+                    model.as_deref(),
                     term_theme(color.with_no_color(no_color), ascii, link_when),
                 )
             };

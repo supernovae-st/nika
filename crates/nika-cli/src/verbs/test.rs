@@ -63,7 +63,7 @@ pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
     if !report.is_clean() {
         // The SAME findings `nika check` renders — a dirty file never
         // pins (or judges) a golden.
-        let out = crate::verbs::check::run(file, false, false, theme);
+        let out = crate::verbs::check::run(file, false, false, None, theme);
         print!("{}", out.text);
         return out.code;
     }

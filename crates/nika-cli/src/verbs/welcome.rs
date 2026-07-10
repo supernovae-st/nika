@@ -585,6 +585,7 @@ mod tests {
             path.to_str().expect("utf8"),
             false,
             false,
+            None,
             Theme::new(false, false, false),
         );
         std::fs::remove_file(&path).ok();
