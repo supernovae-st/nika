@@ -159,24 +159,10 @@ fn unresolvable_models(report: &nika_schema::check::CheckReport) -> Vec<ModelFin
         .models
         .iter()
         .filter_map(|m| {
-            let why = match m.model.split_once('/') {
-                None => format!(
-                    "`{}` is a bare model id — the contract is `<provider>/<model>` \
-                     (pick the provider that serves it; `nika doctor` names the \
-                     {} runnable providers)",
-                    m.model,
-                    nika_providers::CANONICAL_IDS.len()
-                ),
-                Some((provider, _)) if !nika_providers::CANONICAL_IDS.contains(&provider) => {
-                    format!(
-                        "provider `{provider}` does not resolve in THIS binary \
-                         ({} runnable — `nika doctor` names them); a cataloged \
-                         vendor is not a runnable one",
-                        nika_providers::CANONICAL_IDS.len()
-                    )
-                }
-                Some(_) => return None,
-            };
+            // The ONE law, shared with the MCP lane (#320 follow-up:
+            // the two machine surfaces consult the same fn beside the
+            // resolver — they cannot drift apart again).
+            let why = nika_providers::resolve_refusal(&m.model)?;
             Some(ModelFinding {
                 model: m.model.clone(),
                 tasks: m.tasks.clone(),

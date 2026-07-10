@@ -12,6 +12,7 @@ publish                = false  # Foundation crate — never on crates.io. See A
 
 [dependencies]
 nika-schema = { path = "../nika-schema", version = "0.98.0" }  # parse + the ADR-092 check ladder (the `nika_check` tool)
+nika-providers = { path = "../nika-providers", version = "0.98.0", default-features = false }  # the resolver law: every model resolves in THIS binary (#320)
 nika-error  = { path = "../nika-error", version = "0.98.0" }   # code_help/lookup — numeric registry (the `nika_explain` tool)
 nika-pack   = { path = "../nika-pack", version = "0.98.0" }    # embedded canon error_codes — the spec codes (NIKA-VAR-* · NIKA-DAG-* …)
 # The embedded knowledge payloads (`nika_catalog` · `nika_tools`) — the SAME

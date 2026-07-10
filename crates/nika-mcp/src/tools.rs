@@ -153,7 +153,19 @@ fn check(args: &Value) -> Result<String, String> {
     )
     .map_err(|e| format!("PARSE ✗ {e}"))?;
     let report = nika_schema::check(&wf);
-    if report.is_clean() {
+    // The MODELS rung, MCP lane (#320 repro 3): the schema ladder alone
+    // audited a hallucinated model green — cross every requirement against
+    // the RESOLVER law shared with the CLI rung (nika-providers).
+    let model_findings: Vec<Value> = report
+        .requirements
+        .models
+        .iter()
+        .filter_map(|m| {
+            nika_providers::resolve_refusal(&m.model)
+                .map(|why| serde_json::json!({ "model": m.model, "tasks": m.tasks, "why": why }))
+        })
+        .collect();
+    if report.is_clean() && model_findings.is_empty() {
         return Ok("✔ clean — audited before a single token was spent".to_owned());
     }
     // `is_clean()` checks TEN finding surfaces (conformance · secret leaks +
@@ -161,7 +173,20 @@ fn check(args: &Value) -> Result<String, String> {
     // /unknown args · gate findings) — render the FULL structured report so the
     // MCP client sees EVERY finding (the prior code listed only `conformance`,
     // dropping 9 classes · a model can parse the JSON + repair from it).
-    let detail = serde_json::to_string_pretty(&report)
+    let mut payload = serde_json::to_value(&report)
+        .map_err(|e| format!("check report serialization failed: {e}"))?;
+    if let Some(obj) = payload.as_object_mut() {
+        // The same keys the CLI --json lane carries — the two machine
+        // lanes must not disagree (the is_clean mirror law).
+        obj.insert(
+            "models_resolve".to_owned(),
+            Value::Bool(model_findings.is_empty()),
+        );
+        if !model_findings.is_empty() {
+            obj.insert("model_findings".to_owned(), Value::Array(model_findings));
+        }
+    }
+    let detail = serde_json::to_string_pretty(&payload)
         .map_err(|e| format!("check report serialization failed: {e}"))?;
     // A DIRTY workflow is an `Err` so the dispatcher flags `isError: true`:
     // the model then SEES the findings AND the harness triggers its repair
@@ -256,6 +281,37 @@ fn explain(args: &Value) -> Result<String, String> {
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// #320 repro 3, closed: a hallucinated model over the MCP lane was
+    /// the LAST surface still auditing green — the rung now reds it with
+    /// the same payload keys the CLI --json lane carries.
+    #[test]
+    fn check_reds_a_bare_model_id_with_the_shared_rung() {
+        let yaml = "nika: v1\nworkflow: m\ntasks:\n  - id: think\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n";
+        let err = check(&serde_json::json!({ "workflow": yaml })).expect_err("dirty");
+        assert!(err.contains("\"models_resolve\": false"), "{err}");
+        assert!(
+            err.contains("gpt-5-turbo") && err.contains("bare model id"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn check_reds_a_cataloged_but_unresolvable_provider() {
+        let yaml = "nika: v1\nworkflow: m\ntasks:\n  - id: think\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n";
+        let err = check(&serde_json::json!({ "workflow": yaml })).expect_err("dirty");
+        assert!(
+            err.contains("`azure` does not resolve") || err.contains("provider `azure`"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn check_stays_clean_when_every_model_resolves() {
+        let yaml = "nika: v1\nworkflow: m\ntasks:\n  - id: think\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
+        let ok = check(&serde_json::json!({ "workflow": yaml })).expect("clean");
+        assert!(ok.contains("clean"), "{ok}");
+    }
 
     #[test]
     fn catalog_lists_the_validate_and_learn_tools() {
