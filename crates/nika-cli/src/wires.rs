@@ -22,8 +22,8 @@
 //! Colour: rails and arrows are Dim chrome, task ids stay plain text —
 //! semantic, never decorative (theme.rs law). ASCII twins every glyph.
 
-use crate::display::theme::{Role, Theme};
 use crate::verbs::graph::GraphDoc;
+use nika_display::theme::{Role, Theme};
 
 /// Widest a drawing may grow (display cells) — beyond this the caller's
 /// listing fallback reads better than horizontal scrolling.

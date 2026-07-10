@@ -302,7 +302,7 @@ pub fn run(path: &str, format: GraphFormat) -> VerbOutput {
 /// `graph` is a projector surface, its text is often piped.
 fn to_ascii(doc: &GraphDoc, report: &CheckReport) -> String {
     let theme = crate::display::theme::Theme::new(false, false, false);
-    if let Some(art) = crate::display::wires::render(doc, &report.waves, theme) {
+    if let Some(art) = crate::wires::render(doc, &report.waves, theme) {
         return format!("{art}\n");
     }
     // Honest fallback: one row per wave — order without invented wires.

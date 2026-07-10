@@ -9,7 +9,7 @@
 //! themes (unicode + ASCII) are first-class: the ASCII column is what CI
 //! logs and legacy terminals render, snapshot-pinned like the unicode one.
 
-use crate::display::state::TaskState;
+use crate::state::TaskState;
 
 /// Braille spinner frames (80ms cadence at the call site).
 pub const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -21,7 +21,7 @@ pub const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦'
 /// Truecolor ONLY — the caller gates on `Theme.heat` (`COLORTERM` said
 /// truecolor/24bit); the 256-colour fallback is the FLAT bar, never an
 /// approximated ramp. A const table, no colour crate.
-pub(crate) const HEAT_RAMP: [(u8, u8, u8); 5] = [
+pub const HEAT_RAMP: [(u8, u8, u8); 5] = [
     (96, 125, 139),
     (86, 143, 163),
     (74, 162, 189),
@@ -172,7 +172,7 @@ impl Theme {
     #[must_use]
     pub fn link(&self, url: &str, text: &str) -> String {
         if self.links {
-            crate::display::format::osc8(url, text, None)
+            crate::format::osc8(url, text, None)
         } else {
             text.to_owned()
         }
@@ -184,7 +184,7 @@ impl Theme {
     /// terminal theme decides those hues). Plain text when colour is
     /// off; the CALLER gates on `self.heat` (the `COLORTERM` capability).
     #[must_use]
-    pub(crate) fn heat_step(self, step: usize, text: &str) -> String {
+    pub fn heat_step(self, step: usize, text: &str) -> String {
         if !self.color {
             return text.to_owned();
         }

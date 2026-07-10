@@ -10,9 +10,9 @@
 //! honest overlap. Everything here (lane markers · durations) derives
 //! from that one reconstruction.
 
-use crate::display::format::fmt_cost_usd;
-use crate::display::state::{RunView, TaskRow, TaskState};
-use crate::display::theme::{Role, Theme};
+use crate::format::fmt_cost_usd;
+use crate::state::{RunView, TaskRow, TaskState};
+use crate::theme::{Role, Theme};
 
 /// Bar-region width of the waterfall (cells) — with the id + duration
 /// columns a typical frame stays graceful under 80 columns.
@@ -20,7 +20,7 @@ const BAR_WIDTH: usize = 34;
 
 /// One task's reconstructed wall interval on the run's timeline (unix ms).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Interval {
+pub struct Interval {
     /// Reconstructed start (`end − duration` · else the started stamp).
     pub start: i64,
     /// The terminal stamp (or "now" for a still-running task).
@@ -39,7 +39,8 @@ impl Interval {
 /// stamp minus the measured duration; a RUNNING row spans its start
 /// stamp to `now` (the latest stamp the fold has seen). Rows that never
 /// ran (pending · skipped · cancelled-before-start) have no interval.
-pub(crate) fn interval_of(row: &TaskRow, now_ms: Option<i64>) -> Option<Interval> {
+#[must_use]
+pub fn interval_of(row: &TaskRow, now_ms: Option<i64>) -> Option<Interval> {
     match row.state {
         TaskState::Ok | TaskState::Failed => {
             let end = row.ended_ms?;
@@ -63,7 +64,8 @@ pub(crate) fn interval_of(row: &TaskRow, now_ms: Option<i64>) -> Option<Interval
 /// (the scheduler's truth); without one (a replayed trace), any
 /// overlapping task counts. Marks derive from reconstructed intervals —
 /// a wave whose members happened to run sequentially earns no marker.
-pub(crate) fn lane_marks(view: &RunView) -> Vec<bool> {
+#[must_use]
+pub fn lane_marks(view: &RunView) -> Vec<bool> {
     let now = view.last_ts_ms();
     let rows = view.rows();
     let intervals: Vec<Option<Interval>> = rows.iter().map(|r| interval_of(r, now)).collect();
@@ -192,7 +194,8 @@ pub fn waterfall(view: &RunView, theme: &Theme) -> Vec<String> {
 /// Quantize one duration onto the 5-step heat ramp: 0 (the fastest
 /// band) … 4 (the run's long pole). The run's own max anchors the
 /// scale — heat compares tasks WITHIN a run, never across runs.
-pub(crate) fn heat_bucket(wall_ms: u64, max_ms: u64) -> usize {
+#[must_use]
+pub fn heat_bucket(wall_ms: u64, max_ms: u64) -> usize {
     usize::try_from(wall_ms.saturating_mul(4) / max_ms.max(1))
         .unwrap_or(4)
         .min(4)
@@ -888,7 +891,7 @@ mod tests {
         let mut heat = Theme::new(true, false, false);
         heat.heat = true;
         let lines = waterfall(&view, &heat);
-        let ramp_top = crate::display::theme::HEAT_RAMP[4];
+        let ramp_top = crate::theme::HEAT_RAMP[4];
         let deepest = format!("\x1b[38;2;{};{};{}m", ramp_top.0, ramp_top.1, ramp_top.2);
         assert!(
             lines[1].contains(&deepest),

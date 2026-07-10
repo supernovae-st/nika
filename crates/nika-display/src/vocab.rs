@@ -8,19 +8,19 @@
 //! verb epilogues all pull from here, so the registers can never drift
 //! apart glyph-by-glyph.
 
-use crate::display::theme::{Role, Theme};
+use crate::theme::{Role, Theme};
 
 /// The data arrow (`→` · `->` under `--ascii`) — output tails, flow
 /// edges, outputs pointers.
 #[must_use]
-pub(crate) fn arrow(ascii: bool) -> &'static str {
+pub fn arrow(ascii: bool) -> &'static str {
     if ascii { "->" } else { "→" }
 }
 
 /// The comparison mark for "at least" (`≥` · `>=` under `--ascii`) —
 /// the audited card's cost floor.
 #[must_use]
-pub(crate) fn at_least(ascii: bool) -> &'static str {
+pub fn at_least(ascii: bool) -> &'static str {
     if ascii { ">=" } else { "≥" }
 }
 
@@ -29,7 +29,7 @@ pub(crate) fn at_least(ascii: bool) -> &'static str {
 /// explain NIKA-431` · `re-baseline: nika test wf.yaml --update` ·
 /// `explore: nika trace outputs run.ndjson`).
 #[must_use]
-pub(crate) fn hint(theme: Theme, label: &str, command: &str) -> String {
+pub fn hint(theme: Theme, label: &str, command: &str) -> String {
     theme.paint(Role::Dim, &format!("{label}: {command}"))
 }
 

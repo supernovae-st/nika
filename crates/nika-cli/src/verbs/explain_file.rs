@@ -304,7 +304,7 @@ fn story_section(s: &mut String, doc: &GraphDoc, report: &CheckReport) {
     // wires when the layout can be truthful; multi-task graphs only, a
     // single box is noise). Plain theme: explain's wires stay copyable.
     if doc.nodes.len() > 1
-        && let Some(art) = crate::display::wires::render(
+        && let Some(art) = crate::wires::render(
             doc,
             &report.waves,
             crate::display::theme::Theme::new(false, false, false),

@@ -5,10 +5,10 @@
 //! lines`. No I/O here: the replay loop owns the terminal, this module owns
 //! the truth-to-text mapping. Snapshot tests pin BOTH glyph themes.
 
-use crate::display::flow::{fmt_wall_ms, lane_marks};
-use crate::display::format::fmt_cost_usd;
-use crate::display::state::{RunView, TaskRow, TaskState};
-use crate::display::theme::{Role, Theme};
+use crate::flow::{fmt_wall_ms, lane_marks};
+use crate::format::fmt_cost_usd;
+use crate::state::{RunView, TaskRow, TaskState};
+use crate::theme::{Role, Theme};
 
 /// Widest the note column grows before the time column floats free —
 /// keeps a typical frame graceful under 80 columns.
@@ -98,7 +98,7 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
     for (i, row) in view.rows().iter().enumerate() {
         let mark = marks.get(i).copied().unwrap_or(false);
         let tail = if outputs {
-            crate::display::shape::output_tail(row.output_json.as_deref(), row.tokens, theme)
+            crate::shape::output_tail(row.output_json.as_deref(), row.tokens, theme)
         } else {
             None
         };
@@ -158,7 +158,7 @@ fn meter_line(view: &RunView, theme: &Theme) -> String {
 // `&Theme` to match the sink borrow that threads it here.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 #[must_use]
-pub(crate) fn stream_header(view: &RunView, theme: &Theme) -> Vec<String> {
+pub fn stream_header(view: &RunView, theme: &Theme) -> Vec<String> {
     let tasks = view
         .plan()
         .map(|waves| waves.iter().map(Vec::len).sum())
@@ -176,7 +176,7 @@ pub(crate) fn stream_header(view: &RunView, theme: &Theme) -> Vec<String> {
 // `&Theme` to match the sink borrow that threads it here.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 #[must_use]
-pub(crate) fn stream_settled_line(
+pub fn stream_settled_line(
     view: &RunView,
     task: &str,
     theme: &Theme,
@@ -189,7 +189,7 @@ pub(crate) fn stream_settled_line(
     let time_w = time.as_ref().map_or(0, |t| t.chars().count());
     let mark = lane_marks(view).get(i).copied().unwrap_or(false);
     let tail = if outputs {
-        crate::display::shape::output_tail(row.output_json.as_deref(), row.tokens, theme)
+        crate::shape::output_tail(row.output_json.as_deref(), row.tokens, theme)
     } else {
         None
     };
@@ -211,7 +211,7 @@ pub(crate) fn stream_settled_line(
 // `&Theme` to match the sink borrow that threads it here.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 #[must_use]
-pub(crate) fn stream_summary(view: &RunView, theme: &Theme) -> Vec<String> {
+pub fn stream_summary(view: &RunView, theme: &Theme) -> Vec<String> {
     let mut lines = vec![meter_line(view, theme)];
     if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
@@ -439,7 +439,7 @@ fn append_failure_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
         if let Some(code) = detail.split_whitespace().find(|w| w.starts_with("NIKA-")) {
             lines.push(format!(
                 "    {}",
-                crate::display::vocab::hint(*theme, "fix", &format!("nika explain {code}"))
+                crate::vocab::hint(*theme, "fix", &format!("nika explain {code}"))
             ));
         }
     }
@@ -458,7 +458,7 @@ fn append_failure_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
             {
                 lines.push(format!(
                     "    {}",
-                    crate::display::vocab::hint(*theme, "fix", &format!("nika explain {code}"))
+                    crate::vocab::hint(*theme, "fix", &format!("nika explain {code}"))
                 ));
             }
         }

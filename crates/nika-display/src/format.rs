@@ -17,7 +17,7 @@
 //! ## The colour split (locked)
 //!
 //! CHROME — borders · labels · state glyphs · verdicts — speaks the
-//! ANSI-16 slots via [`crate::display::theme::Role`]: the USER's terminal
+//! ANSI-16 slots via [`crate::theme::Role`]: the USER's terminal
 //! theme decides the actual hues, we only name semantics. TRUECOLOR is
 //! reserved for DATA (the duration-heat ramp) and fires only under an
 //! explicit `COLORTERM` capability signal — never for decoration.
