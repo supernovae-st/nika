@@ -40,7 +40,10 @@ pub mod analyzer;
 pub mod check;
 pub mod codegen;
 pub mod error;
-pub mod expression;
+/// The `${{ }}` expression language — DESCENDED to `nika-tmpl` (2026-07-10 ·
+/// the 15k crate-size wall · the trace→dap precedent). Re-exported verbatim:
+/// every `nika_schema::expression::…` path resolves unchanged.
+pub use nika_tmpl::expression;
 pub mod lints;
 pub mod parser;
 pub mod raw;

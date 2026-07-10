@@ -139,10 +139,10 @@ design, not a leak; the model response is not a verbatim echo).
   deep `tasks.X.output.<path>` references resolved against X's `schema:` JSON Schema or
   `output:` binding names · properties/items/anyOf descent · explicit
   `additionalProperties: true` honored as opaque · typo'd fields caught with zero tokens)
-- `crates/nika-schema/src/expression/refs.rs` -- `walk_chains` shared chain-flattening
+- `crates/nika-tmpl/src/expression/refs.rs` -- `walk_chains` shared chain-flattening
   core (`expr_refs` + `task_output_paths` consume one walker — no drift)
 - `crates/nika-schema/src/analyzer/dag.rs:104` -- `topo_waves`, reused for the fixpoint order
-- `crates/nika-schema/src/expression/refs.rs` -- `expr_refs`/`NamespaceRef`, the taint extractor
+- `crates/nika-tmpl/src/expression/refs.rs` -- `expr_refs`/`NamespaceRef`, the taint extractor
 - `crates/nika-schema/src/suggest.rs` -- deterministic did-you-mean core (moved out of `check/` when the analyzer adopted it)
   (Damerau-Levenshtein · rustc threshold · lexicographic tie-break — the diagnostic
   model: every finding carries its machine-applicable repair)

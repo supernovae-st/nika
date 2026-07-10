@@ -10,7 +10,7 @@
 use super::ast::Expr;
 use super::error::ExprError;
 use super::parser::parse_expression;
-use nika_tmpl::scan_islands;
+use crate::scan_islands;
 
 /// One `${{ … }}` island found in a string.
 #[derive(Debug, Clone, PartialEq)]
