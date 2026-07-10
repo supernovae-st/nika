@@ -105,6 +105,33 @@ pub struct UnknownExtractMode {
     pub input: String,
 }
 
+impl UnknownExtractMode {
+    /// A route hint for the empirically-common wrong guesses — the
+    /// new-user battery (2026-07-10) hit `json` twice: the set is closed
+    /// by the one-data-language law (jq replaced `JSONPath`), so the error
+    /// must TEACH the canonical route instead of only naming the enum
+    /// (the arithmetic-diagnostic precedent). Evidence-based rows only ·
+    /// `None` for inputs with no obvious intent.
+    #[must_use]
+    pub fn hint(&self) -> Option<&'static str> {
+        match self.input.as_str() {
+            "json" => Some(
+                "for a parsed JSON response use `mode: jq` with `jq: \".\"` \
+                 (jq is the one data language)",
+            ),
+            "html" => Some(
+                "for the raw page use `mode: raw` · for one element use \
+                 `mode: selector`",
+            ),
+            "xml" | "rss" | "atom" => Some(
+                "for RSS/Atom/JSON-Feed use `mode: feed` · for arbitrary XML \
+                 use `mode: raw`",
+            ),
+            _ => None,
+        }
+    }
+}
+
 impl fmt::Display for UnknownExtractMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -112,7 +139,11 @@ impl fmt::Display for UnknownExtractMode {
             "unknown extract mode `{}` — the stdlib v0.1 set is closed: {EXTRACT_MODE_NAMES} \
              (extract-modes-v0.1.md)",
             self.input
-        )
+        )?;
+        if let Some(hint) = self.hint() {
+            write!(f, " · {hint}")?;
+        }
+        Ok(())
     }
 }
 
@@ -194,5 +225,32 @@ mod tests {
         let back: ExtractMode = serde_json::from_str("\"article\"").expect("deserialize");
         assert_eq!(back, ExtractMode::Article);
         assert!(serde_json::from_str::<ExtractMode>("\"llm-txt\"").is_err());
+    }
+}
+#[cfg(test)]
+mod hint_tests {
+    use super::*;
+
+    /// The did-you-mean table teaches the canonical route for the
+    /// measured wrong guesses (battery 2026-07-10 · `json` twice) and
+    /// stays silent on inputs with no obvious intent — the closed-set
+    /// framing must never speculate.
+    #[test]
+    fn hint_teaches_measured_guesses_only() {
+        let e = |s: &str| UnknownExtractMode {
+            input: s.to_owned(),
+        };
+        let json = e("json").to_string();
+        assert!(
+            json.contains("mode: jq") && json.contains("one data language"),
+            "{json}"
+        );
+        assert!(e("html").to_string().contains("mode: selector"));
+        assert!(e("rss").to_string().contains("mode: feed"));
+        // no speculation · the base closed-set message stands alone
+        let plain = e("banana").to_string();
+        assert!(plain.contains("the stdlib v0.1 set is closed"));
+        assert!(!plain.contains(" · for"), "{plain}");
+        assert!(e("banana").hint().is_none());
     }
 }
