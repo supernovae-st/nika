@@ -32,6 +32,7 @@ mod certificate;
 mod cost;
 mod declass;
 mod effective;
+mod findings;
 mod flow;
 mod hints;
 mod infer_permits;
@@ -52,6 +53,7 @@ pub use analysis::{DagAnalysis, TaskBlast};
 pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use cost::{CostCeiling, TaskCost, UnboundedReason};
 pub use effective::{EffectivePermits, PermitsSource};
+pub use findings::UnifiedFinding;
 pub use flow::{FlowFacts, TaintTrace};
 pub use hints::Hint;
 pub use hints::static_read_paths;
@@ -234,6 +236,12 @@ pub struct CheckReport {
     /// guarantee. NEVER fail the check ([`CheckReport::is_clean`]
     /// ignores them).
     pub hints: Vec<Hint>,
+    /// Every finding, class-erased into ONE renderable list (#331) —
+    /// the per-class keys above stay (the typed surface); a consumer
+    /// loops this instead of hardcoding ten key names. Empty ⇔
+    /// [`CheckReport::is_clean`] (the completeness ratchet in
+    /// `findings::tests`). Additive: `report_version` stays 1.
+    pub findings: Vec<UnifiedFinding>,
     /// The scheduler-independent DAG read — exact width (Dilworth) with
     /// a witness antichain, pinch points, per-task failure blast radius.
     /// `None` when conformance fails (no valid order) OR the workflow
@@ -337,7 +345,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     let mut hints = hints::scan_hints(wf);
     hints.extend(native_first::scan(wf));
     hints.extend(dag_read.conflicts);
-    CheckReport {
+    let mut report = CheckReport {
         report_version: REPORT_VERSION,
         conformance,
         cost: cost::ceiling(wf),
@@ -358,7 +366,12 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         hints,
         waves: topo_waves,
         analysis: dag_read.analysis,
-    }
+        findings: Vec::new(),
+    };
+    // The class-erased list folds the FINISHED report (one truth, read
+    // back) — every consumer (CLI --json · MCP nika_check) gets it free.
+    report.findings = findings::collect(&report);
+    report
 }
 
 /// Infer the TIGHTEST `permits:` block the workflow actually needs —

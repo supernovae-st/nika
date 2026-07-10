@@ -447,6 +447,7 @@ pub nika_schema::check::CheckReport::capability_escapes: alloc::vec::Vec<nika_sc
 pub nika_schema::check::CheckReport::certificate: nika_schema::RunCertificate
 pub nika_schema::check::CheckReport::conformance: alloc::vec::Vec<nika_schema::check::ConformanceViolation>
 pub nika_schema::check::CheckReport::cost: nika_schema::CostCeiling
+pub nika_schema::check::CheckReport::findings: alloc::vec::Vec<nika_schema::check::UnifiedFinding>
 pub nika_schema::check::CheckReport::gate_findings: alloc::vec::Vec<nika_schema::GateFinding>
 pub nika_schema::check::CheckReport::hints: alloc::vec::Vec<nika_schema::Hint>
 pub nika_schema::check::CheckReport::missing_args: alloc::vec::Vec<nika_schema::check::MissingArg>
@@ -1398,6 +1399,48 @@ impl<T> dyn_clone::DynClone for nika_schema::TaskCost where T: core::clone::Clon
 pub fn nika_schema::TaskCost::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::TaskCost where T: 'static
 pub fn nika_schema::TaskCost::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::check::UnifiedFinding
+pub nika_schema::check::UnifiedFinding::code: core::option::Option<alloc::string::String>
+pub nika_schema::check::UnifiedFinding::docs_url: core::option::Option<alloc::string::String>
+pub nika_schema::check::UnifiedFinding::gate: &'static str
+pub nika_schema::check::UnifiedFinding::kind: &'static str
+pub nika_schema::check::UnifiedFinding::message: alloc::string::String
+pub nika_schema::check::UnifiedFinding::severity: nika_schema::check::FindingSeverity
+pub nika_schema::check::UnifiedFinding::span: core::option::Option<nika_schema::check::ByteSpan>
+pub nika_schema::check::UnifiedFinding::task: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_schema::check::UnifiedFinding
+pub fn nika_schema::check::UnifiedFinding::clone(&self) -> nika_schema::check::UnifiedFinding
+impl core::fmt::Debug for nika_schema::check::UnifiedFinding
+pub fn nika_schema::check::UnifiedFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_schema::check::UnifiedFinding
+pub fn nika_schema::check::UnifiedFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_schema::check::UnifiedFinding
+impl<T, U> core::convert::Into<U> for nika_schema::check::UnifiedFinding where U: core::convert::From<T>
+pub fn nika_schema::check::UnifiedFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::check::UnifiedFinding where U: core::convert::Into<T>
+pub type nika_schema::check::UnifiedFinding::Error = core::convert::Infallible
+pub fn nika_schema::check::UnifiedFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::check::UnifiedFinding where U: core::convert::TryFrom<T>
+pub type nika_schema::check::UnifiedFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::check::UnifiedFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::check::UnifiedFinding where T: core::clone::Clone
+pub type nika_schema::check::UnifiedFinding::Owned = T
+pub fn nika_schema::check::UnifiedFinding::clone_into(&self, target: &mut T)
+pub fn nika_schema::check::UnifiedFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::check::UnifiedFinding where T: 'static + ?core::marker::Sized
+pub fn nika_schema::check::UnifiedFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::check::UnifiedFinding where T: ?core::marker::Sized
+pub fn nika_schema::check::UnifiedFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::check::UnifiedFinding where T: ?core::marker::Sized
+pub fn nika_schema::check::UnifiedFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::check::UnifiedFinding where T: core::clone::Clone
+pub unsafe fn nika_schema::check::UnifiedFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::check::UnifiedFinding
+pub fn nika_schema::check::UnifiedFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::check::UnifiedFinding where T: core::clone::Clone
+pub fn nika_schema::check::UnifiedFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::check::UnifiedFinding where T: 'static
+pub fn nika_schema::check::UnifiedFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::check::UnknownArg
 pub nika_schema::check::UnknownArg::arg: alloc::string::String
 pub nika_schema::check::UnknownArg::suggestion: core::option::Option<alloc::string::String>
@@ -6383,6 +6426,7 @@ pub nika_schema::CheckReport::capability_escapes: alloc::vec::Vec<nika_schema::C
 pub nika_schema::CheckReport::certificate: nika_schema::RunCertificate
 pub nika_schema::CheckReport::conformance: alloc::vec::Vec<nika_schema::check::ConformanceViolation>
 pub nika_schema::CheckReport::cost: nika_schema::CostCeiling
+pub nika_schema::CheckReport::findings: alloc::vec::Vec<nika_schema::check::UnifiedFinding>
 pub nika_schema::CheckReport::gate_findings: alloc::vec::Vec<nika_schema::GateFinding>
 pub nika_schema::CheckReport::hints: alloc::vec::Vec<nika_schema::Hint>
 pub nika_schema::CheckReport::missing_args: alloc::vec::Vec<nika_schema::check::MissingArg>

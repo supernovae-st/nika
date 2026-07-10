@@ -34,6 +34,11 @@ pub fn run(
 ) -> VerbOutput {
     let (source, wf, report) = match load_checked_with_source(path) {
         Ok(triple) => triple,
+        // Parse-fatal + `--json` (#331's papercut): the machine mode
+        // stays machine-parseable — ONE JSON error object on stdout
+        // (parse_fatal + a findings[] row shaped like the report's own),
+        // never the plain-text refusal an agent's json parse chokes on.
+        Err(out) if json => return parse_fatal_json(&out),
         Err(out) => return out,
     };
     // `--model m` previews the RUN override's static envelope (#342): the
@@ -83,6 +88,43 @@ pub fn run(
         VerbOutput::ok(text)
     } else {
         VerbOutput::file(text)
+    }
+}
+
+/// The parse-fatal machine verdict (#331): a file the parser refuses
+/// never reaches the report, but a `--json` consumer still gets JSON —
+/// `parse_fatal: true`, `clean: false`, and ONE findings[] row carrying
+/// the spec code the plain-text voice prints (`PARSE ✗ [CODE] …`). The
+/// exit code (2 file · 3 env) rides unchanged.
+fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
+    let text = out.text.trim();
+    // The plain voice is `PARSE ✗  [NIKA-…] message` — recover the code;
+    // an env-class refusal (unreadable file) has no code and stays codeless.
+    let code = text
+        .split_once('[')
+        .and_then(|(_, rest)| rest.split_once(']'))
+        .map(|(code, _)| code.to_owned());
+    let message = text.split_once("] ").map_or(text, |(_, m)| m).to_owned();
+    let mut finding = serde_json::json!({
+        "kind": "parse",
+        "gate": "PARSE",
+        "severity": "error",
+        "message": message,
+    });
+    if let Some(c) = &code {
+        finding["code"] = serde_json::json!(c);
+        finding["docs_url"] =
+            serde_json::json!(format!("{}/{c}", nika_schema::check::ERROR_DOCS_BASE));
+    }
+    let payload = serde_json::json!({
+        "report_version": nika_schema::check::REPORT_VERSION,
+        "parse_fatal": true,
+        "clean": false,
+        "findings": [finding],
+    });
+    VerbOutput {
+        text: format!("{payload:#}"),
+        code: out.code,
     }
 }
 
