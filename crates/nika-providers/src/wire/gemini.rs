@@ -100,7 +100,7 @@ fn build_request(
     let key = rp.key.as_ref().ok_or_else(|| ProviderError::AuthFailed {
         reason: "gemini requires an API key".to_owned(),
     })?;
-    let body = request_body(req)?;
+    let body = request_body(req, &rp.wire_model)?;
     let bytes = serde_json::to_vec(&body).map_err(|e| ProviderError::Other {
         reason: format!("request serialization failed: {e}"),
     })?;
@@ -120,7 +120,7 @@ fn build_request(
 
 /// The JSON body (pure — the unit-testable core). The model is a URL path
 /// segment, not a body field.
-fn request_body(req: &InferRequest) -> Result<Value, ProviderError> {
+fn request_body(req: &InferRequest, wire_model: &str) -> Result<Value, ProviderError> {
     let mut system = String::new();
     let mut contents = Vec::new();
     for m in &req.messages {
@@ -149,7 +149,7 @@ fn request_body(req: &InferRequest) -> Result<Value, ProviderError> {
         );
     }
 
-    let gen_config = generation_config(req);
+    let gen_config = generation_config(req, wire_model);
     if !gen_config.is_empty() {
         obj.insert("generationConfig".to_owned(), Value::Object(gen_config));
     }
@@ -203,7 +203,7 @@ fn request_body(req: &InferRequest) -> Result<Value, ProviderError> {
 /// documented opposite of openai's hard 400) and rejects only its own
 /// depth/$ref limits server-side — either way the verb's LOCAL validation
 /// keeps the authored contract.
-fn generation_config(req: &InferRequest) -> serde_json::Map<String, Value> {
+fn generation_config(req: &InferRequest, wire_model: &str) -> serde_json::Map<String, Value> {
     let mut gen_config = serde_json::Map::new();
     if let Some(t) = req.temperature {
         gen_config.insert("temperature".to_owned(), json!(t));
@@ -216,7 +216,7 @@ fn generation_config(req: &InferRequest) -> serde_json::Map<String, Value> {
     }
     if let Some(budget) = req
         .thinking_budget
-        .or_else(|| structured_thinking_bound(req))
+        .or_else(|| structured_thinking_bound(req, wire_model))
     {
         gen_config.insert(
             "thinkingConfig".to_owned(),
@@ -251,15 +251,15 @@ fn generation_config(req: &InferRequest) -> serde_json::Map<String, Value> {
 /// Per-model floors are the API's own contract: the pro tier refuses to
 /// disable thinking (minimum 128); everything else in the family turns
 /// off at 0. A provider fact, in the provider's adapter (#283).
-fn structured_thinking_bound(req: &InferRequest) -> Option<u32> {
+fn structured_thinking_bound(req: &InferRequest, wire_model: &str) -> Option<u32> {
     let structured = matches!(
         req.response_format,
         ResponseFormat::Json | ResponseFormat::JsonSchema(_)
     );
-    if !structured || req.max_tokens.is_none() || !req.model.starts_with("gemini-2.5") {
+    if !structured || req.max_tokens.is_none() || !wire_model.starts_with("gemini-2.5") {
         return None;
     }
-    Some(if req.model.contains("pro") { 128 } else { 0 })
+    Some(if wire_model.contains("pro") { 128 } else { 0 })
 }
 
 /// One kernel message → one `contents[]` entry. Tool results become
@@ -635,13 +635,13 @@ mod tests {
         r.tools = vec![ToolDef::new("add", "adds", json!({"type":"object"}))];
         r.tool_choice = ToolChoice::Specific("add".into());
         r.response_format = ResponseFormat::JsonSchema(json!({"type":"object"}));
-        let body = request_body(&r).expect("body");
+        let body = request_body(&r, "gemini-2.5-flash").expect("body");
 
         // choice-mode table (kills the per-arm deletions)
         let mut r2 = req(vec![Message::text(Role::User, "x")]);
         r2.tools = vec![ToolDef::new("add", "adds", json!({"type":"object"}))];
         r2.tool_choice = ToolChoice::Required;
-        let b2 = request_body(&r2).expect("body");
+        let b2 = request_body(&r2, "gemini-2.5-flash").expect("body");
         assert_eq!(b2["toolConfig"]["functionCallingConfig"]["mode"], "ANY");
         assert!(
             b2["toolConfig"]["functionCallingConfig"]
@@ -650,10 +650,10 @@ mod tests {
             "Required has no allow-list"
         );
         r2.tool_choice = ToolChoice::None;
-        let b3 = request_body(&r2).expect("body");
+        let b3 = request_body(&r2, "gemini-2.5-flash").expect("body");
         assert_eq!(b3["toolConfig"]["functionCallingConfig"]["mode"], "NONE");
         r2.tool_choice = ToolChoice::Auto;
-        let b4 = request_body(&r2).expect("body");
+        let b4 = request_body(&r2, "gemini-2.5-flash").expect("body");
         assert_eq!(b4["toolConfig"]["functionCallingConfig"]["mode"], "AUTO");
         assert_eq!(body["tools"][0]["functionDeclarations"][0]["name"], "add");
         assert_eq!(body["toolConfig"]["functionCallingConfig"]["mode"], "ANY");
@@ -675,7 +675,7 @@ mod tests {
         r.extra
             .params
             .insert("contents".into(), json!("evil-override"));
-        let body = request_body(&r).expect("body");
+        let body = request_body(&r, "gemini-2.5-flash").expect("body");
         assert_eq!(body["custom_field"], 7, "extras pass through");
         assert!(body["contents"].is_array(), "structural keys win");
     }
@@ -693,14 +693,21 @@ mod tests {
     #[test]
     fn body_key_presence_tracks_inputs() {
         // no system → no systemInstruction · no config → no generationConfig
-        let body = request_body(&req(vec![Message::text(Role::User, "x")])).expect("body");
+        let body = request_body(
+            &req(vec![Message::text(Role::User, "x")]),
+            "gemini-2.5-flash",
+        )
+        .expect("body");
         assert!(body.get("systemInstruction").is_none());
         assert!(body.get("generationConfig").is_none());
         // system present → key present (kills the two `delete !` mutants)
-        let body2 = request_body(&req(vec![
-            Message::text(Role::System, "s"),
-            Message::text(Role::User, "x"),
-        ]))
+        let body2 = request_body(
+            &req(vec![
+                Message::text(Role::System, "s"),
+                Message::text(Role::User, "x"),
+            ]),
+            "gemini-2.5-flash",
+        )
         .expect("body");
         assert_eq!(body2["systemInstruction"]["parts"][0]["text"], "s");
     }
@@ -754,7 +761,7 @@ mod tests {
                 }],
             ),
         ];
-        let body = request_body(&req(messages)).expect("body");
+        let body = request_body(&req(messages), "gemini-2.5-flash").expect("body");
         assert_eq!(body["contents"][0]["role"], "model");
         assert_eq!(
             body["contents"][0]["parts"][0]["functionCall"]["name"],
@@ -779,7 +786,7 @@ mod tests {
                 detail: None,
             }],
         );
-        assert!(request_body(&req(vec![bad])).is_err());
+        assert!(request_body(&req(vec![bad]), "gemini-2.5-flash").is_err());
 
         assert!(matches!(
             map_finish(Some("STOP"), false),
@@ -1022,7 +1029,7 @@ mod tests {
         });
         let mut r = req(vec![Message::text(Role::User, "x")]);
         r.response_format = ResponseFormat::JsonSchema(authored.clone());
-        let body = request_body(&r).expect("body");
+        let body = request_body(&r, "gemini-2.5-flash").expect("body");
         assert_eq!(
             body["generationConfig"]["responseJsonSchema"], authored,
             "byte-for-byte the author's schema"
@@ -1045,7 +1052,7 @@ mod tests {
         let mut r = req(vec![Message::text(Role::User, "x")]);
         r.response_format = ResponseFormat::JsonSchema(json!({"type": "object"}));
         r.max_tokens = Some(200);
-        let body = request_body(&r).expect("body");
+        let body = request_body(&r, "gemini-2.5-flash").expect("body");
         assert_eq!(
             body["generationConfig"]["thinkingConfig"]["thinkingBudget"], 0,
             "dynamic thinking must not burn the structured budget"
@@ -1056,10 +1063,10 @@ mod tests {
     /// bound respects the API's own floor instead of sending a 400.
     #[test]
     fn pro_tier_bounds_to_the_api_floor_not_zero() {
-        let mut r = InferRequest::new("gemini-2.5-pro", vec![Message::text(Role::User, "x")]);
+        let mut r = InferRequest::new("gemini", vec![Message::text(Role::User, "x")]);
         r.response_format = ResponseFormat::Json;
         r.max_tokens = Some(500);
-        let body = request_body(&r).expect("body");
+        let body = request_body(&r, "gemini-2.5-pro").expect("body");
         assert_eq!(
             body["generationConfig"]["thinkingConfig"]["thinkingBudget"],
             128
@@ -1074,7 +1081,7 @@ mod tests {
         r.response_format = ResponseFormat::JsonSchema(json!({"type": "object"}));
         r.max_tokens = Some(200);
         r.thinking_budget = Some(2048);
-        let body = request_body(&r).expect("body");
+        let body = request_body(&r, "gemini-2.5-flash").expect("body");
         assert_eq!(
             body["generationConfig"]["thinkingConfig"]["thinkingBudget"],
             2048
@@ -1088,7 +1095,7 @@ mod tests {
         // structured but uncapped: no bound.
         let mut uncapped = req(vec![Message::text(Role::User, "x")]);
         uncapped.response_format = ResponseFormat::JsonSchema(json!({"type": "object"}));
-        let body = request_body(&uncapped).expect("body");
+        let body = request_body(&uncapped, "gemini-2.5-flash").expect("body");
         assert!(
             body["generationConfig"].get("thinkingConfig").is_none(),
             "no ceiling, no burn — thinking stays dynamic"
@@ -1096,7 +1103,7 @@ mod tests {
         // capped but plain text: no bound.
         let mut plain = req(vec![Message::text(Role::User, "x")]);
         plain.max_tokens = Some(200);
-        let body = request_body(&plain).expect("body");
+        let body = request_body(&plain, "gemini-2.5-flash").expect("body");
         assert!(body["generationConfig"].get("thinkingConfig").is_none());
     }
 
@@ -1105,10 +1112,12 @@ mod tests {
     /// risk — proven both directions on the openrouter attribution arc).
     #[test]
     fn non_thinking_family_never_gains_a_thinking_config() {
-        let mut r = InferRequest::new("gemma-3-27b-it", vec![Message::text(Role::User, "x")]);
+        // req.model is the PROVIDER id on the real path (the mitm probe's
+        // catch) — only the wire_model argument gates the bound.
+        let mut r = InferRequest::new("gemini", vec![Message::text(Role::User, "x")]);
         r.response_format = ResponseFormat::JsonSchema(json!({"type": "object"}));
         r.max_tokens = Some(200);
-        let body = request_body(&r).expect("body");
+        let body = request_body(&r, "gemma-3-27b-it").expect("body");
         assert!(body["generationConfig"].get("thinkingConfig").is_none());
     }
 }
