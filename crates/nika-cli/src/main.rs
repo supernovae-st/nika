@@ -531,9 +531,11 @@ struct RunArgs {
     #[arg(long, conflicts_with_all = ["no_progress", "json", "output"])]
     quiet: bool,
     /// Plan only — show the static plan and execute ZERO effects (spec §10).
-    /// A human plan preview · refused with the `--json`/`--output` machine
-    /// modes (no machine dry-run form yet · would silently corrupt stdout).
-    #[arg(long, conflicts_with_all = ["json", "output"])]
+    /// With `--json`: ONE versioned plan object (`plan_version: 1` — waves ·
+    /// cost ceiling · permits · requirements) instead of the human preview.
+    /// `--output` stays refused (an outputs export of a run that never
+    /// executed would be a lie).
+    #[arg(long, conflicts_with = "output")]
     dry_run: bool,
     /// Override the workflow's envelope `model:` (`<provider>/<name>`).
     /// Resolved through the SAME path as an envelope model — a bad id
