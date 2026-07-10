@@ -255,13 +255,15 @@ pub(crate) fn validate_absolute_url(url: &str) -> Result<(), BrowserError> {
                 reason: format!("URL {url:?} targets non-public IP {v6} — refused (SSRF)"),
             });
         }
-        Some(url::Host::Domain(d))
-            if d.eq_ignore_ascii_case("localhost")
-                || d.rsplit_once('.')
-                    .is_some_and(|(_, last)| last.eq_ignore_ascii_case("localhost")) =>
-        {
+        // The shared static host oracle: the `localhost` family (RFC 6761)
+        // PLUS the cloud-metadata hostnames (`metadata.google.internal` ·
+        // `metadata.goog`) — the names class was open here before the
+        // oracle hoist (only the IP forms were gated).
+        Some(url::Host::Domain(d)) if nika_types::net::host_is_blocked(d) => {
             return Err(BrowserError::NavigationFailed {
-                reason: format!("URL {url:?} targets loopback host {d:?} — refused (SSRF)"),
+                reason: format!(
+                    "URL {url:?} targets loopback/metadata host {d:?} — refused (SSRF)"
+                ),
             });
         }
         _ => {}
@@ -497,6 +499,10 @@ mod tests {
             "http://[::ffff:169.254.169.254]/x", // IPv4-mapped metadata smuggling
             "http://localhost/x",          // loopback hostname
             "http://api.localhost/x",      // *.localhost
+            // Metadata NAMES — open before the shared-oracle hoist (only
+            // the IP forms were gated; Chrome would have resolved these).
+            "http://metadata.google.internal/computeMetadata/v1/",
+            "http://Metadata.Goog./x",
             // WHATWG normalizes these integer/short IPv4 forms to Host::Ipv4 —
             // the classic decimal/hex/short-form SSRF encodings all fold to
             // 127.0.0.1 and hit the oracle (would slip a naive string check).
