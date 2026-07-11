@@ -112,7 +112,7 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
 
     let applied = repairs.iter().filter(|r| r.applied).count();
     if applied > 0
-        && let Err(e) = std::fs::write(path, &source)
+        && let Err(e) = write_atomic(path, &source)
     {
         return VerbOutput::env(format!("cannot write {path}: {e}"));
     }
@@ -172,6 +172,31 @@ fn summary(repairs: &[Repair], applied: usize, theme: Theme) -> String {
         );
     }
     out
+}
+
+/// Publish the healed source ATOMICALLY: write a temp sibling, then one
+/// `rename` (POSIX-atomic within a filesystem — the same contract the
+/// `nika-fs` effect crate documents for `nika:write`). A crash or ENOSPC
+/// mid-write leaves the ORIGINAL file untouched and at most a
+/// `.nika-fix-tmp.*` sibling to sweep — never a truncated workflow. The
+/// temp lands in the target's own directory (rename across filesystems
+/// is not atomic); any failure removes it best-effort at this one site.
+fn write_atomic(path: &str, contents: &str) -> std::io::Result<()> {
+    let target = std::path::Path::new(path);
+    let dir = target.parent().filter(|p| !p.as_os_str().is_empty());
+    let name = target
+        .file_name()
+        .ok_or_else(|| std::io::Error::other("write path has no file name"))?;
+    let tmp_name = format!(".nika-fix-tmp.{}", name.to_string_lossy());
+    let tmp = dir.map_or_else(
+        || std::path::PathBuf::from(&tmp_name),
+        |d| d.join(&tmp_name),
+    );
+    let publish = std::fs::write(&tmp, contents).and_then(|()| std::fs::rename(&tmp, target));
+    if publish.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    publish
 }
 
 /// Splice `old` → `new` when `old` occurs EXACTLY ONCE in `source` as a
@@ -405,5 +430,77 @@ mod tests {
         assert!(!out.text.contains("skipped"), "no residual skip rows");
         assert_eq!(out.code, exit::OK, "clean after convergence: {}", out.text);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn fix_is_idempotent_and_atomic_publish_leaves_no_temp() {
+        // Socratic hardening pins (2026-07-11): « what does --fix do when
+        // there is NOTHING to do? » — the second run applies zero repairs
+        // and leaves the file byte-identical (do-no-harm as a property,
+        // not a hope). And the atomic publish never leaves its temp
+        // sibling behind on the success path (`.nika-fix-tmp.*` is the
+        // crash residue ONLY).
+        let dir = std::env::temp_dir().join(format!("nika-fix-idem-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("idem.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n",
+        )
+        .expect("write fixture");
+        let p = path.to_str().expect("utf8 path");
+        let theme = Theme::new(false, true, false);
+        let first = run(p, false, None, theme);
+        assert!(first.text.contains("1 repair applied"), "{}", first.text);
+        let healed = std::fs::read_to_string(&path).expect("re-read");
+        // idempotence: the second run touches nothing
+        let second = run(p, false, None, theme);
+        assert!(
+            second.text.contains("no machine-applicable repairs"),
+            "{}",
+            second.text
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("re-read 2"),
+            healed,
+            "second run is a byte-identical no-op"
+        );
+        // atomicity residue: no temp sibling survives a successful publish
+        let leftovers: Vec<_> = std::fs::read_dir(&dir)
+            .expect("readdir")
+            .filter_map(Result::ok)
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with(".nika-fix-tmp.")
+            })
+            .collect();
+        assert!(leftovers.is_empty(), "temp residue: {leftovers:?}");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn write_atomic_error_path_cleans_its_temp() {
+        // The failure half of the atomic contract: renaming onto a path
+        // whose parent DIRECTORY vanished fails — the original (absent)
+        // target stays absent and the temp is swept, never leaked.
+        let dir = std::env::temp_dir().join(format!("nika-fix-atomic-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let gone = dir.join("gone");
+        std::fs::create_dir_all(&gone).expect("subdir");
+        let target = gone.join("wf.nika.yaml");
+        let target_str = target.to_str().expect("utf8").to_owned();
+        std::fs::remove_dir_all(&gone).expect("vanish parent");
+        assert!(
+            write_atomic(&target_str, "nika: v1\n").is_err(),
+            "no parent = publish fails"
+        );
+        // the temp would have lived in `gone/` — the whole dir is absent,
+        // and the sweep must not have recreated anything under `dir`.
+        let residue: Vec<_> = std::fs::read_dir(&dir)
+            .expect("readdir")
+            .filter_map(Result::ok)
+            .collect();
+        assert!(residue.is_empty(), "no residue: {residue:?}");
     }
 }
