@@ -32,6 +32,7 @@ objet      = "objet"
 sumary     = "sumary"
 sumamry    = "sumamry"
 wrte       = "wrte"
+digets     = "digets"   # full-loop tape fixture (broken-release-notes · the did-you-mean rung)
 temperture = "temperture"
 nmae       = "nmae"
 strng      = "strng"
