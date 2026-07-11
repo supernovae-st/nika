@@ -171,6 +171,35 @@ mod tests {
     }
 
     #[test]
+    fn spec_codes_match_the_wire_table() {
+        // The infer half of the one-voice contract (#468): the provider
+        // class is `NIKA-INFER-001`, the schema gate `NIKA-INFER-002` —
+        // the SAME codes the agent loop's chained failures carry.
+        let provider = VerbInferError::ProviderCall {
+            source: provider_err(),
+            spend: Box::default(),
+        };
+        assert_eq!(provider.spec_code(), "NIKA-INFER-001");
+        let resolution = VerbInferError::ModelResolution {
+            model: "ghost/model".to_owned(),
+            source: provider_err(),
+        };
+        assert_eq!(resolution.spec_code(), "NIKA-INFER-001");
+        let schema = VerbInferError::SchemaValidation {
+            attempts: 3,
+            detail: "missing field".to_owned(),
+            spend: Box::default(),
+        };
+        assert_eq!(schema.spec_code(), "NIKA-INFER-002");
+        // The upstream-reject guard has no spec row — numeric wire form.
+        let param = VerbInferError::InvalidParam {
+            param: "temperature",
+            detail: "3.5 out of 0-2".to_owned(),
+        };
+        assert_eq!(param.spec_code(), "NIKA-432");
+    }
+
+    #[test]
     fn transience_classification() {
         // Verb-local failures are never transient.
         assert!(
