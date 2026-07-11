@@ -12,6 +12,26 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **An exact loopback literal in `permits.net.http` clears the SSRF
+  floor for that host** (#395 · the ADR-092 secrets-`egress:`
+  precedent: the owner's explicit act, co-located with the boundary).
+  Qualifying literals: `localhost` · a `127.x.y.z` v4 literal · `::1`
+  (bracketed `[::1]` accepted) — NEVER a glob, never the `*.localhost`
+  family, never RFC1918/link-local/CGN/metadata (those stay
+  floor-blocked even when named). The clearing is exact-host and
+  host-level (ports don't participate in permits): a permitted
+  `localhost` reaches its own resolved `127.0.0.1`/`::1`, while a
+  rebind of that name to any other blocked range, a redirect hop to an
+  un-permitted floor host, and a public DNS name resolving to loopback
+  (`mylocal.dev` → `127.0.0.1`) all still refuse — the declassification
+  is the literal in the file, never the resolution. check≡run same-PR:
+  the floor-parity pass stops flagging the permitted literal
+  (NIKA-SEC-005) and the dead-grant flag skips it; the clearing is
+  stated instead — an informational line in the PERMITS panel and a
+  `permits.notes` entry in the JSON report. `--infer-permits` still
+  NEVER writes a loopback grant (the explicit act stays the author's);
+  its honesty note now teaches the opt-in.
+
 - **`nika check --fix` — the in-binary repair loop.** The ladder's typed
   did-you-mean suggestions become one keystroke (the `clippy --fix` /
   `eslint --fix` shape): typo'd fields (`promt:`), tools (`nika:raed`),
