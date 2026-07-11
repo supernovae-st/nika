@@ -683,10 +683,17 @@ fn validated_var_overrides(
 }
 
 /// The `--task` scope + the clean gate, fused (both run before any
-/// effect): scope to the target's ancestor cone when requested (the
-/// sub-DAG re-checks so plan/waves/cost describe exactly what runs) ·
-/// then refuse a dirty report with the SAME findings `nika check`
-/// renders (locked rendering · exit 2 · stderr in machine mode).
+/// effect): the WHOLE-FILE report gates first — the `--task` help's
+/// promise (« findings stay whole-file faithful »): a file must be sound
+/// even to regenerate one block, so an out-of-cone finding refuses the
+/// scoped run exactly like the unscoped one (#411 — the scoped re-check
+/// used to REPLACE the full report before the gate looked, and findings
+/// outside the ancestor cone vanished). Only then scope to the target's
+/// ancestor cone (the sub-DAG re-checks so plan/waves/cost describe
+/// exactly what runs), and gate the scoped report too (a cut that
+/// orphans a reference must refuse, not run). Dirty either way renders
+/// the SAME findings `nika check` does (locked rendering · exit 2 ·
+/// stderr in machine mode).
 #[allow(clippy::too_many_arguments)]
 fn scoped_clean_gate(
     wf: RawWorkflow,
@@ -697,6 +704,11 @@ fn scoped_clean_gate(
     theme: Theme,
     output_json: bool,
 ) -> Result<(RawWorkflow, CheckReport), u8> {
+    if !report.is_clean() {
+        let out = crate::verbs::check::run(file, json, false, None, theme);
+        epilogue::emit_diagnostic(&out.text, output_json);
+        return Err(out.code);
+    }
     let (wf, report) = apply_task_scope(wf, report, task_filter, output_json)?;
     if !report.is_clean() {
         let out = crate::verbs::check::run(file, json, false, None, theme);
@@ -707,8 +719,9 @@ fn scoped_clean_gate(
 }
 
 /// Apply the `--task` scope when requested (the regenerate-one-block
-/// move). The FULL workflow audited already (whole-file spans · faithful
-/// findings) — the sub-DAG RE-CHECKS here so the plan/waves/cost describe
+/// move). The FULL workflow gated clean already (whole-file spans ·
+/// faithful findings — `scoped_clean_gate` refuses BEFORE this cut) —
+/// the sub-DAG RE-CHECKS here so the plan/waves/cost describe
 /// exactly what will run. Scoping happens before any effect; an unknown
 /// id refuses on the diagnostic surface with the environment exit class.
 fn apply_task_scope(
