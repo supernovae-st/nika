@@ -24,8 +24,12 @@ oracle; the human runs it.
 3. **Check it**: `nika check <file>` (exit 0 = clean · 2 = findings),
    then `nika check --native-strict <file>` — it fails on any
    `native-first` hint (an `exec:` a builtin covers).
-4. **Repair from the diagnostics** — they name the exact task, reference
-   and fix. Unknown code? `nika explain NIKA-XXXX`.
+4. **Repair**: `nika check <file> --fix` applies the machine-applicable
+   renames first (typo'd fields · tools · args · `depends_on` targets ·
+   `${{ }}` references — typed did-you-mean only, ambiguity is skipped
+   with a note, never guessed) and re-audits; repair what remains from
+   the diagnostics — they name the exact task, reference and fix.
+   Unknown code? `nika explain NIKA-XXXX`.
 5. Repeat 3–4 until clean. **Never hand a file to the human that does
    not pass `nika check`** — and pass `--native-strict` too, unless
    every remaining `exec:` is in the exec ledger (below).
