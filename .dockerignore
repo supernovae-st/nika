@@ -1,0 +1,4 @@
+# The image COPYs a staged release binary — only dist/ enters the build
+# context (keeps `docker build` from shipping the source tree + target/).
+*
+!dist/

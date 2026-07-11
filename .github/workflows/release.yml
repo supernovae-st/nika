@@ -271,3 +271,54 @@ jobs:
             git commit -m "nika ${VERSION}"
             git push
           fi
+
+  docker:
+    # The official multi-arch image (#442) — one image unblocks Dokploy /
+    # Coolify / Railway templates + the Docker MCP Registry. Fed from the
+    # SAME linux tarball artifacts the release ships (never a rebuild), so
+    # the image binary is bit-identical to the published tarballs the funnel
+    # e2e + trust battery already gated. `needs: release` keeps the image
+    # behind the published release: an image never precedes its tarballs.
+    # SECURITY: the only run: step reads VERSION through env: (tag-derived,
+    # cf the header contract) — no event text reaches a shell.
+    # NB: a workflow_dispatch re-run of an OLD tag re-points `latest` at it
+    # (same semantics as the formula bump) — dispatch old tags knowingly.
+    name: docker image (ghcr)
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read # checkout the Dockerfile
+      packages: write # push to ghcr.io — scoped to THIS job only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Stage per-arch binaries into the build context
+        # Docker arch names (amd64 · arm64) ≠ release tarball arch names
+        # (x64 · arm64) — the mapping happens HERE, once; the Dockerfile
+        # just COPYs dist/linux/${TARGETARCH}/nika.
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/linux/amd64 dist/linux/arm64
+          tar -xzf "artifacts/nika-linux-x64-${VERSION}.tar.gz" -C dist/linux/amd64 nika
+          tar -xzf "artifacts/nika-linux-arm64-${VERSION}.tar.gz" -C dist/linux/arm64 nika
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build + push (linux/amd64 · linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ needs.release.outputs.version }}
