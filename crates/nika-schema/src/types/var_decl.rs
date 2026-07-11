@@ -49,6 +49,52 @@ impl VarType {
             _ => None,
         }
     }
+
+    /// Coerce a CLI `--var KEY=VALUE` raw string into a JSON value that
+    /// HONORS this declared type — the declared type DRIVES the parse, it
+    /// does not merely validate a type-blind JSON guess. A `string` var
+    /// takes the raw text verbatim (`--var name=5` is the string `"5"`,
+    /// never the number 5); the scalar types parse their own lexical form
+    /// and reject anything else (`--var count=notanumber` on an `integer`
+    /// input is refused UP FRONT, not silently embedded); `array`/`object`
+    /// JSON-parse and shape-check.
+    ///
+    /// # Errors
+    ///
+    /// A one-line message naming the expected type + the offending value,
+    /// ready for the CLI's `--var <key>: …` frame.
+    pub fn coerce_cli(self, raw: &str) -> Result<serde_json::Value, String> {
+        use serde_json::Value;
+        let wrong = |want: &str| format!("expects {want}, got `{raw}`");
+        match self {
+            // A string takes the raw text verbatim — CLI values are strings
+            // by nature, so a `string` input never surprises the caller.
+            Self::String => Ok(Value::String(raw.to_owned())),
+            Self::Integer => raw
+                .parse::<i64>()
+                .map(|n| Value::Number(n.into()))
+                .map_err(|_| wrong("an integer")),
+            Self::Number => raw
+                .parse::<f64>()
+                .ok()
+                .and_then(serde_json::Number::from_f64)
+                .map(Value::Number)
+                .ok_or_else(|| wrong("a number")),
+            Self::Boolean => match raw {
+                "true" => Ok(Value::Bool(true)),
+                "false" => Ok(Value::Bool(false)),
+                _ => Err(wrong("a boolean (`true` or `false`)")),
+            },
+            Self::Array => match serde_json::from_str::<Value>(raw) {
+                Ok(v @ Value::Array(_)) => Ok(v),
+                _ => Err(wrong("a JSON array (e.g. `[1,2]`)")),
+            },
+            Self::Object => match serde_json::from_str::<Value>(raw) {
+                Ok(v @ Value::Object(_)) => Ok(v),
+                _ => Err(wrong("a JSON object (e.g. `{\"k\":1}`)")),
+            },
+        }
+    }
 }
 
 impl fmt::Display for VarType {
@@ -118,6 +164,40 @@ mod tests {
     fn untyped_holds_value() {
         let v = VarDecl::Untyped(serde_json::json!("./output"));
         assert!(matches!(v, VarDecl::Untyped(ref val) if val == "./output"));
+    }
+
+    #[test]
+    fn coerce_cli_lets_the_declared_type_drive() {
+        use serde_json::json;
+        // string · verbatim, never JSON-coerced (`5` stays "5").
+        assert_eq!(VarType::String.coerce_cli("5").unwrap(), json!("5"));
+        assert_eq!(
+            VarType::String.coerce_cli("hi there").unwrap(),
+            json!("hi there")
+        );
+        // integer · whole numbers only (5.5 and words rejected).
+        assert_eq!(VarType::Integer.coerce_cli("42").unwrap(), json!(42));
+        assert!(VarType::Integer.coerce_cli("5.5").is_err());
+        assert!(VarType::Integer.coerce_cli("notanumber").is_err());
+        // number · any finite float; NaN/inf have no JSON form → rejected.
+        assert_eq!(VarType::Number.coerce_cli("2.5").unwrap(), json!(2.5));
+        assert_eq!(VarType::Number.coerce_cli("7").unwrap(), json!(7.0));
+        assert!(VarType::Number.coerce_cli("NaN").is_err());
+        // boolean · exactly true|false.
+        assert_eq!(VarType::Boolean.coerce_cli("true").unwrap(), json!(true));
+        assert_eq!(VarType::Boolean.coerce_cli("false").unwrap(), json!(false));
+        assert!(VarType::Boolean.coerce_cli("maybe").is_err());
+        // array/object · JSON-parse AND shape-check (a bare number is neither).
+        assert_eq!(VarType::Array.coerce_cli("[1,2]").unwrap(), json!([1, 2]));
+        assert!(VarType::Array.coerce_cli("{}").is_err());
+        assert_eq!(
+            VarType::Object.coerce_cli(r#"{"k":1}"#).unwrap(),
+            json!({"k": 1})
+        );
+        assert!(VarType::Object.coerce_cli("[1]").is_err());
+        // the message names the type + the offending value.
+        let err = VarType::Integer.coerce_cli("nope").unwrap_err();
+        assert!(err.contains("integer") && err.contains("nope"), "{err}");
     }
 
     #[test]
