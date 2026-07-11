@@ -16,6 +16,7 @@ pub mod context;
 pub mod doctor;
 pub mod explain;
 pub mod explain_file;
+pub mod fix;
 pub(crate) mod forecast;
 pub mod graph;
 pub mod init;
