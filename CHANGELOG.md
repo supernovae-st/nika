@@ -12,6 +12,25 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`registry:owner/name[@version]` refs on `check` and `run`** — the
+  registry's 22 certified artifacts become consumable from the CLI:
+  `nika check registry:supernovae-st/competitor-radar` audits a
+  stranger's workflow before it ever touches your workspace, and `run`
+  rides the same seam. The resolution is the registry-v0.1 trust chain,
+  native: index → advisory MUST-refuse (`NIKA-REG-002`) → entry TOML
+  re-verification (never the index alone; disagreement refuses,
+  `NIKA-REG-005`) → raw https fetch capped at 1 MiB → sha256 must equal
+  the pinned digest or nothing is written (`NIKA-REG-003`). Verified
+  bytes cache under `~/.nika/registry/<owner>/<name>/` beside their
+  digest record — a cache hit re-verifies and runs offline; a bare ref
+  pins its version at first resolve and never floats. Nothing executes
+  at pull time: the fetched file feeds the SAME audit-before-run
+  pipeline as any local path, and a workflow's `permits:` govern its
+  run, never this CLI-level fetch (the help text says so). `--fix`
+  refuses registry refs (a digest-pinned artifact stays read-only —
+  copy it to edit). The `nika add` install verb, org indexes
+  (`--index`) and `nika.lock` stay on the ADR-106 lane (#452).
+
 - **`graph --format mermaid` paints verb identity** — nodes carry their
   verb class and the diagram ends with the SAME classDef map every
   projected docs page uses (the shared visual vocabulary: spec
