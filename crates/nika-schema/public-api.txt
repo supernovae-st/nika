@@ -4222,6 +4222,7 @@ pub nika_schema::types::var_decl::VarType::Number
 pub nika_schema::types::var_decl::VarType::Object
 pub nika_schema::types::var_decl::VarType::String
 impl nika_schema::types::var_decl::VarType
+pub fn nika_schema::types::var_decl::VarType::coerce_cli(self, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
 pub fn nika_schema::types::var_decl::VarType::from_str_opt(s: &str) -> core::option::Option<Self>
 impl core::clone::Clone for nika_schema::types::var_decl::VarType
 pub fn nika_schema::types::var_decl::VarType::clone(&self) -> nika_schema::types::var_decl::VarType
@@ -4884,6 +4885,7 @@ pub nika_schema::types::VarType::Number
 pub nika_schema::types::VarType::Object
 pub nika_schema::types::VarType::String
 impl nika_schema::types::var_decl::VarType
+pub fn nika_schema::types::var_decl::VarType::coerce_cli(self, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
 pub fn nika_schema::types::var_decl::VarType::from_str_opt(s: &str) -> core::option::Option<Self>
 impl core::clone::Clone for nika_schema::types::var_decl::VarType
 pub fn nika_schema::types::var_decl::VarType::clone(&self) -> nika_schema::types::var_decl::VarType
@@ -6065,6 +6067,7 @@ pub nika_schema::VarType::Number
 pub nika_schema::VarType::Object
 pub nika_schema::VarType::String
 impl nika_schema::types::var_decl::VarType
+pub fn nika_schema::types::var_decl::VarType::coerce_cli(self, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
 pub fn nika_schema::types::var_decl::VarType::from_str_opt(s: &str) -> core::option::Option<Self>
 impl core::clone::Clone for nika_schema::types::var_decl::VarType
 pub fn nika_schema::types::var_decl::VarType::clone(&self) -> nika_schema::types::var_decl::VarType
