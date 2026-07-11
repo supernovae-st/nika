@@ -4,7 +4,7 @@
 # Consumers · the reference engine embeds this pack (nika examples ·
 # nika spec) · docs + website render projections of the same files.
 pack_version: 0.1.0-draft
-workflow_count: 29
+workflow_count: 33
 foundation:
   - file: examples/01-hello.nika.yaml
     sha256_16: 91fc4a92dfeedafb
@@ -42,6 +42,12 @@ templates:
   - file: templates/website-brief.nika.yaml
     sha256_16: 9f00bc97aa37b7da
 showcase:
+  - file: examples/showcase/t1-image-fx-batch.nika.yaml
+    workflow: image-fx-batch
+    tier: T1
+    description: "Folder of PNG files \u2192 deterministic art (grayscale \u00b7 dither \u00b7 pixelate) \u00b7 offline batch"
+    constructs: [for_each, max_parallel, outputs]
+    sha256_16: 2980033544ae2714
   - file: examples/showcase/t1-meeting-actions.nika.yaml
     workflow: meeting-actions
     tier: T1
@@ -72,12 +78,24 @@ showcase:
     description: "Read yesterday's commits, write today's standup note"
     constructs: [local_model, outputs]
     sha256_16: 7eb94164ea5e1930
+  - file: examples/showcase/t2-bookmark-triage.nika.yaml
+    workflow: bookmark-triage
+    tier: T2
+    description: "URL list \u2192 per-page metadata fan-out (dead links survive) \u2192 one markdown triage table"
+    constructs: [fail_fast, for_each, max_parallel, on_error, outputs, retry, typed_vars]
+    sha256_16: a90df931a8f90f17
   - file: examples/showcase/t2-contract-guard.nika.yaml
     workflow: contract-guard
     tier: T2
     description: "Local-model clause extraction \u2192 schema gate \u2192 risk memo"
     constructs: [local_model, outputs, schema, typed_vars]
     sha256_16: 9b938cf8d061f2f0
+  - file: examples/showcase/t2-csv-chart-report.nika.yaml
+    workflow: csv-chart-report
+    tier: T2
+    description: "CSV \u2192 aggregate \u2192 rendered bar chart + markdown report \u00b7 offline \u00b7 deterministic"
+    constructs: [outputs]
+    sha256_16: c3fe5fa23b84fcc4
   - file: examples/showcase/t2-etl-quarantine.nika.yaml
     workflow: etl-quarantine
     tier: T2
@@ -120,6 +138,12 @@ showcase:
     description: "Ticket queue \u2192 typed triage \u2192 urgent escalation \u2192 triage board"
     constructs: [local_model, outputs, schema, secrets, when]
     sha256_16: dc4243685c90c3e7
+  - file: examples/showcase/t2-transcript-shownotes.nika.yaml
+    workflow: transcript-shownotes
+    tier: T2
+    description: "Raw transcript \u2192 typed show-notes (chapters \u00b7 quotes \u00b7 summary) \u00b7 one bounded infer"
+    constructs: [local_model, outputs, schema]
+    sha256_16: ae46c2dc2311ecbe
   - file: examples/showcase/t3-competitor-radar.nika.yaml
     workflow: competitor-radar
     tier: T3

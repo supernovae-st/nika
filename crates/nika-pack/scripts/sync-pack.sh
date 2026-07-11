@@ -32,5 +32,9 @@ cp "${SPEC}"/examples/showcase/*.nika.yaml "${DEST}/examples/showcase/"
 cp "${SPEC}"/templates/*.nika.yaml "${DEST}/templates/"
 cp "${SPEC}"/spec/*.md "${DEST}/spec/"
 cp "${SPEC}"/stdlib/*.md "${DEST}/stdlib/"
+# The conformance coverage matrix rides at pack root (added 2026-07-10 with
+# the egress-to-outputs arc) — without this line every re-sync silently
+# DELETED it (the rm -rf + copy-list pattern's blind spot).
+cp "${SPEC}/conformance/coverage-matrix.tsv" "${DEST}/"
 
 echo "pack synced from ${SPEC} → ${DEST} (version $(cat "${DEST}/VERSION"))"

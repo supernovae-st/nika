@@ -314,6 +314,31 @@ egress clears the **send**, not the **capture**: a sanctioned `exec:`/tool can
 still embed the secret in its captured output, so that output stays tainted and
 re-leaks if it reaches an unsanctioned sink downstream.
 
+**The workflow boundary is a sink too — `to: "outputs"`.** Because the
+capture stays tainted, the return value of an authenticated call
+(`tasks.<id>.output` of a fetch that sent an API key) taints every
+`outputs:` entry it reaches — and `outputs:` is where a result LEAVES the
+run, so the check reports it as an egress. That over-approximation is
+deliberate (the provider saw the key; its response is not provably
+clean), and so is the release valve: the secret's owner declassifies the
+workflow boundary itself, in-file, exactly like any other sink —
+
+```yaml
+secrets:
+  API_KEY:
+    source: env
+    key: EXAMPLE_API_KEY
+    egress:
+      - to: "nika:fetch"   # the send
+      - to: "outputs"      # the return value derived from the response
+```
+
+`to: "outputs"` is sink-only (no `host:` — the workflow boundary has no
+address) and as SPECIFIC as every other rule: it clears the `outputs:`
+report for taints originating from THIS secret and nothing else — it
+never authorizes a send, and a `nika:fetch` clearance never authorizes
+the boundary. Absent the rule, the report stands (default-deny).
+
 The general untrusted→decision integrity lattice (full taint of attacker-controlled
 inputs into security decisions) is a documented follow-up; the static guards
 above cover the main injection / laundering vectors with the existing analysis.
@@ -357,11 +382,17 @@ is checkable BEFORE the run.
 1. **Statically** (`nika check`) · a `nika:write ./etc/x` outside `fs.write`,
    a `nika:fetch` to an unlisted host, an `exec:` under `exec: false`, an
    `invoke:` of an unlisted tool → a **lint error** (the run is refused
-   before it starts).
+   before it starts). The SSRF floor is checked statically too: a literal
+   URL — or a `net.http` entry — naming a target the floor always refuses
+   (loopback · private · link-local/metadata · `NIKA-SEC-005` · 05-errors)
+   is flagged at `check`, with or without a `permits:` block; no grant can
+   admit such a target, so blessing it would be a false green (the run
+   could never succeed).
 2. **At runtime** · any effect escaping the declared set fails the task
    `NIKA-SEC-004` (`security_error` · never fed back to an `agent:` model:
    a capability boundary is not negotiation material). This catches the
-   dynamic cases a static check cannot (a host computed at run time).
+   dynamic cases a static check cannot (a host computed at run time —
+   including one that resolves to a floor-blocked address, `NIKA-SEC-005`).
 
 `permits.net.http` and the agent `tools:` whitelist compose: the agent
 whitelist scopes ONE task's tools; `permits.tools` scopes the WHOLE workflow

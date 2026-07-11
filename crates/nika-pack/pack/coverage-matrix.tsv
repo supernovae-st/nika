@@ -28,9 +28,9 @@ envelope	NIKA-PARSE	check-reject	conformance/envelope/parse-unknown-field.nika.y
 envelope	NIKA-PARSE	check-reject	conformance/envelope/parse-yaml-syntax-reject.nika.yaml
 envelope	NIKA-SEC	run-fail	conformance/envelope/sec-exec-array-form-blocklist.nika.yaml
 envelope	NIKA-SEC	run-fail	conformance/envelope/sec-exec-blocklist-rm-rf.nika.yaml
-envelope	NIKA-SEC	run-fail	conformance/envelope/sec-ssrf-localhost-blocked.nika.yaml
-envelope	NIKA-SEC	run-fail	conformance/envelope/sec-ssrf-metadata-blocked.nika.yaml
-envelope	NIKA-SEC	run-fail	conformance/envelope/sec-ssrf-private-range-blocked.nika.yaml
+envelope	NIKA-SEC	check-reject	conformance/envelope/sec-ssrf-localhost-blocked.nika.yaml
+envelope	NIKA-SEC	check-reject	conformance/envelope/sec-ssrf-metadata-blocked.nika.yaml
+envelope	NIKA-SEC	check-reject	conformance/envelope/sec-ssrf-private-range-blocked.nika.yaml
 envelope	NIKA-SEC-gate	check-reject	conformance/envelope/permits-agent-tool-outside-whitelist.nika.yaml
 envelope	NIKA-SEC-gate	check-reject	conformance/envelope/permits-empty-default-deny.nika.yaml
 envelope	NIKA-SEC-gate	check-reject	conformance/envelope/permits-exec-absent.nika.yaml
