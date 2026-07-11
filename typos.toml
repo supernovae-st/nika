@@ -42,6 +42,7 @@ filesytem  = "filesytem"
 BUIL       = "BUIL"
 markdwon   = "markdwon"  # extract-mode typo rung fixture (nika-types suggest/extract tests)
 buidl      = "buidl"     # dep/ref rename fixture (rename_repair docs + --fix convergence tests)
+promt      = "promt"     # field rename fixture (--fix docs + CHANGELOG cite the healed typo)
 topik      = "topik"     # vars-ref rename fixture (--fix convergence test)
 # French (the studio writes franglais — these are real French words, not typos)
 raison     = "raison"
