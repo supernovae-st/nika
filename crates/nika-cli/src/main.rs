@@ -20,6 +20,8 @@ use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+mod registry_args;
+
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use nika_cli::display::format::{ColorChoice, ColorEnv, LinkChoice, color_enabled, links_enabled};
 use nika_cli::verbs::explain_file::dispatch as explain_dispatch;
@@ -128,16 +130,10 @@ enum Command {
     /// Audit a workflow BEFORE it runs: plan · cost ceiling · secret
     /// flows · types · tools — every finding teaches its fix.
     Check {
-        /// Workflow file(s) (`*.nika.yaml`) · `-` reads stdin · or
-        /// `registry:owner/name[@version]` — a verified pull from the
-        /// public registry: digest-checked against its pinned entry,
-        /// cached under `~/.nika/registry/` (offline afterwards), then
-        /// audited exactly like a local file. The pull happens on your
-        /// own network BEFORE any audit — a workflow's `permits:`
-        /// govern its run, never this fetch. Several files audit in
-        /// sequence (each full report · the worst exit wins — the
-        /// pre-commit/CI shape). `--json` and `--infer-permits` stay
-        /// one-file-per-call.
+        /// Workflow file(s) (`*.nika.yaml`) · `-` reads stdin · or a verified
+        /// `registry:owner/name[@version]` pull (cached + offline; workflow
+        /// `permits:` never govern the fetch) · several files audit in sequence
+        /// (worst exit wins — the CI shape) · `--json`/`--infer-permits` one-file-per-call.
         #[arg(required = true, num_args = 1..)]
         files: Vec<String>,
         /// Emit the machine-readable report (never coloured).
@@ -578,12 +574,8 @@ enum TraceAction {
 // (same as TraceArgs), not a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
 struct RunArgs {
-    /// Workflow file (`*.nika.yaml`) · or `registry:owner/name[@version]`
-    /// — a verified pull from the public registry: digest-checked against
-    /// its pinned entry, cached under `~/.nika/registry/` (offline
-    /// afterwards), then audited by the same check-before-run as any
-    /// file. The pull happens on your own network BEFORE the run — the
-    /// workflow's `permits:` govern its run, never this fetch.
+    /// Workflow file (`*.nika.yaml`) · or a `registry:owner/name[@version]`
+    /// verified pull (cached + offline; `permits:` never govern the fetch).
     file: String,
     /// Stream NDJSON events instead of the live render (CI · agents).
     #[arg(long)]
@@ -826,7 +818,7 @@ fn main() -> std::process::ExitCode {
             model,
             no_color,
             ascii,
-        } => check_verb(
+        } => registry_args::check_verb(
             &files,
             &CheckFlags {
                 json,
@@ -837,7 +829,7 @@ fn main() -> std::process::ExitCode {
             model.as_deref(),
             term_theme(color.with_no_color(no_color), ascii, link_when),
         ),
-        Command::Run(args) => registry_then_run(args, color, link_when),
+        Command::Run(args) => registry_args::registry_then_run(args, color, link_when),
         Command::Test {
             file,
             update,
@@ -909,68 +901,6 @@ fn main() -> std::process::ExitCode {
 /// Print a verb's text on the right stream and return its exit code.
 /// Findings + successes go to stdout (they ARE the product); only
 /// environment errors go to stderr.
-/// The `check` arm: registry refs resolve first (the `--fix` guard
-/// rides the same seam), then the normal multi-file dispatch.
-fn check_verb(
-    files: &[String],
-    flags: &CheckFlags,
-    fix: bool,
-    model: Option<&str>,
-    theme: Theme,
-) -> u8 {
-    match resolve_registry_args(files, fix) {
-        Ok(files) => emit(&check_dispatch(&files, flags, fix, model, theme)),
-        Err(out) => emit(&out),
-    }
-}
-
-/// The `run` arm: a registry ref resolves to its verified cache file,
-/// then the run proceeds exactly as if given that path.
-fn registry_then_run(mut args: RunArgs, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
-    match resolve_registry_arg(&args.file) {
-        Ok(file) => {
-            args.file = file;
-            run_verb(&args, color, link_when)
-        }
-        Err(out) => emit(&out),
-    }
-}
-
-/// Swap any `registry:owner/name[@version]` argument for its verified
-/// local cache file (the fetch note goes to stderr — stdout stays
-/// machine-pure) — check/run then proceed exactly as if given that
-/// path. Resolution is CLI-level and happens BEFORE any workflow is
-/// parsed: a workflow's `permits:` govern its run, never this fetch.
-fn resolve_registry_args(files: &[String], fix: bool) -> Result<Vec<String>, VerbOutput> {
-    if fix && files.iter().any(|f| nika_cli::registry::is_registry_ref(f)) {
-        return Err(VerbOutput {
-            text: "--fix rewrites a file, and a registry artifact is pinned by its \
-                   digest — editing the cache would poison it\n  fix: copy the cached \
-                   file into your workspace, edit the copy, check that"
-                .to_owned(),
-            code: verbs::exit::ENV,
-        });
-    }
-    files.iter().map(|f| resolve_registry_arg(f)).collect()
-}
-
-/// One argument through the registry seam — non-refs pass untouched.
-fn resolve_registry_arg(arg: &str) -> Result<String, VerbOutput> {
-    if !nika_cli::registry::is_registry_ref(arg) {
-        return Ok(arg.to_owned());
-    }
-    match nika_cli::registry::resolve_blocking(arg) {
-        Ok(resolved) => {
-            eprintln!("{}", resolved.describe());
-            Ok(resolved.path.to_string_lossy().into_owned())
-        }
-        Err(e) => Err(VerbOutput {
-            text: e.to_string(),
-            code: verbs::exit::ENV,
-        }),
-    }
-}
-
 fn emit(out: &VerbOutput) -> u8 {
     if out.code == verbs::exit::ENV {
         eprintln!("nika-cli: {}", out.text);
