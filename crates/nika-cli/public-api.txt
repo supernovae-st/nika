@@ -9,6 +9,83 @@ pub use nika_cli::display
 pub use nika_cli::frame
 pub use nika_cli::frame_with_outputs
 pub use nika_cli::verdict_frame
+pub mod nika_cli::registry
+pub struct nika_cli::registry::RegistryError
+impl nika_cli::registry::RegistryError
+pub fn nika_cli::registry::RegistryError::code(&self) -> core::option::Option<&'static str>
+impl core::error::Error for nika_cli::registry::RegistryError
+impl core::fmt::Debug for nika_cli::registry::RegistryError
+pub fn nika_cli::registry::RegistryError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_cli::registry::RegistryError
+pub fn nika_cli::registry::RegistryError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli::registry::RegistryError
+impl<T, U> core::convert::Into<U> for nika_cli::registry::RegistryError where U: core::convert::From<T>
+pub fn nika_cli::registry::RegistryError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::registry::RegistryError where U: core::convert::Into<T>
+pub type nika_cli::registry::RegistryError::Error = core::convert::Infallible
+pub fn nika_cli::registry::RegistryError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::registry::RegistryError where U: core::convert::TryFrom<T>
+pub type nika_cli::registry::RegistryError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::registry::RegistryError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_cli::registry::RegistryError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_cli::registry::RegistryError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_cli::registry::RegistryError where T: 'static + ?core::marker::Sized
+pub fn nika_cli::registry::RegistryError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::registry::RegistryError where T: ?core::marker::Sized
+pub fn nika_cli::registry::RegistryError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::registry::RegistryError where T: ?core::marker::Sized
+pub fn nika_cli::registry::RegistryError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli::registry::RegistryError
+pub fn nika_cli::registry::RegistryError::from(t: T) -> T
+impl<T> iri_string::format::ToStringFallible for nika_cli::registry::RegistryError where T: core::fmt::Display
+pub fn nika_cli::registry::RegistryError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_cli::registry::RegistryError where T: 'static
+pub fn nika_cli::registry::RegistryError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::registry::RegistryError where T: ?core::marker::Sized
+pub fn nika_cli::registry::RegistryError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::registry::RegistryError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::registry::RegistryError
+impl<T> tracing::instrument::WithSubscriber for nika_cli::registry::RegistryError
+impl<T> typenum::type_operators::Same for nika_cli::registry::RegistryError
+pub type nika_cli::registry::RegistryError::Output = T
+pub struct nika_cli::registry::Resolved
+pub nika_cli::registry::Resolved::coordinate: alloc::string::String
+pub nika_cli::registry::Resolved::fetched: bool
+pub nika_cli::registry::Resolved::path: std::path::PathBuf
+pub nika_cli::registry::Resolved::pinned: bool
+pub nika_cli::registry::Resolved::sha256: alloc::string::String
+impl nika_cli::registry::Resolved
+pub fn nika_cli::registry::Resolved::describe(&self) -> alloc::string::String
+impl core::fmt::Debug for nika_cli::registry::Resolved
+pub fn nika_cli::registry::Resolved::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli::registry::Resolved
+impl<T, U> core::convert::Into<U> for nika_cli::registry::Resolved where U: core::convert::From<T>
+pub fn nika_cli::registry::Resolved::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::registry::Resolved where U: core::convert::Into<T>
+pub type nika_cli::registry::Resolved::Error = core::convert::Infallible
+pub fn nika_cli::registry::Resolved::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::registry::Resolved where U: core::convert::TryFrom<T>
+pub type nika_cli::registry::Resolved::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::registry::Resolved::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli::registry::Resolved where T: 'static + ?core::marker::Sized
+pub fn nika_cli::registry::Resolved::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::registry::Resolved where T: ?core::marker::Sized
+pub fn nika_cli::registry::Resolved::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::registry::Resolved where T: ?core::marker::Sized
+pub fn nika_cli::registry::Resolved::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli::registry::Resolved
+pub fn nika_cli::registry::Resolved::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli::registry::Resolved where T: 'static
+pub fn nika_cli::registry::Resolved::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::registry::Resolved where T: ?core::marker::Sized
+pub fn nika_cli::registry::Resolved::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::registry::Resolved::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::registry::Resolved
+impl<T> tracing::instrument::WithSubscriber for nika_cli::registry::Resolved
+impl<T> typenum::type_operators::Same for nika_cli::registry::Resolved
+pub type nika_cli::registry::Resolved::Output = T
+pub fn nika_cli::registry::is_registry_ref(arg: &str) -> bool
+pub fn nika_cli::registry::resolve_blocking(arg: &str) -> core::result::Result<nika_cli::registry::Resolved, nika_cli::registry::RegistryError>
 pub mod nika_cli::verbs
 pub mod nika_cli::verbs::catalog
 pub fn nika_cli::verbs::catalog::run(json: bool) -> nika_cli::verbs::VerbOutput

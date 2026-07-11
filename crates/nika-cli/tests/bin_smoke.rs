@@ -1432,3 +1432,67 @@ fn context_aggregates_the_workspace_value_free() {
     assert!(text.contains("nika context --json"), "{text}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// -- registry refs (issue #452) — the NETWORK-FREE half of the binary
+// contract: ref-shape refusals and the --fix guard fire at parse time,
+// before any resolution, so these tests never touch the network.
+
+#[test]
+fn registry_ref_that_cannot_parse_exits_env_and_teaches_the_form() {
+    // check side: owner is required in v1 — the refusal must teach the form.
+    let out = bin()
+        .args(["check", "registry:just-a-name"])
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(3),
+        "a ref that cannot parse is an environment error, not a file finding"
+    );
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("registry:owner/name"),
+        "the refusal teaches the form · stderr: {err}"
+    );
+
+    // run side rides the same seam.
+    let out = bin()
+        .args(["run", "registry:acme/Bad_Name"])
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(3));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("registry:owner/name"), "stderr: {err}");
+}
+
+#[test]
+fn fix_refuses_registry_refs_before_any_network() {
+    // --fix rewrites a file; a registry artifact is pinned by its digest —
+    // editing the cache would poison it. Refused at arg-handling, network-free.
+    let out = bin()
+        .args(["check", "--fix", "registry:acme/greet"])
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(3));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("digest") && err.contains("copy"),
+        "teaches WHY and the workspace-copy fix · stderr: {err}"
+    );
+}
+
+#[test]
+fn help_teaches_the_registry_form_on_check_and_run() {
+    for verb in ["check", "run"] {
+        let out = bin().args([verb, "--help"]).output().expect("binary runs");
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            text.contains("registry:owner/name"),
+            "`nika {verb} --help` teaches the registry ref · got: {text}"
+        );
+        assert!(
+            text.contains("permits"),
+            "`nika {verb} --help` says permits do not govern the fetch · got: {text}"
+        );
+    }
+}

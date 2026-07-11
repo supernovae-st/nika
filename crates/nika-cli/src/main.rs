@@ -20,6 +20,8 @@ use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+mod registry_args;
+
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use nika_cli::display::format::{ColorChoice, ColorEnv, LinkChoice, color_enabled, links_enabled};
 use nika_cli::verbs::explain_file::dispatch as explain_dispatch;
@@ -128,10 +130,10 @@ enum Command {
     /// Audit a workflow BEFORE it runs: plan · cost ceiling · secret
     /// flows · types · tools — every finding teaches its fix.
     Check {
-        /// Workflow file(s) (`*.nika.yaml`) · `-` reads stdin · several
-        /// files audit in sequence (each full report · the worst exit
-        /// wins — the pre-commit/CI shape). `--json` and
-        /// `--infer-permits` stay one-file-per-call.
+        /// Workflow file(s) (`*.nika.yaml`) · `-` reads stdin · or a verified
+        /// `registry:owner/name[@version]` pull (cached + offline; workflow
+        /// `permits:` never govern the fetch) · several files audit in sequence
+        /// (worst exit wins — the CI shape) · `--json`/`--infer-permits` one-file-per-call.
         #[arg(required = true, num_args = 1..)]
         files: Vec<String>,
         /// Emit the machine-readable report (never coloured).
@@ -572,7 +574,8 @@ enum TraceAction {
 // (same as TraceArgs), not a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
 struct RunArgs {
-    /// Workflow file (`*.nika.yaml`).
+    /// Workflow file (`*.nika.yaml`) · or a `registry:owner/name[@version]`
+    /// verified pull (cached + offline; `permits:` never govern the fetch).
     file: String,
     /// Stream NDJSON events instead of the live render (CI · agents).
     #[arg(long)]
@@ -815,21 +818,18 @@ fn main() -> std::process::ExitCode {
             model,
             no_color,
             ascii,
-        } => {
-            let theme = term_theme(color.with_no_color(no_color), ascii, link_when);
-            emit(&check_dispatch(
-                &files,
-                &CheckFlags {
-                    json,
-                    infer_permits,
-                    native_strict,
-                },
-                fix,
-                model.as_deref(),
-                theme,
-            ))
-        }
-        Command::Run(args) => run_verb(&args, color, link_when),
+        } => registry_args::check_verb(
+            &files,
+            &CheckFlags {
+                json,
+                infer_permits,
+                native_strict,
+            },
+            fix,
+            model.as_deref(),
+            term_theme(color.with_no_color(no_color), ascii, link_when),
+        ),
+        Command::Run(args) => registry_args::registry_then_run(args, color, link_when),
         Command::Test {
             file,
             update,
