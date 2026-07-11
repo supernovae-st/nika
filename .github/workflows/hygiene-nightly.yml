@@ -18,14 +18,16 @@ jobs:
           fetch-depth: 0
           ref: main   # explicit — always check main even if default branch differs (renamed from nika-diamond 2026-05-06)
 
-      # Vectors 34 (cargo-deny) + 36 (cargo-machete) hard-RED when the binary is
-      # absent. Installing them here makes the nightly actually run the
-      # supply-chain policy instead of false-RED-ing on a missing tool — one of
-      # the causes of the recurring drift-issue spam (2026-06).
-      - name: Install supply-chain tools (cargo-deny + cargo-machete)
+      # Vectors 34 (cargo-deny) + 36 (cargo-machete) hard-RED and vector 15
+      # (cargo-audit) YELLOWs when the binary is absent. Installing them here
+      # makes the nightly actually run the supply-chain policy instead of
+      # false-flagging on a missing tool — one of the causes of the recurring
+      # drift-issue spam (2026-06; vector 15 was the last holdout, the
+      # standing YELLOW in the #240 drift table).
+      - name: Install supply-chain tools (cargo-deny + cargo-machete + cargo-audit)
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-deny,cargo-machete
+          tool: cargo-deny,cargo-machete,cargo-audit
 
       - name: Run hygiene dashboard
         id: hygiene
