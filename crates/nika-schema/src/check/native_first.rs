@@ -134,6 +134,7 @@ pub(crate) fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
                 "`{head}` runs a helper script — inventory it: \
                  HTTP calls → `nika:fetch` (uploads: `multipart:` · crawls: `traverse:`) · \
                  file I/O → `nika:read`/`nika:write` · JSON shaping → `nika:jq` · \
+                 YAML/TOML/CSV in or out → `nika:convert` (then `nika:jq`) · \
                  a product API → wrap it as an MCP server (`mcp:<server>/<tool>`); \
                  keep `exec:` only for a genuine subprocess and record it in the exec ledger"
             ),
@@ -298,6 +299,10 @@ mod tests {
         ));
         assert!(h.advice.contains("native-first/005"), "{h:?}");
         assert!(h.advice.contains("exec ledger"), "{h:?}");
+        // #475 · the parse lane is IN the inventory: the single most
+        // common reason a helper survives it is "my input is YAML/CSV/
+        // TOML" — a hole here becomes an exec in a user's boundary.
+        assert!(h.advice.contains("nika:convert"), "{h:?}");
     }
 
     #[test]
