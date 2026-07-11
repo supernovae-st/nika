@@ -226,6 +226,11 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// task=value`): bound as the prompt's `default:` at dispatch (the
     /// answered branch), never part of the task's resume identity.
     prompt_answers: BTreeMap<String, Value>,
+    /// The composer's `--model` override (#409 · ADR-099): the EFFECTIVE
+    /// default a model-less infer/agent task runs on is `override ||
+    /// envelope model:` — resume identity must cover it, or a model swap
+    /// cache-hits the OLD model's output. `None` = envelope only.
+    model_override: Option<String>,
     /// The run's SOURCE identity — sha256 hex over the exact bytes the
     /// operator ran (computed by the composer that read the file; the
     /// runtime never re-reads). Stamped on `workflow_started` so every
@@ -274,9 +279,22 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             resume_plan: resume::ResumePlan::new(),
             pause_on_prompt: false,
             prompt_answers: BTreeMap::new(),
+            model_override: None,
             source_sha256: None,
             source_sha256_lf: None,
         }
+    }
+
+    /// Declare the composer's `--model` override (#409): it joins the
+    /// resume identity of every model-less infer/agent task (the model
+    /// those tasks actually run on), so `--resume` under a different
+    /// override re-runs instead of serving the old model's output.
+    /// Builder form — `None` (the default) keys against the envelope
+    /// `model:` alone.
+    #[must_use]
+    pub fn with_model_override(mut self, model: Option<String>) -> Self {
+        self.model_override = model;
+        self
     }
 
     /// Inject the workflow `secrets:` resolver (MINOR-B · the composer's
@@ -511,7 +529,7 @@ where
         // ADR-099 resume identities — secret markers + the leak-guard set,
         // derived once per run (keys are stamped on every success so any
         // `--json` trace is later resumable).
-        let resume_ctx = resume::ResumeContext::of(wf, &secrets);
+        let resume_ctx = resume::ResumeContext::of(wf, &secrets, self.model_override.as_deref());
         // The declared capability boundary (spec 01 §permits) flows to every
         // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);
