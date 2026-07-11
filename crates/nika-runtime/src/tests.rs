@@ -418,3 +418,435 @@ fn cost_unpriced_reason_rides_task_completed() {
         "snake_case wire form"
     );
 }
+
+// ─── on_error.recover awaits a no-edge referent (#291 · spec 05 §recover) ───
+//
+// A `recover: ${{ tasks.X.output }}` reference is NOT an execution-order
+// edge; resolution happens at RECOVERY time; a pending/running referent is
+// AWAITED to its terminal state (deterministic · never a race). The await
+// rides the ordered settle spine: the failing task PARKS, every subsequent
+// settlement retries covered parks, and a workflow-end pass resolves the
+// rest against the final records (a still-parked referent reads as its
+// pre-recovery FAILED record — recovery never rewrites the referent's
+// history).
+
+mod recover_await {
+    use std::num::NonZeroUsize;
+
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+    use nika_verb_agent::AgentVerb;
+    use nika_verb_exec::ExecVerb;
+    use nika_verb_invoke::InvokeVerb;
+
+    use super::*;
+
+    /// The real parse → check → run chain over mock seams (the `spec_v2`
+    /// harness idiom, exec-only — every fixture here drives the shell).
+    async fn run_yaml(
+        yaml: &str,
+        shell: MockShell,
+        cap: Option<usize>,
+    ) -> (RunOutcome, Vec<Event>) {
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
+        let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+        let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(shell)),
+            Arc::clone(&invoke),
+            nika_verb_infer::InferVerb::new(registry, "mock/echo"),
+            AgentVerb::new(
+                Arc::new(MockProvider::new("mock")),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "mock/echo",
+            ),
+            MockClock::new(),
+            RuntimeConfig::new(cap.and_then(NonZeroUsize::new), 0),
+        );
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("clean run");
+        (outcome, sink.into_events())
+    }
+
+    /// Position of the FIRST frame of `kind` for `task` in the stream.
+    fn frame_at(events: &[Event], kind: EventKind, task: &str) -> usize {
+        events
+            .iter()
+            .position(|e| {
+                e.kind == kind
+                    && e.fields.iter().any(
+                        |f| matches!(&f.value, FieldValue::String(s) if f.key == "task" && s == task),
+                    )
+            })
+            .unwrap_or_else(|| panic!("no {kind:?} frame for `{task}`"))
+    }
+
+    fn recovered_code<'e>(events: &'e [Event], task: &str) -> &'e str {
+        let frame = &events[frame_at(events, EventKind::TaskRecovered, task)];
+        frame
+            .fields
+            .iter()
+            .find_map(|f| match (&f.key[..], &f.value) {
+                ("code", FieldValue::String(s)) => Some(s.as_str()),
+                _ => None,
+            })
+            .expect("task_recovered carries what it recovered FROM")
+    }
+
+    /// (a) Same-wave no-edge referent: the recovery AWAITS the referent's
+    /// terminal state and succeeds with its value — never NIKA-VAR-001,
+    /// never a race. The parked task's story (started → recovered →
+    /// completed) lands AFTER the referent settles; `output:` bindings
+    /// evaluate over the recovered value; downstream consumes it. The
+    /// stream is byte-identical for any wave-parallelism cap.
+    #[tokio::test]
+    async fn same_wave_noedge_recover_awaits_the_referent() {
+        let yaml = r#"
+nika: v1
+workflow: recover-await-same-wave
+tasks:
+  - id: risky
+    exec: { command: "exit 1" }
+    on_error:
+      recover: ${{ tasks.source.output }}
+    output:
+      v: "."
+  - id: source
+    exec: { command: "echo 99" }
+  - id: sink
+    depends_on: [risky]
+    exec: { command: "use ${{ tasks.risky.output }}" }
+"#;
+        let mut streams: Vec<Vec<Event>> = Vec::new();
+        for cap in [Some(1), Some(2), None] {
+            let shell = MockShell::new()
+                .enqueue_fail(1, "boom")
+                .enqueue_ok("99\n")
+                .enqueue_ok("used\n");
+            let (outcome, events) = run_yaml(yaml, shell, cap).await;
+
+            assert!(outcome.ok, "the recovery repaired the run (cap {cap:?})");
+            assert_eq!(outcome.records["risky"].status, TaskStatus::Success);
+            assert_eq!(outcome.records["risky"].output, Value::String("99".into()));
+            assert_eq!(
+                outcome.records["risky"].named["v"],
+                Value::String("99".into()),
+                "output: bindings evaluate over the RECOVERED value (spec 05)"
+            );
+            assert_eq!(outcome.records["sink"].status, TaskStatus::Success);
+
+            // The await is visible in the stream: the referent's terminal
+            // precedes the parked task's whole story.
+            let source_done = frame_at(&events, EventKind::TaskCompleted, "source");
+            let risky_started = frame_at(&events, EventKind::TaskStarted, "risky");
+            assert!(
+                source_done < risky_started,
+                "the parked story lands after the awaited referent settles"
+            );
+            let rec = frame_at(&events, EventKind::TaskRecovered, "risky");
+            let done = frame_at(&events, EventKind::TaskCompleted, "risky");
+            assert!(rec < done, "task_recovered inserts before the terminal");
+            assert_eq!(recovered_code(&events, "risky"), "NIKA-EXEC-001");
+            streams.push(events);
+        }
+        assert!(
+            streams.windows(2).all(|w| w[0] == w[1]),
+            "the cap never leaks into the stream (ordered-settlement law)"
+        );
+    }
+
+    /// (b) Later-wave referent + a parked-on-parked chain: A awaits B,
+    /// B awaits C (a later wave). C settles → B resolves → A resolves on
+    /// the same spine (the retry pass drains transitively). A's recovered
+    /// value is B's POST-recovery output — downstream of a recovered task
+    /// sees `status: success` + the recover value (spec 05).
+    #[tokio::test]
+    async fn later_wave_referent_resolves_transitively_on_the_spine() {
+        let yaml = r#"
+nika: v1
+workflow: recover-await-chain
+tasks:
+  - id: a
+    exec: { command: "exit 1" }
+    on_error:
+      recover: ${{ tasks.b.output }}
+  - id: b
+    exec: { command: "exit 2" }
+    on_error:
+      recover: ${{ tasks.c.output }}
+  - id: base
+    exec: { command: "echo base" }
+  - id: c
+    depends_on: [base]
+    exec: { command: "echo 42" }
+"#;
+        let shell = MockShell::new()
+            .enqueue_fail(1, "a boom")
+            .enqueue_fail(2, "b boom")
+            .enqueue_ok("base\n")
+            .enqueue_ok("42\n");
+        let (outcome, events) = run_yaml(yaml, shell, Some(1)).await;
+
+        assert!(outcome.ok);
+        assert_eq!(outcome.records["b"].status, TaskStatus::Success);
+        assert_eq!(outcome.records["b"].output, Value::String("42".into()));
+        assert_eq!(
+            outcome.records["a"].output,
+            Value::String("42".into()),
+            "a sees b's POST-recovery output (downstream-of-recovered law)"
+        );
+        let c_done = frame_at(&events, EventKind::TaskCompleted, "c");
+        let b_started = frame_at(&events, EventKind::TaskStarted, "b");
+        let a_started = frame_at(&events, EventKind::TaskStarted, "a");
+        assert!(c_done < b_started, "b resolves after c settles");
+        assert!(b_started < a_started, "the chain drains in coverage order");
+    }
+
+    /// (c) A referent skipped by `when:` reaches a terminal state whose
+    /// output is defined-null (spec 04) — the awaited recovery resolves
+    /// with `null`, it does NOT fail (the records hold what they hold).
+    #[tokio::test]
+    async fn skipped_referent_resolves_to_defined_null() {
+        let yaml = r#"
+nika: v1
+workflow: recover-await-skipped
+tasks:
+  - id: risky
+    exec: { command: "exit 1" }
+    on_error:
+      recover: ${{ tasks.source.output }}
+  - id: base
+    exec: { command: "echo base" }
+  - id: source
+    depends_on: [base]
+    when: false
+    exec: { command: "echo never" }
+"#;
+        let shell = MockShell::new()
+            .enqueue_fail(1, "boom")
+            .enqueue_ok("base\n");
+        let (outcome, events) = run_yaml(yaml, shell, Some(1)).await;
+
+        assert!(outcome.ok, "recovered-with-null is a success");
+        assert_eq!(outcome.records["risky"].status, TaskStatus::Success);
+        assert_eq!(outcome.records["risky"].output, Value::Null);
+        assert_eq!(recovered_code(&events, "risky"), "NIKA-EXEC-001");
+        let skipped = frame_at(&events, EventKind::TaskSkipped, "source");
+        let risky_started = frame_at(&events, EventKind::TaskStarted, "risky");
+        assert!(skipped < risky_started, "the skip is the awaited terminal");
+    }
+
+    /// (d) Mutual recovery (A recovers-from B, B recovers-from A, no
+    /// edges): both park, both resolve at WORKFLOW-END, and each renders
+    /// against the other's PRE-recovery FAILED record (recovery never
+    /// rewrites the referent's history) — `tasks.other.status` reads
+    /// `failure`, not the `success` both end up with.
+    #[tokio::test]
+    async fn mutual_recovery_resolves_at_workflow_end_against_failed_records() {
+        let yaml = r#"
+nika: v1
+workflow: recover-await-mutual
+tasks:
+  - id: a
+    exec: { command: "exit 1" }
+    on_error:
+      recover: ${{ tasks.b.status }}
+  - id: b
+    exec: { command: "exit 2" }
+    on_error:
+      recover: ${{ tasks.a.status }}
+"#;
+        let shell = MockShell::new()
+            .enqueue_fail(1, "a boom")
+            .enqueue_fail(2, "b boom");
+        let (outcome, events) = run_yaml(yaml, shell, Some(1)).await;
+
+        assert!(outcome.ok, "both recoveries resolve — nothing hangs");
+        for id in ["a", "b"] {
+            assert_eq!(outcome.records[id].status, TaskStatus::Success);
+            assert_eq!(
+                outcome.records[id].output,
+                Value::String("failure".into()),
+                "`{id}` sees the OTHER's pre-recovery failed state"
+            );
+            assert_eq!(recovered_code(&events, id), "NIKA-EXEC-001");
+        }
+        // Deterministic order: the end pass settles in task-id order.
+        let a_done = frame_at(&events, EventKind::TaskCompleted, "a");
+        let b_started = frame_at(&events, EventKind::TaskStarted, "b");
+        assert!(a_done < b_started, "workflow-end resolution is id-ordered");
+    }
+
+    /// (e) The await gates on « not yet terminal » ONLY: a recover whose
+    /// reference breaks INSIDE an already-terminal referent (the path,
+    /// not the task, is unresolved) keeps today's fail-fast — no park is
+    /// owed to a referent that already settled.
+    #[tokio::test]
+    async fn broken_path_into_a_terminal_referent_still_fails_fast() {
+        let yaml = r#"
+nika: v1
+workflow: recover-terminal-broken-path
+tasks:
+  - id: done
+    exec: { command: "echo ok" }
+  - id: risky
+    depends_on: [done]
+    exec: { command: "exit 1" }
+    on_error:
+      recover: ${{ tasks.done.output.missing }}
+"#;
+        let shell = MockShell::new().enqueue_ok("ok\n").enqueue_fail(1, "boom");
+        let (outcome, _events) = run_yaml(yaml, shell, Some(1)).await;
+
+        assert!(
+            !outcome.ok,
+            "the recovery failed — the task fails as-if unhandled"
+        );
+        assert_eq!(outcome.records["risky"].status, TaskStatus::Failure);
+        let error = outcome.records["risky"]
+            .error
+            .as_ref()
+            .expect("error readable");
+        assert!(
+            error.code.starts_with("NIKA-VAR-"),
+            "the render failure surfaces its spec class · got {}",
+            error.code
+        );
+    }
+
+    /// (e·unknown-name) An awaited root that is NOT a declared task can
+    /// never reach a terminal state — the park validation settles the
+    /// classification-time NIKA-VAR-001 immediately, exactly as if
+    /// nothing had parked. (Driven at the park site: `nika check`
+    /// rejects an undeclared recover ref before a run can exist, so the
+    /// runtime backstop is what this pins.)
+    #[test]
+    fn undeclared_awaited_root_fails_fast_at_the_park_site() {
+        let yaml =
+            "nika: v1\nworkflow: t\ntasks:\n  - id: risky\n    exec: { command: \"exit 1\" }\n";
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let (vars, env, secrets) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
+        let resume_ctx = resume::ResumeContext::of(&wf, &secrets, None);
+        let scope = crate::recover::ResolveScope {
+            wf: &wf,
+            vars: &vars,
+            env: &env,
+            secrets: &secrets,
+            resume_ctx: &resume_ctx,
+        };
+        let error = |code: &str, message: &str| TaskErrorRecord {
+            code: code.to_owned(),
+            message: message.to_owned(),
+            transient: false,
+        };
+        let pending = crate::recover::PendingRecovery {
+            failed: task::FailedOutcome {
+                record: error("NIKA-EXEC-001", "exit 1"),
+                cost_usd: None,
+                cost_unpriced: None,
+            },
+            render_error: error("NIKA-VAR-001", "unresolved reference `tasks.ghost.output`"),
+            awaiting: std::collections::BTreeSet::from(["ghost".to_owned()]),
+            with_ns: BTreeMap::new(),
+        };
+        let finish = task::Finish {
+            id: "risky".to_owned(),
+            settle: task::SettleAs::Ran(task::RanTask {
+                note: "exec · sh".to_owned(),
+                retries: Vec::new(),
+                agent_events: Vec::new(),
+                duration_ms: 0,
+                result: task::RunResult::PendingRecovery(Box::new(pending)),
+            }),
+            named: BTreeMap::new(),
+            resume: None,
+        };
+        let mut parked = crate::recover::ParkedRecoveries::new();
+        // The streamed-wave shape: prior-wave records + the wave's side
+        // map — both empty here (the downgrade needs neither).
+        let prior = BTreeMap::new();
+        let mut records = BTreeMap::new();
+        let mut ok = true;
+        let mut cache_hits = Vec::new();
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        crate::recover::settle_or_park(
+            finish,
+            &scope,
+            &mut parked,
+            &prior,
+            &mut records,
+            &mut ok,
+            &mut cache_hits,
+            &mut stamper,
+            &mut sink,
+        );
+
+        assert!(!ok, "the recovery failed — nothing parked");
+        assert_eq!(records["risky"].status, TaskStatus::Failure);
+        assert_eq!(
+            records["risky"]
+                .error
+                .as_ref()
+                .expect("error readable")
+                .code,
+            "NIKA-VAR-001"
+        );
+        assert!(
+            sink.events()
+                .iter()
+                .any(|e| e.kind == EventKind::TaskFailed),
+            "the terminal frame emitted at the park site"
+        );
+    }
+
+    /// (e·fan-out) A `for_each` iteration's recover keeps today's
+    /// immediate resolution — iterations never park (the fan-out settles
+    /// as ONE task; its recovery references resolve against the wave
+    /// records, and a pending sibling stays NIKA-VAR-001 there).
+    #[tokio::test]
+    async fn fan_out_iteration_recover_keeps_todays_fail_fast() {
+        let yaml = r#"
+nika: v1
+workflow: recover-fanout-boundary
+tasks:
+  - id: fan
+    for_each: ["x"]
+    exec: { command: "exit 1" }
+    on_error:
+      recover: ${{ tasks.source.output }}
+  - id: source
+    exec: { command: "echo 9" }
+"#;
+        let shell = MockShell::new().enqueue_fail(1, "boom").enqueue_ok("9\n");
+        let (outcome, _events) = run_yaml(yaml, shell, Some(1)).await;
+
+        assert!(!outcome.ok);
+        assert_eq!(outcome.records["fan"].status, TaskStatus::Failure);
+        assert_eq!(
+            outcome.records["fan"].error.as_ref().expect("error").code,
+            "NIKA-VAR-001",
+            "an iteration's unresolved recover ref stays fail-fast"
+        );
+        assert_eq!(outcome.records["source"].status, TaskStatus::Success);
+    }
+}

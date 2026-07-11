@@ -139,7 +139,9 @@ impl<'a> Scope<'a> {
     /// `reference` is the AUTHOR's text — parsed exactly once by
     /// [`parse`]; the runtime values are bound as DATA by
     /// [`ScopeResolver`], never re-parsed (the injection-safe boundary ·
-    /// see module docs).
+    /// see module docs). `pub(crate)`: the recover-await classifier
+    /// probes islands through THIS seam, so park-vs-fail agrees with the
+    /// render by construction (spec 05 §recover · zero drift).
     ///
     /// # Errors
     ///
@@ -148,7 +150,7 @@ impl<'a> Scope<'a> {
     /// (NIKA-1703) for a static-grammar violation (`NIKA-VAR-005`) ·
     /// [`RuntimeError::CelEval`] (`NIKA-VAR-006`) for an evaluation type
     /// error (cross-type compare · `size()` of a scalar · …).
-    fn resolve_expr(&self, reference: &str) -> Result<Value, RuntimeError> {
+    pub(crate) fn resolve_expr(&self, reference: &str) -> Result<Value, RuntimeError> {
         let expr = parse(reference).map_err(|e| RuntimeError::from_cel(&e, reference))?;
         compute(&expr, &ScopeResolver(self)).map_err(|e| RuntimeError::from_cel(&e, reference))
     }

@@ -48,6 +48,7 @@ mod jq;
 mod ledger;
 mod pause;
 mod record;
+mod recover;
 pub mod resume;
 mod retry;
 mod secret;
@@ -547,54 +548,50 @@ where
         let mut cache_hits: Vec<String> = Vec::new();
         // The spend ledger (leaf debits) + the `--max-cost-usd` gate.
         let run_ledger = ledger::RunLedger::new(self.config.max_cost_usd);
+        // Recoveries awaiting a not-yet-terminal referent (spec 05
+        // §recover step 3) — parked on the settle spine, task-id ordered.
+        // A pause exit drops them UNEMITTED (like the blocked prompt,
+        // they simply have not happened yet · they re-run on `--resume`).
+        let mut parked = recover::ParkedRecoveries::new();
+        let resolve_scope = recover::ResolveScope {
+            wf,
+            vars: &vars,
+            env: &env,
+            secrets: &secrets,
+            resume_ctx: &resume_ctx,
+        };
 
         for wave in &report.waves {
-            // The wave-frozen view moves OUT for the wave (same-wave tasks
-            // never reference each other — checker law — so the pipelines
-            // read upstream records only) and back in after: the settles
-            // stream into a side map while the frozen view stays borrowed.
-            let frozen = std::mem::take(&mut records);
-            let streamed = self
-                .dispatch_settle_wave(
+            let early = self
+                .run_one_wave(
                     wave,
-                    wf,
-                    &frozen,
-                    (&vars, &env, &secrets, permits),
-                    &resume_ctx,
+                    (&workflow_name, permits),
+                    &resolve_scope,
                     &run_ledger,
-                    (&mut ok, &mut cache_hits),
+                    &mut parked,
+                    (&mut records, &mut ok, &mut cache_hits),
                     stamper,
                     sink,
                 )
-                .await;
-            records = frozen;
-            let (wave_records, paused) = streamed?;
-            records.extend(wave_records);
-
-            if let Some(p) = paused {
-                emit_paused(&workflow_name, &p, stamper, sink);
-                let mut outcome =
-                    RunOutcome::new(true, std::mem::take(&mut records), BTreeMap::new());
-                outcome.cache_hits = std::mem::take(&mut cache_hits);
-                outcome.paused = Some(p);
-                return Ok(outcome.with_ledger(&run_ledger.snapshot()));
-            }
-
-            // The budget boundary: settle what ran, cancel what never
-            // started, fail the run with spent-vs-budget (NIKA-1704).
-            if run_ledger.tripped() {
-                let outcome = abort_on_budget(
-                    wf,
-                    &workflow_name,
-                    records,
-                    cache_hits,
-                    &run_ledger.snapshot(),
-                    stamper,
-                    sink,
-                );
+                .await?;
+            if let Some(outcome) = early {
                 return Ok(outcome);
             }
         }
+
+        // Recoveries whose referents never settled on the spine (mutual
+        // recovery cycles) resolve against the FINAL records — each
+        // still-parked task reads as its PRE-recovery failed record
+        // (spec 05 · recovery never rewrites the referent's history).
+        recover::resolve_at_end(
+            &resolve_scope,
+            &mut parked,
+            &mut records,
+            &mut ok,
+            &mut cache_hits,
+            stamper,
+            sink,
+        );
 
         // Resolve the `outputs:` BEFORE the terminal frame so a typed output
         // that breaks its declared `type:` can fail the run — the output half
@@ -607,6 +604,93 @@ where
         let mut outcome = RunOutcome::new(ok, records, outputs).with_ledger(&snapshot);
         outcome.cache_hits = cache_hits;
         Ok(outcome)
+    }
+
+    /// One wave through the spine: dispatch + streamed settle, then the
+    /// two early-exit boundaries — `Some(outcome)` returns the run NOW
+    /// (a pause · the budget boundary), `None` continues to the next
+    /// wave. The wave-frozen view moves OUT for the wave (same-wave
+    /// tasks never reference each other — checker law — so the
+    /// pipelines read upstream records only) and back in after: the
+    /// settles stream into a side map while the frozen view stays
+    /// borrowed.
+    // The scope struct + accumulator trio ARE the settle surface —
+    // mirrors `dispatch_settle_wave` itself.
+    #[allow(clippy::too_many_arguments)]
+    async fn run_one_wave(
+        &self,
+        wave: &[usize],
+        (workflow_name, permits): (&str, Option<&nika_schema::types::Permits>),
+        resolve_scope: &recover::ResolveScope<'_>,
+        run_ledger: &ledger::RunLedger,
+        parked: &mut recover::ParkedRecoveries,
+        (records, ok, cache_hits): (
+            &mut BTreeMap<String, TaskRecord>,
+            &mut bool,
+            &mut Vec<String>,
+        ),
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+    ) -> Result<Option<RunOutcome>, RuntimeError> {
+        let (wf, vars, env, secrets) = (
+            resolve_scope.wf,
+            resolve_scope.vars,
+            resolve_scope.env,
+            resolve_scope.secrets,
+        );
+        let frozen = std::mem::take(records);
+        let streamed = self
+            .dispatch_settle_wave(
+                wave,
+                wf,
+                &frozen,
+                (vars, env, secrets, permits),
+                resolve_scope.resume_ctx,
+                run_ledger,
+                (ok, cache_hits),
+                parked,
+                stamper,
+                sink,
+            )
+            .await;
+        *records = frozen;
+        let (wave_records, paused) = streamed?;
+        records.extend(wave_records);
+
+        if let Some(p) = paused {
+            emit_paused(workflow_name, &p, stamper, sink);
+            let mut outcome = RunOutcome::new(true, std::mem::take(records), BTreeMap::new());
+            outcome.cache_hits = std::mem::take(cache_hits);
+            outcome.paused = Some(p);
+            return Ok(Some(outcome.with_ledger(&run_ledger.snapshot())));
+        }
+
+        // The budget boundary: settle what ran, cancel what never
+        // started, fail the run with spent-vs-budget (NIKA-1704).
+        if run_ledger.tripped() {
+            // Parked recoveries resolve against what RAN before the
+            // abort cancels the rest — no task is left frameless.
+            recover::resolve_at_end(
+                resolve_scope,
+                parked,
+                records,
+                ok,
+                cache_hits,
+                stamper,
+                sink,
+            );
+            let outcome = abort_on_budget(
+                wf,
+                workflow_name,
+                std::mem::take(records),
+                std::mem::take(cache_hits),
+                &run_ledger.snapshot(),
+                stamper,
+                sink,
+            );
+            return Ok(Some(outcome));
+        }
+        Ok(None)
     }
 
     /// Resolve one wave's members, dispatch concurrently over the
@@ -648,10 +732,18 @@ where
         resume_ctx: &resume::ResumeContext,
         ledger: &ledger::RunLedger,
         (ok, cache_hits): (&mut bool, &mut Vec<String>),
+        parked: &mut recover::ParkedRecoveries,
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<(BTreeMap<String, TaskRecord>, Option<WorkflowPause>), RuntimeError> {
         let (vars, env, secrets, permits) = scope;
+        let resolve_scope = recover::ResolveScope {
+            wf,
+            vars,
+            env,
+            secrets,
+            resume_ctx,
+        };
         // Resolve indices up front — a bad index is a schedule breach
         // (NIKA-1701 · run abort · the one system error).
         let mut members = Vec::with_capacity(wave.len());
@@ -687,7 +779,21 @@ where
                 paused = Some(p);
                 continue;
             }
-            settle(finish, &mut wave_records, ok, cache_hits, stamper, sink);
+            // A finish whose recovery AWAITS a not-yet-terminal referent
+            // parks instead of settling (spec 05 §recover); everything
+            // else settles into the side map, then covered parks drain —
+            // the wave's terminal truth is `frozen ∪ wave_records`.
+            recover::settle_or_park(
+                finish,
+                &resolve_scope,
+                parked,
+                frozen,
+                &mut wave_records,
+                ok,
+                cache_hits,
+                stamper,
+                sink,
+            );
         }
         Ok((wave_records, paused))
     }
@@ -726,8 +832,10 @@ fn emit_paused(
 }
 
 /// Settle one task in wave order · owns the pens (stamper + sink) ·
-/// inserts the result record.
-fn settle(
+/// inserts the result record. `pub(crate)`: the recover-await spine
+/// (`recover::settle_or_park` + the drain passes) settles through THIS
+/// one site — parked stories keep the same frames as live ones.
+pub(crate) fn settle(
     finish: Finish,
     records: &mut BTreeMap<String, TaskRecord>,
     ok: &mut bool,
@@ -916,26 +1024,66 @@ fn settle_ran(
             error,
             cost_usd,
             cost_unpriced,
-        } => {
-            // Billed-then-failed spend rides the failure frame — the
-            // dollars a dying task burned must never vanish with it
-            // (already ledger-debited per attempt; this is the frame's
-            // per-task truth).
-            let mut fields = vec![
-                ("task", s(id)),
-                ("note", s(&run.note)),
-                ("detail", s(&format!("{} · {}", error.code, error.message))),
-                ("duration_ms", i(duration)),
-            ];
-            push_spend_fields(&mut fields, cost_usd, cost_unpriced);
-            let ended = emit(stamper, sink, EventKind::TaskFailed, &fields);
-            record.status = TaskStatus::Failure;
-            record.ended_at = Some(ended);
-            record.error = Some(error);
-            *ok = false;
-        }
+        } => settle_failed_terminal(
+            id,
+            &run.note,
+            duration,
+            error,
+            (cost_usd, cost_unpriced),
+            &mut record,
+            ok,
+            stamper,
+            sink,
+        ),
+        // Backstop: a pending recovery parks BEFORE settle (the
+        // `recover::settle_or_park` spine) — one reaching this site
+        // settles its classification-time failure (total · no panic).
+        task::RunResult::PendingRecovery(pending) => settle_failed_terminal(
+            id,
+            &run.note,
+            duration,
+            pending.render_error,
+            (pending.failed.cost_usd, pending.failed.cost_unpriced),
+            &mut record,
+            ok,
+            stamper,
+            sink,
+        ),
     }
     record
+}
+
+/// The failure terminal — the ONE site for a settled failure's frame +
+/// record (the `Failed` arm and the pending-recovery backstop share it).
+/// Billed-then-failed spend rides the frame — the dollars a dying task
+/// burned must never vanish with it (already ledger-debited per attempt;
+/// this is the frame's per-task truth).
+// REASON: the terminal frame's field surface + the settle pens — the
+// same shape as `settle_ran` itself.
+#[allow(clippy::too_many_arguments)]
+fn settle_failed_terminal(
+    id: &str,
+    note: &str,
+    duration: i64,
+    error: TaskErrorRecord,
+    spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
+    record: &mut TaskRecord,
+    ok: &mut bool,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    let mut fields = vec![
+        ("task", s(id)),
+        ("note", s(note)),
+        ("detail", s(&format!("{} · {}", error.code, error.message))),
+        ("duration_ms", i(duration)),
+    ];
+    push_spend_fields(&mut fields, spend.0, spend.1);
+    let ended = emit(stamper, sink, EventKind::TaskFailed, &fields);
+    record.status = TaskStatus::Failure;
+    record.ended_at = Some(ended);
+    record.error = Some(error);
+    *ok = false;
 }
 
 /// `on_error: skip` — the ONE state where status is skipped AND the
