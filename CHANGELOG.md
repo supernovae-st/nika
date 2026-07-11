@@ -12,6 +12,19 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika wire` wave-3b: `cline` + `continue`** (#449 — closes the
+  ranked list). Cline: Cursor-style `mcpServers` record; the resolver
+  picks a host IDE's EXISTING `saoudrizwan.claude-dev` globalStorage
+  file (VS Code · Cursor · Windsurf · VSCodium · Insiders — the live,
+  chokidar-hot-reloaded one), else the stable
+  `~/.cline/data/settings/cline_mcp_settings.json` (the CLI's home
+  today and the extension's after its in-flight migration). Continue:
+  an OWN-FILE write at `~/.continue/mcpServers/nika.json` (the
+  Claude-Desktop JSON shape its drop-dir scans) — the user's
+  comment-bearing `config.yaml` is never touched, and the verdict line
+  carries the reload hint (external drop-dir writes are not
+  hot-reloaded). Both ride `wire all` (15 targets).
+
 - **`registry:owner/name[@version]` refs on `check` and `run`** — the
   registry's 22 certified artifacts become consumable from the CLI:
   `nika check registry:supernovae-st/competitor-radar` audits a

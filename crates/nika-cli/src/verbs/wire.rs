@@ -9,20 +9,26 @@
 
 use std::path::{Path, PathBuf};
 
+use clap::ValueEnum;
 use serde_json::{Map, Value};
 
 use crate::verbs::VerbOutput;
 
 const NIKA_MCP_ARGS: [&str; 1] = ["mcp"];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// One variant per client `nika wire` knows how to write — the clap
+/// surface IS this enum (`ValueEnum` · kebab-case), so a new client lands
+/// in this one file: variant + writer arm + tests.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub enum WireTarget {
     Cursor,
     Vscode,
     Windsurf,
     Claude,
     ClaudeDesktop,
+    Cline,
     Codex,
+    Continue,
     Zed,
     Opencode,
     Hermes,
@@ -71,46 +77,31 @@ pub fn run(target: WireTarget, dir: &str) -> VerbOutput {
 
 fn expand_target(target: WireTarget) -> Vec<WireTarget> {
     match target {
-        WireTarget::All => vec![
-            WireTarget::Cursor,
-            WireTarget::Vscode,
-            WireTarget::Windsurf,
-            WireTarget::Claude,
-            WireTarget::ClaudeDesktop,
-            WireTarget::Codex,
-            WireTarget::Zed,
-            WireTarget::Opencode,
-            WireTarget::Hermes,
-            WireTarget::Gemini,
-            WireTarget::Qwen,
-            WireTarget::Lmstudio,
-            WireTarget::Junie,
-        ],
+        // Every concrete client, in declaration order (the clap registry
+        // is the one list — no hand-maintained twin to drift).
+        WireTarget::All => WireTarget::value_variants()
+            .iter()
+            .copied()
+            .filter(|t| *t != WireTarget::All)
+            .collect(),
         other => vec![other],
     }
 }
 
 fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
     match target {
-        WireTarget::Cursor => patch_cursor_like(
-            &home_path(&[".cursor", "mcp.json"])?,
-            "mcpServers",
-            "cursor",
-            false,
-        ),
+        // The user-home `mcpServers` family — one shape, per-client paths
+        // (gemini: shared settings.json, server names must not contain `_`
+        // — upstream policy parser splits on it, `nika` is safe · qwen: the
+        // gemini-cli fork, same key, its own dotdir).
+        WireTarget::Cursor => patch_home_mcp(&[".cursor", "mcp.json"], "cursor"),
+        WireTarget::Claude => patch_home_mcp(&[".claude.json"], "claude"),
+        WireTarget::Windsurf => {
+            patch_home_mcp(&[".codeium", "windsurf", "mcp_config.json"], "windsurf")
+        }
+        WireTarget::Gemini => patch_home_mcp(&[".gemini", "settings.json"], "gemini"),
+        WireTarget::Qwen => patch_home_mcp(&[".qwen", "settings.json"], "qwen"),
         WireTarget::Vscode => patch_vscode(&Path::new(dir).join(".vscode").join("mcp.json")),
-        WireTarget::Windsurf => patch_cursor_like(
-            &home_path(&[".codeium", "windsurf", "mcp_config.json"])?,
-            "mcpServers",
-            "windsurf",
-            false,
-        ),
-        WireTarget::Claude => patch_cursor_like(
-            &home_path(&[".claude.json"])?,
-            "mcpServers",
-            "claude",
-            false,
-        ),
         // Claude DESKTOP is a different app with a different config file
         // than Claude Code's ~/.claude.json — the wave-3 double gap (#449).
         WireTarget::ClaudeDesktop => patch_cursor_like(
@@ -119,7 +110,24 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
             "claude-desktop",
             false,
         ),
+        // Cline hot-reloads its settings file (chokidar watcher), shape =
+        // Cursor-style `mcpServers` record — the resolver below picks the
+        // live globalStorage file when a host IDE has it, else the stable
+        // `~/.cline/data/settings/` home (#449 wave-3b).
+        WireTarget::Cline => {
+            patch_cursor_like(&cline_settings_path()?, "mcpServers", "cline", false)
+        }
         WireTarget::Codex => patch_codex(&home_path(&[".codex", "config.toml"])?),
+        // Continue scans `~/.continue/mcpServers/*.json` (the Claude-Desktop
+        // JSON shape, name-keyed) — an OWN-FILE write: the user's
+        // comment-bearing config.yaml is never touched (the Zed lesson,
+        // applied preemptively). External writes are NOT hot-reloaded —
+        // the hint rides the verdict line (#449 wave-3b).
+        WireTarget::Continue => {
+            let path = home_path(&[".continue", "mcpServers", "nika.json"])?;
+            patch_cursor_like(&path, "mcpServers", "continue", false)
+                .map(|a| with_hint(a, "reload Continue (or re-save config.yaml) to pick it up"))
+        }
         // Zed keeps its settings under ~/.config on EVERY platform (macOS
         // included — deliberate upstream choice, zed.dev/docs).
         WireTarget::Zed => patch_zed(&home_path(&[".config", "zed", "settings.json"])?),
@@ -128,26 +136,6 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
         // least-privilege home (the repo the oracle serves).
         WireTarget::Opencode => patch_opencode(&Path::new(dir).join("opencode.json")),
         WireTarget::Hermes => patch_hermes(&home_path(&[".hermes", "config.yaml"])?),
-        // Gemini CLI reads `mcpServers` from its SHARED `settings.json`
-        // (user scope · docs/tools/mcp-server.md) — `patch_config` only
-        // touches that one key, every other setting survives. Server names
-        // must not contain underscores (upstream policy parser splits on
-        // `_`) — `nika` is safe.
-        WireTarget::Gemini => patch_cursor_like(
-            &home_path(&[".gemini", "settings.json"])?,
-            "mcpServers",
-            "gemini",
-            false,
-        ),
-        // Qwen Code is a gemini-cli fork — same `mcpServers` key, same
-        // user-scope settings.json, its own dotdir (qwen-code docs mirror
-        // gemini's tools/mcp-server.md). The cheapest wave-3 target.
-        WireTarget::Qwen => patch_cursor_like(
-            &home_path(&[".qwen", "settings.json"])?,
-            "mcpServers",
-            "qwen",
-            false,
-        ),
         WireTarget::Lmstudio => {
             patch_cursor_like(&lmstudio_mcp_path()?, "mcpServers", "lmstudio", false)
         }
@@ -201,6 +189,52 @@ fn claude_desktop_config_path_from(home: &Path) -> PathBuf {
         home.join(".config").join("Claude")
     };
     dir.join("claude_desktop_config.json")
+}
+
+/// Cline's settings live in TWO generations of home (cline/cline v4.0.8 vs
+/// main): today's extension keeps `settings/cline_mcp_settings.json` under
+/// the HOST IDE's globalStorage (`saoudrizwan.claude-dev` — the dir name is
+/// stable across VS Code · Cursor · Windsurf · `VSCodium` · Insiders); the
+/// CLI already reads — and the next extension release migrates to — the
+/// stable `~/.cline/data/settings/cline_mcp_settings.json`. Resolution:
+/// a host IDE's EXISTING extension dir wins (the live, hot-reloaded file);
+/// none existing falls back to the stable home (created on write — correct
+/// for the CLI today and the extension after its migration).
+fn cline_settings_path() -> Result<PathBuf, String> {
+    Ok(cline_settings_path_from(&home_path(&[])?))
+}
+
+fn cline_settings_path_from(home: &Path) -> PathBuf {
+    const HOSTS: [&str; 5] = ["Code", "Cursor", "Windsurf", "VSCodium", "Code - Insiders"];
+    for host in HOSTS {
+        let root = if cfg!(target_os = "macos") {
+            home.join("Library").join("Application Support").join(host)
+        } else {
+            home.join(".config").join(host)
+        };
+        let ext = root
+            .join("User")
+            .join("globalStorage")
+            .join("saoudrizwan.claude-dev");
+        if ext.is_dir() {
+            return ext.join("settings").join("cline_mcp_settings.json");
+        }
+    }
+    home.join(".cline")
+        .join("data")
+        .join("settings")
+        .join("cline_mcp_settings.json")
+}
+
+/// Append a post-write hint to a SUCCESSFUL write verdict (`Created` /
+/// `Updated`) — for clients that do not hot-reload external writes.
+/// `Current` stays bare (already wired, nothing to reload).
+fn with_hint(action: WireAction, hint: &str) -> WireAction {
+    match action {
+        WireAction::Created(label) => WireAction::Created(format!("{label} — {hint}")),
+        WireAction::Updated(label) => WireAction::Updated(format!("{label} — {hint}")),
+        other => other,
+    }
 }
 
 fn lmstudio_mcp_path_from(home: &Path) -> PathBuf {
@@ -289,6 +323,11 @@ fn zed_server() -> Value {
 
 fn patch_vscode(path: &Path) -> Result<WireAction, String> {
     patch_config(path, "servers", "vscode", true)
+}
+
+/// The user-home `mcpServers` shape shared by the cursor-like family.
+fn patch_home_mcp(parts: &[&str], label: &str) -> Result<WireAction, String> {
+    patch_cursor_like(&home_path(parts)?, "mcpServers", label, false)
 }
 
 fn patch_cursor_like(
@@ -900,6 +939,90 @@ args = ["mcp"]
 
         let again = patch_cursor_like(&path, "mcpServers", "lmstudio", false).expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
+        let _ = std::fs::remove_dir_all(home);
+    }
+
+    /// #449 wave-3b · cline: a host IDE's EXISTING extension dir wins (the
+    /// live hot-reloaded file); bare home falls back to the stable
+    /// `~/.cline/data/settings/` (the CLI's today + extension's next home).
+    #[test]
+    fn cline_path_resolution_truth_table() {
+        let home = temp_dir("cline-home");
+
+        // Bare home — the stable cross-generation path (created on write).
+        assert_eq!(
+            cline_settings_path_from(&home),
+            home.join(".cline")
+                .join("data")
+                .join("settings")
+                .join("cline_mcp_settings.json")
+        );
+
+        // A host IDE has the extension — its live globalStorage file wins.
+        let host_root = if cfg!(target_os = "macos") {
+            home.join("Library")
+                .join("Application Support")
+                .join("Cursor")
+        } else {
+            home.join(".config").join("Cursor")
+        };
+        let ext = host_root
+            .join("User")
+            .join("globalStorage")
+            .join("saoudrizwan.claude-dev");
+        std::fs::create_dir_all(&ext).expect("ext dir");
+        assert_eq!(
+            cline_settings_path_from(&home),
+            ext.join("settings").join("cline_mcp_settings.json")
+        );
+        let _ = std::fs::remove_dir_all(home);
+    }
+
+    /// #449 wave-3b · cline: Cursor-style `mcpServers` record at the
+    /// resolved path — created with parents, then idempotent.
+    #[test]
+    fn cline_config_created_and_idempotent() {
+        let home = temp_dir("cline-cfg");
+        let path = cline_settings_path_from(&home);
+
+        let action = patch_cursor_like(&path, "mcpServers", "cline", false).expect("wire");
+        assert!(matches!(action, WireAction::Created(_)), "{action:?}");
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
+        assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
+
+        let again = patch_cursor_like(&path, "mcpServers", "cline", false).expect("re-run");
+        assert!(matches!(again, WireAction::Current(_)));
+        let _ = std::fs::remove_dir_all(home);
+    }
+
+    /// #449 wave-3b · continue: the OWN-FILE drop-dir write
+    /// (`~/.continue/mcpServers/nika.json` · Claude-Desktop shape) — the
+    /// user's config.yaml is never touched; the reload hint rides Created/
+    /// Updated and stays OFF the idempotent re-run.
+    #[test]
+    fn continue_own_file_created_idempotent_and_hinted() {
+        let home = temp_dir("continue");
+        let path = home.join(".continue").join("mcpServers").join("nika.json");
+
+        let action = patch_cursor_like(&path, "mcpServers", "continue", false)
+            .map(|a| with_hint(a, "reload Continue"))
+            .expect("wire");
+        assert!(
+            matches!(&action, WireAction::Created(label) if label.contains("reload Continue")),
+            "created carries the hint: {action:?}"
+        );
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
+        assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
+
+        let again = patch_cursor_like(&path, "mcpServers", "continue", false)
+            .map(|a| with_hint(a, "reload Continue"))
+            .expect("re-run");
+        assert!(
+            matches!(&again, WireAction::Current(label) if !label.contains("reload")),
+            "current stays bare: {again:?}"
+        );
         let _ = std::fs::remove_dir_all(home);
     }
 
