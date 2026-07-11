@@ -995,7 +995,11 @@ pub(super) enum TraceNote {
 /// contract: journaling is a rider, a broken rider is a note, not a
 /// failure). An fs error goes to stderr with the path when one was opened;
 /// a written journal prints its `trace:` pointer per [`TraceNote`].
-pub(super) fn surface_trace(mut trace: TraceFileSink, note: TraceNote, autopsy: Option<&str>) {
+pub(super) fn surface_trace(
+    mut trace: TraceFileSink,
+    note: TraceNote,
+    autopsy: Option<&str>,
+) -> Option<std::path::PathBuf> {
     // Durability BEFORE advertisement: the anchor must describe bytes
     // that survive a power loss (flush reaches the page cache only).
     trace.finalize();
@@ -1014,11 +1018,9 @@ pub(super) fn surface_trace(mut trace: TraceFileSink, note: TraceNote, autopsy: 
             ),
             None => eprintln!("nika run: trace file: {e} — the run itself is unaffected"),
         }
-        return;
+        return None;
     }
-    let Some(path) = path else {
-        return; // disabled · or a run that emitted zero events
-    };
+    let path = path?; // disabled · or a run that emitted zero events
     let anchor = anchor_line(&path, count, &head);
     match note {
         TraceNote::Stdout => {
@@ -1038,6 +1040,9 @@ pub(super) fn surface_trace(mut trace: TraceFileSink, note: TraceNote, autopsy: 
         }
         TraceNote::Silent => {}
     }
+    // The published path rides back so a PAUSED machine lane can teach
+    // the exact resume command over it (the pause sibling of `autopsy:`).
+    Some(path)
 }
 
 /// The advertised anchor: the FULL 64-hex chain head — byte-exact parity
