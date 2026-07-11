@@ -1,0 +1,23 @@
+# GitHub reads this file for « Cite this repository »; Zenodo reads it at
+# archive time. The research Nika itself builds on is credited in CITATIONS.md.
+# Version/date are stamped by releases (see CHANGELOG.md), not hand-written here.
+cff-version: 1.2.0
+message: "If you use Nika in your work, please cite this repository."
+type: software
+title: "Nika"
+abstract: "Intent-as-code workflow engine for AI: reviewable YAML DAGs, statically checked (schema, permits, cost floor) before execution, tamper-evident traces after. Single Rust binary."
+authors:
+  - name: "SuperNovae Studio"
+    city: "Paris"
+    country: "FR"
+    website: "https://nika.sh"
+repository-code: "https://github.com/supernovae-st/nika"
+url: "https://nika.sh"
+license: AGPL-3.0-or-later
+keywords:
+  - workflow-engine
+  - ai-agents
+  - llm-orchestration
+  - static-analysis
+  - mcp
+  - rust
