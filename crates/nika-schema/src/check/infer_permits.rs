@@ -27,7 +27,9 @@
 
 use std::collections::BTreeSet;
 
-use super::permits_fit::{BuiltinEffect, builtin_effect, literal_arg, static_program, url_host};
+use super::permits_fit::{
+    BuiltinEffect, builtin_effect, chart_vl_sibling, literal_arg, static_program, url_host,
+};
 use crate::raw::{RawAction, RawCommand, RawTask, RawWorkflow};
 use crate::types::{ExecPermit, FsPermits, NetPermits, Permits};
 
@@ -235,6 +237,12 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &crate::raw::RawInvoke
         },
         None => {}
     }
+    // The chart vega sibling is a SECOND gated write — inferred alongside
+    // the artifact (an exact-path boundary that admits the svg but not
+    // its `.vl.json` would self-refuse the very workflow it came from).
+    if let Some(vl) = chart_vl_sibling(a) {
+        c.writes.insert(vl);
+    }
 }
 
 fn build_fs(reads: BTreeSet<String>, writes: BTreeSet<String>) -> Option<FsPermits> {
@@ -327,6 +335,52 @@ mod tests {
     use crate::parser::{ParseMode, parse};
     use crate::source::FileId;
     use proptest::prelude::*;
+
+    /// The inference covers chart + tts (they were invisible — the
+    /// boundary it wrote refused the very run it came from) and the
+    /// chart vega sibling rides along.
+    #[test]
+    fn chart_and_tts_infer_their_writes() {
+        let wf = crate::parser::parse(
+            "\
+nika: v1
+workflow: t
+model: mock/echo
+tasks:
+  - id: c
+    invoke:
+      tool: \"nika:chart\"
+      args:
+        data: [{ x: \"a\", y: 1 }]
+        chart: { type: bar, x: x, y: y }
+        out: \"out/c.svg\"
+        compile_to: vega_lite
+  - id: s
+    invoke:
+      tool: \"nika:tts_generate\"
+      args:
+        text: \"hi\"
+        output_dir: \"audio\"
+",
+            crate::source::FileId::new(0),
+            crate::parser::ParseMode::Strict,
+        )
+        .expect("parse");
+        let inferred = infer(&wf);
+        let yaml = inferred.to_yaml();
+        assert!(
+            yaml.contains("out/c.svg"),
+            "chart artifact inferred: {yaml}"
+        );
+        assert!(
+            yaml.contains("out/c.vl.json"),
+            "vega sibling inferred: {yaml}"
+        );
+        assert!(
+            yaml.contains("audio/**"),
+            "tts dir inferred recursive: {yaml}"
+        );
+    }
 
     /// The per-task projector: each family flattens deterministically,
     /// dynamic exec widens, unpinnable effects project NOTHING, and a

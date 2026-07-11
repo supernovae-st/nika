@@ -325,20 +325,24 @@ pub(super) fn builtin_effect(a: &RawInvokeAction) -> Option<BuiltinEffect> {
             writes: true,
             recursive: false,
         }),
-        // generated assets + the manifest land INSIDE a literal
-        // `output_dir:` — a recursive write (stdlib §Media · the provider
-        // egress rides the engine's image plane, not permits.net.http,
-        // exactly like `infer:`).
-        "nika:image_generate" => Some(BuiltinEffect::Fs {
+        // Media generators: assets (+ manifest) land INSIDE a literal
+        // `output_dir:` — a recursive write (stdlib §Media · provider
+        // egress rides the engine's media plane, not permits.net.http,
+        // exactly like `infer:`). tts follows the image_generate shape.
+        "nika:image_generate" | "nika:tts_generate" => Some(BuiltinEffect::Fs {
             path_arg: "output_dir",
             reads: false,
             writes: true,
             recursive: true,
         }),
-        // `nika:image_fx` — the WRITE side (`out:`) is the statically-
-        // checkable effect; the `input:` read is runtime-gated inside the
-        // builtin (the image edit-mode precedent · one path_arg per effect).
-        "nika:image_fx" => Some(BuiltinEffect::Fs {
+        // Single-artifact writers: the WRITE side (`out:`) is the
+        // statically-checkable effect. image_fx's `input:` read is
+        // runtime-gated inside the builtin (the image edit-mode precedent
+        // · one path_arg per effect); chart was INVISIBLE here until
+        // 2026-07-11 — the inference wrote a boundary the run then
+        // refused (the self-refusing class); its `compile_to` vega
+        // sibling rides `chart_vl_sibling`.
+        "nika:image_fx" | "nika:chart" => Some(BuiltinEffect::Fs {
             path_arg: "out",
             reads: false,
             writes: true,
@@ -346,6 +350,23 @@ pub(super) fn builtin_effect(a: &RawInvokeAction) -> Option<BuiltinEffect> {
         }),
         _ => None,
     }
+}
+
+/// `nika:chart` with `compile_to: vega_lite` writes a SECOND gated file —
+/// the `.vl.json` sibling next to the svg. One derivation, shared by the
+/// escape scan and the boundary inference, matching the runtime byte for
+/// byte (`chart.rs`: `format!("{}.vl.json", out.trim_end_matches(".svg"))`).
+/// `None` when the tool isn't chart, either arg is dynamic/absent, or the
+/// compile target isn't the closed set's `vega_lite`.
+pub(super) fn chart_vl_sibling(a: &RawInvokeAction) -> Option<String> {
+    if a.tool.value.as_str() != "nika:chart" {
+        return None;
+    }
+    if literal_arg(a, "compile_to").as_deref() != Some("vega_lite") {
+        return None;
+    }
+    let out = literal_arg(a, "out")?;
+    Some(format!("{}.vl.json", out.trim_end_matches(".svg")))
 }
 
 /// Check a builtin invoke's LITERAL fs/net effect against the boundary,
@@ -396,6 +417,19 @@ fn check_builtin_effect(
                         floor: false,
                     });
                 }
+            }
+            // The chart vega sibling is a SECOND gated write — same
+            // boundary test as the artifact itself.
+            if let Some(vl) = chart_vl_sibling(a)
+                && !permits.allows_path(&vl, true)
+            {
+                out.push(CapabilityEscape {
+                    task: id.to_owned(),
+                    category: "fs",
+                    detail: format!("`{tool}` vega sibling `{vl}` is outside permits.fs.write"),
+                    fix: Some(format!("add \"{vl}\" to permits.fs.write")),
+                    floor: false,
+                });
             }
         }
         None => {}
@@ -469,6 +503,103 @@ mod tests {
                 "url_host disagrees on {input}"
             );
         }
+    }
+
+    /// The two newest media builtins were INVISIBLE to the effect
+    /// classification: a chart/tts write outside the boundary passed the
+    /// static scan and failed at runtime, and --infer-permits wrote a
+    /// boundary the run then refused (the self-refusing class). Both
+    /// sides pin here — the sibling `.vl.json` included.
+    #[test]
+    fn chart_and_tts_writes_escape_an_empty_boundary() {
+        let escapes = escapes_of(
+            "\
+nika: v1
+workflow: t
+model: mock/echo
+permits:
+  fs: { write: [\"elsewhere/**\"] }
+  tools: [\"nika:chart\", \"nika:tts_generate\"]
+tasks:
+  - id: c
+    invoke:
+      tool: \"nika:chart\"
+      args:
+        data: [{ x: \"a\", y: 1 }]
+        chart: { type: bar, x: x, y: y }
+        out: \"out/c.svg\"
+        compile_to: vega_lite
+  - id: s
+    invoke:
+      tool: \"nika:tts_generate\"
+      args:
+        text: \"hi\"
+        output_dir: \"audio\"
+",
+        );
+        let fs: Vec<&str> = escapes
+            .iter()
+            .filter(|e| e.category == "fs")
+            .map(|e| e.detail.as_str())
+            .collect();
+        assert!(
+            fs.iter().any(|d| d.contains("out/c.svg")),
+            "chart artifact write must escape: {fs:?}"
+        );
+        assert!(
+            fs.iter().any(|d| d.contains("out/c.vl.json")),
+            "chart vega sibling write must escape: {fs:?}"
+        );
+        assert!(
+            fs.iter().any(|d| d.contains("audio")),
+            "tts output_dir write must escape: {fs:?}"
+        );
+    }
+
+    #[test]
+    fn chart_vl_sibling_derives_only_for_literal_vega_lite() {
+        let wf = parse(
+            "\
+nika: v1
+workflow: t
+model: mock/echo
+tasks:
+  - id: c
+    invoke:
+      tool: \"nika:chart\"
+      args:
+        data: [{ x: \"a\", y: 1 }]
+        chart: { type: bar, x: x, y: y }
+        out: \"out/c.svg\"
+        compile_to: vega_lite
+  - id: plain
+    invoke:
+      tool: \"nika:chart\"
+      args:
+        data: [{ x: \"a\", y: 1 }]
+        chart: { type: bar, x: x, y: y }
+        out: \"out/p.svg\"
+",
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .expect("parse");
+        let invoke_of = |id: &str| match &wf
+            .tasks
+            .iter()
+            .find(|t| t.value.id.value == id)
+            .expect("task")
+            .value
+            .action
+        {
+            crate::raw::RawAction::Invoke(a) => a,
+            other => panic!("not an invoke: {other:?}"),
+        };
+        assert_eq!(
+            chart_vl_sibling(invoke_of("c")).as_deref(),
+            Some("out/c.vl.json"),
+        );
+        assert_eq!(chart_vl_sibling(invoke_of("plain")), None);
     }
 
     #[test]

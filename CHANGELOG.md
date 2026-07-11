@@ -10,6 +10,19 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Fixed
+
+- **`nika:chart` and `nika:tts_generate` were invisible to the effect
+  classification** — a chart/tts write outside the boundary passed the
+  static scan and failed only at runtime, and `--infer-permits` wrote a
+  boundary the run then REFUSED (the self-refusing class the analyzer
+  forbids everywhere else). Both media graduates now classify: chart's
+  permit-gated `out` write (plus its `compile_to` vega `.vl.json`
+  sibling — one shared derivation, matching the runtime byte for byte)
+  and tts's recursive `output_dir` write (the image_generate shape).
+  Escape scanning, boundary inference and the per-task graph `permits`
+  attribution all speak them now.
+
 ### Added
 
 - **`graph --format json` fills the per-task `permits` attribution** —
