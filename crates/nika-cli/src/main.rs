@@ -27,6 +27,7 @@ use nika_cli::display::format::{ColorChoice, ColorEnv, LinkChoice, color_enabled
 use nika_cli::verbs::explain_file::dispatch as explain_dispatch;
 use nika_cli::verbs::{self, VerbOutput};
 use nika_cli::{RunView, Theme, frame};
+
 use nika_event::Event;
 
 #[derive(Parser)]
@@ -247,7 +248,7 @@ enum Command {
     Wire {
         /// Client to wire.
         #[arg(value_enum)]
-        target: WireTargetArg,
+        target: verbs::wire::WireTarget,
         /// Workspace directory for repo-local clients such as VS Code.
         #[arg(long, default_value = ".")]
         dir: String,
@@ -364,45 +365,6 @@ impl From<GraphFormatArg> for verbs::graph::GraphFormat {
             GraphFormatArg::Mermaid => Self::Mermaid,
             GraphFormatArg::Dot => Self::Dot,
             GraphFormatArg::Ascii => Self::Ascii,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
-enum WireTargetArg {
-    Cursor,
-    Vscode,
-    Windsurf,
-    Claude,
-    ClaudeDesktop,
-    Codex,
-    Zed,
-    Opencode,
-    Hermes,
-    Gemini,
-    Qwen,
-    Lmstudio,
-    Junie,
-    All,
-}
-
-impl From<WireTargetArg> for verbs::wire::WireTarget {
-    fn from(value: WireTargetArg) -> Self {
-        match value {
-            WireTargetArg::Cursor => Self::Cursor,
-            WireTargetArg::Vscode => Self::Vscode,
-            WireTargetArg::Windsurf => Self::Windsurf,
-            WireTargetArg::Claude => Self::Claude,
-            WireTargetArg::ClaudeDesktop => Self::ClaudeDesktop,
-            WireTargetArg::Codex => Self::Codex,
-            WireTargetArg::Zed => Self::Zed,
-            WireTargetArg::Opencode => Self::Opencode,
-            WireTargetArg::Hermes => Self::Hermes,
-            WireTargetArg::Gemini => Self::Gemini,
-            WireTargetArg::Qwen => Self::Qwen,
-            WireTargetArg::Lmstudio => Self::Lmstudio,
-            WireTargetArg::Junie => Self::Junie,
-            WireTargetArg::All => Self::All,
         }
     }
 }
@@ -855,7 +817,7 @@ fn main() -> std::process::ExitCode {
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
         Command::Init { dir, force, yes } => emit(&verbs::init::run(&dir, force, yes, plain_theme)),
-        Command::Wire { target, dir } => emit(&verbs::wire::run(target.into(), &dir)),
+        Command::Wire { target, dir } => emit(&verbs::wire::run(target, &dir)),
         Command::Model { action } => model_verb(action),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
         Command::Schema => emit(&verbs::pack_surface::schema()),
