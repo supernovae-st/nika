@@ -10,7 +10,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L2 verb crate |
-| NIKA codes | **NIKA_460–469** in the Verb range 430–479 (infer 430-439 · exec 440-449 · invoke 450-459) · maps to spec `NIKA-AGENT-001/002` (`spec/05-errors.md:95-96`) |
+| NIKA codes | **NIKA_460–469** in the Verb range 430–479 (infer 430-439 · exec 440-449 · invoke 450-459) · wire mapping: budgets → spec `NIKA-AGENT-001/002` · whitelist → `NIKA-SEC-002` · chained provider/schema failures → the shared `NIKA-INFER-001/002` classes (#468 one-voice · `spec/05-errors.md`) |
 
 ---
 
@@ -145,8 +145,8 @@ ONLY inside an agent whitelist (the loop sentinel).
 | NIKA_460 | `MaxTurns { turns, partial_output }` | NIKA-AGENT-001 | `false` |
 | NIKA_461 | `MaxTokens { total_tokens, partial_output }` | NIKA-AGENT-002 | `false` |
 | NIKA_462 | `WhitelistViolation { tool }` | security_error (NIKA-SEC-002 family) | `false` |
-| NIKA_463 | `Inference` (wraps provider error mid-loop) | — | inherited |
-| NIKA_464 | `SchemaValidation` (final message vs schema) | — | `false` |
+| NIKA_463 | `Inference` (wraps provider error mid-loop) | NIKA-INFER-001 (shared provider class · #468) | inherited |
+| NIKA_464 | `SchemaValidation` (final message vs schema) | NIKA-INFER-002 (shared schema class · #468) | `false` |
 | NIKA_465 | `InvalidParam` (empty prompt · temp range) | — | `false` |
 
 ## §5 · Scope fences
