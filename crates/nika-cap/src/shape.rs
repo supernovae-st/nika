@@ -353,11 +353,14 @@ fn check_fetch_shape(args: Option<&serde_json::Value>, out: &mut Vec<String>) {
                 match raw.parse::<ExtractMode>() {
                     Ok(parsed) => Some(parsed),
                     Err(unknown) => {
-                        // ONE hint table for both voices (the L0 error owns
-                        // it) — check and runtime teach the same route.
+                        // ONE suggestion ladder for both voices (the L0
+                        // error owns it) — check and runtime teach the
+                        // same route: typo-of-a-real-mode first (the
+                        // rename is the fix), wrong-concept hint second.
                         let hint = unknown
-                            .hint()
-                            .map(|h| format!(" · {h}"))
+                            .suggestion()
+                            .map(|m| format!(" · did you mean `{m}`?"))
+                            .or_else(|| unknown.hint().map(|h| format!(" · {h}")))
                             .unwrap_or_default();
                         out.push(format!(
                             "`mode: {raw}` is not a stdlib v0.1 extract mode — the set \
