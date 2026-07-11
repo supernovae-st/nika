@@ -492,6 +492,34 @@ fn unknown_entry_field_is_a_smuggling_channel() {
 }
 
 #[test]
+fn unknown_entry_schema_refuses() {
+    // An entry `schema` the client does not understand is refused, same
+    // closed-set law as the index's `index_schema` (ADR-106 REG-005).
+    let digest = sha256_hex(BODY);
+    let entry = entry_toml("acme", "greet", "0.1.0", &digest).replace("schema = 1", "schema = 2");
+    let mock = MockHttp::new()
+        .enqueue_ok(
+            200,
+            index_json(&[artifact_json(
+                "acme",
+                "greet",
+                "0.1.0",
+                "workflow",
+                &digest,
+                &[],
+            )]),
+        )
+        .enqueue_ok(200, entry);
+    let (client, _dir) = client(mock);
+    let err = resolve(&client, "registry:acme/greet@0.1.0").expect_err("must refuse");
+    assert_eq!(kind_code(&err), Some("NIKA-REG-005"));
+    assert!(
+        err.to_string().contains("schema 1"),
+        "teaches what it speaks: {err}"
+    );
+}
+
+#[test]
 fn malformed_source_pins_refuse() {
     let digest = sha256_hex(BODY);
     let mut short_rev = artifact_json("acme", "greet", "0.1.0", "workflow", &digest, &[]);
