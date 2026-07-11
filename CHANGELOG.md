@@ -12,6 +12,24 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika check --fix` — the in-binary repair loop.** The ladder's typed
+  did-you-mean suggestions become one keystroke (the `clippy --fix` /
+  `eslint --fix` shape): typo'd fields (`promt:`), tools (`nika:raed`),
+  args (`inpit` · the `expr`→`expression` prefix rung), `depends_on`
+  targets and `${{ }}` references (fully qualified — a splice never
+  strips the namespace) are renamed in place and the file re-audited
+  until the loop converges. Safety over reach: typed suggestions only
+  (never scraped from prose), a token must be unique in the file as a
+  whole word (ambiguity is skipped with a note — a skip stays retryable
+  across rounds, so the two-site case heals: the qualified reference
+  first, the bare token once it stands alone), zero applied repairs =
+  zero write, and the publish is temp-sibling + rename (POSIX-atomic ·
+  a crash or full disk never truncates the workflow). Do-no-harm proved
+  over the whole 147-workflow battery corpus: 0 files rewritten, 0
+  phantom repairs. The scaffolded teaching surfaces (`nika init`'s
+  AGENTS.md · copilot · CLAUDE.md · cursor rule · agent skill) all name
+  the flag, pinned by a parity loop so a future capability cannot miss
+  the scaffold train (#434 · #444 · #446 · #450).
 - **Software Heritage badge.** The repository is archived at Software
   Heritage (save request accepted 2026-07-11 · the archive re-crawls on
   its own cadence); the README badge links the archived origin — the
@@ -19,6 +37,17 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **The agent-verb battery triad** (36-workflow gauntlet on the 4th
+  verb · 2026-07-11): a standalone `nika:compose` passed `check` but
+  the runtime refused it (COMPOSE-001) — the loop-only rule joins the
+  one shape table both surfaces read, beside its sibling `nika:done`;
+  the `when:` shape teaching (`NIKA-VAR-005`) routes by declared shape
+  — the bool route leads (`x == true` · `!x`), since the old
+  comparison examples applied to a declared boolean traded VAR-005 for
+  the no-coercion type error; and the PERMITS panel leads each row
+  with the wire code (`[NIKA-SEC-004 · tools]` · floor rows
+  `[NIKA-SEC-005 · net]`), so every panel is `nika explain`-able.
+  Re-verdict vs the fixed binary: 36/36 (#458).
 - **`nika:chart` and `nika:tts_generate` were invisible to the effect
   classification** — a chart/tts write outside the boundary passed the
   static scan and failed only at runtime, and `--infer-permits` wrote a
