@@ -31,6 +31,9 @@ pub fn nika_cli::verbs::explain::run(wire: &str, theme: nika_display::theme::The
 pub mod nika_cli::verbs::explain_file
 pub fn nika_cli::verbs::explain_file::dispatch(query: &str, json: bool, forecast: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::explain_file::run(path: &str, json: bool, forecast: bool) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::fix
+pub fn nika_cli::verbs::fix::refuse(reason: &str) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::fix::run(path: &str, native_strict: bool, model: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::graph
 pub enum nika_cli::verbs::graph::GraphFormat
 pub nika_cli::verbs::graph::GraphFormat::Ascii
