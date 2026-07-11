@@ -446,6 +446,32 @@ pub enum SchemaError {
 }
 
 impl SchemaError {
+    /// The machine-applicable RENAME this error teaches, as the exact
+    /// `(offending source token, replacement)` pair — `Some` only for the
+    /// rename-shaped variants whose deterministic did-you-mean asserted a
+    /// target (`buidl` → `build` for an unknown dependency · `tasks.buidl`
+    /// → `tasks.build` for an unresolved reference, both sides fully
+    /// qualified so a splice never strips the namespace). This is the
+    /// typed half the human message renders as « did you mean ___? » —
+    /// the `--fix` repair loop and any agent loop consume it without
+    /// scraping prose.
+    #[must_use]
+    pub fn rename_repair(&self) -> Option<(String, String)> {
+        match self {
+            Self::UnknownDependency {
+                to,
+                suggestion: Some(s),
+                ..
+            } => Some((to.clone(), s.clone())),
+            Self::UnresolvedNamespaceRef {
+                reference,
+                suggestion: Some(s),
+                ..
+            } => Some((reference.clone(), s.clone())),
+            _ => None,
+        }
+    }
+
     /// The source span of this error, when one is attached — the ONE
     /// uniform surface diagnostics renderers (the check report · the
     /// future LSP) read spans through. `Cycle` has no single span (a
