@@ -45,6 +45,10 @@
 //!   JSON-producing helpers so non-zero exits fail as `NIKA-EXEC-001`
 //!   instead of becoming data (a task branching on the record keeps
 //!   `structured` — the hint stays silent there).
+//! - **unwrapped reference** (`unwrapped-ref`) — a workflow `outputs:`
+//!   value that spells a reference path (`tasks.X.output…` · `vars.X` · …)
+//!   without the `${{ }}` wrapper rides as the LITERAL STRING (the run
+//!   returns the path text, not the value); the hint names the wrap.
 
 use std::collections::BTreeSet;
 
@@ -59,8 +63,9 @@ pub struct Hint {
     /// The hint class — the closed set today: `cost` · `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
     /// `redundant-gate` · `retry-effects` · `parallel-writers` ·
-    /// `secrets-store` · `native-first` · `exec-json-capture` (additive ·
-    /// agents route on it; the module doc describes each).
+    /// `secrets-store` · `native-first` · `exec-json-capture` ·
+    /// `unwrapped-ref` (additive · agents route on it; the module doc
+    /// describes each).
     pub kind: &'static str,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,
@@ -148,7 +153,41 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
         ));
     }
     push_unresolvable_secret_hints(&mut hints, wf);
+    push_unwrapped_output_ref_hints(&mut hints, wf);
     hints
+}
+
+/// The `unwrapped-ref` hint (output gauntlet 2026-07-11): a workflow
+/// `outputs:` value that LOOKS like a reference (`tasks.<id>.output…` ·
+/// `vars.<x>` · `env.<x>` · `with.<x>` · `secrets.<x>`) but carries no
+/// `${{ }}` island rides as the LITERAL STRING — the run returns
+/// `"tasks.data.output.count"`, not the extracted value. A silent footgun
+/// (the workflow « works » and returns the wrong thing); the hint names
+/// the wrap. Advisory: a literal string that happens to spell a namespace
+/// path is legal (absurd, but the author's call), so this teaches, never
+/// fails. The pattern is distinctive — a bare namespace-dotted path is
+/// almost never a wanted constant.
+fn push_unwrapped_output_ref_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
+    const NAMESPACES: [&str; 5] = ["tasks.", "vars.", "env.", "with.", "secrets."];
+    for (name, decl) in &wf.outputs {
+        let value = &decl.value().value;
+        // Already interpolated (any `${{ }}`) → the author knows the wrapper.
+        if value.contains("${{") {
+            continue;
+        }
+        let trimmed = value.trim();
+        if NAMESPACES.iter().any(|ns| trimmed.starts_with(ns)) {
+            hints.push(hint(
+                "unwrapped-ref",
+                &name.value,
+                format!(
+                    "output `{}` is the literal string `{trimmed}` — it looks like a reference; \
+                     wrap it to interpolate: `${{{{ {trimmed} }}}}`",
+                    name.value
+                ),
+            ));
+        }
+    }
 }
 
 /// `capture: structured` is for branching on `{stdout, stderr, exit_code}`
@@ -1142,6 +1181,46 @@ mod tests {
             h.iter()
                 .any(|x| x.kind == "secrets-store" && x.advice.contains("secrets.FOO")),
             "{h:?}"
+        );
+    }
+
+    #[test]
+    fn unwrapped_output_ref_is_hinted_wrapped_is_silent() {
+        // Output gauntlet (2026-07-11): a bare `tasks.X.output…` output
+        // value is the LITERAL STRING (the run returns the path text, not
+        // the value) — hint the wrap. The pattern is distinctive across
+        // the five reference namespaces.
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: data\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: { count: 42 } } }\noutputs:\n  just_count: tasks.data.output.count\n",
+        );
+        let hit = h
+            .iter()
+            .find(|x| x.kind == "unwrapped-ref")
+            .unwrap_or_else(|| panic!("expected unwrapped-ref: {h:?}"));
+        assert_eq!(hit.task, "just_count");
+        assert!(
+            hit.advice.contains("literal string")
+                && hit.advice.contains("${{ tasks.data.output.count }}"),
+            "{}",
+            hit.advice
+        );
+
+        // A properly wrapped output is SILENT (the common correct case).
+        let wrapped = hints_of(
+            "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: data\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: { count: 42 } } }\noutputs:\n  just_count: ${{ tasks.data.output.count }}\n",
+        );
+        assert!(
+            !wrapped.iter().any(|x| x.kind == "unwrapped-ref"),
+            "{wrapped:?}"
+        );
+
+        // A genuine string constant that is NOT a namespace path is silent.
+        let plain = hints_of(
+            "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: data\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: {} } }\noutputs:\n  label: production\n",
+        );
+        assert!(
+            !plain.iter().any(|x| x.kind == "unwrapped-ref"),
+            "{plain:?}"
         );
     }
 }
