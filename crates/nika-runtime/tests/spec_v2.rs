@@ -26,9 +26,9 @@ use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 use nika_schema::{FileId, ParseMode, check, parse};
 use nika_types::resource::Value as FieldValue;
-use nika_verb_agent::AgentVerb;
+use nika_verb_agent::{AgentVerb, VerbAgentError};
 use nika_verb_exec::ExecVerb;
-use nika_verb_infer::InferVerb;
+use nika_verb_infer::{InferVerb, VerbInferError};
 use nika_verb_invoke::InvokeVerb;
 
 // ─── harness ─────────────────────────────────────────────────────────────
@@ -1231,6 +1231,118 @@ tasks:
     }
     assert_eq!(timeout_code, "NIKA-TIMEOUT-001");
     assert_eq!(var_code, "NIKA-VAR-006");
+}
+
+/// #468 · one voice: the same provider failure speaks the SAME wire
+/// code on both verbs. `infer` surfaces it as `NIKA-INFER-001` (spec
+/// 05's allocated provider class); the agent loop's mid-loop inference
+/// wraps the SAME `ProviderError` and must carry the SAME code — the
+/// bare-numeric `NIKA-463` is outside the spec's namespace grammar, so
+/// `nika check` rejects it in `on_codes:` and no author filter could
+/// ever match the agent path's provider failures.
+#[tokio::test]
+async fn a_provider_408_speaks_one_code_on_both_verbs() {
+    use nika_error::traits::NikaErrorCode;
+    let timeout_408 = || ProviderError::Api {
+        status: 408,
+        message: "HTTP request timed out after 300000ms".to_owned(),
+    };
+
+    // The SAME provider failure through both verb error surfaces.
+    let infer_err = VerbInferError::ProviderCall {
+        source: timeout_408(),
+        spend: Box::default(),
+    };
+    let agent_err = VerbAgentError::Inference {
+        source: timeout_408(),
+        spend: Box::default(),
+    };
+    assert_eq!(
+        agent_err.spec_code(),
+        infer_err.spec_code(),
+        "one provider failure · one wire language (#468)"
+    );
+    assert_eq!(agent_err.spec_code(), "NIKA-INFER-001");
+    assert_eq!(
+        agent_err.is_transient(),
+        infer_err.is_transient(),
+        "the transience verdict is the provider's on both verbs"
+    );
+
+    // The schema sibling (the issue's NIKA-464 comment): the agent's
+    // final-message schema gate is the class `NIKA-INFER-002` names.
+    let agent_schema = VerbAgentError::SchemaValidation {
+        detail: "missing field".to_owned(),
+        spend: Box::default(),
+    };
+    assert_eq!(agent_schema.spec_code(), "NIKA-INFER-002");
+
+    // Both resolve in the embedded spec canon — same invariant as the
+    // timeout/var pins above (a code outside the table silently breaks
+    // `on_codes:` filters).
+    let canon = nika_pack::error_codes();
+    for code in [agent_err.spec_code(), agent_schema.spec_code()] {
+        assert!(
+            canon.iter().any(|row| row.code == code),
+            "{code} must resolve in the embedded spec canon"
+        );
+    }
+
+    // e2e · the wire: an agent task whose provider dies mid-loop carries
+    // the spec class at `tasks.X.error.code` (what `on_codes:` compares).
+    let yaml_fail = r#"
+nika: v1
+workflow: agent-408
+model: mock/echo
+tasks:
+  - id: stuck
+    agent:
+      prompt: "try"
+"#;
+    let (outcome, _) = run_to_events(
+        yaml_fail,
+        MockShell::new(),
+        MockToolExecutor::new(),
+        MockProvider::new("mock").enqueue_error(timeout_408()),
+        RuntimeConfig::default(),
+    )
+    .await;
+    let record = outcome.records["stuck"]
+        .error
+        .as_ref()
+        .expect("typed error");
+    assert_eq!(record.code, "NIKA-INFER-001", "the wire speaks the class");
+    assert!(!record.transient, "a 408 is a verdict (only 5xx/429 retry)");
+
+    // e2e · the unlock: `retry.on_codes: [NIKA-INFER-001]` now catches
+    // the agent path's provider failure (non-transient · whitelisted).
+    let yaml_retry = r#"
+nika: v1
+workflow: agent-408-retry
+model: mock/echo
+tasks:
+  - id: flaky
+    retry: { max_attempts: 2, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-INFER-001] }
+    agent:
+      prompt: "try again"
+"#;
+    let provider = MockProvider::new("mock")
+        .enqueue_error(timeout_408())
+        .enqueue_text("recovered");
+    let (outcome, events) = run_to_events(
+        yaml_retry,
+        MockShell::new(),
+        MockToolExecutor::new(),
+        provider,
+        RuntimeConfig::default(),
+    )
+    .await;
+    assert!(
+        events.iter().any(|e| e.kind == EventKind::TaskRetrying),
+        "the on_codes whitelist matched the agent's provider failure"
+    );
+    assert!(outcome.ok, "attempt 2 recovered");
+    assert_eq!(output_str(&outcome, "flaky"), "recovered");
 }
 
 // ─── 12 · the for_each when-gate scope hazard (pinned) ──────────────────
