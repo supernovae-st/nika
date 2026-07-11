@@ -303,15 +303,15 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::RenderMode
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::RenderMode
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::RenderMode
 pub type nika_cli::verbs::run::RenderMode::Output = T
-pub struct nika_cli::verbs::run::FoldSink<W: std::io::Write>
-impl<W: std::io::Write> nika_cli::verbs::run::FoldSink<W>
+pub struct nika_cli::verbs::run::FoldSink<W: core::io::write::Write>
+impl<W: core::io::write::Write> nika_cli::verbs::run::FoldSink<W>
 pub fn nika_cli::verbs::run::FoldSink<W>::into_error(self) -> core::option::Option<core::io::error::Error>
 pub fn nika_cli::verbs::run::FoldSink<W>::new(writer: W, theme: nika_display::theme::Theme, mode: nika_cli::verbs::run::RenderMode) -> Self
 pub fn nika_cli::verbs::run::FoldSink<W>::print_final(&mut self)
 pub fn nika_cli::verbs::run::FoldSink<W>::set_plan(&mut self, waves: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>)
 pub fn nika_cli::verbs::run::FoldSink<W>::show_outputs(&mut self, on: bool)
 pub fn nika_cli::verbs::run::FoldSink<W>::view(&self) -> &nika_display::state::RunView
-impl<W: std::io::Write> nika_runtime::stamp::EventSink for nika_cli::verbs::run::FoldSink<W>
+impl<W: core::io::write::Write> nika_runtime::stamp::EventSink for nika_cli::verbs::run::FoldSink<W>
 pub fn nika_cli::verbs::run::FoldSink<W>::emit(&mut self, event: nika_event::event::Event)
 impl<D> owo_colors::OwoColorize for nika_cli::verbs::run::FoldSink<W>
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::run::FoldSink<W> where U: core::convert::From<T>
@@ -339,11 +339,11 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::FoldSink<W>
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::FoldSink<W>
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::FoldSink<W>
 pub type nika_cli::verbs::run::FoldSink<W>::Output = T
-pub struct nika_cli::verbs::run::JsonSink<W: std::io::Write>
-impl<W: std::io::Write> nika_cli::verbs::run::JsonSink<W>
+pub struct nika_cli::verbs::run::JsonSink<W: core::io::write::Write>
+impl<W: core::io::write::Write> nika_cli::verbs::run::JsonSink<W>
 pub fn nika_cli::verbs::run::JsonSink<W>::into_error(self) -> core::option::Option<core::io::error::Error>
 pub fn nika_cli::verbs::run::JsonSink<W>::new(writer: W) -> Self
-impl<W: std::io::Write> nika_runtime::stamp::EventSink for nika_cli::verbs::run::JsonSink<W>
+impl<W: core::io::write::Write> nika_runtime::stamp::EventSink for nika_cli::verbs::run::JsonSink<W>
 pub fn nika_cli::verbs::run::JsonSink<W>::emit(&mut self, event: nika_event::event::Event)
 impl<D> owo_colors::OwoColorize for nika_cli::verbs::run::JsonSink<W>
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::run::JsonSink<W> where U: core::convert::From<T>
