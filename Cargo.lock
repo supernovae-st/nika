@@ -3701,6 +3701,7 @@ dependencies = [
  "nika-exec-runner",
  "nika-fs",
  "nika-http",
+ "nika-infer-local",
  "nika-kernel",
  "nika-kernel-mock",
  "nika-lsp",
