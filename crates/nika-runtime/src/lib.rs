@@ -549,30 +549,34 @@ where
         let run_ledger = ledger::RunLedger::new(self.config.max_cost_usd);
 
         for wave in &report.waves {
-            let finishes = self
-                .dispatch_wave(
+            // The wave-frozen view moves OUT for the wave (same-wave tasks
+            // never reference each other — checker law — so the pipelines
+            // read upstream records only) and back in after: the settles
+            // stream into a side map while the frozen view stays borrowed.
+            let frozen = std::mem::take(&mut records);
+            let streamed = self
+                .dispatch_settle_wave(
                     wave,
                     wf,
-                    &records,
+                    &frozen,
                     (&vars, &env, &secrets, permits),
                     &resume_ctx,
                     &run_ledger,
+                    (&mut ok, &mut cache_hits),
+                    stamper,
+                    sink,
                 )
-                .await?;
+                .await;
+            records = frozen;
+            let (wave_records, paused) = streamed?;
+            records.extend(wave_records);
 
-            if let Some(outcome) = self.settle_wave(
-                finishes,
-                wf,
-                &vars,
-                &env,
-                &resume_ctx,
-                &workflow_name,
-                &mut records,
-                &mut ok,
-                &mut cache_hits,
-                stamper,
-                sink,
-            ) {
+            if let Some(p) = paused {
+                emit_paused(&workflow_name, &p, stamper, sink);
+                let mut outcome =
+                    RunOutcome::new(true, std::mem::take(&mut records), BTreeMap::new());
+                outcome.cache_hits = std::mem::take(&mut cache_hits);
+                outcome.paused = Some(p);
                 return Ok(outcome.with_ledger(&run_ledger.snapshot()));
             }
 
@@ -605,22 +609,48 @@ where
         Ok(outcome)
     }
 
-    /// Resolve one wave's members + dispatch concurrently over the
-    /// wave-frozen records (checker law) · collect in submission order.
+    /// Resolve one wave's members, dispatch concurrently over the
+    /// wave-frozen records (checker law), and settle each finish AS THE
+    /// ORDERED STREAM YIELDS IT (#412): `buffered` yields in submission
+    /// order as each front future completes, so a settled task's frames
+    /// reach the sink — and the trace file — at ITS settle, not the wave
+    /// join. A `kill -9` mid-wave now keeps the resume credit of every
+    /// sibling that already settled. The total event order is unchanged
+    /// (the same sequential wave-order spine); only the timing moves
+    /// earlier — a slow EARLIER member still holds later settles (the
+    /// ordered spine's head-of-line, the price of determinism).
+    ///
+    /// Settles land in a SIDE map (the caller merges after the wave) —
+    /// the frozen view stays borrowed by the in-flight pipelines, and
+    /// same-wave tasks never reference each other, so neither the
+    /// pipelines nor the pause payload can miss a same-wave record.
+    ///
+    /// Returns the wave's settled records + `Some(pause)` iff the wave
+    /// PAUSED on a blocked `nika:prompt` (ADR-099 rider): siblings that
+    /// finished still settle (their work is journaled · they cache-hit
+    /// on resume); the blocked prompt itself never settles; the caller
+    /// emits the pause frame and stops dispatching later waves.
+    ///
     /// Budget gate: `take_while` runs when `buffered` PULLS — a tripped
     /// ledger stops NEW tasks; in-flight complete and count. The default
     /// cap (= wave width) pulls the whole wave before any debit lands:
     /// the gate stops later waves + capped fan-outs, never already-
     /// admitted same-wave siblings. Errors: NIKA-1701 schedule breach.
-    async fn dispatch_wave(
+    // The accumulator pair + the two pens ARE the settle surface —
+    // mirrors `settle` itself.
+    #[allow(clippy::too_many_arguments)]
+    async fn dispatch_settle_wave(
         &self,
         wave: &[usize],
         wf: &RawWorkflow,
-        records: &BTreeMap<String, TaskRecord>,
+        frozen: &BTreeMap<String, TaskRecord>,
         scope: WaveScope<'_>,
         resume_ctx: &resume::ResumeContext,
         ledger: &ledger::RunLedger,
-    ) -> Result<Vec<Finish>, RuntimeError> {
+        (ok, cache_hits): (&mut bool, &mut Vec<String>),
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+    ) -> Result<(BTreeMap<String, TaskRecord>, Option<WorkflowPause>), RuntimeError> {
         let (vars, env, secrets, permits) = scope;
         // Resolve indices up front — a bad index is a schedule breach
         // (NIKA-1701 · run abort · the one system error).
@@ -636,61 +666,30 @@ where
             .config
             .wave_parallelism
             .map_or_else(|| members.len().max(1), NonZeroUsize::get);
-        Ok(
+        let mut wave_records: BTreeMap<String, TaskRecord> = BTreeMap::new();
+        let mut paused: Option<WorkflowPause> = None;
+        let mut finishes = std::pin::pin!(
             futures_util::stream::iter(members.iter().take_while(|_| !ledger.tripped()).map(
                 |&task| {
                     self.run_task_pipeline(
-                        task, records, vars, env, secrets, permits, resume_ctx, ledger,
+                        task, frozen, vars, env, secrets, permits, resume_ctx, ledger,
                     )
                 },
             ))
             .buffered(cap)
-            .collect()
-            .await,
-        )
-    }
-
-    /// Settle one wave's finishes in order — `Some(outcome)` iff the wave
-    /// PAUSED on a blocked `nika:prompt` (ADR-099 rider · PROMPT-001
-    /// under a non-interactive surface): siblings that finished still
-    /// settle (their work is journaled · they cache-hit on resume); the
-    /// blocked prompt itself never settles (no `task_failed` — it simply
-    /// has not happened yet); later waves never dispatch.
-    // The pens + the three run accumulators ARE the settle surface —
-    // mirrors `settle` itself.
-    #[allow(clippy::too_many_arguments)]
-    fn settle_wave(
-        &self,
-        finishes: Vec<Finish>,
-        wf: &RawWorkflow,
-        vars: &BTreeMap<String, Value>,
-        env: &BTreeMap<String, Value>,
-        resume_ctx: &resume::ResumeContext,
-        workflow_name: &str,
-        records: &mut BTreeMap<String, TaskRecord>,
-        ok: &mut bool,
-        cache_hits: &mut Vec<String>,
-        stamper: &mut dyn Stamper,
-        sink: &mut dyn EventSink,
-    ) -> Option<RunOutcome> {
-        let mut paused: Option<WorkflowPause> = None;
-        for finish in finishes {
+        );
+        while let Some(finish) = finishes.next().await {
             if self.pause_on_prompt
                 && paused.is_none()
                 && let Some(p) =
-                    pause::prompt_block(&finish, wf, records, vars, env, resume_ctx.markers())
+                    pause::prompt_block(&finish, wf, frozen, vars, env, resume_ctx.markers())
             {
                 paused = Some(p);
                 continue;
             }
-            settle(finish, records, ok, cache_hits, stamper, sink);
+            settle(finish, &mut wave_records, ok, cache_hits, stamper, sink);
         }
-        let p = paused?;
-        emit_paused(workflow_name, &p, stamper, sink);
-        let mut outcome = RunOutcome::new(true, std::mem::take(records), BTreeMap::new());
-        outcome.cache_hits = std::mem::take(cache_hits);
-        outcome.paused = Some(p);
-        Some(outcome)
+        Ok((wave_records, paused))
     }
 }
 
