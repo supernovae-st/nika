@@ -405,7 +405,7 @@ enum ExamplesAction {
         /// Example slug (from `list`).
         slug: String,
     },
-    /// Run an embedded example through the shipped L3 runtime (live render).
+    /// Run an embedded example (audited first · live render).
     Run {
         /// Example slug (from `list`).
         slug: String,
