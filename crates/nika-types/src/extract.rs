@@ -106,6 +106,17 @@ pub struct UnknownExtractMode {
 }
 
 impl UnknownExtractMode {
+    /// The canonical mode this input is a TYPO of, when one is close
+    /// enough to assert (`markdwon` → `markdown`) — the shared
+    /// [`crate::suggest::did_you_mean`] metric over [`ExtractMode::ALL`],
+    /// so this surface suggests with the same threshold semantics as the
+    /// parser/checker. Distinct from [`Self::hint`]: a typo names the
+    /// right mode wrong; a hint answers the WRONG-CONCEPT miss (`json`).
+    #[must_use]
+    pub fn suggestion(&self) -> Option<&'static str> {
+        crate::suggest::did_you_mean(&self.input, ExtractMode::ALL.map(ExtractMode::as_str))
+    }
+
     /// A route hint for the empirically-common wrong guesses — the
     /// new-user battery (2026-07-10) hit `json` twice: the set is closed
     /// by the one-data-language law (jq replaced `JSONPath`), so the error
@@ -140,7 +151,11 @@ impl fmt::Display for UnknownExtractMode {
              (extract-modes-v0.1.md)",
             self.input
         )?;
-        if let Some(hint) = self.hint() {
+        // A typo of a real mode outranks the wrong-concept table — the
+        // rename IS the fix; the hint would answer a question not asked.
+        if let Some(mode) = self.suggestion() {
+            write!(f, " · did you mean `{mode}`?")?;
+        } else if let Some(hint) = self.hint() {
             write!(f, " · {hint}")?;
         }
         Ok(())
@@ -252,5 +267,29 @@ mod hint_tests {
         assert!(plain.contains("the stdlib v0.1 set is closed"));
         assert!(!plain.contains(" · for"), "{plain}");
         assert!(e("banana").hint().is_none());
+    }
+
+    /// The typo rung (sweep 2026-07-11 · `markdwon` answered mutely):
+    /// a near-miss of a real mode gets the rename, and it OUTRANKS the
+    /// wrong-concept hint (the rename is the fix — a route hint would
+    /// answer a question not asked). The two rungs never collide:
+    /// every hint-table input (`json` · `html` · `rss`…) is past the
+    /// metric threshold from every canonical mode name.
+    #[test]
+    fn typo_of_a_real_mode_gets_the_rename() {
+        let e = |s: &str| UnknownExtractMode {
+            input: s.to_owned(),
+        };
+        assert_eq!(e("markdwon").suggestion(), Some("markdown"));
+        let msg = e("markdwon").to_string();
+        assert!(msg.contains("did you mean `markdown`?"), "{msg}");
+        assert_eq!(e("selectr").suggestion(), Some("selector"));
+        // the hint-table inputs stay on their semantic rung
+        for concept in ["json", "html", "rss", "atom", "xml"] {
+            assert_eq!(e(concept).suggestion(), None, "{concept} is not a typo");
+            assert!(e(concept).hint().is_some(), "{concept} keeps its route");
+        }
+        // far from everything → base message only
+        assert_eq!(e("banana").suggestion(), None);
     }
 }
