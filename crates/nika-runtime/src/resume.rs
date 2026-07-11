@@ -257,12 +257,24 @@ pub(crate) struct ResumeContext {
     /// The RESOLVED secret values — the leak-guard scan set (a value that
     /// reached a rendered input or an output disqualifies the stamp).
     secret_values: Vec<String>,
+    /// The EFFECTIVE default model this run resolves model-less
+    /// infer/agent tasks against (`--model` override, else the envelope
+    /// `model:` line). Part of those tasks' definition identity (#409 ·
+    /// ADR-099 §1: the model an inference runs on IS behavior-bearing —
+    /// swapping the envelope model and resuming used to serve the OLD
+    /// model's cached output as a hit).
+    default_model: Option<String>,
 }
 
 impl ResumeContext {
     /// Build the context from the workflow's declared `secrets:` block +
-    /// the run's resolved values.
-    pub(crate) fn of(wf: &RawWorkflow, resolved: &BTreeMap<String, Value>) -> Self {
+    /// the run's resolved values + the composer's `--model` override
+    /// (the effective default model falls back to the envelope's).
+    pub(crate) fn of(
+        wf: &RawWorkflow,
+        resolved: &BTreeMap<String, Value>,
+        model_override: Option<&str>,
+    ) -> Self {
         let markers = wf
             .secrets
             .iter()
@@ -281,9 +293,14 @@ impl ResumeContext {
                 _ => None,
             })
             .collect();
+        let default_model = model_override
+            .filter(|m| !m.is_empty())
+            .map(ToOwned::to_owned)
+            .or_else(|| wf.model.as_ref().map(|m| m.value.clone()));
         Self {
             markers,
             secret_values,
+            default_model,
         }
     }
 
@@ -310,7 +327,18 @@ pub(crate) fn stamp(
     env: &BTreeMap<String, Value>,
     ctx: &ResumeContext,
 ) -> Option<ResumeStamp> {
-    let definition = definition_value(task)?;
+    let mut definition = definition_value(task)?;
+    // #409 · a model-less infer/agent task RUNS on the effective default
+    // model, so that model joins its DEFINITION identity — swapping the
+    // envelope `model:` (or `--model`) re-runs it instead of cache-hitting
+    // the old model's output. Tasks that pin their own `model:` already
+    // carry it in the definition; the envelope cannot affect them.
+    if reads_default_model(task)
+        && let Some(model) = ctx.default_model.as_deref()
+        && let Some(obj) = definition.as_object_mut()
+    {
+        obj.insert("default_model".to_owned(), json!(model));
+    }
     let inputs = input_value(task, records, vars, env, &ctx.markers)?;
     let key = ResumeKey::new(
         task.id.value.clone(),
@@ -327,6 +355,24 @@ pub(crate) fn stamp(
         def_hash: key.definition_hash()?,
         input_hash: key.input_hash()?,
     })
+}
+
+/// Does this task's behavior depend on the run's DEFAULT model? True
+/// when any of its actions (the main verb · every `on_finally` mini) is
+/// an infer/agent WITHOUT its own `model:` — those resolve against the
+/// envelope/`--model` default at dispatch, so that default is part of
+/// their behavior (#409).
+fn reads_default_model(task: &RawTask) -> bool {
+    let action_reads = |action: &RawAction| match action {
+        RawAction::Infer(a) => a.model.is_none(),
+        RawAction::Agent(a) => a.model.is_none(),
+        _ => false,
+    };
+    action_reads(&task.action)
+        || task
+            .on_finally
+            .iter()
+            .any(|mini| action_reads(&mini.value.action))
 }
 
 // ─── the definition payload (raw · behavior-bearing fields as written) ──
@@ -644,6 +690,7 @@ mod tests {
         ResumeContext {
             markers: BTreeMap::new(),
             secret_values: Vec::new(),
+            default_model: None,
         }
     }
 
@@ -728,10 +775,12 @@ mod tests {
         let ctx_v1 = ResumeContext::of(
             &wf,
             &BTreeMap::from([("tok".to_owned(), json!("secret-value-1"))]),
+            None,
         );
         let ctx_v2 = ResumeContext::of(
             &wf,
             &BTreeMap::from([("tok".to_owned(), json!("secret-value-2"))]),
+            None,
         );
         let a = stamp(
             &wf.tasks[0].value,
@@ -757,6 +806,7 @@ mod tests {
         let ctx2 = ResumeContext::of(
             &wf2,
             &BTreeMap::from([("tok".to_owned(), json!("secret-value-1"))]),
+            None,
         );
         let c = stamp(
             &wf2.tasks[0].value,
@@ -769,6 +819,65 @@ mod tests {
         assert_ne!(a.input_hash, c.input_hash, "reference identity re-keys");
     }
 
+    /// #409 · the EFFECTIVE default model is part of a model-less
+    /// infer task's DEFINITION identity: swapping the envelope `model:`
+    /// (or supplying `--model`) re-runs it — a resume must never serve
+    /// output produced by a different model than the file now declares.
+    #[test]
+    fn default_model_swap_rekeys_a_modelless_infer() {
+        const MODELLESS: &str = "nika: v1\nworkflow: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  - id: summary\n    infer: { prompt: \"hi\" }\n";
+        // A task that PINS its own `model:` · an exec task — the two
+        // no-re-key controls (items live at scope top · lint law).
+        const PINNED: &str = "nika: v1\nworkflow: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  - id: summary\n    infer: { prompt: \"hi\", model: \"mock/echo\" }\n";
+        const EXEC: &str = "nika: v1\nworkflow: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  - id: run\n    exec: { command: \"echo hi\" }\n";
+        let records = BTreeMap::new();
+        let vars = BTreeMap::new();
+        let env = BTreeMap::new();
+        let stamp_with = |yaml: &str, over: Option<&str>| {
+            let wf = parse(yaml);
+            let ctx = ResumeContext::of(&wf, &BTreeMap::new(), over);
+            stamp(&wf.tasks[0].value, &records, &vars, &env, &ctx).expect("eligible")
+        };
+
+        // The issue's exact repro: edit ONLY the envelope `model:` line.
+        let a = stamp_with(MODELLESS, None);
+        let swapped = MODELLESS.replace("ollama/qwen3.5:4b", "ollama/llama3.2:3b");
+        let b = stamp_with(&swapped, None);
+        assert_ne!(
+            a.def_hash, b.def_hash,
+            "the envelope model re-keys the model-less infer"
+        );
+
+        // A `--model` override replaces the resolved default → re-keys too.
+        let o = stamp_with(MODELLESS, Some("mistral/small"));
+        assert_ne!(a.def_hash, o.def_hash, "a --model override re-keys");
+        // …and the SAME override is stable (no churn).
+        assert_eq!(
+            o.def_hash,
+            stamp_with(MODELLESS, Some("mistral/small")).def_hash
+        );
+
+        // A task that PINS its own `model:` ignores the envelope — the
+        // default cannot affect what it runs, so no needless re-run.
+        let p1 = stamp_with(PINNED, None);
+        let p2 = stamp_with(
+            &PINNED.replace("ollama/qwen3.5:4b", "ollama/llama3.2:3b"),
+            None,
+        );
+        assert_eq!(
+            p1.def_hash, p2.def_hash,
+            "a pinned per-task model ignores the envelope"
+        );
+
+        // An exec task never reads the default model — stable across it.
+        let e1 = stamp_with(EXEC, None);
+        let e2 = stamp_with(
+            &EXEC.replace("ollama/qwen3.5:4b", "ollama/llama3.2:3b"),
+            None,
+        );
+        assert_eq!(e1.def_hash, e2.def_hash, "exec ignores the model line");
+    }
+
     /// A resolved secret value that leaked into the rendered inputs via
     /// an UPSTREAM record disqualifies the stamp — the trace never
     /// carries secret-derived material, not even inside a hash.
@@ -779,6 +888,7 @@ mod tests {
         let ctx = ResumeContext::of(
             &wf,
             &BTreeMap::from([("tok".to_owned(), json!("hunter2-secret"))]),
+            None,
         );
         let vars = BTreeMap::new();
         let leaked = BTreeMap::from([(
@@ -970,7 +1080,7 @@ mod trace_carry_tests {
 
         // Recompute the stamp from the same coordinates — it matches the
         // journaled fields (the skip predicate `--resume` evaluates).
-        let ctx = super::ResumeContext::of(&wf, &BTreeMap::new());
+        let ctx = super::ResumeContext::of(&wf, &BTreeMap::new(), None);
         let stamp = super::stamp(
             &wf.tasks[0].value,
             &BTreeMap::new(),
