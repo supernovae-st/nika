@@ -310,14 +310,16 @@ pub const NIKA_462: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "agent-whitelist-violation",
 };
-/// NIKA-463: The provider call failed mid-loop.
+/// NIKA-463: The provider call failed mid-loop (internal identity —
+/// the wire speaks the shared spec class `NIKA-INFER-001` · #468).
 pub const NIKA_463: NikaCode = NikaCode {
     num: 463,
     category: Category::Verb,
     severity: Severity::Error,
     slug: "agent-inference",
 };
-/// NIKA-464: The agent's final message failed `schema:` validation.
+/// NIKA-464: The agent's final message failed `schema:` validation
+/// (internal identity — the wire speaks `NIKA-INFER-002` · #468).
 pub const NIKA_464: NikaCode = NikaCode {
     num: 464,
     category: Category::Verb,
