@@ -41,7 +41,7 @@ Yes.
 brew install supernovae-st/tap/nika    # or: curl -LsSf https://nika.sh/install.sh | sh
 nika examples run 01-hello --model mock/echo            # zero setup: no key, no model server
 nika examples run 01-hello --model ollama/llama3.2:3b   # got Ollama? the same run, real + local
-# (first run loads the model into memory — later runs are much faster)
+# (first run loads the model into memory; later runs are much faster)
 ```
 
 ![nika check audits the workflow (plan, cost, secrets, types), then nika run executes it locally](media/nika-hero.gif)
@@ -107,8 +107,8 @@ tasks:
 ## Check before it runs
 
 `nika check` is a static audit. It catches broken references, missing
-dependencies, schema and permission problems **before any model is called**
-— and when something is off, it points at the exact fix:
+dependencies, schema and permission problems **before any model is called**,
+and when something is off, it points at the exact fix:
 
 ![nika check catches a missing depends_on and a typo'd task reference, shows the three-line fix, then the same audit passes clean](media/gifs/static-check-fix.optimized.gif)
 
@@ -118,14 +118,14 @@ directions by `scripts/media/validate-media.sh`: the broken one must keep
 failing `nika check`, the fixed one must stay clean.
 
 The same audit holds the workflow's **declared blast radius**. A `permits:`
-block makes the file itself the security boundary — hosts, paths, programs,
+block makes the file itself the security boundary: hosts, paths, programs,
 tools, all default-deny once declared. A task that reaches beyond it is
 caught statically, with the machine-applicable fix, before anything runs:
 
 ![A permits block declares GitHub-only network access; one task fetches another host; nika check flags the escape with the exact fix line; the boundary widens on purpose in review and the audit passes clean](media/gifs/permits-audit.optimized.gif)
 
 And failure handling is part of the file, not an ops runbook. When a task
-dies, `on_error: recover:` degrades to a declared fallback — the run
+dies, `on_error: recover:` degrades to a declared fallback: the run
 completes, and the output says what it is:
 
 ![The live source is missing so the task fails; on_error recover degrades to the cached snapshot; the run exits 0 and the published file says stale: true](media/gifs/on-error-recover.optimized.gif)
@@ -133,25 +133,25 @@ completes, and the output says what it is:
 ## Images are workflow citizens
 
 `nika:image_generate` renders through the same discipline as everything
-else — a declared `permits:` boundary gates every save, the run ledger
+else: a declared `permits:` boundary gates every save, the run ledger
 meters real spend, and provenance is structural, not a promise:
 
-![One workflow renders a real image and speaks a real line — permits gate the saves, the ledger shows $0.02 exact, the gallery frame carries the actual renders and a waveform drawn from the real MP3 bytes, and the manifest panel shows the provenance nobody else keeps](media/gifs/image-pipeline.gif)
+![One workflow renders a real image and speaks a real line: permits gate the saves, the ledger shows $0.02 exact, the gallery frame carries the actual renders and a waveform drawn from the real MP3 bytes, and the manifest panel shows the provenance nobody else keeps](media/gifs/image-pipeline.gif)
 
-- **Local-first** — `provider: local` speaks the OpenAI-images wire any
+- **Local-first**: `provider: local` speaks the OpenAI-images wire any
   self-hosted server exposes (LocalAI · Ollama · stable-diffusion.cpp ·
   SGLang · vLLM-Omni). The base URL is engine config, never workflow data.
-  Clouds when you choose: `openai` · `gemini` · `xai` — and `mock` renders
+  Clouds when you choose: `openai` · `gemini` · `xai`, and `mock` renders
   real, decodable PNG files offline for CI.
-- **Provenance survives `cp`** — every saved PNG carries a `nika` tEXt
+- **Provenance survives `cp`**: every saved PNG carries a `nika` tEXt
   chunk (tool · engine · provider · model · prompt · seed), the practice
   ComfyUI and InvokeAI standardized and no other workflow engine ships.
   The sidecar manifest adds sha256, resolved request and timing.
-- **Honesty is enforced** — magic bytes beat declared MIME types, lossy
+- **Honesty is enforced**: magic bytes beat declared MIME types, lossy
   provider mappings warn loudly, a provider returning fewer images than
   asked is a visible `count_shortfall:`, result URLs are **never**
-  fetched, and base64 never rides workflow outputs — assets, not blobs.
-- **Real spend in the ledger** — a render's exact cost (xAI bills in
+  fetched, and base64 never rides workflow outputs: assets, not blobs.
+- **Real spend in the ledger**: a render's exact cost (xAI bills in
   ticks) lands on the task line and the run total, the same honest-spend
   channel `infer:` uses.
 
@@ -176,10 +176,10 @@ nika doctor --ping                   # are the local servers actually listening?
 ```
 
 Every run writes its own journal to `.nika/traces/` (opt out per run with
-`--no-trace-file`, globally with `NIKA_NO_TRACE_FILE`) — `--resume` and
+`--no-trace-file`, globally with `NIKA_NO_TRACE_FILE`); `--resume` and
 `nika trace` read it directly. A paused run exits `4` (a blocking
 `nika:prompt` journals its question); cache hits on resume are always
-visible — nothing is skipped silently.
+visible: nothing is skipped silently.
 
 ## Pick a workflow
 
@@ -199,12 +199,12 @@ of them with `--model ollama/llama3.2:3b` (or offline with `--model mock/echo`):
 | Screen resumes against a role | `nika examples run showcase/t3-resume-screener` | hiring |
 | Build a Monday operating brief | `nika examples run showcase/t4-ceo-monday-brief` | founders |
 
-The full gallery — every workflow sha256-pinned and proven in CI — lives in
+The full gallery, every workflow sha256-pinned and proven in CI, lives in
 [`examples/`](examples/): foundation patterns, business showcases, and the
 skeletons `nika new --from <template>` instantiates (`nika examples` and
 `nika new --from '?'` list the live shelves).
 
-Shared workflows live on [**nika-registry**](https://github.com/supernovae-st/nika-registry) —
+Shared workflows live on [**nika-registry**](https://github.com/supernovae-st/nika-registry):
 every entry pinned to a full commit + sha256 and re-proven by CI (the
 conformance oracle + this engine's static certificate: exec · tools ·
 cost, visible before anything runs). `nika add` is on the roadmap; today
@@ -243,7 +243,7 @@ flowchart LR
 ```
 
 Dependencies make every workflow a graph: independent tasks run in
-parallel, an `agent` step fans out, joins wait for every branch — and the
+parallel, an `agent` step fans out, joins wait for every branch, and the
 whole plan is known, costed and audited before execution starts:
 
 ![The embedded pr-review-fanout workflow as its real execution graph: seven tasks, six waves, all four verbs in one file](media/gifs/dag-execution.optimized.gif)
@@ -270,7 +270,7 @@ Nika is built in the open.
 
 The **language** (the `nika: v1` envelope and its four verbs) is stable and
 won't break. The **engine** is a strict, modular Rust workspace. The latest
-tagged public release is whatever the badge at the top of this page says —
+tagged public release is whatever the badge at the top of this page says:
 always [the releases page](https://github.com/supernovae-st/nika/releases/latest),
 never a number typed here (numbers in prose rot). `main` moves immediately
 to the next `-dev` version after each release so local contributor binaries
@@ -308,12 +308,12 @@ Prefer a guided page? Every install path, step by step: [nika.sh/install](https:
 Already carrying a toolchain?
 
 ```sh
-# cargo — fetches the PREBUILT release tarball (no compile); the binary lands
-# as `nika-cli` until the crates.io publish — symlink the public name once:
+# cargo: fetches the PREBUILT release tarball (no compile); the binary lands
+# as `nika-cli` until the crates.io publish; symlink the public name once:
 #   ln -sf ~/.cargo/bin/nika-cli ~/.cargo/bin/nika
 cargo binstall --git https://github.com/supernovae-st/nika nika-cli
 
-# nix — builds the exact release source via the flake (first run compiles,
+# nix: builds the exact release source via the flake (first run compiles,
 # the store caches it); `nix profile install` for a durable install
 nix run github:supernovae-st/nika
 ```
@@ -321,12 +321,12 @@ nix run github:supernovae-st/nika
 Deploying to containers (Dokploy · Coolify · Railway · any PaaS)?
 
 ```sh
-# docker — the official multi-arch image (ghcr · linux/amd64 + linux/arm64),
+# docker: the official multi-arch image (ghcr · linux/amd64 + linux/arm64),
 # built on the release train from the same verified release binaries;
 # mount your workdir to check/run workflows
 docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika check hello.nika.yaml
 
-# the MCP lane (stdio JSON-RPC) — wire it into any MCP client config
+# the MCP lane (stdio JSON-RPC): wire it into any MCP client config
 docker run -i --rm ghcr.io/supernovae-st/nika mcp
 ```
 
@@ -378,19 +378,19 @@ drops the schema wiring, `AGENTS.md`, the Cursor rule and a repo-level
 [agent skill](https://agentskills.io) into your repo so Claude Code, Cursor,
 Codex and friends author valid workflows on the first try. `nika wire
 <cursor|vscode|windsurf|claude|codex|all>` points each client's MCP config at
-the engine — idempotent, and it preserves your other servers. `nika mcp`
-exposes a read-only oracle — 8 tools, `nika_check` and `nika_explain` through
-`nika_catalog` and `nika_tools` — any MCP client can call. `nika lsp` speaks LSP to every editor.
+the engine: idempotent, and it preserves your other servers. `nika mcp`
+exposes a read-only oracle any MCP client can call: 8 tools, `nika_check` and
+`nika_explain` through `nika_catalog` and `nika_tools`. `nika lsp` speaks LSP to every editor.
 
-The full map of every door — install paths, IDEs, agents, skills, MCP, CI,
-SDKs — is one page: [docs.nika.sh/integrations/everywhere](https://docs.nika.sh/integrations/everywhere).
+The full map of every door (install paths, IDEs, agents, skills, MCP, CI,
+SDKs) is one page: [docs.nika.sh/integrations/everywhere](https://docs.nika.sh/integrations/everywhere).
 
 Wondering which model on your machine can actually drive a workflow? The
 [model bench](https://docs.nika.sh/examples/model-bench) is a workflow that
-benches your models — same tasks, every local/cloud model you point it at,
+benches your models: same tasks, every local/cloud model you point it at,
 an honest scorecard out (unpriced never reads as free).
 
-Or install everything as a plugin — this repo hosts one plugin (the
+Or install everything as a plugin: this repo hosts one plugin (the
 `nika-authoring` skill + the MCP oracle) for both ecosystems:
 
 ```sh
@@ -427,18 +427,18 @@ each with one job:
 
 | Repo | What it is |
 |---|---|
-| [nika](https://github.com/supernovae-st/nika) | **this engine** — the reference implementation (AGPL-3.0-or-later) |
-| [nika-spec](https://github.com/supernovae-st/nika-spec) | the open language spec + conformance corpus (Apache-2.0) — the law the engine follows |
+| [nika](https://github.com/supernovae-st/nika) | **this engine**: the reference implementation (AGPL-3.0-or-later) |
+| [nika-spec](https://github.com/supernovae-st/nika-spec) | the open language spec + conformance corpus (Apache-2.0), the law the engine follows |
 | [nika-docs](https://github.com/supernovae-st/nika-docs) | the source of [docs.nika.sh](https://docs.nika.sh) |
 | [nika.sh](https://github.com/supernovae-st/nika.sh) | the source of [nika.sh](https://nika.sh) |
-| [nika-vscode](https://github.com/supernovae-st/nika-vscode) | the editor extension — VS Code, Cursor, Windsurf, VSCodium |
-| [nika-agents](https://github.com/supernovae-st/nika-agents) | the plugin marketplace — the authoring skill + the read-only MCP oracle, for Claude Code and Codex |
-| [nika-registry](https://github.com/supernovae-st/nika-registry) | the verifiable workflow registry — every entry pinned and re-proven in CI |
+| [nika-vscode](https://github.com/supernovae-st/nika-vscode) | the editor extension: VS Code, Cursor, Windsurf, VSCodium |
+| [nika-agents](https://github.com/supernovae-st/nika-agents) | the plugin marketplace: the authoring skill + the read-only MCP oracle, for Claude Code and Codex |
+| [nika-registry](https://github.com/supernovae-st/nika-registry) | the verifiable workflow registry: every entry pinned and re-proven in CI |
 | [nika-client](https://github.com/supernovae-st/nika-client) | the TypeScript SDK (targets the `nika serve` HTTP surface) |
-| [homebrew-tap](https://github.com/supernovae-st/homebrew-tap) | the brew formula — `brew install supernovae-st/tap/nika` |
-| [nika-site-audit](https://github.com/supernovae-st/nika-site-audit) | a legacy-era demo of scale (read-only — never learn the syntax there) |
+| [homebrew-tap](https://github.com/supernovae-st/homebrew-tap) | the brew formula: `brew install supernovae-st/tap/nika` |
+| [nika-site-audit](https://github.com/supernovae-st/nika-site-audit) | a legacy-era demo of scale (read-only; never learn the syntax there) |
 
-Examples live right here: [`examples/`](examples/) — the embedded
+Examples live right here: [`examples/`](examples/), the embedded
 gallery (`nika examples list` shows the same shelf from the binary).
 
 **Building Nika?** The engine is crafted under a strict workspace discipline:
