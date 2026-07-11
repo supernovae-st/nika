@@ -113,6 +113,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **A declared write permit creates its tree — `nika:write` and
+  `nika:chart` agree** (#433 · use-case battery 2026-07-11). The two
+  artifact writers disagreed on a missing parent directory: chart
+  auto-created it, write refused (`create_dirs: true` required). When
+  `permits.fs.write` declares the tree (e.g. `state/**`), that permit is
+  the author's standing declaration that the tree is theirs to make — so
+  the guarded seam now creates the parent after a passing write-boundary
+  check, and BOTH writers inherit it. Purely additive: a write to a new
+  sub-directory inside a declared write permit succeeds without
+  `create_dirs`; the un-declared engine-floor corner is unchanged (write
+  keeps its safety gate, chart its seam). Option C of the #433 fork
+  (operator brainstorm).
 - **The secrets surface teaches its own fixes** (use-case battery
   2026-07-11). Three diagnostics that made the reader consult spec 01
   §egress now carry the answer: (1) an information-flow leak names the

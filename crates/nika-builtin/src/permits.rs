@@ -144,6 +144,32 @@ impl FsBoundary {
             ),
         ))
     }
+
+    /// #433 option C · create `path`'s parent directory WHEN the boundary
+    /// declares this write tree — a `permits.fs.write` glob is the author's
+    /// standing declaration that the tree is theirs to make, so the two
+    /// artifact writers (`nika:write` · `nika:chart`) agree in the case that
+    /// matters: declared-intent auto-creates, un-declared keeps each
+    /// writer's own safety default. MUST be called only AFTER a passing
+    /// [`enforce`](Self::enforce) for [`FsAccess::Write`] on this path — the
+    /// confinement is proven there, so a declared boundary reaching here
+    /// means the target is inside a write glob. No-op when no boundary is in
+    /// force (best-effort · a real fs error surfaces on the write op itself).
+    pub(crate) async fn ensure_write_parent<F: nika_kernel::io::fs::FsWriteDyn>(
+        &self,
+        fs: &F,
+        path: &str,
+    ) {
+        if !self.declared {
+            return;
+        }
+        if let Some(parent) = Path::new(path)
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+        {
+            let _ = fs.create_dir_all(parent).await;
+        }
+    }
 }
 
 /// Resolve a path to its EFFECTIVE absolute location (symlinks + `..`).
@@ -383,6 +409,41 @@ mod fs_security_tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.root);
         }
+    }
+
+    #[tokio::test]
+    async fn declared_write_tree_creates_the_parent() {
+        // #433 option C · a `permits.fs.write` glob for `allowed/**` is the
+        // author's declaration that the tree is theirs to make, so a new
+        // sub-directory under it is created (both writers inherit this via
+        // the guarded seam · uniform declared-intent behavior).
+        let s = Scratch::new();
+        let fs = TokioFs;
+        let target = s.path("allowed/newdir/x.txt");
+        let parent = s.path("allowed/newdir");
+        assert!(!std::path::Path::new(&parent).exists(), "precondition");
+        s.boundary().ensure_write_parent(&fs, &target).await;
+        assert!(
+            std::path::Path::new(&parent).exists(),
+            "the declared write tree's parent is created"
+        );
+    }
+
+    #[tokio::test]
+    async fn undeclared_boundary_creates_no_parent() {
+        // No boundary in force (engine floor) → the helper is a no-op; each
+        // writer keeps its own default (write gates on `create_dirs`, chart
+        // uses the atomic seam · the un-declared corner, unchanged).
+        let s = Scratch::new();
+        let fs = TokioFs;
+        let target = s.path("allowed/nope/y.txt");
+        FsBoundary::unbounded()
+            .ensure_write_parent(&fs, &target)
+            .await;
+        assert!(
+            !std::path::Path::new(&s.path("allowed/nope")).exists(),
+            "no boundary declared → nothing created"
+        );
     }
 
     #[tokio::test]

@@ -516,6 +516,16 @@ where
                     .enforce(self.fs.as_ref(), path, access)
                     .await?;
             }
+            // #433 option C · a declared write permit auto-creates the target
+            // tree (the permit IS the intent), so `nika:write`'s own
+            // `create_dirs` gate finds the parent present and writes — the
+            // declared-intent case now matches `nika:chart`. Only for WRITE
+            // access; a read op never materializes a directory.
+            if accesses.contains(&permits::FsAccess::Write) {
+                self.fs_boundary
+                    .ensure_write_parent(self.fs.as_ref(), path)
+                    .await;
+            }
         }
         op(self.fs.as_ref(), args).await
     }
@@ -528,6 +538,11 @@ where
             self.fs_boundary
                 .enforce(self.fs.as_ref(), out, permits::FsAccess::Write)
                 .await?;
+            // #433 option C · same declared-intent tree creation as
+            // `guarded_fs` — chart's `.vl.json` sibling shares the directory.
+            self.fs_boundary
+                .ensure_write_parent(self.fs.as_ref(), out)
+                .await;
         }
         if let Some(src) = args
             .get("data")
@@ -1045,6 +1060,68 @@ mod boundary_dispatch_tests {
             Arc::new(NoWorkflow),
         )
         .with_fs_boundary(boundary)
+    }
+
+    #[tokio::test]
+    async fn write_under_declared_permit_creates_the_subdir() {
+        // #433 option C · end-to-end through the dispatcher: a `nika:write`
+        // to a NEW sub-directory inside the declared write permit succeeds
+        // WITHOUT `create_dirs` — the permit for `allowed/**` is the intent.
+        // (Pre-fix this returned NIKA-BUILTIN-WRITE-001 « parent does not
+        // exist »; chart always auto-created — the disagreement #433 named.)
+        let root = scratch();
+        let boundary = FsBoundary::declared(vec![], vec![format!("{}/allowed/**", root.display())]);
+        let dispatcher = dispatcher_with(boundary);
+        let target = root.join("allowed/fresh/report.md");
+        let result = dispatcher
+            .execute(ToolCall::new(
+                "t",
+                "nika:write",
+                serde_json::json!({
+                    "path": target.to_string_lossy(),
+                    "content": "# under a declared tree",
+                }),
+            ))
+            .await
+            .expect("dispatches");
+        assert!(
+            !result.is_error,
+            "declared intent · no create_dirs: {}",
+            result.content
+        );
+        assert!(
+            target.exists(),
+            "the file landed in the freshly-created subdir"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn write_to_new_subdir_without_permit_still_gates() {
+        // The un-declared corner is UNCHANGED: no boundary → `nika:write`
+        // keeps its safety default (a missing parent refuses without
+        // `create_dirs`). Additive fix · nothing that gated stops gating.
+        let root = scratch();
+        let dispatcher = dispatcher_with(FsBoundary::unbounded());
+        let target = root.join("nowhere/report.md");
+        let result = dispatcher
+            .execute(ToolCall::new(
+                "t",
+                "nika:write",
+                serde_json::json!({
+                    "path": target.to_string_lossy(),
+                    "content": "x",
+                }),
+            ))
+            .await
+            .expect("dispatches");
+        assert!(result.is_error, "no permit → the safety gate still fires");
+        assert!(
+            result.content.contains("create_dirs"),
+            "the teach is intact: {}",
+            result.content
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
