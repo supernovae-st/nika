@@ -12,6 +12,19 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`llms-install.md` gains the bare-metal lane · `context7.json` steers
+  the retrieval surface.** The install runbook now covers the box with no
+  package manager: release tarball + `SHA256SUMS` verify, with version
+  discovery via the releases web redirect instead of the GitHub API
+  (anonymous `api.github.com` rate-limits to 403 in shared/CI
+  environments — hit live while proving this lane; the whole flow was
+  then proven curl-only end to end). `context7.json` is the owner config
+  Context7 reads when the repo is indexed: it points parsing at the
+  teaching surfaces (docs · examples · spec pointers, engine internals
+  excluded) and rides four authoring rules along every retrieval — the
+  check-first loop, provider/model form, unpriced-never-free, and
+  never-invent-builtins.
+
 - **`llms.txt` lists `llms-install.md`.** The agent on-ramp's « Start
   here » now includes the install runbook — an agent landing on the raw
   repo finds the install lane before the authoring contract.
