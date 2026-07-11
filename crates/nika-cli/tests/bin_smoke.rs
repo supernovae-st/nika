@@ -526,6 +526,57 @@ fn wire_cursor_migrates_stale_mcp_config() {
     let _ = std::fs::remove_dir_all(&home);
 }
 
+/// Variadic `check` through the real binary — the pre-commit shape:
+/// a broken file in the MIDDLE exits 2 while the file after it still
+/// audits, and `--json` with several files refuses (exit 3, teach line)
+/// because `report_version: 1` is a per-file contract.
+#[test]
+fn check_many_files_keeps_worst_exit_and_json_stays_single() {
+    let dir = workspace_tmp_dir("nika-check-many-smoke");
+    let clean = "nika: v1\nworkflow: ok\ntasks:\n  - id: t\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
+    let broken = "nika: v1\nworkflow: bad\ntasks:\n  - id: t\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 10, model: \"mock/echo\" }\n";
+    let a = dir.join("a.nika.yaml");
+    let b = dir.join("broken.nika.yaml");
+    let c = dir.join("c.nika.yaml");
+    std::fs::write(&a, clean).expect("fixture a");
+    std::fs::write(&b, broken).expect("fixture b");
+    std::fs::write(&c, clean).expect("fixture c");
+
+    let out = bin()
+        .arg("check")
+        .args([&a, &b, &c])
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(2), "worst exit survives");
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    let tail = stdout
+        .split_once("broken.nika.yaml")
+        .map(|s| s.1)
+        .expect("broken report present");
+    assert!(
+        tail.contains("c.nika.yaml"),
+        "the file after the failure still audited: {stdout}"
+    );
+
+    let refuse = bin()
+        .arg("check")
+        .args([&a, &c])
+        .arg("--json")
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        refuse.status.code(),
+        Some(3),
+        "invocation error, no file judged"
+    );
+    let msg = String::from_utf8(refuse.stderr).expect("utf8");
+    assert!(
+        msg.contains("ONE file per call"),
+        "the refusal teaches: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// #384 · the wave-2 targets through the real binary: gemini + lmstudio
 /// resolve under HOME, junie under the project `--dir`.
 #[test]

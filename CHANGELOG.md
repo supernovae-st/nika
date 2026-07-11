@@ -12,6 +12,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika check` audits several files in one call.** `nika check a.nika.yaml
+  b.nika.yaml …` runs the full per-file ladder on each (every report keeps
+  its own header), no stop-at-first — a broken file mid-list exits with the
+  worst spec-§4 code while the files after it still audit. The single-file
+  invocation is byte-identical to before, and the machine modes stay
+  one-file-per-call: `--json` (`report_version: 1` is a per-file contract)
+  and `--infer-permits` with several files refuse with a teach line
+  (exit 3 — the invocation is wrong, no file was judged). This is the
+  pre-commit/CI shape: the framework passes every staged match in one
+  argv, and the hook manifest now points straight at the binary — the
+  fan-out wrapper the manifest shipped with (#407) is gone before it
+  ever reached a tag.
 - **`.pre-commit-hooks.yaml` — `nika check` as a pre-commit hook.** The
   standard manifest the [pre-commit](https://pre-commit.com) framework
   reads from a hooked repo (actionlint · shellcheck-py · ruff all ship

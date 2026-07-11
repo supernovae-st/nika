@@ -128,8 +128,12 @@ enum Command {
     /// Audit a workflow BEFORE it runs: plan · cost ceiling · secret
     /// flows · types · tools — every finding teaches its fix.
     Check {
-        /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
-        file: String,
+        /// Workflow file(s) (`*.nika.yaml`) · `-` reads stdin · several
+        /// files audit in sequence (each full report · the worst exit
+        /// wins — the pre-commit/CI shape). `--json` and
+        /// `--infer-permits` stay one-file-per-call.
+        #[arg(required = true, num_args = 1..)]
+        files: Vec<String>,
         /// Emit the machine-readable report (never coloured).
         #[arg(long)]
         json: bool,
@@ -690,6 +694,48 @@ struct TraceArgs {
     no_outputs: bool,
 }
 
+/// The `check` arm's routing: single file = the pre-variadic path,
+/// byte-identical (every existing consumer — hooks · agents · CI — sees
+/// exactly what it saw before); several files fan out through
+/// [`verbs::check::run_many`]. The machine modes stay one-file-per-call —
+/// `report_version: 1` and the inferred boundary are per-file contracts —
+/// so `--json`/`--infer-permits` with several files refuse with a teach
+/// line at exit 3 (the INVOCATION is wrong, no file was judged), and
+/// stdin (`-`) cannot join a multi-file audit.
+fn check_dispatch(
+    files: &[String],
+    json: bool,
+    infer_permits: bool,
+    native_strict: bool,
+    model: Option<&str>,
+    theme: Theme,
+) -> verbs::VerbOutput {
+    if let [file] = files {
+        if infer_permits {
+            verbs::check::run_infer_permits(file, json)
+        } else {
+            verbs::check::run(file, json, native_strict, model, theme)
+        }
+    } else if json || infer_permits {
+        verbs::VerbOutput {
+            text: "check: --json and --infer-permits report ONE file per call \
+                   (report_version 1 is a per-file contract)\n  fix: loop the \
+                   files, one check per call\n"
+                .to_owned(),
+            code: verbs::exit::ENV,
+        }
+    } else if files.iter().any(|f| f == "-") {
+        verbs::VerbOutput {
+            text: "check: stdin (`-`) cannot join a multi-file audit\n  fix: \
+                   pipe one call per stream, or name the files\n"
+                .to_owned(),
+            code: verbs::exit::ENV,
+        }
+    } else {
+        verbs::check::run_many(files, native_strict, model, theme)
+    }
+}
+
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     let color = cli.color;
@@ -697,7 +743,7 @@ fn main() -> std::process::ExitCode {
     let plain_theme = term_theme(color.with_no_color(false), false, link_when);
     let code = match cli.command {
         Command::Check {
-            file,
+            files,
             json,
             infer_permits,
             native_strict,
@@ -705,18 +751,15 @@ fn main() -> std::process::ExitCode {
             no_color,
             ascii,
         } => {
-            let out = if infer_permits {
-                verbs::check::run_infer_permits(&file, json)
-            } else {
-                verbs::check::run(
-                    &file,
-                    json,
-                    native_strict,
-                    model.as_deref(),
-                    term_theme(color.with_no_color(no_color), ascii, link_when),
-                )
-            };
-            emit(&out)
+            let theme = term_theme(color.with_no_color(no_color), ascii, link_when);
+            emit(&check_dispatch(
+                &files,
+                json,
+                infer_permits,
+                native_strict,
+                model.as_deref(),
+                theme,
+            ))
         }
         Command::Run(args) => run_verb(&args, color, link_when),
         Command::Test {
