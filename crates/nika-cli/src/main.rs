@@ -250,6 +250,11 @@ enum Command {
         #[arg(long, default_value = ".")]
         dir: String,
     },
+    /// Local models — serve one on this machine (no cloud, no external daemon).
+    Model {
+        #[command(subcommand)]
+        action: ModelAction,
+    },
     /// The embedded spec identity (`--canon` prints the SSOT).
     Spec {
         /// Print the canon.yaml single source of truth.
@@ -398,6 +403,26 @@ impl From<WireTargetArg> for verbs::wire::WireTarget {
             WireTargetArg::All => Self::All,
         }
     }
+}
+
+#[derive(Subcommand)]
+enum ModelAction {
+    /// Serve a GGUF model — an OpenAI-compatible foreground server on
+    /// 127.0.0.1 (Ctrl-C stops it · the banner says how workflows reach it).
+    Serve {
+        /// The model weights (a Qwen3-family `.gguf` file).
+        #[arg(long, value_name = "PATH.gguf")]
+        model: PathBuf,
+        /// The tokenizer file (default: `tokenizer.json` beside the model).
+        #[arg(long, value_name = "PATH")]
+        tokenizer: Option<PathBuf>,
+        /// Loopback port to listen on.
+        #[arg(long, default_value_t = verbs::model::DEFAULT_PORT)]
+        port: u16,
+        /// The model id responses report (default: the model file's name).
+        #[arg(long, value_name = "ID")]
+        model_id: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -831,6 +856,7 @@ fn main() -> std::process::ExitCode {
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
         Command::Init { dir, force, yes } => emit(&verbs::init::run(&dir, force, yes, plain_theme)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target.into(), &dir)),
+        Command::Model { action } => model_verb(action),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
         Command::Schema => emit(&verbs::pack_surface::schema()),
         Command::Catalog { json } => emit(&verbs::catalog::run(json)),
@@ -882,6 +908,22 @@ fn emit(out: &VerbOutput) -> u8 {
         println!("{}", out.text.trim_end());
     }
     out.code
+}
+
+/// The `model` sub-verbs — a healthy `serve` never returns, so `emit` only prints refusals.
+fn model_verb(action: ModelAction) -> u8 {
+    let ModelAction::Serve {
+        model,
+        tokenizer,
+        port,
+        model_id,
+    } = action;
+    emit(&verbs::model::serve(
+        &model,
+        tokenizer.as_deref(),
+        port,
+        model_id.as_deref(),
+    ))
 }
 
 /// Dispatch the `trace` verb family: the live renders (replay · show)
