@@ -165,9 +165,17 @@ fn default_or_fail(
                 format!("`default:` must be {type_hint} for this mode (got {raw}) — {remedy}"),
             )
         }),
+        // Teach BOTH exits from the headless dead-end (stateful gauntlet
+        // 2026-07-11): the stdlib contract fails here by design (never
+        // hang), but the message named neither route — an author could not
+        // learn that `default:` unblocks headless runs or that the machine
+        // surfaces pause durably instead of failing.
         None => Err(BuiltinFailure::new(
             code,
-            "non-interactive and no `default:` — cannot answer without a human",
+            "non-interactive and no `default:` — cannot answer without a human · \
+             either declare `default:` (headless runs answer with it) or run \
+             with `--json`/`--output json` (the run pauses durably · resume \
+             with `--resume <trace> --answer <task>=<value>`)",
         )),
     }
 }
@@ -446,7 +454,19 @@ mod tests {
             &NonInteractive,
             &args(serde_json::json!({ "message": "ok?" })),
         );
-        assert!(matches!(fail, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-001"));
+        // The headless dead-end teaches BOTH exits (stateful gauntlet
+        // 2026-07-11): declare `default:` OR run on a machine surface that
+        // pauses durably (`--resume … --answer`).
+        assert!(matches!(&fail, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-001"));
+        let msg = match fail {
+            Err(f) => f.message,
+            Ok(_) => unreachable!("headless prompt without default must fail"),
+        };
+        assert!(msg.contains("declare `default:`"), "{msg}");
+        assert!(
+            msg.contains("--resume") && msg.contains("--answer"),
+            "{msg}"
+        );
 
         // a real human picks the first choice (exercises string_choices + the choice arm).
         let picked = prompt(
