@@ -219,7 +219,24 @@ fn action_facts(
     }
 }
 
-/// Mermaid renderer — derives from the projection, labels carry the verb.
+/// The 4 verb hues — the shared visual vocabulary (spec `design/tokens.yaml`,
+/// vendored in the pack as `design-tokens.yaml`). Hand-written consts, NOT a
+/// runtime parse (L-grain: zero yaml in the render path) — the parity test
+/// below pins them against `nika_pack::design_tokens()`, so a spec-side hue
+/// change fails `cargo test` here until this table follows. Terminal output
+/// never uses these (nika-display is ANSI-16 semantic by doctrine); they
+/// exist for the HEX surfaces: mermaid classDefs, byte-parity with the
+/// spec's showcase projector (`fill = color + "22"` alpha).
+const VERB_COLORS: [(&str, &str); 4] = [
+    ("infer", "#5b8cff"),
+    ("exec", "#ff7a3c"),
+    ("invoke", "#22d3ee"),
+    ("agent", "#b07bff"),
+];
+
+/// Mermaid renderer — derives from the projection, labels carry the verb,
+/// verb identity paints the node (the same classDef map every projected
+/// docs diagram uses — one visual language on every surface).
 #[must_use]
 pub fn to_mermaid(doc: &GraphDoc) -> String {
     let mut out = String::from("graph TD\n");
@@ -232,13 +249,22 @@ pub fn to_mermaid(doc: &GraphDoc) -> String {
             .unwrap_or_default();
         let _ = writeln!(
             out,
-            "  {id}[\"{id} · {verb}{detail}\"]",
+            "  {id}[\"{id} · {verb}{detail}\"]:::{verb}",
             id = node.id,
             verb = node.verb
         );
     }
     for edge in &doc.edges {
         let _ = writeln!(out, "  {} --> {}", edge.from, edge.to);
+    }
+    // Only the classDefs of verbs actually drawn (the spec projector's rule).
+    for (verb, color) in VERB_COLORS {
+        if doc.nodes.iter().any(|n| n.verb == verb) {
+            let _ = writeln!(
+                out,
+                "  classDef {verb} fill:{color}22,stroke:{color},color:{color}"
+            );
+        }
     }
     out
 }
@@ -364,6 +390,54 @@ mod tests {
         let report = nika_schema::check(&wf);
         let doc = project(&wf, &report);
         (to_mermaid(&doc), to_dot(&doc))
+    }
+
+    /// The hand-written [`VERB_COLORS`] table must MATCH the vendored
+    /// design-tokens (spec `design/tokens.yaml` → pack `design-tokens.yaml`)
+    /// — the shared visual vocabulary is spec-first: a hue change lands
+    /// there, re-vendors, and THIS test stays red until the table follows.
+    #[test]
+    fn verb_colors_match_the_pack_design_tokens() {
+        let tokens = nika_pack::design_tokens();
+        assert!(
+            !tokens.is_empty(),
+            "pack carries design-tokens.yaml (sync-pack.sh vendored it)"
+        );
+        for (verb, color) in VERB_COLORS {
+            let section = tokens
+                .split(&format!("  {verb}:\n"))
+                .nth(1)
+                .expect("tokens carry every verb section");
+            let pinned = section
+                .lines()
+                .find_map(|l| l.trim().strip_prefix("color: \""))
+                .and_then(|rest| rest.split('"').next())
+                .expect("verb section carries a color");
+            assert_eq!(
+                color, pinned,
+                "VERB_COLORS.{verb} drifted from the pack design-tokens"
+            );
+        }
+    }
+
+    /// Mermaid nodes carry their verb class and the classDef map is the
+    /// SAME derivation the spec's showcase projector emits (fill = color +
+    /// `22` alpha) — one visual language on every rendered surface. Only
+    /// verbs actually drawn get a classDef.
+    #[test]
+    fn mermaid_paints_verb_identity() {
+        let (mermaid, _) = renders(
+            "nika: v1\nworkflow: paint\nmodel: mock/echo\ntasks:\n  - id: a\n    infer: { prompt: \"p\", max_tokens: 5 }\n",
+        );
+        assert!(mermaid.contains(":::infer"), "node classed:\n{mermaid}");
+        assert!(
+            mermaid.contains("classDef infer fill:#5b8cff22,stroke:#5b8cff,color:#5b8cff"),
+            "spec-parity classDef:\n{mermaid}"
+        );
+        assert!(
+            !mermaid.contains("classDef exec"),
+            "undrawn verbs stay classless:\n{mermaid}"
+        );
     }
 
     /// A model with chars special to mermaid (`"` `]`) or dot (`"`) must be

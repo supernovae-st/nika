@@ -12,6 +12,17 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`graph --format mermaid` paints verb identity** — nodes carry their
+  verb class and the diagram ends with the SAME classDef map every
+  projected docs page uses (the shared visual vocabulary: spec
+  `design/tokens.yaml`, vendored into the pack as `design-tokens.yaml`
+  and exposed via `nika_pack::design_tokens()`). Byte-parity with the
+  spec's showcase projector (`fill = color + 22` alpha · only drawn
+  verbs get a classDef); a parity test pins the renderer's consts to
+  the vendored tokens, so a spec-side hue change stays red engine-side
+  until the table follows. Terminal output untouched — chrome remains
+  ANSI-16 semantic (#464).
+
 - **`nika wire` wave-3a: `claude-desktop` + `qwen`** (#449). Claude
   Desktop was the double gap — a different app with a different config
   file than Claude Code's `~/.claude.json`: the writer targets

@@ -36,6 +36,7 @@ pub unsafe fn nika_pack::ErrorCodeRow::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_pack::ErrorCodeRow
 pub fn nika_pack::ErrorCodeRow::from(t: T) -> T
 pub fn nika_pack::canon() -> &'static str
+pub fn nika_pack::design_tokens() -> &'static str
 pub fn nika_pack::doc(path: &str) -> core::option::Option<&'static str>
 pub fn nika_pack::doc_paths() -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_pack::error_codes() -> alloc::vec::Vec<nika_pack::ErrorCodeRow>

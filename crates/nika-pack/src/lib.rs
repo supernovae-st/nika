@@ -53,6 +53,15 @@ pub fn canon() -> &'static str {
     file_str("canon.yaml").unwrap_or("")
 }
 
+/// The shared visual vocabulary (`design-tokens.yaml` — the spec's
+/// `design/tokens.yaml`, vendored): verb colors · severity · brand core.
+/// `graph --format mermaid` derives its classDefs from it; a parity test
+/// pins the renderer's hand-written consts against this file.
+#[must_use]
+pub fn design_tokens() -> &'static str {
+    file_str("design-tokens.yaml").unwrap_or("")
+}
+
 /// One row of the canon's `error_codes` registry — the spec's normative
 /// floor (`spec/05-errors.md` · projector-emitted flow-style rows).
 /// Output-only: constructed solely by [`error_codes`].

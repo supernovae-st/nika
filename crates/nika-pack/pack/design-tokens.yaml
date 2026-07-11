@@ -1,0 +1,81 @@
+# design/tokens.yaml — the nika SHARED visual vocabulary · SSOT v1
+#
+# THIS FILE IS THE SOURCE for every cross-repo design value: the 4 verb
+# colors, the severity pair, the brand core, and each concept's per-surface
+# icon binding. Every other surface is a PROJECTION:
+#
+#   nika.sh    src/design-tokens.generated.ts   (scripts/design-projector.py)
+#   nika-vscode src/design-tokens.generated.ts  (idem · sibling checkout)
+#   nika-docs  docs.json theme colors           (parity-checked, not rewritten)
+#   nika-spec  showcase-projector MERMAID map   (read directly, same repo)
+#   nika engine · the pack vendors this file    (sync-pack.sh · engine consts)
+#
+# Surfaces are heterogeneous (React SVG · vscode codicons · Mintlify
+# fontawesome · terminal glyphs) — so "the same icon everywhere" is ONE
+# concept row carrying its per-surface binding, all pinned here. A naive
+# same-file-everywhere would be false coherence.
+#
+# Law: values change HERE first, then re-project (--write) and re-check
+# (--check, wired in CI). Every value below is the CURRENT shipping value
+# canonized 2026-07-11 — consolidation, not redesign. The terminal is
+# deliberately ABSENT: engine chrome is ANSI-16 semantic by doctrine
+# (nika-display theme.rs · the user's terminal theme decides those hues).
+
+version: 1
+
+brand:
+  glyph: "🦋"
+  # The served asset canon (marks · logo lockups · tiles · glyph-16 · the
+  # machine-readable icon ontology icons.json/.ttl). Vendor FROM here —
+  # sync contents, never rename (the vscode icons/README.md contract).
+  assets: "https://nika.sh/brand/"
+  color:
+    bg: "#08090b"             # the dark surface (website --v4-bg == docs bg dark)
+    accent: "#4f86ff"         # THE accent (blue) · website --v4-accent
+    accent_strong: "#2f6bff"  # website --v4-accent-strong == docs primary/dark
+    accent_bright: "#8db4ff"  # website --v4-accent-bright == docs light
+    mark:
+      ice: "#9fd0ff"          # nika-mark-dark.svg fill (dark surfaces)
+      glow: "#cfe6ff"         # nika-mark-glow.svg (tiny sizes · WebGL)
+      ink: "#04050d"          # nika-mark-light.svg fill (light surfaces)
+
+# The 4 verbs — locked forever (spec/02-verbs.md). codicon + glyph are the
+# SHIPPED vscode bindings (workflowTree ThemeIcons · the ◇▷◆✦ unicode set);
+# fa is the Mintlify binding; icon is the nika.sh ontology id (icons.json).
+verbs:
+  infer:
+    color: "#5b8cff"
+    codicon: "sparkle"
+    fa: "sparkles"
+    glyph: "◇"
+    icon: "ai-magic/sparkle"
+  exec:
+    color: "#ff7a3c"
+    codicon: "terminal"
+    fa: "terminal"
+    glyph: "▷"
+    icon: "console"
+  invoke:
+    color: "#22d3ee"
+    codicon: "plug"
+    fa: "plug"
+    glyph: "◆"
+    icon: "api-connection"
+  agent:
+    color: "#b07bff"
+    codicon: "robot"
+    fa: "robot"
+    glyph: "✦"
+    icon: "agent-graph"
+
+# The severity pair shared by run verdicts across surfaces (website run/morph
+# css · vscode run-state · docs). warn stays surface-local today (no cross-
+# repo consumer pins a shared warn yet — add it the day two surfaces need it).
+severity:
+  ok: "#34d399"
+  fail: "#ff5d5d"
+
+rules:
+  # Mermaid classDef fill = verb color + this alpha suffix. Derived at
+  # projection time, never stored as a 5th value per verb.
+  mermaid_fill_alpha: "22"
