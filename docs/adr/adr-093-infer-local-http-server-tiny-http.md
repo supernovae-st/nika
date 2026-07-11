@@ -1,7 +1,7 @@
 ---
 id: ADR-093
 title: "nika-infer-local HTTP server · tiny_http for the v1 sidecar endpoint"
-status: proposed
+status: accepted
 date: 2026-06-11
 phase: "Phase 2 · post-v0.81 announce ladder"
 deciders: ["@ThibautMelen"]
