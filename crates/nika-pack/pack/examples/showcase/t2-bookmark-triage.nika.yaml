@@ -46,6 +46,7 @@ tasks:
     for_each: ${{ vars.bookmarks }}
     max_parallel: 3
     fail_fast: false
+    retry: { max_attempts: 2, backoff_ms: 500 } # a transient blip retries BEFORE the dead verdict
     on_error:
       recover: { dead: true } # a YAML value, not a JSON string — the marker row
     invoke:
@@ -64,10 +65,11 @@ tasks:
           urls: ${{ vars.bookmarks }}
           pages: ${{ tasks.pages.output }}
         expression: >-
+          def esc: tostring | gsub("\\|"; "\\|") | gsub("\n"; " ");
           ([.urls, .pages] | transpose | map({ url: .[0], page: .[1] })) as $rows |
           {
             live: ([$rows[] | select(.page.dead != true) |
-              "| \(.url) | \(.page.title // "—") | \((.page.description // "—") | .[0:80]) |"] | join("\n")),
+              "| \(.url) | \(.page.title // "—" | esc) | \((.page.description // "—" | esc) | .[0:80]) |"] | join("\n")),
             dead: ([$rows[] | select(.page.dead == true) | "| \(.url) | DEAD | link rot |"] | join("\n"))
           }
 
@@ -77,7 +79,7 @@ tasks:
       tool: "nika:write"
       args:
         path: out/bookmarks.md
-        create_dirs: true # redundant on engines past #438 (a declared write permit creates its tree) · kept for 0.99.0
+        create_dirs: true
         content: |
           # Bookmark triage
 

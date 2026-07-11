@@ -45,9 +45,9 @@ showcase:
   - file: examples/showcase/t1-image-fx-batch.nika.yaml
     workflow: image-fx-batch
     tier: T1
-    description: "Folder of PNGs \u2192 deterministic art (grayscale \u00b7 dither \u00b7 pixelate) \u00b7 offline batch"
+    description: "Folder of PNG files \u2192 deterministic art (grayscale \u00b7 dither \u00b7 pixelate) \u00b7 offline batch"
     constructs: [for_each, max_parallel, outputs]
-    sha256_16: 5e2677422f14aa75
+    sha256_16: 2980033544ae2714
   - file: examples/showcase/t1-meeting-actions.nika.yaml
     workflow: meeting-actions
     tier: T1
@@ -82,8 +82,8 @@ showcase:
     workflow: bookmark-triage
     tier: T2
     description: "URL list \u2192 per-page metadata fan-out (dead links survive) \u2192 one markdown triage table"
-    constructs: [fail_fast, for_each, max_parallel, on_error, outputs, typed_vars]
-    sha256_16: b17b77869fd07e2b
+    constructs: [fail_fast, for_each, max_parallel, on_error, outputs, retry, typed_vars]
+    sha256_16: a90df931a8f90f17
   - file: examples/showcase/t2-contract-guard.nika.yaml
     workflow: contract-guard
     tier: T2
@@ -95,7 +95,7 @@ showcase:
     tier: T2
     description: "CSV \u2192 aggregate \u2192 rendered bar chart + markdown report \u00b7 offline \u00b7 deterministic"
     constructs: [outputs]
-    sha256_16: 16184e3aea2c3c9d
+    sha256_16: c3fe5fa23b84fcc4
   - file: examples/showcase/t2-etl-quarantine.nika.yaml
     workflow: etl-quarantine
     tier: T2
@@ -143,7 +143,7 @@ showcase:
     tier: T2
     description: "Raw transcript \u2192 typed show-notes (chapters \u00b7 quotes \u00b7 summary) \u00b7 one bounded infer"
     constructs: [local_model, outputs, schema]
-    sha256_16: d78d3526e93eb3f3
+    sha256_16: ae46c2dc2311ecbe
   - file: examples/showcase/t3-competitor-radar.nika.yaml
     workflow: competitor-radar
     tier: T3

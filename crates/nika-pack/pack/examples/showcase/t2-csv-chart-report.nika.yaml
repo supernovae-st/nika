@@ -71,9 +71,21 @@ tasks:
         chart: { type: bar, x: region, y: revenue, title: "Revenue by region" }
         out: out/revenue-by-region.svg
 
+  # The rows as MARKDOWN · a report renders lines, never a JSON blob
+  # (region names are user data — the esc guards a `|` in them).
+  - id: rows_md
+    depends_on: [by_region]
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ tasks.by_region.output }}"
+        expression: >-
+          def esc: tostring | gsub("\\|"; "\\|") | gsub("\n"; " ");
+          map("| \(.region | esc) | \(.revenue) |") | join("\n")
+
   # The page · the report references the picture beside it.
   - id: report
-    depends_on: [chart, by_region]
+    depends_on: [chart, rows_md]
     invoke:
       tool: "nika:write"
       args:
@@ -83,9 +95,9 @@ tasks:
 
           ![Revenue by region](revenue-by-region.svg)
 
-          ```json
-          ${{ tasks.by_region.output }}
-          ```
+          | region | revenue |
+          | --- | --- |
+          ${{ tasks.rows_md.output }}
 
           *Generated offline by [nika](https://nika.sh) · the chart's sha is in the run trace (`nika trace verify`).*
 
