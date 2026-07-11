@@ -35,9 +35,9 @@ mod effective;
 mod findings;
 mod flow;
 mod hints;
-mod infer_permits;
 pub(crate) mod native_first;
 mod permits_fit;
+mod permits_infer;
 mod reach;
 mod requirements;
 mod schema_lint;
@@ -57,8 +57,8 @@ pub use findings::UnifiedFinding;
 pub use flow::{FlowFacts, TaintTrace};
 pub use hints::Hint;
 pub use hints::static_read_paths;
-pub use infer_permits::InferredPermits;
 pub use permits_fit::CapabilityEscape;
+pub use permits_infer::InferredPermits;
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use requirements::{ModelRequirement, Requirements, SecretRequirement};
 pub use schema_lint::SchemaLintFinding;
@@ -409,7 +409,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
 /// takes the parsed [`RawWorkflow`] and always returns a result.
 #[must_use]
 pub fn infer_permits(wf: &RawWorkflow) -> InferredPermits {
-    infer_permits::infer(wf)
+    permits_infer::infer(wf)
 }
 
 /// ONE task's capability attribution as deterministic permit strings —
@@ -418,7 +418,7 @@ pub fn infer_permits(wf: &RawWorkflow) -> InferredPermits {
 /// effect walk as [`infer_permits`], un-aggregated.
 #[must_use]
 pub fn task_permits(task: &crate::raw::RawTask) -> Vec<String> {
-    infer_permits::task_permits(task)
+    permits_infer::task_permits(task)
 }
 
 #[cfg(test)]

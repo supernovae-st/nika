@@ -16,7 +16,7 @@
 
 use serde::Serialize;
 
-use super::infer_permits;
+use super::permits_infer;
 use crate::raw::RawWorkflow;
 use crate::types::Permits;
 
@@ -58,7 +58,7 @@ pub struct EffectivePermits {
 /// State the affirmative contract for one workflow (total — a
 /// half-broken workflow still states what it declares and needs).
 pub(super) fn collect(wf: &RawWorkflow) -> EffectivePermits {
-    let inferred = infer_permits::infer(wf);
+    let inferred = permits_infer::infer(wf);
     let declared = wf.permits.as_ref().map(|p| p.value.clone());
     EffectivePermits {
         source: if declared.is_some() {
