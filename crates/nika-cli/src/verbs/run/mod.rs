@@ -909,7 +909,12 @@ async fn execute(
         let (code, outcome) = drive(runtime, wf, report, &mut stamper, &mut tee).await;
         let (mut sink, trace) = tee.into_parts();
         sink.print_final();
-        surface_trace(trace, TraceNote::Stderr, None);
+        let trace_path = surface_trace(trace, TraceNote::Stderr, None);
+        // A paused run teaches its exact resume command on stderr — the
+        // pause sibling of the failure lane's `autopsy:` line.
+        if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
+            eprintln!("nika run: {}", epilogue::resume_hint_line(file, p, pause));
+        }
         epilogue::print_resume_summary(&outcome, resumed, true);
         // Built BEFORE the sink is consumed — the failure envelope reads
         // the folded view (the failed row's detail carries the wire code).
@@ -947,7 +952,10 @@ async fn execute(
         let (sink, trace) = tee.into_parts();
         // stdout stays NDJSON verbatim (byte-identical with or without the
         // journal) — the trace note rides on stderr here.
-        surface_trace(trace, TraceNote::Stderr, None);
+        let trace_path = surface_trace(trace, TraceNote::Stderr, None);
+        if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
+            eprintln!("nika run: {}", epilogue::resume_hint_line(file, p, pause));
+        }
         if let Some(e) = sink.into_error() {
             eprintln!("nika run: stream write failed: {e}");
             return RunVerdict::bare(exit::ENV);
@@ -1043,7 +1051,7 @@ async fn execute_fold_lane(
         .iter()
         .find(|r| r.state == crate::TaskState::Failed)
         .map(|r| r.id.clone());
-    surface_trace(
+    let _ = surface_trace(
         trace,
         if mode == RenderMode::Quiet {
             TraceNote::Silent
