@@ -44,6 +44,16 @@
 //!    per-request `follow_redirects` works, and a public host can not
 //!    bounce the client into private space.
 //!
+//! The ONE narrow carve-out (issue #395 · ADR-092 egress precedent): an
+//! EXACT loopback literal in the declared `permits.net.http`
+//! (`localhost` · `127.x.y.z` · `::1`/`[::1]` — never a glob, never
+//! RFC1918/link-local/metadata) is the author's declassification and
+//! clears the floor for THAT host only, across all four layers: the
+//! static vet skips the block for the exact host, and the resolve layers
+//! admit the LOOPBACK addresses of that permitted NAME only (a rebind to
+//! any other blocked range, or a redirect to an un-permitted floor host,
+//! still refuses).
+//!
 //! # Response size caps
 //!
 //! `max_response_bytes` (default 64 MiB) activates the kernel's
@@ -119,7 +129,25 @@ pub enum NetBoundary {
     /// host outside it fails [`HttpError::HostNotAllowed`] (→ `NIKA-SEC-004`).
     /// An EMPTY list admits nothing (a `permits:` block present but omitting
     /// `net` = no outbound network).
+    ///
+    /// An EXACT loopback literal among the entries (`localhost` ·
+    /// `127.x.y.z` · `::1`/`[::1]`) is ALSO the author's SSRF-floor
+    /// declassification for that host (issue #395 · ADR-092 egress
+    /// precedent) — never a glob, never RFC1918/link-local/metadata (those
+    /// stay floor-blocked even when named).
     Declared(Vec<String>),
+}
+
+impl NetBoundary {
+    /// The declared glob list — empty for [`NetBoundary::Unbounded`]. The
+    /// ONE slice the floor declassification, the allowlist, and the
+    /// guarded resolver all read.
+    fn globs(&self) -> &[String] {
+        match self {
+            Self::Declared(globs) => globs,
+            Self::Unbounded => &[],
+        }
+    }
 }
 
 /// Configuration for [`ReqwestHttp`].
@@ -213,7 +241,14 @@ fn check_net_allowlist(boundary: &NetBoundary, url: &url::Url) -> Result<(), Htt
             host: url.as_str().to_owned(),
         });
     };
-    if nika_types::net::host_in_allowlist(globs, &host) {
+    // A qualifying loopback literal admits its host too (#395): the glob
+    // matcher knows nothing of the `[::1]` authority spelling, and an
+    // entry that CLEARS the floor for a host but then failed the
+    // allowlist would be check-green + run-refused — the drift class this
+    // carve-out closes. Loopback-exact only; it widens nothing else.
+    if nika_types::net::host_in_allowlist(globs, &host)
+        || nika_types::net::loopback_declassified(globs, &host)
+    {
         Ok(())
     } else {
         Err(HttpError::HostNotAllowed { host })
@@ -252,8 +287,13 @@ impl ReqwestHttp {
             // HttpConfig field — never ambient (crate docs · layer 3).
             .no_proxy();
         if config.ssrf == SsrfMode::Enforce {
-            // Layer 3: range-check INSIDE the connect path.
-            builder = builder.dns_resolver(std::sync::Arc::new(GuardedResolver));
+            // Layer 3: range-check INSIDE the connect path. The resolver
+            // carries the declared `permits.net.http` so a permitted exact
+            // loopback literal (#395) clears its OWN resolution at the
+            // connect path too — per resolved NAME, never per address class.
+            builder = builder.dns_resolver(std::sync::Arc::new(GuardedResolver {
+                net_permits: std::sync::Arc::new(config.net.globs().to_vec()),
+            }));
         }
         let inner = builder.build().map_err(|e| HttpError::Other {
             reason: format!("failed to build HTTP client: {e}"),
@@ -274,7 +314,9 @@ impl ReqwestHttp {
             SsrfMode::Disabled => url::Url::parse(raw).map_err(|e| HttpError::Other {
                 reason: format!("invalid URL: {e}"),
             })?,
-            SsrfMode::Enforce => ssrf::check_url(raw)?,
+            // The declared permits ride into the static floor check: an
+            // exact loopback literal among them declassifies its host (#395).
+            SsrfMode::Enforce => ssrf::check_url(raw, self.config.net.globs())?,
         };
         // 2. The workflow's DECLARED permits.net.http boundary (NIKA-SEC-004),
         //    on EVERY hop (this fn runs once per redirect), holding even under
@@ -289,7 +331,7 @@ impl ReqwestHttp {
         // 3. DNS-resolve guard (Enforce only) — every resolved address
         //    range-checked, AFTER the host cleared the declared boundary.
         if self.config.ssrf == SsrfMode::Enforce {
-            resolve_guard(&parsed).await?;
+            resolve_guard(&parsed, self.config.net.globs()).await?;
         }
         Ok(parsed)
     }
@@ -575,11 +617,21 @@ enum ResolveVerdict {
 /// Classify resolved addresses: `Private` if ANY is in a blocked range,
 /// else `AllPublic` (≥1) or `Empty` (none). Pure — the testable core of
 /// the DNS-resolve SSRF layer.
-fn classify_resolved(addrs: impl IntoIterator<Item = std::net::SocketAddr>) -> ResolveVerdict {
+///
+/// `allow_loopback` is the #395 declassification verdict for the NAME
+/// being resolved (its host is a permitted exact loopback literal): it
+/// admits the LOOPBACK CLASS ONLY — a permitted `localhost` must reach
+/// its resolved `127.0.0.1`/`::1`, while a rebind of the same name to
+/// RFC1918/metadata still refuses.
+fn classify_resolved(
+    addrs: impl IntoIterator<Item = std::net::SocketAddr>,
+    allow_loopback: bool,
+) -> ResolveVerdict {
     let mut any = false;
     for addr in addrs {
         any = true;
-        if ssrf::ip_is_blocked(addr.ip()) {
+        let ip = addr.ip();
+        if ssrf::ip_is_blocked(ip) && !(allow_loopback && ip.is_loopback()) {
             return ResolveVerdict::Private;
         }
     }
@@ -597,16 +649,25 @@ fn classify_resolved(addrs: impl IntoIterator<Item = std::net::SocketAddr>) -> R
 /// to land. Resolution itself is `tokio::net::lookup_host` (the system
 /// resolver, same as reqwest's default `GaiResolver`) under
 /// [`DNS_RESOLVE_TIMEOUT`].
-#[derive(Debug, Clone, Copy, Default)]
-struct GuardedResolver;
+#[derive(Debug, Clone, Default)]
+struct GuardedResolver {
+    /// The workflow's declared `permits.net.http` entries — read ONLY for
+    /// the exact-loopback declassification (#395): loopback addresses are
+    /// admitted iff the NAME being resolved is itself a permitted exact
+    /// loopback literal (`loopback_declassified` · per-name, so a redirect
+    /// hop or rebound public name gets no clearance from someone else's
+    /// grant). Empty = no boundary = today's strict floor.
+    net_permits: std::sync::Arc<Vec<String>>,
+}
 
 impl reqwest::dns::Resolve for GuardedResolver {
     fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
         let host = name.as_str().to_owned();
+        let allow_loopback = nika_types::net::loopback_declassified(&self.net_permits, &host);
         Box::pin(async move {
             // Port 0 — reqwest substitutes the URL's effective port
             // (`dns_resolver` contract · verified docs.rs 2026-06-12).
-            match guarded_lookup(&host, 0).await {
+            match guarded_lookup(&host, 0, allow_loopback).await {
                 Ok(addrs) => Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs),
                 Err(e) => Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>), // box-dyn-ok(vendor-seam): reqwest::dns::Resolving's error slot REQUIRES this exact type — the typed HttpError rides inside and is recovered by find_http_error
             }
@@ -615,11 +676,17 @@ impl reqwest::dns::Resolve for GuardedResolver {
 }
 
 /// One guarded DNS resolution — system lookup under
-/// [`DNS_RESOLVE_TIMEOUT`], EVERY returned address range-checked.
-/// Shared by the advisory layer ([`resolve_guard`]) and the
-/// enforcement layer ([`GuardedResolver`]): one logic, two seams
-/// (review lens 2 · P3-1 dedupe).
-async fn guarded_lookup(host: &str, port: u16) -> Result<Vec<std::net::SocketAddr>, HttpError> {
+/// [`DNS_RESOLVE_TIMEOUT`], EVERY returned address range-checked
+/// (loopback admitted only under the caller's `allow_loopback`
+/// declassification verdict for THIS host · #395). Shared by the
+/// advisory layer ([`resolve_guard`]) and the enforcement layer
+/// ([`GuardedResolver`]): one logic, two seams (review lens 2 ·
+/// P3-1 dedupe).
+async fn guarded_lookup(
+    host: &str,
+    port: u16,
+    allow_loopback: bool,
+) -> Result<Vec<std::net::SocketAddr>, HttpError> {
     let lookup = tokio::time::timeout(DNS_RESOLVE_TIMEOUT, tokio::net::lookup_host((host, port)))
         .await
         .map_err(|_| HttpError::Timeout {
@@ -629,7 +696,7 @@ async fn guarded_lookup(host: &str, port: u16) -> Result<Vec<std::net::SocketAdd
             reason: format!("DNS resolution failed for {host}: {e}"),
         })?;
     let addrs: Vec<std::net::SocketAddr> = lookup.collect();
-    match classify_resolved(addrs.iter().copied()) {
+    match classify_resolved(addrs.iter().copied(), allow_loopback) {
         ResolveVerdict::AllPublic => Ok(addrs),
         ResolveVerdict::Private => Err(HttpError::SsrfBlocked {
             url: host.to_owned(),
@@ -645,8 +712,10 @@ async fn guarded_lookup(host: &str, port: u16) -> Result<Vec<std::net::SocketAdd
 ///
 /// This is the ADVISORY layer (crate docs · layer 2): it fail-fasts
 /// with a typed error before any connection attempt. The ENFORCEMENT
-/// is [`GuardedResolver`] inside the connect path.
-async fn resolve_guard(parsed: &url::Url) -> Result<(), HttpError> {
+/// is [`GuardedResolver`] inside the connect path. `net_permits` is the
+/// declared `permits.net.http` — both layers derive the SAME per-name
+/// loopback-declassification verdict from it (#395).
+async fn resolve_guard(parsed: &url::Url, net_permits: &[String]) -> Result<(), HttpError> {
     let Some(host) = parsed.host_str() else {
         return Err(HttpError::Other {
             reason: format!("URL has no host: {parsed}"),
@@ -658,9 +727,10 @@ async fn resolve_guard(parsed: &url::Url) -> Result<(), HttpError> {
     }
 
     let port = parsed.port_or_known_default().unwrap_or(80);
+    let allow_loopback = nika_types::net::loopback_declassified(net_permits, bare);
     // A Private verdict re-labels with the FULL url (the advisory layer
     // has it; the resolver only sees the bare host).
-    match guarded_lookup(bare, port).await {
+    match guarded_lookup(bare, port, allow_loopback).await {
         Ok(_) => Ok(()),
         Err(HttpError::SsrfBlocked { .. }) => Err(HttpError::SsrfBlocked {
             url: parsed.to_string(),

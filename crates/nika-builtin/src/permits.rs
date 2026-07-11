@@ -38,7 +38,9 @@ pub(crate) const SEC_DENIED: &str = "NIKA-SEC-004";
 /// The spec-canonical code for an SSRF block — a `nika:fetch`/`nika:notify`
 /// URL resolving to a loopback/private/link-local/metadata target (the
 /// always-on engine floor · `05-errors.md` · `security_error` · never
-/// retryable, never fed back to an `agent:` model · independent of `permits:`).
+/// retryable, never fed back to an `agent:` model · independent of
+/// `permits:` with ONE carve-out: an exact loopback literal in
+/// `permits.net.http` declassifies the floor for that host only · #395).
 pub(crate) const SEC_SSRF: &str = "NIKA-SEC-005";
 
 /// Which direction of `permits.fs` an op needs.

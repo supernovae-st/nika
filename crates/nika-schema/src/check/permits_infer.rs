@@ -191,13 +191,28 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &crate::raw::RawInvoke
                 // this inference just wrote (a self-refusing suggestion,
                 // the same class as suggesting a program allowlist for a
                 // shell string). Honesty note instead of a silent drop.
+                // A LOOPBACK host is declassifiable (#395) — but only by
+                // the AUTHOR's hand: the explicit act stays explicit, so
+                // the inference still never writes it; the note teaches
+                // the opt-in instead.
                 Some(host) if nika_types::net::host_is_blocked(&host) => {
-                    c.notes.push(format!(
-                        "task `{id}` fetches `{host}` — the always-on SSRF floor \
-                         (NIKA-SEC-005) refuses loopback/private/link-local/metadata \
-                         targets, so no `permits.net.http` entry can admit it; not \
-                         inferred (point the task at a public host)"
-                    ));
+                    let note = if nika_types::net::is_exact_loopback_literal(&host) {
+                        format!(
+                            "task `{id}` fetches `{host}` — the always-on SSRF floor \
+                             (NIKA-SEC-005) refuses it unless YOU declassify it: \
+                             writing the exact literal `{host}` into \
+                             `permits.net.http` is the owner's explicit act, so it \
+                             is never inferred"
+                        )
+                    } else {
+                        format!(
+                            "task `{id}` fetches `{host}` — the always-on SSRF floor \
+                             (NIKA-SEC-005) refuses loopback/private/link-local/metadata \
+                             targets, so no `permits.net.http` entry can admit it; not \
+                             inferred (point the task at a public host)"
+                        )
+                    };
+                    c.notes.push(note);
                 }
                 Some(host) => {
                     c.hosts.insert(host);
@@ -729,10 +744,10 @@ tasks:
     #[test]
     fn floor_blocked_host_is_never_inferred_into_the_grants() {
         // A loopback fetch must NOT synthesize `net.http: ["127.0.0.1"]`
-        // — the floor refuses it regardless, so the entry would be inert
-        // and the escape scanner would flag the block this inference just
-        // wrote (a self-refusing suggestion). Public hosts still infer;
-        // the floored one becomes an honesty note.
+        // — even though the exact literal WOULD declassify the floor
+        // (#395): the explicit act must stay the author's, so the
+        // inference keeps its hands off and the note TEACHES the opt-in.
+        // Public hosts still infer.
         let r = infer_of(
             "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:9/x\" } }\n  - id: b\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
         );
@@ -741,5 +756,30 @@ tasks:
         assert_eq!(r.notes.len(), 1, "{:?}", r.notes);
         assert!(r.notes[0].contains("SSRF floor"), "{}", r.notes[0]);
         assert!(r.notes[0].contains("`127.0.0.1`"), "{}", r.notes[0]);
+        assert!(
+            r.notes[0].contains("explicit act"),
+            "the loopback note teaches the opt-in: {}",
+            r.notes[0]
+        );
+    }
+
+    #[test]
+    fn non_loopback_floor_note_never_teaches_the_opt_in() {
+        // The never-list keeps the pre-#395 wording: no entry can admit a
+        // metadata/RFC1918 target, so the note must NOT hint one.
+        let r = infer_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://169.254.169.254/latest/meta-data/\" } }\n",
+        );
+        assert_eq!(r.notes.len(), 1, "{:?}", r.notes);
+        assert!(
+            r.notes[0].contains("no `permits.net.http` entry can admit it"),
+            "{}",
+            r.notes[0]
+        );
+        assert!(
+            !r.notes[0].contains("explicit act"),
+            "never-list targets get no opt-in hint: {}",
+            r.notes[0]
+        );
     }
 }
