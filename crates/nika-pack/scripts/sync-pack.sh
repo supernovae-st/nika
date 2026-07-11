@@ -36,5 +36,9 @@ cp "${SPEC}"/stdlib/*.md "${DEST}/stdlib/"
 # the egress-to-outputs arc) — without this line every re-sync silently
 # DELETED it (the rm -rf + copy-list pattern's blind spot).
 cp "${SPEC}/conformance/coverage-matrix.tsv" "${DEST}/"
+# The shared visual vocabulary (spec design/tokens.yaml · the design SSOT ·
+# #464): verb colors + severity + brand core. graph's mermaid classDefs
+# derive from it at build time. Same blind-spot law as the line above.
+cp "${SPEC}/design/tokens.yaml" "${DEST}/design-tokens.yaml"
 
 echo "pack synced from ${SPEC} → ${DEST} (version $(cat "${DEST}/VERSION"))"

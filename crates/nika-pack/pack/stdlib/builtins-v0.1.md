@@ -40,10 +40,10 @@
 | Data | 8 | `jq` (THE data language) + 7 capabilities jq can't express (json_diff · validate · json_merge_patch · convert · uuid · date · hash) |
 | Introspection | 2 | Self-awareness · `inspect` (runtime state · 4 views) · `compose` (static check of a drafted workflow · agent loops only) |
 | Network | 2 | fetch (HTTP+extraction) · notify (alerts out) |
-| Media | 3 | `chart` (§Media #3 · deterministic/attested · 2026-07-09) · `image_generate` (§Media · 2026-07-05) · `tts_generate` (§Audio · same day) — the REST of the media class stays deferred to stdlib v0.x |
-| **Total v0.1** | **26** | |
+| Media | 4 | `chart` (§Media #4 · deterministic/attested · 2026-07-09) · `image_generate` (§Media · 2026-07-05) · `image_fx` (§Media #3 · deterministic ops chain · 2026-07-09) · `tts_generate` (§Audio · 2026-07-05) — the REST of the media class stays deferred to stdlib v0.x |
+| **Total v0.1** | **<!-- canon:builtins -->27<!-- /canon -->** | |
 
-A Stdlib v0.1-compliant engine MUST ship these 26.
+A Stdlib v0.1-compliant engine MUST ship these <!-- canon:builtins -->27<!-- /canon -->.
 
 ---
 

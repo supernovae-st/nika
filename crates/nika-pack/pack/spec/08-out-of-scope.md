@@ -157,14 +157,14 @@ tasks: ...
 
 **Why deferred** · scheduling is an engine-runtime concern · not a language concern. A conformant engine handles cron at runtime · workflows themselves stay schedule-agnostic.
 
-### Trace retention · lifted by ADR-100 (proposed)
+### Trace retention · lifted by ADR-100
 
 > `.nika/traces/` is bounded by default (keep-last-N · age cap · size
 > budget) with two absolute exemptions — a `paused` trace (a pending human
 > gate) and each workflow's newest trace (the standing resume candidate) —
 > and a one-line visible report whenever collection removes anything ·
-> [ADR-100](../adr/adr-100-trace-retention.md). CLI surface (`nika trace
-> ls|rm`) and config wiring land with the engine arc.
+> [ADR-100](../adr/adr-100-trace-retention.md). The CLI surface (`nika trace
+> ls|rm`) and config wiring landed with the engine arc.
 
 ### Workflow checkpointing / resumption
 
@@ -177,7 +177,7 @@ checkpoint:
 
 **Why deferred** · persistence is an engine-runtime concern. A conformant engine handles this internally · workflows don't declare it.
 
-> **Lifted at the durable-lite tier · [ADR-099](../adr/adr-099-durable-lite-run-resume.md) (proposed · 2026-07-05)** ·
+> **Lifted at the durable-lite tier · [ADR-099](../adr/adr-099-durable-lite-run-resume.md) (accepted · 2026-07-05 · shipped)** ·
 > `nika run --resume <trace>` re-executes from the run's own NDJSON trace
 > (content-addressed per-task skip · every skip a **visible** `task.cache_hit`
 > event · `--from <task_id>` override) — the trace IS the checkpoint · CLI +
@@ -277,13 +277,17 @@ agents:
 
 ## Tooling extensibility · STDLIB v0.x
 
-### 24 media builtins
+### 22 media builtins
 
-`pdf_extract` · `svg_render` · `chart` · `phash` · `compare` · `optimize` · `provenance` · `qr_validate` · `thumbhash` · `dominant_color` · `image_diff` · `import` · `thumbnail` · `provenance_verify` · `text_extract` · `ocr` · `transcribe` · `tts` · `mediainfo` · `dimensions` · `colorize` · `palette_extract` · `qr_generate` · `barcode`
+`pdf_extract` · `svg_render` · `phash` · `compare` · `optimize` · `provenance` · `qr_validate` · `thumbhash` · `dominant_color` · `image_diff` · `import` · `thumbnail` · `provenance_verify` · `text_extract` · `ocr` · `transcribe` · `mediainfo` · `dimensions` · `colorize` · `palette_extract` · `qr_generate` · `barcode`
 
-**Why deferred** · 24 builtins is a third of the total builtin surface · they target a specific audience (media pipelines). Splitting them into stdlib v0.x reduces v0.1 scope by ~40% without losing core capability.
+**Why deferred** · 22 builtins would nearly double the total builtin surface · they target a specific audience (media pipelines). Splitting them into stdlib v0.x keeps v0.1 scope lean without losing core capability.
 
-The reference engine ships them (opt-in feature flag) but they don't count toward Stdlib v0.1 conformance.
+Rows graduate one at a time, as counted stdlib builtins, when they pass the
+admission razors: `chart` (§Media graduate #4 · 2026-07-09) and `tts`
+(shipped as `tts_generate` · §Audio · 2026-07-05) already left this list —
+see [canon.yaml](../canon.yaml) + [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md).
+The rows above remain unshipped and don't count toward Stdlib v0.1 conformance.
 
 ### Pluggable provider adapters
 
@@ -372,11 +376,11 @@ or a non-goal, with the line that says whose job it is.
 
 | # | Horizon | Posture | The one-paragraph answer |
 |---|---|---|---|
-| H1 | Durable execution (checkpoint · resume · replay) | **OUT · durable-lite tier lifted by ADR-099 (proposed)** | A v0.1 run is a single OS process with in-memory state · crash = re-run from the top · `retry:` is in-process only. The **durable-lite tier** (crash-resume + re-run-from-a-node from the run's own trace · visible `task.cache_hit` · zero author-facing determinism constraints) is lifted by [ADR-099](../adr/adr-099-durable-lite-run-resume.md) · CLI + trace only. Idempotency keys + the full durable-execution waypoint (retries that survive a restart · at-least-once dedup) stay deferred (§Persistence · v0.2+) · until then durability beyond `--resume` is the **host's responsibility** (run under a supervisor · make side-effecting tools idempotent via their own args). |
+| H1 | Durable execution (checkpoint · resume · replay) | **OUT · durable-lite tier lifted by ADR-099** | A v0.1 run is a single OS process with in-memory state · crash = re-run from the top · `retry:` is in-process only. The **durable-lite tier** (crash-resume + re-run-from-a-node from the run's own trace · visible `task.cache_hit` · zero author-facing determinism constraints) is lifted by [ADR-099](../adr/adr-099-durable-lite-run-resume.md) · CLI + trace only. Idempotency keys + the full durable-execution waypoint (retries that survive a restart · at-least-once dedup) stay deferred (§Persistence · v0.2+) · until then durability beyond `--resume` is the **host's responsibility** (run under a supervisor · make side-effecting tools idempotent via their own args). |
 | H2 | Streaming between tasks | **OUT** | Tasks are synchronous · a dependent reads the **final assembled value** (§Streaming). Engines MAY stream provider tokens internally/to the user. A between-task stream changes what an *edge* delivers: a future additive edge semantic, never a verb ([02 closure](./02-verbs.md#the-closure-argument--why-no-case-forces-a-5th-verb)). Pub/sub listeners · NEVER in the finite-DAG v1. |
 | H3 | Multimodal artifacts (typed image/audio/video) | **PARTIAL** | v0.1 values are strings · JSON values · and **opaque bytes pass-through** (tool-determined · [02 §invoke output](./02-verbs.md#what--tasksidoutput--holds--per-verb) · `infer.vision` takes file/url refs). No typed media payloads · no content-addressing in the language. Both arrive with the deferred media builtins (stdlib v0.x · §Tooling extensibility). Addressing (e.g. blake3) is engine detail, not language surface. |
 | H4 | Agent-of-agents (sub-agents · budget propagation · trust inheritance) | **PARTIAL** | The `agent:` verb is a **single loop** with per-task budgets (`max_turns` · `max_tokens_total` · normative · [02 §agent](./02-verbs.md)) and a default-deny tool whitelist. Budgets do NOT propagate across tasks (each declares its own). Multi-agent topology · §Advanced agent features (expressible today as multiple `agent:` tasks + explicit `with:` hand-off). Run-recursion is bounded by the §composition recursion guard. |
-| H5 | Human-in-the-loop (approval gates) | **IN** | `nika:prompt` (blocking confirm with `default:` for non-interactive mode) plus `nika:notify` (fire-and-forget). Pause-state is **live** (the run keeps a process while blocked) · **durable pause ships with [ADR-099](../adr/adr-099-durable-lite-run-resume.md)'s `--resume`** (proposed · a non-interactive default-less blocked `nika:prompt` journals `workflow.paused` + exits cleanly · resume re-arms it) · time-bound it with the task-level `timeout:`. ONE construct · a tool under `invoke:` · forever. |
+| H5 | Human-in-the-loop (approval gates) | **IN** | `nika:prompt` (blocking confirm with `default:` for non-interactive mode) plus `nika:notify` (fire-and-forget). Pause-state is **live** (the run keeps a process while blocked) · **durable pause shipped with [ADR-099](../adr/adr-099-durable-lite-run-resume.md)'s `--resume`** (a non-interactive default-less blocked `nika:prompt` journals `workflow.paused` + exits cleanly · resume re-arms it) · time-bound it with the task-level `timeout:`. ONE construct · a tool under `invoke:` · forever. |
 | H6 | Evals in-language (asserts · LLM-judge · golden runs) | **PARTIAL** | v0.1 ships the pieces · `schema:` (per-task structured-output gate · auto-retry) · `nika:assert` (fail-fast CEL guard) · `nika:validate` (JSON Schema over data). An LLM-judge is an `infer:` task with a verdict `schema:`, no dedicated builtin needed. Golden-run testing reuses the conformance fixture shape (input + expected output on `mock/`). Declarative in-file eval blocks · deferred. |
 | H7 | Cost governance (budgets in €/tokens) | **PARTIAL** | Reading IS in-language · `nika:inspect view: cost` (running cost). Enforcement is NOT · hard caps are engine config (§Observability · `budget:` blocks deferred v0.2). The `agent:` budgets (`max_tokens_total`) are the one normative in-language cap today. |
 | H8 | Model routing / fallback chains | **PARTIAL** | The language surface is ONE field · explicit `model:` per task (+ `vars` parameterization: one workflow, any backend). Provider-side routing exists TODAY via `openrouter/…` (gateway fallback). Declarative capability-based routing in YAML ("any vision model under $X") · deferred · it must not create a second way to pick a model. |
