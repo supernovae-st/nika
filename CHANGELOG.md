@@ -12,6 +12,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`graph --format json` fills the per-task `permits` attribution** —
+  the field the projection declared as its contract (empty since #367)
+  now carries each task's pinnable capability effects: `exec: <prog>`
+  (or `exec: true` when dynamic) · `fs.read:`/`fs.write: <path>` ·
+  `net.http: <host>` · `tool: <ref>` — deterministic order, the same
+  effect walk `--infer-permits` aggregates into the workflow boundary,
+  un-aggregated (`nika_schema::check::task_permits`). Effects too
+  dynamic to pin project nothing (the check's escape lane owns that
+  story — a projection never guesses). Graph clients that already read
+  the field (the nika-vscode `▦ N` card chip) light up with no client
+  change.
+
 - **`graph --format json` projects the declared POLICY** — nodes gain
   `retry_max_attempts` · `timeout_ms` · `on_error`
   (`recover`/`skip`/`fail_workflow`) · `outputs` (declared binding

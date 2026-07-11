@@ -47,10 +47,11 @@ pub struct Node {
     pub when: Option<String>,
     /// `for_each` fan-out, when present.
     pub fan_out: Option<FanOut>,
-    /// Per-task permit strings (spec §6 envelope field · always present).
-    /// Empty TODAY: the analyzer aggregates effects into the workflow
-    /// boundary (`infer_permits`) without exposing per-task attribution —
-    /// this fills when that projector ships, the field IS the contract.
+    /// Per-task capability attribution (`exec:` · `fs.read:` ·
+    /// `fs.write:` · `net.http:` · `tool:` — deterministic, BTree-ordered
+    /// within each family). The un-aggregated voice of the same effect
+    /// walk `infer_permits` folds into the workflow boundary; empty for
+    /// a task with no pinnable effect (bare infer · dynamic net/fs).
     pub permits: Vec<String>,
     /// Static cost interval `[min_path, worst_case]` USD — only for
     /// priced inference tasks (the cost lane's honesty: no price, no
@@ -129,7 +130,7 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
                     // #[non_exhaustive] future gate forms name themselves.
                     other => format!("{other:?}"),
                 }),
-                permits: Vec::new(),
+                permits: nika_schema::check::task_permits(task),
                 fan_out: task.for_each.as_ref().map(|f| match &f.value {
                     nika_schema::raw::ForEachValue::List(items) => FanOut {
                         kind: "list",
