@@ -140,6 +140,13 @@ enum Command {
         /// Print an inferred `permits:` boundary instead of the report.
         #[arg(long)]
         infer_permits: bool,
+        /// Apply the machine-applicable rename repairs (typed
+        /// did-you-mean suggestions only: fields · tools · args), rewrite
+        /// the file, and re-audit — the in-binary repair loop
+        /// (`clippy --fix` shape). One real file; ambiguous tokens are
+        /// skipped with a note, never guessed.
+        #[arg(long)]
+        fix: bool,
         /// Fail (exit 2) when any `native-first` hint remains — an
         /// `exec:` a builtin or MCP tool probably covers. The agent/CI
         /// posture; hints stay advisory without it.
@@ -702,14 +709,42 @@ struct TraceArgs {
 /// so `--json`/`--infer-permits` with several files refuse with a teach
 /// line at exit 3 (the INVOCATION is wrong, no file was judged), and
 /// stdin (`-`) cannot join a multi-file audit.
-fn check_dispatch(
-    files: &[String],
+struct CheckFlags {
     json: bool,
     infer_permits: bool,
     native_strict: bool,
+}
+
+fn check_dispatch(
+    files: &[String],
+    flags: &CheckFlags,
+    fix: bool,
     model: Option<&str>,
     theme: Theme,
 ) -> verbs::VerbOutput {
+    let CheckFlags {
+        json,
+        infer_permits,
+        native_strict,
+    } = *flags;
+    if fix {
+        // The repair loop rewrites a file: stdin has nothing to rewrite,
+        // --json's report_version is a single immutable audit, several
+        // files would interleave rewrites with one summary, and
+        // --infer-permits is a different output entirely.
+        if json || infer_permits {
+            return verbs::fix::refuse(
+                "--fix pairs with the plain audit only (not --json / --infer-permits)",
+            );
+        }
+        return match files {
+            [file] if file != "-" => verbs::fix::run(file, native_strict, model, theme),
+            [_] => verbs::fix::refuse("stdin (`-`) has no file to rewrite — name a real path"),
+            _ => {
+                verbs::fix::refuse("one file per repair loop — loop the files, one --fix per call")
+            }
+        };
+    }
     if let [file] = files {
         if infer_permits {
             verbs::check::run_infer_permits(file, json)
@@ -746,6 +781,7 @@ fn main() -> std::process::ExitCode {
             files,
             json,
             infer_permits,
+            fix,
             native_strict,
             model,
             no_color,
@@ -754,9 +790,12 @@ fn main() -> std::process::ExitCode {
             let theme = term_theme(color.with_no_color(no_color), ascii, link_when);
             emit(&check_dispatch(
                 &files,
-                json,
-                infer_permits,
-                native_strict,
+                &CheckFlags {
+                    json,
+                    infer_permits,
+                    native_strict,
+                },
+                fix,
                 model.as_deref(),
                 theme,
             ))
