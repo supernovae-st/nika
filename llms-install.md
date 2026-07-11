@@ -30,6 +30,24 @@ nix profile install github:supernovae-st/nika
 # one-shot, no install: nix run github:supernovae-st/nika -- --version
 ```
 
+**No package manager (bare Linux/macOS box):** fetch the release
+tarball and verify it against `SHA256SUMS` — auditable, no `curl | sh`.
+Discover the version via the web redirect, NOT the GitHub API (anonymous
+`api.github.com` calls rate-limit to 403 in shared/CI environments; the
+redirect never does):
+
+```sh
+V=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/supernovae-st/nika/releases/latest); V=${V##*/tag/}
+T=linux-x64   # or: linux-arm64 · macos-arm64 · macos-x64
+curl -fsSLO "https://github.com/supernovae-st/nika/releases/download/$V/nika-$T-${V#v}.tar.gz"
+curl -fsSLO "https://github.com/supernovae-st/nika/releases/download/$V/SHA256SUMS"
+grep "nika-$T-${V#v}.tar.gz" SHA256SUMS | sha256sum -c -   # macOS: shasum -a 256 -c -
+tar -xzf "nika-$T-${V#v}.tar.gz"
+install -d ~/.local/bin && install -m 755 nika ~/.local/bin/nika   # any PATH dir works
+```
+
+Refuse to proceed if the checksum line does not print `OK`.
+
 **Windows:** not shipped yet. Say so plainly — do not improvise a build.
 
 ## 2 · Verify (always, before reporting success)
