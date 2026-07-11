@@ -303,6 +303,19 @@ Prefer a guided page? Every install path, step by step: [nika.sh/install](https:
 > [latest release](https://github.com/supernovae-st/nika/releases/latest), verify
 > with `sha256sum -c SHA256SUMS --ignore-missing`, then move `nika` onto your `PATH`.
 
+Already carrying a toolchain?
+
+```sh
+# cargo — fetches the PREBUILT release tarball (no compile); the binary lands
+# as `nika-cli` until the crates.io publish — symlink the public name once:
+#   ln -sf ~/.cargo/bin/nika-cli ~/.cargo/bin/nika
+cargo binstall --git https://github.com/supernovae-st/nika nika-cli
+
+# nix — builds the exact release source via the flake (first run compiles,
+# the store caches it); `nix profile install` for a durable install
+nix run github:supernovae-st/nika
+```
+
 Your first workflow runs with **zero setup**: no model, no API key:
 
 ```sh
