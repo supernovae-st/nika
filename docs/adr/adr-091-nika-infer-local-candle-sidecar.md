@@ -1,7 +1,7 @@
 ---
 id: ADR-091
 title: "Sovereign local inference · nika-infer-local · pure-Rust candle sidecar, OpenAI-compat reuse, no rig / no mistral.rs"
-status: proposed
+status: accepted
 date: 2026-06-11
 phase: "Phase 2 · post-v0.81 announce ladder"
 deciders: ["@ThibautMelen"]
@@ -89,18 +89,27 @@ lifecycle + cancellation (CANCEL SAFETY) · sequential request queue v1
 load · typed errors (model-not-found · OOM · context-overflow · gen-timeout).
 Default model: **Qwen3** (BFCL tool-calling + NVIDIA SLM-agents thesis).
 
-## Open sub-decisions (operator ruling pending · recommended defaults shown)
+## Sub-decisions — RULED 2026-07-11 (operator-delegated · the recommended defaults lock)
 
-- **Structured output v1** → recommend **retry-loop** (generate → validate vs
-  schema → re-prompt with the error; the exact pattern the `eval/` harness
-  already proves) · **logit-masking / GBNF** (guaranteed-valid first token,
-  the real SOTA) deferred to v2.
-- **Embeddings in the same sidecar** → recommend **YES (v1.1)**: candle serves
-  embeddings (bge/e5), making the Connectome/memory stack 100% sovereign Rust.
-  A large lever; sequence after chat-completion lands.
-- **Crate boundary vs reserved `nika-vision-local`** (ADR-081, NIKA-1500..1599)
-  → recommend `nika-infer-local` = text (+ embeddings later); `nika-vision-local`
-  stays separate (heavy vision deps); align NIKA code ranges at scaffold.
+Accepted with the ADR: the crate was admitted conformant to this design, so
+a `proposed` status no longer described reality (same-day precedent: the
+ADR-099/100 status realignment).
+
+- **Structured output v1 = retry-loop** (generate → validate vs schema →
+  re-prompt with the error; the exact pattern the `eval/` harness already
+  proves) · logit-masking / GBNF (guaranteed-valid first token, the real
+  SOTA) stays v2.
+- **Embeddings in the same sidecar = YES, at v1.1** (candle serves bge/e5 —
+  the Connectome/memory stack becomes 100% sovereign Rust). Sequenced
+  strictly after chat-completion proves stable.
+- **Crate boundary**: `nika-infer-local` = text (+ embeddings at v1.1);
+  `nika-vision-local` (ADR-081 · NIKA-1500..1599) stays a separate crate —
+  heavy vision deps never enter the text sidecar.
+
+**What acceptance does NOT ship**: the launch surface (the L3 supervisor
+that spawns/monitors the sidecar + the CLI lane) is this ADR's `enables`,
+tracked by #146 (`nika model pull` sequences after it) — per ADR-093's
+follow-up, the supervisor lives at the runtime layer.
 
 ## Alternatives rejected
 
