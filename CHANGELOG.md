@@ -12,6 +12,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`.pre-commit-hooks.yaml` — `nika check` as a pre-commit hook.** The
+  standard manifest the [pre-commit](https://pre-commit.com) framework
+  reads from a hooked repo (actionlint · shellcheck-py · ruff all ship
+  one): every hooked repo audits its staged `*.nika.yaml` at commit
+  time. `language: script` with a fan-out wrapper because `nika check`
+  audits ONE file per call (its report is a per-file contract) while
+  pre-commit passes every staged match in one argv — each failing file
+  reports in the same run and the worst spec-§4 exit survives (proven
+  against the released binary: a broken file mid-list exits 2, the
+  files after it still audit). The `nika` binary is assumed on PATH,
+  the same trade actionlint's system hook takes. Unblocks the
+  pre-commit.com listing once tagged (#407).
 - **`nika wire gemini|lmstudio|junie` — wave-2 wire targets.** Three more
   hosts join the explicit, idempotent MCP wiring (#384, sibling of #330):
   Gemini CLI (`~/.gemini/settings.json` — the shared settings file, every

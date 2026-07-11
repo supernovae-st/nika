@@ -1,0 +1,22 @@
+# The pre-commit framework manifest (#407) — makes `nika check` consumable
+# as a hook (https://pre-commit.com). Consumers pin a tagged release:
+#
+#   repos:
+#     - repo: https://github.com/supernovae-st/nika
+#       rev: v0.99.0   # first tag carrying this file: the NEXT release
+#       hooks:
+#         - id: nika-check
+#
+# `language: script` (not `system`) because `nika check` audits ONE file
+# per call while pre-commit passes every staged match in one argv — the
+# wrapper fans out and keeps the worst exit. The `nika` binary itself is
+# assumed on PATH (brew/tarball/binstall/nix), the same trade actionlint's
+# system hook takes.
+- id: nika-check
+  name: nika check
+  description: >-
+    Statically audit .nika.yaml workflows (DAG, types, permits, secret
+    flows, cost floor) before they land — audit-before-run at commit time.
+  entry: scripts/hooks/pre-commit-nika-check.sh
+  language: script
+  files: '\.nika\.yaml$'
