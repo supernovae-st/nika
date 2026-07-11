@@ -10,6 +10,138 @@
 
 use super::*;
 
+/// #412 test seam — the gate: a `nika:jq` call whose `expression` arg is
+/// `".gate"` polls the sink's flag (1ms yields — tokio's `sync` feature
+/// is off in this workspace, and a flag poll needs only `time`); every
+/// other call answers instantly. Bounded at 5s so a regression fails
+/// loudly, never hangs the suite.
+struct GateExecutor {
+    unblock: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl nika_kernel::tool_executor::ToolExecuteDyn for GateExecutor {
+    async fn execute(
+        &self,
+        call: nika_kernel::tool_executor::ToolCall,
+    ) -> Result<nika_kernel::tool_executor::ToolResult, nika_kernel::tool_executor::ToolExecError>
+    {
+        use std::sync::atomic::Ordering;
+        if call.input.get("expression").and_then(Value::as_str) == Some(".gate") {
+            let mut waited_ms = 0u32;
+            while !self.unblock.load(Ordering::Acquire) {
+                if waited_ms > 5_000 {
+                    return Err(nika_kernel::tool_executor::ToolExecError::NotAvailable {
+                        reason: "settles did not stream — the gate starved (#412 \
+                                 regression: frames held to the wave join)"
+                            .into(),
+                    });
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+                waited_ms += 1;
+            }
+        }
+        Ok(nika_kernel::tool_executor::ToolResult::success(
+            call.id.as_str(),
+            "\"done\"",
+        ))
+    }
+}
+
+/// #412 test seam — the observer: forwards every event to a [`VecSink`]
+/// and flips the gate's flag when `fast`'s terminal frame arrives.
+struct NotifyOnFastSettle {
+    inner: VecSink,
+    unblock: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl EventSink for NotifyOnFastSettle {
+    fn emit(&mut self, event: Event) {
+        let is_fast_completed = event.kind == EventKind::TaskCompleted
+            && event.fields.iter().any(|kv| {
+                kv.key == "task" && matches!(&kv.value, FieldValue::String(s) if s == "fast")
+            });
+        if is_fast_completed {
+            self.unblock
+                .store(true, std::sync::atomic::Ordering::Release);
+        }
+        self.inner.emit(event);
+    }
+}
+
+/// #412 · settles STREAM through the ordered spine: a settled sibling's
+/// frames reach the sink at ITS settle, not the wave join. Proof by
+/// construction: `gate` (same wave, declared after `fast`) BLOCKS until
+/// the sink has seen fast's `task_completed` — join-granularity frames
+/// would starve it forever (they'd only exist after gate itself
+/// finished); the streamed spine settles fast first and unblocks the
+/// wave. A 5s timeout turns a regression into a loud failure, never a
+/// hung suite.
+#[tokio::test]
+async fn wave_settles_stream_before_the_join() {
+    use nika_kernel_mock::{MockClock, MockProvider, MockShell, MockToolDefinitionProvider};
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+    use std::sync::atomic::AtomicBool;
+
+    let yaml = "nika: v1\nworkflow: stream-settle\ntasks:\n  - id: fast\n    exec: { command: \"true\" }\n  - id: gate\n    invoke: { tool: \"nika:jq\", args: { input: [], expression: \".gate\" } }\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_schema::check(&wf);
+    assert!(report.is_clean(), "fixture must check clean");
+    assert_eq!(report.waves.len(), 1, "ONE wave — the whole point");
+
+    let unblock = Arc::new(AtomicBool::new(false));
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let invoke = Arc::new(InvokeVerb::new(Arc::new(GateExecutor {
+        unblock: Arc::clone(&unblock),
+    })));
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::new(MockShell::new().enqueue_ok("ok"))),
+        Arc::clone(&invoke),
+        InferVerb::new(registry, "mock/echo"),
+        AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        ),
+        MockClock::new(),
+        RuntimeConfig::default(),
+    );
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = NotifyOnFastSettle {
+        inner: VecSink::new(),
+        unblock,
+    };
+    let outcome = runtime
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("clean run");
+    assert!(outcome.ok, "both tasks settle green: {:?}", outcome.records);
+
+    // The settle ORDER is unchanged (submission order — the spine):
+    // fast's terminal frame precedes gate's.
+    let completed: Vec<&str> = sink
+        .inner
+        .events()
+        .iter()
+        .filter(|e| e.kind == EventKind::TaskCompleted)
+        .filter_map(|e| {
+            e.fields
+                .iter()
+                .find(|kv| kv.key == "task")
+                .and_then(|kv| match &kv.value {
+                    FieldValue::String(s) => Some(s.as_str()),
+                    _ => None,
+                })
+        })
+        .collect();
+    assert_eq!(completed, ["fast", "gate"], "the ordered spine holds");
+}
+
 #[test]
 fn runtime_config_default_is_wave_width_seed_zero() {
     let cfg = RuntimeConfig::default();
