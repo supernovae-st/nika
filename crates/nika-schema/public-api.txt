@@ -502,8 +502,10 @@ pub fn nika_schema::check::CheckReport::as_any(&self) -> &(dyn core::any::Any + 
 pub nika_schema::check::ConformanceViolation::code: alloc::string::String
 pub nika_schema::check::ConformanceViolation::docs_url: alloc::string::String
 pub nika_schema::check::ConformanceViolation::message: alloc::string::String
+pub nika_schema::check::ConformanceViolation::offending: core::option::Option<alloc::string::String>
 pub nika_schema::check::ConformanceViolation::severity: nika_schema::check::FindingSeverity
 pub nika_schema::check::ConformanceViolation::span: core::option::Option<nika_schema::check::ByteSpan>
+pub nika_schema::check::ConformanceViolation::suggestion: core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_schema::check::ConformanceViolation
 pub fn nika_schema::check::ConformanceViolation::clone(&self) -> nika_schema::check::ConformanceViolation
 impl core::cmp::Eq for nika_schema::check::ConformanceViolation
@@ -1775,6 +1777,7 @@ pub nika_schema::error::SchemaError::YamlSyntax
 pub nika_schema::error::SchemaError::YamlSyntax::message: alloc::string::String
 pub nika_schema::error::SchemaError::YamlSyntax::span: core::option::Option<nika_schema::Span>
 impl nika_schema::error::SchemaError
+pub fn nika_schema::error::SchemaError::rename_repair(&self) -> core::option::Option<(alloc::string::String, alloc::string::String)>
 pub fn nika_schema::error::SchemaError::span(&self) -> core::option::Option<nika_schema::Span>
 pub fn nika_schema::error::SchemaError::validation(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_schema::error::SchemaError::validation_at(message: impl core::convert::Into<alloc::string::String>, span: nika_schema::Span) -> Self
@@ -5795,6 +5798,7 @@ pub nika_schema::SchemaError::YamlSyntax
 pub nika_schema::SchemaError::YamlSyntax::message: alloc::string::String
 pub nika_schema::SchemaError::YamlSyntax::span: core::option::Option<nika_schema::Span>
 impl nika_schema::error::SchemaError
+pub fn nika_schema::error::SchemaError::rename_repair(&self) -> core::option::Option<(alloc::string::String, alloc::string::String)>
 pub fn nika_schema::error::SchemaError::span(&self) -> core::option::Option<nika_schema::Span>
 pub fn nika_schema::error::SchemaError::validation(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_schema::error::SchemaError::validation_at(message: impl core::convert::Into<alloc::string::String>, span: nika_schema::Span) -> Self
@@ -6484,8 +6488,10 @@ pub fn nika_schema::check::CheckReport::as_any(&self) -> &(dyn core::any::Any + 
 pub nika_schema::ConformanceViolation::code: alloc::string::String
 pub nika_schema::ConformanceViolation::docs_url: alloc::string::String
 pub nika_schema::ConformanceViolation::message: alloc::string::String
+pub nika_schema::ConformanceViolation::offending: core::option::Option<alloc::string::String>
 pub nika_schema::ConformanceViolation::severity: nika_schema::check::FindingSeverity
 pub nika_schema::ConformanceViolation::span: core::option::Option<nika_schema::check::ByteSpan>
+pub nika_schema::ConformanceViolation::suggestion: core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_schema::check::ConformanceViolation
 pub fn nika_schema::check::ConformanceViolation::clone(&self) -> nika_schema::check::ConformanceViolation
 impl core::cmp::Eq for nika_schema::check::ConformanceViolation
