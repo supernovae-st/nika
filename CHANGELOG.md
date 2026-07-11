@@ -12,6 +12,20 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **Agent-facing repo metadata: `llms-install.md` · `CITATION.cff` ·
+  `ADOPTERS.md`.** `llms-install.md` is the install runbook written FOR
+  an AI agent (the file Cline-class installers read): package-manager
+  paths only in the agent lane — brew · `cargo binstall --git` · nix —
+  each checksum-verified by its own flow, the shell script stays the
+  human lane (the same line the skill-guard hardening drew). Verify ·
+  prove offline (`nika examples run 01-hello --model mock/echo`) · wire
+  MCP · uninstall clean. `CITATION.cff` makes GitHub's « Cite this
+  repository » box work and is the metadata Zenodo reads at archive
+  time — version/date deliberately not hand-written (releases stamp
+  them); CITATIONS.md keeps crediting the research Nika builds on — the
+  two files answer different questions. `ADOPTERS.md` seeds the public
+  adopters table (one-line-PR invitation · « runs with nika » badge).
+
 - **`nika check` audits several files in one call.** `nika check a.nika.yaml
   b.nika.yaml …` runs the full per-file ladder on each (every report keeps
   its own header), no stop-at-first — a broken file mid-list exits with the
