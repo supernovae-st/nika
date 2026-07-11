@@ -39,7 +39,8 @@ Yes.
 ```sh
 brew install supernovae-st/tap/nika    # or: curl -LsSf https://nika.sh/install.sh | sh
 nika examples run 01-hello --model mock/echo            # zero setup: no key, no model server
-nika examples run 01-hello --model ollama/qwen3.5:4b    # got Ollama? the same run, real + local
+nika examples run 01-hello --model ollama/llama3.2:3b   # got Ollama? the same run, real + local
+# (first run loads the model into memory — later runs are much faster)
 ```
 
 ![nika check audits the workflow (plan, cost, secrets, types), then nika run executes it locally](media/nika-hero.gif)
@@ -183,7 +184,7 @@ visible — nothing is skipped silently.
 
 The binary embeds a versioned pack of runnable examples. Browse with
 `nika examples list`, read one with `nika examples show <slug>`, preview any
-of them with `--model ollama/qwen3.5:4b` (or offline with `--model mock/echo`):
+of them with `--model ollama/llama3.2:3b` (or offline with `--model mock/echo`):
 
 | I want to… | Run | For |
 |---|---|---|
