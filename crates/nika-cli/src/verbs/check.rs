@@ -799,6 +799,7 @@ fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
             t.paint(Role::Strong, "PERMITS"),
             t.paint(Role::Dim, "body fits the declared boundary")
         );
+        loopback_declassification_lines(out, wf, t);
         return;
     }
     for e in &report.capability_escapes {
@@ -827,6 +828,37 @@ fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
             e.task,
             e.detail,
         );
+    }
+}
+
+/// The loopback-declassification statement (#395), one dim line per
+/// exact loopback literal in the declared `net.http`: a green panel must
+/// TEACH that the always-on SSRF floor is cleared for that host by the
+/// author's explicit permit — silence would hide a security-relevant
+/// clearing. Informational only (never a finding — the clearing is the
+/// declared intent working as designed); the JSON twin rides
+/// `report.permits.notes`.
+fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme) {
+    let Some(permits) = wf.permits.as_ref() else {
+        return;
+    };
+    let Some(net) = permits.value.net.as_ref() else {
+        return;
+    };
+    for entry in &net.http {
+        if nika_types::net::is_exact_loopback_literal(entry) {
+            let _ = writeln!(
+                out,
+                "   {}",
+                t.paint(
+                    Role::Dim,
+                    &format!(
+                        "`{entry}` — exact loopback literal: the explicit permit \
+                         clears the always-on SSRF floor (NIKA-SEC-005) for that host"
+                    )
+                ),
+            );
+        }
     }
 }
 
@@ -1050,6 +1082,45 @@ mod tests {
         let mut clean_out = String::new();
         permits(&mut clean_out, &clean_report, &clean, theme);
         assert!(clean_out.contains("no boundary declared"), "{clean_out}");
+    }
+
+    /// The #395 admitting direction, through the CLI render: the battery
+    /// local-watch repro (`permits.net.http: ["127.0.0.1"]` + a literal
+    /// fetch to it) is GREEN — no NIKA-SEC-005, no dead-grant flag — and
+    /// the panel TEACHES the clearing with the informational line.
+    #[test]
+    fn permitted_loopback_literal_renders_green_with_the_teaching_line() {
+        let wf = parse_wf(
+            "nika: v1\nworkflow: local-watch\npermits:\n  net: { http: [\"127.0.0.1\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/price.json\" } }\n",
+        );
+        let report = nika_schema::check(&wf);
+        assert!(
+            report.capability_escapes.is_empty(),
+            "the exact literal declassifies: {:?}",
+            report.capability_escapes
+        );
+        let theme = Theme::new(false, true, false);
+        let mut out = String::new();
+        permits(&mut out, &report, &wf, theme);
+        assert!(
+            out.contains("body fits the declared boundary"),
+            "green panel: {out}"
+        );
+        assert!(
+            out.contains("exact loopback literal") && out.contains("`127.0.0.1`"),
+            "the teaching line renders: {out}"
+        );
+        // …and a boundary with no loopback literal renders NO such line.
+        let plain = parse_wf(
+            "nika: v1\nworkflow: w\npermits:\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
+        );
+        let plain_report = nika_schema::check(&plain);
+        let mut plain_out = String::new();
+        permits(&mut plain_out, &plain_report, &plain, theme);
+        assert!(
+            !plain_out.contains("exact loopback literal"),
+            "no loopback grant → no line: {plain_out}"
+        );
     }
 
     /// A `required: true` input with no `default:` is what the operator MUST
