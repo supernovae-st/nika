@@ -103,8 +103,25 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
     }
 
     let applied = repairs.iter().filter(|r| r.applied).count();
+    if applied > 0
+        && let Err(e) = std::fs::write(path, &source)
+    {
+        return VerbOutput::env(format!("cannot write {path}: {e}"));
+    }
+    // The final truth is the NORMAL check of what is now on disk —
+    // --fix is check plus a pen, never a different audit.
+    let verdict = super::check::run(path, false, native_strict, model, theme);
+    VerbOutput {
+        text: format!("{}{}", summary(&repairs, applied, theme), verdict.text),
+        code: verdict.code,
+    }
+}
+
+/// Render the per-repair lines + the closing verdict line (applied count
+/// or the honest nothing-applicable note).
+fn summary(repairs: &[Repair], applied: usize, theme: Theme) -> String {
     let mut out = String::new();
-    for r in &repairs {
+    for r in repairs {
         if r.applied {
             let _ = writeln!(
                 out,
@@ -138,9 +155,6 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
             theme.paint(Role::Strong, "FIX"),
         );
     } else {
-        if let Err(e) = std::fs::write(path, &source) {
-            return VerbOutput::env(format!("cannot write {path}: {e}"));
-        }
         let plural = if applied == 1 { "repair" } else { "repairs" };
         let _ = writeln!(
             out,
@@ -149,14 +163,7 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
             theme.paint(Role::Strong, "FIX"),
         );
     }
-
-    // The final truth is the NORMAL check of what is now on disk —
-    // --fix is check plus a pen, never a different audit.
-    let verdict = super::check::run(path, false, native_strict, model, theme);
-    VerbOutput {
-        text: format!("{out}{}", verdict.text),
-        code: verdict.code,
-    }
+    out
 }
 
 /// Splice `old` → `new` when `old` occurs EXACTLY ONCE in `source` as a
