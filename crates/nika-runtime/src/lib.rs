@@ -562,61 +562,19 @@ where
         };
 
         for wave in &report.waves {
-            // The wave-frozen view moves OUT for the wave (same-wave tasks
-            // never reference each other — checker law — so the pipelines
-            // read upstream records only) and back in after: the settles
-            // stream into a side map while the frozen view stays borrowed.
-            let frozen = std::mem::take(&mut records);
-            let streamed = self
-                .dispatch_settle_wave(
+            let early = self
+                .run_one_wave(
                     wave,
-                    wf,
-                    &frozen,
-                    (&vars, &env, &secrets, permits),
-                    &resume_ctx,
+                    (&workflow_name, permits),
+                    &resolve_scope,
                     &run_ledger,
-                    (&mut ok, &mut cache_hits),
                     &mut parked,
+                    (&mut records, &mut ok, &mut cache_hits),
                     stamper,
                     sink,
                 )
-                .await;
-            records = frozen;
-            let (wave_records, paused) = streamed?;
-            records.extend(wave_records);
-
-            if let Some(p) = paused {
-                emit_paused(&workflow_name, &p, stamper, sink);
-                let mut outcome =
-                    RunOutcome::new(true, std::mem::take(&mut records), BTreeMap::new());
-                outcome.cache_hits = std::mem::take(&mut cache_hits);
-                outcome.paused = Some(p);
-                return Ok(outcome.with_ledger(&run_ledger.snapshot()));
-            }
-
-            // The budget boundary: settle what ran, cancel what never
-            // started, fail the run with spent-vs-budget (NIKA-1704).
-            if run_ledger.tripped() {
-                // Parked recoveries resolve against what RAN before the
-                // abort cancels the rest — no task is left frameless.
-                recover::resolve_at_end(
-                    &resolve_scope,
-                    &mut parked,
-                    &mut records,
-                    &mut ok,
-                    &mut cache_hits,
-                    stamper,
-                    sink,
-                );
-                let outcome = abort_on_budget(
-                    wf,
-                    &workflow_name,
-                    records,
-                    cache_hits,
-                    &run_ledger.snapshot(),
-                    stamper,
-                    sink,
-                );
+                .await?;
+            if let Some(outcome) = early {
                 return Ok(outcome);
             }
         }
@@ -646,6 +604,93 @@ where
         let mut outcome = RunOutcome::new(ok, records, outputs).with_ledger(&snapshot);
         outcome.cache_hits = cache_hits;
         Ok(outcome)
+    }
+
+    /// One wave through the spine: dispatch + streamed settle, then the
+    /// two early-exit boundaries — `Some(outcome)` returns the run NOW
+    /// (a pause · the budget boundary), `None` continues to the next
+    /// wave. The wave-frozen view moves OUT for the wave (same-wave
+    /// tasks never reference each other — checker law — so the
+    /// pipelines read upstream records only) and back in after: the
+    /// settles stream into a side map while the frozen view stays
+    /// borrowed.
+    // The scope struct + accumulator trio ARE the settle surface —
+    // mirrors `dispatch_settle_wave` itself.
+    #[allow(clippy::too_many_arguments)]
+    async fn run_one_wave(
+        &self,
+        wave: &[usize],
+        (workflow_name, permits): (&str, Option<&nika_schema::types::Permits>),
+        resolve_scope: &recover::ResolveScope<'_>,
+        run_ledger: &ledger::RunLedger,
+        parked: &mut recover::ParkedRecoveries,
+        (records, ok, cache_hits): (
+            &mut BTreeMap<String, TaskRecord>,
+            &mut bool,
+            &mut Vec<String>,
+        ),
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+    ) -> Result<Option<RunOutcome>, RuntimeError> {
+        let (wf, vars, env, secrets) = (
+            resolve_scope.wf,
+            resolve_scope.vars,
+            resolve_scope.env,
+            resolve_scope.secrets,
+        );
+        let frozen = std::mem::take(records);
+        let streamed = self
+            .dispatch_settle_wave(
+                wave,
+                wf,
+                &frozen,
+                (vars, env, secrets, permits),
+                resolve_scope.resume_ctx,
+                run_ledger,
+                (ok, cache_hits),
+                parked,
+                stamper,
+                sink,
+            )
+            .await;
+        *records = frozen;
+        let (wave_records, paused) = streamed?;
+        records.extend(wave_records);
+
+        if let Some(p) = paused {
+            emit_paused(workflow_name, &p, stamper, sink);
+            let mut outcome = RunOutcome::new(true, std::mem::take(records), BTreeMap::new());
+            outcome.cache_hits = std::mem::take(cache_hits);
+            outcome.paused = Some(p);
+            return Ok(Some(outcome.with_ledger(&run_ledger.snapshot())));
+        }
+
+        // The budget boundary: settle what ran, cancel what never
+        // started, fail the run with spent-vs-budget (NIKA-1704).
+        if run_ledger.tripped() {
+            // Parked recoveries resolve against what RAN before the
+            // abort cancels the rest — no task is left frameless.
+            recover::resolve_at_end(
+                resolve_scope,
+                parked,
+                records,
+                ok,
+                cache_hits,
+                stamper,
+                sink,
+            );
+            let outcome = abort_on_budget(
+                wf,
+                workflow_name,
+                std::mem::take(records),
+                std::mem::take(cache_hits),
+                &run_ledger.snapshot(),
+                stamper,
+                sink,
+            );
+            return Ok(Some(outcome));
+        }
+        Ok(None)
     }
 
     /// Resolve one wave's members, dispatch concurrently over the
