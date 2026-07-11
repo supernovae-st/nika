@@ -807,9 +807,20 @@ fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
             .as_deref()
             .map(|f| format!(" · fix: {f}"))
             .unwrap_or_default();
+        // The wire code leads the row (agent battery A2 · 2026-07-11):
+        // CONFORM rows print `[NIKA-…]` and teach `nika explain <CODE>`;
+        // the PERMITS rows printed only the category, so the one panel
+        // whose findings are security-graded was the one panel a user
+        // could not ask the engine to explain. Same code the findings[]
+        // machine list stamps (floor → SEC-005 · boundary → SEC-004).
+        let code = if e.floor {
+            "NIKA-SEC-005"
+        } else {
+            "NIKA-SEC-004"
+        };
         let _ = writeln!(
             out,
-            " {} {}  [{}] task `{}` · {}{fix}",
+            " {} {}  [{code} · {}] task `{}` · {}{fix}",
             mark(t, false),
             t.paint(Role::Strong, "PERMITS"),
             e.category,
@@ -1018,6 +1029,13 @@ mod tests {
         assert!(
             out.contains("NIKA-SEC-005"),
             "the wire code names it: {out}"
+        );
+        // A2 (agent battery 2026-07-11): the code LEADS the row in
+        // bracket position — `[NIKA-SEC-005 · net]` — so the PERMITS
+        // panel is explainable like every CONFORM row (`nika explain`).
+        assert!(
+            out.contains("[NIKA-SEC-005 · net]"),
+            "the code leads the row: {out}"
         );
         assert!(
             !out.contains("no boundary declared"),
