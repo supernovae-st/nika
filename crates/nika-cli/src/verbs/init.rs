@@ -52,6 +52,9 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
   the envelope is `nika: v1` + `workflow: <kebab-id>` + `tasks:`).
 - **Check** · `nika check <file>` — the static audit BEFORE any run (schema ·
   DAG · CEL · effects · permits · cost). Exit `0` clean · `2` findings.
+  `--fix` applies the machine-applicable renames (typed did-you-mean only —
+  fields · tools · args · deps · refs) and re-audits; ambiguity is skipped
+  with a note, never guessed.
 - **Run** · `nika run <file>` — execute · live render. Exit `0` ok · `1` failed.
   Inputs ride `--var key=value` (repeatable · unknown keys refused); a run
   paused on a `nika:prompt` resumes with `--resume <trace> --answer
@@ -144,7 +147,8 @@ Envelope: `nika: v1` (always · frozen forever). Extensions: `.nika.yaml` (canon
 - Models use the combined form `provider/name` (for example `mock/echo`, `ollama/qwen3.5:4b`, `mistral/mistral-small`).
 - `depends_on` is always an array: `depends_on: [task_id]`.
 - Secrets are declared in a top-level `secrets:` block (e.g. `source: env`, `key: MY_KEY`) and referenced as `${{ secrets.name }}` — never inline literal keys; `${{ env.* }}` is for non-sensitive configuration.
-- After every edit, run `nika check <file>` and repair from diagnostics.
+- After every edit, run `nika check <file>` — `--fix` heals the mechanical
+  renames, the diagnostics teach the rest.
 - Unknown code? Run `nika explain NIKA-XXXX`.
 "#;
 
@@ -155,7 +159,8 @@ const COPILOT_INSTRUCTIONS: &str = r"# Nika workflows (`*.nika.yaml`) — Copilo
 
 Nika workflows are audited BEFORE they run. The loop: author from a
 skeleton (`nika new --from '?'` lists them) → `nika check <file>` after
-EVERY edit → repair from the diagnostics (`nika explain NIKA-XXXX`) →
+EVERY edit → `nika check <file> --fix` heals the mechanical renames →
+repair the rest from the diagnostics (`nika explain NIKA-XXXX`) →
 only a clean file reaches a human.
 
 Rules the validator enforces:
@@ -181,8 +186,9 @@ Read `AGENTS.md` — it is the Nika contract for every agent (the loop ·
 the four verbs · the hard rules · cost honesty · trace proof). It is
 scaffolded by `nika init` and stays parity-tested against the binary.
 
-Quick oracle: `nika check <file>` after every edit · `nika explain
-<code|file>` teaches · `nika welcome` mirrors this machine.
+Quick oracle: `nika check <file>` after every edit (`--fix` heals the
+mechanical renames) · `nika explain <code|file>` teaches · `nika welcome`
+mirrors this machine.
 ";
 
 /// What `init` does (or declines to do) for one target file.
@@ -462,6 +468,10 @@ mod tests {
         assert!(AGENT_SKILL.contains("nika check"));
         assert!(AGENT_SKILL.contains("nika explain NIKA-XXXX"));
         assert!(AGENT_SKILL.contains("--infer-permits"));
+        assert!(
+            AGENT_SKILL.contains("--fix"),
+            "the skill teaches the in-binary repair loop"
+        );
     }
 
     #[test]
@@ -513,6 +523,17 @@ mod tests {
             AGENTS_MD.contains("nika check"),
             "the guide teaches the loop"
         );
+        // Teaching-parity (arrival gauntlet 2026-07-11): the binary ships
+        // an in-binary repair loop — every scaffolded teaching surface
+        // must name it, or agents hand-repair what one flag heals.
+        for (name, body) in [
+            ("AGENTS.md", AGENTS_MD),
+            ("copilot-instructions.md", COPILOT_INSTRUCTIONS),
+            ("CLAUDE.md", CLAUDE_MD),
+            ("nika.mdc", CURSOR_RULES),
+        ] {
+            assert!(body.contains("--fix"), "{name} teaches check --fix");
+        }
         assert!(
             CURSOR_RULES.contains("4 Verbs") && CURSOR_RULES.contains("nika:fetch"),
             "the Cursor rule teaches the locked language shape"
