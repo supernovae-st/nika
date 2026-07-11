@@ -688,6 +688,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::extract::ExtractMode wh
 pub nika_types::extract::UnknownExtractMode::input: alloc::string::String
 impl nika_types::extract::UnknownExtractMode
 pub fn nika_types::extract::UnknownExtractMode::hint(&self) -> core::option::Option<&'static str>
+pub fn nika_types::extract::UnknownExtractMode::suggestion(&self) -> core::option::Option<&'static str>
 impl core::clone::Clone for nika_types::extract::UnknownExtractMode
 pub fn nika_types::extract::UnknownExtractMode::clone(&self) -> nika_types::extract::UnknownExtractMode
 impl core::cmp::Eq for nika_types::extract::UnknownExtractMode
@@ -4028,6 +4029,9 @@ pub unsafe fn nika_types::schema::TraceFormatVersion::clone_to_uninit(&self, des
 impl<T> core::convert::From<T> for nika_types::schema::TraceFormatVersion
 pub fn nika_types::schema::TraceFormatVersion::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::schema::TraceFormatVersion where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_types::suggest
+pub fn nika_types::suggest::damerau_levenshtein(a: &str, b: &str) -> usize
+pub fn nika_types::suggest::did_you_mean<'a, I>(target: &str, candidates: I) -> core::option::Option<&'a str> where I: core::iter::traits::collect::IntoIterator<Item = &'a str>
 pub mod nika_types::timestamp
 #[non_exhaustive] pub struct nika_types::timestamp::Timestamp
 pub nika_types::timestamp::Timestamp::unix_ns: i64
