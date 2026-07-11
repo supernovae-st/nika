@@ -46,6 +46,20 @@ nika-dap         = { path = "../nika-dap", version = "0.99.0" }           # `nik
 nika-mcp         = { path = "../nika-mcp", version = "0.99.0" }           # `nika mcp` — the MCP server (stdio · exposes check/explain to Cursor/Claude Desktop)
 tokio            = { workspace = true }                                   # the bin's async entry (block the run on the executor)
 
+# ── the sovereign local-inference launch surface (ADR-091/093) — OFF by default ─
+# `nika model serve` boots the candle backend behind the tiny_http sidecar
+# server. Optional so the default binary keeps the lean-core contract
+# (zero inference deps); the subcommand's default body teaches the build flag.
+nika-infer-local = { path = "../nika-infer-local", version = "0.99.0", optional = true }
+
+[features]
+# Build `nika model serve` for real: the candle backend + the loopback
+# OpenAI-compat server (ADR-091 · ADR-093). Off by default.
+local-infer = ["dep:nika-infer-local", "nika-infer-local/local-infer", "nika-infer-local/server"]
+# Apple-GPU kernels for the local backend (macOS only — CI's Linux
+# feature-matrix excludes this name, keep them aligned).
+metal       = ["local-infer", "nika-infer-local/metal"]
+
 [[bin]]
 name = "nika-cli"
 path = "src/main.rs"

@@ -34,6 +34,21 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   ride `wire all`. Cline/Continue remain on #449 (wave-3b — variant
   paths and YAML-list shapes verified first).
 
+- **`nika model serve` — the sovereign sidecar's launch surface** (the
+  ADR-091/093 rung `nika model pull` (#146) sequences after). A build
+  with `--features local-infer` serves a Qwen3-family GGUF as a
+  loopback OpenAI-compatible server, in the foreground (Ctrl-C stops
+  it · one generation at a time): `nika model serve --model
+  <path.gguf> [--tokenizer <path>] [--port 8712] [--model-id <id>]` —
+  the tokenizer defaults to `tokenizer.json` beside the weights, the
+  id to the file stem. Zero new dispatch seam: a workflow reaches it
+  through the existing local base-URL lane (`export
+  NIKA_LLAMACPP_BASE_URL=http://127.0.0.1:8712` · `model:
+  llamacpp/<id>`). The DEFAULT binary keeps the subcommand and refuses
+  with the build recipe (exit 3 · zero inference deps linked), and
+  `nika doctor` gains a `sidecar` row exactly when the feature is
+  built in.
+
 - **An exact loopback literal in `permits.net.http` clears the SSRF
   floor for that host** (#395 · the ADR-092 secrets-`egress:`
   precedent: the owner's explicit act, co-located with the boundary).

@@ -112,6 +112,7 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
             .to_owned(),
         fix: None,
     });
+    out.extend(sidecar_finding());
 
     for client in &probe.clients {
         out.push(client_finding(client));
@@ -164,6 +165,30 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
     }
 
     out
+}
+
+/// The sovereign sidecar lane (ADR-091) — a row ONLY when this binary was
+/// built with it (a BUILD fact · presence, never a probe): the default
+/// build's doctor stays byte-identical, so the row set is per-axis (a
+/// `Vec`, not an `Option` — the arity depends on the compile). The
+/// models-dir row arrives with `nika model pull`, which DEFINES the one
+/// canonical dir.
+fn sidecar_finding() -> Vec<Finding> {
+    #[cfg(feature = "local-infer")]
+    {
+        vec![Finding {
+            level: Level::Ok,
+            label: "sidecar".to_owned(),
+            detail: "local inference built in — `nika model serve --model <path.gguf>` \
+                     (loopback · OpenAI-compatible)"
+                .to_owned(),
+            fix: None,
+        }]
+    }
+    #[cfg(not(feature = "local-infer"))]
+    {
+        Vec::new()
+    }
 }
 
 /// The image plane (`nika:image_generate`) — mock always works; this
@@ -775,6 +800,33 @@ mod tests {
 
     /// Each severity prints a DISTINCT glyph — a `Default::default()` mutant
     /// (the null char `'\0'`) would erase the level cue the operator scans for.
+    /// The sidecar row is a BUILD fact: present exactly when this binary
+    /// carries the `local-infer` feature, absent otherwise — the default
+    /// doctor stays byte-identical.
+    #[test]
+    fn sidecar_row_tracks_the_build_feature() {
+        let probe = Probe {
+            version: "0.99.0".to_owned(),
+            config_path: None,
+            providers: vec![local("ollama")],
+            clients: vec![],
+            image: ImageProbe::default(),
+            tts: TtsProbe::default(),
+            local_pings: Vec::new(),
+            pricing: PricingProbe::default(),
+            retention: crate::verbs::trace::retention::RetentionConfig::default(),
+            retention_notes: vec![],
+        };
+        let sidecar = diagnose(&probe).into_iter().find(|f| f.label == "sidecar");
+        if cfg!(feature = "local-infer") {
+            let row = sidecar.expect("built with local-infer — the row must appear");
+            assert_eq!(row.level, Level::Ok);
+            assert!(row.detail.contains("nika model serve"), "{}", row.detail);
+        } else {
+            assert!(sidecar.is_none(), "default build carries no sidecar row");
+        }
+    }
+
     #[test]
     fn level_glyphs_are_distinct() {
         assert_eq!(Level::Ok.glyph(), '✔');
@@ -1061,6 +1113,7 @@ mod tests {
             "config",
             "lsp",
             "mcp",
+            "sidecar",
             "traces",
             "agent",
             "provider",

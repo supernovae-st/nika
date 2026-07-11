@@ -506,6 +506,44 @@ fn doctor_diagnoses_the_environment_and_exits_zero() {
     );
 }
 
+/// The `model serve` launch surface (ADR-091) through the real binary:
+/// the required flag refuses at parse time, the port default (8712 —
+/// clear of `nika mcp`'s 8123) is a help-visible contract, and the
+/// no-model refusal is honest PER BUILD AXIS — the default binary
+/// teaches the `local-infer` build recipe, a feature build reaches the
+/// real path resolver (both exit 3, environment class).
+#[test]
+fn model_serve_pins_its_surface_and_refuses_honestly() {
+    let out = bin()
+        .args(["model", "serve"])
+        .output()
+        .expect("binary runs");
+    assert_ne!(out.status.code(), Some(0), "a bare form must refuse");
+    let err = String::from_utf8(out.stderr).expect("utf8");
+    assert!(err.contains("--model"), "names the required flag: {err}");
+
+    let out = bin()
+        .args(["model", "serve", "--help"])
+        .output()
+        .expect("binary runs");
+    let help = String::from_utf8(out.stdout).expect("utf8");
+    assert!(help.contains("8712"), "the port default is visible: {help}");
+
+    let out = bin()
+        .args(["model", "serve", "--model", "absent.gguf"])
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(3), "environment-class refusal");
+    let err = String::from_utf8(out.stderr).expect("utf8");
+    #[cfg(not(feature = "local-infer"))]
+    {
+        assert!(err.contains("local-infer"), "teaches the feature: {err}");
+        assert!(err.contains("cargo build"), "prints the recipe: {err}");
+    }
+    #[cfg(feature = "local-infer")]
+    assert!(err.contains("no model file"), "the real resolver: {err}");
+}
+
 #[test]
 fn init_scaffolds_a_repo_and_is_idempotent() {
     let dir = workspace_tmp_dir("nika-init-smoke");

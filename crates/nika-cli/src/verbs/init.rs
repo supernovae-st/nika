@@ -114,6 +114,9 @@ builtins. Copy, fill, check.
 ## Servers (stdio · for editors and agent clients)
 `nika lsp` (language server) · `nika mcp` (MCP: check/explain/schema/examples
 as tools) · `nika completions <shell>` generates shell completions.
+`nika model serve --model <path.gguf>` serves a local model on loopback
+(OpenAI-compatible · needs a `local-infer` build — the default binary
+prints the build recipe).
 
 ## Discipline
 - Every effect is gated by `permits:` (default-deny · `nika check --infer-permits`
