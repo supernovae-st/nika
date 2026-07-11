@@ -99,6 +99,16 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **`nika run --task` honours the whole-file audit it promises.** The
+  help says « the full workflow still audits (findings stay whole-file
+  faithful) » — empirically the scoped re-check REPLACED the full report
+  before the clean gate looked, so a PERMITS violation or a conformance
+  error in a branch outside the target's ancestor cone neither printed
+  nor blocked: the scoped run exited 0 over a file `nika check` refuses.
+  The whole-file gate now fires BEFORE scoping (same findings rendering,
+  same exit 2 as the unscoped run — a file must be sound even to
+  regenerate one block), and the scoped re-check still gates after the
+  cut (#411).
 - **Teaching diagnostics from the 147-workflow new-user gauntlet** —
   arithmetic in a `${{ }}` guard teaches the route instead of the raw
   tokenizer error: `+ - * / %` → « `${{ }}` is a boolean guard, not a

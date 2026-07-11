@@ -158,6 +158,92 @@ fn run_invalid_dag_exits_two_not_one() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// #411 · the `--task` help's promise made executable: « the full
+/// workflow still audits (findings stay whole-file faithful) ». A
+/// PERMITS violation in a branch OUTSIDE the target's ancestor cone
+/// refuses the scoped run (exit 2, the finding printed) exactly like
+/// the unscoped one — and a clean file still scopes and runs at 0.
+#[test]
+fn run_task_scope_still_audits_the_whole_file() {
+    let dir = workspace_tmp_dir("nika-bin-run-task-411");
+    let poisoned = r#"
+nika: v1
+workflow: i411
+permits:
+  exec: ["echo"]
+tasks:
+  - id: fetch_data
+    exec: { command: ["echo", "data"] }
+  - id: render_page
+    depends_on: [fetch_data]
+    exec: { command: ["echo", "page"] }
+  - id: compress
+    exec: { command: ["tar", "--version"] }
+"#;
+    let wf = write_fixture(&dir, "poisoned.nika.yaml", poisoned);
+
+    let out = bin()
+        .arg("run")
+        .arg(&wf)
+        .arg("--task")
+        .arg("render_page")
+        .arg("--no-progress")
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "the out-of-cone PERMITS finding refuses the scoped run · stdout: {} · stderr: {}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let all = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        all.contains("tar"),
+        "the finding names the out-of-cone program: {all}"
+    );
+
+    let clean = r#"
+nika: v1
+workflow: i411-clean
+permits:
+  exec: ["echo"]
+tasks:
+  - id: fetch_data
+    exec: { command: ["echo", "data"] }
+  - id: render_page
+    depends_on: [fetch_data]
+    exec: { command: ["echo", "page"] }
+  - id: compress
+    exec: { command: ["echo", "z"] }
+"#;
+    let ok = write_fixture(&dir, "clean.nika.yaml", clean);
+    let out = bin()
+        .arg("run")
+        .arg(&ok)
+        .arg("--task")
+        .arg("render_page")
+        .arg("--no-progress")
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "a clean file still scopes and runs · stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8(out.stdout).expect("utf8");
+    assert!(
+        !stdout.contains("compress"),
+        "the scope held — the independent branch never ran: {stdout}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn run_dry_run_executes_zero_effects() {
     // spec §10 `--dry-run` · "plan only · zero effects". The proof: FAILING
