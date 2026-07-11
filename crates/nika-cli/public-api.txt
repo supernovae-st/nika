@@ -559,6 +559,7 @@ pub mod nika_cli::verbs::wire
 pub enum nika_cli::verbs::wire::WireTarget
 pub nika_cli::verbs::wire::WireTarget::All
 pub nika_cli::verbs::wire::WireTarget::Claude
+pub nika_cli::verbs::wire::WireTarget::ClaudeDesktop
 pub nika_cli::verbs::wire::WireTarget::Codex
 pub nika_cli::verbs::wire::WireTarget::Cursor
 pub nika_cli::verbs::wire::WireTarget::Gemini
@@ -566,6 +567,7 @@ pub nika_cli::verbs::wire::WireTarget::Hermes
 pub nika_cli::verbs::wire::WireTarget::Junie
 pub nika_cli::verbs::wire::WireTarget::Lmstudio
 pub nika_cli::verbs::wire::WireTarget::Opencode
+pub nika_cli::verbs::wire::WireTarget::Qwen
 pub nika_cli::verbs::wire::WireTarget::Vscode
 pub nika_cli::verbs::wire::WireTarget::Windsurf
 pub nika_cli::verbs::wire::WireTarget::Zed
