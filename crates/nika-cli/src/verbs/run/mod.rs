@@ -114,13 +114,14 @@ fn run_start_gc(no_gc: bool, dry_run: bool) {
 /// typed error (spec 05 wire code + message). The exit code alone cannot
 /// say WHY a run failed — the examples wrapper keys its rescue tip on the
 /// failure KIND (#145: a missing program must never earn the mock-model
-/// nudge an infer failure deserves).
-pub struct RunVerdict {
+/// nudge an infer failure deserves). Module-internal on purpose: the
+/// public verb contract stays the exit code.
+struct RunVerdict {
     /// The process exit code (the `exit::*` vocabulary).
-    pub code: u8,
+    code: u8,
     /// The first failed task's error record (record order — deterministic).
     /// `None` on success, pause, and every pre-run refusal.
-    pub failure: Option<nika_runtime::TaskErrorRecord>,
+    failure: Option<nika_runtime::TaskErrorRecord>,
 }
 
 impl RunVerdict {
@@ -657,6 +658,9 @@ fn composed_runtime(
                 .with_max_cost_usd(max_cost_usd)
                 .with_prompt_pause(pause_on_prompt)
                 .with_prompt_answers(answers)
+                // #409 · the override joins the resume identity of every
+                // model-less infer/agent task (the model they RUN on).
+                .with_model_override(model_override.map(ToOwned::to_owned))
                 // The run's identity: the journal names the definition it
                 // recorded (sha256 of the exact bytes this composer read).
                 .with_source_sha256(sha256_hex(source.as_bytes()));
