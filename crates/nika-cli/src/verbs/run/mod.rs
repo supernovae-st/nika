@@ -587,6 +587,9 @@ fn composed_runtime(
                 .with_max_cost_usd(max_cost_usd)
                 .with_prompt_pause(pause_on_prompt)
                 .with_prompt_answers(answers)
+                // #409 · the override joins the resume identity of every
+                // model-less infer/agent task (the model they RUN on).
+                .with_model_override(model_override.map(ToOwned::to_owned))
                 // The run's identity: the journal names the definition it
                 // recorded (sha256 of the exact bytes this composer read).
                 .with_source_sha256(sha256_hex(source.as_bytes()));
