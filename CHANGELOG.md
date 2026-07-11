@@ -10,6 +10,13 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **Software Heritage badge.** The repository is archived at Software
+  Heritage (save request accepted 2026-07-11 · the archive re-crawls on
+  its own cadence); the README badge links the archived origin — the
+  permanent, vendor-independent copy of the source.
+
 ### Fixed
 
 - **`nika:chart` and `nika:tts_generate` were invisible to the effect
