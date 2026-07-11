@@ -810,6 +810,34 @@ fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     }
 }
 
+/// Several files through the same per-file ladder — the pre-commit / CI
+/// shape (`nika check a.nika.yaml b.nika.yaml`). Each file gets the FULL
+/// [`run`] report (its header names the file), every file still audits
+/// after an earlier failure (no stop-at-first — the hook UX law), and the
+/// worst spec-§4 exit survives (3 environment > 2 findings). The machine
+/// modes stay one-file-per-call — `report_version: 1` is a per-file
+/// contract — so `main` refuses `--json`/`--infer-permits` upstream
+/// before this is reached.
+#[must_use]
+pub fn run_many(
+    paths: &[String],
+    native_strict: bool,
+    model_override: Option<&str>,
+    theme: Theme,
+) -> VerbOutput {
+    let mut texts = Vec::with_capacity(paths.len());
+    let mut worst = crate::verbs::exit::OK;
+    for path in paths {
+        let out = run(path, false, native_strict, model_override, theme);
+        texts.push(out.text);
+        worst = worst.max(out.code);
+    }
+    VerbOutput {
+        text: texts.join("\n"),
+        code: worst,
+    }
+}
+
 /// `nika check --infer-permits` — write the boundary FOR the operator.
 #[must_use]
 pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
@@ -838,6 +866,68 @@ pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `run_many`: every file audits even after an earlier failure (the
+    /// broken file sits in the MIDDLE), each report keeps its own header,
+    /// and the worst spec-§4 exit survives.
+    #[test]
+    fn run_many_audits_every_file_and_keeps_the_worst_exit() {
+        let dir = std::env::temp_dir().join(format!("nika-check-many-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let clean = "nika: v1\nworkflow: ok\ntasks:\n  - id: t\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
+        let broken = "nika: v1\nworkflow: bad\ntasks:\n  - id: t\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 10, model: \"mock/echo\" }\n";
+        let a = dir.join("many-a.nika.yaml");
+        let b = dir.join("many-broken.nika.yaml");
+        let c = dir.join("many-c.nika.yaml");
+        std::fs::write(&a, clean).expect("fixture a");
+        std::fs::write(&b, broken).expect("fixture b");
+        std::fs::write(&c, clean).expect("fixture c");
+
+        let paths: Vec<String> = [&a, &b, &c]
+            .iter()
+            .map(|p| p.to_str().expect("utf8 path").to_owned())
+            .collect();
+        let out = run_many(&paths, false, None, Theme::new(false, true, false));
+
+        assert_eq!(out.code, 2, "the broken middle file's exit survives");
+        // The report header names its file by BASENAME (`nika check · f`).
+        for name in [
+            "many-a.nika.yaml",
+            "many-broken.nika.yaml",
+            "many-c.nika.yaml",
+        ] {
+            assert!(
+                out.text.contains(name),
+                "every report present (headers name their file): missing {name}\n{}",
+                out.text
+            );
+        }
+        let after = out.text.split_once("many-broken.nika.yaml").map(|s| s.1);
+        assert!(
+            after.is_some_and(|tail| tail.contains("many-c.nika.yaml")),
+            "the file AFTER the failure still audited: {}",
+            out.text
+        );
+    }
+
+    /// `run_many` on all-clean files exits OK — the concatenation never
+    /// invents a failure.
+    #[test]
+    fn run_many_is_clean_when_every_file_is() {
+        let dir = std::env::temp_dir().join(format!("nika-check-many-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let clean = "nika: v1\nworkflow: ok\ntasks:\n  - id: t\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
+        let a = dir.join("clean-a.nika.yaml");
+        let b = dir.join("clean-b.nika.yaml");
+        std::fs::write(&a, clean).expect("fixture a");
+        std::fs::write(&b, clean).expect("fixture b");
+        let paths: Vec<String> = [&a, &b]
+            .iter()
+            .map(|p| p.to_str().expect("utf8 path").to_owned())
+            .collect();
+        let out = run_many(&paths, false, None, Theme::new(false, true, false));
+        assert_eq!(out.code, 0, "{}", out.text);
+    }
 
     #[test]
     fn missing_read_files_flags_static_literal_and_var_default() {

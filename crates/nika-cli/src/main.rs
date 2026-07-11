@@ -128,8 +128,12 @@ enum Command {
     /// Audit a workflow BEFORE it runs: plan · cost ceiling · secret
     /// flows · types · tools — every finding teaches its fix.
     Check {
-        /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
-        file: String,
+        /// Workflow file(s) (`*.nika.yaml`) · `-` reads stdin · several
+        /// files audit in sequence (each full report · the worst exit
+        /// wins — the pre-commit/CI shape). `--json` and
+        /// `--infer-permits` stay one-file-per-call.
+        #[arg(required = true, num_args = 1..)]
+        files: Vec<String>,
         /// Emit the machine-readable report (never coloured).
         #[arg(long)]
         json: bool,
@@ -697,7 +701,7 @@ fn main() -> std::process::ExitCode {
     let plain_theme = term_theme(color.with_no_color(false), false, link_when);
     let code = match cli.command {
         Command::Check {
-            file,
+            files,
             json,
             infer_permits,
             native_strict,
@@ -705,16 +709,37 @@ fn main() -> std::process::ExitCode {
             no_color,
             ascii,
         } => {
-            let out = if infer_permits {
-                verbs::check::run_infer_permits(&file, json)
+            let theme = term_theme(color.with_no_color(no_color), ascii, link_when);
+            let out = if let [file] = files.as_slice() {
+                // The single-file path is byte-identical to the pre-variadic
+                // verb — every existing consumer (hooks · agents · CI) sees
+                // exactly what it saw before.
+                if infer_permits {
+                    verbs::check::run_infer_permits(file, json)
+                } else {
+                    verbs::check::run(file, json, native_strict, model.as_deref(), theme)
+                }
+            } else if json || infer_permits {
+                // `report_version: 1` (and the inferred boundary) are
+                // per-file contracts — refusing here keeps the machine
+                // shape unversioned-change-free. Exit 3: the INVOCATION
+                // is wrong, no file was judged.
+                verbs::VerbOutput {
+                    text: "check: --json and --infer-permits report ONE file per call \
+                           (report_version 1 is a per-file contract)\n  fix: loop the \
+                           files, one check per call\n"
+                        .to_owned(),
+                    code: verbs::exit::ENV,
+                }
+            } else if files.iter().any(|f| f == "-") {
+                verbs::VerbOutput {
+                    text: "check: stdin (`-`) cannot join a multi-file audit\n  fix: \
+                           pipe one call per stream, or name the files\n"
+                        .to_owned(),
+                    code: verbs::exit::ENV,
+                }
             } else {
-                verbs::check::run(
-                    &file,
-                    json,
-                    native_strict,
-                    model.as_deref(),
-                    term_theme(color.with_no_color(no_color), ascii, link_when),
-                )
+                verbs::check::run_many(&files, native_strict, model.as_deref(), theme)
             };
             emit(&out)
         }
