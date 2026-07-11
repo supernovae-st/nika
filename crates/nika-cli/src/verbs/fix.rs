@@ -90,6 +90,14 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
                         renames.push((a.arg.clone(), s.clone(), "arg"));
                     }
                 }
+                // Conformance renames (typed `offending`/`suggestion` —
+                // unknown depends_on target · unresolved `${{ }}` ref,
+                // both fully qualified so a splice keeps the namespace).
+                for v in &report.conformance {
+                    if let (Some(o), Some(s)) = (&v.offending, &v.suggestion) {
+                        renames.push((o.clone(), s.clone(), "ref"));
+                    }
+                }
                 renames.sort();
                 renames.dedup();
                 for (old, new, kind) in renames {
@@ -176,9 +184,15 @@ fn splice(
     kind: &'static str,
     repairs: &mut Vec<Repair>,
 ) -> bool {
-    // One entry per (old, new, kind) — a token skipped in round N must
-    // not re-log every later round.
-    if repairs.iter().any(|r| r.old == old && r.kind == kind) {
+    // An APPLIED token never re-applies. A SKIPPED one stays retryable:
+    // an earlier round's splice can make it unique (the two-site case —
+    // `buidl` in `depends_on` is ambiguous while `tasks.buidl` exists;
+    // once the reference heals, the dependency token stands alone and
+    // the next round heals it too). Convergence, not one-shot.
+    if repairs
+        .iter()
+        .any(|r| r.applied && r.old == old && r.kind == kind)
+    {
         return false;
     }
     let sites = word_sites(source, old);
@@ -188,12 +202,19 @@ fn splice(
     } else {
         false
     };
-    repairs.push(Repair {
-        old: old.to_owned(),
-        new: new.to_owned(),
-        kind,
-        applied,
-    });
+    // One log row per (old, kind): a retry that succeeds UPGRADES its
+    // earlier skip row (the summary reports final outcomes, not rounds).
+    if let Some(row) = repairs.iter_mut().find(|r| r.old == old && r.kind == kind) {
+        row.applied = row.applied || applied;
+        new.clone_into(&mut row.new);
+    } else {
+        repairs.push(Repair {
+            old: old.to_owned(),
+            new: new.to_owned(),
+            kind,
+            applied,
+        });
+    }
     applied
 }
 
@@ -330,6 +351,59 @@ mod tests {
             out.text
         );
         assert_ne!(out.code, exit::OK, "the structural finding still reds");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn dep_and_ref_renames_converge_across_rounds() {
+        // The two-site convergence case the retryable-skip design exists
+        // for: `buidl` occurs TWICE (bare in depends_on · inside the
+        // `tasks.buidl` reference), so the dependency rename is ambiguous
+        // in round 1 — but the fully-qualified reference rename
+        // (`tasks.buidl` → `tasks.build`) is unique, applies, and leaves
+        // the bare token standing alone for round 2. Both heal; a
+        // one-shot skip would have left the file half-repaired.
+        let dir = std::env::temp_dir().join(format!("nika-fix-conv-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("two-site.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: v1\nworkflow: w\nvars: { topic: \"x\" }\ntasks:\n  - id: build\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ vars.topik }}\" } }\n  - id: ship\n    depends_on: [buidl]\n    invoke: { tool: \"nika:log\", args: { message: \"${{ tasks.buidl.output }}\" } }\n",
+        )
+        .expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        let healed = std::fs::read_to_string(&path).expect("re-read");
+        assert!(
+            healed.contains("depends_on: [build]"),
+            "dep healed: {healed}"
+        );
+        assert!(
+            healed.contains("tasks.build.output"),
+            "ref healed: {healed}"
+        );
+        assert!(
+            healed.contains("vars.topic"),
+            "vars ref healed too: {healed}"
+        );
+        assert!(!healed.contains("buidl") && !healed.contains("topik"));
+        assert!(
+            out.text.contains("ref `tasks.buidl` → `tasks.build`"),
+            "{}",
+            out.text
+        );
+        assert!(out.text.contains("ref `buidl` → `build`"), "{}", out.text);
+        assert!(
+            out.text.contains("ref `vars.topik` → `vars.topic`"),
+            "{}",
+            out.text
+        );
+        assert!(!out.text.contains("skipped"), "no residual skip rows");
+        assert_eq!(out.code, exit::OK, "clean after convergence: {}", out.text);
         let _ = std::fs::remove_file(&path);
     }
 }
