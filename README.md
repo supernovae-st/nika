@@ -23,14 +23,17 @@ Useful AI work shouldn't disappear into chats. **Nika turns repeatable AI
 work into files you can run, review, diff and share.** If you do the same
 AI task twice, make it a workflow.
 
-A Nika workflow is just a file: readable, portable, verifiable. It runs
-locally, on whichever LLM you choose, with no cloud required. The language
-is an open [Apache-2.0 spec](https://github.com/supernovae-st/nika-spec);
-this repo is the reference engine, a single Rust binary (AGPL-3.0). The
-way SQL pairs with PostgreSQL, or the Dockerfile with Docker.
+**The pipeline is a file.** A graph of model calls, tools and processes:
+a shape you declare, not glue you program. Nika audits that file **before
+a token is spent** (cost ceiling, permissions, secret flows, types), runs
+it on whichever LLM you choose, local first, no cloud required, and leaves
+every run a verifiable receipt. The language is an open
+[Apache-2.0 spec](https://github.com/supernovae-st/nika-spec); this repo is
+the reference engine, a single Rust binary (AGPL-3.0). The way SQL pairs
+with PostgreSQL, or the Dockerfile with Docker.
 
 <p align="center">
-  <img src="media/gifs/chat-to-workflow.optimized.gif" alt="A repeated chat prompt becomes meeting-actions.nika.yaml; nika check audits it, then a real local run (ollama/llama3.2:3b) writes typed action items" width="900" />
+  <img src="media/gifs/dag-execution.optimized.gif" alt="A workflow is a graph, not a prompt: the YAML on the left, its real execution graph on the right lighting up wave by wave. Seven tasks, six waves, all four verbs in one file" width="900" />
 </p>
 
 ## Does it run today?
@@ -67,6 +70,39 @@ $ nika run brief.nika.yaml
   ✔  brief        infer · ollama/llama3.2:3b
   ── 2/2 done · $0.000 · elapsed 16.2s ───────────────────────────
 ```
+
+## The loop: check → fix → run → receipt
+
+An agent (or you, at 2am) writes a workflow. `nika check` audits the file
+statically and **names every fix**; the run streams live; the trace is a
+hash-chained receipt `nika trace verify` re-proves. The whole loop, captured
+against the real binary:
+
+<p align="center">
+  <img src="media/gifs/full-loop.optimized.gif" alt="nika check catches a typo'd task reference and a typo'd tool, each with a did-you-mean fix; the two renames applied; the audit passes clean; the run executes offline on mock/echo and prints its trace path and chain head; nika trace verify confirms the same head" width="900" />
+</p>
+
+What the audit catches before a single token is spent. Each finding
+carries its `NIKA-XXXX` code, the exact source span, and the fix:
+
+| The mistake | What `nika check` says |
+|---|---|
+| A reference to a task that doesn't exist | `NIKA-VAR-001`: unresolved reference `tasks.digets`, *did you mean `tasks.digest`?* |
+| Reading a task you never declared | `NIKA-DAG-003`: references `tasks.stats` without declaring `stats` in `depends_on` |
+| A typo'd tool | TOOLS: `nika:wrte` is not a canonical builtin, *did you mean `nika:write`?* |
+| A task reaching beyond its `permits:` boundary | PERMITS: the escape, with the machine-applicable widening line |
+| A secret flowing where it shouldn't | SECRETS: the information-flow escape, statically |
+| Unbounded spend | COST: a hard ceiling when priceable, an honest `UNBOUNDED` floor when not (never a fake `$0`) |
+| An output used where its shape can't fit | TYPES: every deep reference checked against the declared schema |
+
+After the run, the receipt: every run journals to `.nika/traces/` as an
+append-only, hash-chained record. The run prints its chain head;
+`nika trace verify` recomputes it. Tamper-evident, local, zero services.
+
+The capture above is honesty-gated like every asset here: its
+[fixtures + tape](scripts/media/) are committed, and
+`scripts/media/validate-media.sh` keeps the broken half failing `nika check`
+and the fixed half clean.
 
 ## What a workflow looks like
 
@@ -244,9 +280,8 @@ flowchart LR
 
 Dependencies make every workflow a graph: independent tasks run in
 parallel, an `agent` step fans out, joins wait for every branch, and the
-whole plan is known, costed and audited before execution starts:
-
-![The embedded pr-review-fanout workflow as its real execution graph: seven tasks, six waves, all four verbs in one file](media/gifs/dag-execution.optimized.gif)
+whole plan is known, costed and audited before execution starts (the
+capture at the top of this page shows exactly that).
 
 ## Why Nika
 
@@ -263,6 +298,11 @@ inside one vendor's cloud.
 What no existing workflow tool offers together: a single Rust binary · portable
 declarative YAML · local-first · read-XOR-write capability security · AGPL ·
 no cloud required · bring-your-own-LLM.
+
+Coming from Airflow, Dagster, LangGraph, Temporal or plain GitHub Actions?
+The docs keep an honest
+[how-Nika-compares](https://docs.nika.sh/concepts/how-nika-compares) page,
+including when *not* to use Nika.
 
 ## Status
 
@@ -404,7 +444,13 @@ team can check, run and replay.
 ## Send us a workflow
 
 Do you repeat an AI task every week, in ChatGPT, Claude, Cursor, Codex, or
-scripts? Describe it at [nika.sh/convert](https://nika.sh/convert) or
+scripts? That loop is exactly what a workflow keeps:
+
+<p align="center">
+  <img src="media/gifs/chat-to-workflow.optimized.gif" alt="A repeated chat prompt becomes meeting-actions.nika.yaml; nika check audits it, then a real local run (ollama/llama3.2:3b) writes typed action items" width="900" />
+</p>
+
+Describe yours at [nika.sh/convert](https://nika.sh/convert) or
 [open a "convert my workflow" issue](https://github.com/supernovae-st/nika/issues/new/choose).
 We convert the best ones into runnable `.nika.yaml` examples, credited to you.
 

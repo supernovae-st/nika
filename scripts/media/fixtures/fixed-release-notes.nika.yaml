@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+# The FIXED half of the full-loop pair (tapes/full-loop.tape) — what the
+# broken fixture becomes after applying the two renames `nika check` named.
+# validate-media.sh keeps this file PASSING check.
+nika: v1
+workflow: release-notes
+description: "git log → typed notes → RELEASE_NOTES.md · checked before it spends"
+
+model: ollama/qwen3.5:4b   # local · zero key · or mistral/mistral-small · mock/echo offline
+
+permits:
+  fs:
+    write: ["RELEASE_NOTES.md"]
+  exec: ["git"]
+  tools: ["nika:write"]
+
+tasks:
+  - id: history
+    exec:
+      command: ["git", "log", "--oneline", "--no-merges", "-8"]
+
+  - id: stats
+    exec:
+      command: ["git", "shortlog", "-sn", "HEAD"]
+
+  - id: digest
+    depends_on: [history]
+    infer:
+      max_tokens: 400
+      prompt: |
+        Group these commits into a headline and highlights:
+        ${{ tasks.history.output }}
+      schema:
+        type: object
+        required: [headline, highlights]
+        properties:
+          headline: { type: string }
+          highlights: { type: array, items: { type: string } }
+        additionalProperties: false
+
+  - id: notes
+    depends_on: [digest, stats]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "RELEASE_NOTES.md"
+        content: |
+          # ${{ tasks.digest.output.headline }}
+
+          ${{ tasks.digest.output.highlights }}
+
+          contributors · ${{ tasks.stats.output }}
+
+outputs:
+  headline: ${{ tasks.digest.output.headline }}

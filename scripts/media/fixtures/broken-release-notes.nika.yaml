@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+# The BROKEN half of the full-loop pair (tapes/full-loop.tape).
+# Two agent-typo classes, both named by `nika check` with their fix:
+#   `tasks.digets`  → NIKA-VAR-001 · did you mean `tasks.digest`?
+#   `nika:wrte`     → TOOLS · did you mean `nika:write`? (+ the PERMITS echo)
+# validate-media.sh keeps this file FAILING check — the asset's point.
+nika: v1
+workflow: release-notes
+description: "git log → typed notes → RELEASE_NOTES.md · checked before it spends"
+
+model: ollama/qwen3.5:4b   # local · zero key · or mistral/mistral-small · mock/echo offline
+
+permits:
+  fs:
+    write: ["RELEASE_NOTES.md"]
+  exec: ["git"]
+  tools: ["nika:write"]
+
+tasks:
+  - id: history
+    exec:
+      command: ["git", "log", "--oneline", "--no-merges", "-8"]
+
+  - id: stats
+    exec:
+      command: ["git", "shortlog", "-sn", "HEAD"]
+
+  - id: digest
+    depends_on: [history]
+    infer:
+      max_tokens: 400
+      prompt: |
+        Group these commits into a headline and highlights:
+        ${{ tasks.history.output }}
+      schema:
+        type: object
+        required: [headline, highlights]
+        properties:
+          headline: { type: string }
+          highlights: { type: array, items: { type: string } }
+        additionalProperties: false
+
+  - id: notes
+    depends_on: [digest, stats]
+    invoke:
+      tool: "nika:wrte"
+      args:
+        path: "RELEASE_NOTES.md"
+        content: |
+          # ${{ tasks.digets.output.headline }}
+
+          ${{ tasks.digest.output.highlights }}
+
+          contributors · ${{ tasks.stats.output }}
+
+outputs:
+  headline: ${{ tasks.digest.output.headline }}

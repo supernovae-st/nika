@@ -30,8 +30,16 @@ else
   say "✔ permits-escape fixture fails check (as shown)"
 fi
 
+if nika check "$FIX/broken-release-notes.nika.yaml" >/dev/null 2>&1; then
+  say "✖ broken-release-notes fixture PASSES check — the full-loop asset lies"
+  fail=1
+else
+  say "✔ broken-release-notes fixture fails check (as shown)"
+fi
+
 for wf in "$FIX/fixed-pr-review.nika.yaml" "$FIX/meeting-actions.nika.yaml" \
   "$FIX/permits-fits.nika.yaml" "$FIX/recover-fallback.nika.yaml" \
+  "$FIX/fixed-release-notes.nika.yaml" \
   "crates/nika-pack/pack/examples/showcase/t3-pr-review-fanout.nika.yaml"; do
   if nika check "$wf" >/dev/null 2>&1; then
     say "✔ $(basename "$wf") clean (as shown)"
@@ -43,6 +51,7 @@ done
 
 # ── existence ───────────────────────────────────────────────────────────
 required=(
+  media/gifs/full-loop.optimized.gif
   media/gifs/static-check-fix.optimized.gif
   media/gifs/chat-to-workflow.optimized.gif
   media/gifs/dag-execution.optimized.gif
