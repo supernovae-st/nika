@@ -720,6 +720,15 @@ fn parse_entry(text: &str, art: &IndexArtifact) -> Result<String, RegistryError>
             return Err(shape(format!("unknown entry field `{key}`")));
         }
     }
+    match doc.get("schema").and_then(toml_edit::Item::as_integer) {
+        Some(1) => {}
+        Some(n) => {
+            return Err(shape(format!(
+                "entry schema {n} — this engine speaks schema 1"
+            )));
+        }
+        None => return Err(shape("the entry is missing `schema`".to_owned())),
+    }
     let str_at = |table: Option<&str>, key: &str| -> Option<String> {
         let item = match table {
             Some(t) => doc.get(t)?.get(key)?,
