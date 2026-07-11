@@ -1,0 +1,979 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! `registry:owner/name[@version]` — resolve · verify · cache (issue #452 ·
+//! the consumption half of the ADR-106 registry-client lane).
+//!
+//! A registry ref never executes anything at pull time: it RESOLVES to a
+//! verified local file under `~/.nika/registry/`, and `nika check` /
+//! `nika run` then proceed exactly as if given that path — the audit-
+//! before-run pipeline is untouched (`load_checked` reads the cached
+//! file like any other). The trust chain, per the registry-v0.1 contract
+//! (nika-spec `registry/registry-v0.1.md`):
+//!
+//! 1. **Resolve** — fetch the public index (`index.json` · contract §4) ·
+//!    match `owner/name[@version]` · newest `SemVer` wins a bare ref. A
+//!    name that resolves nowhere fails loud (`NIKA-REG-001` — the
+//!    slopsquatting guard: an LLM-suggested name must exist).
+//! 2. **Refuse on advisory** — a withdrawn version refuses BEFORE any
+//!    bytes move (`NIKA-REG-002` · contract §3 MUST-refuse).
+//! 3. **Re-verify against the ENTRY** — the index is a convenience
+//!    projection; the digest of record comes from the entry TOML itself
+//!    (contract §4: "never against the index alone"). Index/entry
+//!    disagreement refuses (`NIKA-REG-005`).
+//! 4. **Fetch + hash** — raw https fetch of `source.repo@rev:path`
+//!    (1 MiB cap) · `sha256(bytes)` MUST equal the pinned digest, else
+//!    hard refuse and NOTHING is written (`NIKA-REG-003`).
+//! 5. **Cache** — the verified bytes land under ONE canonical dir
+//!    (`~/.nika/registry/<owner>/<name>/<version>.nika.yaml`) beside a
+//!    digest record; a cache hit re-verifies and runs OFFLINE. A bare
+//!    ref writes a pin record so later bare refs never float
+//!    (ADR-106 "pin by default").
+//!
+//! The fetch happens at CLI-level resolution, BEFORE the workflow is
+//! even parsed — a workflow's `permits:` govern the run's effects, not
+//! this fetch (said in the help text too). SSRF enforcement stays on;
+//! every URL is CONSTRUCTED from charset-validated components, never
+//! taken from fetched data (closed-set law: a field the client cannot
+//! vet is refused, never interpolated).
+
+use std::path::{Path, PathBuf};
+
+use nika_kernel::http::HttpGetDyn;
+use nika_kernel::{HttpError, HttpRequest};
+
+/// The ref scheme — an argument starting with this is a registry ref.
+const SCHEME: &str = "registry:";
+/// The public index this engine speaks to in v1 (org/private indexes
+/// arrive with the `nika add` verb — ADR-106 `--index`).
+const INDEX_BASE: &str = "https://raw.githubusercontent.com/supernovae-st/nika-registry/main";
+/// Raw content host for pinned artifact bytes.
+const RAW_BASE: &str = "https://raw.githubusercontent.com";
+/// Artifact size cap (the registry-v0.1 reference cap — workflows are
+/// kilobytes of text).
+const MAX_ARTIFACT_BYTES: usize = 1024 * 1024;
+/// Index size cap (22 artifacts ≈ 30 KiB today; generous headroom).
+const MAX_INDEX_BYTES: usize = 4 * 1024 * 1024;
+/// The closed set of entry top-level keys (contract §1) — an unknown
+/// field is a smuggling channel and refuses the whole entry.
+const ENTRY_KEYS: [&str; 12] = [
+    "schema",
+    "type",
+    "name",
+    "publisher",
+    "version",
+    "description",
+    "license",
+    "spec",
+    "source",
+    "integrity",
+    "cert",
+    "signature",
+];
+/// The closed set of `[source]` keys (contract §1).
+const SOURCE_KEYS: [&str; 3] = ["repo", "rev", "path"];
+
+/// Is this CLI file argument a registry ref (`registry:…`)?
+#[must_use]
+pub fn is_registry_ref(arg: &str) -> bool {
+    arg.starts_with(SCHEME)
+}
+
+/// A parsed `registry:owner/name[@version]` ref. Owner is REQUIRED in
+/// v1 (no bare names): without a lockfile the qualified form is the
+/// only shape immune to dependency confusion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RegistryRef {
+    owner: String,
+    name: String,
+    version: Option<String>,
+}
+
+impl RegistryRef {
+    fn coordinate(&self, version: &str) -> String {
+        format!("{}/{}@{}", self.owner, self.name, version)
+    }
+}
+
+// ---------------------------------------------------------------------
+// Errors — one opaque type, teaching Display, greppable NIKA-REG codes.
+// ---------------------------------------------------------------------
+
+/// A registry resolution refusal. Every message teaches its fix; the
+/// contract-allocated refusals carry a greppable `[NIKA-REG-00x]` code
+/// (also via [`RegistryError::code`]).
+#[derive(Debug)]
+pub struct RegistryError {
+    kind: ErrKind,
+}
+
+#[derive(Debug)]
+enum ErrKind {
+    /// The ref itself does not parse — teach the form.
+    BadRef { arg: String, why: String },
+    /// Nothing in the registry matches (NIKA-REG-001 · slopsquat guard).
+    NotFound { what: String, hint: String },
+    /// A matching advisory withdraws it (NIKA-REG-002 · MUST-refuse).
+    Advisory {
+        coordinate: String,
+        ids: Vec<String>,
+    },
+    /// Fetched bytes do not hash to the pinned digest (NIKA-REG-003).
+    HashMismatch {
+        coordinate: String,
+        expected: String,
+        actual: String,
+    },
+    /// A cached copy no longer matches its recorded digest (NIKA-REG-004:
+    /// a local record pins bytes; a mismatch fails, never floats).
+    CacheTampered {
+        path: PathBuf,
+        expected: String,
+        actual: String,
+    },
+    /// The registry answered in a shape this engine cannot vet
+    /// (NIKA-REG-005 · unknown schema / unknown field / index-entry drift).
+    IndexShape { why: String },
+    /// The ref names an artifact that is not a workflow.
+    NotAWorkflow { coordinate: String, kind: String },
+    /// Cache miss and the network did not answer — the honest offline story.
+    Offline { what: String, reason: String },
+    /// The registry (or the pinned source) answered a non-200.
+    FetchFailed {
+        what: String,
+        status: u16,
+        hint: String,
+    },
+    /// A body over its cap.
+    TooLarge {
+        what: String,
+        len: usize,
+        cap: usize,
+    },
+    /// Local environment failure (cache dir · runtime · TLS init).
+    Env { why: String },
+}
+
+impl RegistryError {
+    fn new(kind: ErrKind) -> Self {
+        Self { kind }
+    }
+
+    fn env(why: impl Into<String>) -> Self {
+        Self::new(ErrKind::Env { why: why.into() })
+    }
+
+    /// The contract-allocated refusal code, when this refusal has one
+    /// (`NIKA-REG-001..005` · ADR-106). Parse/transport/environment
+    /// failures carry none.
+    #[must_use]
+    pub fn code(&self) -> Option<&'static str> {
+        match &self.kind {
+            ErrKind::NotFound { .. } => Some("NIKA-REG-001"),
+            ErrKind::Advisory { .. } => Some("NIKA-REG-002"),
+            ErrKind::HashMismatch { .. } => Some("NIKA-REG-003"),
+            ErrKind::CacheTampered { .. } => Some("NIKA-REG-004"),
+            ErrKind::IndexShape { .. } => Some("NIKA-REG-005"),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for RegistryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn short(hex: &str) -> &str {
+            hex.get(..16).unwrap_or(hex)
+        }
+        match &self.kind {
+            ErrKind::BadRef { arg, why } => write!(
+                f,
+                "cannot read `{arg}` as a registry ref: {why}\n  form: registry:owner/name  or  registry:owner/name@1.2.0"
+            ),
+            ErrKind::NotFound { what, hint } => write!(
+                f,
+                "[NIKA-REG-001] nothing in the registry matches {what}\n  fix: {hint}"
+            ),
+            ErrKind::Advisory { coordinate, ids } => write!(
+                f,
+                "[NIKA-REG-002] {coordinate} is withdrawn by advisory {} — refusing before any bytes move\n  see advisories/ in the registry for what happened and what to do",
+                ids.join(", ")
+            ),
+            ErrKind::HashMismatch {
+                coordinate,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "[NIKA-REG-003] {coordinate}: fetched bytes do not match the pinned digest\n  entry pins sha256 {}… · fetched {}…\n  nothing was written. The source moved or the entry lies — report it to the registry.",
+                short(expected),
+                short(actual)
+            ),
+            ErrKind::CacheTampered {
+                path,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "[NIKA-REG-004] the cached copy no longer matches its recorded digest\n  file: {}\n  recorded sha256 {}… · found {}…\n  fix: delete that file and re-run — it will re-fetch and re-verify",
+                path.display(),
+                short(expected),
+                short(actual)
+            ),
+            ErrKind::IndexShape { why } => write!(
+                f,
+                "[NIKA-REG-005] the registry answered in a shape this engine cannot vet: {why}\n  a schema or field the client does not understand is refused, never skipped"
+            ),
+            ErrKind::NotAWorkflow { coordinate, kind } => write!(
+                f,
+                "{coordinate} is a {kind}, not a workflow — check and run consume workflows"
+            ),
+            ErrKind::Offline { what, reason } => write!(
+                f,
+                "{what}: not in the local cache and the network did not answer ({reason})\n  an already-fetched artifact runs offline from ~/.nika/registry/ — this one has not been fetched yet"
+            ),
+            ErrKind::FetchFailed { what, status, hint } => {
+                write!(f, "{what} answered HTTP {status}\n  {hint}")
+            }
+            ErrKind::TooLarge { what, len, cap } => write!(
+                f,
+                "{what} is {len} bytes — over the {cap}-byte registry cap (workflows are kilobytes of text)"
+            ),
+            ErrKind::Env { why } => write!(f, "{why}"),
+        }
+    }
+}
+
+impl std::error::Error for RegistryError {}
+
+// ---------------------------------------------------------------------
+// Resolution result
+// ---------------------------------------------------------------------
+
+/// A resolved registry ref: the verified local file check/run consume.
+#[derive(Debug)]
+pub struct Resolved {
+    /// The cached artifact path — feed it to check/run like any file.
+    pub path: PathBuf,
+    /// `owner/name@version` as resolved.
+    pub coordinate: String,
+    /// The verified content digest (64-hex sha256).
+    pub sha256: String,
+    /// `true` when bytes moved this call; `false` on a cache hit.
+    pub fetched: bool,
+    /// `true` when a bare ref was answered by the local pin record
+    /// (no network involved in choosing the version).
+    pub pinned: bool,
+}
+
+impl Resolved {
+    /// The one/two-line stderr note the CLI prints — where the artifact
+    /// lives and that it is digest-verified (stdout stays machine-pure).
+    #[must_use]
+    pub fn describe(&self) -> String {
+        let short = self.sha256.get(..16).unwrap_or(&self.sha256);
+        if self.fetched {
+            format!(
+                "→ registry {} · fetched + digest verified (sha256 {short}…)\n  cached: {} — later runs use this copy, offline included",
+                self.coordinate,
+                self.path.display()
+            )
+        } else {
+            format!(
+                "→ registry {} · cache · digest re-verified (sha256 {short}…) · offline",
+                self.coordinate
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// Index / entry / cache-record shapes
+// ---------------------------------------------------------------------
+
+/// `index.json` (contract §4) — tolerant read: the index is a derived
+/// projection and may grow fields; every load-bearing claim is
+/// re-verified against the entry + the bytes.
+#[derive(serde::Deserialize)]
+struct Index {
+    index_schema: u64,
+    #[serde(default)]
+    artifacts: Vec<IndexArtifact>,
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct IndexArtifact {
+    name: String,
+    publisher: String,
+    version: String,
+    #[serde(rename = "type")]
+    kind: String,
+    sha256: String,
+    source: SourcePin,
+    #[serde(default)]
+    advisories: Vec<String>,
+}
+
+/// The full-commit content pin (contract §1 R2).
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Eq, Debug)]
+struct SourcePin {
+    repo: String,
+    rev: String,
+    path: String,
+}
+
+/// The cache digest record (`<version>.meta.json`) — what a cache hit
+/// re-verifies against.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Meta {
+    sha256: String,
+    coordinate: String,
+    source: SourcePin,
+}
+
+// ---------------------------------------------------------------------
+// Client
+// ---------------------------------------------------------------------
+
+/// The registry client: resolve a ref to a verified, cached local file.
+/// Generic over the kernel HTTP seam — production injects `ReqwestHttp`,
+/// tests a mock (Invariant #27).
+struct RegistryClient<H> {
+    http: H,
+    cache_root: PathBuf,
+}
+
+impl<H: HttpGetDyn> RegistryClient<H> {
+    fn new(http: H, cache_root: PathBuf) -> Self {
+        Self { http, cache_root }
+    }
+
+    /// Resolve `registry:owner/name[@version]` → verified cache path.
+    ///
+    /// Order of authority: explicit version, else the local pin record
+    /// (a bare ref never floats — ADR-106), else the network's newest
+    /// `SemVer`. The cache answers before the network; a hit re-verifies
+    /// its digest record.
+    async fn resolve(&self, arg: &str) -> Result<Resolved, RegistryError> {
+        let r = parse_ref(arg)?;
+        let (version, pinned) = match &r.version {
+            Some(v) => (Some(v.clone()), false),
+            None => (self.read_pin(&r)?, true),
+        };
+        if let Some(v) = &version
+            && let Some(hit) = self.cached(&r, v, pinned)?
+        {
+            return Ok(hit);
+        }
+        let index = self.fetch_index().await?;
+        let art = select_artifact(&index, &r, version.as_deref())?;
+        let digest = self.entry_digest(&art).await?;
+        let bytes = self.fetch_artifact(&art, &digest).await?;
+        self.store(&r, &art, &digest, &bytes)
+    }
+
+    // -- cache lane ----------------------------------------------------
+
+    fn dir_of(&self, r: &RegistryRef) -> PathBuf {
+        self.cache_root.join(&r.owner).join(&r.name)
+    }
+
+    /// The pin record a bare ref wrote at its first resolve — `None`
+    /// when this name was never bare-resolved on this machine.
+    fn read_pin(&self, r: &RegistryRef) -> Result<Option<String>, RegistryError> {
+        let path = self.dir_of(r).join("pin");
+        let raw = match std::fs::read_to_string(&path) {
+            Ok(raw) => raw,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => {
+                return Err(RegistryError::env(format!(
+                    "cannot read the pin record {}: {e}",
+                    path.display()
+                )));
+            }
+        };
+        let version = raw.trim().to_owned();
+        if version_key(&version).is_none() {
+            // A pin that is not a version is a path-injection vector —
+            // refuse with the heal, never interpolate it.
+            return Err(RegistryError::env(format!(
+                "the pin record {} does not hold a version — delete it and re-run",
+                path.display()
+            )));
+        }
+        Ok(Some(version))
+    }
+
+    /// The cache probe: artifact + digest record present → re-hash the
+    /// bytes against the record (a local record pins bytes; a mismatch
+    /// fails, never floats — NIKA-REG-004). Anything missing → `None`
+    /// (the network lane heals it).
+    fn cached(
+        &self,
+        r: &RegistryRef,
+        version: &str,
+        pinned: bool,
+    ) -> Result<Option<Resolved>, RegistryError> {
+        let dir = self.dir_of(r);
+        let artifact = dir.join(format!("{version}.nika.yaml"));
+        let meta_path = dir.join(format!("{version}.meta.json"));
+        let (Ok(bytes), Ok(meta_raw)) = (std::fs::read(&artifact), std::fs::read(&meta_path))
+        else {
+            return Ok(None);
+        };
+        let Ok(meta) = serde_json::from_slice::<Meta>(&meta_raw) else {
+            return Ok(None); // an unreadable record is refetched, not trusted
+        };
+        let actual = nika_dap::source_id::sha256_hex(&bytes);
+        if actual != meta.sha256 {
+            return Err(RegistryError::new(ErrKind::CacheTampered {
+                path: artifact,
+                expected: meta.sha256,
+                actual,
+            }));
+        }
+        Ok(Some(Resolved {
+            path: artifact,
+            coordinate: r.coordinate(version),
+            sha256: actual,
+            fetched: false,
+            pinned,
+        }))
+    }
+
+    // -- network lane ----------------------------------------------------
+
+    async fn fetch_index(&self) -> Result<Index, RegistryError> {
+        let body = self
+            .get_bytes(
+                &format!("{INDEX_BASE}/index.json"),
+                "the registry index",
+                MAX_INDEX_BYTES,
+                "the registry may be unreachable or moved — see https://github.com/supernovae-st/nika-registry",
+            )
+            .await?;
+        let index: Index = serde_json::from_slice(&body).map_err(|e| {
+            RegistryError::new(ErrKind::IndexShape {
+                why: format!("index.json does not parse: {e}"),
+            })
+        })?;
+        if index.index_schema != 1 {
+            return Err(RegistryError::new(ErrKind::IndexShape {
+                why: format!(
+                    "index_schema {} — this engine speaks schema 1",
+                    index.index_schema
+                ),
+            }));
+        }
+        Ok(index)
+    }
+
+    /// The digest of record comes from the ENTRY, never the index alone
+    /// (contract §4). The entry is fetched at its CONSTRUCTED path and
+    /// cross-checked field-by-field against the index's claims — drift
+    /// between a projection and its source is treated as tampered.
+    async fn entry_digest(&self, art: &IndexArtifact) -> Result<String, RegistryError> {
+        let url = format!(
+            "{INDEX_BASE}/registry/workflows/{}/{}/{}.toml",
+            art.publisher, art.name, art.version
+        );
+        let body = self
+            .get_bytes(
+                &url,
+                "the registry entry",
+                MAX_ARTIFACT_BYTES,
+                "the index lists an entry the registry does not serve — the registry is inconsistent; report it",
+            )
+            .await?;
+        let text = String::from_utf8(body).map_err(|_| {
+            RegistryError::new(ErrKind::IndexShape {
+                why: "the entry is not UTF-8 text".to_owned(),
+            })
+        })?;
+        parse_entry(&text, art)
+    }
+
+    async fn fetch_artifact(
+        &self,
+        art: &IndexArtifact,
+        digest: &str,
+    ) -> Result<Vec<u8>, RegistryError> {
+        let coordinate = format!("{}/{}@{}", art.publisher, art.name, art.version);
+        let url = format!(
+            "{RAW_BASE}/{}/{}/{}",
+            art.source.repo, art.source.rev, art.source.path
+        );
+        let bytes = self
+            .get_bytes(
+                &url,
+                &coordinate,
+                MAX_ARTIFACT_BYTES,
+                "the pinned source is gone (the author's repo moved or rewrote history) — report it to the registry",
+            )
+            .await?;
+        let actual = nika_dap::source_id::sha256_hex(&bytes);
+        if actual != digest {
+            return Err(RegistryError::new(ErrKind::HashMismatch {
+                coordinate,
+                expected: digest.to_owned(),
+                actual,
+            }));
+        }
+        Ok(bytes)
+    }
+
+    /// One capped GET with the honest failure taxonomy: transport error
+    /// → the offline story · non-200 → what answered + the hint · over
+    /// cap → the size law.
+    async fn get_bytes(
+        &self,
+        url: &str,
+        what: &str,
+        cap: usize,
+        non_200_hint: &str,
+    ) -> Result<Vec<u8>, RegistryError> {
+        let resp = self
+            .http
+            .get(HttpRequest::get(url))
+            .await
+            .map_err(|e: HttpError| {
+                RegistryError::new(ErrKind::Offline {
+                    what: what.to_owned(),
+                    reason: e.to_string(),
+                })
+            })?;
+        if resp.status != 200 {
+            return Err(RegistryError::new(ErrKind::FetchFailed {
+                what: what.to_owned(),
+                status: resp.status,
+                hint: non_200_hint.to_owned(),
+            }));
+        }
+        if resp.body.len() > cap {
+            return Err(RegistryError::new(ErrKind::TooLarge {
+                what: what.to_owned(),
+                len: resp.body.len(),
+                cap,
+            }));
+        }
+        Ok(resp.body.to_vec())
+    }
+
+    // -- store ----------------------------------------------------------
+
+    /// Write the VERIFIED bytes + digest record (atomic: temp sibling +
+    /// rename), and the pin when the ref was bare. Nothing lands here
+    /// unless the hash already matched.
+    fn store(
+        &self,
+        r: &RegistryRef,
+        art: &IndexArtifact,
+        digest: &str,
+        bytes: &[u8],
+    ) -> Result<Resolved, RegistryError> {
+        let dir = self.dir_of(r);
+        std::fs::create_dir_all(&dir).map_err(|e| {
+            RegistryError::env(format!(
+                "cannot create the cache dir {}: {e}",
+                dir.display()
+            ))
+        })?;
+        let coordinate = r.coordinate(&art.version);
+        let meta = Meta {
+            sha256: digest.to_owned(),
+            coordinate: coordinate.clone(),
+            source: art.source.clone(),
+        };
+        let meta_json = serde_json::to_string_pretty(&meta)
+            .map_err(|e| RegistryError::env(format!("cannot encode the digest record: {e}")))?;
+        let artifact = dir.join(format!("{}.nika.yaml", art.version));
+        write_atomic(&artifact, bytes)?;
+        write_atomic(
+            &dir.join(format!("{}.meta.json", art.version)),
+            meta_json.as_bytes(),
+        )?;
+        if r.version.is_none() {
+            write_atomic(&dir.join("pin"), format!("{}\n", art.version).as_bytes())?;
+        }
+        Ok(Resolved {
+            path: artifact,
+            coordinate,
+            sha256: digest.to_owned(),
+            fetched: true,
+            pinned: false,
+        })
+    }
+}
+
+/// Pick the artifact a ref names, out of the index: exact version when
+/// asked, newest `SemVer` otherwise — then the refusal ladder (advisory ·
+/// type · pin shape) BEFORE any bytes move.
+fn select_artifact(
+    index: &Index,
+    r: &RegistryRef,
+    version: Option<&str>,
+) -> Result<IndexArtifact, RegistryError> {
+    let named: Vec<&IndexArtifact> = index
+        .artifacts
+        .iter()
+        .filter(|a| a.publisher == r.owner && a.name == r.name)
+        .collect();
+    if named.is_empty() {
+        return Err(RegistryError::new(ErrKind::NotFound {
+            what: format!("`{}/{}`", r.owner, r.name),
+            hint: "check the spelling against https://github.com/supernovae-st/nika-registry — a name an agent suggests must actually exist (this refusal is the guard)".to_owned(),
+        }));
+    }
+    let workflows: Vec<&IndexArtifact> = named
+        .iter()
+        .copied()
+        .filter(|a| a.kind == "workflow")
+        .collect();
+    if workflows.is_empty() {
+        // Named, but nothing runnable: teach what it IS instead.
+        let kind = named[0].kind.clone();
+        return Err(RegistryError::new(ErrKind::NotAWorkflow {
+            coordinate: format!("{}/{}", r.owner, r.name),
+            kind,
+        }));
+    }
+    let chosen: &IndexArtifact = match version {
+        Some(v) => workflows
+            .iter()
+            .copied()
+            .find(|a| a.version == v)
+            .ok_or_else(|| {
+                let mut published: Vec<&str> =
+                    workflows.iter().map(|a| a.version.as_str()).collect();
+                published.sort_unstable();
+                RegistryError::new(ErrKind::NotFound {
+                    what: format!("`{}/{}@{v}`", r.owner, r.name),
+                    hint: format!("published versions: {}", published.join(", ")),
+                })
+            })?,
+        None => workflows
+            .iter()
+            .copied()
+            .filter(|a| version_key(&a.version).is_some())
+            .max_by_key(|a| version_key(&a.version))
+            .ok_or_else(|| {
+                RegistryError::new(ErrKind::IndexShape {
+                    why: format!("no version of {}/{} parses as SemVer", r.owner, r.name),
+                })
+            })?,
+    };
+    if !chosen.advisories.is_empty() {
+        return Err(RegistryError::new(ErrKind::Advisory {
+            coordinate: format!("{}/{}@{}", r.owner, r.name, chosen.version),
+            ids: chosen.advisories.clone(),
+        }));
+    }
+    vet_pin(chosen)?;
+    Ok(chosen.clone())
+}
+
+/// The closed-set vet of everything that becomes a URL or a path — a
+/// field the client cannot vet is refused, never interpolated.
+fn vet_pin(a: &IndexArtifact) -> Result<(), RegistryError> {
+    let shape = |why: String| RegistryError::new(ErrKind::IndexShape { why });
+    if a.sha256.len() != 64 || !a.sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(shape(format!("`{}` is not a full 64-hex sha256", a.sha256)));
+    }
+    if a.source.rev.len() != 40 || !a.source.rev.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(shape(format!(
+            "`{}` is not a full 40-hex commit (tags and branches are forbidden pins)",
+            a.source.rev
+        )));
+    }
+    let repo_ok = a
+        .source
+        .repo
+        .split_once('/')
+        .is_some_and(|(owner, repo)| valid_owner(owner) && valid_repo_name(repo));
+    if !repo_ok {
+        return Err(shape(format!(
+            "`{}` is not an owner/name repo",
+            a.source.repo
+        )));
+    }
+    if !valid_source_path(&a.source.path) {
+        return Err(shape(format!(
+            "`{}` is not a plain repo-relative path",
+            a.source.path
+        )));
+    }
+    if version_key(&a.version).is_none() {
+        return Err(shape(format!("`{}` is not a SemVer version", a.version)));
+    }
+    Ok(())
+}
+
+/// Parse + vet the entry TOML (contract §1): closed key set, then the
+/// fields cross-checked against the index's claims. Returns the digest
+/// of record.
+fn parse_entry(text: &str, art: &IndexArtifact) -> Result<String, RegistryError> {
+    let shape = |why: String| RegistryError::new(ErrKind::IndexShape { why });
+    let doc: toml_edit::DocumentMut = text
+        .parse()
+        .map_err(|e| shape(format!("the entry does not parse as TOML: {e}")))?;
+    for (key, _) in doc.iter() {
+        if !ENTRY_KEYS.contains(&key) {
+            return Err(shape(format!("unknown entry field `{key}`")));
+        }
+    }
+    let str_at = |table: Option<&str>, key: &str| -> Option<String> {
+        let item = match table {
+            Some(t) => doc.get(t)?.get(key)?,
+            None => doc.get(key)?,
+        };
+        item.as_str().map(str::to_owned)
+    };
+    for (table, allowed) in [("source", &SOURCE_KEYS[..]), ("integrity", &["sha256"][..])] {
+        if let Some(entries) = doc.get(table).and_then(toml_edit::Item::as_table) {
+            for (key, _) in entries {
+                if !allowed.contains(&key) {
+                    return Err(shape(format!("unknown [{table}] field `{key}`")));
+                }
+            }
+        }
+    }
+    let claims = [
+        ("type", str_at(None, "type"), &art.kind),
+        ("name", str_at(None, "name"), &art.name),
+        ("publisher", str_at(None, "publisher"), &art.publisher),
+        ("version", str_at(None, "version"), &art.version),
+        (
+            "source.repo",
+            str_at(Some("source"), "repo"),
+            &art.source.repo,
+        ),
+        ("source.rev", str_at(Some("source"), "rev"), &art.source.rev),
+        (
+            "source.path",
+            str_at(Some("source"), "path"),
+            &art.source.path,
+        ),
+        (
+            "integrity.sha256",
+            str_at(Some("integrity"), "sha256"),
+            &art.sha256,
+        ),
+    ];
+    for (field, entry_value, index_value) in claims {
+        match entry_value {
+            Some(v) if &v == index_value => {}
+            Some(_) => {
+                return Err(shape(format!(
+                    "the index and the entry disagree on {field} — a projection that cannot be re-derived is treated as tampered"
+                )));
+            }
+            None => return Err(shape(format!("the entry is missing {field}"))),
+        }
+    }
+    // Cross-checked equal — the entry's digest IS art.sha256 now.
+    Ok(art.sha256.clone())
+}
+
+/// Atomic write: temp sibling + rename, so a torn write can never look
+/// like a verified artifact.
+fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), RegistryError> {
+    let io_err =
+        |e: std::io::Error| RegistryError::env(format!("cannot write {}: {e}", path.display()));
+    let tmp = path.with_extension(format!("tmp-{}", std::process::id()));
+    std::fs::write(&tmp, bytes).map_err(io_err)?;
+    std::fs::rename(&tmp, path).map_err(io_err)
+}
+
+// ---------------------------------------------------------------------
+// Ref parsing + version ordering
+// ---------------------------------------------------------------------
+
+fn parse_ref(arg: &str) -> Result<RegistryRef, RegistryError> {
+    let bad = |why: &str| {
+        RegistryError::new(ErrKind::BadRef {
+            arg: arg.to_owned(),
+            why: why.to_owned(),
+        })
+    };
+    let rest = arg
+        .strip_prefix(SCHEME)
+        .ok_or_else(|| bad("missing the `registry:` scheme"))?;
+    let (locator, version) = match rest.split_once('@') {
+        Some((l, v)) => (l, Some(v)),
+        None => (rest, None),
+    };
+    let Some((owner, name)) = locator.split_once('/') else {
+        return Err(bad(
+            "expected owner/name (the publisher is required — it is what pins WHOSE artifact you get)",
+        ));
+    };
+    if name.contains('/') {
+        return Err(bad("expected exactly owner/name — one `/`"));
+    }
+    if !valid_owner(owner) {
+        return Err(bad(
+            "the owner is a GitHub owner: letters, digits and `-`, not starting with `-`",
+        ));
+    }
+    if !valid_name(name) {
+        return Err(bad(
+            "the name is lowercase letters, digits and `-` (up to 64, starting alphanumeric)",
+        ));
+    }
+    match version {
+        Some(v) if version_key(v).is_none() => Err(bad(
+            "the version is plain SemVer, e.g. 1.2.0 or 1.2.0-rc.1 (no `v` prefix, no build metadata)",
+        )),
+        _ => Ok(RegistryRef {
+            owner: owner.to_owned(),
+            name: name.to_owned(),
+            version: version.map(str::to_owned),
+        }),
+    }
+}
+
+fn valid_owner(s: &str) -> bool {
+    !s.is_empty()
+        && !s.starts_with('-')
+        && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+}
+
+/// GitHub repo names also allow `.` and `_` — path-safe (no separators).
+fn valid_repo_name(s: &str) -> bool {
+    !s.is_empty()
+        && s != "."
+        && s != ".."
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+}
+
+fn valid_name(s: &str) -> bool {
+    s.len() <= 64
+        && s.as_bytes()
+            .first()
+            .is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
+/// Repo-relative, no traversal, plain charset — the R2 path law.
+fn valid_source_path(s: &str) -> bool {
+    !s.is_empty()
+        && !s.starts_with('/')
+        && s.split('/').all(|seg| {
+            !seg.is_empty()
+                && seg != "."
+                && seg != ".."
+                && seg
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+        })
+}
+
+/// `SemVer`-precedence sort key (`SemVer` §11, the get.py `version_key`
+/// port): numeric core compared numerically; a STABLE release outranks
+/// any pre-release of the same core (`0.2.0` > `0.2.0-rc1`); numeric
+/// pre-release ids compare numerically and rank below alphanumeric ones.
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
+struct VersionKey {
+    core: Vec<u64>,
+    stable: bool,
+    pre: Vec<PreId>,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
+enum PreId {
+    Num(u64),
+    Alpha(String),
+}
+
+fn version_key(v: &str) -> Option<VersionKey> {
+    if v.contains('+') {
+        return None; // pin without build metadata — a pin must name ONE thing
+    }
+    let (core, pre) = match v.split_once('-') {
+        Some((core, pre)) => (core, Some(pre)),
+        None => (v, None),
+    };
+    let nums: Vec<u64> = core
+        .split('.')
+        .map(str::parse)
+        .collect::<Result<_, _>>()
+        .ok()?;
+    if nums.len() != 3 {
+        return None;
+    }
+    let pre_ids = match pre {
+        None => Vec::new(),
+        Some("") => return None,
+        Some(pre) => pre
+            .split('.')
+            .map(|id| {
+                if id.is_empty() || !id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+                    return None;
+                }
+                Some(match id.parse::<u64>() {
+                    Ok(n) => PreId::Num(n),
+                    Err(_) => PreId::Alpha(id.to_owned()),
+                })
+            })
+            .collect::<Option<Vec<_>>>()?,
+    };
+    Some(VersionKey {
+        core: nums,
+        stable: pre_ids.is_empty(),
+        pre: pre_ids,
+    })
+}
+
+// ---------------------------------------------------------------------
+// Production wiring (the ONE seam main.rs calls)
+// ---------------------------------------------------------------------
+
+/// Resolve a registry ref over the real network into the canonical
+/// cache (`~/.nika/registry/`), blocking the current thread — the
+/// CLI-level seam that runs BEFORE any workflow is parsed.
+///
+/// # Errors
+///
+/// Every refusal in the trust chain: a ref that does not parse, a name
+/// that resolves nowhere (`NIKA-REG-001`), an advisory withdrawal
+/// (`NIKA-REG-002`), a digest mismatch (`NIKA-REG-003` — nothing is
+/// written), a tampered cache record (`NIKA-REG-004`), a registry shape
+/// this engine cannot vet (`NIKA-REG-005`), plus the honest offline /
+/// transport / environment failures. Each message teaches its fix.
+pub fn resolve_blocking(arg: &str) -> Result<Resolved, RegistryError> {
+    let root = default_cache_root()?;
+    let http = registry_http()?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| RegistryError::env(format!("cannot start the fetch runtime: {e}")))?;
+    rt.block_on(RegistryClient::new(http, root).resolve(arg))
+}
+
+/// The registry fetch client: SSRF enforcement stays ON (public https
+/// hosts only), transport capped well under attacker-sized bodies.
+// `HttpConfig` is `#[non_exhaustive]` → field assignment, not a struct
+// literal (the same idiom as the run composer).
+#[allow(clippy::field_reassign_with_default)]
+fn registry_http() -> Result<nika_http::ReqwestHttp, RegistryError> {
+    let mut config = nika_http::HttpConfig::default();
+    config.max_response_bytes = MAX_INDEX_BYTES as u64;
+    nika_http::ReqwestHttp::with_config(config)
+        .map_err(|e| RegistryError::env(format!("cannot initialize the fetch client: {e}")))
+}
+
+/// `~/.nika/registry` — the ONE canonical cache dir (HOME/USERPROFILE,
+/// the same resolution `nika wire` uses for editor configs).
+// Env read is config-path state, not a secret — the same scoped
+// exemption as `wire.rs::home_path`.
+#[allow(clippy::disallowed_methods)]
+fn default_cache_root() -> Result<PathBuf, RegistryError> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(|home| PathBuf::from(home).join(".nika").join("registry"))
+        .ok_or_else(|| RegistryError::env("cannot find HOME/USERPROFILE for the registry cache"))
+}
+
+#[cfg(test)]
+mod tests;
