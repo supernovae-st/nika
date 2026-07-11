@@ -17,6 +17,7 @@
 [![Rust](https://img.shields.io/badge/built_in-Rust-orange.svg)](Cargo.toml)
 [![CI](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml/badge.svg?branch=main)](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml)
 [![Release](https://img.shields.io/github/v/release/supernovae-st/nika?label=release)](https://github.com/supernovae-st/nika/releases/latest)
+[![SWH](https://archive.softwareheritage.org/badge/origin/https://github.com/supernovae-st/nika/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/supernovae-st/nika)
 
 Useful AI work shouldn't disappear into chats. **Nika turns repeatable AI
 work into files you can run, review, diff and share.** If you do the same
