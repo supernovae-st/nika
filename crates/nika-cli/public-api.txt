@@ -245,6 +245,9 @@ pub fn nika_cli::verbs::init::agents_md() -> &'static str
 pub fn nika_cli::verbs::init::run(dir: &str, force: bool, yes: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::inspect
 pub fn nika_cli::verbs::inspect::run(path: &str, ascii: bool) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::model
+pub const nika_cli::verbs::model::DEFAULT_PORT: u16
+pub fn nika_cli::verbs::model::serve(gguf: &std::path::Path, tokenizer: core::option::Option<&std::path::Path>, port: u16, model_id: core::option::Option<&str>) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::new
 pub fn nika_cli::verbs::new::dispatch(from: core::option::Option<&str>, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::new::run(template: &str, dest: core::option::Option<&str>, force: bool) -> nika_cli::verbs::VerbOutput
