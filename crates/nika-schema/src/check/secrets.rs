@@ -34,8 +34,25 @@ pub struct SecretLeak {
     pub secret: String,
     /// The effect surface (`exec` · `invoke`).
     pub sink: &'static str,
+    /// The EXACT `egress.to:` value that would sanction this sink — the
+    /// tool id for an invoke (`nika:jq`), else the surface (`exec` ·
+    /// `infer` · `agent`). Feeds the one-line fix so the flagship IFC
+    /// finding is self-serve (use-case battery 2026-07-11 · T2).
+    pub sink_id: String,
     /// The full taint chain (`secrets.x → with.t → ...`) for diagnostics.
     pub trace: String,
+}
+
+/// The precise `egress.to:` clearance a leak needs: an invoke's tool id
+/// (`nika:jq` · `mcp:srv/tool`) is the SPECIFIC sink; every other surface
+/// IS its own `to:` token.
+fn sink_id_of(action: &RawAction) -> String {
+    match action {
+        RawAction::Invoke(inv) => inv.tool.value.clone(),
+        RawAction::Exec(_) => "exec".to_owned(),
+        RawAction::Infer(_) => "infer".to_owned(),
+        RawAction::Agent(_) => "agent".to_owned(),
+    }
 }
 
 /// A secret that leaves the run as a workflow return value.
@@ -73,14 +90,19 @@ pub(super) fn scan_leaks(wf: &RawWorkflow, flow: &FlowFacts) -> Vec<SecretLeak> 
                     RawAction::Infer(_) => "infer",
                     RawAction::Agent(_) => "agent",
                 },
+                sink_id: sink_id_of(&task.value.action),
                 trace: trace.render(),
             });
         }
-        if let Some((trace, sink, _cleanup_idx)) = flow.finally_effect_taint(idx) {
+        if let Some((trace, sink, cleanup_idx)) = flow.finally_effect_taint(idx) {
             leaks.push(SecretLeak {
                 task: task.value.id.value.clone(),
                 secret: trace.secret.clone(),
                 sink,
+                sink_id: wf
+                    .tasks
+                    .get(cleanup_idx)
+                    .map_or_else(|| sink.to_owned(), |t| sink_id_of(&t.value.action)),
                 trace: trace.render(),
             });
         }

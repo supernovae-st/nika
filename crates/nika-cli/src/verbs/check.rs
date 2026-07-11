@@ -331,7 +331,16 @@ fn render(
         let mut rows: Vec<String> = report
             .secret_leaks
             .iter()
-            .map(|l| format!("leak into {} (task `{}`) — {}", l.sink, l.task, l.trace))
+            .map(|l| {
+                // The per-sink sanction ON THE SECRET — the human voice
+                // matches the `--json` findings[] (one contract · use-case
+                // battery 2026-07-11 · T2).
+                format!(
+                    "leak into {} (task `{}`) — {} · fix: sanction it — \
+                     `egress: [{{ to: \"{}\" }}]` on `secrets.{}`",
+                    l.sink, l.task, l.trace, l.sink_id, l.secret
+                )
+            })
             .collect();
         rows.extend(
             report

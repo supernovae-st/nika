@@ -358,6 +358,17 @@ impl Cx<'_> {
                 } else {
                     crate::suggest::did_you_mean(key.as_str(), known.iter().copied())
                         .map(str::to_owned)
+                        // No near-miss to assert: for a small closed set,
+                        // teach the set itself — `env` in a secret is
+                        // nobody's typo for `key`, the author needs the
+                        // vocabulary (the chart-semantics precedent applied
+                        // to parse · use-case battery 2026-07-11). Large
+                        // sets (a task's keys) stay silent: a 20-item dump
+                        // is noise, not teaching.
+                        .or_else(|| {
+                            (known.len() <= 8)
+                                .then(|| format!("the fields here: {}", known.join(" · ")))
+                        })
                 };
                 return Err(SchemaError::UnknownField {
                     field: key.as_str().to_owned(),

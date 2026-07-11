@@ -1181,6 +1181,7 @@ pub fn nika_schema::check::SecretEgress::as_any(&self) -> &(dyn core::any::Any +
 #[non_exhaustive] pub struct nika_schema::check::SecretLeak
 pub nika_schema::check::SecretLeak::secret: alloc::string::String
 pub nika_schema::check::SecretLeak::sink: &'static str
+pub nika_schema::check::SecretLeak::sink_id: alloc::string::String
 pub nika_schema::check::SecretLeak::task: alloc::string::String
 pub nika_schema::check::SecretLeak::trace: alloc::string::String
 impl core::clone::Clone for nika_schema::SecretLeak
@@ -7068,6 +7069,7 @@ pub fn nika_schema::SchemaTypeFinding::as_any(&self) -> &(dyn core::any::Any + '
 #[non_exhaustive] pub struct nika_schema::SecretLeak
 pub nika_schema::SecretLeak::secret: alloc::string::String
 pub nika_schema::SecretLeak::sink: &'static str
+pub nika_schema::SecretLeak::sink_id: alloc::string::String
 pub nika_schema::SecretLeak::task: alloc::string::String
 pub nika_schema::SecretLeak::trace: alloc::string::String
 impl core::clone::Clone for nika_schema::SecretLeak
