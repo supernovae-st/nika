@@ -91,6 +91,11 @@ pub struct TaskRow {
     /// surface (` · recovered`) — a repaired success must never render
     /// byte-identical to a clean one (#319).
     pub recovered: bool,
+    /// The OBS-E non-fatal `warning` the terminal frame carried (#410 ·
+    /// the thinking model that spent its budget and answered blank) —
+    /// the task succeeded, but the console must say what the trace
+    /// knows, or a green run silently feeds "" downstream.
+    pub warning: Option<String>,
 }
 
 impl TaskRow {
@@ -319,6 +324,12 @@ impl RunView {
             if let Some(tokens) = int_field(event, "tokens") {
                 self.rows[i].tokens = u64::try_from(tokens).ok();
             }
+            // The OBS-E `warning` rider (#410) — kept on the row so the
+            // final frame can speak it (the trace alone knowing is the
+            // observability gap this closes).
+            if let Some(warning) = str_field(event, "warning") {
+                self.rows[i].warning = Some(warning.to_owned());
+            }
         }
         // Live approximation (per-task) — the terminal frame's
         // leaf-level `unpriced_calls` overwrites it at run end.
@@ -415,6 +426,7 @@ impl RunView {
                 input_hash: None,
                 cached: false,
                 recovered: false,
+                warning: None,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);
