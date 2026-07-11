@@ -35,6 +35,15 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   its own cadence); the README badge links the archived origin — the
   permanent, vendor-independent copy of the source.
 
+- **Official Docker image on GHCR** — the release workflow now builds and
+  pushes `ghcr.io/supernovae-st/nika` (multi-arch linux/amd64 + linux/arm64 ·
+  tags `latest` + semver, smoke-tested before any push). The image carries
+  the checksum-verified release binary on debian-slim with a non-root user;
+  the entrypoint is the whole CLI — `docker run --rm ghcr.io/supernovae-st/nika
+  --version`, and `docker run -i --rm ghcr.io/supernovae-st/nika mcp` serves
+  the read-only MCP oracle. Standalone-buildable from the repo:
+  `docker build -f docker/Dockerfile --build-arg NIKA_VERSION=<v> .` (#442)
+
 ### Fixed
 
 - **The agent-verb battery triad** (36-workflow gauntlet on the 4th
@@ -59,7 +68,6 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   Escape scanning, boundary inference and the per-task graph `permits`
   attribution all speak them now.
 
-### Added
 
 - **`graph --format json` fills the per-task `permits` attribution** —
   the field the projection declared as its contract (empty since #367)
