@@ -147,6 +147,65 @@ pub fn host_is_blocked(host: &str) -> bool {
         .is_ok_and(ip_is_blocked)
 }
 
+/// The loopback identity an exact literal can carry — the CLOSED
+/// declassification vocabulary of the SSRF floor (issue #395).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LoopbackLiteral {
+    /// The bare `localhost` name (RFC 6761) — never the `*.localhost`
+    /// family (a subdomain names an arbitrary service).
+    Localhost,
+    /// A literal loopback address — v4 `127.0.0.0/8` or v6 `::1`.
+    Ip(core::net::IpAddr),
+}
+
+/// Classify an EXACT loopback literal, `None` for everything else. Same
+/// normalization as [`host_is_blocked`] (trailing FQDN dot · v6 authority
+/// brackets · ASCII case), so the two predicates read one host language.
+/// Globs are excluded structurally: a `*` can neither equal `localhost`
+/// nor parse as an address.
+fn exact_loopback(entry: &str) -> Option<LoopbackLiteral> {
+    let trimmed = entry.trim_end_matches('.');
+    if trimmed.eq_ignore_ascii_case("localhost") {
+        return Some(LoopbackLiteral::Localhost);
+    }
+    let literal = trimmed.trim_start_matches('[').trim_end_matches(']');
+    let ip = literal.parse::<core::net::IpAddr>().ok()?;
+    // `is_loopback` is EXACT: v4 127/8, v6 `::1` — never the unspecified
+    // addresses, never a mapped/NAT64 wrapper smuggling 127.x (those parse
+    // as non-loopback v6 and stay floor-blocked).
+    ip.is_loopback().then_some(LoopbackLiteral::Ip(ip))
+}
+
+/// True when `entry` is an EXACT loopback literal — the bare `localhost`
+/// name, a `127.0.0.0/8` v4 literal, or the v6 loopback `::1` (bracketed
+/// or bare). The closed vocabulary an author may DECLASSIFY the SSRF
+/// floor with (issue #395 · the ADR-092 secrets-`egress:` precedent: the
+/// owner's explicit act, co-located with the boundary). NEVER a glob,
+/// NEVER the `*.localhost` family, NEVER RFC1918 / link-local / CGN /
+/// metadata — those stay floor-blocked even when named in permits.
+#[must_use]
+pub fn is_exact_loopback_literal(entry: &str) -> bool {
+    exact_loopback(entry).is_some()
+}
+
+/// True when `host` is cleared from the SSRF floor by an exact loopback
+/// literal in the declared `permits.net.http` allowlist (issue #395).
+/// EXACT host comparison — never a glob, prefix, or subnet: `localhost`
+/// clears `localhost` only (not `127.0.0.1` — the declassification is
+/// the literal in the file, never what it resolves to), `127.0.0.1`
+/// clears `127.0.0.1` only. Both sides must be loopback: a non-loopback
+/// host is never declassifiable, so RFC1918/metadata grants stay inert.
+/// Every floor surface reads THIS one predicate — the http static vet
+/// (`nika-http`), the resolved-address guard's name check, and the
+/// `nika check` floor-parity pass — so check and run cannot drift.
+#[must_use]
+pub fn loopback_declassified(allowlist: &[String], host: &str) -> bool {
+    let Some(target) = exact_loopback(host) else {
+        return false;
+    };
+    allowlist.iter().any(|e| exact_loopback(e) == Some(target))
+}
+
 /// The v4 address a transition-format v6 embeds in two segments (NAT64
 /// `64:ff9b::a.b.c.d` in segments 6+7 · 6to4 `2002:a.b:c.d::` in segments 1+2).
 fn embedded_v4(hi: u16, lo: u16) -> core::net::Ipv4Addr {
@@ -350,5 +409,95 @@ mod tests {
         ] {
             assert!(!host_is_blocked(h), "{h} must not be floor-blocked");
         }
+    }
+
+    #[test]
+    fn exact_loopback_literal_is_the_closed_declassification_vocabulary() {
+        // The qualifying set (issue #395): the bare `localhost` name, a
+        // 127.0.0.0/8 v4 literal, the v6 loopback `::1` (bracketed or
+        // bare — the URL-authority spelling included).
+        for e in [
+            "localhost",
+            "LOCALHOST",
+            "localhost.", // absolute-FQDN spelling
+            "127.0.0.1",
+            "127.5.6.7", // any exact 127/8 literal
+            "::1",
+            "[::1]",
+            "0:0:0:0:0:0:0:1", // the expanded spelling of ::1
+        ] {
+            assert!(is_exact_loopback_literal(e), "{e} must qualify");
+        }
+    }
+
+    #[test]
+    fn never_list_and_globs_never_qualify_as_loopback_literals() {
+        // The NEVER list: globs, the `*.localhost` FAMILY (an exact literal
+        // only — a subdomain reaches arbitrary services), RFC1918,
+        // link-local/metadata, CGN, the unspecified addresses, NAT64/mapped
+        // wrappers SMUGGLING loopback, and plain public hosts.
+        for e in [
+            "*.localhost",
+            "*",
+            "api.localhost", // the RFC 6761 family is NOT the bare name
+            "10.0.0.1",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.169.254", // cloud metadata IP
+            "metadata.google.internal",
+            "fe80::1",
+            "fc00::1",
+            "100.100.100.200",  // CGN (Alibaba metadata)
+            "0.0.0.0",          // unspecified is NOT loopback
+            "::",               // v6 unspecified
+            "::ffff:127.0.0.1", // mapped wrapper — not the ::1 literal
+            "64:ff9b::7f00:1",  // NAT64 wrapper smuggling 127.0.0.1
+            "2130706433",       // decimal spelling — not an exact literal
+            "127.0.0.1:8080",   // a host:port is not a host literal
+            "example.com",
+            "",
+        ] {
+            assert!(!is_exact_loopback_literal(e), "{e} must NOT qualify");
+        }
+    }
+
+    #[test]
+    fn declassification_clears_the_exact_host_only() {
+        let perm = |entries: &[&str]| -> vec::Vec<String> {
+            entries.iter().map(|e| (*e).to_string()).collect()
+        };
+        // The exact literal clears ITS host — in any equivalent spelling
+        // pair (case · brackets · FQDN dot), and on no other host.
+        assert!(loopback_declassified(&perm(&["127.0.0.1"]), "127.0.0.1"));
+        assert!(loopback_declassified(&perm(&["localhost"]), "localhost"));
+        assert!(loopback_declassified(&perm(&["LOCALHOST"]), "localhost."));
+        assert!(loopback_declassified(&perm(&["[::1]"]), "::1"));
+        assert!(loopback_declassified(&perm(&["::1"]), "[::1]"));
+        // Exact means EXACT: `localhost` is not `127.0.0.1` (the
+        // declassification is the literal in the file, never what it
+        // resolves to), and 127/8 neighbours are distinct hosts.
+        assert!(!loopback_declassified(&perm(&["localhost"]), "127.0.0.1"));
+        assert!(!loopback_declassified(&perm(&["127.0.0.1"]), "localhost"));
+        assert!(!loopback_declassified(&perm(&["127.0.0.1"]), "127.0.0.2"));
+        // A non-loopback HOST is never declassifiable — even when the list
+        // names it (the never-list holds from the host side too).
+        assert!(!loopback_declassified(&perm(&["10.0.0.1"]), "10.0.0.1"));
+        assert!(!loopback_declassified(
+            &perm(&["169.254.169.254"]),
+            "169.254.169.254"
+        ));
+        // The `*.localhost` family: neither a glob ENTRY nor a family HOST
+        // ever participates.
+        assert!(!loopback_declassified(
+            &perm(&["*.localhost"]),
+            "api.localhost"
+        ));
+        assert!(!loopback_declassified(
+            &perm(&["api.localhost"]),
+            "api.localhost"
+        ));
+        // Empty list declassifies nothing.
+        let empty: vec::Vec<String> = vec![];
+        assert!(!loopback_declassified(&empty, "localhost"));
     }
 }
