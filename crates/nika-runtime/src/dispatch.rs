@@ -798,14 +798,22 @@ fn check_exec_permits(
 /// answer — the task completes rc=0 with `output == ""` and every
 /// downstream `${{ tasks.X.output }}` silently resolves to nothing.
 ///
-/// The signal is the **empty visible answer paired with reasoning
-/// spend**, NOT `output_tokens == 0`: the gemini wire deliberately folds
-/// `thoughtsTokenCount` INTO `output_tokens` (so a heavy-think empty
-/// answer reports `output_tokens == thoughts > 0`, see
-/// `wire::gemini::usage_from`) — keying off `output_tokens` would never
-/// fire on the very provider this guards. `reasoning_tokens` (`OpenAI`
-/// o-series) is treated the same as `thinking_tokens` (provider-agnostic
-/// · the reasoning budget is one concept across wires).
+/// The signal is the **empty visible answer paired with token spend** —
+/// under either report shape:
+///
+/// - a REPORTED reasoning split (`thinking_tokens` · anthropic
+///   extended-thinking; `reasoning_tokens` · `OpenAI` o-series; the
+///   gemini wire folds `thoughtsTokenCount` INTO `output_tokens`, so its
+///   heavy-think empty answer reports `output_tokens == thoughts > 0` —
+///   see `wire::gemini::usage_from`), or
+/// - NO split at all with `output_tokens > 0` (#410 · the ollama path
+///   strips the think block upstream and reports one undifferentiated
+///   count: 512 tokens consumed, 2 bytes visible — the exact silent
+///   footgun, previously unguarded).
+///
+/// A blank answer with ZERO tokens of any kind stays silent — nothing
+/// was spent, so this is a plain empty completion, not the thinking
+/// footgun.
 ///
 /// Non-fatal: returns the diagnostic STRING when the footgun is detected
 /// (the caller rides it on `TaskCompleted` as a `warning` field) · the
@@ -814,14 +822,25 @@ fn empty_thinking_warning(
     value: &Value,
     usage: &nika_kernel::provider::TokenUsage,
 ) -> Option<String> {
+    if !value_is_blank(value) {
+        return None;
+    }
     let reasoning = usage
         .thinking_tokens
         .unwrap_or(0)
         .saturating_add(usage.reasoning_tokens.unwrap_or(0));
-    if reasoning > 0 && value_is_blank(value) {
+    if reasoning > 0 {
         return Some(format!(
             "infer produced an empty answer · max_tokens likely too low for a thinking model \
              (reasoning consumed {reasoning} tokens)"
+        ));
+    }
+    if usage.output_tokens > 0 {
+        return Some(format!(
+            "infer consumed {} tokens yet the visible answer is empty — a thinking model may \
+             have spent the budget inside its think block (raise max_tokens, or use a no-think \
+             variant)",
+            usage.output_tokens
         ));
     }
     None
@@ -1038,13 +1057,31 @@ mod tests {
     }
 
     #[test]
-    fn obs_e_silent_when_no_reasoning_even_if_answer_blank() {
-        // A blank answer WITHOUT any reasoning spend is a different
-        // problem (an empty completion) · OBS-E only owns the thinking
-        // footgun, so it stays silent (no false alarm).
-        let usage = TokenUsage::new(7, 0); // no thinking, no reasoning
+    fn obs_e_silent_when_nothing_was_spent() {
+        // A blank answer with ZERO tokens of any kind is a plain empty
+        // completion, not the thinking footgun — silence (no false alarm).
+        let usage = TokenUsage::new(7, 0); // no output, no thinking, no reasoning
         assert!(empty_thinking_warning(&Value::String(String::new()), &usage).is_none());
         assert!(empty_thinking_warning(&Value::Null, &usage).is_none());
+    }
+
+    #[test]
+    fn obs_e_fires_on_the_unreported_split_shape() {
+        // #410 · the ollama path: the think block is stripped upstream and
+        // the wire reports ONE undifferentiated count — 512 tokens
+        // consumed, a blank visible answer, no thinking/reasoning split.
+        // The run used to stay green and silent; the warning now names it.
+        let usage = TokenUsage::new(7, 512); // output only — no split fields
+        let warn = empty_thinking_warning(&Value::String(String::new()), &usage)
+            .expect("blank answer + undifferentiated spend → warning");
+        assert!(warn.contains("512"), "reports the spend: {warn}");
+        assert!(warn.contains("max_tokens"), "names the likely fix: {warn}");
+        assert!(warn.contains("no-think"), "names the alternative: {warn}");
+        // A real answer with the same usage shape stays silent.
+        assert!(
+            empty_thinking_warning(&Value::String("Paris".to_owned()), &usage).is_none(),
+            "content is never the footgun"
+        );
     }
 
     #[test]

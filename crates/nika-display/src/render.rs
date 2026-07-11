@@ -114,6 +114,7 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
         ));
     }
 
+    lines.extend(warning_lines(view, theme));
     lines.push(meter_line(view, theme));
 
     // Failure card (only on a failed verdict · derives the explain hint) —
@@ -122,6 +123,29 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
         append_failure_card(&mut lines, view, theme);
     }
     lines
+}
+
+/// The OBS-E warning block (#410): one `⚠ <task> · <warning>` line per
+/// row whose terminal frame carried the non-fatal diagnostic (a thinking
+/// model that spent its budget and answered blank). Above the meter so a
+/// green verdict never buries it — the exit code stays 0, the console
+/// stops being silent about the "" feeding downstream.
+// `&Theme` to match the frame borrows that thread it here.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn warning_lines(view: &RunView, theme: &Theme) -> Vec<String> {
+    let mark = if theme.ascii { "!" } else { "⚠" };
+    view.rows()
+        .iter()
+        .filter_map(|row| {
+            let warning = row.warning.as_deref()?;
+            Some(format!(
+                "  {} {} · {}",
+                theme.paint(Role::Warn, mark),
+                row.id,
+                theme.paint(Role::Warn, warning),
+            ))
+        })
+        .collect()
 }
 
 /// The footer meter: progress · live cost vs ceiling · wall clock. The
@@ -211,14 +235,16 @@ pub fn stream_settled_line(
     ))
 }
 
-/// The streamed close (#321): the meter + the failure card. The rows
-/// already spoke at their settle — the plain final print never repeats
-/// them (a captured log reads the run ONCE, top to bottom).
+/// The streamed close (#321): the OBS-E warnings (#410) + the meter +
+/// the failure card. The rows already spoke at their settle — the plain
+/// final print never repeats them (a captured log reads the run ONCE,
+/// top to bottom).
 // `&Theme` to match the sink borrow that threads it here.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 #[must_use]
 pub fn stream_summary(view: &RunView, theme: &Theme) -> Vec<String> {
-    let mut lines = vec![meter_line(view, theme)];
+    let mut lines = warning_lines(view, theme);
+    lines.push(meter_line(view, theme));
     if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
     }
@@ -646,6 +672,63 @@ mod tests {
                 .iter()
                 .any(|l| l.starts_with("  x  write_md") && l.contains("blocked · summarize failed")),
             "ascii blocked row (err X ≠ blocked x): {ascii:?}"
+        );
+    }
+
+    /// #410 · the OBS-E warning reaches the CONSOLE: a green run whose
+    /// infer spent tokens and answered blank must say so above the meter
+    /// (the trace alone knowing was the observability gap) — on the
+    /// final frame AND the streamed plain close, unicode and ASCII.
+    #[test]
+    fn obs_e_warning_renders_above_the_meter() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let task = |n: &str| KeyValue::new("task", Value::String(n.to_owned()));
+
+        let mut view = RunView::new();
+        view.apply(&demo::bare_event(EventKind::TaskStarted, 0).with_field(task("summary")));
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 5)
+                .with_field(task("summary"))
+                .with_field(KeyValue::new(
+                    "warning",
+                    Value::String(
+                        "infer consumed 512 tokens yet the visible answer is empty".to_owned(),
+                    ),
+                )),
+        );
+
+        let lines = frame(&view, &UNICODE, 0);
+        let warn_at = lines
+            .iter()
+            .position(|l| l.contains("⚠ summary · infer consumed 512 tokens"))
+            .expect("the warning line renders");
+        let meter_at = lines
+            .iter()
+            .position(|l| l.contains("done"))
+            .expect("meter present");
+        assert!(warn_at < meter_at, "warning speaks before the meter");
+
+        // The streamed plain close carries the same block (stream lane).
+        let close = stream_summary(&view, &UNICODE);
+        assert!(
+            close[0].contains("⚠ summary"),
+            "stream close leads with the warning: {close:?}"
+        );
+
+        // ASCII register swaps the glyph, keeps the fact.
+        let ascii = frame(&view, &ASCII, 0);
+        assert!(
+            ascii.iter().any(|l| l.contains("! summary · infer")),
+            "{ascii:?}"
+        );
+
+        // A warning-less run renders no ⚠ block at all.
+        let mut clean = RunView::new();
+        clean.apply(&demo::bare_event(EventKind::TaskCompleted, 5).with_field(task("ok_task")));
+        assert!(
+            !frame(&clean, &UNICODE, 0).iter().any(|l| l.contains('⚠')),
+            "no false alarm on a clean run"
         );
     }
 
