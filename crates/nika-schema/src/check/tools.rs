@@ -101,9 +101,18 @@ pub struct UnknownArg {
     /// The undeclared arg key as written (`data`).
     pub arg: String,
     /// The nearest declared arg key, when one is close enough (`input`
-    /// for `inpit`) — the machine-applicable fix. `None` when the typo is
-    /// too far for an honest guess (silence beats a wrong suggestion).
+    /// for `inpit` · edit distance) or unambiguously abbreviated (`expr`
+    /// for `expression` · unique-prefix) — the machine-applicable fix.
+    /// `None` when no honest guess exists (silence beats a wrong
+    /// suggestion) — then [`Self::declared`] is the teaching.
     pub suggestion: Option<String>,
+    /// The builtin's FULL declared arg vocabulary (catalog order). The
+    /// renderer's fallback teaching when no suggestion is honest: a
+    /// wrong-name-entirely miss (`extract` for fetch's `mode` · `left`
+    /// for `json_diff`'s `before` — the battery's own author-errors) is
+    /// answered by the closed set itself, not a guess. Additive
+    /// (`#[non_exhaustive]`).
+    pub declared: Vec<String>,
 }
 
 /// Scan every `invoke` call (main verbs AND `on_finally` cleanups) for
@@ -148,13 +157,34 @@ fn collect_args(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
         if builtin.args.contains(&key.as_str()) {
             continue;
         }
-        let suggestion = did_you_mean(key, builtin.args.iter().copied()).map(str::to_owned);
+        // Suggestion ladder: edit-distance first (typos: `inpit`), then
+        // unique-prefix (abbreviations: `expr` → `expression` — distance 6,
+        // invisible to the metric, but an unambiguous author intent).
+        let suggestion = did_you_mean(key, builtin.args.iter().copied())
+            .or_else(|| unique_prefix_match(key, builtin.args))
+            .map(str::to_owned);
         out.push(UnknownArg {
             task: site.to_owned(),
             tool: a.tool.value.clone(),
             arg: key.clone(),
             suggestion,
+            declared: builtin.args.iter().map(|&s| s.to_owned()).collect(),
         });
+    }
+}
+
+/// The one declared key the unknown key unambiguously abbreviates —
+/// `Some` only when EXACTLY one candidate starts with it (two matches =
+/// ambiguous = silence) and the abbreviation is substantial (≥3 chars:
+/// a 1-2 char key prefixes half the vocabulary by accident).
+fn unique_prefix_match<'a>(key: &str, declared: &[&'a str]) -> Option<&'a str> {
+    if key.chars().count() < 3 {
+        return None;
+    }
+    let mut hits = declared.iter().filter(|d| d.starts_with(key));
+    match (hits.next(), hits.next()) {
+        (Some(&only), None) => Some(only),
+        _ => None,
     }
 }
 
@@ -335,6 +365,52 @@ mod tests {
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].arg, "inpit");
         assert_eq!(f[0].suggestion.as_deref(), Some("input"));
+    }
+
+    #[test]
+    fn abbreviated_arg_gets_the_unique_prefix_fix() {
+        // The battery's own author-error: `expr` for `nika:jq` — edit
+        // distance 6 (invisible to the metric) but an unambiguous
+        // abbreviation of exactly one declared key.
+        let f = arg_findings_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: { tool: \"nika:jq\", args: { expr: \".\", input: 1 } }\n",
+        );
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].arg, "expr");
+        assert_eq!(f[0].suggestion.as_deref(), Some("expression"));
+    }
+
+    #[test]
+    fn wrong_name_entirely_carries_the_declared_vocabulary() {
+        // The other battery author-error class: `left`/`right` for
+        // `nika:json_diff` (`before`/`after`) — no lexical similarity, so
+        // no guess; the finding carries the closed declared set instead.
+        let f = arg_findings_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: { tool: \"nika:json_diff\", args: { left: { a: 1 }, right: { a: 2 } } }\n",
+        );
+        assert_eq!(f.len(), 2, "{f:?}");
+        for u in &f {
+            assert_eq!(u.suggestion, None, "no honest guess for {}", u.arg);
+            assert!(
+                u.declared.iter().any(|d| d == "before") && u.declared.iter().any(|d| d == "after"),
+                "declared vocabulary teaches the real keys: {:?}",
+                u.declared
+            );
+        }
+    }
+
+    #[test]
+    fn prefix_rule_is_unique_and_substantial_only() {
+        // Two-candidate ambiguity → silence (never a coin-flip guess).
+        assert_eq!(unique_prefix_match("pa", &["path", "pattern"]), None);
+        assert_eq!(unique_prefix_match("pat", &["path", "pattern"]), None);
+        // Substantial + unique → the fix.
+        assert_eq!(
+            unique_prefix_match("expr", &["expression", "input"]),
+            Some("expression")
+        );
+        // Too short to assert intent, even when unique.
+        assert_eq!(unique_prefix_match("ex", &["expression", "input"]), None);
     }
 
     #[test]

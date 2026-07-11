@@ -24,6 +24,7 @@
 //! secret egresses) carry no task name and render at the document origin.
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range};
 use nika_schema::check::ByteSpan;
@@ -107,6 +108,10 @@ fn push_tool_findings(
         );
         if let Some(s) = &a.suggestion {
             push_did_you_mean(&mut msg, s);
+        } else {
+            // No honest guess (wrong-name-entirely) — the closed declared
+            // set is the teaching, same voice as check/findings.
+            let _ = write!(msg, " — declared: {}", a.declared.join(" · "));
         }
         diags.push(error_diag(
             task_range(index, task_spans, &a.task),

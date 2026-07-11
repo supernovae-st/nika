@@ -181,9 +181,14 @@ fn fold_tools(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
                     "`{}` is not an arg of `{}` (task `{}`) — did you mean `{s}`?",
                     a.arg, a.tool, a.task
                 ),
+                // No honest guess (a wrong-name-entirely miss) — the
+                // closed declared set IS the teaching.
                 None => format!(
-                    "`{}` is not an arg of `{}` (task `{}`)",
-                    a.arg, a.tool, a.task
+                    "`{}` is not an arg of `{}` (task `{}`) — declared: {}",
+                    a.arg,
+                    a.tool,
+                    a.task,
+                    a.declared.join(" · ")
                 ),
             },
         );

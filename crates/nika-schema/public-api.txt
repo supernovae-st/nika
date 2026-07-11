@@ -1444,6 +1444,7 @@ impl<T> nika_error::traits::AsAny for nika_schema::check::UnifiedFinding where T
 pub fn nika_schema::check::UnifiedFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::check::UnknownArg
 pub nika_schema::check::UnknownArg::arg: alloc::string::String
+pub nika_schema::check::UnknownArg::declared: alloc::vec::Vec<alloc::string::String>
 pub nika_schema::check::UnknownArg::suggestion: core::option::Option<alloc::string::String>
 pub nika_schema::check::UnknownArg::task: alloc::string::String
 pub nika_schema::check::UnknownArg::tool: alloc::string::String
