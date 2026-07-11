@@ -153,6 +153,28 @@ pub(super) fn paused_envelope_line(pause: &WorkflowPause) -> String {
     .to_string()
 }
 
+/// The stderr resume teaching a PAUSED machine run prints beside its
+/// trace anchor — the pause sibling of the failure lane's `autopsy:`
+/// line (stateful gauntlet 2026-07-11: the pause had everything the
+/// command needs — file · trace · task · mode — and printed none of it).
+/// The `<value>` placeholder speaks the mode's own answer shape.
+pub(super) fn resume_hint_line(
+    file: &str,
+    trace: &std::path::Path,
+    pause: &WorkflowPause,
+) -> String {
+    let value = match pause.mode.as_str() {
+        "confirm" => "true|false".to_owned(),
+        "choice" if !pause.choices.is_empty() => pause.choices.join("|"),
+        _ => "\"<text>\"".to_owned(),
+    };
+    format!(
+        "resume: nika run {file} --resume {} --answer {}={value}",
+        trace.display(),
+        pause.task,
+    )
+}
+
 /// ONE `{"error":{"code":…,"message":…}}` line — the machine failure
 /// contract (F6). `code` is the first NIKA wire code found in the message
 /// (`null` when the failure class carries none, e.g. an unreadable file).
@@ -317,5 +339,35 @@ mod tests {
         let empty = super::run_failure_envelope(&crate::RunView::new());
         let v: Value = serde_json::from_str(&empty).expect("fallback is JSON");
         assert_eq!(v["error"]["message"], json!("workflow failed"));
+    }
+
+    #[test]
+    fn resume_hint_speaks_each_modes_answer_shape() {
+        // The pause sibling of `autopsy:` (stateful gauntlet 2026-07-11):
+        // the taught command must be paste-able — file · trace · task ·
+        // and a value placeholder in the MODE's own answer shape.
+        use nika_runtime::WorkflowPause;
+        let trace = std::path::Path::new(".nika/traces/t.ndjson");
+        let confirm = WorkflowPause::new("approve".into(), "confirm".into(), None, vec![]);
+        assert_eq!(
+            super::resume_hint_line("gate.nika.yaml", trace, &confirm),
+            "resume: nika run gate.nika.yaml --resume .nika/traces/t.ndjson \
+             --answer approve=true|false"
+        );
+        let choice = WorkflowPause::new(
+            "pick".into(),
+            "choice".into(),
+            None,
+            vec!["alpha".into(), "beta".into()],
+        );
+        assert_eq!(
+            super::resume_hint_line("w.yaml", trace, &choice),
+            "resume: nika run w.yaml --resume .nika/traces/t.ndjson \
+             --answer pick=alpha|beta"
+        );
+        let input = WorkflowPause::new("name".into(), "input".into(), None, vec![]);
+        assert!(
+            super::resume_hint_line("w.yaml", trace, &input).ends_with("--answer name=\"<text>\"")
+        );
     }
 }
