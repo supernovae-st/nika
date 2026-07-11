@@ -318,6 +318,18 @@ cargo binstall --git https://github.com/supernovae-st/nika nika-cli
 nix run github:supernovae-st/nika
 ```
 
+Deploying to containers (Dokploy · Coolify · Railway · any PaaS)?
+
+```sh
+# docker — the official multi-arch image (ghcr · linux/amd64 + linux/arm64),
+# built on the release train from the same verified release binaries;
+# mount your workdir to check/run workflows
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika check hello.nika.yaml
+
+# the MCP lane (stdio JSON-RPC) — wire it into any MCP client config
+docker run -i --rm ghcr.io/supernovae-st/nika mcp
+```
+
 Your first workflow runs with **zero setup**: no model, no API key:
 
 ```sh
