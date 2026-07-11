@@ -51,7 +51,10 @@ pub struct EffectivePermits {
     /// paths · tools), independent of what is declared.
     pub needed: Permits,
     /// Effects too dynamic to pin statically (a computed host, a
-    /// templated path) — the inference's honesty notes, verbatim.
+    /// templated path) — the inference's honesty notes, verbatim — plus
+    /// the loopback-declassification statements (#395): each exact
+    /// loopback literal in the declared `net.http`, stated affirmatively
+    /// so a green check TEACHES that the SSRF floor is cleared for it.
     pub notes: Vec<String>,
 }
 
@@ -60,6 +63,22 @@ pub struct EffectivePermits {
 pub(super) fn collect(wf: &RawWorkflow) -> EffectivePermits {
     let inferred = permits_infer::infer(wf);
     let declared = wf.permits.as_ref().map(|p| p.value.clone());
+    let mut notes = inferred.notes;
+    // The loopback declassification, stated (#395 · ADR-092 egress
+    // precedent): the exact literal is the author's explicit act — the
+    // note is the informational surface that replaces the pre-#395
+    // dead-grant/floor findings for these entries.
+    if let Some(net) = declared.as_ref().and_then(|p| p.net.as_ref()) {
+        for entry in &net.http {
+            if nika_types::net::is_exact_loopback_literal(entry) {
+                notes.push(format!(
+                    "permits.net.http entry `{entry}` is an exact loopback literal — \
+                     the explicit permit clears the always-on SSRF floor \
+                     (NIKA-SEC-005) for that host only"
+                ));
+            }
+        }
+    }
     EffectivePermits {
         source: if declared.is_some() {
             PermitsSource::Declared
@@ -68,7 +87,7 @@ pub(super) fn collect(wf: &RawWorkflow) -> EffectivePermits {
         },
         declared,
         needed: inferred.permits,
-        notes: inferred.notes,
+        notes,
     }
 }
 
@@ -135,6 +154,28 @@ mod tests {
             !report.notes.is_empty(),
             "the un-pinnable fetch is named: {:?}",
             report.notes
+        );
+    }
+
+    /// An exact loopback literal in the declared boundary is STATED
+    /// (#395): the informational note names the entry and the clearing —
+    /// and an ordinary public grant stays silent.
+    #[test]
+    fn loopback_declassification_is_stated_as_a_note() {
+        let report = collect(&wf(
+            "nika: v1\nworkflow: w\npermits: { net: { http: [\"127.0.0.1\", \"api.x.com\"] }, tools: [\"nika:fetch\"], exec: false }\ntasks:\n  - id: a\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/price.json\" } }\n",
+        ));
+        let loopback: Vec<&String> = report
+            .notes
+            .iter()
+            .filter(|n| n.contains("exact loopback literal"))
+            .collect();
+        assert_eq!(loopback.len(), 1, "one note per qualifying entry");
+        assert!(loopback[0].contains("`127.0.0.1`"), "{}", loopback[0]);
+        assert!(loopback[0].contains("NIKA-SEC-005"), "{}", loopback[0]);
+        assert!(
+            !loopback[0].contains("api.x.com"),
+            "public grants are not loopback-stated"
         );
     }
 }
