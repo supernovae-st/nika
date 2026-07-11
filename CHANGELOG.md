@@ -12,6 +12,16 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`graph --format json` projects the declared POLICY** — nodes gain
+  `retry_max_attempts` · `timeout_ms` · `on_error`
+  (`recover`/`skip`/`fail_workflow`) · `outputs` (declared binding
+  names, source order). Additive, absent when undeclared
+  (skip-serializing — no fake defaults), `graph_format` stays 1 per the
+  tolerance contract. One voice: canvas/graph clients read the DECLARED
+  policy from the projection instead of re-parsing the YAML for it (the
+  nika-vscode dense cards were regex-reading these four facts
+  client-side — that read becomes the pre-0.99 fallback).
+
 - **`llms-install.md` gains the bare-metal lane · `context7.json` steers
   the retrieval surface.** The install runbook now covers the box with no
   package manager: release tarball + `SHA256SUMS` verify, with version

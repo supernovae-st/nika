@@ -13,7 +13,7 @@ use serde::Serialize;
 
 use nika_schema::check::CheckReport;
 use nika_schema::raw::{RawAction, RawWorkflow};
-use nika_schema::types::WhenGate;
+use nika_schema::types::{OnErrorAction, WhenGate};
 
 use crate::verbs::{VerbOutput, load_checked};
 
@@ -56,6 +56,22 @@ pub struct Node {
     /// priced inference tasks (the cost lane's honesty: no price, no
     /// interval).
     pub cost_interval: Option<[f64; 2]>,
+    /// `retry.max_attempts`, when a retry policy is declared (spec 05).
+    /// One voice: clients read the DECLARED policy here instead of
+    /// re-parsing the YAML.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_max_attempts: Option<u32>,
+    /// `timeout:` as milliseconds, when declared (spec 03 · the parsed
+    /// duration — unambiguous where the source string form is not).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<u64>,
+    /// `on_error:` action — `recover` · `skip` · `fail_workflow` (spec 05).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_error: Option<&'static str>,
+    /// Declared `output:` binding names, in source order (spec 04) — what
+    /// this task PRODUCES for `${{ tasks.<id>.<name> }}` readers.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub outputs: Vec<String>,
 }
 
 /// `for_each` fan-out description.
@@ -129,6 +145,20 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
                     }
                 }),
                 cost_interval,
+                retry_max_attempts: task.retry.as_ref().map(|r| r.value.max_attempts),
+                timeout_ms: task
+                    .timeout
+                    .as_ref()
+                    .map(|t| u64::try_from(t.value.as_millis()).unwrap_or(u64::MAX)),
+                on_error: task.on_error.as_ref().map(|o| match &o.value.action {
+                    OnErrorAction::Recover(_) => "recover",
+                    OnErrorAction::Skip => "skip",
+                    OnErrorAction::FailWorkflow => "fail_workflow",
+                    // #[non_exhaustive]: refuse silently-wrong output (the
+                    // for_each precedent — enum and binary ship together).
+                    other => unreachable!("unknown on_error action: {other:?}"),
+                }),
+                outputs: task.output.iter().map(|(k, _)| k.value.clone()).collect(),
             });
         }
     }
@@ -354,5 +384,53 @@ mod tests {
             "raw breaker leaked:\n{mermaid}"
         );
         assert!(dot.contains("echo\\\"]"), "dot quote unescaped:\n{dot}");
+    }
+
+    /// Declared policy PROJECTS (one voice — clients stop re-parsing the
+    /// YAML): retry budget, timeout in ms, the `on_error` action, and the
+    /// declared output names. Undeclared policy stays ABSENT on the wire
+    /// (`skip_serializing` — no fake defaults).
+    #[test]
+    fn declared_policy_projects_and_undeclared_stays_absent() {
+        let yaml = "nika: v1\nworkflow: policy\nmodel: mock/echo\ntasks:\n  - id: guarded\n    infer: { prompt: \"p\", max_tokens: 5 }\n    timeout: \"30s\"\n    retry:\n      max_attempts: 3\n    on_error:\n      skip: true\n    output:\n      summary: \".text\"\n      title: \".title\"\n  - id: bare\n    depends_on: [guarded]\n    infer: { prompt: \"q\", max_tokens: 5 }\n";
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        let doc = project(&wf, &report);
+
+        let guarded = doc
+            .nodes
+            .iter()
+            .find(|n| n.id == "guarded")
+            .expect("guarded projected");
+        assert_eq!(guarded.retry_max_attempts, Some(3));
+        assert_eq!(guarded.timeout_ms, Some(30_000));
+        assert_eq!(guarded.on_error, Some("skip"));
+        assert_eq!(guarded.outputs, vec!["summary", "title"]);
+
+        let bare = doc
+            .nodes
+            .iter()
+            .find(|n| n.id == "bare")
+            .expect("bare projected");
+        assert_eq!(bare.retry_max_attempts, None);
+        assert_eq!(bare.timeout_ms, None);
+        assert_eq!(bare.on_error, None);
+        assert!(bare.outputs.is_empty());
+
+        // The WIRE stays additive: undeclared policy keys are absent.
+        let json = serde_json::to_string(&doc).expect("serializes");
+        assert!(json.contains("\"retry_max_attempts\":3"));
+        assert!(json.contains("\"on_error\":\"skip\""));
+        let bare_json = serde_json::to_string(doc.nodes.iter().find(|n| n.id == "bare").unwrap())
+            .expect("serializes");
+        assert!(!bare_json.contains("retry_max_attempts"));
+        assert!(!bare_json.contains("timeout_ms"));
+        assert!(!bare_json.contains("on_error"));
+        assert!(!bare_json.contains("outputs"));
     }
 }

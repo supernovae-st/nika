@@ -198,7 +198,11 @@ pub nika_cli::verbs::graph::Node::cost_interval: core::option::Option<[f64; 2]>
 pub nika_cli::verbs::graph::Node::fan_out: core::option::Option<nika_cli::verbs::graph::FanOut>
 pub nika_cli::verbs::graph::Node::id: alloc::string::String
 pub nika_cli::verbs::graph::Node::model: core::option::Option<alloc::string::String>
+pub nika_cli::verbs::graph::Node::on_error: core::option::Option<&'static str>
+pub nika_cli::verbs::graph::Node::outputs: alloc::vec::Vec<alloc::string::String>
 pub nika_cli::verbs::graph::Node::permits: alloc::vec::Vec<alloc::string::String>
+pub nika_cli::verbs::graph::Node::retry_max_attempts: core::option::Option<u32>
+pub nika_cli::verbs::graph::Node::timeout_ms: core::option::Option<u64>
 pub nika_cli::verbs::graph::Node::tool: core::option::Option<alloc::string::String>
 pub nika_cli::verbs::graph::Node::verb: &'static str
 pub nika_cli::verbs::graph::Node::when: core::option::Option<alloc::string::String>
