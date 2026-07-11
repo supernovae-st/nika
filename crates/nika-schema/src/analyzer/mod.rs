@@ -753,6 +753,19 @@ tasks:
             |e| matches!(e, SchemaError::WhenNotBoolean { reason, .. } if reason.contains("boolean")),
             "when not boolean-shaped",
         );
+        // A1 (agent battery 2026-07-11): the teaching names all three
+        // shape routes — the BOOL route leads (a bare flag reference is
+        // the most natural thing this rule rejects, and the old
+        // examples applied to a bool would trade VAR-005 for the rule-4
+        // no-coercion type error).
+        assert_has(
+            &errors,
+            |e| {
+                matches!(e, SchemaError::WhenNotBoolean { reason, .. }
+                if reason.contains("== true") && reason.contains("> 0") && reason.contains("!= \"\""))
+            },
+            "the teaching names the bool · number · string routes",
+        );
     }
 
     #[test]

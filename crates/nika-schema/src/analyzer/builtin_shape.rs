@@ -88,6 +88,10 @@ mod tests {
         // contracts: the `done` sentinel · the `wait` XOR · `fetch` pairings.
         let cases = [
             ("{}", "nika:done", true), // standalone · always the sentinel error
+            // A3 (agent battery 2026-07-11): compose is done's sibling —
+            // the runtime refused it (COMPOSE-001), the check blessed it.
+            ("{}", "nika:compose", true),
+            (r#"{ workflow_yaml: "nika: v1" }"#, "nika:compose", true),
             (
                 r#"{ duration: "5s", until: "2026-12-01T00:00:00Z" }"#,
                 "nika:wait",
@@ -473,6 +477,15 @@ mod tests {
                 false, // provider/model support is runtime business
             ),
         ]);
+    }
+
+    #[test]
+    fn compose_in_agent_whitelist_is_legal() {
+        // The positive direction of the A3 row: granting nika:compose to
+        // an agent loop is exactly what ADR-096 blesses.
+        let agent = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    agent:\n      \
+                     prompt: \"go\"\n      tools: [\"nika:compose\", \"nika:done\"]\n";
+        assert!(!has_shape_error(agent, "nika:compose"));
     }
 
     #[test]

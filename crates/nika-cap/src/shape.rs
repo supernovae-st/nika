@@ -36,6 +36,16 @@ pub fn builtin_shape_findings(tool: &str, args: Option<&serde_json::Value>) -> V
              (02-verbs.md §loop semantics · NIKA-BUILTIN-DONE-001)"
                 .to_owned(),
         ),
+        // The done sentinel's sibling (agent battery A3 · 2026-07-11): the
+        // runtime refuses a standalone `nika:compose` (COMPOSE-001) but the
+        // check blessed it — the same check≡run seam class as the SSRF
+        // floor. Both loop-only builtins (ADR-096) now refuse at check.
+        "nika:compose" => out.push(
+            "is the agent-loop sub-workflow spawner — valid ONLY inside an \
+             `agent:` tools whitelist · never a standalone invoke \
+             (02-verbs.md §loop semantics · NIKA-BUILTIN-COMPOSE-001)"
+                .to_owned(),
+        ),
         "nika:wait" => {
             let has = |key: &str| -> bool {
                 matches!(args, Some(serde_json::Value::Object(map)) if map.contains_key(key))

@@ -303,12 +303,20 @@ fn check_single_island(
         return;
     }
     if require_boolean && !is_boolean_shaped(&islands[0].expr) {
+        // The teaching routes by DECLARED shape (agent battery A1 ·
+        // 2026-07-11): the old examples (`> 0` · `!= ""`) applied to a
+        // declared BOOLEAN would trade VAR-005 for a type error (rule 4 ·
+        // no implicit coercion) — the bool route leads, since a bare flag
+        // reference is the most natural thing this rule rejects.
         errors.push(SchemaError::WhenNotBoolean {
             field: field.to_owned(),
             task: task.to_owned(),
             reason: format!(
-                "`{}` is not boolean-shaped — use an explicit comparison (e.g. `… > 0` · `… != \"\"`)",
-                islands[0].src
+                "`{src}` is not boolean-shaped — the shape rule (cel-subset/0.1) wants \
+                 an explicit relation or boolean operator: a boolean reads \
+                 `{src} == true` (or `!{src}`) · a number `{src} > 0` · a string \
+                 `{src} != \"\"`",
+                src = islands[0].src
             ),
             span: Some(value.span),
         });
