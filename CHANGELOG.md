@@ -12,6 +12,17 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika wire` wave-3a: `claude-desktop` + `qwen`** (#449). Claude
+  Desktop was the double gap — a different app with a different config
+  file than Claude Code's `~/.claude.json`: the writer targets
+  `claude_desktop_config.json` under the platform app-config dir
+  (macOS `~/Library/Application Support/Claude/` · Windows
+  `%APPDATA%\Claude\` · Linux `~/.config/Claude/`), `mcpServers` root,
+  idempotent, unrelated servers preserved. Qwen Code (gemini-cli fork)
+  reads the same `mcpServers` key from `~/.qwen/settings.json`. Both
+  ride `wire all`. Cline/Continue remain on #449 (wave-3b — variant
+  paths and YAML-list shapes verified first).
+
 - **An exact loopback literal in `permits.net.http` clears the SSRF
   floor for that host** (#395 · the ADR-092 secrets-`egress:`
   precedent: the owner's explicit act, co-located with the boundary).
