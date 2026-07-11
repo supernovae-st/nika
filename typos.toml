@@ -68,6 +68,9 @@ OLY        = "OLY"       # OLY- prefix in a negative test (wrong-prefix rejectio
 YELLO      = "YELLO"     # part of YELLOW in a hygiene-color comment
 # Valid alternative spelling
 unparseable = "unparseable"
+# File-format plural (the image-fx showcase prose) — the PN→ON rule
+# mis-reads the acronym plural.
+PNGs = "PNGs"
 
 [files]
 extend-exclude = [
