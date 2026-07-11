@@ -157,7 +157,10 @@ fn classify_resolved_flags_any_private_address() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 80),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)), 80),
     ];
-    assert!(matches!(classify_resolved(mixed), ResolveVerdict::Private));
+    assert!(matches!(
+        classify_resolved(mixed, false),
+        ResolveVerdict::Private
+    ));
 }
 
 #[test]
@@ -168,7 +171,7 @@ fn classify_resolved_all_public_passes() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 443),
     ];
     assert!(matches!(
-        classify_resolved(public),
+        classify_resolved(public, false),
         ResolveVerdict::AllPublic
     ));
 }
@@ -176,7 +179,7 @@ fn classify_resolved_all_public_passes() {
 #[test]
 fn classify_resolved_empty_is_empty() {
     assert!(matches!(
-        classify_resolved(std::iter::empty()),
+        classify_resolved(std::iter::empty(), false),
         ResolveVerdict::Empty
     ));
 }
@@ -189,7 +192,44 @@ fn classify_resolved_blocks_rebind_to_metadata_ip() {
         IpAddr::V4(Ipv4Addr::new(169, 254, 169, 254)),
         80,
     )];
-    assert!(matches!(classify_resolved(rebind), ResolveVerdict::Private));
+    assert!(matches!(
+        classify_resolved(rebind, false),
+        ResolveVerdict::Private
+    ));
+}
+
+#[test]
+fn classify_resolved_allow_loopback_clears_loopback_only() {
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+    // The #395 declassification at the RESOLVED layer: when the request's
+    // host is a permitted exact loopback literal, its resolved LOOPBACK
+    // addresses are admitted (a permitted `localhost` must reach its
+    // 127.0.0.1/::1)…
+    let loopback = vec![
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80),
+        SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 80),
+    ];
+    assert!(matches!(
+        classify_resolved(loopback.clone(), true),
+        ResolveVerdict::AllPublic
+    ));
+    // …without the declassification the same set refuses (today's law)…
+    assert!(matches!(
+        classify_resolved(loopback, false),
+        ResolveVerdict::Private
+    ));
+    // …and the clearing is the LOOPBACK CLASS ONLY: a rebind of the
+    // permitted name to metadata/RFC1918 still refuses.
+    for private in [
+        Ipv4Addr::new(169, 254, 169, 254),
+        Ipv4Addr::new(10, 0, 0, 5),
+    ] {
+        let rebind = vec![SocketAddr::new(IpAddr::V4(private), 80)];
+        assert!(
+            matches!(classify_resolved(rebind, true), ResolveVerdict::Private),
+            "{private} must stay blocked even under allow_loopback"
+        );
+    }
 }
 
 #[test]
@@ -280,11 +320,54 @@ async fn guarded_resolver_blocks_localhost_and_serves_public() {
     // must refuse to hand it to the transport. (`Addrs` is not
     // Debug — go through `.err()` instead of `expect_err`.)
     let name = reqwest::dns::Name::from_str("localhost").expect("valid name");
-    let err = GuardedResolver
+    let err = GuardedResolver::default()
         .resolve(name)
         .await
         .err()
         .expect("localhost must be blocked by the guarded resolver");
+    let http = err
+        .downcast_ref::<HttpError>()
+        .expect("the resolver emits the kernel error type");
+    assert!(matches!(http, HttpError::SsrfBlocked { .. }), "{http}");
+}
+
+#[tokio::test]
+async fn guarded_resolver_clears_a_permitted_localhost_name() {
+    use reqwest::dns::Resolve;
+    use std::str::FromStr;
+
+    // The exact literal `localhost` in `permits.net.http` (#395): the
+    // resolver admits the loopback addresses it resolves to — the permit
+    // must clear the resolved 127.0.0.1/::1, or the grant would be a lie
+    // at the connect path (layer 3).
+    let resolver = GuardedResolver {
+        net_permits: std::sync::Arc::new(vec!["localhost".to_owned()]),
+    };
+    let name = reqwest::dns::Name::from_str("localhost").expect("valid name");
+    assert!(
+        resolver.resolve(name).await.is_ok(),
+        "the permitted exact literal must clear its own resolution"
+    );
+}
+
+#[tokio::test]
+async fn guarded_resolver_declassification_is_exact_per_name() {
+    use reqwest::dns::Resolve;
+    use std::str::FromStr;
+
+    // Permits name `127.0.0.1` — the RESOLVED name `localhost` is a
+    // DIFFERENT host: still refused. The declassification is the literal
+    // in the file (per-name), never the loopback class wholesale — the
+    // `mylocal.dev`-resolves-to-127.0.0.1 case rides this same seam.
+    let resolver = GuardedResolver {
+        net_permits: std::sync::Arc::new(vec!["127.0.0.1".to_owned()]),
+    };
+    let name = reqwest::dns::Name::from_str("localhost").expect("valid name");
+    let err = resolver
+        .resolve(name)
+        .await
+        .err()
+        .expect("an un-permitted loopback NAME stays blocked");
     let http = err
         .downcast_ref::<HttpError>()
         .expect("the resolver emits the kernel error type");
@@ -307,6 +390,22 @@ async fn enforce_mode_blocks_loopback_end_to_end() {
     }
 }
 
+#[test]
+fn bracketed_loopback_entry_admits_its_host_at_the_declared_boundary() {
+    // `[::1]` — the URL-authority spelling of `::1`. As a plain glob it
+    // matches nothing (permits are written bare), but as a qualifying
+    // loopback literal (#395) it must ALSO admit its host at the declared
+    // boundary — otherwise the entry would clear the floor and then fail
+    // NIKA-SEC-004: check-green + run-refused, the exact drift class this
+    // issue exists to close.
+    let b = NetBoundary::Declared(vec!["[::1]".to_owned()]);
+    let u = url::Url::parse("http://[::1]:8080/p").expect("valid url");
+    assert!(check_net_allowlist(&b, &u).is_ok());
+    // …and it admits ONLY its host — the boundary stays default-deny.
+    let pub_u = url::Url::parse("https://api.example.com/p").expect("valid url");
+    assert!(check_net_allowlist(&b, &pub_u).is_err());
+}
+
 #[tokio::test]
 async fn disabled_mode_still_builds_a_working_client() {
     // SsrfMode::Disabled wires the DEFAULT resolver — the build path
@@ -325,8 +424,11 @@ async fn disabled_mode_still_builds_a_working_client() {
     }
 }
 
-/// Loopback e2e over REAL sockets — `SsrfMode::Disabled` everywhere here:
-/// the targets ARE loopback (the SSRF layers have their own tests above).
+/// Loopback e2e over REAL sockets — `SsrfMode::Disabled` for the transport
+/// suites (the targets ARE loopback; the SSRF layers have their own tests
+/// above), plus the `Enforce`+declassification suite (#395): the ONE lawful
+/// way an enforcing client reaches a loopback socket is the author's exact
+/// literal in `permits.net.http`.
 mod e2e {
     use super::*;
 
@@ -390,6 +492,74 @@ mod e2e {
             "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
             body.len()
         )
+    }
+
+    /// An ENFORCING client whose boundary declares the exact literal —
+    /// the #395 declassification shape, used by the suite below.
+    fn enforcing_client(entries: &[&str]) -> ReqwestHttp {
+        let mut config = HttpConfig::new(); // SsrfMode::Enforce
+        config.net = NetBoundary::Declared(entries.iter().map(|e| (*e).to_string()).collect());
+        ReqwestHttp::with_config(config).expect("client builds")
+    }
+
+    #[tokio::test]
+    async fn enforce_with_permitted_loopback_literal_reaches_a_real_local_server() {
+        // THE issue-#395 e2e: SSRF Enforce + `permits.net.http:
+        // ["127.0.0.1"]` — the author's explicit act clears the floor for
+        // that host, and the request lands on a REAL loopback socket
+        // (previously only `SsrfMode::Disabled` could).
+        let addr = serve(vec![ok_response("local fixture")]).await;
+        let resp = enforcing_client(&["127.0.0.1"])
+            .get(HttpRequest::get(format!("http://{addr}/price.json")))
+            .await
+            .expect("the permitted exact literal clears the floor");
+        assert_eq!(resp.status, 200);
+        assert_eq!(resp.body.as_ref(), b"local fixture");
+    }
+
+    #[tokio::test]
+    async fn enforce_permitted_loopback_redirect_within_the_host_lands() {
+        // Both hops are the permitted host (different ports — permits are
+        // host-level): the per-hop re-vet clears each one.
+        let dest = serve(vec![ok_response("arrived")]).await;
+        let hop = serve(vec![format!(
+            "HTTP/1.1 302 Found\r\nLocation: http://{dest}/final\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        )])
+        .await;
+        let resp = enforcing_client(&["127.0.0.1"])
+            .get(HttpRequest::get(format!("http://{hop}/start")))
+            .await
+            .expect("both hops are the permitted host");
+        assert_eq!(resp.body.as_ref(), b"arrived");
+    }
+
+    #[tokio::test]
+    async fn enforce_redirect_to_unpermitted_floor_host_refuses() {
+        // A permitted 127.0.0.1 server bounces to `localhost` — NOT
+        // permitted: the per-hop re-vet refuses (the declassification
+        // clears ONE exact host, it never travels with the request).
+        let hop = serve(vec![
+            "HTTP/1.1 302 Found\r\nLocation: http://localhost:9/x\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                .to_owned(),
+        ])
+        .await;
+        let err = enforcing_client(&["127.0.0.1"])
+            .get(HttpRequest::get(format!("http://{hop}/start")))
+            .await
+            .expect_err("the hop target is floor-blocked and unpermitted");
+        assert!(matches!(err, HttpError::SsrfBlocked { .. }), "{err}");
+    }
+
+    #[tokio::test]
+    async fn enforce_unpermitted_loopback_stays_blocked_under_a_declared_boundary() {
+        // A declared boundary WITHOUT the loopback literal: the floor
+        // holds — and it speaks SEC-005's SsrfBlocked (the floor gates
+        // before the allowlist), with zero network activity.
+        let err = enforcing_client(&["api.example.com"])
+            .get(HttpRequest::get("http://127.0.0.1:9/x"))
+            .await
+            .expect_err("no declassifying literal → the floor holds");
+        assert!(matches!(err, HttpError::SsrfBlocked { .. }), "{err}");
     }
 
     #[tokio::test]
