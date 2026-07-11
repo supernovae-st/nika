@@ -99,6 +99,19 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **The secrets surface teaches its own fixes** (use-case battery
+  2026-07-11). Three diagnostics that made the reader consult spec 01
+  §egress now carry the answer: (1) an information-flow leak names the
+  EXACT sanction — `leak into invoke (task shape) … · fix: sanction it —
+  egress: [{ to: "nika:jq" }] on secrets.api_key` — the tool id computed
+  per sink, in both the human report and the `--json` findings[]; (2) a
+  dead egress sanction is refused at parse — `to:` outside the sink
+  vocabulary (a destination HOST is the classic slip) can never match, so
+  it no longer passes silently reading as declassified; the refusal lists
+  the set (tool id · `exec` · `infer` · `agent` · `outputs`); (3) an
+  unknown secret field with no near-miss, and the non-mapping egress
+  refusal, now name the whole accepted set instead of hiding it behind an
+  ellipsis. Additive `SecretLeak.sink_id` (non-exhaustive struct).
 - **`nika run --task` honours the whole-file audit it promises.** The
   help says « the full workflow still audits (findings stay whole-file
   faithful) » — empirically the scoped re-check REPLACED the full report

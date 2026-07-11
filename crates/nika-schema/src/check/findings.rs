@@ -78,10 +78,17 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         out.push(f);
     }
     for l in &report.secret_leaks {
+        // The fix is a per-sink sanction ON THE SECRET — spelled out so the
+        // flagship IFC finding is self-serve (the author no longer reads
+        // spec 01 §egress to derive it · use-case battery 2026-07-11 · T2).
         let mut f = UnifiedFinding::new(
             "secret_leak",
             "SECRETS",
-            format!("leak into {} (task `{}`) — {}", l.sink, l.task, l.trace),
+            format!(
+                "leak into {} (task `{}`) — {} · fix: sanction it — \
+                 `egress: [{{ to: \"{}\" }}]` on `secrets.{}`",
+                l.sink, l.task, l.trace, l.sink_id, l.secret
+            ),
         );
         f.task = Some(l.task.clone());
         out.push(f);

@@ -284,7 +284,10 @@ fn parse_egress_rule(
     };
     let Some(mapping) = item.as_mapping() else {
         return Err(bad(
-            format!("secret `{secret_name}` `egress:` entry must be a mapping `{{ to, … }}`"),
+            format!(
+                "secret `{secret_name}` `egress:` entry must be a mapping \
+                 `{{ to, host, host_from_self }}`"
+            ),
             item.span(),
         ));
     };
@@ -308,6 +311,27 @@ fn parse_egress_rule(
         })?
         .as_str()
         .to_owned();
+
+    // `to:` names a SINK — the vocabulary is closed (spec 01 §egress ①):
+    // a tool id (`nika:<tool>` · `mcp:<server>/<tool>`), `exec`, the
+    // provider sinks `infer` / `agent`, or the workflow boundary
+    // `outputs`. Anything else can never match, so the sanction would be
+    // silently DEAD — reading as declassified while nothing is. The classic
+    // slip is a destination HOST in `to:` (the use-case battery's own
+    // authoring error, 2026-07-11): `host:` is its own field.
+    let to_is_sink = matches!(to.as_str(), "exec" | "infer" | "agent" | "outputs")
+        || to.starts_with("nika:")
+        || to.starts_with("mcp:");
+    if !to_is_sink {
+        return Err(bad(
+            format!(
+                "secret `{secret_name}` egress `to: \"{to}\"` names no sink — the set: \
+                 a tool id (`nika:<tool>` · `mcp:<server>/<tool>`) · `exec` · `infer` · \
+                 `agent` · `outputs` (a destination host goes in `host:`, not `to:`)"
+            ),
+            mapping.span(),
+        ));
+    }
 
     // `host_from_self:` — the secret value IS the URL.
     let host_from_self = match mapping.get_node("host_from_self") {
@@ -454,6 +478,74 @@ mod tests {
 
     fn parse_strict(yaml: &str) -> Result<crate::raw::RawWorkflow, SchemaError> {
         parse(yaml, FileId::new(0), ParseMode::Strict)
+    }
+
+    /// T1 (use-case battery 2026-07-11) · an unknown secret field with no
+    /// near-miss teaches the WHOLE closed set — `env` is nobody's typo for
+    /// `key`, the author needs the vocabulary (the chart-semantics
+    /// precedent applied to parse).
+    #[test]
+    fn unknown_secret_field_teaches_the_accepted_set() {
+        let yaml = "\
+secrets:
+  api_key:
+    env: MY_KEY
+";
+        let err = parse_strict(yaml).expect_err("rejected");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("source") && msg.contains("key") && msg.contains("egress"),
+            "the accepted fields ride the refusal: {msg}"
+        );
+    }
+
+    /// E3 (use-case battery 2026-07-11) · a sanction whose `to:` names no
+    /// sink is DEAD — it can never match, and the author believes they
+    /// declassified. The classic slip is a HOST in `to:` (host: is its own
+    /// field): refuse at parse, list the sink vocabulary.
+    #[test]
+    fn egress_to_outside_the_sink_vocabulary_is_refused() {
+        let yaml = "\
+secrets:
+  api_key:
+    source: env
+    key: MY_KEY
+    egress:
+      - to: \"nika.sh\"
+";
+        let err = parse_strict(yaml).expect_err("rejected");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("names no sink") && msg.contains("host:"),
+            "the dead sanction teaches the vocabulary + the host slip: {msg}"
+        );
+        // The legitimate forms all still parse.
+        for to in ["exec", "infer", "agent", "nika:fetch", "mcp:srv/tool"] {
+            let ok = format!(
+                "secrets:\n  api_key:\n    source: env\n    key: MY_KEY\n    egress:\n      - to: \"{to}\"\n"
+            );
+            parse_strict(&ok).expect("a real sink form parses");
+        }
+    }
+
+    /// T3 (use-case battery 2026-07-11) · the non-mapping egress refusal
+    /// names ALL the entry's fields — the `…` used to hide `host` /
+    /// `host_from_self`.
+    #[test]
+    fn egress_non_mapping_refusal_names_every_field() {
+        let yaml = "\
+secrets:
+  api_key:
+    source: env
+    key: MY_KEY
+    egress: [\"nika.sh\"]
+";
+        let err = parse_strict(yaml).expect_err("rejected");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("host_from_self"),
+            "the entry shape is spelled out: {msg}"
+        );
     }
 
     #[test]
