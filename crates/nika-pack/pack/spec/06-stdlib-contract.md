@@ -69,9 +69,9 @@ The reference engine provides these elements behind strict quality gates. Other 
 
 ## What's IN stdlib v0.1
 
-### Providers (14)
+### Providers (16)
 
-`ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm` (5 local) · `mistral` · `anthropic` · `openai` · `openrouter` · `groq` · `deepseek` · `gemini` · `xai` (8 cloud) · `mock` (test)
+`ollama` · `lmstudio` · `llamacpp` · `localai` · `vllm` (5 local) · `mistral` · `anthropic` · `openai` · `openrouter` · `groq` · `deepseek` · `gemini` · `xai` · `huggingface` · `nvidia` (10 cloud) · `mock` (test)
 
 Selected via a single `model: <provider>/<name>` field. Any other OpenAI-compatible local/remote server routes through the `openai` + `base_url` escape hatch (no new provider name). See [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md).
 
@@ -81,15 +81,15 @@ Selected via a single `model: <provider>/<name>` field. Any other OpenAI-compati
 
 See [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md).
 
-### Builtins (26)
+### Builtins (27)
 
 6 core (log · emit · assert · prompt · done · wait)
 + 5 file (read · write · edit · glob · grep)
 + 8 data (jq · json_diff · validate · json_merge_patch · convert · uuid · date · hash)
 + 2 introspection (inspect · view-discriminated · 4 views cost/records/dag_info/threads · compose · agent-loop self-check)
 + 2 network (fetch · notify)
-+ 3 media (image_generate · graduate #1 · 2026-07-05 · tts_generate · §Audio · sovereign-first · 2026-07-05 · image_fx · graduate #3 · deterministic artistic effects · 2026-07-09)
-= **26 canonical builtins** (Stdlib v0.1 · consolidated · was 42 · `jq` subsumes 13 data builtins · validators merged into `validate` · `task_status`/`orchestrate`/`locale_lookup` cut · `sleep`+`wait_until` merged into unified `nika:wait` per ADR-087 · `cost`+`records`+`dag_info`+`threads` merged into unified `nika:inspect` per ADR-088 · ZERO capability loss)
++ 4 media (image_generate · graduate #1 · 2026-07-05 · tts_generate · §Audio · sovereign-first · 2026-07-05 · image_fx · graduate #3 · deterministic artistic effects · 2026-07-09 · chart · graduate #4 · attested deterministic charts · 2026-07-09)
+= **27 canonical builtins** (Stdlib v0.1 · consolidated · was 42 · `jq` subsumes 13 data builtins · validators merged into `validate` · `task_status`/`orchestrate`/`locale_lookup` cut · `sleep`+`wait_until` merged into unified `nika:wait` per ADR-087 · `cost`+`records`+`dag_info`+`threads` merged into unified `nika:inspect` per ADR-088 · ZERO capability loss)
 (+ the remaining media class · **deferred** to stdlib v0.x · NOT in the v0.1 count)
 
 See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md).

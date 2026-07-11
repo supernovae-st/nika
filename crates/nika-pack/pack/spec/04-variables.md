@@ -232,6 +232,7 @@ secrets:
   api_key:
     source: vault
     key: prod/anthropic/api-key
+    egress: [{ to: "nika:fetch", host: "api.anthropic.com" }]
 headers:
   Authorization: "Bearer ${{ secrets.api_key }}"
 ```
@@ -251,9 +252,14 @@ masked references in `secrets`.
 > is captured verbatim into `tasks.X.output` and flows downstream like any
 > other data: the engine cannot know that captured string IS the secret.
 > **The contract:** the engine masks what IT prints; the author owns what
-> they pipe a secret INTO. The `nika check` pre-flight (lint) flags a
-> `secrets.X` reaching an `exec` capture or a tool whose output is bound,
-> so the leak is caught statically before the run, not after.
+> they pipe a secret INTO. The `nika check` pre-flight flags **every**
+> unsanctioned `secrets.X` flow into an effect (`exec` · `invoke` — and the
+> provider-egress sinks `infer` / `agent`, where a secret in a prompt leaves
+> the run to a third party), so the leak is caught statically before the
+> run, not after. A legitimate flow is **sanctioned where the secret is
+> declared** — the `egress:` list on the secret (the example above · full
+> grammar in [01-envelope §egress](./01-envelope.md)): declassification is
+> the owner's act, co-located with the data, never a property of the sink.
 
 ---
 

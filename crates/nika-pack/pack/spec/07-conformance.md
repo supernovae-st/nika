@@ -160,9 +160,9 @@ Runtime-compliant engines may bring **their own** provider implementations · to
 
 An engine claims « Stdlib v0.1-compliant » if it satisfies Runtime conformance PLUS ·
 
-1. **Ships all 14 canonical providers** (per [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md))
+1. **Ships all 16 canonical providers** (per [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md))
 2. **Ships all 9 canonical extract modes** (per [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md))
-3. **Ships at least all 26 canonical builtins** (core 6 + file 5 + data 8 + network 2 + introspection 2 + media 3 · the remaining deferred media builtins are optional · `nika:image_fx`'s byte-determinism clause is part of the bar — an engine that cannot honor it is not conformant, no waiver)
+3. **Ships at least all 27 canonical builtins** (core 6 + file 5 + data 8 + network 2 + introspection 2 + media 4 · the remaining deferred media builtins are optional · the byte-determinism clauses of `nika:image_fx` and `nika:chart` are part of the bar — an engine that cannot honor them is not conformant, no waiver)
 4. **Passes** all tests in `conformance/tests/stdlib/`
 
 A Stdlib-compliant engine is functionally equivalent to the reference implementation for any workflow that uses only the canonical stdlib elements.

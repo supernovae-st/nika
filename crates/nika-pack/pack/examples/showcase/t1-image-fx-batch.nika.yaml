@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T1 fan-out · the batch darkroom
+#
+# A folder of PNGs becomes a matching folder of stylized ones — one
+# deterministic effect chain per image, in parallel, fully offline.
+# `nika:image_fx` is a pure function of (input bytes · ops): the same
+# photo renders the same art forever — byte-identical, CI-provable.
+#
+# Demonstrates ·
+#   - `nika:glob` · the folder IS the work list (add a photo, re-run)
+#   - `for_each` over the matches · the whole folder in parallel
+#   - `nika:image_fx` · an ORDERED ops chain (grayscale → bayer dither
+#     → pixelate) · every op deterministic, no model, no network
+#   - path templating · each output lands beside its input's name
+#
+# Run · drop PNGs in ./photos, then
+#   nika run examples/showcase/t1-image-fx-batch.nika.yaml
+nika: v1
+workflow: image-fx-batch
+description: "Folder of PNGs → deterministic art (grayscale · dither · pixelate) · offline batch"
+
+vars:
+  photos: "./photos" # the input folder · every .png in it gets the treatment
+
+permits:
+  exec: false
+  fs:
+    # a RELATIVE glob walks from `.` (the engine gates the walk root),
+    # so the read boundary is the cwd subtree · the write stays tight
+    read: ["**"]
+    write: ["out/**"]
+  tools: ["nika:glob", "nika:image_fx"]
+
+tasks:
+  # The folder is the work list — no hand-maintained array to drift.
+  - id: shots
+    invoke:
+      tool: "nika:glob"
+      args: { pattern: "${{ vars.photos }}/*.png" }
+
+  # One deterministic darkroom pass per photo · the ops run IN ORDER.
+  - id: stylize
+    depends_on: [shots]
+    for_each: ${{ tasks.shots.output }}
+    max_parallel: 4
+    invoke:
+      tool: "nika:image_fx"
+      args:
+        input: "${{ item }}"
+        ops:
+          - grayscale: {}
+          - dither: { mode: bayer4 }
+          - pixelate: { block: 4 }
+        out: "out/${{ item }}"
+
+outputs:
+  rendered:
+    value: ${{ tasks.stylize.output }}
+    type: array
+    description: "The stylized artifact receipts · one per input photo"

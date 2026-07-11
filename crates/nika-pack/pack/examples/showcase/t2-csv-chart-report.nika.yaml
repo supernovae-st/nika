@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 chain · data → picture → report
+#
+# A CSV of rows becomes a rendered bar chart plus a one-page markdown
+# report — the « paste-the-spreadsheet, get-the-slide » job, fully
+# offline and byte-deterministic: the same CSV renders the same SVG
+# forever (no model call anywhere on the path).
+#
+# Demonstrates ·
+#   - `nika:chart` · a declarative chart → a deterministic SVG artifact
+#     (the FIRST showcase for the builtin) · `semantics:` names each
+#     column's meaning, the renderer is a pure function of the rows
+#   - `nika:convert` CSV→JSON + jq `group_by` aggregation · the numbers
+#     are computed, never guessed
+#   - the artifact-plus-report pattern · one picture + one page, both
+#     receipts the run's trace attests (`nika trace verify`)
+#   - a declared `permits.fs.write` tree · the report + the chart land
+#     under `out/**` and nowhere else
+#
+# Run · point `vars.sales_csv` at your file, then
+#   nika run examples/showcase/t2-csv-chart-report.nika.yaml
+nika: v1
+workflow: csv-chart-report
+description: "CSV → aggregate → rendered bar chart + markdown report · offline · deterministic"
+
+vars:
+  sales_csv: "./data/sales.csv" # columns · region,revenue (revenue a plain number)
+
+permits:
+  exec: false
+  fs:
+    read: ["data/**"]
+    write: ["out/**"]
+  tools: ["nika:read", "nika:convert", "nika:jq", "nika:chart", "nika:write"]
+
+tasks:
+  - id: raw
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ vars.sales_csv }}" }
+
+  - id: rows
+    depends_on: [raw]
+    invoke:
+      tool: "nika:convert"
+      args:
+        input: "${{ tasks.raw.output }}"
+        from: csv
+        to: json
+        has_header: true
+
+  # Sum revenue per region · a deterministic reduce, no model.
+  - id: by_region
+    depends_on: [rows]
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ tasks.rows.output }}"
+        expression: 'group_by(.region) | map({ region: .[0].region, revenue: (map(.revenue | tonumber) | add) })'
+
+  # The picture · one SVG, its sha lands in the trace.
+  - id: chart
+    depends_on: [by_region]
+    invoke:
+      tool: "nika:chart"
+      args:
+        data: "${{ tasks.by_region.output }}"
+        semantics: { region: category, revenue: usd }
+        chart: { type: bar, x: region, y: revenue, title: "Revenue by region" }
+        out: out/revenue-by-region.svg
+
+  # The page · the report references the picture beside it.
+  - id: report
+    depends_on: [chart, by_region]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: out/revenue-report.md
+        content: |
+          # Revenue by region
+
+          ![Revenue by region](revenue-by-region.svg)
+
+          ```json
+          ${{ tasks.by_region.output }}
+          ```
+
+          *Generated offline by [nika](https://nika.sh) · the chart's sha is in the run trace (`nika trace verify`).*
+
+outputs:
+  by_region:
+    value: ${{ tasks.by_region.output }}
+    type: array
+    description: "Per-region revenue totals · the chart + report render from this"
