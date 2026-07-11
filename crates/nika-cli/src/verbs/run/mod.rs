@@ -55,6 +55,7 @@ use nika_runtime::resume::ResumePlan;
 use nika_runtime::{EventSink, RunOutcome, Runtime, Stamper};
 use nika_schema::check::CheckReport;
 use nika_schema::raw::RawWorkflow;
+use nika_schema::types::VarDecl;
 
 use crate::Theme;
 use crate::verbs::exit;
@@ -580,22 +581,24 @@ fn dry_run_payload(
 /// Parse the repeatable `--var KEY=VALUE` overrides and validate every
 /// key against the workflow's declared `vars:` — an unknown key is
 /// refused with the declared set (a typo'd override silently doing
-/// nothing would be the worst outcome). Values parse as JSON when they
-/// parse (numbers · booleans · arrays · quoted strings), else ride as
-/// plain strings: `--var topic=news` is the string `"news"`,
-/// `--var limit=5` the number `5`.
+/// nothing would be the worst outcome). A TYPED var's declared `type:`
+/// DRIVES the value parse (spec 01 §vars · « the engine validate
+/// inputs »): `--var count=notanumber` on an `integer` input is refused
+/// up front, and a `string` var takes the raw text verbatim (`--var
+/// name=5` is the string `"5"`). An UNTYPED var keeps the JSON-or-string
+/// guess: `--var limit=5` the number `5`, `--var topic=news` the string.
 fn parse_var_overrides(
     pairs: &[String],
     wf: &RawWorkflow,
 ) -> Result<BTreeMap<String, Value>, String> {
-    let declared: Vec<&str> = wf.vars.iter().map(|(k, _)| k.value.as_str()).collect();
     let mut overrides = BTreeMap::new();
     for pair in pairs {
         let (key, raw) = match pair.split_once('=') {
             Some((k, v)) if !k.trim().is_empty() => (k.trim(), v),
             _ => return Err(format!("--var expects KEY=VALUE, got `{pair}`")),
         };
-        if !declared.contains(&key) {
+        let Some((_, decl)) = wf.vars.iter().find(|(k, _)| k.value == key) else {
+            let declared: Vec<&str> = wf.vars.iter().map(|(k, _)| k.value.as_str()).collect();
             return Err(if declared.is_empty() {
                 format!("--var {key}: this workflow declares no `vars:`")
             } else {
@@ -604,9 +607,20 @@ fn parse_var_overrides(
                     declared.join(" · ")
                 )
             });
-        }
-        let value =
-            serde_json::from_str::<Value>(raw).unwrap_or_else(|_| Value::String(raw.to_owned()));
+        };
+        let value = match decl {
+            // The declared type drives the parse (spec-mandated input
+            // validation) — a mismatch is refused with the type + value.
+            VarDecl::Typed { r#type, .. } => r#type
+                .coerce_cli(raw)
+                .map_err(|why| format!("--var {key}: {why}"))?,
+            // Untyped var (or a future non-exhaustive variant): the
+            // JSON-or-string guess — no declared type to honor, the
+            // historical behavior + the safe default for an unknown form.
+            _ => {
+                serde_json::from_str::<Value>(raw).unwrap_or_else(|_| Value::String(raw.to_owned()))
+            }
+        };
         overrides.insert(key.to_owned(), value);
     }
     Ok(overrides)
@@ -1430,6 +1444,49 @@ mod tests {
         let eq = super::parse_var_overrides(&["topic=a=b".to_owned()], &wf)
             .expect("value may carry '='");
         assert_eq!(eq["topic"], json!("a=b"));
+    }
+
+    #[test]
+    fn typed_var_overrides_honor_the_declared_type() {
+        // Stateful/input gauntlet (2026-07-11): a declared `type:` is the
+        // input CONTRACT — the CLI value must honor it, not be embedded
+        // type-blind (`count=notanumber` used to ride through as a string).
+        let wf = nika_schema::parse(
+            "nika: v1\nworkflow: t\nvars:\n  count: { type: integer, required: true }\n  ratio: { type: number, default: 1.0 }\n  on: { type: boolean, default: false }\n  name: { type: string, required: true }\ntasks:\n  - id: t\n    exec: { command: \"true\" }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+
+        // The type DRIVES the parse — well-typed values land as their type.
+        let ok = super::parse_var_overrides(
+            &[
+                "count=42".to_owned(),
+                "ratio=2.5".to_owned(),
+                "on=true".to_owned(),
+                "name=5".to_owned(), // a STRING var takes the raw text verbatim
+            ],
+            &wf,
+        )
+        .expect("well-typed overrides");
+        assert_eq!(ok["count"], json!(42));
+        assert_eq!(ok["ratio"], json!(2.5));
+        assert_eq!(ok["on"], json!(true));
+        assert_eq!(ok["name"], json!("5"), "string var never JSON-coerces");
+
+        // A mismatch is refused UP FRONT, naming the type + the value.
+        for (bad, want) in [
+            ("count=notanumber", "an integer"),
+            ("ratio=lots", "a number"),
+            ("on=maybe", "a boolean"),
+        ] {
+            let err = super::parse_var_overrides(&[bad.to_owned()], &wf)
+                .expect_err("type mismatch refused");
+            assert!(
+                err.contains(want) && err.contains(bad.split('=').next_back().unwrap()),
+                "{err}"
+            );
+        }
     }
     /// `--task` scope · the diamond proves ancestors-only semantics: the
     /// target + transitive upstream survive · siblings and downstream drop
