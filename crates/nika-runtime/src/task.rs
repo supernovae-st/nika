@@ -187,6 +187,13 @@ pub(crate) enum RunResult {
         cost_usd: Option<f64>,
         cost_unpriced: Option<nika_types::cost::UnpricedReason>,
     },
+    /// `on_error: recover` whose reference awaits not-yet-terminal
+    /// referents (spec 05 §recover step 3 · a recover ref is NOT an
+    /// edge): the outcome is DECIDED on the ordered settle spine once
+    /// every awaited task is terminal — parked there, never settled
+    /// here. A `for_each` iteration never parks: its collector
+    /// downgrades this to the immediate render failure.
+    PendingRecovery(Box<crate::recover::PendingRecovery>),
 }
 
 struct IterationLocals<'a> {
@@ -872,6 +879,18 @@ where
                     break;
                 }
             }
+            // An ITERATION never parks — the fan-out settles as ONE task,
+            // so a pending recovery downgrades to its immediate render
+            // failure (the recover-await boundary · pinned by tests).
+            RunResult::PendingRecovery(pending) => {
+                acc.outputs.push(Value::Null);
+                if acc.first_error.is_none() {
+                    acc.first_error = Some(pending.render_error);
+                }
+                if fail_fast {
+                    break;
+                }
+            }
         }
     }
     acc
@@ -943,8 +962,10 @@ fn resolve_collection(
 ///   not a 1702). The success VALUE is never recomputed.
 ///
 /// Returns an empty map when the task declares no `output:` (the common
-/// lane pays nothing).
-fn bind_outputs(task: &RawTask, settle: &mut SettleAs) -> BTreeMap<String, Value> {
+/// lane pays nothing). `pub(crate)`: the recover-await resolution binds
+/// over the deferred value through THIS one site (spec 05 · the recovery
+/// substitutes the raw output BEFORE binding extraction).
+pub(crate) fn bind_outputs(task: &RawTask, settle: &mut SettleAs) -> BTreeMap<String, Value> {
     if task.output.is_empty() {
         return BTreeMap::new();
     }
@@ -978,11 +999,15 @@ fn null_bindings(task: &RawTask) -> BTreeMap<String, Value> {
 
 /// The success raw output of a settled task (the value bindings extract
 /// from), or `None` when the task did not settle as a plain success.
-fn success_output(settle: &SettleAs) -> Option<&Value> {
+/// `pub(crate)`: the recover-await resolution re-applies the pipeline's
+/// binding + leak-filter steps over the deferred value.
+pub(crate) fn success_output(settle: &SettleAs) -> Option<&Value> {
     match settle {
         SettleAs::Ran(ran) => match &ran.result {
             RunResult::Success { value, .. } => Some(value),
-            RunResult::SkippedWithError { .. } | RunResult::Failed { .. } => None,
+            RunResult::SkippedWithError { .. }
+            | RunResult::Failed { .. }
+            | RunResult::PendingRecovery(_) => None,
         },
         // A cache hit IS a success — bindings extract from the
         // rehydrated output (ADR-099 · downstream parity with live).
@@ -1142,17 +1167,23 @@ fn default_gate_open(task: &RawTask, records: &BTreeMap<String, TaskRecord>) -> 
 }
 
 /// The parent's preview record for the cleanup scope (spec 03 · the
-/// cleanup sees `tasks.<parent>.status` / `.error`).
+/// cleanup sees `tasks.<parent>.status` / `.error`). A PENDING recovery
+/// previews as its pre-recovery failure: the attempts DID fail, and the
+/// deferred render has produced no value when the cleanup runs (the
+/// cleanup is task-scoped · it never awaits the spine).
 fn preview_record(ran: &RanTask) -> TaskRecord {
     let mut record = TaskRecord::unran(match ran.result {
         RunResult::Success { .. } => TaskStatus::Success,
         RunResult::SkippedWithError { .. } => TaskStatus::Skipped,
-        RunResult::Failed { .. } => TaskStatus::Failure,
+        RunResult::Failed { .. } | RunResult::PendingRecovery(_) => TaskStatus::Failure,
     });
     match &ran.result {
         RunResult::Success { value, .. } => record.output = value.clone(),
         RunResult::SkippedWithError { error, .. } | RunResult::Failed { error, .. } => {
             record.error = Some(error.clone());
+        }
+        RunResult::PendingRecovery(pending) => {
+            record.error = Some(pending.failed.record.clone());
         }
     }
     record.duration_ms = Some(ran.duration_ms);
@@ -1278,13 +1309,29 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
                 cost_usd,
                 cost_unpriced,
             },
-            // Recovery itself failed → the task fails as if
-            // `on_error:` were absent (spec 05 §recover resolution).
-            Err(err) => RunResult::Failed {
-                error: runtime_error_record(&err),
-                cost_usd,
-                cost_unpriced,
-            },
+            // A render failure explained ONLY by not-yet-terminal task
+            // referents AWAITS them (spec 05 §recover step 3 · a recover
+            // ref is not an edge): the settle spine decides the outcome
+            // once they settle. Any other unresolved root → the task
+            // fails as if `on_error:` were absent (§recover step 4).
+            Err(err) => {
+                let render_error = runtime_error_record(&err);
+                match crate::recover::classify_await(&value.value, scope) {
+                    Some(awaiting) => {
+                        RunResult::PendingRecovery(Box::new(crate::recover::PendingRecovery {
+                            failed: FailedOutcome::new(error, cost_usd, cost_unpriced),
+                            render_error,
+                            awaiting,
+                            with_ns: scope.with_ns.cloned().unwrap_or_default(),
+                        }))
+                    }
+                    None => RunResult::Failed {
+                        error: render_error,
+                        cost_usd,
+                        cost_unpriced,
+                    },
+                }
+            }
         },
         OnErrorAction::Skip => RunResult::SkippedWithError {
             error,
@@ -1360,7 +1407,9 @@ fn render_with(
 /// out-of-subset form · …) — the identifier `tasks.X.error.code` exposes and
 /// `on_codes:` filters on — NEVER the engine-internal `nika_code()` (spec 05
 /// §142 · internal codes MUST NOT leak into workflow-visible errors).
-fn runtime_error_record(err: &RuntimeError) -> TaskErrorRecord {
+/// `pub(crate)`: the recover-await resolution maps its deferred render
+/// failure through the SAME site.
+pub(crate) fn runtime_error_record(err: &RuntimeError) -> TaskErrorRecord {
     TaskErrorRecord {
         code: err.spec_code(),
         message: err.wire_message(),
