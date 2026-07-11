@@ -467,8 +467,8 @@ tasks:
     let report = check(&wf);
 
     // Attempt 1: routes (ToolsSelected turn 1) then the provider rate-
-    // limits → NIKA-463 transient → the runtime retries. Attempt 2:
-    // routes, reads, concludes.
+    // limits → a transient provider failure (wire NIKA-INFER-001) →
+    // the runtime retries. Attempt 2: routes, reads, concludes.
     let provider = MockProvider::new("mock")
         .enqueue_error(nika_kernel::provider::ProviderError::RateLimited {
             retry_after_ms: Some(1),
