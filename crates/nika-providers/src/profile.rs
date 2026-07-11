@@ -186,12 +186,21 @@ pub fn resolve_refusal(model: &str) -> Option<String> {
              {} runnable providers)",
             CANONICAL_IDS.len()
         )),
-        Some((provider, _)) if !CANONICAL_IDS.contains(&provider) => Some(format!(
-            "provider `{provider}` does not resolve in THIS binary \
-             ({} runnable — `nika doctor` names them); a cataloged \
-             vendor is not a runnable one",
-            CANONICAL_IDS.len()
-        )),
+        Some((provider, _)) if !CANONICAL_IDS.contains(&provider) => {
+            // The shared did-you-mean metric (nika-types::suggest — the
+            // same threshold the parser/checker suggest with): `antropic`
+            // is ONE edit from the most-used provider id, and the rename
+            // is the whole fix. Silence past the threshold, as everywhere.
+            let guess = nika_types::suggest::did_you_mean(provider, CANONICAL_IDS)
+                .map(|p| format!(" — did you mean `{p}`?"))
+                .unwrap_or_default();
+            Some(format!(
+                "provider `{provider}` does not resolve in THIS binary \
+                 ({} runnable — `nika doctor` names them); a cataloged \
+                 vendor is not a runnable one{guess}",
+                CANONICAL_IDS.len()
+            ))
+        }
         Some(_) => None,
     }
 }
@@ -317,9 +326,22 @@ mod tests {
         // cataloged-but-unresolvable provider — the azure class
         let azure = resolve_refusal("azure/gpt-4o").expect("azure refused");
         assert!(azure.contains("`azure`") && azure.contains("not a runnable one"));
+        // azure is far from every canonical id — no guess appended
+        assert!(!azure.contains("did you mean"), "{azure}");
         // every canonical provider clears, inner slashes included
         assert!(resolve_refusal("mock/echo").is_none());
         assert!(resolve_refusal("huggingface/Qwen/Qwen3.5-9B:groq").is_none());
+    }
+
+    #[test]
+    fn provider_typo_gets_the_rename() {
+        // The sweep's mute surface (2026-07-11): `antropic` is ONE edit
+        // from the most-used provider id — the refusal now carries the
+        // rename, through the SAME shared metric as the parser/checker.
+        let typo = resolve_refusal("antropic/claude-sonnet-4-6").expect("typo refused");
+        assert!(typo.contains("did you mean `anthropic`?"), "{typo}");
+        let gemni = resolve_refusal("gemni/gemini-2.5-flash").expect("typo refused");
+        assert!(gemni.contains("did you mean `gemini`?"), "{gemni}");
     }
 
     use super::*;

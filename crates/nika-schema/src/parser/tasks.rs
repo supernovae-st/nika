@@ -431,8 +431,14 @@ fn parse_on_error(
         return Ok(None);
     };
     let Some(on_error_map) = node.as_mapping() else {
+        // A scalar here is usually the action name typed bare
+        // (`on_error: recover`) — teach the mapping SHAPE and the closed
+        // action vocabulary, not just the type mismatch.
         return Err(SchemaError::BadOnError {
-            reason: "`on_error` must be a mapping".to_owned(),
+            reason: "`on_error` must be a mapping carrying exactly one action — \
+                     `recover:` · `skip: true` · `fail_workflow: true` \
+                     (e.g. `on_error: { skip: true }`)"
+                .to_owned(),
             span: cx.span(node.span()),
         });
     };
@@ -1058,6 +1064,27 @@ tasks:
             wf.tasks[1].value.on_error.as_ref().expect("b").value.action,
             OnErrorAction::FailWorkflow
         ));
+    }
+
+    #[test]
+    fn on_error_scalar_teaches_the_mapping_shape() {
+        // The sweep's third mute surface (2026-07-11): `on_error: recover`
+        // typed bare said only « must be a mapping » — the reason now
+        // carries the closed action vocabulary AND a paste-able example.
+        let yaml = "\
+tasks:
+  - id: t
+    exec: { command: echo }
+    on_error: recover
+";
+        let err = parse_strict(yaml).expect_err("scalar on_error refused");
+        let msg = err.to_string();
+        assert!(msg.contains("exactly one action"), "{msg}");
+        assert!(
+            msg.contains("`recover:`") && msg.contains("`skip: true`"),
+            "{msg}"
+        );
+        assert!(msg.contains("on_error: { skip: true }"), "{msg}");
     }
 
     #[test]

@@ -51,6 +51,7 @@ pub mod extract;
 pub mod memory;
 pub mod net;
 pub mod role;
+pub mod suggest;
 pub mod timestamp;
 pub mod token_usage;
 
