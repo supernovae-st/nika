@@ -21,11 +21,13 @@ pub enum WireTarget {
     Vscode,
     Windsurf,
     Claude,
+    ClaudeDesktop,
     Codex,
     Zed,
     Opencode,
     Hermes,
     Gemini,
+    Qwen,
     Lmstudio,
     Junie,
     All,
@@ -74,11 +76,13 @@ fn expand_target(target: WireTarget) -> Vec<WireTarget> {
             WireTarget::Vscode,
             WireTarget::Windsurf,
             WireTarget::Claude,
+            WireTarget::ClaudeDesktop,
             WireTarget::Codex,
             WireTarget::Zed,
             WireTarget::Opencode,
             WireTarget::Hermes,
             WireTarget::Gemini,
+            WireTarget::Qwen,
             WireTarget::Lmstudio,
             WireTarget::Junie,
         ],
@@ -107,6 +111,14 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
             "claude",
             false,
         ),
+        // Claude DESKTOP is a different app with a different config file
+        // than Claude Code's ~/.claude.json — the wave-3 double gap (#449).
+        WireTarget::ClaudeDesktop => patch_cursor_like(
+            &claude_desktop_config_path()?,
+            "mcpServers",
+            "claude-desktop",
+            false,
+        ),
         WireTarget::Codex => patch_codex(&home_path(&[".codex", "config.toml"])?),
         // Zed keeps its settings under ~/.config on EVERY platform (macOS
         // included — deliberate upstream choice, zed.dev/docs).
@@ -125,6 +137,15 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
             &home_path(&[".gemini", "settings.json"])?,
             "mcpServers",
             "gemini",
+            false,
+        ),
+        // Qwen Code is a gemini-cli fork — same `mcpServers` key, same
+        // user-scope settings.json, its own dotdir (qwen-code docs mirror
+        // gemini's tools/mcp-server.md). The cheapest wave-3 target.
+        WireTarget::Qwen => patch_cursor_like(
+            &home_path(&[".qwen", "settings.json"])?,
+            "mcpServers",
+            "qwen",
             false,
         ),
         WireTarget::Lmstudio => {
@@ -152,6 +173,34 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
 /// neither existing falls back to the documented default (created on write).
 fn lmstudio_mcp_path() -> Result<PathBuf, String> {
     Ok(lmstudio_mcp_path_from(&home_path(&[])?))
+}
+
+/// Claude Desktop keeps `claude_desktop_config.json` under the app-config
+/// dir (modelcontextprotocol.io quickstart/user · the one client with an
+/// official Anthropic connectors directory): macOS
+/// `~/Library/Application Support/Claude/` · Windows `%APPDATA%\Claude\` ·
+/// Linux `~/.config/Claude/` (community builds — same dir the app uses).
+#[allow(clippy::disallowed_methods)]
+fn claude_desktop_config_path() -> Result<PathBuf, String> {
+    if cfg!(target_os = "windows")
+        && let Some(appdata) = std::env::var_os("APPDATA")
+    {
+        return Ok(PathBuf::from(appdata)
+            .join("Claude")
+            .join("claude_desktop_config.json"));
+    }
+    Ok(claude_desktop_config_path_from(&home_path(&[])?))
+}
+
+fn claude_desktop_config_path_from(home: &Path) -> PathBuf {
+    let dir = if cfg!(target_os = "macos") {
+        home.join("Library")
+            .join("Application Support")
+            .join("Claude")
+    } else {
+        home.join(".config").join("Claude")
+    };
+    dir.join("claude_desktop_config.json")
 }
 
 fn lmstudio_mcp_path_from(home: &Path) -> PathBuf {
@@ -850,6 +899,64 @@ args = ["mcp"]
         assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
 
         let again = patch_cursor_like(&path, "mcpServers", "lmstudio", false).expect("re-run");
+        assert!(matches!(again, WireAction::Current(_)));
+        let _ = std::fs::remove_dir_all(home);
+    }
+
+    /// #449 · claude-desktop: the app-config dir differs per platform —
+    /// macOS `Library/Application Support/Claude/`, elsewhere
+    /// `.config/Claude/` — and is NEVER Claude Code's `~/.claude.json`.
+    #[test]
+    fn claude_desktop_path_is_the_app_config_dir() {
+        let home = Path::new("/probe-home");
+        let path = claude_desktop_config_path_from(home);
+        let expected = if cfg!(target_os = "macos") {
+            home.join("Library")
+                .join("Application Support")
+                .join("Claude")
+        } else {
+            home.join(".config").join("Claude")
+        };
+        assert_eq!(path, expected.join("claude_desktop_config.json"));
+    }
+
+    /// #449 · claude-desktop: `mcpServers` root (the modelcontextprotocol.io
+    /// quickstart shape) — created with parent dirs, then idempotent, other
+    /// servers preserved.
+    #[test]
+    fn claude_desktop_config_created_and_idempotent() {
+        let home = temp_dir("claude-desktop");
+        let path = claude_desktop_config_path_from(&home);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("app dir");
+        std::fs::write(&path, r#"{"mcpServers":{"other":{"command":"x"}}}"#).expect("seed");
+
+        let action = patch_cursor_like(&path, "mcpServers", "claude-desktop", false).expect("wire");
+        assert!(matches!(action, WireAction::Updated(_)), "{action:?}");
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
+        assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
+        assert_eq!(doc["mcpServers"]["other"]["command"], "x");
+
+        let again =
+            patch_cursor_like(&path, "mcpServers", "claude-desktop", false).expect("re-run");
+        assert!(matches!(again, WireAction::Current(_)));
+        let _ = std::fs::remove_dir_all(home);
+    }
+
+    /// #449 · qwen: gemini-cli fork — same `mcpServers` key in a user-scope
+    /// `settings.json`, its own `.qwen` dotdir. Created then idempotent.
+    #[test]
+    fn qwen_settings_created_and_idempotent() {
+        let home = temp_dir("qwen");
+        let path = home.join(".qwen").join("settings.json");
+
+        let action = patch_cursor_like(&path, "mcpServers", "qwen", false).expect("wire");
+        assert!(matches!(action, WireAction::Created(_)), "{action:?}");
+        let doc = read_json(&path).expect("json");
+        assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
+        assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
+
+        let again = patch_cursor_like(&path, "mcpServers", "qwen", false).expect("re-run");
         assert!(matches!(again, WireAction::Current(_)));
         let _ = std::fs::remove_dir_all(home);
     }
