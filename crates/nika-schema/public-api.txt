@@ -1546,8 +1546,8 @@ pub const nika_schema::check::REPORT_VERSION: u32
 pub const nika_schema::check::STATUS_VOCAB: [&str; 4]
 pub fn nika_schema::check::check(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_schema::check::CheckReport
 pub fn nika_schema::check::infer_permits(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_schema::InferredPermits
-pub fn nika_schema::check::task_permits(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_schema::check::static_read_paths(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub fn nika_schema::check::task_permits(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_schema::codegen
 pub fn nika_schema::codegen::nika_builtin_tool_enum_schema() -> serde_json::value::Value
 pub mod nika_schema::error
