@@ -39,12 +39,21 @@ use nika_kernel::HttpError;
 /// twice (parse-once discipline; the redirect loop re-enters here for
 /// every hop).
 ///
+/// `net_permits` is the workflow's declared `permits.net.http` list
+/// (empty when no boundary is declared): an EXACT loopback literal in it
+/// (`localhost` · `127.x.y.z` · `::1`/`[::1]` — never a glob, never
+/// RFC1918/link-local/metadata) is the author's declassification (issue
+/// #395 · the ADR-092 secrets-`egress:` precedent) and clears the floor
+/// for THAT host only, via the shared
+/// [`nika_types::net::loopback_declassified`] predicate — the same one
+/// the `nika check` floor-parity pass reads, so check and run agree.
+///
 /// # Errors
 ///
 /// [`HttpError::SsrfBlocked`] for non-http(s) schemes, blocked
 /// hostnames, and literal IPs in private ranges; [`HttpError::Other`]
 /// for unparseable URLs.
-pub(crate) fn check_url(raw: &str) -> Result<url::Url, HttpError> {
+pub(crate) fn check_url(raw: &str, net_permits: &[String]) -> Result<url::Url, HttpError> {
     let parsed = url::Url::parse(raw).map_err(|e| {
         // A bracketed IPv6 literal carrying a zone-id (`[fe80::1%25eth0]`)
         // is REJECTED by the WHATWG parser — but it addresses a
@@ -91,7 +100,14 @@ pub(crate) fn check_url(raw: &str) -> Result<url::Url, HttpError> {
     // canonicalizes every IPv4 spelling — decimal `2130706433`, octal
     // `0177.0.0.1`, hex — to dotted form; the oracle strips brackets and
     // parses ONCE, so it covers every authority form this layer sees.
-    if nika_types::net::host_is_blocked(host) {
+    //
+    // The ONE carve-out (#395): an exact loopback literal in the declared
+    // `permits.net.http` declassifies the floor for that host — the
+    // predicate normalizes brackets/case the same way the oracle does, and
+    // never clears anything outside the loopback class.
+    if nika_types::net::host_is_blocked(host)
+        && !nika_types::net::loopback_declassified(net_permits, host)
+    {
         return Err(HttpError::SsrfBlocked {
             url: raw.to_string(),
         });
@@ -114,6 +130,85 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr};
 
     use super::*;
+
+    /// The un-permitted spelling every pre-#395 vector pins: no declared
+    /// boundary → no declassification possible (`check_url`'s second
+    /// argument is the declared `permits.net.http`; empty = today's floor).
+    fn check_url(raw: &str) -> Result<url::Url, HttpError> {
+        super::check_url(raw, &[])
+    }
+
+    fn permits(entries: &[&str]) -> Vec<String> {
+        entries.iter().map(|e| (*e).to_string()).collect()
+    }
+
+    // ─── the loopback declassification (issue #395) ──────────────────
+
+    #[test]
+    fn permitted_exact_loopback_literal_clears_the_floor_for_that_host() {
+        // The author's explicit act (ADR-092 egress precedent): the exact
+        // literal in `permits.net.http` clears the floor for THAT host —
+        // in each qualifying spelling, port-independent (host-level).
+        for (entry, url) in [
+            ("127.0.0.1", "http://127.0.0.1:8971/price.json"),
+            ("localhost", "http://localhost:3000/api"),
+            ("::1", "http://[::1]:8080/x"),
+            ("[::1]", "http://[::1]/x"),
+            ("127.1.2.3", "http://127.1.2.3/x"),
+        ] {
+            let p = permits(&[entry]);
+            assert!(
+                super::check_url(url, &p).is_ok(),
+                "`{entry}` must clear {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn declassification_is_exact_never_cross_host() {
+        // `localhost` clears `localhost` ONLY — the literal in the file,
+        // never what it resolves to; 127/8 neighbours are distinct hosts.
+        let p = permits(&["localhost"]);
+        assert!(super::check_url("http://127.0.0.1/x", &p).is_err());
+        let p = permits(&["127.0.0.1"]);
+        assert!(super::check_url("http://localhost/x", &p).is_err());
+        assert!(super::check_url("http://127.0.0.2/x", &p).is_err());
+        // The `.localhost` FAMILY never clears — an exact literal has no
+        // subdomains (RFC 6761 reserves the TLD, but a subdomain names an
+        // arbitrary service; the bare name is the vocabulary).
+        let p = permits(&["localhost"]);
+        assert!(super::check_url("http://api.localhost/x", &p).is_err());
+    }
+
+    #[test]
+    fn never_list_hosts_stay_blocked_even_when_named_in_permits() {
+        // RFC1918 · link-local/metadata · CGN · metadata NAMES · the
+        // unspecified addresses · glob entries: NEVER declassifiable.
+        for (entry, url) in [
+            ("10.0.0.1", "http://10.0.0.1/x"),
+            ("172.16.0.1", "http://172.16.0.1/x"),
+            ("192.168.1.1", "http://192.168.1.1/admin"),
+            (
+                "169.254.169.254",
+                "http://169.254.169.254/latest/meta-data/",
+            ),
+            (
+                "metadata.google.internal",
+                "http://metadata.google.internal/x",
+            ),
+            ("fe80::1", "http://[fe80::1]/x"),
+            ("100.100.100.200", "http://100.100.100.200/x"),
+            ("0.0.0.0", "http://0.0.0.0/x"),
+            ("::ffff:127.0.0.1", "http://[::ffff:127.0.0.1]/x"),
+            ("64:ff9b::7f00:1", "http://[64:ff9b::7f00:1]/x"),
+            ("*.localhost", "http://api.localhost/x"),
+        ] {
+            let p = permits(&[entry]);
+            let err =
+                super::check_url(url, &p).expect_err(&format!("`{entry}` must NOT clear {url}"));
+            assert!(matches!(err, HttpError::SsrfBlocked { .. }), "{url}: {err}");
+        }
+    }
 
     // ─── brouillon parity vectors (Gate 10) ──────────────────────────
 
