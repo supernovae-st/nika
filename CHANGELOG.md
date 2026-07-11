@@ -12,6 +12,10 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`llms.txt` lists `llms-install.md`.** The agent on-ramp's « Start
+  here » now includes the install runbook — an agent landing on the raw
+  repo finds the install lane before the authoring contract.
+
 - **Agent-facing repo metadata: `llms-install.md` · `CITATION.cff` ·
   `ADOPTERS.md`.** `llms-install.md` is the install runbook written FOR
   an AI agent (the file Cline-class installers read): package-manager

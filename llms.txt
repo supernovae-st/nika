@@ -5,6 +5,7 @@
 ## Start here
 
 - [AGENTS.md](AGENTS.md): The cross-tool agent operating manual (Claude Code, Cursor, Aider, Codex). Hard rules, the 12-gate admission, tooling to run. Read this first.
+- [llms-install.md](llms-install.md): Installing the `nika` binary — the agent-lane runbook (package-manager paths only · verify · prove offline · wire MCP · uninstall clean).
 - [README.md](README.md): User-facing overview and current state.
 - [DIAMOND.md](DIAMOND.md): The Diamond rewrite philosophy — why an orphan-branch rebuild, CRAFT-not-extraction.
 - [ROADMAP.md](ROADMAP.md): The real-semver plan toward the 1.0 launch, the crate sequence (dep-ordered), the tag scheme. Run `bash scripts/refresh-status.sh` for the live canonical state (no volatile counts are hardcoded in docs).
