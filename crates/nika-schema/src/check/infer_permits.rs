@@ -28,7 +28,7 @@
 use std::collections::BTreeSet;
 
 use super::permits_fit::{BuiltinEffect, builtin_effect, literal_arg, static_program, url_host};
-use crate::raw::{RawAction, RawCommand, RawWorkflow};
+use crate::raw::{RawAction, RawCommand, RawTask, RawWorkflow};
 use crate::types::{ExecPermit, FsPermits, NetPermits, Permits};
 
 /// The inferred boundary plus the honesty notes (effects too dynamic to
@@ -97,6 +97,38 @@ pub(super) fn infer(wf: &RawWorkflow) -> InferredPermits {
         permits,
         notes: c.notes,
     }
+}
+
+/// ONE task's capability attribution — the graph projector's voice
+/// (`graph --format json` node `permits`, the field the projection
+/// declared as its contract). The task's effect signature (main action
+/// plus its `on_finally` cleanups) flattens to deterministic strings
+/// in the fixed family order exec, fs.read, fs.write, net.http, tool
+/// (each family sorted — the collector sets are ordered). An effect
+/// too dynamic to pin surfaces as the same widened form the boundary
+/// inference uses (`exec: true`); dynamic net/fs pin nothing here —
+/// the check's escape lane owns that story, a projection never guesses.
+#[must_use]
+pub(crate) fn task_permits(task: &RawTask) -> Vec<String> {
+    let mut c = Collector::default();
+    let id = &task.id.value;
+    collect_action(&mut c, id, &task.action);
+    for cleanup in &task.on_finally {
+        collect_action(&mut c, &format!("{id} (on_finally)"), &cleanup.value.action);
+    }
+    let mut out = Vec::new();
+    if c.exec_used {
+        if c.exec_dynamic {
+            out.push("exec: true".to_owned());
+        } else {
+            out.extend(c.programs.into_iter().map(|p| format!("exec: {p}")));
+        }
+    }
+    out.extend(c.reads.into_iter().map(|r| format!("fs.read: {r}")));
+    out.extend(c.writes.into_iter().map(|w| format!("fs.write: {w}")));
+    out.extend(c.hosts.into_iter().map(|h| format!("net.http: {h}")));
+    out.extend(c.tools.into_iter().map(|t| format!("tool: {t}")));
+    out
 }
 
 /// Fold one action (a task's main verb OR an `on_finally` cleanup verb)
@@ -295,6 +327,74 @@ mod tests {
     use crate::parser::{ParseMode, parse};
     use crate::source::FileId;
     use proptest::prelude::*;
+
+    /// The per-task projector: each family flattens deterministically,
+    /// dynamic exec widens, unpinnable effects project NOTHING, and a
+    /// bare infer task is empty (the wire's []).
+    #[test]
+    fn task_permits_attributes_each_family_deterministically() {
+        let yaml = "\
+nika: v1
+workflow: t
+model: mock/echo
+tasks:
+  - id: fetcher
+    invoke:
+      tool: nika:fetch
+      args:
+        url: https://api.example.org/items
+  - id: writer
+    invoke:
+      tool: \"nika:write\"
+      args:
+        path: out/report.md
+        content: hi
+  - id: lister
+    exec:
+      command: [\"ls\", \"-la\"]
+  - id: sheller
+    exec:
+      command: \"echo hi && ls\"
+  - id: thinker
+    infer:
+      prompt: p
+  - id: looper
+    agent:
+      prompt: g
+      tools: [\"nika:done\", \"nika:log\"]
+      max_turns: 2
+";
+        let wf = crate::parser::parse(
+            yaml,
+            crate::source::FileId::new(0),
+            crate::parser::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let by_id = |id: &str| {
+            let t = wf
+                .tasks
+                .iter()
+                .find(|t| t.value.id.value == id)
+                .expect("task exists");
+            task_permits(&t.value)
+        };
+
+        assert_eq!(
+            by_id("fetcher"),
+            vec!["net.http: api.example.org", "tool: nika:fetch"],
+        );
+        assert_eq!(
+            by_id("writer"),
+            vec!["fs.write: out/report.md", "tool: nika:write"],
+        );
+        assert_eq!(by_id("lister"), vec!["exec: ls"]);
+        // Shell strings can never satisfy a program allowlist — widened.
+        assert_eq!(by_id("sheller"), vec!["exec: true"]);
+        // A bare infer has no pinnable effect — the wire's empty list.
+        assert!(by_id("thinker").is_empty());
+        // Agent tools are boundary vocabulary, BTree-ordered.
+        assert_eq!(by_id("looper"), vec!["tool: nika:done", "tool: nika:log"]);
+    }
 
     fn infer_of(yaml: &str) -> InferredPermits {
         infer(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))

@@ -412,6 +412,15 @@ pub fn infer_permits(wf: &RawWorkflow) -> InferredPermits {
     infer_permits::infer(wf)
 }
 
+/// ONE task's capability attribution as deterministic permit strings —
+/// the `graph --format json` node projector (`exec:` · `fs.read:` ·
+/// `fs.write:` · `net.http:` · `tool:` families, BTree-ordered). Same
+/// effect walk as [`infer_permits`], un-aggregated.
+#[must_use]
+pub fn task_permits(task: &crate::raw::RawTask) -> Vec<String> {
+    infer_permits::task_permits(task)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
