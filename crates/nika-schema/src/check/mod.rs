@@ -139,6 +139,20 @@ pub struct ConformanceViolation {
     /// editors surface the code as a clickable link. Additive:
     /// `report_version` stays 1.
     pub docs_url: String,
+    /// The exact offending source token, when the violation is a
+    /// RENAME-shaped defect (`buidl` for an unknown dependency ·
+    /// `tasks.buidl` for an unresolved reference) — paired with
+    /// [`Self::suggestion`], this is the machine-applicable half the
+    /// human message already renders as « did you mean ___? ». The
+    /// `--fix` repair loop splices exactly this token. Additive:
+    /// `report_version` stays 1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offending: Option<String>,
+    /// The typed rename target (`build` · `tasks.build`) — present only
+    /// when the deterministic did-you-mean asserted one (silence past
+    /// the threshold, as everywhere). Additive: `report_version` stays 1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
 }
 
 /// The static pre-flight report — everything `nika check` learns without
@@ -320,6 +334,10 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
                 .map(|e| {
                     let code = e.spec_code().to_string();
                     let docs_url = format!("{ERROR_DOCS_BASE}/{code}");
+                    let (offending, suggestion) = match e.rename_repair() {
+                        Some((o, s)) => (Some(o), Some(s)),
+                        None => (None, None),
+                    };
                     ConformanceViolation {
                         code,
                         message: e.to_string(),
@@ -329,6 +347,8 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
                         }),
                         severity: FindingSeverity::Error,
                         docs_url,
+                        offending,
+                        suggestion,
                     }
                 })
                 .collect(),
