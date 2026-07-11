@@ -653,6 +653,9 @@ pub nika_cli::verbs::wire::WireTarget::Qwen
 pub nika_cli::verbs::wire::WireTarget::Vscode
 pub nika_cli::verbs::wire::WireTarget::Windsurf
 pub nika_cli::verbs::wire::WireTarget::Zed
+impl clap_builder::derive::ValueEnum for nika_cli::verbs::wire::WireTarget
+pub fn nika_cli::verbs::wire::WireTarget::to_possible_value<'a>(&self) -> core::option::Option<clap_builder::builder::possible_value::PossibleValue>
+pub fn nika_cli::verbs::wire::WireTarget::value_variants<'a>() -> &'a [Self]
 impl core::clone::Clone for nika_cli::verbs::wire::WireTarget
 pub fn nika_cli::verbs::wire::WireTarget::clone(&self) -> nika_cli::verbs::wire::WireTarget
 impl core::cmp::Eq for nika_cli::verbs::wire::WireTarget
