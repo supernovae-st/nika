@@ -1019,7 +1019,8 @@ async fn e2e_agent_budget_and_schema_terminals() {
     );
 
     // Schema terminal: the done result is validated against the task
-    // schema — conforming passes (Structured), violating is NIKA-464.
+    // schema — conforming passes (Structured), violating is the
+    // schema-gate verdict (wire NIKA-INFER-002).
     let schema = serde_json::json!({
         "type": "object",
         "required": ["sum"],

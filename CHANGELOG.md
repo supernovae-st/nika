@@ -77,7 +77,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
-- **The agent-verb battery triad** (36-workflow gauntlet on the 4th
+- **The same provider failure now speaks ONE error language on both
+  verbs** (#468): the agent loop's mid-loop provider failure surfaced
+  as a bare-numeric `NIKA-463` — outside the spec's namespace grammar,
+  so `nika check` rejected it in `on_codes:` and no retry/recover
+  filter could ever match the agent path — while `infer` surfaced the
+  same 408 as `NIKA-INFER-001`. The agent's chained failures now carry
+  the spec's shared classes on the wire: provider call → `NIKA-INFER-001`,
+  final-message `schema:` gate → `NIKA-INFER-002` (the namespace follows
+  the failure class, not the hosting verb — the spec's own `NIKA-SEC-002`
+  precedent). `retry.on_codes: [NIKA-INFER-001]` now catches provider
+  failures on BOTH verbs; the internal registry identities (463/464 ·
+  `nika explain`) are unchanged.
   verb · 2026-07-11): a standalone `nika:compose` passed `check` but
   the runtime refused it (COMPOSE-001) — the loop-only rule joins the
   one shape table both surfaces read, beside its sibling `nika:done`;

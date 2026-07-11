@@ -5,9 +5,11 @@
 //!
 //! Spec mapping (`docs/crate-specs/nika-verb-agent.md` §4): budgets are
 //! FAILURES (460 turns · 461 tokens · spec `NIKA-AGENT-001/002`), the
-//! whitelist violation is the immediate security stop (462 · not
-//! model-negotiable), provider failures chain (463), the final-message
-//! schema gate (464), parameter validation (465), and the
+//! whitelist violation is the immediate security stop (462 · spec
+//! `NIKA-SEC-002` · not model-negotiable), provider failures chain
+//! (463 · wire `NIKA-INFER-001` · the same class the `infer` verb
+//! speaks · #468), the final-message schema gate (464 · wire
+//! `NIKA-INFER-002`), parameter validation (465), and the
 //! tool-definition seam failure (466 · wraps the kernel NIKA-234).
 
 use nika_error::codes::{
@@ -59,7 +61,7 @@ pub enum VerbAgentError {
         spend: Box<SpendOnFailure>,
     },
 
-    /// A provider call failed mid-loop (NIKA-463).
+    /// A provider call failed mid-loop (NIKA-463 · wire `NIKA-INFER-001`).
     #[error("agent inference failed: {source}")]
     #[diagnostic(code(nika::verb::agent_inference))]
     Inference {
@@ -72,7 +74,8 @@ pub enum VerbAgentError {
         spend: Box<SpendOnFailure>,
     },
 
-    /// The final message failed `schema:` validation (NIKA-464).
+    /// The final message failed `schema:` validation (NIKA-464 · wire
+    /// `NIKA-INFER-002`).
     #[error("agent final message failed schema validation: {detail}")]
     #[diagnostic(code(nika::verb::agent_schema_validation))]
     SchemaValidation {
@@ -179,20 +182,26 @@ impl NikaErrorCode for VerbAgentError {
     /// filters on). `NIKA-460` → `NIKA-AGENT-001` (`max_turns`) · `NIKA-461`
     /// → `NIKA-AGENT-002` (`max_tokens`) · `NIKA-462` (non-whitelisted tool)
     /// is the security-stop `NIKA-SEC-002` (spec table `NIKA-SEC-002` ·
-    /// agent tool call outside the whitelist). The remaining variants
-    /// (`Inference` · `SchemaValidation` · `InvalidParam` · `ToolDefs` ·
-    /// `Stalled`) have no dedicated spec namespace row — they keep their
-    /// numeric wire form via the trait default.
+    /// agent tool call outside the whitelist). The loop's CHAINED
+    /// model-call failures speak the spec's shared classes — the
+    /// namespace follows the failure class, not the hosting verb (the
+    /// spec's own `NIKA-SEC-002` row is the precedent): a mid-loop
+    /// provider failure is `NIKA-INFER-001` (provider call failed · the
+    /// SAME code the `infer` verb emits · one voice · #468) and the
+    /// final-message schema gate is `NIKA-INFER-002` (structured output
+    /// failed `schema:`). The remaining variants (`InvalidParam` ·
+    /// `ToolDefs` · `Stalled`) have no spec namespace row — they keep
+    /// their numeric wire form via the trait default.
     fn spec_code(&self) -> String {
         match self {
             Self::MaxTurns { .. } => "NIKA-AGENT-001".to_owned(),
             Self::MaxTokens { .. } => "NIKA-AGENT-002".to_owned(),
             Self::WhitelistViolation { .. } => "NIKA-SEC-002".to_owned(),
-            Self::Inference { .. }
-            | Self::SchemaValidation { .. }
-            | Self::InvalidParam { .. }
-            | Self::ToolDefs { .. }
-            | Self::Stalled { .. } => self.nika_code().to_string(),
+            Self::Inference { .. } => "NIKA-INFER-001".to_owned(),
+            Self::SchemaValidation { .. } => "NIKA-INFER-002".to_owned(),
+            Self::InvalidParam { .. } | Self::ToolDefs { .. } | Self::Stalled { .. } => {
+                self.nika_code().to_string()
+            }
         }
     }
 
@@ -311,6 +320,35 @@ mod tests {
             spend: Box::default(),
         };
         assert!(!terminal.is_transient(), "a 400 is a verdict");
+    }
+
+    #[test]
+    fn chained_failures_speak_the_shared_spec_classes_on_the_wire() {
+        // #468 · one-voice: the wire code (`spec_code()` · what
+        // `on_codes:` matches and `tasks.X.error.code` carries) is the
+        // spec's shared class, never the internal registry numeral —
+        // `NIKA-463`/`NIKA-464` are outside the spec grammar and
+        // `nika check` rejects them in `on_codes:`.
+        use nika_kernel::ai::provider::ProviderError;
+        let inference = VerbAgentError::Inference {
+            source: ProviderError::Api {
+                status: 408,
+                message: "HTTP request timed out after 300000ms".to_owned(),
+            },
+            spend: Box::default(),
+        };
+        assert_eq!(inference.spec_code(), "NIKA-INFER-001");
+        let schema = VerbAgentError::SchemaValidation {
+            detail: "missing field".to_owned(),
+            spend: Box::default(),
+        };
+        assert_eq!(schema.spec_code(), "NIKA-INFER-002");
+        // Classes WITHOUT a spec row keep the numeric wire form.
+        let param = VerbAgentError::InvalidParam {
+            param: "prompt",
+            detail: "empty".to_owned(),
+        };
+        assert_eq!(param.spec_code(), "NIKA-465");
     }
 
     #[test]
