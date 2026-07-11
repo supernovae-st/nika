@@ -19,7 +19,12 @@ fi
   exit 0
 }
 
-actual="$(git rev-parse --short=9 HEAD 2>/dev/null)"
+# The recorded pointer tracks MAIN, so the comparison must too: HEAD is
+# the CHECKOUT's tip, and a worktree on a feature branch false-REDs every
+# push (2026-07-11 ×6 — the class that forced a whole arc onto the
+# api-commit route). `main` resolves fine from linked worktrees (shared
+# common-dir); HEAD stays the fallback for clones with another default.
+actual="$(git rev-parse --short=9 main 2>/dev/null || git rev-parse --short=9 HEAD 2>/dev/null)"
 # shellcheck disable=SC2016  # literal backtick regex — no expansion needed
 recorded="$(grep -oE 'nika-diamond\):\*\* `[a-f0-9]+`' "$MEMORY" | head -1 | grep -oE '[a-f0-9]+' | tail -1)"
 
