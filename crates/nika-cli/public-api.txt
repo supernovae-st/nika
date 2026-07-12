@@ -462,6 +462,7 @@ impl<W: core::io::write::Write> nika_cli::verbs::run::FoldSink<W>
 pub fn nika_cli::verbs::run::FoldSink<W>::into_error(self) -> core::option::Option<core::io::error::Error>
 pub fn nika_cli::verbs::run::FoldSink<W>::new(writer: W, theme: nika_display::theme::Theme, mode: nika_cli::verbs::run::RenderMode) -> Self
 pub fn nika_cli::verbs::run::FoldSink<W>::print_final(&mut self)
+pub fn nika_cli::verbs::run::FoldSink<W>::set_map(&mut self, doc: nika_cli::verbs::graph::GraphDoc, waves: alloc::vec::Vec<alloc::vec::Vec<usize>>)
 pub fn nika_cli::verbs::run::FoldSink<W>::set_plan(&mut self, waves: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>)
 pub fn nika_cli::verbs::run::FoldSink<W>::show_outputs(&mut self, on: bool)
 pub fn nika_cli::verbs::run::FoldSink<W>::view(&self) -> &nika_display::state::RunView
