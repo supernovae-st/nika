@@ -3,6 +3,19 @@
 The bundle every marketplace installs (Claude Code · Codex · Cursor).
 Versions move together across all manifests (the mirror gate pins it).
 
+## 0.5.2 — 2026-07-12
+
+Two teachings earned by the night's deep-e2e (each caught live before
+it was written down):
+
+- authoring: the `outputs:` binding law — bind `${{ tasks.<id>.output }}`,
+  never the bare task (the ENVELOPE: status + timestamps → `nika test`
+  goldens drift red on every run · the engine now teaches it at check
+  time as `[envelope-output]`, the skill says it at write time).
+- authoring: the sovereign lane joined the run step — `nika model pull`
+  → `nika model serve` (qwen3-family GGUFs; the banner prints the exact
+  wiring), beside the ollama route.
+
 ## 0.5.1 — 2026-07-12
 
 - session-context: a session opened in a SUBDIR of the workspace now
