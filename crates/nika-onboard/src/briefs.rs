@@ -140,6 +140,13 @@ Envelope: `nika: v1` (always · frozen forever). Extensions: `.nika.yaml` (canon
 - Unknown code? Run `nika explain NIKA-XXXX`.
 "#;
 
+/// `.cursor/mcp.json` — the project-scoped MCP wiring for Cursor: the
+/// read-only oracle (8 tools) reaches the agent without any manual setup.
+/// Project-scoped (not global) so the config travels with the repo and
+/// never touches the user's other projects.
+const CURSOR_MCP: &str =
+    "{ \"mcpServers\": { \"nika\": { \"command\": \"nika\", \"args\": [\"mcp\"] } } }\n";
+
 /// `.github/copilot-instructions.md` — the GitHub Copilot repo brief.
 /// Compact on purpose: the loop + the four hard rules that catch most
 /// LLM authoring errors; AGENTS.md carries the full contract.
@@ -201,11 +208,12 @@ pub fn agents_md() -> &'static str {
 
 /// The scaffold set · (relative path, body). The ONE source of what `init`
 /// writes — `plan` and the docs both read it.
-pub(super) fn targets() -> [(&'static str, &'static str); 6] {
+pub(super) fn targets() -> [(&'static str, &'static str); 7] {
     [
         (".vscode/settings.json", VSCODE_SETTINGS),
         ("AGENTS.md", AGENTS_MD),
         (".cursor/rules/nika.mdc", CURSOR_RULES),
+        (".cursor/mcp.json", CURSOR_MCP),
         (".agents/skills/nika-authoring/SKILL.md", AGENT_SKILL),
         (".github/copilot-instructions.md", COPILOT_INSTRUCTIONS),
         ("CLAUDE.md", CLAUDE_MD),
@@ -359,12 +367,13 @@ mod tests {
     #[test]
     fn targets_names_every_brief_family() {
         let t = targets();
-        assert_eq!(t.len(), 6);
+        assert_eq!(t.len(), 7);
         let paths: Vec<&str> = t.iter().map(|(p, _)| *p).collect();
         for expected in [
             ".vscode/settings.json",
             "AGENTS.md",
             ".cursor/rules/nika.mdc",
+            ".cursor/mcp.json",
             ".agents/skills/nika-authoring/SKILL.md",
             ".github/copilot-instructions.md",
             "CLAUDE.md",

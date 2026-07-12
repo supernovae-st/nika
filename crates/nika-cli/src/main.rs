@@ -237,7 +237,7 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Found a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule ·
+    /// Found a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule + MCP ·
     /// `.agents/skills` authoring skill · optional workflow set). Bare on
     /// a terminal the founding wizard runs; flags are the scriptable
     /// twin. Existing files are skipped — `--force` overwrites.

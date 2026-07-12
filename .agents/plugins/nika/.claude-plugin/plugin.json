@@ -1,7 +1,7 @@
 {
   "name": "nika",
-  "description": "Author AI workflows as checkable .nika.yaml files — the nika-authoring skill, three slash commands (/nika:check · /nika:explain · /nika:new) and the read-only Nika MCP oracle (8 tools · nika_check through nika_tools). Requires the nika binary: brew install supernovae-st/tap/nika",
-  "version": "0.2.0",
+  "description": "Author AI workflows as checkable .nika.yaml files — the nika-authoring skill, the nika-author subagent, the language rule, three slash commands (/nika:check · /nika:explain · /nika:new), a check-on-edit hook and the read-only Nika MCP oracle (8 tools · nika_check through nika_tools). Requires the nika binary: brew install supernovae-st/tap/nika",
+  "version": "0.3.0",
   "author": {
     "name": "SuperNovae Studio",
     "url": "https://nika.sh"

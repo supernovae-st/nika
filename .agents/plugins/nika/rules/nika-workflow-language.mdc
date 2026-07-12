@@ -1,0 +1,25 @@
+---
+description: Nika workflow language rules for AI assistance
+globs: ["**/*.nika.yaml", "**/*.nika.yml"]
+alwaysApply: false
+---
+
+# Nika Workflow Language
+
+Envelope: `nika: v1` (always · frozen forever). Extensions: `.nika.yaml` (canonical) and `.nika.yml`.
+
+## 4 Verbs (locked forever)
+- `infer:` LLM call (`prompt`, `system?`, `temperature?`, `schema?`, `max_tokens?`, `model?`)
+- `exec:` subprocess (`command`, `cwd?`, `capture: text|structured`)
+- `invoke:` builtin/MCP tool (`tool`, `args`) — HTTP fetch = `tool: nika:fetch` (a tool, not a verb)
+- `agent:` multi-turn loop (`prompt`, `tools`, `max_turns`, `max_tokens_total`)
+
+## Authoring Discipline
+- Interpolation uses `${{ vars.x }}` · `${{ tasks.id.output }}` · `${{ env.KEY }}` · `${{ with.alias }}`.
+- Bindings use `with: { alias: ${{ tasks.id.output }} }` then `${{ with.alias }}`.
+- Models use the combined form `provider/name` (for example `mock/echo`, `ollama/qwen3.5:4b`, `mistral/mistral-small`).
+- `depends_on` is always an array: `depends_on: [task_id]`.
+- Secrets are declared in a top-level `secrets:` block (e.g. `source: env`, `key: MY_KEY`) and referenced as `${{ secrets.name }}` — never inline literal keys; `${{ env.* }}` is for non-sensitive configuration.
+- After every edit, run `nika check <file>` — `--fix` heals the mechanical
+  renames, the diagnostics teach the rest.
+- Unknown code? Run `nika explain NIKA-XXXX`.

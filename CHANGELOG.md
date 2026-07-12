@@ -83,6 +83,23 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   the dither pulse that only exists where motion does — every shape
   colour-through-Role only, 2-cell law, zero escapes when colour is
   off.
+||||||| 6207ec234
+- **Cursor first-class: the plugin kit gains its native format + `init`
+  wires the MCP** — the agents kit (`.agents/plugins/nika/`) now ships a
+  `.cursor-plugin/plugin.json` (Cursor's marketplace manifest: logo ·
+  rules · skills · agents · commands · hooks · mcpServers), the
+  `nika-author` subagent (the route → instantiate → fill-SLOTs → check →
+  repair protocol as an agent definition), a `check-on-edit` hook
+  (afterFileEdit on `*.nika.yaml` runs `nika check` — capability-honest:
+  missing binary skips, never blocks), the language rule as a bundled
+  file (extracted byte-identical from the `init` template), and the
+  brand logo. Both existing plugin manifests bump to 0.3.0 together
+  (the marketplace mirror gate pins the agreement) and the engine-root
+  Claude marketplace catches up from its stale 0.1.0 two-tool
+  description. `nika init` now also writes a project-scoped
+  `.cursor/mcp.json` (the read-only 8-tool oracle reaches Cursor's
+  agent with zero manual setup — same skip-if-exists discipline as
+  every scaffold file).
 
 - **`nika wire` wave-3b: `cline` + `continue`** (#449 — closes the
   ranked list). Cline: Cursor-style `mcpServers` record; the resolver
