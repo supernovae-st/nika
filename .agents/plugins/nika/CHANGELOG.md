@@ -3,6 +3,12 @@
 The bundle every marketplace installs (Claude Code · Codex · Cursor).
 Versions move together across all manifests (the mirror gate pins it).
 
+## 0.101.0 — 2026-07-13
+
+Lockstep on the engine wave (the sovereign lane ships whole — every
+release binary serves local models). Kit content = the 0.100.1
+readonly patch, renumbered onto the wave.
+
 ## 0.100.1 — 2026-07-12
 
 - The three subagents declare `readonly: true` — Cursor ENFORCES what the
@@ -10,11 +16,6 @@ Versions move together across all manifests (the mirror gate pins it).
   Claude Code tolerates the unknown key, live-probed first (a probe agent
   carrying the key loads and is offered next to a control). Kit-only patch
   on the 0.100 wave.
-
-## 0.101.0 — 2026-07-13
-
-Lockstep on the engine wave (the sovereign lane ships whole — every
-release binary serves local models). Kit content unchanged.
 
 ## 0.100.0 — 2026-07-12
 
