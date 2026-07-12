@@ -525,7 +525,7 @@ Violating any invariant blocks admission. No exceptions.
 - ADR-018 — Runtime + sync primitives (Accepted)
 - ADR-019 — Retry + timeout ownership by layer (Accepted)
 - ADR-020 — WASM plugin boundary + Sandbox capability model (Accepted)
-- ADR-021 — YAML envelope convention: apiVersion + kind + metadata + spec (Accepted)
+- ADR-021 — YAML envelope convention: apiVersion + kind + metadata + spec (Superseded by ADR-082 — the envelope rules live there now)
 - ADR-022 — Foundation crate layout: 14 crates, publish = false (Accepted)
 - ADR-023 — File modularity discipline: 800 warn / 1500 fail / 3000 allowlist (Accepted)
 - ADR-024 — Adopt SOTA Rust patterns: bon Builder, Arc<str>, camino, sealed, strum (Accepted)

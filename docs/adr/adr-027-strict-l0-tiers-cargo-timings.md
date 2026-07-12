@@ -95,9 +95,9 @@ items.
 | # | Name | Tier | Mode | Source ADR |
 |---|---|---|---|---|
 | 22 | check-no-async-in-l0 | P1 | full | (planned, PRE-DIAMOND) |
-| 23 | check-workflow-envelope | P0 | fast | ADR-021 |
-| 24 | check-model-format | P0 | fast | ADR-021 |
-| 25 | check-kind-closed-set | P0 | fast | ADR-021 |
+| 23 | check-workflow-envelope | P0 | fast | ADR-021→082 |
+| 24 | check-model-format | P0 | fast | ADR-021→082 |
+| 25 | check-kind-closed-set | P0 | fast | ADR-021→082 |
 | 26 | check-status-claims-sync | P1 | fast | (this session) |
 | 27 | check-file-loc | P1 | full | ADR-023 |
 | 28 | check-l0-dep-fanout | P0 | fast | ADR-027 |

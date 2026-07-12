@@ -61,7 +61,7 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-001","ADR-003","ADR-006","ADR-008","ADR-011","ADR-037","ADR-040","ADR-042"],
+      "related": ["ADR-001","ADR-003","ADR-006","ADR-008","ADR-011","ADR-037","ADR-040","ADR-042","ADR-023"],
       "requires": ["ADR-001"],
       "enables": ["ADR-003","ADR-006","ADR-008"]
     }
@@ -93,7 +93,7 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-003","ADR-004","ADR-007","ADR-012","ADR-013","ADR-014","ADR-016","ADR-017","ADR-018","ADR-019","ADR-020","ADR-028","ADR-034","ADR-039","ADR-040","ADR-041","ADR-078","ADR-079","ADR-080"],
+      "related": ["ADR-003","ADR-004","ADR-007","ADR-012","ADR-013","ADR-014","ADR-016","ADR-017","ADR-018","ADR-019","ADR-020","ADR-028","ADR-034","ADR-039","ADR-040","ADR-041","ADR-078","ADR-079","ADR-080","ADR-022"],
       "requires": ["ADR-004"],
       "enables": ["ADR-007","ADR-012","ADR-013","ADR-014"]
     }
@@ -109,7 +109,7 @@
       "affects_layers": ["L0","L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-002","ADR-005","ADR-006","ADR-008","ADR-010","ADR-012","ADR-015","ADR-016","ADR-019","ADR-020","ADR-028","ADR-033","ADR-034","ADR-039","ADR-040"],
+      "related": ["ADR-002","ADR-005","ADR-006","ADR-008","ADR-010","ADR-012","ADR-015","ADR-016","ADR-019","ADR-020","ADR-028","ADR-033","ADR-034","ADR-039","ADR-040","ADR-027"],
       "requires": ["ADR-002","ADR-006"],
       "enables": ["ADR-015"]
     }
@@ -453,7 +453,7 @@
     {
       "id": "ADR-029",
       "title": "EmbeddingSpec value-type reservation (Cortex seed)",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-04-17",
       "filename": "adr-029-embedding-spec-reservation.md",
       "tags": ["l0","cortex","embedding","reservation","forward-compat"],
@@ -469,7 +469,7 @@
     {
       "id": "ADR-030",
       "title": "MemoryFrameRef.trust reservation (Shield gate seed)",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-04-17",
       "filename": "adr-030-memory-frame-trust.md",
       "tags": ["l0","cortex","shield","trust-level","reservation","forward-compat"],
@@ -485,7 +485,7 @@
     {
       "id": "ADR-031",
       "title": "RecallQuery.tenant reservation (multi-tenant keyspace seed)",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-04-17",
       "filename": "adr-031-recall-query-tenant-keyspace.md",
       "tags": ["l0","cortex","multi-tenant","tenant-id","reservation","forward-compat"],
@@ -493,7 +493,7 @@
       "affects_layers": ["L0","L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-028","ADR-033","ADR-034"],
+      "related": ["ADR-028","ADR-030","ADR-033","ADR-034"],
       "requires": ["ADR-028","ADR-033"],
       "enables": []
     }
@@ -501,7 +501,7 @@
     {
       "id": "ADR-032",
       "title": "WasmPluginError OutOfFuel + Trap + PluginCallContext reservation",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-04-17",
       "filename": "adr-032-wasm-plugin-context.md",
       "tags": ["l0.5","wasm","plugin","fuel","trap","trust-propagation","reservation","forward-compat"],
@@ -509,7 +509,7 @@
       "affects_layers": ["L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-020","ADR-028","ADR-033"],
+      "related": ["ADR-020","ADR-028","ADR-030","ADR-033"],
       "requires": ["ADR-020","ADR-028"],
       "enables": []
     }
@@ -549,7 +549,7 @@
     {
       "id": "ADR-035",
       "title": "Telemetry seams: SpanGuard parent_span_id + SpanRef (OTel-ready)",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-04-17",
       "filename": "adr-035-telemetry-seams.md",
       "tags": ["l0.5","telemetry","observability","otel","span","reservation","forward-compat"],
@@ -885,7 +885,7 @@
     {
       "id": "ADR-091",
       "title": "Sovereign local inference · nika-infer-local · pure-Rust candle sidecar, OpenAI-compat reuse, no rig / no mistral.rs",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-06-11",
       "filename": "adr-091-nika-infer-local-candle-sidecar.md",
       "tags": ["inference","local","sovereign","candle","sidecar","providers","l1.5"],
@@ -917,7 +917,7 @@
     {
       "id": "ADR-093",
       "title": "nika-infer-local HTTP server · tiny_http for the v1 sidecar endpoint",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-06-11",
       "filename": "adr-093-infer-local-http-server-tiny-http.md",
       "tags": ["inference","local","sidecar","http","server","tiny_http","l1.5"],
