@@ -204,8 +204,19 @@ pub(crate) fn tokenizer_entry(entries: &[TreeEntry]) -> Option<&TreeEntry> {
 
 /// The file name of a repo path (`sub/dir/w.gguf` → `w.gguf`) — the
 /// basename ONLY ever reaches the disk (repo paths are remote input).
+/// A basename carrying `\\` or spelling `..` is REJECTED to a fixed
+/// name: on Windows `Path::join` treats `\\` as a separator, so a
+/// crafted tree entry like `x\\..\\evil.gguf` (ends `.gguf`, no `/`)
+/// would otherwise escape the models dir. Unix never splits on `\\`,
+/// so the same law on both platforms costs nothing and closes the
+/// mirror-controlled traversal edge.
 fn file_name(repo_path: &str) -> &str {
-    repo_path.rsplit('/').next().unwrap_or(repo_path)
+    let base = repo_path.rsplit('/').next().unwrap_or(repo_path);
+    if base.contains('\\') || base == ".." {
+        "rejected-remote-name"
+    } else {
+        base
+    }
 }
 
 /// Does a remote-supplied string shape as a Hub `owner/repo` id?
@@ -779,6 +790,19 @@ mod tests {
     use super::*;
 
     // -- the tokenizer borrow (base_model fallback) ----------------------
+
+    /// The basename law holds on remote tree paths: `/` splits, a
+    /// backslash basename (the Windows `Path::join` separator — the
+    /// mirror-controlled traversal edge) rejects to a fixed name, and
+    /// `..` never reaches a join.
+    #[test]
+    fn file_name_takes_the_basename_and_rejects_traversal_shapes() {
+        assert_eq!(file_name("sub/dir/w.gguf"), "w.gguf");
+        assert_eq!(file_name("w.gguf"), "w.gguf");
+        assert_eq!(file_name("x\\..\\evil.gguf"), "rejected-remote-name");
+        assert_eq!(file_name("a/.."), "rejected-remote-name");
+        assert_eq!(file_name("tokenizer.json"), "tokenizer.json");
+    }
 
     #[test]
     fn valid_repo_id_admits_hub_ids_and_drops_crafted_ones() {

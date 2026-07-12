@@ -3,6 +3,7 @@
 //! specs; every case must either compile cleanly (then double-render
 //! byte-eq) or fail with a TYPED error. Panics = the only real failure.
 #![allow(
+    clippy::unreachable,
     clippy::expect_used,
     clippy::unwrap_used,
     clippy::indexing_slicing,
