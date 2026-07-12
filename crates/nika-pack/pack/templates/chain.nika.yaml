@@ -2,17 +2,10 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · chain · gather facts → one model step → persist.
-# family: sequential
-# The default shape for « take real data, produce words, save them ».
 #
-# Instantiate (agents · deterministic) ·
-#   1. Copy this file · rename per the job (kebab-case).
-#   2. Fill every `# SLOT:` line · delete slot comments when filled.
-#   3. Validate · `nika check <file>` (or conformance/runner.py validate).
-#   4. Repair using the error's fix line · re-check until valid.
-# Rules the validator enforces · one verb per task · snake_case ids ·
-# every ${{ tasks.X }} reference REQUIRES depends_on: [X] (NIKA-DAG-003).
-
+#   [gather]────▶[think]────▶[persist]
+#   nika:read     infer       nika:write
+# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
 workflow: chain-template            # SLOT: kebab-case workflow id
 description: "gather → think → persist"   # SLOT: one honest sentence

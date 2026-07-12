@@ -2,15 +2,10 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · etl-state · incremental data job with a state file.
-# family: ops
-# The default shape for « only the NEW » jobs (feeds · exports · syncs)
-# and for batch pipelines that must survive bad input.
-#
-# Instantiate · copy → fill `# SLOT:` → `nika check` → repair → re-check.
-# Two load-bearing moves ·
-#   on_error: recover:   bad data is DATA · the pipeline lives
-#   state read→diff→write   you only process what changed
-
+#   [previous]──┬──▶[delta]──when ≠∅──▶[process]
+#   [fresh]─────┤    json_diff           nika:jq
+#               └──▶[save_state]
+# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
 workflow: etl-state-template        # SLOT: kebab-case workflow id
 description: "read state · fetch fresh · diff · process the delta · save state"   # SLOT

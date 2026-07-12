@@ -1,17 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# TEMPLATE · agent-loop · plan with a fast model, execute with a
-# family: agentic
-# budgeted agent, validate the typed result.
-# The default shape for open-ended work (research · review · triage).
+# TEMPLATE · agent-loop · plan fast → execute with a leashed agent → validate the typed result.
 #
-# Instantiate · copy → fill `# SLOT:` → `nika check` → repair → re-check.
-# Three leashes (pattern 5 + 8 · NEVER ship an unleashed agent) ·
-#   tools:    default-deny · grant the MINIMUM · nika:done ends cleanly
-#   max_turns + max_tokens_total · the worst case is bounded
-#   schema:   the final message is TYPED · prose is not a contract
-
+#   [plan]────▶[execute]─────▶[confirm]
+#   infer       agent·leashed  nika:assert
+# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
 workflow: agent-loop-template       # SLOT: kebab-case workflow id
 description: "plan → budgeted agent → typed result"   # SLOT

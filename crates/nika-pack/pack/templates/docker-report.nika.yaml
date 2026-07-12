@@ -1,22 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# TEMPLATE · docker-report: read a system's real state via a pinned CLI,
-# family: ops
-# have a model explain it, keep the report as a file. The audited-ops
-# shape: argv-array exec (a provable `permits.exec` allowlist — a shell
-# string can smuggle any program through a pipe, so the checker refuses
-# to bless one), reads fan out in parallel, one model call, one artifact.
-# Swap `docker` for any product CLI (kubectl · gh · terraform · psql).
-#
-# Instantiate · copy → fill `# SLOT:` → `nika check` → repair → re-check.
-#
-# EXEC LEDGER · (the native-first law: every surviving exec names why)
-# | task | command          | why no native path               | unlock that removes it |
-# | ps   | docker ps        | product CLI · no MCP surface yet | a docker MCP server    |
-# | df   | docker system df | same                             | same                   |
-# Needs · a running docker daemon (the report reads YOUR containers).
-
+# TEMPLATE · docker-report · read real state via a pinned CLI → explain it → keep the report.
+#   [ps]────┐
+#   [df]────┴──▶[diagnose]────▶[keep]
+#   exec ×2      infer          nika:write
+# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
 workflow: docker-report-template    # SLOT: kebab-case workflow id
 description: "read the daemon's state · explain it · keep the report"   # SLOT

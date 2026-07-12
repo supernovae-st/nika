@@ -1,22 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# TEMPLATE · human-gated-ship: gates in parallel, a human signs,
-# family: gated
-# the action ships, evidence always lands.
-# The default shape for anything irreversible (deploys · sends · publishes).
-#
-# Needs · TEAM_WEBHOOK_URL (the record's landing) — and a human: the
-# prompt PAUSES the run; answer and resume with
-#   nika run --resume <trace> --answer human=yes
-#
-# Instantiate · copy → fill `# SLOT:` → `nika check` → repair → re-check.
-# The contract (patterns 6 + 9) ·
-#   nothing irreversible happens before nika:prompt returns true
-#   the assert makes a RED gate terminal · the act fails LOUDLY (default
-#   capture) · a terminal `when: true` task records EVERY outcome
-#   (acted · refused · failed): the always-pattern
-
+# TEMPLATE · human-gated-ship · gates in parallel → a human signs → ship · evidence always lands.
+#   [check_a]─┐                             ┌──▶[act]──▶[record]
+#   [check_b]─┴─▶[gates]──▶[human ⏸]──yes──┘    exec     nika:notify (always)
+#   exec ×2       assert     nika:prompt
+# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
 workflow: human-gated-ship-template  # SLOT: kebab-case workflow id
 description: "verify in parallel · human GO · act · record"   # SLOT
@@ -57,6 +46,8 @@ tasks:
   - id: human
     depends_on: [gates]
     invoke:
+      # the prompt PAUSES the run (exit 4 · not a failure) — answer and resume:
+      #   nika run --resume <trace> --answer human=yes
       tool: "nika:prompt"
       args:
         message: "All gates GREEN. Proceed?"   # SLOT: the decision, fully informed
