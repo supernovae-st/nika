@@ -263,6 +263,25 @@ impl Theme {
         self.paint(role, raw)
     }
 
+    /// The bare 1-cell verb glyph — unpainted, unpadded (the map and
+    /// any state-painting surface colour it by STATE, not the verb
+    /// band). Same table as [`Self::verb_glyph`] — one vocabulary.
+    #[must_use]
+    pub fn verb_glyph_bare(&self, verb: Option<&str>) -> &'static str {
+        match (verb, self.ascii) {
+            (Some("exec"), false) => "▷",
+            (Some("exec"), true) => "$",
+            (Some("invoke"), false) => "◆",
+            (Some("invoke"), true) => "@",
+            (Some("agent"), false) => "✦",
+            (Some("agent"), true) => "*",
+            (Some("infer"), false) => "◇",
+            (Some("infer"), true) => "i",
+            (None | Some(_), false) => "·",
+            (None | Some(_), true) => ".",
+        }
+    }
+
     /// Wrap `text` as an OSC-8 hyperlink to `url` — a no-op unless the
     /// `links` capability resolved on (TTY + `--hyperlink` chain), so
     /// every sober register keeps its exact bytes.

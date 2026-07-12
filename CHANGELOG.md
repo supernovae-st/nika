@@ -12,6 +12,12 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **One glyph table, zero-alloc live channel** (rust-pro pass) — the
+  verb glyph vocabulary lives ONCE (`Theme::verb_glyph_bare` joins
+  `verb_glyph`; the render-side copy dies), and the wire map's live
+  channel becomes a borrowed probe (`LiveProbe = &dyn Fn(&str) -> bool`
+  — a 10 Hz repaint asks the rows, it never materializes a set).
+
 - **Less, but better: 24 verbs become 20, in six families** (operator
   Rams pass) — `graph` folds into `inspect --format json|mermaid|dot`
   (one projector, one door; `check`/`run` already draw the map),

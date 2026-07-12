@@ -66,20 +66,6 @@ fn map_line(view: &RunView, theme: Theme, tick: usize) -> Option<String> {
     Some(format!("     {}", waves.join(&sep)))
 }
 
-/// The bare 1-cell verb glyph (no paint · no pad) — the map paints it
-/// with the STATE role, not the verb band (state outranks identity on
-/// a one-line map; the id and spinner still speak the verb).
-fn bare_verb_glyph(verb: Option<&str>, theme: Theme) -> String {
-    let g = match verb {
-        Some("exec") => ("▷", "$"),
-        Some("invoke") => ("◆", "@"),
-        Some("agent") => ("✦", "*"),
-        Some("infer") => ("◇", "i"),
-        _ => ("·", "."),
-    };
-    (if theme.ascii { g.1 } else { g.0 }).to_owned()
-}
-
 /// One map node: the state-painted glyph (+ id on small runs).
 fn map_node(row: Option<&TaskRow>, id: &str, theme: Theme, tick: usize, with_id: bool) -> String {
     let (glyph, role) = match row.map(|r| &r.state) {
@@ -91,10 +77,19 @@ fn map_node(row: Option<&TaskRow>, id: &str, theme: Theme, tick: usize, with_id:
                 spin.trim_end().to_owned()
             };
         }
-        Some(TaskState::Ok) => (bare_verb_glyph(row.and_then(row_verb), theme), Role::Good),
-        Some(TaskState::Failed) => (bare_verb_glyph(row.and_then(row_verb), theme), Role::Bad),
+        Some(TaskState::Ok) => (
+            theme.verb_glyph_bare(row.and_then(row_verb)).to_owned(),
+            Role::Good,
+        ),
+        Some(TaskState::Failed) => (
+            theme.verb_glyph_bare(row.and_then(row_verb)).to_owned(),
+            Role::Bad,
+        ),
         Some(TaskState::Skipped | TaskState::Cancelled) => ("⊘".to_owned(), Role::Dim),
-        _ => (bare_verb_glyph(row.and_then(row_verb), theme), Role::Dim),
+        _ => (
+            theme.verb_glyph_bare(row.and_then(row_verb)).to_owned(),
+            Role::Dim,
+        ),
     };
     let painted = theme.paint(role, &glyph);
     if with_id {

@@ -564,13 +564,13 @@ impl<W: Write> FoldSink<W> {
             .collect();
         let theme = self.theme;
         let tick = self.tick;
-        let running: std::collections::BTreeSet<String> = self
-            .view
-            .rows()
-            .iter()
-            .filter(|r| matches!(r.state, crate::display::state::TaskState::Running))
-            .map(|r| r.id.clone())
-            .collect();
+        // Zero-alloc live probe: the rows ARE the state — a 10 Hz repaint
+        // asks, it never copies.
+        let rows = self.view.rows();
+        let running = |id: &str| {
+            rows.iter()
+                .any(|r| r.id == id && matches!(r.state, crate::display::state::TaskState::Running))
+        };
         let graph = crate::wires::wire_graph(doc, waves);
         crate::wires::render_with(
             &graph,

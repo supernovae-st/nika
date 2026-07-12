@@ -34,6 +34,11 @@ const MAX_ROWS: usize = 4;
 /// One gutter's edge set, as row indices (source row → target rows).
 type GutterEdges = Vec<(usize, usize)>;
 
+/// The live probe — « is this node RUNNING right now? ». A borrowed
+/// closure instead of a materialized set: the caller already holds the
+/// state, and a 10 Hz repaint should not allocate to ask a question.
+pub type LiveProbe<'a> = &'a dyn Fn(&str) -> bool;
+
 /// The decoupled wire topology — what the drawing needs and nothing
 /// more: (id · verb) per wave slot, and id→id edges. The CLI builds it
 /// from its checked projection; any surface with waves + deps can.
@@ -68,7 +73,7 @@ pub fn render_with(
     graph: &WireGraph,
     theme: Theme,
     node: &dyn Fn(&str, &str) -> (String, String),
-    live: Option<(&std::collections::BTreeSet<String>, usize)>,
+    live: Option<(LiveProbe<'_>, usize)>,
 ) -> Option<String> {
     let waves = &graph.waves;
     if waves.is_empty() || waves.iter().any(|w| w.is_empty() || w.len() > MAX_ROWS) {
@@ -157,12 +162,12 @@ pub fn render_with(
 fn hot_rows(
     coords: &std::collections::BTreeMap<&str, (usize, usize)>,
     gutter_count: usize,
-    live: Option<(&std::collections::BTreeSet<String>, usize)>,
+    live: Option<(LiveProbe<'_>, usize)>,
 ) -> Vec<std::collections::BTreeSet<usize>> {
     let mut hot = vec![std::collections::BTreeSet::new(); gutter_count];
     if let Some((running, _)) = live {
         for (id, &(w, r)) in coords {
-            if w > 0 && running.contains(*id) {
+            if w > 0 && running(id) {
                 hot[w - 1].insert(r);
             }
         }
@@ -419,7 +424,7 @@ mod tests {
     fn the_incoming_edge_pulses_into_the_running_node() {
         let chain = g(&[&[("a", "exec")], &[("b", "exec")]], &[("a", "b")]);
         let node = |id: &str, verb: &str| (PLAIN.verb_glyph(verb), id.to_owned());
-        let running: std::collections::BTreeSet<String> = ["b".to_owned()].into();
+        let running = |id: &str| id == "b";
 
         let t0 = render_with(&chain, PLAIN, &node, Some((&running, 0))).expect("art");
         let t1 = render_with(&chain, PLAIN, &node, Some((&running, 1))).expect("art");
@@ -429,7 +434,7 @@ mod tests {
         );
         assert_ne!(t0, t1, "two ticks · two frames");
 
-        let cold = std::collections::BTreeSet::new();
+        let cold = |_: &str| false;
         let c0 = render_with(&chain, PLAIN, &node, Some((&cold, 0)));
         let c9 = render_with(&chain, PLAIN, &node, Some((&cold, 9)));
         assert_eq!(c0, c9, "a still map never flickers");
