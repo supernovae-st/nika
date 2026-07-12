@@ -202,12 +202,22 @@ pub fn find_island_close(s: &str, from: usize) -> Option<usize> {
 /// literal) yields `None` and the caller renders textually. This preserves the
 /// runtime's historical behavior verbatim; a quote-aware widening (via
 /// [`scan_islands`]) is a deliberate future change, not part of this extraction.
+///
+/// One vocabulary, one verdict (#511): what the quote-aware scanner
+/// REFUSES, this fast path refuses too — the textual strip alone
+/// accepted `${{'{{{{}}` (an unterminated quote swallowing the closer)
+/// while [`scan_islands`] answered `Unterminated`; `Some` here now
+/// implies the scanner finds exactly one island (property-pinned).
 #[must_use]
 pub fn single_island(s: &str) -> Option<&str> {
-    let body = s.trim().strip_prefix("${{")?.strip_suffix("}}")?;
+    let trimmed = s.trim();
+    let body = trimmed.strip_prefix("${{")?.strip_suffix("}}")?;
     // A second island inside would mean `}}…${{` — reject (textual).
     if body.contains("${{") || body.contains("}}") {
         return None;
     }
-    Some(body.trim())
+    match scan_islands(trimmed) {
+        Ok(islands) if islands.len() == 1 => Some(body.trim()),
+        _ => None,
+    }
 }

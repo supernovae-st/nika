@@ -57,6 +57,18 @@ fn assert_spans_wellformed(s: &str) {
 }
 
 proptest! {
+    // Found counterexamples PERSIST (#511): the default SourceParallel
+    // walks up for a lib.rs/main.rs this integration target does not
+    // have, so every CI-found seed was lost to the log. WithSource
+    // writes `tests/proptest-regressions/` beside this file — check the
+    // file in when a failure lands and the input pins forever.
+    #![proptest_config(ProptestConfig {
+        failure_persistence: Some(Box::new(
+            proptest::test_runner::FileFailurePersistence::WithSource("proptest-regressions"),
+        )),
+        .. ProptestConfig::default()
+    })]
+
     // Arbitrary UTF-8 — the scanner must never panic and always return
     // well-formed spans or a clean Unterminated error.
     #[test]
@@ -93,6 +105,28 @@ proptest! {
             }
         }
     }
+}
+
+/// The #511 counterexample, pinned forever: an unterminated quote
+/// swallowing the closer — the textual strip said `Some("'{{{{")`
+/// while the quote-aware scan said `Unterminated`. One vocabulary,
+/// one verdict: both refuse now (the legitimate forms stay).
+#[test]
+fn issue_511_unterminated_quote_refuses_in_both_vocabularies() {
+    let s = "${{'{{{{}}";
+    assert_eq!(
+        single_island(s),
+        None,
+        "the fast path defers to the scanner"
+    );
+    assert!(scan_islands(s).is_err(), "the scanner still refuses");
+    // The everyday forms are untouched.
+    assert_eq!(single_island("${{ vars.x }}"), Some("vars.x"));
+    assert_eq!(
+        single_island("  ${{ tasks.a.output }}  "),
+        Some("tasks.a.output")
+    );
+    assert_eq!(single_island("${{ a }} tail"), None);
 }
 
 /// Exhaustive: every string of length ≤ 5 over the hostile ASCII alphabet.
