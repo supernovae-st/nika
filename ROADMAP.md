@@ -93,9 +93,9 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/cli-wow-onboarding`                                      |
+| branch           | `chore/release-0.100.0`                                      |
 | HEAD             | `e241f1cc3` (`e241f1cc342f7c6131c1fe18b75d8837bab1deb6`)             |
-| workspace        | v0.99.0                                  |
+| workspace        | v0.100.0                                  |
 | crates (workspace)| 49                                              |
 | crates (admitted)| 47 / 42                                   |
 | crates (WIP)     | 2 — nika-chart nika-fx                                  |
