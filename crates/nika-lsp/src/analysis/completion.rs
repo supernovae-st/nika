@@ -344,10 +344,19 @@ fn provider_models(prefix: &str) -> Option<Vec<CompletionItem>> {
     (!items.is_empty()).then_some(items)
 }
 
-/// Closed-enum field values (`capture:` · `backoff_strategy:`) — the
-/// schema's own vocabulary, offered where the spec closes the set.
+/// Closed-enum field values (`nika:` · `capture:` · `backoff_strategy:` ·
+/// `type:`) — the schema's own vocabulary, offered where the spec closes
+/// the set. Output-side enums (finding severity · permits source) are
+/// engine-stamped, never authored — they do not belong here.
 fn enum_values(prefix: &str) -> Option<Vec<CompletionItem>> {
     const ENUMS: &[(&str, &[(&str, &str)])] = &[
+        (
+            "nika:",
+            &[(
+                "v1",
+                "the envelope — a single version marker, frozen forever",
+            )],
+        ),
         (
             "capture:",
             &[
@@ -361,6 +370,20 @@ fn enum_values(prefix: &str) -> Option<Vec<CompletionItem>> {
                 ("exponential", "1s · 2s · 4s … (the retry default)"),
                 ("linear", "1s · 2s · 3s … steady climb"),
                 ("fixed", "the same delay every attempt"),
+            ],
+        ),
+        // `vars:` declarations (spec 01-envelope §vars) — the same six
+        // words double as the JSON-Schema `type:` vocabulary inside
+        // `schema:` blocks, so one lane serves both authoring sites.
+        (
+            "type:",
+            &[
+                ("string", "a UTF-8 string"),
+                ("number", "any JSON number"),
+                ("integer", "a JSON integer"),
+                ("boolean", "true or false"),
+                ("array", "a JSON array"),
+                ("object", "a JSON object"),
             ],
         ),
     ];
@@ -589,6 +612,27 @@ mod tests {
                 "exponential".to_owned(),
                 "linear".to_owned(),
                 "fixed".to_owned()
+            ]
+        );
+
+        // the envelope value — the FIRST thing every author types
+        let text3 = "nika: ";
+        let l3 = labels(&completion(text3, text3.len()));
+        assert_eq!(l3, vec!["v1".to_owned()]);
+
+        // vars declaration types — and the same lane serves JSON-Schema
+        // `type:` lines inside `schema:` blocks
+        let text4 = "nika: v1\nvars:\n  city:\n    type: ";
+        let l4 = labels(&completion(text4, text4.len()));
+        assert_eq!(
+            l4,
+            vec![
+                "string".to_owned(),
+                "number".to_owned(),
+                "integer".to_owned(),
+                "boolean".to_owned(),
+                "array".to_owned(),
+                "object".to_owned()
             ]
         );
     }
