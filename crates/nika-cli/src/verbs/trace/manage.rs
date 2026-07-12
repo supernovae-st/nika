@@ -181,10 +181,8 @@ pub fn parse_older_than(raw: &str) -> Result<Duration, String> {
 }
 
 /// The workspace's most recent trace (mtime · name tie-break) — what a
-/// bare static reader (`show` · `verify` · `outputs` · `flow`) means:
-/// the first thing typed after a run should not demand the path the
-/// run card just printed. `None` when the store is empty or absent —
-/// the caller keeps its teaching error, never a conjured path.
+/// bare static reader means: the first thing typed after a run should
+/// not demand the path the card just printed. `None` on an empty store.
 #[must_use]
 pub fn latest() -> Option<PathBuf> {
     latest_in(Path::new(store::TRACE_DIR))
@@ -193,6 +191,14 @@ pub fn latest() -> Option<PathBuf> {
 /// The dir-injected core (tests point it at a staged store).
 pub(crate) fn latest_in(dir: &Path) -> Option<PathBuf> {
     store::scan(dir).into_iter().next().map(|meta| meta.path)
+}
+
+/// A bare name from `trace ls` resolves in the store, like `rm` (one
+/// voice); a path wins; unknown passes through (the teaching error stays).
+#[must_use]
+pub fn resolve_store_handle(handle: &Path) -> PathBuf {
+    resolve_handle(Path::new(store::TRACE_DIR), &handle.to_string_lossy())
+        .unwrap_or_else(|| handle.to_path_buf())
 }
 
 /// `nika trace rm` — explicit removal from the workspace store.
@@ -344,6 +350,28 @@ mod tests {
             Duration::from_secs(60),
         );
         assert_eq!(latest_in(&dir), Some(newest));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// The one-voice contract with `trace ls`: a bare name it prints
+    /// resolves in the store, an explicit path wins unchanged, and an
+    /// unknown handle stays unresolved so the reader keeps its own
+    /// teaching error (`resolve_store_handle` maps that to pass-through).
+    #[test]
+    fn a_bare_ls_name_resolves_in_the_store_and_paths_win() {
+        let dir = temp_store("resolve-handle");
+        let staged = stage_trace(
+            &dir,
+            "run.ndjson",
+            &ndjson(&run_events("wf", Some(EventKind::WorkflowCompleted))),
+            Duration::from_secs(60),
+        );
+        assert_eq!(resolve_handle(&dir, "run.ndjson"), Some(staged.clone()));
+        assert_eq!(
+            resolve_handle(&dir, &staged.to_string_lossy()),
+            Some(staged)
+        );
+        assert_eq!(resolve_handle(&dir, "ghost.ndjson"), None);
         let _ = std::fs::remove_dir_all(dir);
     }
 
