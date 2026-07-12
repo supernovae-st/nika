@@ -1,27 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika init [dir]` — scaffold a repo for Nika workflows (spec `nika-cli`
-//! §2 v0.81 floor).
-//!
-//! Writes the editor schema wiring (`.vscode/settings.json` → `*.nika.yaml`
-//! validates against the embedded JSON Schema), a Cursor rule, and an
-//! `AGENTS.md` repo guide.
-//! The human keeps the hand: an existing file is SKIPPED, never clobbered —
-//! `--force` is the explicit override (same law as `nika new`). Diagnose-and-
-//! report: every created/skipped path is named; a write failure is the one
-//! environment error (`exit 3`).
-//!
-//! Bare on a terminal, init then OFFERS the first workflow (the guided
-//! three-question flow shared with bare `nika new` — the gh-repo-create
-//! shape). `--yes`, any pipe, and CI keep the old behavior byte-for-byte.
-
-use std::fmt::Write as _;
-use std::io::IsTerminal;
-use std::path::Path;
-
-use crate::display::theme::Theme;
-use crate::verbs::VerbOutput;
+//! The scaffold briefs — every static body `nika init` can write, plus
+//! the `targets()` table that names them (the ONE source `plan` and the
+//! docs read). AGENTS.md is the contract; the per-client briefs (Cursor
+//! rule · Copilot instructions · CLAUDE.md pointer) stay thin so they
+//! cannot drift from it. Orchestration lives in the parent `init::`
+//! module; this file is bytes.
 
 /// `.vscode/settings.json` — wire `*.nika.yaml` to the canonical schema so any
 /// editor (the YAML language server) validates workflows as you type.
@@ -194,15 +179,6 @@ mechanical renames) · `nika explain <code|file>` teaches · `nika welcome`
 mirrors this machine.
 ";
 
-/// What `init` does (or declines to do) for one target file.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Action {
-    /// Write `body` to `path` (it is absent, or `--force`).
-    Create { path: String, body: &'static str },
-    /// Leave `path` untouched — it already exists (`--force` to overwrite).
-    Skip { path: String },
-}
-
 /// `.agents/skills/nika-authoring/SKILL.md` — the repo-level agent skill
 /// (agentskills.io shape · discovered by Codex and every `.agents`-aware
 /// client). Canonical copy: the engine's own Codex plugin at
@@ -224,10 +200,8 @@ pub fn agents_md() -> &'static str {
 }
 
 /// The scaffold set · (relative path, body). The ONE source of what `init`
-/// writes — `plan` and the docs both read it. AGENTS.md is the contract;
-/// the per-client briefs (Cursor rule · Copilot instructions · CLAUDE.md
-/// pointer) stay thin so they cannot drift from it.
-fn targets() -> [(&'static str, &'static str); 6] {
+/// writes — `plan` and the docs both read it.
+pub(super) fn targets() -> [(&'static str, &'static str); 6] {
     [
         (".vscode/settings.json", VSCODE_SETTINGS),
         ("AGENTS.md", AGENTS_MD),
@@ -238,105 +212,15 @@ fn targets() -> [(&'static str, &'static str); 6] {
     ]
 }
 
-/// PURE plan over an injected existence oracle — `Create` an absent file (or
-/// any when `force`), `Skip` an existing one. Testable without the filesystem.
-pub(crate) fn plan(dir: &str, exists: &dyn Fn(&str) -> bool, force: bool) -> Vec<Action> {
-    targets()
-        .into_iter()
-        .map(|(rel, body)| {
-            let path = join(dir, rel);
-            if !force && exists(&path) {
-                Action::Skip { path }
-            } else {
-                Action::Create { path, body }
-            }
-        })
-        .collect()
-}
-
-/// Join a base dir and a relative path the same way the apply step will.
-fn join(dir: &str, rel: &str) -> String {
-    Path::new(dir).join(rel).to_string_lossy().into_owned()
-}
-
-/// Render the report (✔ created · · skipped · ✖ write error).
-pub(crate) fn render(lines: &[(char, String)]) -> String {
-    let mut s = String::new();
-    for (glyph, msg) in lines {
-        let _ = writeln!(s, "{glyph} {msg}");
-    }
-    s
-}
-
-/// The beginner's next move · init used to end SILENTLY (the 2026-07-05
-/// beginner walk: « you init and… sit there ») — an onboarding surface
-/// must hand over to the next command. Golden path: offline proof in
-/// 10s → scaffold → audit-before-tokens. Byte-stable: this is the exact
-/// non-interactive shape scripts have seen since #158.
-const NEXT_BLOCK: &str = "next ·\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika new                                       # your first workflow — guided on a terminal\n  nika new --from chain my-first.nika.yaml       # the same, scriptable\n  nika check my-first.nika.yaml                  # audit before a single token";
-
-/// Scaffold `dir` (default `.`). Creates parent dirs as needed. A write
-/// failure is the one environment error (`exit 3`); everything else is `0`.
-///
-/// Bare on a terminal (and not `--yes`) the scaffold report prints
-/// immediately and init hands over to the guided first-workflow flow —
-/// the gh-repo-create shape (bare on a TTY is guided · flags and pipes
-/// keep the exact old output).
-#[must_use]
-pub fn run(dir: &str, force: bool, yes: bool, theme: Theme) -> VerbOutput {
-    let plan = plan(dir, &|p| Path::new(p).exists(), force);
-    let mut lines: Vec<(char, String)> = Vec::new();
-    let mut failed = false;
-
-    for action in plan {
-        match action {
-            Action::Skip { path } => {
-                lines.push((
-                    '·',
-                    format!("skipped {path} (exists · --force to overwrite)"),
-                ));
-            }
-            Action::Create { path, body } => match write_file(&path, body) {
-                Ok(()) => lines.push(('✔', format!("created {path}"))),
-                Err(e) => {
-                    failed = true;
-                    lines.push(('✖', format!("{path}: {e}")));
-                }
-            },
-        }
-    }
-
-    let text = render(&lines);
-    if failed {
-        return VerbOutput::env(text);
-    }
-    if !yes && std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
-        // Interactive: the wizard prints the report itself (the lib bans
-        // println! — output flows through its writer), then offers the
-        // first workflow. Declined → the classic hand-off, so nobody
-        // exits without a next command.
-        return match crate::verbs::new::offer_first_workflow(dir, &text, theme) {
-            Some(v) => v,
-            None => VerbOutput::ok(NEXT_BLOCK.to_owned()),
-        };
-    }
-    VerbOutput::ok(format!("{text}\n\n{NEXT_BLOCK}"))
-}
-
-/// Create any missing parent dirs, then write the file.
-fn write_file(path: &str, body: &str) -> std::io::Result<()> {
-    if let Some(parent) = Path::new(path).parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(path, body)
+/// The schema-wiring body, exposed so the wizard's canvas step can stamp
+/// the chosen `nika.dag.theme` into the SAME JSON it would have written.
+pub(super) const fn vscode_settings() -> &'static str {
+    VSCODE_SETTINGS
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::verbs::exit;
 
     /// The cursor rule teaches the REAL binary surface — external review
     /// (awesome-cursorrules PR 332 · issue #390) caught the generator
@@ -366,76 +250,6 @@ mod tests {
             CURSOR_RULES.contains("**/*.nika.yml"),
             "the yml glob stays — the prose now matches it"
         );
-    }
-
-    #[test]
-    fn successful_init_hands_over_to_the_next_command() {
-        // The 2026-07-05 beginner walk: init ended SILENTLY (4 files ·
-        // no workflow · no next step). An onboarding surface must hand
-        // over — the ok-path text carries the golden path.
-        let tmp = std::env::temp_dir().join(format!("nika-init-handover-{}", std::process::id()));
-        std::fs::create_dir_all(&tmp).expect("mkdir");
-        let out = run(
-            tmp.to_str().expect("utf8"),
-            false,
-            true,
-            Theme::new(false, false, false),
-        );
-        std::fs::remove_dir_all(&tmp).ok();
-        assert_eq!(out.code, exit::OK);
-        assert!(out.text.contains("next ·"), "{}", out.text);
-        assert!(out.text.contains("nika examples run 01-hello"));
-        assert!(out.text.contains("nika check"));
-    }
-
-    /// `--yes` (and any non-terminal) is the byte-stable script shape —
-    /// the report and the classic hand-off, zero prompts.
-    #[test]
-    fn yes_keeps_the_non_interactive_shape() {
-        let tmp = std::env::temp_dir().join(format!("nika-init-yes-{}", std::process::id()));
-        std::fs::create_dir_all(&tmp).expect("mkdir");
-        let out = run(
-            tmp.to_str().expect("utf8"),
-            false,
-            true,
-            Theme::new(false, false, false),
-        );
-        std::fs::remove_dir_all(&tmp).ok();
-        assert_eq!(out.code, exit::OK);
-        assert!(out.text.contains("✔ created"), "{}", out.text);
-        assert!(
-            out.text.contains(NEXT_BLOCK),
-            "the classic block survives verbatim: {}",
-            out.text
-        );
-    }
-
-    #[test]
-    fn plan_creates_both_when_nothing_exists() {
-        let p = plan(".", &|_| false, false);
-        assert_eq!(p.len(), 6);
-        assert!(p.iter().all(|a| matches!(a, Action::Create { .. })));
-        // Schema wiring + agent guide + per-client briefs are the targets.
-        let paths: Vec<&str> = p
-            .iter()
-            .map(|a| match a {
-                Action::Create { path, .. } | Action::Skip { path } => path.as_str(),
-            })
-            .collect();
-        assert!(paths.iter().any(|p| p.ends_with("settings.json")));
-        assert!(paths.iter().any(|p| p.ends_with("AGENTS.md")));
-        assert!(paths.iter().any(|p| p.ends_with("nika.mdc")));
-        assert!(
-            paths
-                .iter()
-                .any(|p| p.ends_with(".agents/skills/nika-authoring/SKILL.md"))
-        );
-        assert!(
-            paths
-                .iter()
-                .any(|p| p.ends_with(".github/copilot-instructions.md"))
-        );
-        assert!(paths.iter().any(|p| p.ends_with("CLAUDE.md")));
     }
 
     #[test]
@@ -475,40 +289,6 @@ mod tests {
             AGENT_SKILL.contains("--fix"),
             "the skill teaches the in-binary repair loop"
         );
-    }
-
-    #[test]
-    fn plan_skips_an_existing_file_without_force() {
-        // AGENTS.md already there · settings.json/rules absent → one Skip, two Create.
-        let p = plan(".", &|path| path.ends_with("AGENTS.md"), false);
-        assert!(
-            p.iter()
-                .any(|a| matches!(a, Action::Skip { path } if path.ends_with("AGENTS.md")))
-        );
-        assert!(
-            p.iter().any(
-                |a| matches!(a, Action::Create { path, .. } if path.ends_with("settings.json"))
-            )
-        );
-        assert!(
-            p.iter()
-                .any(|a| matches!(a, Action::Create { path, .. } if path.ends_with("nika.mdc")))
-        );
-    }
-
-    #[test]
-    fn force_overwrites_everything() {
-        let p = plan(".", &|_| true, true);
-        assert!(p.iter().all(|a| matches!(a, Action::Create { .. })));
-    }
-
-    #[test]
-    fn join_respects_the_target_dir() {
-        let p = plan("/tmp/proj", &|_| false, false);
-        assert!(p.iter().any(|a| matches!(a, Action::Create { path, .. }
-                if path == "/tmp/proj/.vscode/settings.json")));
-        assert!(p.iter().any(|a| matches!(a, Action::Create { path, .. }
-                if path == "/tmp/proj/.cursor/rules/nika.mdc")));
     }
 
     #[test]
@@ -574,16 +354,22 @@ mod tests {
         }
     }
 
+    /// The scaffold table stays complete — six briefs, every family
+    /// present (schema wiring · contract · per-client briefs · skill).
     #[test]
-    fn render_marks_created_and_skipped() {
-        let out = render(&[
-            ('✔', "created .vscode/settings.json".to_owned()),
-            (
-                '·',
-                "skipped AGENTS.md (exists · --force to overwrite)".to_owned(),
-            ),
-        ]);
-        assert!(out.contains("✔ created"));
-        assert!(out.contains("· skipped"));
+    fn targets_names_every_brief_family() {
+        let t = targets();
+        assert_eq!(t.len(), 6);
+        let paths: Vec<&str> = t.iter().map(|(p, _)| *p).collect();
+        for expected in [
+            ".vscode/settings.json",
+            "AGENTS.md",
+            ".cursor/rules/nika.mdc",
+            ".agents/skills/nika-authoring/SKILL.md",
+            ".github/copilot-instructions.md",
+            "CLAUDE.md",
+        ] {
+            assert!(paths.contains(&expected), "{expected} missing");
+        }
     }
 }

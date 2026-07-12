@@ -192,7 +192,7 @@ fn discovery() -> VerbOutput {
 /// header. Empty when a body carries no header — the listing degrades
 /// gracefully instead of inventing prose. A header that wraps to the
 /// next comment line gets an honest `…` instead of ending mid-thought.
-fn tagline(name: &str, body: &str) -> String {
+pub(crate) fn tagline(name: &str, body: &str) -> String {
     body.lines()
         .find_map(|l| l.strip_prefix("# TEMPLATE"))
         .map_or_else(String::new, |rest| {
@@ -234,7 +234,7 @@ struct Wizard {
 /// `model:` line at column 0 (the stamp's own anchor). Skeletons whose
 /// models live per-task get NO model question: asking and then not
 /// stamping would promise what the file doesn't carry.
-fn template_takes_model(body: &str) -> bool {
+pub(crate) fn template_takes_model(body: &str) -> bool {
     body.lines().any(|l| l.starts_with("model: "))
 }
 
@@ -265,7 +265,7 @@ fn wizard_default_dest(base: &str) -> String {
 /// One prompt · one line back. `None` = EOF (the human left — cancel,
 /// never loop). The `>` is the single accent — the conversation's
 /// running line, same semantic slot as the run render's active task.
-fn ask(
+pub(crate) fn ask(
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
     theme: Theme,
@@ -298,7 +298,7 @@ fn resolve_template(intent: &str) -> (String, bool) {
 /// The provider menu, DERIVED from the embedded catalog (no hardcoded
 /// model names to drift) in the doctrine presentation order · local
 /// first · offline mock · EU open-weight · then the US clouds.
-fn model_menu() -> Vec<(String, &'static str)> {
+pub(crate) fn model_menu() -> Vec<(String, &'static str)> {
     let export = nika_catalog::export::catalog_export();
     [
         ("ollama", "local · sovereign · zero key"),
@@ -327,7 +327,7 @@ fn model_menu() -> Vec<(String, &'static str)> {
 /// A menu number, a full `provider/model`, or Enter → the offline mock
 /// (the one answer that succeeds with zero keys and zero network — the
 /// first run must not be able to fail).
-fn resolve_model(pick: &str, menu: &[(String, &'static str)]) -> String {
+pub(crate) fn resolve_model(pick: &str, menu: &[(String, &'static str)]) -> String {
     let fallback = || {
         menu.get(1)
             .map_or_else(|| "mock/echo".to_owned(), |(m, _)| m.clone())
@@ -347,7 +347,7 @@ fn resolve_model(pick: &str, menu: &[(String, &'static str)]) -> String {
 }
 
 /// A kebab workflow id out of the destination file name.
-fn workflow_id(dest: &str) -> String {
+pub(crate) fn workflow_id(dest: &str) -> String {
     let base = Path::new(dest)
         .file_name()
         .map(|s| s.to_string_lossy().into_owned())
@@ -370,7 +370,7 @@ fn workflow_id(dest: &str) -> String {
 /// description · model (the last only when the wizard asked, i.e. the
 /// skeleton carries a top-level `model:` at column 0 — the stamp's
 /// anchor). Never stamp what wasn't answered.
-fn stamp(body: &str, id: &str, description: &str, model: Option<&str>) -> String {
+pub(crate) fn stamp(body: &str, id: &str, description: &str, model: Option<&str>) -> String {
     let mut out: String = body
         .lines()
         .map(|line| {
@@ -399,7 +399,7 @@ fn stamp(body: &str, id: &str, description: &str, model: Option<&str>) -> String
 /// top-level `model:` — the others say so instead of asking.
 /// The model beat — menu (catalog-derived · local first) then one pick.
 /// `Ok(None)` = EOF (cancelled), consistent with `ask`.
-fn ask_model(
+pub(crate) fn ask_model(
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
     theme: Theme,
@@ -544,32 +544,6 @@ pub(crate) fn wizard_io(
         },
         Ok(Some(w)) => materialize(base, &w, force, theme),
     }
-}
-
-/// `nika init`'s hand-off question — one keypress, Enter = yes (the
-/// golden path). `None` = declined (init prints its classic next block).
-pub(crate) fn offer_first_workflow(base: &str, report: &str, theme: Theme) -> Option<VerbOutput> {
-    let stdin = std::io::stdin();
-    let mut input = stdin.lock();
-    let mut stdout = std::io::stdout();
-    let out: &mut dyn std::io::Write = &mut stdout;
-    // The scaffold report prints HERE (through the writer, macro-free —
-    // the lib bans println!): the conversation happens below it.
-    write!(out, "{report}").ok()?;
-    let answer = ask(
-        &mut input,
-        &mut *out,
-        theme,
-        &format!(
-            "\nscaffold your first workflow now? {}",
-            theme.paint(Role::Dim, "[Y/n]")
-        ),
-    )
-    .ok()??;
-    if answer.eq_ignore_ascii_case("n") || answer.eq_ignore_ascii_case("no") {
-        return None;
-    }
-    Some(wizard_io(base, None, false, theme, &mut input, out))
 }
 
 /// Write the stamped template, then RUN the audit and show the ladder —

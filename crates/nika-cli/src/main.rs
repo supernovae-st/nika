@@ -42,7 +42,7 @@ use nika_event::Event;
     // The lost-user footer (clig.dev · suggest the next command): a bare
     // `nika` is someone asking where to start, not someone reading a
     // reference. Three commands, zero keys, offline.
-    after_help = "start here:\n  nika welcome                                   # what this machine has · where to start\n  nika init                                      # wire this repo (editor · agents)\n  nika new                                       # your first workflow — guided on a terminal\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika doctor                                    # what's configured · what's missing"
+    after_help = "start here:\n  nika welcome                                   # what this machine has · where to start\n  nika init                                      # found this repo — the wizard on a terminal\n  nika new                                       # your first workflow — guided on a terminal\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika doctor                                    # what's configured · what's missing"
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
@@ -54,6 +54,12 @@ struct Cli {
     /// that pass escapes — tmux/screen may render them as plain text).
     #[arg(long, global = true, value_enum, default_value_t = LinkWhenArg::Auto)]
     hyperlink: LinkWhenArg,
+    /// The sober umbrella — one flag for scripts, CI and transcripts:
+    /// colour off · ASCII glyphs · hyperlinks off · no animation (`run`
+    /// renders its plain storyboard). The same result as `--color never
+    /// --hyperlink never` plus every verb's `--ascii`/`--no-progress`.
+    #[arg(long, global = true)]
+    plain: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -229,21 +235,11 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Scaffold a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule ·
-    /// `.agents/skills` authoring skill). Existing files are skipped —
-    /// `--force` overwrites.
-    Init {
-        /// Target directory (default · the current directory).
-        #[arg(default_value = ".")]
-        dir: String,
-        /// Overwrite existing files.
-        #[arg(long)]
-        force: bool,
-        /// Accept every default — never prompt (pipes and CI are
-        /// implicitly `--yes`; prompts only ever appear on a terminal).
-        #[arg(long, short = 'y')]
-        yes: bool,
-    },
+    /// Found a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule ·
+    /// `.agents/skills` authoring skill · optional workflow set). Bare on
+    /// a terminal the founding wizard runs; flags are the scriptable
+    /// twin. Existing files are skipped — `--force` overwrites.
+    Init(InitArgs),
     /// Wire Nika into editor/agent MCP clients (explicit, idempotent).
     Wire {
         /// Client to wire.
@@ -531,6 +527,33 @@ enum TraceAction {
     },
 }
 
+/// The `init` clap surface — the founding wizard's scriptable twin.
+#[derive(Args)]
+struct InitArgs {
+    /// Target directory (default · the current directory).
+    #[arg(default_value = ".")]
+    dir: String,
+    /// Overwrite existing files.
+    #[arg(long)]
+    force: bool,
+    /// Accept every default — never prompt (pipes and CI are
+    /// implicitly `--yes`; prompts only ever appear on a terminal).
+    #[arg(long, short = 'y')]
+    yes: bool,
+    /// Scaffold a workflow set — the wizard's recipe step, scriptable
+    /// (`agentic` = the 4-pattern curriculum).
+    #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(verbs::init::RECIPE_NAMES))]
+    recipe: Option<String>,
+    /// Stamp the VS Code DAG canvas skin (`nika.dag.theme`) into the
+    /// created `.vscode/settings.json`.
+    #[arg(long, value_enum)]
+    theme: Option<verbs::init::CanvasTheme>,
+    /// Wire agent clients to the MCP oracle after the scaffold
+    /// (comma-separated · the same targets as `nika wire`).
+    #[arg(long, value_enum, value_delimiter = ',')]
+    wire: Vec<verbs::wire::WireTarget>,
+}
+
 #[derive(Args)]
 // Six independent CLI flags ARE six bools — the clap-surface idiom
 // (same as TraceArgs), not a state machine to encode.
@@ -765,11 +788,24 @@ fn check_dispatch(
     }
 }
 
+impl Cli {
+    /// `--plain` folds the whole sober story BEFORE any resolution —
+    /// the downstream chains then see an explicit `never` at the top
+    /// rung (colour · links); the ASCII/no-progress halves ride the
+    /// same bool at each verb's own seam.
+    fn presentation(&self) -> (ColorWhenArg, LinkChoice) {
+        if self.plain {
+            (ColorWhenArg::Never, LinkChoice::Never)
+        } else {
+            (self.color, self.hyperlink.choice())
+        }
+    }
+}
+
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
-    let color = cli.color;
-    let link_when = cli.hyperlink.choice();
-    let plain_theme = term_theme(color.with_no_color(false), false, link_when);
+    let (color, link_when) = cli.presentation();
+    let plain_theme = term_theme(color.with_no_color(false), cli.plain, link_when);
     let code = match cli.command {
         Command::Check {
             files,
@@ -791,7 +827,7 @@ fn main() -> std::process::ExitCode {
             model.as_deref(),
             term_theme(color.with_no_color(no_color), ascii, link_when),
         ),
-        Command::Run(args) => registry_args::registry_then_run(args, color, link_when),
+        Command::Run(args) => registry_args::registry_then_run(args, color, link_when, cli.plain),
         Command::Test {
             file,
             update,
@@ -802,8 +838,12 @@ fn main() -> std::process::ExitCode {
             update,
             term_theme(color.with_no_color(no_color), ascii, link_when),
         ),
-        Command::Inspect { file, ascii } => emit(&verbs::inspect::run(&file, ascii)),
-        Command::Graph { file, format } => emit(&verbs::graph::run(&file, format.into())),
+        Command::Inspect { file, ascii } => {
+            emit(&verbs::inspect::run(&file, with_ascii(plain_theme, ascii)))
+        }
+        Command::Graph { file, format } => {
+            emit(&verbs::graph::run(&file, format.into(), plain_theme))
+        }
         Command::Context { json, ascii } => {
             emit(&verbs::context::run(json, with_ascii(plain_theme, ascii)))
         }
@@ -816,7 +856,7 @@ fn main() -> std::process::ExitCode {
             forecast,
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
-        Command::Init { dir, force, yes } => emit(&verbs::init::run(&dir, force, yes, plain_theme)),
+        Command::Init(args) => emit(&init_verb(&args, plain_theme)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target, &dir)),
         Command::Model { action } => model_verb(action),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
@@ -1090,21 +1130,44 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
     }
 }
 
+/// Unpack the `init` clap surface into the library verb call (keeps
+/// `main` under the fn-length ratchet — the same extraction as
+/// `run_verb`).
+fn init_verb(args: &InitArgs, plain_theme: Theme) -> VerbOutput {
+    verbs::init::run(
+        &args.dir,
+        args.force,
+        args.yes,
+        args.recipe.as_deref(),
+        args.theme,
+        &args.wire,
+        plain_theme,
+    )
+}
+
 /// Unpack the `run` clap surface into the library verb call.
-fn run_verb(args: &RunArgs, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
+fn run_verb(args: &RunArgs, color: ColorWhenArg, link_when: LinkChoice, plain: bool) -> u8 {
     let resume = args.resume.as_ref().map(|trace| verbs::run::ResumeRequest {
         trace: trace.clone(),
         from: args.from.clone(),
         answers: args.answer.clone(),
     });
-    let mode = resolve_run_mode(args.quiet, args.no_progress);
-    let mut theme = term_theme(color.with_no_color(args.no_color), args.ascii, link_when);
+    let mode = resolve_run_mode(args.quiet, args.no_progress || plain);
+    let mut theme = term_theme(
+        color.with_no_color(args.no_color),
+        args.ascii || plain,
+        link_when,
+    );
     // The duration accents ride the interactive surface ONLY — the
     // sober registers (piped · --no-progress · --quiet) keep their
     // exact bytes.
     theme.accents = mode == verbs::run::RenderMode::Live;
     // Duration heat additionally needs colour + the truecolor PROOF.
     theme.heat = theme.accents && theme.color && truecolor_env();
+    // The live storyboard breathes (the braille beat between settles) —
+    // interactive surface only, and the motion opt-out wins (the same
+    // env the replay honours).
+    theme.animate = theme.accents && !env_flag("NIKA_REDUCED_MOTION");
     verbs::run::run(
         &args.file,
         args.json,

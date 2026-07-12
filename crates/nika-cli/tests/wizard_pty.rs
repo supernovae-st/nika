@@ -227,59 +227,94 @@ fn collision_walk_defaults_to_my_second() {
 }
 
 #[test]
-fn init_offer_accepted_flows_into_the_wizard() {
+fn init_founding_wizard_golden_path_lands_the_curriculum() {
     let dir = fresh_dir("init-yes");
     let dir = dir.path();
     let mut p = spawn_pty(dir, &["init", "."], true);
 
-    p.expect("created").expect("scaffold report first");
-    p.expect("scaffold your first workflow now?")
-        .expect("the offer");
-    p.send_line("").expect("Enter = yes (the golden path)");
-    p.expect("what should it do?")
-        .expect("the wizard took over");
-    p.send_line("").expect("enter");
-    p.expect("my-first.nika.yaml]").expect("file default");
-    p.send_line("").expect("enter");
+    // The founding wizard: every question BEFORE the first write.
+    p.expect("recipe").expect("the recipe step");
+    p.expect("agentic").expect("the curriculum leads the menu");
+    p.send_line("").expect("Enter = agentic (the golden path)");
     p.expect("a number, or any provider/model")
-        .expect("model menu");
-    p.send_line("").expect("enter");
-    p.expect("audited").expect("ladder");
+        .expect("model menu (the curriculum takes a model)");
+    p.send_line("").expect("Enter = the offline mock");
+    p.expect("canvas").expect("the canvas step");
+    p.send_line("").expect("Enter = skip");
+    p.expect("agents").expect("the wire step");
+    p.send_line("").expect("Enter = skip");
+    // Then the writes + the proof + the panel.
+    p.expect("created AGENTS.md").expect("scaffold report");
+    p.expect("workflows/01-hello-chain.nika.yaml")
+        .expect("the curriculum scaffolds");
+    p.expect("proof").expect("the audit step announces itself");
+    p.expect("audited").expect("the ladder ran");
+    p.expect("ready").expect("the panel hands over");
     p.expect(Eof).expect("ends");
     assert_eq!(exit_code(&mut p), 0);
 
-    // DEEP: both halves landed — the scaffold AND the first workflow.
+    // DEEP: the briefs AND the 4-pattern curriculum landed.
     assert!(dir.join("AGENTS.md").is_file(), "scaffold written");
     assert!(
         dir.join(".vscode/settings.json").is_file(),
         "wiring written"
     );
+    for rel in [
+        "workflows/01-hello-chain.nika.yaml",
+        "workflows/02-parallel-fanout.nika.yaml",
+        "workflows/03-gated-ship.nika.yaml",
+        "workflows/04-agent-loop.nika.yaml",
+    ] {
+        assert!(dir.join(rel).is_file(), "{rel} written");
+    }
+}
+
+#[test]
+fn init_starter_recipe_hands_over_to_the_guided_flow() {
+    let dir = fresh_dir("init-starter");
+    let dir = dir.path();
+    let mut p = spawn_pty(dir, &["init", "."], true);
+
+    p.expect("recipe").expect("the recipe step");
+    p.send_line("2").expect("2 = starter");
+    p.expect("canvas").expect("no model question for starter");
+    p.send_line("").expect("skip");
+    p.expect("agents").expect("the wire step");
+    p.send_line("").expect("skip");
+    p.expect("created AGENTS.md").expect("scaffold report");
+    // The hand-off: the SAME three-question flow `nika new` speaks.
+    p.expect("your first workflow")
+        .expect("the guided flow took over");
+    p.send_line("").expect("intent Enter (chain)");
+    p.expect("my-first.nika.yaml]").expect("file default");
+    p.send_line("").expect("enter");
+    p.expect("a number, or any provider/model")
+        .expect("model menu");
+    p.send_line("").expect("enter");
+    p.expect("audited").expect("its ladder ran");
+    p.expect(Eof).expect("ends");
+    assert_eq!(exit_code(&mut p), 0);
+
+    assert!(dir.join("AGENTS.md").is_file(), "scaffold written");
     assert!(dir.join("my-first.nika.yaml").is_file(), "workflow written");
 }
 
 #[test]
-fn init_offer_declined_prints_the_classic_block() {
-    let dir = fresh_dir("init-no");
+fn init_cancel_at_the_first_question_writes_nothing() {
+    let dir = fresh_dir("init-cancel");
     let dir = dir.path();
     let mut p = spawn_pty(dir, &["init", "."], true);
 
-    p.expect("scaffold your first workflow now?")
-        .expect("the offer");
-    p.send_line("n").expect("decline");
-    let m = p.expect(Eof).expect("ends");
-    let transcript = String::from_utf8_lossy(m.as_bytes()).into_owned();
-    assert!(
-        transcript.contains("nika examples run 01-hello"),
-        "the classic hand-off survives a decline: {transcript}"
-    );
-    assert_eq!(exit_code(&mut p), 0);
-
-    // Declining writes NO workflow — the scaffold alone.
-    assert!(dir.join("AGENTS.md").is_file());
-    assert!(
-        !dir.join("my-first.nika.yaml").exists(),
-        "no workflow on decline"
-    );
+    p.expect("recipe").expect("the recipe step");
+    // ^D = EOF at the FIRST question: the founding wizard must leave the
+    // directory untouched (every question rides before the first write).
+    p.send(ControlCode::EndOfTransmission).expect("^D");
+    p.expect("cancelled — nothing written")
+        .expect("honest cancel");
+    p.expect(Eof).expect("ends");
+    assert_eq!(exit_code(&mut p), 3, "spec §4 · environment (cancelled)");
+    assert!(!dir.join("AGENTS.md").exists(), "no partial scaffold");
+    assert!(!dir.join(".vscode").exists(), "no partial wiring");
 }
 
 #[test]

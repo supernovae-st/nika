@@ -12,6 +12,50 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika init` becomes the founding wizard** — bare on a terminal it
+  converses (the clack-school rail): pick a project **recipe**
+  (`agentic` — the 4-pattern curriculum chain → fan-out → gate → agent
+  loop · `starter` · `ship` · `content` · `minimal`), the model
+  (catalog-derived · local first · Enter = the offline mock), the VS
+  Code DAG **canvas theme** (`nika.dag.theme` stamped into the created
+  `.vscode/settings.json`), and which agent clients to **wire** to the
+  MCP oracle — then scaffolds, audits every scaffolded workflow on the
+  spot (audit-before-run inside the first minute), and hands over a
+  ready panel. Every recipe workflow is an embedded template VERBATIM
+  through the same stamp `nika new` uses, so the own-corpus law (a
+  fresh scaffold checks clean) is inherited, never re-proven. The
+  scriptable twins: `--recipe <name>` · `--theme <nika|editor|
+  phosphor|auto>` · `--wire <client,…>`; plain `--yes` keeps the
+  historical report byte-for-byte, and every question is asked BEFORE
+  the first write (cancel = « nothing written », honestly).
+
+- **The verb identity column reaches the terminal** — the four verbs
+  paint their tokens-SSOT glyphs (`◇` infer · `▷` exec · `◆` invoke ·
+  `✦` agent · ASCII twins `i $ @ *`) in a bright-band ANSI slot
+  (identity vocabulary · never colliding with a verdict hue — the
+  user's terminal theme still owns every color): `nika inspect` wave
+  boxes and single rows, the `nika graph --format ascii` wire art, and
+  `run --dry-run` (which now renders the same themed anatomy). The
+  graph ascii art finally inherits the binary's ONE color chain instead
+  of a forced monochrome — pipes stay escape-free by resolution, TTYs
+  see the art they were owed.
+
+- **`nika run` breathes while it thinks** — the Live storyboard gains
+  real spinner ticks: a timer rider advances the braille phase (~10/s)
+  while a task is running, so a long `infer`/`agent` await animates
+  instead of freezing between settles. Live + motion only (the
+  reduced-motion env, `--no-progress`, pipes, CI and `--json` never
+  tick — every sober register keeps byte-identical output), and the
+  frame still repaints inside one DEC-2026 synchronized frame.
+
+- **`nika-display` grows the structural chrome vocabulary**
+  (`chrome.rs`): the wizard rail (`◆ │ └` · ASCII twins), the rounded
+  panel with frame-true width math, the segment progress bar with its
+  half-cell frontier, the 3-line identity banner (no figlet walls), and
+  the dither pulse that only exists where motion does — every shape
+  colour-through-Role only, 2-cell law, zero escapes when colour is
+  off.
+
 - **`nika wire` wave-3b: `cline` + `continue`** (#449 — closes the
   ranked list). Cline: Cursor-style `mcpServers` record; the resolver
   picks a host IDE's EXISTING `saoudrizwan.claude-dev` globalStorage

@@ -36,11 +36,12 @@ pub(crate) fn registry_then_run(
     mut args: RunArgs,
     color: ColorWhenArg,
     link_when: LinkChoice,
+    plain: bool,
 ) -> u8 {
     match resolve_registry_arg(&args.file) {
         Ok(file) => {
             args.file = file;
-            run_verb(&args, color, link_when)
+            run_verb(&args, color, link_when, plain)
         }
         Err(out) => emit(&out),
     }
