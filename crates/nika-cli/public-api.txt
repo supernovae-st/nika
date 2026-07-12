@@ -623,6 +623,7 @@ pub type nika_cli::verbs::trace::manage::RmTarget::Output = T
 pub fn nika_cli::verbs::trace::manage::latest() -> core::option::Option<std::path::PathBuf>
 pub fn nika_cli::verbs::trace::manage::ls(theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::manage::parse_older_than(raw: &str) -> core::result::Result<core::time::Duration, alloc::string::String>
+pub fn nika_cli::verbs::trace::manage::resolve_store_handle(handle: &std::path::Path) -> std::path::PathBuf
 pub fn nika_cli::verbs::trace::manage::rm(target: &nika_cli::verbs::trace::manage::RmTarget, force: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::flow(trace: &str, workflow: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::trace::outputs(trace: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput

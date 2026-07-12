@@ -915,15 +915,13 @@ fn announce_latest(path: &Path) {
 /// exit 3 (ADR-098 environment).
 fn resolve_trace(given: Option<PathBuf>) -> Result<PathBuf, u8> {
     if let Some(path) = given {
-        return Ok(path);
+        return Ok(verbs::trace::manage::resolve_store_handle(&path));
     }
     if let Some(path) = verbs::trace::manage::latest() {
         announce_latest(&path);
         return Ok(path);
     }
-    eprintln!(
-        "nika-cli: no traces in .nika/traces yet — run a workflow first, or pass a trace path"
-    );
+    eprintln!("nika-cli: no traces in .nika/traces yet — run a workflow first");
     Err(verbs::exit::ENV)
 }
 
@@ -1059,7 +1057,7 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
             out,
             include_content,
         } => emit(&verbs::trace_otel::export(
-            &trace.to_string_lossy(),
+            &verbs::trace::manage::resolve_store_handle(&trace).to_string_lossy(),
             out.as_deref()
                 .map(|p| p.to_string_lossy().into_owned())
                 .as_deref(),
@@ -1072,7 +1070,7 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
             ascii,
             no_color,
         } => emit(&verbs::trace::peek(
-            &trace.to_string_lossy(),
+            &verbs::trace::manage::resolve_store_handle(&trace).to_string_lossy(),
             &task,
             raw,
             term_theme(color.with_no_color(no_color), ascii, link_when),
@@ -1277,7 +1275,7 @@ fn load_events(args: &TraceArgs) -> Result<Vec<Event>, String> {
         return Ok(nika_cli::demo::failure());
     }
     let path = match &args.trace {
-        Some(path) => path.clone(),
+        Some(path) => verbs::trace::manage::resolve_store_handle(path),
         // Bare form: the workspace's latest trace (same contract as
         // verify/outputs/flow).
         None => match verbs::trace::manage::latest() {
