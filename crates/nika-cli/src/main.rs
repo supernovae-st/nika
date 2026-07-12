@@ -859,7 +859,7 @@ fn main() -> std::process::ExitCode {
         Command::Lsp => match nika_lsp::run_stdio() {
             Ok(()) => verbs::exit::OK,
             Err(err) => {
-                eprintln!("nika-cli: lsp: {err}");
+                eprintln!("nika lsp: {err}");
                 1
             }
         },
@@ -880,7 +880,7 @@ fn main() -> std::process::ExitCode {
 /// environment errors go to stderr.
 fn emit(out: &VerbOutput) -> u8 {
     if out.code == verbs::exit::ENV {
-        eprintln!("nika-cli: {}", out.text);
+        eprintln!("nika: {}", out.text);
     } else if !out.text.is_empty() {
         println!("{}", out.text.trim_end());
     }
@@ -920,7 +920,7 @@ fn examples_verb(action: Option<ExamplesAction>, plain_theme: Theme) -> u8 {
 /// Name the bare-form pick on stderr — the receipt names its subject.
 fn announce_latest(path: &Path) {
     eprintln!(
-        "nika-cli: reading {} (the workspace latest)",
+        "nika trace: reading {} (the workspace latest)",
         path.display()
     );
 }
@@ -937,7 +937,7 @@ fn resolve_trace(given: Option<PathBuf>) -> Result<PathBuf, u8> {
         return Ok(path);
     }
     eprintln!(
-        "nika-cli: no traces in .nika/traces yet — run a workflow first, or pass a trace path"
+        "nika trace: no traces in .nika/traces yet — run a workflow first, or pass a trace path"
     );
     Err(verbs::exit::ENV)
 }
@@ -953,7 +953,7 @@ fn flow_verb(trace: Option<PathBuf>, workflow: Option<String>, theme: Theme) -> 
         }
         _ => {
             eprintln!(
-                "nika-cli: trace flow needs the workflow file — `nika trace flow [trace] <workflow.nika.yaml>` (the trace records values, the definition records the bindings)"
+                "nika trace: flow needs the workflow file — `nika trace flow [trace] <workflow.nika.yaml>` (the trace records values, the definition records the bindings)"
             );
             return verbs::exit::ENV;
         }
@@ -1000,7 +1000,7 @@ fn mcp_verb(transport: McpTransportArg, port: u16, bind: &str) -> u8 {
     match served {
         Ok(()) => verbs::exit::OK,
         Err(err) => {
-            eprintln!("nika-cli: mcp: {err}");
+            eprintln!("nika mcp: {err}");
             1
         }
     }
@@ -1029,14 +1029,14 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
                 match verbs::trace::manage::parse_older_than(&raw) {
                     Ok(cutoff) => verbs::trace::manage::RmTarget::OlderThan(cutoff),
                     Err(message) => {
-                        eprintln!("nika-cli: {message}");
+                        eprintln!("nika trace: {message}");
                         return verbs::exit::ENV;
                     }
                 }
             } else {
                 // clap's required_unless_present_any guarantees the handle.
                 let Some(handle) = trace else {
-                    eprintln!("nika-cli: trace rm needs a trace, --older-than, or --all");
+                    eprintln!("nika trace: rm needs a trace, --older-than, or --all");
                     return verbs::exit::ENV;
                 };
                 verbs::trace::manage::RmTarget::One(handle)
@@ -1328,7 +1328,7 @@ fn load_events(args: &TraceArgs) -> Result<Vec<Event>, String> {
 fn recover_events(raw: &str, label: &str) -> Result<Vec<Event>, String> {
     let recovered = verbs::run::recover_events(raw, label).map_err(|e| e.to_string())?;
     if let Some(note) = &recovered.truncated_note {
-        eprintln!("nika-cli: {note} — rendering the recovered prefix");
+        eprintln!("nika trace: {note} — rendering the recovered prefix");
     }
     Ok(recovered.events)
 }
