@@ -132,8 +132,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | branch           | `chore/release-0.99.0`                                      |
 | HEAD             | `3d90001b9` (`3d90001b9d3efdc29fc9fce810ecd74476551acd`)             |
 | workspace        | v0.99.0                                  |
-| crates (workspace)| 46                                              |
-| crates (admitted)| 44 / 42                                   |
+| crates (workspace)| 47                                              |
+| crates (admitted)| 45 / 42                                   |
 | crates (WIP)     | 2 — nika-chart nika-fx                                  |
 | L0               | 12                                              |
 | L0.5             | 6                                              |
@@ -141,7 +141,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L1.5             | 4                                              |
 | L2               | 4                                              |
 | L3               | 1                                              |
-| L4               | 6                                              |
+| L4               | 7                                              |
 | lib tests        | 3875 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
