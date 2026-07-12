@@ -3,6 +3,32 @@
 The bundle every marketplace installs (Claude Code · Codex · Cursor).
 Versions move together across all manifests (the mirror gate pins it).
 
+## 0.4.0 — 2026-07-12
+
+The suite release: one component per use case becomes a full crew —
+an agent with this bundle authors, debugs, operates and migrates
+workflows on its own.
+
+- Three new skills: `nika-debugging` (trace forensics · resume lines ·
+  surgical reruns), `nika-operating` (spend caps · permits · secrets ·
+  model swaps · CI goldens · OTLP export), `nika-migration` (scripts
+  and prompt chains → workflows, mapping table + parity protocol).
+- Two new subagents: `nika-debugger` (evidence-first run forensics
+  from the hash-chained trace) and `nika-migrator` (inventory →
+  native-first mapping → check loop → golden pin).
+- Two new commands: `/nika:trace` (verdict · root cause · tamper
+  check · the exact resume line) and `/nika:permits` (infer and paste
+  the tightest boundary).
+- The delegation rule: teaches the agent WHEN to propose a workflow
+  (repeatable · multi-step · spend-bound AI work) and which bundled
+  surface to reach for.
+- Two new Cursor hooks, both fail-open: `sessionStart` injects the
+  nika map when the workspace has workflows (surfaces · laws · where
+  traces live); `beforeShellExecution` denies a `nika run` on a file
+  with live check findings — the denial carries the findings, so the
+  agent repairs and reruns (audit-before-run, structurally
+  unskippable).
+
 ## 0.3.0 — 2026-07-12
 
 - Cursor first-class: the `.cursor-plugin/plugin.json` manifest (logo ·
