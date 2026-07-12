@@ -33,7 +33,12 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   verb's own motion frame while running · green/red settled · `⊘`
   skipped), repainted every tick so the running node's spinner turns
   INSIDE the map. Wide runs drop ids and keep chips — the map never
-  wraps. Interactive surfaces only; every sober register byte-intact.
+  wraps. And on shapes the wire law can draw, the Live run leads every
+  repaint with the FULL wire map itself (`◆ gather ───▶ ⠂ think ───▶
+  · persist` — the same art as check, each node painted by its live
+  state, the running node turning its verb's motion in place; the
+  wave-column line stands down to it). Interactive surfaces only;
+  every sober register byte-intact.
 
 - **One source of truth for the corpus — the loose engine copies die**
   — `engine/examples/` carried two pre-pack workflows (`pr-risk-review`

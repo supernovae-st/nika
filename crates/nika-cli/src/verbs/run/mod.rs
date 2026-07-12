@@ -821,7 +821,11 @@ async fn execute_fold_lane(
     model_override: Option<&str>,
 ) -> RunVerdict {
     let plan = plan_waves(wf, report);
-    let (fold, spinner) = shared_fold(theme, mode, outputs, plan.clone());
+    // The living map's topology — the SAME checked projection graph/
+    // inspect trust; Live+accents only (the sink gates again).
+    let map = (mode == RenderMode::Live && theme.accents)
+        .then(|| (super::graph::project(wf, report), report.waves.clone()));
+    let (fold, spinner) = shared_fold(theme, mode, outputs, plan.clone(), map);
     // #321 — the plain lane's stderr liveness rider (`still running ·
     // <task> · <n>s · <model>` every ~10s): a piped local-model run
     // must never read as a hang. Plain ONLY — Live already repaints ·
@@ -909,12 +913,16 @@ fn shared_fold(
     mode: RenderMode,
     outputs: bool,
     plan: Vec<Vec<String>>,
+    map: Option<(crate::verbs::graph::GraphDoc, Vec<Vec<usize>>)>,
 ) -> (
     sink::SharedFold<std::io::Stdout>,
     Option<tokio::task::JoinHandle<()>>,
 ) {
     let mut fold = FoldSink::new(std::io::stdout(), theme, mode);
     fold.set_plan(plan);
+    if let Some((doc, waves)) = map {
+        fold.set_map(doc, waves);
+    }
     if mode == RenderMode::Live && outputs {
         fold.show_outputs(true);
     }

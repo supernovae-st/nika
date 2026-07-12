@@ -395,6 +395,12 @@ pub struct FoldSink<W: Write> {
     /// The spinner phase — advanced by the timer rider, read by every
     /// repaint (events repaint at the CURRENT phase, never reset it).
     tick: usize,
+    /// The LIVING MAP's topology — the checked projection the run verb
+    /// injects before driving. Every Live repaint redraws the wire art
+    /// with each node painted by its CURRENT state (the same geometry
+    /// `graph --format ascii` speaks); runs whose shape the wire law
+    /// refuses fall back to the frame's own wave-column line.
+    map: Option<(crate::verbs::graph::GraphDoc, Vec<Vec<usize>>)>,
     error: Option<std::io::Error>,
 }
 
@@ -452,6 +458,7 @@ impl<W: Write> FoldSink<W> {
             outputs: false,
             last_lines: 0,
             tick: 0,
+            map: None,
             error: None,
         }
     }
@@ -535,6 +542,56 @@ impl<W: Write> FoldSink<W> {
         self.error.take()
     }
 
+    /// Inject the run's checked topology — the living map draws from the
+    /// NEXT repaint on. Live surface only; sober modes never store it.
+    pub fn set_map(&mut self, doc: crate::verbs::graph::GraphDoc, waves: Vec<Vec<usize>>) {
+        if self.mode == RenderMode::Live && self.theme.accents {
+            self.view.external_map = true;
+            self.map = Some((doc, waves));
+        }
+    }
+
+    /// The wire art with every node painted by its current state —
+    /// `None` when no topology was injected or the wire law refuses the
+    /// shape (the frame's own wave-column line covers that run).
+    fn living_map(&self) -> Option<String> {
+        let (doc, waves) = self.map.as_ref()?;
+        let states: std::collections::BTreeMap<&str, &crate::display::state::TaskRow> = self
+            .view
+            .rows()
+            .iter()
+            .map(|r| (r.id.as_str(), r))
+            .collect();
+        let theme = self.theme;
+        let tick = self.tick;
+        crate::wires::render_with(doc, waves, theme, &move |id, verb| {
+            use crate::display::state::TaskState;
+            let row = states.get(id).copied();
+            match row.map(|r| &r.state) {
+                Some(TaskState::Running) => (
+                    theme.verb_spin(Some(verb), tick),
+                    theme.paint(crate::display::theme::Role::Strong, id),
+                ),
+                Some(TaskState::Ok) => (
+                    theme.verb_glyph(verb),
+                    theme.paint(crate::display::theme::Role::Good, id),
+                ),
+                Some(TaskState::Failed) => (
+                    theme.verb_glyph(verb),
+                    theme.paint(crate::display::theme::Role::Bad, id),
+                ),
+                Some(TaskState::Skipped | TaskState::Cancelled) => (
+                    theme.paint(crate::display::theme::Role::Dim, "⊘ "),
+                    theme.paint(crate::display::theme::Role::Dim, id),
+                ),
+                _ => (
+                    theme.paint(crate::display::theme::Role::Dim, "· "),
+                    theme.paint(crate::display::theme::Role::Dim, id),
+                ),
+            }
+        })
+    }
+
     fn repaint(&mut self) -> std::io::Result<()> {
         // Move the cursor up over the previous frame and clear from there
         // down (ANSI · the spinner family). TTY-only — `emit` gates this.
@@ -553,11 +610,19 @@ impl<W: Write> FoldSink<W> {
             write!(self.writer, "\x1b[{}A", self.last_lines)?;
             write!(self.writer, "\x1b[0J")?;
         }
-        let lines = if self.outputs {
+        let mut lines = if self.outputs {
             frame_with_outputs(&self.view, &self.theme, self.tick)
         } else {
             frame(&self.view, &self.theme, self.tick)
         };
+        if let Some(art) = self.living_map() {
+            // The map leads the frame — blank-separated, repainted with
+            // the storyboard so the running node's motion turns in place.
+            let mut led: Vec<String> = art.lines().map(str::to_owned).collect();
+            led.push(String::new());
+            led.extend(lines);
+            lines = led;
+        }
         for line in &lines {
             writeln!(self.writer, "{line}")?;
         }

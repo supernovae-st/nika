@@ -44,7 +44,7 @@ pub fn frame_with_outputs(view: &RunView, theme: &Theme, tick: usize) -> Vec<Str
 /// a plan · more than one task); wide runs drop the ids and keep the
 /// chips so the map never wraps.
 fn map_line(view: &RunView, theme: Theme, tick: usize) -> Option<String> {
-    if !theme.accents || view.rows().len() < 2 {
+    if !theme.accents || view.external_map || view.rows().len() < 2 {
         return None;
     }
     let plan = view.plan()?;

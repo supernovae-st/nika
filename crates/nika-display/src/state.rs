@@ -115,6 +115,9 @@ impl TaskRow {
 /// The folded view of one run — everything a frame needs, nothing more.
 #[derive(Debug, Default)]
 pub struct RunView {
+    /// A sibling surface (the sink's living wire map) already draws the
+    /// DAG — the frame's own wave-column line stands down.
+    pub external_map: bool,
     /// Workflow name (from `workflow_started`).
     pub workflow: String,
     /// The statically-proven cost ceiling, if the workflow declared one.

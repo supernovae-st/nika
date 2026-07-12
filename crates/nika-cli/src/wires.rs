@@ -40,6 +40,23 @@ type GutterEdges = Vec<(usize, usize)>;
 /// falls back — never a wrong picture).
 #[must_use]
 pub(crate) fn render(doc: &GraphDoc, waves: &[Vec<usize>], theme: Theme) -> Option<String> {
+    render_with(doc, waves, theme, &|id, verb| {
+        (theme.verb_glyph(verb), id.to_owned())
+    })
+}
+
+/// The same wire drawing with the NODE PAINTER injected — the live run
+/// map paints each node by its STATE (spinner while running · Good/Bad
+/// settled · dim pending) while the geometry stays this module's law.
+/// The painter returns (chip · id) ALREADY painted; width math still
+/// counts the RAW id cells (paint-after-measure · theme.rs law), and
+/// every chip MUST hold the 2-cell contract the spin/glyph seams keep.
+pub(crate) fn render_with(
+    doc: &GraphDoc,
+    waves: &[Vec<usize>],
+    theme: Theme,
+    node: &dyn Fn(&str, &str) -> (String, String),
+) -> Option<String> {
     if waves.is_empty() || waves.iter().any(|w| w.is_empty() || w.len() > MAX_ROWS) {
         return None;
     }
@@ -110,11 +127,13 @@ pub(crate) fn render(doc: &GraphDoc, waves: &[Vec<usize>], theme: Theme) -> Opti
             let pad = widths[w] - (2 + id.chars().count());
             if id.is_empty() {
                 line.push_str("  ");
+                line.push_str(&" ".repeat(pad));
             } else {
-                line.push_str(&theme.verb_glyph(verb));
+                let (chip, painted_id) = node(id, verb);
+                line.push_str(&chip);
+                line.push_str(&painted_id);
+                line.push_str(&" ".repeat(pad));
             }
-            line.push_str(id);
-            line.push_str(&" ".repeat(pad));
             if w < gutters.len() {
                 line.push_str(&gutter_cell(&gutters[w], &spans[w], row, theme, &g));
             }
