@@ -2,17 +2,10 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · media-asset-pack · brief → generate assets → manifest.
-# family: content
-# The shape for « generate image (or audio) assets from a creative brief ».
 #
-# Instantiate (agents · deterministic) ·
-#   1. Copy this file · rename per the job (kebab-case).
-#   2. Fill every `# SLOT:` line · delete slot comments when filled.
-#   3. Validate · `nika check <file>` (or conformance/runner.py validate).
-#   4. Repair using the error's fix line · re-check until valid.
-# Native-first · generation is `nika:image_generate` (no provider curl ·
-# no OpenAI helper script); the manifest is `nika:jq` + `nika:write`.
-
+#   [brief]──▶[render]────────────▶[manifest]──▶[persist]
+#   infer      nika:image_generate  nika:jq       nika:write
+# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
 workflow: media-asset-pack-template # SLOT: kebab-case workflow id
 description: "brief → render → manifest"  # SLOT: one honest sentence

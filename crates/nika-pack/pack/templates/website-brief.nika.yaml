@@ -2,17 +2,10 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · website-brief · crawl a site → understand it → persist the brief.
-# family: content
-# The shape for « understand a site (domain · theme · assets) from a URL ».
 #
-# Instantiate (agents · deterministic) ·
-#   1. Copy this file · rename per the job (kebab-case).
-#   2. Fill every `# SLOT:` line · delete slot comments when filled.
-#   3. Validate · `nika check <file>` (or conformance/runner.py validate).
-#   4. Repair using the error's fix line · re-check until valid.
-# Native-first · the crawl is `traverse:` (no curl · no helper script);
-# the brief is one typed infer; the persist is `nika:write`. Zero exec.
-
+#   [crawl_site]────▶[brief]────▶[persist]
+#   nika:fetch        infer       nika:write
+# Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
 workflow: website-brief-template    # SLOT: kebab-case workflow id
 description: "crawl → brief → persist"   # SLOT: one honest sentence

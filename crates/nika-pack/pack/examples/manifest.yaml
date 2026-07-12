@@ -34,9 +34,9 @@ templates:
   - file: templates/fanout.nika.yaml
     sha256_16: 4b9e949062b555a1
   - file: templates/gate-and-act.nika.yaml
-    sha256_16: 00db7679539f3b23
+    sha256_16: b1532d0fc09cb82e
   - file: templates/human-gated-ship.nika.yaml
-    sha256_16: 8a0675f074eecb75
+    sha256_16: 45cd7789e3c974e1
   - file: templates/media-asset-pack.nika.yaml
     sha256_16: 1958bcdaac3dd2b9
   - file: templates/website-brief.nika.yaml
