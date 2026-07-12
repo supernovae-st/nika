@@ -24,6 +24,10 @@ brew install supernovae-st/tap/nika   # the binary first; the plugin invokes it
 | check-on-edit hook | every agent edit to a `*.nika.yaml` is audited immediately (findings in the hook log; never blocks the edit) |
 | MCP oracle (8 tools) | `nika_check` · `nika_explain` · `nika_schema` · `nika_examples` · `nika_template` · `nika_canon` · `nika_catalog` · `nika_tools` — read-only, by design |
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/supernovae-st/nika-vscode/main/media/check-as-you-type.gif" alt="nika check findings appearing as you type" width="640">
+</p>
+
 ## The loop it teaches
 
 1. route the intent to a template (`nika new --from <name>` or the
@@ -36,6 +40,16 @@ brew install supernovae-st/tap/nika   # the binary first; the plugin invokes it
 No plugin store to audit on the workflow side either: everything
 callable is a tool under `invoke:`, and the engine ships its own
 [builtin library](https://nika.sh/tools).
+
+## Good to know
+
+- **macOS GUI PATH**: Cursor may not inherit your shell PATH — if the
+  MCP oracle does not start, launch Cursor from a terminal once
+  (`open -a Cursor`) or ensure `nika` is reachable from GUI apps.
+- **Windows**: the check-on-edit hook is a bash script; without a bash
+  on PATH it fails open (the edit always proceeds — hooks never block).
+- Everything the oracle answers is read-only by design: the plugin can
+  audit and teach, only YOU run workflows.
 
 ## Links
 

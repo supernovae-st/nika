@@ -17,7 +17,8 @@ structure; you instantiate it, then let the checker teach you.
    changed) · agent-loop (research, open-ended) · human-gated-ship
    (anything irreversible) · website-brief · media-asset-pack ·
    api-upload-and-create · docker-report. Composite jobs compose
-   templates; start from the OUTER shape.
+   templates; start from the OUTER shape. The LIVING list (this one can
+   age): `nika new --from '?'` prints the embedded set.
 2. **Instantiate.** Copy the template whole. Fill every `# SLOT:`
    marker. Touch nothing else.
 3. **Check.** Run `nika check <file>` (or the `nika_check` MCP tool).
