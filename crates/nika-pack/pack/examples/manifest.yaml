@@ -26,7 +26,7 @@ templates:
   - file: templates/api-upload-and-create.nika.yaml
     sha256_16: eff75e74a952c137
   - file: templates/chain.nika.yaml
-    sha256_16: 8f4cfd3538943b22
+    sha256_16: 31362018e9a9b3aa
   - file: templates/docker-report.nika.yaml
     sha256_16: b4ae2ca559888e0e
   - file: templates/etl-state.nika.yaml

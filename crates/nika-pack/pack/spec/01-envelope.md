@@ -364,7 +364,7 @@ DEFAULT-DENY unless listed** ·
 | Category | When listed | When the `permits:` block is present but this category is omitted |
 |---|---|---|
 | `fs.read` / `fs.write` | only the matching path globs are allowed | **no** filesystem read / write |
-| `net.http` | only the listed hosts (globs ok) · tightens the engine SSRF floor, never loosens it | **no** outbound network |
+| `net.http` | only the listed hosts (globs ok) · tightens the engine SSRF floor — the one loosening is the exact-loopback declassification below | **no** outbound network |
 | `exec` | `false` = no shells · `true` = any (still blocklist-gated) · array = only those program names (argv `command[0]`) | treated as `false` · **no** `exec:` |
 | `tools` | only the matching `nika:` / `mcp:` ids (globs ok) | **no** `invoke:` of any tool |
 
@@ -373,6 +373,25 @@ DEFAULT-DENY unless listed** ·
 STRING is refused under that allowlist — at check and at run. A
 leading-token heuristic is unsound (`"git log; rm -rf /"` leads with `git`);
 the array `command:` form is the shape an allowlist can actually verify.
+
+**Exact-loopback declassification** (normative) · an **exact loopback
+literal** in `net.http` — the bare `localhost` name, a `127.x.y.z` v4
+literal, or the v6 loopback `::1` (the bracketed `[::1]` authority
+spelling is accepted) — is the author's **declassification of the SSRF
+floor for that host only** (the [secrets `egress:`](#egress--optional--sanctioned-destinations-declassification)
+precedent: the owner's explicit act, co-located with the boundary). The
+clearing is **exact-host** (never a prefix, subnet, or resolution: a
+permitted `localhost` does not clear `127.0.0.1`, and a public DNS name
+resolving to loopback stays refused) and **host-level** (ports do not
+participate in permits). It **never** extends past loopback: a glob
+entry, the `*.localhost` family, and RFC1918 / link-local / CGN /
+metadata targets stay floor-blocked even when named — their entries
+remain inert dead grants. DNS-rebinding stays covered: the engine
+re-checks every resolved address and every redirect hop; a permitted
+loopback name admits only its own loopback resolution, and a redirect
+to any un-permitted floor host still refuses (`NIKA-SEC-005`). An
+engine MUST NOT auto-write a loopback grant (e.g. from permits
+inference) — the explicit act stays the author's.
 
 So `permits: {}` is a workflow provably limited to pure compute (`infer:` +
 CEL + `nika:jq`): zero fs, zero net, zero shell, zero tools. That property
@@ -385,9 +404,13 @@ is checkable BEFORE the run.
    before it starts). The SSRF floor is checked statically too: a literal
    URL — or a `net.http` entry — naming a target the floor always refuses
    (loopback · private · link-local/metadata · `NIKA-SEC-005` · 05-errors)
-   is flagged at `check`, with or without a `permits:` block; no grant can
-   admit such a target, so blessing it would be a false green (the run
-   could never succeed).
+   is flagged at `check`, with or without a `permits:` block; outside the
+   exact-loopback declassification above, no grant can admit such a
+   target, so blessing it would be a false green (the run could never
+   succeed). A DECLASSIFIED loopback host is the mirrored truth: the
+   check stops flagging exactly where the run stops refusing (the entry
+   is live, not a dead grant), and the clearing is stated informationally
+   rather than silently un-flagged.
 2. **At runtime** · any effect escaping the declared set fails the task
    `NIKA-SEC-004` (`security_error` · never fed back to an `agent:` model:
    a capability boundary is not negotiation material). This catches the

@@ -4,8 +4,6 @@
 # TEMPLATE · chain · gather facts → one model step → persist.
 # The default shape for « take real data, produce words, save them ».
 #
-# Needs · ./input.txt (any text file — the SLOT default reads it).
-#
 # Instantiate (agents · deterministic) ·
 #   1. Copy this file · rename per the job (kebab-case).
 #   2. Fill every `# SLOT:` line · delete slot comments when filled.
@@ -20,7 +18,8 @@ description: "gather → think → persist"   # SLOT: one honest sentence
 model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
 
 vars:
-  source: "./input.txt"             # SLOT: your inputs · typed where required
+  source: "./README.md"             # SLOT: your input — README.md exists in ANY repo, so the
+                                    # skeleton runs green BEFORE you point it at real data
 
 tasks:
   - id: gather
