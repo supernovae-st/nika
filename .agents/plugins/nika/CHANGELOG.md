@@ -3,6 +3,12 @@
 The bundle every marketplace installs (Claude Code · Codex · Cursor).
 Versions move together across all manifests (the mirror gate pins it).
 
+## 0.100.0 — 2026-07-12
+
+The galaxy shares one wave number: engine · extension · client-sdk ·
+kit ship the same version per wave from 0.100 on (0.5.3 → 0.100.0 —
+alignment only, no functional change).
+
 ## 0.5.3 — 2026-07-12
 
 The seatbelts reach Codex (issue #505 closed by a live probe, not a doc):

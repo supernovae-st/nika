@@ -2,7 +2,7 @@
   "name": "nika",
   "displayName": "Nika · Intent as Code",
   "description": "Author, debug, operate and migrate AI workflows as checkable .nika.yaml files — 4 skills, 3 subagents, 2 rules, 5 slash commands (/nika:check · /nika:explain · /nika:new · /nika:trace · /nika:permits), 3 hooks on every surface — Cursor, Claude Code and Codex (one dialect, sniffed) (session context · check-on-edit · a guard that audits before any nika run) and the read-only Nika MCP oracle (8 tools · nika_check through nika_tools). Requires the nika binary: brew install supernovae-st/tap/nika",
-  "version": "0.5.3",
+  "version": "0.100.0",
   "author": "SuperNovae Studio",
   "repository": "https://github.com/supernovae-st/nika",
   "homepage": "https://nika.sh",
