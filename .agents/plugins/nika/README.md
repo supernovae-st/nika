@@ -29,9 +29,9 @@ brew install supernovae-st/tap/nika   # the binary first; the plugin invokes it
 | delegation rule | teaches the agent WHEN to propose a workflow (repeatable · multi-step · spend-bound AI work) and which bundled surface to reach for |
 | `/nika:check` · `/nika:explain` · `/nika:new` | audit a file · explain a finding code · scaffold from a template |
 | `/nika:trace` · `/nika:permits` | read a run's flight recorder (verdict · root cause · resume line) · infer and paste the tightest permits boundary |
-| session-context hook | a workspace with workflows greets the agent with the full nika map at session start (surfaces · laws · where traces live) |
+| session-context hook | a workspace with workflows greets the agent with the full nika map at session start (surfaces · laws · where traces live) — Cursor **and** Claude Code dialects |
 | check-on-edit hook | every agent edit to a `*.nika.yaml` is audited immediately (findings in the hook log; never blocks the edit) |
-| guard-run hook | `nika run` on a file that fails `nika check` is denied with the findings — the audit-before-run law, structurally unskippable |
+| guard-run hook | `nika run` on a file that fails `nika check` is denied with the findings — the audit-before-run law, structurally unskippable (Cursor `beforeShellExecution` · Claude Code `PreToolUse`) |
 | MCP oracle (8 tools) | `nika_check` · `nika_explain` · `nika_schema` · `nika_examples` · `nika_template` · `nika_canon` · `nika_catalog` · `nika_tools` — read-only, by design |
 
 <p align="center">

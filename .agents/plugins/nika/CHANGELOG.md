@@ -3,6 +3,27 @@
 The bundle every marketplace installs (Claude Code · Codex · Cursor).
 Versions move together across all manifests (the mirror gate pins it).
 
+## 0.5.0 — 2026-07-12
+
+Hooks parity: the three seatbelts reach Claude Code (they were
+Cursor-only — `claude plugin details` inventoried Hooks (0), found by
+the completeness audit).
+
+- ONE script per concern, TWO dialects, sniffed from stdin
+  (`hook_event_name` is Claude Code's): session-context serves
+  `hookSpecificOutput.additionalContext` on SessionStart · guard-run
+  answers PreToolUse (matcher Bash) with `permissionDecision: deny` +
+  the findings as the reason — and `{}` (no opinion) on pass, never
+  "allow", which would skip the user's own permission prompt ·
+  check-on-edit answers PostToolUse (Edit|Write|MultiEdit) with
+  findings on stderr + exit 2, the documented feedback channel.
+- `hooks/claude-hooks.json` (`${CLAUDE_PLUGIN_ROOT}` paths) wired via an
+  explicit `hooks` field in the Claude Code manifest — symmetric with
+  Cursor's explicit `cursor-hooks.json`, no auto-discovery ambiguity
+  in either direction.
+- Battery: 12 two-dialect cases (deny shapes · no-opinion pass ·
+  context envelopes · edit feedback rc contracts · non-nika silence).
+
 ## 0.4.2 — 2026-07-12
 
 Deep-verify patch — each fix is a gap found by checking the kit

@@ -3,31 +3,45 @@
 # `nika run`, audit the workflow. Check is the gate the language is
 # built on; an agent must not be able to skip it by accident.
 #
-# Cursor hook contract (docs/agent/hooks · beforeShellExecution):
-# input is JSON on STDIN ({command, cwd, sandbox}); stdout is the
-# JSON permission response ({"permission":"allow"|"deny", plus
-# agent_message/user_message on deny). Exit 0 always — the JSON
-# carries the decision.
+# ONE script, TWO dialects (sniffed from stdin — `hook_event_name` is
+# Claude Code's, absent from Cursor's):
+#   Cursor  (docs/agent/hooks · beforeShellExecution): in {command, cwd}
+#     → out {"permission":"allow"|"deny", agent_message/user_message}.
+#   Claude Code (hooks.md · PreToolUse · matcher Bash): in
+#     {hook_event_name, tool_name, tool_input:{command}, cwd} → deny is
+#     {"hookSpecificOutput":{"hookEventName":"PreToolUse",
+#     "permissionDecision":"deny","permissionDecisionReason":…}}; the
+#     no-opinion pass is `{}` — NEVER "allow", which would skip the
+#     user's own permission prompt (the hook teaches, it never widens).
 #
-# Deny is TEACHING, not punishment: the agent_message carries the
-# findings so the agent repairs and reruns — the check loop becomes
-# structurally unskippable. Everything else fails open: a missing
-# binary, a file we cannot find, a broken oracle (exit 3) must never
-# block the human's terminal.
+# Deny is TEACHING, not punishment: the reason carries the findings so
+# the agent repairs and reruns — the check loop becomes structurally
+# unskippable. Everything else fails open: a missing binary, a file we
+# cannot find, a broken oracle (exit 3) must never block a terminal.
 set -euo pipefail
 
 input="$(cat)"
 
+cc=""
+case "$input" in *hook_event_name*) cc=1 ;; esac
+
 allow() {
-  printf '{"permission":"allow"}\n'
+  if [ -n "$cc" ]; then
+    printf '{}\n' # no opinion — the user's permission flow proceeds
+  else
+    printf '{"permission":"allow"}\n'
+  fi
   exit 0
 }
 
-# command + cwd from the stdin JSON — python3 when present, sed fallback.
+# command + cwd from the stdin JSON — python3 when present, sed fallback
+# (in a Bash PreToolUse payload the only "command" key is
+# tool_input.command, so the flat fallback matches both dialects).
 if command -v python3 >/dev/null 2>&1; then
   cmd="$(printf '%s' "$input" | python3 -c 'import json,sys
 try:
-    print(json.load(sys.stdin).get("command", ""))
+    d = json.load(sys.stdin)
+    print(d.get("command") or d.get("tool_input", {}).get("command", ""))
 except Exception:
     print("")' 2>/dev/null || true)"
   cwd="$(printf '%s' "$input" | python3 -c 'import json,sys
@@ -87,19 +101,31 @@ fi
 findings="$(printf '%s' "$findings" | head -c 2000)"
 
 if command -v python3 >/dev/null 2>&1; then
-  printf '%s' "$findings" | python3 -c '
-import json, sys
+  # env on the CONSUMER: `VAR=x cmd1 | cmd2` binds VAR to cmd1 only.
+  printf '%s' "$findings" | CC="$cc" python3 -c '
+import json, os, sys
 findings = sys.stdin.read()
 msg = ("nika check failed on this workflow - repair the findings, "
        "re-run nika check until it passes, then run again.\n\n" + findings)
-print(json.dumps({
-    "permission": "deny",
-    "agent_message": msg,
-    "user_message": "nika run blocked: the workflow does not pass nika check yet.",
-}))'
+if os.environ.get("CC"):
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": msg,
+    }}))
+else:
+    print(json.dumps({
+        "permission": "deny",
+        "agent_message": msg,
+        "user_message": "nika run blocked: the workflow does not pass nika check yet.",
+    }))'
 else
   # No python3: a fixed, pre-escaped message (never interpolate raw
   # findings into JSON by hand).
-  printf '{"permission":"deny","agent_message":"nika check failed on this workflow - run nika check on the file, repair the findings it names, then run again.","user_message":"nika run blocked: the workflow does not pass nika check yet."}\n'
+  if [ -n "$cc" ]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"nika check failed on this workflow - run nika check on the file, repair the findings it names, then run again."}}\n'
+  else
+    printf '{"permission":"deny","agent_message":"nika check failed on this workflow - run nika check on the file, repair the findings it names, then run again.","user_message":"nika run blocked: the workflow does not pass nika check yet."}\n'
+  fi
 fi
 exit 0
