@@ -3,6 +3,25 @@
 The bundle every marketplace installs (Claude Code · Codex · Cursor).
 Versions move together across all manifests (the mirror gate pins it).
 
+## 0.5.3 — 2026-07-12
+
+The seatbelts reach Codex (issue #505 closed by a live probe, not a doc):
+
+- `.codex-plugin/plugin.json` now declares `"hooks"` — Codex prefers that
+  manifest over `.claude-plugin/plugin.json` when both exist, so the field's
+  absence silently shadowed the three hooks on the one surface that needed
+  its own manifest. One line, three seatbelts.
+- The probe that earned it (headless `codex exec`, payloads dumped verbatim):
+  Codex emits the **Claude Code dialect exactly** — `hook_event_name`,
+  `tool_name: "Bash"`, `tool_input.command`, `tool_response` — and honors the
+  same output envelopes (`permissionDecision: deny` blocks with the reason
+  relayed to the model; SessionStart `additionalContext` is injected as
+  context). The kit's scripts run UNCHANGED; behavioral proof: guard-run
+  denied a red `nika run` and the model quoted NIKA-VAR-001 verbatim.
+- Codex notes: hooks ride the `[features] hooks = true` flag (or
+  `--enable hooks`), and a first interactive run asks to trust new hooks —
+  both are Codex-side gates, not kit config.
+
 ## 0.5.2 — 2026-07-12
 
 Two teachings earned by the night's deep-e2e (each caught live before

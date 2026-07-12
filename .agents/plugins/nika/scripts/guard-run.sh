@@ -3,7 +3,8 @@
 # `nika run`, audit the workflow. Check is the gate the language is
 # built on; an agent must not be able to skip it by accident.
 #
-# ONE script, TWO dialects (sniffed from stdin — `hook_event_name` is
+# ONE script, TWO dialects, THREE surfaces (Codex emits the Claude Code
+# dialect verbatim — live-proven 2026-07-12). Sniffed from stdin — `hook_event_name` is
 # Claude Code's, absent from Cursor's):
 #   Cursor  (docs/agent/hooks · beforeShellExecution): in {command, cwd}
 #     → out {"permission":"allow"|"deny", agent_message/user_message}.
