@@ -3,6 +3,30 @@
 The bundle every marketplace installs (Claude Code · Codex · Cursor).
 Versions move together across all manifests (the mirror gate pins it).
 
+## 0.4.1 — 2026-07-12
+
+Everything in this patch was earned by a fresh-user gauntlet run
+against the released binary (real API workflows · real failures ·
+real tokens): each teaching below is a friction that actually fired.
+
+- session-context hook: an equipped repo (`nika init` wrote
+  `.cursor/rules/nika.mdc`) now gets the map at session start even
+  before its first workflow exists — that first session is exactly
+  when the map matters.
+- nika-debugging: prompts headless FAIL with
+  `NIKA-BUILTIN-PROMPT-001` (a terminal blocks, an agent's world does
+  not) — same `--resume --answer` line either way; the failed-run
+  card's own `autopsy:` line is the entry point.
+- nika-operating: the secrets taint FLOWS — every downstream sink of
+  secret-derived data needs its own `egress:` entry (worked example);
+  `host:`-scoped egress cannot be proven against an interpolated URL;
+  mock mocks the MODEL, not the tools (goldens are for hermetic
+  workflows — network truth is proven by traces).
+- nika-migration: `curl … | jq` collapses into ONE fetch task
+  (`mode: jq` + `jq:`); an API fetch needs `mode: raw`/`jq` — the
+  default `markdown` mode is for pages and escapes JSON; `nika:jq`'s
+  arg is `expression`.
+
 ## 0.4.0 — 2026-07-12
 
 The suite release: one component per use case becomes a full crew —

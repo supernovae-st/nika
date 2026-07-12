@@ -34,8 +34,30 @@ are data, not config — they travel with the file through PR review.
 ## Secrets (masked, declared, sunk)
 
 - Every credential rides `${{ secrets.X }}`, declared in the
-  `secrets:` block with its `egress:` sink — the engine masks it in
-  logs and refuses to send it anywhere but the declared sink.
+  `secrets:` block (`source: env` + `key: VAR_NAME`) with its
+  `egress:` sinks — the engine masks it in logs and refuses to send
+  it anywhere but the declared sinks.
+- **The taint FLOWS**: the output of a task that used a secret is
+  secret-derived, and every downstream sink it reaches needs its own
+  `egress:` entry. An authed fetch whose output feeds an `infer:`
+  declares both:
+
+  ```yaml
+  secrets:
+    gh_token:
+      source: env
+      key: GITHUB_TOKEN
+      egress:
+        - to: "nika:fetch"
+        - to: "infer"
+  ```
+
+  The checker names the exact chain when one is missing
+  (`secrets.X → tasks.A.output → tasks.B.output`).
+- A `host:`-scoped egress cannot be proven against an interpolated
+  URL (`${{ vars.repo }}` in the address) — the checker refuses
+  conservatively. Pin the URL, or drop the `host:` scope and keep
+  the tool-level sink.
 - Values come from the environment at run time; CI injects them the
   same way a shell does. Never a literal in YAML, never in a trace.
 - `nika doctor` audits the machine: binary, PATH, provider env vars.
@@ -57,8 +79,13 @@ are data, not config — they travel with the file through PR review.
   findings · 3 broken oracle. Parse `clean`, `conformance[]`,
   `pricing`, `models_resolve` from the payload.
 - Pin behavior: `nika test <file> --update` writes
-  `<file>.golden.json` from an offline mock run; `nika test <file>`
-  replays and compares — deterministic, zero keys, CI-safe.
+  `<file>.golden.json` from a mock run; `nika test <file>` replays
+  and compares — deterministic, zero model keys, CI-safe.
+- **Mock mocks the MODEL, not the tools**: a live `nika:fetch` still
+  rides the network under `nika test`, and a `secrets:` entry still
+  resolves from the environment (export a dummy in CI). Golden the
+  hermetic workflows (read · jq · write · infer); a workflow whose
+  truth lives on the network is proven by its TRACE, not a golden.
 - `--native-strict` in CI keeps `exec:` honest: any shell task an
   embedded builtin covers fails the gate (the exec ledger documents
   the survivors).

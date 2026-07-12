@@ -25,8 +25,9 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 | In the script | In the workflow |
 |---|---|
 | a step / function | one task, exactly one verb |
-| `curl` / `wget` / `fetch()` helper | `invoke:` `tool: "nika:fetch"` |
-| `jq` / `sed` on JSON | `nika:jq`, or an `output:` binding |
+| `curl` / `wget` / `fetch()` helper | `invoke:` `tool: "nika:fetch"` — **for an API, set `mode: raw` or `mode: jq`** (the default `markdown` mode is for pages and escapes JSON bodies) |
+| `curl … \| jq` in one breath | ONE fetch task: `mode: jq` + `jq: '<expression>'` — the shape rides the fetch |
+| `jq` / `sed` on JSON | `nika:jq` (arg name is `expression`), or an `output:` binding |
 | `cat` / `cp` / `mkdir` / `tee` | `nika:read` / `nika:write` (`create_dirs: true`) |
 | in-place file edits | `nika:edit` |
 | the LLM call (SDK, `curl` to an API) | `infer:` with `prompt`, `schema?`, `max_tokens` |

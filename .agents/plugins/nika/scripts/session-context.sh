@@ -28,11 +28,13 @@ else
 fi
 [ -n "$cwd" ] && [ -d "$cwd" ] && cd "$cwd" || true
 
-# Nika-enabled = a .nika/ store or any workflow file near the root.
-# Bounded probe (depth 3 · prune the heavy dirs) — this runs at every
-# session open and must stay in the milliseconds.
+# Nika-enabled = a .nika/ store, an equipped repo (`nika init` wrote
+# .cursor/rules/nika.mdc — the session right after init is exactly
+# when the map matters, before any workflow exists), or any workflow
+# file near the root. Bounded probe (depth 3 · prune the heavy dirs)
+# — this runs at every session open and must stay in the milliseconds.
 enabled=""
-if [ -d .nika ]; then
+if [ -d .nika ] || [ -f .cursor/rules/nika.mdc ]; then
   enabled=1
 else
   hit="$(find . -maxdepth 3 \( -name node_modules -o -name .git -o -name target -o -name dist \) -prune -o \( -name '*.nika.yaml' -o -name '*.nika.yml' \) -print -quit 2>/dev/null || true)"

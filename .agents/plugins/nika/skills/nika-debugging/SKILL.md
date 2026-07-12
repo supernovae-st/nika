@@ -29,18 +29,27 @@ a memory of the terminal scroll.
 6. **Fix minimally, rerun surgically** (below). Re-check before any
    rerun.
 
-## Paused runs (prompts and confirm gates)
+## Prompts and confirm gates (paused OR failed — same answer line)
 
-A run paused on `nika:prompt` is not failed — it is waiting. The card
-names the unanswered prompt. Resume it:
+On a terminal, `nika:prompt` blocks and waits (the run shows as
+`paused` in `nika trace ls`). Headless — which is where an agent
+lives — a prompt without a `default:` FAILS with
+`NIKA-BUILTIN-PROMPT-001` instead. Both states resolve with the same
+line:
 
 ```
 nika run <file> --resume <trace> --answer <task>=<value>
 ```
 
-Confirm gates take booleans (`--answer approve=true`). Removing a
-paused trace refuses without `--force` and names the prompt it would
-destroy — that refusal is protecting an answer, not being difficult.
+Confirm gates take booleans (`--answer approve=true`); every task the
+journal already proved is skipped as a visible cache hit, so only the
+prompt and its downstream run. Removing a paused trace refuses
+without `--force` and names the prompt it would destroy — that
+refusal is protecting an answer, not being difficult.
+
+A failed run's card prints its own forensics line (`autopsy:
+nika trace peek <trace> <task>`) — start there, it points at the
+exact failing task.
 
 ## Surgical reruns (never restart what already worked)
 
