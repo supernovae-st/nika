@@ -581,9 +581,9 @@ where
         let root = args
             .get("pattern")
             .and_then(serde_json::Value::as_str)
-            .map_or(".", file::glob_walk_root);
+            .map_or(std::borrow::Cow::Borrowed("."), file::glob_walk_root);
         self.fs_boundary
-            .enforce(self.fs.as_ref(), root, permits::FsAccess::Read)
+            .enforce(self.fs.as_ref(), root.as_ref(), permits::FsAccess::Read)
             .await?;
         file::glob(self.fs.as_ref(), args).await
     }

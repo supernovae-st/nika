@@ -10,6 +10,20 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Fixed
+
+- **`nika:glob` walks its pattern's literal directory prefix** — a scoped
+  pattern (`hiring/inbox/*.md`) now anchors its walk (and the
+  `permits.fs.read` gate that fences it) at `./hiring/inbox` instead of
+  the whole cwd, so a least-privilege boundary like
+  `read: ["./hiring/inbox/**"]` accepts the glob that stays inside it
+  (previously: `NIKA-SEC-004` on the `.` walk root — the
+  `t3-resume-screener` showcase could never run). Returned paths keep
+  the exact historical `./…` byte shape (run traces and registry
+  oracles hash them); a missing prefix directory yields `[]` uniformly
+  (absolute patterns errored before); the SEC-004 refusal now names the
+  real walk root.
+
 ### Added
 
 - **Pre-generated shell completions ride the release tarballs** (#487)
