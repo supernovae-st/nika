@@ -328,7 +328,20 @@ fn row_glyph(row: &TaskRow, theme: &Theme, tick: usize) -> String {
     if row.cached {
         return theme.glyph(TaskState::Skipped, tick);
     }
+    // A RUNNING row animates in its verb's OWN motion (the website's
+    // tile vocabulary: sampling · scanline · roundtrip · orbit), verb
+    // from the started note — the same derivation as the chip column.
+    if row.state == TaskState::Running && theme.animate && !theme.ascii {
+        return theme.verb_spin(row_verb(row), tick);
+    }
     theme.glyph(row.state, tick)
+}
+
+/// The verb word out of a row's started note (`infer · <model>` …).
+fn row_verb(row: &TaskRow) -> Option<&str> {
+    row.started_note
+        .as_deref()
+        .and_then(|n| n.split(" · ").next())
 }
 
 /// Assemble one storyboard row: glyph · id · dimmed note · then the

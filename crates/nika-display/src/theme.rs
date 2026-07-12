@@ -11,8 +11,25 @@
 
 use crate::state::TaskState;
 
-/// Braille spinner frames (80ms cadence at the call site).
+/// Braille spinner frames (80ms cadence at the call site) — the ORBIT
+/// pattern: `agent`'s own motion (the bounded loop), and the fallback
+/// for any running row whose verb the stream hasn't named yet.
 pub const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+/// The per-verb MOTION vocabulary — the same identities the website's
+/// motion tiles animate (infer · sampling — scattered dots settle ·
+/// exec · scanline — a band sweeps the rows · invoke · roundtrip — a
+/// pendulum goes there and back · agent · orbit — [`SPINNER`]). One
+/// name per verb across every surface; the terminal speaks it in one
+/// braille cell, painted in the verb's own bright slot. Graduates to
+/// the spec `design/tokens.yaml` `motion:` block with the family tags
+/// (spec-first — this table is the engine's mirror, same stance as the
+/// ◇▷◆✦ glyph column).
+pub const SAMPLING: [char; 10] = ['⠂', '⠈', '⠐', '⠄', '⠠', '⠁', '⡀', '⠃', '⠘', '⠨'];
+/// `exec` · scanline (top row → bottom row → back).
+pub const SCANLINE: [char; 10] = ['⠉', '⠒', '⠤', '⣀', '⠤', '⠒', '⠉', '⠒', '⠤', '⣀'];
+/// `invoke` · roundtrip (the pendulum — out and back).
+pub const ROUNDTRIP: [char; 10] = ['⠆', '⠃', '⠉', '⠘', '⠰', '⢠', '⠰', '⠘', '⠉', '⠃'];
 
 /// The duration-heat ramp (design §1.5): ONE hue (azure ≈ 200°), five
 /// quantized LIGHTNESS steps — short bars pale, the long pole bright.
@@ -199,6 +216,24 @@ impl Theme {
     #[must_use]
     pub fn logo(&self) -> &'static str {
         if self.ascii { "[nika]" } else { "🦋" }
+    }
+
+    /// One frame of a RUNNING row's motion — the verb's own pattern in
+    /// the verb's own bright slot (`None`/unknown verb = the orbit
+    /// fallback in the accent, today's exact behavior). Callers gate on
+    /// `animate && !ascii` exactly as they do for [`SPINNER`]; every
+    /// sober register stays tick-blind.
+    #[must_use]
+    pub fn verb_spin(&self, verb: Option<&str>, tick: usize) -> String {
+        let (frames, role): (&[char; 10], Role) = match verb {
+            Some("infer") => (&SAMPLING, Role::VerbInfer),
+            Some("exec") => (&SCANLINE, Role::VerbExec),
+            Some("invoke") => (&ROUNDTRIP, Role::VerbInvoke),
+            Some("agent") => (&SPINNER, Role::VerbAgent),
+            _ => (&SPINNER, Role::Accent),
+        };
+        let frame = frames[tick % frames.len()];
+        self.paint(role, &format!("{frame} "))
     }
 
     /// The verb-identity glyph, padded to the SAME stable 2-cell column
@@ -426,5 +461,48 @@ mod tests {
         assert!(coloured.verb_glyph("agent").contains("\x1b[95m"));
         assert!(coloured.verb_glyph("fetch").contains("\x1b[2m"), "dim");
         assert_eq!(Role::for_verb("fetch"), None, "tools are not verbs");
+    }
+
+    /// The motion vocabulary: each verb runs in ITS pattern and ITS
+    /// bright slot; unknown verbs keep the orbit-in-accent fallback
+    /// (yesterday's exact behavior). The four patterns are pairwise
+    /// DISTINCT at tick 0 — identities, not decoration.
+    #[test]
+    fn verb_spin_speaks_each_verbs_own_motion() {
+        let anim = Theme {
+            color: true,
+            animate: true,
+            ..Theme::new(true, false, true)
+        };
+        let infer = anim.verb_spin(Some("infer"), 0);
+        let exec = anim.verb_spin(Some("exec"), 0);
+        let invoke = anim.verb_spin(Some("invoke"), 0);
+        let agent = anim.verb_spin(Some("agent"), 0);
+        assert!(infer.contains("\x1b[94m") && infer.contains(SAMPLING[0]));
+        assert!(exec.contains("\x1b[93m") && exec.contains(SCANLINE[0]));
+        assert!(invoke.contains("\x1b[96m") && invoke.contains(ROUNDTRIP[0]));
+        assert!(agent.contains("\x1b[95m") && agent.contains(SPINNER[0]));
+        let fallback = anim.verb_spin(None, 0);
+        assert!(fallback.contains("\x1b[36m") && fallback.contains(SPINNER[0]));
+        // Pairwise distinct silhouettes at tick 0 (agent shares orbit
+        // with the fallback by design — the colour tells them apart).
+        let glyphs = [SAMPLING[0], SCANLINE[0], ROUNDTRIP[0], SPINNER[0]];
+        for i in 0..glyphs.len() {
+            for j in i + 1..glyphs.len() {
+                assert_ne!(glyphs[i], glyphs[j], "patterns {i}/{j} collide");
+            }
+        }
+        // Frames advance (motion is motion).
+        assert_ne!(
+            anim.verb_spin(Some("infer"), 0),
+            anim.verb_spin(Some("infer"), 1)
+        );
+        // 2-cell law holds for every frame of every set.
+        for set in [&SAMPLING, &SCANLINE, &ROUNDTRIP] {
+            for t in 0..set.len() {
+                let plain = Theme::new(false, false, true);
+                assert_eq!(plain.verb_spin(Some("exec"), t).chars().count(), 2);
+            }
+        }
     }
 }

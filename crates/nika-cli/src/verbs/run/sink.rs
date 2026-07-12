@@ -1057,6 +1057,7 @@ mod tests {
     /// settled it writes NOTHING (a finished screen never churns).
     #[test]
     fn spin_advances_the_running_glyph_and_stops_at_settle() {
+        use crate::display::theme::ROUNDTRIP;
         let theme = Theme::new(false, false, true); // colour off · animated
         let mut fold = FoldSink::new(Vec::new(), theme, RenderMode::Live);
         // Feed the demo stream up to the FIRST running state — the
@@ -1086,9 +1087,10 @@ mod tests {
         fold.spin();
         fold.spin();
         let painted = String::from_utf8_lossy(&fold.writer[before..]).into_owned();
-        // Two beats = two different braille frames (tick 1 then 2).
+        // Two beats = two frames of the running verb's OWN motion (the
+        // demo's running row is `invoke` → roundtrip, ticks 1 then 2).
         assert!(
-            painted.contains('⠙') && painted.contains('⠹'),
+            painted.contains(ROUNDTRIP[1]) && painted.contains(ROUNDTRIP[2]),
             "{painted:?}"
         );
 
