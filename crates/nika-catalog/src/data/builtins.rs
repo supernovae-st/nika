@@ -23,7 +23,7 @@ use crate::types::builtin::{Builtin, BuiltinCategory};
 
 use BuiltinCategory::{Core, Data, File, Introspection, Media, Network};
 
-/// All 26 builtin tools, **sorted alphabetically by name**.
+/// All 27 builtin tools, **sorted alphabetically by name**.
 ///
 /// Invariant: array MUST be sorted for `binary_search` to work.
 /// This is validated by a unit test.

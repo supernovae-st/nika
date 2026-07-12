@@ -7,7 +7,7 @@ Before modifying any crate, read:
   **Non-negotiable.** Every admitted crate passes Gate 12 against this document.
 - `docs/architecture/crate-layer-registry.md` — L0 → L4 layer discipline,
   allowed I/O axes, enforcement by `scripts/ci/check-layering.sh`.
-- `ROADMAP.md` — real-semver plan toward 1.0 (amended D-2026-06-20-N1 · was "forever-v0.x"). Current 0.91.0 (latest release · main on 0.92.0-dev) → 1.0.0 launch → 1.x adds remaining crates.
+- `ROADMAP.md` — real-semver plan toward 1.0 (amended D-2026-06-20-N1 · was "forever-v0.x"). The CHANGELOG top names the current release (never quote a number here — it rots) → 1.0.0 launch → 1.x adds remaining crates.
 
 ### Workspace layout
 
