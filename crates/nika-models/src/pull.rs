@@ -616,38 +616,7 @@ fn pull_over_network(
         let (_, from) = runtime.block_on(puller.download(mref, &entry))?;
         resumed_from = from;
     }
-    // tokenizer.json beside the GGUF — the sibling layout `serve` loads.
-    let tokenizer_note = match tokenizer {
-        Some(tok) => {
-            let tok_dest = mref.dir(root).join(file_name(&tok.path));
-            if std::fs::metadata(&tok_dest).is_err() {
-                let side = Puller::new(house_http(None)?, root.to_path_buf(), token, false);
-                let _ = runtime.block_on(side.download(mref, &tok))?;
-            }
-            String::new()
-        }
-        // GGUF mirrors (bartowski · the official Qwen GGUF repos)
-        // routinely ship NO tokenizer.json — the universal friction the
-        // #518 probe measured. Borrow it from the repo's declared
-        // source model (`cardData.base_model`); every miss degrades to
-        // the teaching note.
-        None if std::fs::metadata(mref.dir(root).join("tokenizer.json")).is_ok() => {
-            // One is already beside (an earlier borrow · a manual drop)
-            // — a note would contradict what the disk shows.
-            String::new()
-        }
-        None => {
-            let scout = Puller::new(house_http(None)?, root.to_path_buf(), token, false);
-            match runtime.block_on(borrow_base_tokenizer(&scout, mref)) {
-                Some(base) => {
-                    format!("\n  tokenizer.json borrowed from {base} (this repo ships none)")
-                }
-                None => "\n  note: the repo ships no tokenizer.json — `nika model serve` \
-                         needs one beside the GGUF (name yours with --tokenizer <path>)"
-                    .to_owned(),
-            }
-        }
-    };
+    let tokenizer_note = tokenizer_beside(&runtime, mref, root, token, tokenizer.as_ref())?;
     Ok(receipt(
         arg,
         mref,
@@ -656,6 +625,48 @@ fn pull_over_network(
         resumed_from,
         &tokenizer_note,
     ))
+}
+
+/// Land `tokenizer.json` beside the GGUF (the sibling layout `serve`
+/// loads) and say what happened: the repo's own sidecar downloads
+/// silently; a repo that ships none tries the declared base model
+/// (the #518 universal friction — GGUF mirrors routinely ship no
+/// tokenizer); one already beside stays silent (a note would
+/// contradict the disk); every borrow miss degrades to the teaching
+/// note.
+fn tokenizer_beside(
+    runtime: &tokio::runtime::Runtime,
+    mref: &ModelRef,
+    root: &Path,
+    token: Option<String>,
+    tokenizer: Option<&TreeEntry>,
+) -> Result<String, Refusal> {
+    match tokenizer {
+        Some(tok) => {
+            let tok_dest = mref.dir(root).join(file_name(&tok.path));
+            if std::fs::metadata(&tok_dest).is_err() {
+                let side = Puller::new(house_http(None)?, root.to_path_buf(), token, false);
+                let _ = runtime.block_on(side.download(mref, tok))?;
+            }
+            Ok(String::new())
+        }
+        None if std::fs::metadata(mref.dir(root).join("tokenizer.json")).is_ok() => {
+            Ok(String::new())
+        }
+        None => {
+            let scout = Puller::new(house_http(None)?, root.to_path_buf(), token, false);
+            Ok(
+                match runtime.block_on(borrow_base_tokenizer(&scout, mref)) {
+                    Some(base) => {
+                        format!("\n  tokenizer.json borrowed from {base} (this repo ships none)")
+                    }
+                    None => "\n  note: the repo ships no tokenizer.json — `nika model serve` \
+                         needs one beside the GGUF (name yours with --tokenizer <path>)"
+                        .to_owned(),
+                },
+            )
+        }
+    }
 }
 
 /// The pull receipt: where it landed + the exact next commands. A
