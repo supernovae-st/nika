@@ -10,6 +10,8 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.100.0](https://github.com/supernovae-st/nika/compare/v0.99.0..v0.100.0) - 2026-07-12
+
 ### Changed
 
 - **One glyph table, zero-alloc live channel** (rust-pro pass) — the
