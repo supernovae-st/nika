@@ -271,9 +271,20 @@ fn explain(args: &Value) -> Result<String, String> {
             row.category, row.transient, row.failure
         ));
     }
+    // 3 · the runtime namespaces (per-builtin `NIKA-BUILTIN-<NAME>-<NNN>` ·
+    //     per-provider `NIKA-PROVIDER-<NNN>`) — valid in `on_codes:` and
+    //     emitted by failed runs, so the agent debugging a trace over MCP
+    //     gets the SAME teaching the CLI gives (one voice · shared text in
+    //     `nika-error::codes`). Gauntlet 2026-07-12: the CLI taught
+    //     NIKA-BUILTIN-PROMPT-001 while this tool said "unknown code".
+    if let Some(text) = nika_error::codes::namespace_help(&normalized, "docs.nika.sh/errors") {
+        return Ok(text);
+    }
     Err(format!(
-        "unknown code `{code}` — the registry knows NIKA-001..9999 + the spec \
-         codes (NIKA-VAR-* · NIKA-DAG-* · …); see docs.nika.sh/errors"
+        "unknown code `{code}` — the registry knows NIKA-001..9999, the spec \
+         codes (NIKA-VAR-* · NIKA-DAG-* · …), per-builtin \
+         NIKA-BUILTIN-<NAME>-NNN and per-provider NIKA-PROVIDER-NNN codes; \
+         see docs.nika.sh/errors"
     ))
 }
 
@@ -411,6 +422,22 @@ mod tests {
     #[test]
     fn explain_an_unknown_code_is_a_tool_error() {
         assert!(execute("nika_explain", &json!({ "code": "NIKA-GHOST-999" })).is_err());
+    }
+
+    /// One voice with the CLI (gauntlet 2026-07-12): a failed run's
+    /// per-builtin / per-provider code must TEACH over MCP too — the
+    /// agent debugging a trace calls this tool, not the terminal.
+    #[test]
+    fn explain_teaches_the_runtime_namespaces_like_the_cli() {
+        let b = execute(
+            "nika_explain",
+            &json!({ "code": "NIKA-BUILTIN-PROMPT-001" }),
+        )
+        .expect("builtin namespace teaches");
+        assert!(b.contains("`nika:prompt` builtin") && b.contains("on_codes"));
+        let p = execute("nika_explain", &json!({ "code": "NIKA-PROVIDER-007" }))
+            .expect("provider namespace teaches");
+        assert!(p.contains("provider-adapter"));
     }
 
     #[test]
