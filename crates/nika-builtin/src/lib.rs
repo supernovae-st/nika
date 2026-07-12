@@ -26,7 +26,15 @@
 //! reaching this crate MEANS the call came from a standalone `invoke:`.
 
 #![forbid(unsafe_code)]
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable
+    )
+)]
 
 pub(crate) mod chart;
 pub mod core_tools;

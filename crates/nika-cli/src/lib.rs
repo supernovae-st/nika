@@ -16,7 +16,10 @@
 //! later own that name as a <500-LOC wrapper over this surface.
 
 #![forbid(unsafe_code)]
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+#![cfg_attr(
+    test,
+    allow(clippy::unwrap_used, clippy::expect_used, clippy::unreachable)
+)]
 
 // The display surface DESCENDED to `nika-display` (2026-07-10 · the 15k
 // wall · nika-dap/nika-cap precedent) — re-exported at the old paths so

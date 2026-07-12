@@ -261,7 +261,10 @@ fn eval_rel(
         RelOp::Eq => equals(&a, &b, span)?,
         RelOp::Ne => !equals(&a, &b, span)?,
         RelOp::Lt | RelOp::Le | RelOp::Gt | RelOp::Ge => order(op, &a, &b, span)?,
-        RelOp::In => unreachable!("handled above"),
+        // In is dispatched to `membership` before this match — a
+        // fall-through here is a dispatcher regression, fail loud.
+        #[allow(clippy::unreachable, reason = "In handled by the dispatcher above")]
+        RelOp::In => unreachable!("RelOp::In must be dispatched to membership"),
     };
     Ok(Value::Bool(result))
 }
@@ -341,7 +344,11 @@ fn order(op: RelOp, a: &Value, b: &Value, span: (usize, usize)) -> Result<bool, 
         RelOp::Le => ord.is_le(),
         RelOp::Gt => ord.is_gt(),
         RelOp::Ge => ord.is_ge(),
-        _ => unreachable!(),
+        #[allow(
+            clippy::unreachable,
+            reason = "order() is only called for the four ordering ops"
+        )]
+        _ => unreachable!("order() called with a non-ordering RelOp"),
     })
 }
 

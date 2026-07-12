@@ -140,8 +140,11 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
                         kind: "expression",
                         count: None,
                     },
+                    #[allow(
+                        clippy::unreachable,
+                        reason = "non_exhaustive future variant — enum and projector ship together; fail loud beats silently-wrong output"
+                    )]
                     other => {
-                        // #[non_exhaustive]: refuse silently-wrong output.
                         unreachable!("unknown for_each form: {other:?}")
                     }
                 }),
@@ -155,8 +158,10 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
                     OnErrorAction::Recover(_) => "recover",
                     OnErrorAction::Skip => "skip",
                     OnErrorAction::FailWorkflow => "fail_workflow",
-                    // #[non_exhaustive]: refuse silently-wrong output (the
-                    // for_each precedent — enum and binary ship together).
+                    #[allow(
+                        clippy::unreachable,
+                        reason = "non_exhaustive future variant — enum and projector ship together; fail loud beats silently-wrong output"
+                    )]
                     other => unreachable!("unknown on_error action: {other:?}"),
                 }),
                 outputs: task.output.iter().map(|(k, _)| k.value.clone()).collect(),
@@ -213,8 +218,10 @@ fn action_facts(
                 .map(|m| m.value.clone())
                 .or_else(|| default_model.map(str::to_owned)),
         ),
-        // #[non_exhaustive]: a future verb must teach this projector its
-        // name before it can be drawn.
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future verb — it must teach this projector its name before it can be drawn"
+        )]
         other => unreachable!("unknown verb: {other:?}"),
     }
 }

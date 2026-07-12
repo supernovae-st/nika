@@ -205,6 +205,7 @@ expect_used    = "warn"
 panic          = "deny"
 todo           = "warn"
 unimplemented  = "warn"
+unreachable    = "warn"
 dbg_macro      = "deny"
 # Iterating a HashMap/HashSet is ordering-nondeterminism by construction —
 # poison for an engine whose outputs, manifests and goldens must be

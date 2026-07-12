@@ -149,7 +149,11 @@ fn wire_one(target: WireTarget, dir: &str) -> Result<WireAction, String> {
             "junie",
             false,
         ),
-        WireTarget::All => unreachable!("expanded before dispatch"),
+        #[allow(
+            clippy::unreachable,
+            reason = "All is expanded to concrete targets before dispatch"
+        )]
+        WireTarget::All => unreachable!("WireTarget::All must be expanded before dispatch"),
     }
 }
 
