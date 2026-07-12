@@ -974,6 +974,19 @@ fn mcp_verb(transport: McpTransportArg, port: u16, bind: &str) -> u8 {
     }
 }
 
+/// `nika trace verify [TRACES…]` — several paths (the shell glob) go
+/// per-file/worst-of; zero or one keeps the existing voice byte-stable
+/// (bare form resolves the latest · one arg resolves store handles).
+fn verify_verb(mut traces: Vec<PathBuf>) -> u8 {
+    if traces.len() > 1 {
+        return emit(&verbs::trace_verify::verify_many(&traces));
+    }
+    match resolve_trace(traces.pop()) {
+        Ok(path) => emit(&verbs::trace_verify::verify(&path.to_string_lossy())),
+        Err(code) => code,
+    }
+}
+
 fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
     match action {
         TraceAction::Replay(args) => trace_render(&args, true, color, link_when),
@@ -1029,18 +1042,7 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
             theme.accents = std::io::stdout().is_terminal();
             emit(&verbs::trace::outputs(&trace.to_string_lossy(), theme))
         }
-        TraceAction::Verify { mut traces } => {
-            if traces.len() > 1 {
-                emit(&verbs::trace_verify::verify_many(&traces))
-            } else {
-                // Zero or one: the existing voice, byte-stable (bare
-                // form resolves the latest · one arg resolves handles).
-                match resolve_trace(traces.pop()) {
-                    Ok(path) => emit(&verbs::trace_verify::verify(&path.to_string_lossy())),
-                    Err(code) => code,
-                }
-            }
-        }
+        TraceAction::Verify { traces } => verify_verb(traces),
         TraceAction::Reproduce { recorded, fresh } => emit(&verbs::trace_reproduce::reproduce(
             &recorded.to_string_lossy(),
             &fresh.to_string_lossy(),
