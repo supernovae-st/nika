@@ -261,11 +261,14 @@ impl<H: HttpGetDyn + HttpPostDyn> Puller<H> {
     /// Stream one repo file into the model's dir. Resumes a `<file>.part`
     /// via `Range:` (206 appends · 200 restarts) and renames into place
     /// only when the byte count matches the tree's declared size.
+    /// Returns the landing path + the byte offset the transfer resumed
+    /// from (`0` = a fresh pull) — the receipt tells the truth about
+    /// what happened (a resumed pull must not read like a fresh one).
     pub(crate) async fn download(
         &self,
         mref: &ModelRef,
         entry: &TreeEntry,
-    ) -> Result<PathBuf, Refusal> {
+    ) -> Result<(PathBuf, u64), Refusal> {
         let file = file_name(&entry.path);
         let dir = mref.dir(&self.root);
         std::fs::create_dir_all(&dir).map_err(|e| {
@@ -319,7 +322,7 @@ impl<H: HttpGetDyn + HttpPostDyn> Puller<H> {
                 part.display()
             ))
         })?;
-        Ok(dest)
+        Ok((dest, start))
     }
 
     /// Write the stream to the `.part` file, ticking progress; returns
@@ -508,6 +511,7 @@ fn pull_over_network(
         store::human_size(entry.size)
     );
     let mut already = false;
+    let mut resumed_from: u64 = 0;
     if std::fs::metadata(&dest).is_ok_and(|m| m.len() == entry.size) {
         already = true;
         eprintln!("  already present — nothing to download");
@@ -534,7 +538,8 @@ fn pull_over_network(
             token.clone(),
             interactive,
         );
-        runtime.block_on(puller.download(mref, &entry))?;
+        let (_, from) = runtime.block_on(puller.download(mref, &entry))?;
+        resumed_from = from;
     }
     // tokenizer.json beside the GGUF — the sibling layout `serve` loads.
     let tokenizer_note = match tokenizer {
@@ -542,7 +547,7 @@ fn pull_over_network(
             let tok_dest = mref.dir(root).join(file_name(&tok.path));
             if std::fs::metadata(&tok_dest).is_err() {
                 let side = Puller::new(house_http(None)?, root.to_path_buf(), token, false);
-                runtime.block_on(side.download(mref, &tok))?;
+                let _ = runtime.block_on(side.download(mref, &tok))?;
             }
             String::new()
         }
@@ -550,12 +555,35 @@ fn pull_over_network(
                  beside the GGUF (name yours with --tokenizer <path>)"
             .to_owned(),
     };
-    Ok(receipt(arg, mref, &dest, already, &tokenizer_note))
+    Ok(receipt(
+        arg,
+        mref,
+        &dest,
+        already,
+        resumed_from,
+        &tokenizer_note,
+    ))
 }
 
-/// The pull receipt: where it landed + the exact next commands.
-fn receipt(arg: &str, mref: &ModelRef, dest: &Path, already: bool, tokenizer_note: &str) -> String {
-    let verb = if already { "present" } else { "pulled" };
+/// The pull receipt: where it landed + the exact next commands. A
+/// resumed transfer says so (`resumed at <offset>`) — the receipt is
+/// the surface scripts and logs read, and a resume must not read like
+/// a fresh pull (the live-Hub pin asserts this).
+fn receipt(
+    arg: &str,
+    mref: &ModelRef,
+    dest: &Path,
+    already: bool,
+    resumed_from: u64,
+    tokenizer_note: &str,
+) -> String {
+    let verb = if already {
+        "present".to_owned()
+    } else if resumed_from > 0 {
+        format!("pulled (resumed at {})", store::human_size(resumed_from))
+    } else {
+        "pulled".to_owned()
+    };
     format!(
         "{verb} {}\n  {}\n  serve it: nika model serve --model {arg}\n  manage:   nika \
          model list · nika model rm {arg}{tokenizer_note}",
@@ -919,10 +947,11 @@ mod tests {
         let http = StreamHttp::default().stream_ok(200, Some(9), &[b"hello ", b"wor", b""]);
         let root = temp_root("dl-happy");
         let puller = Puller::new(http, root.clone(), None, false);
-        let dest = puller
+        let (dest, resumed_from) = puller
             .download(&mref("u/m"), &entry("file", "w-q4_k_m.gguf", 9))
             .await
             .expect("download completes");
+        assert_eq!(resumed_from, 0, "a fresh pull reports no resume offset");
         assert_eq!(dest, root.join("u").join("m").join("w-q4_k_m.gguf"));
         assert_eq!(std::fs::read(&dest).expect("dest"), b"hello wor");
         assert!(
@@ -950,10 +979,11 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("dir");
         std::fs::write(dir.join("w.gguf.part"), b"hello").expect("part fixture");
         let puller = Puller::new(http, root.clone(), None, false);
-        let dest = puller
+        let (dest, resumed_from) = puller
             .download(&mref("u/m"), &entry("file", "w.gguf", 10))
             .await
             .expect("resume completes");
+        assert_eq!(resumed_from, 5, "the 206 resume reports its offset");
         assert_eq!(std::fs::read(&dest).expect("dest"), b"helloworld");
         assert!(!dir.join("w.gguf.part").exists(), ".part renamed away");
         let sent = puller.http.sent();
@@ -973,10 +1003,11 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("dir");
         std::fs::write(dir.join("w.gguf.part"), b"stale-part").expect("part fixture");
         let puller = Puller::new(http, root.clone(), None, false);
-        let dest = puller
+        let (dest, resumed_from) = puller
             .download(&mref("u/m"), &entry("file", "w.gguf", 5))
             .await
             .expect("restart completes");
+        assert_eq!(resumed_from, 0, "a 200 restart is not a resume");
         assert_eq!(std::fs::read(&dest).expect("dest"), b"fresh");
         let _ = std::fs::remove_dir_all(root);
     }
