@@ -122,7 +122,7 @@ enum Command {
     /// Offline · presence-only · always exit 0 — a greeting, not a gate.
     #[command(display_order = 40)]
     Welcome {
-        /// Emit the versioned machine mirror (`welcome_version: 1`).
+        /// Emit the versioned machine projection (`welcome_version: 1`).
         #[arg(long)]
         json: bool,
         /// The whole workspace truth (every workflow audited · recent
@@ -142,7 +142,7 @@ enum Command {
         /// Omitted with exactly one workflow here → that one is audited.
         #[arg(num_args = 0..)]
         files: Vec<String>,
-        /// Emit the machine-readable report (never coloured).
+        /// Emit the versioned machine projection (`report_version: 1`).
         #[arg(long)]
         json: bool,
         /// Print an inferred `permits:` boundary instead of the report.
@@ -199,7 +199,7 @@ enum Command {
         /// An error code (`NIKA-440` · bare `440` · `DAG-003`) or a
         /// workflow file path (`*.nika.yaml` · `-` reads stdin).
         code: String,
-        /// File form only: emit the versioned machine twin
+        /// File form only: emit the versioned machine projection
         /// (`explain_version: 1` · the check report's own vocabulary).
         #[arg(long)]
         json: bool,
@@ -217,7 +217,7 @@ enum Command {
         /// 300ms cap · nothing is sent on the socket). Offline without it.
         #[arg(long)]
         ping: bool,
-        /// Emit the findings as JSON (summary + findings[] · agents/CI
+        /// Emit the machine projection (summary + findings[] — agents/CI
         /// branch on `summary.fail` instead of parsing glyphs).
         #[arg(long)]
         json: bool,
