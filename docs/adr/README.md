@@ -40,25 +40,17 @@ Do **not** write an ADR for:
   member should be mentioned in at least one ADR (warn-only for now).
 - Future: integrate into the `crate-admit` skill as a soft-gate.
 
-## Index (updated on each new ADR)
+## Index
 
-| # | Title | Status | Date |
-|---|-------|--------|------|
-| [ADR-001](adr-001-diamond-orphan-branch.md) | Diamond orphan branch rewrite | Accepted | 2026-04-13 |
-| [ADR-002](adr-002-forever-v0x.md) | Forever v0.x release model | Accepted | 2026-04-13 |
-| [ADR-003](adr-003-12-gate-admission.md) | 12-gate crate admission protocol | Accepted | 2026-04-13 |
-| [ADR-004](adr-004-context-window-sized-crates.md) | Context-window-sized crate architecture (≤15k LOC, cap 100) | Accepted | 2026-04-13 |
-| [ADR-005](adr-005-error-hierarchy.md) | Trait-based error hierarchy (`NikaErrorCode` + `Box<dyn>`) | Accepted | 2026-04-13 |
-| [ADR-006](adr-006-layered-kernel-isp-traits.md) | Layered architecture + kernel ISP atomic traits + `trait_variant` | Accepted | 2026-04-13 |
-| [ADR-007](adr-007-forward-compat-invariants.md) | Forward-compat invariants (`#[non_exhaustive]` + `::new()` + pre-planted hooks) | Accepted | 2026-04-13 |
-| [ADR-008](adr-008-toml-driven-catalog.md) | TOML-driven catalog with build-time codegen | Accepted | 2026-04-14 |
-| [ADR-009](adr-009-adr-process.md) | ADR process + hook discipline (meta) | Accepted | 2026-04-14 |
-| [ADR-010](adr-010-miette-diagnostic-layer.md) | miette as the L4 diagnostic presentation layer | Accepted | 2026-04-14 |
-| [ADR-011](adr-011-cargo-xtask.md) | `cargo xtask` as canonical automation surface (spec) | Accepted | 2026-04-14 |
-| [ADR-012](adr-012-typestate-runtime.md) | Typestate for `nika-runtime` workflow lifecycle (spec) | Accepted | 2026-04-14 |
-| [ADR-013](adr-013-loom-concurrency-verification.md) | Loom-based concurrency verification (spec) | Accepted | 2026-04-14 |
-| [ADR-014](adr-014-sealed-kernel-traits.md) | Sealed kernel traits with explicit adapter registration | Accepted | 2026-04-14 |
-| [ADR-015](adr-015-expect-test-inline-snapshots.md) | `expect-test` for inline snapshot assertions on rendered output | Accepted | 2026-04-15 |
+The index is a PROJECTION, never hand-maintained (a hand copy froze at
+ADR-015 while the corpus grew to 67 — the drift this section replaces):
+
+- **machine**: [`index.json`](index.json) · [`index.toml`](index.toml) —
+  id · title · status · date · the full relation graph (supersedes ·
+  requires · enables · amends), regenerated from frontmatter via
+  `scripts/adr/generate-index.sh` on every ADR change.
+- **human**: `ls docs/adr/adr-*.md` — the filenames ARE the titles; each
+  file's frontmatter is the authoritative status.
 
 ## Pre-Diamond ADRs (legacy reference)
 
