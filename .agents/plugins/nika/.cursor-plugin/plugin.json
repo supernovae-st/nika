@@ -1,8 +1,8 @@
 {
   "name": "nika",
   "displayName": "Nika",
-  "description": "Author, debug, operate and migrate AI workflows as checkable .nika.yaml files. Bundles 4 skills, 3 subagents, 2 rules, 5 commands (/check, /explain, /new, /trace, /permits), 3 hooks (session context, check-on-edit, a guard that audits before any nika run) and the read-only Nika MCP oracle (8 tools). Requires the nika binary: brew install supernovae-st/tap/nika",
-  "version": "0.4.2",
+  "description": "Author, debug, operate and migrate AI workflows as checkable .nika.yaml files. Bundles 4 skills, 3 subagents, 2 rules, 5 commands (/check, /explain, /new, /trace, /permits), 3 hooks in both dialects — Cursor and Claude Code (session context, check-on-edit, a guard that audits before any nika run) and the read-only Nika MCP oracle (8 tools). Requires the nika binary: brew install supernovae-st/tap/nika",
+  "version": "0.5.0",
   "author": {
     "name": "SuperNovae Studio",
     "email": "nika@supernovae.studio"

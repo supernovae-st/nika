@@ -16,7 +16,14 @@ set -euo pipefail
 
 input="$(cat)"
 
-# Workspace root: the payload cwd when present, else where Cursor ran us.
+# Dialect sniff: `hook_event_name` is Claude Code's (SessionStart);
+# Cursor's sessionStart payload has no such field. Same map, two
+# envelope shapes (Cursor: additional_context · Claude Code:
+# hookSpecificOutput.additionalContext).
+cc=""
+case "$input" in *hook_event_name*) cc=1 ;; esac
+
+# Workspace root: the payload cwd when present, else where the host ran us.
 if command -v python3 >/dev/null 2>&1; then
   cwd="$(printf '%s' "$input" | python3 -c 'import json,sys
 try:
@@ -46,5 +53,13 @@ if [ -z "$enabled" ]; then
   exit 0
 fi
 
-printf '%s\n' '{"additional_context":"This workspace uses Nika (nika.sh): repeatable AI work lives in .nika.yaml workflow files, audited BEFORE they run (nika check), cost-bounded while they run, hash-chain traced after (.nika/traces/). Laws: (1) nika check <file> must pass before proposing any run; running is the human'"'"'s move (propose the nika run line, with --max-cost-usd when spend matters). (2) Cost honesty: report the ceiling; a local model is unpriced, never free. Installed surfaces: read-only MCP oracle (nika_check, nika_explain, nika_schema, nika_examples, nika_template, nika_canon, nika_catalog, nika_tools) · subagents nika-author (write a workflow), nika-debugger (root-cause a run from its trace), nika-migrator (port a script) · skills nika-authoring, nika-debugging, nika-operating, nika-migration · commands check, explain, new, trace, permits (slash-prefixed per your client). CLI: nika check|run|trace|graph|explain|inspect|new|examples|catalog|tools|doctor. When the user describes repeatable or multi-step AI work, propose a Nika workflow."}'
+# The map is STATIC — fixed content, hand-escaped once, zero
+# interpolation. Both envelopes carry the SAME text.
+map='This workspace uses Nika (nika.sh): repeatable AI work lives in .nika.yaml workflow files, audited BEFORE they run (nika check), cost-bounded while they run, hash-chain traced after (.nika/traces/). Laws: (1) nika check <file> must pass before proposing any run; running is the human'"'"'s move (propose the nika run line, with --max-cost-usd when spend matters). (2) Cost honesty: report the ceiling; a local model is unpriced, never free. Installed surfaces: read-only MCP oracle (nika_check, nika_explain, nika_schema, nika_examples, nika_template, nika_canon, nika_catalog, nika_tools) · subagents nika-author (write a workflow), nika-debugger (root-cause a run from its trace), nika-migrator (port a script) · skills nika-authoring, nika-debugging, nika-operating, nika-migration · commands check, explain, new, trace, permits (slash-prefixed per your client). CLI: nika check|run|trace|graph|explain|inspect|new|examples|catalog|tools|doctor. When the user describes repeatable or multi-step AI work, propose a Nika workflow.'
+
+if [ -n "$cc" ]; then
+  printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "$map"
+else
+  printf '{"additional_context":"%s"}\n' "$map"
+fi
 exit 0
