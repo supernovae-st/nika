@@ -450,6 +450,7 @@ pub const fn nika_display::theme::Theme::new(color: bool, ascii: bool, animate: 
 pub fn nika_display::theme::Theme::paint(&self, role: nika_display::theme::Role, text: &str) -> alloc::string::String
 pub fn nika_display::theme::Theme::sparkline(&self, samples: &[u64]) -> alloc::string::String
 pub fn nika_display::theme::Theme::verb_glyph(&self, verb: &str) -> alloc::string::String
+pub fn nika_display::theme::Theme::verb_glyph_bare(&self, verb: core::option::Option<&str>) -> &'static str
 pub fn nika_display::theme::Theme::verb_spin(&self, verb: core::option::Option<&str>, tick: usize) -> alloc::string::String
 impl core::clone::Clone for nika_display::theme::Theme
 pub fn nika_display::theme::Theme::clone(&self) -> nika_display::theme::Theme
@@ -519,4 +520,5 @@ pub fn nika_display::wires::WireGraph::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_display::wires::WireGraph where T: 'static
 pub fn nika_display::wires::WireGraph::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_display::wires::render(graph: &nika_display::wires::WireGraph, theme: nika_display::theme::Theme) -> core::option::Option<alloc::string::String>
-pub fn nika_display::wires::render_with(graph: &nika_display::wires::WireGraph, theme: nika_display::theme::Theme, node: &dyn core::ops::function::Fn(&str, &str) -> (alloc::string::String, alloc::string::String), live: core::option::Option<(&alloc::collections::btree::set::BTreeSet<alloc::string::String>, usize)>) -> core::option::Option<alloc::string::String>
+pub fn nika_display::wires::render_with(graph: &nika_display::wires::WireGraph, theme: nika_display::theme::Theme, node: &dyn core::ops::function::Fn(&str, &str) -> (alloc::string::String, alloc::string::String), live: core::option::Option<(nika_display::wires::LiveProbe<'_>, usize)>) -> core::option::Option<alloc::string::String>
+pub type nika_display::wires::LiveProbe<'a> = &'a dyn core::ops::function::Fn(&str) -> bool
