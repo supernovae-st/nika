@@ -94,6 +94,19 @@ pub fn lane_marks(view: &RunView) -> Vec<bool> {
         .collect()
 }
 
+/// The verb chip in front of a gantt lane id (accents only — sober
+/// gantts keep their historical bytes): the timeline speaks the same
+/// 4-verb vocabulary as the storyboard rows above it.
+fn lane_chip(row: &TaskRow, theme: Theme) -> String {
+    if !theme.accents {
+        return String::new();
+    }
+    row.started_note
+        .as_deref()
+        .and_then(|n| n.split(" · ").next())
+        .map_or_else(|| "  ".to_owned(), |v| theme.verb_glyph(v))
+}
+
 /// The post-run waterfall (design §2c): one wall-time-scaled bar per task
 /// that RAN, offsets showing the REAL overlap — a pure fold of the trace
 /// (the same interval reconstruction as the lane markers · zero new
@@ -138,6 +151,7 @@ pub fn waterfall(view: &RunView, theme: &Theme) -> Vec<String> {
         .map(|(r, _)| r.id.chars().count())
         .max()
         .unwrap_or(0);
+
     let durs: Vec<String> = ran
         .iter()
         .map(|(_, iv)| fmt_wall_ms(u64::try_from(iv.end.saturating_sub(iv.start)).unwrap_or(0)))
@@ -168,7 +182,8 @@ pub fn waterfall(view: &RunView, theme: &Theme) -> Vec<String> {
             theme.paint(role, &bar_raw)
         };
         let mut line = format!(
-            "  {:<id_w$}  {edge_l}{}{painted}{edge_r}",
+            "  {}{:<id_w$}  {edge_l}{}{painted}{edge_r}",
+            lane_chip(row, *theme),
             row.id,
             " ".repeat(off),
         );

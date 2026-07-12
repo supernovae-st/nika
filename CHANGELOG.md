@@ -40,7 +40,9 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   wave-column line stands down to it) — and the INCOMING edge pulses:
   the rail segment feeding a running node cycles density (`──╍▶` ·
   Accent) so the map shows where the run's energy flows; a still map
-  is byte-stable under ticks (no idle flicker · law-tested).
+  is byte-stable under ticks (no idle flicker · law-tested), and the
+  flow gantt's lanes wear their verb chips (`◆ discover ▕██▏` — the
+  timeline speaks the same 4-verb vocabulary as the rows).
   Interactive surfaces only; every sober register byte-intact.
 
 - **One source of truth for the corpus — the loose engine copies die**
