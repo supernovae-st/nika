@@ -34,7 +34,10 @@ oracle; the human runs it.
    not pass `nika check`** — and pass `--native-strict` too, unless
    every remaining `exec:` is in the exec ledger (below).
 6. The human (or CI) runs it: `nika run <file>`. Preview offline with
-   `--model mock/echo`; run locally with `--model ollama/<model>`.
+   `--model mock/echo`; run locally with `--model ollama/<model>` —
+   or fully in-binary: `nika model pull <owner/repo-GGUF>` then
+   `nika model serve --model <id>` (qwen3-family GGUFs today; the
+   serve banner prints the exact env + `model:` line workflows use).
    Inputs ride `--var key=value` (repeatable · unknown keys refused);
    a run paused on a `nika:prompt` resumes with
    `nika run <file> --resume <trace> --answer <task>=<value>`
@@ -111,6 +114,11 @@ Every surviving `exec:` gets a row in the workflow's header comment:
 
 - References: `${{ tasks.<id>.output }}` · `${{ vars.x }}` ·
   `${{ env.KEY }}` · `${{ secrets.X }}` (never inline a credential).
+- In `outputs:` bind `${{ tasks.<id>.output }}` — never the bare
+  `${{ tasks.<id> }}`: that binds the ENVELOPE (status + timestamps),
+  so `nika test` goldens drift red on every run. `nika check` teaches
+  this as `[envelope-output]`; fix the binding, never re-baseline
+  around it.
 - A task that reads another task's output MUST declare it in
   `depends_on: [<id>]`.
 - Models are `provider/name` (`ollama/llama3.2:3b` local-first ·
