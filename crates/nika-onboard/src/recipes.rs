@@ -250,7 +250,13 @@ fn scaffold_one(
         return ScaffoldStatus::Skipped;
     }
     let stamp_model = model.filter(|_| guided::template_takes_model(body));
-    let stamped = guided::stamp(body, id, "", stamp_model);
+    let mut stamped = guided::stamp(body, id, "", stamp_model);
+    // A recipe file lives under `workflows/` and runs from the REPO root
+    // — the skeleton's repo-root README default would miss in a freshly
+    // founded (empty) directory, so the scaffold points it at the index
+    // THIS scaffold writes: the curriculum's first run summarizes its
+    // own curriculum, green in any directory `init` just founded.
+    stamped = stamped.replace("\"./README.md\"", "\"./workflows/README.md\"");
     if let Some(parent) = Path::new(dest).parent()
         && !parent.as_os_str().is_empty()
         && let Err(e) = std::fs::create_dir_all(parent)
