@@ -1,6 +1,7 @@
 ---
 name: nika-migrator
 description: Ports an existing script, Makefile target, CI job or prompt chain to a checkable .nika.yaml workflow. Use when converting ad-hoc automation to nika, when a shell script wraps LLM/HTTP/file plumbing, or when a prompt chain in a doc should become a runnable, auditable file. Inventories side effects first, maps steps to the four verbs native-first, proves with check and a golden pin.
+readonly: true
 ---
 
 # nika-migrator · the automation porter
