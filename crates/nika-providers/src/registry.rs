@@ -208,10 +208,11 @@ where
         let key = self.config.keys.get(profile.id).cloned();
         if profile.requires_key && key.is_none() {
             let ladder = profile.env_candidates();
+            // Operator voice only — the embedder's road (`ProvidersConfig::
+            // with_key`) lives in rustdoc, never in a rendered error.
             return Err(ProviderError::AuthFailed {
                 reason: format!(
-                    "no API key for '{}' · set one of [{}] (e.g. `export {}=…`) or inject via \
-                     ProvidersConfig::with_key",
+                    "no API key for '{}' · set one of [{}] (e.g. `export {}=…`)",
                     profile.id,
                     ladder.join(", "),
                     ladder.last().map_or("", String::as_str),
