@@ -1,0 +1,48 @@
+impl core::error::Error for nika_registry_client::RegistryError
+impl core::fmt::Debug for nika_registry_client::RegistryError
+impl core::fmt::Debug for nika_registry_client::Resolved
+impl core::fmt::Display for nika_registry_client::RegistryError
+impl core::marker::Freeze for nika_registry_client::RegistryError
+impl core::marker::Freeze for nika_registry_client::Resolved
+impl core::marker::Send for nika_registry_client::RegistryError
+impl core::marker::Send for nika_registry_client::Resolved
+impl core::marker::Sync for nika_registry_client::RegistryError
+impl core::marker::Sync for nika_registry_client::Resolved
+impl core::marker::Unpin for nika_registry_client::RegistryError
+impl core::marker::Unpin for nika_registry_client::Resolved
+impl core::marker::UnsafeUnpin for nika_registry_client::RegistryError
+impl core::marker::UnsafeUnpin for nika_registry_client::Resolved
+impl core::panic::unwind_safe::RefUnwindSafe for nika_registry_client::RegistryError
+impl core::panic::unwind_safe::RefUnwindSafe for nika_registry_client::Resolved
+impl core::panic::unwind_safe::UnwindSafe for nika_registry_client::RegistryError
+impl core::panic::unwind_safe::UnwindSafe for nika_registry_client::Resolved
+impl nika_registry_client::RegistryError
+impl nika_registry_client::Resolved
+impl<H: nika_kernel_core::io::http::HttpGetDyn> nika_registry_client::RegistryClient<H>
+impl<H> core::marker::Freeze for nika_registry_client::RegistryClient<H> where H: core::marker::Freeze
+impl<H> core::marker::Send for nika_registry_client::RegistryClient<H> where H: core::marker::Send
+impl<H> core::marker::Sync for nika_registry_client::RegistryClient<H> where H: core::marker::Sync
+impl<H> core::marker::Unpin for nika_registry_client::RegistryClient<H> where H: core::marker::Unpin
+impl<H> core::marker::UnsafeUnpin for nika_registry_client::RegistryClient<H> where H: core::marker::UnsafeUnpin
+impl<H> core::panic::unwind_safe::RefUnwindSafe for nika_registry_client::RegistryClient<H> where H: core::panic::unwind_safe::RefUnwindSafe
+impl<H> core::panic::unwind_safe::UnwindSafe for nika_registry_client::RegistryClient<H> where H: core::panic::unwind_safe::UnwindSafe
+pub async fn nika_registry_client::RegistryClient<H>::resolve(&self, arg: &str) -> core::result::Result<nika_registry_client::Resolved, nika_registry_client::RegistryError>
+pub const nika_registry_client::MAX_INDEX_BYTES: usize
+pub fn nika_registry_client::default_cache_root() -> core::result::Result<std::path::PathBuf, nika_registry_client::RegistryError>
+pub fn nika_registry_client::is_registry_ref(arg: &str) -> bool
+pub fn nika_registry_client::RegistryClient<H>::new(http: H, cache_root: std::path::PathBuf) -> Self
+pub fn nika_registry_client::RegistryError::code(&self) -> core::option::Option<&'static str>
+pub fn nika_registry_client::RegistryError::env(why: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_registry_client::RegistryError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn nika_registry_client::RegistryError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn nika_registry_client::Resolved::describe(&self) -> alloc::string::String
+pub fn nika_registry_client::Resolved::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub mod nika_registry_client
+pub nika_registry_client::Resolved::coordinate: alloc::string::String
+pub nika_registry_client::Resolved::fetched: bool
+pub nika_registry_client::Resolved::path: std::path::PathBuf
+pub nika_registry_client::Resolved::pinned: bool
+pub nika_registry_client::Resolved::sha256: alloc::string::String
+pub struct nika_registry_client::RegistryClient<H>
+pub struct nika_registry_client::RegistryError
+pub struct nika_registry_client::Resolved
