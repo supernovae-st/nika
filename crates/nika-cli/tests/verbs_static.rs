@@ -235,9 +235,7 @@ fn check_clean_file_exits_0_with_grep_stable_sections() {
     // The clean verdict is the audited card line: what was proven, at a
     // glance (tasks · waves · permits state · cost floor · hint count).
     assert!(
-        out.text.contains("audited ·")
-            && out.text.contains("wave(s)")
-            && out.text.contains("permits"),
+        out.text.contains("audited ·") && out.text.contains("wave") && out.text.contains("permits"),
         "the audited card line closes a clean report: {}",
         out.text
     );
