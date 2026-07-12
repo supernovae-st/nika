@@ -564,32 +564,45 @@ impl<W: Write> FoldSink<W> {
             .collect();
         let theme = self.theme;
         let tick = self.tick;
-        crate::wires::render_with(doc, waves, theme, &move |id, verb| {
-            use crate::display::state::TaskState;
-            let row = states.get(id).copied();
-            match row.map(|r| &r.state) {
-                Some(TaskState::Running) => (
-                    theme.verb_spin(Some(verb), tick),
-                    theme.paint(crate::display::theme::Role::Strong, id),
-                ),
-                Some(TaskState::Ok) => (
-                    theme.verb_glyph(verb),
-                    theme.paint(crate::display::theme::Role::Good, id),
-                ),
-                Some(TaskState::Failed) => (
-                    theme.verb_glyph(verb),
-                    theme.paint(crate::display::theme::Role::Bad, id),
-                ),
-                Some(TaskState::Skipped | TaskState::Cancelled) => (
-                    theme.paint(crate::display::theme::Role::Dim, "⊘ "),
-                    theme.paint(crate::display::theme::Role::Dim, id),
-                ),
-                _ => (
-                    theme.paint(crate::display::theme::Role::Dim, "· "),
-                    theme.paint(crate::display::theme::Role::Dim, id),
-                ),
-            }
-        })
+        let running: std::collections::BTreeSet<String> = self
+            .view
+            .rows()
+            .iter()
+            .filter(|r| matches!(r.state, crate::display::state::TaskState::Running))
+            .map(|r| r.id.clone())
+            .collect();
+        crate::wires::render_with(
+            doc,
+            waves,
+            theme,
+            &move |id, verb| {
+                use crate::display::state::TaskState;
+                let row = states.get(id).copied();
+                match row.map(|r| &r.state) {
+                    Some(TaskState::Running) => (
+                        theme.verb_spin(Some(verb), tick),
+                        theme.paint(crate::display::theme::Role::Strong, id),
+                    ),
+                    Some(TaskState::Ok) => (
+                        theme.verb_glyph(verb),
+                        theme.paint(crate::display::theme::Role::Good, id),
+                    ),
+                    Some(TaskState::Failed) => (
+                        theme.verb_glyph(verb),
+                        theme.paint(crate::display::theme::Role::Bad, id),
+                    ),
+                    Some(TaskState::Skipped | TaskState::Cancelled) => (
+                        theme.paint(crate::display::theme::Role::Dim, "⊘ "),
+                        theme.paint(crate::display::theme::Role::Dim, id),
+                    ),
+                    _ => (
+                        theme.paint(crate::display::theme::Role::Dim, "· "),
+                        theme.paint(crate::display::theme::Role::Dim, id),
+                    ),
+                }
+            },
+            Some((&running, tick)),
+        )
     }
 
     fn repaint(&mut self) -> std::io::Result<()> {

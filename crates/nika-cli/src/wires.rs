@@ -40,9 +40,13 @@ type GutterEdges = Vec<(usize, usize)>;
 /// falls back — never a wrong picture).
 #[must_use]
 pub(crate) fn render(doc: &GraphDoc, waves: &[Vec<usize>], theme: Theme) -> Option<String> {
-    render_with(doc, waves, theme, &|id, verb| {
-        (theme.verb_glyph(verb), id.to_owned())
-    })
+    render_with(
+        doc,
+        waves,
+        theme,
+        &|id, verb| (theme.verb_glyph(verb), id.to_owned()),
+        None,
+    )
 }
 
 /// The same wire drawing with the NODE PAINTER injected — the live run
@@ -56,6 +60,7 @@ pub(crate) fn render_with(
     waves: &[Vec<usize>],
     theme: Theme,
     node: &dyn Fn(&str, &str) -> (String, String),
+    live: Option<(&std::collections::BTreeSet<String>, usize)>,
 ) -> Option<String> {
     if waves.is_empty() || waves.iter().any(|w| w.is_empty() || w.len() > MAX_ROWS) {
         return None;
@@ -90,19 +95,7 @@ pub(crate) fn render_with(
     // (id, verb) pairs — the verb rides as the tokens-SSOT glyph chip
     // (◇▷◆✦ · 2 cells) in front of every id; width math counts the RAW
     // cells (paint after measuring · theme.rs law).
-    let labels: Vec<Vec<(&str, &str)>> = {
-        let mut out = Vec::new();
-        let mut cursor = 0usize;
-        for wave in waves {
-            let col: Vec<(&str, &str)> = doc.nodes[cursor..cursor + wave.len()]
-                .iter()
-                .map(|n| (n.id.as_str(), n.verb))
-                .collect();
-            cursor += wave.len();
-            out.push(col);
-        }
-        out
-    };
+    let labels = wave_labels(doc, waves);
     let widths: Vec<usize> = labels
         .iter()
         .map(|col| {
@@ -118,29 +111,72 @@ pub(crate) fn render_with(
         return None;
     }
 
+    let hot = hot_rows(&coords, gutters.len(), live);
+    let tick = live.map_or(0, |(_, t)| t);
     let g = Glyphs::for_theme(theme);
     let mut lines = Vec::with_capacity(rows);
     for row in 0..rows {
-        let mut line = String::from("  ");
+        let mut wire_row = String::from("  ");
         for (w, col) in labels.iter().enumerate() {
             let (id, verb) = col.get(row).copied().unwrap_or(("", ""));
             let pad = widths[w] - (2 + id.chars().count());
             if id.is_empty() {
-                line.push_str("  ");
-                line.push_str(&" ".repeat(pad));
+                wire_row.push_str("  ");
+                wire_row.push_str(&" ".repeat(pad));
             } else {
                 let (chip, painted_id) = node(id, verb);
-                line.push_str(&chip);
-                line.push_str(&painted_id);
-                line.push_str(&" ".repeat(pad));
+                wire_row.push_str(&chip);
+                wire_row.push_str(&painted_id);
+                wire_row.push_str(&" ".repeat(pad));
             }
             if w < gutters.len() {
-                line.push_str(&gutter_cell(&gutters[w], &spans[w], row, theme, &g));
+                wire_row.push_str(&gutter_cell(
+                    &gutters[w],
+                    &spans[w],
+                    row,
+                    theme,
+                    &g,
+                    hot[w].contains(&row).then_some(tick),
+                ));
             }
         }
-        lines.push(line.trim_end().to_owned());
+        lines.push(wire_row.trim_end().to_owned());
     }
     Some(lines.join("\n"))
+}
+
+/// The (id · verb) columns, wave by wave — the projection order law
+/// (node order IS wave order · the same slicing inspect trusts).
+fn wave_labels<'d>(doc: &'d GraphDoc, waves: &[Vec<usize>]) -> Vec<Vec<(&'d str, &'d str)>> {
+    let mut out = Vec::new();
+    let mut cursor = 0usize;
+    for wave in waves {
+        let col: Vec<(&str, &str)> = doc.nodes[cursor..cursor + wave.len()]
+            .iter()
+            .map(|n| (n.id.as_str(), n.verb))
+            .collect();
+        cursor += wave.len();
+        out.push(col);
+    }
+    out
+}
+
+/// Which rows of wave w+1 hold a RUNNING node — those gutters' target
+/// cells pulse (the incoming edge carries the run's energy).
+fn hot_rows(
+    coords: &std::collections::BTreeMap<&str, (usize, usize)>,
+    gutter_count: usize,
+    live: Option<(&std::collections::BTreeSet<String>, usize)>,
+) -> Vec<std::collections::BTreeSet<usize>> {
+    let mut hot = vec![std::collections::BTreeSet::new(); gutter_count];
+    if let Some((running, _)) = live {
+        for (id, &(w, r)) in coords {
+            if w > 0 && running.contains(*id) {
+                hot[w - 1].insert(r);
+            }
+        }
+    }
+    hot
 }
 
 /// The honesty check for one gutter: group its edges into connected
@@ -211,6 +247,12 @@ fn honest_gutter(edges: &GutterEdges) -> Option<Vec<(usize, usize)>> {
 }
 
 /// The glyph column — unicode default, ASCII first-class.
+/// The energy flowing INTO a running node — the incoming rail's last
+/// segment cycles density (unicode) or dashes (ascii twin), painted
+/// Accent: the map shows WHERE the run is spending its now.
+const PULSE: [char; 4] = ['╍', '╌', '┄', '┈'];
+const PULSE_ASCII: [char; 4] = ['=', '-', '~', '-'];
+
 struct Glyphs {
     h: char,
     v: char,
@@ -274,6 +316,7 @@ fn gutter_cell(
     row: usize,
     theme: Theme,
     g: &Glyphs,
+    pulse_tick: Option<usize>,
 ) -> String {
     let is_source = edges.iter().any(|&(fr, _)| fr == row);
     let is_target = edges.iter().any(|&(_, tr)| tr == row);
@@ -306,6 +349,19 @@ fn gutter_cell(
     } else {
         (' ', ' ')
     };
+    // The pulse: this row's target node is RUNNING — the last rail
+    // segment + arrowhead cycle density, painted Accent (energy in
+    // motion); the cold part of the cell stays one Dim chrome run.
+    if let (Some(tick), true) = (pulse_tick, is_target) {
+        let frames = if theme.ascii { PULSE_ASCII } else { PULSE };
+        let cold: String = [' ', left, junction].iter().collect();
+        let warm: String = [frames[tick % frames.len()], g.arrow, ' '].iter().collect();
+        return format!(
+            "{}{}",
+            theme.paint(Role::Dim, &cold),
+            theme.paint(Role::Accent, &warm)
+        );
+    }
     let raw: String = [' ', left, junction, right, head, ' '].iter().collect();
     theme.paint(Role::Dim, &raw)
 }
@@ -368,6 +424,44 @@ mod tests {
         );
         // A partial fan (2 sources × 2 targets · 3 edges) → refuse.
         assert!(honest_gutter(&vec![(0, 0), (0, 1), (1, 1)]).is_none());
+    }
+
+    /// The incoming rail's last segment cycles while its target runs —
+    /// and a still map is byte-stable under ticks (no idle flicker).
+    #[test]
+    fn the_incoming_edge_pulses_into_the_running_node() {
+        let path = fixture(&wf(&[exec_task("a", &[]), exec_task("b", &["a"])]));
+        let (wf_, report) = load_checked(&path.to_string_lossy()).expect("checked");
+        let doc = project(&wf_, &report);
+        let theme = Theme::new(false, false, false);
+        let running: std::collections::BTreeSet<String> = ["b".to_owned()].into();
+        let node = |id: &str, verb: &str| (theme.verb_glyph(verb), id.to_owned());
+
+        let t0 = render_with(&doc, &report.waves, theme, &node, Some((&running, 0))).expect("art");
+        let t1 = render_with(&doc, &report.waves, theme, &node, Some((&running, 1))).expect("art");
+        assert!(
+            t0.contains('╍') && t1.contains('╌'),
+            "the pulse cycles: {t0} | {t1}"
+        );
+        assert_ne!(t0, t1, "two ticks · two frames");
+
+        // Nothing running → the cold rail, byte-stable under ticks.
+        let cold0 = render_with(
+            &doc,
+            &report.waves,
+            theme,
+            &node,
+            Some((&std::collections::BTreeSet::new(), 0)),
+        );
+        let cold9 = render_with(
+            &doc,
+            &report.waves,
+            theme,
+            &node,
+            Some((&std::collections::BTreeSet::new(), 9)),
+        );
+        assert_eq!(cold0, cold9, "a still map never flickers");
+        std::fs::remove_file(&path).ok();
     }
 
     #[test]
