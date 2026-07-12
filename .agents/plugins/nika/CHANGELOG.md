@@ -3,6 +3,24 @@
 The bundle every marketplace installs (Claude Code · Codex · Cursor).
 Versions move together across all manifests (the mirror gate pins it).
 
+## 0.4.2 — 2026-07-12
+
+Deep-verify patch — each fix is a gap found by checking the kit
+against the RELEASED binary and its own manifests:
+
+- nika-debugging: traces are addressed by store path
+  (`.nika/traces/<name>`) — `trace ls` prints bare names but the
+  released readers take paths (bare names join the next release); a
+  failed run's card already carries the full path (`autopsy:` line),
+  taught as step 0.
+- nika-migration: the mapping table learns `retry:`
+  (max_attempts · backoff_strategy · jitter — confirmed live) for the
+  script-side retry/backoff loop.
+- session-context hook: commands named without a slash scheme
+  ("check, explain, new, trace, permits — slash-prefixed per your
+  client") — the map said /nika:* while the Cursor manifest says
+  /check; naming the scheme was the one claim the kit could not prove.
+
 ## 0.4.1 — 2026-07-12
 
 Everything in this patch was earned by a fresh-user gauntlet run

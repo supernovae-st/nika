@@ -32,6 +32,7 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 | in-place file edits | `nika:edit` |
 | the LLM call (SDK, `curl` to an API) | `infer:` with `prompt`, `schema?`, `max_tokens` |
 | an agent loop (retry-until-good) | `agent:` with `tools` allowlist + `max_turns` |
+| a retry/backoff loop around a flaky call | `retry:` on the task — `max_attempts` + `backoff_strategy: exponential` + `jitter: true` (transient provider/network errors only; a wrong prompt never heals by retry) |
 | `for item in …` | `for_each:` fan-out |
 | `if <condition>` | a `when:` gate |
 | `$1`, `$ENV_VAR` parameters | `vars:` + `--var key=value` · `${{ env.KEY }}` |

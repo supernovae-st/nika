@@ -11,9 +11,14 @@ a memory of the terminal scroll.
 
 ## The forensic loop (evidence first)
 
+0. **A failed run already names its trace**: the card's `autopsy:`
+   line carries the FULL trace path — start there when you have it.
 1. **Locate the run**: `nika trace ls` — age · size · workflow ·
    terminal state (completed/failed/paused) · `★` marks the newest
-   trace of each workflow (the resume candidate).
+   trace of each workflow (the resume candidate). Address a trace by
+   its store path — `.nika/traces/<name>` — everywhere below (`ls`
+   prints bare names; the readers take the path form on every
+   version).
 2. **Read the card**: `nika trace show <trace>` — the final verdict,
    the waves, per-task outcome. `nika trace replay <trace>` re-renders
    the run live (replay = re-render, NEVER re-execute).
