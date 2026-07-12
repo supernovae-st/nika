@@ -473,7 +473,7 @@ fn new_refuses_gibberish_and_names_the_set() {
         false,
     );
     assert_eq!(out.code, exit::FILE);
-    assert!(out.text.contains("unknown template"));
+    assert!(out.text.contains("no template or intent matches"));
     assert!(out.text.contains("embedded set:"));
 }
 

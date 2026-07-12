@@ -836,7 +836,7 @@ fn main() -> std::process::ExitCode {
         Command::Model { action } => model_verb(action),
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
         Command::Schema => emit(&verbs::pack_surface::schema()),
-        Command::Catalog { json } => emit(&verbs::catalog::run(json)),
+        Command::Catalog { json } => emit(&verbs::catalog::run(json, plain_theme)),
         Command::Tools { json } => emit(&verbs::tools::run(json, plain_theme)),
         Command::Examples { action } => examples_verb(action, plain_theme),
         Command::New { from, dest, force } => emit(&verbs::new::dispatch(

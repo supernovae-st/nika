@@ -18,11 +18,13 @@
 
 use nika_catalog::export::{CatalogExport, ProviderExport, catalog_export};
 
+use crate::display::chrome;
+use crate::display::theme::{Role, Theme};
 use crate::verbs::VerbOutput;
 
 /// `nika catalog` — human listing, or the `--json` machine projection.
 #[must_use]
-pub fn run(json: bool) -> VerbOutput {
+pub fn run(json: bool, theme: Theme) -> VerbOutput {
     let export = catalog_export();
     if json {
         return match serde_json::to_string_pretty(&export) {
@@ -30,11 +32,11 @@ pub fn run(json: bool) -> VerbOutput {
             Err(e) => VerbOutput::env(format!("catalog projection failed: {e}")),
         };
     }
-    VerbOutput::ok(human_listing(&export))
+    VerbOutput::ok(human_listing(&export, theme))
 }
 
 /// The human teaching listing — sections LOCAL then CLOUD, doctrine order.
-fn human_listing(export: &CatalogExport) -> String {
+fn human_listing(export: &CatalogExport, theme: Theme) -> String {
     let providers = export.providers.len();
     let models: usize = export.providers.iter().map(|p| p.models.len()).sum();
 
@@ -45,9 +47,11 @@ fn human_listing(export: &CatalogExport) -> String {
 
     let mut out =
         format!("nika catalog — {providers} providers · {models} models (embedded · offline)\n");
-    out.push_str("\nLOCAL (zero key · zero network)\n");
+    out.push('\n');
+    out.push_str(&chrome::rail_head(theme, "LOCAL (zero key · zero network)"));
+    out.push('\n');
     for p in local {
-        out.push_str(&provider_line(p));
+        out.push_str(&provider_line(p, theme));
     }
     // The runtime-resolvable engines the catalog DATA does not carry yet
     // (the local five today) — taught in the LOCAL block so the sovereign
@@ -66,9 +70,14 @@ fn human_listing(export: &CatalogExport) -> String {
             runtime_only.join(" · "),
         );
     }
-    out.push_str("\nCLOUD (key named by env var · the value is never read here)\n");
+    out.push('\n');
+    out.push_str(&chrome::rail_head(
+        theme,
+        "CLOUD (key named by env var · the value is never read here)",
+    ));
+    out.push('\n');
     for p in cloud {
-        out.push_str(&provider_line(p));
+        out.push_str(&provider_line(p, theme));
     }
     out.push_str(
         "\nnika catalog --json → the machine projection (models · capabilities · context windows)",
@@ -89,9 +98,19 @@ fn cloud_rank(id: &str) -> (u8, &str) {
 }
 
 /// One provider line of the human listing.
-fn provider_line(p: &ProviderExport) -> String {
+fn provider_line(p: &ProviderExport, theme: Theme) -> String {
     let key = if p.requires_key { p.env_var } else { "no key" };
-    format!("  {:<14} {:>2} models · {key}\n", p.id, p.models.len())
+    format!(
+        "{}\n",
+        chrome::rail_line(
+            theme,
+            &format!(
+                " {}{}",
+                theme.paint(Role::Strong, &format!("{:<14}", p.id)),
+                theme.paint(Role::Dim, &format!(" {:>2} models · {key}", p.models.len())),
+            ),
+        )
+    )
 }
 
 #[cfg(test)]
@@ -100,9 +119,11 @@ mod tests {
     use super::*;
     use crate::verbs::exit;
 
+    const PLAIN: Theme = Theme::new(false, false, false);
+
     #[test]
     fn json_surface_is_the_versioned_catalog() {
-        let out = run(true);
+        let out = run(true, PLAIN);
         assert_eq!(out.code, exit::OK);
         let value: serde_json::Value =
             serde_json::from_str(&out.text).expect("--json emits parseable JSON");
@@ -117,7 +138,7 @@ mod tests {
 
     #[test]
     fn human_surface_is_local_first_with_the_doctrine_cloud_order() {
-        let out = run(false);
+        let out = run(false, PLAIN);
         assert_eq!(out.code, exit::OK);
         let text = out.text;
         let local = text.find("LOCAL").expect("a LOCAL section");
@@ -125,7 +146,8 @@ mod tests {
         assert!(local < cloud, "local providers lead the teaching surface");
         // The doctrine head order within CLOUD: mistral → anthropic → openai.
         let pos = |id: &str| {
-            text.find(&format!("\n  {id}"))
+            // The rail grammar: `│  <id>` opens every provider row.
+            text.find(&format!("\n\u{2502}  {id}"))
                 .unwrap_or_else(|| panic!("provider `{id}` missing from the listing"))
         };
         assert!(pos("mistral") < pos("anthropic"), "mistral leads anthropic");
@@ -149,7 +171,7 @@ mod tests {
     #[test]
     fn human_listing_counts_agree_with_the_projection() {
         let export = catalog_export();
-        let text = human_listing(&export);
+        let text = human_listing(&export, PLAIN);
         let providers = export.providers.len();
         let models: usize = export.providers.iter().map(|p| p.models.len()).sum();
         assert!(

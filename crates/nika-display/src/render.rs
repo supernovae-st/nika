@@ -116,6 +116,28 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
 
     lines.extend(warning_lines(view, theme));
     lines.push(meter_line(view, theme));
+    // The HUD bar under the meter — interactive surface only (the
+    // sober registers keep the meter as their last line, byte-exact).
+    if theme.accents {
+        let done = view
+            .rows()
+            .iter()
+            .filter(|r| {
+                matches!(
+                    r.state,
+                    TaskState::Ok | TaskState::Failed | TaskState::Skipped | TaskState::Cancelled
+                )
+            })
+            .count();
+        let total = view.rows().len();
+        if total > 1 {
+            lines.push(format!(
+                "  {} {}",
+                crate::chrome::bar(*theme, done, total, 24),
+                theme.paint(Role::Dim, &format!("{done}/{total}")),
+            ));
+        }
+    }
 
     // Failure card (only on a failed verdict · derives the explain hint) —
     // the SAME card the compact `--quiet` surface renders (shared helper).
@@ -336,8 +358,24 @@ fn task_line(
             note = format!("{note} {spark}");
         }
     }
+    // The verb chip (tokens-SSOT ◇▷◆✦) rides the INTERACTIVE surface
+    // only (`accents` = Live TTY): every sober register keeps its exact
+    // bytes. Derived from the started note's own vocabulary (`infer ·
+    // <model>`); a not-yet-started row wears the dim placeholder so the
+    // column never jitters.
+    let chip = if theme.accents {
+        row.started_note
+            .as_deref()
+            .and_then(|n| n.split(" \u{b7} ").next())
+            .map_or_else(
+                || theme.paint(Role::Dim, "\u{b7} "),
+                |v| theme.verb_glyph(v),
+            )
+    } else {
+        String::new()
+    };
     let mut line = format!(
-        "  {} {:<id_w$}  {}",
+        "  {} {chip}{:<id_w$}  {}",
         row_glyph(row, theme, tick),
         row.id,
         theme.paint(Role::Dim, &note),
@@ -967,12 +1005,20 @@ mod tests {
         let mut accented = Theme::new(true, false, false);
         accented.accents = true;
         let lines = frame(&view, &accented, 0);
-        let c_row = lines.iter().find(|l| l.contains(" c ")).expect("c row");
+        // Row lookup by each row's UNIQUE duration cell (the accents
+        // chip is painted — raw-line token probes proved brittle).
+        let c_row = lines
+            .iter()
+            .find(|l| l.contains("1m40s"))
+            .expect("c row (the 100s task)");
         assert!(
             c_row.contains("\x1b[33m") && c_row.contains("slow"),
             "the slow task self-identifies in yellow: {c_row:?}"
         );
-        let a_row = lines.iter().find(|l| l.contains(" a ")).expect("a row");
+        let a_row = lines
+            .iter()
+            .find(|l| l.contains("[ 1.0s]"))
+            .expect("a row (the 1.0s task)");
         assert!(
             !a_row.contains("slow") && !a_row.contains("\x1b[33m"),
             "median-scale siblings stay quiet: {a_row:?}"
@@ -1235,5 +1281,38 @@ mod tests {
             "headline + explain hint for the ONE failed row only: {lines:?}"
         );
         assert!(card_lines[0].contains("NIKA-440"));
+    }
+
+    /// The interactive extras (verb chip column · HUD bar) exist ONLY
+    /// on the accents surface — sober frames keep their exact bytes,
+    /// and the chip speaks the started note's own verb vocabulary.
+    #[test]
+    fn accents_surface_gains_verb_chips_and_the_hud_bar() {
+        let mut view = RunView::new();
+        for ev in demo::success() {
+            view.apply(&ev);
+        }
+        let sober = Theme::new(false, false, false);
+        let plain_frame = frame(&view, &sober, 0).join("\n");
+        assert!(!plain_frame.contains('\u{25c6}'), "no chips off-accents");
+        assert!(!plain_frame.contains('\u{2578}'), "no bar off-accents");
+
+        let mut live = Theme::new(false, false, false);
+        live.accents = true;
+        let lines = frame(&view, &live, 0);
+        let text = lines.join("\n");
+        // demo::success starts `fetch` with `invoke · nika:fetch` → ◆.
+        assert!(
+            text.contains("\u{25c6} fetch"),
+            "the invoke chip rides its row: {text}"
+        );
+        // The HUD bar closes the frame (all settled → full bar, count).
+        let total = view.rows().len();
+        assert!(
+            lines
+                .last()
+                .is_some_and(|l| l.contains(&format!("{total}/{total}"))),
+            "the bar line carries the count: {lines:?}"
+        );
     }
 }
