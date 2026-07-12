@@ -35,7 +35,7 @@ brew install supernovae-st/tap/nika   # the binary first; the plugin invokes it
 
 No plugin store to audit on the workflow side either: everything
 callable is a tool under `invoke:`, and the engine ships its own
-[standard library](https://nika.sh/tools).
+[builtin library](https://nika.sh/tools).
 
 ## Links
 
