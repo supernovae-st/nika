@@ -67,7 +67,7 @@ struct Cli {
     #[arg(long, global = true, display_order = 902)]
     plain: bool,
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -764,11 +764,28 @@ impl Cli {
     }
 }
 
+/// Bare `nika` on a terminal is the CONCIERGE: the welcome card (what
+/// this machine has · where you are · the next gesture) — the first
+/// keystroke answers with a gesture, not a wall. Pipes/scripts keep the
+/// full usage + exit 2 (a bare `nika` in a script is a usage error; the
+/// sober register never changes shape).
+fn concierge(plain_theme: Theme) -> std::process::ExitCode {
+    if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+        return emit(&verbs::welcome::run(false, plain_theme)).into();
+    }
+    let mut cmd = <Cli as CommandFactory>::command();
+    let _ = cmd.print_help();
+    std::process::ExitCode::from(2)
+}
+
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     let (color, link_when) = cli.presentation();
     let plain_theme = term_theme(color.with_no_color(false), cli.plain, link_when);
-    let code = match cli.command {
+    let Some(command) = cli.command else {
+        return concierge(plain_theme);
+    };
+    let code = match command {
         Command::Check {
             files,
             json,
@@ -1393,7 +1410,7 @@ mod tests {
     fn bare_examples_defaults_to_list() {
         let cli = Cli::try_parse_from(["nika", "examples"]).expect("parses");
         assert!(
-            matches!(cli.command, Command::Examples { action: None }),
+            matches!(cli.command, Some(Command::Examples { action: None })),
             "bare form parses (dispatch folds to List)"
         );
         // The explicit form still parses.

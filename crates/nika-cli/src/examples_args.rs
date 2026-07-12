@@ -21,6 +21,16 @@ pub(crate) enum ExamplesAction {
         /// Example slug (from `list`).
         slug: String,
     },
+    /// Copy an embedded example into YOUR workspace (make it yours).
+    Copy {
+        /// Example slug (from `list`).
+        slug: String,
+        /// Destination path (default: `<slug>.nika.yaml` beside you).
+        dest: Option<String>,
+        /// Overwrite an existing destination.
+        #[arg(long)]
+        force: bool,
+    },
     /// Run an embedded example (audited first · live render).
     Run {
         /// Example slug (from `list`).
@@ -46,6 +56,12 @@ pub(crate) fn examples_verb(action: Option<ExamplesAction>, plain_theme: Theme) 
     match action.unwrap_or(ExamplesAction::List) {
         ExamplesAction::List => emit(&verbs::examples::list(plain_theme)),
         ExamplesAction::Show { slug } => emit(&verbs::examples::show(&slug, plain_theme)),
+        ExamplesAction::Copy { slug, dest, force } => emit(&verbs::examples::copy(
+            &slug,
+            dest.as_deref(),
+            force,
+            plain_theme,
+        )),
         // The L3 run verb shipped — execute the embedded example for real.
         ExamplesAction::Run {
             slug,

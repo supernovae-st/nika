@@ -24,6 +24,17 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **Bare `nika` is the concierge, and the showroom hands over the keys**
+  — on a terminal, plain `nika` now answers with the welcome card (what
+  this machine has · where you are · the next gesture) instead of the
+  22-command wall; pipes and scripts keep the exact usage screen and
+  exit 2. The missing adoption gesture ships as `nika examples copy
+  <slug> [dest]` (the embedded example lands as YOUR file · next steps
+  said · refuses silent overwrites · points `nika init` when no agent
+  briefs sit beside it), and a green TTY `examples run` ends with the
+  one-line handoff `make it yours · nika examples copy <slug>` — the
+  full loop is now see → like → own → bare `nika run` finds it.
+
 - **`nika examples run` takes `--var` and `--quiet`** — several
   examples declare required vars in their header (`04-schema-retry`
   says `--var text=…`) and the old surface had no way to pass them

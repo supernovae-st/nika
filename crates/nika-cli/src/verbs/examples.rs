@@ -263,6 +263,78 @@ pub fn show(slug: &str, theme: Theme) -> VerbOutput {
     VerbOutput::ok(format!("{header}\n\n{body}\n{run_hint}"))
 }
 
+/// `nika examples copy <slug> [dest]` — take the lesson home: the
+/// embedded example lands as YOUR file, ready to edit and run. The
+/// showroom stays side-effect-free (`run` stages to a temp file); this
+/// is the one deliberate "make it yours" gesture, and it says the next
+/// two steps. Refuses to overwrite without `--force`.
+pub fn copy(slug: &str, dest: Option<&str>, force: bool, theme: Theme) -> VerbOutput {
+    let Some(body) = nika_pack::example(slug) else {
+        return VerbOutput {
+            text: format!("unknown example `{slug}` — `nika examples list` names the embedded set"),
+            code: exit::FILE,
+        };
+    };
+    let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+    // `showcase/t2-support-triage` lands as `t2-support-triage.nika.yaml`
+    // — the file joins YOUR flat workspace, the corpus tiering stays in
+    // the pack.
+    let base = clean.rsplit('/').next().unwrap_or(clean);
+    let dest = dest.map_or_else(|| format!("{base}.nika.yaml"), str::to_owned);
+    let path = std::path::Path::new(&dest);
+    if path.exists() && !force {
+        return VerbOutput {
+            text: format!("{dest} already exists — `--force` overwrites, or pick another name"),
+            code: exit::FILE,
+        };
+    }
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty())
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        return VerbOutput {
+            text: format!(
+                "nika examples copy: cannot create `{}`: {e}",
+                parent.display()
+            ),
+            code: exit::ENV,
+        };
+    }
+    if let Err(e) = std::fs::write(path, body) {
+        return VerbOutput {
+            text: format!("nika examples copy: cannot write `{dest}`: {e}"),
+            code: exit::ENV,
+        };
+    }
+    let mut text = format!(
+        "{} {} {}",
+        theme.paint(Role::Good, if theme.ascii { "+" } else { "✔" }),
+        theme.paint(Role::Strong, &dest),
+        theme.paint(Role::Dim, "— yours now · edit anything"),
+    );
+    let _ = write!(
+        text,
+        "\n{}",
+        crate::display::vocab::hint(
+            theme,
+            "next",
+            &format!("nika check {dest} · then: nika run {dest}")
+        )
+    );
+    // No agent briefs beside the new file → the founding door, once.
+    let dir = path.parent().filter(|p| !p.as_os_str().is_empty());
+    let briefed = ["CLAUDE.md", "AGENTS.md"]
+        .iter()
+        .any(|b| dir.map_or_else(|| std::path::Path::new(b).exists(), |d| d.join(b).exists()));
+    if !briefed {
+        let _ = write!(
+            text,
+            "\n{}",
+            crate::display::vocab::hint(theme, "found a home for it", "nika init")
+        );
+    }
+    VerbOutput::ok(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,6 +395,44 @@ mod tests {
             ms.title
         );
         assert!(!ms.verbs.is_empty());
+    }
+
+    /// `copy` writes the embedded body verbatim, names the next two
+    /// steps, refuses a silent overwrite, and flattens showcase paths.
+    #[test]
+    fn copy_takes_the_lesson_home() {
+        let dir = std::env::temp_dir().join(format!("nika-copy-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let dest = dir.join("mine.nika.yaml");
+        let dest_s = dest.to_string_lossy().into_owned();
+
+        let out = copy("01-hello", Some(&dest_s), false, PLAIN);
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        let body = std::fs::read_to_string(&dest).expect("written");
+        assert_eq!(body, nika_pack::example("01-hello").expect("embedded"));
+        assert!(out.text.contains("yours now"), "{}", out.text);
+        assert!(
+            out.text.contains(&format!("nika check {dest_s}")),
+            "{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("nika init"),
+            "no briefs beside it → the founding door"
+        );
+
+        // Refuse the silent overwrite; --force allows it.
+        let refused = copy("01-hello", Some(&dest_s), false, PLAIN);
+        assert_eq!(refused.code, exit::FILE);
+        assert!(refused.text.contains("--force"), "{}", refused.text);
+        assert_eq!(copy("01-hello", Some(&dest_s), true, PLAIN).code, exit::OK);
+
+        // A showcase slug flattens to its basename (default dest shape).
+        let unknown = copy("nope", None, false, PLAIN);
+        assert_eq!(unknown.code, exit::FILE);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// `show` accepts slug AND filename, frames the anatomy, and keeps
