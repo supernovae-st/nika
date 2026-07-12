@@ -24,9 +24,7 @@ use crate::verbs::probe::{Probe, ProviderProbe};
 use crate::verbs::{VerbOutput, probe};
 
 /// The three next moves — the SAME golden path the bare-`nika` footer and
-/// `init`'s hand-off teach (one story across every lost-user surface).
-/// Comments stay ≤26 chars: the widest command pads to 45 and the whole
-/// row must live inside 80 columns (the width nobody configures).
+/// `init`'s hand-off teach. Comments ≤26 chars: rows live inside 80 cols.
 const START: [(&str, &str); 3] = [
     (
         "nika examples run 01-hello --model mock/echo",
@@ -265,9 +263,7 @@ fn start_section(s: &mut String, theme: Theme) {
         .map(|(cmd, _)| cmd.chars().count())
         .max()
         .unwrap_or(0);
-    // The gh/bun law (2026 survey): exactly ONE next command carries the
-    // maximum visual weight — the first row is the thing to run NOW, the
-    // other two stay plain (a journey, not a menu of equals).
+    // gh/bun law: ONE next command carries the weight (a journey, not a menu).
     for (i, (cmd, why)) in START.iter().enumerate() {
         let painted = if i == 0 {
             theme.paint(Role::Strong, &format!("{cmd:<width$}"))
@@ -287,9 +283,13 @@ fn start_section(s: &mut String, theme: Theme) {
         theme.paint(
             Role::Dim,
             &format!(
-                "learn: {} · docs: {}",
+                "learn: {} · docs: {} · ⭐ {}",
                 theme.link("https://nika.sh", "nika.sh"),
                 theme.link("https://docs.nika.sh", "docs.nika.sh"),
+                theme.link(
+                    "https://github.com/supernovae-st/nika",
+                    "github.com/supernovae-st/nika"
+                ),
             )
         )
     );
@@ -429,6 +429,7 @@ mod tests {
             "not briefed → nika init",
             "mock/echo",
             "learn: nika.sh",
+            "github.com/supernovae-st/nika",
         ] {
             assert!(text.contains(needle), "missing `{needle}`:\n{text}");
         }
