@@ -631,7 +631,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::SystemStam
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::SystemStamper
 pub type nika_cli::verbs::run::SystemStamper::Output = T
 pub fn nika_cli::verbs::run::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_cli::verbs::run::RuntimeCapabilities
-pub fn nika_cli::verbs::run::example(slug: &str, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> u8
+pub fn nika_cli::verbs::run::example(slug: &str, model_override: core::option::Option<&str>, vars: &[alloc::string::String], quiet: bool, theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::run::fs_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_builtin::permits::FsBoundary
 pub fn nika_cli::verbs::run::net_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_http::NetBoundary
 pub fn nika_cli::verbs::run::production_runtime(default_model: &str, caps: nika_cli::verbs::run::RuntimeCapabilities) -> core::result::Result<nika_cli::verbs::run::ProdRuntime, nika_kernel_core::io::http::HttpError>
