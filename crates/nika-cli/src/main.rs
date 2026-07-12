@@ -229,7 +229,7 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Scaffold a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule ·
+    /// Scaffold a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule + MCP ·
     /// `.agents/skills` authoring skill). Existing files are skipped —
     /// `--force` overwrites.
     Init {

@@ -155,6 +155,20 @@ Envelope: `nika: v1` (always · frozen forever). Extensions: `.nika.yaml` (canon
 - Unknown code? Run `nika explain NIKA-XXXX`.
 "#;
 
+/// `.cursor/mcp.json` — the project-scoped MCP wiring for Cursor: the
+/// read-only oracle (8 tools) reaches the agent without any manual setup.
+/// Project-scoped (not global) so the config travels with the repo and
+/// never touches the user's other projects.
+const CURSOR_MCP: &str = r#"{
+  "mcpServers": {
+    "nika": {
+      "command": "nika",
+      "args": ["mcp"]
+    }
+  }
+}
+"#;
+
 /// `.github/copilot-instructions.md` — the GitHub Copilot repo brief.
 /// Compact on purpose: the loop + the four hard rules that catch most
 /// LLM authoring errors; AGENTS.md carries the full contract.
@@ -227,11 +241,12 @@ pub fn agents_md() -> &'static str {
 /// writes — `plan` and the docs both read it. AGENTS.md is the contract;
 /// the per-client briefs (Cursor rule · Copilot instructions · CLAUDE.md
 /// pointer) stay thin so they cannot drift from it.
-fn targets() -> [(&'static str, &'static str); 6] {
+fn targets() -> [(&'static str, &'static str); 7] {
     [
         (".vscode/settings.json", VSCODE_SETTINGS),
         ("AGENTS.md", AGENTS_MD),
         (".cursor/rules/nika.mdc", CURSOR_RULES),
+        (".cursor/mcp.json", CURSOR_MCP),
         (".agents/skills/nika-authoring/SKILL.md", AGENT_SKILL),
         (".github/copilot-instructions.md", COPILOT_INSTRUCTIONS),
         ("CLAUDE.md", CLAUDE_MD),
@@ -413,7 +428,7 @@ mod tests {
     #[test]
     fn plan_creates_both_when_nothing_exists() {
         let p = plan(".", &|_| false, false);
-        assert_eq!(p.len(), 6);
+        assert_eq!(p.len(), 7);
         assert!(p.iter().all(|a| matches!(a, Action::Create { .. })));
         // Schema wiring + agent guide + per-client briefs are the targets.
         let paths: Vec<&str> = p
@@ -425,6 +440,7 @@ mod tests {
         assert!(paths.iter().any(|p| p.ends_with("settings.json")));
         assert!(paths.iter().any(|p| p.ends_with("AGENTS.md")));
         assert!(paths.iter().any(|p| p.ends_with("nika.mdc")));
+        assert!(paths.iter().any(|p| p.ends_with(".cursor/mcp.json")));
         assert!(
             paths
                 .iter()
