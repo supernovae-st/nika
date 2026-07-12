@@ -80,6 +80,7 @@ pub fn nika_pack::meta::ExampleMeta::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_pack::meta::ExampleMeta
 pub fn nika_pack::meta::ExampleMeta::from(t: T) -> T
 pub fn nika_pack::canon() -> &'static str
+pub fn nika_pack::design_motion() -> core::option::Option<&'static str>
 pub fn nika_pack::design_tokens() -> &'static str
 pub fn nika_pack::doc(path: &str) -> core::option::Option<&'static str>
 pub fn nika_pack::doc_paths() -> alloc::vec::Vec<alloc::string::String>
