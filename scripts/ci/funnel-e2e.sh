@@ -84,14 +84,23 @@ if has_cmd explain; then
 fi
 run verify 0 -- "$BIN" trace verify "$TRACE"
 
-# 3 · the workspace aggregate (when the binary carries it)
+# 3 · the workspace aggregate — `welcome --deep --json` since the 0.100
+# Rams fold (`context` folded into it · same context_version contract),
+# the retired verb as the older-binary door.
 if has_cmd context; then
-  run context-json 0 -- "$BIN" context --json
+  CTX_CMD="context --json"
+else
+  CTX_CMD="welcome --deep --json"
+fi
+if true; then
+  # shellcheck disable=SC2086 # two-word door, split intended
+  run context-json 0 -- "$BIN" $CTX_CMD
   need context-json '"context_version"'
   need context-json '"rollups"'
   # a journal truncated after its opening line folds to verdict null
   head -1 "$TRACE" >.nika/traces/zz-truncated.ndjson
-  run context-trunc 0 -- "$BIN" context --json
+  # shellcheck disable=SC2086
+  run context-trunc 0 -- "$BIN" $CTX_CMD
   printf '%s' "$OUT" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
