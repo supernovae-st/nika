@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The ONE graph projector (spec §6) — `--json` is the canonical
+//! The ONE graph projector (spec 03 §graph-projection) — `--json` is the canonical
 //! projection; mermaid/dot/ASCII derive from it, never from the workflow
 //! directly. Versioned envelope (`graph_format: 1`) · nodes topologically
 //! sorted (stable order = stable layouts) · `edges.kind` closed enum ·
@@ -17,7 +17,7 @@ use nika_schema::types::{OnErrorAction, WhenGate};
 
 use crate::verbs::{VerbOutput, load_checked};
 
-/// The versioned projection envelope (spec §6 · `graph_format: 1`).
+/// The versioned projection envelope (spec 03 §graph-projection · `graph_format: 1`).
 #[derive(Debug, Serialize)]
 pub struct GraphDoc {
     /// Envelope version — additive evolution only.
@@ -92,7 +92,7 @@ pub struct Edge {
     pub from: String,
     /// Downstream task id.
     pub to: String,
-    /// Closed enum — `depends_on` today (spec §6).
+    /// Closed enum — `depends_on` today (spec 03 §graph-projection).
     pub kind: &'static str,
 }
 
