@@ -25,6 +25,8 @@
 use lsp_types::{CompletionItem, CompletionItemKind};
 use nika_schema::{FileId, ParseMode, parse};
 
+use super::members;
+use super::scope;
 use super::vocab::{self, Entry};
 
 /// Compute completion items for the cursor at `offset` in `text`.
@@ -45,17 +47,33 @@ pub fn completion(text: &str, offset: usize) -> Vec<CompletionItem> {
     if is_tool_value(prefix) {
         return builtin_tools();
     }
+    // `mode:` inside a `nika:fetch` block — the stdlib extract vocabulary
+    // (L0-derived). Contextual: a `mode:` argument of some OTHER tool
+    // (an MCP tool with its own vocabulary) stays silent.
+    if is_extract_mode_value(text, offset, prefix) {
+        return extract_mode_items();
+    }
     if let Some(items) = enum_values(prefix) {
         return items;
     }
     if in_open_depends_on(text, offset) || is_template_tasks_ref(prefix) {
-        return task_ids(text);
+        return task_ids(text, scope::current_task_id(text, offset).as_deref());
+    }
+    if let Some(root) = members::template_member_root(prefix) {
+        return members::member_items(text, root);
     }
     if is_expression_post_dot(prefix) {
         return cel_methods();
     }
     if is_expression_start(prefix) {
         return expression_roots();
+    }
+    // A bare key inside `args:` of a KNOWN builtin — that tool's own
+    // argument names, required ones floated first (catalog-derived).
+    if scope::in_args_key_position(text, offset)
+        && let Some(items) = builtin_arg_keys(text, offset)
+    {
+        return items;
     }
     if is_top_level_key(prefix) {
         return keyword_items(vocab::TOP_LEVEL_KEYS);
@@ -409,6 +427,82 @@ fn enum_values(prefix: &str) -> Option<Vec<CompletionItem>> {
     None
 }
 
+/// `mode: ` inside a `nika:fetch` invoke block — one token typed at most.
+fn is_extract_mode_value(text: &str, offset: usize, prefix: &str) -> bool {
+    let trimmed = prefix.trim_start();
+    let Some(rest) = trimmed.strip_prefix("mode:") else {
+        return false;
+    };
+    let Some(after) = rest.strip_prefix(' ') else {
+        return false;
+    };
+    if after.contains(char::is_whitespace) && !after.trim().is_empty() {
+        return false;
+    }
+    scope::enclosing_tool(text, offset).as_deref() == Some("nika:fetch")
+}
+
+/// The stdlib extract-mode vocabulary — the SET is `ExtractMode::ALL`
+/// (nika-types L0 · closed at stdlib v0.1), so a mode added there
+/// appears here with zero LSP edits; the one-line prose is local.
+fn extract_mode_items() -> Vec<CompletionItem> {
+    use nika_types::ExtractMode as M;
+    fn doc(m: M) -> &'static str {
+        match m {
+            M::Markdown => "HTML → cleaned Markdown (the content default)",
+            M::Article => "readability article body → Markdown",
+            M::Text => "tags stripped · plain text",
+            M::Selector => "raw HTML of the `selector:` matches",
+            M::Jq => "JSON body · a `jq:` expression applied",
+            M::Metadata => "meta tags · OpenGraph · canonical · lang",
+            M::Links => "every <a href> as an absolute URL",
+            M::Feed => "RSS · Atom · JSON Feed → normalized object",
+            M::Sitemap => "sitemap.xml → URL entries",
+            _ => "the decoded body verbatim",
+        }
+    }
+    M::ALL
+        .iter()
+        .map(|m| CompletionItem {
+            label: m.as_str().to_owned(),
+            kind: Some(CompletionItemKind::ENUM_MEMBER),
+            detail: Some(doc(*m).to_owned()),
+            ..CompletionItem::default()
+        })
+        .collect()
+}
+
+/// The argument names of the enclosing block's builtin — catalog-derived
+/// (born-stale law), required ones sorted first and marked. `None` when
+/// the enclosing `tool:` is absent, unknown, or not a `nika:*` builtin
+/// (an MCP tool's args are its own business — silence beats noise).
+fn builtin_arg_keys(text: &str, offset: usize) -> Option<Vec<CompletionItem>> {
+    let tool = scope::enclosing_tool(text, offset)?;
+    let short = tool.strip_prefix("nika:")?;
+    let b = nika_catalog::all_builtins()
+        .iter()
+        .find(|b| b.name == short)?;
+    Some(
+        b.args
+            .iter()
+            .map(|arg| {
+                let required = b.required.contains(arg);
+                CompletionItem {
+                    label: format!("{arg}:"),
+                    kind: Some(CompletionItemKind::FIELD),
+                    detail: Some(if required {
+                        format!("required · {tool} argument")
+                    } else {
+                        format!("{tool} argument")
+                    }),
+                    sort_text: Some(format!("{}{arg}", if required { '0' } else { '1' })),
+                    ..CompletionItem::default()
+                }
+            })
+            .collect(),
+    )
+}
+
 fn providers() -> Vec<CompletionItem> {
     vocab::PROVIDERS
         .iter()
@@ -454,15 +548,18 @@ fn keyword_items(table: &[Entry]) -> Vec<CompletionItem> {
 /// [` with nothing after it does not parse as YAML), so ids are read from
 /// a robust line scan for `id:` declarations rather than a full parse —
 /// the parse path would yield nothing exactly when completion is needed.
-fn task_ids(text: &str) -> Vec<CompletionItem> {
+fn task_ids(text: &str, exclude: Option<&str>) -> Vec<CompletionItem> {
     // Prefer the parser's authoritative ids (with verb detail) when the
-    // document parses; fall back to the line scan otherwise.
+    // document parses; fall back to the line scan otherwise. The task
+    // being edited is EXCLUDED — a self-dependency is a cycle the check
+    // would refuse, so offering it teaches an error.
     if let Ok(wf) = parse(text, FileId::new(0), ParseMode::Lenient)
         && !wf.tasks.is_empty()
     {
         return wf
             .tasks
             .iter()
+            .filter(|t| Some(t.value.id.value.as_str()) != exclude)
             .map(|t| CompletionItem {
                 label: t.value.id.value.clone(),
                 kind: Some(CompletionItemKind::VARIABLE),
@@ -473,6 +570,7 @@ fn task_ids(text: &str) -> Vec<CompletionItem> {
     }
     scan_task_ids(text)
         .into_iter()
+        .filter(|id| Some(id.as_str()) != exclude)
         .map(|id| CompletionItem {
             label: id,
             kind: Some(CompletionItemKind::VARIABLE),
@@ -735,8 +833,9 @@ mod tests {
         let items = completion(text, text.len());
         assert_eq!(
             labels(&items),
-            vec!["extract", "save"],
-            "exactly the two task ids in source order"
+            vec!["extract"],
+            "exactly the OTHER task ids — `save` is the task being edited, \
+             and a self-dependency is a cycle the check refuses"
         );
         assert!(
             items
@@ -762,7 +861,11 @@ mod tests {
             .map(|p| p + "depends_on: [".len())
             .expect("open bracket");
         let items = completion(text, cursor);
-        assert_eq!(labels(&items), vec!["extract", "save"], "the task ids");
+        assert_eq!(
+            labels(&items),
+            vec!["extract"],
+            "the other task ids (self excluded)"
+        );
         assert!(
             items
                 .iter()
@@ -771,10 +874,7 @@ mod tests {
         );
         assert_eq!(
             items.iter().map(|i| i.detail.clone()).collect::<Vec<_>>(),
-            vec![
-                Some("task (exec)".to_owned()),
-                Some("task (exec)".to_owned())
-            ],
+            vec![Some("task (exec)".to_owned())],
             "parse path carries the verb in the detail, NOT the bare `task`"
         );
     }
@@ -801,7 +901,10 @@ mod tests {
         let items = completion(text, text.len());
         let labels = labels(&items);
         assert!(labels.contains(&"extract".to_owned()), "{labels:?}");
-        assert!(labels.contains(&"save".to_owned()));
+        assert!(
+            !labels.contains(&"save".to_owned()),
+            "the edited task never offers itself: {labels:?}"
+        );
     }
 
     #[test]
@@ -823,8 +926,8 @@ mod tests {
         let items = completion(text, text.len());
         assert_eq!(
             labels(&items),
-            vec!["extract", "use"],
-            "the workflow task ids"
+            vec!["extract"],
+            "the OTHER task ids — `use` is the task being edited"
         );
         assert!(
             items
@@ -1101,8 +1204,9 @@ mod tests {
         let items = completion(text, text.len());
         assert_eq!(
             labels(&items),
-            vec!["my_task", "b"],
-            "the underscored id is read whole, not truncated to `my`"
+            vec!["my_task"],
+            "the underscored id is read whole, not truncated to `my` \
+             (`b` is the task being edited — self excluded)"
         );
     }
 
@@ -1140,12 +1244,13 @@ mod tests {
         // (`!id.is_empty() && !ids.contains(&id)` — the `&&` and the `==` in
         // the take_while predicate both matter.) A duplicate id must appear
         // ONCE; the order is source order.
-        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: first\n    exec: { command: \"x\" }\n  - id: second\n    exec: { command: \"y\" }\n  - id: first\n    depends_on: [";
+        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: first\n    exec: { command: \"x\" }\n  - id: second\n    exec: { command: \"y\" }\n  - id: first\n    exec: { command: \"z\" }\n  - id: editor\n    depends_on: [";
         let items = completion(text, text.len());
         assert_eq!(
             labels(&items),
             vec!["first", "second"],
-            "source order, deduplicated — `first` appears once"
+            "source order, deduplicated (`first` once) — and `editor`, \
+             the task being edited, excludes itself"
         );
     }
 
@@ -1163,5 +1268,113 @@ mod tests {
         let _ = completion("nika: v1\n", 99_999); // far past the end
         let doc = "nika: v1\nmodel: 🦋";
         let _ = completion(doc, doc.len() - 1); // inside the trailing 4-byte 🦋
+    }
+
+    /// Inside `args:` of a KNOWN builtin, key position → that tool's own
+    /// argument names, catalog-derived (the born-stale law again) —
+    /// required ones sorted first and marked.
+    #[test]
+    fn fetch_args_offer_the_catalog_arg_keys() {
+        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: get\n    invoke:\n      tool: nika:fetch\n      args:\n        ";
+        let items = completion(text, text.len());
+        let fetch = nika_catalog::all_builtins()
+            .iter()
+            .find(|b| b.name == "fetch")
+            .expect("fetch in catalog");
+        assert_eq!(items.len(), fetch.args.len(), "exactly the catalog args");
+        let labels = labels(&items);
+        assert!(labels.contains(&"url:".to_owned()), "{labels:?}");
+        assert!(labels.contains(&"mode:".to_owned()), "{labels:?}");
+        // required args float first (sort_text partition: '0…' < '1…')
+        for item in &items {
+            let required = item
+                .detail
+                .as_deref()
+                .is_some_and(|d| d.starts_with("required"));
+            let sort = item.sort_text.as_deref().unwrap_or("");
+            assert_eq!(
+                sort.starts_with('0'),
+                required,
+                "sort partition mirrors required: {item:?}"
+            );
+        }
+    }
+
+    /// An UNKNOWN tool's args stay its own business — no `nika:fetch`
+    /// keys leak under an MCP tool.
+    #[test]
+    fn mcp_tool_args_do_not_leak_fetch_keys() {
+        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: gh\n    invoke:\n      tool: github.search\n      args:\n        ";
+        let labels = labels(&completion(text, text.len()));
+        assert!(
+            !labels.contains(&"url:".to_owned()),
+            "no cross-tool leak: {labels:?}"
+        );
+    }
+
+    /// `mode:` under `nika:fetch` offers the stdlib extract vocabulary —
+    /// the SET is `ExtractMode::ALL` (a mode added at L0 appears here
+    /// with zero LSP edits). Under any other tool the lane stays silent.
+    #[test]
+    fn fetch_mode_offers_the_stdlib_extract_vocabulary() {
+        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: get\n    invoke:\n      tool: nika:fetch\n      args:\n        mode: ";
+        let items = completion(text, text.len());
+        assert_eq!(items.len(), nika_types::ExtractMode::ALL.len());
+        let labels = labels(&items);
+        assert_eq!(labels[0], "markdown", "canon order — the default first");
+        assert!(labels.contains(&"jq".to_owned()), "{labels:?}");
+
+        let other = "nika: v1\nworkflow: w\ntasks:\n  - id: x\n    invoke:\n      tool: github.search\n      args:\n        mode: ";
+        assert!(
+            labels_of(other).iter().all(|l| l != "jq"),
+            "another tool's `mode:` is not the extract vocabulary"
+        );
+    }
+
+    /// `${{ vars.` offers the file's OWN declared vars. On a document
+    /// that parses (cursor mid-island, island closed), typed vars carry
+    /// type + required + description and untyped ones their default; a
+    /// mid-keystroke document that no longer parses falls back to the
+    /// block scan — names still arrive, detail goes generic.
+    #[test]
+    fn island_vars_offer_the_declared_names() {
+        let text = "nika: v1\nworkflow: w\nvars:\n  city:\n    type: string\n    required: true\n    description: target city\n  out_dir: \"./out\"\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ vars.city }}\" }\n";
+        let cursor = text.find("${{ vars.").expect("island") + "${{ vars.".len();
+        let items = completion(text, cursor);
+        let got = labels(&items);
+        assert_eq!(got, vec!["city", "out_dir"], "{got:?}");
+        let detail = items[0].detail.as_deref().unwrap_or("");
+        assert!(
+            detail.contains("string")
+                && detail.contains("required")
+                && detail.contains("target city"),
+            "typed var detail teaches type · required · description: {detail}"
+        );
+        assert!(
+            items[1].detail.as_deref().unwrap_or("").contains("./out"),
+            "untyped var detail carries the default"
+        );
+
+        // mid-keystroke fallback: unterminated island · parse fails · the
+        // block scan still teaches the NAMES
+        let typing = "nika: v1\nworkflow: w\nvars:\n  city:\n    type: string\n  out_dir: \"./out\"\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ vars.";
+        let fallback = labels(&completion(typing, typing.len()));
+        assert_eq!(fallback, vec!["city", "out_dir"], "{fallback:?}");
+    }
+
+    /// `${{ secrets.` / `${{ env.` offer the file's own declared names.
+    #[test]
+    fn island_secrets_and_env_offer_declared_names() {
+        let text = "nika: v1\nworkflow: w\nenv:\n  REGION: eu-west-1\nsecrets:\n  api_key:\n    source: env\n    env: MY_KEY\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ secrets.";
+        let labels_s = labels(&completion(text, text.len()));
+        assert_eq!(labels_s, vec!["api_key"], "{labels_s:?}");
+
+        let text2 = "nika: v1\nworkflow: w\nenv:\n  REGION: eu-west-1\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ env.";
+        let labels_e = labels(&completion(text2, text2.len()));
+        assert_eq!(labels_e, vec!["REGION"], "{labels_e:?}");
+    }
+
+    fn labels_of(text: &str) -> Vec<String> {
+        labels(&completion(text, text.len()))
     }
 }

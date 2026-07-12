@@ -17,6 +17,8 @@ pub mod definition;
 pub mod diagnostics;
 pub mod document;
 pub mod hover;
+pub mod members;
 pub mod position;
+pub mod scope;
 pub mod symbols;
 pub mod vocab;

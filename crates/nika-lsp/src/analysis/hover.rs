@@ -23,7 +23,102 @@ use super::vocab::{self, Entry};
 /// or `${{ tasks.X }}`) showing the target task's verb.
 #[must_use]
 pub fn hover(text: &str, offset: usize) -> Option<Hover> {
-    vocab_hover(text, offset).or_else(|| task_ref_hover(text, offset))
+    value_card_hover(text, offset)
+        .or_else(|| vocab_hover(text, offset))
+        .or_else(|| task_ref_hover(text, offset))
+}
+
+/// Hover on a `tool:` or `model:` VALUE — the catalog card for that
+/// builtin (category · args · required) or that model (context/output
+/// windows). Line-based: the value spans past `word_at`'s identifier
+/// alphabet (`nika:jq` · `ollama/qwen3.5:4b`), so the span is the
+/// scalar after the key, quotes and comment shed.
+fn value_card_hover(text: &str, offset: usize) -> Option<Hover> {
+    let (key, value, start, end) = keyed_value_at(text, offset)?;
+    let body = match key {
+        "tool" => builtin_card(value)?,
+        "model" => model_card(value)?,
+        _ => return None,
+    };
+    let index = LineIndex::new(text);
+    Some(Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: body,
+        }),
+        range: Some(Range::new(index.position(start), index.position(end))),
+    })
+}
+
+/// The `key` and value span of the cursor's line, when the cursor sits
+/// INSIDE the value of a `key: value` line.
+fn keyed_value_at(text: &str, offset: usize) -> Option<(&str, &str, usize, usize)> {
+    let line_start = text.get(..offset)?.rfind('\n').map_or(0, |i| i + 1);
+    let line_end = text
+        .get(offset..)
+        .and_then(|rest| rest.find('\n'))
+        .map_or(text.len(), |i| offset + i);
+    let line = text.get(line_start..line_end)?;
+    let colon = line.find(':')?;
+    let key = line.get(..colon)?.trim_start().trim_start_matches("- ");
+    let after = line.get(colon + 1..)?;
+    let shed = after.split('#').next().unwrap_or("");
+    let value = shed.trim().trim_matches('"').trim_matches('\'');
+    if value.is_empty() {
+        return None;
+    }
+    let value_start = line_start + colon + 1 + shed.len() - shed.trim_start().len()
+        + usize::from(shed.trim_start().starts_with('"') || shed.trim_start().starts_with('\''));
+    let value_end = value_start + value.len();
+    (offset >= value_start && offset <= value_end).then_some((key, value, value_start, value_end))
+}
+
+/// The catalog card for a `nika:*` builtin.
+fn builtin_card(value: &str) -> Option<String> {
+    let short = value.strip_prefix("nika:")?;
+    let b = nika_catalog::all_builtins()
+        .iter()
+        .find(|b| b.name == short)?;
+    let args = if b.args.is_empty() {
+        "none".to_owned()
+    } else {
+        b.args
+            .iter()
+            .map(|a| format!("`{a}`"))
+            .collect::<Vec<_>>()
+            .join(" · ")
+    };
+    let mut body = format!(
+        "**`nika:{}`** — _{:?} builtin_\n\nargs: {args}",
+        b.name, b.category
+    );
+    if !b.required.is_empty() {
+        use std::fmt::Write as _;
+        let _ = write!(
+            body,
+            "\nrequired: {}",
+            b.required
+                .iter()
+                .map(|a| format!("`{a}`"))
+                .collect::<Vec<_>>()
+                .join(" · ")
+        );
+    }
+    Some(body)
+}
+
+/// The catalog card for a `provider/model` address.
+fn model_card(value: &str) -> Option<String> {
+    let (prov, model) = value.split_once('/')?;
+    let provider = nika_catalog::all_providers()
+        .iter()
+        .find(|p| p.id == prov)?;
+    let m = provider.models.iter().find(|m| m.model == model)?;
+    Some(format!(
+        "**`{prov}/{model}`** — _catalog model_\n\ncontext {}k tokens · output {}k tokens",
+        m.context_window_tokens / 1000,
+        m.max_output_tokens / 1000
+    ))
 }
 
 /// Hover for a language-vocabulary token (a verb or an envelope/task key).
@@ -289,5 +384,40 @@ mod tests {
         let after = yaml.find("exec").expect("verb") + "exec".len();
         let h = hover(yaml, after).expect("hover");
         assert!(body(&h).contains("**`exec`**"));
+    }
+
+    /// Hover on a `tool:` value → the catalog card (category · args ·
+    /// required) — derived, so a builtin's card can never lag its truth.
+    #[test]
+    fn hover_on_tool_value_shows_the_builtin_card() {
+        let text = "nika: v1\ntasks:\n  - id: a\n    invoke:\n      tool: nika:jq\n      args: { expression: \".\" }\n";
+        let offset = text.find("nika:jq").expect("tool value") + 3;
+        let h = hover(text, offset).expect("a card");
+        let b = body(&h);
+        assert!(b.contains("nika:jq"), "{b}");
+        assert!(b.contains("`expression`"), "args listed: {b}");
+        assert!(b.contains("required"), "required set named: {b}");
+    }
+
+    /// Hover on a `model:` value → the model card with its windows.
+    #[test]
+    fn hover_on_model_value_shows_the_catalog_windows() {
+        let text = "nika: v1\nmodel: ollama/llama3.2:3b\n";
+        let offset = text.find("ollama/").expect("model value") + 4;
+        let h = hover(text, offset).expect("a card");
+        let b = body(&h);
+        assert!(b.contains("ollama/llama3.2:3b"), "{b}");
+        assert!(b.contains("context") && b.contains("output"), "{b}");
+    }
+
+    /// An unknown tool or model stays silent — no invented card.
+    #[test]
+    fn hover_on_unknown_tool_or_model_stays_silent() {
+        let text = "nika: v1\ntasks:\n  - id: a\n    invoke:\n      tool: github.search\n";
+        let offset = text.find("github.search").expect("value") + 3;
+        assert!(hover(text, offset).is_none());
+        let text2 = "nika: v1\nmodel: nosuch/model-x\n";
+        let off2 = text2.find("nosuch/").expect("value") + 2;
+        assert!(hover(text2, off2).is_none());
     }
 }
