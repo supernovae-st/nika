@@ -55,7 +55,7 @@ fn start_moves(glance: Glance) -> [(&'static str, &'static str); 3] {
         ],
         // Several workflows, founded: the whole-workspace lens first.
         (_, true) => [
-            ("nika context", "the workspace truth"),
+            ("nika welcome --deep", "the workspace truth"),
             ("nika run <file>", "pick one · check twin"),
             ("nika examples", "the teaching corpus"),
         ],
@@ -447,7 +447,7 @@ mod tests {
         );
         assert_eq!(start_moves(g(2, false))[0].0, "nika init");
         assert_eq!(start_moves(g(1, true))[0].0, "nika run");
-        assert_eq!(start_moves(g(5, true))[0].0, "nika context");
+        assert_eq!(start_moves(g(5, true))[0].0, "nika welcome --deep");
     }
 
     #[test]

@@ -12,6 +12,23 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **Less, but better: 24 verbs become 20, in six families** (operator
+  Rams pass) — `graph` folds into `inspect --format json|mermaid|dot`
+  (one projector, one door; `check`/`run` already draw the map),
+  `schema` folds into `nika spec --schema`, `context` folds into
+  `nika welcome --deep` (one mirror, two depths — the `--json` agent
+  contract rides along unchanged), and `tools` folds into
+  `nika catalog --tools` (one catalogue, two shelves). The COLOUR
+  CHAIN is one road now: `--ascii` joins the global flags and the 23
+  per-verb `--no-color`/`--ascii` twins die (`--color never` and
+  `--plain` were always the umbrella — one chain, no per-verb echo).
+  The help reads as the family map (make · prove · run · learn · wire
+  · machine) instead of a flat 24-row wall, and every teaching surface
+  (agent briefs · README · hints) speaks the new doors. Pre-1.0 · no
+  aliases kept (no-legacy).
+
+### Changed
+
 - **The embedded pack re-syncs the taught corpus (spec #66)** — the
   binary now ships the renumbered 01-07 path (contiguous, `git mv`'d in
   spec), the six corpus bug-fixes (fetch-chain's literal recover ·

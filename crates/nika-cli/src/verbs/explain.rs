@@ -152,7 +152,7 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
         ),
         "NIKA-PARSE-005" => Some(
             "the field is not part of the closed v1 envelope — check the \
-             spelling against `nika schema` (the did-you-mean in the finding \
+             spelling against `nika spec --schema` (the did-you-mean in the finding \
              usually names it); custom metadata belongs in `description:`",
         ),
         "NIKA-PARSE-019" => Some(

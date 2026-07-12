@@ -49,7 +49,7 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
   zero keys, the CI gate.
 - **Diagnose** · `nika doctor` — the environment (providers · keys · config).
   `nika welcome` is the short mirror (machine · workspace · next commands).
-- **Context** · `nika context --json` — the whole workspace truth in one
+- **Context** · `nika welcome --deep --json` — the whole workspace truth in one
   call (every workflow audited · recent runs · costs · capped and says
   so). Read it before proposing edits.
 - **Explain** · `nika explain NIKA-XXXX` teaches one error code ·
@@ -77,8 +77,8 @@ or MCP tool) · `agent` (a multi-turn ReAct loop).
 ## Don't invent structure — route to a skeleton
 `nika new --from '?'` lists the embedded skeletons · `nika examples list` /
 `show <slug>` reads a runnable example that exercises a construct ·
-`nika schema` is the JSON Schema · `nika spec --canon` is the SSOT ·
-`nika catalog` names the providers/models · `nika tools` names the `nika:`
+`nika spec --schema` is the JSON Schema · `nika spec --canon` is the SSOT ·
+`nika catalog` names the providers/models · `nika catalog --tools` names the `nika:`
 builtins. Copy, fill, check.
 
 ## Cost honesty (never hide unknown spend)
@@ -90,7 +90,7 @@ builtins. Copy, fill, check.
 
 ## Understand · replay · prove
 - `nika inspect <file>` — static anatomy: tasks · verbs · wave groups · cost.
-- `nika graph <file> --format mermaid|dot|json` — the ONE graph projector.
+- `nika inspect <file> --format mermaid|dot|json` — the ONE graph projector.
 - `nika trace show|replay <run>` — the flight recorder (every run records).
 - `nika trace verify <run>` — the journal is hash-chained: verify it after a
   run that matters, cite the trace instead of trusting a memory of the run.
@@ -164,8 +164,8 @@ Rules the validator enforces:
 - Any `${{ tasks.X }}` reference needs `depends_on: [X]`.
 - `invoke` arguments live under `args:` · secrets come from the
   environment (`${{ secrets.X }}`) — never inline.
-- Never invent syntax: `nika schema` is the JSON Schema · `nika catalog`
-  / `nika tools` name the providers and builtins.
+- Never invent syntax: `nika spec --schema` is the JSON Schema · `nika catalog`
+  / `nika catalog --tools` name the providers and builtins.
 - Cost honesty: unknown spend is declared, never rounded to $0 · a local
   model is unpriced, never « free ».
 
@@ -354,7 +354,7 @@ mod tests {
     fn agents_md_points_at_the_learning_surface() {
         // A wired agent must know the embedded surfaces exist, or it
         // improvises structure instead of routing to a template.
-        for needle in ["nika new --from", "nika examples", "nika schema"] {
+        for needle in ["nika new --from", "nika examples", "nika spec --schema"] {
             assert!(
                 AGENTS_MD.contains(needle),
                 "the guide names the discovery command `{needle}`"

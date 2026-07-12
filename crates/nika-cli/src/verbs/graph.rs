@@ -327,7 +327,7 @@ pub enum GraphFormat {
     Ascii,
 }
 
-/// The `nika graph <file>` verb. The theme feeds the `ascii` renderer
+/// The `nika inspect <file> --format …` projector arm. The theme feeds the `ascii` renderer
 /// only — the file formats (json · mermaid · dot) never carry escapes.
 #[must_use]
 pub fn run(path: &str, format: GraphFormat, theme: crate::display::theme::Theme) -> VerbOutput {

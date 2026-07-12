@@ -3,7 +3,7 @@
 
 //! `nika inspect` — the static anatomy as a terminal DAG (spec §6).
 //!
-//! Derives from the SAME projection as `nika graph` (one projector · N
+//! Derives from the SAME projection as `--format json|mermaid|dot` (one projector · N
 //! renderers): waves rendered as bordered visual groups ("N in parallel")
 //! joined by flow arrows — the parallelism the scheduler proved, made
 //! visible. Static facts only — run overlays belong to the trace surface.

@@ -74,7 +74,7 @@ fn clean_exec_workflow_runs_and_exits_zero() {
         .arg("run")
         .arg(&wf)
         .arg("--json")
-        .arg("--no-color")
+        .args(["--color", "never"])
         .output()
         .expect("binary runs");
     assert_eq!(
@@ -104,7 +104,7 @@ fn a_failing_command_exits_one() {
         .arg("run")
         .arg(&wf)
         .arg("--json")
-        .arg("--no-color")
+        .args(["--color", "never"])
         .output()
         .expect("binary runs");
     assert_eq!(
@@ -122,7 +122,7 @@ fn a_dirty_workflow_never_executes_and_exits_two() {
     let out = bin()
         .arg("run")
         .arg(&wf)
-        .arg("--no-color")
+        .args(["--color", "never"])
         .output()
         .expect("binary runs");
     assert_eq!(
@@ -159,7 +159,7 @@ fn an_infer_workflow_runs_over_mock_echo_without_network() {
         .arg("run")
         .arg(&wf)
         .arg("--json")
-        .arg("--no-color")
+        .args(["--color", "never"])
         .output()
         .expect("binary runs");
     assert_eq!(
@@ -184,7 +184,7 @@ fn the_plain_lane_narrates_cleanly_when_piped() {
     let out = bin()
         .arg("run")
         .arg(&wf)
-        .arg("--no-color")
+        .args(["--color", "never"])
         .arg("--ascii")
         .output()
         .expect("binary runs");

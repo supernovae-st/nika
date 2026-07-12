@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The embedded self-contained surface (spec §2) — `nika spec` ·
-//! `nika schema` · `nika examples list|show|run`.
+//! `nika spec --schema` · `nika examples list|show|run`.
 //!
 //! Everything reads `nika-pack` (the spec snapshot baked at build):
 //! offline forever, version-pinned, zero network. `examples run`
@@ -24,7 +24,7 @@ pub fn spec(canon: bool) -> VerbOutput {
     ))
 }
 
-/// `nika schema` — the JSON Schema for `*.nika.yaml` (machine surface).
+/// `nika spec --schema` — the JSON Schema for `*.nika.yaml` (machine surface).
 #[must_use]
 pub fn schema() -> VerbOutput {
     VerbOutput::ok(nika_pack::schema_json().to_owned())

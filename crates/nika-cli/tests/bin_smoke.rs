@@ -285,7 +285,7 @@ fn run_quiet_is_compact_no_storyboard() {
         .arg("run")
         .arg(&wf)
         .arg("--quiet")
-        .arg("--no-color")
+        .args(["--color", "never"])
         .output()
         .expect("binary runs");
     assert_eq!(out.status.code(), Some(0), "clean run exits 0");
@@ -833,12 +833,12 @@ fn check_dash_reads_stdin_findings_exit_2() {
     assert_eq!(doc["clean"], false);
 }
 
-/// `nika graph - --format json` inherits the dash (`load_checked` seam).
+/// `nika inspect - --format json` inherits the dash (`load_checked` seam).
 #[test]
 fn graph_dash_reads_stdin() {
     use std::process::Stdio;
     let mut child = bin()
-        .args(["graph", "-", "--format", "json"])
+        .args(["inspect", "-", "--format", "json"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -1263,7 +1263,7 @@ fn the_dag_draws_in_the_terminal() {
         "nika: v1\nworkflow: smoke-diamond\nmodel: mock/echo\ntasks:\n  - id: fetch\n    infer: { prompt: \"g\", max_tokens: 10 }\n  - id: sum\n    depends_on: [fetch]\n    infer: { prompt: \"s\", max_tokens: 10 }\n  - id: crit\n    depends_on: [fetch]\n    infer: { prompt: \"c\", max_tokens: 10 }\n  - id: publish\n    depends_on: [sum, crit]\n    infer: { prompt: \"p\", max_tokens: 10 }\n",
     );
     let out = bin()
-        .arg("graph")
+        .arg("inspect")
         .arg(&wf)
         .arg("--format")
         .arg("ascii")
@@ -1292,7 +1292,7 @@ fn the_dag_draws_in_the_terminal() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// `nika context` — the workspace aggregate at the binary plane: the
+/// `nika welcome --deep` — the workspace aggregate at the binary plane: the
 /// inventory audits, the wire versions, relative paths only, and the
 /// canary key VALUE never reaches a byte (the aggregate reads the SAME
 /// presence-only probe as welcome/doctor).
@@ -1312,7 +1312,7 @@ fn context_aggregates_the_workspace_value_free() {
         "nika: v1\nworkflow: smoke-bad\ntasks:\n  - id: a\n    exec: { command: \"echo x\" }\n  - id: b\n    depends_on: [a]\n    when: maybe\n    exec: { command: \"echo y\" }\n",
     );
     let out = bin()
-        .arg("context")
+        .args(["welcome", "--deep"])
         .arg("--json")
         .current_dir(&dir)
         .env("ANTHROPIC_API_KEY", canary)
@@ -1340,7 +1340,7 @@ fn context_aggregates_the_workspace_value_free() {
 
     // The human map renders both rows and hands over to the twin.
     let human = bin()
-        .arg("context")
+        .args(["welcome", "--deep"])
         .current_dir(&dir)
         .stdin(std::process::Stdio::null())
         .output()
@@ -1351,7 +1351,7 @@ fn context_aggregates_the_workspace_value_free() {
         text.contains("good.nika.yaml") && text.contains("clean"),
         "{text}"
     );
-    assert!(text.contains("nika context --json"), "{text}");
+    assert!(text.contains("nika welcome --deep --json"), "{text}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

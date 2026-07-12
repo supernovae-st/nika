@@ -37,6 +37,7 @@ pub(crate) fn registry_then_run(
     color: ColorWhenArg,
     link_when: LinkChoice,
     plain: bool,
+    ascii: bool,
 ) -> u8 {
     // The dispatcher's lazy resolver guaranteed the target before this
     // seam — an absent file here is a wiring bug, surfaced honestly.
@@ -49,7 +50,7 @@ pub(crate) fn registry_then_run(
     match resolve_registry_arg(file) {
         Ok(file) => {
             args.file = Some(file);
-            run_verb(&args, color, link_when, plain)
+            run_verb(&args, color, link_when, plain, ascii)
         }
         Err(out) => emit(&out),
     }

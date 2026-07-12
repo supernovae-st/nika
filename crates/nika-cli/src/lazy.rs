@@ -87,11 +87,12 @@ pub(crate) fn run_lazy(
     color: ColorWhenArg,
     link_when: LinkChoice,
     plain: bool,
+    ascii: bool,
 ) -> u8 {
     match resolve_lazy_target(args.file.take(), "run") {
         Ok(file) => {
             args.file = Some(file);
-            registry_args::registry_then_run(args, color, link_when, plain)
+            registry_args::registry_then_run(args, color, link_when, plain, ascii)
         }
         Err(code) => code,
     }
