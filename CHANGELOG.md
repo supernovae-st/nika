@@ -12,6 +12,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **Every trace reader resolves the names `trace ls` prints** — `show` ·
+  `replay` · `outputs` · `verify` · `export` · `peek` · `flow` accept the
+  bare store name exactly like `rm` always did (an explicit path still
+  wins · unknown handles keep their teaching error). Copy-pasting a name
+  from `ls` into `show` no longer answers "No such file or directory".
+- **The MCP `nika_explain` teaches the runtime namespaces** — per-builtin
+  (`NIKA-BUILTIN-<NAME>-<NNN>`) and per-provider (`NIKA-PROVIDER-<NNN>`)
+  codes answer over the agent lane with the same text the CLI gives (the
+  teaching moved down to `nika-error::codes::namespace_help` — one text,
+  one home), instead of "unknown code" on exactly the codes a failed run
+  hands an agent.
+
 - **`nika:glob` walks its pattern's literal directory prefix** — a scoped
   pattern (`hiring/inbox/*.md`) now anchors its walk (and the
   `permits.fs.read` gate that fences it) at `./hiring/inbox` instead of
@@ -34,6 +46,13 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   proven with a live `openai/gpt-5.2` run, 780ms · $0.000098).
 
 ### Added
+
+- **`nika examples run` carries the run trio** — `--var KEY=VALUE`
+  (repeatable · the `nika run` contract), `--no-progress` and
+  `--max-cost-usd <n>`, threaded through the same funnel `run` uses.
+  Examples with `required:` vars (`19-schema-retry`) were unrunnable by
+  this surface — and clap's `-- --var` tip pointed at a trailing lane
+  that never existed.
 
 - **Pre-generated shell completions ride the release tarballs** (#487)
   — each platform tarball now carries `completions/` (bash `nika.bash` ·
