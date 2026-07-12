@@ -268,6 +268,7 @@ impl<T> core::clone::CloneToUninit for nika_tmpl::expression::TemplateIsland whe
 pub unsafe fn nika_tmpl::expression::TemplateIsland::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_tmpl::expression::TemplateIsland
 pub fn nika_tmpl::expression::TemplateIsland::from(t: T) -> T
+pub fn nika_tmpl::expression::bare_task_refs(expr: &nika_tmpl::expression::Expr) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_tmpl::expression::expr_refs(expr: &nika_tmpl::expression::Expr) -> alloc::vec::Vec<nika_tmpl::expression::NamespaceRef>
 pub fn nika_tmpl::expression::is_boolean_shaped(expr: &nika_tmpl::expression::Expr) -> bool
 pub fn nika_tmpl::expression::parse_expression(src: &str) -> core::result::Result<nika_tmpl::expression::Expr, nika_tmpl::expression::ExprError>
