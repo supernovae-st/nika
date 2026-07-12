@@ -24,6 +24,7 @@
 pub use nika_display as display;
 pub use nika_display::demo;
 pub mod registry;
+pub(crate) mod text;
 pub mod verbs;
 pub mod wires;
 

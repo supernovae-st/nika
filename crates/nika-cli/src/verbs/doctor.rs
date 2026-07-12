@@ -254,8 +254,9 @@ fn image_finding(img: &ImageProbe) -> Finding {
             format!("mock ready · {local_part} · no cloud image key set")
         } else {
             format!(
-                "mock ready · {} key(s) present · {local_part}",
-                wired.join(" · ")
+                "mock ready · {} {} present · {local_part}",
+                wired.join(" · "),
+                if wired.len() == 1 { "key" } else { "keys" }
             )
         },
         fix: None,
@@ -322,8 +323,9 @@ fn tts_finding(tts: &TtsProbe) -> Finding {
             format!("mock ready · {local_part} · no cloud speech key set")
         } else {
             format!(
-                "mock ready · {} key(s) present · {local_part}",
-                wired.join(" · ")
+                "mock ready · {} {} present · {local_part}",
+                wired.join(" · "),
+                if wired.len() == 1 { "key" } else { "keys" }
             )
         },
         fix: None,
@@ -521,8 +523,8 @@ fn local_finding(local_ids: &[&str], pinged: bool) -> Finding {
         level: Level::Ok,
         label: "local".to_owned(),
         detail: format!(
-            "{} provider(s) ({}) — no key · needs a running server",
-            local_ids.len(),
+            "{} ({}) — no key · needs a running server",
+            crate::text::count(local_ids.len(), "provider"),
             local_ids.join(" · ")
         ),
         fix: (!pinged)

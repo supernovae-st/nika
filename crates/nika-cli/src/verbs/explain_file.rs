@@ -160,8 +160,8 @@ fn dirty(path: &str, description: Option<&str>, report: &CheckReport, json: bool
     let mut s = String::new();
     let _ = writeln!(
         s,
-        "this workflow does not check clean yet — {} finding(s):",
-        report.conformance.len()
+        "this workflow does not check clean yet — {}:",
+        crate::text::count(report.conformance.len(), "finding")
     );
     for c in report.conformance.iter().take(3) {
         let _ = writeln!(s, "  [{}] {}", c.code, c.message);
@@ -282,9 +282,9 @@ fn render_human(
     );
     let _ = writeln!(
         s,
-        "  {} task(s) · {} wave(s) · checks clean",
-        doc.nodes.len(),
-        report.waves.len()
+        "  {} · {} · checks clean",
+        crate::text::count(doc.nodes.len(), "task"),
+        crate::text::count(report.waves.len(), "wave")
     );
     story_section(&mut s, doc, report);
     cost_section(&mut s, report);
@@ -388,7 +388,13 @@ fn touches_section(s: &mut String, doc: &GraphDoc, report: &CheckReport, permits
             .requirements
             .models
             .iter()
-            .map(|m| format!("{} ({} task(s))", m.model, m.tasks.len()))
+            .map(|m| {
+                format!(
+                    "{} ({})",
+                    m.model,
+                    crate::text::count(m.tasks.len(), "task")
+                )
+            })
             .collect();
         let _ = writeln!(s, "  models   {}", models.join(" · "));
     }
@@ -449,17 +455,20 @@ fn risks_section(s: &mut String, path: &str, report: &CheckReport) {
     if report.hints.len() > 3 {
         let _ = writeln!(
             s,
-            "  … +{} more hint(s) → nika check {path}",
-            report.hints.len() - 3
+            "  … +{} → nika check {path}",
+            crate::text::count(report.hints.len() - 3, "more hint")
         );
     }
     if let Some(a) = report.analysis.as_ref()
         && let Some(b) = a.blast_radius.first()
     {
+        // Noun AND verb agree — `1 downstream task never runs`.
         let _ = writeln!(
             s,
-            "  if {} fails, {} downstream task(s) never run",
-            b.task, b.blocks
+            "  if {} fails, {} never {}",
+            b.task,
+            crate::text::count(b.blocks, "downstream task"),
+            if b.blocks == 1 { "runs" } else { "run" }
         );
     }
 }
@@ -490,9 +499,10 @@ fn recorder_section(s: &mut String, traces: Option<&(usize, String)>) {
         Some((n, latest)) => {
             let _ = writeln!(
                 s,
-                "\nflight recorder\n  {n} run(s) in .nika/traces · latest:\n  \
+                "\nflight recorder\n  {} in .nika/traces · latest:\n  \
                  nika trace show {latest}\n  \
-                 nika trace verify <same file>   # prove the hash chain"
+                 nika trace verify <same file>   # prove the hash chain",
+                crate::text::count(*n, "run")
             );
         }
         None => {
@@ -592,13 +602,13 @@ mod tests {
         assert_eq!(out.code, exit::OK, "{}", out.text);
         for needle in [
             "brief-factory — fetch, summarize twice, join",
-            "4 task(s) · 3 wave(s) · checks clean",
+            "4 tasks · 3 waves · checks clean",
             "the story",
             "wave 2 — 2 in parallel",
             "asks mock/echo",
             "cost before a token is spent",
             "what it touches",
-            "mock/echo (4 task(s))",
+            "mock/echo (4 tasks)",
             "run it",
             "nika run",
             "flight recorder",
@@ -618,7 +628,7 @@ mod tests {
         // If root fails, everything downstream is named.
         assert!(
             out.text
-                .contains("if root fails, 3 downstream task(s) never run"),
+                .contains("if root fails, 3 downstream tasks never run"),
             "{}",
             out.text
         );

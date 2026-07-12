@@ -230,7 +230,10 @@ fn diff_lines(expected: &Value, actual: &Value) -> Vec<String> {
     if lines.len() > DIFF_LINE_CAP {
         let more = lines.len() - DIFF_LINE_CAP;
         lines.truncate(DIFF_LINE_CAP);
-        lines.push(format!("… and {more} more difference(s)"));
+        lines.push(format!(
+            "… and {}",
+            crate::text::count(more, "more difference")
+        ));
     }
     lines
 }
