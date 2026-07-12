@@ -199,17 +199,30 @@ fn builtin_card(value: &str) -> Option<String> {
     Some(body)
 }
 
-/// The catalog card for a `provider/model` address.
+/// The catalog card for a `provider/model` address. A model the catalog
+/// doesn't list (hand-typed · newer than the catalog) still gets the
+/// PROVIDER's card — the provider is known even when the model string
+/// is the author's own.
 fn model_card(value: &str) -> Option<String> {
     let (prov, model) = value.split_once('/')?;
     let provider = nika_catalog::all_providers()
         .iter()
         .find(|p| p.id == prov)?;
-    let m = provider.models.iter().find(|m| m.model == model)?;
+    if let Some(m) = provider.models.iter().find(|m| m.model == model) {
+        return Some(format!(
+            "**`{prov}/{model}`** — _catalog model_\n\ncontext {}k tokens · output {}k tokens",
+            m.context_window_tokens / 1000,
+            m.max_output_tokens / 1000
+        ));
+    }
+    let key = if provider.requires_key {
+        format!("key: `{}`", provider.env_var)
+    } else {
+        "no key required".to_owned()
+    };
     Some(format!(
-        "**`{prov}/{model}`** — _catalog model_\n\ncontext {}k tokens · output {}k tokens",
-        m.context_window_tokens / 1000,
-        m.max_output_tokens / 1000
+        "**`{prov}/{model}`** — _{} model_\n\n{} · {key}\n\n_not in the catalog — the string rides to the provider as written_",
+        provider.name, provider.description
     ))
 }
 
@@ -504,7 +517,10 @@ mod tests {
         assert!(b.contains("context") && b.contains("output"), "{b}");
     }
 
-    /// An unknown tool or model stays silent — no invented card.
+    /// An unknown tool or an unknown PROVIDER stays silent — no
+    /// invented card. An unknown MODEL of a KNOWN provider gets the
+    /// provider's card instead (key env var · honesty line): the
+    /// provider is known even when the model string is the author's own.
     #[test]
     fn hover_on_unknown_tool_or_model_stays_silent() {
         let text = "nika: v1\ntasks:\n  - id: a\n    invoke:\n      tool: github.search\n";
@@ -513,6 +529,13 @@ mod tests {
         let text2 = "nika: v1\nmodel: nosuch/model-x\n";
         let off2 = text2.find("nosuch/").expect("value") + 2;
         assert!(hover(text2, off2).is_none());
+
+        let text3 = "nika: v1\nmodel: openai/gpt-brand-new\n";
+        let off3 = text3.find("openai/").expect("value") + 3;
+        let h = hover(text3, off3).expect("the provider card");
+        let b = body(&h);
+        assert!(b.contains("OPENAI_API_KEY"), "key env var named: {b}");
+        assert!(b.contains("not in the catalog"), "honesty line: {b}");
     }
 
     /// Hover on a task DECLARATION → its DAG card, from the engine's
