@@ -559,10 +559,7 @@ fn init_scaffolds_a_repo_and_is_idempotent() {
         dir.join(".cursor/rules/nika.mdc").is_file(),
         "Cursor agent rule written"
     );
-    assert!(
-        dir.join(".cursor/mcp.json").is_file(),
-        "Cursor MCP wiring written"
-    );
+    assert!(dir.join(".cursor/mcp.json").is_file(), "Cursor MCP written");
     // Re-run · the human keeps the hand · existing files are SKIPPED, exit 0.
     let again = bin().arg("init").arg(&dir).output().expect("binary runs");
     assert_eq!(again.status.code(), Some(0));

@@ -159,15 +159,8 @@ Envelope: `nika: v1` (always · frozen forever). Extensions: `.nika.yaml` (canon
 /// read-only oracle (8 tools) reaches the agent without any manual setup.
 /// Project-scoped (not global) so the config travels with the repo and
 /// never touches the user's other projects.
-const CURSOR_MCP: &str = r#"{
-  "mcpServers": {
-    "nika": {
-      "command": "nika",
-      "args": ["mcp"]
-    }
-  }
-}
-"#;
+const CURSOR_MCP: &str =
+    "{ \"mcpServers\": { \"nika\": { \"command\": \"nika\", \"args\": [\"mcp\"] } } }\n";
 
 /// `.github/copilot-instructions.md` — the GitHub Copilot repo brief.
 /// Compact on purpose: the loop + the four hard rules that catch most
