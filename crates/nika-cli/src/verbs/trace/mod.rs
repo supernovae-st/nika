@@ -145,8 +145,8 @@ fn render_outputs(view: &RunView, trace: &str, theme: Theme) -> String {
 /// task id is the one placeholder).
 fn totals_line(view: &RunView, trace: &str, theme: Theme) -> String {
     let mut line = format!(
-        "  {} task(s) · {}",
-        view.rows().len(),
+        "  {} · {}",
+        crate::text::count(view.rows().len(), "task"),
         fmt_wall_ms(view.elapsed_ms)
     );
     let tokens: u64 = view.rows().iter().filter_map(|r| r.tokens).sum();
@@ -433,7 +433,7 @@ fn render_flow(edges: &[FlowEdge], theme: Theme) -> String {
     }
     let arrow = crate::display::vocab::arrow(theme.ascii);
     let join = if theme.ascii { "x" } else { "×" };
-    let mut totals = format!("  {} edge(s)", edges.len());
+    let mut totals = format!("  {}", crate::text::count(edges.len(), "edge"));
     if let Some(widest) = edges
         .iter()
         .filter(|e| e.bytes.is_some())
@@ -496,7 +496,7 @@ mod tests {
             text.contains(&format!("full value: nika trace peek {trace} <task>")),
             "peek hint carries the real path: {text}"
         );
-        assert!(text.contains("5 task(s)"), "totals: {text}");
+        assert!(text.contains("5 tasks"), "totals: {text}");
         assert!(text.contains("710 tok"), "token total: {text}");
     }
 
@@ -704,7 +704,7 @@ mod tests {
             "terminal outputs edge (aligned): {text}"
         );
         assert!(
-            text.contains("2 edge(s) · widest: read_payload→audit"),
+            text.contains("2 edges · widest: read_payload→audit"),
             "totals + widest: {text}"
         );
         assert!(
