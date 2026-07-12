@@ -3708,6 +3708,7 @@ dependencies = [
  "nika-models",
  "nika-pack",
  "nika-providers",
+ "nika-registry-client",
  "nika-runtime",
  "nika-schema",
  "nika-types",
@@ -4055,6 +4056,20 @@ dependencies = [
  "proptest",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "nika-registry-client"
+version = "0.99.0"
+dependencies = [
+ "nika-kernel",
+ "nika-kernel-mock",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "toml_edit",
 ]
 
 [[package]]

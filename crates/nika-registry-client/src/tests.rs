@@ -7,7 +7,6 @@
 //! resolves to the registry module — semantics unchanged.
 
 use super::*;
-use nika_dap::source_id::sha256_hex;
 use nika_kernel_mock::MockHttp;
 
 const REV: &str = "0123456789abcdef0123456789abcdef01234567";
