@@ -53,9 +53,9 @@ say "── trust battery · $("$BIN" --version)"
 "$BIN" run wf.nika.yaml --json >run1.ndjson 2>/dev/null || fail "[T1] first run"
 TRACE=$(/bin/ls -t .nika/traces/*.ndjson 2>/dev/null | head -1)
 [ -n "$TRACE" ] || fail "[T1] no trace recorded"
-OUT=$("$BIN" run wf.nika.yaml --resume "$TRACE" --no-color 2>&1)
+OUT=$("$BIN" run wf.nika.yaml --resume "$TRACE" --color never 2>&1)
 printf '%s' "$OUT" | grep -q "cache hit" || fail "[T1] resume shows no visible cache hit"
-OUT=$("$BIN" run wf.nika.yaml --resume "$TRACE" --from think --no-color 2>&1)
+OUT=$("$BIN" run wf.nika.yaml --resume "$TRACE" --from think --color never 2>&1)
 printf '%s' "$OUT" | grep -qE "1 skipped.*1 ran live|1 skipped.*2 ran live|ran live" \
   || fail "[T1] --from did not re-run the subtree: $OUT"
 
