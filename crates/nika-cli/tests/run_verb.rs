@@ -74,7 +74,7 @@ fn clean_exec_workflow_runs_and_exits_zero() {
         .arg("run")
         .arg(&wf)
         .arg("--json")
-        .arg("--no-color")
+        .args(["--color", "never"])
         .output()
         .expect("binary runs");
     assert_eq!(
@@ -104,7 +104,7 @@ fn a_failing_command_exits_one() {
         .arg("run")
         .arg(&wf)
         .arg("--json")
-        .arg("--no-color")
+        .args(["--color", "never"])
         .output()
         .expect("binary runs");
     assert_eq!(
@@ -122,7 +122,7 @@ fn a_dirty_workflow_never_executes_and_exits_two() {
     let out = bin()
         .arg("run")
         .arg(&wf)
-        .arg("--no-color")
+        .args(["--color", "never"])
         .output()
         .expect("binary runs");
     assert_eq!(
@@ -159,7 +159,7 @@ fn an_infer_workflow_runs_over_mock_echo_without_network() {
         .arg("run")
         .arg(&wf)
         .arg("--json")
-        .arg("--no-color")
+        .args(["--color", "never"])
         .output()
         .expect("binary runs");
     assert_eq!(
@@ -184,7 +184,7 @@ fn the_plain_lane_narrates_cleanly_when_piped() {
     let out = bin()
         .arg("run")
         .arg(&wf)
-        .arg("--no-color")
+        .args(["--color", "never"])
         .arg("--ascii")
         .output()
         .expect("binary runs");
@@ -208,7 +208,7 @@ fn the_plain_lane_narrates_cleanly_when_piped() {
 
 // `examples run` EXECUTES — and carries the run trio (--var ·
 // --no-progress · --max-cost-usd · gauntlet F7 2026-07-12). The trio
-// makes a hermetic smoke POSSIBLE at last: 19-schema-retry has a
+// makes a hermetic smoke POSSIBLE at last: 04-schema-retry has a
 // `required:` var (unrunnable by this surface before) and infers clean
 // under `--model mock/echo` — zero keys, zero network, the exact combo
 // the old `#[ignore = "needs a live ollama"]` excuse said couldn't exist.
@@ -218,7 +218,7 @@ fn examples_run_carries_the_run_trio_hermetically() {
         .args([
             "examples",
             "run",
-            "19-schema-retry",
+            "04-schema-retry",
             "--model",
             "mock/echo",
             "--var",

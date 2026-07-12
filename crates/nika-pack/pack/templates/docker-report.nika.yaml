@@ -2,6 +2,7 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · docker-report: read a system's real state via a pinned CLI,
+# family: ops
 # have a model explain it, keep the report as a file. The audited-ops
 # shape: argv-array exec (a provable `permits.exec` allowlist — a shell
 # string can smuggle any program through a pipe, so the checker refuses
@@ -14,6 +15,8 @@
 # | task | command          | why no native path               | unlock that removes it |
 # | ps   | docker ps        | product CLI · no MCP surface yet | a docker MCP server    |
 # | df   | docker system df | same                             | same                   |
+# Needs · a running docker daemon (the report reads YOUR containers).
+
 nika: v1
 workflow: docker-report-template    # SLOT: kebab-case workflow id
 description: "read the daemon's state · explain it · keep the report"   # SLOT

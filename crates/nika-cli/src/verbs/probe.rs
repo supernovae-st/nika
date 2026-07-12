@@ -354,7 +354,7 @@ pub(crate) const SKIP_DIRS: [&str; 8] = [
 /// Bounded workspace walk: collect root-relative `*.nika.yaml` paths
 /// (depth- and budget-capped · dot/dep dirs skipped). The ONE walk the
 /// mirror family shares — welcome counts it, context audits it.
-pub(crate) fn collect_workflow_paths(
+pub fn collect_workflow_paths(
     root: &Path,
     dir: &Path,
     depth: u8,

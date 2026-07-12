@@ -35,6 +35,9 @@ pub use compose::{
 pub use nika_dap::recover::{RecoveredTrace, recover_events};
 pub use resume::ResumeRequest;
 pub use sink::{FoldSink, JsonSink, RenderMode};
+
+mod example;
+pub use example::example;
 use sink::{TraceNote, surface_trace};
 pub use stamp::SystemStamper;
 
@@ -235,7 +238,7 @@ fn run_verdict(
 
     // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
     if dry_run {
-        return RunVerdict::bare(dry_run_verdict(file, &wf, &report, json, theme.ascii));
+        return RunVerdict::bare(dry_run_verdict(file, &wf, &report, json, theme));
     }
 
     // ── `--max-cost-usd` preflight — BEFORE any spend (budget.rs) ──
@@ -383,99 +386,6 @@ fn load_resume_plan(
     Ok(plan)
 }
 
-/// `nika examples run <slug>` — execute one EMBEDDED example through the
-/// real runtime (the pack ships offline · zero network for the exec/
-/// mock-model examples). Stages the embedded YAML to a temp file (the
-/// verb reads a path) and runs it.
-///
-/// `model_override` — `Some(m)` (from `--model m`) swaps the example's
-/// envelope model for `m` (so `--model mock/echo` previews offline). On a
-/// FAILED run with NO override, a rescue tip keyed on the failure KIND is
-/// printed to stderr (#145: the offline-model nudge for infer/provider
-/// failures · the real missing dependency for an exec `program not
-/// found`) · the original exit code is returned unchanged.
-///
-/// `vars`/`no_progress`/`max_cost_usd` are the run trio verbatim — the
-/// SAME funnel serves both surfaces (F7: required-var examples run direct).
-#[must_use]
-pub fn example(
-    slug: &str,
-    model_override: Option<&str>,
-    vars: &[String],
-    no_progress: bool,
-    max_cost_usd: Option<f64>,
-    theme: Theme,
-) -> u8 {
-    let Some(yaml) = nika_pack::example(slug) else {
-        eprintln!("unknown example `{slug}` — `nika examples list` names the embedded set");
-        return exit::FILE;
-    };
-    // The slug comes from the embedded set (path-safe) · stage it beside
-    // a stable name so a re-run overwrites rather than litters. A slug may
-    // carry a `showcase/` prefix — flatten the separator so the temp name
-    // stays a single path component.
-    let stem = slug.replace('/', "-");
-    let path = std::env::temp_dir().join(format!("nika-example-{stem}.nika.yaml"));
-    if let Err(e) = std::fs::write(&path, yaml) {
-        eprintln!("nika run: environment: cannot stage example `{slug}`: {e}");
-        return exit::ENV;
-    }
-    let mode = if !no_progress && std::io::IsTerminal::is_terminal(&std::io::stdout()) {
-        RenderMode::Live
-    } else {
-        RenderMode::Plain
-    };
-    // The interactive duration accents follow the same TTY gate; heat
-    // additionally needs colour + the truecolor proof.
-    let mut theme = theme;
-    theme.accents = mode == RenderMode::Live;
-    theme.heat = theme.accents && theme.color && crate::verbs::truecolor_env();
-    let verdict = run_verdict(
-        &path.to_string_lossy(),
-        false,
-        None,
-        theme,
-        mode,
-        false,
-        model_override,
-        vars,
-        None,
-        // No run journal: the example is staged to a TEMP file — `.nika/
-        // traces/` belongs to workspace runs (the same drive underneath,
-        // deliberately disabled here).
-        true,
-        // Examples always run whole (tiny by design · no scoping surface).
-        None,
-        false,
-        max_cost_usd,
-        // An example runs a TEMP-staged file, not a workspace run — the
-        // workspace's trace store is not this invocation's to collect.
-        true,
-    );
-    // The example's own envelope model — what we suggest overriding when a
-    // run fails offline. A parse miss leaves it empty (the infer tip then
-    // never fires · the run already surfaced the real finding).
-    let model = example_model(yaml);
-    if let Some(tip) = example_tip(slug, &verdict, model_override.is_some(), &model) {
-        eprintln!("\n  {tip}");
-    }
-    verdict.code
-}
-
-/// The example's envelope `model:` string (empty when the YAML has no
-/// model or won't parse). Best-effort — drives only the offline-hint
-/// decision, never the run itself.
-fn example_model(yaml: &str) -> String {
-    nika_schema::parse(
-        yaml,
-        nika_schema::FileId::new(0),
-        nika_schema::ParseMode::Strict,
-    )
-    .ok()
-    .and_then(|wf| wf.model.map(|m| m.value))
-    .unwrap_or_default()
-}
-
 /// House-voice a pre-run refusal (the empty-state audit · design §3):
 /// the ENV class (an unreadable/missing file) gains the `nika run:`
 /// prefix, ONE `fix:` line and a closing newline — a bare
@@ -511,8 +421,8 @@ fn output_mode(output: Option<&str>) -> Result<bool, u8> {
 /// render the static plan (the same anatomy `nika inspect` renders) without
 /// composing any production seam. No fs, no http, no subprocess, no
 /// provider call — the run is never reached.
-fn render_dry_run(file: &str, ascii: bool) -> u8 {
-    let plan = crate::verbs::inspect::run(file, ascii);
+fn render_dry_run(file: &str, theme: Theme) -> u8 {
+    let plan = crate::verbs::inspect::run(file, theme);
     if !plan.text.is_empty() {
         println!("{}", plan.text.trim_end());
     }
@@ -526,12 +436,12 @@ fn dry_run_verdict(
     wf: &RawWorkflow,
     report: &nika_schema::check::CheckReport,
     json: bool,
-    ascii: bool,
+    theme: Theme,
 ) -> u8 {
     if json {
         dry_run_json(file, wf, report)
     } else {
-        render_dry_run(file, ascii)
+        render_dry_run(file, theme)
     }
 }
 
@@ -704,56 +614,6 @@ pub(crate) fn capture_mock_outputs(
         }
         (code, outcome.outputs)
     }))
-}
-
-/// The rescue tip under a FAILED example, keyed on the failure KIND
-/// (#145 · the exit code alone misdirected: an example that carries BOTH
-/// a model and exec tasks used to earn the mock-model nudge on a missing
-/// binary — a swap that cannot conjure the program). `None` = say
-/// nothing: success · pause · pre-run refusals · an explicit `--model`
-/// override · failure classes neither a model swap nor an install would
-/// rescue. Pure · so the policy is unit-tested without staging or
-/// running anything.
-#[must_use]
-fn example_tip(
-    slug: &str,
-    verdict: &RunVerdict,
-    override_given: bool,
-    model: &str,
-) -> Option<String> {
-    if verdict.code == exit::OK || override_given {
-        return None;
-    }
-    let failure = verdict.failure.as_ref()?;
-    // Infer/provider failures — the "no local model running" case: the
-    // offline preview is one flag away (the funnel's highest-intent P0).
-    if failure.code.starts_with("NIKA-INFER-") {
-        if model.is_empty() || model == "mock/echo" {
-            return None;
-        }
-        return Some(format!(
-            "tip: no local model running? preview this example offline →\n        nika examples run {slug} --model mock/echo"
-        ));
-    }
-    // A missing program — name the REAL dependency (the ✖ line above
-    // carries the code; this states the way out).
-    if failure.code == "NIKA-EXEC-002" {
-        let program = failure
-            .message
-            .split("program not found: ")
-            .nth(1)
-            .map(str::trim)
-            .filter(|p| !p.is_empty());
-        return Some(match program {
-            Some(p) => format!(
-                "tip: this example shells out to `{p}` — not found on this machine;\n        install it, or browse offline-friendly examples → nika examples list"
-            ),
-            None => "tip: this example shells out to a program this machine does not \
-                     have\n        (the ✖ line names it) — install it, or try → nika examples list"
-                .to_owned(),
-        });
-    }
-    None
 }
 
 /// The `--task` scope + the clean gate, fused (both run before any
@@ -968,14 +828,11 @@ async fn execute_fold_lane(
     model_override: Option<&str>,
 ) -> RunVerdict {
     let plan = plan_waves(wf, report);
-    let mut fold = FoldSink::new(std::io::stdout().lock(), theme, mode);
-    fold.set_plan(plan.clone());
-    // The shape tails ride the INTERACTIVE surface only (`Live` = TTY):
-    // the piped/`--no-progress`/`--quiet` registers keep their exact
-    // bytes — CI logs and scripts never grow tails.
-    if mode == RenderMode::Live && outputs {
-        fold.show_outputs(true);
-    }
+    // The living map's topology — the SAME checked projection graph/
+    // inspect trust; Live+accents only (the sink gates again).
+    let map = (mode == RenderMode::Live && theme.accents)
+        .then(|| (super::graph::project(wf, report), report.waves.clone()));
+    let (fold, spinner) = shared_fold(theme, mode, outputs, plan.clone(), map);
     // #321 — the plain lane's stderr liveness rider (`still running ·
     // <task> · <n>s · <model>` every ~10s): a piped local-model run
     // must never read as a hang. Plain ONLY — Live already repaints ·
@@ -991,14 +848,27 @@ async fn execute_fold_lane(
     });
     let ticker = pulse.clone().map(heartbeat::spawn_ticker);
     let beat = heartbeat::HeartbeatSink::new(pulse);
-    let mut tee = Tee::new(Tee::new(fold, beat), trace);
+    let mut tee = Tee::new(
+        Tee::new(sink::FoldHandle(std::sync::Arc::clone(&fold)), beat),
+        trace,
+    );
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
-    // The run settled — the rider must not speak over the epilogue.
+    // The run settled — the riders must not speak over the epilogue.
+    // (Aborted tasks reap at the executor's leisure; the fold lock below
+    // is contention-free regardless — same thread, sync section.)
     if let Some(ticker) = &ticker {
         ticker.abort();
     }
-    let (inner, trace) = tee.into_parts();
-    let (mut sink, _beat) = inner.into_parts();
+    if let Some(spinner) = &spinner {
+        spinner.abort();
+    }
+    let (_inner, trace) = tee.into_parts();
+    let Ok(mut sink) = fold.lock() else {
+        // A poisoned fold = a render-side panic already reported by the
+        // runtime; the verdict must still leave honestly.
+        eprintln!("nika run: render state poisoned");
+        return RunVerdict::bare(exit::ENV);
+    };
     // `Live` painted in place during the run; `Plain`/`Quiet` folded
     // silently · print the ONE final frame now.
     if mode != RenderMode::Live {
@@ -1028,7 +898,7 @@ async fn execute_fold_lane(
         failed_task.as_deref(),
     );
     epilogue::print_resume_summary(&outcome, resumed, false);
-    if let Some(e) = sink.into_error() {
+    if let Some(e) = sink.take_error() {
         eprintln!("nika run: render failed: {e}");
         return RunVerdict::bare(exit::ENV);
     }
@@ -1036,6 +906,38 @@ async fn execute_fold_lane(
         code,
         failure: first_failure(&outcome),
     }
+}
+
+/// Build the shared fold + its spinner rider (extracted so the fold
+/// lane stays under the fn-length ratchet). `Stdout` — not the guard:
+/// the rider is a spawned task and the stdout guard is thread-bound;
+/// per-write locking is fine because every REDRAW rides one DEC-2026
+/// synchronized frame anyway. The shape tails ride the INTERACTIVE
+/// surface only; the braille beat spawns for Live + motion only (the
+/// fold re-checks both on every tick).
+fn shared_fold(
+    theme: Theme,
+    mode: RenderMode,
+    outputs: bool,
+    plan: Vec<Vec<String>>,
+    map: Option<(crate::verbs::graph::GraphDoc, Vec<Vec<usize>>)>,
+) -> (
+    sink::SharedFold<std::io::Stdout>,
+    Option<tokio::task::JoinHandle<()>>,
+) {
+    let mut fold = FoldSink::new(std::io::stdout(), theme, mode);
+    fold.set_plan(plan);
+    if let Some((doc, waves)) = map {
+        fold.set_map(doc, waves);
+    }
+    if mode == RenderMode::Live && outputs {
+        fold.show_outputs(true);
+    }
+    let fold = std::sync::Arc::new(std::sync::Mutex::new(fold));
+    let spinner = theme
+        .animate
+        .then(|| sink::spawn_spinner(std::sync::Arc::clone(&fold)));
+    (fold, spinner)
 }
 
 /// Run the workflow through a sink + map the outcome to an exit code.
@@ -1105,10 +1007,7 @@ fn trace_sink(no_trace_file: bool) -> TraceFileSink {
 mod tests {
     use std::collections::BTreeMap;
 
-    use super::{
-        RenderMode, RunVerdict, capture_mock_outputs, dry_run_payload, example_tip, exit, run,
-        scope_to_task,
-    };
+    use super::{RenderMode, capture_mock_outputs, dry_run_payload, exit, run, scope_to_task};
     use crate::Theme;
     use serde_json::json;
 
@@ -1134,76 +1033,6 @@ mod tests {
         assert_eq!(p["effects_executed"], false);
         assert_eq!(p["permits"]["source"], "floor");
         assert!(p["cost"].is_object() && p["requirements"].is_object());
-    }
-
-    /// A failed verdict carrying one typed task error (the policy's input).
-    fn failed(code: &str, message: &str) -> RunVerdict {
-        RunVerdict {
-            code: exit::WORKFLOW,
-            failure: Some(nika_runtime::TaskErrorRecord {
-                code: code.to_owned(),
-                message: message.to_owned(),
-                transient: false,
-            }),
-        }
-    }
-
-    /// The rescue-tip policy (pure · the heart of the UX decision) is
-    /// keyed on the failure KIND (#145): only an infer/provider failure
-    /// earns the offline-model nudge; a missing program names the real
-    /// dependency instead of suggesting a model swap that cannot fix it.
-    #[test]
-    fn example_tip_keys_on_the_failure_kind() {
-        let infer = failed("NIKA-INFER-001", "provider call failed: model not found");
-        // FAIL on infer + no override + a local model → the right nudge.
-        let tip = example_tip("01-hello", &infer, false, "ollama/llama3.1")
-            .expect("the infer failure earns the offline nudge");
-        assert!(tip.contains("--model mock/echo"), "{tip}");
-        assert!(tip.contains("01-hello"), "the retry names the slug: {tip}");
-        // A clean run never needs the tip.
-        let ok = RunVerdict::bare(exit::OK);
-        assert!(example_tip("01-hello", &ok, false, "ollama/llama3.1").is_none());
-        // The user already overrode the model · suggesting it again is noise.
-        assert!(example_tip("01-hello", &infer, true, "ollama/llama3.1").is_none());
-        // mock/echo needs no provider · a failure there is a real bug, not
-        // a missing local model — so the offline tip would mislead.
-        assert!(example_tip("01-hello", &infer, false, "mock/echo").is_none());
-        // No envelope model (a parse miss) · the nudge would mislead.
-        assert!(example_tip("01-hello", &infer, false, "").is_none());
-    }
-
-    /// THE misdirection pin (#145 operator finding): an exec `program not
-    /// found` — even on an example that ALSO declares a model — must name
-    /// the missing program, never the mock-model swap.
-    #[test]
-    fn example_tip_exec_failure_names_the_program_not_the_model() {
-        let exec = failed("NIKA-EXEC-002", "program not found: cargo test");
-        let tip = example_tip("16-exec-pipeline", &exec, false, "ollama/llama3.1")
-            .expect("the missing program earns its own tip");
-        assert!(tip.contains("`cargo test`"), "{tip}");
-        assert!(
-            !tip.contains("mock/echo"),
-            "no model swap for a missing binary: {tip}"
-        );
-        // An unparseable exec message still teaches, generically.
-        let vague = failed("NIKA-EXEC-002", "spawn refused");
-        let tip = example_tip("16-exec-pipeline", &vague, false, "ollama/llama3.1")
-            .expect("the exec class still explains itself");
-        assert!(tip.contains("nika examples list"), "{tip}");
-        assert!(!tip.contains("mock/echo"), "{tip}");
-    }
-
-    /// Failure classes neither a model swap nor an install would rescue
-    /// (builtin errors · workflow-level breaches with no failed record)
-    /// stay silent — a tip that cannot help is noise.
-    #[test]
-    fn example_tip_stays_silent_on_unrescuable_classes() {
-        let builtin = failed("NIKA-BUILTIN-READ-001", "cannot read ./missing.json");
-        assert!(example_tip("01-hello", &builtin, false, "ollama/llama3.1").is_none());
-        // A workflow-level failure with no failed task record (typed-output
-        // breach) carries nothing to key on — silence, not a guess.
-        let bare_fail = RunVerdict::bare(exit::WORKFLOW);
-        assert!(example_tip("01-hello", &bare_fail, false, "ollama/llama3.1").is_none());
     }
 
     /// The empty-state voice (design §3 rider): an ENV refusal (missing

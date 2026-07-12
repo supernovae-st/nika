@@ -405,6 +405,14 @@ fn render(
     );
     permits(&mut out, report, wf, t);
     hints_and_verdict(&mut out, report, wf, t);
+    // The MAP beside the verdict — the same themed wire art `graph
+    // --format ascii` speaks, so the audit READS as the DAG it judged
+    // (operator ask 2026-07-12: « quand on fait check, voir la dag »).
+    // Interactive surface only; conformance failures skip it (no valid
+    // wave order exists to draw).
+    if t.accents && report.conformance.is_empty() {
+        let _ = write!(out, "\n{}", super::graph::ascii_art(wf, report, t));
+    }
     out
 }
 

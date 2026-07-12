@@ -195,7 +195,7 @@ meters real spend, and provenance is structural, not a promise:
 
 ```sh
 nika welcome                         # the mirror · what Nika is + what it sees here · offline
-nika context --json                  # the whole workspace, audited, one JSON (agents start here)
+nika welcome --deep --json           # the whole workspace, audited, one JSON (agents start here)
 nika inspect flow.nika.yaml          # anatomy · tasks · waves · cost floor
 nika check flow.nika.yaml            # the audit · exit 0 clean · 2 findings
 nika explain flow.nika.yaml          # the story · waves · cost BEFORE a token · what it touches
@@ -207,7 +207,7 @@ nika run flow.nika.yaml --resume .nika/traces/<run>.ndjson   # skip journaled su
 nika run flow.nika.yaml --resume <trace> --answer approve=true  # re-arm a paused gate
 nika trace show .nika/traces/<run>.ndjson   # re-render any past run
 nika catalog                         # the embedded provider/model catalog · capabilities · env vars
-nika tools                           # the nika:* builtin catalog · what invoke reaches without MCP
+nika catalog --tools                 # the nika:* builtin catalog · what invoke reaches without MCP
 nika doctor --ping                   # are the local servers actually listening?
 ```
 
@@ -225,7 +225,7 @@ of them with `--model ollama/llama3.2:3b` (or offline with `--model mock/echo`):
 
 | I want to… | Run | For |
 |---|---|---|
-| Review a PR before merging | [`examples/pr-risk-review.nika.yaml`](examples/pr-risk-review.nika.yaml) | developers |
+| Review a PR before merging | `nika examples run showcase/t3-pr-review-fanout` | developers |
 | Turn meeting notes into owned actions | `nika examples run showcase/t1-meeting-actions` | everyone |
 | Digest a week of standups | `nika examples run showcase/t1-standup-digest` | teams |
 | Draft release notes from commits | `nika examples run showcase/t2-release-notes` | maintainers |

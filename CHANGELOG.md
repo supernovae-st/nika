@@ -10,8 +10,191 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Changed
+
+- **One glyph table, zero-alloc live channel** (rust-pro pass) — the
+  verb glyph vocabulary lives ONCE (`Theme::verb_glyph_bare` joins
+  `verb_glyph`; the render-side copy dies), and the wire map's live
+  channel becomes a borrowed probe (`LiveProbe = &dyn Fn(&str) -> bool`
+  — a 10 Hz repaint asks the rows, it never materializes a set).
+
+- **Less, but better: 24 verbs become 20, in six families** (operator
+  Rams pass) — `graph` folds into `inspect --format json|mermaid|dot`
+  (one projector, one door; `check`/`run` already draw the map),
+  `schema` folds into `nika spec --schema`, `context` folds into
+  `nika welcome --deep` (one mirror, two depths — the `--json` agent
+  contract rides along unchanged), and `tools` folds into
+  `nika catalog --tools` (one catalogue, two shelves). The COLOUR
+  CHAIN is one road now: `--ascii` joins the global flags and the 23
+  per-verb `--no-color`/`--ascii` twins die (`--color never` and
+  `--plain` were always the umbrella — one chain, no per-verb echo).
+  The help reads as the family map (make · prove · run · learn · wire
+  · machine) instead of a flat 24-row wall, and every teaching surface
+  (agent briefs · README · hints) speaks the new doors. Pre-1.0 · no
+  aliases kept (no-legacy).
+
+### Changed
+
+- **The embedded pack re-syncs the taught corpus (spec #66)** — the
+  binary now ships the renumbered 01-07 path (contiguous, `git mv`'d in
+  spec), the six corpus bug-fixes (fetch-chain's literal recover ·
+  ceo-brief's date slice · the null-safe fan-ins · the untyped
+  quarantine output · config-drift's `{}` default), the offline-green
+  gate lessons, the `# Needs ·` header contract, and the agent
+  done-contract prompts — `nika examples` and `nika new` teach the same
+  corpus the spec publishes, no drift. Engine-side foundation refs
+  follow (examples/README table · run-tip fixtures).
+
 ### Added
 
+- **The motion SSOT is parity-gated, and `test` joins the lazy door**
+  — a new integration gate proves the terminal spinner constants
+  mirror the vendored `design/motion.yaml` (spec #65) family by family
+  (`infer·sampling` · `exec·scanline` · `invoke·roundtrip` ·
+  `agent·orbit`): hand-edited drift between the CLI's motion and the
+  site's tiles now dies in CI, not in a screenshot. And bare
+  `nika test` resolves the workspace's only workflow exactly like
+  `run`/`check` (zero→trio · several→copy-paste list) — the last
+  family inconsistency at the lazy door.
+
+- **The DAG is visible where you look** (operator: « voir la dag ! ») —
+  `nika check` on a TTY now ends with the SAME themed wire art `graph
+  --format ascii` speaks (the audit reads as the graph it judged;
+  conformance failures skip it — no valid order exists to draw), and
+  the Live run storyboard gains the LIVING MAP: one wave-column line
+  under the header where every node wears its state (dim pending · the
+  verb's own motion frame while running · green/red settled · `⊘`
+  skipped), repainted every tick so the running node's spinner turns
+  INSIDE the map. Wide runs drop ids and keep chips — the map never
+  wraps. And on shapes the wire law can draw, the Live run leads every
+  repaint with the FULL wire map itself (`◆ gather ───▶ ⠂ think ───▶
+  · persist` — the same art as check, each node painted by its live
+  state, the running node turning its verb's motion in place; the
+  wave-column line stands down to it) — and the INCOMING edge pulses:
+  the rail segment feeding a running node cycles density (`──╍▶` ·
+  Accent) so the map shows where the run's energy flows; a still map
+  is byte-stable under ticks (no idle flicker · law-tested), and the
+  flow gantt's lanes wear their verb chips (`◆ discover ▕██▏` — the
+  timeline speaks the same 4-verb vocabulary as the rows). The wire
+  drawing itself DESCENDS to `nika-display::wires` (decoupled
+  `WireGraph` — any surface with waves + deps can draw; the CLI keeps a
+  thin projection bridge), freeing `nika-cli` back under the 15k wall.
+  Interactive surfaces only; every sober register byte-intact.
+
+- **One source of truth for the corpus — the loose engine copies die**
+  — `engine/examples/` carried two pre-pack workflows (`pr-risk-review`
+  · `image-og-pipeline`) that duplicated pack showcases from every
+  angle's worst position: unversioned, unlisted, un-CI'd. Nuked; the
+  folder keeps a thin pointer README (the spec pack, vendored into the
+  binary, IS the gallery — `nika examples`), and the root README's
+  table row runs the pack twin instead.
+
+- **UNIFY: one street, one gesture** — the whole onboarding surface now
+  reads as a single funnel. The concierge card keys its `start here`
+  block on the WORKSPACE STATE (empty → the offline proof + the wizard;
+  workflows without briefs → `init` adds-only; one founded workflow →
+  bare `run`; several → `context` — one strong key per state, gh/bun
+  law). `nika new --from` resolves EXAMPLES too (slug · filename ·
+  showcase path — verbatim lessons beside the template skeletons; one
+  resolution ladder, `examples copy` is the same gesture's showroom
+  handle). And the founding wizard gains the sixth lane: **start from
+  one example** (slug beat · Enter = `01-hello` · no model question — a
+  lesson carries its own), with `nika init --example <slug>` as the
+  scriptable twin. Proven end-to-end: a PTY walk of the lane and a
+  first-hour smoke (copy → bare run → new-from-example → init
+  --example, all green offline).
+
+- **Bare `nika` is the concierge, and the showroom hands over the keys**
+  — on a terminal, plain `nika` now answers with the welcome card (what
+  this machine has · where you are · the next gesture) instead of the
+  22-command wall; pipes and scripts keep the exact usage screen and
+  exit 2. The missing adoption gesture ships as `nika examples copy
+  <slug> [dest]` (the embedded example lands as YOUR file · next steps
+  said · refuses silent overwrites · points `nika init` when no agent
+  briefs sit beside it), and a green TTY `examples run` ends with the
+  one-line handoff `make it yours · nika examples copy <slug>` — the
+  full loop is now see → like → own → bare `nika run` finds it.
+
+- **`nika examples run` takes `--var` and `--quiet`** — several
+  examples declare required vars in their header (`04-schema-retry`
+  says `--var text=…`) and the old surface had no way to pass them
+  (gauntlet friction F7). `--quiet` gives the verdict-line register;
+  the TTY pre-display keeps its Live-only gate.
+
+### Added
+
+- **`nika init` becomes the founding wizard** — bare on a terminal it
+  converses (the clack-school rail): pick a project **recipe**
+  (`agentic` — the 4-pattern curriculum chain → fan-out → gate → agent
+  loop · `starter` · `ship` · `content` · `minimal`), the model
+  (catalog-derived · local first · Enter = the offline mock), the VS
+  Code DAG **canvas theme** (`nika.dag.theme` stamped into the created
+  `.vscode/settings.json`), and which agent clients to **wire** to the
+  MCP oracle — then scaffolds, audits every scaffolded workflow on the
+  spot (audit-before-run inside the first minute), and hands over a
+  ready panel. Every recipe workflow is an embedded template VERBATIM
+  through the same stamp `nika new` uses, so the own-corpus law (a
+  fresh scaffold checks clean) is inherited, never re-proven. The
+  scriptable twins: `--recipe <name>` · `--theme <nika|editor|
+  phosphor|auto>` · `--wire <client,…>`; plain `--yes` keeps the
+  historical report byte-for-byte, and every question is asked BEFORE
+  the first write (cancel = « nothing written », honestly).
+
+- **The verb identity column reaches the terminal** — the four verbs
+  paint their tokens-SSOT glyphs (`◇` infer · `▷` exec · `◆` invoke ·
+  `✦` agent · ASCII twins `i $ @ *`) in a bright-band ANSI slot
+  (identity vocabulary · never colliding with a verdict hue — the
+  user's terminal theme still owns every color): `nika inspect` wave
+  boxes and single rows, the `nika graph --format ascii` wire art, and
+  `run --dry-run` (which now renders the same themed anatomy). The
+  graph ascii art finally inherits the binary's ONE color chain instead
+  of a forced monochrome — pipes stay escape-free by resolution, TTYs
+  see the art they were owed.
+
+- **`nika run` breathes while it thinks** — the Live storyboard gains
+  real spinner ticks: a timer rider advances the braille phase (~10/s)
+  while a task is running, so a long `infer`/`agent` await animates
+  instead of freezing between settles. Live + motion only (the
+  reduced-motion env, `--no-progress`, pipes, CI and `--json` never
+  tick — every sober register keeps byte-identical output), and the
+  frame still repaints inside one DEC-2026 synchronized frame.
+
+- **`nika examples` becomes the organized corpus** — the flat slug dump
+  grows into the taxonomy: « the path » (the 7 foundation steps · FULL
+  `.nika.yaml` filenames · each file's own header title · verb chips ·
+  what you see is what you type) then the showcase grouped T1→T4
+  (starters · daily ops · parallel intelligence · autonomous). Every
+  fact derives from the example file itself at call time (header +
+  line scan — no engine catalog to rot). `show` frames the anatomy
+  (file · title · verbs · task count) over the VERBATIM body and hands
+  the run command; `run` PRE-DISPLAYS the source on a TTY before the
+  first token (the lesson before the spend — pipes byte-unchanged).
+
+- **`nika init` recipes ship their index** — every workflow set writes
+  a generated `workflows/README.md` (the curriculum in order: file ·
+  what it teaches from the template's own header · per-file check/run
+  commands); the proof ladder audits workflows only. `nika tools`
+  speaks the rail (categories as heads · names strong · teaching cuts
+  dim).
+
+- **`nika-onboard` — the onboarding surface becomes its own member**
+  (the 15k prod-LOC wall broke at 16,027: base main sat 12 under, the
+  founding wizard crossed it — per D-2026-07-09-N1 the unit descends,
+  the `nika-display`/`nika-dap`/`nika-tmpl` precedents). `nika new`'s
+  guided flow + `nika init`'s founding body (briefs · recipes · wizard)
+  now live in `crates/nika-onboard`; the composition root keeps thin
+  adapters that inject the two REAL effects (the check ladder · the MCP
+  wiring) — the member converses and scaffolds, the root owns what
+  proving and wiring mean. Zero observable change on every surface.
+
+- **`nika-display` grows the structural chrome vocabulary**
+  (`chrome.rs`): the wizard rail (`◆ │ └` · ASCII twins), the rounded
+  panel with frame-true width math, the segment progress bar with its
+  half-cell frontier, the 3-line identity banner (no figlet walls), and
+  the dither pulse that only exists where motion does — every shape
+  colour-through-Role only, 2-cell law, zero escapes when colour is
+  off.
+||||||| 6207ec234
 - **LSP code actions — the `--fix` engine in every editor**: the language
   server now answers `textDocument/codeAction` with quickfix renames
   built from the checker's typed `offending`/`suggestion` pairs (unknown

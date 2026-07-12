@@ -31,7 +31,7 @@ tasks:
     .expect("write workflow");
 
     let run = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
-        .args(["run", "w.nika.yaml", "--json", "--no-color"])
+        .args(["run", "w.nika.yaml", "--json", "--color", "never"])
         .current_dir(dir)
         .output()
         .expect("run spawns");

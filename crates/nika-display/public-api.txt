@@ -1,4 +1,14 @@
 pub mod nika_display
+pub mod nika_display::chrome
+pub const nika_display::chrome::PULSE: [char; 3]
+pub fn nika_display::chrome::banner(theme: nika_display::theme::Theme, title: &str, tagline: &str, version: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::chrome::bar(theme: nika_display::theme::Theme, done: usize, total: usize, width: usize) -> alloc::string::String
+pub fn nika_display::chrome::panel(theme: nika_display::theme::Theme, title: &str, lines: &[(alloc::string::String, nika_display::theme::Role)]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::chrome::pulse(theme: nika_display::theme::Theme, tick: usize) -> alloc::string::String
+pub fn nika_display::chrome::rail_close(theme: nika_display::theme::Theme, text: &str) -> alloc::string::String
+pub fn nika_display::chrome::rail_head(theme: nika_display::theme::Theme, label: &str) -> alloc::string::String
+pub fn nika_display::chrome::rail_line(theme: nika_display::theme::Theme, text: &str) -> alloc::string::String
+pub fn nika_display::chrome::rail_pick(theme: nika_display::theme::Theme, n: usize, label: &str, note: &str) -> alloc::string::String
 pub mod nika_display::demo
 pub fn nika_display::demo::bare_event(kind: nika_event::kind::EventKind, ms: u64) -> nika_event::event::Event
 pub fn nika_display::demo::failure() -> alloc::vec::Vec<nika_event::event::Event>
@@ -273,6 +283,7 @@ pub struct nika_display::state::RunView
 pub nika_display::state::RunView::ceiling_usd: core::option::Option<f64>
 pub nika_display::state::RunView::cost_usd: f64
 pub nika_display::state::RunView::elapsed_ms: u64
+pub nika_display::state::RunView::external_map: bool
 pub nika_display::state::RunView::permits: core::option::Option<alloc::string::String>
 pub nika_display::state::RunView::retries: u32
 pub nika_display::state::RunView::token_samples: alloc::vec::Vec<u64>
@@ -372,7 +383,13 @@ pub nika_display::theme::Role::Bad
 pub nika_display::theme::Role::Dim
 pub nika_display::theme::Role::Good
 pub nika_display::theme::Role::Strong
+pub nika_display::theme::Role::VerbAgent
+pub nika_display::theme::Role::VerbExec
+pub nika_display::theme::Role::VerbInfer
+pub nika_display::theme::Role::VerbInvoke
 pub nika_display::theme::Role::Warn
+impl nika_display::theme::Role
+pub fn nika_display::theme::Role::for_verb(verb: &str) -> core::option::Option<Self>
 impl core::clone::Clone for nika_display::theme::Role
 pub fn nika_display::theme::Role::clone(&self) -> nika_display::theme::Role
 impl core::cmp::Eq for nika_display::theme::Role
@@ -432,6 +449,9 @@ pub fn nika_display::theme::Theme::logo(&self) -> &'static str
 pub const fn nika_display::theme::Theme::new(color: bool, ascii: bool, animate: bool) -> Self
 pub fn nika_display::theme::Theme::paint(&self, role: nika_display::theme::Role, text: &str) -> alloc::string::String
 pub fn nika_display::theme::Theme::sparkline(&self, samples: &[u64]) -> alloc::string::String
+pub fn nika_display::theme::Theme::verb_glyph(&self, verb: &str) -> alloc::string::String
+pub fn nika_display::theme::Theme::verb_glyph_bare(&self, verb: core::option::Option<&str>) -> &'static str
+pub fn nika_display::theme::Theme::verb_spin(&self, verb: core::option::Option<&str>, tick: usize) -> alloc::string::String
 impl core::clone::Clone for nika_display::theme::Theme
 pub fn nika_display::theme::Theme::clone(&self) -> nika_display::theme::Theme
 impl core::fmt::Debug for nika_display::theme::Theme
@@ -467,9 +487,38 @@ pub fn nika_display::theme::Theme::as_any(&self) -> &(dyn core::any::Any + 'stat
 impl<T> outref::AsOut<T> for nika_display::theme::Theme where T: core::marker::Copy
 pub fn nika_display::theme::Theme::as_out(&mut self) -> outref::Out<'_, T>
 pub const nika_display::theme::HEAT_RAMP: [(u8, u8, u8); 5]
+pub const nika_display::theme::ROUNDTRIP: [char; 10]
+pub const nika_display::theme::SAMPLING: [char; 10]
+pub const nika_display::theme::SCANLINE: [char; 10]
 pub const nika_display::theme::SPARK: [char; 7]
 pub const nika_display::theme::SPINNER: [char; 10]
 pub mod nika_display::vocab
 pub fn nika_display::vocab::arrow(ascii: bool) -> &'static str
 pub fn nika_display::vocab::at_least(ascii: bool) -> &'static str
 pub fn nika_display::vocab::hint(theme: nika_display::theme::Theme, label: &str, command: &str) -> alloc::string::String
+pub mod nika_display::wires
+pub struct nika_display::wires::WireGraph
+pub nika_display::wires::WireGraph::edges: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub nika_display::wires::WireGraph::waves: alloc::vec::Vec<alloc::vec::Vec<(alloc::string::String, alloc::string::String)>>
+impl<D> owo_colors::OwoColorize for nika_display::wires::WireGraph
+impl<T, U> core::convert::Into<U> for nika_display::wires::WireGraph where U: core::convert::From<T>
+pub fn nika_display::wires::WireGraph::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::wires::WireGraph where U: core::convert::Into<T>
+pub type nika_display::wires::WireGraph::Error = core::convert::Infallible
+pub fn nika_display::wires::WireGraph::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::wires::WireGraph where U: core::convert::TryFrom<T>
+pub type nika_display::wires::WireGraph::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::wires::WireGraph::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_display::wires::WireGraph where T: 'static + ?core::marker::Sized
+pub fn nika_display::wires::WireGraph::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::wires::WireGraph where T: ?core::marker::Sized
+pub fn nika_display::wires::WireGraph::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::wires::WireGraph where T: ?core::marker::Sized
+pub fn nika_display::wires::WireGraph::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_display::wires::WireGraph
+pub fn nika_display::wires::WireGraph::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_display::wires::WireGraph where T: 'static
+pub fn nika_display::wires::WireGraph::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_display::wires::render(graph: &nika_display::wires::WireGraph, theme: nika_display::theme::Theme) -> core::option::Option<alloc::string::String>
+pub fn nika_display::wires::render_with(graph: &nika_display::wires::WireGraph, theme: nika_display::theme::Theme, node: &dyn core::ops::function::Fn(&str, &str) -> (alloc::string::String, alloc::string::String), live: core::option::Option<(nika_display::wires::LiveProbe<'_>, usize)>) -> core::option::Option<alloc::string::String>
+pub type nika_display::wires::LiveProbe<'a> = &'a dyn core::ops::function::Fn(&str) -> bool

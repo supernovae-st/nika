@@ -15,6 +15,9 @@ use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+mod examples_args;
+mod init_args;
+mod lazy;
 mod model_args;
 mod registry_args;
 
@@ -24,6 +27,9 @@ use nika_cli::verbs::explain_file::dispatch as explain_dispatch;
 use nika_cli::verbs::{self, VerbOutput};
 use nika_cli::{RunView, Theme, frame};
 
+use examples_args::{ExamplesAction, examples_verb};
+use init_args::{InitArgs, init_verb};
+use lazy::{check_lazy, resolve_lazy_target, run_lazy};
 use nika_event::Event;
 
 #[derive(Parser)]
@@ -38,20 +44,30 @@ use nika_event::Event;
     // The lost-user footer (clig.dev · suggest the next command): a bare
     // `nika` is someone asking where to start, not someone reading a
     // reference. Three commands, zero keys, offline.
-    after_help = "start here:\n  nika welcome                                   # what this machine has · where to start\n  nika init                                      # wire this repo (editor · agents)\n  nika new                                       # your first workflow — guided on a terminal\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika doctor                                    # what's configured · what's missing"
+    after_help = "the map (family by family):\n  make      init · new · examples        # found a repo · one file · the corpus\n  prove     check · test                  # audit before tokens · goldens\n  run       run · trace                   # the living DAG · the flight recorder\n  learn     welcome · explain · doctor · inspect · spec\n  wire      wire · model · catalog\n  machine   mcp · lsp · dap · completions\n\nstart here:\n  nika                                           # the concierge (a terminal greets you)\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika init                                      # found this repo — the wizard"
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
     /// `CLICOLOR_FORCE` · `NO_COLOR` · `CLICOLOR=0` in that order).
-    #[arg(long, global = true, value_enum, default_value_t = ColorWhenArg::Auto)]
+    #[arg(long, global = true, value_enum, default_value_t = ColorWhenArg::Auto, display_order = 900)]
     color: ColorWhenArg,
     /// When to emit OSC-8 hyperlinks on printed paths (auto = TTY +
     /// `TERM != dumb` · never to pipes; always = force them, for pagers
     /// that pass escapes — tmux/screen may render them as plain text).
-    #[arg(long, global = true, value_enum, default_value_t = LinkWhenArg::Auto)]
+    #[arg(long, global = true, value_enum, default_value_t = LinkWhenArg::Auto, display_order = 901)]
     hyperlink: LinkWhenArg,
+    /// Force the ASCII glyph twins everywhere (CI logs · legacy
+    /// terminals) — colour stays; `--plain` is the full sober umbrella.
+    #[arg(long, global = true, display_order = 903)]
+    ascii: bool,
+    /// The sober umbrella — one flag for scripts, CI and transcripts:
+    /// colour off · ASCII glyphs · hyperlinks off · no animation (`run`
+    /// renders its plain storyboard). The same result as `--color never
+    /// --hyperlink never` plus every verb's `--ascii`/`--no-progress`.
+    #[arg(long, global = true, display_order = 902)]
+    plain: bool,
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -104,34 +120,27 @@ enum Command {
     /// The mirror: what Nika is · what this machine already has (editors ·
     /// local models · key presence · this workspace) · the next commands.
     /// Offline · presence-only · always exit 0 — a greeting, not a gate.
+    #[command(display_order = 40)]
     Welcome {
         /// Emit the versioned machine mirror (`welcome_version: 1`).
         #[arg(long)]
         json: bool,
-        /// Force the ASCII glyph theme (CI logs · legacy terminals).
+        /// The whole workspace truth (every workflow audited · recent
+        /// runs · machine facts) — the deep half of the mirror (the old
+        /// `context` verb, one roof).
         #[arg(long)]
-        ascii: bool,
-    },
-    /// The whole workspace truth in ONE call — every workflow audited
-    /// (verdict · tasks · waves · cost honesty · permits), recent runs
-    /// folded from the flight recorder, the machine facts. Capped and
-    /// says so; facts, never file contents.
-    Context {
-        /// Emit the versioned machine aggregate (`context_version: 1`).
-        #[arg(long)]
-        json: bool,
-        /// Force the ASCII glyph theme (CI logs · legacy terminals).
-        #[arg(long)]
-        ascii: bool,
+        deep: bool,
     },
     /// Audit a workflow BEFORE it runs: plan · cost ceiling · secret
     /// flows · types · tools — every finding teaches its fix.
+    #[command(display_order = 20)]
     Check {
         /// Workflow file(s) (`*.nika.yaml`) · `-` reads stdin · or a verified
         /// `registry:owner/name[@version]` pull (cached + offline; workflow
         /// `permits:` never govern the fetch) · several files audit in sequence
         /// (worst exit wins — the CI shape) · `--json`/`--infer-permits` one-file-per-call.
-        #[arg(required = true, num_args = 1..)]
+        /// Omitted with exactly one workflow here → that one is audited.
+        #[arg(num_args = 0..)]
         files: Vec<String>,
         /// Emit the machine-readable report (never coloured).
         #[arg(long)]
@@ -156,49 +165,36 @@ enum Command {
         /// --model` (per-task `model:` still wins, like the runtime).
         #[arg(long)]
         model: Option<String>,
-        /// Disable colour output.
-        #[arg(long)]
-        no_color: bool,
-        /// Force the ASCII glyph theme.
-        #[arg(long)]
-        ascii: bool,
     },
     /// Run a workflow (the same audit runs first · live render).
+    #[command(display_order = 30)]
     Run(RunArgs),
     /// Golden test: run under the MOCK provider (offline · deterministic)
     /// and compare the typed `outputs:` against `<file>.golden.json`.
+    #[command(display_order = 21)]
     Test {
         /// Workflow file (`*.nika.yaml`).
-        file: String,
+        file: Option<String>,
         /// (Re)write the golden from this run instead of comparing.
         #[arg(long)]
         update: bool,
-        /// Disable colour output.
-        #[arg(long)]
-        no_color: bool,
-        /// Force the ASCII glyph theme.
-        #[arg(long)]
-        ascii: bool,
     },
-    /// Static anatomy: tasks · verbs · wave groups · cost · permits.
+    /// Static anatomy: tasks · verbs · wave groups · cost · permits —
+    /// and the ONE graph projector (`--format json|mermaid|dot` for the
+    /// machine surfaces · human stays the default).
+    #[command(display_order = 43)]
     Inspect {
         /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
         file: String,
-        /// Force the ASCII glyph theme (CI logs · legacy terminals).
-        #[arg(long)]
-        ascii: bool,
-    },
-    /// The ONE graph projector (json canonical · mermaid/dot derived).
-    Graph {
-        /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
-        file: String,
-        /// Output format.
-        #[arg(long, value_enum, default_value_t = GraphFormatArg::Json)]
-        format: GraphFormatArg,
+        /// Project the graph instead of the human anatomy (json
+        /// canonical · mermaid/dot derived — the docs/site surfaces).
+        #[arg(long, value_enum)]
+        format: Option<GraphFormatArg>,
     },
     /// Teach one error code (cause · category · fix-form) — or narrate a
     /// workflow FILE: what it does · the waves · cost before a token is
     /// spent · what it touches · how to run it.
+    #[command(display_order = 41)]
     Explain {
         /// An error code (`NIKA-440` · bare `440` · `DAG-003`) or a
         /// workflow file path (`*.nika.yaml` · `-` reads stdin).
@@ -215,6 +211,7 @@ enum Command {
     },
     /// Diagnose this machine (binary · config · provider keys · local models).
     /// Diagnose-only — prints the exact fix command, never mutates anything.
+    #[command(display_order = 42)]
     Doctor {
         /// TCP-probe the local provider ports (loopback/configured only ·
         /// 300ms cap · nothing is sent on the socket). Offline without it.
@@ -225,22 +222,14 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Scaffold a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule + MCP ·
-    /// `.agents/skills` authoring skill). Existing files are skipped —
-    /// `--force` overwrites.
-    Init {
-        /// Target directory (default · the current directory).
-        #[arg(default_value = ".")]
-        dir: String,
-        /// Overwrite existing files.
-        #[arg(long)]
-        force: bool,
-        /// Accept every default — never prompt (pipes and CI are
-        /// implicitly `--yes`; prompts only ever appear on a terminal).
-        #[arg(long, short = 'y')]
-        yes: bool,
-    },
+    /// Found a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule + MCP ·
+    /// `.agents/skills` authoring skill · optional workflow set). Bare on
+    /// a terminal the founding wizard runs; flags are the scriptable
+    /// twin. Existing files are skipped — `--force` overwrites.
+    #[command(display_order = 10)]
+    Init(InitArgs),
     /// Wire Nika into editor/agent MCP clients (explicit, idempotent).
+    #[command(display_order = 50)]
     Wire {
         /// Client to wire.
         #[arg(value_enum)]
@@ -251,31 +240,35 @@ enum Command {
     },
     /// Local models — pull from the Hugging Face Hub, serve on this
     /// machine, list/rm the disk (ONE models dir · no external daemon).
+    #[command(display_order = 51)]
     Model {
         #[command(subcommand)]
         action: model_args::ModelAction,
     },
     /// The embedded spec identity (`--canon` prints the SSOT).
+    #[command(display_order = 44)]
     Spec {
         /// Print the canon.yaml single source of truth.
         #[arg(long)]
         canon: bool,
+        /// Print the embedded JSON Schema for `*.nika.yaml` (the old
+        /// `schema` verb, one roof).
+        #[arg(long, conflicts_with = "canon")]
+        schema: bool,
     },
-    /// The embedded JSON Schema for `*.nika.yaml`.
-    Schema,
     /// The embedded provider/model catalog (models · capabilities · env vars).
+    #[command(display_order = 52)]
     Catalog {
         /// Emit the versioned machine projection (`catalog_version: 1`).
         #[arg(long)]
         json: bool,
-    },
-    /// The embedded builtin tool catalog (`nika:*` · model-facing schemas).
-    Tools {
-        /// Emit the versioned machine projection (`tools_version: 1`).
+        /// The `nika:*` builtin tool catalog instead (what `invoke`
+        /// reaches without MCP — the old `tools` verb, one roof).
         #[arg(long)]
-        json: bool,
+        tools: bool,
     },
     /// Browse the embedded examples.
+    #[command(display_order = 12)]
     Examples {
         /// Bare `nika examples` lists — the clap usage screen answered
         /// where a user following init's « next · » expected the slugs
@@ -284,6 +277,7 @@ enum Command {
         action: Option<ExamplesAction>,
     },
     /// Instantiate an embedded template skeleton.
+    #[command(display_order = 11)]
     New {
         /// Template name or plain-words intent (`--from '?'` lists the
         /// set). Omitted on a terminal → the guided three-question flow;
@@ -298,12 +292,14 @@ enum Command {
         force: bool,
     },
     /// Generate shell completions (bash · zsh · fish · elvish · powershell).
+    #[command(display_order = 63)]
     Completions {
         /// Target shell.
         #[arg(value_enum)]
         shell: clap_complete::Shell,
     },
     /// Read the flight recorder (replay or summarize a run).
+    #[command(display_order = 31)]
     Trace {
         #[command(subcommand)]
         action: TraceAction,
@@ -312,13 +308,16 @@ enum Command {
     /// run under a debugger UI: breakpoints on task lines · step forward
     /// AND back through settles · outputs in the variables pane. Replay
     /// re-renders, never re-executes.
+    #[command(display_order = 62)]
     Dap,
     /// Run the language server over stdio (drives the editor extension).
+    #[command(display_order = 61)]
     Lsp,
     /// Run the MCP server (validate: check/explain · learn:
     /// schema/examples/templates/canon — the in-binary Model Context Protocol
     /// surface for Cursor · Claude Desktop · agents). Default transport:
     /// stdio; `--transport http` serves Streamable HTTP for managed hosts.
+    #[command(display_order = 60)]
     Mcp {
         /// The wire: `stdio` (the editor/agent default) or `http`
         /// (Streamable HTTP · POST JSON-RPC · spec 2025-11-25).
@@ -367,37 +366,6 @@ impl From<GraphFormatArg> for verbs::graph::GraphFormat {
 }
 
 #[derive(Subcommand)]
-enum ExamplesAction {
-    /// List the embedded example slugs.
-    List,
-    /// Print one embedded example.
-    Show {
-        /// Example slug (from `list`).
-        slug: String,
-    },
-    /// Run an embedded example (audited first · live render).
-    Run {
-        /// Example slug (from `list`).
-        slug: String,
-        /// Override the example's `model:` (`<provider>/<name>`). Use
-        /// `--model mock/echo` to preview offline (zero key · zero network).
-        #[arg(long, value_name = "PROVIDER/NAME")]
-        model: Option<String>,
-        /// Bind a workflow `vars:` input (repeatable) — the `nika run
-        /// --var` contract; examples with `required:` vars need it.
-        #[arg(long = "var", value_name = "KEY=VALUE")]
-        var: Vec<String>,
-        /// Plain line-by-line render — same as `nika run --no-progress`.
-        #[arg(long)]
-        no_progress: bool,
-        /// Refuse any spend past this bound BEFORE the crossing call —
-        /// the `nika run --max-cost-usd` contract.
-        #[arg(long = "max-cost-usd", value_name = "USD", value_parser = parse_budget_usd)]
-        max_cost_usd: Option<f64>,
-    },
-}
-
-#[derive(Subcommand)]
 enum TraceAction {
     /// Re-render a run live (replay = re-render, NEVER re-execute).
     Replay(TraceArgs),
@@ -407,14 +375,7 @@ enum TraceAction {
     /// workflow · terminal state (completed/failed/paused) · the
     /// resume-candidate marker (★ — the newest of each workflow, the
     /// trace retention never collects · ADR-100).
-    Ls {
-        /// Force the ASCII glyph theme.
-        #[arg(long)]
-        ascii: bool,
-        /// Disable colour output.
-        #[arg(long)]
-        no_color: bool,
-    },
+    Ls {},
     /// Remove traces from the store — one by name/path, `--older-than
     /// <dur>`, or `--all`. Removing a paused trace refuses without
     /// `--force` and names the unanswered prompt it would destroy
@@ -433,24 +394,12 @@ enum TraceAction {
         /// Remove even a paused trace (destroys its unanswered prompt).
         #[arg(long)]
         force: bool,
-        /// Force the ASCII glyph theme.
-        #[arg(long)]
-        ascii: bool,
-        /// Disable colour output.
-        #[arg(long)]
-        no_color: bool,
     },
     /// Browse per-task outputs: verb · duration · tokens · bounded
     /// preview (full value: `trace peek`).
     Outputs {
         /// Trace NDJSON path (default: the workspace's latest trace).
         trace: Option<PathBuf>,
-        /// Force the ASCII glyph theme.
-        #[arg(long)]
-        ascii: bool,
-        /// Disable colour output.
-        #[arg(long)]
-        no_color: bool,
     },
     /// Project the journal to OTLP/JSON lines — every `OTel` tool becomes
     /// a viewer (drag into Jaeger UI ≥1.60 · POST lines to any OTLP/HTTP
@@ -495,12 +444,6 @@ enum TraceAction {
         /// Print the exact recorded value only (machine-friendly).
         #[arg(long)]
         raw: bool,
-        /// Force the ASCII glyph theme.
-        #[arg(long)]
-        ascii: bool,
-        /// Disable colour output.
-        #[arg(long)]
-        no_color: bool,
     },
     /// The data waterfall: which output fed which task, with recorded
     /// sizes (plan bindings from the workflow file × sizes from the
@@ -512,12 +455,6 @@ enum TraceAction {
         /// The workflow file the run executed (`*.nika.yaml`) — the
         /// trace records values, the definition records the bindings.
         workflow: Option<String>,
-        /// Force the ASCII glyph theme.
-        #[arg(long)]
-        ascii: bool,
-        /// Disable colour output.
-        #[arg(long)]
-        no_color: bool,
     },
 }
 
@@ -528,7 +465,9 @@ enum TraceAction {
 struct RunArgs {
     /// Workflow file (`*.nika.yaml`) · or a `registry:owner/name[@version]`
     /// verified pull (cached + offline; `permits:` never govern the fetch).
-    file: String,
+    /// OMITTED with exactly one workflow in this workspace → that one
+    /// runs (announced); zero or several → the honest routing.
+    file: Option<String>,
     /// Stream NDJSON events instead of the live render (CI · agents).
     #[arg(long)]
     json: bool,
@@ -537,12 +476,6 @@ struct RunArgs {
     /// `exec: nika run sub.yaml --output json` + `capture: stdout`.
     #[arg(long, value_name = "FORMAT", conflicts_with = "json")]
     output: Option<String>,
-    /// Disable colour output.
-    #[arg(long)]
-    no_color: bool,
-    /// Force the ASCII glyph theme.
-    #[arg(long)]
-    ascii: bool,
     /// Plain render: one final storyboard frame, no animation (the
     /// CI-stable surface · also the default when stdout is piped).
     /// A human surface — meaningless with the `--json`/`--output` machine
@@ -672,12 +605,6 @@ struct TraceArgs {
     /// Replay time compression (6 = 6× faster than recorded).
     #[arg(long, default_value_t = 6.0)]
     speed: f64,
-    /// Force the ASCII glyph theme (CI logs · legacy terminals).
-    #[arg(long)]
-    ascii: bool,
-    /// Disable colour output.
-    #[arg(long)]
-    no_color: bool,
     /// Hide the per-task output summaries (`→ {…} · 312B`) on the
     /// rendered storyboard. Interactive TTY only — a piped `trace show`
     /// never carries them anyway.
@@ -755,12 +682,66 @@ fn check_dispatch(
     }
 }
 
+impl Cli {
+    /// `--plain` folds the whole sober story BEFORE any resolution —
+    /// the downstream chains then see an explicit `never` at the top
+    /// rung (colour · links); the ASCII/no-progress halves ride the
+    /// same bool at each verb's own seam.
+    fn presentation(&self) -> (ColorWhenArg, LinkChoice) {
+        if self.plain {
+            (ColorWhenArg::Never, LinkChoice::Never)
+        } else {
+            (self.color, self.hyperlink.choice())
+        }
+    }
+}
+
+/// Bare `nika` on a terminal is the CONCIERGE: the welcome card (what
+/// this machine has · where you are · the next gesture) — the first
+/// keystroke answers with a gesture, not a wall. Pipes/scripts keep the
+/// full usage + exit 2 (a bare `nika` in a script is a usage error; the
+/// sober register never changes shape).
+/// The mirror's two depths — the greeting, or the whole workspace
+/// truth (the old `context` verb, one roof).
+fn mirror_verb(json: bool, deep: bool, theme: Theme) -> u8 {
+    if deep {
+        emit(&verbs::context::run(json, theme))
+    } else {
+        emit(&verbs::welcome::run(json, theme))
+    }
+}
+
+/// The pack identity's two dumps — the spec card, `--canon`, or the
+/// JSON Schema (the old `schema` verb, one roof).
+fn spec_verb(canon: bool, schema: bool) -> u8 {
+    if schema {
+        emit(&verbs::pack_surface::schema())
+    } else {
+        emit(&verbs::pack_surface::spec(canon))
+    }
+}
+
+fn concierge(plain_theme: Theme) -> std::process::ExitCode {
+    if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+        return emit(&verbs::welcome::run(false, plain_theme)).into();
+    }
+    let mut cmd = <Cli as CommandFactory>::command();
+    let _ = cmd.print_help();
+    std::process::ExitCode::from(2)
+}
+
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
-    let color = cli.color;
-    let link_when = cli.hyperlink.choice();
-    let plain_theme = term_theme(color.with_no_color(false), false, link_when);
-    let code = match cli.command {
+    let (color, link_when) = cli.presentation();
+    let plain_theme = term_theme(
+        color.with_no_color(false),
+        cli.ascii || cli.plain,
+        link_when,
+    );
+    let Some(command) = cli.command else {
+        return concierge(plain_theme);
+    };
+    let code = match command {
         Command::Check {
             files,
             json,
@@ -768,10 +749,8 @@ fn main() -> std::process::ExitCode {
             fix,
             native_strict,
             model,
-            no_color,
-            ascii,
-        } => registry_args::check_verb(
-            &files,
+        } => check_lazy(
+            files,
             &CheckFlags {
                 json,
                 infer_permits,
@@ -779,40 +758,35 @@ fn main() -> std::process::ExitCode {
             },
             fix,
             model.as_deref(),
-            term_theme(color.with_no_color(no_color), ascii, link_when),
+            interactive_theme(plain_theme),
         ),
-        Command::Run(args) => registry_args::registry_then_run(args, color, link_when),
-        Command::Test {
-            file,
-            update,
-            no_color,
-            ascii,
-        } => verbs::test::run(
-            &file,
-            update,
-            term_theme(color.with_no_color(no_color), ascii, link_when),
-        ),
-        Command::Inspect { file, ascii } => emit(&verbs::inspect::run(&file, ascii)),
-        Command::Graph { file, format } => emit(&verbs::graph::run(&file, format.into())),
-        Command::Context { json, ascii } => {
-            emit(&verbs::context::run(json, with_ascii(plain_theme, ascii)))
-        }
-        Command::Welcome { json, ascii } => {
-            emit(&verbs::welcome::run(json, with_ascii(plain_theme, ascii)))
-        }
+        Command::Run(args) => run_lazy(args, color, link_when, cli.plain, cli.ascii),
+        Command::Test { file, update } => match resolve_lazy_target(file, "test") {
+            Ok(file) => verbs::test::run(&file, update, plain_theme),
+            Err(code) => code,
+        },
+        Command::Inspect { file, format } => match format {
+            Some(f) => emit(&verbs::graph::run(&file, f.into(), plain_theme)),
+            None => emit(&verbs::inspect::run(&file, plain_theme)),
+        },
+        Command::Welcome { json, deep } => mirror_verb(json, deep, plain_theme),
         Command::Explain {
             code,
             json,
             forecast,
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
-        Command::Init { dir, force, yes } => emit(&verbs::init::run(&dir, force, yes, plain_theme)),
+        Command::Init(args) => emit(&init_verb(&args, plain_theme)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target, &dir)),
         Command::Model { action } => model_args::model_verb(action),
-        Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
-        Command::Schema => emit(&verbs::pack_surface::schema()),
-        Command::Catalog { json } => emit(&verbs::catalog::run(json)),
-        Command::Tools { json } => emit(&verbs::tools::run(json)),
+        Command::Spec { canon, schema } => spec_verb(canon, schema),
+        Command::Catalog { json, tools } => {
+            if tools {
+                emit(&verbs::tools::run(json, plain_theme))
+            } else {
+                emit(&verbs::catalog::run(json, plain_theme))
+            }
+        }
         Command::Examples { action } => examples_verb(action, plain_theme),
         Command::New { from, dest, force } => emit(&verbs::new::dispatch(
             from.as_deref(),
@@ -824,7 +798,7 @@ fn main() -> std::process::ExitCode {
             write_completions(shell, &mut std::io::stdout());
             0
         }
-        Command::Trace { action } => trace_verb(action, color, link_when),
+        Command::Trace { action } => trace_verb(action, plain_theme, color, link_when),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
         // shutdown/exit, non-zero (1) otherwise (transport failure, or an
@@ -834,7 +808,7 @@ fn main() -> std::process::ExitCode {
         Command::Lsp => match nika_lsp::run_stdio() {
             Ok(()) => verbs::exit::OK,
             Err(err) => {
-                eprintln!("nika-cli: lsp: {err}");
+                eprintln!("nika lsp: {err}");
                 1
             }
         },
@@ -855,42 +829,17 @@ fn main() -> std::process::ExitCode {
 /// environment errors go to stderr.
 fn emit(out: &VerbOutput) -> u8 {
     if out.code == verbs::exit::ENV {
-        eprintln!("nika-cli: {}", out.text);
+        eprintln!("nika: {}", out.text);
     } else if !out.text.is_empty() {
         println!("{}", out.text.trim_end());
     }
     out.code
 }
 
-/// Dispatch the `trace` verb family: the live renders (replay · show)
-/// plus the static readers (outputs · peek · flow).
-/// The `examples` sub-verbs — list · show · run-for-real (L3 shipped).
-fn examples_verb(action: Option<ExamplesAction>, plain_theme: Theme) -> u8 {
-    match action.unwrap_or(ExamplesAction::List) {
-        ExamplesAction::List => emit(&verbs::pack_surface::examples_list()),
-        ExamplesAction::Show { slug } => emit(&verbs::pack_surface::examples_show(&slug)),
-        // The L3 run verb shipped — execute the embedded example for real.
-        ExamplesAction::Run {
-            slug,
-            model,
-            var,
-            no_progress,
-            max_cost_usd,
-        } => verbs::run::example(
-            &slug,
-            model.as_deref(),
-            &var,
-            no_progress,
-            max_cost_usd,
-            plain_theme,
-        ),
-    }
-}
-
 /// Name the bare-form pick on stderr — the receipt names its subject.
 fn announce_latest(path: &Path) {
     eprintln!(
-        "nika-cli: reading {} (the workspace latest)",
+        "nika trace: reading {} (the workspace latest)",
         path.display()
     );
 }
@@ -906,7 +855,9 @@ fn resolve_trace(given: Option<PathBuf>) -> Result<PathBuf, u8> {
         announce_latest(&path);
         return Ok(path);
     }
-    eprintln!("nika-cli: no traces in .nika/traces yet — run a workflow first");
+    eprintln!(
+        "nika trace: no traces in .nika/traces yet — run a workflow first, or pass a trace path"
+    );
     Err(verbs::exit::ENV)
 }
 
@@ -921,7 +872,7 @@ fn flow_verb(trace: Option<PathBuf>, workflow: Option<String>, theme: Theme) -> 
         }
         _ => {
             eprintln!(
-                "nika-cli: trace flow needs the workflow file — `nika trace flow [trace] <workflow.nika.yaml>` (the trace records values, the definition records the bindings)"
+                "nika trace: flow needs the workflow file — `nika trace flow [trace] <workflow.nika.yaml>` (the trace records values, the definition records the bindings)"
             );
             return verbs::exit::ENV;
         }
@@ -968,7 +919,7 @@ fn mcp_verb(transport: McpTransportArg, port: u16, bind: &str) -> u8 {
     match served {
         Ok(()) => verbs::exit::OK,
         Err(err) => {
-            eprintln!("nika-cli: mcp: {err}");
+            eprintln!("nika mcp: {err}");
             1
         }
     }
@@ -987,22 +938,16 @@ fn verify_verb(mut traces: Vec<PathBuf>) -> u8 {
     }
 }
 
-fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
+fn trace_verb(action: TraceAction, theme: Theme, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
     match action {
-        TraceAction::Replay(args) => trace_render(&args, true, color, link_when),
-        TraceAction::Show(args) => trace_render(&args, false, color, link_when),
-        TraceAction::Ls { ascii, no_color } => emit(&verbs::trace::manage::ls(term_theme(
-            color.with_no_color(no_color),
-            ascii,
-            link_when,
-        ))),
+        TraceAction::Replay(args) => trace_render(&args, true, color, link_when, theme.ascii),
+        TraceAction::Show(args) => trace_render(&args, false, color, link_when, theme.ascii),
+        TraceAction::Ls {} => emit(&verbs::trace::manage::ls(theme)),
         TraceAction::Rm {
             trace,
             older_than,
             all,
             force,
-            ascii,
-            no_color,
         } => {
             let target = if all {
                 verbs::trace::manage::RmTarget::All
@@ -1010,34 +955,26 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
                 match verbs::trace::manage::parse_older_than(&raw) {
                     Ok(cutoff) => verbs::trace::manage::RmTarget::OlderThan(cutoff),
                     Err(message) => {
-                        eprintln!("nika-cli: {message}");
+                        eprintln!("nika trace: {message}");
                         return verbs::exit::ENV;
                     }
                 }
             } else {
                 // clap's required_unless_present_any guarantees the handle.
                 let Some(handle) = trace else {
-                    eprintln!("nika-cli: trace rm needs a trace, --older-than, or --all");
+                    eprintln!("nika trace: rm needs a trace, --older-than, or --all");
                     return verbs::exit::ENV;
                 };
                 verbs::trace::manage::RmTarget::One(handle)
             };
-            emit(&verbs::trace::manage::rm(
-                &target,
-                force,
-                term_theme(color.with_no_color(no_color), ascii, link_when),
-            ))
+            emit(&verbs::trace::manage::rm(&target, force, theme))
         }
-        TraceAction::Outputs {
-            trace,
-            ascii,
-            no_color,
-        } => {
+        TraceAction::Outputs { trace } => {
             let trace = match resolve_trace(trace) {
                 Ok(path) => path,
                 Err(code) => return code,
             };
-            let mut theme = term_theme(color.with_no_color(no_color), ascii, link_when);
+            let mut theme = theme;
             // The dur column's bracket accents: TTY comfort only.
             theme.accents = std::io::stdout().is_terminal();
             emit(&verbs::trace::outputs(&trace.to_string_lossy(), theme))
@@ -1058,48 +995,43 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
                 .as_deref(),
             include_content,
         )),
-        TraceAction::Peek {
-            trace,
-            task,
-            raw,
-            ascii,
-            no_color,
-        } => emit(&verbs::trace::peek(
-            &verbs::trace::manage::resolve_store_handle(&trace).to_string_lossy(),
+        TraceAction::Peek { trace, task, raw } => emit(&verbs::trace::peek(
+            &trace.to_string_lossy(),
             &task,
             raw,
-            term_theme(color.with_no_color(no_color), ascii, link_when),
+            theme,
         )),
-        TraceAction::Flow {
-            trace,
-            workflow,
-            ascii,
-            no_color,
-        } => flow_verb(
-            trace,
-            workflow,
-            term_theme(color.with_no_color(no_color), ascii, link_when),
-        ),
+        TraceAction::Flow { trace, workflow } => flow_verb(trace, workflow, theme),
     }
 }
 
 /// Unpack the `run` clap surface into the library verb call.
-fn run_verb(args: &RunArgs, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
+fn run_verb(
+    args: &RunArgs,
+    color: ColorWhenArg,
+    link_when: LinkChoice,
+    plain: bool,
+    ascii: bool,
+) -> u8 {
     let resume = args.resume.as_ref().map(|trace| verbs::run::ResumeRequest {
         trace: trace.clone(),
         from: args.from.clone(),
         answers: args.answer.clone(),
     });
-    let mode = resolve_run_mode(args.quiet, args.no_progress);
-    let mut theme = term_theme(color.with_no_color(args.no_color), args.ascii, link_when);
+    let mode = resolve_run_mode(args.quiet, args.no_progress || plain);
+    let mut theme = term_theme(color.with_no_color(false), ascii || plain, link_when);
     // The duration accents ride the interactive surface ONLY — the
     // sober registers (piped · --no-progress · --quiet) keep their
     // exact bytes.
     theme.accents = mode == verbs::run::RenderMode::Live;
     // Duration heat additionally needs colour + the truecolor PROOF.
     theme.heat = theme.accents && theme.color && truecolor_env();
+    // The live storyboard breathes (the braille beat between settles) —
+    // interactive surface only, and the motion opt-out wins (the same
+    // env the replay honours).
+    theme.animate = theme.accents && !env_flag("NIKA_REDUCED_MOTION");
     verbs::run::run(
-        &args.file,
+        args.file.as_deref().unwrap_or_default(),
         args.json,
         args.output.as_deref(),
         theme,
@@ -1153,6 +1085,14 @@ fn color_env() -> ColorEnv {
 /// Resolve the colour/glyph/link theme for static (non-animated)
 /// surfaces — colour and hyperlinks each ride their own capability
 /// chain over the SAME environment facts.
+/// Lift the accents band onto a theme when the surface is genuinely
+/// interactive (colour resolved on · a real TTY · glyphs available) —
+/// the one-shot read verbs' twin of the run's Live gate.
+fn interactive_theme(mut theme: Theme) -> Theme {
+    theme.accents = theme.color && !theme.ascii && std::io::stdout().is_terminal();
+    theme
+}
+
 fn term_theme(choice: ColorChoice, ascii: bool, link_when: LinkChoice) -> Theme {
     let tty = std::io::stdout().is_terminal();
     let env = color_env();
@@ -1162,7 +1102,13 @@ fn term_theme(choice: ColorChoice, ascii: bool, link_when: LinkChoice) -> Theme 
 }
 
 /// Load events, fold, render — live replay or final card.
-fn trace_render(args: &TraceArgs, replay: bool, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
+fn trace_render(
+    args: &TraceArgs,
+    replay: bool,
+    color: ColorWhenArg,
+    link_when: LinkChoice,
+    ascii: bool,
+) -> u8 {
     let events = match load_events(args) {
         Ok(events) => events,
         Err(message) => {
@@ -1175,7 +1121,7 @@ fn trace_render(args: &TraceArgs, replay: bool, color: ColorWhenArg, link_when: 
     };
 
     let tty = std::io::stdout().is_terminal();
-    let mut theme = term_theme(color.with_no_color(args.no_color), args.ascii, link_when);
+    let mut theme = term_theme(color.with_no_color(false), ascii, link_when);
     theme.animate = tty && replay && !env_flag("NIKA_REDUCED_MOTION");
     // The duration accents ride the interactive surface only — a piped
     // `trace show` keeps its exact legacy bytes.
@@ -1298,15 +1244,9 @@ fn load_events(args: &TraceArgs) -> Result<Vec<Event>, String> {
 fn recover_events(raw: &str, label: &str) -> Result<Vec<Event>, String> {
     let recovered = verbs::run::recover_events(raw, label).map_err(|e| e.to_string())?;
     if let Some(note) = &recovered.truncated_note {
-        eprintln!("nika-cli: {note} — rendering the recovered prefix");
+        eprintln!("nika trace: {note} — rendering the recovered prefix");
     }
     Ok(recovered.events)
-}
-
-/// Fold a verb's `--ascii` flag onto the shared plain theme — the
-/// mirror-family verbs (welcome · context) all speak it.
-fn with_ascii(base: Theme, ascii: bool) -> Theme {
-    Theme { ascii, ..base }
 }
 
 /// Read a boolean presentation flag from the environment.
@@ -1390,7 +1330,7 @@ mod tests {
     fn bare_examples_defaults_to_list() {
         let cli = Cli::try_parse_from(["nika", "examples"]).expect("parses");
         assert!(
-            matches!(cli.command, Command::Examples { action: None }),
+            matches!(cli.command, Some(Command::Examples { action: None })),
             "bare form parses (dispatch folds to List)"
         );
         // The explicit form still parses.

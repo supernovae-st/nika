@@ -36,7 +36,75 @@ pub fn frame_with_outputs(view: &RunView, theme: &Theme, tick: usize) -> Vec<Str
 /// count cell — a stream without a plan must not open on a lie.
 // `&Theme` to match the frame borrows that thread it here.
 #[allow(clippy::trivially_copy_pass_by_ref)]
-fn header_lines(view: &RunView, theme: &Theme, tasks: usize) -> Vec<String> {
+/// The LIVING map — the whole DAG as one wave-column line right under
+/// the header: every node wears its state (pending dim · running = its
+/// verb's own motion frame, bright · settled Good/Bad · skipped ⊘),
+/// `⇉` between waves. Repainted every tick, so the running node's
+/// spinner turns INSIDE the map. Interactive surface only (accents ·
+/// a plan · more than one task); wide runs drop the ids and keep the
+/// chips so the map never wraps.
+fn map_line(view: &RunView, theme: Theme, tick: usize) -> Option<String> {
+    if !theme.accents || view.external_map || view.rows().len() < 2 {
+        return None;
+    }
+    let plan = view.plan()?;
+    let by_id: std::collections::BTreeMap<&str, &TaskRow> =
+        view.rows().iter().map(|r| (r.id.as_str(), r)).collect();
+    let total: usize = plan.iter().map(Vec::len).sum();
+    let with_ids = total <= 8;
+    let sep = format!(" {} ", theme.paint(Role::Dim, "⇉"));
+    let waves: Vec<String> = plan
+        .iter()
+        .map(|wave| {
+            let nodes: Vec<String> = wave
+                .iter()
+                .map(|id| map_node(by_id.get(id.as_str()).copied(), id, theme, tick, with_ids))
+                .collect();
+            nodes.join(if with_ids { " · " } else { "" })
+        })
+        .collect();
+    Some(format!("     {}", waves.join(&sep)))
+}
+
+/// One map node: the state-painted glyph (+ id on small runs).
+fn map_node(row: Option<&TaskRow>, id: &str, theme: Theme, tick: usize, with_id: bool) -> String {
+    let (glyph, role) = match row.map(|r| &r.state) {
+        Some(TaskState::Running) => {
+            let spin = theme.verb_spin(row.and_then(row_verb), tick);
+            return if with_id {
+                format!("{spin}{}", theme.paint(Role::Strong, id))
+            } else {
+                spin.trim_end().to_owned()
+            };
+        }
+        Some(TaskState::Ok) => (
+            theme.verb_glyph_bare(row.and_then(row_verb)).to_owned(),
+            Role::Good,
+        ),
+        Some(TaskState::Failed) => (
+            theme.verb_glyph_bare(row.and_then(row_verb)).to_owned(),
+            Role::Bad,
+        ),
+        Some(TaskState::Skipped | TaskState::Cancelled) => ("⊘".to_owned(), Role::Dim),
+        _ => (
+            theme.verb_glyph_bare(row.and_then(row_verb)).to_owned(),
+            Role::Dim,
+        ),
+    };
+    let painted = theme.paint(role, &glyph);
+    if with_id {
+        let id_painted = match row.map(|r| &r.state) {
+            Some(TaskState::Ok) => theme.paint(Role::Good, id),
+            Some(TaskState::Failed) => theme.paint(Role::Bad, id),
+            _ => theme.paint(Role::Dim, id),
+        };
+        format!("{painted} {id_painted}")
+    } else {
+        painted
+    }
+}
+
+fn header_lines(view: &RunView, theme: Theme, tasks: usize) -> Vec<String> {
     let mut lines = Vec::with_capacity(3);
     let count = if tasks > 0 {
         format!(" · {tasks} tasks")
@@ -71,7 +139,7 @@ fn header_lines(view: &RunView, theme: &Theme, tasks: usize) -> Vec<String> {
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<String> {
     let mut lines = Vec::with_capacity(view.rows().len() + 6);
-    lines.extend(header_lines(view, theme, view.rows().len()));
+    lines.extend(header_lines(view, *theme, view.rows().len()));
 
     // Task rows — stable order, aligned ids, notes dimmed. Time and cost
     // are first-class columns: a settled row carries its REAL wall time
@@ -79,6 +147,9 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
     // live elapsed, and `∥` marks wave-siblings that actually overlapped.
     // Never-ran rows speak their REASON (`cache hit (resume)` · `when:
     // false` · `blocked · <task> failed`) through the display-note map.
+    if let Some(map) = map_line(view, *theme, tick) {
+        lines.push(map);
+    }
     let width = view.rows().iter().map(|r| r.id.len()).max().unwrap_or(8);
     let marks = lane_marks(view);
     let times: Vec<Option<String>> = view.rows().iter().map(|r| row_wall(r, view)).collect();
@@ -116,6 +187,28 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
 
     lines.extend(warning_lines(view, theme));
     lines.push(meter_line(view, theme));
+    // The HUD bar under the meter — interactive surface only (the
+    // sober registers keep the meter as their last line, byte-exact).
+    if theme.accents {
+        let done = view
+            .rows()
+            .iter()
+            .filter(|r| {
+                matches!(
+                    r.state,
+                    TaskState::Ok | TaskState::Failed | TaskState::Skipped | TaskState::Cancelled
+                )
+            })
+            .count();
+        let total = view.rows().len();
+        if total > 1 {
+            lines.push(format!(
+                "  {} {}",
+                crate::chrome::bar(*theme, done, total, 24),
+                theme.paint(Role::Dim, &format!("{done}/{total}")),
+            ));
+        }
+    }
 
     // Failure card (only on a failed verdict · derives the explain hint) —
     // the SAME card the compact `--quiet` surface renders (shared helper).
@@ -194,7 +287,7 @@ pub fn stream_header(view: &RunView, theme: &Theme) -> Vec<String> {
         .map(|waves| waves.iter().map(Vec::len).sum())
         .filter(|n| *n > 0)
         .unwrap_or_else(|| view.rows().len());
-    header_lines(view, theme, tasks)
+    header_lines(view, *theme, tasks)
 }
 
 /// One settled row, streamed at its terminal frame (#321 · the plain
@@ -306,7 +399,20 @@ fn row_glyph(row: &TaskRow, theme: &Theme, tick: usize) -> String {
     if row.cached {
         return theme.glyph(TaskState::Skipped, tick);
     }
+    // A RUNNING row animates in its verb's OWN motion (the website's
+    // tile vocabulary: sampling · scanline · roundtrip · orbit), verb
+    // from the started note — the same derivation as the chip column.
+    if row.state == TaskState::Running && theme.animate && !theme.ascii {
+        return theme.verb_spin(row_verb(row), tick);
+    }
     theme.glyph(row.state, tick)
+}
+
+/// The verb word out of a row's started note (`infer · <model>` …).
+fn row_verb(row: &TaskRow) -> Option<&str> {
+    row.started_note
+        .as_deref()
+        .and_then(|n| n.split(" · ").next())
 }
 
 /// Assemble one storyboard row: glyph · id · dimmed note · then the
@@ -336,8 +442,24 @@ fn task_line(
             note = format!("{note} {spark}");
         }
     }
+    // The verb chip (tokens-SSOT ◇▷◆✦) rides the INTERACTIVE surface
+    // only (`accents` = Live TTY): every sober register keeps its exact
+    // bytes. Derived from the started note's own vocabulary (`infer ·
+    // <model>`); a not-yet-started row wears the dim placeholder so the
+    // column never jitters.
+    let chip = if theme.accents {
+        row.started_note
+            .as_deref()
+            .and_then(|n| n.split(" \u{b7} ").next())
+            .map_or_else(
+                || theme.paint(Role::Dim, "\u{b7} "),
+                |v| theme.verb_glyph(v),
+            )
+    } else {
+        String::new()
+    };
     let mut line = format!(
-        "  {} {:<id_w$}  {}",
+        "  {} {chip}{:<id_w$}  {}",
         row_glyph(row, theme, tick),
         row.id,
         theme.paint(Role::Dim, &note),
@@ -888,6 +1010,50 @@ mod tests {
         assert!(lines[0].contains("4.7s"), "elapsed → seconds: {}", lines[0]);
     }
 
+    /// The living map: accents + a plan + ≥2 tasks earn the wave-column
+    /// line under the header; the running node carries its verb's own
+    /// motion frame; sober frames never see it.
+    #[test]
+    fn living_map_rides_the_accents_frame() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let field = |k: &str, v: &str| KeyValue::new(k, Value::String(v.to_owned()));
+
+        let mut view = RunView::new();
+        view.apply(
+            &demo::bare_event(EventKind::TaskStarted, 0)
+                .with_field(field("task", "a"))
+                .with_field(field("note", "infer · mock/echo")),
+        );
+        view.apply(&demo::bare_event(EventKind::TaskCompleted, 100).with_field(field("task", "a")));
+        view.apply(
+            &demo::bare_event(EventKind::TaskStarted, 100)
+                .with_field(field("task", "b"))
+                .with_field(field("note", "exec · sh")),
+        );
+        view.set_plan(vec![vec!["a".to_owned()], vec!["b".to_owned()]]);
+
+        let mut accents = Theme::new(true, false, false);
+        accents.accents = true;
+        accents.animate = true;
+        let f = frame(&view, &accents, 1);
+        let map = f
+            .iter()
+            .find(|l| l.contains('⇉'))
+            .expect("the map line exists");
+        assert!(map.contains('a') && map.contains('b'), "{map}");
+        assert!(
+            map.contains(crate::theme::SCANLINE[1]),
+            "the running exec node turns its own motion: {map}"
+        );
+
+        let sober = frame(&view, &Theme::new(false, false, false), 1);
+        assert!(
+            !sober.iter().any(|l| l.contains('⇉') || l.contains("=>")),
+            "sober frames never carry the map"
+        );
+    }
+
     #[test]
     fn frame_is_stable_under_ticks_when_nothing_runs() {
         let view = fold(&demo::success());
@@ -967,12 +1133,20 @@ mod tests {
         let mut accented = Theme::new(true, false, false);
         accented.accents = true;
         let lines = frame(&view, &accented, 0);
-        let c_row = lines.iter().find(|l| l.contains(" c ")).expect("c row");
+        // Row lookup by each row's UNIQUE duration cell (the accents
+        // chip is painted — raw-line token probes proved brittle).
+        let c_row = lines
+            .iter()
+            .find(|l| l.contains("1m40s"))
+            .expect("c row (the 100s task)");
         assert!(
             c_row.contains("\x1b[33m") && c_row.contains("slow"),
             "the slow task self-identifies in yellow: {c_row:?}"
         );
-        let a_row = lines.iter().find(|l| l.contains(" a ")).expect("a row");
+        let a_row = lines
+            .iter()
+            .find(|l| l.contains("[ 1.0s]"))
+            .expect("a row (the 1.0s task)");
         assert!(
             !a_row.contains("slow") && !a_row.contains("\x1b[33m"),
             "median-scale siblings stay quiet: {a_row:?}"
@@ -1235,5 +1409,38 @@ mod tests {
             "headline + explain hint for the ONE failed row only: {lines:?}"
         );
         assert!(card_lines[0].contains("NIKA-440"));
+    }
+
+    /// The interactive extras (verb chip column · HUD bar) exist ONLY
+    /// on the accents surface — sober frames keep their exact bytes,
+    /// and the chip speaks the started note's own verb vocabulary.
+    #[test]
+    fn accents_surface_gains_verb_chips_and_the_hud_bar() {
+        let mut view = RunView::new();
+        for ev in demo::success() {
+            view.apply(&ev);
+        }
+        let sober = Theme::new(false, false, false);
+        let plain_frame = frame(&view, &sober, 0).join("\n");
+        assert!(!plain_frame.contains('\u{25c6}'), "no chips off-accents");
+        assert!(!plain_frame.contains('\u{2578}'), "no bar off-accents");
+
+        let mut live = Theme::new(false, false, false);
+        live.accents = true;
+        let lines = frame(&view, &live, 0);
+        let text = lines.join("\n");
+        // demo::success starts `fetch` with `invoke · nika:fetch` → ◆.
+        assert!(
+            text.contains("\u{25c6} fetch"),
+            "the invoke chip rides its row: {text}"
+        );
+        // The HUD bar closes the frame (all settled → full bar, count).
+        let total = view.rows().len();
+        assert!(
+            lines
+                .last()
+                .is_some_and(|l| l.contains(&format!("{total}/{total}"))),
+            "the bar line carries the count: {lines:?}"
+        );
     }
 }

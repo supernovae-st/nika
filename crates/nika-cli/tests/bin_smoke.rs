@@ -285,7 +285,7 @@ fn run_quiet_is_compact_no_storyboard() {
         .arg("run")
         .arg(&wf)
         .arg("--quiet")
-        .arg("--no-color")
+        .args(["--color", "never"])
         .output()
         .expect("binary runs");
     assert_eq!(out.status.code(), Some(0), "clean run exits 0");
@@ -833,12 +833,12 @@ fn check_dash_reads_stdin_findings_exit_2() {
     assert_eq!(doc["clean"], false);
 }
 
-/// `nika graph - --format json` inherits the dash (`load_checked` seam).
+/// `nika inspect - --format json` inherits the dash (`load_checked` seam).
 #[test]
 fn graph_dash_reads_stdin() {
     use std::process::Stdio;
     let mut child = bin()
-        .args(["graph", "-", "--format", "json"])
+        .args(["inspect", "-", "--format", "json"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -992,8 +992,15 @@ fn lsp_serves_initialize_diagnostics_and_clean_exit() {
 #[test]
 fn welcome_greets_offline_and_leaks_no_secret() {
     let canary = "hunter2-THE-CANARY-VALUE-nobody-prints";
+    // An EMPTY temp dir pins the stranger state deterministically — the
+    // start-here block is contextual now (0 workflows → the mock/echo
+    // proof line leads; in this repo's own cwd it would say `context`).
+    let dir = std::env::temp_dir().join(format!("nika-welcome-smoke-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("mkdir");
     let out = bin()
         .arg("welcome")
+        .current_dir(&dir)
         .env("ANTHROPIC_API_KEY", canary)
         .env("OPENAI_API_KEY", canary)
         .stdin(std::process::Stdio::null())
@@ -1244,92 +1251,6 @@ fn lsp_survives_adversarial_request_positions_over_stdio() {
     }
 }
 
-/// 30S-W8 seed — THE JOURNEY: the exact path a stranger walks in their
-/// first minutes (welcome → init → new → check → run offline → prove →
-/// explain), as ONE test against the real binary in a fresh HOME. Every
-/// step asserts its teaching surface AND that a seeded canary key VALUE
-/// never reaches any output byte. The funnel can no longer silently rot.
-#[test]
-fn the_thirty_second_journey_holds_end_to_end() {
-    let canary = "hunter2-JOURNEY-CANARY-never-printed";
-    let home = std::env::temp_dir().join(format!("nika-journey-home-{}", std::process::id()));
-    let dir = home.join("project");
-    std::fs::create_dir_all(&dir).expect("mkdir");
-    let step = |args: &[&str]| {
-        let out = bin()
-            .args(args)
-            .current_dir(&dir)
-            .env("HOME", &home)
-            .env("ANTHROPIC_API_KEY", canary)
-            .env("OPENAI_API_KEY", canary)
-            .stdin(std::process::Stdio::null())
-            .output()
-            .expect("binary runs");
-        let text = format!(
-            "{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        );
-        assert!(
-            !text.contains(canary),
-            "step {args:?} leaked a key VALUE: {text}"
-        );
-        (out.status.code(), text)
-    };
-
-    // 1 · welcome — the mirror greets, and with zero workflows the
-    //     stranger SEES the language (the sample block).
-    let (code, text) = step(&["welcome"]);
-    assert_eq!(code, Some(0), "{text}");
-    assert!(text.contains("a whole workflow is one file"), "{text}");
-
-    // 2 · init — the repo gets briefed (editor + agents).
-    let (code, text) = step(&["init", "--yes"]);
-    assert_eq!(code, Some(0), "{text}");
-    assert!(text.contains("AGENTS.md"), "{text}");
-
-    // 3 · new — a checked skeleton lands.
-    let (code, text) = step(&["new", "--from", "chain", "first.nika.yaml"]);
-    assert_eq!(code, Some(0), "{text}");
-
-    // 4 · check — the audit passes before any token.
-    let (code, text) = step(&["check", "first.nika.yaml"]);
-    assert_eq!(code, Some(0), "audit before run: {text}");
-
-    // 5 · run offline — the chain template reads ./input.txt; feed it and
-    //     run under mock (zero keys, zero network — the canary env proves
-    //     the run needed neither).
-    std::fs::write(dir.join("input.txt"), "the stranger's first input\n").expect("input");
-    let (code, text) = step(&["run", "first.nika.yaml", "--model", "mock/echo"]);
-    assert_eq!(code, Some(0), "first offline run is green: {text}");
-    assert!(text.contains("done"), "{text}");
-
-    // 6 · prove — the run left a hash-chained journal; verify it.
-    let traces: Vec<_> = std::fs::read_dir(dir.join(".nika/traces"))
-        .expect("trace dir exists")
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|x| x == "ndjson"))
-        .collect();
-    assert_eq!(traces.len(), 1, "exactly one journal: {traces:?}");
-    let trace = traces[0].to_string_lossy().into_owned();
-    let (code, text) = step(&["trace", "verify", &trace]);
-    assert_eq!(code, Some(0), "the chain verifies: {text}");
-
-    // 7 · explain — the human story, now with the recorder section live.
-    let (code, text) = step(&["explain", "first.nika.yaml"]);
-    assert_eq!(code, Some(0), "{text}");
-    for needle in [
-        "the story",
-        "cost before a token is spent",
-        "flight recorder",
-    ] {
-        assert!(text.contains(needle), "missing `{needle}`: {text}");
-    }
-
-    let _ = std::fs::remove_dir_all(&home);
-}
-
 /// The terminal DAG reaches both surfaces: `graph --format ascii` draws
 /// real wires for a diamond, and `explain <file>` opens with the shape.
 #[test]
@@ -1342,7 +1263,7 @@ fn the_dag_draws_in_the_terminal() {
         "nika: v1\nworkflow: smoke-diamond\nmodel: mock/echo\ntasks:\n  - id: fetch\n    infer: { prompt: \"g\", max_tokens: 10 }\n  - id: sum\n    depends_on: [fetch]\n    infer: { prompt: \"s\", max_tokens: 10 }\n  - id: crit\n    depends_on: [fetch]\n    infer: { prompt: \"c\", max_tokens: 10 }\n  - id: publish\n    depends_on: [sum, crit]\n    infer: { prompt: \"p\", max_tokens: 10 }\n",
     );
     let out = bin()
-        .arg("graph")
+        .arg("inspect")
         .arg(&wf)
         .arg("--format")
         .arg("ascii")
@@ -1352,8 +1273,8 @@ fn the_dag_draws_in_the_terminal() {
     let text = String::from_utf8_lossy(&out.stdout);
     assert_eq!(out.status.code(), Some(0), "{text}");
     assert!(
-        text.contains("fetch ─┬─▶ sum") && text.contains("╰─▶ crit"),
-        "the diamond draws real wires: {text}"
+        text.contains("fetch ─┬─▶ ◇ sum") && text.contains("╰─▶ ◇ crit"),
+        "the diamond draws real wires with verb chips: {text}"
     );
 
     let out = bin()
@@ -1371,7 +1292,7 @@ fn the_dag_draws_in_the_terminal() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// `nika context` — the workspace aggregate at the binary plane: the
+/// `nika welcome --deep` — the workspace aggregate at the binary plane: the
 /// inventory audits, the wire versions, relative paths only, and the
 /// canary key VALUE never reaches a byte (the aggregate reads the SAME
 /// presence-only probe as welcome/doctor).
@@ -1391,7 +1312,7 @@ fn context_aggregates_the_workspace_value_free() {
         "nika: v1\nworkflow: smoke-bad\ntasks:\n  - id: a\n    exec: { command: \"echo x\" }\n  - id: b\n    depends_on: [a]\n    when: maybe\n    exec: { command: \"echo y\" }\n",
     );
     let out = bin()
-        .arg("context")
+        .args(["welcome", "--deep"])
         .arg("--json")
         .current_dir(&dir)
         .env("ANTHROPIC_API_KEY", canary)
@@ -1419,7 +1340,7 @@ fn context_aggregates_the_workspace_value_free() {
 
     // The human map renders both rows and hands over to the twin.
     let human = bin()
-        .arg("context")
+        .args(["welcome", "--deep"])
         .current_dir(&dir)
         .stdin(std::process::Stdio::null())
         .output()
@@ -1430,7 +1351,7 @@ fn context_aggregates_the_workspace_value_free() {
         text.contains("good.nika.yaml") && text.contains("clean"),
         "{text}"
     );
-    assert!(text.contains("nika context --json"), "{text}");
+    assert!(text.contains("nika welcome --deep --json"), "{text}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

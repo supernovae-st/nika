@@ -27,7 +27,7 @@ const MAX_ARRAY: u64 = 65536;
 
 /// The GGUF's declared `general.architecture` (`qwen3` · `llama` · …),
 /// or `None` when the file does not sniff as a GGUF v2/v3 header that
-/// carries one within the first [`MAX_KVS`] pairs.
+/// carries one within the first `MAX_KVS` pairs.
 #[must_use]
 pub fn sniff_architecture(path: &Path) -> Option<String> {
     let file = std::fs::File::open(path).ok()?;

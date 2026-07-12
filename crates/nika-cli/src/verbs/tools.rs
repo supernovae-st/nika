@@ -10,15 +10,18 @@
 //! by category in spec order (core · file · data · network ·
 //! introspection).
 
+use crate::display::chrome;
+use crate::display::theme::{Role, Theme};
 use crate::verbs::VerbOutput;
 
 /// Spec order of the builtin categories (stdlib taxonomy · media last,
 /// the first graduate of the deferred class).
 const CATEGORY_ORDER: [&str; 6] = ["core", "file", "data", "network", "introspection", "media"];
 
-/// `nika tools` — human listing, or the `--json` machine projection.
+/// `nika tools` — human listing, or the `--json` machine projection
+/// (never coloured — the machine law).
 #[must_use]
-pub fn run(json: bool) -> VerbOutput {
+pub fn run(json: bool, theme: Theme) -> VerbOutput {
     let payload = nika_builtin::tools_json();
     if json {
         return match serde_json::to_string_pretty(&payload) {
@@ -26,11 +29,30 @@ pub fn run(json: bool) -> VerbOutput {
             Err(e) => VerbOutput::env(format!("tools projection failed: {e}")),
         };
     }
-    VerbOutput::ok(human_listing(&payload))
+    VerbOutput::ok(human_listing(&payload, theme))
 }
 
-/// The human listing — one section per category, spec order.
-fn human_listing(payload: &serde_json::Value) -> String {
+/// The one-line teaching cut — split on ` · ` OUTSIDE parentheses (a
+/// separator inside a paren is prose, and cutting there strands an open
+/// bracket mid-air), honest `…` when anything was dropped.
+fn teaching_cut(desc: &str) -> String {
+    let mut depth = 0usize;
+    for (i, c) in desc.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ' ' if depth == 0 && desc[i..].starts_with(" \u{b7} ") => {
+                return format!("{}\u{2026}", desc[..i].trim_end());
+            }
+            _ => {}
+        }
+    }
+    desc.to_owned()
+}
+
+/// The human listing — one rail section per category, spec order; the
+/// tool names Strong (they are what you type), the teaching cut dim.
+fn human_listing(payload: &serde_json::Value, theme: Theme) -> String {
     use std::fmt::Write as _;
     let tools = payload["tools"].as_array().map_or(&[][..], Vec::as_slice);
     let mut out = format!(
@@ -39,17 +61,37 @@ fn human_listing(payload: &serde_json::Value) -> String {
         CATEGORY_ORDER.len(),
     );
     for category in CATEGORY_ORDER {
-        let _ = write!(out, "\n{}\n", category.to_uppercase());
+        let _ = write!(
+            out,
+            "\n{}\n",
+            chrome::rail_head(theme, &category.to_uppercase())
+        );
         for tool in tools.iter().filter(|t| t["category"] == category) {
             let name = tool["name"].as_str().unwrap_or("?");
             let desc = tool["description"].as_str().unwrap_or("");
-            // The one-line teaching cut: descriptions use ` · ` separators.
-            let first = desc.split(" · ").next().unwrap_or(desc);
-            let _ = writeln!(out, "  {name:<24} {first}");
+            let first = teaching_cut(desc);
+            let _ = writeln!(
+                out,
+                "{}",
+                chrome::rail_line(
+                    theme,
+                    &format!(
+                        " {}  {}",
+                        theme.paint(Role::Strong, &format!("{name:<24}")),
+                        theme.paint(Role::Dim, &first)
+                    ),
+                )
+            );
         }
     }
-    out.push_str(
-        "\nnika tools --json → the model-facing JSON-Schemas (parameters · args · required)",
+    let _ = write!(
+        out,
+        "\n{}",
+        crate::display::vocab::hint(
+            theme,
+            "machine",
+            "nika tools --json   # the model-facing JSON-Schemas"
+        )
     );
     out
 }
@@ -57,12 +99,13 @@ fn human_listing(payload: &serde_json::Value) -> String {
 #[cfg(test)]
 #[allow(clippy::panic)] // formatted assertion messages (the nika-mcp tests precedent)
 mod tests {
+    const PLAIN: Theme = Theme::new(false, false, false);
     use super::*;
     use crate::verbs::exit;
 
     #[test]
     fn json_surface_is_the_versioned_tools_payload() {
-        let out = run(true);
+        let out = run(true, PLAIN);
         assert_eq!(out.code, exit::OK);
         let value: serde_json::Value =
             serde_json::from_str(&out.text).expect("--json emits parseable JSON");
@@ -77,7 +120,7 @@ mod tests {
 
     #[test]
     fn human_surface_groups_by_category_in_spec_order() {
-        let out = run(false);
+        let out = run(false, PLAIN);
         assert_eq!(out.code, exit::OK);
         let text = out.text;
         let mut last = 0usize;

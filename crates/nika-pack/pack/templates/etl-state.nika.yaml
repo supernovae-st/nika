@@ -2,6 +2,7 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · etl-state · incremental data job with a state file.
+# family: ops
 # The default shape for « only the NEW » jobs (feeds · exports · syncs)
 # and for batch pipelines that must survive bad input.
 #
@@ -9,6 +10,7 @@
 # Two load-bearing moves ·
 #   on_error: recover:   bad data is DATA · the pipeline lives
 #   state read→diff→write   you only process what changed
+
 nika: v1
 workflow: etl-state-template        # SLOT: kebab-case workflow id
 description: "read state · fetch fresh · diff · process the delta · save state"   # SLOT
@@ -39,6 +41,8 @@ tasks:
         url: "${{ vars.source_url }}"
         mode: jq
         jq: ".records"
+    on_error:
+      recover: []                   # offline rehearsal · an empty batch, the delta stays quiet
 
   - id: delta
     depends_on: [previous, fresh]

@@ -1,0 +1,98 @@
+pub mod nika_onboard
+pub mod nika_onboard::briefs
+pub fn nika_onboard::briefs::agents_md() -> &'static str
+pub mod nika_onboard::codes
+pub const nika_onboard::codes::ENV: u8
+pub const nika_onboard::codes::FILE: u8
+pub const nika_onboard::codes::OK: u8
+pub mod nika_onboard::founding
+pub enum nika_onboard::founding::CanvasTheme
+pub nika_onboard::founding::CanvasTheme::Auto
+pub nika_onboard::founding::CanvasTheme::Editor
+pub nika_onboard::founding::CanvasTheme::Nika
+pub nika_onboard::founding::CanvasTheme::Phosphor
+impl nika_onboard::founding::CanvasTheme
+pub fn nika_onboard::founding::CanvasTheme::as_str(self) -> &'static str
+impl core::clone::Clone for nika_onboard::founding::CanvasTheme
+pub fn nika_onboard::founding::CanvasTheme::clone(&self) -> nika_onboard::founding::CanvasTheme
+impl core::cmp::Eq for nika_onboard::founding::CanvasTheme
+impl core::cmp::PartialEq for nika_onboard::founding::CanvasTheme
+pub fn nika_onboard::founding::CanvasTheme::eq(&self, other: &nika_onboard::founding::CanvasTheme) -> bool
+impl core::fmt::Debug for nika_onboard::founding::CanvasTheme
+pub fn nika_onboard::founding::CanvasTheme::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_onboard::founding::CanvasTheme
+impl core::marker::StructuralPartialEq for nika_onboard::founding::CanvasTheme
+impl<D> owo_colors::OwoColorize for nika_onboard::founding::CanvasTheme
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::founding::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::founding::CanvasTheme::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::founding::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::founding::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::founding::CanvasTheme::equivalent(&self, key: &K) -> bool
+pub fn nika_onboard::founding::CanvasTheme::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::founding::CanvasTheme where U: core::convert::From<T>
+pub fn nika_onboard::founding::CanvasTheme::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::founding::CanvasTheme where U: core::convert::Into<T>
+pub type nika_onboard::founding::CanvasTheme::Error = core::convert::Infallible
+pub fn nika_onboard::founding::CanvasTheme::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::founding::CanvasTheme where U: core::convert::TryFrom<T>
+pub type nika_onboard::founding::CanvasTheme::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::founding::CanvasTheme::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::founding::CanvasTheme where T: core::clone::Clone
+pub type nika_onboard::founding::CanvasTheme::Owned = T
+pub fn nika_onboard::founding::CanvasTheme::clone_into(&self, target: &mut T)
+pub fn nika_onboard::founding::CanvasTheme::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::founding::CanvasTheme where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::founding::CanvasTheme::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::founding::CanvasTheme where T: ?core::marker::Sized
+pub fn nika_onboard::founding::CanvasTheme::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::founding::CanvasTheme where T: ?core::marker::Sized
+pub fn nika_onboard::founding::CanvasTheme::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::founding::CanvasTheme where T: core::clone::Clone
+pub unsafe fn nika_onboard::founding::CanvasTheme::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::founding::CanvasTheme
+pub fn nika_onboard::founding::CanvasTheme::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::founding::CanvasTheme where T: core::clone::Clone
+pub fn nika_onboard::founding::CanvasTheme::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::founding::CanvasTheme where T: 'static
+pub fn nika_onboard::founding::CanvasTheme::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_onboard::founding::CanvasTheme where T: core::marker::Copy
+pub fn nika_onboard::founding::CanvasTheme::as_out(&mut self) -> outref::Out<'_, T>
+pub const nika_onboard::founding::RECIPE_NAMES: [&str; 5]
+pub fn nika_onboard::founding::agents_md() -> &'static str
+pub fn nika_onboard::founding::scripted_run(dir: &str, force: bool, recipe: core::option::Option<&str>, example: core::option::Option<&str>, canvas: core::option::Option<nika_onboard::founding::CanvasTheme>, wires: &[&str], audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome
+pub mod nika_onboard::guided
+pub fn nika_onboard::guided::dispatch(from: core::option::Option<&str>, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme, audit: &nika_onboard::Audit<'_>) -> nika_onboard::Outcome
+pub fn nika_onboard::guided::run(template: &str, dest: core::option::Option<&str>, force: bool) -> nika_onboard::Outcome
+pub fn nika_onboard::guided::wizard_io(base: &str, dest_hint: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme, input: &mut dyn std::io::BufRead, out: &mut dyn core::io::write::Write, audit: &nika_onboard::Audit<'_>) -> nika_onboard::Outcome
+pub mod nika_onboard::recipes
+pub mod nika_onboard::wizard
+pub fn nika_onboard::wizard::wizard_io(dir: &str, force: bool, theme: nika_display::theme::Theme, input: &mut dyn std::io::BufRead, out: &mut dyn core::io::write::Write, audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome
+pub struct nika_onboard::Outcome
+pub nika_onboard::Outcome::code: u8
+pub nika_onboard::Outcome::text: alloc::string::String
+impl nika_onboard::Outcome
+pub fn nika_onboard::Outcome::env(text: alloc::string::String) -> Self
+pub fn nika_onboard::Outcome::ok(text: alloc::string::String) -> Self
+impl core::fmt::Debug for nika_onboard::Outcome
+pub fn nika_onboard::Outcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_onboard::Outcome
+impl<T, U> core::convert::Into<U> for nika_onboard::Outcome where U: core::convert::From<T>
+pub fn nika_onboard::Outcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::Outcome where U: core::convert::Into<T>
+pub type nika_onboard::Outcome::Error = core::convert::Infallible
+pub fn nika_onboard::Outcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::Outcome where U: core::convert::TryFrom<T>
+pub type nika_onboard::Outcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::Outcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::Outcome where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::Outcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::Outcome where T: ?core::marker::Sized
+pub fn nika_onboard::Outcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::Outcome where T: ?core::marker::Sized
+pub fn nika_onboard::Outcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::Outcome
+pub fn nika_onboard::Outcome::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::Outcome where T: 'static
+pub fn nika_onboard::Outcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub type nika_onboard::Audit<'a> = (dyn core::ops::function::Fn(&str) -> nika_onboard::Outcome + 'a)
+pub type nika_onboard::Wire<'a> = (dyn core::ops::function::Fn(&str, &str) -> nika_onboard::Outcome + 'a)

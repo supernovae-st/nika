@@ -68,7 +68,7 @@ fn fixture_path(name: &str, body: &str) -> String {
 #[test]
 fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
     let path = fixture_path("graph.nika.yaml", WORKFLOW);
-    let out = graph::run(&path, GraphFormat::Json);
+    let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK);
 
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
@@ -133,7 +133,7 @@ fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
     assert!(edges.contains(&("gather".to_owned(), "fan".to_owned())));
 
     // Byte-stable: the projection is a pure function of the file.
-    let again = graph::run(&path, GraphFormat::Json);
+    let again = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.text, again.text, "two runs, identical bytes");
 }
 
@@ -163,7 +163,7 @@ fn graph_refuses_a_dag_broken_file_with_exit_2() {
     // think depends on a task that doesn't exist → conformance fails.
     let broken = WORKFLOW.replace("depends_on: [gather, probe]", "depends_on: [ghost]");
     let path = fixture_path("graph-broken.nika.yaml", &broken);
-    let out = graph::run(&path, GraphFormat::Json);
+    let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("no valid DAG order"), "{}", out.text);
 }
@@ -173,7 +173,7 @@ fn graph_refuses_a_dag_broken_file_with_exit_2() {
 #[test]
 fn inspect_draws_the_wave_groups_with_static_facts() {
     let path = fixture_path("inspect.nika.yaml", WORKFLOW);
-    let out = inspect::run(&path, false);
+    let out = inspect::run(&path, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
 
     // Header: identity + counts + the honest cost bound.
@@ -373,16 +373,33 @@ fn pack_surface_round_trips_the_embedded_pack() {
     let _: serde_json::Value =
         serde_json::from_str(&schema.text).expect("embedded schema is valid JSON");
 
-    let list = pack_surface::examples_list();
+    // `examples list|show` graduated to the organized surface
+    // (verbs::examples — tiers · titles · chips · full filenames); the
+    // corpus pins live in its own unit tests. Here: the machine truth
+    // (the pack) still resolves everything the listing names.
     let slugs = nika_pack::example_slugs();
     assert!(!slugs.is_empty(), "pack carries examples");
-    assert_eq!(list.text, slugs.join("\n"));
+    let list = nika_cli::verbs::examples::list(PLAIN);
+    assert_eq!(list.code, exit::OK);
+    for slug in &slugs {
+        assert!(
+            list.text.contains(&format!("{slug}.nika.yaml")),
+            "listing names `{slug}` with its extension"
+        );
+    }
 
-    let shown = pack_surface::examples_show(&slugs[0]);
+    let shown = nika_cli::verbs::examples::show(&slugs[0], PLAIN);
     assert_eq!(shown.code, exit::OK);
-    assert_eq!(shown.text, nika_pack::example(&slugs[0]).expect("exists"));
+    assert!(
+        shown
+            .text
+            .contains(nika_pack::example(&slugs[0]).expect("exists"))
+    );
 
-    assert_eq!(pack_surface::examples_show("no-such-slug").code, exit::FILE);
+    assert_eq!(
+        nika_cli::verbs::examples::show("no-such-slug", PLAIN).code,
+        exit::FILE
+    );
     // `examples run` no longer refuses — it EXECUTES (the L3 run verb
     // shipped). Its behavior is pinned at the binary plane in
     // tests/run_verb.rs (the static suite can't drive a real run).
@@ -456,7 +473,7 @@ fn new_refuses_gibberish_and_names_the_set() {
         false,
     );
     assert_eq!(out.code, exit::FILE);
-    assert!(out.text.contains("unknown template"));
+    assert!(out.text.contains("no template or intent matches"));
     assert!(out.text.contains("embedded set:"));
 }
 
@@ -486,7 +503,7 @@ outputs:
   result: ${{ tasks.large.output }}
 "#;
     let path = fixture_path("priced.nika.yaml", priced);
-    let out = graph::run(&path, GraphFormat::Json);
+    let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
     let interval = |id: &str| -> [f64; 2] {
@@ -518,7 +535,7 @@ fn graph_nodes_always_carry_the_permits_field() {
     // array · empty until the per-task effects projector ships). A
     // consumer reading node.permits must never get `undefined`.
     let path = fixture_path("permits-field.nika.yaml", WORKFLOW);
-    let out = graph::run(&path, GraphFormat::Json);
+    let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
     for node in doc["nodes"].as_array().expect("nodes") {
@@ -535,7 +552,7 @@ fn graph_dedups_duplicate_depends_on_edges() {
     // `depends_on: [gather, gather]` must not lie about cardinality.
     let dup = WORKFLOW.replace("depends_on: [gather]", "depends_on: [gather, gather]");
     let path = fixture_path("dup-edges.nika.yaml", &dup);
-    let out = graph::run(&path, GraphFormat::Json);
+    let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
     let gather_fan = doc["edges"]
@@ -637,4 +654,41 @@ fn check_skills_rung_greens_reds_and_teaches() {
     assert_eq!(payload["clean"], true);
     assert_eq!(payload["skills_resolve"], true);
     assert!(payload.get("skill_findings").is_none(), "{payload:#}");
+}
+
+/// The DAG map rides the accents check verdict (the audit reads as the
+/// graph it judged) — and never the sober register. (Lives here off the
+/// src loc-cap: the 1500-line law bit check.rs at the merge.)
+#[test]
+fn accents_check_verdict_carries_the_dag_map() {
+    let yaml = "nika: v1\nworkflow: m\ntasks:\n  - id: one\n    infer: { prompt: hi, max_tokens: 5, model: \"mock/echo\" }\n  - id: two\n    depends_on: [one]\n    infer: { prompt: \"${{ tasks.one.output }}\", max_tokens: 5, model: \"mock/echo\" }\n";
+    let dir = std::env::temp_dir().join(format!("nika-check-map-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&dir);
+    let file = dir.join("map.nika.yaml");
+    std::fs::write(&file, yaml).expect("write");
+    let path = file.to_string_lossy().into_owned();
+
+    let mut accents = nika_cli::Theme::new(true, false, false);
+    accents.accents = true;
+    let out = nika_cli::verbs::check::run(&path, false, false, None, accents);
+    assert_eq!(out.code, nika_cli::verbs::exit::OK, "{}", out.text);
+    assert!(
+        out.text.contains("───▶") || out.text.contains("wave 1"),
+        "the map rides the accents verdict: {}",
+        out.text
+    );
+
+    let sober = nika_cli::verbs::check::run(
+        &path,
+        false,
+        false,
+        None,
+        nika_cli::Theme::new(false, false, false),
+    );
+    assert!(
+        !sober.text.contains("───▶"),
+        "sober keeps its shape: {}",
+        sober.text
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }

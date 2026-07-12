@@ -2,6 +2,7 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · gate-and-act: check a condition, act only when it holds.
+# family: gated
 # The default shape for monitors, alerts and threshold jobs. Often
 # needs ZERO model calls (pattern 1 · deterministic core).
 #
@@ -10,6 +11,7 @@
 #   when:        SKIP gate · routing, not failure
 #   nika:assert  FAIL gate · the run is wrong, stop loudly
 #   nika:prompt  HUMAN gate · blocks until a person decides
+
 nika: v1
 workflow: gate-and-act-template     # SLOT: kebab-case workflow id
 description: "watch a value · act only when the condition holds"   # SLOT
@@ -36,6 +38,10 @@ tasks:
         jq: "."
     output:
       value: ".value"               # SLOT: the jq path to the watched field
+    on_error:
+      # Offline rehearsal · a sample UNDER the threshold — the gate stays
+      # closed, the skeleton runs green before you wire the real source.
+      recover: { value: 42 }
 
   - id: act
     depends_on: [check]

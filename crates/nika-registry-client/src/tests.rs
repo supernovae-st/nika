@@ -200,7 +200,7 @@ fn fetches_verifies_and_caches_a_versioned_ref() {
     assert_eq!(got.coordinate, "acme/greet@0.1.0");
     assert_eq!(got.sha256, sha256_hex(BODY));
     assert_eq!(
-        std::fs::read(&got.path).expect("cached artifact readable"),
+        std::fs::read(&got.path).expect("cached artifact readable"), // seam-bypass-ok: test harness disk fixtures
         BODY,
         "the cached file is the verified bytes"
     );
@@ -250,7 +250,7 @@ fn bare_ref_picks_newest_semver_and_writes_the_pin() {
     assert_eq!(got.coordinate, "acme/greet@0.2.0", "stable outranks rc");
     let pin = client.cache_root.join("acme/greet/pin");
     assert_eq!(
-        std::fs::read_to_string(&pin).expect("pin written").trim(),
+        std::fs::read_to_string(&pin).expect("pin written").trim(), // seam-bypass-ok: test harness disk fixtures
         "0.2.0",
         "bare refs pin at resolve time — they never float"
     );
@@ -354,7 +354,7 @@ fn bare_ref_answers_offline_via_the_pin() {
 fn tampered_cache_refuses_with_the_record_law() {
     let (seeded, dir) = client(happy_mock("acme", "greet", "0.1.0", BODY));
     let got = resolve(&seeded, "registry:acme/greet@0.1.0").expect("seed resolve");
-    std::fs::write(&got.path, "nika: v1\n# locally tampered\n").expect("tamper");
+    std::fs::write(&got.path, "nika: v1\n# locally tampered\n").expect("tamper"); // seam-bypass-ok: test harness disk fixtures
 
     let offline = RegistryClient::new(MockHttp::new(), dir.path().join("registry"));
     let err = resolve(&offline, "registry:acme/greet@0.1.0").expect_err("must refuse");

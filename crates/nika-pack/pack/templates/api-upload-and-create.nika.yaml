@@ -2,6 +2,7 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · api-upload-and-create · upload a file → create a resource from it.
+# family: ops
 # The shape for « call a product API: multipart upload, then a JSON create ».
 #
 # Instantiate (agents · deterministic) ·
@@ -13,6 +14,7 @@
 # permits.fs READ boundary); auth rides a masked secrets header; the
 # create is fetch JSON; extraction is the mode/jq pairing. Zero exec ·
 # no upload helper script.
+
 nika: v1
 workflow: api-upload-and-create-template  # SLOT: kebab-case workflow id
 description: "upload → create → result"   # SLOT: one honest sentence

@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name        = "nika-onboard"
+version     = "0.99.0"
+edition     = "2024"
+rust-version = "1.88"
+license     = "AGPL-3.0-or-later"
+description = "nika's onboarding surface — the founding wizard (init) and the guided first workflow (new): recipes over the embedded templates, the clack-rail conversation, the audit-before-run proof"
+repository  = "https://github.com/supernovae-st/nika"
+
+[dependencies]
+nika-pack    = { path = "../nika-pack", version = "0.99.0" }    # templates · examples (the scaffold corpus)
+nika-bm25    = { path = "../nika-bm25", version = "0.99.0" }    # intent→template routing (the deterministic floor)
+nika-display = { path = "../nika-display", version = "0.99.0" } # theme + chrome (rail · panel · banner)
+nika-catalog = { path = "../nika-catalog", version = "0.99.0", features = ["providers"] } # the model menu (local first)
+serde_json   = { workspace = true }                              # the canvas stamp (parse + re-emit settings.json)
+
+[dev-dependencies]
+# The own-corpus ratchet: every recipe scaffold must parse AND check
+# clean — proven against the REAL ladder, test-side only (the runtime
+# audit arrives injected from the composition root).
+nika-schema = { path = "../nika-schema", version = "0.99.0" }
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "founder-smith"
+spirit_role   = "forge le premier feu d'un projet · questions avant écritures · la preuve dans la première minute"
+
+[lints]
+workspace = true

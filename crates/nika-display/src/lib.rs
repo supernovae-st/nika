@@ -5,7 +5,8 @@
 //! · frames (`render`) · execution-flow reads (`flow`) · bounded output
 //! summaries (`shape`) · painted source spans (`snippet`) · the shared
 //! formatter + colour-capability seam (`format`) · the glyph/hint
-//! vocabulary (`vocab`) · deterministic demo streams (`demo`).
+//! vocabulary (`vocab`) · structural chrome (`chrome` — rail · panel ·
+//! bar · banner) · deterministic demo streams (`demo`).
 //! One truth in, text out; no I/O lives here.
 //!
 //! Descended from `nika-cli/src/display` at the 15k prod-LOC wall
@@ -18,6 +19,7 @@
 // nika-cli crate holds at its root — inherited by the descent).
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod chrome;
 pub mod demo;
 pub mod flow;
 pub mod format;
@@ -27,3 +29,4 @@ pub mod snippet;
 pub mod state;
 pub mod theme;
 pub mod vocab;
+pub mod wires;

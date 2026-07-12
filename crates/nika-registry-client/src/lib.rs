@@ -391,7 +391,8 @@ impl<H: HttpGetDyn> RegistryClient<H> {
     /// when this name was never bare-resolved on this machine.
     fn read_pin(&self, r: &RegistryRef) -> Result<Option<String>, RegistryError> {
         let path = self.dir_of(r).join("pin");
-        let raw = match std::fs::read_to_string(&path) {
+        let read = std::fs::read_to_string(&path); // seam-bypass-ok: local cache · #512 follow-up
+        let raw = match read {
             Ok(raw) => raw,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(e) => {
@@ -426,8 +427,9 @@ impl<H: HttpGetDyn> RegistryClient<H> {
         let dir = self.dir_of(r);
         let artifact = dir.join(format!("{version}.nika.yaml"));
         let meta_path = dir.join(format!("{version}.meta.json"));
-        let (Ok(bytes), Ok(meta_raw)) = (std::fs::read(&artifact), std::fs::read(&meta_path))
-        else {
+        let arte = std::fs::read(&artifact); // seam-bypass-ok: local cache · #512 follow-up
+        let meta = std::fs::read(&meta_path); // seam-bypass-ok: local cache · #512 follow-up
+        let (Ok(bytes), Ok(meta_raw)) = (arte, meta) else {
             return Ok(None);
         };
         let Ok(meta) = serde_json::from_slice::<Meta>(&meta_raw) else {
@@ -581,7 +583,8 @@ impl<H: HttpGetDyn> RegistryClient<H> {
         bytes: &[u8],
     ) -> Result<Resolved, RegistryError> {
         let dir = self.dir_of(r);
-        std::fs::create_dir_all(&dir).map_err(|e| {
+        let made = std::fs::create_dir_all(&dir); // seam-bypass-ok: local cache · #512 follow-up
+        made.map_err(|e| {
             RegistryError::env(format!(
                 "cannot create the cache dir {}: {e}",
                 dir.display()
@@ -798,8 +801,8 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), RegistryError> {
     let io_err =
         |e: std::io::Error| RegistryError::env(format!("cannot write {}: {e}", path.display()));
     let tmp = path.with_extension(format!("tmp-{}", std::process::id()));
-    std::fs::write(&tmp, bytes).map_err(io_err)?;
-    std::fs::rename(&tmp, path).map_err(io_err)
+    std::fs::write(&tmp, bytes).map_err(io_err)?; // seam-bypass-ok: local artifact cache (digest-pinned reads/writes) · FsDyn descent tracked as the #512 follow-up
+    std::fs::rename(&tmp, path).map_err(io_err) // seam-bypass-ok: local artifact cache (digest-pinned reads/writes) · FsDyn descent tracked as the #512 follow-up
 }
 
 // ---------------------------------------------------------------------

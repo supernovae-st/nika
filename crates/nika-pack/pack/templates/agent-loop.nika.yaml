@@ -2,6 +2,7 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · agent-loop · plan with a fast model, execute with a
+# family: agentic
 # budgeted agent, validate the typed result.
 # The default shape for open-ended work (research · review · triage).
 #
@@ -10,6 +11,7 @@
 #   tools:    default-deny · grant the MINIMUM · nika:done ends cleanly
 #   max_turns + max_tokens_total · the worst case is bounded
 #   schema:   the final message is TYPED · prose is not a contract
+
 nika: v1
 workflow: agent-loop-template       # SLOT: kebab-case workflow id
 description: "plan → budgeted agent → typed result"   # SLOT
@@ -35,7 +37,10 @@ tasks:
   - id: execute
     depends_on: [plan]
     agent:
-      system: "Work the plan step by step. Call nika:done when finished."   # SLOT
+      # The done-contract belongs IN the prompt: the final message must
+      # carry the schema'd shape, so SAY so — a live model that is not
+      # told finishes in prose and fails NIKA-INFER-002 (proven on GPT).
+      system: "Work the plan step by step. When finished, reply with ONLY your final result as an object carrying a `findings` array (one short string each), then call nika:done."   # SLOT
       prompt: "Plan · ${{ tasks.plan.output.steps }}"
       tools:                        # SLOT: the MINIMUM grant for the job
         - "nika:read"

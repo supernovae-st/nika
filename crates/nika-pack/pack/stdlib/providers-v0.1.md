@@ -327,11 +327,11 @@ infer:
 
 ```yaml
 infer:
-  model: openai/gpt-4o
+  model: openai/gpt-5.2
   prompt: "..."
 ```
 
-**Models** · `gpt-4o` · `gpt-4o-mini` · `gpt-4-turbo` · `o1` · (pass-through).
+**Models** · `gpt-5.2` · `gpt-5-mini` · `gpt-5-nano` · the o-series · (pass-through — any id the live API serves works verbatim, `gpt-4o` included).
 
 **Auth** · `OPENAI_API_KEY` env var.
 

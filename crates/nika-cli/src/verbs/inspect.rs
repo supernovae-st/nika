@@ -3,13 +3,14 @@
 
 //! `nika inspect` — the static anatomy as a terminal DAG (spec §6).
 //!
-//! Derives from the SAME projection as `nika graph` (one projector · N
+//! Derives from the SAME projection as `--format json|mermaid|dot` (one projector · N
 //! renderers): waves rendered as bordered visual groups ("N in parallel")
 //! joined by flow arrows — the parallelism the scheduler proved, made
 //! visible. Static facts only — run overlays belong to the trace surface.
 
 use std::fmt::Write as _;
 
+use crate::display::theme::{Role, Theme};
 use crate::verbs::graph::{GraphDoc, Node, project};
 use crate::verbs::{VerbOutput, load_checked};
 
@@ -20,8 +21,6 @@ const BOX_INNER_CAP: usize = 74;
 /// The glyph column for the wave-group render — unicode default, ASCII
 /// parity first-class (the same two-theme law as the run storyboard).
 struct Glyphs {
-    /// Task marker (`◆` / `#`).
-    task: &'static str,
     /// Box corners `(top-left, top-right, bottom-left, bottom-right)`.
     corners: [char; 4],
     /// Horizontal rule.
@@ -35,7 +34,6 @@ struct Glyphs {
 }
 
 const UNICODE_GLYPHS: Glyphs = Glyphs {
-    task: "◆",
     corners: ['╭', '╮', '╰', '╯'],
     h: '─',
     v: '│',
@@ -44,7 +42,6 @@ const UNICODE_GLYPHS: Glyphs = Glyphs {
 };
 
 const ASCII_GLYPHS: Glyphs = Glyphs {
-    task: "#",
     corners: ['+', '+', '+', '+'],
     h: '-',
     v: '|',
@@ -52,10 +49,11 @@ const ASCII_GLYPHS: Glyphs = Glyphs {
     ellipsis: "~",
 };
 
-/// The `nika inspect <file>` verb. `ascii` selects the ASCII glyph theme
-/// (`--ascii` · CI logs · legacy terminals).
+/// The `nika inspect <file>` verb. The theme carries the glyph column
+/// (`--ascii` · CI logs · legacy terminals) AND the colour capability —
+/// verb identity rides the tokens-SSOT glyph chips, chrome stays dim.
 #[must_use]
-pub fn run(path: &str, ascii: bool) -> VerbOutput {
+pub fn run(path: &str, theme: Theme) -> VerbOutput {
     let (wf, report) = match load_checked(path) {
         Ok(pair) => pair,
         Err(out) => return out,
@@ -82,12 +80,20 @@ pub fn run(path: &str, ascii: bool) -> VerbOutput {
 
     let mut out = format!(
         "{} · {} tasks · {} waves · {ceiling}\n",
-        doc.workflow,
+        theme.paint(Role::Strong, &doc.workflow),
         doc.nodes.len(),
         report.waves.len(),
     );
+    // The pinch set (DagAnalysis · « nothing else runs while these
+    // run ») — drawn ON the graph, not only said under it: the P1 of
+    // the analytics-on-the-drawing plan (buck2 computes, nika draws).
+    let pinch: std::collections::BTreeSet<&str> = report
+        .analysis
+        .as_ref()
+        .map(|a| a.pinch_points.iter().map(String::as_str).collect())
+        .unwrap_or_default();
     let wave_sizes: Vec<usize> = report.waves.iter().map(Vec::len).collect();
-    render_waves(&mut out, &doc, &wave_sizes, ascii);
+    render_waves(&mut out, &doc, &wave_sizes, theme, &pinch);
     // The spec §6 footer verbatim — NIKA-DAG-001 is the conformance code
     // the ladder proved clean to get here.
     out.push_str("  (no orphans · DAG check NIKA-DAG-001 clean)\n");
@@ -173,8 +179,14 @@ fn node_meta(node: &Node) -> String {
 /// parallel"), a bare row for a single-task wave, flow arrows between
 /// waves. The projection's node order IS wave order (one projector law),
 /// so `wave_sizes` slices it without re-deriving anything.
-fn render_waves(out: &mut String, doc: &GraphDoc, wave_sizes: &[usize], ascii: bool) {
-    let g = if ascii {
+fn render_waves(
+    out: &mut String,
+    doc: &GraphDoc,
+    wave_sizes: &[usize],
+    theme: Theme,
+    pinch: &std::collections::BTreeSet<&str>,
+) {
+    let g = if theme.ascii {
         &ASCII_GLYPHS
     } else {
         &UNICODE_GLYPHS
@@ -191,55 +203,93 @@ fn render_waves(out: &mut String, doc: &GraphDoc, wave_sizes: &[usize], ascii: b
         let members = &doc.nodes[cursor..end];
         cursor = end;
         if i > 0 {
-            let _ = writeln!(out, "    {}", g.arrow);
+            let _ = writeln!(out, "    {}", theme.paint(Role::Dim, g.arrow));
         }
         if members.len() > 1 {
-            render_wave_group(out, i + 1, members, id_width, g);
+            render_wave_group(out, i + 1, members, id_width, g, theme, pinch);
         } else if let Some(node) = members.first() {
             let _ = writeln!(
                 out,
-                "  {} {:<id_width$}  {}",
-                g.task,
+                "  {}{:<id_width$}{} {}",
+                theme.verb_glyph(node.verb),
                 node.id,
-                node_meta(node),
+                pinch_mark(&node.id, pinch, theme),
+                theme.paint(Role::Dim, &node_meta(node)),
             );
         }
+    }
+}
+
+/// The pinch marker — `⧗` Warn (`!` ASCII) beside a task that gates
+/// the whole graph (« nothing else runs while it runs »), a single
+/// stable cell so the id column never jitters; a dim space otherwise.
+fn pinch_mark(id: &str, pinch: &std::collections::BTreeSet<&str>, theme: Theme) -> String {
+    if pinch.contains(id) {
+        theme.paint(Role::Warn, if theme.ascii { "!" } else { "⧗" })
+    } else {
+        " ".to_owned()
     }
 }
 
 /// One bordered wave group — header names the wave + its parallelism, each
 /// member row aligned on the shared id column, width capped so the box
 /// stays graceful under 80 columns (overlong rows truncate with a mark).
-fn render_wave_group(out: &mut String, n: usize, members: &[Node], id_width: usize, g: &Glyphs) {
+fn render_wave_group(
+    out: &mut String,
+    n: usize,
+    members: &[Node],
+    id_width: usize,
+    g: &Glyphs,
+    theme: Theme,
+    pinch: &std::collections::BTreeSet<&str>,
+) {
+    // Width math runs on RAW text (ANSI escapes break cell arithmetic —
+    // theme.rs law); paint happens at emission, segment by segment.
     let header = format!(" wave {n} {h}{h} {} in parallel ", members.len(), h = g.h);
-    let contents: Vec<String> = members
+    let raw_metas: Vec<String> = members.iter().map(node_meta).collect();
+    let inner = raw_metas
         .iter()
-        .map(|node| format!("{} {:<id_width$}  {}", g.task, node.id, node_meta(node)))
-        .collect();
-    let inner = contents
-        .iter()
-        .map(|c| c.chars().count() + 2)
+        .map(|m| 2 + id_width + 2 + m.chars().count() + 2)
         .chain(std::iter::once(header.chars().count() + 1))
         .max()
         .unwrap_or(0)
         .min(BOX_INNER_CAP);
     let rule: String =
         std::iter::repeat_n(g.h, inner.saturating_sub(header.chars().count())).collect();
-    let _ = writeln!(out, "  {}{header}{rule}{}", g.corners[0], g.corners[1]);
-    for content in &contents {
-        let fitted = fit(content, inner.saturating_sub(2), g.ellipsis);
+    let _ = writeln!(
+        out,
+        "  {}",
+        theme.paint(
+            Role::Dim,
+            &format!("{}{header}{rule}{}", g.corners[0], g.corners[1])
+        )
+    );
+    let v = theme.paint(Role::Dim, &g.v.to_string());
+    for (node, raw_meta) in members.iter().zip(&raw_metas) {
+        let meta_room = inner.saturating_sub(2).saturating_sub(2 + id_width + 2);
+        let fitted = fit(raw_meta, meta_room, g.ellipsis);
         let pad = inner
             .saturating_sub(2)
-            .saturating_sub(fitted.chars().count());
+            .saturating_sub(2 + id_width + 2 + fitted.chars().count());
         let _ = writeln!(
             out,
-            "  {v} {fitted}{blank} {v}",
-            v = g.v,
-            blank = " ".repeat(pad),
+            "  {v} {}{:<id_width$}{} {}{} {v}",
+            theme.verb_glyph(node.verb),
+            node.id,
+            pinch_mark(&node.id, pinch, theme),
+            theme.paint(Role::Dim, &fitted),
+            " ".repeat(pad),
         );
     }
     let bottom: String = std::iter::repeat_n(g.h, inner).collect();
-    let _ = writeln!(out, "  {}{bottom}{}", g.corners[2], g.corners[3]);
+    let _ = writeln!(
+        out,
+        "  {}",
+        theme.paint(
+            Role::Dim,
+            &format!("{}{bottom}{}", g.corners[2], g.corners[3])
+        )
+    );
 }
 
 /// Truncate a row to `width` display cells, marking the cut — the box
@@ -276,10 +326,18 @@ mod tests {
         let path = tmp(
             "nika: v1\nworkflow: anatomy\n\nmodel: mock/echo\n\ntasks:\n  - id: root\n    infer: { prompt: \"r\", max_tokens: 10 }\n  - id: left\n    depends_on: [root]\n    infer: { prompt: \"l\", max_tokens: 10 }\n  - id: right\n    depends_on: [root]\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: join\n    depends_on: [left, right]\n    infer: { prompt: \"j\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.join.output }}\n",
         );
-        let out = run(path.to_str().expect("utf-8 tmp path"), false);
+        let out = run(
+            path.to_str().expect("utf-8 tmp path"),
+            Theme::new(false, false, false),
+        );
         std::fs::remove_file(&path).ok();
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(out.text.contains("parallelism  width 2"), "{}", out.text);
+        // P1 · the pinch is DRAWN, not only said: root and join carry
+        // the ⧗ mark on their own rows (left/right stay unmarked).
+        assert!(out.text.contains("root ⧗"), "pinch on root: {}", out.text);
+        assert!(out.text.contains("join ⧗"), "pinch on join: {}", out.text);
+        assert!(!out.text.contains("left ⧗"), "{}", out.text);
         assert!(
             out.text.contains("left") && out.text.contains("right"),
             "{}",
@@ -303,11 +361,11 @@ mod tests {
             out.text
         );
         assert!(
-            out.text.contains("│ ◆ left ") && out.text.contains("│ ◆ right"),
+            out.text.contains("│ ◇ left ") && out.text.contains("│ ◇ right"),
             "boxed members: {}",
             out.text
         );
-        assert!(out.text.contains("  ◆ root "), "bare root: {}", out.text);
+        assert!(out.text.contains("  ◇ root "), "bare root: {}", out.text);
         assert_eq!(
             out.text.matches("    ↓").count(),
             2,
@@ -322,7 +380,10 @@ mod tests {
         let path = tmp(
             "nika: v1\nworkflow: solo\n\nmodel: mock/echo\n\ntasks:\n  - id: only\n    infer: { prompt: \"x\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.only.output }}\n",
         );
-        let out = run(path.to_str().expect("utf-8 tmp path"), false);
+        let out = run(
+            path.to_str().expect("utf-8 tmp path"),
+            Theme::new(false, false, false),
+        );
         std::fs::remove_file(&path).ok();
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(!out.text.contains("parallelism"), "{}", out.text);
@@ -338,7 +399,7 @@ mod tests {
             "no arrow with one wave: {}",
             out.text
         );
-        assert!(out.text.contains("  ◆ only"), "{}", out.text);
+        assert!(out.text.contains("  ◇ only"), "{}", out.text);
     }
 
     /// A fan-out of 5 renders as ONE bordered wave group ("5 in parallel")
@@ -349,11 +410,18 @@ mod tests {
         let path = tmp(
             "nika: v1\nworkflow: fan5\ntasks:\n  - id: root\n    exec: { command: \"echo r\" }\n  - id: c1\n    depends_on: [root]\n    exec: { command: \"echo 1\" }\n  - id: c2\n    depends_on: [root]\n    exec: { command: \"echo 2\" }\n  - id: c3\n    depends_on: [root]\n    exec: { command: \"echo 3\" }\n  - id: c4\n    depends_on: [root]\n    exec: { command: \"echo 4\" }\n  - id: c5\n    depends_on: [root]\n    exec: { command: \"echo 5\" }\n",
         );
-        let out = run(path.to_str().expect("utf-8 tmp path"), false);
+        let out = run(
+            path.to_str().expect("utf-8 tmp path"),
+            Theme::new(false, false, false),
+        );
         std::fs::remove_file(&path).ok();
         assert_eq!(out.code, exit::OK, "{}", out.text);
         // Wave 1 = the bare root · arrow · wave 2 = the bordered fan of 5.
-        assert!(out.text.contains("  ◆ root"), "bare root: {}", out.text);
+        assert!(
+            out.text.contains("  ▷ root"),
+            "bare root (exec chip): {}",
+            out.text
+        );
         assert!(
             out.text.contains("╭ wave 2 ── 5 in parallel "),
             "fan group header: {}",
@@ -361,7 +429,7 @@ mod tests {
         );
         for c in ["c1", "c2", "c3", "c4", "c5"] {
             assert!(
-                out.text.contains(&format!("│ ◆ {c}")),
+                out.text.contains(&format!("│ ▷ {c}")),
                 "{c} boxed: {}",
                 out.text
             );
@@ -389,7 +457,10 @@ mod tests {
         let path = tmp(
             "nika: v1\nworkflow: fanscii\ntasks:\n  - id: root\n    exec: { command: \"echo r\" }\n  - id: c1\n    depends_on: [root]\n    exec: { command: \"echo 1\" }\n  - id: c2\n    depends_on: [root]\n    exec: { command: \"echo 2\" }\n",
         );
-        let out = run(path.to_str().expect("utf-8 tmp path"), true);
+        let out = run(
+            path.to_str().expect("utf-8 tmp path"),
+            Theme::new(false, true, false),
+        );
         std::fs::remove_file(&path).ok();
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(
@@ -397,10 +468,14 @@ mod tests {
             "ascii header: {}",
             out.text
         );
-        assert!(out.text.contains("| # c1"), "ascii member: {}", out.text);
         assert!(
-            out.text.contains("  # root"),
-            "ascii bare row: {}",
+            out.text.contains("| $ c1"),
+            "ascii member (exec chip): {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("  $ root"),
+            "ascii bare row (exec chip): {}",
             out.text
         );
         assert!(out.text.contains("    v\n"), "ascii arrow: {}", out.text);
@@ -421,7 +496,10 @@ mod tests {
         let path = tmp(
             "nika: v1\nworkflow: wide-diamond\ntasks:\n  - id: root\n    exec: { command: \"echo r\" }\n  - id: m1\n    depends_on: [root]\n    exec: { command: \"echo 1\" }\n  - id: m2\n    depends_on: [root]\n    exec: { command: \"echo 2\" }\n  - id: m3\n    depends_on: [root]\n    exec: { command: \"echo 3\" }\n  - id: m4\n    depends_on: [root]\n    exec: { command: \"echo 4\" }\n  - id: join\n    depends_on: [m1, m2, m3, m4]\n    exec: { command: \"echo j\" }\n",
         );
-        let out = run(path.to_str().expect("utf-8 tmp path"), false);
+        let out = run(
+            path.to_str().expect("utf-8 tmp path"),
+            Theme::new(false, false, false),
+        );
         std::fs::remove_file(&path).ok();
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(

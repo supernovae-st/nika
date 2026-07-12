@@ -92,7 +92,7 @@ fn kill_midrun_resume_completes_the_remainder() {
     // A full --json trace, then CUT it right after `a` completes + a torn
     // half-line — the exact artifact a SIGKILL between tasks leaves.
     let run = bin()
-        .args(["run", &wf.to_string_lossy(), "--json", "--no-color"])
+        .args(["run", &wf.to_string_lossy(), "--json", "--color", "never"])
         .output()
         .expect("binary runs");
     assert_eq!(run.status.code(), Some(0));
@@ -115,7 +115,8 @@ fn kill_midrun_resume_completes_the_remainder() {
             "--resume",
             &trace.to_string_lossy(),
             "--json",
-            "--no-color",
+            "--color",
+            "never",
         ])
         .output()
         .expect("binary runs");
@@ -186,7 +187,8 @@ fn input_change_rehashes_and_reruns_only_the_consumer() {
             "run",
             &wf.to_string_lossy(),
             "--json",
-            "--no-color",
+            "--color",
+            "never",
             "--var",
             "topic=rust",
         ])
@@ -204,7 +206,8 @@ fn input_change_rehashes_and_reruns_only_the_consumer() {
             "--resume",
             &trace.to_string_lossy(),
             "--json",
-            "--no-color",
+            "--color",
+            "never",
             "--var",
             "topic=quantum",
         ])
@@ -233,7 +236,8 @@ fn input_change_rehashes_and_reruns_only_the_consumer() {
             "--resume",
             &trace.to_string_lossy(),
             "--json",
-            "--no-color",
+            "--color",
+            "never",
             "--var",
             "topic=rust",
         ])
@@ -272,7 +276,7 @@ fn paused_prompt_rearms_and_an_answer_completes_the_run() {
     // Non-interactive run hits the default-less prompt → paused (exit 4),
     // the trace carries workflow_paused + the prompt payload.
     let run = bin()
-        .args(["run", &wf.to_string_lossy(), "--json", "--no-color"])
+        .args(["run", &wf.to_string_lossy(), "--json", "--color", "never"])
         .output()
         .expect("binary runs");
     assert_eq!(run.status.code(), Some(4), "run state paused → exit 4");
@@ -300,7 +304,8 @@ fn paused_prompt_rearms_and_an_answer_completes_the_run() {
             "--resume",
             &trace.to_string_lossy(),
             "--json",
-            "--no-color",
+            "--color",
+            "never",
         ])
         .output()
         .expect("binary runs");
@@ -324,7 +329,8 @@ fn paused_prompt_rearms_and_an_answer_completes_the_run() {
             "--answer",
             "approve=yes",
             "--json",
-            "--no-color",
+            "--color",
+            "never",
         ])
         .output()
         .expect("binary runs");
@@ -356,7 +362,7 @@ tasks:
 "#;
     let wf = fixture("defaulted.nika.yaml", DEFAULTED);
     let run = bin()
-        .args(["run", &wf.to_string_lossy(), "--json", "--no-color"])
+        .args(["run", &wf.to_string_lossy(), "--json", "--color", "never"])
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(run.stdout).expect("utf8");

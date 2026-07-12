@@ -327,9 +327,10 @@ pub enum GraphFormat {
     Ascii,
 }
 
-/// The `nika graph <file>` verb.
+/// The `nika inspect <file> --format …` projector arm. The theme feeds the `ascii` renderer
+/// only — the file formats (json · mermaid · dot) never carry escapes.
 #[must_use]
-pub fn run(path: &str, format: GraphFormat) -> VerbOutput {
+pub fn run(path: &str, format: GraphFormat, theme: crate::display::theme::Theme) -> VerbOutput {
     let (wf, report) = match load_checked(path) {
         Ok(pair) => pair,
         Err(out) => return out,
@@ -349,16 +350,28 @@ pub fn run(path: &str, format: GraphFormat) -> VerbOutput {
         },
         GraphFormat::Mermaid => to_mermaid(&doc),
         GraphFormat::Dot => to_dot(&doc),
-        GraphFormat::Ascii => to_ascii(&doc, &report),
+        GraphFormat::Ascii => to_ascii(&doc, &report, theme),
     };
     VerbOutput::ok(text)
 }
 
 /// The terminal drawing — real wires when the layout can be truthful,
-/// the wave listing otherwise (never a wrong picture). Plain theme:
-/// `graph` is a projector surface, its text is often piped.
-fn to_ascii(doc: &GraphDoc, report: &CheckReport) -> String {
-    let theme = crate::display::theme::Theme::new(false, false, false);
+/// the wave listing otherwise (never a wrong picture). The theme rides
+/// in from the binary's ONE resolution chain, so a pipe still gets
+/// escape-free bytes (colour auto-resolves off) while a TTY finally
+/// sees the art it was owed.
+/// The themed wire art for ONE checked workflow — the same map `graph
+/// --format ascii` prints, exposed so sibling verbs (`check`) can show
+/// the DAG beside their verdict without re-deriving the projection.
+pub(crate) fn ascii_art(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    theme: crate::display::theme::Theme,
+) -> String {
+    to_ascii(&project(wf, report), report, theme)
+}
+
+fn to_ascii(doc: &GraphDoc, report: &CheckReport, theme: crate::display::theme::Theme) -> String {
     if let Some(art) = crate::wires::render(doc, &report.waves, theme) {
         return format!("{art}\n");
     }

@@ -1,4 +1,27 @@
 pub mod nika_pack
+pub mod nika_pack::meta
+pub struct nika_pack::meta::ExampleMeta
+pub nika_pack::meta::ExampleMeta::file: alloc::string::String
+pub nika_pack::meta::ExampleMeta::tasks: usize
+pub nika_pack::meta::ExampleMeta::title: alloc::string::String
+pub nika_pack::meta::ExampleMeta::verbs: alloc::vec::Vec<&'static str>
+impl<T, U> core::convert::Into<U> for nika_pack::meta::ExampleMeta where U: core::convert::From<T>
+pub fn nika_pack::meta::ExampleMeta::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pack::meta::ExampleMeta where U: core::convert::Into<T>
+pub type nika_pack::meta::ExampleMeta::Error = core::convert::Infallible
+pub fn nika_pack::meta::ExampleMeta::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pack::meta::ExampleMeta where U: core::convert::TryFrom<T>
+pub type nika_pack::meta::ExampleMeta::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pack::meta::ExampleMeta::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_pack::meta::ExampleMeta where T: 'static + ?core::marker::Sized
+pub fn nika_pack::meta::ExampleMeta::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pack::meta::ExampleMeta where T: ?core::marker::Sized
+pub fn nika_pack::meta::ExampleMeta::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pack::meta::ExampleMeta where T: ?core::marker::Sized
+pub fn nika_pack::meta::ExampleMeta::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_pack::meta::ExampleMeta
+pub fn nika_pack::meta::ExampleMeta::from(t: T) -> T
+pub fn nika_pack::meta::meta(slug: &str, body: &str) -> nika_pack::meta::ExampleMeta
 #[non_exhaustive] pub struct nika_pack::ErrorCodeRow
 pub nika_pack::ErrorCodeRow::category: &'static str
 pub nika_pack::ErrorCodeRow::code: &'static str
@@ -35,7 +58,29 @@ impl<T> core::clone::CloneToUninit for nika_pack::ErrorCodeRow where T: core::cl
 pub unsafe fn nika_pack::ErrorCodeRow::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_pack::ErrorCodeRow
 pub fn nika_pack::ErrorCodeRow::from(t: T) -> T
+pub struct nika_pack::ExampleMeta
+pub nika_pack::ExampleMeta::file: alloc::string::String
+pub nika_pack::ExampleMeta::tasks: usize
+pub nika_pack::ExampleMeta::title: alloc::string::String
+pub nika_pack::ExampleMeta::verbs: alloc::vec::Vec<&'static str>
+impl<T, U> core::convert::Into<U> for nika_pack::meta::ExampleMeta where U: core::convert::From<T>
+pub fn nika_pack::meta::ExampleMeta::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pack::meta::ExampleMeta where U: core::convert::Into<T>
+pub type nika_pack::meta::ExampleMeta::Error = core::convert::Infallible
+pub fn nika_pack::meta::ExampleMeta::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pack::meta::ExampleMeta where U: core::convert::TryFrom<T>
+pub type nika_pack::meta::ExampleMeta::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pack::meta::ExampleMeta::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_pack::meta::ExampleMeta where T: 'static + ?core::marker::Sized
+pub fn nika_pack::meta::ExampleMeta::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pack::meta::ExampleMeta where T: ?core::marker::Sized
+pub fn nika_pack::meta::ExampleMeta::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pack::meta::ExampleMeta where T: ?core::marker::Sized
+pub fn nika_pack::meta::ExampleMeta::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_pack::meta::ExampleMeta
+pub fn nika_pack::meta::ExampleMeta::from(t: T) -> T
 pub fn nika_pack::canon() -> &'static str
+pub fn nika_pack::design_motion() -> core::option::Option<&'static str>
 pub fn nika_pack::design_tokens() -> &'static str
 pub fn nika_pack::doc(path: &str) -> core::option::Option<&'static str>
 pub fn nika_pack::doc_paths() -> alloc::vec::Vec<alloc::string::String>
@@ -44,6 +89,7 @@ pub fn nika_pack::example(slug: &str) -> core::option::Option<&'static str>
 pub fn nika_pack::example_slugs() -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_pack::lean(yaml_text: &str) -> &str
 pub fn nika_pack::manifest() -> &'static str
+pub fn nika_pack::meta(slug: &str, body: &str) -> nika_pack::meta::ExampleMeta
 pub fn nika_pack::pack_version() -> &'static str
 pub fn nika_pack::quickstart() -> &'static str
 pub fn nika_pack::schema_json() -> &'static str

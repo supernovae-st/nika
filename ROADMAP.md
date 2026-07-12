@@ -93,20 +93,20 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `chore/release-0.99.0`                                      |
-| HEAD             | `3d90001b9` (`3d90001b9d3efdc29fc9fce810ecd74476551acd`)             |
+| branch           | `feat/cli-wow-onboarding`                                      |
+| HEAD             | `e241f1cc3` (`e241f1cc342f7c6131c1fe18b75d8837bab1deb6`)             |
 | workspace        | v0.99.0                                  |
-| crates (workspace)| 47                                              |
-| crates (admitted)| 45 / 42                                   |
+| crates (workspace)| 49                                              |
+| crates (admitted)| 47 / 42                                   |
 | crates (WIP)     | 2 — nika-chart nika-fx                                  |
 | L0               | 12                                              |
 | L0.5             | 6                                              |
 | L1               | 13                                              |
 | L1.5             | 4                                              |
-| L2               | 4                                              |
+| L2               | 5                                              |
 | L3               | 1                                              |
-| L4               | 7                                              |
-| lib tests        | 3875 passed, 0 failed                              |
+| L4               | 8                                              |
+| lib tests        | 4133 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 | field            | value                                          |

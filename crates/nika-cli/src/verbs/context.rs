@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika context` — the whole workspace truth in ONE call (the agent
+//! `nika welcome --deep` — the whole workspace truth in ONE call (the agent
 //! aggregate · 30s-arc W4). Composition ONLY: welcome's bounded walk +
 //! THE in-process check ladder (the seam MCP `nika_check` speaks) +
 //! trace-journal folds + the shared `verbs::probe` engine — no new
@@ -97,7 +97,7 @@ struct Rollups {
     runs_unpriced_calls: u64,
 }
 
-/// The `nika context` verb. `json` emits `context_version: 1`.
+/// The `nika welcome --deep` arm. `json` emits `context_version: 1`.
 #[must_use]
 pub fn run(json: bool, theme: Theme) -> VerbOutput {
     let root = Path::new(".");
@@ -304,7 +304,7 @@ fn render_human(
     let _ = writeln!(
         s,
         "{}",
-        theme.paint(Role::Dim, "machine twin: nika context --json"),
+        theme.paint(Role::Dim, "machine twin: nika welcome --deep --json"),
     );
     s
 }
