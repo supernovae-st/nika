@@ -68,7 +68,7 @@ fn fixture_path(name: &str, body: &str) -> String {
 #[test]
 fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
     let path = fixture_path("graph.nika.yaml", WORKFLOW);
-    let out = graph::run(&path, GraphFormat::Json);
+    let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK);
 
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
@@ -133,7 +133,7 @@ fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
     assert!(edges.contains(&("gather".to_owned(), "fan".to_owned())));
 
     // Byte-stable: the projection is a pure function of the file.
-    let again = graph::run(&path, GraphFormat::Json);
+    let again = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.text, again.text, "two runs, identical bytes");
 }
 
@@ -163,7 +163,7 @@ fn graph_refuses_a_dag_broken_file_with_exit_2() {
     // think depends on a task that doesn't exist → conformance fails.
     let broken = WORKFLOW.replace("depends_on: [gather, probe]", "depends_on: [ghost]");
     let path = fixture_path("graph-broken.nika.yaml", &broken);
-    let out = graph::run(&path, GraphFormat::Json);
+    let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("no valid DAG order"), "{}", out.text);
 }
@@ -173,7 +173,7 @@ fn graph_refuses_a_dag_broken_file_with_exit_2() {
 #[test]
 fn inspect_draws_the_wave_groups_with_static_facts() {
     let path = fixture_path("inspect.nika.yaml", WORKFLOW);
-    let out = inspect::run(&path, false);
+    let out = inspect::run(&path, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
 
     // Header: identity + counts + the honest cost bound.
@@ -486,7 +486,7 @@ outputs:
   result: ${{ tasks.large.output }}
 "#;
     let path = fixture_path("priced.nika.yaml", priced);
-    let out = graph::run(&path, GraphFormat::Json);
+    let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
     let interval = |id: &str| -> [f64; 2] {
@@ -518,7 +518,7 @@ fn graph_nodes_always_carry_the_permits_field() {
     // array · empty until the per-task effects projector ships). A
     // consumer reading node.permits must never get `undefined`.
     let path = fixture_path("permits-field.nika.yaml", WORKFLOW);
-    let out = graph::run(&path, GraphFormat::Json);
+    let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
     for node in doc["nodes"].as_array().expect("nodes") {
@@ -535,7 +535,7 @@ fn graph_dedups_duplicate_depends_on_edges() {
     // `depends_on: [gather, gather]` must not lie about cardinality.
     let dup = WORKFLOW.replace("depends_on: [gather]", "depends_on: [gather, gather]");
     let path = fixture_path("dup-edges.nika.yaml", &dup);
-    let out = graph::run(&path, GraphFormat::Json);
+    let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
     let gather_fan = doc["edges"]

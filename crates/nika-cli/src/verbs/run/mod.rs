@@ -235,7 +235,7 @@ fn run_verdict(
 
     // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
     if dry_run {
-        return RunVerdict::bare(dry_run_verdict(file, &wf, &report, json, theme.ascii));
+        return RunVerdict::bare(dry_run_verdict(file, &wf, &report, json, theme));
     }
 
     // ── `--max-cost-usd` preflight — BEFORE any spend (budget.rs) ──
@@ -503,8 +503,8 @@ fn output_mode(output: Option<&str>) -> Result<bool, u8> {
 /// render the static plan (the same anatomy `nika inspect` renders) without
 /// composing any production seam. No fs, no http, no subprocess, no
 /// provider call — the run is never reached.
-fn render_dry_run(file: &str, ascii: bool) -> u8 {
-    let plan = crate::verbs::inspect::run(file, ascii);
+fn render_dry_run(file: &str, theme: Theme) -> u8 {
+    let plan = crate::verbs::inspect::run(file, theme);
     if !plan.text.is_empty() {
         println!("{}", plan.text.trim_end());
     }
@@ -518,12 +518,12 @@ fn dry_run_verdict(
     wf: &RawWorkflow,
     report: &nika_schema::check::CheckReport,
     json: bool,
-    ascii: bool,
+    theme: Theme,
 ) -> u8 {
     if json {
         dry_run_json(file, wf, report)
     } else {
-        render_dry_run(file, ascii)
+        render_dry_run(file, theme)
     }
 }
 
@@ -952,7 +952,10 @@ async fn execute_fold_lane(
     model_override: Option<&str>,
 ) -> RunVerdict {
     let plan = plan_waves(wf, report);
-    let mut fold = FoldSink::new(std::io::stdout().lock(), theme, mode);
+    // `Stdout` (not the guard): the spinner rider is a spawned task and
+    // the stdout guard is thread-bound — per-write locking is fine here
+    // because every REDRAW rides one DEC-2026 synchronized frame anyway.
+    let mut fold = FoldSink::new(std::io::stdout(), theme, mode);
     fold.set_plan(plan.clone());
     // The shape tails ride the INTERACTIVE surface only (`Live` = TTY):
     // the piped/`--no-progress`/`--quiet` registers keep their exact
@@ -960,6 +963,11 @@ async fn execute_fold_lane(
     if mode == RenderMode::Live && outputs {
         fold.show_outputs(true);
     }
+    let fold = std::sync::Arc::new(std::sync::Mutex::new(fold));
+    // The braille beat — Live + motion only (reduced-motion, pipes and
+    // the sober lanes never tick; the fold itself re-checks both).
+    let spinner = (mode == RenderMode::Live && theme.animate)
+        .then(|| sink::spawn_spinner(std::sync::Arc::clone(&fold)));
     // #321 — the plain lane's stderr liveness rider (`still running ·
     // <task> · <n>s · <model>` every ~10s): a piped local-model run
     // must never read as a hang. Plain ONLY — Live already repaints ·
@@ -975,14 +983,27 @@ async fn execute_fold_lane(
     });
     let ticker = pulse.clone().map(heartbeat::spawn_ticker);
     let beat = heartbeat::HeartbeatSink::new(pulse);
-    let mut tee = Tee::new(Tee::new(fold, beat), trace);
+    let mut tee = Tee::new(
+        Tee::new(sink::FoldHandle(std::sync::Arc::clone(&fold)), beat),
+        trace,
+    );
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
-    // The run settled — the rider must not speak over the epilogue.
+    // The run settled — the riders must not speak over the epilogue.
+    // (Aborted tasks reap at the executor's leisure; the fold lock below
+    // is contention-free regardless — same thread, sync section.)
     if let Some(ticker) = &ticker {
         ticker.abort();
     }
-    let (inner, trace) = tee.into_parts();
-    let (mut sink, _beat) = inner.into_parts();
+    if let Some(spinner) = &spinner {
+        spinner.abort();
+    }
+    let (_inner, trace) = tee.into_parts();
+    let Ok(mut sink) = fold.lock() else {
+        // A poisoned fold = a render-side panic already reported by the
+        // runtime; the verdict must still leave honestly.
+        eprintln!("nika run: render state poisoned");
+        return RunVerdict::bare(exit::ENV);
+    };
     // `Live` painted in place during the run; `Plain`/`Quiet` folded
     // silently · print the ONE final frame now.
     if mode != RenderMode::Live {
@@ -1012,7 +1033,7 @@ async fn execute_fold_lane(
         failed_task.as_deref(),
     );
     epilogue::print_resume_summary(&outcome, resumed, false);
-    if let Some(e) = sink.into_error() {
+    if let Some(e) = sink.take_error() {
         eprintln!("nika run: render failed: {e}");
         return RunVerdict::bare(exit::ENV);
     }

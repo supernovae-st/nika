@@ -70,13 +70,16 @@ pub(crate) fn render(doc: &GraphDoc, waves: &[Vec<usize>], theme: Theme) -> Opti
         .map(honest_gutter)
         .collect::<Option<Vec<_>>>()?;
 
-    let labels: Vec<Vec<&str>> = {
+    // (id, verb) pairs — the verb rides as the tokens-SSOT glyph chip
+    // (◇▷◆✦ · 2 cells) in front of every id; width math counts the RAW
+    // cells (paint after measuring · theme.rs law).
+    let labels: Vec<Vec<(&str, &str)>> = {
         let mut out = Vec::new();
         let mut cursor = 0usize;
         for wave in waves {
-            let col: Vec<&str> = doc.nodes[cursor..cursor + wave.len()]
+            let col: Vec<(&str, &str)> = doc.nodes[cursor..cursor + wave.len()]
                 .iter()
-                .map(|n| n.id.as_str())
+                .map(|n| (n.id.as_str(), n.verb))
                 .collect();
             cursor += wave.len();
             out.push(col);
@@ -85,7 +88,12 @@ pub(crate) fn render(doc: &GraphDoc, waves: &[Vec<usize>], theme: Theme) -> Opti
     };
     let widths: Vec<usize> = labels
         .iter()
-        .map(|col| col.iter().map(|l| l.chars().count()).max().unwrap_or(0))
+        .map(|col| {
+            col.iter()
+                .map(|(id, _)| 2 + id.chars().count())
+                .max()
+                .unwrap_or(0)
+        })
         .collect();
     let rows = waves.iter().map(Vec::len).max().unwrap_or(1);
     let total: usize = widths.iter().sum::<usize>() + gutters.len() * 6 + 2;
@@ -98,9 +106,14 @@ pub(crate) fn render(doc: &GraphDoc, waves: &[Vec<usize>], theme: Theme) -> Opti
     for row in 0..rows {
         let mut line = String::from("  ");
         for (w, col) in labels.iter().enumerate() {
-            let label = col.get(row).copied().unwrap_or("");
-            let pad = widths[w] - label.chars().count();
-            line.push_str(label);
+            let (id, verb) = col.get(row).copied().unwrap_or(("", ""));
+            let pad = widths[w] - (2 + id.chars().count());
+            if id.is_empty() {
+                line.push_str("  ");
+            } else {
+                line.push_str(&theme.verb_glyph(verb));
+            }
+            line.push_str(id);
             line.push_str(&" ".repeat(pad));
             if w < gutters.len() {
                 line.push_str(&gutter_cell(&gutters[w], &spans[w], row, theme, &g));
@@ -346,7 +359,7 @@ mod tests {
             exec_task("persist", &["think"]),
         ]))
         .expect("chain draws");
-        assert_eq!(art, "  gather ───▶ think ───▶ persist");
+        assert_eq!(art, "  ▷ gather ───▶ ▷ think ───▶ ▷ persist");
     }
 
     #[test]
@@ -358,7 +371,10 @@ mod tests {
             exec_task("join", &["left", "right"]),
         ]))
         .expect("diamond draws");
-        let expect = concat!("  root ─┬─▶ left  ─┬─▶ join\n", "        ╰─▶ right ─╯",);
+        let expect = concat!(
+            "  ▷ root ─┬─▶ ▷ left  ─┬─▶ ▷ join\n",
+            "          ╰─▶ ▷ right ─╯",
+        );
         assert_eq!(art, expect, "\ngot:\n{art}\nwant:\n{expect}");
     }
 
@@ -371,7 +387,11 @@ mod tests {
             exec_task("c", &["root"]),
         ]))
         .expect("fan draws");
-        let expect = concat!("  root ─┬─▶ a\n", "        ├─▶ b\n", "        ╰─▶ c",);
+        let expect = concat!(
+            "  ▷ root ─┬─▶ ▷ a\n",
+            "          ├─▶ ▷ b\n",
+            "          ╰─▶ ▷ c",
+        );
         assert_eq!(art, expect, "\ngot:\n{art}\nwant:\n{expect}");
     }
 
@@ -386,7 +406,7 @@ mod tests {
             exec_task("y", &["b"]),
         ]))
         .expect("parallel draws");
-        let expect = concat!("  a ───▶ x\n", "  b ───▶ y");
+        let expect = concat!("  ▷ a ───▶ ▷ x\n", "  ▷ b ───▶ ▷ y");
         assert_eq!(art, expect, "\ngot:\n{art}\nwant:\n{expect}");
     }
 
@@ -405,7 +425,7 @@ mod tests {
             exec_task("y", &["a"]),
         ]))
         .expect("the uncrossed layout draws");
-        assert_eq!(art, concat!("  a ───▶ y\n", "  b ───▶ x"));
+        assert_eq!(art, concat!("  ▷ a ───▶ ▷ y\n", "  ▷ b ───▶ ▷ x"));
     }
 
     #[test]

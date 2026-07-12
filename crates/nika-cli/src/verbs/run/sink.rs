@@ -372,9 +372,12 @@ impl<A: EventSink, B: EventSink> EventSink for Tee<A, B> {
 }
 
 /// Folds each event into a [`RunView`] and repaints the frame (the live
-/// TTY lane · spec §3). v0 is event-driven repaint only (no spinner
-/// ticks · those arrive with a timed polish pass) — every event clears
-/// the prior frame and redraws, so the screen tracks the run.
+/// TTY lane · spec §3). Repaints are event-driven PLUS the spinner
+/// ticks: a timer rider ([`spawn_spinner`]) advances `tick` while a
+/// task is running, so a long `infer`/`agent` wait breathes instead of
+/// freezing between settles (braille frames only ever render on the
+/// animated unicode Live surface — every sober register is tick-blind
+/// by the glyph law).
 pub struct FoldSink<W: Write> {
     writer: W,
     theme: Theme,
@@ -389,7 +392,51 @@ pub struct FoldSink<W: Write> {
     outputs: bool,
     /// Lines painted by the previous frame (to clear before the redraw).
     last_lines: usize,
+    /// The spinner phase — advanced by the timer rider, read by every
+    /// repaint (events repaint at the CURRENT phase, never reset it).
+    tick: usize,
     error: Option<std::io::Error>,
+}
+
+/// The shared handle the spinner rider and the event stream both hold —
+/// the heartbeat's `Arc<Mutex<…>>` precedent applied to the fold. On the
+/// run's current-thread executor the two never contend for real (the
+/// rider only runs at await points); the lock is the proof, not a hot
+/// path.
+pub(super) type SharedFold<W> = std::sync::Arc<std::sync::Mutex<FoldSink<W>>>;
+
+/// The [`EventSink`] face of a shared fold — lock, apply, repaint. A
+/// poisoned lock (another holder panicked) goes silent: the render is
+/// best-effort by contract, the verdict never rides here.
+pub(super) struct FoldHandle<W: Write>(pub(super) SharedFold<W>);
+
+impl<W: Write> EventSink for FoldHandle<W> {
+    fn emit(&mut self, event: Event) {
+        if let Ok(mut fold) = self.0.lock() {
+            fold.emit(event);
+        }
+    }
+}
+
+/// The spinner rider — ticks the shared fold ~10×/s while the run sits
+/// at an await point (exactly the provider/subprocess wait a frozen
+/// frame misreads as a hang). The caller aborts it the moment the run
+/// settles; the executor's drop reaps it regardless.
+pub(super) fn spawn_spinner<W: Write + Send + 'static>(
+    fold: SharedFold<W>,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(std::time::Duration::from_millis(100));
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        tick.tick().await; // the immediate first tick is not a frame
+        loop {
+            tick.tick().await;
+            match fold.lock() {
+                Ok(mut fold) => fold.spin(),
+                Err(_) => return, // poisoned — best-effort silence
+            }
+        }
+    })
 }
 
 impl<W: Write> FoldSink<W> {
@@ -404,7 +451,29 @@ impl<W: Write> FoldSink<W> {
             mode,
             outputs: false,
             last_lines: 0,
+            tick: 0,
             error: None,
+        }
+    }
+
+    /// One spinner beat — advance the phase and repaint, but ONLY while
+    /// something is actually running on the animated Live surface (a
+    /// settled screen must not churn; sober registers never tick).
+    pub(super) fn spin(&mut self) {
+        if self.mode != RenderMode::Live
+            || !self.theme.animate
+            || self.error.is_some()
+            || !self
+                .view
+                .rows()
+                .iter()
+                .any(|r| r.state == crate::TaskState::Running)
+        {
+            return;
+        }
+        self.tick = self.tick.wrapping_add(1);
+        if let Err(e) = self.repaint() {
+            self.error = Some(e);
         }
     }
 
@@ -459,6 +528,13 @@ impl<W: Write> FoldSink<W> {
         self.error
     }
 
+    /// Take the buffered write error out of a SHARED fold (the spinner
+    /// arc keeps ownership behind the lock — `into_error`'s by-value
+    /// twin for that seam).
+    pub(super) fn take_error(&mut self) -> Option<std::io::Error> {
+        self.error.take()
+    }
+
     fn repaint(&mut self) -> std::io::Result<()> {
         // Move the cursor up over the previous frame and clear from there
         // down (ANSI · the spinner family). TTY-only — `emit` gates this.
@@ -478,9 +554,9 @@ impl<W: Write> FoldSink<W> {
             write!(self.writer, "\x1b[0J")?;
         }
         let lines = if self.outputs {
-            frame_with_outputs(&self.view, &self.theme, 0)
+            frame_with_outputs(&self.view, &self.theme, self.tick)
         } else {
-            frame(&self.view, &self.theme, 0)
+            frame(&self.view, &self.theme, self.tick)
         };
         for line in &lines {
             writeln!(self.writer, "{line}")?;
@@ -974,6 +1050,68 @@ mod tests {
             text.ends_with("\x1b[?2026l"),
             "the last write closes the frame"
         );
+    }
+
+    /// The spinner beat: while a task runs on the animated Live surface,
+    /// `spin()` advances the braille phase and repaints; once everything
+    /// settled it writes NOTHING (a finished screen never churns).
+    #[test]
+    fn spin_advances_the_running_glyph_and_stops_at_settle() {
+        let theme = Theme::new(false, false, true); // colour off · animated
+        let mut fold = FoldSink::new(Vec::new(), theme, RenderMode::Live);
+        // Feed the demo stream up to the FIRST running state — the
+        // prefix length is the stream's business, not this test's.
+        let events = demo::success();
+        let mut fed = 0usize;
+        for event in &events {
+            fold.emit(event.clone());
+            fed += 1;
+            if fold
+                .view()
+                .rows()
+                .iter()
+                .any(|r| r.state == crate::TaskState::Running)
+            {
+                break;
+            }
+        }
+        assert!(
+            fold.view()
+                .rows()
+                .iter()
+                .any(|r| r.state == crate::TaskState::Running),
+            "the demo stream never ran a task?"
+        );
+        let before = fold.writer.len();
+        fold.spin();
+        fold.spin();
+        let painted = String::from_utf8_lossy(&fold.writer[before..]).into_owned();
+        // Two beats = two different braille frames (tick 1 then 2).
+        assert!(
+            painted.contains('⠙') && painted.contains('⠹'),
+            "{painted:?}"
+        );
+
+        // Settle everything — the beat goes silent.
+        for event in events.iter().skip(fed) {
+            fold.emit(event.clone());
+        }
+        let settled = fold.writer.len();
+        fold.spin();
+        assert_eq!(fold.writer.len(), settled, "no churn after settle");
+    }
+
+    /// The sober lanes are tick-blind: Plain never repaints on spin.
+    #[test]
+    fn spin_is_a_no_op_off_the_live_lane() {
+        let theme = Theme::new(false, false, true);
+        let mut fold = FoldSink::new(Vec::new(), theme, RenderMode::Plain);
+        for event in demo::success().iter().take(3) {
+            fold.emit(event.clone());
+        }
+        let before = fold.writer.len();
+        fold.spin();
+        assert_eq!(fold.writer.len(), before, "Plain stays event-driven");
     }
 }
 
