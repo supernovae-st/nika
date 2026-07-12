@@ -411,6 +411,8 @@ pub(crate) fn environment_json(probe: &Probe) -> serde_json::Value {
     serde_json::json!({
         "clients": clients,
         "local_providers": locals,
+        "models_pulled": probe.models.count,
+        "models_bytes": probe.models.bytes,
         "cloud_keys_present": present,
         "cloud_keys_total": total,
     })

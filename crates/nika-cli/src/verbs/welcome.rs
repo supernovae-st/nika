@@ -201,6 +201,17 @@ fn machine_section(s: &mut String, probe: &Probe, glance: Glance, theme: Theme) 
             theme.paint(Role::Dim, "· no key needed"),
         );
     }
+    // The sovereign lane — ONLY when bytes are on disk (a mirror line
+    // must carry information, never a lecture; zero models = silence).
+    if probe.models.count > 0 {
+        let _ = writeln!(
+            s,
+            "  models     {} pulled · {} on disk {}",
+            probe.models.count,
+            nika_models::store::human_size(probe.models.bytes),
+            theme.paint(Role::Dim, "· nika model list"),
+        );
+    }
     let (present, total) = cloud_key_counts(&probe.providers);
     let _ = writeln!(
         s,
@@ -403,6 +414,34 @@ mod tests {
 
     fn plain() -> Theme {
         Theme::new(false, false, false)
+    }
+
+    /// The mirror speaks the sovereign lane ONLY when bytes are on disk
+    /// (a pulled model must be visible — the machine section IS "what
+    /// this machine already has"; zero models = zero line, never a
+    /// lecture).
+    #[test]
+    fn mirror_shows_pulled_models_and_stays_silent_at_zero() {
+        let glance = Glance {
+            git: true,
+            workflows: 0,
+            agents_md: false,
+        };
+        let silent = render_human(&synthetic_probe(), glance, counts(), plain());
+        assert!(
+            !silent.contains("  models"),
+            "zero models = zero line:\n{silent}"
+        );
+
+        let mut probe = synthetic_probe();
+        probe.models.count = 2;
+        probe.models.bytes = 211 * 1024 * 1024;
+        let shown = render_human(&probe, glance, counts(), plain());
+        assert!(
+            shown.contains("models     2 pulled · 211.0 MiB on disk"),
+            "the sovereign lane is in the mirror:\n{shown}"
+        );
+        assert!(shown.contains("nika model list"), "{shown}");
     }
 
     #[test]
