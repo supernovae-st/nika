@@ -21,6 +21,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 mod init_args;
+mod lazy;
 mod registry_args;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
@@ -30,6 +31,7 @@ use nika_cli::verbs::{self, VerbOutput};
 use nika_cli::{RunView, Theme, frame};
 
 use init_args::{InitArgs, init_verb};
+use lazy::{check_lazy, run_lazy};
 use nika_event::Event;
 
 #[derive(Parser)]
@@ -143,7 +145,8 @@ enum Command {
         /// `registry:owner/name[@version]` pull (cached + offline; workflow
         /// `permits:` never govern the fetch) · several files audit in sequence
         /// (worst exit wins — the CI shape) · `--json`/`--infer-permits` one-file-per-call.
-        #[arg(required = true, num_args = 1..)]
+        /// Omitted with exactly one workflow here → that one is audited.
+        #[arg(num_args = 0..)]
         files: Vec<String>,
         /// Emit the machine-readable report (never coloured).
         #[arg(long)]
@@ -536,7 +539,9 @@ enum TraceAction {
 struct RunArgs {
     /// Workflow file (`*.nika.yaml`) · or a `registry:owner/name[@version]`
     /// verified pull (cached + offline; `permits:` never govern the fetch).
-    file: String,
+    /// OMITTED with exactly one workflow in this workspace → that one
+    /// runs (announced); zero or several → the honest routing.
+    file: Option<String>,
     /// Stream NDJSON events instead of the live render (CI · agents).
     #[arg(long)]
     json: bool,
@@ -791,8 +796,8 @@ fn main() -> std::process::ExitCode {
             model,
             no_color,
             ascii,
-        } => registry_args::check_verb(
-            &files,
+        } => check_lazy(
+            files,
             &CheckFlags {
                 json,
                 infer_permits,
@@ -802,7 +807,7 @@ fn main() -> std::process::ExitCode {
             model.as_deref(),
             term_theme(color.with_no_color(no_color), ascii, link_when),
         ),
-        Command::Run(args) => registry_args::registry_then_run(args, color, link_when, cli.plain),
+        Command::Run(args) => run_lazy(args, color, link_when, cli.plain),
         Command::Test {
             file,
             update,
@@ -1129,7 +1134,7 @@ fn run_verb(args: &RunArgs, color: ColorWhenArg, link_when: LinkChoice, plain: b
     // env the replay honours).
     theme.animate = theme.accents && !env_flag("NIKA_REDUCED_MOTION");
     verbs::run::run(
-        &args.file,
+        args.file.as_deref().unwrap_or_default(),
         args.json,
         args.output.as_deref(),
         theme,

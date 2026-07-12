@@ -38,9 +38,17 @@ pub(crate) fn registry_then_run(
     link_when: LinkChoice,
     plain: bool,
 ) -> u8 {
-    match resolve_registry_arg(&args.file) {
+    // The dispatcher's lazy resolver guaranteed the target before this
+    // seam — an absent file here is a wiring bug, surfaced honestly.
+    let Some(file) = args.file.as_deref() else {
+        return emit(&crate::VerbOutput {
+            text: "nika run: no workflow target resolved (internal wiring)".to_owned(),
+            code: nika_cli::verbs::exit::ENV,
+        });
+    };
+    match resolve_registry_arg(file) {
         Ok(file) => {
-            args.file = file;
+            args.file = Some(file);
             run_verb(&args, color, link_when, plain)
         }
         Err(out) => emit(&out),

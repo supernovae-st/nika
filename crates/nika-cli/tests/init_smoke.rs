@@ -99,3 +99,62 @@ fn init_plain_yes_keeps_the_historical_bytes() {
     assert!(!stdout.contains('\x1b'), "piped init stays escape-free");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The lazy-hands resolver: `check`/`run` with NO file — one workflow
+/// auto-resolves (announced on stderr, stdout contract untouched),
+/// zero routes to the founding trio, several lists copy-paste lines.
+#[test]
+fn bare_check_and_run_resolve_the_lazy_way() {
+    let base = workspace_tmp_dir("nika-lazy-smoke");
+    let hello = "nika: v1\nworkflow: solo\nmodel: mock/echo\ntasks:\n  - id: greet\n    infer: { prompt: \"hi\", max_tokens: 9 }\n";
+
+    // ONE workflow → check runs it and says which (stderr).
+    let one = base.join("one");
+    std::fs::create_dir_all(&one).expect("mkdir");
+    std::fs::write(one.join("solo.nika.yaml"), hello).expect("seed");
+    let out = bin()
+        .arg("check")
+        .current_dir(&one)
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(0), "auto-resolved audit passes");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("solo.nika.yaml (the only workflow here)"),
+        "the pick is announced: {err}"
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("audited"),
+        "stdout carries the audit only"
+    );
+
+    // ZERO → the founding trio, env exit.
+    let none = base.join("none");
+    std::fs::create_dir_all(&none).expect("mkdir");
+    let out = bin()
+        .arg("check")
+        .current_dir(&none)
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(3));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("nika init"), "routes to founding: {err}");
+
+    // MANY → every candidate named, copy-paste ready.
+    let many = base.join("many");
+    std::fs::create_dir_all(&many).expect("mkdir");
+    std::fs::write(many.join("a.nika.yaml"), hello).expect("seed");
+    std::fs::write(many.join("b.nika.yaml"), hello).expect("seed");
+    let out = bin()
+        .arg("run")
+        .current_dir(&many)
+        .output()
+        .expect("binary runs");
+    assert_eq!(out.status.code(), Some(3));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("nika run a.nika.yaml") && err.contains("nika run b.nika.yaml"),
+        "each candidate is a paste-ready command: {err}"
+    );
+    let _ = std::fs::remove_dir_all(&base);
+}

@@ -25,7 +25,7 @@ pub mod inspect;
 pub mod model;
 pub mod new;
 pub mod pack_surface;
-pub(crate) mod probe;
+pub mod probe;
 pub mod run;
 pub mod test;
 pub mod tools;
