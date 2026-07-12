@@ -84,6 +84,36 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika model pull/list/rm` — first-class Hugging Face acquisition for
+  the native path** ([#146](https://github.com/supernovae-st/nika/issues/146)):
+  one command from the Hub to a sovereign in-process run. `pull
+  owner/repo[:QUANT]` resolves the repo's file tree first (sizes BEFORE
+  any byte moves; 2 GiB and over confirms, `--yes` for CI), streams the
+  GGUF over the house `nika-http` seam (rustls · SSRF floor · per-hop
+  redirect vetting — no `hf-hub`/`ureq` second HTTP stack), resumes an
+  interrupted transfer from its `.part` via `Range:`, and brings
+  `tokenizer.json` along — the exact sibling layout the serve loader
+  wants. ONE canonical models dir (`~/.nika/models/<owner>/<repo>/`):
+  the downloader and the resolver share it by construction (the
+  brouillon-era pull/load two-dir mismatch cannot re-happen), so `nika
+  model serve --model owner/repo[:QUANT]` now resolves pulled ids (and
+  bare file stems) — a real path still passes straight through.
+  `list` prints the dir once with id · size · file rows; `rm` reclaims
+  a whole repo or one quant (sweeping a gguf-empty dir) and refuses a
+  no-match WITH the installed list as the teaching surface. `HF_TOKEN`
+  authenticates gated repos (the Hub answers 401 for missing repos too
+  — the refusal names both lanes). `nika doctor` grows the models row:
+  dir + count + bytes once anything is pulled (any build), and a
+  teach-pull advisory on a sidecar build with nothing to serve. The
+  fetch is CLI-level, like `registry:` pulls — a workflow's `permits:`
+  never govern it. Acquisition only: the candle runtime owns
+  loading/generation (ADR-091/093). The whole unit ships as the
+  `nika-models` member (store · pull · serve glue) per D-2026-07-09-N1
+  — `nika-cli` sat at 14,958 of the 15,000 prod-LOC cap and keeps thin
+  exit-contract adapters at the unchanged public paths (the
+  `nika-onboard`/`nika-display`/`nika-dap` descents' wall, the same
+  house way).
+
 - **The one earned ask: welcome + init grow the community line** (#498 —
   the traction baseline showed installs running 2.5x ahead of stars
   because the product never asks). `nika welcome`'s footer gains a third
