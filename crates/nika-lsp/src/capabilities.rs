@@ -27,9 +27,19 @@ pub fn server_capabilities() -> ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         hover_provider: Some(true.into()),
         completion_provider: Some(CompletionOptions {
-            // auto-trigger on `.` (for `tasks.`), `/` (for `provider/`) and
-            // `[` (for `depends_on: [`) — plus the normal identifier triggers
-            trigger_characters: Some(vec![".".to_owned(), "/".to_owned(), "[".to_owned()]),
+            // auto-trigger on `.` (for `tasks.`), `/` (for `provider/`),
+            // `[` (for `depends_on: [`) and ` ` — the pause after a value
+            // colon (`tool: ` · `model: ` · `capture: `) is the exact
+            // moment an author asks "what goes here?", and clients only
+            // re-pop on word characters, so without the space trigger
+            // every value lane waits for a manual ctrl+space. Non-value
+            // spaces answer with an empty list (pinned cheap by test).
+            trigger_characters: Some(vec![
+                ".".to_owned(),
+                "/".to_owned(),
+                "[".to_owned(),
+                " ".to_owned(),
+            ]),
             ..CompletionOptions::default()
         }),
         definition_provider: Some(OneOf::Left(true)),
@@ -75,17 +85,22 @@ mod tests {
     }
 
     #[test]
-    fn completion_advertises_the_dot_slash_and_bracket_trigger_characters() {
-        // The completion provider must declare `.`, `/` and `[` as trigger
-        // characters (for `tasks.`, `provider/` and `depends_on: [`).
+    fn completion_advertises_the_trigger_characters() {
+        // `.` (tasks.), `/` (provider/), `[` (depends_on: [) and ` ` —
+        // the pause after a value colon, where every value lane lives.
         // Dropping the field would silently disable trigger-character
         // completion in clients.
         let caps = server_capabilities();
         let completion = caps.completion_provider.expect("completion provider");
         assert_eq!(
             completion.trigger_characters,
-            Some(vec![".".to_owned(), "/".to_owned(), "[".to_owned()]),
-            "exactly `.`, `/` and `[` as triggers"
+            Some(vec![
+                ".".to_owned(),
+                "/".to_owned(),
+                "[".to_owned(),
+                " ".to_owned(),
+            ]),
+            "exactly `.`, `/`, `[` and ` ` as triggers"
         );
     }
 
