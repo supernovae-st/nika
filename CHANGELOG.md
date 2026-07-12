@@ -47,6 +47,16 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **The motion SSOT is parity-gated, and `test` joins the lazy door**
+  — a new integration gate proves the terminal spinner constants
+  mirror the vendored `design/motion.yaml` (spec #65) family by family
+  (`infer·sampling` · `exec·scanline` · `invoke·roundtrip` ·
+  `agent·orbit`): hand-edited drift between the CLI's motion and the
+  site's tiles now dies in CI, not in a screenshot. And bare
+  `nika test` resolves the workspace's only workflow exactly like
+  `run`/`check` (zero→trio · several→copy-paste list) — the last
+  family inconsistency at the lazy door.
+
 - **The DAG is visible where you look** (operator: « voir la dag ! ») —
   `nika check` on a TTY now ends with the SAME themed wire art `graph
   --format ascii` speaks (the audit reads as the graph it judged;

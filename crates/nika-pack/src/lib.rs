@@ -33,6 +33,13 @@ fn file_str(path: &str) -> Option<&'static str> {
     PACK.get_file(path).and_then(|f| f.contents_utf8())
 }
 
+/// The vendored motion SSOT (`design/motion.yaml` · spec #65) — the
+/// per-verb motion identities every surface derives from.
+#[must_use]
+pub fn design_motion() -> Option<&'static str> {
+    file_str("design-motion.yaml")
+}
+
 pub mod meta;
 pub use meta::{ExampleMeta, meta};
 

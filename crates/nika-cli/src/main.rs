@@ -33,7 +33,7 @@ use nika_cli::{RunView, Theme, frame};
 
 use examples_args::{ExamplesAction, examples_verb};
 use init_args::{InitArgs, init_verb};
-use lazy::{check_lazy, run_lazy};
+use lazy::{check_lazy, resolve_lazy_target, run_lazy};
 use nika_event::Event;
 
 #[derive(Parser)]
@@ -178,7 +178,7 @@ enum Command {
     #[command(display_order = 21)]
     Test {
         /// Workflow file (`*.nika.yaml`).
-        file: String,
+        file: Option<String>,
         /// (Re)write the golden from this run instead of comparing.
         #[arg(long)]
         update: bool,
@@ -782,7 +782,10 @@ fn main() -> std::process::ExitCode {
             interactive_theme(plain_theme),
         ),
         Command::Run(args) => run_lazy(args, color, link_when, cli.plain, cli.ascii),
-        Command::Test { file, update } => verbs::test::run(&file, update, plain_theme),
+        Command::Test { file, update } => match resolve_lazy_target(file, "test") {
+            Ok(file) => verbs::test::run(&file, update, plain_theme),
+            Err(code) => code,
+        },
         Command::Inspect { file, format } => match format {
             Some(f) => emit(&verbs::graph::run(&file, f.into(), plain_theme)),
             None => emit(&verbs::inspect::run(&file, plain_theme)),
