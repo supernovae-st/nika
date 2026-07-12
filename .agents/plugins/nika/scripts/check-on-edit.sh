@@ -3,7 +3,8 @@
 # *.nika.yaml, run the audit so findings reach the agent immediately
 # (the file is the contract; check is the oracle).
 #
-# ONE script, TWO dialects (sniffed from stdin — `hook_event_name` is
+# ONE script, TWO dialects, THREE surfaces (Codex emits the Claude Code
+# dialect verbatim — live-proven 2026-07-12). Sniffed from stdin — `hook_event_name` is
 # Claude Code's, absent from Cursor's):
 #   Cursor (afterFileEdit): file_path at the payload root; findings go
 #     to STDERR (the hook log) and stdout stays `{}` — never a veto.
