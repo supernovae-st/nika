@@ -176,8 +176,8 @@ where
     /// `ProviderError::Other` on a malformed model string (no `/`), an
     /// unknown provider id, or a cloud profile resolved without an http
     /// effect; `ProviderError::AuthFailed` when the profile requires a key
-    /// and none was injected (the message prints the env ladder + the
-    /// `with_key` alternative).
+    /// and none was injected — the message prints the env ladder (operator
+    /// voice); embedders inject via [`ProvidersConfig::with_key`].
     pub fn resolve(&self, model: &str) -> Result<ResolvedProvider<H>, ProviderError> {
         let Some((provider_id, model_rest)) = model.split_once('/') else {
             return Err(ProviderError::Other {
