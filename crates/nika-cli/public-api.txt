@@ -88,7 +88,7 @@ pub fn nika_cli::registry::is_registry_ref(arg: &str) -> bool
 pub fn nika_cli::registry::resolve_blocking(arg: &str) -> core::result::Result<nika_cli::registry::Resolved, nika_cli::registry::RegistryError>
 pub mod nika_cli::verbs
 pub mod nika_cli::verbs::catalog
-pub fn nika_cli::verbs::catalog::run(json: bool) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::catalog::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::check
 pub fn nika_cli::verbs::check::run(path: &str, json: bool, native_strict: bool, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::check::run_infer_permits(path: &str, json: bool) -> nika_cli::verbs::VerbOutput
@@ -396,6 +396,8 @@ pub fn nika_cli::verbs::new::run(template: &str, dest: core::option::Option<&str
 pub mod nika_cli::verbs::pack_surface
 pub fn nika_cli::verbs::pack_surface::schema() -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::pack_surface::spec(canon: bool) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::probe
+pub fn nika_cli::verbs::probe::collect_workflow_paths(root: &std::path::Path, dir: &std::path::Path, depth: u8, budget: &mut usize, out: &mut alloc::vec::Vec<std::path::PathBuf>)
 pub mod nika_cli::verbs::run
 pub use nika_cli::verbs::run::RecoveredTrace
 pub use nika_cli::verbs::run::recover_events

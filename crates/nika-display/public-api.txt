@@ -449,6 +449,7 @@ pub const fn nika_display::theme::Theme::new(color: bool, ascii: bool, animate: 
 pub fn nika_display::theme::Theme::paint(&self, role: nika_display::theme::Role, text: &str) -> alloc::string::String
 pub fn nika_display::theme::Theme::sparkline(&self, samples: &[u64]) -> alloc::string::String
 pub fn nika_display::theme::Theme::verb_glyph(&self, verb: &str) -> alloc::string::String
+pub fn nika_display::theme::Theme::verb_spin(&self, verb: core::option::Option<&str>, tick: usize) -> alloc::string::String
 impl core::clone::Clone for nika_display::theme::Theme
 pub fn nika_display::theme::Theme::clone(&self) -> nika_display::theme::Theme
 impl core::fmt::Debug for nika_display::theme::Theme
@@ -484,6 +485,9 @@ pub fn nika_display::theme::Theme::as_any(&self) -> &(dyn core::any::Any + 'stat
 impl<T> outref::AsOut<T> for nika_display::theme::Theme where T: core::marker::Copy
 pub fn nika_display::theme::Theme::as_out(&mut self) -> outref::Out<'_, T>
 pub const nika_display::theme::HEAT_RAMP: [(u8, u8, u8); 5]
+pub const nika_display::theme::ROUNDTRIP: [char; 10]
+pub const nika_display::theme::SAMPLING: [char; 10]
+pub const nika_display::theme::SCANLINE: [char; 10]
 pub const nika_display::theme::SPARK: [char; 7]
 pub const nika_display::theme::SPINNER: [char; 10]
 pub mod nika_display::vocab
