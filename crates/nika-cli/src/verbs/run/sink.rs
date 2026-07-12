@@ -571,9 +571,9 @@ impl<W: Write> FoldSink<W> {
             .filter(|r| matches!(r.state, crate::display::state::TaskState::Running))
             .map(|r| r.id.clone())
             .collect();
+        let graph = crate::wires::wire_graph(doc, waves);
         crate::wires::render_with(
-            doc,
-            waves,
+            &graph,
             theme,
             &move |id, verb| {
                 use crate::display::state::TaskState;

@@ -42,7 +42,10 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   Accent) so the map shows where the run's energy flows; a still map
   is byte-stable under ticks (no idle flicker · law-tested), and the
   flow gantt's lanes wear their verb chips (`◆ discover ▕██▏` — the
-  timeline speaks the same 4-verb vocabulary as the rows).
+  timeline speaks the same 4-verb vocabulary as the rows). The wire
+  drawing itself DESCENDS to `nika-display::wires` (decoupled
+  `WireGraph` — any surface with waves + deps can draw; the CLI keeps a
+  thin projection bridge), freeing `nika-cli` back under the 15k wall.
   Interactive surfaces only; every sober register byte-intact.
 
 - **One source of truth for the corpus — the loose engine copies die**
