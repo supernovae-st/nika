@@ -35,7 +35,18 @@ pub fn completion(text: &str, offset: usize) -> Vec<CompletionItem> {
     let prefix = line_prefix(text, offset);
 
     if is_model_value(prefix) {
+        // A provider already typed (`model: ollama/`) narrows to ITS
+        // models — the second half of the address, catalog-derived.
+        if let Some(models) = provider_models(prefix) {
+            return models;
+        }
         return providers();
+    }
+    if is_tool_value(prefix) {
+        return builtin_tools();
+    }
+    if let Some(items) = enum_values(prefix) {
+        return items;
     }
     if in_open_depends_on(text, offset) || is_template_tasks_ref(prefix) {
         return task_ids(text);
@@ -270,6 +281,111 @@ fn is_task_field_key(line: &str, prefix: &str) -> bool {
 }
 
 /// Provider completion items (`<provider>/`), local-first per vocab order.
+/// `tool: ` value position — same grammar as the model detector (the
+/// colon-space law · one leading token only).
+fn is_tool_value(prefix: &str) -> bool {
+    let trimmed = prefix.trim_start();
+    let Some(rest) = trimmed.strip_prefix("tool:") else {
+        return false;
+    };
+    let Some(after) = rest.strip_prefix(' ') else {
+        return false;
+    };
+    let after = after.trim_start_matches(['"', '\'']);
+    !after.contains(char::is_whitespace) || after.trim().is_empty()
+}
+
+/// The canonical builtin set (`nika:*`) — DERIVED from the catalog at
+/// call time (born-stale law: the 27 never live in a hand table here).
+fn builtin_tools() -> Vec<CompletionItem> {
+    nika_catalog::all_builtins()
+        .iter()
+        .map(|b| CompletionItem {
+            label: format!("nika:{}", b.name),
+            kind: Some(CompletionItemKind::VALUE),
+            detail: Some(format!(
+                "{:?} · args: {}",
+                b.category,
+                if b.args.is_empty() {
+                    "(none)".to_owned()
+                } else {
+                    b.args.join(" · ")
+                }
+            )),
+            ..CompletionItem::default()
+        })
+        .collect()
+}
+
+/// `model: <provider>/` typed → that provider's catalog models (id ·
+/// wire name · context window as the detail facts).
+fn provider_models(prefix: &str) -> Option<Vec<CompletionItem>> {
+    let trimmed = prefix.trim_start();
+    let after = trimmed.strip_prefix("model:")?.strip_prefix(' ')?;
+    let (prov, _partial) = after.split_once('/')?;
+    let provider = nika_catalog::all_providers()
+        .iter()
+        .find(|p| p.id == prov)?;
+    let items: Vec<CompletionItem> = provider
+        .models
+        .iter()
+        .map(|m| CompletionItem {
+            label: format!("{prov}/{}", m.model),
+            kind: Some(CompletionItemKind::VALUE),
+            detail: Some(format!(
+                "{} · {}k ctx · {}k out",
+                m.id,
+                m.context_window_tokens / 1000,
+                m.max_output_tokens / 1000
+            )),
+            ..CompletionItem::default()
+        })
+        .collect();
+    (!items.is_empty()).then_some(items)
+}
+
+/// Closed-enum field values (`capture:` · `backoff_strategy:`) — the
+/// schema's own vocabulary, offered where the spec closes the set.
+fn enum_values(prefix: &str) -> Option<Vec<CompletionItem>> {
+    const ENUMS: &[(&str, &[(&str, &str)])] = &[
+        (
+            "capture:",
+            &[
+                ("text", "stdout as one trimmed string (the default)"),
+                ("structured", ".output = { stdout, stderr, exit_code }"),
+            ],
+        ),
+        (
+            "backoff_strategy:",
+            &[
+                ("exponential", "1s · 2s · 4s … (the retry default)"),
+                ("linear", "1s · 2s · 3s … steady climb"),
+                ("fixed", "the same delay every attempt"),
+            ],
+        ),
+    ];
+    let trimmed = prefix.trim_start();
+    for (key, values) in ENUMS {
+        if let Some(rest) = trimmed.strip_prefix(key)
+            && let Some(after) = rest.strip_prefix(' ')
+            && (!after.contains(char::is_whitespace) || after.trim().is_empty())
+        {
+            return Some(
+                values
+                    .iter()
+                    .map(|(v, doc)| CompletionItem {
+                        label: (*v).to_owned(),
+                        kind: Some(CompletionItemKind::ENUM_MEMBER),
+                        detail: Some((*doc).to_owned()),
+                        ..CompletionItem::default()
+                    })
+                    .collect(),
+            );
+        }
+    }
+    None
+}
+
 fn providers() -> Vec<CompletionItem> {
     vocab::PROVIDERS
         .iter()
@@ -416,6 +532,64 @@ mod tests {
         assert!(
             !completion(normal, normal.len()).is_empty(),
             "a normal field fragment still completes"
+        );
+    }
+
+    /// `tool: ` offers the full catalog-derived `nika:*` set — and the
+    /// count IS the catalog's (the born-stale gate: a builtin added to
+    /// the catalog appears here with zero LSP edits).
+    #[test]
+    fn tool_value_offers_exactly_the_builtin_set() {
+        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    invoke:\n      tool: ";
+        let items = completion(text, text.len());
+        assert_eq!(items.len(), nika_catalog::all_builtins().len());
+        let got = labels(&items);
+        assert!(got.iter().all(|l| l.starts_with("nika:")), "{got:?}");
+        assert!(got.contains(&"nika:read".to_owned()));
+        assert!(got.contains(&"nika:jq".to_owned()));
+        // a partial token keeps offering (client-side filtering)
+        let text2 = format!("{text}nika:re");
+        assert!(!completion(&text2, text2.len()).is_empty());
+        // quoted form too — `tool: "nika:` is the corpus's own style
+        let text3 = format!("{text}\"nika:");
+        assert!(!completion(&text3, text3.len()).is_empty());
+    }
+
+    /// `model: ollama/` narrows to ollama's OWN catalog models; an
+    /// unknown provider falls back to the provider list (never empty).
+    #[test]
+    fn provider_slash_offers_that_providers_models() {
+        let text = "nika: v1\nmodel: ollama/";
+        let items = completion(text, text.len());
+        assert!(!items.is_empty(), "ollama has catalog models");
+        let got = labels(&items);
+        assert!(got.iter().all(|l| l.starts_with("ollama/")), "{got:?}");
+
+        let text2 = "nika: v1\nmodel: nosuch/";
+        let fallback = completion(text2, text2.len());
+        let fb = labels(&fallback);
+        assert!(
+            fb.iter().any(|l| l == "ollama/"),
+            "unknown provider → provider list: {fb:?}"
+        );
+    }
+
+    /// Closed-enum fields offer exactly the spec's vocabulary.
+    #[test]
+    fn enum_fields_offer_exactly_the_closed_sets() {
+        let text = "nika: v1\ntasks:\n  - id: a\n    exec:\n      command: x\n      capture: ";
+        let labels_ = labels(&completion(text, text.len()));
+        assert_eq!(labels_, vec!["text".to_owned(), "structured".to_owned()]);
+
+        let text2 = "nika: v1\ntasks:\n  - id: a\n    retry:\n      backoff_strategy: ";
+        let l2 = labels(&completion(text2, text2.len()));
+        assert_eq!(
+            l2,
+            vec![
+                "exponential".to_owned(),
+                "linear".to_owned(),
+                "fixed".to_owned()
+            ]
         );
     }
 
