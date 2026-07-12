@@ -30,6 +30,13 @@ nix profile install github:supernovae-st/nika
 # one-shot, no install: nix run github:supernovae-st/nika -- --version
 ```
 
+**GitHub CLI present (Actions runners · Codespaces · agents with `gh`):**
+
+```sh
+gh extension install supernovae-st/gh-nika
+gh nika --version   # pass-through to a PATH nika, else a one-time checksum-verified release fetch
+```
+
 **No package manager (bare Linux/macOS box):** fetch the release
 tarball and verify it against `SHA256SUMS` — auditable, no `curl | sh`.
 Discover the version via the web redirect, NOT the GitHub API (anonymous
