@@ -26,11 +26,13 @@
 //! drives it. v0.1 is single-file, full-reparse-on-change, UTF-16
 //! positions.
 //!
-//! # Scope (v0.1, LOCKED)
+//! # Scope
 //!
-//! In: diagnostics, hover, completion, document symbols, definition. Out
-//! (deferred to v0.8X): code actions, inlay hints, semantic tokens, model
-//! catalog intelligence, `${{ }}` expression intelligence, multi-file /
+//! v0.1 (LOCKED): diagnostics, hover, completion, document symbols,
+//! definition. v0.2 adds **code actions** (quickfix-only — the
+//! `check --fix` typed-rename engine projected; one fix engine, every
+//! editor). Still out: inlay hints, semantic tokens, model catalog
+//! intelligence, `${{ }}` expression intelligence, multi-file /
 //! includes / incremental reparse.
 
 // Tests may use `unwrap`/`expect`/`panic`-class assertions freely (the

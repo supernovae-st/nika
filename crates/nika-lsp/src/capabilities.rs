@@ -15,8 +15,8 @@
 //! tokens, …) is simply left `None`.
 
 use lsp_types::{
-    CompletionOptions, OneOf, PositionEncodingKind, ServerCapabilities, TextDocumentSyncCapability,
-    TextDocumentSyncKind,
+    CodeActionKind, CodeActionOptions, CodeActionProviderCapability, CompletionOptions, OneOf,
+    PositionEncodingKind, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
 };
 
 /// The capabilities advertised in the initialize response.
@@ -34,6 +34,12 @@ pub fn server_capabilities() -> ServerCapabilities {
         }),
         definition_provider: Some(OneOf::Left(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
+        // v0.2 surface: quickfix-only — the `check --fix` rename engine
+        // projected (one fix engine, every editor).
+        code_action_provider: Some(CodeActionProviderCapability::Options(CodeActionOptions {
+            code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+            ..CodeActionOptions::default()
+        })),
         ..ServerCapabilities::default()
     }
 }
@@ -84,9 +90,14 @@ mod tests {
     }
 
     #[test]
-    fn out_of_scope_features_are_absent() {
+    fn scope_pins_hold_v02_in_the_rest_out() {
         let caps = server_capabilities();
-        assert!(caps.code_action_provider.is_none());
+        // v0.2: quickfix-only code actions (the --fix engine projected).
+        let Some(CodeActionProviderCapability::Options(opts)) = caps.code_action_provider else {
+            panic!("code actions advertise as Options");
+        };
+        assert_eq!(opts.code_action_kinds, Some(vec![CodeActionKind::QUICKFIX]));
+        // still out of scope:
         assert!(caps.inlay_hint_provider.is_none());
         assert!(caps.semantic_tokens_provider.is_none());
     }
