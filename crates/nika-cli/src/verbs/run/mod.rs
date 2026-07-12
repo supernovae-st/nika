@@ -395,8 +395,18 @@ fn load_resume_plan(
 /// printed to stderr (#145: the offline-model nudge for infer/provider
 /// failures · the real missing dependency for an exec `program not
 /// found`) · the original exit code is returned unchanged.
+///
+/// `vars`/`no_progress`/`max_cost_usd` are the run trio verbatim — the
+/// SAME funnel serves both surfaces (F7: required-var examples run direct).
 #[must_use]
-pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
+pub fn example(
+    slug: &str,
+    model_override: Option<&str>,
+    vars: &[String],
+    no_progress: bool,
+    max_cost_usd: Option<f64>,
+    theme: Theme,
+) -> u8 {
     let Some(yaml) = nika_pack::example(slug) else {
         eprintln!("unknown example `{slug}` — `nika examples list` names the embedded set");
         return exit::FILE;
@@ -411,8 +421,7 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         eprintln!("nika run: environment: cannot stage example `{slug}`: {e}");
         return exit::ENV;
     }
-    // The example renders live on a TTY, plain when piped (no flags here).
-    let mode = if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+    let mode = if !no_progress && std::io::IsTerminal::is_terminal(&std::io::stdout()) {
         RenderMode::Live
     } else {
         RenderMode::Plain
@@ -430,7 +439,7 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         mode,
         false,
         model_override,
-        &[],
+        vars,
         None,
         // No run journal: the example is staged to a TEMP file — `.nika/
         // traces/` belongs to workspace runs (the same drive underneath,
@@ -439,7 +448,7 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         // Examples always run whole (tiny by design · no scoping surface).
         None,
         false,
-        None,
+        max_cost_usd,
         // An example runs a TEMP-staged file, not a workspace run — the
         // workspace's trace store is not this invocation's to collect.
         true,
@@ -824,12 +833,9 @@ fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
 /// bytes stay exact (the rider can only buffer its own fs error, surfaced
 /// after the run · never the exit code). The caller composes the journal
 /// (enabled or disabled) like every other seam.
-// The 8th parameter is the `--resume` summary switch — same clap-surface
-// The trailing parameters are the `--resume` summary switch + the
-// outputs-tail switch — same clap-surface idiom as `run` itself (four
-// independent flags ARE four bools, not a state machine). The workflow
-// rides as (path, parsed) — the epilogue hint teaches a command over
-// the SAME file the operator just ran.
+// Trailing bools mirror the clap surface (independent flags ARE bools,
+// not a state machine). The workflow rides as (path, parsed) — the
+// epilogue hint teaches a command over the SAME file just run.
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 async fn execute(
     runtime: &ProdRuntime,
@@ -846,14 +852,10 @@ async fn execute(
 ) -> RunVerdict {
     let mut stamper = SystemStamper::new();
     if output_json {
-        // Machine-result mode (spec 01 §export contract): the live fold is
-        // a DIAGNOSTIC → stderr; the resolved `outputs:` object is the ONE
-        // JSON object on stdout, never interleaved. This powers the v0.1
-        // sub-workflow composition `exec: nika run sub.yaml --output json`
-        // + `capture: stdout` (spec 08 §composition).
-        // `Plain` deliberately: the fold goes to stderr (a pipe in the
-        // composition path · never the live TTY redraw); the one final
-        // storyboard frame is what matters, not the animation.
+        // Machine-result mode (spec 01 §export · 08 §composition): the
+        // fold is a DIAGNOSTIC → stderr (Plain deliberately — a pipe,
+        // never the live redraw); the resolved `outputs:` object is the
+        // ONE JSON object on stdout, never interleaved.
         let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
         fold.set_plan(plan_waves(wf, report));
         let mut tee = Tee::new(fold, trace);

@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The `nika-cli` dev binary — the seed of the `nika` verb tree.
-//!
-//! Today: the full STATIC suite (`check` · `inspect` · `graph` ·
-//! `explain` · `spec` · `schema` · `examples` · `new` · `completions`) +
-//! `trace replay|show` (the flight-recorder reader · spec §7). Everything
-//! is auditable-before-run, and the `run` verb executes a CHECKED workflow
-//! through the composed `nika-runtime` (L3) over production seams
-//! (`nika-builtin` is admitted · no mocks).
-//! Exit codes follow the locked contract (spec §4): `0` ok · `1` workflow
-//! failed · `2` file findings · `3` environment error.
+//! The `nika` binary — clap surface + dispatch over the verb tree
+//! (`nika --help` is the living list; the static suite audits before any
+//! run, `run` executes CHECKED workflows through the composed L3 runtime
+//! over production seams). Exit codes per the locked contract (spec §4):
+//! `0` ok · `1` workflow failed · `2` file findings · `3` environment.
 
 // A terminal binary's whole job is printing — the same exemption as the
 // nika-catalog-verify binary and the nika-schema check example.
@@ -406,6 +401,17 @@ enum ExamplesAction {
         /// `--model mock/echo` to preview offline (zero key · zero network).
         #[arg(long, value_name = "PROVIDER/NAME")]
         model: Option<String>,
+        /// Bind a workflow `vars:` input (repeatable) — the `nika run
+        /// --var` contract; examples with `required:` vars need it.
+        #[arg(long = "var", value_name = "KEY=VALUE")]
+        var: Vec<String>,
+        /// Plain line-by-line render — same as `nika run --no-progress`.
+        #[arg(long)]
+        no_progress: bool,
+        /// Refuse any spend past this bound BEFORE the crossing call —
+        /// the `nika run --max-cost-usd` contract.
+        #[arg(long = "max-cost-usd", value_name = "USD", value_parser = parse_budget_usd)]
+        max_cost_usd: Option<f64>,
     },
 }
 
@@ -896,9 +902,20 @@ fn examples_verb(action: Option<ExamplesAction>, plain_theme: Theme) -> u8 {
         ExamplesAction::List => emit(&verbs::pack_surface::examples_list()),
         ExamplesAction::Show { slug } => emit(&verbs::pack_surface::examples_show(&slug)),
         // The L3 run verb shipped — execute the embedded example for real.
-        ExamplesAction::Run { slug, model } => {
-            verbs::run::example(&slug, model.as_deref(), plain_theme)
-        }
+        ExamplesAction::Run {
+            slug,
+            model,
+            var,
+            no_progress,
+            max_cost_usd,
+        } => verbs::run::example(
+            &slug,
+            model.as_deref(),
+            &var,
+            no_progress,
+            max_cost_usd,
+            plain_theme,
+        ),
     }
 }
 
