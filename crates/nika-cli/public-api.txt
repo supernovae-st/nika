@@ -568,6 +568,7 @@ pub mod nika_cli::verbs::trace_reproduce
 pub fn nika_cli::verbs::trace_reproduce::reproduce(recorded: &str, fresh: &str) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::trace_verify
 pub fn nika_cli::verbs::trace_verify::verify(trace: &str) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::trace_verify::verify_many(traces: &[std::path::PathBuf]) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::welcome
 pub fn nika_cli::verbs::welcome::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::wire
