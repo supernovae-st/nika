@@ -42,7 +42,7 @@ ships — zero extension change.
 | **Go-to-definition** | ✅ | a task ref (`depends_on:` item or `${{ tasks.X }}`) at the cursor → the task's `id` span |
 | **`$/cancelRequest`** (base protocol) | ✅ | the serve loop drains everything already queued into one batch and answers a request cancelled BEFORE it was computed with `-32800 RequestCancelled` — a fast-typing burst no longer computes stale results the client already discarded |
 | Expression intelligence inside `${{ }}` | 🟡 | CEL completion inside `${{ }}` islands shipped (PR #170) · expression hover stays client-side meanwhile |
-| Code actions / quick fixes | ❌ v0.8X | (the check ladder already carries the fix form in the message) |
+| Code actions / quick fixes | ✅ v0.2 (shipped 2026-07-12) | quickfix-only — the `check --fix` typed-rename engine (`offending`/`suggestion`) projected; unique-token + did-you-mean-only discipline mirrored |
 | Inlay hints · semantic tokens · code lens | ❌ v0.8X | |
 | Model catalog hover/compat (`model_intel`) | ❌ v0.8X | |
 | Multi-file / includes · incremental reparse | ❌ v0.8X | (v0.1 is single-file, full-reparse-on-change) |

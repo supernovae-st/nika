@@ -1,0 +1,64 @@
+pub mod nika_models
+pub mod nika_models::gguf
+pub fn nika_models::gguf::sniff_architecture(path: &std::path::Path) -> core::option::Option<alloc::string::String>
+pub mod nika_models::pull
+pub fn nika_models::pull::run(arg: &str, yes: bool) -> core::result::Result<alloc::string::String, alloc::string::String>
+pub mod nika_models::serve
+pub const nika_models::serve::DEFAULT_PORT: u16
+pub fn nika_models::serve::serve(gguf: &std::path::Path, tokenizer: core::option::Option<&std::path::Path>, port: u16, model_id: core::option::Option<&str>) -> alloc::string::String
+pub mod nika_models::store
+pub fn nika_models::store::human_size(bytes: u64) -> alloc::string::String
+pub fn nika_models::store::list() -> alloc::string::String
+pub fn nika_models::store::models_root() -> core::result::Result<std::path::PathBuf, alloc::string::String>
+pub fn nika_models::store::resolve_serve_model(arg: &str) -> core::result::Result<std::path::PathBuf, alloc::string::String>
+pub fn nika_models::store::rm(id: &str) -> core::result::Result<alloc::string::String, alloc::string::String>
+pub struct nika_models::ModelsProbe
+pub nika_models::ModelsProbe::bytes: u64
+pub nika_models::ModelsProbe::count: usize
+pub nika_models::ModelsProbe::root: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_models::ModelsProbe
+pub fn nika_models::ModelsProbe::clone(&self) -> nika_models::ModelsProbe
+impl core::cmp::Eq for nika_models::ModelsProbe
+impl core::cmp::PartialEq for nika_models::ModelsProbe
+pub fn nika_models::ModelsProbe::eq(&self, other: &nika_models::ModelsProbe) -> bool
+impl core::default::Default for nika_models::ModelsProbe
+pub fn nika_models::ModelsProbe::default() -> nika_models::ModelsProbe
+impl core::fmt::Debug for nika_models::ModelsProbe
+pub fn nika_models::ModelsProbe::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_models::ModelsProbe
+impl<D> owo_colors::OwoColorize for nika_models::ModelsProbe
+impl<Q, K> equivalent::Equivalent<K> for nika_models::ModelsProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_models::ModelsProbe::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_models::ModelsProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_models::ModelsProbe::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_models::ModelsProbe where U: core::convert::From<T>
+pub fn nika_models::ModelsProbe::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_models::ModelsProbe where U: core::convert::Into<T>
+pub type nika_models::ModelsProbe::Error = core::convert::Infallible
+pub fn nika_models::ModelsProbe::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_models::ModelsProbe where U: core::convert::TryFrom<T>
+pub type nika_models::ModelsProbe::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_models::ModelsProbe::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_models::ModelsProbe where T: core::clone::Clone
+pub type nika_models::ModelsProbe::Owned = T
+pub fn nika_models::ModelsProbe::clone_into(&self, target: &mut T)
+pub fn nika_models::ModelsProbe::to_owned(&self) -> T
+impl<T> core::any::Any for nika_models::ModelsProbe where T: 'static + ?core::marker::Sized
+pub fn nika_models::ModelsProbe::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_models::ModelsProbe where T: ?core::marker::Sized
+pub fn nika_models::ModelsProbe::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_models::ModelsProbe where T: ?core::marker::Sized
+pub fn nika_models::ModelsProbe::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_models::ModelsProbe where T: core::clone::Clone
+pub unsafe fn nika_models::ModelsProbe::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_models::ModelsProbe
+pub fn nika_models::ModelsProbe::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_models::ModelsProbe where T: 'static
+pub fn nika_models::ModelsProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_models::ModelsProbe where T: ?core::marker::Sized
+pub fn nika_models::ModelsProbe::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_models::ModelsProbe::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_models::ModelsProbe
+impl<T> tracing::instrument::WithSubscriber for nika_models::ModelsProbe
+pub const nika_models::SERVE_FAMILY: &str
+pub fn nika_models::models_probe() -> nika_models::ModelsProbe

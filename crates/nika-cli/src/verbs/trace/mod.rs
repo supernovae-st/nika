@@ -23,7 +23,7 @@ use std::fmt::Write as _;
 use crate::display::flow::fmt_wall_ms;
 use crate::display::shape;
 use crate::display::theme::{Role, Theme};
-use crate::{RunView, TaskRow};
+use crate::{RunView, TaskRow, TaskState};
 
 use super::VerbOutput;
 
@@ -145,8 +145,8 @@ fn render_outputs(view: &RunView, trace: &str, theme: Theme) -> String {
 /// task id is the one placeholder).
 fn totals_line(view: &RunView, trace: &str, theme: Theme) -> String {
     let mut line = format!(
-        "  {} task(s) · {}",
-        view.rows().len(),
+        "  {} · {}",
+        crate::text::count(view.rows().len(), "task"),
         fmt_wall_ms(view.elapsed_ms)
     );
     let tokens: u64 = view.rows().iter().filter_map(|r| r.tokens).sum();
@@ -193,6 +193,13 @@ pub fn peek(trace: &str, task: &str, raw: bool, theme: Theme) -> VerbOutput {
         return VerbOutput::env(unknown_task_message(&view, trace, task));
     };
     let Some(text) = row.output_json.as_deref() else {
+        // A failed task records no output — its autopsy IS the recorded
+        // failure. The failure card promised « autopsy: nika trace peek » ;
+        // peek delivers it instead of shrugging. (`--raw` keeps its
+        // jq-pipe contract — a failure has no value to pipe.)
+        if !raw && row.state == TaskState::Failed && !row.detail.is_empty() {
+            return VerbOutput::ok(render_failure_peek(row, theme));
+        }
         return VerbOutput::env(no_output_message(&view, row));
     };
     if raw {
@@ -225,9 +232,19 @@ fn no_output_message(view: &RunView, row: &TaskRow) -> String {
         .collect();
     let state = format!("{:?}", row.state).to_lowercase();
     let mut message = format!("task `{}` recorded no output ({state})", row.id);
-    if with_outputs.is_empty() {
-        message.push_str(" — no task in this trace carries one (an older engine's trace?)");
-    } else {
+    // Each state explains itself — the « older engine? » hypothesis is
+    // reserved for the one case that actually suggests it: a task that
+    // SUCCEEDED in a trace where nothing carries an output field.
+    match row.state {
+        TaskState::Skipped => message.push_str(" — a guarded skip never runs, so never records"),
+        TaskState::Cancelled => message.push_str(" — the path died upstream before it ran"),
+        TaskState::Failed => message.push_str(" — the run settled before it produced a value"),
+        _ if with_outputs.is_empty() => {
+            message.push_str(" — no task in this trace carries one (an older engine's trace?)");
+        }
+        _ => {}
+    }
+    if !with_outputs.is_empty() {
         let _ = write!(
             message,
             " — outputs recorded for: {}",
@@ -235,6 +252,54 @@ fn no_output_message(view: &RunView, row: &TaskRow) -> String {
         );
     }
     message
+}
+
+/// The autopsy: a failed task's peek renders the RECORDED failure —
+/// same identity block as a value peek, then the detail the settle
+/// event carried, then the teach line when the detail names a code.
+fn render_failure_peek(row: &TaskRow, theme: Theme) -> String {
+    let mut out = String::new();
+    let title = match row.started_note.as_deref() {
+        Some(note) => format!("{} · {note}", row.id),
+        None => row.id.clone(),
+    };
+    let _ = writeln!(out, "  {}", theme.paint(Role::Strong, &title));
+    let mut meta = row
+        .wall_ms()
+        .map_or_else(|| dash(theme).to_owned(), fmt_wall_ms);
+    if let Some(tok) = row.tokens {
+        let _ = write!(meta, " · {tok} tok");
+    }
+    let _ = write!(meta, " · failed");
+    let _ = writeln!(out, "  {}", theme.paint(Role::Dim, &meta));
+    let _ = writeln!(out);
+    let _ = writeln!(out, "  {}", theme.paint(Role::Bad, &row.detail));
+    if let Some(code) = wire_code(&row.detail) {
+        let _ = writeln!(
+            out,
+            "  {}",
+            theme.paint(Role::Dim, &format!("fix: nika explain {code}"))
+        );
+    }
+    out
+}
+
+/// The first wire-code-shaped token in a failure detail (`NIKA-INFER-001`
+/// · `DAG-003`) — uppercase segments joined by dashes, at least two.
+fn wire_code(detail: &str) -> Option<&str> {
+    detail
+        .split([' ', '·', ':', '(', ')'])
+        .map(str::trim)
+        .find(|t| {
+            t.len() >= 5
+                && t.contains('-')
+                && t.split('-').count() >= 2
+                && t.split('-').all(|s| {
+                    !s.is_empty()
+                        && s.bytes()
+                            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
+                })
+        })
 }
 
 /// The pretty read: identity block (task · verb · time · tokens ·
@@ -433,7 +498,7 @@ fn render_flow(edges: &[FlowEdge], theme: Theme) -> String {
     }
     let arrow = crate::display::vocab::arrow(theme.ascii);
     let join = if theme.ascii { "x" } else { "×" };
-    let mut totals = format!("  {} edge(s)", edges.len());
+    let mut totals = format!("  {}", crate::text::count(edges.len(), "edge"));
     if let Some(widest) = edges
         .iter()
         .filter(|e| e.bytes.is_some())
@@ -496,7 +561,7 @@ mod tests {
             text.contains(&format!("full value: nika trace peek {trace} <task>")),
             "peek hint carries the real path: {text}"
         );
-        assert!(text.contains("5 task(s)"), "totals: {text}");
+        assert!(text.contains("5 tasks"), "totals: {text}");
         assert!(text.contains("710 tok"), "token total: {text}");
     }
 
@@ -645,6 +710,95 @@ mod tests {
         assert!(!ascii.text.contains('…'), "no unicode under --ascii");
     }
 
+    /// A failed task's peek performs the autopsy the failure card
+    /// promised: the recorded failure + the explain teach line — never
+    /// the « older engine's trace? » shrug. `--raw` keeps its jq-pipe
+    /// contract and still refuses (a failure has no value).
+    #[test]
+    fn peek_on_a_failed_task_performs_the_autopsy() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let events = vec![
+            demo::bare_event(EventKind::TaskStarted, 0)
+                .with_field(KeyValue::new("task", Value::String("greet".into())))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("infer · mistral/mistral-small-latest".into()),
+                )),
+            demo::bare_event(EventKind::TaskFailed, 12)
+                .with_field(KeyValue::new("task", Value::String("greet".into())))
+                .with_field(KeyValue::new("duration_ms", Value::Int(9)))
+                .with_field(KeyValue::new(
+                    "detail",
+                    Value::String(
+                        "NIKA-INFER-001 · model `mistral/mistral-small-latest` failed to \
+                         resolve: no API key for 'mistral'"
+                            .into(),
+                    ),
+                )),
+        ];
+        let path = stage("peek-autopsy.ndjson", &events);
+        let out = peek(&path.to_string_lossy(), "greet", false, plain());
+        assert_eq!(out.code, exit::OK);
+        assert!(
+            out.text
+                .contains("greet · infer · mistral/mistral-small-latest"),
+            "identity: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("no API key for 'mistral'"),
+            "the recorded failure: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("fix: nika explain NIKA-INFER-001"),
+            "teach line: {}",
+            out.text
+        );
+        assert!(!out.text.contains("older engine"), "no shrug: {}", out.text);
+        let raw = peek(&path.to_string_lossy(), "greet", true, plain());
+        assert_eq!(raw.code, exit::ENV, "raw refuses a valueless row");
+        assert!(
+            raw.text.contains("settled before it produced a value"),
+            "raw teach: {}",
+            raw.text
+        );
+    }
+
+    /// The wire-code scanner: finds real codes, never prose.
+    #[test]
+    fn wire_code_finds_codes_and_ignores_prose() {
+        assert_eq!(
+            wire_code("NIKA-INFER-001 · model x failed"),
+            Some("NIKA-INFER-001")
+        );
+        assert_eq!(
+            wire_code("cycle found (DAG-003) in wave 2"),
+            Some("DAG-003")
+        );
+        assert_eq!(wire_code("plain prose failure - nothing coded"), None);
+    }
+
+    /// A guarded skip explains itself — no hypothesis, no blame.
+    #[test]
+    fn peek_on_a_skipped_task_explains_the_skip() {
+        let path = peek_fixture("peek-skip.ndjson");
+        let out = peek(&path.to_string_lossy(), "deploy", false, plain());
+        assert_eq!(out.code, exit::ENV);
+        assert!(
+            out.text
+                .contains("a guarded skip never runs, so never records"),
+            "skip teach: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("outputs recorded for: audit"),
+            "still names the rows that have one: {}",
+            out.text
+        );
+    }
+
     /// `--raw` prints the EXACT recorded JSON text and nothing else —
     /// the jq-pipe contract.
     #[test]
@@ -704,7 +858,7 @@ mod tests {
             "terminal outputs edge (aligned): {text}"
         );
         assert!(
-            text.contains("2 edge(s) · widest: read_payload→audit"),
+            text.contains("2 edges · widest: read_payload→audit"),
             "totals + widest: {text}"
         );
         assert!(

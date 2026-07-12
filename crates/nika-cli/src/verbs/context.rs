@@ -2,22 +2,15 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! `nika welcome --deep` — the whole workspace truth in ONE call (the agent
-//! aggregate · 30s-arc W4).
+//! aggregate · 30s-arc W4). Composition ONLY: welcome's bounded walk +
+//! THE in-process check ladder (the seam MCP `nika_check` speaks) +
+//! trace-journal folds + the shared `verbs::probe` engine — no new
+//! analysis, one truth, one more renderer.
 //!
-//! Composition ONLY: the workflow inventory is the same bounded walk the
-//! welcome glance does, each file goes through THE in-process check
-//! ladder (`nika_schema::parse` + `check` — the same seam the MCP
-//! `nika_check` tool speaks), runs are folded from `.nika/traces`
-//! journal heads/tails, and the machine facts ride the shared
-//! `verbs::probe` engine. No new analysis exists here — one truth,
-//! one more renderer.
-//!
-//! The wire (`--json` · `context_version: 1` · additive-only) follows
-//! the house machine-envelope law and three field rules:
-//! FACTS never file contents · RELATIVE paths only (an absolute path
-//! leaks usernames into agent transcripts) · every array is CAPPED and
-//! says so (`workflows_capped` / `runs_capped` — silent truncation
-//! reads as « covered everything »).
+//! The wire (`--json` · `context_version: 1` · additive-only): FACTS
+//! never file contents · RELATIVE paths only (absolute paths leak
+//! usernames into agent transcripts) · every array CAPPED and says so
+//! (silent truncation reads as « covered everything »).
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -270,7 +263,7 @@ fn render_human(
         let verdict = if f.clean {
             theme.paint(Role::Good, "clean")
         } else {
-            theme.paint(Role::Bad, &format!("{} finding(s)", f.findings))
+            theme.paint(Role::Bad, &crate::text::count(f.findings, "finding"))
         };
         let cost = if f.cost_is_floor {
             format!("≥ ${:.4}", f.cost_bounded_usd)
@@ -279,10 +272,10 @@ fn render_human(
         };
         let _ = writeln!(
             s,
-            "  {:<width$}  {verdict} · {} task(s) · {} wave(s) · {cost}{}",
+            "  {:<width$}  {verdict} · {} · {} · {cost}{}",
             f.path,
-            f.tasks,
-            f.waves,
+            crate::text::count(f.tasks, "task"),
+            crate::text::count(f.waves, "wave"),
             if f.permits_declared {
                 " · permits ✓".to_owned()
             } else {
@@ -301,12 +294,12 @@ fn render_human(
     let floor = if rollups.cost_is_floor { "≥" } else { "≤" };
     let _ = writeln!(
         s,
-        "{} {} clean / {} total · {floor} ${:.4} · {} run(s) recorded",
+        "{} {} clean / {} total · {floor} ${:.4} · {} recorded",
         theme.paint(Role::Strong, "rollup"),
         rollups.workflows_clean,
         rollups.workflows_total,
         rollups.cost_bounded_usd,
-        workspace.runs.len(),
+        crate::text::count(workspace.runs.len(), "run"),
     );
     let _ = writeln!(
         s,

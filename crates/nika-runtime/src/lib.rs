@@ -243,6 +243,13 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// were CRLF/BOM-encoded (the two hashes differ). Lets drift checks
     /// tell a re-encode from an edit.
     source_sha256_lf: Option<String>,
+    /// Agent Skills resolved by the COMPOSER (spec 02 §agent skills):
+    /// path-as-written in `skills:` → the SKILL.md file's raw text. The
+    /// runtime stays fs-free — it composes from THESE texts (dispatch)
+    /// and keys resume identity on them (a changed skill re-runs · the
+    /// same law as an edited prompt · ADR-099). Empty by default: a
+    /// workflow without `skills:` never looks here.
+    skills: BTreeMap<String, String>,
 }
 
 /// One wave's read-only value scope — (`vars` · `env` · `secrets` ·
@@ -283,6 +290,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             model_override: None,
             source_sha256: None,
             source_sha256_lf: None,
+            skills: BTreeMap::new(),
         }
     }
 
@@ -379,6 +387,20 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_prompt_answers(mut self, answers: BTreeMap<String, Value>) -> Self {
         self.prompt_answers = answers;
+        self
+    }
+
+    /// Inject the COMPOSER-resolved Agent Skills (spec 02 §agent skills):
+    /// each `skills:` path, exactly as written, mapped to its SKILL.md
+    /// raw text. The composer (CLI) owns the file reads — `nika check`
+    /// has already refused a missing/malformed skill (NIKA-AGENT-003/
+    /// 004), so at dispatch the map is complete; an entry a bare
+    /// embedder forgot fails the TASK with the same codes (check≡run).
+    /// The texts also join the referencing tasks' resume identity
+    /// (ADR-099 · an edited skill re-runs the task).
+    #[must_use]
+    pub fn with_skills(mut self, skills: BTreeMap<String, String>) -> Self {
+        self.skills = skills;
         self
     }
 }
@@ -530,7 +552,8 @@ where
         // ADR-099 resume identities — secret markers + the leak-guard set,
         // derived once per run (keys are stamped on every success so any
         // `--json` trace is later resumable).
-        let resume_ctx = resume::ResumeContext::of(wf, &secrets, self.model_override.as_deref());
+        let resume_ctx =
+            resume::ResumeContext::of(wf, &secrets, self.model_override.as_deref(), &self.skills);
         // The declared capability boundary (spec 01 §permits) flows to every
         // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);

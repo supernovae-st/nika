@@ -62,14 +62,23 @@ pub fn run(
     // the exact asymmetry a hallucinating agent hits. A `model:` this
     // binary cannot resolve is a FINDING (exit 2), never a green audit.
     let model_findings = unresolvable_models(&report);
-    let clean = report.is_clean() && model_findings.is_empty();
+    // SKILLS rung (#473 · MODELS pattern): a bad SKILL.md is a FINDING.
+    let skills = super::resolve_workflow_skills(&wf);
+    let clean = report.is_clean() && model_findings.is_empty() && skills.findings.is_empty();
     let strict_clean = clean && (!native_strict || native_hints == 0);
 
     if json {
-        return json_verdict(&report, &model_findings, clean, strict_clean, native_strict);
+        return json_verdict(
+            &report,
+            &model_findings,
+            &skills,
+            clean,
+            strict_clean,
+            native_strict,
+        );
     }
 
-    let mut text = render(&report, &wf, &source, path, theme, &model_findings);
+    let mut text = render(&report, &wf, &source, path, theme, &model_findings, &skills);
     if native_strict && report.is_clean() && native_hints > 0 {
         let hint_word = if native_hints == 1 { "hint" } else { "hints" };
         let _ = writeln!(
@@ -129,11 +138,13 @@ fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
 }
 
 /// The `--json` verdict: the full report + the machine keys (`clean` ·
-/// `models_resolve` · `model_findings[]` · `pricing` · the strict flag)
-/// — never coloured, the contract bytes are the contract.
+/// `models_resolve` · `model_findings[]` · `skills_resolve` ·
+/// `skill_findings[]` · `pricing` · the strict flag) — never coloured,
+/// the contract bytes are the contract.
 fn json_verdict(
     report: &CheckReport,
     model_findings: &[ModelFinding],
+    skills: &nika_schema::ResolvedSkills,
     clean: bool,
     strict_clean: bool,
     native_strict: bool,
@@ -165,6 +176,7 @@ fn json_verdict(
                 ),
             );
         }
+        skills.extend_check_json(obj);
         obj.insert(
             "pricing".to_owned(),
             pricing_section(report, model_findings),
@@ -309,6 +321,7 @@ fn render(
     path: &str,
     t: Theme,
     model_findings: &[ModelFinding],
+    skills: &nika_schema::ResolvedSkills,
 ) -> String {
     let mut out = String::new();
     let name = path.rsplit('/').next().unwrap_or(path);
@@ -325,6 +338,10 @@ fn render(
 
     plan(&mut out, report, wf, t);
     models(&mut out, report, model_findings, t);
+    // SKILLS (#473) · silent when nothing is referenced (rows self-teach).
+    if let Some((ok_msg, rows)) = skills.rung() {
+        section_list(&mut out, t, "SKILLS", &ok_msg, rows);
+    }
     cost(&mut out, report, t);
 
     section_list(&mut out, t, "SECRETS", "no information-flow escapes", {

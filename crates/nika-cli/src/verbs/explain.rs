@@ -41,34 +41,12 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
         if let Some(text) = canon_row(&normalized) {
             return VerbOutput::ok(text);
         }
-        // Per-builtin runtime codes (`NIKA-BUILTIN-<NAME>-<NNN>`) are emitted
-        // by builtins at runtime and ARE valid in `on_codes:` — but they are
-        // runtime diagnostics, not spec-conformance rows, so the canon table
-        // does not carry each one. Recognize the namespace and teach what it
-        // IS (better than a flat "unknown code"), pointing to the contract.
-        if let Some(name) = builtin_code_name(&normalized) {
-            return VerbOutput::ok(format!(
-                "{normalized} · builtin · runtime error from the `nika:{name}` builtin\n\n  \
-                 A per-builtin runtime diagnostic (each builtin owns \
-                 NIKA-BUILTIN-<NAME>-001..099). Valid in `retry.on_codes:` and \
-                 `on_error.on_codes:`. The specific cause is the builtin's own \
-                 arg/runtime contract — see spec stdlib (builtins) · \
-                 {docs}.\n"
-            ));
-        }
-        // Per-provider runtime codes (`NIKA-PROVIDER-<NNN>`) — 001-099 are
-        // allocated PER PROVIDER (spec 05-errors.md §NIKA-PROVIDER) and ARE
-        // valid in `on_codes:`. The meaning is provider-defined, so (like the
-        // per-builtin namespace) teach what it IS, not a flat "unknown code".
-        if is_provider_code(&normalized) {
-            return VerbOutput::ok(format!(
-                "{normalized} · provider · a provider-adapter runtime error\n\n  \
-                 A per-provider diagnostic (each provider adapter owns \
-                 NIKA-PROVIDER-001..099). The specific cause is provider-defined \
-                 (transport · quota · auth · response shape from that provider). \
-                 Valid in `retry.on_codes:` and `on_error.on_codes:` — see \
-                 spec/05-errors.md §NIKA-PROVIDER · {docs}.\n"
-            ));
+        // Runtime namespaces (per-builtin `NIKA-BUILTIN-<NAME>-<NNN>` ·
+        // per-provider `NIKA-PROVIDER-<NNN>`) have no per-code registry
+        // row — the shared teaching lives in `nika-error::codes` so the
+        // MCP explain tool answers with the SAME text (one voice).
+        if let Some(text) = nika_error::codes::namespace_help(&normalized, &docs) {
+            return VerbOutput::ok(text);
         }
         return VerbOutput::file(format!(
             "unknown code `{wire}` — the registry knows NIKA-001..NIKA-9999 \
@@ -168,26 +146,6 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
         ),
         _ => None,
     }
-}
-
-/// Parse a per-builtin runtime code `NIKA-BUILTIN-<NAME>-<NNN>` to the builtin
-/// name (`write` · `fetch` · `json_merge_patch` · …), or `None` if the wire is
-/// not that shape. The generic `NIKA-BUILTIN-001` (no name) is a canon row and
-/// is resolved before this is reached.
-fn builtin_code_name(code: &str) -> Option<String> {
-    let rest = code.strip_prefix("NIKA-BUILTIN-")?;
-    let (name, num) = rest.rsplit_once('-')?;
-    (num.len() == 3 && num.bytes().all(|b| b.is_ascii_digit()) && !name.is_empty())
-        .then(|| name.to_ascii_lowercase())
-}
-
-/// Recognize a per-provider runtime code `NIKA-PROVIDER-<NNN>` (001-099 are
-/// allocated PER PROVIDER per spec 05-errors.md). There is no single canon
-/// row — the meaning is provider-defined — so explain teaches the namespace
-/// rather than 404-ing a code that is valid in `on_codes:`.
-fn is_provider_code(code: &str) -> bool {
-    code.strip_prefix("NIKA-PROVIDER-")
-        .is_some_and(|num| num.len() == 3 && num.bytes().all(|b| b.is_ascii_digit()))
 }
 
 #[cfg(test)]

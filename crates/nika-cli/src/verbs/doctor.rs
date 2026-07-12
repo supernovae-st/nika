@@ -26,7 +26,7 @@ use std::fmt::Write as _;
 // this module's tests (and historical importers) keep their names.
 use crate::display::theme::{Role, Theme};
 pub(crate) use crate::verbs::probe::{
-    ClientProbe, ImageProbe, PingState, PricingProbe, Probe, ProviderProbe, TtsProbe,
+    ClientProbe, ImageProbe, ModelsProbe, PingState, PricingProbe, Probe, ProviderProbe, TtsProbe,
 };
 use crate::verbs::{VerbOutput, exit};
 
@@ -113,6 +113,7 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
         fix: None,
     });
     out.extend(sidecar_finding());
+    out.extend(models_finding(&probe.models));
 
     for client in &probe.clients {
         out.push(client_finding(client));
@@ -170,9 +171,9 @@ pub(crate) fn diagnose(probe: &Probe) -> Vec<Finding> {
 /// The sovereign sidecar lane (ADR-091) — a row ONLY when this binary was
 /// built with it (a BUILD fact · presence, never a probe): the default
 /// build's doctor stays byte-identical, so the row set is per-axis (a
-/// `Vec`, not an `Option` — the arity depends on the compile). The
-/// models-dir row arrives with `nika model pull`, which DEFINES the one
-/// canonical dir.
+/// `Vec`, not an `Option` — the arity depends on the compile). Its
+/// models-dir half lives in [`models_finding`] (issue #146 closed the
+/// deferral this note used to carry).
 fn sidecar_finding() -> Vec<Finding> {
     #[cfg(feature = "local-infer")]
     {
@@ -183,6 +184,40 @@ fn sidecar_finding() -> Vec<Finding> {
                      (loopback · OpenAI-compatible)"
                 .to_owned(),
             fix: None,
+        }]
+    }
+    #[cfg(not(feature = "local-infer"))]
+    {
+        Vec::new()
+    }
+}
+
+/// The models-dir half of the sidecar lane (issue #146 — the deferral
+/// `sidecar_finding` documented): the dir + count once anything is
+/// pulled (ANY build — acquisition is not feature-gated), and a teach
+/// row on a sidecar build with nothing to serve. A default build with
+/// zero pulls stays byte-identical.
+fn models_finding(models: &ModelsProbe) -> Vec<Finding> {
+    if models.count > 0 {
+        let root = models.root.as_deref().unwrap_or("~/.nika/models");
+        return vec![Finding {
+            level: Level::Ok,
+            label: "models".to_owned(),
+            detail: format!(
+                "{root} — {} GGUF · {} (`nika model list`)",
+                models.count,
+                nika_models::store::human_size(models.bytes)
+            ),
+            fix: None,
+        }];
+    }
+    #[cfg(feature = "local-infer")]
+    {
+        vec![Finding {
+            level: Level::Warn,
+            label: "models".to_owned(),
+            detail: "none pulled yet — the sidecar has nothing to serve".to_owned(),
+            fix: Some("nika model pull Qwen/Qwen3-4B-Instruct-2507-GGUF".to_owned()),
         }]
     }
     #[cfg(not(feature = "local-infer"))]
@@ -219,8 +254,9 @@ fn image_finding(img: &ImageProbe) -> Finding {
             format!("mock ready · {local_part} · no cloud image key set")
         } else {
             format!(
-                "mock ready · {} key(s) present · {local_part}",
-                wired.join(" · ")
+                "mock ready · {} {} present · {local_part}",
+                wired.join(" · "),
+                if wired.len() == 1 { "key" } else { "keys" }
             )
         },
         fix: None,
@@ -287,8 +323,9 @@ fn tts_finding(tts: &TtsProbe) -> Finding {
             format!("mock ready · {local_part} · no cloud speech key set")
         } else {
             format!(
-                "mock ready · {} key(s) present · {local_part}",
-                wired.join(" · ")
+                "mock ready · {} {} present · {local_part}",
+                wired.join(" · "),
+                if wired.len() == 1 { "key" } else { "keys" }
             )
         },
         fix: None,
@@ -486,8 +523,8 @@ fn local_finding(local_ids: &[&str], pinged: bool) -> Finding {
         level: Level::Ok,
         label: "local".to_owned(),
         detail: format!(
-            "{} provider(s) ({}) — no key · needs a running server",
-            local_ids.len(),
+            "{} ({}) — no key · needs a running server",
+            crate::text::count(local_ids.len(), "provider"),
             local_ids.join(" · ")
         ),
         fix: (!pinged)
@@ -600,6 +637,7 @@ mod tests {
     #[test]
     fn key_present_is_ok_and_exits_zero() {
         let probe = Probe {
+            models: ModelsProbe::default(),
             version: "0.81.0".to_owned(),
             config_path: Some("~/.nika/config.toml".to_owned()),
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", true)],
@@ -626,6 +664,7 @@ mod tests {
         // An unset cloud key is advisory — exit stays 0 (a local provider is a
         // valid path · doctor cannot know which provider the user needs).
         let probe = Probe {
+            models: ModelsProbe::default(),
             version: "0.81.0".to_owned(),
             config_path: None,
             providers: vec![
@@ -663,6 +702,7 @@ mod tests {
         // The probe carries only a bool — there is no field a value could ride.
         // Assert the rendered report carries the VAR NAME, never a value.
         let probe = Probe {
+            models: ModelsProbe::default(),
             version: "0.81.0".to_owned(),
             config_path: None,
             providers: vec![cloud("openai", "OPENAI_API_KEY", false)],
@@ -687,6 +727,7 @@ mod tests {
         // A broken/empty catalog — no cloud key AND no local server: the real
         // "cannot infer" environment error (spec §4 ENV).
         let probe = Probe {
+            models: ModelsProbe::default(),
             version: "0.81.0".to_owned(),
             config_path: None,
             providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", false)],
@@ -706,6 +747,7 @@ mod tests {
     #[test]
     fn local_provider_alone_is_a_usable_path_exit_zero() {
         let probe = Probe {
+            models: ModelsProbe::default(),
             version: "0.81.0".to_owned(),
             config_path: None,
             providers: vec![local("ollama"), local("vllm")],
@@ -806,6 +848,7 @@ mod tests {
     #[test]
     fn sidecar_row_tracks_the_build_feature() {
         let probe = Probe {
+            models: ModelsProbe::default(),
             version: "0.99.0".to_owned(),
             config_path: None,
             providers: vec![local("ollama")],
@@ -827,6 +870,52 @@ mod tests {
         }
     }
 
+    /// The models row (issue #146 · the sidecar's dir+count half): pulled
+    /// models list on ANY build; an empty store rows only on a sidecar
+    /// build (teaching pull) — the default doctor stays byte-identical.
+    #[test]
+    fn models_row_reports_the_dir_and_count_once_pulled() {
+        let with_models = ModelsProbe {
+            root: Some("/home/x/.nika/models".to_owned()),
+            count: 2,
+            bytes: 3 * 1024 * 1024 * 1024,
+        };
+        let rows = models_finding(&with_models);
+        assert_eq!(rows.len(), 1, "pulled models row on EVERY build");
+        assert_eq!(rows[0].level, Level::Ok);
+        assert_eq!(rows[0].label, "models");
+        assert!(
+            rows[0].detail.contains("/home/x/.nika/models"),
+            "{}",
+            rows[0].detail
+        );
+        assert!(rows[0].detail.contains("2 GGUF"), "{}", rows[0].detail);
+        assert!(rows[0].detail.contains("3.0 GiB"), "{}", rows[0].detail);
+        assert!(
+            rows[0].detail.contains("nika model list"),
+            "{}",
+            rows[0].detail
+        );
+    }
+
+    #[test]
+    fn empty_models_store_teaches_pull_only_on_a_sidecar_build() {
+        let rows = models_finding(&ModelsProbe::default());
+        if cfg!(feature = "local-infer") {
+            assert_eq!(rows.len(), 1, "sidecar build with nothing to serve warns");
+            assert_eq!(rows[0].level, Level::Warn);
+            assert!(
+                rows[0]
+                    .fix
+                    .as_deref()
+                    .is_some_and(|f| f.contains("nika model pull")),
+                "{rows:?}"
+            );
+        } else {
+            assert!(rows.is_empty(), "default build + zero pulls = no row");
+        }
+    }
+
     #[test]
     fn level_glyphs_are_distinct() {
         assert_eq!(Level::Ok.glyph(), '✔');
@@ -837,6 +926,7 @@ mod tests {
     #[test]
     fn client_probe_reports_stale_wiring_with_a_wire_fix() {
         let probe = Probe {
+            models: ModelsProbe::default(),
             version: "0.90.0".to_owned(),
             config_path: None,
             providers: vec![local("ollama")],
@@ -1048,6 +1138,7 @@ mod tests {
     #[test]
     fn local_line_hands_off_to_ping_and_ping_lines_render() {
         let base = Probe {
+            models: ModelsProbe::default(),
             version: "0.0.0".to_owned(),
             config_path: None,
             providers: vec![ProviderProbe {
@@ -1076,6 +1167,7 @@ mod tests {
         );
 
         let pinged = Probe {
+            models: ModelsProbe::default(),
             local_pings: vec![
                 (
                     "ollama".to_owned(),

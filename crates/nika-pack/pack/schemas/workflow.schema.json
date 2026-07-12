@@ -628,6 +628,13 @@
             "type": "string"
           }
         },
+        "skills": {
+          "type": "array",
+          "description": "Agent Skill (SKILL.md) file paths · agentskills.io shape · explicit static paths only (no globs · no templates) · loaded at compose time and injected into the system context.",
+          "items": {
+            "type": "string"
+          }
+        },
         "max_turns": {
           "type": [
             "integer",

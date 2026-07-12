@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `registry:owner/name[@version]` — resolve · verify · cache (issue #452 ·
-//! the consumption half of the ADR-106 registry-client lane).
+//! `nika-registry-client` — resolve · verify · cache for
+//! `registry:owner/name[@version]` refs (issue #452 · the consumption
+//! half of the ADR-106 registry-client lane). L2 service over the ONE
+//! injected effect (`HttpGetDyn`): the L4 composer (nika-cli
+//! `registry.rs`) constructs the production http client + blocking
+//! executor around [`RegistryClient`]. Size-cap descent from nika-cli
+//! (D-2026-07-09-N1 · same architectural unit, two members).
 //!
 //! A registry ref never executes anything at pull time: it RESOLVES to a
 //! verified local file under `~/.nika/registry/`, and `nika check` /
@@ -37,6 +42,8 @@
 //! taken from fetched data (closed-set law: a field the client cannot
 //! vet is refused, never interpolated).
 
+#![forbid(unsafe_code)]
+
 use std::path::{Path, PathBuf};
 
 use nika_kernel::http::HttpGetDyn;
@@ -53,7 +60,7 @@ const RAW_BASE: &str = "https://raw.githubusercontent.com";
 /// kilobytes of text).
 const MAX_ARTIFACT_BYTES: usize = 1024 * 1024;
 /// Index size cap (22 artifacts ≈ 30 KiB today; generous headroom).
-const MAX_INDEX_BYTES: usize = 4 * 1024 * 1024;
+pub const MAX_INDEX_BYTES: usize = 4 * 1024 * 1024;
 /// The closed set of entry top-level keys (contract §1) — an unknown
 /// field is a smuggling channel and refuses the whole entry.
 const ENTRY_KEYS: [&str; 12] = [
@@ -159,7 +166,10 @@ impl RegistryError {
         Self { kind }
     }
 
-    fn env(why: impl Into<String>) -> Self {
+    /// An environment-class refusal — public for the L4 composer (the
+    /// executor/http constructors it wraps around this client fail in
+    /// the same vocabulary).
+    pub fn env(why: impl Into<String>) -> Self {
         Self::new(ErrKind::Env { why: why.into() })
     }
 
@@ -337,13 +347,13 @@ struct Meta {
 /// The registry client: resolve a ref to a verified, cached local file.
 /// Generic over the kernel HTTP seam — production injects `ReqwestHttp`,
 /// tests a mock (Invariant #27).
-struct RegistryClient<H> {
+pub struct RegistryClient<H> {
     http: H,
     cache_root: PathBuf,
 }
 
 impl<H: HttpGetDyn> RegistryClient<H> {
-    fn new(http: H, cache_root: PathBuf) -> Self {
+    pub fn new(http: H, cache_root: PathBuf) -> Self {
         Self { http, cache_root }
     }
 
@@ -353,7 +363,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
     /// (a bare ref never floats — ADR-106), else the network's newest
     /// `SemVer`. The cache answers before the network; a hit re-verifies
     /// its digest record.
-    async fn resolve(&self, arg: &str) -> Result<Resolved, RegistryError> {
+    pub async fn resolve(&self, arg: &str) -> Result<Resolved, RegistryError> {
         let r = parse_ref(arg)?;
         let (version, pinned) = match &r.version {
             Some(v) => (Some(v.clone()), false),
@@ -423,7 +433,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
         let Ok(meta) = serde_json::from_slice::<Meta>(&meta_raw) else {
             return Ok(None); // an unreadable record is refetched, not trusted
         };
-        let actual = nika_dap::source_id::sha256_hex(&bytes);
+        let actual = sha256_hex(&bytes);
         if actual != meta.sha256 {
             return Err(RegistryError::new(ErrKind::CacheTampered {
                 path: artifact,
@@ -510,7 +520,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
                 "the pinned source is gone (the author's repo moved or rewrote history) — report it to the registry",
             )
             .await?;
-        let actual = nika_dap::source_id::sha256_hex(&bytes);
+        let actual = sha256_hex(&bytes);
         if actual != digest {
             return Err(RegistryError::new(ErrKind::HashMismatch {
                 coordinate,
@@ -938,38 +948,19 @@ fn version_key(v: &str) -> Option<VersionKey> {
 // Production wiring (the ONE seam main.rs calls)
 // ---------------------------------------------------------------------
 
-/// Resolve a registry ref over the real network into the canonical
-/// cache (`~/.nika/registry/`), blocking the current thread — the
-/// CLI-level seam that runs BEFORE any workflow is parsed.
-///
-/// # Errors
-///
-/// Every refusal in the trust chain: a ref that does not parse, a name
-/// that resolves nowhere (`NIKA-REG-001`), an advisory withdrawal
-/// (`NIKA-REG-002`), a digest mismatch (`NIKA-REG-003` — nothing is
-/// written), a tampered cache record (`NIKA-REG-004`), a registry shape
-/// this engine cannot vet (`NIKA-REG-005`), plus the honest offline /
-/// transport / environment failures. Each message teaches its fix.
-pub fn resolve_blocking(arg: &str) -> Result<Resolved, RegistryError> {
-    let root = default_cache_root()?;
-    let http = registry_http()?;
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|e| RegistryError::env(format!("cannot start the fetch runtime: {e}")))?;
-    rt.block_on(RegistryClient::new(http, root).resolve(arg))
+/// sha256 as lowercase hex — the digest the index pins. Local on purpose:
+/// an L2 service crate reaches no L4 utility (layer DAG); the four lines
+/// cost less than the illegal edge.
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    hex_lower(&hasher.finalize())
 }
 
-/// The registry fetch client: SSRF enforcement stays ON (public https
-/// hosts only), transport capped well under attacker-sized bodies.
-// `HttpConfig` is `#[non_exhaustive]` → field assignment, not a struct
-// literal (the same idiom as the run composer).
-#[allow(clippy::field_reassign_with_default)]
-fn registry_http() -> Result<nika_http::ReqwestHttp, RegistryError> {
-    let mut config = nika_http::HttpConfig::default();
-    config.max_response_bytes = MAX_INDEX_BYTES as u64;
-    nika_http::ReqwestHttp::with_config(config)
-        .map_err(|e| RegistryError::env(format!("cannot initialize the fetch client: {e}")))
+/// Lowercase-hex encode (no hex crate — two lines, zero deps).
+fn hex_lower(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// `~/.nika/registry` — the ONE canonical cache dir (HOME/USERPROFILE,
@@ -977,7 +968,7 @@ fn registry_http() -> Result<nika_http::ReqwestHttp, RegistryError> {
 // Env read is config-path state, not a secret — the same scoped
 // exemption as `wire.rs::home_path`.
 #[allow(clippy::disallowed_methods)]
-fn default_cache_root() -> Result<PathBuf, RegistryError> {
+pub fn default_cache_root() -> Result<PathBuf, RegistryError> {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(|home| PathBuf::from(home).join(".nika").join("registry"))

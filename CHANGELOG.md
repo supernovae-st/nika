@@ -195,6 +195,143 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   colour-through-Role only, 2-cell law, zero escapes when colour is
   off.
 ||||||| 6207ec234
+- **LSP code actions — the `--fix` engine in every editor**: the language
+  server now answers `textDocument/codeAction` with quickfix renames
+  built from the checker's typed `offending`/`suggestion` pairs (unknown
+  fields · tools · args · rename-shaped conformance findings). Same
+  discipline as `nika check --fix`: did-you-mean only, unique-token
+  only — an ambiguous or suggestion-less finding offers nothing. One
+  fix engine, projected; VS Code, Cursor, zed, helix and neovim get the
+  one-click repair the terminal already had.
+
+### Fixed
+
+- **`on_error.recover` awaits a no-edge referent's terminal state**
+  (spec 05 §recover · #291 #402) — a same-wave `recover: ${{ tasks.X.output }}`
+  used to race dispatch and fail `NIKA-VAR-001` whenever the referent had
+  not settled yet. Recoveries now park on the settle spine and retry as
+  referents turn terminal; a workflow-end pass resolves mutual-recovery
+  cycles against each side's pre-recovery failed record (history never
+  rewrites). Deterministic by construction: the park table only moves on
+  the sequential settle spine — the event stream stays byte-identical
+  across parallelism caps.
+- **A settled sibling's frames reach the trace at ITS settle, not the
+  wave join** (#412) — a `kill -9` mid-wave used to lose the resume
+  credit of every sibling that had already finished on the console (the
+  journal held `task_scheduled` only), so `--resume` re-ran — and
+  re-billed — finished work. Settles now stream through the ordered
+  spine; total event order is unchanged, only the timing moves earlier.
+- **Swapping the envelope `model:` re-runs a model-less infer on resume**
+  (#409) — the effective default model (`--model` override, else the
+  envelope line) joins those tasks' resume identity, so a model swap can
+  no longer cache-hit the OLD model's output. Tasks pinning their own
+  `model:` and exec tasks never re-key; older traces simply re-run once.
+- **A token-burning empty answer warns on the console** (#410) — a
+  thinking model that spends its whole budget inside the think block and
+  settles green with "" now speaks: the OBS-E oracle covers the
+  unreported-split shape (the ollama path strips thinking upstream), and
+  the display renders `⚠ <task> · <warning>` above the meter on the
+  final frame and the streamed close — a green run no longer silently
+  feeds the empty string downstream.
+- **The example rescue tip keys on the failure kind** (#145) — an exec
+  `program not found` used to earn the mock-model nudge (a swap that
+  cannot conjure a missing binary). Infer/provider failures keep the
+  offline-preview tip; a missing program names the real dependency.
+- **`nika:convert` joins the native-first/005 inventory** (#475) — the
+  check hint's helper-script inventory named every native lane except
+  the one that parses; "my input is YAML/CSV/TOML" was the single most
+  common reason a sidecar survived it. One clause (spec row paired in
+  nika-spec#64); the test pins the lane.
+
+- **Every trace reader resolves the names `trace ls` prints** — `show` ·
+  `replay` · `outputs` · `verify` · `export` · `peek` · `flow` accept the
+  bare store name exactly like `rm` always did (an explicit path still
+  wins · unknown handles keep their teaching error). Copy-pasting a name
+  from `ls` into `show` no longer answers "No such file or directory".
+- **The MCP `nika_explain` teaches the runtime namespaces** — per-builtin
+  (`NIKA-BUILTIN-<NAME>-<NNN>`) and per-provider (`NIKA-PROVIDER-<NNN>`)
+  codes answer over the agent lane with the same text the CLI gives (the
+  teaching moved down to `nika-error::codes::namespace_help` — one text,
+  one home), instead of "unknown code" on exactly the codes a failed run
+  hands an agent.
+
+- **`nika:glob` walks its pattern's literal directory prefix** — a scoped
+  pattern (`hiring/inbox/*.md`) now anchors its walk (and the
+  `permits.fs.read` gate that fences it) at `./hiring/inbox` instead of
+  the whole cwd, so a least-privilege boundary like
+  `read: ["./hiring/inbox/**"]` accepts the glob that stays inside it
+  (previously: `NIKA-SEC-004` on the `.` walk root — the
+  `t3-resume-screener` showcase could never run). Returned paths keep
+  the exact historical `./…` byte shape (run traces and registry
+  oracles hash them); a missing prefix directory yields `[]` uniformly
+  (absolute patterns errored before); the SEC-004 refusal now names the
+  real walk root.
+
+### Changed
+
+- **The openai showcase seats leave 2024** — the catalog's two openai
+  showcase models are now `gpt-5.2` (default) and `gpt-5-mini` (cheap),
+  matching the live API's current family and the spec's teaching
+  surface (both already priced + capability-mapped; `gpt-4o` and every
+  other live id keeps working verbatim through provider pass-through —
+  proven with a live `openai/gpt-5.2` run, 780ms · $0.000098).
+
+### Added
+
+- **`nika model pull/list/rm` — first-class Hugging Face acquisition for
+  the native path** ([#146](https://github.com/supernovae-st/nika/issues/146)):
+  one command from the Hub to a sovereign in-process run. `pull
+  owner/repo[:QUANT]` resolves the repo's file tree first (sizes BEFORE
+  any byte moves; 2 GiB and over confirms, `--yes` for CI), streams the
+  GGUF over the house `nika-http` seam (rustls · SSRF floor · per-hop
+  redirect vetting — no `hf-hub`/`ureq` second HTTP stack), resumes an
+  interrupted transfer from its `.part` via `Range:`, and brings
+  `tokenizer.json` along — the exact sibling layout the serve loader
+  wants. ONE canonical models dir (`~/.nika/models/<owner>/<repo>/`):
+  the downloader and the resolver share it by construction (the
+  brouillon-era pull/load two-dir mismatch cannot re-happen), so `nika
+  model serve --model owner/repo[:QUANT]` now resolves pulled ids (and
+  bare file stems) — a real path still passes straight through.
+  `list` prints the dir once with id · size · file rows; `rm` reclaims
+  a whole repo or one quant (sweeping a gguf-empty dir) and refuses a
+  no-match WITH the installed list as the teaching surface. `HF_TOKEN`
+  authenticates gated repos (the Hub answers 401 for missing repos too
+  — the refusal names both lanes). `nika doctor` grows the models row:
+  dir + count + bytes once anything is pulled (any build), and a
+  teach-pull advisory on a sidecar build with nothing to serve. The
+  fetch is CLI-level, like `registry:` pulls — a workflow's `permits:`
+  never govern it. Acquisition only: the candle runtime owns
+  loading/generation (ADR-091/093). The whole unit ships as the
+  `nika-models` member (store · pull · serve glue) per D-2026-07-09-N1
+  — `nika-cli` sat at 14,958 of the 15,000 prod-LOC cap and keeps thin
+  exit-contract adapters at the unchanged public paths (the
+  `nika-onboard`/`nika-display`/`nika-dap` descents' wall, the same
+  house way).
+
+- **The one earned ask: welcome + init grow the community line** (#498 —
+  the traction baseline showed installs running 2.5x ahead of stars
+  because the product never asks). `nika welcome`'s footer gains a third
+  door on its `learn:` line (`⭐ github.com/supernovae-st/nika`, OSC-8
+  linked) and `nika init`'s NEXT_BLOCK closes with the one-line ask.
+  Once per surface, additive to the #158 script-stable lines, JSON
+  outputs untouched — working commands (check · run) stay marketing-free
+  by doctrine.
+
+- **`nika examples run` carries the run trio** — `--var KEY=VALUE`
+  (repeatable · the `nika run` contract), `--no-progress` and
+  `--max-cost-usd <n>`, threaded through the same funnel `run` uses.
+  Examples with `required:` vars (`19-schema-retry`) were unrunnable by
+  this surface — and clap's `-- --var` tip pointed at a trailing lane
+  that never existed.
+
+- **Pre-generated shell completions ride the release tarballs** (#487)
+  — each platform tarball now carries `completions/` (bash `nika.bash` ·
+  zsh `_nika` · fish `nika.fish`), generated by the exact binary being
+  packaged and gated non-empty before tar. Distro packages (AUR
+  `nika-bin` · future nixpkgs/apk) can `install -Dm644` them without
+  executing the target-arch binary in `package()` — the aarch64-on-x86
+  packaging law. Packaging only, zero engine change.
+
 - **Cursor first-class: the plugin kit gains its native format + `init`
   wires the MCP** — the agents kit (`.agents/plugins/nika/`) now ships a
   `.cursor-plugin/plugin.json` (Cursor's marketplace manifest: logo ·
@@ -324,14 +461,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   its own cadence); the README badge links the archived origin — the
   permanent, vendor-independent copy of the source.
 
-- **Official Docker image on GHCR** — the release workflow now builds and
+- **Official Docker image on GHCR** — the release workflow builds and
   pushes `ghcr.io/supernovae-st/nika` (multi-arch linux/amd64 + linux/arm64 ·
-  tags `latest` + semver, smoke-tested before any push). The image carries
-  the checksum-verified release binary on debian-slim with a non-root user;
-  the entrypoint is the whole CLI — `docker run --rm ghcr.io/supernovae-st/nika
-  --version`, and `docker run -i --rm ghcr.io/supernovae-st/nika mcp` serves
-  the read-only MCP oracle. Standalone-buildable from the repo:
-  `docker build -f docker/Dockerfile --build-arg NIKA_VERSION=<v> .` (#442)
+  tags `latest` + semver). The image is fed from the SAME linux tarball
+  artifacts the release ships — never a rebuild — so its binary is
+  bit-identical to the tarballs the funnel e2e + trust battery already
+  gated. The entrypoint is the whole CLI: `docker run --rm
+  ghcr.io/supernovae-st/nika --version`, and `docker run -i --rm
+  ghcr.io/supernovae-st/nika mcp` serves the read-only MCP oracle.
+  (#442 — two rival rails from the same-day trains #463/#465 collided as
+  a duplicate `jobs.docker` key that would have killed the next release
+  at parse time; the artifact-fed rail survives, the rebuild rail and
+  its `docker/Dockerfile` are gone.)
 
 ### Fixed
 

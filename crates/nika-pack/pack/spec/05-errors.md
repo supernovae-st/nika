@@ -113,6 +113,8 @@ these from this file alone.
 | `NIKA-INVOKE-002` | tool args failed the tool's schema | `validation_error` | false |
 | `NIKA-AGENT-001` | `max_turns` exhausted before completion | `budget_error` | false |
 | `NIKA-AGENT-002` | `max_tokens_total` exhausted before completion | `budget_error` | false |
+| `NIKA-AGENT-003` | a `skills:` path does not resolve (file missing/unreadable at compose time · [02 §Agent Skills](./02-verbs.md#agent-skills--skills)) | `validation_error` | false |
+| `NIKA-AGENT-004` | a `skills:` file is not a valid Agent Skill (no/unterminated/non-mapping frontmatter · missing/empty `name`/`description`) | `validation_error` | false |
 | `NIKA-MCP-001` | MCP server not configured / not reachable at call time | `tool_error` | engine-assessed |
 | `NIKA-MCP-002` | MCP tool call failed (transport · tool-side error) | `tool_error` | engine-assessed |
 | `NIKA-SEC-001` | `exec:` blocklist hit | `security_error` | false |

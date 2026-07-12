@@ -484,6 +484,10 @@ each with one job:
 | [nika-registry](https://github.com/supernovae-st/nika-registry) | the verifiable workflow registry: every entry pinned and re-proven in CI |
 | [nika-client](https://github.com/supernovae-st/nika-client) | the TypeScript SDK (targets the `nika serve` HTTP surface) |
 | [homebrew-tap](https://github.com/supernovae-st/homebrew-tap) | the brew formula: `brew install supernovae-st/tap/nika` |
+| [nika-action](https://github.com/supernovae-st/nika-action) | the GitHub Action: check verdict, cost floor, permits and the DAG as a sticky PR comment |
+| [nika-starter](https://github.com/supernovae-st/nika-starter) | template repo: one proven workflow + editor wiring + CI, in about a minute |
+| [nika-actions-starter](https://github.com/supernovae-st/nika-actions-starter) | template repo: AI-workflow receipts in CI from the first push |
+| [gh-nika](https://github.com/supernovae-st/gh-nika) | the GitHub CLI extension: `gh nika check/run`, checksum-verified fetch |
 | [nika-site-audit](https://github.com/supernovae-st/nika-site-audit) | a legacy-era demo of scale (read-only; never learn the syntax there) |
 
 Examples live right here: [`examples/`](examples/), the embedded

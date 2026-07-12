@@ -21,11 +21,13 @@ use crate::Theme;
 /// failures · the real missing dependency for an exec `program not
 /// found`) · the original exit code is returned unchanged.
 #[must_use]
+#[allow(clippy::fn_params_excessive_bools)] // the run trio, verbatim (two switches)
 pub fn example(
     slug: &str,
     model_override: Option<&str>,
     vars: &[String],
-    quiet: bool,
+    (quiet, no_progress): (bool, bool),
+    max_cost_usd: Option<f64>,
     theme: Theme,
 ) -> u8 {
     let Some(yaml) = nika_pack::example(slug) else {
@@ -46,7 +48,7 @@ pub fn example(
     // `--quiet` (the verdict line still lands).
     let mode = if quiet {
         RenderMode::Quiet
-    } else if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+    } else if !no_progress && std::io::IsTerminal::is_terminal(&std::io::stdout()) {
         RenderMode::Live
     } else {
         RenderMode::Plain
@@ -76,7 +78,7 @@ pub fn example(
         // Examples always run whole (tiny by design · no scoping surface).
         None,
         false,
-        None,
+        max_cost_usd,
         // An example runs a TEMP-staged file, not a workspace run — the
         // workspace's trace store is not this invocation's to collect.
         true,

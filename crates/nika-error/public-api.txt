@@ -523,6 +523,8 @@ pub fn nika_error::codes::code_help(code: nika_error::codes::NikaCode) -> &'stat
 pub fn nika_error::codes::code_help(code: nika_error::codes::NikaCode) -> &'static str
 pub fn nika_error::codes::lookup(wire: &str) -> core::option::Option<nika_error::codes::NikaCode>
 pub fn nika_error::codes::lookup(wire: &str) -> core::option::Option<nika_error::codes::NikaCode>
+pub fn nika_error::codes::namespace_help(code: &str, docs: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_error::codes::namespace_help(code: &str, docs: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_error::core_error
 #[non_exhaustive] pub enum nika_error::core_error::CoreError
 pub nika_error::core_error::CoreError::Internal
@@ -870,6 +872,7 @@ pub const nika_error::prelude::codes::NIKA_800: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_999: nika_error::codes::NikaCode
 pub fn nika_error::prelude::codes::code_help(code: nika_error::codes::NikaCode) -> &'static str
 pub fn nika_error::prelude::codes::lookup(wire: &str) -> core::option::Option<nika_error::codes::NikaCode>
+pub fn nika_error::prelude::codes::namespace_help(code: &str, docs: &str) -> core::option::Option<alloc::string::String>
 #[non_exhaustive] pub enum nika_error::prelude::Category
 pub nika_error::prelude::Category::A11y
 pub nika_error::prelude::Category::Audio

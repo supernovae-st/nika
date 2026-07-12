@@ -339,9 +339,69 @@ pub fn lookup(wire: &str) -> Option<NikaCode> {
     ALL.iter().copied().find(|c| c.num == num)
 }
 
+/// The namespace teaching for runtime codes with no per-code registry row —
+/// per-builtin `NIKA-BUILTIN-<NAME>-<NNN>` and per-provider
+/// `NIKA-PROVIDER-<NNN>` (001-099 allocated per owner · spec 05-errors.md).
+/// Both are valid in `on_codes:`, so EVERY explain surface (CLI · MCP)
+/// teaches what the namespace IS instead of 404-ing — one voice, one text.
+/// `docs` is the caller's rendering of the error-docs reference (a themed
+/// OSC-8 link on a TTY · plain text over MCP).
+#[must_use]
+pub fn namespace_help(code: &str, docs: &str) -> Option<String> {
+    if let Some(name) = builtin_code_name(code) {
+        return Some(format!(
+            "{code} · builtin · runtime error from the `nika:{name}` builtin\n\n  \
+             A per-builtin runtime diagnostic (each builtin owns \
+             NIKA-BUILTIN-<NAME>-001..099). Valid in `retry.on_codes:` and \
+             `on_error.on_codes:`. The specific cause is the builtin's own \
+             arg/runtime contract — see spec stdlib (builtins) · \
+             {docs}.\n"
+        ));
+    }
+    is_provider_code(code).then(|| {
+        format!(
+            "{code} · provider · a provider-adapter runtime error\n\n  \
+             A per-provider diagnostic (each provider adapter owns \
+             NIKA-PROVIDER-001..099). The specific cause is provider-defined \
+             (transport · quota · auth · response shape from that provider). \
+             Valid in `retry.on_codes:` and `on_error.on_codes:` — see \
+             spec/05-errors.md §NIKA-PROVIDER · {docs}.\n"
+        )
+    })
+}
+
+/// Recognize `NIKA-BUILTIN-<NAME>-<NNN>` and return the builtin's lowercase
+/// name (`NIKA-BUILTIN-FETCH-001` → `fetch`).
+fn builtin_code_name(code: &str) -> Option<String> {
+    let rest = code.strip_prefix("NIKA-BUILTIN-")?;
+    let (name, num) = rest.rsplit_once('-')?;
+    (num.len() == 3 && num.bytes().all(|b| b.is_ascii_digit()) && !name.is_empty())
+        .then(|| name.to_ascii_lowercase())
+}
+
+/// Recognize `NIKA-PROVIDER-<NNN>` (exactly three digits).
+fn is_provider_code(code: &str) -> bool {
+    code.strip_prefix("NIKA-PROVIDER-")
+        .is_some_and(|num| num.len() == 3 && num.bytes().all(|b| b.is_ascii_digit()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The one-voice namespace teaching both explain surfaces consume:
+    /// builtin and provider codes teach, everything else stays `None`
+    /// (the caller keeps its own unknown-code finding).
+    #[test]
+    fn namespace_help_teaches_builtin_and_provider_codes() {
+        let b = namespace_help("NIKA-BUILTIN-FETCH-001", "docs").expect("builtin namespace");
+        assert!(b.contains("`nika:fetch` builtin") && b.contains("on_codes"));
+        let p = namespace_help("NIKA-PROVIDER-042", "docs").expect("provider namespace");
+        assert!(p.contains("provider-adapter") && p.contains("docs"));
+        assert!(namespace_help("NIKA-VAR-001", "docs").is_none());
+        assert!(namespace_help("NIKA-BUILTIN-FETCH-1", "docs").is_none());
+        assert!(namespace_help("NIKA-PROVIDER-1042", "docs").is_none());
+    }
 
     #[test]
     fn category_and_severity_as_str_match_the_serde_wire_form() {

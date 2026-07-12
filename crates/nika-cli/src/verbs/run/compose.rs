@@ -248,21 +248,13 @@ pub(crate) fn config_from_env() -> ProvidersConfig {
             config = config.with_key(provider.id, Secret::new(value));
         }
     }
-    // CLOUD endpoints honor the same override family — the locked
-    // long-tail escape hatch (D-2026-06-10-N2: « the openai+base_url
-    // hatch stays for the long tail ») finally gets its operator
-    // surface: `NIKA_<ID>_BASE_URL` points a CLOUD profile at any
-    // OpenAI-compatible endpoint (Scaleway EU · Together · Fireworks ·
-    // a corporate gateway) with ZERO catalog change. The value is the
-    // COMPLETE endpoint URL (gemini keeps its STEM contract — see
-    // `ProvidersConfig::with_base_url`), taken verbatim: no loopback
-    // normalization (that convenience grammar is the locals'). Pair it
-    // with `NIKA_<ID>_API_KEY` (the #286 ladder) so the override rides
-    // a SCOPED key — the provider's Bearer goes wherever the override
-    // points, which is exactly the operator's intent and nobody else's
-    // (both variables are theirs · sovereignty Rule 1). Live-proven
-    // against Scaleway Generative APIs 2026-07-08 (vLLM-class · EU):
-    // json_schema enforced through the openai dialect, strict tolerated.
+    // CLOUD endpoints honor the same override family (D-2026-06-10-N2
+    // long-tail hatch): `NIKA_<ID>_BASE_URL` points a cloud profile at
+    // any OpenAI-compatible endpoint, zero catalog change — the value is
+    // the COMPLETE URL taken verbatim (gemini keeps its STEM contract ·
+    // no loopback normalization, that grammar is the locals'). Pair with
+    // `NIKA_<ID>_API_KEY` (#286) so the Bearer rides a SCOPED key. Live-
+    // proven against Scaleway Generative APIs 2026-07-08 (EU · vLLM-class).
     for provider in nika_catalog::all_providers() {
         // the locals own the NEXT loop (loopback-normalized grammar) —
         // catalog rows exist for them too, so exclude by id.
@@ -273,16 +265,12 @@ pub(crate) fn config_from_env() -> ProvidersConfig {
             config = config.with_base_url(provider.id, url);
         }
     }
-    // The LOCAL servers' base URLs cross the SAME sanctioned boundary
-    // (deliberately not secrets — same rationale as NIKA_IMAGE_LOCAL_URL):
-    // `NIKA_<ID>_BASE_URL` first (ours, all 5 locals), then the server's
-    // own convention where one exists — `OLLAMA_HOST`, which the official
-    // ollama client honors and every LAN-GPU setup already exports. The
-    // engine ignoring it sent runs to 127.0.0.1 while the user's own
-    // `ollama` CLI talked to the box they configured (the user-sim
-    // finding). The convenience forms ollama documents (`host` ·
-    // `host:port` · full URL) all resolve; a bare host gets the
-    // provider's own default port, mirroring the official client.
+    // The LOCAL servers cross the SAME boundary (deliberately not
+    // secrets): `NIKA_<ID>_BASE_URL` first, then the server's own
+    // convention (`OLLAMA_HOST` — ignoring it sent runs to 127.0.0.1
+    // while the user's own CLI talked to their LAN box · user-sim
+    // finding). Ollama's convenience forms (`host` · `host:port` · full
+    // URL) all resolve; a bare host gets the provider's default port.
     for (id, conventional, default_port) in LOCAL_BASE_ENV {
         let ours = format!("NIKA_{}_BASE_URL", id.to_uppercase());
         #[allow(clippy::disallowed_methods)] // the sanctioned env boundary (see doc)

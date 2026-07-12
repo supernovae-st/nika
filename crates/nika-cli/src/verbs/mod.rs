@@ -165,6 +165,13 @@ pub(crate) fn load_checked_with_source(
     Ok((yaml, wf, report))
 }
 
+/// The `skills:` fs edge (#473) — the ONE reader check · run · test share.
+pub(crate) fn resolve_workflow_skills(wf: &RawWorkflow) -> nika_schema::ResolvedSkills {
+    nika_schema::resolve_skills(wf, &mut |p| {
+        std::fs::read_to_string(p).map_err(|e| e.to_string())
+    })
+}
+
 /// The workflow with the CLI `--model` swapped into the envelope default
 /// (#342) — per-task `model:` keeps winning, mirroring the runtime's
 /// precedence. The synthetic span is fine: the pricing surfaces never

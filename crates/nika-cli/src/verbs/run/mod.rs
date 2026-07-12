@@ -225,10 +225,10 @@ fn run_verdict(
         }
     };
 
-    // ── `--task` scope + clean gate + `--var` overrides (pre-effect) ──
-    let (wf, report) =
+    // ── `--task` scope + clean/skills gates + `--var` overrides ─────
+    let (wf, report, skills) =
         match scoped_clean_gate(wf, report, task_filter, file, json, theme, output_json) {
-            Ok(pair) => pair,
+            Ok(triple) => triple,
             Err(code) => return RunVerdict::bare(code),
         };
     let overrides = match inputs::validated_var_overrides(vars, &wf, output_json) {
@@ -251,9 +251,6 @@ fn run_verdict(
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
-    // ADR-099: the pause rider binds to the NON-INTERACTIVE machine
-    // surfaces only — human TTY/plain keep the PROMPT-001 contract.
-    let pause_on_prompt = json || output_json;
 
     // ── Compose the production runtime (real seams · env keys) ──────
     let runtime = match composed_runtime(
@@ -263,8 +260,10 @@ fn run_verdict(
         overrides,
         setup.plan,
         setup.answers,
-        pause_on_prompt,
+        // ADR-099 pause rider: NON-INTERACTIVE machine surfaces only.
+        json || output_json,
         max_cost_usd,
+        skills,
         output_json,
     ) {
         Ok(rt) => rt,
@@ -519,8 +518,9 @@ fn dry_run_payload(
 ///
 /// The ENV-class composition failure prints + envelopes itself here;
 /// the caller returns the exit code untouched.
-// The 7 knobs ARE the composition surface (var overrides · resume plan ·
-// answers · pause flag) — the same clap-surface idiom as `run` itself.
+// The knobs ARE the composition surface (var overrides · resume plan ·
+// answers · pause flag · resolved skills) — the same clap-surface idiom
+// as `run` itself.
 #[allow(clippy::too_many_arguments)]
 fn composed_runtime(
     wf: &RawWorkflow,
@@ -531,6 +531,7 @@ fn composed_runtime(
     answers: BTreeMap<String, Value>,
     pause_on_prompt: bool,
     max_cost_usd: Option<f64>,
+    skills: BTreeMap<String, String>,
     output_json: bool,
 ) -> Result<ProdRuntime, u8> {
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
@@ -543,6 +544,9 @@ fn composed_runtime(
                 .with_max_cost_usd(max_cost_usd)
                 .with_prompt_pause(pause_on_prompt)
                 .with_prompt_answers(answers)
+                // #473 · composer-resolved SKILL.md texts (`## Skills`
+                // injection + the referencing tasks' resume identity).
+                .with_skills(skills)
                 // #409 · the override joins the resume identity of every
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
@@ -577,7 +581,9 @@ fn composed_runtime(
 /// by `mock/echo` through the SAME composition path as `--model` (offline ·
 /// zero key · deterministic + schema-conformant since F3). The fold is a
 /// DIAGNOSTIC here — it goes to stderr (verdict card on failure only), so
-/// the caller owns stdout for its own verdict/diff surface.
+/// the caller owns stdout for its own verdict/diff surface. `skills` =
+/// the composer-resolved SKILL.md texts (#473 · the caller gates their
+/// findings first, same as `run`).
 ///
 /// # Errors
 ///
@@ -586,10 +592,12 @@ fn composed_runtime(
 pub(crate) fn capture_mock_outputs(
     wf: &RawWorkflow,
     report: &CheckReport,
+    skills: BTreeMap<String, String>,
     theme: Theme,
 ) -> Result<(u8, BTreeMap<String, Value>), String> {
     let caps = capabilities_of(wf);
     let runtime = production_runtime("mock/echo", caps).map_err(|e| e.to_string())?;
+    let runtime = runtime.with_skills(skills);
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -629,19 +637,25 @@ fn scoped_clean_gate(
     json: bool,
     theme: Theme,
     output_json: bool,
-) -> Result<(RawWorkflow, CheckReport), u8> {
-    if !report.is_clean() {
+) -> Result<(RawWorkflow, CheckReport, BTreeMap<String, String>), u8> {
+    let refuse = || {
         let out = crate::verbs::check::run(file, json, false, None, theme);
         epilogue::emit_diagnostic(&out.text, output_json);
-        return Err(out.code);
+        out.code
+    };
+    if !report.is_clean() {
+        return Err(refuse());
     }
     let (wf, report) = apply_task_scope(wf, report, task_filter, output_json)?;
     if !report.is_clean() {
-        let out = crate::verbs::check::run(file, json, false, None, theme);
-        epilogue::emit_diagnostic(&out.text, output_json);
-        return Err(out.code);
+        return Err(refuse());
     }
-    Ok((wf, report))
+    // `skills:` gate (#473 · pre-effect · the SAME rows check renders).
+    let resolved = crate::verbs::resolve_workflow_skills(&wf);
+    if !resolved.findings.is_empty() {
+        return Err(refuse());
+    }
+    Ok((wf, report, resolved.texts))
 }
 
 /// Apply the `--task` scope when requested (the regenerate-one-block
@@ -693,12 +707,9 @@ fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
 /// bytes stay exact (the rider can only buffer its own fs error, surfaced
 /// after the run · never the exit code). The caller composes the journal
 /// (enabled or disabled) like every other seam.
-// The 8th parameter is the `--resume` summary switch — same clap-surface
-// The trailing parameters are the `--resume` summary switch + the
-// outputs-tail switch — same clap-surface idiom as `run` itself (four
-// independent flags ARE four bools, not a state machine). The workflow
-// rides as (path, parsed) — the epilogue hint teaches a command over
-// the SAME file the operator just ran.
+// Trailing bools mirror the clap surface (independent flags ARE bools,
+// not a state machine). The workflow rides as (path, parsed) — the
+// epilogue hint teaches a command over the SAME file just run.
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 async fn execute(
     runtime: &ProdRuntime,
@@ -715,14 +726,10 @@ async fn execute(
 ) -> RunVerdict {
     let mut stamper = SystemStamper::new();
     if output_json {
-        // Machine-result mode (spec 01 §export contract): the live fold is
-        // a DIAGNOSTIC → stderr; the resolved `outputs:` object is the ONE
-        // JSON object on stdout, never interleaved. This powers the v0.1
-        // sub-workflow composition `exec: nika run sub.yaml --output json`
-        // + `capture: stdout` (spec 08 §composition).
-        // `Plain` deliberately: the fold goes to stderr (a pipe in the
-        // composition path · never the live TTY redraw); the one final
-        // storyboard frame is what matters, not the animation.
+        // Machine-result mode (spec 01 §export · 08 §composition): the
+        // fold is a DIAGNOSTIC → stderr (Plain deliberately — a pipe,
+        // never the live redraw); the resolved `outputs:` object is the
+        // ONE JSON object on stdout, never interleaved.
         let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
         fold.set_plan(plan_waves(wf, report));
         let mut tee = Tee::new(fold, trace);
@@ -998,7 +1005,9 @@ fn trace_sink(no_trace_file: bool) -> TraceFileSink {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{RenderMode, dry_run_payload, exit, run, scope_to_task};
+    use std::collections::BTreeMap;
+
+    use super::{RenderMode, capture_mock_outputs, dry_run_payload, exit, run, scope_to_task};
     use crate::Theme;
     use serde_json::json;
 
@@ -1243,5 +1252,49 @@ mod tests {
             "the cone stands alone (no dangling refs)"
         );
         assert_eq!(sub.tasks.len(), 1);
+    }
+
+    /// #473 e2e (mock · offline): the resolved-skills wiring is
+    /// LOAD-BEARING through the production composition — the same
+    /// skills-carrying agent workflow settles GREEN when the composer's
+    /// map rides `with_skills`, and fails with the check-time code when
+    /// an embedder skips it (the wiring, proven from the CLI seam; the
+    /// injected system BYTES are pinned at the runtime's provider seam).
+    #[test]
+    fn capture_mock_outputs_carries_the_resolved_skills() {
+        let dir = std::env::temp_dir().join(format!("nika-run-skills-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let skill = dir.join("SKILL.md");
+        std::fs::write(&skill, "---\nname: s\ndescription: d\n---\nBe careful.\n")
+            .expect("fixture skill");
+        let yaml = format!(
+            "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: go\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
+            skill.display()
+        );
+        let wf = nika_schema::parse(
+            &yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        assert!(report.is_clean(), "the pure ladder is fs-free");
+
+        let resolved = crate::verbs::resolve_workflow_skills(&wf);
+        assert!(resolved.findings.is_empty(), "the skill file resolves");
+        let theme = Theme::new(false, true, false);
+        let (code, _) = capture_mock_outputs(&wf, &report, resolved.texts, theme)
+            .expect("composition succeeds");
+        assert_eq!(code, exit::OK, "skills composed → the mock run is green");
+
+        // The control: WITHOUT the map the dispatch refuses (proves the
+        // seam is load-bearing, not decorative).
+        let (code, _) = capture_mock_outputs(&wf, &report, BTreeMap::new(), theme)
+            .expect("composition still succeeds");
+        assert_eq!(
+            code,
+            exit::WORKFLOW,
+            "no skills map → NIKA-AGENT-003 task failure"
+        );
     }
 }

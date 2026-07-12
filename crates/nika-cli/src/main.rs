@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The `nika-cli` dev binary — the seed of the `nika` verb tree.
-//!
-//! Today: the full STATIC suite (`check` · `inspect` · `graph` ·
-//! `explain` · `spec` · `schema` · `examples` · `new` · `completions`) +
-//! `trace replay|show` (the flight-recorder reader · spec §7). Everything
-//! is auditable-before-run, and the `run` verb executes a CHECKED workflow
-//! through the composed `nika-runtime` (L3) over production seams
-//! (`nika-builtin` is admitted · no mocks).
-//! Exit codes follow the locked contract (spec §4): `0` ok · `1` workflow
-//! failed · `2` file findings · `3` environment error.
+//! The `nika` binary — clap surface + dispatch over the verb tree
+//! (`nika --help` is the living list; the static suite audits before any
+//! run, `run` executes CHECKED workflows through the composed L3 runtime
+//! over production seams). Exit codes per the locked contract (spec §4):
+//! `0` ok · `1` workflow failed · `2` file findings · `3` environment.
 
 // A terminal binary's whole job is printing — the same exemption as the
 // nika-catalog-verify binary and the nika-schema check example.
@@ -23,6 +18,7 @@ use std::time::Duration;
 mod examples_args;
 mod init_args;
 mod lazy;
+mod model_args;
 mod registry_args;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
@@ -242,11 +238,12 @@ enum Command {
         #[arg(long, default_value = ".")]
         dir: String,
     },
-    /// Local models — serve one on this machine (no cloud, no external daemon).
+    /// Local models — pull from the Hugging Face Hub, serve on this
+    /// machine, list/rm the disk (ONE models dir · no external daemon).
     #[command(display_order = 51)]
     Model {
         #[command(subcommand)]
-        action: ModelAction,
+        action: model_args::ModelAction,
     },
     /// The embedded spec identity (`--canon` prints the SSOT).
     #[command(display_order = 44)]
@@ -366,26 +363,6 @@ impl From<GraphFormatArg> for verbs::graph::GraphFormat {
             GraphFormatArg::Ascii => Self::Ascii,
         }
     }
-}
-
-#[derive(Subcommand)]
-enum ModelAction {
-    /// Serve a GGUF model — an OpenAI-compatible foreground server on
-    /// 127.0.0.1 (Ctrl-C stops it · the banner says how workflows reach it).
-    Serve {
-        /// The model weights (a Qwen3-family `.gguf` file).
-        #[arg(long, value_name = "PATH.gguf")]
-        model: PathBuf,
-        /// The tokenizer file (default: `tokenizer.json` beside the model).
-        #[arg(long, value_name = "PATH")]
-        tokenizer: Option<PathBuf>,
-        /// Loopback port to listen on.
-        #[arg(long, default_value_t = verbs::model::DEFAULT_PORT)]
-        port: u16,
-        /// The model id responses report (default: the model file's name).
-        #[arg(long, value_name = "ID")]
-        model_id: Option<String>,
-    },
 }
 
 #[derive(Subcommand)]
@@ -799,7 +776,7 @@ fn main() -> std::process::ExitCode {
         Command::Doctor { ping, json } => emit(&verbs::doctor::run(ping, json, plain_theme)),
         Command::Init(args) => emit(&init_verb(&args, plain_theme)),
         Command::Wire { target, dir } => emit(&verbs::wire::run(target, &dir)),
-        Command::Model { action } => model_verb(action),
+        Command::Model { action } => model_args::model_verb(action),
         Command::Spec { canon, schema } => spec_verb(canon, schema),
         Command::Catalog { json, tools } => {
             if tools {
@@ -857,22 +834,6 @@ fn emit(out: &VerbOutput) -> u8 {
     out.code
 }
 
-/// The `model` sub-verbs — a healthy `serve` never returns, so `emit` only prints refusals.
-fn model_verb(action: ModelAction) -> u8 {
-    let ModelAction::Serve {
-        model,
-        tokenizer,
-        port,
-        model_id,
-    } = action;
-    emit(&verbs::model::serve(
-        &model,
-        tokenizer.as_deref(),
-        port,
-        model_id.as_deref(),
-    ))
-}
-
 /// Name the bare-form pick on stderr — the receipt names its subject.
 fn announce_latest(path: &Path) {
     eprintln!(
@@ -886,7 +847,7 @@ fn announce_latest(path: &Path) {
 /// exit 3 (ADR-098 environment).
 fn resolve_trace(given: Option<PathBuf>) -> Result<PathBuf, u8> {
     if let Some(path) = given {
-        return Ok(path);
+        return Ok(verbs::trace::manage::resolve_store_handle(&path));
     }
     if let Some(path) = verbs::trace::manage::latest() {
         announce_latest(&path);
@@ -1016,7 +977,7 @@ fn trace_verb(action: TraceAction, theme: Theme, color: ColorWhenArg, link_when:
             out,
             include_content,
         } => emit(&verbs::trace_otel::export(
-            &trace.to_string_lossy(),
+            &verbs::trace::manage::resolve_store_handle(&trace).to_string_lossy(),
             out.as_deref()
                 .map(|p| p.to_string_lossy().into_owned())
                 .as_deref(),
@@ -1243,7 +1204,7 @@ fn load_events(args: &TraceArgs) -> Result<Vec<Event>, String> {
         return Ok(nika_cli::demo::failure());
     }
     let path = match &args.trace {
-        Some(path) => path.clone(),
+        Some(path) => verbs::trace::manage::resolve_store_handle(path),
         // Bare form: the workspace's latest trace (same contract as
         // verify/outputs/flow).
         None => match verbs::trace::manage::latest() {

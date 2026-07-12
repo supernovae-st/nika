@@ -45,7 +45,14 @@ pub(crate) struct Probe {
     /// Knob values that would not parse (each fell back LOUDLY to its
     /// default — a typo'd knob silently doing nothing is hidden magic).
     pub retention_notes: Vec<String>,
+    /// The ONE models dir (`~/.nika/models` · issue #146) — presence facts
+    /// only, observed once here so `diagnose` stays pure.
+    pub models: ModelsProbe,
 }
+
+// The models-dir facts live with their store (the descended member) —
+// re-exported so `doctor`'s diagnosis keeps one import surface.
+pub(crate) use nika_models::ModelsProbe;
 
 /// The pricing-catalog facts — all derived from the vendored snapshot
 /// (zero network · the born-stale law keeps counts read-time-derived).
@@ -135,6 +142,7 @@ pub(crate) fn collect(ping: bool) -> Probe {
         pricing: pricing_probe(),
         retention,
         retention_notes,
+        models: nika_models::models_probe(),
     };
     if ping {
         let local_pings = nika_providers::probe::collect_local_pings(
@@ -403,6 +411,8 @@ pub(crate) fn environment_json(probe: &Probe) -> serde_json::Value {
     serde_json::json!({
         "clients": clients,
         "local_providers": locals,
+        "models_pulled": probe.models.count,
+        "models_bytes": probe.models.bytes,
         "cloud_keys_present": present,
         "cloud_keys_total": total,
     })

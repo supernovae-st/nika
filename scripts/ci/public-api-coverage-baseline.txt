@@ -93,3 +93,5 @@ nika-tmpl
 # --- 2026-07-12: the onboarding surface descends from nika-cli at the 15k wall
 # (founding wizard + guided first workflow · injected Audit/Wire seams) ---
 nika-onboard
+# --- 2026-07-12: the local-models descent (issue #146 · the 15k wall — nika-onboard/display/dap precedents) ---
+nika-models

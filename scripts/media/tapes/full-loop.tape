@@ -55,6 +55,6 @@ Sleep 3600ms
 Type "# every run leaves a receipt — a hash-chained trace you can verify"
 Enter
 Sleep 800ms
-Type "nika trace verify .nika/traces/*.ndjson"
+Type "nika trace verify"
 Enter
 Sleep 4200ms

@@ -11,6 +11,7 @@
 //! [`server`](crate::run_stdio) loop is the thin transport shell that
 //! drives these.
 
+pub mod code_action;
 pub mod completion;
 pub mod definition;
 pub mod diagnostics;

@@ -46,6 +46,14 @@ pub(crate) enum ExamplesAction {
         /// Verdict line only (suppress the storyboard).
         #[arg(long)]
         quiet: bool,
+        /// One final storyboard frame (no live repaints) — pipes/CI
+        /// get this automatically.
+        #[arg(long)]
+        no_progress: bool,
+        /// Refuse to start if the static cost floor exceeds this (USD);
+        /// metered spend aborts past it mid-run.
+        #[arg(long, value_name = "USD")]
+        max_cost_usd: Option<f64>,
     },
 }
 
@@ -68,6 +76,15 @@ pub(crate) fn examples_verb(action: Option<ExamplesAction>, plain_theme: Theme) 
             model,
             var,
             quiet,
-        } => verbs::run::example(&slug, model.as_deref(), &var, quiet, plain_theme),
+            no_progress,
+            max_cost_usd,
+        } => verbs::run::example(
+            &slug,
+            model.as_deref(),
+            &var,
+            (quiet, no_progress),
+            max_cost_usd,
+            plain_theme,
+        ),
     }
 }

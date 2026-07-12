@@ -206,26 +206,33 @@ fn the_plain_lane_narrates_cleanly_when_piped() {
     );
 }
 
-// `examples run` EXECUTES (no longer refuses). 01-hello infers against
-// `ollama/llama3.1` — a LIVE local model, NOT hermetic (the prior "mock/echo"
-// comment was stale · the example's `model:` is a real provider). So this is
-// `#[ignore]`d: it runs only where ollama serves llama3.1
-// (`cargo test -- --ignored`), and never fails an offline box or the mutation
-// baseline. No embedded example runs clean with zero external deps, so the
-// `examples run` execution path has no hermetic smoke today.
+// `examples run` EXECUTES — and carries the run trio (--var ·
+// --no-progress · --max-cost-usd · gauntlet F7 2026-07-12). The trio
+// makes a hermetic smoke POSSIBLE at last: 19-schema-retry has a
+// `required:` var (unrunnable by this surface before) and infers clean
+// under `--model mock/echo` — zero keys, zero network, the exact combo
+// the old `#[ignore = "needs a live ollama"]` excuse said couldn't exist.
 #[test]
-#[ignore = "needs a live ollama/llama3.1 — run with `cargo test -- --ignored`"]
-fn examples_run_executes_an_embedded_workflow() {
+fn examples_run_carries_the_run_trio_hermetically() {
     let out = bin()
-        .arg("examples")
-        .arg("run")
-        .arg("01-hello")
+        .args([
+            "examples",
+            "run",
+            "19-schema-retry",
+            "--model",
+            "mock/echo",
+            "--var",
+            "text=Ada met Babbage in London",
+            "--no-progress",
+            "--max-cost-usd",
+            "0.01",
+        ])
         .output()
         .expect("binary runs");
     assert_eq!(
         out.status.code(),
         Some(0),
-        "the embedded mock/echo example runs clean · stderr: {}",
+        "a required-var example runs hermetically with the trio · stderr: {}",
         String::from_utf8_lossy(&out.stderr)
     );
 }
