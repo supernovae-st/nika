@@ -218,45 +218,6 @@ jobs:
             --verify-tag \
             artifacts/nika-*.tar.gz artifacts/SHA256SUMS
 
-  docker:
-    name: docker image (ghcr)
-    needs: release
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read # checkout only — this job never writes the repo
-      packages: write # push ghcr.io/supernovae-st/nika
-    env:
-      VERSION: ${{ needs.release.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - name: Smoke the amd64 image before any push
-        run: |
-          set -euo pipefail
-          docker buildx build --load \
-            --platform linux/amd64 \
-            --build-arg "NIKA_VERSION=${VERSION}" \
-            -f docker/Dockerfile -t nika-smoke .
-          docker run --rm nika-smoke --version | grep -F "${VERSION}"
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build + push multi-arch
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          build-args: |
-            NIKA_VERSION=${{ env.VERSION }}
-          tags: |
-            ghcr.io/supernovae-st/nika:${{ env.VERSION }}
-            ghcr.io/supernovae-st/nika:latest
-
   bump-formula:
     name: bump homebrew tap
     needs: release

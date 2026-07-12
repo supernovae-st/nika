@@ -141,14 +141,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   its own cadence); the README badge links the archived origin — the
   permanent, vendor-independent copy of the source.
 
-- **Official Docker image on GHCR** — the release workflow now builds and
+- **Official Docker image on GHCR** — the release workflow builds and
   pushes `ghcr.io/supernovae-st/nika` (multi-arch linux/amd64 + linux/arm64 ·
-  tags `latest` + semver, smoke-tested before any push). The image carries
-  the checksum-verified release binary on debian-slim with a non-root user;
-  the entrypoint is the whole CLI — `docker run --rm ghcr.io/supernovae-st/nika
-  --version`, and `docker run -i --rm ghcr.io/supernovae-st/nika mcp` serves
-  the read-only MCP oracle. Standalone-buildable from the repo:
-  `docker build -f docker/Dockerfile --build-arg NIKA_VERSION=<v> .` (#442)
+  tags `latest` + semver). The image is fed from the SAME linux tarball
+  artifacts the release ships — never a rebuild — so its binary is
+  bit-identical to the tarballs the funnel e2e + trust battery already
+  gated. The entrypoint is the whole CLI: `docker run --rm
+  ghcr.io/supernovae-st/nika --version`, and `docker run -i --rm
+  ghcr.io/supernovae-st/nika mcp` serves the read-only MCP oracle.
+  (#442 — two rival rails from the same-day trains #463/#465 collided as
+  a duplicate `jobs.docker` key that would have killed the next release
+  at parse time; the artifact-fed rail survives, the rebuild rail and
+  its `docker/Dockerfile` are gone.)
 
 ### Fixed
 
