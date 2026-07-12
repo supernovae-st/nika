@@ -159,5 +159,22 @@ else
   say "── mcp-http leg skipped (no curl on this runner)"
 fi
 
+# 5 · the sovereign lane ships whole (#518 · release ruling A-CPU):
+# a release binary carries local-infer — it must NEVER utter the
+# build-from-source refusal. Offline: a header-only fake GGUF passes
+# model resolution; the refusal we then expect is the POST-feature
+# teaching (tokenizer), never « built without local inference ».
+if has_cmd model; then
+  run doctor-sidecar 0 -- "$BIN" doctor
+  need doctor-sidecar "local inference built in"
+  mkdir -p "$HOME_DIR/.nika/models/probe/Probe-GGUF"
+  printf 'GGUF\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' \
+    >"$HOME_DIR/.nika/models/probe/Probe-GGUF/probe-Q8_0.gguf"
+  run serve-refusal 3 -- "$BIN" model serve --model probe/Probe-GGUF
+  if printf '%s' "$OUT" | grep -qF "built without local inference"; then
+    fail "[serve] the shipped binary lacks the sovereign lane (#518)"
+  fi
+fi
+
 say "── funnel e2e: FAILS=$FAILS"
 exit $((FAILS > 0))
