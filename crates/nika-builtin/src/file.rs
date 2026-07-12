@@ -4,6 +4,7 @@
 //! File builtins (5) — read · write · edit · glob · grep (stdlib §File).
 //! Each composes the injected kernel `Fs*Dyn` seams.
 
+use std::borrow::Cow;
 use std::path::Path;
 
 use nika_kernel::io::fs::{FsError, FsListDyn, FsReadDyn, FsWriteDyn};
@@ -188,16 +189,22 @@ pub(crate) async fn glob<F: FsListDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-GLOB-001";
     let pattern = req_str(args, "pattern", C)?;
     // The kernel `glob(root, pattern)` matches `pattern` against the
-    // root-RELATIVE path of each entry, so a RELATIVE pattern globs the cwd
-    // subtree (the default). An ABSOLUTE pattern (`/tmp/x/**`) never matches
-    // a cwd-relative path → silent `[]` (the F2 footgun) — so it is split
-    // into its longest literal directory root + the relative remainder, and
-    // globbed FROM that root (the entries come back absolute, as written).
+    // root-RELATIVE path of each entry. Every pattern is split into its
+    // longest LITERAL directory prefix (the walk root) + the relative
+    // remainder: an ABSOLUTE pattern because a cwd-relative match can never
+    // see it (the F2 footgun), a RELATIVE one so the walk — and the permits
+    // gate that fences it — anchors at the directory the author actually
+    // named (`hiring/inbox/*.md` walks `./hiring/inbox`, not the whole cwd:
+    // a scoped `permits.fs.read` boundary must accept a scoped glob).
     let (root, rel_pattern) = split_pattern_root(pattern);
-    let matches = fs
-        .glob(Path::new(root), rel_pattern)
-        .await
-        .map_err(|e| BuiltinFailure::new(C, format!("invalid pattern: {e}")))?;
+    let matches = match fs.glob(Path::new(root.as_ref()), rel_pattern).await {
+        Ok(matches) => matches,
+        // A missing walk root means the match set is empty, not an error —
+        // the historical cwd-walk contract (`[]` for `gone-dir/*.md`), now
+        // uniform across relative AND absolute patterns.
+        Err(nika_kernel::fs::FsError::NotFound { .. }) => Vec::new(),
+        Err(e) => return Err(BuiltinFailure::new(C, format!("invalid pattern: {e}"))),
+    };
     let excludes = exclude_patterns(args);
     let mut paths: Vec<String> = matches
         .into_iter()
@@ -212,32 +219,40 @@ pub(crate) async fn glob<F: FsListDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
 
 /// The directory a `nika:glob` of `pattern` walks FROM — the boundary the
 /// dispatcher gates on (`pub(crate)` so `guarded_glob` enforces the SAME
-/// root this fn globs, not a stale `.`). `.` for a relative pattern · the
-/// absolute literal-dir prefix for an absolute one (see [`split_pattern_root`]).
-pub(crate) fn glob_walk_root(pattern: &str) -> &str {
+/// root this fn globs, not a stale `.`). The literal directory prefix for
+/// any pattern that has one · `.` otherwise (see [`split_pattern_root`]).
+pub(crate) fn glob_walk_root(pattern: &str) -> Cow<'_, str> {
     split_pattern_root(pattern).0
 }
 
 /// Split a glob `pattern` into the directory to walk FROM and the pattern
 /// to match relative to it.
 ///
-/// A RELATIVE pattern keeps the cwd root: `("." , pattern)` — the historical
-/// behaviour, the kernel matches it against `.`-relative entries. An
-/// ABSOLUTE pattern is re-rooted at its longest literal directory prefix
+/// EVERY pattern is re-rooted at its longest literal directory prefix
 /// (every leading component up to the first one containing a glob meta
-/// char `*`/`?`/`[`) and the remainder becomes the relative pattern, so
-/// `/tmp/x/file.txt` → (`/tmp/x`, `file.txt`) and `/data/**/*.rs` →
-/// (`/data`, `**/*.rs`). A bare absolute file (`/etc/hosts`) → (`/etc`,
-/// `hosts`). Without this, the kernel's root-relative matcher could never
-/// see an absolute pattern match and returned `[]`.
-fn split_pattern_root(pattern: &str) -> (&str, &str) {
+/// char `*`/`?`/`[`) and the remainder becomes the relative pattern:
+/// `/tmp/x/file.txt` → (`/tmp/x`, `file.txt`) · `/data/**/*.rs` →
+/// (`/data`, `**/*.rs`) · `hiring/inbox/*.md` → (`./hiring/inbox`,
+/// `*.md`). Without this the kernel's root-relative matcher could never
+/// see an absolute pattern match (silent `[]`), and a RELATIVE pattern
+/// walked — and permits-gated — the WHOLE cwd instead of the directory
+/// the author named. The relative root keeps its `./` prefix so every
+/// returned path keeps the exact historical byte shape (`./items/a.md` —
+/// run traces and registry oracles hash these strings).
+fn split_pattern_root(pattern: &str) -> (Cow<'_, str>, &str) {
     if !Path::new(pattern).is_absolute() {
         // Strip a leading `./` — the walker matches against the root-RELATIVE
         // path of each entry (`strip_prefix(".")` → no `./` segment), so a
         // retained `./` in the pattern matches NOTHING (`./**/*.rs` → silent
         // `[]`). The spec's own example uses the `./`-prefixed form, so
         // `./**/*.rs` MUST behave exactly like `**/*.rs`.
-        return (".", pattern.strip_prefix("./").unwrap_or(pattern));
+        let p = pattern.strip_prefix("./").unwrap_or(pattern);
+        let first_meta = p.find(['*', '?', '[']).unwrap_or(p.len());
+        return match p[..first_meta].rfind('/') {
+            // No literal directory prefix — the cwd IS the root.
+            None => (Cow::Borrowed("."), p),
+            Some(i) => (Cow::Owned(format!("./{}", &p[..i])), &p[i + 1..]),
+        };
     }
     // Find the byte offset of the last `/` BEFORE the first glob meta char —
     // everything up to and including it is the literal directory root.
@@ -246,11 +261,14 @@ fn split_pattern_root(pattern: &str) -> (&str, &str) {
     if split_at == 0 {
         // The meta char (or the whole pattern) sits in the root segment —
         // walk from `/` with the full path-after-root as the pattern.
-        return ("/", pattern.strip_prefix('/').unwrap_or(pattern));
+        return (
+            Cow::Borrowed("/"),
+            pattern.strip_prefix('/').unwrap_or(pattern),
+        );
     }
     let root = &pattern[..split_at];
     let rel = &pattern[split_at + 1..];
-    (root, rel)
+    (Cow::Borrowed(root), rel)
 }
 
 /// Read `exclude:` as either a single pattern string OR a list of them
@@ -884,30 +902,50 @@ mod tests {
 
     #[test]
     fn split_pattern_root_relative_vs_absolute() {
-        // Relative → cwd root, pattern unchanged.
-        assert_eq!(split_pattern_root("src/**/*.rs"), (".", "src/**/*.rs"));
-        assert_eq!(split_pattern_root("**"), (".", "**"));
-        // A leading `./` is stripped — the walker matches root-relative paths
-        // (no `./`), so `./**/*.rs` MUST behave as `**/*.rs` (the spec example
-        // uses the `./` form; keeping it returned a silent empty match).
-        assert_eq!(split_pattern_root("./**/*.rs"), (".", "**/*.rs"));
-        assert_eq!(split_pattern_root("./src/*.rs"), (".", "src/*.rs"));
-        assert_eq!(split_pattern_root("./file.txt"), (".", "file.txt"));
+        // Relative → the literal directory prefix, `./`-prefixed (the walk
+        // AND the permits gate anchor at the directory the author named —
+        // a scoped boundary accepts a scoped glob) · returned paths keep
+        // the historical `./…` byte shape.
+        assert_eq!(
+            split_pattern_root("src/**/*.rs"),
+            ("./src".into(), "**/*.rs")
+        );
+        assert_eq!(split_pattern_root("**"), (".".into(), "**"));
+        assert_eq!(
+            split_pattern_root("hiring/inbox/*.md"),
+            ("./hiring/inbox".into(), "*.md")
+        );
+        // A leading `./` is stripped from the MATCH pattern — the walker
+        // matches root-relative paths (no `./`), so `./**/*.rs` MUST behave
+        // as `**/*.rs` (the spec example uses the `./` form; keeping it
+        // returned a silent empty match).
+        assert_eq!(split_pattern_root("./**/*.rs"), (".".into(), "**/*.rs"));
+        assert_eq!(split_pattern_root("./src/*.rs"), ("./src".into(), "*.rs"));
+        assert_eq!(split_pattern_root("./file.txt"), (".".into(), "file.txt"));
+        // No meta char at all — the whole relative path is literal: walk its
+        // parent, match its name.
+        assert_eq!(
+            split_pattern_root("docs/guide.md"),
+            ("./docs".into(), "guide.md")
+        );
         // Absolute exact file → the parent dir + the file name.
         assert_eq!(
             split_pattern_root("/tmp/x/file.txt"),
-            ("/tmp/x", "file.txt")
+            ("/tmp/x".into(), "file.txt")
         );
         // Absolute with a meta char → split at the last `/` before it.
-        assert_eq!(split_pattern_root("/data/**/*.rs"), ("/data", "**/*.rs"));
-        assert_eq!(split_pattern_root("/var/*.log"), ("/var", "*.log"));
+        assert_eq!(
+            split_pattern_root("/data/**/*.rs"),
+            ("/data".into(), "**/*.rs")
+        );
+        assert_eq!(split_pattern_root("/var/*.log"), ("/var".into(), "*.log"));
         // A meta char in the first segment after root → walk from `/`.
-        assert_eq!(split_pattern_root("/*.txt"), ("/", "*.txt"));
+        assert_eq!(split_pattern_root("/*.txt"), ("/".into(), "*.txt"));
         // A bare absolute file under root → (`/`, name).
-        assert_eq!(split_pattern_root("/hosts"), ("/", "hosts"));
+        assert_eq!(split_pattern_root("/hosts"), ("/".into(), "hosts"));
         // The public root accessor agrees.
         assert_eq!(glob_walk_root("/tmp/x/file.txt"), "/tmp/x");
-        assert_eq!(glob_walk_root("rel/**"), ".");
+        assert_eq!(glob_walk_root("rel/**"), "./rel");
     }
 
     #[test]
