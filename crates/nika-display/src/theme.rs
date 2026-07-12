@@ -33,6 +33,15 @@ pub const HEAT_RAMP: [(u8, u8, u8); 5] = [
 pub const SPARK: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
 
 /// Semantic colour roles (the closed set — nothing decorative can exist).
+///
+/// Two bands, one law. The NORMAL band (31/32/33/36) speaks state and
+/// verdict; the BRIGHT band (93/94/95/96) speaks the language's own
+/// vocabulary — the four verbs every other Nika surface already paints
+/// (spec `design/tokens.yaml`: infer blue · exec amber · invoke cyan ·
+/// agent violet). Bright ≠ decorative: a verb chip is an identity, and
+/// the band split keeps it from ever colliding with a verdict (bright
+/// cyan `invoke` next to the normal-cyan accent stays distinguishable,
+/// and both remain the USER's terminal hues — never hex).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
     /// The single accent — the running line.
@@ -47,6 +56,14 @@ pub enum Role {
     Dim,
     /// Emphasis (workflow name · failure headline).
     Strong,
+    /// The `infer` verb chip (spec blue family → bright blue).
+    VerbInfer,
+    /// The `exec` verb chip (spec amber family → bright yellow).
+    VerbExec,
+    /// The `invoke` verb chip (spec cyan family → bright cyan).
+    VerbInvoke,
+    /// The `agent` verb chip (spec violet family → bright magenta).
+    VerbAgent,
 }
 
 impl Role {
@@ -58,6 +75,24 @@ impl Role {
             Self::Warn => "33",
             Self::Dim => "2",
             Self::Strong => "1",
+            Self::VerbInfer => "94",
+            Self::VerbExec => "93",
+            Self::VerbInvoke => "96",
+            Self::VerbAgent => "95",
+        }
+    }
+
+    /// The verb-chip role for a runtime verb word — `None` for anything
+    /// outside the locked four (a builtin note · a malformed stream):
+    /// unknown vocabulary renders dim, never a guessed identity.
+    #[must_use]
+    pub fn for_verb(verb: &str) -> Option<Self> {
+        match verb {
+            "infer" => Some(Self::VerbInfer),
+            "exec" => Some(Self::VerbExec),
+            "invoke" => Some(Self::VerbInvoke),
+            "agent" => Some(Self::VerbAgent),
+            _ => None,
         }
     }
 }
@@ -164,6 +199,33 @@ impl Theme {
     #[must_use]
     pub fn logo(&self) -> &'static str {
         if self.ascii { "[nika]" } else { "🦋" }
+    }
+
+    /// The verb-identity glyph, padded to the SAME stable 2-cell column
+    /// as the state glyph (spec `design/tokens.yaml` bindings: ◇ infer ·
+    /// ▷ exec · ◆ invoke · ✦ agent). Unknown vocabulary gets the dim
+    /// bullet — the column never lies about identity it doesn't have.
+    #[must_use]
+    pub fn verb_glyph(&self, verb: &str) -> String {
+        let Some(role) = Role::for_verb(verb) else {
+            return self.paint(Role::Dim, if self.ascii { ". " } else { "· " });
+        };
+        let raw = if self.ascii {
+            match role {
+                Role::VerbExec => "$ ",
+                Role::VerbInvoke => "@ ",
+                Role::VerbAgent => "* ",
+                _ => "i ", // VerbInfer — the only remaining verb arm
+            }
+        } else {
+            match role {
+                Role::VerbExec => "▷ ",
+                Role::VerbInvoke => "◆ ",
+                Role::VerbAgent => "✦ ",
+                _ => "◇ ",
+            }
+        };
+        self.paint(role, raw)
     }
 
     /// Wrap `text` as an OSC-8 hyperlink to `url` — a no-op unless the
@@ -334,5 +396,35 @@ mod tests {
     #[test]
     fn sparkline_scale_factor_is_len_minus_one() {
         assert_eq!(PLAIN.sparkline(&[8, 7, 7]), "▇▆▆");
+    }
+
+    /// The verb column is the tokens-SSOT vocabulary (◇▷◆✦ · spec
+    /// `design/tokens.yaml` bindings) in the SAME 2-cell law as the
+    /// state column — both glyph themes pinned.
+    #[test]
+    fn verb_glyphs_are_two_cell_in_both_themes() {
+        for verb in ["infer", "exec", "invoke", "agent", "unknown-word"] {
+            assert_eq!(PLAIN.verb_glyph(verb).chars().count(), 2, "{verb} unicode");
+            assert_eq!(ASCII.verb_glyph(verb).chars().count(), 2, "{verb} ascii");
+        }
+        assert_eq!(PLAIN.verb_glyph("infer"), "◇ ");
+        assert_eq!(PLAIN.verb_glyph("exec"), "▷ ");
+        assert_eq!(PLAIN.verb_glyph("invoke"), "◆ ");
+        assert_eq!(PLAIN.verb_glyph("agent"), "✦ ");
+        assert_eq!(ASCII.verb_glyph("exec"), "$ ");
+        assert_eq!(ASCII.verb_glyph("agent"), "* ");
+    }
+
+    /// The verb band is BRIGHT (93-96) — identity never collides with a
+    /// verdict slot, and unknown vocabulary stays dim (no guessed chip).
+    #[test]
+    fn verb_band_is_bright_and_unknown_stays_dim() {
+        let coloured = Theme::new(true, false, false);
+        assert!(coloured.verb_glyph("infer").contains("\x1b[94m"));
+        assert!(coloured.verb_glyph("exec").contains("\x1b[93m"));
+        assert!(coloured.verb_glyph("invoke").contains("\x1b[96m"));
+        assert!(coloured.verb_glyph("agent").contains("\x1b[95m"));
+        assert!(coloured.verb_glyph("fetch").contains("\x1b[2m"), "dim");
+        assert_eq!(Role::for_verb("fetch"), None, "tools are not verbs");
     }
 }
