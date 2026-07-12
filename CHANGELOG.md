@@ -10,6 +10,17 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **LSP code actions — the `--fix` engine in every editor**: the language
+  server now answers `textDocument/codeAction` with quickfix renames
+  built from the checker's typed `offending`/`suggestion` pairs (unknown
+  fields · tools · args · rename-shaped conformance findings). Same
+  discipline as `nika check --fix`: did-you-mean only, unique-token
+  only — an ambiguous or suggestion-less finding offers nothing. One
+  fix engine, projected; VS Code, Cursor, zed, helix and neovim get the
+  one-click repair the terminal already had.
+
 ### Fixed
 
 - **`on_error.recover` awaits a no-edge referent's terminal state**

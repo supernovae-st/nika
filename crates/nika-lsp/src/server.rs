@@ -39,7 +39,7 @@ use lsp_types::notification::{
     Notification as NotificationTrait, PublishDiagnostics,
 };
 use lsp_types::request::{
-    Completion, GotoDefinition, HoverRequest, Request as RequestTrait, Shutdown,
+    CodeActionRequest, Completion, GotoDefinition, HoverRequest, Request as RequestTrait, Shutdown,
 };
 use lsp_types::{
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
@@ -49,7 +49,7 @@ use lsp_types::{
 
 use crate::analysis::diagnostics;
 use crate::analysis::document::Document;
-use crate::analysis::{completion, definition, hover, symbols};
+use crate::analysis::{code_action, completion, definition, hover, symbols};
 use crate::capabilities::server_capabilities;
 use crate::error::LspError;
 
@@ -199,6 +199,15 @@ fn handle_request(req: Request, docs: &Docs) -> Response {
                 doc.text(),
                 offset,
             )))
+        }),
+        CodeActionRequest::METHOD => respond(id, req, |p: lsp_types::CodeActionParams| {
+            let doc = docs.get(uri_key(&p.text_document.uri))?;
+            Some(code_action::code_actions(
+                &p.text_document.uri,
+                doc.text(),
+                doc.line_index(),
+                p.range,
+            ))
         }),
         GotoDefinition::METHOD => respond(id, req, |p: GotoDefinitionParams| {
             let pos = p.text_document_position_params;
