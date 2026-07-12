@@ -90,3 +90,5 @@ nika-dap
 nika-display
 nika-pck-manifest
 nika-tmpl
+# --- 2026-07-12: the local-models descent (issue #146 · the 15k wall — nika-onboard/display/dap precedents) ---
+nika-models
