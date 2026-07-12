@@ -263,7 +263,7 @@ fn render_human(
         let verdict = if f.clean {
             theme.paint(Role::Good, "clean")
         } else {
-            theme.paint(Role::Bad, &format!("{} finding(s)", f.findings))
+            theme.paint(Role::Bad, &crate::text::count(f.findings, "finding"))
         };
         let cost = if f.cost_is_floor {
             format!("≥ ${:.4}", f.cost_bounded_usd)
@@ -272,10 +272,10 @@ fn render_human(
         };
         let _ = writeln!(
             s,
-            "  {:<width$}  {verdict} · {} task(s) · {} wave(s) · {cost}{}",
+            "  {:<width$}  {verdict} · {} · {} · {cost}{}",
             f.path,
-            f.tasks,
-            f.waves,
+            crate::text::count(f.tasks, "task"),
+            crate::text::count(f.waves, "wave"),
             if f.permits_declared {
                 " · permits ✓".to_owned()
             } else {
@@ -294,12 +294,12 @@ fn render_human(
     let floor = if rollups.cost_is_floor { "≥" } else { "≤" };
     let _ = writeln!(
         s,
-        "{} {} clean / {} total · {floor} ${:.4} · {} run(s) recorded",
+        "{} {} clean / {} total · {floor} ${:.4} · {} recorded",
         theme.paint(Role::Strong, "rollup"),
         rollups.workflows_clean,
         rollups.workflows_total,
         rollups.cost_bounded_usd,
-        workspace.runs.len(),
+        crate::text::count(workspace.runs.len(), "run"),
     );
     let _ = writeln!(
         s,
