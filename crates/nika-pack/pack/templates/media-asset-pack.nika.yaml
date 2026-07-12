@@ -2,6 +2,7 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · media-asset-pack · brief → generate assets → manifest.
+# family: content
 # The shape for « generate image (or audio) assets from a creative brief ».
 #
 # Instantiate (agents · deterministic) ·

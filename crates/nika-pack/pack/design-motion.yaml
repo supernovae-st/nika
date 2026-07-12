@@ -1,0 +1,64 @@
+# design/motion.yaml — the per-verb MOTION identities · SSOT v1
+# One name per verb across every surface: the website's tiles animate
+# these as CSS keyframes, the VS Code canvas replays them, the engine's
+# terminal speaks them as 1-cell braille frames (nika-display theme.rs
+# mirrors this table — parity-gated like the glyph column).
+# Schema: DTCG-aligned (duration/cubicBezier are standard token types);
+# `terminal:` is the nika extension (a first — no design system ships a
+# terminal motion target today).
+#
+# Gates (CI · the design-parity family · wired with the projector wave):
+#   1. every terminal frame is exactly ONE cell wide
+#   2. interval_ms == duration_ms / len(frames) · integer · >= 80
+#   3. css_keyframes exists verbatim site-side
+#   4. ascii_fallback is pure 0x20-0x7E
+#   5. rest/done glyphs identical across families (one vocabulary)
+motion:
+  version: 1
+  easing:
+    calm: [0.4, 0.0, 0.6, 1.0]
+    steady: [0.0, 0.0, 1.0, 1.0]
+    snap: [0.2, 0.0, 0.0, 1.0]
+  families:
+    infer:            # thinking → SAMPLING · scattered dots settle
+      css_keyframes: nika-motion-infer
+      easing: calm
+      duration_ms: 800
+      terminal:
+        frames: ["⠂","⠈","⠐","⠄","⠠","⠁","⡀","⠃","⠘","⠨"]
+        ascii_fallback: [".","o","O","o"]
+        rest: "·"
+        done: "●"
+    exec:             # deterministic process → SCANLINE · a band sweeps
+      css_keyframes: nika-motion-exec
+      easing: steady
+      duration_ms: 800
+      terminal:
+        frames: ["⠉","⠒","⠤","⣀","⠤","⠒","⠉","⠒","⠤","⣀"]
+        edge_frames: ["━╍┄┈","┈━╍┄","┄┈━╍","╍┄┈━"]   # the dag rail pulse window
+        ascii_fallback: ["-","=","_","="]
+        rest: "·"
+        done: "●"
+    invoke:           # round-trip call → ROUNDTRIP · the pendulum
+      css_keyframes: nika-motion-invoke
+      easing: snap
+      duration_ms: 800
+      terminal:
+        frames: ["⠆","⠃","⠉","⠘","⠰","⢠","⠰","⠘","⠉","⠃"]
+        ascii_fallback: ["<","^",">","v"]
+        rest: "·"
+        done: "●"
+    agent:            # autonomous loop → ORBIT · continuous rotation
+      css_keyframes: nika-motion-agent
+      easing: calm
+      duration_ms: 800
+      terminal:
+        frames: ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
+        ascii_fallback: ["|","/","-","\\"]
+        rest: "·"
+        done: "●"
+  reduced_motion:     # css prefers-reduced-motion ≡ CLI NIKA_REDUCED_MOTION
+    css: step-only
+    terminal:
+      collapse_to: ["·","●"]
+      interval_ms: 1000

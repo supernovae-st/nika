@@ -2,6 +2,7 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · docker-report: read a system's real state via a pinned CLI,
+# family: ops
 # have a model explain it, keep the report as a file. The audited-ops
 # shape: argv-array exec (a provable `permits.exec` allowlist — a shell
 # string can smuggle any program through a pipe, so the checker refuses

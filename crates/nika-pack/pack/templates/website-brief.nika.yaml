@@ -2,6 +2,7 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · website-brief · crawl a site → understand it → persist the brief.
+# family: content
 # The shape for « understand a site (domain · theme · assets) from a URL ».
 #
 # Instantiate (agents · deterministic) ·

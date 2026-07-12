@@ -2,6 +2,7 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · fanout: discover a collection, process every item in
+# family: parallel
 # parallel (with a leash), merge the results.
 # The default shape for « N pages / N files / N records » jobs.
 #

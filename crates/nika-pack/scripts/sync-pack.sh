@@ -40,5 +40,9 @@ cp "${SPEC}/conformance/coverage-matrix.tsv" "${DEST}/"
 # #464): verb colors + severity + brand core. graph's mermaid classDefs
 # derive from it at build time. Same blind-spot law as the line above.
 cp "${SPEC}/design/tokens.yaml" "${DEST}/design-tokens.yaml"
+# The motion vocabulary (spec design/motion.yaml · one family per verb ·
+# css keyframes + terminal frames + reduced-motion law) — the same
+# derivation the site's tiles and the CLI's spinners share.
+cp "${SPEC}/design/motion.yaml" "${DEST}/design-motion.yaml"
 
 echo "pack synced from ${SPEC} → ${DEST} (version $(cat "${DEST}/VERSION"))"

@@ -2,6 +2,7 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · gate-and-act: check a condition, act only when it holds.
+# family: gated
 # The default shape for monitors, alerts and threshold jobs. Often
 # needs ZERO model calls (pattern 1 · deterministic core).
 #

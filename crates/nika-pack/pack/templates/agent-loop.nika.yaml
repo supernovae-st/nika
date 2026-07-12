@@ -2,6 +2,7 @@
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
 # TEMPLATE · agent-loop · plan with a fast model, execute with a
+# family: agentic
 # budgeted agent, validate the typed result.
 # The default shape for open-ended work (research · review · triage).
 #
