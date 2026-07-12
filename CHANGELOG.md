@@ -47,6 +47,15 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **The one earned ask: welcome + init grow the community line** (#498 —
+  the traction baseline showed installs running 2.5x ahead of stars
+  because the product never asks). `nika welcome`'s footer gains a third
+  door on its `learn:` line (`⭐ github.com/supernovae-st/nika`, OSC-8
+  linked) and `nika init`'s NEXT_BLOCK closes with the one-line ask.
+  Once per surface, additive to the #158 script-stable lines, JSON
+  outputs untouched — working commands (check · run) stay marketing-free
+  by doctrine.
+
 - **`nika examples run` carries the run trio** — `--var KEY=VALUE`
   (repeatable · the `nika run` contract), `--no-progress` and
   `--max-cost-usd <n>`, threaded through the same funnel `run` uses.
