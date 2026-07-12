@@ -34,5 +34,5 @@ mod template;
 pub use ast::{Expr, Literal, NamespaceRef, RelOp};
 pub use error::ExprError;
 pub use parser::parse_expression;
-pub use refs::{expr_refs, is_boolean_shaped, task_output_paths};
+pub use refs::{bare_task_refs, expr_refs, is_boolean_shaped, task_output_paths};
 pub use template::{TemplateIsland, scan_templates};
