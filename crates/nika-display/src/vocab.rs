@@ -33,6 +33,30 @@ pub fn hint(theme: Theme, label: &str, command: &str) -> String {
     theme.paint(Role::Dim, &format!("{label}: {command}"))
 }
 
+/// Count-noun agreement: `count(3, "task")` → `3 tasks` · `count(1,
+/// "task")` → `1 task` — the surface reads as prose, never `1 tasks`
+/// nor the lazy `task(s)`. Two rules cover the band's whole noun set
+/// (task · wave · run · retry · edge · finding): consonant+`y` → `ies`
+/// (`1 retry` · `2 retries`), else a plain `s`. A compound noun
+/// pluralizes at its tail (`4 downstream tasks`).
+#[must_use]
+pub fn count(n: usize, noun: &str) -> String {
+    if n == 1 {
+        return format!("1 {noun}");
+    }
+    let ies = noun.ends_with('y')
+        && !noun
+            .chars()
+            .rev()
+            .nth(1)
+            .is_some_and(|c| matches!(c, 'a' | 'e' | 'i' | 'o' | 'u'));
+    if ies {
+        format!("{n} {}ies", &noun[..noun.len() - 1])
+    } else {
+        format!("{n} {noun}s")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -46,6 +70,19 @@ mod tests {
         assert_eq!(arrow(true), "->");
         assert_eq!(at_least(false), "≥");
         assert_eq!(at_least(true), ">=");
+    }
+
+    /// One reads singular, the rest plural — noun tail included, and
+    /// consonant+y takes `ies` (`retries`) while vowel+y stays (`days`).
+    #[test]
+    fn count_agrees_in_number() {
+        assert_eq!(count(1, "task"), "1 task");
+        assert_eq!(count(0, "task"), "0 tasks");
+        assert_eq!(count(3, "wave"), "3 waves");
+        assert_eq!(count(1, "downstream task"), "1 downstream task");
+        assert_eq!(count(1, "retry"), "1 retry");
+        assert_eq!(count(0, "retry"), "0 retries");
+        assert_eq!(count(2, "day"), "2 days");
     }
 
     /// The hint form is fixed: `label: command`, dim as one unit.
