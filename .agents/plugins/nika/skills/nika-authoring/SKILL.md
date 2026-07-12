@@ -17,7 +17,7 @@ oracle; the human runs it.
 2. **Write the file.** Envelope is always `nika: v1` +
    `workflow: <kebab-id>` + `tasks:`. Pick models and builtins from
    the embedded catalogs — `nika catalog` (providers · models ·
-   capabilities · which env var each needs) and `nika tools` (the
+   capabilities · which env var each needs) and `nika catalog --tools` (the
    `nika:*` builtins an `invoke` reaches without MCP); before a run,
    `nika inspect <file>` shows the anatomy: tasks · waves · the cost
    floor.
@@ -79,7 +79,7 @@ oracle; the human runs it.
 The order is `invoke: nika:*` → `invoke: mcp:<server>/<tool>` →
 `exec:`. Before writing ANY `exec:`, answer in your head:
 
-1. **Which builtin replaces it?** `nika tools --json` is the catalog.
+1. **Which builtin replaces it?** `nika catalog --tools --json` is the catalog.
    HTTP (curl/wget/helper fetch) → `nika:fetch` · uploads →
    `multipart:` · site crawls → `traverse:` · file plumbing
    (cat/tee/cp/mkdir) → `nika:read`/`nika:write` (`create_dirs: true`) ·
