@@ -17,6 +17,7 @@
 # Needs · your status endpoint (--var … — the placeholder resolves nowhere).
 #
 # Run · nika run examples/showcase/t4-incident-war-room.nika.yaml
+
 nika: v1
 workflow: incident-war-room
 description: "parallel evidence → typed timeline → settle + recheck → postmortem draft"

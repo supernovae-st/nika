@@ -16,6 +16,7 @@
 #     consume {brief, sources} as a contract
 #
 # Run · nika run examples/showcase/t4-deep-research-brief.nika.yaml --var topic="local-first AI runtimes"
+
 nika: v1
 workflow: deep-research-brief
 description: "plan → budgeted research agent → thinking synthesis → brief on disk"

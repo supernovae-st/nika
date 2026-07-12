@@ -16,6 +16,7 @@
 # the same story a red test suite tells.
 #
 # Run · nika run examples/03-exec-pipeline.nika.yaml
+
 nika: v1
 workflow: exec-pipeline
 

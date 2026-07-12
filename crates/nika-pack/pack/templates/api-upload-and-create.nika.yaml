@@ -14,6 +14,7 @@
 # permits.fs READ boundary); auth rides a masked secrets header; the
 # create is fetch JSON; extraction is the mode/jq pairing. Zero exec ·
 # no upload helper script.
+
 nika: v1
 workflow: api-upload-and-create-template  # SLOT: kebab-case workflow id
 description: "upload → create → result"   # SLOT: one honest sentence

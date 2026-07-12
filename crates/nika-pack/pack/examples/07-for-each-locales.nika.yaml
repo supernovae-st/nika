@@ -11,6 +11,7 @@
 #   - the task `.output` is the ARRAY of per-iteration outputs, in input order
 #
 # Run · nika run examples/07-for-each-locales.nika.yaml
+
 nika: v1
 workflow: for-each-locales
 

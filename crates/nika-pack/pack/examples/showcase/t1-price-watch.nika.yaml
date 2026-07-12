@@ -18,6 +18,7 @@
 # price takes over ABOVE the target, so the gate stays closed and the
 # skip is the lesson. Point `product_api` at your endpoint + export
 # ALERTS_WEBHOOK_URL to see it fire.
+
 nika: v1
 workflow: price-watch
 description: "Watch a product price, ping me when it drops below my target"

@@ -20,6 +20,7 @@
 #   - `metadata:` · provenance fields ride into the manifest
 #
 # Run · nika run examples/showcase/t1-og-images.nika.yaml
+
 nika: v1
 workflow: og-images
 description: "Generate the launch OG hero image set into ./assets/og"

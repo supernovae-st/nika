@@ -19,6 +19,7 @@
 # + a git repo (the pulse reads your week).
 #
 # Run · nika run examples/showcase/t4-ceo-monday-brief.nika.yaml
+
 nika: v1
 workflow: ceo-monday-brief
 description: "news + repo pulse + KPIs → thinking synthesis → dated brief + cost ping"

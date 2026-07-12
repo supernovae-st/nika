@@ -19,6 +19,7 @@
 # a train with failing gates does not depart).
 #
 # Run · nika run examples/showcase/t4-release-train.nika.yaml --var version=1.4.0
+
 nika: v1
 workflow: release-train
 description: "parallel gates → human GO → hold until the window → ship · verify · record"

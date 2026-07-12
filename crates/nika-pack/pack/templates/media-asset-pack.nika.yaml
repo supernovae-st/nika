@@ -12,6 +12,7 @@
 #   4. Repair using the error's fix line · re-check until valid.
 # Native-first · generation is `nika:image_generate` (no provider curl ·
 # no OpenAI helper script); the manifest is `nika:jq` + `nika:write`.
+
 nika: v1
 workflow: media-asset-pack-template # SLOT: kebab-case workflow id
 description: "brief → render → manifest"  # SLOT: one honest sentence

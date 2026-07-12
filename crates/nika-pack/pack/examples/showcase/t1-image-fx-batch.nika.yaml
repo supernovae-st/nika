@@ -17,6 +17,7 @@
 #
 # Run · drop PNG files in ./photos, then
 #   nika run examples/showcase/t1-image-fx-batch.nika.yaml
+
 nika: v1
 workflow: image-fx-batch
 description: "Folder of PNG files → deterministic art (grayscale · dither · pixelate) · offline batch"

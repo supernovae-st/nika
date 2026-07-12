@@ -11,6 +11,7 @@
 #   tools:    default-deny · grant the MINIMUM · nika:done ends cleanly
 #   max_turns + max_tokens_total · the worst case is bounded
 #   schema:   the final message is TYPED · prose is not a contract
+
 nika: v1
 workflow: agent-loop-template       # SLOT: kebab-case workflow id
 description: "plan → budgeted agent → typed result"   # SLOT

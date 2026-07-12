@@ -16,6 +16,7 @@
 # | ps   | docker ps        | product CLI · no MCP surface yet | a docker MCP server    |
 # | df   | docker system df | same                             | same                   |
 # Needs · a running docker daemon (the report reads YOUR containers).
+
 nika: v1
 workflow: docker-report-template    # SLOT: kebab-case workflow id
 description: "read the daemon's state · explain it · keep the report"   # SLOT

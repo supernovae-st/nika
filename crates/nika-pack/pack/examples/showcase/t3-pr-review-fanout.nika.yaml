@@ -18,6 +18,7 @@
 # (a clean diff is green: the swarm skips, the report says so).
 #
 # Run · nika run examples/showcase/t3-pr-review-fanout.nika.yaml
+
 nika: v1
 workflow: pr-review-fanout
 description: "changed files → one read-only review agent each → merged REVIEW.md"

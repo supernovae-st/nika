@@ -16,6 +16,7 @@
 # Runs green offline · the placeholder API resolves nowhere, the recover
 # value takes over, the summary still lands (swap --model mock/echo in
 # too and the whole file is a zero-setup rehearsal).
+
 nika: v1
 workflow: fetch-chain
 

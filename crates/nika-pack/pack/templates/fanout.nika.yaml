@@ -12,6 +12,7 @@
 #   fail_fast: false + on_error recover: null: one bad item yields null
 #     at its index (order preserved) · the batch lives · filter downstream
 #   per-iteration retry/timeout · the flaky world is normal
+
 nika: v1
 workflow: fanout-template           # SLOT: kebab-case workflow id
 description: "discover N items · process in parallel · merge"   # SLOT

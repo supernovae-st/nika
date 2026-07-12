@@ -18,6 +18,7 @@
 #     renders the table · zero model on the whole path
 #
 # Run · nika run examples/showcase/t2-bookmark-triage.nika.yaml
+
 nika: v1
 workflow: bookmark-triage
 description: "URL list → per-page metadata fan-out (dead links survive) → one markdown triage table"

@@ -10,6 +10,7 @@
 # Two load-bearing moves ·
 #   on_error: recover:   bad data is DATA · the pipeline lives
 #   state read→diff→write   you only process what changed
+
 nika: v1
 workflow: etl-state-template        # SLOT: kebab-case workflow id
 description: "read state · fetch fresh · diff · process the delta · save state"   # SLOT

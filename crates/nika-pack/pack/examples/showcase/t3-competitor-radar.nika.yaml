@@ -16,6 +16,7 @@
 # Needs · a REAL sitemap URL (--var competitor_sitemap=…) + TEAM_WEBHOOK_URL.
 #
 # Run · nika run examples/showcase/t3-competitor-radar.nika.yaml
+
 nika: v1
 workflow: competitor-radar
 description: "Sitemap → parallel page reads → one competitive brief + ping"

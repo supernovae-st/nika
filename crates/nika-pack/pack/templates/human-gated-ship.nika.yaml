@@ -16,6 +16,7 @@
 #   the assert makes a RED gate terminal · the act fails LOUDLY (default
 #   capture) · a terminal `when: true` task records EVERY outcome
 #   (acted · refused · failed): the always-pattern
+
 nika: v1
 workflow: human-gated-ship-template  # SLOT: kebab-case workflow id
 description: "verify in parallel · human GO · act · record"   # SLOT

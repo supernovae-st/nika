@@ -34,6 +34,7 @@
 # Exercise · seat a THINKING model (ollama/qwen3.5:4b) and re-run: at
 #       small max_tokens it spends the whole budget reasoning and returns
 #       an empty row — the finding above, reproduced on your own machine.
+
 nika: v1
 workflow: model-bench
 description: "One question → three local models → a measured comparison table"

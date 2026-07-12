@@ -19,6 +19,7 @@
 # — the placeholder domain resolves nowhere).
 #
 # Run · nika run examples/showcase/t2-seo-content-brief.nika.yaml --var topic="rust async runtimes"
+
 nika: v1
 workflow: seo-content-brief
 description: "Competitor sitemap → top page → gap analysis → typed brief"

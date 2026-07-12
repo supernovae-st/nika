@@ -13,6 +13,7 @@
 #   - `nika:log` · human-readable diagnostics on the event stream
 #
 # Run · nika run examples/showcase/t1-meeting-actions.nika.yaml --var transcript_path=./transcript.txt
+
 nika: v1
 workflow: meeting-actions
 description: "Transcript → typed action items {owner, task, due}"

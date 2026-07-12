@@ -23,6 +23,7 @@
 # Needs · ./data/sales.csv (columns · region,revenue).
 #
 #   nika run examples/showcase/t2-csv-chart-report.nika.yaml
+
 nika: v1
 workflow: csv-chart-report
 description: "CSV → aggregate → rendered bar chart + markdown report · offline · deterministic"

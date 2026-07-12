@@ -22,6 +22,7 @@
 #
 # Run · point `vars.transcript` at your file, then
 #   nika run examples/showcase/t2-transcript-shownotes.nika.yaml
+
 nika: v1
 workflow: transcript-shownotes
 description: "Raw transcript → typed show-notes (chapters · quotes · summary) · one bounded infer"

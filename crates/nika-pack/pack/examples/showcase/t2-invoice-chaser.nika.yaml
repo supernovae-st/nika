@@ -16,6 +16,7 @@
 # Needs · ./finance/invoices.csv (your export · columns incl. status,due).
 #
 # Run · nika run examples/showcase/t2-invoice-chaser.nika.yaml
+
 nika: v1
 workflow: invoice-chaser
 description: "Ledger CSV → overdue filter → drafted reminders → human gate → drafts file"

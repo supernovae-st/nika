@@ -16,6 +16,7 @@
 #   - the quarantine pattern · bad data is DATA, not an exception
 #
 # Run · nika run examples/showcase/t2-etl-quarantine.nika.yaml
+
 nika: v1
 workflow: etl-quarantine
 description: "CSV batch → schema gate → quarantine the bad · aggregate the good"

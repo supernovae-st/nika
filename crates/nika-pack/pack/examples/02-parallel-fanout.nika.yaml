@@ -14,6 +14,7 @@
 #               risk  ─┘
 #
 # Run · nika run examples/02-parallel-fanout.nika.yaml
+
 nika: v1
 workflow: parallel-fanout
 

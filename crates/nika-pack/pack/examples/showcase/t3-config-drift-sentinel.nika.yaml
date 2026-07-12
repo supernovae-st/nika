@@ -20,6 +20,7 @@
 # nowhere) + ./ops/config-baseline.json (the intended state).
 #
 # Run · nika run examples/showcase/t3-config-drift-sentinel.nika.yaml
+
 nika: v1
 workflow: config-drift-sentinel
 description: "live config vs sanctioned baseline → typed drift → explained alert"

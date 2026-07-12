@@ -16,6 +16,7 @@
 #   - jq `sort_by` ranking · the ORDER is deterministic, not model mood
 #
 # Run · nika run examples/showcase/t3-resume-screener.nika.yaml
+
 nika: v1
 workflow: resume-screener
 description: "glob CVs → local-model rubric per candidate → deterministic shortlist"

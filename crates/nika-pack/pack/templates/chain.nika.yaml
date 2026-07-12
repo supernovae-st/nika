@@ -12,6 +12,7 @@
 #   4. Repair using the error's fix line · re-check until valid.
 # Rules the validator enforces · one verb per task · snake_case ids ·
 # every ${{ tasks.X }} reference REQUIRES depends_on: [X] (NIKA-DAG-003).
+
 nika: v1
 workflow: chain-template            # SLOT: kebab-case workflow id
 description: "gather → think → persist"   # SLOT: one honest sentence

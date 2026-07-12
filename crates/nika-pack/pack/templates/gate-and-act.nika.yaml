@@ -11,6 +11,7 @@
 #   when:        SKIP gate · routing, not failure
 #   nika:assert  FAIL gate · the run is wrong, stop loudly
 #   nika:prompt  HUMAN gate · blocks until a person decides
+
 nika: v1
 workflow: gate-and-act-template     # SLOT: kebab-case workflow id
 description: "watch a value · act only when the condition holds"   # SLOT
