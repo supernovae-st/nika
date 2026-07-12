@@ -208,6 +208,8 @@ nika run flow.nika.yaml --resume <trace> --answer approve=true  # re-arm a pause
 nika trace show .nika/traces/<run>.ndjson   # re-render any past run
 nika catalog                         # the embedded provider/model catalog · capabilities · env vars
 nika catalog --tools                 # the nika:* builtin catalog · what invoke reaches without MCP
+nika model pull Qwen/Qwen3-0.6B-GGUF # a GGUF + its tokenizer land in ~/.nika/models
+nika model serve --model Qwen/Qwen3-0.6B-GGUF  # your own loopback OpenAI endpoint · no cloud, no daemon
 nika doctor --ping                   # are the local servers actually listening?
 ```
 
@@ -262,8 +264,10 @@ composition."
 Everything sits under one frozen, versioned envelope, `nika: v1`, that won't
 break. Three properties hold across every workflow:
 
-- **Provider-agnostic, local-first.** Local Ollama or LM Studio, or any API.
-  Your workflow doesn't change when the model does.
+- **Provider-agnostic, local-first.** Local Ollama or LM Studio, any API —
+  or no server at all: every release binary serves GGUFs itself
+  (`nika model pull` → `nika model serve`, loopback, 0.101+). Your
+  workflow doesn't change when the model does.
 - **Safe by construction.** A read-XOR-write capability model. A step that
   reads cannot silently write; every effect is explicit and gated.
 - **Reproducible.** The file and its execution trace are an auditable,
