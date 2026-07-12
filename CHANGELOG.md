@@ -24,6 +24,15 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   (absolute patterns errored before); the SEC-004 refusal now names the
   real walk root.
 
+### Changed
+
+- **The openai showcase seats leave 2024** — the catalog's two openai
+  showcase models are now `gpt-5.2` (default) and `gpt-5-mini` (cheap),
+  matching the live API's current family and the spec's teaching
+  surface (both already priced + capability-mapped; `gpt-4o` and every
+  other live id keeps working verbatim through provider pass-through —
+  proven with a live `openai/gpt-5.2` run, 780ms · $0.000098).
+
 ### Added
 
 - **Pre-generated shell completions ride the release tarballs** (#487)

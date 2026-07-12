@@ -49,24 +49,24 @@ env_var = "OPENAI_API_KEY"
 # classic user keys (sk-). Order matters — sk-proj- is checked first since
 # it is more specific.
 key_prefixes = ["sk-proj-", "sk-"]
-default_model = "gpt-4o"
-cheap_model = "gpt-4o-mini"
+default_model = "gpt-5.2"
+cheap_model = "gpt-5-mini"
 requires_key = true
-description = "GPT-4, GPT-4o, and other OpenAI models."
+description = "GPT-5.x, the o-series, and other OpenAI models."
 api_dialect = "openai-chat"
 tags = ["code-execution", "frontier", "function-calling", "image-gen", "prompt-caching", "realtime", "streaming", "vision"]
 
 [[providers.models]]
-id = "gpt-4o"
-model = "gpt-4o"
-context_window_tokens = 128000
-max_output_tokens = 16384
+id = "gpt-5.2"
+model = "gpt-5.2"
+context_window_tokens = 272000
+max_output_tokens = 128000
 
 [[providers.models]]
-id = "gpt-4o-mini"
-model = "gpt-4o-mini"
-context_window_tokens = 128000
-max_output_tokens = 16384
+id = "gpt-5-mini"
+model = "gpt-5-mini"
+context_window_tokens = 272000
+max_output_tokens = 128000
 
 [[providers]]
 id = "mistral"
