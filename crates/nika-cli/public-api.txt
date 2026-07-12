@@ -323,6 +323,12 @@ pub fn nika_cli::verbs::init::run(dir: &str, force: bool, yes: bool, theme: nika
 pub mod nika_cli::verbs::inspect
 pub fn nika_cli::verbs::inspect::run(path: &str, ascii: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::model
+pub mod nika_cli::verbs::model::pull
+pub fn nika_cli::verbs::model::pull::run(arg: &str, yes: bool) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::model::store
+pub fn nika_cli::verbs::model::store::list() -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::model::store::resolve_serve_model(arg: &str) -> core::result::Result<std::path::PathBuf, nika_cli::verbs::VerbOutput>
+pub fn nika_cli::verbs::model::store::rm(id: &str) -> nika_cli::verbs::VerbOutput
 pub const nika_cli::verbs::model::DEFAULT_PORT: u16
 pub fn nika_cli::verbs::model::serve(gguf: &std::path::Path, tokenizer: core::option::Option<&std::path::Path>, port: u16, model_id: core::option::Option<&str>) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::new

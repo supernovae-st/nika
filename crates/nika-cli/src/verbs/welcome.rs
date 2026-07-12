@@ -340,6 +340,7 @@ mod tests {
 
     fn synthetic_probe() -> Probe {
         Probe {
+            models: crate::verbs::probe::ModelsProbe::default(),
             version: "0.0.0-test".to_owned(),
             config_path: None,
             providers: vec![
@@ -474,6 +475,7 @@ mod tests {
             stale: false,
         };
         Probe {
+            models: crate::verbs::probe::ModelsProbe::default(),
             version: "0.98.0".to_owned(),
             config_path: None,
             providers: ["ollama", "lmstudio", "llamacpp", "localai", "vllm"]

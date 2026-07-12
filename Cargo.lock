@@ -3701,11 +3701,11 @@ dependencies = [
  "nika-exec-runner",
  "nika-fs",
  "nika-http",
- "nika-infer-local",
  "nika-kernel",
  "nika-kernel-mock",
  "nika-lsp",
  "nika-mcp",
+ "nika-models",
  "nika-pack",
  "nika-providers",
  "nika-runtime",
@@ -3994,6 +3994,20 @@ dependencies = [
  "proptest",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "nika-models"
+version = "0.99.0"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "nika-http",
+ "nika-infer-local",
+ "nika-kernel",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

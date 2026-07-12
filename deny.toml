@@ -64,7 +64,8 @@ wrappers = [
   "nika-input",            # L1 write-side effect (M2.4): tokio `rt` for spawn_blocking — the sync `enigo` OS-event synthesis runs off the async runtime (worker-local · CANCEL SAFETY contract · same pattern as nika-a11y) · B.3 wires enigo
   "nika-browser",          # L1 web effect (M2.5): tokio `rt` for the per-session CDP Handler task — chromiumoxide is async-native (NO spawn_blocking) · B.3 wires chromiumoxide
   "nika-providers",
-  "nika-infer-local",      # L1.5 candle sidecar (ADR-091): tokio for the local-inference worker        # L1.5 provider layer (s8.5): tokio dev-dep for #[tokio::test] async wire-adapter tests (transport itself rides the injected kernel http effect · zero runtime tokio dep)
+  "nika-infer-local",      # L1.5 candle sidecar (ADR-091): tokio for the local-inference worker
+  "nika-models",           # L4 local-models unit (descended from nika-cli 2026-07-12): current-thread runtime blocks the Hub pull on the nika-http seam (the registry #452 idiom)        # L1.5 provider layer (s8.5): tokio dev-dep for #[tokio::test] async wire-adapter tests (transport itself rides the injected kernel http effect · zero runtime tokio dep)
   "nika-verb-infer",       # L2 verb (s9): tokio dev-dep for #[tokio::test] run() tests over the mock registry (zero runtime tokio dep · transport inherited from the resolved provider)
   "nika-verb-exec",        # L2 verb (s10): tokio dev-dep for #[tokio::test] run() tests over MockShell (zero runtime tokio dep · subprocess owned by the injected runner)
   "nika-verb-invoke",      # L2 verb (s11): tokio dev-dep for #[tokio::test] run() tests over an inline mock ToolExecute (zero runtime tokio dep · dispatch owned by the injected executor)
