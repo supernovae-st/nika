@@ -3975,6 +3975,7 @@ version = "0.99.0"
 dependencies = [
  "lsp-server",
  "lsp-types",
+ "nika-catalog",
  "nika-schema",
  "proptest",
  "serde",
