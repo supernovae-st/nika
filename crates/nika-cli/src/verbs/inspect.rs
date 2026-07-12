@@ -79,10 +79,10 @@ pub fn run(path: &str, theme: Theme) -> VerbOutput {
     };
 
     let mut out = format!(
-        "{} · {} tasks · {} waves · {ceiling}\n",
+        "{} · {} · {} · {ceiling}\n",
         theme.paint(Role::Strong, &doc.workflow),
-        doc.nodes.len(),
-        report.waves.len(),
+        crate::text::count(doc.nodes.len(), "task"),
+        crate::text::count(report.waves.len(), "wave"),
     );
     // The pinch set (DagAnalysis · « nothing else runs while these
     // run ») — drawn ON the graph, not only said under it: the P1 of

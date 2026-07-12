@@ -107,7 +107,7 @@ fn map_node(row: Option<&TaskRow>, id: &str, theme: Theme, tick: usize, with_id:
 fn header_lines(view: &RunView, theme: Theme, tasks: usize) -> Vec<String> {
     let mut lines = Vec::with_capacity(3);
     let count = if tasks > 0 {
-        format!(" · {tasks} tasks")
+        format!(" · {}", crate::vocab::count(tasks, "task"))
     } else {
         String::new()
     };
@@ -562,10 +562,10 @@ pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
     #[allow(clippy::cast_precision_loss)] // display-only seconds
     let secs = view.elapsed_ms as f64 / 1000.0;
     lines.push(format!(
-        "  {} {} · {} tasks · {secs:.1}s · {cost}",
+        "  {} {} · {} · {secs:.1}s · {cost}",
         glyph,
         theme.paint(Role::Strong, &view.workflow),
-        view.rows().len(),
+        crate::vocab::count(view.rows().len(), "task"),
     ));
 
     // Errors always (spec §3.5) — the same failure card the full frame emits,

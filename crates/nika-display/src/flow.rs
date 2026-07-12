@@ -304,7 +304,7 @@ pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -
     let title_raw = format!("{h} nika {mark_raw} {} ", view.workflow);
 
     let waves = wave_sizes(view).len();
-    let retries_cell = format!("{} retries", view.retries);
+    let retries_cell = crate::vocab::count(view.retries as usize, "retry");
     // The repair count (#319 · D-2026-07-08-N4) rides beside retries —
     // only when non-zero (the verdict-count discipline: `0 retries` is
     // a stable cell, a repair is an EVENT worth a cell only when real).
@@ -313,9 +313,10 @@ pub fn verdict_card(view: &RunView, theme: &Theme, outputs_note: Option<&str>) -
         n => Some(format!("{n} recovered")),
     };
     let mut head = format!(
-        "{}    {} tasks · {waves} waves · {retries_cell}",
+        "{}    {} · {} · {retries_cell}",
         dag_shape(view, theme),
-        view.rows().len(),
+        crate::vocab::count(view.rows().len(), "task"),
+        crate::vocab::count(waves, "wave"),
     );
     if let Some(cell) = &recovered_cell {
         use std::fmt::Write as _;
@@ -750,10 +751,10 @@ mod tests {
         }
         retried.apply(&ev(EventKind::WorkflowCompleted, 9_000, &[]));
         let lines = verdict_card(&retried, &coloured, None);
-        let totals = lines.iter().find(|l| l.contains("retries")).expect("row");
+        let totals = lines.iter().find(|l| l.contains("retry")).expect("row");
         assert!(
-            totals.contains("\x1b[33m1 retries\x1b[0m"),
-            "a real retry count paints yellow: {totals:?}"
+            totals.contains("\x1b[33m1 retry\x1b[0m"),
+            "a real retry count paints yellow, singular agreed: {totals:?}"
         );
         // The box still closes at one visible column: strip the escapes
         // and every border row measures the same width.
