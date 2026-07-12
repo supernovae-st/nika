@@ -296,6 +296,8 @@ Run an agentic loop · the model + a set of tools · iterating until completion 
       - "nika:fetch"
       - "nika:write"
       - "mcp:browser/*"               # all tools from browser MCP server
+    skills:                           # Agent Skills · SKILL.md paths (agentskills.io shape)
+      - ".agents/skills/nika-authoring/SKILL.md"
     max_turns: 20
     max_tokens_total: 100000
     temperature: 0.3
@@ -314,6 +316,7 @@ Run an agentic loop · the model + a set of tools · iterating until completion 
 | `prompt` | yes | string | Initial user message (same field name as `infer:` · consistent) |
 | `model` | no | string | Override workflow default · `<provider>/<name>` |
 | `tools` | no | array | Tool whitelist · glob patterns · **default-deny** · if absent the agent gets NO tools (pure conversation · least-privilege). Grant explicitly. |
+| `skills` | no | array | [Agent Skill](https://agentskills.io) file paths (each an agentskills.io-shape `SKILL.md`) · **explicit static paths only** — no globs, no `${{ }}` templates (the `permits:` explicitness law) · loaded at **compose time** and injected into the system context (§Agent Skills below) |
 | `max_turns` | no | integer | Loop limit · default 10 |
 | `max_tokens_total` | no | integer | Cumulative token budget · default engine-configurable |
 | `temperature` | no | number 0-2 | Sampling temperature |
@@ -386,6 +389,67 @@ A v0.1-compliant engine MUST implement these glob semantics canonically · NOT e
 
 The task output is the final model response.
 
+### Agent Skills · `skills:`
+
+The `skills:` field makes the agent a **consumer** of the
+[Agent Skills](https://agentskills.io) format — the same `SKILL.md` shape
+`nika init` already produces. Each entry is an **explicit file path** to a
+skill file: a markdown document opening with a YAML frontmatter block
+(`---` fences) that carries a non-empty `name` and `description`; the
+markdown body after the closing fence is the skill's instructions. Other
+frontmatter keys (`license` · `metadata` · client-specific fields) are the
+skill author's surface — a consumer MUST tolerate them.
+
+```yaml
+- id: review
+  agent:
+    system: "You are a code reviewer."
+    prompt: "Review the diff · ${{ tasks.diff.output }}"
+    skills:
+      - ".agents/skills/code-review/SKILL.md"
+      - "docs/skills/security-pass/SKILL.md"
+    tools: ["nika:read"]
+```
+
+**Resolution (normative)** · paths are **static** — no globs, no
+`${{ }}` templates (the same explicitness law as `permits:`; a template
+in a skill path is a parse error). Relative paths resolve from the
+working directory, like every other relative path in the language. The
+files are read at **compose time** — before the run starts, by the
+composition layer, never mid-loop by the runtime — so skill reads are
+**outside `permits.fs`** (exactly like the workflow file itself: what
+the agent will carry is fixed and auditable before any effect).
+
+**Injection (normative)** · the resolved skills join the agent's system
+context as ONE deterministic section, appended after the authored
+`system:` (or standing alone when `system:` is absent) ·
+
+```text
+<authored system>
+
+## Skills
+
+### <frontmatter name>
+
+<frontmatter description>
+
+<markdown body · trimmed>
+```
+
+— one `###` block per skill, in `skills:` source order. Same inputs,
+same bytes (provider-cache-friendly · reproducible transcripts).
+
+**check≡run** · `skills:` is fully validated statically. `nika check`
+fails a workflow whose skill paths do not resolve (`NIKA-AGENT-003` ·
+the file is missing/unreadable) or whose files are not valid Agent
+Skills (`NIKA-AGENT-004` · no/unterminated/non-mapping frontmatter ·
+missing/empty `name` or `description`) — see
+[05-errors.md](./05-errors.md). A run refuses on the same findings
+before any token is spent. The skill TEXT also joins the referencing
+task's resume identity: editing a `SKILL.md` re-runs the task (the same
+law as an edited prompt — a resume never serves output produced under a
+different skill).
+
 ### Conformance
 
 The engine MUST ·
@@ -394,6 +458,7 @@ The engine MUST ·
 - Enforce `max_turns` and `max_tokens_total` budgets · terminate on exhaustion
 - Detect the `nika:done` completion sentinel and exit gracefully
 - Return the final model response as task output
+- Resolve `skills:` at compose time · inject the `## Skills` section in source order exactly as specified above · fail statically (`NIKA-AGENT-003`/`NIKA-AGENT-004`) on a missing or invalid skill file — never start a run with a half-composed context
 
 ---
 

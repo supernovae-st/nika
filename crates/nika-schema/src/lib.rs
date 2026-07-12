@@ -47,6 +47,7 @@ pub use nika_tmpl::expression;
 pub mod lints;
 pub mod parser;
 pub mod raw;
+pub mod skill;
 pub mod source;
 mod suggest;
 pub mod trust;
@@ -63,6 +64,7 @@ pub use check::{
 pub use codegen::nika_builtin_tool_enum_schema;
 pub use error::{SchemaError, SpecCategory, SpecCode};
 pub use parser::{ParseMode, parse};
+pub use skill::{SkillDefect, SkillDoc, parse_skill, skill_refs};
 pub use source::{ByteOffset, FileId, LineCol, SourceFile, SourceRegistry, Span, Spanned};
 
 // Type re-exports (§3.16 of crate spec).

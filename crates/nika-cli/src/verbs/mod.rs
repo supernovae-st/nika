@@ -26,6 +26,7 @@ pub mod new;
 pub mod pack_surface;
 pub(crate) mod probe;
 pub mod run;
+pub(crate) mod skills;
 pub mod test;
 pub mod tools;
 pub mod trace;

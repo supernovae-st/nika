@@ -228,6 +228,14 @@ fn run_verdict(
             Ok(pair) => pair,
             Err(code) => return RunVerdict::bare(code),
         };
+    // ── `skills:` gate + resolve (#473 · pre-effect) — the fs half the
+    // pure ladder cannot see: a missing/malformed SKILL.md refuses HERE
+    // with the same rows `nika check` renders (check≡run · never a
+    // half-composed agent context, never a token spent first).
+    let skills = match skills_gate(&wf, file, json, theme, output_json) {
+        Ok(texts) => texts,
+        Err(code) => return RunVerdict::bare(code),
+    };
     let overrides = match inputs::validated_var_overrides(vars, &wf, output_json) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
@@ -262,6 +270,7 @@ fn run_verdict(
         setup.answers,
         pause_on_prompt,
         max_cost_usd,
+        skills,
         output_json,
     ) {
         Ok(rt) => rt,
@@ -609,8 +618,9 @@ fn dry_run_payload(
 ///
 /// The ENV-class composition failure prints + envelopes itself here;
 /// the caller returns the exit code untouched.
-// The 7 knobs ARE the composition surface (var overrides · resume plan ·
-// answers · pause flag) — the same clap-surface idiom as `run` itself.
+// The knobs ARE the composition surface (var overrides · resume plan ·
+// answers · pause flag · resolved skills) — the same clap-surface idiom
+// as `run` itself.
 #[allow(clippy::too_many_arguments)]
 fn composed_runtime(
     wf: &RawWorkflow,
@@ -621,6 +631,7 @@ fn composed_runtime(
     answers: BTreeMap<String, Value>,
     pause_on_prompt: bool,
     max_cost_usd: Option<f64>,
+    skills: BTreeMap<String, String>,
     output_json: bool,
 ) -> Result<ProdRuntime, u8> {
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
@@ -633,6 +644,10 @@ fn composed_runtime(
                 .with_max_cost_usd(max_cost_usd)
                 .with_prompt_pause(pause_on_prompt)
                 .with_prompt_answers(answers)
+                // #473 · the composer-resolved SKILL.md texts — the
+                // dispatch composes the `## Skills` section from these
+                // and they join the referencing tasks' resume identity.
+                .with_skills(skills)
                 // #409 · the override joins the resume identity of every
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
@@ -662,12 +677,38 @@ fn composed_runtime(
     }
 }
 
+/// The `skills:` pre-effect gate (#473): resolve every referenced
+/// SKILL.md (the fs half `nika check` also runs) — findings re-render
+/// through `check::run` (the ONE voice · same rows · exit 2) exactly
+/// like the dirty-report gate above it.
+///
+/// # Errors
+///
+/// The exit code to return unchanged (already printed + enveloped).
+fn skills_gate(
+    wf: &RawWorkflow,
+    file: &str,
+    json: bool,
+    theme: Theme,
+    output_json: bool,
+) -> Result<BTreeMap<String, String>, u8> {
+    let resolved = crate::verbs::skills::resolve_skills(wf);
+    if resolved.findings.is_empty() {
+        return Ok(resolved.texts);
+    }
+    let out = crate::verbs::check::run(file, json, false, None, theme);
+    epilogue::emit_diagnostic(&out.text, output_json);
+    Err(out.code)
+}
+
 /// Execute a CHECKED workflow with the MOCK provider and capture the typed
 /// `outputs:` — the `nika test` seam (F7). The envelope model is replaced
 /// by `mock/echo` through the SAME composition path as `--model` (offline ·
 /// zero key · deterministic + schema-conformant since F3). The fold is a
 /// DIAGNOSTIC here — it goes to stderr (verdict card on failure only), so
-/// the caller owns stdout for its own verdict/diff surface.
+/// the caller owns stdout for its own verdict/diff surface. `skills` =
+/// the composer-resolved SKILL.md texts (#473 · the caller gates their
+/// findings first, same as `run`).
 ///
 /// # Errors
 ///
@@ -676,10 +717,13 @@ fn composed_runtime(
 pub(crate) fn capture_mock_outputs(
     wf: &RawWorkflow,
     report: &CheckReport,
+    skills: BTreeMap<String, String>,
     theme: Theme,
 ) -> Result<(u8, BTreeMap<String, Value>), String> {
     let caps = capabilities_of(wf);
-    let runtime = production_runtime("mock/echo", caps).map_err(|e| e.to_string())?;
+    let runtime = production_runtime("mock/echo", caps)
+        .map_err(|e| e.to_string())?
+        .with_skills(skills);
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -1089,7 +1133,12 @@ fn trace_sink(no_trace_file: bool) -> TraceFileSink {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{RenderMode, RunVerdict, dry_run_payload, example_tip, exit, run, scope_to_task};
+    use std::collections::BTreeMap;
+
+    use super::{
+        RenderMode, RunVerdict, capture_mock_outputs, dry_run_payload, example_tip, exit, run,
+        scope_to_task,
+    };
     use crate::Theme;
     use serde_json::json;
 
@@ -1404,5 +1453,49 @@ mod tests {
             "the cone stands alone (no dangling refs)"
         );
         assert_eq!(sub.tasks.len(), 1);
+    }
+
+    /// #473 e2e (mock · offline): the resolved-skills wiring is
+    /// LOAD-BEARING through the production composition — the same
+    /// skills-carrying agent workflow settles GREEN when the composer's
+    /// map rides `with_skills`, and fails with the check-time code when
+    /// an embedder skips it (the wiring, proven from the CLI seam; the
+    /// injected system BYTES are pinned at the runtime's provider seam).
+    #[test]
+    fn capture_mock_outputs_carries_the_resolved_skills() {
+        let dir = std::env::temp_dir().join(format!("nika-run-skills-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let skill = dir.join("SKILL.md");
+        std::fs::write(&skill, "---\nname: s\ndescription: d\n---\nBe careful.\n")
+            .expect("fixture skill");
+        let yaml = format!(
+            "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: go\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
+            skill.display()
+        );
+        let wf = nika_schema::parse(
+            &yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_schema::check(&wf);
+        assert!(report.is_clean(), "the pure ladder is fs-free");
+
+        let resolved = crate::verbs::skills::resolve_skills(&wf);
+        assert!(resolved.findings.is_empty(), "the skill file resolves");
+        let theme = Theme::new(false, true, false);
+        let (code, _) = capture_mock_outputs(&wf, &report, resolved.texts, theme)
+            .expect("composition succeeds");
+        assert_eq!(code, exit::OK, "skills composed → the mock run is green");
+
+        // The control: WITHOUT the map the dispatch refuses (proves the
+        // seam is load-bearing, not decorative).
+        let (code, _) = capture_mock_outputs(&wf, &report, BTreeMap::new(), theme)
+            .expect("composition still succeeds");
+        assert_eq!(
+            code,
+            exit::WORKFLOW,
+            "no skills map → NIKA-AGENT-003 task failure"
+        );
     }
 }

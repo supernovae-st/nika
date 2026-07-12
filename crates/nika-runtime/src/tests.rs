@@ -745,7 +745,7 @@ tasks:
         )
         .expect("fixture parses");
         let (vars, env, secrets) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
-        let resume_ctx = resume::ResumeContext::of(&wf, &secrets, None);
+        let resume_ctx = resume::ResumeContext::of(&wf, &secrets, None, &BTreeMap::new());
         let scope = crate::recover::ResolveScope {
             wf: &wf,
             vars: &vars,

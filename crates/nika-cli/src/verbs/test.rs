@@ -67,15 +67,24 @@ pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
         print!("{}", out.text);
         return out.code;
     }
+    // ── `skills:` gate (#473) — same voice, same rows as `nika check`;
+    // a golden must pin the run WITH its skills composed, never without.
+    let resolved = crate::verbs::skills::resolve_skills(&wf);
+    if !resolved.findings.is_empty() {
+        let out = crate::verbs::check::run(file, false, false, None, theme);
+        print!("{}", out.text);
+        return out.code;
+    }
 
     // ── The mock run (offline · deterministic) ──────────────────────
-    let (code, outputs) = match super::run::capture_mock_outputs(&wf, &report, theme) {
-        Ok(pair) => pair,
-        Err(message) => {
-            eprintln!("nika test: environment: {message}");
-            return exit::ENV;
-        }
-    };
+    let (code, outputs) =
+        match super::run::capture_mock_outputs(&wf, &report, resolved.texts, theme) {
+            Ok(pair) => pair,
+            Err(message) => {
+                eprintln!("nika test: environment: {message}");
+                return exit::ENV;
+            }
+        };
     if code != exit::OK {
         eprintln!(
             "nika test: the mock run failed (exit {code}) — a golden pins a \

@@ -249,7 +249,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 50
+  count: 52
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -294,6 +294,8 @@ error_codes:
     - { code: NIKA-INVOKE-002, category: validation_error, transient: "false", failure: "tool args failed the tool's schema" }
     - { code: NIKA-AGENT-001, category: budget_error, transient: "false", failure: "max_turns exhausted before completion" }
     - { code: NIKA-AGENT-002, category: budget_error, transient: "false", failure: "max_tokens_total exhausted before completion" }
+    - { code: NIKA-AGENT-003, category: validation_error, transient: "false", failure: "a skills: path does not resolve (file missing/unreadable at compose time)" }
+    - { code: NIKA-AGENT-004, category: validation_error, transient: "false", failure: "a skills: file is not a valid Agent Skill (frontmatter shape · missing/empty name/description)" }
     - { code: NIKA-MCP-001, category: tool_error, transient: "engine-assessed", failure: "MCP server not configured / not reachable at call time" }
     - { code: NIKA-MCP-002, category: tool_error, transient: "engine-assessed", failure: "MCP tool call failed (transport · tool-side error)" }
     - { code: NIKA-SEC-001, category: security_error, transient: "false", failure: "exec: blocklist hit" }

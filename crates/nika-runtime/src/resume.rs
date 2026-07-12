@@ -264,16 +264,23 @@ pub(crate) struct ResumeContext {
     /// swapping the envelope model and resuming used to serve the OLD
     /// model's cached output as a hit).
     default_model: Option<String>,
+    /// The composer-resolved Agent Skills (`skills:` path → SKILL.md raw
+    /// text). A referencing task's DEFINITION identity covers the TEXT,
+    /// not just the path (spec 02 §agent skills · the same ADR-099 law
+    /// as an edited prompt: a changed skill re-runs the task).
+    skills: BTreeMap<String, String>,
 }
 
 impl ResumeContext {
     /// Build the context from the workflow's declared `secrets:` block +
     /// the run's resolved values + the composer's `--model` override
-    /// (the effective default model falls back to the envelope's).
+    /// (the effective default model falls back to the envelope's) + the
+    /// composer-resolved skill texts.
     pub(crate) fn of(
         wf: &RawWorkflow,
         resolved: &BTreeMap<String, Value>,
         model_override: Option<&str>,
+        skills: &BTreeMap<String, String>,
     ) -> Self {
         let markers = wf
             .secrets
@@ -301,6 +308,7 @@ impl ResumeContext {
             markers,
             secret_values,
             default_model,
+            skills: skills.clone(),
         }
     }
 
@@ -339,6 +347,23 @@ pub(crate) fn stamp(
     {
         obj.insert("default_model".to_owned(), json!(model));
     }
+    // #473 · an agent task's `skills:` TEXTS join its definition identity
+    // (spec 02 §agent skills · the same law as an edited prompt): editing
+    // a SKILL.md re-runs every task that carries it — the paths alone
+    // (already in the definition) would cache-hit a stale injection. A
+    // referenced path the composer did not resolve makes the task
+    // non-eligible (records no key · never skips) — the honest degrade.
+    let paths = skill_paths(task);
+    if !paths.is_empty() {
+        let mut contents = serde_json::Map::new();
+        for path in paths {
+            let text = ctx.skills.get(path)?;
+            contents.insert(path.to_owned(), json!(text));
+        }
+        definition
+            .as_object_mut()?
+            .insert("skills_content".to_owned(), Value::Object(contents));
+    }
     let inputs = input_value(task, records, vars, env, &ctx.markers)?;
     let key = ResumeKey::new(
         task.id.value.clone(),
@@ -373,6 +398,23 @@ fn reads_default_model(task: &RawTask) -> bool {
             .on_finally
             .iter()
             .any(|mini| action_reads(&mini.value.action))
+}
+
+/// Every `skills:` path this task carries (the main verb + every
+/// `on_finally` mini) — declaration order · duplicates deduped by the
+/// map they land in. The per-task twin of `nika_schema::skill_refs`.
+fn skill_paths(task: &RawTask) -> Vec<&str> {
+    fn of(action: &RawAction) -> Vec<&str> {
+        match action {
+            RawAction::Agent(a) => a.skills.iter().map(|s| s.value.as_str()).collect(),
+            _ => Vec::new(),
+        }
+    }
+    let mut out = of(&task.action);
+    for mini in &task.on_finally {
+        out.extend(of(&mini.value.action));
+    }
+    out
 }
 
 // ─── the definition payload (raw · behavior-bearing fields as written) ──
@@ -664,6 +706,9 @@ fn agent_value(a: &RawAgentAction, scope: Option<&Scope<'_>>) -> Option<Value> {
         "system": opt_text(a.system.as_ref(), scope)?,
         "model": opt_text(a.model.as_ref(), scope)?,
         "tools": a.tools.iter().map(|t| t.value.clone()).collect::<Vec<_>>(),
+        // Static paths (never templated · parser-enforced) — the TEXTS
+        // ride the definition separately (`skills_content` · stamp()).
+        "skills": a.skills.iter().map(|s| s.value.clone()).collect::<Vec<_>>(),
         "max_turns": a.max_turns.as_ref().map(|m| m.value),
         "max_tokens_total": a.max_tokens_total.as_ref().map(|m| m.value),
         "temperature": a.temperature.as_ref().map(|t| t.value.to_string()),
@@ -691,6 +736,7 @@ mod tests {
             markers: BTreeMap::new(),
             secret_values: Vec::new(),
             default_model: None,
+            skills: BTreeMap::new(),
         }
     }
 
@@ -776,11 +822,13 @@ mod tests {
             &wf,
             &BTreeMap::from([("tok".to_owned(), json!("secret-value-1"))]),
             None,
+            &BTreeMap::new(),
         );
         let ctx_v2 = ResumeContext::of(
             &wf,
             &BTreeMap::from([("tok".to_owned(), json!("secret-value-2"))]),
             None,
+            &BTreeMap::new(),
         );
         let a = stamp(
             &wf.tasks[0].value,
@@ -807,6 +855,7 @@ mod tests {
             &wf2,
             &BTreeMap::from([("tok".to_owned(), json!("secret-value-1"))]),
             None,
+            &BTreeMap::new(),
         );
         let c = stamp(
             &wf2.tasks[0].value,
@@ -835,7 +884,7 @@ mod tests {
         let env = BTreeMap::new();
         let stamp_with = |yaml: &str, over: Option<&str>| {
             let wf = parse(yaml);
-            let ctx = ResumeContext::of(&wf, &BTreeMap::new(), over);
+            let ctx = ResumeContext::of(&wf, &BTreeMap::new(), over, &BTreeMap::new());
             stamp(&wf.tasks[0].value, &records, &vars, &env, &ctx).expect("eligible")
         };
 
@@ -878,6 +927,64 @@ mod tests {
         assert_eq!(e1.def_hash, e2.def_hash, "exec ignores the model line");
     }
 
+    /// #473 · an agent task's `skills:` participate in its DEFINITION
+    /// identity by TEXT (spec 02 §agent skills · the ADR-099 law): an
+    /// edited SKILL.md re-runs the task; the same text is stable; a
+    /// different PATH with the same text re-keys (the path list is part
+    /// of the verb body as written).
+    #[test]
+    fn skill_edit_rekeys_the_agent_definition() {
+        const WITH_SKILL: &str = "nika: v1\nworkflow: t\nmodel: mock/echo\ntasks:\n  - id: go\n    agent: { prompt: \"hi\", skills: [\"s/SKILL.md\"] }\n";
+        // The skill-less control (items live at scope top · lint law).
+        const PLAIN: &str = "nika: v1\nworkflow: t\nmodel: mock/echo\ntasks:\n  - id: go\n    agent: { prompt: \"hi\" }\n";
+        let records = BTreeMap::new();
+        let vars = BTreeMap::new();
+        let env = BTreeMap::new();
+        let stamp_with = |yaml: &str, skills: &BTreeMap<String, String>| {
+            let wf = parse(yaml);
+            let ctx = ResumeContext::of(&wf, &BTreeMap::new(), None, skills);
+            stamp(&wf.tasks[0].value, &records, &vars, &env, &ctx)
+        };
+        let v1 = BTreeMap::from([(
+            "s/SKILL.md".to_owned(),
+            "---\nname: s\ndescription: d\n---\nv1 body\n".to_owned(),
+        )]);
+        let v2 = BTreeMap::from([(
+            "s/SKILL.md".to_owned(),
+            "---\nname: s\ndescription: d\n---\nv2 body\n".to_owned(),
+        )]);
+
+        let a = stamp_with(WITH_SKILL, &v1).expect("eligible");
+        let b = stamp_with(WITH_SKILL, &v2).expect("eligible");
+        assert_ne!(a.def_hash, b.def_hash, "an edited skill re-runs the task");
+
+        // Same text → stable (no churn).
+        let a2 = stamp_with(WITH_SKILL, &v1).expect("eligible");
+        assert_eq!(a, a2, "unchanged skill text → same stamp");
+
+        // A different path carrying the SAME text still re-keys (the
+        // path list is the verb body as written · ADR-099 §1).
+        let repathed = WITH_SKILL.replace("s/SKILL.md", "other/SKILL.md");
+        let moved = BTreeMap::from([(
+            "other/SKILL.md".to_owned(),
+            "---\nname: s\ndescription: d\n---\nv1 body\n".to_owned(),
+        )]);
+        let c = stamp_with(&repathed, &moved).expect("eligible");
+        assert_ne!(a.def_hash, c.def_hash, "the path is part of the body");
+
+        // A referenced skill the composer did not resolve → NOT eligible
+        // (records no key · never skips · the honest degrade).
+        assert!(
+            stamp_with(WITH_SKILL, &BTreeMap::new()).is_none(),
+            "unresolved skill text → no resume claim"
+        );
+
+        // A skill-less agent ignores the map entirely (control).
+        let p1 = stamp_with(PLAIN, &v1).expect("eligible");
+        let p2 = stamp_with(PLAIN, &BTreeMap::new()).expect("eligible");
+        assert_eq!(p1, p2, "no skills: → the map never participates");
+    }
+
     /// A resolved secret value that leaked into the rendered inputs via
     /// an UPSTREAM record disqualifies the stamp — the trace never
     /// carries secret-derived material, not even inside a hash.
@@ -889,6 +996,7 @@ mod tests {
             &wf,
             &BTreeMap::from([("tok".to_owned(), json!("hunter2-secret"))]),
             None,
+            &BTreeMap::new(),
         );
         let vars = BTreeMap::new();
         let leaked = BTreeMap::from([(
@@ -1080,7 +1188,7 @@ mod trace_carry_tests {
 
         // Recompute the stamp from the same coordinates — it matches the
         // journaled fields (the skip predicate `--resume` evaluates).
-        let ctx = super::ResumeContext::of(&wf, &BTreeMap::new(), None);
+        let ctx = super::ResumeContext::of(&wf, &BTreeMap::new(), None, &BTreeMap::new());
         let stamp = super::stamp(
             &wf.tasks[0].value,
             &BTreeMap::new(),
