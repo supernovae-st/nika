@@ -98,6 +98,7 @@ pub fn nika_cli::verbs::context::run(json: bool, theme: nika_display::theme::The
 pub mod nika_cli::verbs::doctor
 pub fn nika_cli::verbs::doctor::run(ping: bool, json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::examples
+pub fn nika_cli::verbs::examples::copy(slug: &str, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::examples::list(theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::examples::show(slug: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::exit
@@ -384,7 +385,7 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::init::CanvasTheme
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::init::CanvasTheme
 impl<T> typenum::type_operators::Same for nika_cli::verbs::init::CanvasTheme
 pub type nika_cli::verbs::init::CanvasTheme::Output = T
-pub fn nika_cli::verbs::init::run(dir: &str, force: bool, yes: bool, recipe: core::option::Option<&str>, canvas: core::option::Option<nika_cli::verbs::init::CanvasTheme>, wires: &[nika_cli::verbs::wire::WireTarget], theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::init::run(dir: &str, force: bool, yes: bool, recipe: core::option::Option<&str>, example: core::option::Option<&str>, canvas: core::option::Option<nika_cli::verbs::init::CanvasTheme>, wires: &[nika_cli::verbs::wire::WireTarget], theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::inspect
 pub fn nika_cli::verbs::inspect::run(path: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::model

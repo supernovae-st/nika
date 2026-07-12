@@ -59,7 +59,7 @@ impl<T> outref::AsOut<T> for nika_onboard::founding::CanvasTheme where T: core::
 pub fn nika_onboard::founding::CanvasTheme::as_out(&mut self) -> outref::Out<'_, T>
 pub const nika_onboard::founding::RECIPE_NAMES: [&str; 5]
 pub fn nika_onboard::founding::agents_md() -> &'static str
-pub fn nika_onboard::founding::scripted_run(dir: &str, force: bool, recipe: core::option::Option<&str>, canvas: core::option::Option<nika_onboard::founding::CanvasTheme>, wires: &[&str], audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome
+pub fn nika_onboard::founding::scripted_run(dir: &str, force: bool, recipe: core::option::Option<&str>, example: core::option::Option<&str>, canvas: core::option::Option<nika_onboard::founding::CanvasTheme>, wires: &[&str], audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome
 pub mod nika_onboard::guided
 pub fn nika_onboard::guided::dispatch(from: core::option::Option<&str>, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme, audit: &nika_onboard::Audit<'_>) -> nika_onboard::Outcome
 pub fn nika_onboard::guided::run(template: &str, dest: core::option::Option<&str>, force: bool) -> nika_onboard::Outcome
