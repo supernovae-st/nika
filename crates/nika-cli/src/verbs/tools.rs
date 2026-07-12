@@ -32,6 +32,24 @@ pub fn run(json: bool, theme: Theme) -> VerbOutput {
     VerbOutput::ok(human_listing(&payload, theme))
 }
 
+/// The one-line teaching cut — split on ` · ` OUTSIDE parentheses (a
+/// separator inside a paren is prose, and cutting there strands an open
+/// bracket mid-air), honest `…` when anything was dropped.
+fn teaching_cut(desc: &str) -> String {
+    let mut depth = 0usize;
+    for (i, c) in desc.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ' ' if depth == 0 && desc[i..].starts_with(" \u{b7} ") => {
+                return format!("{}\u{2026}", desc[..i].trim_end());
+            }
+            _ => {}
+        }
+    }
+    desc.to_owned()
+}
+
 /// The human listing — one rail section per category, spec order; the
 /// tool names Strong (they are what you type), the teaching cut dim.
 fn human_listing(payload: &serde_json::Value, theme: Theme) -> String {
@@ -51,8 +69,7 @@ fn human_listing(payload: &serde_json::Value, theme: Theme) -> String {
         for tool in tools.iter().filter(|t| t["category"] == category) {
             let name = tool["name"].as_str().unwrap_or("?");
             let desc = tool["description"].as_str().unwrap_or("");
-            // The one-line teaching cut: descriptions use ` · ` separators.
-            let first = desc.split(" · ").next().unwrap_or(desc);
+            let first = teaching_cut(desc);
             let _ = writeln!(
                 out,
                 "{}",
@@ -60,8 +77,8 @@ fn human_listing(payload: &serde_json::Value, theme: Theme) -> String {
                     theme,
                     &format!(
                         " {}  {}",
-                        theme.paint(Role::Strong, &format!("{name:<22}")),
-                        theme.paint(Role::Dim, first)
+                        theme.paint(Role::Strong, &format!("{name:<24}")),
+                        theme.paint(Role::Dim, &first)
                     ),
                 )
             );

@@ -435,7 +435,17 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
                 "— the source, then the run"
             ),
         );
+        // Trim the machine boilerplate (SPDX · schema modeline · their
+        // trailing blank) — the lesson starts at the title comment.
+        let mut started = false;
         for line in yaml.lines() {
+            let t = line.trim_start_matches(['#', ' ']);
+            if !started
+                && (t.starts_with("SPDX") || t.starts_with("yaml-language-server") || t.is_empty())
+            {
+                continue;
+            }
+            started = true;
             println!(
                 "  {} {line}",
                 theme.paint(crate::display::theme::Role::Dim, "│")

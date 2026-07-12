@@ -97,6 +97,9 @@ pub mod nika_cli::verbs::context
 pub fn nika_cli::verbs::context::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::doctor
 pub fn nika_cli::verbs::doctor::run(ping: bool, json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub mod nika_cli::verbs::examples
+pub fn nika_cli::verbs::examples::list(theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::examples::show(slug: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::exit
 pub const nika_cli::verbs::exit::ENV: u8
 pub const nika_cli::verbs::exit::FILE: u8
@@ -314,14 +317,76 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::graph::Node
 impl<T> typenum::type_operators::Same for nika_cli::verbs::graph::Node
 pub type nika_cli::verbs::graph::Node::Output = T
 pub fn nika_cli::verbs::graph::project(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_schema::check::CheckReport) -> nika_cli::verbs::graph::GraphDoc
-pub fn nika_cli::verbs::graph::run(path: &str, format: nika_cli::verbs::graph::GraphFormat) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::graph::run(path: &str, format: nika_cli::verbs::graph::GraphFormat, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::graph::to_dot(doc: &nika_cli::verbs::graph::GraphDoc) -> alloc::string::String
 pub fn nika_cli::verbs::graph::to_mermaid(doc: &nika_cli::verbs::graph::GraphDoc) -> alloc::string::String
 pub mod nika_cli::verbs::init
-pub fn nika_cli::verbs::init::agents_md() -> &'static str
-pub fn nika_cli::verbs::init::run(dir: &str, force: bool, yes: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
+pub use nika_cli::verbs::init::RECIPE_NAMES
+pub use nika_cli::verbs::init::agents_md
+pub enum nika_cli::verbs::init::CanvasTheme
+pub nika_cli::verbs::init::CanvasTheme::Auto
+pub nika_cli::verbs::init::CanvasTheme::Editor
+pub nika_cli::verbs::init::CanvasTheme::Nika
+pub nika_cli::verbs::init::CanvasTheme::Phosphor
+impl clap_builder::derive::ValueEnum for nika_cli::verbs::init::CanvasTheme
+pub fn nika_cli::verbs::init::CanvasTheme::to_possible_value<'a>(&self) -> core::option::Option<clap_builder::builder::possible_value::PossibleValue>
+pub fn nika_cli::verbs::init::CanvasTheme::value_variants<'a>() -> &'a [Self]
+impl core::clone::Clone for nika_cli::verbs::init::CanvasTheme
+pub fn nika_cli::verbs::init::CanvasTheme::clone(&self) -> nika_cli::verbs::init::CanvasTheme
+impl core::cmp::Eq for nika_cli::verbs::init::CanvasTheme
+impl core::cmp::PartialEq for nika_cli::verbs::init::CanvasTheme
+pub fn nika_cli::verbs::init::CanvasTheme::eq(&self, other: &nika_cli::verbs::init::CanvasTheme) -> bool
+impl core::convert::From<nika_cli::verbs::init::CanvasTheme> for nika_onboard::founding::CanvasTheme
+pub fn nika_onboard::founding::CanvasTheme::from(c: nika_cli::verbs::init::CanvasTheme) -> Self
+impl core::fmt::Debug for nika_cli::verbs::init::CanvasTheme
+pub fn nika_cli::verbs::init::CanvasTheme::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli::verbs::init::CanvasTheme
+impl core::marker::StructuralPartialEq for nika_cli::verbs::init::CanvasTheme
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::init::CanvasTheme
+impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::init::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::verbs::init::CanvasTheme::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::init::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::init::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli::verbs::init::CanvasTheme::equivalent(&self, key: &K) -> bool
+pub fn nika_cli::verbs::init::CanvasTheme::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::init::CanvasTheme where U: core::convert::From<T>
+pub fn nika_cli::verbs::init::CanvasTheme::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::init::CanvasTheme where U: core::convert::Into<T>
+pub type nika_cli::verbs::init::CanvasTheme::Error = core::convert::Infallible
+pub fn nika_cli::verbs::init::CanvasTheme::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::init::CanvasTheme where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::init::CanvasTheme::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::init::CanvasTheme::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::verbs::init::CanvasTheme where T: core::clone::Clone
+pub type nika_cli::verbs::init::CanvasTheme::Owned = T
+pub fn nika_cli::verbs::init::CanvasTheme::clone_into(&self, target: &mut T)
+pub fn nika_cli::verbs::init::CanvasTheme::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::verbs::init::CanvasTheme where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::init::CanvasTheme::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::init::CanvasTheme where T: ?core::marker::Sized
+pub fn nika_cli::verbs::init::CanvasTheme::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::init::CanvasTheme where T: ?core::marker::Sized
+pub fn nika_cli::verbs::init::CanvasTheme::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::verbs::init::CanvasTheme where T: core::clone::Clone
+pub unsafe fn nika_cli::verbs::init::CanvasTheme::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::verbs::init::CanvasTheme
+pub fn nika_cli::verbs::init::CanvasTheme::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::verbs::init::CanvasTheme where T: core::clone::Clone
+pub fn nika_cli::verbs::init::CanvasTheme::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::init::CanvasTheme where T: 'static
+pub fn nika_cli::verbs::init::CanvasTheme::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli::verbs::init::CanvasTheme where T: core::marker::Copy
+pub fn nika_cli::verbs::init::CanvasTheme::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::init::CanvasTheme where T: ?core::marker::Sized
+pub fn nika_cli::verbs::init::CanvasTheme::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::init::CanvasTheme::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::init::CanvasTheme
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::init::CanvasTheme
+impl<T> typenum::type_operators::Same for nika_cli::verbs::init::CanvasTheme
+pub type nika_cli::verbs::init::CanvasTheme::Output = T
+pub fn nika_cli::verbs::init::run(dir: &str, force: bool, yes: bool, recipe: core::option::Option<&str>, canvas: core::option::Option<nika_cli::verbs::init::CanvasTheme>, wires: &[nika_cli::verbs::wire::WireTarget], theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::inspect
-pub fn nika_cli::verbs::inspect::run(path: &str, ascii: bool) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::inspect::run(path: &str, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::model
 pub const nika_cli::verbs::model::DEFAULT_PORT: u16
 pub fn nika_cli::verbs::model::serve(gguf: &std::path::Path, tokenizer: core::option::Option<&std::path::Path>, port: u16, model_id: core::option::Option<&str>) -> nika_cli::verbs::VerbOutput
@@ -329,8 +394,6 @@ pub mod nika_cli::verbs::new
 pub fn nika_cli::verbs::new::dispatch(from: core::option::Option<&str>, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::new::run(template: &str, dest: core::option::Option<&str>, force: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::pack_surface
-pub fn nika_cli::verbs::pack_surface::examples_list() -> nika_cli::verbs::VerbOutput
-pub fn nika_cli::verbs::pack_surface::examples_show(slug: &str) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::pack_surface::schema() -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::pack_surface::spec(canon: bool) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::run
@@ -575,7 +638,7 @@ pub type nika_cli::verbs::run::ProdRuntime = nika_runtime::Runtime<nika_exec_run
 pub mod nika_cli::verbs::test
 pub fn nika_cli::verbs::test::run(file: &str, update: bool, theme: nika_display::theme::Theme) -> u8
 pub mod nika_cli::verbs::tools
-pub fn nika_cli::verbs::tools::run(json: bool) -> nika_cli::verbs::VerbOutput
+pub fn nika_cli::verbs::tools::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::trace
 pub mod nika_cli::verbs::trace::manage
 pub enum nika_cli::verbs::trace::manage::RmTarget

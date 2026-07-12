@@ -49,18 +49,18 @@ use nika_event::Event;
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
     /// `CLICOLOR_FORCE` · `NO_COLOR` · `CLICOLOR=0` in that order).
-    #[arg(long, global = true, value_enum, default_value_t = ColorWhenArg::Auto)]
+    #[arg(long, global = true, value_enum, default_value_t = ColorWhenArg::Auto, display_order = 900)]
     color: ColorWhenArg,
     /// When to emit OSC-8 hyperlinks on printed paths (auto = TTY +
     /// `TERM != dumb` · never to pipes; always = force them, for pagers
     /// that pass escapes — tmux/screen may render them as plain text).
-    #[arg(long, global = true, value_enum, default_value_t = LinkWhenArg::Auto)]
+    #[arg(long, global = true, value_enum, default_value_t = LinkWhenArg::Auto, display_order = 901)]
     hyperlink: LinkWhenArg,
     /// The sober umbrella — one flag for scripts, CI and transcripts:
     /// colour off · ASCII glyphs · hyperlinks off · no animation (`run`
     /// renders its plain storyboard). The same result as `--color never
     /// --hyperlink never` plus every verb's `--ascii`/`--no-progress`.
-    #[arg(long, global = true)]
+    #[arg(long, global = true, display_order = 902)]
     plain: bool,
     #[command(subcommand)]
     command: Command,

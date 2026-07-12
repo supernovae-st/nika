@@ -168,7 +168,7 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
 fn unknown(template: &str) -> Outcome {
     Outcome {
         text: format!(
-            "unknown template `{template}` — embedded set: {}",
+            "no template or intent matches `{template}` — embedded set: {}\n  hint: name one, or describe the job with its verbs (fetch · summarize · parallel · approve…)",
             nika_pack::template_names().join(" · ")
         ),
         code: codes::FILE,

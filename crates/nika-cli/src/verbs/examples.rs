@@ -57,12 +57,19 @@ fn title_of(slug: &str, body: &str) -> String {
         .and_then(|s| s.split('-').next())
         .unwrap_or_default();
     let mut saw_tier_line = false;
+    let mut pitch = String::new();
     for line in body.lines().take(12) {
         let Some(comment) = line.strip_prefix('#') else {
             break; // the header block ended — YAML begins
         };
         let text = comment.trim();
-        if text.is_empty() || text.starts_with("SPDX") || text.starts_with("yaml-language-server") {
+        if text.starts_with("SPDX") || text.starts_with("yaml-language-server") {
+            continue;
+        }
+        if text.is_empty() {
+            if saw_tier_line && !pitch.is_empty() {
+                break; // the pitch paragraph ended
+            }
             continue;
         }
         // Foundation: `01 · Hello world — …` (starts with its number).
@@ -70,17 +77,31 @@ fn title_of(slug: &str, body: &str) -> String {
             return rest.trim_start_matches([' ', '·']).trim().to_owned();
         }
         // Showcase: the tier line first (`showcase · T1 starter · …`),
-        // then the pitch line right under it.
+        // then the pitch — which may WRAP across comment lines; join
+        // until the header's next beat (a blank comment ends the pitch).
         if text.starts_with("showcase") {
             saw_tier_line = true;
             continue;
         }
         if saw_tier_line {
-            return text.trim_end_matches('.').to_owned();
+            pitch.push_str(text);
+            pitch.push(' ');
+            continue;
         }
         break;
     }
-    String::new()
+    pitch.trim().trim_end_matches('.').to_owned()
+}
+
+/// Clip a title to `max` chars on a WORD boundary with the honest
+/// ellipsis — a pitch cut mid-clause reads like a bug, not a teaser.
+fn clip_title(title: &str, max: usize) -> String {
+    if title.chars().count() <= max {
+        return title.to_owned();
+    }
+    let cut: String = title.chars().take(max).collect();
+    let head = cut.rsplit_once(' ').map_or(cut.as_str(), |(h, _)| h);
+    format!("{}…", head.trim_end_matches(['·', ',', ' ']))
 }
 
 /// The verbs a workflow's tasks use — a line scan for the 4 locked verb
@@ -152,7 +173,7 @@ pub fn list(theme: Theme) -> VerbOutput {
                     " {}{pad}  {}{}",
                     theme.paint(Role::Strong, &m.file),
                     chips(&m.verbs, theme),
-                    theme.paint(Role::Dim, &m.title),
+                    theme.paint(Role::Dim, &clip_title(&m.title, 58)),
                 ),
             )
         );
@@ -170,21 +191,27 @@ pub fn list(theme: Theme) -> VerbOutput {
             continue;
         }
         let _ = writeln!(text, "{}", chrome::rail_head(theme, label));
+        let tier_width = members
+            .iter()
+            .map(|s| s.chars().count() + ".nika.yaml".len())
+            .max()
+            .unwrap_or(0);
         for slug in members {
             let Some(body) = nika_pack::example(slug) else {
                 continue;
             };
             let m = meta(slug, body);
+            let pad = " ".repeat(tier_width.saturating_sub(m.file.chars().count()));
             let _ = writeln!(
                 text,
                 "{}",
                 chrome::rail_line(
                     theme,
                     &format!(
-                        " {}  {}{}",
+                        " {}{pad}  {}{}",
                         theme.paint(Role::Strong, &m.file),
                         chips(&m.verbs, theme),
-                        theme.paint(Role::Dim, &m.title),
+                        theme.paint(Role::Dim, &clip_title(&m.title, 46)),
                     ),
                 )
             );
@@ -216,12 +243,16 @@ pub fn show(slug: &str, theme: Theme) -> VerbOutput {
         format!(" · {}", m.verbs.join(" · "))
     };
     let header = format!(
-        "{} {} {}",
+        "{} {}\n  {}",
         theme.logo(),
         theme.paint(Role::Strong, &m.file),
         theme.paint(
             Role::Dim,
-            &format!("— {} · {} task(s){verbs_said}", m.title, m.tasks)
+            &format!(
+                "{} · {} task(s){verbs_said}",
+                clip_title(&m.title, 72),
+                m.tasks
+            )
         ),
     );
     let run_hint = crate::display::vocab::hint(

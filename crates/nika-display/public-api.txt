@@ -1,4 +1,14 @@
 pub mod nika_display
+pub mod nika_display::chrome
+pub const nika_display::chrome::PULSE: [char; 3]
+pub fn nika_display::chrome::banner(theme: nika_display::theme::Theme, title: &str, tagline: &str, version: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::chrome::bar(theme: nika_display::theme::Theme, done: usize, total: usize, width: usize) -> alloc::string::String
+pub fn nika_display::chrome::panel(theme: nika_display::theme::Theme, title: &str, lines: &[(alloc::string::String, nika_display::theme::Role)]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::chrome::pulse(theme: nika_display::theme::Theme, tick: usize) -> alloc::string::String
+pub fn nika_display::chrome::rail_close(theme: nika_display::theme::Theme, text: &str) -> alloc::string::String
+pub fn nika_display::chrome::rail_head(theme: nika_display::theme::Theme, label: &str) -> alloc::string::String
+pub fn nika_display::chrome::rail_line(theme: nika_display::theme::Theme, text: &str) -> alloc::string::String
+pub fn nika_display::chrome::rail_pick(theme: nika_display::theme::Theme, n: usize, label: &str, note: &str) -> alloc::string::String
 pub mod nika_display::demo
 pub fn nika_display::demo::bare_event(kind: nika_event::kind::EventKind, ms: u64) -> nika_event::event::Event
 pub fn nika_display::demo::failure() -> alloc::vec::Vec<nika_event::event::Event>
@@ -372,7 +382,13 @@ pub nika_display::theme::Role::Bad
 pub nika_display::theme::Role::Dim
 pub nika_display::theme::Role::Good
 pub nika_display::theme::Role::Strong
+pub nika_display::theme::Role::VerbAgent
+pub nika_display::theme::Role::VerbExec
+pub nika_display::theme::Role::VerbInfer
+pub nika_display::theme::Role::VerbInvoke
 pub nika_display::theme::Role::Warn
+impl nika_display::theme::Role
+pub fn nika_display::theme::Role::for_verb(verb: &str) -> core::option::Option<Self>
 impl core::clone::Clone for nika_display::theme::Role
 pub fn nika_display::theme::Role::clone(&self) -> nika_display::theme::Role
 impl core::cmp::Eq for nika_display::theme::Role
@@ -432,6 +448,7 @@ pub fn nika_display::theme::Theme::logo(&self) -> &'static str
 pub const fn nika_display::theme::Theme::new(color: bool, ascii: bool, animate: bool) -> Self
 pub fn nika_display::theme::Theme::paint(&self, role: nika_display::theme::Role, text: &str) -> alloc::string::String
 pub fn nika_display::theme::Theme::sparkline(&self, samples: &[u64]) -> alloc::string::String
+pub fn nika_display::theme::Theme::verb_glyph(&self, verb: &str) -> alloc::string::String
 impl core::clone::Clone for nika_display::theme::Theme
 pub fn nika_display::theme::Theme::clone(&self) -> nika_display::theme::Theme
 impl core::fmt::Debug for nika_display::theme::Theme
