@@ -351,14 +351,25 @@ fn rel_to(dir: &str, path: &str) -> String {
         .map_or_else(|_| path.to_owned(), |p| p.to_string_lossy().into_owned())
 }
 
-/// Create any missing parent dirs, then write the file.
+/// Create any missing parent dirs, then write the file. Shell scripts
+/// (the scaffolded hooks) get the exec bit on unix — Cursor spawns them
+/// directly; on Windows bash hooks fail open anyway, so nothing to set.
 fn write_file(path: &str, body: &str) -> std::io::Result<()> {
     if let Some(parent) = Path::new(path).parent()
         && !parent.as_os_str().is_empty()
     {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(path, body)
+    std::fs::write(path, body)?;
+    #[cfg(unix)]
+    if std::path::Path::new(path)
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("sh"))
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -526,7 +537,7 @@ mod tests {
     #[test]
     fn plan_creates_both_when_nothing_exists() {
         let p = plan(".", &|_| false, false);
-        assert_eq!(p.len(), 7);
+        assert_eq!(p.len(), 15);
         assert!(p.iter().all(|a| matches!(a, Action::Create { .. })));
         // Schema wiring + agent guide + per-client briefs are the targets.
         let paths: Vec<&str> = p

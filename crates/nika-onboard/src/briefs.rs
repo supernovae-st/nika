@@ -196,6 +196,68 @@ const AGENT_SKILL: &str = include_str!(concat!(
     "/../../.agents/plugins/nika/skills/nika-authoring/SKILL.md"
 ));
 
+/// `.cursor/agents/nika-*.md` — the three kit subagents, project-side.
+/// Cursor's LOCAL plugin loader consumes MCP + skills ONLY (agents in a
+/// local plugin manifest are ignored; the marketplace path processes the
+/// full manifest but is submission-gated) — so the binary carries them
+/// into the repo, where Cursor's project discovery (`.cursor/agents/`)
+/// DOES read them. `include_str!` from the kit: one source, byte parity
+/// by construction (the `AGENT_SKILL` precedent).
+const CURSOR_AGENT_AUTHOR: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/agents/nika-author.md"
+));
+const CURSOR_AGENT_DEBUGGER: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/agents/nika-debugger.md"
+));
+const CURSOR_AGENT_MIGRATOR: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/agents/nika-migrator.md"
+));
+
+/// `.cursor/rules/nika-delegation.mdc` — WHEN to hand a job to which
+/// subagent (the kit's delegation rule, same one-source law).
+const CURSOR_DELEGATION: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/rules/nika-delegation.mdc"
+));
+
+/// `.cursor/hooks-nika/*.sh` — the three seatbelts, verbatim from the
+/// kit. The scripts sniff their dialect from stdin and self-silence
+/// outside nika contexts, so carrying them project-side is safe by the
+/// same proof that ships them in the plugin.
+const HOOK_SESSION_CONTEXT: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/scripts/session-context.sh"
+));
+const HOOK_CHECK_ON_EDIT: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/scripts/check-on-edit.sh"
+));
+const HOOK_GUARD_RUN: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/scripts/guard-run.sh"
+));
+
+/// `.cursor/hooks.json` — the project-level hook wiring. Commands point
+/// at the scripts the SAME scaffold writes (project-relative), never at
+/// a plugin root; a parity test walks each command back to `targets()`.
+const CURSOR_HOOKS_JSON: &str = r#"{
+  "hooks": {
+    "sessionStart": [
+      { "command": "./.cursor/hooks-nika/session-context.sh" }
+    ],
+    "afterFileEdit": [
+      { "command": "./.cursor/hooks-nika/check-on-edit.sh" }
+    ],
+    "beforeShellExecution": [
+      { "command": "./.cursor/hooks-nika/guard-run.sh" }
+    ]
+  }
+}
+"#;
+
 /// The scaffolded agent guide, exposed for the bin-side parity test —
 /// a verb the binary ships and the guide never names is a verb a wired
 /// agent will never reach (found stale 2026-07-05: the scaffold taught
@@ -208,12 +270,23 @@ pub fn agents_md() -> &'static str {
 
 /// The scaffold set · (relative path, body). The ONE source of what `init`
 /// writes — `plan` and the docs both read it.
-pub(super) fn targets() -> [(&'static str, &'static str); 7] {
+pub(super) fn targets() -> [(&'static str, &'static str); 15] {
     [
         (".vscode/settings.json", VSCODE_SETTINGS),
         ("AGENTS.md", AGENTS_MD),
         (".cursor/rules/nika.mdc", CURSOR_RULES),
+        (".cursor/rules/nika-delegation.mdc", CURSOR_DELEGATION),
         (".cursor/mcp.json", CURSOR_MCP),
+        (".cursor/agents/nika-author.md", CURSOR_AGENT_AUTHOR),
+        (".cursor/agents/nika-debugger.md", CURSOR_AGENT_DEBUGGER),
+        (".cursor/agents/nika-migrator.md", CURSOR_AGENT_MIGRATOR),
+        (".cursor/hooks.json", CURSOR_HOOKS_JSON),
+        (
+            ".cursor/hooks-nika/session-context.sh",
+            HOOK_SESSION_CONTEXT,
+        ),
+        (".cursor/hooks-nika/check-on-edit.sh", HOOK_CHECK_ON_EDIT),
+        (".cursor/hooks-nika/guard-run.sh", HOOK_GUARD_RUN),
         (".agents/skills/nika-authoring/SKILL.md", AGENT_SKILL),
         (".github/copilot-instructions.md", COPILOT_INSTRUCTIONS),
         ("CLAUDE.md", CLAUDE_MD),
@@ -362,23 +435,75 @@ mod tests {
         }
     }
 
-    /// The scaffold table stays complete — six briefs, every family
-    /// present (schema wiring · contract · per-client briefs · skill).
+    /// The scaffold table stays complete — every family present (schema
+    /// wiring · contract · per-client briefs · skill · Cursor project
+    /// equipment: subagents + delegation + the three seatbelts).
     #[test]
     fn targets_names_every_brief_family() {
         let t = targets();
-        assert_eq!(t.len(), 7);
+        assert_eq!(t.len(), 15);
         let paths: Vec<&str> = t.iter().map(|(p, _)| *p).collect();
         for expected in [
             ".vscode/settings.json",
             "AGENTS.md",
             ".cursor/rules/nika.mdc",
+            ".cursor/rules/nika-delegation.mdc",
             ".cursor/mcp.json",
+            ".cursor/agents/nika-author.md",
+            ".cursor/agents/nika-debugger.md",
+            ".cursor/agents/nika-migrator.md",
+            ".cursor/hooks.json",
+            ".cursor/hooks-nika/session-context.sh",
+            ".cursor/hooks-nika/check-on-edit.sh",
+            ".cursor/hooks-nika/guard-run.sh",
             ".agents/skills/nika-authoring/SKILL.md",
             ".github/copilot-instructions.md",
             "CLAUDE.md",
         ] {
             assert!(paths.contains(&expected), "{expected} missing");
         }
+    }
+
+    /// Every command in the project hooks wiring resolves to a script the
+    /// SAME scaffold writes — a hooks.json naming a path init does not
+    /// create would be a dead seatbelt on every fresh repo.
+    #[test]
+    fn project_hooks_point_at_scaffolded_scripts() {
+        let paths: Vec<&str> = targets().iter().map(|(p, _)| *p).collect();
+        let wiring: serde_json::Value =
+            serde_json::from_str(CURSOR_HOOKS_JSON).expect("hooks.json parses");
+        let hooks = wiring["hooks"].as_object().expect("hooks object");
+        assert_eq!(hooks.len(), 3, "three seatbelts, no more, no fewer");
+        for (event, entries) in hooks {
+            for entry in entries.as_array().expect("entry array") {
+                let cmd = entry["command"].as_str().expect("command string");
+                let rel = cmd.strip_prefix("./").unwrap_or(cmd);
+                assert!(
+                    paths.contains(&rel),
+                    "{event} points at {rel}, which the scaffold never writes"
+                );
+            }
+        }
+    }
+
+    /// The subagents keep their kit identity — Cursor matches them by
+    /// frontmatter `name:`, and a renamed kit agent must fail HERE, not
+    /// silently in every scaffolded repo.
+    #[test]
+    fn cursor_subagents_carry_their_kit_names() {
+        for (body, name) in [
+            (CURSOR_AGENT_AUTHOR, "nika-author"),
+            (CURSOR_AGENT_DEBUGGER, "nika-debugger"),
+            (CURSOR_AGENT_MIGRATOR, "nika-migrator"),
+        ] {
+            assert!(
+                body.contains(&format!("name: {name}")),
+                "{name} frontmatter drifted from the kit"
+            );
+        }
+        assert!(
+            CURSOR_DELEGATION.contains("nika-author"),
+            "the delegation rule must route to the subagents it ships with"
+        );
     }
 }
