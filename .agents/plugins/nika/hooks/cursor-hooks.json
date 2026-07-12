@@ -1,8 +1,18 @@
 {
   "hooks": {
+    "sessionStart": [
+      {
+        "command": "./scripts/session-context.sh"
+      }
+    ],
     "afterFileEdit": [
       {
         "command": "./scripts/check-on-edit.sh"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "./scripts/guard-run.sh"
       }
     ]
   }

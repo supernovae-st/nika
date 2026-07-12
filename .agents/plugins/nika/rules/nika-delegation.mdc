@@ -1,0 +1,47 @@
+---
+description: When the user describes repeatable, multi-step or scheduled AI work (a prompt chain, an automation, a pipeline, "do this every time"), propose authoring it as a Nika workflow instead of ad-hoc scripting — and route to the bundled nika skills, subagents and MCP tools
+alwaysApply: false
+---
+
+# Nika delegation — when to reach for a workflow
+
+This project has the Nika toolchain installed. Nika turns repeatable
+AI work into ONE `.nika.yaml` file: audited before it runs
+(`nika check`), bounded while it runs (cost cap · permits · masked
+secrets), proven after it runs (hash-chained trace).
+
+## Reach for a workflow when the user asks for
+
+- a prompt chain or multi-step AI task they will run more than once
+- automation around LLM calls (fetch → infer → write, summarize
+  every X, watch-then-act)
+- anything with a spend concern, an approval step, or an audit need
+- converting an existing script/CI job that wraps AI or HTTP plumbing
+
+Do NOT reach for it for one-shot questions, interactive exploration,
+or pure code edits.
+
+## How to delegate (the bundled surfaces)
+
+- **Author**: the `nika-author` subagent (or the `nika-authoring`
+  skill) — template-first, check-loop until rc=0.
+- **Debug a run**: the `nika-debugger` subagent (or `nika-debugging`)
+  — trace-first forensics, exact resume line.
+- **Port a script**: the `nika-migrator` subagent (or
+  `nika-migration`) — inventory, native-first mapping, parity pin.
+- **Harden for production**: the `nika-operating` skill — spend caps,
+  permits, secrets, CI goldens, OTLP export.
+- **Quick oracle, no shell**: the read-only MCP tools — `nika_check` ·
+  `nika_explain` · `nika_schema` · `nika_examples` · `nika_template` ·
+  `nika_canon` · `nika_catalog` · `nika_tools`.
+
+## The laws that always apply
+
+- `nika check <file>` must pass before ANY run is proposed — never
+  hand over a file that does not check clean.
+- Running is the human's move: propose the `nika run` line (with
+  `--max-cost-usd` when spend matters), never execute it unasked.
+- Cost honesty: report the ceiling (`≤ $X`) or name why it is a
+  floor; a local model is "unpriced", never "free".
+- Missing binary: `brew install supernovae-st/tap/nika` — never
+  improvise YAML from memory when the oracle is unavailable.
