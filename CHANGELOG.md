@@ -24,6 +24,14 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **One source of truth for the corpus — the loose engine copies die**
+  — `engine/examples/` carried two pre-pack workflows (`pr-risk-review`
+  · `image-og-pipeline`) that duplicated pack showcases from every
+  angle's worst position: unversioned, unlisted, un-CI'd. Nuked; the
+  folder keeps a thin pointer README (the spec pack, vendored into the
+  binary, IS the gallery — `nika examples`), and the root README's
+  table row runs the pack twin instead.
+
 - **UNIFY: one street, one gesture** — the whole onboarding surface now
   reads as a single funnel. The concierge card keys its `start here`
   block on the WORKSPACE STATE (empty → the offline proof + the wizard;

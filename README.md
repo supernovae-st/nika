@@ -225,7 +225,7 @@ of them with `--model ollama/llama3.2:3b` (or offline with `--model mock/echo`):
 
 | I want to… | Run | For |
 |---|---|---|
-| Review a PR before merging | [`examples/pr-risk-review.nika.yaml`](examples/pr-risk-review.nika.yaml) | developers |
+| Review a PR before merging | `nika examples run showcase/t3-pr-review-fanout` | developers |
 | Turn meeting notes into owned actions | `nika examples run showcase/t1-meeting-actions` | everyone |
 | Digest a week of standups | `nika examples run showcase/t1-standup-digest` | teams |
 | Draft release notes from commits | `nika examples run showcase/t2-release-notes` | maintainers |
