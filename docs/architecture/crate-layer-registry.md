@@ -150,7 +150,7 @@ flags. They obey the same 12-gate admission as any other crate.
 | L1.5 | Provider wire adapters — between effects and verbs | via L1 http seam | L0, L0.5, L1 | `nika-providers` (14/14 wire · in-crate mock), `nika-infer-local` (candle sidecar · ADR-091) |
 | L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1, L1.5 | `nika-pck`, `nika-verb-*`, `nika-policy` (s8 · design locked), `nika-connectome` (the Connectome orchestrator), `nika-observability`, `nika-builtin-{github,cloud,workspace}` |
 | L3 | Runtime + policy + sandbox — enforces execution contracts | via L2 | L0..L2 | `nika-runtime`, `nika-shield`, `nika-wasm-host` (v0.100), `nika-sandbox` (v0.100) |
-| L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-dap`, `nika-display`, `nika-daemon`, `nika-serve`, `nika-mcp`, `nika-lsp`, `nika-sdk`, `nika-catalog-verify` |
+| L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-dap`, `nika-display`, `nika-onboard`, `nika-daemon`, `nika-serve`, `nika-mcp`, `nika-lsp`, `nika-sdk`, `nika-catalog-verify` |
 | L5 | The binary — sole `[[bin]]` composition root | via L4 | L0..L4 | `nika` (<500 LOC) |
 
 ### Forward compatibility

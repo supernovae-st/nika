@@ -10,7 +10,7 @@
 
 use std::path::Path;
 
-use crate::verbs::new;
+use crate::guided;
 
 /// One project recipe: a name the wizard lists, a tagline, and the
 /// `(template, destination, workflow-id)` rows it scaffolds under the
@@ -108,7 +108,7 @@ pub(crate) fn recipe(name: &str) -> Option<&'static Recipe> {
 pub(crate) fn takes_model(r: &Recipe) -> bool {
     r.workflows
         .iter()
-        .any(|(tpl, _, _)| nika_pack::template(tpl).is_some_and(new::template_takes_model))
+        .any(|(tpl, _, _)| nika_pack::template(tpl).is_some_and(guided::template_takes_model))
 }
 
 /// Materialize a recipe's workflows under `dir` — template VERBATIM
@@ -154,8 +154,8 @@ fn scaffold_one(
     if Path::new(dest).exists() && !force {
         return ScaffoldStatus::Skipped;
     }
-    let stamp_model = model.filter(|_| new::template_takes_model(body));
-    let stamped = new::stamp(body, id, "", stamp_model);
+    let stamp_model = model.filter(|_| guided::template_takes_model(body));
+    let stamped = guided::stamp(body, id, "", stamp_model);
     if let Some(parent) = Path::new(dest).parent()
         && !parent.as_os_str().is_empty()
         && let Err(e) = std::fs::create_dir_all(parent)

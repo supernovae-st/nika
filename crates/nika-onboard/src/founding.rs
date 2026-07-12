@@ -14,28 +14,23 @@
 //! never clobbered — `--force` is the explicit override (same law as
 //! `nika new`). A write failure is the one environment error (`exit 3`).
 
-mod briefs;
-mod recipes;
-mod wizard;
-
 use std::fmt::Write as _;
-use std::io::IsTerminal;
 use std::path::Path;
 
-use crate::display::theme::Theme;
-use crate::verbs::wire::WireTarget;
-use crate::verbs::{VerbOutput, exit};
+use crate::recipes::{self, ScaffoldStatus};
+use crate::{Audit, Outcome, Wire, briefs, codes};
 
 pub use briefs::agents_md;
-use recipes::ScaffoldStatus;
 
 /// The `--recipe` vocabulary for clap (`value_parser`) — pinned against
 /// the register by test so the two can never drift.
 pub const RECIPE_NAMES: [&str; 5] = ["agentic", "starter", "ship", "content", "minimal"];
 
 /// The `--theme` vocabulary — `nika.dag.theme`'s own enum (the VS Code
-/// extension's canvas skin), stamped into `.vscode/settings.json`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+/// extension's canvas skin), stamped into `.vscode/settings.json`. The
+/// composition root mirrors this as its clap `ValueEnum`; here it stays
+/// plain (no CLI-framework dependency below the root).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CanvasTheme {
     /// The brand skin — engineered black · verb hues.
     Nika,
@@ -48,7 +43,9 @@ pub enum CanvasTheme {
 }
 
 impl CanvasTheme {
-    pub(crate) fn as_str(self) -> &'static str {
+    /// The wire word `nika.dag.theme` speaks.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::Nika => "nika",
             Self::Editor => "editor",
@@ -104,48 +101,22 @@ pub(crate) fn render(lines: &[(char, String)]) -> String {
 /// must hand over to the next command. Golden path: offline proof in
 /// 10s → scaffold → audit-before-tokens. Byte-stable: this is the exact
 /// non-interactive shape scripts have seen since #158.
-pub(super) const NEXT_BLOCK: &str = "next ·\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika new                                       # your first workflow — guided on a terminal\n  nika new --from chain my-first.nika.yaml       # the same, scriptable\n  nika check my-first.nika.yaml                  # audit before a single token";
-
-/// Scaffold `dir` (default `.`). Creates parent dirs as needed.
-///
-/// Routing: bare on a terminal (no `--yes`, no recipe/theme/wire flag)
-/// → the founding wizard. Anything scripted keeps receipts-plus-hand-off
-/// — and with ZERO new flags the output is the historical bytes exactly.
-#[must_use]
-pub fn run(
-    dir: &str,
-    force: bool,
-    yes: bool,
-    recipe: Option<&str>,
-    canvas: Option<CanvasTheme>,
-    wires: &[WireTarget],
-    theme: Theme,
-) -> VerbOutput {
-    let scripted =
-        yes || recipe.is_some() || canvas.is_some() || !wires.is_empty() || !interactive();
-    if !scripted {
-        let stdin = std::io::stdin();
-        return wizard::wizard_io(dir, force, theme, &mut stdin.lock(), &mut std::io::stdout());
-    }
-    scripted_run(dir, force, recipe, canvas, wires, theme)
-}
-
-/// Both ends of the conversation are a terminal — the only state in
-/// which any nika surface may prompt (clig.dev interactivity rule).
-fn interactive() -> bool {
-    std::io::stdin().is_terminal() && std::io::stdout().is_terminal()
-}
+pub(crate) const NEXT_BLOCK: &str = "next ·\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika new                                       # your first workflow — guided on a terminal\n  nika new --from chain my-first.nika.yaml       # the same, scriptable\n  nika check my-first.nika.yaml                  # audit before a single token";
 
 /// The scriptable path — briefs report (historical bytes), then each
-/// flagged extra as its own receipt block, then the hand-off.
-fn scripted_run(
+/// flagged extra as its own receipt block, then the hand-off. The door
+/// logic (bare-TTY → the wizard) lives at the composition root; this
+/// crate exposes the two paths and the root routes.
+#[must_use]
+pub fn scripted_run(
     dir: &str,
     force: bool,
     recipe: Option<&str>,
     canvas: Option<CanvasTheme>,
-    wires: &[WireTarget],
-    theme: Theme,
-) -> VerbOutput {
+    wires: &[&str],
+    audit: &Audit<'_>,
+    wire: &Wire<'_>,
+) -> Outcome {
     let rows = apply_briefs(dir, force, canvas);
     let failed = rows
         .iter()
@@ -165,21 +136,21 @@ fn scripted_run(
         .collect();
     let mut text = render(&lines);
     if failed {
-        return VerbOutput::env(text);
+        return Outcome::env(text);
     }
 
-    let mut worst = exit::OK;
+    let mut worst = codes::OK;
     let mut first_workflow: Option<String> = None;
     if let Some(name) = recipe {
         let Some(r) = recipes::recipe(name) else {
             // clap's value_parser guards this door; a direct lib call
             // with an unknown name still gets the honest refusal.
-            return VerbOutput {
+            return Outcome {
                 text: format!(
                     "unknown recipe `{name}` — the register: {}",
                     RECIPE_NAMES.join(" · ")
                 ),
-                code: exit::FILE,
+                code: codes::FILE,
             };
         };
         let scaffolded = recipes::scaffold(dir, r, None, force);
@@ -195,18 +166,18 @@ fn scripted_run(
                     let _ = writeln!(text, "· skipped {rel} (exists · --force to overwrite)");
                 }
                 ScaffoldStatus::Failed(e) => {
-                    return VerbOutput::env(format!("{text}✖ {rel}: {e}\n"));
+                    return Outcome::env(format!("{text}✖ {rel}: {e}\n"));
                 }
             }
         }
         first_workflow = created.first().map(|p| rel_to(dir, p));
-        for (line, code) in proof_receipts(dir, &created, theme) {
+        for (line, code) in proof_receipts(dir, &created, audit) {
             worst = worst.max(code);
             let _ = writeln!(text, "{line}");
         }
     }
 
-    for line in wire_receipts(dir, wires, theme) {
+    for line in wire_receipts(dir, wires, wire) {
         let _ = writeln!(text, "{line}");
     }
 
@@ -218,7 +189,7 @@ fn scripted_run(
             )
         },
     );
-    VerbOutput {
+    Outcome {
         text: format!("{text}\n{next}"),
         code: worst,
     }
@@ -227,7 +198,7 @@ fn scripted_run(
 /// What one brief write came to — the registers compose their own
 /// message shapes over it (scripted keeps the historical joined-path
 /// bytes · the wizard rail speaks project-relative).
-pub(super) enum BriefOutcome {
+pub(crate) enum BriefOutcome {
     Created,
     Skipped,
     Failed(String),
@@ -235,7 +206,7 @@ pub(super) enum BriefOutcome {
 
 /// Write the briefs per `plan`, honoring the canvas stamp on a CREATED
 /// settings file.
-pub(super) fn apply_briefs(
+pub(crate) fn apply_briefs(
     dir: &str,
     force: bool,
     canvas: Option<CanvasTheme>,
@@ -286,25 +257,25 @@ fn themed_settings(canvas: CanvasTheme) -> String {
 /// minute is the product's argument. Clean collapses to one receipt
 /// line; findings expand to the full report (the vitest law: collapse
 /// success, expand failure).
-pub(super) fn proof_receipts(
+pub(crate) fn proof_receipts(
     dir: &str,
     created: &[impl AsRef<str>],
-    theme: Theme,
+    audit: &Audit<'_>,
 ) -> Vec<(String, u8)> {
     created
         .iter()
         .map(|path| {
             let path = path.as_ref();
-            let audit = crate::verbs::check::run(path, false, false, None, theme);
+            let audit = audit(path);
             let rel = rel_to(dir, path);
-            if audit.code == exit::OK {
+            if audit.code == codes::OK {
                 let tail = audit
                     .text
                     .lines()
                     .rev()
                     .find(|l| l.contains("audited"))
                     .map_or_else(|| "audited clean".to_owned(), |l| l.trim().to_owned());
-                (format!("  {tail} ← {rel}"), exit::OK)
+                (format!("  {tail} ← {rel}"), codes::OK)
             } else {
                 (
                     format!("{}\n✖ {rel} — findings above", audit.text.trim_end()),
@@ -317,13 +288,13 @@ pub(super) fn proof_receipts(
 
 /// Connect the picked agent clients through the REAL `wire` verb —
 /// each client's own receipt, indented under one header.
-pub(super) fn wire_receipts(dir: &str, wires: &[WireTarget], _theme: Theme) -> Vec<String> {
+pub(crate) fn wire_receipts(dir: &str, wires: &[&str], wire: &Wire<'_>) -> Vec<String> {
     if wires.is_empty() {
         return Vec::new();
     }
     let mut lines = vec!["wired ·".to_owned()];
-    for target in wires {
-        let out = crate::verbs::wire::run(*target, dir);
+    for client in wires {
+        let out = wire(client, dir);
         for l in out.text.lines() {
             lines.push(format!("  {l}"));
         }
@@ -351,8 +322,30 @@ fn write_file(path: &str, body: &str) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_display::theme::Theme;
 
     const PLAIN: Theme = Theme::new(false, false, false);
+
+    fn stub_audit(path: &str) -> Outcome {
+        Outcome::ok(format!("  ✔ audited (stub) ← {path}"))
+    }
+    fn stub_wire(client: &str, _dir: &str) -> Outcome {
+        Outcome::ok(format!("{client}: wired (stub)"))
+    }
+
+    /// The old 7-arg `run` shape, test-side: scripted path with stubs
+    /// (the door logic lives at the composition root now).
+    fn run(
+        dir: &str,
+        force: bool,
+        _yes: bool,
+        recipe: Option<&str>,
+        canvas: Option<CanvasTheme>,
+        wires: &[&str],
+        _theme: Theme,
+    ) -> Outcome {
+        scripted_run(dir, force, recipe, canvas, wires, &stub_audit, &stub_wire)
+    }
 
     #[test]
     fn successful_init_hands_over_to_the_next_command() {
@@ -371,7 +364,7 @@ mod tests {
             PLAIN,
         );
         std::fs::remove_dir_all(&tmp).ok();
-        assert_eq!(out.code, exit::OK);
+        assert_eq!(out.code, codes::OK);
         assert!(out.text.contains("next ·"), "{}", out.text);
         assert!(out.text.contains("nika examples run 01-hello"));
         assert!(out.text.contains("nika check"));
@@ -393,7 +386,7 @@ mod tests {
             PLAIN,
         );
         std::fs::remove_dir_all(&tmp).ok();
-        assert_eq!(out.code, exit::OK);
+        assert_eq!(out.code, codes::OK);
         assert!(out.text.contains("✔ created"), "{}", out.text);
         assert!(
             out.text.contains(NEXT_BLOCK),
@@ -501,7 +494,7 @@ mod tests {
             &[],
             PLAIN,
         );
-        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert_eq!(out.code, codes::OK, "{}", out.text);
         assert!(
             out.text
                 .contains("✔ created workflows/01-hello-chain.nika.yaml"),
@@ -539,7 +532,7 @@ mod tests {
             &[],
             PLAIN,
         );
-        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert_eq!(out.code, codes::OK, "{}", out.text);
         let settings = std::fs::read_to_string(tmp.join(".vscode/settings.json")).expect("written");
         let parsed: serde_json::Value = serde_json::from_str(&settings).expect("valid json");
         assert_eq!(
@@ -567,7 +560,7 @@ mod tests {
             &[],
             PLAIN,
         );
-        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert_eq!(out.code, codes::OK, "{}", out.text);
         assert_eq!(
             std::fs::read_to_string(tmp.join(".vscode/settings.json")).expect("read"),
             "{\"mine\": true}\n",

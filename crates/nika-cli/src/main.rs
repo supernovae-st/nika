@@ -20,6 +20,7 @@ use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+mod init_args;
 mod registry_args;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
@@ -28,6 +29,7 @@ use nika_cli::verbs::explain_file::dispatch as explain_dispatch;
 use nika_cli::verbs::{self, VerbOutput};
 use nika_cli::{RunView, Theme, frame};
 
+use init_args::{InitArgs, init_verb};
 use nika_event::Event;
 
 #[derive(Parser)]
@@ -525,33 +527,6 @@ enum TraceAction {
         #[arg(long)]
         no_color: bool,
     },
-}
-
-/// The `init` clap surface — the founding wizard's scriptable twin.
-#[derive(Args)]
-struct InitArgs {
-    /// Target directory (default · the current directory).
-    #[arg(default_value = ".")]
-    dir: String,
-    /// Overwrite existing files.
-    #[arg(long)]
-    force: bool,
-    /// Accept every default — never prompt (pipes and CI are
-    /// implicitly `--yes`; prompts only ever appear on a terminal).
-    #[arg(long, short = 'y')]
-    yes: bool,
-    /// Scaffold a workflow set — the wizard's recipe step, scriptable
-    /// (`agentic` = the 4-pattern curriculum).
-    #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(verbs::init::RECIPE_NAMES))]
-    recipe: Option<String>,
-    /// Stamp the VS Code DAG canvas skin (`nika.dag.theme`) into the
-    /// created `.vscode/settings.json`.
-    #[arg(long, value_enum)]
-    theme: Option<verbs::init::CanvasTheme>,
-    /// Wire agent clients to the MCP oracle after the scaffold
-    /// (comma-separated · the same targets as `nika wire`).
-    #[arg(long, value_enum, value_delimiter = ',')]
-    wire: Vec<verbs::wire::WireTarget>,
 }
 
 #[derive(Args)]
@@ -1128,21 +1103,6 @@ fn trace_verb(action: TraceAction, color: ColorWhenArg, link_when: LinkChoice) -
             term_theme(color.with_no_color(no_color), ascii, link_when),
         ),
     }
-}
-
-/// Unpack the `init` clap surface into the library verb call (keeps
-/// `main` under the fn-length ratchet — the same extraction as
-/// `run_verb`).
-fn init_verb(args: &InitArgs, plain_theme: Theme) -> VerbOutput {
-    verbs::init::run(
-        &args.dir,
-        args.force,
-        args.yes,
-        args.recipe.as_deref(),
-        args.theme,
-        &args.wire,
-        plain_theme,
-    )
 }
 
 /// Unpack the `run` clap surface into the library verb call.

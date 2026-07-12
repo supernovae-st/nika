@@ -48,6 +48,16 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   tick — every sober register keeps byte-identical output), and the
   frame still repaints inside one DEC-2026 synchronized frame.
 
+- **`nika-onboard` — the onboarding surface becomes its own member**
+  (the 15k prod-LOC wall broke at 16,027: base main sat 12 under, the
+  founding wizard crossed it — per D-2026-07-09-N1 the unit descends,
+  the `nika-display`/`nika-dap`/`nika-tmpl` precedents). `nika new`'s
+  guided flow + `nika init`'s founding body (briefs · recipes · wizard)
+  now live in `crates/nika-onboard`; the composition root keeps thin
+  adapters that inject the two REAL effects (the check ladder · the MCP
+  wiring) — the member converses and scaffolds, the root owns what
+  proving and wiring mean. Zero observable change on every surface.
+
 - **`nika-display` grows the structural chrome vocabulary**
   (`chrome.rs`): the wizard rail (`◆ │ └` · ASCII twins), the rounded
   panel with frame-true width math, the segment progress bar with its

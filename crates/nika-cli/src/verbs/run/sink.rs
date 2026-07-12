@@ -373,7 +373,7 @@ impl<A: EventSink, B: EventSink> EventSink for Tee<A, B> {
 
 /// Folds each event into a [`RunView`] and repaints the frame (the live
 /// TTY lane · spec §3). Repaints are event-driven PLUS the spinner
-/// ticks: a timer rider ([`spawn_spinner`]) advances `tick` while a
+/// ticks: a timer rider (`spawn_spinner`) advances `tick` while a
 /// task is running, so a long `infer`/`agent` wait breathes instead of
 /// freezing between settles (braille frames only ever render on the
 /// animated unicode Live surface — every sober register is tick-blind

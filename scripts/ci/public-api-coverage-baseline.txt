@@ -90,3 +90,6 @@ nika-dap
 nika-display
 nika-pck-manifest
 nika-tmpl
+# --- 2026-07-12: the onboarding surface descends from nika-cli at the 15k wall
+# (founding wizard + guided first workflow · injected Audit/Wire seams) ---
+nika-onboard

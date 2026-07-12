@@ -14,26 +14,27 @@
 use std::io::BufRead;
 use std::path::Path;
 
-use crate::display::chrome;
-use crate::display::theme::{Role, Theme};
-use crate::verbs::wire::WireTarget;
-use crate::verbs::{VerbOutput, exit, new};
+use nika_display::chrome;
+use nika_display::theme::{Role, Theme};
 
-use super::recipes::{RECIPES, Recipe, ScaffoldStatus, takes_model};
-use super::{BriefOutcome, CanvasTheme, apply_briefs, proof_receipts, wire_receipts};
+use crate::founding::{BriefOutcome, CanvasTheme, apply_briefs, proof_receipts, wire_receipts};
+use crate::guided;
+use crate::recipes::{RECIPES, Recipe, ScaffoldStatus, scaffold, takes_model};
+use crate::{Audit, Outcome, Wire, codes};
 
 /// The one tagline the banner speaks (the same claim every teaching
 /// surface carries).
 const TAGLINE: &str = "the workflow language for AI — audited before it runs";
 
 /// The wire menu the agents step offers — the popular five, then `all`
-/// (the full 15-client register stays one `nika wire all` away).
-const WIRE_MENU: [(WireTarget, &str, &str); 5] = [
-    (WireTarget::Cursor, "cursor", "~/.cursor/mcp.json"),
-    (WireTarget::Vscode, "vscode", ".vscode/mcp.json"),
-    (WireTarget::Claude, "claude", "~/.claude.json"),
-    (WireTarget::Codex, "codex", "~/.codex/config.toml"),
-    (WireTarget::Zed, "zed", "~/.config/zed/settings.json"),
+/// (the full 15-client register stays one `nika wire all` away). Plain
+/// client words: the injected [`Wire`] resolves them at the root.
+const WIRE_MENU: [(&str, &str); 5] = [
+    ("cursor", "~/.cursor/mcp.json"),
+    ("vscode", ".vscode/mcp.json"),
+    ("claude", "~/.claude.json"),
+    ("codex", "~/.codex/config.toml"),
+    ("zed", "~/.config/zed/settings.json"),
 ];
 
 /// The canvas menu — `nika.dag.theme`'s own enum, spoken in wizard rows.
@@ -52,28 +53,30 @@ struct Choices {
     recipe: &'static Recipe,
     model: Option<String>,
     canvas: Option<CanvasTheme>,
-    wires: Vec<WireTarget>,
+    wires: Vec<&'static str>,
 }
 
 /// The wizard over injected io: converse (no writes) · then found the
 /// project (briefs → workflows → wires → proof) · then the ready panel.
-pub(super) fn wizard_io(
+pub fn wizard_io(
     dir: &str,
     force: bool,
     theme: Theme,
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
-) -> VerbOutput {
+    audit: &Audit<'_>,
+    wire: &Wire<'_>,
+) -> Outcome {
     match converse(dir, theme, input, out) {
-        Err(e) => VerbOutput {
+        Err(e) => Outcome {
             text: format!("wizard i/o failed: {e}"),
-            code: exit::ENV,
+            code: codes::ENV,
         },
-        Ok(None) => VerbOutput {
+        Ok(None) => Outcome {
             text: "cancelled — nothing written".to_owned(),
-            code: exit::ENV,
+            code: codes::ENV,
         },
-        Ok(Some(choices)) => found(dir, force, theme, &choices, input, out),
+        Ok(Some(choices)) => found(dir, force, theme, &choices, input, out, (audit, wire)),
     }
 }
 
@@ -110,7 +113,7 @@ fn converse(
             chrome::rail_pick(theme, i + 1, r.name, r.tagline)
         )?;
     }
-    let Some(pick) = new::ask(
+    let Some(pick) = guided::ask(
         input,
         out,
         theme,
@@ -135,7 +138,7 @@ fn converse(
 
     // ── model (only when a skeleton in the set takes one) ──
     let model = if takes_model(recipe) {
-        match new::ask_model(input, out, theme)? {
+        match guided::ask_model(input, out, theme)? {
             Some(m) => Some(m),
             None => return Ok(None),
         }
@@ -178,7 +181,7 @@ fn ask_canvas(
     for (i, (c, note)) in CANVAS_MENU.iter().enumerate() {
         writeln!(out, "{}", chrome::rail_pick(theme, i + 1, c.as_str(), note))?;
     }
-    let Some(pick) = new::ask(
+    let Some(pick) = guided::ask(
         input,
         out,
         theme,
@@ -198,13 +201,13 @@ fn ask_wires(
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
     theme: Theme,
-) -> std::io::Result<Option<Vec<WireTarget>>> {
+) -> std::io::Result<Option<Vec<&'static str>>> {
     writeln!(
         out,
         "{}",
         chrome::rail_head(theme, "agents — wire the MCP oracle now?")
     )?;
-    for (i, (_, label, path)) in WIRE_MENU.iter().enumerate() {
+    for (i, (label, path)) in WIRE_MENU.iter().enumerate() {
         writeln!(out, "{}", chrome::rail_pick(theme, i + 1, label, path))?;
     }
     writeln!(
@@ -212,7 +215,7 @@ fn ask_wires(
         "{}",
         chrome::rail_pick(theme, WIRE_MENU.len() + 1, "all", "every supported client")
     )?;
-    let Some(pick) = new::ask(
+    let Some(pick) = guided::ask(
         input,
         out,
         theme,
@@ -235,7 +238,8 @@ fn found(
     choices: &Choices,
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
-) -> VerbOutput {
+    (audit, wire): (&Audit<'_>, &Wire<'_>),
+) -> Outcome {
     writeln!(out, "{}", chrome::rail_head(theme, "scaffold")).ok();
     let briefs = apply_briefs(dir, force, choices.canvas);
     let mut failed = false;
@@ -254,10 +258,10 @@ fn found(
         writeln!(out, "{line}").ok();
     }
     if failed {
-        return VerbOutput::env("scaffold failed — see the report above".to_owned());
+        return Outcome::env("scaffold failed — see the report above".to_owned());
     }
 
-    let scaffolded = super::recipes::scaffold(dir, choices.recipe, choices.model.as_deref(), force);
+    let scaffolded = scaffold(dir, choices.recipe, choices.model.as_deref(), force);
     for (path, status) in &scaffolded {
         let rel = relative(dir, path);
         let line = match status {
@@ -273,10 +277,10 @@ fn found(
         .iter()
         .any(|(_, s)| matches!(s, ScaffoldStatus::Failed(_)))
     {
-        return VerbOutput::env("scaffold failed — see the report above".to_owned());
+        return Outcome::env("scaffold failed — see the report above".to_owned());
     }
 
-    for line in wire_receipts(dir, &choices.wires, theme) {
+    for line in wire_receipts(dir, &choices.wires, wire) {
         writeln!(out, "{line}").ok();
     }
 
@@ -285,7 +289,7 @@ fn found(
     // double the hand-off.
     if choices.recipe.name == "starter" {
         writeln!(out).ok();
-        return new::wizard_io(dir, None, force, theme, input, out);
+        return guided::wizard_io(dir, None, force, theme, input, out, audit);
     }
 
     // ── proof: the audit ladder INSIDE the first minute ──
@@ -294,7 +298,7 @@ fn found(
         .filter(|(_, s)| *s == ScaffoldStatus::Created)
         .map(|(p, _)| p.as_str())
         .collect();
-    let mut worst = exit::OK;
+    let mut worst = codes::OK;
     if !created.is_empty() {
         writeln!(
             out,
@@ -302,13 +306,13 @@ fn found(
             chrome::rail_head(theme, "proof — audit before a single token")
         )
         .ok();
-        for (line, code) in proof_receipts(dir, &created, theme) {
+        for (line, code) in proof_receipts(dir, &created, audit) {
             worst = worst.max(code);
             writeln!(out, "{line}").ok();
         }
     }
 
-    VerbOutput {
+    Outcome {
         text: ready_panel(dir, theme, choices, &created),
         code: worst,
     }
@@ -437,20 +441,20 @@ fn resolve_canvas(pick: &str) -> Option<CanvasTheme> {
 }
 
 /// A menu answer → wire targets (`1 3` · `all` · Enter/other = none).
-fn resolve_wires(pick: &str) -> Vec<WireTarget> {
+fn resolve_wires(pick: &str) -> Vec<&'static str> {
     if pick.eq_ignore_ascii_case("all") {
-        return vec![WireTarget::All];
+        return vec!["all"];
     }
-    let mut targets: Vec<WireTarget> = pick
+    let mut targets: Vec<&'static str> = pick
         .split_whitespace()
         .filter_map(|w| w.parse::<usize>().ok())
         .filter_map(|n| {
             if n == WIRE_MENU.len() + 1 {
-                return Some(WireTarget::All);
+                return Some("all");
             }
             n.checked_sub(1)
                 .and_then(|i| WIRE_MENU.get(i))
-                .map(|(t, _, _)| *t)
+                .map(|(name, _)| *name)
         })
         .collect();
     targets.dedup();
@@ -462,6 +466,16 @@ mod tests {
     use super::*;
 
     const PLAIN: Theme = Theme::new(false, false, false);
+
+    /// Test stubs for the injected effects — the SHAPES, not the
+    /// ladders (the real check/wire integrations live at the
+    /// composition root and in the recipes own-corpus ratchet).
+    fn stub_audit(path: &str) -> Outcome {
+        Outcome::ok(format!("  ✔ audited (stub) ← {path}"))
+    }
+    fn stub_wire(client: &str, _dir: &str) -> Outcome {
+        Outcome::ok(format!("{client}: wired (stub)"))
+    }
 
     fn fresh_dir(tag: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("nika-initwiz-{tag}-{}", std::process::id()));
@@ -481,8 +495,16 @@ mod tests {
         // (skip) · agents Enter (skip)
         let mut input = std::io::Cursor::new(b"\n\n\n\n".to_vec());
         let mut out = Vec::new();
-        let v = wizard_io(d, false, PLAIN, &mut input, &mut out);
-        assert_eq!(v.code, exit::OK, "{}", v.text);
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
         let shown = String::from_utf8(out).expect("utf8");
         assert!(shown.contains("recipe"), "{shown}");
         assert!(shown.contains("agentic"), "{shown}");
@@ -514,8 +536,16 @@ mod tests {
         let d = dir.to_str().expect("utf8");
         let mut input = std::io::Cursor::new(Vec::new());
         let mut out = Vec::new();
-        let v = wizard_io(d, false, PLAIN, &mut input, &mut out);
-        assert_eq!(v.code, exit::ENV);
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::ENV);
         assert!(v.text.contains("nothing written"), "{}", v.text);
         assert!(!dir.join("AGENTS.md").exists(), "no partial scaffold");
         std::fs::remove_dir_all(&dir).ok();
@@ -530,8 +560,16 @@ mod tests {
         // recipe 5 (minimal) · canvas 3 (phosphor) · agents skip
         let mut input = std::io::Cursor::new(b"5\n3\n\n".to_vec());
         let mut out = Vec::new();
-        let v = wizard_io(d, false, PLAIN, &mut input, &mut out);
-        assert_eq!(v.code, exit::OK, "{}", v.text);
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
         let settings = std::fs::read_to_string(dir.join(".vscode/settings.json")).expect("written");
         let parsed: serde_json::Value = serde_json::from_str(&settings).expect("valid json");
         assert_eq!(
@@ -558,12 +596,9 @@ mod tests {
         assert_eq!(resolve_canvas("7"), None);
 
         assert!(resolve_wires("").is_empty());
-        assert_eq!(resolve_wires("all"), vec![WireTarget::All]);
-        assert_eq!(
-            resolve_wires("1 3"),
-            vec![WireTarget::Cursor, WireTarget::Claude]
-        );
-        assert_eq!(resolve_wires("6"), vec![WireTarget::All]);
+        assert_eq!(resolve_wires("all"), vec!["all"]);
+        assert_eq!(resolve_wires("1 3"), vec!["cursor", "claude"]);
+        assert_eq!(resolve_wires("6"), vec!["all"]);
     }
 
     /// The starter recipe hands over to the shared three-question flow —
@@ -576,8 +611,16 @@ mod tests {
         // wizard: intent Enter (chain) · file Enter · model Enter (mock)
         let mut input = std::io::Cursor::new(b"2\n\n\n\n\n\n".to_vec());
         let mut out = Vec::new();
-        let v = wizard_io(d, false, PLAIN, &mut input, &mut out);
-        assert_eq!(v.code, exit::OK, "{}", v.text);
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
         let shown = String::from_utf8(out).expect("utf8");
         assert!(
             shown.contains("your first workflow"),

@@ -952,22 +952,7 @@ async fn execute_fold_lane(
     model_override: Option<&str>,
 ) -> RunVerdict {
     let plan = plan_waves(wf, report);
-    // `Stdout` (not the guard): the spinner rider is a spawned task and
-    // the stdout guard is thread-bound — per-write locking is fine here
-    // because every REDRAW rides one DEC-2026 synchronized frame anyway.
-    let mut fold = FoldSink::new(std::io::stdout(), theme, mode);
-    fold.set_plan(plan.clone());
-    // The shape tails ride the INTERACTIVE surface only (`Live` = TTY):
-    // the piped/`--no-progress`/`--quiet` registers keep their exact
-    // bytes — CI logs and scripts never grow tails.
-    if mode == RenderMode::Live && outputs {
-        fold.show_outputs(true);
-    }
-    let fold = std::sync::Arc::new(std::sync::Mutex::new(fold));
-    // The braille beat — Live + motion only (reduced-motion, pipes and
-    // the sober lanes never tick; the fold itself re-checks both).
-    let spinner = (mode == RenderMode::Live && theme.animate)
-        .then(|| sink::spawn_spinner(std::sync::Arc::clone(&fold)));
+    let (fold, spinner) = shared_fold(theme, mode, outputs, plan.clone());
     // #321 — the plain lane's stderr liveness rider (`still running ·
     // <task> · <n>s · <model>` every ~10s): a piped local-model run
     // must never read as a hang. Plain ONLY — Live already repaints ·
@@ -1041,6 +1026,34 @@ async fn execute_fold_lane(
         code,
         failure: first_failure(&outcome),
     }
+}
+
+/// Build the shared fold + its spinner rider (extracted so the fold
+/// lane stays under the fn-length ratchet). `Stdout` — not the guard:
+/// the rider is a spawned task and the stdout guard is thread-bound;
+/// per-write locking is fine because every REDRAW rides one DEC-2026
+/// synchronized frame anyway. The shape tails ride the INTERACTIVE
+/// surface only; the braille beat spawns for Live + motion only (the
+/// fold re-checks both on every tick).
+fn shared_fold(
+    theme: Theme,
+    mode: RenderMode,
+    outputs: bool,
+    plan: Vec<Vec<String>>,
+) -> (
+    sink::SharedFold<std::io::Stdout>,
+    Option<tokio::task::JoinHandle<()>>,
+) {
+    let mut fold = FoldSink::new(std::io::stdout(), theme, mode);
+    fold.set_plan(plan);
+    if mode == RenderMode::Live && outputs {
+        fold.show_outputs(true);
+    }
+    let fold = std::sync::Arc::new(std::sync::Mutex::new(fold));
+    let spinner = theme
+        .animate
+        .then(|| sink::spawn_spinner(std::sync::Arc::clone(&fold)));
+    (fold, spinner)
 }
 
 /// Run the workflow through a sink + map the outcome to an exit code.

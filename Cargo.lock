@@ -3690,7 +3690,6 @@ dependencies = [
  "clap",
  "clap_complete",
  "expectrl",
- "nika-bm25",
  "nika-builtin",
  "nika-catalog",
  "nika-clock",
@@ -3706,6 +3705,7 @@ dependencies = [
  "nika-kernel-mock",
  "nika-lsp",
  "nika-mcp",
+ "nika-onboard",
  "nika-pack",
  "nika-providers",
  "nika-runtime",
@@ -4007,6 +4007,18 @@ dependencies = [
  "rten",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "nika-onboard"
+version = "0.99.0"
+dependencies = [
+ "nika-bm25",
+ "nika-catalog",
+ "nika-display",
+ "nika-pack",
+ "nika-schema",
+ "serde_json",
 ]
 
 [[package]]
