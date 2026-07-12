@@ -208,7 +208,7 @@ fn the_plain_lane_narrates_cleanly_when_piped() {
 
 // `examples run` EXECUTES — and carries the run trio (--var ·
 // --no-progress · --max-cost-usd · gauntlet F7 2026-07-12). The trio
-// makes a hermetic smoke POSSIBLE at last: 19-schema-retry has a
+// makes a hermetic smoke POSSIBLE at last: 04-schema-retry has a
 // `required:` var (unrunnable by this surface before) and infers clean
 // under `--model mock/echo` — zero keys, zero network, the exact combo
 // the old `#[ignore = "needs a live ollama"]` excuse said couldn't exist.
@@ -218,7 +218,7 @@ fn examples_run_carries_the_run_trio_hermetically() {
         .args([
             "examples",
             "run",
-            "19-schema-retry",
+            "04-schema-retry",
             "--model",
             "mock/echo",
             "--var",
