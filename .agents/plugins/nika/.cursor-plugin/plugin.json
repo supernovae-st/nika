@@ -11,11 +11,27 @@
   "repository": "https://github.com/supernovae-st/nika-agents",
   "license": "AGPL-3.0-or-later",
   "logo": "./assets/nika-logo.png",
-  "keywords": ["nika", "workflow", "yaml", "ai-workflows", "agent", "audit", "mcp"],
-  "rules": ["./rules"],
-  "skills": ["./skills"],
-  "agents": ["./agents"],
-  "commands": ["./commands"],
-  "hooks": "./hooks/hooks.json",
+  "keywords": [
+    "nika",
+    "workflow",
+    "yaml",
+    "ai-workflows",
+    "agent",
+    "audit",
+    "mcp"
+  ],
+  "rules": [
+    "./rules"
+  ],
+  "skills": [
+    "./skills"
+  ],
+  "agents": [
+    "./agents"
+  ],
+  "commands": [
+    "./commands"
+  ],
+  "hooks": "./hooks/cursor-hooks.json",
   "mcpServers": "./.mcp.json"
 }

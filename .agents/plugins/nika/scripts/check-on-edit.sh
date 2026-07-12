@@ -1,22 +1,46 @@
 #!/usr/bin/env bash
 # check-on-edit — the plugin's seatbelt: after the agent edits a
-# *.nika.yaml, run the audit so findings reach the loop immediately
-# (the file is the contract; check is the oracle).
+# *.nika.yaml, run the audit so findings land in the hook log
+# immediately (the file is the contract; check is the oracle).
 #
-# Capability-honest: no nika binary means no verdict, never a failure
-# (exit 0 keeps the edit flowing; the skill teaches the install line).
-# Read-only: check never executes the workflow.
+# Cursor hook contract (docs/agent/hooks): input is JSON on STDIN
+# (afterFileEdit carries file_path + edits); stdout is the JSON
+# response; the afterFileEdit matcher filters by TOOL type, not by
+# filename — so the extension filter lives HERE. Exit 0 always: an
+# audit finding is the repair loop's next step, never an edit veto.
+#
+# Capability-honest: no nika binary means no verdict, never a failure.
 set -euo pipefail
 
-file="${CURSOR_FILE_PATH:-${1:-}}"
-if [ -z "$file" ] || [ ! -f "$file" ]; then
-  exit 0
+input="$(cat)"
+
+# file_path from the stdin JSON — python3 when present, sed fallback.
+if command -v python3 >/dev/null 2>&1; then
+  file="$(printf '%s' "$input" | python3 -c 'import json,sys
+try:
+    print(json.load(sys.stdin).get("file_path", ""))
+except Exception:
+    print("")' 2>/dev/null || true)"
+else
+  file="$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
 fi
-if ! command -v nika >/dev/null 2>&1; then
-  echo "nika binary not found; skipping check (brew install supernovae-st/tap/nika)"
+
+case "$file" in
+  *.nika.yaml | *.nika.yml) ;;
+  *)
+    printf '{}\n'
+    exit 0
+    ;;
+esac
+
+if [ ! -f "$file" ] || ! command -v nika >/dev/null 2>&1; then
+  # Missing file or binary: nothing to audit (the skill teaches the
+  # install line) — stay silent and let the edit flow.
+  printf '{}\n'
   exit 0
 fi
 
-# Findings go to stdout for the agent loop; a red check must not block
-# the edit itself (the repair loop is the NEXT step, not a veto).
-nika check "$file" --color never || true
+# Findings go to STDERR (the hook log); stdout stays valid JSON for
+# the hook protocol. A red check never blocks the edit.
+nika check "$file" --color never >&2 || true
+printf '{}\n'
