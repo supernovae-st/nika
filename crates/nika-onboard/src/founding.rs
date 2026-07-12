@@ -708,4 +708,32 @@ mod tests {
         assert!(out.text.contains("skipped"), "{}", out.text);
         std::fs::remove_dir_all(&tmp).ok();
     }
+
+    /// The exec-bit stamp survives refactors — Cursor spawns the
+    /// seatbelt scripts directly, so a write path that loses the bit
+    /// ships dead hooks to every fresh repo (unix).
+    #[cfg(unix)]
+    #[test]
+    fn scaffolded_hook_scripts_are_executable() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = std::env::temp_dir().join(format!("nika-execbit-{}", std::process::id()));
+        let dir = tmp.to_string_lossy().into_owned();
+        let rows = apply_briefs(&dir, true, None);
+        let mode = std::fs::metadata(tmp.join(".cursor/hooks-nika/guard-run.sh"))
+            .expect("guard-run.sh written")
+            .permissions()
+            .mode();
+        let plain = std::fs::metadata(tmp.join(".cursor/hooks.json"))
+            .expect("hooks.json written")
+            .permissions()
+            .mode();
+        std::fs::remove_dir_all(&tmp).ok();
+        assert!(
+            rows.iter()
+                .all(|(_, o)| !matches!(o, BriefOutcome::Failed(_))),
+            "all briefs land"
+        );
+        assert_eq!(mode & 0o111, 0o111, "script carries the exec bit");
+        assert_eq!(plain & 0o111, 0, "manifest stays a plain file");
+    }
 }

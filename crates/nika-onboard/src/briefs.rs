@@ -243,6 +243,14 @@ const HOOK_GUARD_RUN: &str = include_str!(concat!(
 /// `.cursor/hooks.json` — the project-level hook wiring. Commands point
 /// at the scripts the SAME scaffold writes (project-relative), never at
 /// a plugin root; a parity test walks each command back to `targets()`.
+/// The kit's own hooks manifest — test-only anchor: the project manifest
+/// below must mirror it structurally or the build fails.
+#[cfg(test)]
+const KIT_CURSOR_HOOKS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/hooks/cursor-hooks.json"
+));
+
 const CURSOR_HOOKS_JSON: &str = r#"{
   "hooks": {
     "sessionStart": [
@@ -484,6 +492,45 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The project manifest mirrors the KIT's — same events, same script
+    /// basenames, only the path prefix differs (workspace vs plugin
+    /// scope). The sibling test above checks internal consistency; this
+    /// one checks the SOURCE: a seatbelt added to the kit that the
+    /// project manifest misses fails here, not silently in the field.
+    #[test]
+    fn project_hooks_manifest_mirrors_the_kit() {
+        let ours: serde_json::Value =
+            serde_json::from_str(CURSOR_HOOKS_JSON).expect("project manifest parses");
+        let kit: serde_json::Value =
+            serde_json::from_str(KIT_CURSOR_HOOKS).expect("kit manifest parses");
+        let shape = |v: &serde_json::Value| -> Vec<(String, String)> {
+            let mut out: Vec<(String, String)> = v["hooks"]
+                .as_object()
+                .expect("hooks object")
+                .iter()
+                .flat_map(|(event, entries)| {
+                    entries
+                        .as_array()
+                        .expect("entry array")
+                        .iter()
+                        .map(|e| {
+                            let cmd = e["command"].as_str().expect("command string");
+                            let base = cmd.rsplit('/').next().expect("basename");
+                            (event.clone(), base.to_owned())
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            out.sort();
+            out
+        };
+        assert_eq!(
+            shape(&ours),
+            shape(&kit),
+            "project hooks.json drifted from the kit manifest"
+        );
     }
 
     /// The subagents keep their kit identity — Cursor matches them by
