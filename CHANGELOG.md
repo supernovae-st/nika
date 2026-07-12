@@ -10,6 +10,21 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **`nika init` equips Cursor FULLY** (#509) — Cursor's local plugin
+  loader consumes MCP + skills only, so the binary now carries the
+  rest at project scope: the three kit subagents
+  (`.cursor/agents/nika-{author,debugger,migrator}.md`), the
+  WHEN-to-delegate rule (`.cursor/rules/nika-delegation.mdc`), and the
+  three hook seatbelts (`.cursor/hooks.json` +
+  `.cursor/hooks-nika/{session-context,check-on-edit,guard-run}.sh`,
+  exec bit stamped at write). Every body is `include_str!` from the
+  kit — one living writer, byte parity by construction; a test pins
+  the hooks manifest structurally to the kit's (same events, same
+  scripts). Scaffold grows 7 → 15 targets; `--force` semantics
+  unchanged.
+
 ### Changed
 
 - **One glyph table, zero-alloc live channel** (rust-pro pass) — the

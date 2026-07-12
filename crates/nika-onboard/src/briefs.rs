@@ -196,6 +196,79 @@ const AGENT_SKILL: &str = include_str!(concat!(
     "/../../.agents/plugins/nika/skills/nika-authoring/SKILL.md"
 ));
 
+/// The three kit subagents, delivered PROJECT-side (`.cursor/agents/`) —
+/// Cursor's local plugin loader consumes MCP + skills only (#509), so the
+/// binary carries the rest. `include_str!` from the kit: one living writer,
+/// byte parity by construction. Cursor also reads `.claude/agents/` and
+/// `.codex/agents/`, so `.cursor/agents/` serves every client that looks.
+const CURSOR_AGENT_AUTHOR: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/agents/nika-author.md"
+));
+const CURSOR_AGENT_DEBUGGER: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/agents/nika-debugger.md"
+));
+const CURSOR_AGENT_MIGRATOR: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/agents/nika-migrator.md"
+));
+
+/// The WHEN-to-delegate rule — routes repeatable AI work to a workflow
+/// and names the bundled surfaces (skills · subagents · MCP tools).
+const CURSOR_DELEGATION_RULE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/rules/nika-delegation.mdc"
+));
+
+/// The three seatbelt scripts, kit VERBATIM — they sniff the hook dialect
+/// themselves and self-silence outside nika contexts, so the same bytes
+/// serve plugin and project scope. `write_file` stamps the exec bit.
+const HOOK_SESSION_CONTEXT: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/scripts/session-context.sh"
+));
+const HOOK_CHECK_ON_EDIT: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/scripts/check-on-edit.sh"
+));
+const HOOK_GUARD_RUN: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/scripts/guard-run.sh"
+));
+
+/// `.cursor/hooks.json` — the seatbelts wired at PROJECT scope. The kit's
+/// own manifest points `./scripts/…` (plugin-relative); this one points
+/// `./.cursor/hooks-nika/…` (workspace-relative). A test pins structural
+/// parity (same events, same script basenames) so the two cannot drift.
+const CURSOR_HOOKS_JSON: &str = r#"{
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "./.cursor/hooks-nika/session-context.sh"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "./.cursor/hooks-nika/check-on-edit.sh"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "./.cursor/hooks-nika/guard-run.sh"
+      }
+    ]
+  }
+}
+"#;
+
+/// The kit's own hooks manifest — test-only anchor for the parity pin.
+#[cfg(test)]
+const KIT_CURSOR_HOOKS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/hooks/cursor-hooks.json"
+));
+
 /// The scaffolded agent guide, exposed for the bin-side parity test —
 /// a verb the binary ships and the guide never names is a verb a wired
 /// agent will never reach (found stale 2026-07-05: the scaffold taught
@@ -208,12 +281,23 @@ pub fn agents_md() -> &'static str {
 
 /// The scaffold set · (relative path, body). The ONE source of what `init`
 /// writes — `plan` and the docs both read it.
-pub(super) fn targets() -> [(&'static str, &'static str); 7] {
+pub(super) fn targets() -> [(&'static str, &'static str); 15] {
     [
         (".vscode/settings.json", VSCODE_SETTINGS),
         ("AGENTS.md", AGENTS_MD),
         (".cursor/rules/nika.mdc", CURSOR_RULES),
+        (".cursor/rules/nika-delegation.mdc", CURSOR_DELEGATION_RULE),
         (".cursor/mcp.json", CURSOR_MCP),
+        (".cursor/agents/nika-author.md", CURSOR_AGENT_AUTHOR),
+        (".cursor/agents/nika-debugger.md", CURSOR_AGENT_DEBUGGER),
+        (".cursor/agents/nika-migrator.md", CURSOR_AGENT_MIGRATOR),
+        (".cursor/hooks.json", CURSOR_HOOKS_JSON),
+        (
+            ".cursor/hooks-nika/session-context.sh",
+            HOOK_SESSION_CONTEXT,
+        ),
+        (".cursor/hooks-nika/check-on-edit.sh", HOOK_CHECK_ON_EDIT),
+        (".cursor/hooks-nika/guard-run.sh", HOOK_GUARD_RUN),
         (".agents/skills/nika-authoring/SKILL.md", AGENT_SKILL),
         (".github/copilot-instructions.md", COPILOT_INSTRUCTIONS),
         ("CLAUDE.md", CLAUDE_MD),
@@ -362,23 +446,96 @@ mod tests {
         }
     }
 
-    /// The scaffold table stays complete — six briefs, every family
-    /// present (schema wiring · contract · per-client briefs · skill).
+    /// The scaffold table stays complete — every family present (schema
+    /// wiring · contract · per-client briefs · skill · Cursor full equip:
+    /// subagents + delegation rule + hook seatbelts, #509).
     #[test]
     fn targets_names_every_brief_family() {
         let t = targets();
-        assert_eq!(t.len(), 7);
+        assert_eq!(t.len(), 15);
         let paths: Vec<&str> = t.iter().map(|(p, _)| *p).collect();
         for expected in [
             ".vscode/settings.json",
             "AGENTS.md",
             ".cursor/rules/nika.mdc",
+            ".cursor/rules/nika-delegation.mdc",
             ".cursor/mcp.json",
+            ".cursor/agents/nika-author.md",
+            ".cursor/agents/nika-debugger.md",
+            ".cursor/agents/nika-migrator.md",
+            ".cursor/hooks.json",
+            ".cursor/hooks-nika/session-context.sh",
+            ".cursor/hooks-nika/check-on-edit.sh",
+            ".cursor/hooks-nika/guard-run.sh",
             ".agents/skills/nika-authoring/SKILL.md",
             ".github/copilot-instructions.md",
             "CLAUDE.md",
         ] {
             assert!(paths.contains(&expected), "{expected} missing");
+        }
+    }
+
+    /// The project hooks manifest mirrors the kit's — same events, same
+    /// script basenames — only the path prefix differs (workspace vs
+    /// plugin scope). If the kit grows a seatbelt, this fails until the
+    /// project manifest carries it too.
+    #[test]
+    fn project_hooks_manifest_mirrors_the_kit() {
+        let ours: serde_json::Value =
+            serde_json::from_str(CURSOR_HOOKS_JSON).expect("project manifest parses");
+        let kit: serde_json::Value =
+            serde_json::from_str(KIT_CURSOR_HOOKS).expect("kit manifest parses");
+        let events = |v: &serde_json::Value| -> Vec<(String, String)> {
+            let hooks = v["hooks"].as_object().expect("hooks object");
+            let mut out: Vec<(String, String)> = hooks
+                .iter()
+                .map(|(event, entries)| {
+                    let cmd = entries[0]["command"].as_str().expect("command");
+                    let basename = cmd.rsplit('/').next().expect("basename");
+                    (event.clone(), basename.to_owned())
+                })
+                .collect();
+            out.sort();
+            out
+        };
+        assert_eq!(events(&ours), events(&kit));
+        // and every referenced script is itself a scaffold target
+        let t = targets();
+        for (_, basename) in events(&ours) {
+            let rel = format!(".cursor/hooks-nika/{basename}");
+            assert!(
+                t.iter().any(|(p, _)| *p == rel),
+                "{rel} referenced by hooks.json but not scaffolded"
+            );
+        }
+    }
+
+    /// The delivered subagents and rule are real briefs, not stubs —
+    /// each carries its frontmatter contract.
+    #[test]
+    fn cursor_agents_and_rule_carry_frontmatter() {
+        for (name, body) in [
+            ("nika-author", CURSOR_AGENT_AUTHOR),
+            ("nika-debugger", CURSOR_AGENT_DEBUGGER),
+            ("nika-migrator", CURSOR_AGENT_MIGRATOR),
+        ] {
+            assert!(body.starts_with("---"), "{name}: frontmatter opens");
+            assert!(body.contains("name:"), "{name}: names itself");
+            assert!(body.contains("description:"), "{name}: describes itself");
+        }
+        assert!(CURSOR_DELEGATION_RULE.starts_with("---"));
+        assert!(CURSOR_DELEGATION_RULE.contains("description:"));
+        // seatbelt scripts are bash with a shebang — write_file's exec
+        // bit is what makes them spawnable
+        for (name, body) in [
+            ("session-context", HOOK_SESSION_CONTEXT),
+            ("check-on-edit", HOOK_CHECK_ON_EDIT),
+            ("guard-run", HOOK_GUARD_RUN),
+        ] {
+            assert!(
+                body.starts_with("#!/usr/bin/env bash"),
+                "{name}: shebang present"
+            );
         }
     }
 }

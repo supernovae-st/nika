@@ -358,7 +358,19 @@ fn write_file(path: &str, body: &str) -> std::io::Result<()> {
     {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(path, body)
+    std::fs::write(path, body)?;
+    // Hook scripts must be spawnable the moment they land — Cursor execs
+    // them directly (#509). Unix-only: Windows has no bit and bash hooks
+    // fail open there anyway.
+    #[cfg(unix)]
+    if Path::new(path)
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("sh"))
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -526,7 +538,7 @@ mod tests {
     #[test]
     fn plan_creates_both_when_nothing_exists() {
         let p = plan(".", &|_| false, false);
-        assert_eq!(p.len(), 7);
+        assert_eq!(p.len(), 15);
         assert!(p.iter().all(|a| matches!(a, Action::Create { .. })));
         // Schema wiring + agent guide + per-client briefs are the targets.
         let paths: Vec<&str> = p
@@ -538,6 +550,8 @@ mod tests {
         assert!(paths.iter().any(|p| p.ends_with("settings.json")));
         assert!(paths.iter().any(|p| p.ends_with("AGENTS.md")));
         assert!(paths.iter().any(|p| p.ends_with("nika.mdc")));
+        assert!(paths.iter().any(|p| p.ends_with("hooks.json")));
+        assert!(paths.iter().any(|p| p.ends_with("guard-run.sh")));
         assert!(
             paths
                 .iter()
@@ -549,6 +563,33 @@ mod tests {
                 .any(|p| p.ends_with(".github/copilot-instructions.md"))
         );
         assert!(paths.iter().any(|p| p.ends_with("CLAUDE.md")));
+    }
+
+    /// A scaffolded hook script lands spawnable — Cursor execs it
+    /// directly, so the write itself must carry the bit (unix).
+    #[cfg(unix)]
+    #[test]
+    fn scaffolded_hook_scripts_are_executable() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = std::env::temp_dir().join(format!("nika-execbit-{}", std::process::id()));
+        let dir = tmp.to_string_lossy().into_owned();
+        let rows = apply_briefs(&dir, true, None);
+        let mode = std::fs::metadata(tmp.join(".cursor/hooks-nika/guard-run.sh"))
+            .expect("guard-run.sh written")
+            .permissions()
+            .mode();
+        let plain = std::fs::metadata(tmp.join(".cursor/hooks.json"))
+            .expect("hooks.json written")
+            .permissions()
+            .mode();
+        std::fs::remove_dir_all(&tmp).ok();
+        assert!(
+            rows.iter()
+                .all(|(_, o)| !matches!(o, BriefOutcome::Failed(_))),
+            "all briefs land"
+        );
+        assert_eq!(mode & 0o111, 0o111, "script carries the exec bit");
+        assert_eq!(plain & 0o111, 0, "manifest stays a plain file");
     }
 
     #[test]
