@@ -236,17 +236,21 @@ jobs:
     needs: release
     runs-on: ubuntu-24.04
     steps:
-      - name: Guard on the tap token
+      - name: Guard on the tap deploy key
         id: guard
         env:
-          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          # A DEPLOY KEY, not a PAT: scoped to the one tap repo, write-only
+          # there, and it never expires under the 90-day fine-grained-token
+          # clock (the v0.100.0 train fell on exactly that — Bad credentials
+          # from an expired HOMEBREW_TAP_TOKEN).
+          TAP_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
         run: |
           set -euo pipefail
-          if [ -n "${TAP_TOKEN:-}" ]; then
+          if [ -n "${TAP_KEY:-}" ]; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
             echo "ok=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::HOMEBREW_TAP_TOKEN unset — skipping the formula bump. The release + checksums are published; run scripts/release/update-formula.sh against the tap manually."
+            echo "::notice::TAP_DEPLOY_KEY unset — skipping the formula bump. The release + checksums are published; run scripts/release/update-formula.sh against the tap manually."
           fi
       - uses: actions/checkout@v4
         if: steps.guard.outputs.ok == 'true'
@@ -262,7 +266,7 @@ jobs:
           # `brew install supernovae-st/tap/nika` (renamed back 2026-07-06;
           # the homebrew-nika interlude survives as a GitHub redirect).
           repository: supernovae-st/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
           path: tap
       - name: Update + push the formula
         if: steps.guard.outputs.ok == 'true'
