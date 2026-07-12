@@ -29,6 +29,7 @@ uuid        = { workspace = true }
 # load-bearing in src/.
 nika-kernel      = { path = "../nika-kernel", version = "0.99.0" }        # ProviderInferDyn · Secret · the seam traits
 nika-runtime     = { path = "../nika-runtime", version = "0.99.0" }       # the L3 executor (the composer drives it)
+nika-registry-client = { path = "../nika-registry-client", version = "0.99.0" }  # the L2 resolve/verify/cache half (this crate composes http + executor around it)
 nika-providers   = { path = "../nika-providers", version = "0.99.0" }     # ProviderRegistry — resolve provider/model + keys
 nika-verb-infer  = { path = "../nika-verb-infer", version = "0.99.0" }
 nika-verb-exec   = { path = "../nika-verb-exec", version = "0.99.0" }
