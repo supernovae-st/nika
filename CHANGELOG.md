@@ -12,6 +12,43 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **`on_error.recover` awaits a no-edge referent's terminal state**
+  (spec 05 §recover · #291 #402) — a same-wave `recover: ${{ tasks.X.output }}`
+  used to race dispatch and fail `NIKA-VAR-001` whenever the referent had
+  not settled yet. Recoveries now park on the settle spine and retry as
+  referents turn terminal; a workflow-end pass resolves mutual-recovery
+  cycles against each side's pre-recovery failed record (history never
+  rewrites). Deterministic by construction: the park table only moves on
+  the sequential settle spine — the event stream stays byte-identical
+  across parallelism caps.
+- **A settled sibling's frames reach the trace at ITS settle, not the
+  wave join** (#412) — a `kill -9` mid-wave used to lose the resume
+  credit of every sibling that had already finished on the console (the
+  journal held `task_scheduled` only), so `--resume` re-ran — and
+  re-billed — finished work. Settles now stream through the ordered
+  spine; total event order is unchanged, only the timing moves earlier.
+- **Swapping the envelope `model:` re-runs a model-less infer on resume**
+  (#409) — the effective default model (`--model` override, else the
+  envelope line) joins those tasks' resume identity, so a model swap can
+  no longer cache-hit the OLD model's output. Tasks pinning their own
+  `model:` and exec tasks never re-key; older traces simply re-run once.
+- **A token-burning empty answer warns on the console** (#410) — a
+  thinking model that spends its whole budget inside the think block and
+  settles green with "" now speaks: the OBS-E oracle covers the
+  unreported-split shape (the ollama path strips thinking upstream), and
+  the display renders `⚠ <task> · <warning>` above the meter on the
+  final frame and the streamed close — a green run no longer silently
+  feeds the empty string downstream.
+- **The example rescue tip keys on the failure kind** (#145) — an exec
+  `program not found` used to earn the mock-model nudge (a swap that
+  cannot conjure a missing binary). Infer/provider failures keep the
+  offline-preview tip; a missing program names the real dependency.
+- **`nika:convert` joins the native-first/005 inventory** (#475) — the
+  check hint's helper-script inventory named every native lane except
+  the one that parses; "my input is YAML/CSV/TOML" was the single most
+  common reason a sidecar survived it. One clause (spec row paired in
+  nika-spec#64); the test pins the lane.
+
 - **Every trace reader resolves the names `trace ls` prints** — `show` ·
   `replay` · `outputs` · `verify` · `export` · `peek` · `flow` accept the
   bare store name exactly like `rm` always did (an explicit path still
