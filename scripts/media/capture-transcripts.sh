@@ -22,17 +22,17 @@ nika --version | tee "$RAW/nika-version.txt"
 
 # ── static-check-fix ────────────────────────────────────────────────────
 # The broken fixture MUST fail (exit 2) · the fixed one MUST be clean.
-nika check --no-color "$FIX/broken-pr-review.nika.yaml" >"$RAW/check-broken.txt" 2>&1 && {
+nika check --color never "$FIX/broken-pr-review.nika.yaml" >"$RAW/check-broken.txt" 2>&1 && {
   echo "FATAL: broken fixture unexpectedly passed nika check" >&2
   exit 1
 } || true
-nika check --no-color "$FIX/fixed-pr-review.nika.yaml" >"$RAW/check-fixed.txt" 2>&1
+nika check --color never "$FIX/fixed-pr-review.nika.yaml" >"$RAW/check-fixed.txt" 2>&1
 
 diff -u "$FIX/broken-pr-review.nika.yaml" "$FIX/fixed-pr-review.nika.yaml" \
   >"$RAW/fix-diff.txt" 2>&1 || true # diff exits 1 when files differ
 
 # ── chat-to-workflow ────────────────────────────────────────────────────
-nika check --no-color "$FIX/meeting-actions.nika.yaml" >"$RAW/check-meeting.txt" 2>&1
+nika check --color never "$FIX/meeting-actions.nika.yaml" >"$RAW/check-meeting.txt" 2>&1
 
 # The run transcript uses a REAL local model. Only refresh when an Ollama
 # server is reachable — otherwise keep the committed snapshot.
@@ -41,7 +41,7 @@ if curl -s --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1; then
   curl -s http://localhost:11434/api/generate \
     -d '{"model":"llama3.2:3b","prompt":"warm","stream":false}' >/dev/null || true
   rm -f action-items.json
-  nika run --no-progress --no-color --model "$MODEL" \
+  nika run --no-progress --color never --model "$MODEL" \
     "$FIX/meeting-actions.nika.yaml" >"$RAW/run-meeting.txt" 2>&1
   cp action-items.json "$RAW/action-items.json"
   rm -f action-items.json
@@ -51,17 +51,17 @@ fi
 
 # ── dag-execution ───────────────────────────────────────────────────────
 SHOWCASE="crates/nika-pack/pack/examples/showcase/t3-pr-review-fanout.nika.yaml"
-nika graph --format mermaid "$SHOWCASE" >"$RAW/graph-fanout.mmd" 2>&1
-nika check --no-color "$SHOWCASE" >"$RAW/check-fanout.txt" 2>&1
+nika inspect --format mermaid "$SHOWCASE" >"$RAW/graph-fanout.mmd" 2>&1
+nika check --color never "$SHOWCASE" >"$RAW/check-fanout.txt" 2>&1
 
 # ── permits-audit ───────────────────────────────────────────────────────
 # The escaping fixture MUST fail (the boundary catches it) · the widened
 # one MUST be clean with a HARD cost ceiling.
-nika check --no-color "$FIX/permits-escape.nika.yaml" >"$RAW/check-permits-escape.txt" 2>&1 && {
+nika check --color never "$FIX/permits-escape.nika.yaml" >"$RAW/check-permits-escape.txt" 2>&1 && {
   echo "FATAL: permits-escape fixture unexpectedly passed nika check" >&2
   exit 1
 } || true
-nika check --no-color "$FIX/permits-fits.nika.yaml" >"$RAW/check-permits-fits.txt" 2>&1
+nika check --color never "$FIX/permits-fits.nika.yaml" >"$RAW/check-permits-fits.txt" 2>&1
 diff -u "$FIX/permits-escape.nika.yaml" "$FIX/permits-fits.nika.yaml" \
   >"$RAW/permits-fix-diff.txt" 2>&1 || true
 
@@ -71,7 +71,7 @@ diff -u "$FIX/permits-escape.nika.yaml" "$FIX/permits-fits.nika.yaml" \
 RECOVER_TMP="$(mktemp -d)"
 (
   cd "$RECOVER_TMP"
-  nika run --no-progress --no-color "$ROOT/$FIX/recover-fallback.nika.yaml" \
+  nika run --no-progress --color never "$ROOT/$FIX/recover-fallback.nika.yaml" \
     >"$ROOT/$RAW/run-recover.txt" 2>&1
   cp out/rates.json "$ROOT/$RAW/recover-rates.json"
 )

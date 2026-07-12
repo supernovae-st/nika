@@ -91,11 +91,11 @@ while IFS=$'\t' read -r id model key_env base_url_env _notes; do
   for s in "${SCENARIOS[@]}"; do
     wf="$BATTERY/$s.nika.yaml"
     t0=$(date +%s)
-    out="$( { timeout 240 "$NIKA" run "$wf" --model "$model" --no-color --json; } 2>&1 )"; rc=$?
+    out="$( { timeout 240 "$NIKA" run "$wf" --model "$model" --color never --json; } 2>&1 )"; rc=$?
     # one retry ONLY on transport-class failures (5xx/timeout/connect) — never on assertion failures
     if [ $rc -ne 0 ] && echo "$out" | grep -qiE 'HTTP 5[0-9][0-9]|timed? ?out|connection|temporary|temporarily'; then
       sleep 3
-      out="$( { timeout 240 "$NIKA" run "$wf" --model "$model" --no-color --json; } 2>&1 )"; rc=$?
+      out="$( { timeout 240 "$NIKA" run "$wf" --model "$model" --color never --json; } 2>&1 )"; rc=$?
     fi
     ms=$(( ($(date +%s) - t0) ))s
     if [ $rc -ne 0 ] && echo "$out" | grep -qiE 'credit balance is too low|insufficient credit'; then
