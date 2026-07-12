@@ -804,7 +804,7 @@ fn main() -> std::process::ExitCode {
             },
             fix,
             model.as_deref(),
-            term_theme(color.with_no_color(no_color), ascii, link_when),
+            interactive_theme(term_theme(color.with_no_color(no_color), ascii, link_when)),
         ),
         Command::Run(args) => run_lazy(args, color, link_when, cli.plain),
         Command::Test {
@@ -1173,6 +1173,14 @@ fn color_env() -> ColorEnv {
 /// Resolve the colour/glyph/link theme for static (non-animated)
 /// surfaces — colour and hyperlinks each ride their own capability
 /// chain over the SAME environment facts.
+/// Lift the accents band onto a theme when the surface is genuinely
+/// interactive (colour resolved on · a real TTY · glyphs available) —
+/// the one-shot read verbs' twin of the run's Live gate.
+fn interactive_theme(mut theme: Theme) -> Theme {
+    theme.accents = theme.color && !theme.ascii && std::io::stdout().is_terminal();
+    theme
+}
+
 fn term_theme(choice: ColorChoice, ascii: bool, link_when: LinkChoice) -> Theme {
     let tty = std::io::stdout().is_terminal();
     let env = color_env();

@@ -24,6 +24,17 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **The DAG is visible where you look** (operator: « voir la dag ! ») —
+  `nika check` on a TTY now ends with the SAME themed wire art `graph
+  --format ascii` speaks (the audit reads as the graph it judged;
+  conformance failures skip it — no valid order exists to draw), and
+  the Live run storyboard gains the LIVING MAP: one wave-column line
+  under the header where every node wears its state (dim pending · the
+  verb's own motion frame while running · green/red settled · `⊘`
+  skipped), repainted every tick so the running node's spinner turns
+  INSIDE the map. Wide runs drop ids and keep chips — the map never
+  wraps. Interactive surfaces only; every sober register byte-intact.
+
 - **One source of truth for the corpus — the loose engine copies die**
   — `engine/examples/` carried two pre-pack workflows (`pr-risk-review`
   · `image-og-pipeline`) that duplicated pack showcases from every

@@ -360,6 +360,17 @@ pub fn run(path: &str, format: GraphFormat, theme: crate::display::theme::Theme)
 /// in from the binary's ONE resolution chain, so a pipe still gets
 /// escape-free bytes (colour auto-resolves off) while a TTY finally
 /// sees the art it was owed.
+/// The themed wire art for ONE checked workflow — the same map `graph
+/// --format ascii` prints, exposed so sibling verbs (`check`) can show
+/// the DAG beside their verdict without re-deriving the projection.
+pub(crate) fn ascii_art(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    theme: crate::display::theme::Theme,
+) -> String {
+    to_ascii(&project(wf, report), report, theme)
+}
+
 fn to_ascii(doc: &GraphDoc, report: &CheckReport, theme: crate::display::theme::Theme) -> String {
     if let Some(art) = crate::wires::render(doc, &report.waves, theme) {
         return format!("{art}\n");

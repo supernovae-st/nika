@@ -36,7 +36,80 @@ pub fn frame_with_outputs(view: &RunView, theme: &Theme, tick: usize) -> Vec<Str
 /// count cell — a stream without a plan must not open on a lie.
 // `&Theme` to match the frame borrows that thread it here.
 #[allow(clippy::trivially_copy_pass_by_ref)]
-fn header_lines(view: &RunView, theme: &Theme, tasks: usize) -> Vec<String> {
+/// The LIVING map — the whole DAG as one wave-column line right under
+/// the header: every node wears its state (pending dim · running = its
+/// verb's own motion frame, bright · settled Good/Bad · skipped ⊘),
+/// `⇉` between waves. Repainted every tick, so the running node's
+/// spinner turns INSIDE the map. Interactive surface only (accents ·
+/// a plan · more than one task); wide runs drop the ids and keep the
+/// chips so the map never wraps.
+fn map_line(view: &RunView, theme: Theme, tick: usize) -> Option<String> {
+    if !theme.accents || view.rows().len() < 2 {
+        return None;
+    }
+    let plan = view.plan()?;
+    let by_id: std::collections::BTreeMap<&str, &TaskRow> =
+        view.rows().iter().map(|r| (r.id.as_str(), r)).collect();
+    let total: usize = plan.iter().map(Vec::len).sum();
+    let with_ids = total <= 8;
+    let sep = format!(" {} ", theme.paint(Role::Dim, "⇉"));
+    let waves: Vec<String> = plan
+        .iter()
+        .map(|wave| {
+            let nodes: Vec<String> = wave
+                .iter()
+                .map(|id| map_node(by_id.get(id.as_str()).copied(), id, theme, tick, with_ids))
+                .collect();
+            nodes.join(if with_ids { " · " } else { "" })
+        })
+        .collect();
+    Some(format!("     {}", waves.join(&sep)))
+}
+
+/// The bare 1-cell verb glyph (no paint · no pad) — the map paints it
+/// with the STATE role, not the verb band (state outranks identity on
+/// a one-line map; the id and spinner still speak the verb).
+fn bare_verb_glyph(verb: Option<&str>, theme: Theme) -> String {
+    let g = match verb {
+        Some("exec") => ("▷", "$"),
+        Some("invoke") => ("◆", "@"),
+        Some("agent") => ("✦", "*"),
+        Some("infer") => ("◇", "i"),
+        _ => ("·", "."),
+    };
+    (if theme.ascii { g.1 } else { g.0 }).to_owned()
+}
+
+/// One map node: the state-painted glyph (+ id on small runs).
+fn map_node(row: Option<&TaskRow>, id: &str, theme: Theme, tick: usize, with_id: bool) -> String {
+    let (glyph, role) = match row.map(|r| &r.state) {
+        Some(TaskState::Running) => {
+            let spin = theme.verb_spin(row.and_then(row_verb), tick);
+            return if with_id {
+                format!("{spin}{}", theme.paint(Role::Strong, id))
+            } else {
+                spin.trim_end().to_owned()
+            };
+        }
+        Some(TaskState::Ok) => (bare_verb_glyph(row.and_then(row_verb), theme), Role::Good),
+        Some(TaskState::Failed) => (bare_verb_glyph(row.and_then(row_verb), theme), Role::Bad),
+        Some(TaskState::Skipped | TaskState::Cancelled) => ("⊘".to_owned(), Role::Dim),
+        _ => (bare_verb_glyph(row.and_then(row_verb), theme), Role::Dim),
+    };
+    let painted = theme.paint(role, &glyph);
+    if with_id {
+        let id_painted = match row.map(|r| &r.state) {
+            Some(TaskState::Ok) => theme.paint(Role::Good, id),
+            Some(TaskState::Failed) => theme.paint(Role::Bad, id),
+            _ => theme.paint(Role::Dim, id),
+        };
+        format!("{painted} {id_painted}")
+    } else {
+        painted
+    }
+}
+
+fn header_lines(view: &RunView, theme: Theme, tasks: usize) -> Vec<String> {
     let mut lines = Vec::with_capacity(3);
     let count = if tasks > 0 {
         format!(" · {tasks} tasks")
@@ -71,7 +144,7 @@ fn header_lines(view: &RunView, theme: &Theme, tasks: usize) -> Vec<String> {
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<String> {
     let mut lines = Vec::with_capacity(view.rows().len() + 6);
-    lines.extend(header_lines(view, theme, view.rows().len()));
+    lines.extend(header_lines(view, *theme, view.rows().len()));
 
     // Task rows — stable order, aligned ids, notes dimmed. Time and cost
     // are first-class columns: a settled row carries its REAL wall time
@@ -79,6 +152,9 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
     // live elapsed, and `∥` marks wave-siblings that actually overlapped.
     // Never-ran rows speak their REASON (`cache hit (resume)` · `when:
     // false` · `blocked · <task> failed`) through the display-note map.
+    if let Some(map) = map_line(view, *theme, tick) {
+        lines.push(map);
+    }
     let width = view.rows().iter().map(|r| r.id.len()).max().unwrap_or(8);
     let marks = lane_marks(view);
     let times: Vec<Option<String>> = view.rows().iter().map(|r| row_wall(r, view)).collect();
@@ -216,7 +292,7 @@ pub fn stream_header(view: &RunView, theme: &Theme) -> Vec<String> {
         .map(|waves| waves.iter().map(Vec::len).sum())
         .filter(|n| *n > 0)
         .unwrap_or_else(|| view.rows().len());
-    header_lines(view, theme, tasks)
+    header_lines(view, *theme, tasks)
 }
 
 /// One settled row, streamed at its terminal frame (#321 · the plain
@@ -937,6 +1013,50 @@ mod tests {
         view.elapsed_ms = 4700;
         let lines = verdict_frame(&view, &ASCII);
         assert!(lines[0].contains("4.7s"), "elapsed → seconds: {}", lines[0]);
+    }
+
+    /// The living map: accents + a plan + ≥2 tasks earn the wave-column
+    /// line under the header; the running node carries its verb's own
+    /// motion frame; sober frames never see it.
+    #[test]
+    fn living_map_rides_the_accents_frame() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let field = |k: &str, v: &str| KeyValue::new(k, Value::String(v.to_owned()));
+
+        let mut view = RunView::new();
+        view.apply(
+            &demo::bare_event(EventKind::TaskStarted, 0)
+                .with_field(field("task", "a"))
+                .with_field(field("note", "infer · mock/echo")),
+        );
+        view.apply(&demo::bare_event(EventKind::TaskCompleted, 100).with_field(field("task", "a")));
+        view.apply(
+            &demo::bare_event(EventKind::TaskStarted, 100)
+                .with_field(field("task", "b"))
+                .with_field(field("note", "exec · sh")),
+        );
+        view.set_plan(vec![vec!["a".to_owned()], vec!["b".to_owned()]]);
+
+        let mut accents = Theme::new(true, false, false);
+        accents.accents = true;
+        accents.animate = true;
+        let f = frame(&view, &accents, 1);
+        let map = f
+            .iter()
+            .find(|l| l.contains('⇉'))
+            .expect("the map line exists");
+        assert!(map.contains('a') && map.contains('b'), "{map}");
+        assert!(
+            map.contains(crate::theme::SCANLINE[1]),
+            "the running exec node turns its own motion: {map}"
+        );
+
+        let sober = frame(&view, &Theme::new(false, false, false), 1);
+        assert!(
+            !sober.iter().any(|l| l.contains('⇉') || l.contains("=>")),
+            "sober frames never carry the map"
+        );
     }
 
     #[test]
