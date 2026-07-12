@@ -373,16 +373,33 @@ fn pack_surface_round_trips_the_embedded_pack() {
     let _: serde_json::Value =
         serde_json::from_str(&schema.text).expect("embedded schema is valid JSON");
 
-    let list = pack_surface::examples_list();
+    // `examples list|show` graduated to the organized surface
+    // (verbs::examples — tiers · titles · chips · full filenames); the
+    // corpus pins live in its own unit tests. Here: the machine truth
+    // (the pack) still resolves everything the listing names.
     let slugs = nika_pack::example_slugs();
     assert!(!slugs.is_empty(), "pack carries examples");
-    assert_eq!(list.text, slugs.join("\n"));
+    let list = nika_cli::verbs::examples::list(PLAIN);
+    assert_eq!(list.code, exit::OK);
+    for slug in &slugs {
+        assert!(
+            list.text.contains(&format!("{slug}.nika.yaml")),
+            "listing names `{slug}` with its extension"
+        );
+    }
 
-    let shown = pack_surface::examples_show(&slugs[0]);
+    let shown = nika_cli::verbs::examples::show(&slugs[0], PLAIN);
     assert_eq!(shown.code, exit::OK);
-    assert_eq!(shown.text, nika_pack::example(&slugs[0]).expect("exists"));
+    assert!(
+        shown
+            .text
+            .contains(nika_pack::example(&slugs[0]).expect("exists"))
+    );
 
-    assert_eq!(pack_surface::examples_show("no-such-slug").code, exit::FILE);
+    assert_eq!(
+        nika_cli::verbs::examples::show("no-such-slug", PLAIN).code,
+        exit::FILE
+    );
     // `examples run` no longer refuses — it EXECUTES (the L3 run verb
     // shipped). Its behavior is pinned at the binary plane in
     // tests/run_verb.rs (the static suite can't drive a real run).

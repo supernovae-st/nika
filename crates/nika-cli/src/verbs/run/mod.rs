@@ -417,6 +417,32 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
     } else {
         RenderMode::Plain
     };
+    // The pre-display (TTY only): the SOURCE before the run — an
+    // example is a teaching artifact, and the lesson reads better
+    // before the tokens than after. Dim-framed, verbatim (the comments
+    // ARE the curriculum); pipes keep their exact bytes.
+    if mode == RenderMode::Live {
+        let file = format!(
+            "{}.nika.yaml",
+            slug.strip_suffix(".nika.yaml").unwrap_or(slug)
+        );
+        println!(
+            "{} {} {}",
+            theme.logo(),
+            theme.paint(crate::display::theme::Role::Strong, &file),
+            theme.paint(
+                crate::display::theme::Role::Dim,
+                "— the source, then the run"
+            ),
+        );
+        for line in yaml.lines() {
+            println!(
+                "  {} {line}",
+                theme.paint(crate::display::theme::Role::Dim, "│")
+            );
+        }
+        println!();
+    }
     // The interactive duration accents follow the same TTY gate; heat
     // additionally needs colour + the truecolor proof.
     let mut theme = theme;

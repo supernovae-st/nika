@@ -113,22 +113,64 @@ pub(crate) fn takes_model(r: &Recipe) -> bool {
 
 /// Materialize a recipe's workflows under `dir` — template VERBATIM
 /// through `stamp` (id from the destination stem · model only where the
-/// skeleton takes one). An existing file is SKIPPED unless `force`
-/// (`error: None` + absent from the created set is the skip signal the
-/// report renders); a write failure is carried, never panicked.
+/// skeleton takes one) — plus the generated `workflows/README.md` index
+/// (the curriculum's clear path: what each file teaches, in order, with
+/// its check/run commands). An existing file is SKIPPED unless `force`;
+/// a write failure is carried, never panicked.
 pub(crate) fn scaffold(
     dir: &str,
     r: &Recipe,
     model: Option<&str>,
     force: bool,
 ) -> Vec<(String, ScaffoldStatus)> {
-    r.workflows
+    let mut out: Vec<(String, ScaffoldStatus)> = r
+        .workflows
         .iter()
         .map(|(tpl, rel, id)| {
             let dest = Path::new(dir).join(rel).to_string_lossy().into_owned();
             (dest.clone(), scaffold_one(tpl, &dest, id, model, force))
         })
-        .collect()
+        .collect();
+    if !r.workflows.is_empty() {
+        let dest = Path::new(dir)
+            .join("workflows/README.md")
+            .to_string_lossy()
+            .into_owned();
+        let status = if Path::new(&dest).exists() && !force {
+            ScaffoldStatus::Skipped
+        } else {
+            match std::fs::write(&dest, readme(r)) {
+                Ok(()) => ScaffoldStatus::Created,
+                Err(e) => ScaffoldStatus::Failed(e.to_string()),
+            }
+        };
+        out.push((dest, status));
+    }
+    out
+}
+
+/// The curriculum index — GENERATED from the recipe table + each
+/// template's own `# TEMPLATE ·` header (one source, marked generated).
+fn readme(r: &Recipe) -> String {
+    let mut s = format!(
+        "# workflows — the `{}` set\n\n> Scaffolded by `nika init` (generated — regenerate by re-running\n> `nika init --recipe {}` with `--force`). {}\n\nRead them in order — each file teaches one pattern; the `# SLOT:`\nlines are yours to fill.\n\n",
+        r.name, r.name, r.tagline,
+    );
+    for (i, (tpl, rel, _)) in r.workflows.iter().enumerate() {
+        let tag = nika_pack::template(tpl)
+            .map(|b| crate::guided::tagline(tpl, b))
+            .unwrap_or_default();
+        let file = rel.strip_prefix("workflows/").unwrap_or(rel);
+        let _ = std::fmt::Write::write_fmt(
+            &mut s,
+            format_args!(
+                "## {} · {file}\n\n{tag}\n\n```sh\nnika check {rel}\nnika run {rel} --model mock/echo   # offline first — swap the model when ready\n```\n\n",
+                i + 1,
+            ),
+        );
+    }
+    s.push_str("Every finding teaches: `nika explain NIKA-XXXX`. The full contract\nlives in `AGENTS.md` at the repo root.\n");
+    s
 }
 
 /// The per-file outcome the report speaks.
@@ -208,9 +250,16 @@ mod tests {
             std::fs::remove_dir_all(&dir).ok();
             std::fs::create_dir_all(&dir).expect("mkdir");
             let out = scaffold(dir.to_str().expect("utf8"), r, None, false);
-            assert_eq!(out.len(), r.workflows.len());
+            let readme_rows = usize::from(!r.workflows.is_empty());
+            assert_eq!(out.len(), r.workflows.len() + readme_rows);
             for (path, status) in &out {
                 assert_eq!(*status, ScaffoldStatus::Created, "{path}");
+                if path.ends_with("README.md") {
+                    let body = std::fs::read_to_string(path).expect("written");
+                    assert!(body.contains("generated"), "the index says what it is");
+                    assert!(body.contains("nika check workflows/"), "{body}");
+                    continue;
+                }
                 let body = std::fs::read_to_string(path).expect("written");
                 let wf = nika_schema::parse(
                     &body,

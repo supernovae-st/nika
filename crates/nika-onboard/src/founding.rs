@@ -160,7 +160,11 @@ pub fn scripted_run(
             match status {
                 ScaffoldStatus::Created => {
                     let _ = writeln!(text, "✔ created {rel}");
-                    created.push(path.clone());
+                    // The proof ladder audits WORKFLOWS — the generated
+                    // index rides the report but never the check.
+                    if path.ends_with(".nika.yaml") {
+                        created.push(path.clone());
+                    }
                 }
                 ScaffoldStatus::Skipped => {
                     let _ = writeln!(text, "· skipped {rel} (exists · --force to overwrite)");

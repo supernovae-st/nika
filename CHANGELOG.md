@@ -48,6 +48,24 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   tick — every sober register keeps byte-identical output), and the
   frame still repaints inside one DEC-2026 synchronized frame.
 
+- **`nika examples` becomes the organized corpus** — the flat slug dump
+  grows into the taxonomy: « the path » (the 7 foundation steps · FULL
+  `.nika.yaml` filenames · each file's own header title · verb chips ·
+  what you see is what you type) then the showcase grouped T1→T4
+  (starters · daily ops · parallel intelligence · autonomous). Every
+  fact derives from the example file itself at call time (header +
+  line scan — no engine catalog to rot). `show` frames the anatomy
+  (file · title · verbs · task count) over the VERBATIM body and hands
+  the run command; `run` PRE-DISPLAYS the source on a TTY before the
+  first token (the lesson before the spend — pipes byte-unchanged).
+
+- **`nika init` recipes ship their index** — every workflow set writes
+  a generated `workflows/README.md` (the curriculum in order: file ·
+  what it teaches from the template's own header · per-file check/run
+  commands); the proof ladder audits workflows only. `nika tools`
+  speaks the rail (categories as heads · names strong · teaching cuts
+  dim).
+
 - **`nika-onboard` — the onboarding surface becomes its own member**
   (the 15k prod-LOC wall broke at 16,027: base main sat 12 under, the
   founding wizard crossed it — per D-2026-07-09-N1 the unit descends,

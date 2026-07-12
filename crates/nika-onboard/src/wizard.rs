@@ -295,7 +295,7 @@ fn found(
     // ── proof: the audit ladder INSIDE the first minute ──
     let created: Vec<&str> = scaffolded
         .iter()
-        .filter(|(_, s)| *s == ScaffoldStatus::Created)
+        .filter(|(p, s)| *s == ScaffoldStatus::Created && p.ends_with(".nika.yaml"))
         .map(|(p, _)| p.as_str())
         .collect();
     let mut worst = codes::OK;

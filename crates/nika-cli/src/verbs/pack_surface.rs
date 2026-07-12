@@ -9,7 +9,7 @@
 //! executes the embedded example through the shipped L3 runtime (see
 //! `verbs::run::example`).
 
-use crate::verbs::{VerbOutput, exit};
+use crate::verbs::VerbOutput;
 
 /// `nika spec` — the embedded spec identity (+ `--canon` = the SSOT).
 #[must_use]
@@ -30,26 +30,9 @@ pub fn schema() -> VerbOutput {
     VerbOutput::ok(nika_pack::schema_json().to_owned())
 }
 
-/// `nika examples list` — every embedded example slug.
-#[must_use]
-pub fn examples_list() -> VerbOutput {
-    VerbOutput::ok(nika_pack::example_slugs().join("\n"))
-}
-
-/// `nika examples show <slug>` — print one embedded example.
-#[must_use]
-pub fn examples_show(slug: &str) -> VerbOutput {
-    match nika_pack::example(slug) {
-        Some(yaml) => VerbOutput::ok(yaml.to_owned()),
-        None => VerbOutput {
-            text: format!("unknown example `{slug}` — `nika examples list` names the embedded set"),
-            code: exit::FILE,
-        },
-    }
-}
-
-// `nika examples run <slug>` now EXECUTES — `verbs::run::example` (the
-// L3 runtime shipped · the refusal stub retired).
+// `nika examples list|show` moved to `verbs::examples` (the organized
+// corpus experience — tiers · titles · verb chips · full filenames);
+// `run` executes via `verbs::run::example`.
 
 #[cfg(test)]
 mod tests {

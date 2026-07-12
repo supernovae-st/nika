@@ -837,7 +837,7 @@ fn main() -> std::process::ExitCode {
         Command::Spec { canon } => emit(&verbs::pack_surface::spec(canon)),
         Command::Schema => emit(&verbs::pack_surface::schema()),
         Command::Catalog { json } => emit(&verbs::catalog::run(json)),
-        Command::Tools { json } => emit(&verbs::tools::run(json)),
+        Command::Tools { json } => emit(&verbs::tools::run(json, plain_theme)),
         Command::Examples { action } => examples_verb(action, plain_theme),
         Command::New { from, dest, force } => emit(&verbs::new::dispatch(
             from.as_deref(),
@@ -908,8 +908,8 @@ fn model_verb(action: ModelAction) -> u8 {
 /// The `examples` sub-verbs — list · show · run-for-real (L3 shipped).
 fn examples_verb(action: Option<ExamplesAction>, plain_theme: Theme) -> u8 {
     match action.unwrap_or(ExamplesAction::List) {
-        ExamplesAction::List => emit(&verbs::pack_surface::examples_list()),
-        ExamplesAction::Show { slug } => emit(&verbs::pack_surface::examples_show(&slug)),
+        ExamplesAction::List => emit(&verbs::examples::list(plain_theme)),
+        ExamplesAction::Show { slug } => emit(&verbs::examples::show(&slug, plain_theme)),
         // The L3 run verb shipped — execute the embedded example for real.
         ExamplesAction::Run { slug, model } => {
             verbs::run::example(&slug, model.as_deref(), plain_theme)
