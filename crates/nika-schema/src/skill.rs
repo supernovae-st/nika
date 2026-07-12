@@ -169,6 +169,144 @@ pub fn skill_refs(wf: &RawWorkflow) -> Vec<(&str, &Spanned<String>)> {
     out
 }
 
+/// One SKILLS finding — a `skills:` reference that does not resolve to
+/// a valid Agent Skill (`nika check`'s SKILLS rung · the run/test
+/// refusal · the codes `nika explain` teaches).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SkillFinding {
+    /// The referencing task id.
+    pub task: String,
+    /// The path as written in `skills:`.
+    pub path: String,
+    /// `NIKA-AGENT-003` (missing/unreadable) · `NIKA-AGENT-004` (invalid).
+    pub code: &'static str,
+    /// The human detail (names the exact repair).
+    pub detail: String,
+}
+
+impl SkillFinding {
+    /// The shared human row — every surface (check rung · run/test
+    /// refusal) prints THIS (one voice), fix pointer included.
+    #[must_use]
+    pub fn row(&self) -> String {
+        format!(
+            "[{code} · skills] task `{task}` · {detail} · fix: nika explain {code}",
+            code = self.code,
+            task = self.task,
+            detail = self.detail,
+        )
+    }
+
+    /// The machine row (`check --json` `skill_findings[]`).
+    #[must_use]
+    pub fn json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "task": self.task,
+            "path": self.path,
+            "code": self.code,
+            "detail": self.detail,
+            "docs_url": format!("{}/{}", crate::check::ERROR_DOCS_BASE, self.code),
+        })
+    }
+}
+
+/// Everything a composer learns about a workflow's `skills:` — the
+/// resolved texts (path-as-written → raw SKILL.md content) plus every
+/// finding. `findings.is_empty()` ⇔ every referenced skill loads and
+/// parses; the map then covers every referenced path.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct ResolvedSkills {
+    /// Path-as-written → the file's raw text (only entries that loaded
+    /// AND parsed — a finding never half-populates the map).
+    pub texts: std::collections::BTreeMap<String, String>,
+    /// The SKILLS-rung findings, reference order.
+    pub findings: Vec<SkillFinding>,
+}
+
+impl ResolvedSkills {
+    /// The check rung, presentation-free: `None` when the workflow
+    /// references no skills (print nothing) · else the green message +
+    /// the finding rows (empty rows ⇔ green). The CLI paints; the words
+    /// live HERE beside the findings they describe.
+    #[must_use]
+    pub fn rung(&self) -> Option<(String, Vec<String>)> {
+        if self.texts.is_empty() && self.findings.is_empty() {
+            return None;
+        }
+        Some((
+            format!(
+                "{} skill(s) resolve (agentskills.io shape)",
+                self.texts.len()
+            ),
+            self.findings.iter().map(SkillFinding::row).collect(),
+        ))
+    }
+
+    /// Insert the `check --json` machine keys (`skills_resolve` +
+    /// `skill_findings[]` when red) — the report shape lives beside
+    /// [`crate::check::CheckReport`]'s own serialization.
+    pub fn extend_check_json(&self, obj: &mut serde_json::Map<String, serde_json::Value>) {
+        obj.insert("skills_resolve".to_owned(), self.findings.is_empty().into());
+        if !self.findings.is_empty() {
+            let rows = self.findings.iter().map(SkillFinding::json).collect();
+            obj.insert("skill_findings".to_owned(), serde_json::Value::Array(rows));
+        }
+    }
+}
+
+/// Resolve every `skills:` reference through an injected reader (the
+/// caller's fs edge — this crate stays zero-I/O). The ONE resolution
+/// `nika check` · `nika run` · `nika test` all call: same reader shape,
+/// same findings, check≡run by construction. Duplicate paths are read
+/// once; each referencing task still gets its own finding row when the
+/// file is bad (the row names WHO breaks).
+pub fn resolve_skills(
+    wf: &RawWorkflow,
+    read: &mut dyn FnMut(&str) -> Result<String, String>,
+) -> ResolvedSkills {
+    let mut resolved = ResolvedSkills::default();
+    // path → the defect of an already-diagnosed bad file (N references
+    // to one bad file each get a row without N reads).
+    let mut defects: std::collections::BTreeMap<String, (&'static str, String)> =
+        std::collections::BTreeMap::new();
+    for (task, path) in skill_refs(wf) {
+        let key = path.value.as_str();
+        if resolved.texts.contains_key(key) {
+            continue; // already resolved for an earlier reference
+        }
+        let (code, detail) = match defects.get(key) {
+            Some((code, detail)) => (*code, detail.clone()),
+            None => match read(key) {
+                Ok(text) => match parse_skill(&text) {
+                    Ok(_) => {
+                        resolved.texts.insert(key.to_owned(), text);
+                        continue;
+                    }
+                    Err(defect) => {
+                        let d = format!("`{key}` is not a valid Agent Skill: {defect}");
+                        defects.insert(key.to_owned(), ("NIKA-AGENT-004", d.clone()));
+                        ("NIKA-AGENT-004", d)
+                    }
+                },
+                Err(e) => {
+                    let d = format!("cannot read `{key}`: {e}");
+                    defects.insert(key.to_owned(), ("NIKA-AGENT-003", d.clone()));
+                    ("NIKA-AGENT-003", d)
+                }
+            },
+        };
+        resolved.findings.push(SkillFinding {
+            task: task.to_owned(),
+            path: key.to_owned(),
+            code,
+            detail,
+        });
+    }
+    resolved
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -255,6 +393,88 @@ mod tests {
         let text = "---\r\nname: x\r\ndescription: y\r\n---\r\nbody\r\n";
         let doc = parse_skill(text).expect("CRLF skill parses");
         assert_eq!(doc.name, "x");
+    }
+
+    #[test]
+    fn resolve_skills_splits_003_and_004_and_carries_texts() {
+        // The pure resolution over an injected reader (the CLI's fs edge
+        // stays 3 lines): a good skill carries its raw text; a missing
+        // file is NIKA-AGENT-003; an invalid one is NIKA-AGENT-004; a
+        // duplicated bad reference gets a row PER TASK without re-reads.
+        let yaml = "\
+nika: v1
+workflow: w
+model: mock/echo
+tasks:
+  - id: a
+    agent: { prompt: \"hi\", skills: [\"good/SKILL.md\", \"ghost/SKILL.md\"] }
+  - id: b
+    agent: { prompt: \"hi\", skills: [\"bad/SKILL.md\", \"ghost/SKILL.md\"] }
+";
+        let wf = crate::parse(yaml, crate::FileId::new(0), crate::ParseMode::Strict)
+            .expect("fixture parses");
+        let mut reads = 0usize;
+        let resolved = resolve_skills(&wf, &mut |path| {
+            reads += 1;
+            match path {
+                "good/SKILL.md" => Ok("---\nname: g\ndescription: d\n---\nbody\n".to_owned()),
+                "bad/SKILL.md" => Ok("# no frontmatter\n".to_owned()),
+                _ => Err("No such file or directory (os error 2)".to_owned()),
+            }
+        });
+        assert_eq!(
+            resolved.texts.get("good/SKILL.md").map(String::as_str),
+            Some("---\nname: g\ndescription: d\n---\nbody\n"),
+            "the raw text rides to the runtime seam"
+        );
+        let flat: Vec<(&str, &str, &str)> = resolved
+            .findings
+            .iter()
+            .map(|f| (f.task.as_str(), f.code, f.path.as_str()))
+            .collect();
+        assert_eq!(
+            flat,
+            vec![
+                ("a", "NIKA-AGENT-003", "ghost/SKILL.md"),
+                ("b", "NIKA-AGENT-004", "bad/SKILL.md"),
+                ("b", "NIKA-AGENT-003", "ghost/SKILL.md"),
+            ],
+            "one row per referencing task · codes split by defect class"
+        );
+        assert_eq!(reads, 3, "duplicate references never re-read");
+        assert!(
+            !resolved.texts.contains_key("bad/SKILL.md"),
+            "a finding never half-populates the map"
+        );
+        // The shared voices: the human row leads with the code + carries
+        // the fix pointer; the machine row carries the docs_url.
+        let row = resolved.findings[0].row();
+        assert!(
+            row.starts_with("[NIKA-AGENT-003 · skills] task `a`")
+                && row.ends_with("fix: nika explain NIKA-AGENT-003"),
+            "{row}"
+        );
+        let json = resolved.findings[1].json();
+        assert_eq!(json["code"], "NIKA-AGENT-004");
+        assert!(
+            json["docs_url"]
+                .as_str()
+                .expect("docs_url")
+                .ends_with("/NIKA-AGENT-004"),
+            "{json:#}"
+        );
+    }
+
+    #[test]
+    fn resolve_skills_is_empty_for_a_skill_less_workflow() {
+        let wf = crate::parse(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n",
+            crate::FileId::new(0),
+            crate::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let resolved = resolve_skills(&wf, &mut |_| panic!("no reference → no read"));
+        assert!(resolved.texts.is_empty() && resolved.findings.is_empty());
     }
 
     #[test]

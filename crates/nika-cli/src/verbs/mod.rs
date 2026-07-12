@@ -26,7 +26,6 @@ pub mod new;
 pub mod pack_surface;
 pub(crate) mod probe;
 pub mod run;
-pub(crate) mod skills;
 pub mod test;
 pub mod tools;
 pub mod trace;
@@ -163,6 +162,13 @@ pub(crate) fn load_checked_with_source(
         .map_err(|e| VerbOutput::file(format!("PARSE ✗  [{}] {e}", e.spec_code())))?;
     let report = nika_schema::check(&wf);
     Ok((yaml, wf, report))
+}
+
+/// The `skills:` fs edge (#473) — the ONE reader check · run · test share.
+pub(crate) fn resolve_workflow_skills(wf: &RawWorkflow) -> nika_schema::ResolvedSkills {
+    nika_schema::resolve_skills(wf, &mut |p| {
+        std::fs::read_to_string(p).map_err(|e| e.to_string())
+    })
 }
 
 /// The workflow with the CLI `--model` swapped into the envelope default

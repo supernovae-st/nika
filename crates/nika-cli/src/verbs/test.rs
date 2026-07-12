@@ -60,17 +60,11 @@ pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
             return out.code;
         }
     };
-    if !report.is_clean() {
+    // #473 · a golden pins the run WITH its skills composed, never without.
+    let resolved = crate::verbs::resolve_workflow_skills(&wf);
+    if !report.is_clean() || !resolved.findings.is_empty() {
         // The SAME findings `nika check` renders — a dirty file never
         // pins (or judges) a golden.
-        let out = crate::verbs::check::run(file, false, false, None, theme);
-        print!("{}", out.text);
-        return out.code;
-    }
-    // ── `skills:` gate (#473) — same voice, same rows as `nika check`;
-    // a golden must pin the run WITH its skills composed, never without.
-    let resolved = crate::verbs::skills::resolve_skills(&wf);
-    if !resolved.findings.is_empty() {
         let out = crate::verbs::check::run(file, false, false, None, theme);
         print!("{}", out.text);
         return out.code;

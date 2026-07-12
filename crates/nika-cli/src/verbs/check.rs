@@ -62,35 +62,23 @@ pub fn run(
     // the exact asymmetry a hallucinating agent hits. A `model:` this
     // binary cannot resolve is a FINDING (exit 2), never a green audit.
     let model_findings = unresolvable_models(&report);
-    // The SKILLS rung (#473): the pure ladder is fs-free, so the
-    // filesystem half of `skills:` lives at this edge (the MODELS-rung
-    // pattern) — a missing/malformed SKILL.md is a FINDING (exit 2),
-    // never a green audit that dies at dispatch (check≡run).
-    let skill_resolution = super::skills::resolve_skills(&wf);
-    let clean =
-        report.is_clean() && model_findings.is_empty() && skill_resolution.findings.is_empty();
+    // SKILLS rung (#473 · MODELS pattern): a bad SKILL.md is a FINDING.
+    let skills = super::resolve_workflow_skills(&wf);
+    let clean = report.is_clean() && model_findings.is_empty() && skills.findings.is_empty();
     let strict_clean = clean && (!native_strict || native_hints == 0);
 
     if json {
         return json_verdict(
             &report,
             &model_findings,
-            &skill_resolution,
+            &skills,
             clean,
             strict_clean,
             native_strict,
         );
     }
 
-    let mut text = render(
-        &report,
-        &wf,
-        &source,
-        path,
-        theme,
-        &model_findings,
-        &skill_resolution,
-    );
+    let mut text = render(&report, &wf, &source, path, theme, &model_findings, &skills);
     if native_strict && report.is_clean() && native_hints > 0 {
         let hint_word = if native_hints == 1 { "hint" } else { "hints" };
         let _ = writeln!(
@@ -156,7 +144,7 @@ fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
 fn json_verdict(
     report: &CheckReport,
     model_findings: &[ModelFinding],
-    skill_resolution: &super::skills::ResolvedSkills,
+    skills: &nika_schema::ResolvedSkills,
     clean: bool,
     strict_clean: bool,
     native_strict: bool,
@@ -188,33 +176,7 @@ fn json_verdict(
                 ),
             );
         }
-        obj.insert(
-            "skills_resolve".to_owned(),
-            serde_json::Value::Bool(skill_resolution.findings.is_empty()),
-        );
-        if !skill_resolution.findings.is_empty() {
-            obj.insert(
-                "skill_findings".to_owned(),
-                serde_json::Value::Array(
-                    skill_resolution
-                        .findings
-                        .iter()
-                        .map(|f| {
-                            serde_json::json!({
-                                "task": f.task,
-                                "path": f.path,
-                                "code": f.code,
-                                "detail": f.detail,
-                                "docs_url": format!(
-                                    "{}/{}",
-                                    nika_schema::check::ERROR_DOCS_BASE, f.code
-                                ),
-                            })
-                        })
-                        .collect(),
-                ),
-            );
-        }
+        skills.extend_check_json(obj);
         obj.insert(
             "pricing".to_owned(),
             pricing_section(report, model_findings),
@@ -359,7 +321,7 @@ fn render(
     path: &str,
     t: Theme,
     model_findings: &[ModelFinding],
-    skill_resolution: &super::skills::ResolvedSkills,
+    skills: &nika_schema::ResolvedSkills,
 ) -> String {
     let mut out = String::new();
     let name = path.rsplit('/').next().unwrap_or(path);
@@ -376,7 +338,10 @@ fn render(
 
     plan(&mut out, report, wf, t);
     models(&mut out, report, model_findings, t);
-    skills_rung(&mut out, wf, skill_resolution, t);
+    // SKILLS (#473) · silent when nothing is referenced (rows self-teach).
+    if let Some((ok_msg, rows)) = skills.rung() {
+        section_list(&mut out, t, "SKILLS", &ok_msg, rows);
+    }
     cost(&mut out, report, t);
 
     section_list(&mut out, t, "SECRETS", "no information-flow escapes", {
@@ -752,60 +717,6 @@ fn models(out: &mut String, report: &CheckReport, findings: &[ModelFinding], t: 
             if f.tasks.len() == 1 { "" } else { "s" },
             f.tasks.join(", "),
             f.why
-        );
-    }
-}
-
-/// The SKILLS rung (#473): every `skills:` path must load AND parse as
-/// an Agent Skill in THIS working directory — green means the composer
-/// will inject exactly what the author pointed at; a finding names the
-/// referencing task, the code (`nika explain NIKA-AGENT-003/004`) and
-/// the repair. Silent when the workflow references no skills.
-fn skills_rung(
-    out: &mut String,
-    wf: &RawWorkflow,
-    resolution: &super::skills::ResolvedSkills,
-    t: Theme,
-) {
-    if nika_schema::skill_refs(wf).is_empty() {
-        return; // no `skills:` anywhere — nothing to claim
-    }
-    if resolution.findings.is_empty() {
-        let n = resolution.texts.len();
-        let noun = if n == 1 {
-            "skill resolves"
-        } else {
-            "skills resolve"
-        };
-        let _ = writeln!(
-            out,
-            " {} {}   {}",
-            mark(t, true),
-            t.paint(Role::Strong, "SKILLS"),
-            t.paint(Role::Dim, &format!("{n} {noun} (agentskills.io shape)"))
-        );
-        return;
-    }
-    for f in &resolution.findings {
-        let _ = writeln!(
-            out,
-            " {} {}   {}",
-            mark(t, false),
-            t.paint(Role::Strong, "SKILLS"),
-            super::skills::finding_row(f),
-        );
-        let _ = writeln!(
-            out,
-            "   {}",
-            t.paint(
-                Role::Dim,
-                &format!(
-                    "fix: nika explain {} · {}/{}",
-                    f.code,
-                    nika_schema::check::ERROR_DOCS_BASE,
-                    f.code
-                )
-            )
         );
     }
 }
@@ -1355,93 +1266,6 @@ mod tests {
             row["input_per_million"].is_null() && row["output_per_million"].is_null(),
             "an unresolvable model is never priced: {row:#}"
         );
-    }
-
-    /// The SKILLS rung (#473) — three postures through the REAL check
-    /// verb over real files: green (the skill loads + parses · exit 0 ·
-    /// the rung is visible), missing file (NIKA-AGENT-003 · exit 2),
-    /// malformed file (NIKA-AGENT-004 · exit 2 · the explain pointer
-    /// renders). Silent when no `skills:` are referenced (pinned by
-    /// every other test in this module never printing SKILLS).
-    #[test]
-    fn skills_rung_greens_reds_and_teaches() {
-        let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmp dir");
-        let good = dir.join("good-SKILL.md");
-        std::fs::write(&good, "---\nname: g\ndescription: d\n---\nbody\n").expect("fixture");
-        let bad = dir.join("bad-SKILL.md");
-        std::fs::write(&bad, "no frontmatter\n").expect("fixture");
-        let ghost = dir.join("ghost-SKILL.md");
-
-        let wf_with = |skill: &std::path::Path| {
-            format!(
-                "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: go\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
-                skill.display()
-            )
-        };
-
-        // GREEN — the rung names the count, the audit stays clean.
-        let green = checked_output("skills-green.nika.yaml", &wf_with(&good), false);
-        assert_eq!(green.code, 0, "{}", green.text);
-        assert!(
-            green.text.contains("SKILLS") && green.text.contains("1 skill resolves"),
-            "the green rung is visible: {}",
-            green.text
-        );
-
-        // MISSING — NIKA-AGENT-003 · exit 2 · the row names the task.
-        let missing = checked_output("skills-missing.nika.yaml", &wf_with(&ghost), false);
-        assert_eq!(
-            missing.code, 2,
-            "missing skill is a finding: {}",
-            missing.text
-        );
-        assert!(
-            missing.text.contains("[NIKA-AGENT-003 · skills] task `go`"),
-            "the row leads with the code: {}",
-            missing.text
-        );
-        assert!(
-            missing.text.contains("nika explain NIKA-AGENT-003"),
-            "the explain pointer teaches: {}",
-            missing.text
-        );
-
-        // MALFORMED — NIKA-AGENT-004 · exit 2 · the defect names the repair.
-        let malformed = checked_output("skills-malformed.nika.yaml", &wf_with(&bad), false);
-        assert_eq!(malformed.code, 2, "{}", malformed.text);
-        assert!(
-            malformed.text.contains("NIKA-AGENT-004") && malformed.text.contains("frontmatter"),
-            "the defect teaches the shape: {}",
-            malformed.text
-        );
-
-        // The machine surface: clean=false · skills_resolve=false · the
-        // finding row carries task/path/code/docs_url.
-        let path = dir.join("skills-missing.nika.yaml");
-        let theme = Theme::new(false, true, false);
-        let out = run(path.to_str().expect("utf8 path"), true, false, None, theme);
-        assert_eq!(out.code, 2);
-        let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
-        assert_eq!(payload["clean"], false);
-        assert_eq!(payload["skills_resolve"], false);
-        assert_eq!(payload["skill_findings"][0]["task"], "go");
-        assert_eq!(payload["skill_findings"][0]["code"], "NIKA-AGENT-003");
-        assert!(
-            payload["skill_findings"][0]["docs_url"]
-                .as_str()
-                .expect("docs_url")
-                .ends_with("/NIKA-AGENT-003"),
-            "{payload:#}"
-        );
-        // …and the green twin reports skills_resolve=true with NO findings key.
-        let path = dir.join("skills-green.nika.yaml");
-        let out = run(path.to_str().expect("utf8 path"), true, false, None, theme);
-        assert_eq!(out.code, 0, "{}", out.text);
-        let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
-        assert_eq!(payload["clean"], true);
-        assert_eq!(payload["skills_resolve"], true);
-        assert!(payload.get("skill_findings").is_none(), "{payload:#}");
     }
 
     /// The happy path: every model resolvable → the rung is one green

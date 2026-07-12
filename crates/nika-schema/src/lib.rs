@@ -64,7 +64,9 @@ pub use check::{
 pub use codegen::nika_builtin_tool_enum_schema;
 pub use error::{SchemaError, SpecCategory, SpecCode};
 pub use parser::{ParseMode, parse};
-pub use skill::{SkillDefect, SkillDoc, parse_skill, skill_refs};
+pub use skill::{
+    ResolvedSkills, SkillDefect, SkillDoc, SkillFinding, parse_skill, resolve_skills, skill_refs,
+};
 pub use source::{ByteOffset, FileId, LineCol, SourceFile, SourceRegistry, Span, Spanned};
 
 // Type re-exports (§3.16 of crate spec).

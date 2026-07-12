@@ -222,20 +222,12 @@ fn run_verdict(
         }
     };
 
-    // ── `--task` scope + clean gate + `--var` overrides (pre-effect) ──
-    let (wf, report) =
+    // ── `--task` scope + clean/skills gates + `--var` overrides ─────
+    let (wf, report, skills) =
         match scoped_clean_gate(wf, report, task_filter, file, json, theme, output_json) {
-            Ok(pair) => pair,
+            Ok(triple) => triple,
             Err(code) => return RunVerdict::bare(code),
         };
-    // ── `skills:` gate + resolve (#473 · pre-effect) — the fs half the
-    // pure ladder cannot see: a missing/malformed SKILL.md refuses HERE
-    // with the same rows `nika check` renders (check≡run · never a
-    // half-composed agent context, never a token spent first).
-    let skills = match skills_gate(&wf, file, json, theme, output_json) {
-        Ok(texts) => texts,
-        Err(code) => return RunVerdict::bare(code),
-    };
     let overrides = match inputs::validated_var_overrides(vars, &wf, output_json) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
@@ -256,9 +248,6 @@ fn run_verdict(
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
-    // ADR-099: the pause rider binds to the NON-INTERACTIVE machine
-    // surfaces only — human TTY/plain keep the PROMPT-001 contract.
-    let pause_on_prompt = json || output_json;
 
     // ── Compose the production runtime (real seams · env keys) ──────
     let runtime = match composed_runtime(
@@ -268,7 +257,8 @@ fn run_verdict(
         overrides,
         setup.plan,
         setup.answers,
-        pause_on_prompt,
+        // ADR-099 pause rider: NON-INTERACTIVE machine surfaces only.
+        json || output_json,
         max_cost_usd,
         skills,
         output_json,
@@ -644,9 +634,8 @@ fn composed_runtime(
                 .with_max_cost_usd(max_cost_usd)
                 .with_prompt_pause(pause_on_prompt)
                 .with_prompt_answers(answers)
-                // #473 · the composer-resolved SKILL.md texts — the
-                // dispatch composes the `## Skills` section from these
-                // and they join the referencing tasks' resume identity.
+                // #473 · composer-resolved SKILL.md texts (`## Skills`
+                // injection + the referencing tasks' resume identity).
                 .with_skills(skills)
                 // #409 · the override joins the resume identity of every
                 // model-less infer/agent task (the model they RUN on).
@@ -677,30 +666,6 @@ fn composed_runtime(
     }
 }
 
-/// The `skills:` pre-effect gate (#473): resolve every referenced
-/// SKILL.md (the fs half `nika check` also runs) — findings re-render
-/// through `check::run` (the ONE voice · same rows · exit 2) exactly
-/// like the dirty-report gate above it.
-///
-/// # Errors
-///
-/// The exit code to return unchanged (already printed + enveloped).
-fn skills_gate(
-    wf: &RawWorkflow,
-    file: &str,
-    json: bool,
-    theme: Theme,
-    output_json: bool,
-) -> Result<BTreeMap<String, String>, u8> {
-    let resolved = crate::verbs::skills::resolve_skills(wf);
-    if resolved.findings.is_empty() {
-        return Ok(resolved.texts);
-    }
-    let out = crate::verbs::check::run(file, json, false, None, theme);
-    epilogue::emit_diagnostic(&out.text, output_json);
-    Err(out.code)
-}
-
 /// Execute a CHECKED workflow with the MOCK provider and capture the typed
 /// `outputs:` — the `nika test` seam (F7). The envelope model is replaced
 /// by `mock/echo` through the SAME composition path as `--model` (offline ·
@@ -721,9 +686,8 @@ pub(crate) fn capture_mock_outputs(
     theme: Theme,
 ) -> Result<(u8, BTreeMap<String, Value>), String> {
     let caps = capabilities_of(wf);
-    let runtime = production_runtime("mock/echo", caps)
-        .map_err(|e| e.to_string())?
-        .with_skills(skills);
+    let runtime = production_runtime("mock/echo", caps).map_err(|e| e.to_string())?;
+    let runtime = runtime.with_skills(skills);
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -813,19 +777,25 @@ fn scoped_clean_gate(
     json: bool,
     theme: Theme,
     output_json: bool,
-) -> Result<(RawWorkflow, CheckReport), u8> {
-    if !report.is_clean() {
+) -> Result<(RawWorkflow, CheckReport, BTreeMap<String, String>), u8> {
+    let refuse = || {
         let out = crate::verbs::check::run(file, json, false, None, theme);
         epilogue::emit_diagnostic(&out.text, output_json);
-        return Err(out.code);
+        out.code
+    };
+    if !report.is_clean() {
+        return Err(refuse());
     }
     let (wf, report) = apply_task_scope(wf, report, task_filter, output_json)?;
     if !report.is_clean() {
-        let out = crate::verbs::check::run(file, json, false, None, theme);
-        epilogue::emit_diagnostic(&out.text, output_json);
-        return Err(out.code);
+        return Err(refuse());
     }
-    Ok((wf, report))
+    // `skills:` gate (#473 · pre-effect · the SAME rows check renders).
+    let resolved = crate::verbs::resolve_workflow_skills(&wf);
+    if !resolved.findings.is_empty() {
+        return Err(refuse());
+    }
+    Ok((wf, report, resolved.texts))
 }
 
 /// Apply the `--task` scope when requested (the regenerate-one-block
@@ -1481,7 +1451,7 @@ mod tests {
         let report = nika_schema::check(&wf);
         assert!(report.is_clean(), "the pure ladder is fs-free");
 
-        let resolved = crate::verbs::skills::resolve_skills(&wf);
+        let resolved = crate::verbs::resolve_workflow_skills(&wf);
         assert!(resolved.findings.is_empty(), "the skill file resolves");
         let theme = Theme::new(false, true, false);
         let (code, _) = capture_mock_outputs(&wf, &report, resolved.texts, theme)
