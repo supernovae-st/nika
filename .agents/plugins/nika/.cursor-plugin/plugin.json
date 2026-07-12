@@ -1,0 +1,37 @@
+{
+  "name": "nika",
+  "displayName": "Nika",
+  "description": "Author AI workflows as checkable .nika.yaml files. Bundles the nika-authoring skill, the nika-author subagent, the language rule, three commands (/check, /explain, /new), a check-on-edit hook and the read-only Nika MCP oracle (8 tools). Requires the nika binary: brew install supernovae-st/tap/nika",
+  "version": "0.3.0",
+  "author": {
+    "name": "SuperNovae Studio",
+    "email": "nika@supernovae.studio"
+  },
+  "homepage": "https://docs.nika.sh",
+  "repository": "https://github.com/supernovae-st/nika-agents",
+  "license": "AGPL-3.0-or-later",
+  "logo": "./assets/nika-logo.png",
+  "keywords": [
+    "nika",
+    "workflow",
+    "yaml",
+    "ai-workflows",
+    "agent",
+    "audit",
+    "mcp"
+  ],
+  "rules": [
+    "./rules"
+  ],
+  "skills": [
+    "./skills"
+  ],
+  "agents": [
+    "./agents"
+  ],
+  "commands": [
+    "./commands"
+  ],
+  "hooks": "./hooks/cursor-hooks.json",
+  "mcpServers": "./.mcp.json"
+}

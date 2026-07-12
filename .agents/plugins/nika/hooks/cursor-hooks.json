@@ -1,0 +1,9 @@
+{
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": "./scripts/check-on-edit.sh"
+      }
+    ]
+  }
+}
