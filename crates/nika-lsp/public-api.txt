@@ -51,6 +51,7 @@ impl<T> nika_error::traits::AsAny for nika_lsp::analysis::document::Document whe
 pub fn nika_lsp::analysis::document::Document::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_lsp::analysis::hover
 pub fn nika_lsp::analysis::hover::hover(text: &str, offset: usize) -> core::option::Option<lsp_types::hover::Hover>
+pub mod nika_lsp::analysis::members
 pub mod nika_lsp::analysis::position
 pub struct nika_lsp::analysis::position::LineIndex
 impl nika_lsp::analysis::position::LineIndex
@@ -90,6 +91,7 @@ impl<T> dyn_clone::DynClone for nika_lsp::analysis::position::LineIndex where T:
 pub fn nika_lsp::analysis::position::LineIndex::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_lsp::analysis::position::LineIndex where T: 'static
 pub fn nika_lsp::analysis::position::LineIndex::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub mod nika_lsp::analysis::scope
 pub mod nika_lsp::analysis::symbols
 pub fn nika_lsp::analysis::symbols::document_symbols(text: &str) -> alloc::vec::Vec<lsp_types::document_symbols::DocumentSymbol>
 pub mod nika_lsp::analysis::vocab
