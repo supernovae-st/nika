@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# 26 · for_each fan-out — map one task over a runtime collection.
+# 07 · for_each fan-out — map one task over a runtime collection.
 #
 # Demonstrates ·
 #   - `for_each:` · run a task once per element (the matrix / fan-out pattern)
@@ -10,7 +10,7 @@
 #   - `fail_fast: false` · process every locale even if one fails
 #   - the task `.output` is the ARRAY of per-iteration outputs, in input order
 #
-# Run · nika run examples/26-for-each-locales.nika.yaml
+# Run · nika run examples/07-for-each-locales.nika.yaml
 nika: v1
 workflow: for-each-locales
 

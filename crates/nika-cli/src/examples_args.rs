@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! The `examples` verb's clap surface — action enum + dispatcher
+//! (split from `main.rs` under the 1500-line file law · the
+//! `init_args` precedent).
+
+use clap::Subcommand;
+
+use nika_cli::Theme;
+use nika_cli::verbs;
+
+use crate::emit;
+
+#[derive(Subcommand)]
+pub(crate) enum ExamplesAction {
+    /// List the embedded example slugs.
+    List,
+    /// Print one embedded example.
+    Show {
+        /// Example slug (from `list`).
+        slug: String,
+    },
+    /// Run an embedded example (audited first · live render).
+    Run {
+        /// Example slug (from `list`).
+        slug: String,
+        /// Override the example's `model:` (`<provider>/<name>`). Use
+        /// `--model mock/echo` to preview offline (zero key · zero network).
+        #[arg(long, value_name = "PROVIDER/NAME")]
+        model: Option<String>,
+        /// Set a workflow `vars:` input (repeatable) — several examples
+        /// declare required vars and say so in their header.
+        #[arg(long, value_name = "KEY=VALUE")]
+        var: Vec<String>,
+        /// Verdict line only (suppress the storyboard).
+        #[arg(long)]
+        quiet: bool,
+    },
+}
+
+/// Dispatch the `trace` verb family: the live renders (replay · show)
+/// plus the static readers (outputs · peek · flow).
+/// The `examples` sub-verbs — list · show · run-for-real (L3 shipped).
+pub(crate) fn examples_verb(action: Option<ExamplesAction>, plain_theme: Theme) -> u8 {
+    match action.unwrap_or(ExamplesAction::List) {
+        ExamplesAction::List => emit(&verbs::examples::list(plain_theme)),
+        ExamplesAction::Show { slug } => emit(&verbs::examples::show(&slug, plain_theme)),
+        // The L3 run verb shipped — execute the embedded example for real.
+        ExamplesAction::Run {
+            slug,
+            model,
+            var,
+            quiet,
+        } => verbs::run::example(&slug, model.as_deref(), &var, quiet, plain_theme),
+    }
+}

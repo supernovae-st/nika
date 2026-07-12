@@ -94,7 +94,7 @@ tasks:
         create_dirs: true
 
 outputs:
-  totals:
-    value: ${{ tasks.good.output }}
-    type: array
-    description: "Per-currency order totals · empty when the batch was quarantined"
+  # Deliberately untyped · on the quarantine path `good` is SKIPPED and
+  # this is null — a declared `type: array` would refuse the branch the
+  # file exists to demonstrate.
+  totals: ${{ tasks.good.output }}

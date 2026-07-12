@@ -8,21 +8,21 @@ workflow_count: 33
 foundation:
   - file: examples/01-hello.nika.yaml
     sha256_16: 91fc4a92dfeedafb
-  - file: examples/06-parallel-fanout.nika.yaml
+  - file: examples/02-parallel-fanout.nika.yaml
     sha256_16: 728605e34575d6d4
-  - file: examples/16-exec-pipeline.nika.yaml
-    sha256_16: 975f2ab31d7f4951
-  - file: examples/19-schema-retry.nika.yaml
+  - file: examples/03-exec-pipeline.nika.yaml
+    sha256_16: b273d97d2a36e5d8
+  - file: examples/04-schema-retry.nika.yaml
     sha256_16: c9d9a0f6e6dfb9c5
-  - file: examples/22-fetch-chain.nika.yaml
-    sha256_16: 7f39d402ea41dcd5
-  - file: examples/23-code-review.nika.yaml
-    sha256_16: 11ce24706eaa514d
-  - file: examples/26-for-each-locales.nika.yaml
+  - file: examples/05-fetch-chain.nika.yaml
+    sha256_16: 546539472f84f181
+  - file: examples/06-code-review.nika.yaml
+    sha256_16: 2d6001507a63d01e
+  - file: examples/07-for-each-locales.nika.yaml
     sha256_16: 187904d14bb2e430
 templates:
   - file: templates/agent-loop.nika.yaml
-    sha256_16: 305b7b4b04c2beaf
+    sha256_16: a06dcf1d4a8fe871
   - file: templates/api-upload-and-create.nika.yaml
     sha256_16: eff75e74a952c137
   - file: templates/chain.nika.yaml
@@ -30,11 +30,11 @@ templates:
   - file: templates/docker-report.nika.yaml
     sha256_16: b4ae2ca559888e0e
   - file: templates/etl-state.nika.yaml
-    sha256_16: cba8dcdc952eedc0
+    sha256_16: a98fd8107f53544c
   - file: templates/fanout.nika.yaml
-    sha256_16: 004fccc3dd92f4a5
+    sha256_16: 4b9e949062b555a1
   - file: templates/gate-and-act.nika.yaml
-    sha256_16: e8a0c5e7f60f5e60
+    sha256_16: 00db7679539f3b23
   - file: templates/human-gated-ship.nika.yaml
     sha256_16: 8a0675f074eecb75
   - file: templates/media-asset-pack.nika.yaml
@@ -64,8 +64,8 @@ showcase:
     workflow: price-watch
     tier: T1
     description: "Watch a product price, ping me when it drops below my target"
-    constructs: [output, outputs, secrets, when]
-    sha256_16: f5f4db9a30dec82f
+    constructs: [on_error, output, outputs, secrets, when]
+    sha256_16: fe0fbd9e6913d86b
   - file: examples/showcase/t1-social-repurpose.nika.yaml
     workflow: social-repurpose
     tier: T1
@@ -101,7 +101,7 @@ showcase:
     tier: T2
     description: "CSV batch \u2192 schema gate \u2192 quarantine the bad \u00b7 aggregate the good"
     constructs: [on_error, outputs, when]
-    sha256_16: 23b955868d4c7621
+    sha256_16: 6916756f237e9608
   - file: examples/showcase/t2-invoice-chaser.nika.yaml
     workflow: invoice-chaser
     tier: T2
@@ -155,7 +155,7 @@ showcase:
     tier: T3
     description: "live config vs sanctioned baseline \u2192 typed drift \u2192 explained alert"
     constructs: [local_model, on_error, outputs, retry, secrets, typed_vars, when]
-    sha256_16: 2b06abcd2c7195f5
+    sha256_16: ecdeb00088154a0f
   - file: examples/showcase/t3-localization-factory.nika.yaml
     workflow: localization-factory
     tier: T3
@@ -167,7 +167,7 @@ showcase:
     tier: T3
     description: "changed files \u2192 one read-only review agent each \u2192 merged REVIEW.md"
     constructs: [agent_tools, fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema]
-    sha256_16: 3eb68d7fb1e810cb
+    sha256_16: d9d58782dd4bbc70
   - file: examples/showcase/t3-resume-screener.nika.yaml
     workflow: resume-screener
     tier: T3
@@ -179,7 +179,7 @@ showcase:
     tier: T4
     description: "news + repo pulse + KPIs \u2192 thinking synthesis \u2192 dated brief + cost ping"
     constructs: [local_model, on_finally, output, outputs, secrets, thinking]
-    sha256_16: 15d83ec84f5ae4ec
+    sha256_16: 6e2a3205ba5dd4f9
   - file: examples/showcase/t4-deep-research-brief.nika.yaml
     workflow: deep-research-brief
     tier: T4

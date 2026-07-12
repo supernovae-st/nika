@@ -36,6 +36,10 @@ tasks:
         jq: "."
     output:
       value: ".value"               # SLOT: the jq path to the watched field
+    on_error:
+      # Offline rehearsal · a sample UNDER the threshold — the gate stays
+      # closed, the skeleton runs green before you wire the real source.
+      recover: { value: 42 }
 
   - id: act
     depends_on: [check]

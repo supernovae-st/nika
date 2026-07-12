@@ -11,6 +11,8 @@
 #   - `exec:` → `infer:` · the bread-and-butter chain (real data in, words out)
 #   - `nika:write` · ALWAYS pass `content:` (a write without content writes nothing)
 #
+# Needs · a git repo (the digest reads YOUR yesterday's commits).
+#
 # Run · nika run examples/showcase/t1-standup-digest.nika.yaml
 nika: v1
 workflow: standup-digest

@@ -23,6 +23,10 @@
 # --resume, rehydrated rows say "cached" — a latency that was not
 # re-measured is never re-printed as fresh.
 #
+# Needs · ollama running with the three seats pulled (qwen2.5:14b ·
+# llama3.2:3b · qwen2.5:0.5b) — per-task `model:` seats are the bench,
+# the CLI --model override deliberately doesn't touch them.
+#
 # Run · nika run examples/showcase/t2-model-bench.nika.yaml
 #       models · ollama pull qwen2.5:14b · llama3.2:3b · qwen2.5:0.5b
 #       (swap any seat for the models YOU have — or for mistral/… ·

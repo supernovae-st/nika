@@ -15,6 +15,9 @@
 #   - parallel gate wave + `capture: structured` exit-code checks
 #   - the always-pattern (`when: true`) · the departure record always lands
 #
+# Needs · real release checks wired in (the RED assert IS the lesson:
+# a train with failing gates does not depart).
+#
 # Run · nika run examples/showcase/t4-release-train.nika.yaml --var version=1.4.0
 nika: v1
 workflow: release-train

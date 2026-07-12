@@ -18,6 +18,8 @@
 #   - typed JSON → markdown · the shape is the contract, the render is
 #     mechanical (`nika:write`, no second model call)
 #
+# Needs · ./data/transcript.txt (your episode transcript).
+#
 # Run · point `vars.transcript` at your file, then
 #   nika run examples/showcase/t2-transcript-shownotes.nika.yaml
 nika: v1

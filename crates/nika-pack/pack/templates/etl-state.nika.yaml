@@ -39,6 +39,8 @@ tasks:
         url: "${{ vars.source_url }}"
         mode: jq
         jq: ".records"
+    on_error:
+      recover: []                   # offline rehearsal · an empty batch, the delta stays quiet
 
   - id: delta
     depends_on: [previous, fresh]

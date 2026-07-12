@@ -20,6 +20,7 @@ use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+mod examples_args;
 mod init_args;
 mod lazy;
 mod registry_args;
@@ -30,6 +31,7 @@ use nika_cli::verbs::explain_file::dispatch as explain_dispatch;
 use nika_cli::verbs::{self, VerbOutput};
 use nika_cli::{RunView, Theme, frame};
 
+use examples_args::{ExamplesAction, examples_verb};
 use init_args::{InitArgs, init_verb};
 use lazy::{check_lazy, run_lazy};
 use nika_event::Event;
@@ -387,26 +389,6 @@ enum ModelAction {
         /// The model id responses report (default: the model file's name).
         #[arg(long, value_name = "ID")]
         model_id: Option<String>,
-    },
-}
-
-#[derive(Subcommand)]
-enum ExamplesAction {
-    /// List the embedded example slugs.
-    List,
-    /// Print one embedded example.
-    Show {
-        /// Example slug (from `list`).
-        slug: String,
-    },
-    /// Run an embedded example (audited first · live render).
-    Run {
-        /// Example slug (from `list`).
-        slug: String,
-        /// Override the example's `model:` (`<provider>/<name>`). Use
-        /// `--model mock/echo` to preview offline (zero key · zero network).
-        #[arg(long, value_name = "PROVIDER/NAME")]
-        model: Option<String>,
     },
 }
 
@@ -906,20 +888,6 @@ fn model_verb(action: ModelAction) -> u8 {
         port,
         model_id.as_deref(),
     ))
-}
-
-/// Dispatch the `trace` verb family: the live renders (replay · show)
-/// plus the static readers (outputs · peek · flow).
-/// The `examples` sub-verbs — list · show · run-for-real (L3 shipped).
-fn examples_verb(action: Option<ExamplesAction>, plain_theme: Theme) -> u8 {
-    match action.unwrap_or(ExamplesAction::List) {
-        ExamplesAction::List => emit(&verbs::examples::list(plain_theme)),
-        ExamplesAction::Show { slug } => emit(&verbs::examples::show(&slug, plain_theme)),
-        // The L3 run verb shipped — execute the embedded example for real.
-        ExamplesAction::Run { slug, model } => {
-            verbs::run::example(&slug, model.as_deref(), plain_theme)
-        }
-    }
 }
 
 /// Name the bare-form pick on stderr — the receipt names its subject.

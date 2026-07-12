@@ -1,4 +1,4 @@
-# design/tokens.yaml — the nika SHARED visual vocabulary · SSOT v1
+# design/tokens.yaml — the nika SHARED visual vocabulary · SSOT v2
 #
 # THIS FILE IS THE SOURCE for every cross-repo design value: the 4 verb
 # colors, the severity pair, the brand core, and each concept's per-surface
@@ -74,6 +74,19 @@ verbs:
 severity:
   ok: "#34d399"
   fail: "#ff5d5d"
+
+# The LIVE run-state palette — the register every surface that animates a
+# run speaks (website run/morph/plan css · the vscode canvas NIKA skin ·
+# the /brand register demos). done/failed are NOT stored here: they ARE
+# severity (one storage · aliased at projection into NIKA_STATUS). running
+# deliberately equals verbs.infer.color — both shipping surfaces converged
+# on "work-in-flight is the thinking blue" before v2 canonized it. The
+# vscode EDITOR skin stays theme-driven by design (LOCK-005: that skin
+# speaks the user's theme, never the brand) — only its NIKA skin pins these.
+status:
+  running: "#5b8cff"
+  retrying: "#e0b071"
+  muted: "#5a606b"
 
 rules:
   # Mermaid classDef fill = verb color + this alpha suffix. Derived at

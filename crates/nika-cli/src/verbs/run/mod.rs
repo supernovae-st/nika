@@ -396,7 +396,13 @@ fn load_resume_plan(
 /// failures · the real missing dependency for an exec `program not
 /// found`) · the original exit code is returned unchanged.
 #[must_use]
-pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
+pub fn example(
+    slug: &str,
+    model_override: Option<&str>,
+    vars: &[String],
+    quiet: bool,
+    theme: Theme,
+) -> u8 {
     let Some(yaml) = nika_pack::example(slug) else {
         eprintln!("unknown example `{slug}` — `nika examples list` names the embedded set");
         return exit::FILE;
@@ -411,47 +417,17 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         eprintln!("nika run: environment: cannot stage example `{slug}`: {e}");
         return exit::ENV;
     }
-    // The example renders live on a TTY, plain when piped (no flags here).
-    let mode = if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+    // The example renders live on a TTY, plain when piped, silent on
+    // `--quiet` (the verdict line still lands).
+    let mode = if quiet {
+        RenderMode::Quiet
+    } else if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
         RenderMode::Live
     } else {
         RenderMode::Plain
     };
-    // The pre-display (TTY only): the SOURCE before the run — an
-    // example is a teaching artifact, and the lesson reads better
-    // before the tokens than after. Dim-framed, verbatim (the comments
-    // ARE the curriculum); pipes keep their exact bytes.
     if mode == RenderMode::Live {
-        let file = format!(
-            "{}.nika.yaml",
-            slug.strip_suffix(".nika.yaml").unwrap_or(slug)
-        );
-        println!(
-            "{} {} {}",
-            theme.logo(),
-            theme.paint(crate::display::theme::Role::Strong, &file),
-            theme.paint(
-                crate::display::theme::Role::Dim,
-                "— the source, then the run"
-            ),
-        );
-        // Trim the machine boilerplate (SPDX · schema modeline · their
-        // trailing blank) — the lesson starts at the title comment.
-        let mut started = false;
-        for line in yaml.lines() {
-            let t = line.trim_start_matches(['#', ' ']);
-            if !started
-                && (t.starts_with("SPDX") || t.starts_with("yaml-language-server") || t.is_empty())
-            {
-                continue;
-            }
-            started = true;
-            println!(
-                "  {} {line}",
-                theme.paint(crate::display::theme::Role::Dim, "│")
-            );
-        }
-        println!();
+        example_predisplay(slug, yaml, theme);
     }
     // The interactive duration accents follow the same TTY gate; heat
     // additionally needs colour + the truecolor proof.
@@ -466,7 +442,7 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         mode,
         false,
         model_override,
-        &[],
+        vars,
         None,
         // No run journal: the example is staged to a TEMP file — `.nika/
         // traces/` belongs to workspace runs (the same drive underneath,
@@ -488,6 +464,43 @@ pub fn example(slug: &str, model_override: Option<&str>, theme: Theme) -> u8 {
         eprintln!("\n  {tip}");
     }
     verdict.code
+}
+
+/// The pre-display (TTY only): the SOURCE before the run — an example
+/// is a teaching artifact, and the lesson reads better before the
+/// tokens than after. Dim-framed, verbatim (the comments ARE the
+/// curriculum); pipes keep their exact bytes.
+fn example_predisplay(slug: &str, yaml: &str, theme: Theme) {
+    let file = format!(
+        "{}.nika.yaml",
+        slug.strip_suffix(".nika.yaml").unwrap_or(slug)
+    );
+    println!(
+        "{} {} {}",
+        theme.logo(),
+        theme.paint(crate::display::theme::Role::Strong, &file),
+        theme.paint(
+            crate::display::theme::Role::Dim,
+            "— the source, then the run"
+        ),
+    );
+    // Trim the machine boilerplate (SPDX · schema modeline · their
+    // trailing blank) — the lesson starts at the title comment.
+    let mut started = false;
+    for line in yaml.lines() {
+        let t = line.trim_start_matches(['#', ' ']);
+        if !started
+            && (t.starts_with("SPDX") || t.starts_with("yaml-language-server") || t.is_empty())
+        {
+            continue;
+        }
+        started = true;
+        println!(
+            "  {} {line}",
+            theme.paint(crate::display::theme::Role::Dim, "│")
+        );
+    }
+    println!();
 }
 
 /// The example's envelope `model:` string (empty when the YAML has no
@@ -1227,7 +1240,7 @@ mod tests {
     #[test]
     fn example_tip_exec_failure_names_the_program_not_the_model() {
         let exec = failed("NIKA-EXEC-002", "program not found: cargo test");
-        let tip = example_tip("16-exec-pipeline", &exec, false, "ollama/llama3.1")
+        let tip = example_tip("03-exec-pipeline", &exec, false, "ollama/llama3.1")
             .expect("the missing program earns its own tip");
         assert!(tip.contains("`cargo test`"), "{tip}");
         assert!(
@@ -1236,7 +1249,7 @@ mod tests {
         );
         // An unparseable exec message still teaches, generically.
         let vague = failed("NIKA-EXEC-002", "spawn refused");
-        let tip = example_tip("16-exec-pipeline", &vague, false, "ollama/llama3.1")
+        let tip = example_tip("03-exec-pipeline", &vague, false, "ollama/llama3.1")
             .expect("the exec class still explains itself");
         assert!(tip.contains("nika examples list"), "{tip}");
         assert!(!tip.contains("mock/echo"), "{tip}");

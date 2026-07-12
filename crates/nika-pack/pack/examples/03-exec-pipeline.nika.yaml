@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# 16 · exec pipeline — shell, conditional gate, cleanup on every outcome.
+# 03 · exec pipeline — shell, conditional gate, cleanup on every outcome.
 #
 # Demonstrates ·
 #   - the `exec:` verb · shell command with `cwd`, `capture: structured`
@@ -11,7 +11,11 @@
 #   - `on_finally:` · cleanup on every outcome of a STARTED task (success /
 #     fail / timeout / cancel) — never for a task that never started
 #
-# Run · nika run examples/16-exec-pipeline.nika.yaml
+# Runs green in ANY directory · no toolchain: `sh` captures the missing
+# command as a structured non-zero exit, and the gate skips the deploy —
+# the same story a red test suite tells.
+#
+# Run · nika run examples/03-exec-pipeline.nika.yaml
 nika: v1
 workflow: exec-pipeline
 
@@ -19,13 +23,13 @@ tasks:
   - id: test
     timeout: "5m"
     exec:
-      command: "cargo test --workspace --lib"
-      cwd: "./engine"
+      command: "sh -lc 'cargo test --workspace --lib'"
+      cwd: "."                       # your repo IS the pipeline's world
       capture: structured            # → { stdout, stderr, exit_code }
     on_finally:
       # ALWAYS runs · best-effort · cleanup errors are logged, never propagated
       - exec:
-          command: "rm -rf ./engine/target/tmp"
+          command: "rm -rf ./target/tmp"
       - invoke:
           tool: nika:emit
           args:
@@ -37,5 +41,5 @@ tasks:
     depends_on: [test]
     when: ${{ tasks.test.status == 'success' && tasks.test.output.exit_code == 0 }}
     exec:
-      command: "./deploy.sh"
-      cwd: "./engine"
+      command: "./deploy.sh"                 # your ship step · unreached until tests are green
+      cwd: "."

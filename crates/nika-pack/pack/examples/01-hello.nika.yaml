@@ -6,9 +6,11 @@
 # Demonstrates ·
 #   - the envelope · `nika: v1` (contract version) + `workflow:` (kebab-case id)
 #   - one task · the `infer:` verb (a single LLM call)
-#   - the `ollama/qwen3.5:4b` model · local · no API key (mock/echo for CI)
+#   - the `ollama/qwen3.5:4b` model · local · no API key
 #
 # Run · nika run examples/01-hello.nika.yaml
+# No ollama? The dry twin runs anywhere, zero setup ·
+#   nika run examples/01-hello.nika.yaml --model mock/echo
 nika: v1
 workflow: hello
 

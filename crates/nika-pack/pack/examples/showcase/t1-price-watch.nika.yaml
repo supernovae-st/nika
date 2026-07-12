@@ -14,6 +14,10 @@
 #   - `secrets:` · the webhook URL is vault/env-backed, masked in logs
 #
 # Run · nika run examples/showcase/t1-price-watch.nika.yaml
+# Runs green offline · the placeholder API resolves nowhere, the sample
+# price takes over ABOVE the target, so the gate stays closed and the
+# skip is the lesson. Point `product_api` at your endpoint + export
+# ALERTS_WEBHOOK_URL to see it fire.
 nika: v1
 workflow: price-watch
 description: "Watch a product price, ping me when it drops below my target"
@@ -41,6 +45,10 @@ tasks:
     output:                           # named jq bindings over the raw response
       price: ".price"
       name: ".name"
+    on_error:
+      # Offline rehearsal · a sample ABOVE the target — the gate below
+      # stays closed and the dry run ends green with the alert skipped.
+      recover: { price: 949, name: "MacBook Air (offline sample)" }
 
   - id: alert
     depends_on: [check]

@@ -13,6 +13,8 @@
 #   - `nika:jq` post-filter · urgency slicing WITHOUT another model call
 #   - conditional `notify` · the escalation fires only when needed
 #
+# Needs · ./support/overnight-queue.json (your ticket export).
+#
 # Run · nika run examples/showcase/t2-support-triage.nika.yaml
 nika: v1
 workflow: support-triage

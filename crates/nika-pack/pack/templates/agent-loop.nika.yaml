@@ -35,7 +35,10 @@ tasks:
   - id: execute
     depends_on: [plan]
     agent:
-      system: "Work the plan step by step. Call nika:done when finished."   # SLOT
+      # The done-contract belongs IN the prompt: the final message must
+      # carry the schema'd shape, so SAY so — a live model that is not
+      # told finishes in prose and fails NIKA-INFER-002 (proven on GPT).
+      system: "Work the plan step by step. When finished, reply with ONLY your final result as an object carrying a `findings` array (one short string each), then call nika:done."   # SLOT
       prompt: "Plan · ${{ tasks.plan.output.steps }}"
       tools:                        # SLOT: the MINIMUM grant for the job
         - "nika:read"

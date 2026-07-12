@@ -14,6 +14,8 @@
 #   - `nika:assert` · refuse to write « resolved » while prod still burns
 #   - the always-pattern (`when: true`) · the ping fires EVEN IF a step fails
 #
+# Needs · your status endpoint (--var … — the placeholder resolves nowhere).
+#
 # Run · nika run examples/showcase/t4-incident-war-room.nika.yaml
 nika: v1
 workflow: incident-war-room

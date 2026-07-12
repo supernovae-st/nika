@@ -16,6 +16,9 @@
 #   - `nika:hash` (blake3) · provenance fingerprint in the alert
 #   - `size(...)` gate + `nika:emit` · machine event for the journal
 #
+# Needs · your live-config endpoint (--var … — the placeholder resolves
+# nowhere) + ./ops/config-baseline.json (the intended state).
+#
 # Run · nika run examples/showcase/t3-config-drift-sentinel.nika.yaml
 nika: v1
 workflow: config-drift-sentinel
@@ -28,6 +31,7 @@ vars:
   baseline_path: "./ops/config-baseline.json"
   approved_overrides:
     type: object
+    default: {}                      # zero approved drifts until you say otherwise
     description: "Sanctioned config overrides (RFC 7396 merge-patch shape)"
 
 secrets:

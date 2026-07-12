@@ -10,6 +10,26 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Changed
+
+- **The embedded pack re-syncs the taught corpus (spec #66)** — the
+  binary now ships the renumbered 01-07 path (contiguous, `git mv`'d in
+  spec), the six corpus bug-fixes (fetch-chain's literal recover ·
+  ceo-brief's date slice · the null-safe fan-ins · the untyped
+  quarantine output · config-drift's `{}` default), the offline-green
+  gate lessons, the `# Needs ·` header contract, and the agent
+  done-contract prompts — `nika examples` and `nika new` teach the same
+  corpus the spec publishes, no drift. Engine-side foundation refs
+  follow (examples/README table · run-tip fixtures).
+
+### Added
+
+- **`nika examples run` takes `--var` and `--quiet`** — several
+  examples declare required vars in their header (`04-schema-retry`
+  says `--var text=…`) and the old surface had no way to pass them
+  (gauntlet friction F7). `--quiet` gives the verdict-line register;
+  the TTY pre-display keeps its Live-only gate.
+
 ### Added
 
 - **`nika init` becomes the founding wizard** — bare on a terminal it

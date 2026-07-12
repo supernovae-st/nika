@@ -20,6 +20,8 @@
 #     under `out/**` and nowhere else
 #
 # Run · point `vars.sales_csv` at your file, then
+# Needs · ./data/sales.csv (columns · region,revenue).
+#
 #   nika run examples/showcase/t2-csv-chart-report.nika.yaml
 nika: v1
 workflow: csv-chart-report

@@ -15,6 +15,9 @@
 #   - `infer.schema:` · the brief is typed, not a blob
 #     (mock/echo synthesizes schema-conformant output · offline-runnable)
 #
+# Needs · a REAL sitemap URL (--var competitor_sitemap=https://…/sitemap.xml
+# — the placeholder domain resolves nowhere).
+#
 # Run · nika run examples/showcase/t2-seo-content-brief.nika.yaml --var topic="rust async runtimes"
 nika: v1
 workflow: seo-content-brief

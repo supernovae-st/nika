@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# 06 · Parallel fan-out + merge — the core DAG pattern.
+# 02 · Parallel fan-out + merge — the core DAG pattern.
 #
 # Demonstrates ·
 #   - implicit parallelism · three tasks with no deps between them run concurrently
@@ -13,7 +13,7 @@
 #               cost  ─┼─→ synthesize
 #               risk  ─┘
 #
-# Run · nika run examples/06-parallel-fanout.nika.yaml
+# Run · nika run examples/02-parallel-fanout.nika.yaml
 nika: v1
 workflow: parallel-fanout
 

@@ -12,6 +12,8 @@
 #   - `nika:edit` · in-place find/replace: the changelog INSERT pattern
 #   - `nika:notify` · webhook ping with fields from the structured output
 #
+# Needs · a git repo with tags to diff + a ./CHANGELOG.md to edit.
+#
 # Run · nika run examples/showcase/t2-release-notes.nika.yaml
 nika: v1
 workflow: release-notes

@@ -86,12 +86,12 @@ The versioned pack lives at
 | Slug | Teaches |
 |---|---|
 | `01-hello` | The smallest real workflow |
-| `06-parallel-fanout` | Independent tasks run in parallel |
-| `16-exec-pipeline` | Pure `exec` — no model at all |
-| `19-schema-retry` | Structured output + retry on violation |
-| `22-fetch-chain` | `nika:fetch` → extract → summarize |
-| `23-code-review` | The review pattern, minimal |
-| `26-for-each-locales` | Bounded fan-out with `for_each` |
+| `02-parallel-fanout` | Independent tasks run in parallel |
+| `03-exec-pipeline` | Pure `exec` — no model at all |
+| `04-schema-retry` | Structured output + retry on violation |
+| `05-fetch-chain` | `nika:fetch` → extract → summarize |
+| `06-code-review` | The review pattern, minimal |
+| `07-for-each-locales` | Bounded fan-out with `for_each` |
 
 Templates for starting your own: `nika new --from <template>` — six
 skeletons (chain · fanout · gate-and-act · agent-loop · etl-state ·

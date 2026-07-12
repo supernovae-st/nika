@@ -1,16 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# 22 · Fetch → bind → summarize, with graceful fallback.
+# 05 · Fetch → bind → summarize, with graceful fallback.
 #
 # Demonstrates ·
 #   - `invoke:` the `nika:fetch` builtin (HTTP + extraction · fetch is a TOOL, not a verb)
 #   - `output:` named jq bindings → `${{ tasks.X.<name> }}`
-#   - `on_error: recover:` · use another task's output when a task fails ·
-#     the recovery value feeds the SAME output: bindings (shape contract)
+#   - `on_error: recover:` · a LITERAL recovery value — when the fetch
+#     fails, this value substitutes the raw output BEFORE extraction, so
+#     it must mirror the API's shape ({ data: { title, body } }) and the
+#     SAME output: bindings work on both paths (05-errors §recovery)
 #   - chaining an `invoke:` result into an `infer:` prompt
 #
-# Run · nika run examples/22-fetch-chain.nika.yaml
+# Run · nika run examples/05-fetch-chain.nika.yaml
+# Runs green offline · the placeholder API resolves nowhere, the recover
+# value takes over, the summary still lands (swap --model mock/echo in
+# too and the whole file is a zero-setup rehearsal).
 nika: v1
 workflow: fetch-chain
 
@@ -19,18 +24,6 @@ vars:
   api_url: "https://api.example.com/v1/articles/latest"
 
 tasks:
-  # A deterministic local fallback, in case the live fetch fails.
-  # SHAPE CONTRACT · the cached JSON mirrors the API response shape
-  # ({ data: { title, body } }) — on recovery the output: bindings below
-  # evaluate over THIS value (recover substitutes the raw output before
-  # extraction · 05-errors §recovery × bindings) · so tasks.fetch_article.title
-  # works on both paths.
-  - id: cached
-    invoke:
-      tool: nika:read
-      args:
-        path: "./fixtures/cached-article.json"
-
   - id: fetch_article
     invoke:
       tool: nika:fetch
@@ -42,7 +35,13 @@ tasks:
       title: ".data.title"
       body: ".data.body"
     on_error:
-      recover: ${{ tasks.cached.output }}    # same shape as the live response · bindings still extract
+      # A LITERAL fallback · same shape as the live response, so the
+      # output: bindings above extract from it identically. (A recover
+      # can also reference another task — 05-errors §recovery.)
+      recover:
+        data:
+          title: "Cached fallback article"
+          body: "The archived copy — good enough for a summary when the live API is down."
 
   - id: summarize
     depends_on: [fetch_article]

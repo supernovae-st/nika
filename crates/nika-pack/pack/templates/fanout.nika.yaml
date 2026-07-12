@@ -48,8 +48,9 @@ tasks:
       tool: "nika:jq"
       args:
         input: ${{ tasks.process.output }}
-        expression: "[ .[] | select(. != null) ]"
-
+        # `. // []` · an EMPTY discovery skips the whole for_each (null
+        # upstream) — the fan-in must survive its own quiet day.
+        expression: "(. // []) | [ .[] | select(. != null) ]"
 
   - id: merge
     depends_on: [survivors]

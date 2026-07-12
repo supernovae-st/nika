@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# 19 · Structured output + retry — type-safe LLM extraction.
+# 04 · Structured output + retry — type-safe LLM extraction.
 #
 # Demonstrates ·
 #   - `infer.schema:` · a JSON Schema · the model MUST return matching JSON
@@ -10,7 +10,7 @@
 #   - typed `vars:` · `text` is declared with a type → enables schema-gen for callable workflows
 #   - downstream binding of a structured field · `${{ tasks.extract.output.entities }}`
 #
-# Run · nika run examples/19-schema-retry.nika.yaml --var text="Ada Lovelace met Charles Babbage in London"
+# Run · nika run examples/04-schema-retry.nika.yaml --var text="Ada Lovelace met Charles Babbage in London"
 nika: v1
 workflow: schema-retry
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# 23 · Code-review agent — a multi-turn agentic loop.
+# 06 · Code-review agent — a multi-turn agentic loop.
 #
 # Demonstrates ·
 #   - the `agent:` verb · model + tools, looping until done or budget exhausted
@@ -13,7 +13,11 @@
 # The loop ends when the model returns no tool calls, hits a budget,
 # or calls the `nika:done` completion sentinel (valid only inside agent:).
 #
-# Run · nika run examples/23-code-review.nika.yaml --var pr_path=./changes.diff
+# Needs · a tool-calling provider key (MISTRAL_API_KEY here — or swap
+# `agent.model` for any provider in the catalog, `ollama/qwen3.5:4b` for
+# a fully local review).
+#
+# Run · nika run examples/06-code-review.nika.yaml --var pr_path=./changes.diff
 nika: v1
 workflow: code-review
 
@@ -27,7 +31,10 @@ tasks:
   - id: review
     agent:
       model: mistral/mistral-large
-      system: "You are a senior Rust reviewer. Read the diff, then write findings."
+      # The agent's final message is VALIDATED against `schema:` (not
+      # API-constrained like infer) — so the prompt carries the WHOLE
+      # contract, enums included, or a live model invents its own words.
+      system: "You are a senior Rust reviewer. Read the diff, then finish with ONLY your findings as the schema'd object: a `findings` array of {severity, message} where severity is exactly one of blocker|high|med|low. Then call nika:done."
       prompt: "Review the code under · ${{ vars.pr_path }} · and report bugs + style issues."
       tools:                       # default-deny · these are the ONLY tools the agent may call
         - "nika:read"              # read source files
@@ -35,7 +42,7 @@ tasks:
         - "nika:done"              # completion sentinel · lets the agent end the loop cleanly
       max_turns: 20
       max_tokens_total: 100000
-      temperature: 0.2
+      temperature: 0.2            # a mistral knob · the gpt-5.x family fixes it at 1 (400 otherwise) — drop this line when you swap
       schema:                      # validate the agent's final message as structured findings
         type: object
         required: [findings]

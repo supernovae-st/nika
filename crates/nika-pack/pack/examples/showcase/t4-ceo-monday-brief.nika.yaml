@@ -15,6 +15,9 @@
 #   - `nika:inspect view: cost` · the run reports its own spend in the ping
 #   - `nika:date` · deterministic date in the filename, not model-guessed
 #
+# Needs · ./finance/kpis.csv (a weekly_revenue column · summed by jq)
+# + a git repo (the pulse reads your week).
+#
 # Run · nika run examples/showcase/t4-ceo-monday-brief.nika.yaml
 nika: v1
 workflow: ceo-monday-brief
@@ -95,7 +98,7 @@ tasks:
       tool: "nika:date"
       args: { op: now }
     output:
-      day: ".iso[:10]"               # YYYY-MM-DD from the ISO timestamp
+      day: ".[:10]"                  # nika:date returns the ISO string itself · slice YYYY-MM-DD
 
   - id: save
     depends_on: [brief, stamp]

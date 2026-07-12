@@ -13,6 +13,8 @@
 #   - `size(...)` CEL · the canonical empty-check gates the whole tail
 #   - `nika:prompt` · the human-in-the-loop gate (blocks until answered)
 #
+# Needs · ./finance/invoices.csv (your export · columns incl. status,due).
+#
 # Run · nika run examples/showcase/t2-invoice-chaser.nika.yaml
 nika: v1
 workflow: invoice-chaser
