@@ -152,8 +152,21 @@ jobs:
           # ships; the release renames it to its public name.
           cp "target/${TARGET}/release/nika-cli" "${stage}/nika"
           chmod +x "${stage}/nika"
+          # Pre-generated shell completions ride the tarball (#487) so distro
+          # packages (AUR nika-bin · future nixpkgs/apk) can `install -Dm644`
+          # them without executing the target-arch binary in package().
+          # Running the binary HERE is proven-safe on every matrix row: the
+          # funnel-e2e gate below already executes this same staged binary
+          # (macos-x64 cross runs via Rosetta on the arm runner).
+          mkdir -p "${stage}/completions"
+          "${stage}/nika" completions bash > "${stage}/completions/nika.bash"
+          "${stage}/nika" completions zsh  > "${stage}/completions/_nika"
+          "${stage}/nika" completions fish > "${stage}/completions/nika.fish"
+          for f in nika.bash _nika nika.fish; do
+            test -s "${stage}/completions/${f}"
+          done
           tarball="nika-${ASSET_NAME}-${version}.tar.gz"
-          tar -czf "${tarball}" -C "${stage}" nika
+          tar -czf "${tarball}" -C "${stage}" nika completions
           shasum -a 256 "${tarball}" | tee "${tarball}.sha256"
       - name: Funnel e2e (gate before upload)
         # The stranger's first path, played against the TARBALL that is
