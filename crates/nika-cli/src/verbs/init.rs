@@ -52,11 +52,13 @@ impl From<CanvasTheme> for nika_onboard::founding::CanvasTheme {
 /// keeps receipts-plus-hand-off — and with ZERO new flags the output is
 /// the historical bytes exactly.
 #[must_use]
+#[allow(clippy::too_many_arguments)] // the clap surface, unpacked — one struct-shaped seam
 pub fn run(
     dir: &str,
     force: bool,
     yes: bool,
     recipe: Option<&str>,
+    example: Option<&str>,
     canvas: Option<CanvasTheme>,
     wires: &[WireTarget],
     theme: Theme,
@@ -81,14 +83,19 @@ pub fn run(
         None => nika_onboard::Outcome::env(format!("unknown wire client `{client}`")),
     };
 
-    let scripted =
-        yes || recipe.is_some() || canvas.is_some() || !wires.is_empty() || !interactive();
+    let scripted = yes
+        || recipe.is_some()
+        || example.is_some()
+        || canvas.is_some()
+        || !wires.is_empty()
+        || !interactive();
     let out = if scripted {
         let wire_names: Vec<&str> = wires.iter().copied().map(wire_name).collect();
         nika_onboard::founding::scripted_run(
             dir,
             force,
             recipe,
+            example,
             canvas.map(Into::into),
             &wire_names,
             &audit,
@@ -178,6 +185,7 @@ mod tests {
             false,
             true,
             Some("ship"),
+            None,
             Some(CanvasTheme::Editor),
             &[],
             PLAIN,

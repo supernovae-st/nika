@@ -24,6 +24,21 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **UNIFY: one street, one gesture** — the whole onboarding surface now
+  reads as a single funnel. The concierge card keys its `start here`
+  block on the WORKSPACE STATE (empty → the offline proof + the wizard;
+  workflows without briefs → `init` adds-only; one founded workflow →
+  bare `run`; several → `context` — one strong key per state, gh/bun
+  law). `nika new --from` resolves EXAMPLES too (slug · filename ·
+  showcase path — verbatim lessons beside the template skeletons; one
+  resolution ladder, `examples copy` is the same gesture's showroom
+  handle). And the founding wizard gains the sixth lane: **start from
+  one example** (slug beat · Enter = `01-hello` · no model question — a
+  lesson carries its own), with `nika init --example <slug>` as the
+  scriptable twin. Proven end-to-end: a PTY walk of the lane and a
+  first-hour smoke (copy → bare run → new-from-example → init
+  --example, all green offline).
+
 - **Bare `nika` is the concierge, and the showroom hands over the keys**
   — on a terminal, plain `nika` now answers with the welcome card (what
   this machine has · where you are · the next gesture) instead of the

@@ -30,7 +30,7 @@ pub(crate) struct Recipe {
 pub(crate) const RECIPES: [Recipe; 5] = [
     Recipe {
         name: "agentic",
-        tagline: "the 4-pattern curriculum — chain · fan-out · gate · agent loop",
+        tagline: "learn the 4 patterns — chain · fan-out · gate · agent loop",
         workflows: &[
             ("chain", "workflows/01-hello-chain.nika.yaml", "hello-chain"),
             (
@@ -57,7 +57,7 @@ pub(crate) const RECIPES: [Recipe; 5] = [
     },
     Recipe {
         name: "ship",
-        tagline: "the ops pair — human-gated release · docker report",
+        tagline: "ship safely — human-gated release · docker report",
         workflows: &[
             (
                 "human-gated-ship",
@@ -73,7 +73,7 @@ pub(crate) const RECIPES: [Recipe; 5] = [
     },
     Recipe {
         name: "content",
-        tagline: "the studio pair — website brief · media asset pack",
+        tagline: "make content — website brief · media asset pack",
         workflows: &[
             (
                 "website-brief",
@@ -171,6 +171,59 @@ fn readme(r: &Recipe) -> String {
     }
     s.push_str("Every finding teaches: `nika explain NIKA-XXXX`. The full contract\nlives in `AGENTS.md` at the repo root.\n");
     s
+}
+
+/// Materialize ONE embedded example under `dir` — VERBATIM (a lesson,
+/// complete: no SLOTs, no stamp) — plus the single-entry generated
+/// index. The same skip/force law as the recipe sets.
+pub(crate) fn scaffold_example(
+    dir: &str,
+    slug: &str,
+    force: bool,
+) -> Vec<(String, ScaffoldStatus)> {
+    let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+    let base = clean.rsplit('/').next().unwrap_or(clean);
+    let rel = format!("workflows/{base}.nika.yaml");
+    let dest = Path::new(dir).join(&rel).to_string_lossy().into_owned();
+    let Some(body) = nika_pack::example(slug) else {
+        return vec![(
+            dest,
+            ScaffoldStatus::Failed(format!(
+                "unknown example `{slug}` — `nika examples list` names the embedded set"
+            )),
+        )];
+    };
+    let status = if Path::new(&dest).exists() && !force {
+        ScaffoldStatus::Skipped
+    } else if let Some(parent) = Path::new(&dest).parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        ScaffoldStatus::Failed(e.to_string())
+    } else {
+        match std::fs::write(&dest, body) {
+            Ok(()) => ScaffoldStatus::Created,
+            Err(e) => ScaffoldStatus::Failed(e.to_string()),
+        }
+    };
+    let mut out = vec![(dest, status)];
+    let readme_dest = Path::new(dir)
+        .join("workflows/README.md")
+        .to_string_lossy()
+        .into_owned();
+    let readme_status = if Path::new(&readme_dest).exists() && !force {
+        ScaffoldStatus::Skipped
+    } else {
+        let tag = crate::guided::tagline(clean, body);
+        let text = format!(
+            "# workflows — founded from an example\n\n> Scaffolded by `nika init` (generated — regenerate by re-running\n> `nika init --example {clean}` with `--force`).\n\n## {base}.nika.yaml\n\n{tag}\n\n```sh\nnika check {rel}\nnika run {rel} --model mock/echo   # offline first — swap the model when ready\n```\n\nEvery finding teaches: `nika explain NIKA-XXXX`. The full contract\nlives in `AGENTS.md` at the repo root.\n"
+        );
+        match std::fs::write(&readme_dest, text) {
+            Ok(()) => ScaffoldStatus::Created,
+            Err(e) => ScaffoldStatus::Failed(e.to_string()),
+        }
+    };
+    out.push((readme_dest, readme_status));
+    out
 }
 
 /// The per-file outcome the report speaks.

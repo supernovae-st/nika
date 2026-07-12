@@ -23,18 +23,44 @@ use crate::display::theme::{Role, Theme};
 use crate::verbs::probe::{Probe, ProviderProbe};
 use crate::verbs::{VerbOutput, probe};
 
-/// The three next moves — the SAME golden path the bare-`nika` footer and
-/// `init`'s hand-off teach (one story across every lost-user surface).
-/// Comments stay ≤26 chars: the widest command pads to 45 and the whole
-/// row must live inside 80 columns (the width nobody configures).
-const START: [(&str, &str); 3] = [
-    (
-        "nika examples run 01-hello --model mock/echo",
-        "offline proof · zero keys",
-    ),
-    ("nika new", "guided first workflow"),
-    ("nika init", "brief editor + agents"),
-];
+/// The next moves, keyed on where this workspace actually IS — the
+/// concierge hands over ONE key, not the keyring (row 0 carries the
+/// weight; the others stay dim context). Presence-only inputs — the
+/// mirror never audits. Comments stay ≤26 chars: the widest command
+/// pads to 45 and the whole row must live inside 80 columns.
+fn start_moves(glance: Glance) -> [(&'static str, &'static str); 3] {
+    match (glance.workflows, glance.agents_md) {
+        // The stranger's moment: nothing here yet — see one run, then found.
+        (0, _) => [
+            (
+                "nika examples run 01-hello --model mock/echo",
+                "offline proof · zero keys",
+            ),
+            ("nika init", "found this repo (wizard)"),
+            ("nika new", "guided first workflow"),
+        ],
+        // Workflows live here but the agents were never briefed — the
+        // founding wizard skips existing files, so it only ADDS.
+        (_, false) => [
+            ("nika init", "brief agents · adds only"),
+            ("nika run", "your workflow, found"),
+            ("nika examples", "the teaching corpus"),
+        ],
+        // One workflow, fully founded: run it (bare — the lazy door
+        // resolves the only workflow and says so).
+        (1, true) => [
+            ("nika run", "your workflow, found"),
+            ("nika check", "audit before running"),
+            ("nika examples", "the teaching corpus"),
+        ],
+        // Several workflows, founded: the whole-workspace lens first.
+        (_, true) => [
+            ("nika context", "the workspace truth"),
+            ("nika run <file>", "pick one · check twin"),
+            ("nika examples", "the teaching corpus"),
+        ],
+    }
+}
 
 /// What the current directory already holds — the workspace half of the
 /// mirror (the machine half is the probe).
@@ -140,7 +166,7 @@ fn render_human(probe: &Probe, glance: Glance, counts: EngineCounts, theme: Them
     identity_section(&mut s, probe, theme);
     machine_section(&mut s, probe, glance, theme);
     binary_section(&mut s, counts, glance, theme);
-    start_section(&mut s, theme);
+    start_section(&mut s, theme, glance);
     s
 }
 
@@ -253,14 +279,15 @@ fn binary_section(s: &mut String, counts: EngineCounts, glance: Glance, theme: T
     }
 }
 
-/// The hand-off — three offline commands, then where to learn more.
-fn start_section(s: &mut String, theme: Theme) {
+/// The hand-off — the state's own three moves, then where to learn more.
+fn start_section(s: &mut String, theme: Theme, glance: Glance) {
     let _ = writeln!(
         s,
         "{}",
         theme.paint(Role::Strong, "start here (offline · zero keys)")
     );
-    let width = START
+    let moves = start_moves(glance);
+    let width = moves
         .iter()
         .map(|(cmd, _)| cmd.chars().count())
         .max()
@@ -268,7 +295,7 @@ fn start_section(s: &mut String, theme: Theme) {
     // The gh/bun law (2026 survey): exactly ONE next command carries the
     // maximum visual weight — the first row is the thing to run NOW, the
     // other two stay plain (a journey, not a menu of equals).
-    for (i, (cmd, why)) in START.iter().enumerate() {
+    for (i, (cmd, why)) in moves.iter().enumerate() {
         let painted = if i == 0 {
             theme.paint(Role::Strong, &format!("{cmd:<width$}"))
         } else {
@@ -307,7 +334,7 @@ fn cloud_key_counts(providers: &[ProviderProbe]) -> (usize, usize) {
 /// Names and booleans and counts, by construction: nothing in the probe
 /// carries a value a secret could ride.
 fn render_json(probe: &Probe, glance: Glance, counts: EngineCounts) -> String {
-    let start: Vec<&str> = START.iter().map(|(cmd, _)| *cmd).collect();
+    let start: Vec<&str> = start_moves(glance).iter().map(|(cmd, _)| *cmd).collect();
     let mut machine = probe::environment_json(probe);
     machine["config"] = serde_json::json!(probe.config_path);
     serde_json::json!({
@@ -404,6 +431,25 @@ mod tests {
         Theme::new(false, false, false)
     }
 
+    /// The concierge hands over ONE key per state — the four states each
+    /// lead with their own move (presence-only inputs · never an audit).
+    #[test]
+    fn start_moves_key_on_the_workspace_state() {
+        let g = |workflows, agents_md| Glance {
+            git: true,
+            workflows,
+            agents_md,
+        };
+        assert!(
+            start_moves(g(0, false))[0]
+                .0
+                .contains("examples run 01-hello")
+        );
+        assert_eq!(start_moves(g(2, false))[0].0, "nika init");
+        assert_eq!(start_moves(g(1, true))[0].0, "nika run");
+        assert_eq!(start_moves(g(5, true))[0].0, "nika context");
+    }
+
     #[test]
     fn human_mirror_carries_the_four_sections_and_no_key_names() {
         let text = render_human(
@@ -427,7 +473,10 @@ mod tests {
             "nika wire",
             "1/2 cloud keys present",
             "not briefed → nika init",
-            "mock/echo",
+            // 2 workflows + unbriefed → the ONE key is the founding wizard
+            // (adds only); the stranger's mock/echo line belongs to the
+            // 0-workflow state (pinned in start_moves' own test below).
+            "brief agents · adds only",
             "learn: nika.sh",
         ] {
             assert!(text.contains(needle), "missing `{needle}`:\n{text}");

@@ -24,6 +24,74 @@ fn workspace_tmp_dir(tag: &str) -> PathBuf {
     dir
 }
 
+/// The first hour, end to end against the real binary: copy a lesson
+/// home → the bare lazy door finds it → run it offline → found the
+/// repo around an example via the scriptable twin — and `new --from`
+/// resolves the SAME slug (one resolution, two handles).
+#[test]
+fn the_first_hour_walks_end_to_end() {
+    let dir = std::env::temp_dir().join(format!("nika-first-hour-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("mkdir");
+
+    // 1 · the adoption gesture — the showroom file becomes yours.
+    let copy = bin()
+        .args(["examples", "copy", "01-hello"])
+        .current_dir(&dir)
+        .output()
+        .expect("copy runs");
+    assert_eq!(copy.status.code(), Some(0), "copy is green");
+    assert!(
+        dir.join("01-hello.nika.yaml").is_file(),
+        "the file is yours"
+    );
+
+    // 2 · the bare lazy door finds the only workflow and says so.
+    let run = bin()
+        .args(["run", "--model", "mock/echo", "--quiet", "--no-trace-file"])
+        .current_dir(&dir)
+        .output()
+        .expect("bare run");
+    assert_eq!(run.status.code(), Some(0), "the lazy run is green");
+    let err = String::from_utf8_lossy(&run.stderr);
+    assert!(
+        err.contains("the only workflow here"),
+        "the announce names the pick: {err}"
+    );
+
+    // 3 · `new --from <example slug>` = the same source, the other handle.
+    let new = bin()
+        .args(["new", "twin.nika.yaml", "--from", "01-hello"])
+        .current_dir(&dir)
+        .output()
+        .expect("new runs");
+    assert_eq!(new.status.code(), Some(0), "new-from-example is green");
+    assert_eq!(
+        std::fs::read_to_string(dir.join("twin.nika.yaml")).expect("written"),
+        std::fs::read_to_string(dir.join("01-hello.nika.yaml")).expect("copied"),
+        "one resolution · two handles · identical bytes"
+    );
+
+    // 4 · found a second repo around an example, scriptably.
+    let home = dir.join("founded");
+    std::fs::create_dir_all(&home).expect("mkdir");
+    let init = bin()
+        .args(["init", ".", "--example", "01-hello"])
+        .current_dir(&home)
+        .output()
+        .expect("init runs");
+    assert_eq!(init.status.code(), Some(0), "init --example is green");
+    let out = String::from_utf8_lossy(&init.stdout);
+    assert!(
+        out.contains("created workflows/01-hello.nika.yaml"),
+        "the lesson founds the repo: {out}"
+    );
+    assert!(out.contains("audited"), "the proof ladder ran: {out}");
+    assert!(home.join("AGENTS.md").is_file(), "briefs landed");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn init_recipe_scaffolds_the_curriculum_and_audits_it() {
     let dir = workspace_tmp_dir("nika-init-recipe-smoke");

@@ -992,8 +992,15 @@ fn lsp_serves_initialize_diagnostics_and_clean_exit() {
 #[test]
 fn welcome_greets_offline_and_leaks_no_secret() {
     let canary = "hunter2-THE-CANARY-VALUE-nobody-prints";
+    // An EMPTY temp dir pins the stranger state deterministically — the
+    // start-here block is contextual now (0 workflows → the mock/echo
+    // proof line leads; in this repo's own cwd it would say `context`).
+    let dir = std::env::temp_dir().join(format!("nika-welcome-smoke-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("mkdir");
     let out = bin()
         .arg("welcome")
+        .current_dir(&dir)
         .env("ANTHROPIC_API_KEY", canary)
         .env("OPENAI_API_KEY", canary)
         .stdin(std::process::Stdio::null())

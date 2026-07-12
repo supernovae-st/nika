@@ -112,6 +112,15 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
     if template == "?" {
         return discovery();
     }
+    // ONE resolution ladder for ONE intention («a file of mine») with two
+    // sources: template skeletons (SLOTs to fill) and complete examples
+    // (lessons, verbatim). Exact names first — templates, then examples
+    // (slug or filename · `showcase/` browsable) — then plain-words
+    // intent. `nika examples copy` stays the showroom-side handle of the
+    // same gesture.
+    if let Some(body) = nika_pack::example(template) {
+        return write_example(template, body, dest, force);
+    }
     let (name, body, routed) = match nika_pack::template(template) {
         Some(body) => (template.to_owned(), body, false),
         None => match route_intent(template) {
@@ -162,13 +171,44 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
     }
 }
 
+/// An EXAMPLE source lands verbatim (a lesson, complete — no SLOTs);
+/// the receipt says the check-then-run road. The default destination is
+/// the slug's basename (`showcase/t1-price-watch` → `t1-price-watch
+/// .nika.yaml` — the tiering belongs to the pack, your workspace is
+/// flat).
+fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Outcome {
+    let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+    let base = clean.rsplit('/').next().unwrap_or(clean);
+    let fallback = format!("{base}.nika.yaml");
+    let dest = dest.unwrap_or(&fallback);
+    if Path::new(dest).exists() && !force {
+        return Outcome {
+            text: format!("{dest} exists — pass --force to overwrite"),
+            code: codes::ENV,
+        };
+    }
+    if let Err(e) = std::fs::write(dest, body) {
+        return Outcome {
+            text: format!("cannot write {dest}: {e}"),
+            code: codes::ENV,
+        };
+    }
+    Outcome {
+        text: format!(
+            "{dest} ← example `{clean}` · yours now — `nika check {q}` then `nika run {q}`",
+            q = shell_quote(dest)
+        ),
+        code: codes::OK,
+    }
+}
+
 /// The unknown-template finding. The `embedded set:` line is a WIRE
 /// CONTRACT — editor integrations probe `nika new --from '?'` and parse
 /// the set from exactly this shape; never reword it.
 fn unknown(template: &str) -> Outcome {
     Outcome {
         text: format!(
-            "no template or intent matches `{template}` — embedded set: {}\n  hint: name one, or describe the job with its verbs (fetch · summarize · parallel · approve…)",
+            "no template or intent matches `{template}` — embedded set: {}\n  hint: name one, describe the job with its verbs (fetch · summarize · parallel · approve…), or pass an example slug from `nika examples list`",
             nika_pack::template_names().join(" · ")
         ),
         code: codes::FILE,
@@ -187,6 +227,9 @@ fn discovery() -> Outcome {
         let _ = writeln!(text, "  {name:<18} {tag}");
     }
     let _ = write!(text, "\nembedded set: {}", names.join(" · "));
+    text.push_str(
+        "\n\nexamples work here too (complete lessons · verbatim) ·\n  nika new --from 01-hello my-hello.nika.yaml    # any slug from `nika examples list`",
+    );
     text.push_str(
         "\n\ntry ·\n  nika new --from chain my-first.nika.yaml\n  nika new --from \"describe the job in plain words\" my.nika.yaml   # routes to the closest skeleton\n  nika new                                                          # guided (terminal only)",
     );
@@ -781,6 +824,38 @@ mod tests {
         assert_eq!(out.code, codes::OK, "{}", out.text);
         assert!(!out.text.contains("routed"), "{}", out.text);
         std::fs::remove_file(&d).ok();
+    }
+
+    /// The ladder's second rung: an example slug (or filename · or
+    /// showcase path) lands VERBATIM at dest — and the default dest
+    /// flattens the tiering to the basename.
+    #[test]
+    fn example_sources_land_verbatim_through_new() {
+        let dir = std::env::temp_dir().join(format!("nika-new-example-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let dest = dir.join("mine.nika.yaml");
+        let dest_s = dest.to_string_lossy().into_owned();
+
+        let out = run("01-hello", Some(&dest_s), false);
+        assert_eq!(out.code, codes::OK, "{}", out.text);
+        assert!(out.text.contains("example `01-hello`"), "{}", out.text);
+        assert!(out.text.contains("nika check"), "{}", out.text);
+        assert_eq!(
+            std::fs::read_to_string(&dest).expect("written"),
+            nika_pack::example("01-hello").expect("embedded"),
+            "verbatim — a lesson has no SLOTs"
+        );
+        // Filename form + showcase tiering resolve too; overwrite refuses.
+        assert_eq!(
+            run("01-hello.nika.yaml", Some(&dest_s), true).code,
+            codes::OK
+        );
+        assert_eq!(run("01-hello", Some(&dest_s), false).code, codes::ENV);
+        let show = run("showcase/t1-price-watch", Some(&dest_s), true);
+        assert_eq!(show.code, codes::OK, "{}", show.text);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The wire contract: `nika new --from '?'` (NO dest) names the set —

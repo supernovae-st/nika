@@ -33,6 +33,9 @@ fn file_str(path: &str) -> Option<&'static str> {
     PACK.get_file(path).and_then(|f| f.contents_utf8())
 }
 
+pub mod meta;
+pub use meta::{ExampleMeta, meta};
+
 /// The pack's language version — the spec repo's `VERSION` file, trimmed.
 #[must_use]
 pub fn pack_version() -> &'static str {

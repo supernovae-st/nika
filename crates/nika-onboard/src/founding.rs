@@ -112,11 +112,20 @@ pub fn scripted_run(
     dir: &str,
     force: bool,
     recipe: Option<&str>,
+    example: Option<&str>,
     canvas: Option<CanvasTheme>,
     wires: &[&str],
     audit: &Audit<'_>,
     wire: &Wire<'_>,
 ) -> Outcome {
+    // One founding source at a time — the clap surface already refuses
+    // the pair; a direct lib call gets the same honesty.
+    if recipe.is_some() && example.is_some() {
+        return Outcome {
+            text: "pass --recipe OR --example, not both — one founding source".to_owned(),
+            code: codes::ENV,
+        };
+    }
     let rows = apply_briefs(dir, force, canvas);
     let failed = rows
         .iter()
@@ -141,43 +150,34 @@ pub fn scripted_run(
 
     let mut worst = codes::OK;
     let mut first_workflow: Option<String> = None;
-    if let Some(name) = recipe {
-        let Some(r) = recipes::recipe(name) else {
-            // clap's value_parser guards this door; a direct lib call
-            // with an unknown name still gets the honest refusal.
-            return Outcome {
-                text: format!(
-                    "unknown recipe `{name}` — the register: {}",
-                    RECIPE_NAMES.join(" · ")
-                ),
-                code: codes::FILE,
+    // ONE founding source resolves to ONE scaffold set — the example
+    // lane (verbatim lesson) or a recipe (template set); the report and
+    // proof ladder below are shared, byte-identical between them.
+    let scaffolded = match (example, recipe) {
+        (Some(slug), _) => Some(recipes::scaffold_example(dir, slug, force)),
+        (None, Some(name)) => {
+            let Some(r) = recipes::recipe(name) else {
+                // clap's value_parser guards this door; a direct lib call
+                // with an unknown name still gets the honest refusal.
+                return Outcome {
+                    text: format!(
+                        "unknown recipe `{name}` — the register: {}",
+                        RECIPE_NAMES.join(" · ")
+                    ),
+                    code: codes::FILE,
+                };
             };
-        };
-        let scaffolded = recipes::scaffold(dir, r, None, force);
-        let mut created: Vec<String> = Vec::new();
-        for (path, status) in &scaffolded {
-            let rel = rel_to(dir, path);
-            match status {
-                ScaffoldStatus::Created => {
-                    let _ = writeln!(text, "✔ created {rel}");
-                    // The proof ladder audits WORKFLOWS — the generated
-                    // index rides the report but never the check.
-                    if path.ends_with(".nika.yaml") {
-                        created.push(path.clone());
-                    }
-                }
-                ScaffoldStatus::Skipped => {
-                    let _ = writeln!(text, "· skipped {rel} (exists · --force to overwrite)");
-                }
-                ScaffoldStatus::Failed(e) => {
-                    return Outcome::env(format!("{text}✖ {rel}: {e}\n"));
-                }
-            }
+            Some(recipes::scaffold(dir, r, None, force))
         }
-        first_workflow = created.first().map(|p| rel_to(dir, p));
-        for (line, code) in proof_receipts(dir, &created, audit) {
-            worst = worst.max(code);
-            let _ = writeln!(text, "{line}");
+        (None, None) => None,
+    };
+    if let Some(scaffolded) = scaffolded {
+        match scaffold_report(dir, &scaffolded, audit, &mut text) {
+            Ok((first, w)) => {
+                first_workflow = first;
+                worst = worst.max(w);
+            }
+            Err(out) => return out,
         }
     }
 
@@ -197,6 +197,44 @@ pub fn scripted_run(
         text: format!("{text}\n{next}"),
         code: worst,
     }
+}
+
+/// Speak one scaffold set's report bytes into `text` (✔/·/✖ rows —
+/// the shape scripts parse) and run the proof ladder over what was
+/// created. Shared verbatim by the recipe and example lanes.
+fn scaffold_report(
+    dir: &str,
+    scaffolded: &[(String, ScaffoldStatus)],
+    audit: &Audit<'_>,
+    text: &mut String,
+) -> Result<(Option<String>, u8), Outcome> {
+    let mut created: Vec<String> = Vec::new();
+    for (path, status) in scaffolded {
+        let rel = rel_to(dir, path);
+        match status {
+            ScaffoldStatus::Created => {
+                let _ = writeln!(text, "✔ created {rel}");
+                // The proof ladder audits WORKFLOWS — the generated
+                // index rides the report but never the check.
+                if path.ends_with(".nika.yaml") {
+                    created.push(path.clone());
+                }
+            }
+            ScaffoldStatus::Skipped => {
+                let _ = writeln!(text, "· skipped {rel} (exists · --force to overwrite)");
+            }
+            ScaffoldStatus::Failed(e) => {
+                return Err(Outcome::env(format!("{text}✖ {rel}: {e}\n")));
+            }
+        }
+    }
+    let first = created.first().map(|p| rel_to(dir, p));
+    let mut worst = codes::OK;
+    for (line, code) in proof_receipts(dir, &created, audit) {
+        worst = worst.max(code);
+        let _ = writeln!(text, "{line}");
+    }
+    Ok((first, worst))
 }
 
 /// What one brief write came to — the registers compose their own
@@ -348,7 +386,93 @@ mod tests {
         wires: &[&str],
         _theme: Theme,
     ) -> Outcome {
-        scripted_run(dir, force, recipe, canvas, wires, &stub_audit, &stub_wire)
+        scripted_run(
+            dir,
+            force,
+            recipe,
+            None,
+            canvas,
+            wires,
+            &stub_audit,
+            &stub_wire,
+        )
+    }
+
+    /// The example lane: `--example 01-hello` founds the project around
+    /// ONE verbatim lesson — file + generated index + proof + tailored
+    /// next; `--recipe` AND `--example` together refuse honestly.
+    #[test]
+    fn example_lane_founds_around_one_lesson() {
+        let tmp = std::env::temp_dir().join(format!("nika-init-example-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).expect("mkdir");
+        let dir = tmp.to_string_lossy().into_owned();
+
+        let out = scripted_run(
+            &dir,
+            false,
+            None,
+            Some("01-hello"),
+            None,
+            &[],
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(out.code, codes::OK, "{}", out.text);
+        assert!(
+            out.text.contains("created workflows/01-hello.nika.yaml"),
+            "{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("created workflows/README.md"),
+            "{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("nika run workflows/01-hello.nika.yaml"),
+            "tailored next: {}",
+            out.text
+        );
+        let body =
+            std::fs::read_to_string(tmp.join("workflows/01-hello.nika.yaml")).expect("written");
+        assert_eq!(
+            body,
+            nika_pack::example("01-hello").expect("embedded"),
+            "verbatim"
+        );
+
+        let both = scripted_run(
+            &dir,
+            false,
+            Some("agentic"),
+            Some("01-hello"),
+            None,
+            &[],
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(both.code, codes::ENV);
+        assert!(both.text.contains("not both"), "{}", both.text);
+
+        let unknown = scripted_run(
+            &dir,
+            true,
+            None,
+            Some("nope"),
+            None,
+            &[],
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(unknown.code, codes::ENV, "{}", unknown.text);
+        assert!(
+            unknown.text.contains("nika examples list"),
+            "{}",
+            unknown.text
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]

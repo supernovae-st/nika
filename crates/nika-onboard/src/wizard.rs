@@ -51,6 +51,9 @@ const CANVAS_MENU: [(CanvasTheme, &str); 4] = [
 /// Everything the conversation harvests before a single write.
 struct Choices {
     recipe: &'static Recipe,
+    /// `Some(slug)` = the example lane — ONE embedded example founds the
+    /// project (verbatim · no model question: a lesson carries its own).
+    example: Option<String>,
     model: Option<String>,
     canvas: Option<CanvasTheme>,
     wires: Vec<&'static str>,
@@ -104,7 +107,7 @@ fn converse(
         )
     )?;
 
-    // ── recipe ──
+    // ── what are you building? (recipes + the example lane) ──
     writeln!(out, "{}", chrome::rail_head(theme, "recipe"))?;
     for (i, r) in RECIPES.iter().enumerate() {
         writeln!(
@@ -113,31 +116,23 @@ fn converse(
             chrome::rail_pick(theme, i + 1, r.name, r.tagline)
         )?;
     }
-    let Some(pick) = guided::ask(
-        input,
-        out,
-        theme,
-        &format!("a number {}", theme.paint(Role::Dim, "[1 agentic]")),
-    )?
-    else {
-        return Ok(None);
-    };
-    let recipe = resolve_recipe(&pick);
     writeln!(
         out,
         "{}",
-        chrome::rail_line(
+        chrome::rail_pick(
             theme,
-            &format!(
-                "→ {} {}",
-                theme.paint(Role::Accent, recipe.name),
-                theme.paint(Role::Dim, &format!("— {}", recipe.tagline)),
-            )
+            RECIPES.len() + 1,
+            "example",
+            "start from one example — any slug from `nika examples list`",
         )
     )?;
+    let Some((recipe, example)) = ask_blueprint(input, out, theme)? else {
+        return Ok(None);
+    };
 
-    // ── model (only when a skeleton in the set takes one) ──
-    let model = if takes_model(recipe) {
+    // ── model (only when a recipe skeleton takes one — an example never
+    // asks: the lesson already carries its own `model:` line) ──
+    let model = if example.is_none() && takes_model(recipe) {
         match guided::ask_model(input, out, theme)? {
             Some(m) => Some(m),
             None => return Ok(None),
@@ -155,6 +150,7 @@ fn converse(
 
     Ok(Some(Choices {
         recipe,
+        example,
         model,
         canvas,
         wires,
@@ -261,7 +257,10 @@ fn found(
         return Outcome::env("scaffold failed — see the report above".to_owned());
     }
 
-    let scaffolded = scaffold(dir, choices.recipe, choices.model.as_deref(), force);
+    let scaffolded = match &choices.example {
+        Some(slug) => super::recipes::scaffold_example(dir, slug, force),
+        None => scaffold(dir, choices.recipe, choices.model.as_deref(), force),
+    };
     for (path, status) in &scaffolded {
         let rel = relative(dir, path);
         let line = match status {
@@ -287,7 +286,7 @@ fn found(
     // starter hands over to the guided three-question flow — its
     // materialize step already audits and teaches; the panel would
     // double the hand-off.
-    if choices.recipe.name == "starter" {
+    if choices.example.is_none() && choices.recipe.name == "starter" {
         writeln!(out).ok();
         return guided::wizard_io(dir, None, force, theme, input, out, audit);
     }
@@ -416,6 +415,95 @@ fn relative(dir: &str, path: &str) -> String {
 /// A menu answer → the recipe (Enter = the agentic curriculum · a name
 /// works too · anything else falls back to the default, never a dead
 /// end after the human answered).
+/// The blueprint beat — the pick answer, the example-slug follow-up
+/// when lane 6 is chosen, and the confirmation rail line. `None` = EOF.
+#[allow(clippy::type_complexity)] // (recipe, example) IS the harvest shape
+fn ask_blueprint(
+    input: &mut dyn BufRead,
+    out: &mut dyn std::io::Write,
+    theme: Theme,
+) -> std::io::Result<Option<(&'static Recipe, Option<String>)>> {
+    let Some(pick) = guided::ask(
+        input,
+        out,
+        theme,
+        &format!("a number {}", theme.paint(Role::Dim, "[1 agentic]")),
+    )?
+    else {
+        return Ok(None);
+    };
+    let (recipe, example) = if is_example_pick(&pick) {
+        let Some(slug) = ask_example_slug(input, out, theme)? else {
+            return Ok(None);
+        };
+        (&RECIPES[0], Some(slug))
+    } else {
+        (resolve_recipe(&pick), None)
+    };
+    let picked_line = example.as_ref().map_or_else(
+        || {
+            format!(
+                "→ {} {}",
+                theme.paint(Role::Accent, recipe.name),
+                theme.paint(Role::Dim, &format!("— {}", recipe.tagline)),
+            )
+        },
+        |slug| {
+            format!(
+                "→ {} {}",
+                theme.paint(Role::Accent, &format!("example `{slug}`")),
+                theme.paint(Role::Dim, "— verbatim · a lesson carries its own model"),
+            )
+        },
+    );
+    writeln!(out, "{}", chrome::rail_line(theme, &picked_line))?;
+    Ok(Some((recipe, example)))
+}
+
+/// Did the answer pick the example lane? (its number · or the word).
+fn is_example_pick(pick: &str) -> bool {
+    let n = RECIPES.len() + 1;
+    pick.trim() == n.to_string() || pick.trim().eq_ignore_ascii_case("example")
+}
+
+/// The example-slug beat — free entry, `01-hello` as the Enter default,
+/// validated against the embedded set (a typo re-asks nothing: the
+/// honest refusal names the fix and falls back to the default).
+fn ask_example_slug(
+    input: &mut dyn BufRead,
+    out: &mut dyn std::io::Write,
+    theme: Theme,
+) -> std::io::Result<Option<String>> {
+    let Some(raw) = guided::ask(
+        input,
+        out,
+        theme,
+        &format!("example slug {}", theme.paint(Role::Dim, "[01-hello]")),
+    )?
+    else {
+        return Ok(None);
+    };
+    let slug = if raw.trim().is_empty() {
+        "01-hello".to_owned()
+    } else {
+        raw.trim().to_owned()
+    };
+    if nika_pack::example(&slug).is_none() {
+        writeln!(
+            out,
+            "{}",
+            chrome::rail_line(
+                theme,
+                &format!(
+                    "→ unknown `{slug}` — `nika examples list` names the set · using 01-hello"
+                )
+            )
+        )?;
+        return Ok(Some("01-hello".to_owned()));
+    }
+    Ok(Some(slug))
+}
+
 fn resolve_recipe(pick: &str) -> &'static Recipe {
     if let Ok(n) = pick.parse::<usize>()
         && let Some(r) = n.checked_sub(1).and_then(|i| RECIPES.get(i))

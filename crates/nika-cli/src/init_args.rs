@@ -27,6 +27,11 @@ pub(crate) struct InitArgs {
     /// (`agentic` = the 4-pattern curriculum).
     #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(verbs::init::RECIPE_NAMES))]
     recipe: Option<String>,
+    /// Found the project from ONE embedded example (verbatim — any slug
+    /// from `nika examples list`). One founding source: conflicts with
+    /// `--recipe`.
+    #[arg(long, value_name = "SLUG", conflicts_with = "recipe")]
+    example: Option<String>,
     /// Stamp the VS Code DAG canvas skin (`nika.dag.theme`) into the
     /// created `.vscode/settings.json`.
     #[arg(long, value_enum)]
@@ -44,6 +49,7 @@ pub(crate) fn init_verb(args: &InitArgs, plain_theme: Theme) -> VerbOutput {
         args.force,
         args.yes,
         args.recipe.as_deref(),
+        args.example.as_deref(),
         args.theme,
         &args.wire,
         plain_theme,

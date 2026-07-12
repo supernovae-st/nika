@@ -269,6 +269,50 @@ fn init_founding_wizard_golden_path_lands_the_curriculum() {
     }
 }
 
+/// The example lane end-to-end: pick 6 → slug → NO model question (a
+/// lesson carries its own) → canvas/wire skips → the verbatim file +
+/// generated index land, the proof ladder runs, the panel hands over.
+#[test]
+fn init_example_lane_founds_around_one_lesson() {
+    let dir = fresh_dir("init-example");
+    let dir = dir.path();
+    let mut p = spawn_pty(dir, &["init", "."], true);
+
+    p.expect("recipe").expect("the blueprint step");
+    p.expect("start from one example")
+        .expect("the example lane is offered");
+    p.send_line("6").expect("6 = the example lane");
+    p.expect("example slug").expect("the slug beat");
+    p.expect("[01-hello]").expect("the Enter default is named");
+    p.send_line("").expect("Enter = 01-hello");
+    p.expect("example `01-hello`")
+        .expect("the confirmation rail");
+    // NO model question — straight to canvas.
+    p.expect("canvas").expect("a lesson carries its own model");
+    p.send_line("").expect("skip");
+    p.expect("agents").expect("the wire step");
+    p.send_line("").expect("skip");
+    p.expect("created AGENTS.md").expect("briefs land");
+    p.expect("workflows/01-hello.nika.yaml")
+        .expect("the lesson lands verbatim");
+    p.expect("proof").expect("the audit step");
+    p.expect("audited").expect("the ladder ran");
+    p.expect("ready").expect("the panel hands over");
+    p.expect(Eof).expect("ends");
+    assert_eq!(exit_code(&mut p), 0);
+
+    let body =
+        std::fs::read_to_string(dir.join("workflows/01-hello.nika.yaml")).expect("lesson written");
+    assert!(
+        body.contains("workflow: hello"),
+        "verbatim example body: {body}"
+    );
+    assert!(
+        dir.join("workflows/README.md").is_file(),
+        "generated index written"
+    );
+}
+
 #[test]
 fn init_starter_recipe_hands_over_to_the_guided_flow() {
     let dir = fresh_dir("init-starter");
