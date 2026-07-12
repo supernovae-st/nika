@@ -132,6 +132,21 @@ fn serve_local(gguf: &Path, tokenizer: Option<&Path>, port: u16, model_id: Optio
         Ok(plan) => plan,
         Err(refusal) => return refusal,
     };
+    // The header sniff refuses a wrong family in MILLISECONDS — the
+    // loader's authoritative validation of the same key would first
+    // read the whole multi-GiB file. Same wire as the loader's refusal;
+    // an unknown sniff (None) falls through to it.
+    if let Some(arch) = crate::gguf::sniff_architecture(&plan.gguf)
+        && arch != crate::SERVE_FAMILY
+    {
+        return format!(
+            "model serve: this loader handles `{}` GGUFs · got `{arch}` \
+             (load via the matching family loader)\n  fix: the v1 loader \
+             serves Qwen3-family GGUFs with their tokenizer.json — check \
+             both files\n",
+            crate::SERVE_FAMILY
+        );
+    }
     eprintln!(
         "nika model serve · loading {} (a first load reads the whole file)",
         plan.gguf.display()

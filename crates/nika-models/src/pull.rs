@@ -568,7 +568,9 @@ fn pull_over_network(
 /// The pull receipt: where it landed + the exact next commands. A
 /// resumed transfer says so (`resumed at <offset>`) — the receipt is
 /// the surface scripts and logs read, and a resume must not read like
-/// a fresh pull (the live-Hub pin asserts this).
+/// a fresh pull (the live-Hub pin asserts this). The serve line speaks
+/// per-family: promising `nika model serve` on a GGUF the v1 loader
+/// refuses (llama · phi · …) would be a false receipt.
 fn receipt(
     arg: &str,
     mref: &ModelRef,
@@ -584,8 +586,19 @@ fn receipt(
     } else {
         "pulled".to_owned()
     };
+    // Advisory sniff: an unknown family (None — exotic writer · future
+    // header) keeps the promise; only a POSITIVE other-family read
+    // rewords it (the loader still validates at load).
+    let serve_line = match crate::gguf::sniff_architecture(dest) {
+        Some(arch) if arch != crate::SERVE_FAMILY => format!(
+            "serve:    `{arch}`-family GGUF — `nika model serve` is {}-only today; \
+             point your local runner at the file above (ollama · llama.cpp · lmstudio)",
+            crate::SERVE_FAMILY
+        ),
+        _ => format!("serve it: nika model serve --model {arg}"),
+    };
     format!(
-        "{verb} {}\n  {}\n  serve it: nika model serve --model {arg}\n  manage:   nika \
+        "{verb} {}\n  {}\n  {serve_line}\n  manage:   nika \
          model list · nika model rm {arg}{tokenizer_note}",
         mref.repo_id(),
         dest.display()
@@ -660,6 +673,48 @@ mod tests {
     use nika_kernel::http::{HttpError, HttpResponse, HttpStreamResponse};
 
     use super::*;
+
+    /// The receipt's serve line speaks per-family: a llama GGUF at the
+    /// destination stops the `serve it:` promise (the v1 loader would
+    /// refuse it) and points at a local runner instead; an absent or
+    /// unsniffable file keeps the promise (advisory only).
+    #[test]
+    fn receipt_serve_line_speaks_per_family() {
+        let root = temp_root("receipt-family");
+        let mr = mref("u/m");
+        let dir = mr.dir(&root);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let dest = dir.join("w.gguf");
+        // A minimal GGUF v3 header declaring general.architecture=llama.
+        let mut b = 0x4655_4747u32.to_le_bytes().to_vec();
+        b.extend_from_slice(&3u32.to_le_bytes());
+        b.extend_from_slice(&0u64.to_le_bytes());
+        b.extend_from_slice(&1u64.to_le_bytes());
+        let key = b"general.architecture";
+        b.extend_from_slice(&(key.len() as u64).to_le_bytes());
+        b.extend_from_slice(key);
+        b.extend_from_slice(&8u32.to_le_bytes());
+        b.extend_from_slice(&5u64.to_le_bytes());
+        b.extend_from_slice(b"llama");
+        std::fs::write(&dest, &b).expect("gguf fixture");
+
+        let text = receipt("u/m", &mr, &dest, false, 0, "");
+        assert!(text.contains("`llama`-family GGUF"), "family note: {text}");
+        assert!(
+            !text.contains("serve it: nika model serve"),
+            "no false promise: {text}"
+        );
+        assert!(text.contains("nika model rm u/m"), "manage stays: {text}");
+
+        // Unsniffable (not a GGUF) → advisory keeps the promise.
+        std::fs::write(&dest, b"not a gguf").expect("overwrite");
+        let text = receipt("u/m", &mr, &dest, false, 0, "");
+        assert!(
+            text.contains("serve it: nika model serve --model u/m"),
+            "promise kept on unknown: {text}"
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
 
     fn entry(kind: &str, path: &str, size: u64) -> TreeEntry {
         TreeEntry {

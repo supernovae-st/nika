@@ -21,9 +21,14 @@
 // Test fixtures expect/unwrap freely — the nika-http/nika-cli idiom.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod gguf;
 pub mod pull;
 pub mod serve;
 pub mod store;
+
+/// The one GGUF family the v1 serve loader reads (mirrors the loader's
+/// own `SUPPORTED_ARCH` validation in `nika-infer-local`).
+pub const SERVE_FAMILY: &str = "qwen3";
 
 /// The canonical models dir's presence facts — what `nika doctor`'s
 /// models row reads (observed once, so the diagnosis stays pure).
