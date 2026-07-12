@@ -558,6 +558,16 @@ mod tests {
         );
     }
 
+    /// The space trigger's cost contract — ` ` is a trigger character
+    /// (capabilities.rs), so a space anywhere in running prose fires a
+    /// request; this pins that a non-value space answers EMPTY, keeping
+    /// the trigger free inside prompt blocks and plain text.
+    #[test]
+    fn a_space_in_running_prose_offers_nothing() {
+        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer:\n      prompt: |\n        Summarize the following ";
+        assert!(completion(text, text.len()).is_empty());
+    }
+
     /// `tool: ` offers the full catalog-derived `nika:*` set — and the
     /// count IS the catalog's (the born-stale gate: a builtin added to
     /// the catalog appears here with zero LSP edits).
