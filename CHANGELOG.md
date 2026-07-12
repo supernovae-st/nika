@@ -10,6 +10,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **The sovereign lane ships whole** (#518 · the release ruling,
+  executed) — every release binary now carries `local-infer`: `nika
+  model pull` → `nika model serve` → workflow `infer` against your own
+  machine, no cloud, no external daemon, no build-from-source wall.
+  Measured +2.4 MB. CPU on every target on purpose (darwin included):
+  candle 0.10's quantized rms-norm Metal kernel is broken — a metal
+  lane would die at first token. The funnel now pins the teaching:
+  a feature-carrying binary must never utter « built without local
+  inference ».
+
 ## [0.100.0](https://github.com/supernovae-st/nika/compare/v0.99.0..v0.100.0) - 2026-07-12
 
 ### Added
