@@ -3,6 +3,13 @@
 The bundle every marketplace installs (Claude Code · Codex · Cursor).
 Versions move together across all manifests (the mirror gate pins it).
 
+## 0.5.1 — 2026-07-12
+
+- session-context: a session opened in a SUBDIR of the workspace now
+  gets the map — the script resolves the git toplevel before probing
+  the workspace markers (proven lost from `src/deep/`; non-git dirs
+  keep the old behavior, silence stays silent).
+
 ## 0.5.0 — 2026-07-12
 
 Hooks parity: the three seatbelts reach Claude Code (they were

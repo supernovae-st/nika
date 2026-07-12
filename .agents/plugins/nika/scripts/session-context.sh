@@ -34,6 +34,12 @@ else
   cwd="$(printf '%s' "$input" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
 fi
 [ -n "$cwd" ] && [ -d "$cwd" ] && cd "$cwd" || true
+# A session opened in a SUBDIR of the workspace must still get the map
+# (proven lost 2026-07-12): resolve the git toplevel when there is one —
+# the workspace markers (.nika/ · .cursor/rules/nika.mdc · *.nika.yaml)
+# live at the root. Not a git repo → stay where we are (old behavior).
+root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[ -n "$root" ] && [ -d "$root" ] && cd "$root" || true
 
 # Nika-enabled = a .nika/ store, an equipped repo (`nika init` wrote
 # .cursor/rules/nika.mdc — the session right after init is exactly
