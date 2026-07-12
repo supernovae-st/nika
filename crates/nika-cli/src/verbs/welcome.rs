@@ -293,6 +293,23 @@ fn start_section(s: &mut String, theme: Theme) {
             )
         )
     );
+    // The community line — welcome is the ONE first-contact surface, so
+    // the ask lives here (once, dim, honest) and never on working
+    // commands: check/run stay marketing-free by doctrine.
+    let _ = writeln!(
+        s,
+        "{}",
+        theme.paint(
+            Role::Dim,
+            &format!(
+                "open source · a star on {} helps others find nika",
+                theme.link(
+                    "https://github.com/supernovae-st/nika",
+                    "github.com/supernovae-st/nika",
+                ),
+            )
+        )
+    );
 }
 
 /// Cloud keys: how many of the key-requiring providers have one PRESENT
@@ -429,6 +446,7 @@ mod tests {
             "not briefed → nika init",
             "mock/echo",
             "learn: nika.sh",
+            "helps others find nika",
         ] {
             assert!(text.contains(needle), "missing `{needle}`:\n{text}");
         }

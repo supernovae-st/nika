@@ -279,9 +279,11 @@ pub(crate) fn render(lines: &[(char, String)]) -> String {
 /// The beginner's next move · init used to end SILENTLY (the 2026-07-05
 /// beginner walk: « you init and… sit there ») — an onboarding surface
 /// must hand over to the next command. Golden path: offline proof in
-/// 10s → scaffold → audit-before-tokens. Byte-stable: this is the exact
-/// non-interactive shape scripts have seen since #158.
-const NEXT_BLOCK: &str = "next ·\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika new                                       # your first workflow — guided on a terminal\n  nika new --from chain my-first.nika.yaml       # the same, scriptable\n  nika check my-first.nika.yaml                  # audit before a single token";
+/// 10s → scaffold → audit-before-tokens. Byte-stable additively: the
+/// #158 lines never change (scripts grep them); the community footer
+/// joined 2026-07-12 — init is a once-per-repo ceremony, the honest
+/// place for the one ask (working commands stay marketing-free).
+const NEXT_BLOCK: &str = "next ·\n  nika examples run 01-hello --model mock/echo   # offline proof · zero keys\n  nika new                                       # your first workflow — guided on a terminal\n  nika new --from chain my-first.nika.yaml       # the same, scriptable\n  nika check my-first.nika.yaml                  # audit before a single token\n\nopen source · a star on github.com/supernovae-st/nika helps others find nika";
 
 /// Scaffold `dir` (default `.`). Creates parent dirs as needed. A write
 /// failure is the one environment error (`exit 3`); everything else is `0`.
