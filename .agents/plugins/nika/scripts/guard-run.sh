@@ -49,6 +49,10 @@ case "$cmd" in *--resume*) allow ;; esac
 
 # The workflow file: first *.nika.yaml / *.nika.yml token in the command.
 file=""
+# set -f: the unquoted expansion must split into words WITHOUT
+# globbing (a literal `nika run *.nika.yaml` would otherwise expand
+# against the hook's own cwd).
+set -f
 for word in $cmd; do
   case "$word" in
     *.nika.yaml | *.nika.yml)
@@ -57,6 +61,7 @@ for word in $cmd; do
       ;;
   esac
 done
+set +f
 [ -n "$file" ] || allow
 
 # Resolve relative to the payload cwd; unfindable file fails open
