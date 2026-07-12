@@ -46,6 +46,23 @@ pub fn task_output_paths(expr: &Expr) -> Vec<(String, Vec<String>)> {
     out
 }
 
+/// Every task referenced as a BARE envelope — `tasks.<id>` with no
+/// field hop at all. The envelope (status · timestamps · output) is
+/// legitimate plumbing in gates; bound into `outputs:` it is the
+/// golden-drift trap the `envelope-output` hint teaches.
+#[must_use]
+pub fn bare_task_refs(expr: &Expr) -> Vec<String> {
+    let mut out = Vec::new();
+    walk_chains(expr, &mut |root, path| {
+        if root == "tasks"
+            && let [id] = path
+        {
+            out.push(id.clone());
+        }
+    });
+    out
+}
+
 /// Whether the expression ROOT is boolean-shaped (spec `03-dag.md`
 /// §when valid/invalid lists) · `||` · `&&` · `!` · any relation · or a
 /// bool literal. A bare path / non-bool literal root is NOT.
@@ -192,6 +209,18 @@ mod tests {
                 field: Some("status".into()),
             }]
         );
+    }
+
+    #[test]
+    fn bare_task_refs_finds_envelopes_only() {
+        let bare = |src: &str| bare_task_refs(&parse_expression(src).expect("parse"));
+        assert_eq!(bare("tasks.brief"), vec!["brief".to_owned()]);
+        // Any field hop — output, status, deep — is NOT a bare envelope.
+        assert!(bare("tasks.brief.output").is_empty());
+        assert!(bare("tasks.brief.status").is_empty());
+        assert!(bare("tasks.brief.output.title").is_empty());
+        // Other namespaces never match.
+        assert!(bare("vars.brief").is_empty());
     }
 
     #[test]

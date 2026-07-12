@@ -419,8 +419,10 @@ enum TraceAction {
     /// inserted, dropped or reordered line breaks every hash after it.
     /// Exit 0 intact · 2 broken · 3 unchained (pre-chain journal).
     Verify {
-        /// Trace NDJSON path (default: the workspace's latest trace).
-        trace: Option<PathBuf>,
+        /// Trace NDJSON path(s) — a shell glob (`.nika/traces/*.ndjson`)
+        /// just works: each file verifies under its own header, the
+        /// worst exit survives (default: the workspace's latest trace).
+        traces: Vec<PathBuf>,
     },
     /// Is this run reproducible? Compare a recorded journal against a
     /// fresh one and classify every task: reproduced · nondeterministic
@@ -923,6 +925,19 @@ fn mcp_verb(transport: McpTransportArg, port: u16, bind: &str) -> u8 {
     }
 }
 
+/// `nika trace verify [TRACES…]` — several paths (the shell glob) go
+/// per-file/worst-of; zero or one keeps the existing voice byte-stable
+/// (bare form resolves the latest · one arg resolves store handles).
+fn verify_verb(mut traces: Vec<PathBuf>) -> u8 {
+    if traces.len() > 1 {
+        return emit(&verbs::trace_verify::verify_many(&traces));
+    }
+    match resolve_trace(traces.pop()) {
+        Ok(path) => emit(&verbs::trace_verify::verify(&path.to_string_lossy())),
+        Err(code) => code,
+    }
+}
+
 fn trace_verb(action: TraceAction, theme: Theme, color: ColorWhenArg, link_when: LinkChoice) -> u8 {
     match action {
         TraceAction::Replay(args) => trace_render(&args, true, color, link_when, theme.ascii),
@@ -964,10 +979,7 @@ fn trace_verb(action: TraceAction, theme: Theme, color: ColorWhenArg, link_when:
             theme.accents = std::io::stdout().is_terminal();
             emit(&verbs::trace::outputs(&trace.to_string_lossy(), theme))
         }
-        TraceAction::Verify { trace } => match resolve_trace(trace) {
-            Ok(path) => emit(&verbs::trace_verify::verify(&path.to_string_lossy())),
-            Err(code) => code,
-        },
+        TraceAction::Verify { traces } => verify_verb(traces),
         TraceAction::Reproduce { recorded, fresh } => emit(&verbs::trace_reproduce::reproduce(
             &recorded.to_string_lossy(),
             &fresh.to_string_lossy(),

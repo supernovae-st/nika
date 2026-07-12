@@ -49,10 +49,16 @@
 //!   value that spells a reference path (`tasks.X.output…` · `vars.X` · …)
 //!   without the `${{ }}` wrapper rides as the LITERAL STRING (the run
 //!   returns the path text, not the value); the hint names the wrap.
+//! - **envelope bound into outputs** (`envelope-output`) — an
+//!   `outputs:` binding referencing a BARE `tasks.X` captures the whole
+//!   envelope (status · timestamps · output), so `nika test` goldens
+//!   drift on the timestamps every run; bind `tasks.X.output` for the
+//!   value. Suppresses `dead-spend` for the same task (the output IS
+//!   consumed — in trap form).
 
 use std::collections::BTreeSet;
 
-use crate::expression::{Expr, Literal, RelOp, scan_templates, task_output_paths};
+use crate::expression::{Expr, Literal, RelOp, bare_task_refs, scan_templates, task_output_paths};
 use crate::raw::{RawAction, RawTask, RawWorkflow};
 use crate::types::{CaptureMode, OnErrorAction, VarDecl};
 
@@ -64,8 +70,8 @@ pub struct Hint {
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
     /// `redundant-gate` · `retry-effects` · `parallel-writers` ·
     /// `secrets-store` · `native-first` · `exec-json-capture` ·
-    /// `unwrapped-ref` (additive · agents route on it; the module doc
-    /// describes each).
+    /// `unwrapped-ref` · `envelope-output` (additive · agents route on
+    /// it; the module doc describes each).
     pub kind: &'static str,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,
@@ -78,7 +84,20 @@ pub struct Hint {
 pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     let consumed = consumed_outputs(wf);
     let deep_referenced = deeply_referenced(wf);
+    let envelope_bound = envelope_bound_outputs(wf);
+    let envelope_ids: BTreeSet<&str> = envelope_bound.iter().map(|(_, id)| id.as_str()).collect();
     let mut hints = Vec::new();
+    for (name, id) in &envelope_bound {
+        hints.push(Hint {
+            kind: "envelope-output",
+            task: id.clone(),
+            advice: format!(
+                "outputs.{name} binds the whole ENVELOPE of `{id}` (status · timestamps · \
+                 output) — `nika test` goldens drift on its timestamps every run; for the \
+                 value alone bind ${{{{ tasks.{id}.output }}}}"
+            ),
+        });
+    }
 
     let mut any_effect = false;
     for task in &wf.tasks {
@@ -113,7 +132,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                         "declare `max_tokens` on `{id}` — the cost report becomes a hard ceiling instead of UNBOUNDED"
                     )));
                 }
-                if !consumed.contains(id) {
+                if !consumed.contains(id) && !envelope_ids.contains(id) {
                     hints.push(hint("dead-spend", id, format!(
                         "no task or output consumes `tasks.{id}.output` — every token this infer spends is unread; consume it or remove the task"
                     )));
@@ -492,6 +511,25 @@ fn consumed_outputs(wf: &RawWorkflow) -> BTreeSet<String> {
     consumed
 }
 
+/// `(output name, task id)` for every `outputs:` binding that
+/// references a BARE task envelope (`tasks.X` — no field hop). Scoped
+/// to `outputs:` deliberately: a bare envelope in a gate or a prompt is
+/// legitimate plumbing; bound into the workflow's public contract it is
+/// the golden-drift trap.
+fn envelope_bound_outputs(wf: &RawWorkflow) -> Vec<(String, String)> {
+    let mut bound = Vec::new();
+    for (name, decl) in &wf.outputs {
+        if let Ok(islands) = scan_templates(&decl.value().value) {
+            for island in islands {
+                for id in bare_task_refs(&island.expr) {
+                    bound.push((name.value.clone(), id));
+                }
+            }
+        }
+    }
+    bound
+}
+
 /// Task ids referenced with a DEEP path (`tasks.X.output.field…`).
 fn deeply_referenced(wf: &RawWorkflow) -> BTreeSet<String> {
     let mut deep = BTreeSet::new();
@@ -761,6 +799,38 @@ mod tests {
             "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\noutputs:\n  r: ${{ tasks.a.output }}\n",
         );
         assert!(!h2.iter().any(|x| x.kind == "dead-spend"), "{h2:?}");
+    }
+
+    /// The first-day trap, taught where it is born: `outputs.r: ${{
+    /// tasks.a }}` binds the ENVELOPE — the hint names the output, the
+    /// task, the drift, and the fix; the contradictory dead-spend voice
+    /// (« nothing consumes it ») is suppressed for that task.
+    #[test]
+    fn envelope_bound_output_teaches_and_silences_dead_spend() {
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\noutputs:\n  r: ${{ tasks.a }}\n",
+        );
+        let env: Vec<_> = h.iter().filter(|x| x.kind == "envelope-output").collect();
+        assert_eq!(env.len(), 1, "{h:?}");
+        assert_eq!(env[0].task, "a");
+        assert!(env[0].advice.contains("outputs.r"), "{}", env[0].advice);
+        assert!(
+            env[0].advice.contains("${{ tasks.a.output }}"),
+            "the fix is spelled: {}",
+            env[0].advice
+        );
+        assert!(
+            !h.iter().any(|x| x.kind == "dead-spend"),
+            "one voice — the envelope binding IS consumption: {h:?}"
+        );
+        // A bare envelope in a GATE is plumbing, not a trap — silent.
+        let gate = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    depends_on: [a]\n    when: ${{ size(tasks.a.output) > 0 }}\n    exec: { command: \"echo go\" }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+        );
+        assert!(
+            !gate.iter().any(|x| x.kind == "envelope-output"),
+            "{gate:?}"
+        );
     }
 
     #[test]
