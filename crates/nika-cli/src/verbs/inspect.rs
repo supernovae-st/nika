@@ -84,8 +84,16 @@ pub fn run(path: &str, theme: Theme) -> VerbOutput {
         doc.nodes.len(),
         report.waves.len(),
     );
+    // The pinch set (DagAnalysis · « nothing else runs while these
+    // run ») — drawn ON the graph, not only said under it: the P1 of
+    // the analytics-on-the-drawing plan (buck2 computes, nika draws).
+    let pinch: std::collections::BTreeSet<&str> = report
+        .analysis
+        .as_ref()
+        .map(|a| a.pinch_points.iter().map(String::as_str).collect())
+        .unwrap_or_default();
     let wave_sizes: Vec<usize> = report.waves.iter().map(Vec::len).collect();
-    render_waves(&mut out, &doc, &wave_sizes, theme);
+    render_waves(&mut out, &doc, &wave_sizes, theme, &pinch);
     // The spec §6 footer verbatim — NIKA-DAG-001 is the conformance code
     // the ladder proved clean to get here.
     out.push_str("  (no orphans · DAG check NIKA-DAG-001 clean)\n");
@@ -171,7 +179,13 @@ fn node_meta(node: &Node) -> String {
 /// parallel"), a bare row for a single-task wave, flow arrows between
 /// waves. The projection's node order IS wave order (one projector law),
 /// so `wave_sizes` slices it without re-deriving anything.
-fn render_waves(out: &mut String, doc: &GraphDoc, wave_sizes: &[usize], theme: Theme) {
+fn render_waves(
+    out: &mut String,
+    doc: &GraphDoc,
+    wave_sizes: &[usize],
+    theme: Theme,
+    pinch: &std::collections::BTreeSet<&str>,
+) {
     let g = if theme.ascii {
         &ASCII_GLYPHS
     } else {
@@ -192,16 +206,28 @@ fn render_waves(out: &mut String, doc: &GraphDoc, wave_sizes: &[usize], theme: T
             let _ = writeln!(out, "    {}", theme.paint(Role::Dim, g.arrow));
         }
         if members.len() > 1 {
-            render_wave_group(out, i + 1, members, id_width, g, theme);
+            render_wave_group(out, i + 1, members, id_width, g, theme, pinch);
         } else if let Some(node) = members.first() {
             let _ = writeln!(
                 out,
-                "  {}{:<id_width$}  {}",
+                "  {}{:<id_width$}{} {}",
                 theme.verb_glyph(node.verb),
                 node.id,
+                pinch_mark(&node.id, pinch, theme),
                 theme.paint(Role::Dim, &node_meta(node)),
             );
         }
+    }
+}
+
+/// The pinch marker — `⧗` Warn (`!` ASCII) beside a task that gates
+/// the whole graph (« nothing else runs while it runs »), a single
+/// stable cell so the id column never jitters; a dim space otherwise.
+fn pinch_mark(id: &str, pinch: &std::collections::BTreeSet<&str>, theme: Theme) -> String {
+    if pinch.contains(id) {
+        theme.paint(Role::Warn, if theme.ascii { "!" } else { "⧗" })
+    } else {
+        " ".to_owned()
     }
 }
 
@@ -215,6 +241,7 @@ fn render_wave_group(
     id_width: usize,
     g: &Glyphs,
     theme: Theme,
+    pinch: &std::collections::BTreeSet<&str>,
 ) {
     // Width math runs on RAW text (ANSI escapes break cell arithmetic —
     // theme.rs law); paint happens at emission, segment by segment.
@@ -246,9 +273,10 @@ fn render_wave_group(
             .saturating_sub(2 + id_width + 2 + fitted.chars().count());
         let _ = writeln!(
             out,
-            "  {v} {}{:<id_width$}  {}{} {v}",
+            "  {v} {}{:<id_width$}{} {}{} {v}",
             theme.verb_glyph(node.verb),
             node.id,
+            pinch_mark(&node.id, pinch, theme),
             theme.paint(Role::Dim, &fitted),
             " ".repeat(pad),
         );
@@ -305,6 +333,11 @@ mod tests {
         std::fs::remove_file(&path).ok();
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(out.text.contains("parallelism  width 2"), "{}", out.text);
+        // P1 · the pinch is DRAWN, not only said: root and join carry
+        // the ⧗ mark on their own rows (left/right stay unmarked).
+        assert!(out.text.contains("root ⧗"), "pinch on root: {}", out.text);
+        assert!(out.text.contains("join ⧗"), "pinch on join: {}", out.text);
+        assert!(!out.text.contains("left ⧗"), "{}", out.text);
         assert!(
             out.text.contains("left") && out.text.contains("right"),
             "{}",
