@@ -77,7 +77,7 @@ the spec doc with a paragraph of justification.
 Because of this standard, Nika ships on real semver — each release is
 diamond-grade for its declared scope, features arrive as they pass their
 12 gates, and the version reflects that maturity honestly. The engine is at
-**0.91.0** (latest release · `main` on 0.92.0-dev · release-candidate grade).
+**the CHANGELOG top names the latest release** (release-candidate grade since 0.91.0).
 
 SQLite 1.0 did not have WAL, FTS, JSON1, or window functions. Those came
 across 3.x releases over 20 years. Each release was diamond-grade. The
