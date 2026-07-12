@@ -24,8 +24,100 @@ use super::vocab::{self, Entry};
 #[must_use]
 pub fn hover(text: &str, offset: usize) -> Option<Hover> {
     value_card_hover(text, offset)
+        .or_else(|| task_decl_hover(text, offset))
         .or_else(|| vocab_hover(text, offset))
         .or_else(|| task_ref_hover(text, offset))
+}
+
+/// Hover on a task DECLARATION (`- id: X`) — the task's place in the
+/// DAG, from the SAME wave computation the engine schedules with
+/// (`nika_schema::analyze` · Kahn levels over the EXPLICIT `depends_on`
+/// edges — one math, one voice). Cyclic or unresolved graphs stay
+/// silent here: the diagnostics lane already carries that story.
+fn task_decl_hover(text: &str, offset: usize) -> Option<Hover> {
+    let (key, id, start, end) = keyed_value_at(text, offset)?;
+    if key != "id" {
+        return None;
+    }
+    let wf = nika_schema::parse(
+        text,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Lenient,
+    )
+    .ok()?;
+    let body = dag_card(&wf, id)?;
+    let index = LineIndex::new(text);
+    Some(Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: body,
+        }),
+        range: Some(Range::new(index.position(start), index.position(end))),
+    })
+}
+
+/// The DAG card body for one task id.
+fn dag_card(wf: &nika_schema::raw::RawWorkflow, id: &str) -> Option<String> {
+    use std::fmt::Write as _;
+    let idx = wf.tasks.iter().position(|t| t.value.id.value == id)?;
+    let task = &wf.tasks[idx].value;
+    let analyzed = nika_schema::analyze(wf).ok()?;
+    let waves = &analyzed.topo_waves;
+    let wave = waves.iter().position(|w| w.contains(&idx))?;
+    let mut body = format!(
+        "**task `{id}`** — _{}_ · wave {}/{}",
+        task.action.verb(),
+        wave + 1,
+        waves.len()
+    );
+    let waits: Vec<&str> = task.depends_on.iter().map(|d| d.value.as_str()).collect();
+    if !waits.is_empty() {
+        let _ = write!(body, "\n\nwaits on: {}", code_list(&waits));
+    }
+    // reverse edges + transitive closure over the SAME explicit edge set
+    let feeds: Vec<&str> = wf
+        .tasks
+        .iter()
+        .filter(|t| t.value.depends_on.iter().any(|d| d.value == id))
+        .map(|t| t.value.id.value.as_str())
+        .collect();
+    if feeds.is_empty() {
+        let _ = write!(body, "\n\nfeeds: nothing downstream — a terminal task");
+    } else {
+        let sep = if waits.is_empty() { "\n\n" } else { "\n" };
+        let reach = downstream_reach(wf, id);
+        let _ = write!(body, "{sep}feeds: {}", code_list(&feeds));
+        if reach > feeds.len() {
+            let _ = write!(body, " · downstream reach: {reach} tasks");
+        }
+    }
+    Some(body)
+}
+
+/// |{ t : id →⁺ t }| — the size of the transitive closure downstream of
+/// `id`, BFS over the explicit reverse edges.
+fn downstream_reach(wf: &nika_schema::raw::RawWorkflow, id: &str) -> usize {
+    let mut seen: Vec<&str> = Vec::new();
+    let mut queue: Vec<&str> = vec![id];
+    while let Some(cur) = queue.pop() {
+        for t in &wf.tasks {
+            if t.value.depends_on.iter().any(|d| d.value == cur) {
+                let child = t.value.id.value.as_str();
+                if !seen.contains(&child) {
+                    seen.push(child);
+                    queue.push(child);
+                }
+            }
+        }
+    }
+    seen.len()
+}
+
+fn code_list(ids: &[&str]) -> String {
+    ids.iter()
+        .map(|i| format!("`{i}`"))
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
 
 /// Hover on a `tool:` or `model:` VALUE — the catalog card for that
@@ -266,10 +358,12 @@ mod tests {
 
     #[test]
     fn hover_on_non_vocabulary_returns_none() {
-        // a task id DEFINITION is not language vocabulary and not a reference
-        // → no hover
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: my_task\n    exec: { command: \"x\" }\n";
-        let at = yaml.find("my_task").expect("id") + 2;
+        // an arbitrary VALUE (a command string) is not vocabulary, not a
+        // reference, not a declaration → no hover. (A task id DEFINITION
+        // now answers with its DAG card — pinned in its own test below.)
+        let yaml =
+            "nika: v1\nworkflow: w\ntasks:\n  - id: my_task\n    exec: { command: \"xyzzy\" }\n";
+        let at = yaml.find("xyzzy").expect("command value") + 2;
         assert!(hover(yaml, at).is_none());
     }
 
@@ -419,5 +513,39 @@ mod tests {
         let text2 = "nika: v1\nmodel: nosuch/model-x\n";
         let off2 = text2.find("nosuch/").expect("value") + 2;
         assert!(hover(text2, off2).is_none());
+    }
+
+    /// Hover on a task DECLARATION → its DAG card, from the engine's
+    /// own wave computation (`analyze` · Kahn levels · explicit edges).
+    /// The diamond: a → {b, c} → d.
+    #[test]
+    fn hover_on_task_decl_shows_the_dag_card() {
+        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"x\" }\n  - id: c\n    depends_on: [a]\n    exec: { command: \"x\" }\n  - id: d\n    depends_on: [b, c]\n    exec: { command: \"x\" }\n";
+        let a = hover(text, text.find("- id: a").expect("a") + 7).expect("card for a");
+        let ab = body(&a);
+        assert!(ab.contains("wave 1/3"), "{ab}");
+        assert!(ab.contains("feeds: `b` · `c`"), "{ab}");
+        assert!(
+            ab.contains("downstream reach: 3 tasks"),
+            "the closure counts b, c AND d: {ab}"
+        );
+        assert!(
+            !ab.contains("waits on"),
+            "a root task waits on nothing: {ab}"
+        );
+
+        let d = hover(text, text.find("- id: d").expect("d") + 7).expect("card for d");
+        let db = body(&d);
+        assert!(db.contains("wave 3/3"), "{db}");
+        assert!(db.contains("waits on: `b` · `c`"), "{db}");
+        assert!(db.contains("terminal task"), "{db}");
+    }
+
+    /// A cyclic graph stays SILENT at the declaration — the diagnostics
+    /// lane already tells that story with a span and a code.
+    #[test]
+    fn hover_on_task_decl_in_a_cycle_stays_silent() {
+        let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [b]\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"x\" }\n";
+        assert!(hover(text, text.find("- id: a").expect("a") + 7).is_none());
     }
 }
