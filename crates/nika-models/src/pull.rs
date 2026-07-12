@@ -208,6 +208,46 @@ fn file_name(repo_path: &str) -> &str {
     repo_path.rsplit('/').next().unwrap_or(repo_path)
 }
 
+/// Does a remote-supplied string shape as a Hub `owner/repo` id?
+/// `base_model` is REMOTE data that flows into a URL path — anything
+/// outside `[A-Za-z0-9._-]/[A-Za-z0-9._-]` is dropped, so a crafted
+/// card cannot steer the request off the two API endpoints.
+fn valid_repo_id(id: &str) -> bool {
+    let Some((owner, name)) = id.split_once('/') else {
+        return false;
+    };
+    let ok = |s: &str| {
+        !s.is_empty()
+            && !s.starts_with('.')
+            && s.bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+    };
+    ok(owner) && ok(name)
+}
+
+/// Borrow `tokenizer.json` from the GGUF repo's declared base model,
+/// landing it BESIDE the GGUF (the sibling layout `serve` loads).
+/// Returns the base repo id on success; every miss (no card · no base
+/// tree · base ships none · transport) answers `None` — the caller
+/// prints the teaching note instead.
+async fn borrow_base_tokenizer<H: HttpGetDyn + HttpPostDyn>(
+    scout: &Puller<H>,
+    mref: &ModelRef,
+) -> Option<String> {
+    let base_id = scout.base_model(mref).await?;
+    let (owner, name) = base_id.split_once('/')?;
+    let base = ModelRef {
+        owner: owner.to_owned(),
+        name: name.to_owned(),
+        quant: None,
+    };
+    let entries = scout.tree(&base).await.ok()?;
+    let tok = tokenizer_entry(&entries)?.clone();
+    let beside = mref.dir(&scout.root);
+    scout.download_into(&base, &tok, &beside).await.ok()?;
+    Some(base_id)
+}
+
 /// The Hub acquisition client over the injected kernel http seam.
 pub(crate) struct Puller<H> {
     http: H,
@@ -264,14 +304,49 @@ impl<H: HttpGetDyn + HttpPostDyn> Puller<H> {
     /// Returns the landing path + the byte offset the transfer resumed
     /// from (`0` = a fresh pull) — the receipt tells the truth about
     /// what happened (a resumed pull must not read like a fresh one).
+    /// The repo's declared source model (`cardData.base_model` on the
+    /// Hub's model-info API) — where the tokenizer borrow looks.
+    /// ADVISORY: any miss (non-200 · no card · an id that does not
+    /// shape as `owner/repo`) answers `None`, never an error.
+    pub(crate) async fn base_model(&self, mref: &ModelRef) -> Option<String> {
+        let mut request =
+            HttpRequest::get(format!("{HUB}/api/models/{}/{}", mref.owner, mref.name));
+        request.headers = self.auth_headers();
+        let response = self.http.get(request).await.ok()?;
+        if response.status != 200 {
+            return None;
+        }
+        let v: serde_json::Value = serde_json::from_slice(&response.body).ok()?;
+        let card = v.get("cardData")?.get("base_model")?;
+        // The Hub allows both a string and a list — take the first.
+        let id = match card {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Array(a) => a.first()?.as_str()?.to_owned(),
+            _ => return None,
+        };
+        valid_repo_id(&id).then_some(id)
+    }
+
     pub(crate) async fn download(
         &self,
         mref: &ModelRef,
         entry: &TreeEntry,
     ) -> Result<(PathBuf, u64), Refusal> {
-        let file = file_name(&entry.path);
         let dir = mref.dir(&self.root);
-        std::fs::create_dir_all(&dir).map_err(|e| {
+        self.download_into(mref, entry, &dir).await
+    }
+
+    /// [`Self::download`] with an explicit destination dir — the
+    /// tokenizer borrow fetches from the BASE repo but lands beside the
+    /// GGUF (the sibling layout `serve` loads is the one law).
+    pub(crate) async fn download_into(
+        &self,
+        mref: &ModelRef,
+        entry: &TreeEntry,
+        dir: &Path,
+    ) -> Result<(PathBuf, u64), Refusal> {
+        let file = file_name(&entry.path);
+        std::fs::create_dir_all(dir).map_err(|e| {
             refuse(format!(
                 "model pull: cannot create {} ({e})\n  fix: check permissions on the models dir\n",
                 dir.display()
@@ -541,20 +616,7 @@ fn pull_over_network(
         let (_, from) = runtime.block_on(puller.download(mref, &entry))?;
         resumed_from = from;
     }
-    // tokenizer.json beside the GGUF — the sibling layout `serve` loads.
-    let tokenizer_note = match tokenizer {
-        Some(tok) => {
-            let tok_dest = mref.dir(root).join(file_name(&tok.path));
-            if std::fs::metadata(&tok_dest).is_err() {
-                let side = Puller::new(house_http(None)?, root.to_path_buf(), token, false);
-                let _ = runtime.block_on(side.download(mref, &tok))?;
-            }
-            String::new()
-        }
-        None => "\n  note: the repo ships no tokenizer.json — `nika model serve` needs one \
-                 beside the GGUF (name yours with --tokenizer <path>)"
-            .to_owned(),
-    };
+    let tokenizer_note = tokenizer_beside(&runtime, mref, root, token, tokenizer.as_ref())?;
     Ok(receipt(
         arg,
         mref,
@@ -563,6 +625,48 @@ fn pull_over_network(
         resumed_from,
         &tokenizer_note,
     ))
+}
+
+/// Land `tokenizer.json` beside the GGUF (the sibling layout `serve`
+/// loads) and say what happened: the repo's own sidecar downloads
+/// silently; a repo that ships none tries the declared base model
+/// (the #518 universal friction — GGUF mirrors routinely ship no
+/// tokenizer); one already beside stays silent (a note would
+/// contradict the disk); every borrow miss degrades to the teaching
+/// note.
+fn tokenizer_beside(
+    runtime: &tokio::runtime::Runtime,
+    mref: &ModelRef,
+    root: &Path,
+    token: Option<String>,
+    tokenizer: Option<&TreeEntry>,
+) -> Result<String, Refusal> {
+    match tokenizer {
+        Some(tok) => {
+            let tok_dest = mref.dir(root).join(file_name(&tok.path));
+            if std::fs::metadata(&tok_dest).is_err() {
+                let side = Puller::new(house_http(None)?, root.to_path_buf(), token, false);
+                let _ = runtime.block_on(side.download(mref, tok))?;
+            }
+            Ok(String::new())
+        }
+        None if std::fs::metadata(mref.dir(root).join("tokenizer.json")).is_ok() => {
+            Ok(String::new())
+        }
+        None => {
+            let scout = Puller::new(house_http(None)?, root.to_path_buf(), token, false);
+            Ok(
+                match runtime.block_on(borrow_base_tokenizer(&scout, mref)) {
+                    Some(base) => {
+                        format!("\n  tokenizer.json borrowed from {base} (this repo ships none)")
+                    }
+                    None => "\n  note: the repo ships no tokenizer.json — `nika model serve` \
+                         needs one beside the GGUF (name yours with --tokenizer <path>)"
+                        .to_owned(),
+                },
+            )
+        }
+    }
 }
 
 /// The pull receipt: where it landed + the exact next commands. A
@@ -673,6 +777,79 @@ mod tests {
     use nika_kernel::http::{HttpError, HttpResponse, HttpStreamResponse};
 
     use super::*;
+
+    // -- the tokenizer borrow (base_model fallback) ----------------------
+
+    #[test]
+    fn valid_repo_id_admits_hub_ids_and_drops_crafted_ones() {
+        assert!(valid_repo_id("Qwen/Qwen3-0.6B"));
+        assert!(valid_repo_id("HuggingFaceTB/SmolLM2-135M-Instruct"));
+        for bad in [
+            "no-slash",
+            "a/b/c",
+            "a//",
+            "/b",
+            "../etc/passwd",
+            "a/../b",
+            "a/b?x=1",
+            "a/b c",
+            ".git/config",
+        ] {
+            assert!(!valid_repo_id(bad), "{bad} must not pass");
+        }
+    }
+
+    /// The whole borrow: info names the base · the base's tree ships a
+    /// tokenizer · it lands BESIDE the GGUF (never in the base's dir).
+    #[tokio::test]
+    async fn borrow_lands_the_base_tokenizer_beside_the_gguf() {
+        let http = StreamHttp::default()
+            .get_ok(200, r#"{"cardData":{"base_model":"Qwen/Qwen3-0.6B"}}"#)
+            .get_ok(200, r#"[{"type":"file","size":9,"path":"tokenizer.json"}]"#)
+            .stream_ok(200, Some(9), &[b"{\"tok\":1}"]);
+        let root = temp_root("borrow-base");
+        let scout = Puller::new(http, root.clone(), None, false);
+        let gguf_repo = mref("Qwen/Qwen3-0.6B-GGUF");
+        let base = borrow_base_tokenizer(&scout, &gguf_repo).await;
+        assert_eq!(base.as_deref(), Some("Qwen/Qwen3-0.6B"));
+        let beside = gguf_repo.dir(&root).join("tokenizer.json");
+        assert_eq!(std::fs::read(&beside).expect("beside"), b"{\"tok\":1}");
+        assert!(
+            !root.join("Qwen").join("Qwen3-0.6B").exists(),
+            "nothing lands in the base repo's dir"
+        );
+        let sent = scout.http.sent();
+        assert!(
+            sent[0].url.ends_with("/api/models/Qwen/Qwen3-0.6B-GGUF"),
+            "{}",
+            sent[0].url
+        );
+        assert!(
+            sent[1]
+                .url
+                .contains("/api/models/Qwen/Qwen3-0.6B/tree/main"),
+            "{}",
+            sent[1].url
+        );
+        assert!(
+            sent[2]
+                .url
+                .contains("/Qwen/Qwen3-0.6B/resolve/main/tokenizer.json"),
+            "the bytes come FROM the base repo: {}",
+            sent[2].url
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Advisory to the bone: a card without `base_model` answers `None`.
+    #[tokio::test]
+    async fn borrow_degrades_to_none_without_a_base_model() {
+        let http = StreamHttp::default().get_ok(200, r#"{"cardData":{}}"#);
+        let root = temp_root("borrow-none");
+        let scout = Puller::new(http, root.clone(), None, false);
+        assert_eq!(borrow_base_tokenizer(&scout, &mref("u/m")).await, None);
+        let _ = std::fs::remove_dir_all(root);
+    }
 
     /// The receipt's serve line speaks per-family: a llama GGUF at the
     /// destination stops the `serve it:` promise (the v1 loader would
