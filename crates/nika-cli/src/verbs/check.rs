@@ -942,42 +942,6 @@ pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
 
 #[cfg(test)]
 mod tests {
-    /// The DAG map rides the accents verdict (the audit reads as the
-    /// graph it judged) — and never the sober register.
-    #[test]
-    fn accents_verdict_carries_the_dag_map() {
-        let yaml = "nika: v1\nworkflow: m\ntasks:\n  - id: one\n    infer: { prompt: hi, max_tokens: 5, model: \"mock/echo\" }\n  - id: two\n    depends_on: [one]\n    infer: { prompt: \"${{ tasks.one.output }}\", max_tokens: 5, model: \"mock/echo\" }\n";
-        let dir = std::env::temp_dir().join(format!("nika-check-map-{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&dir);
-        let file = dir.join("map.nika.yaml");
-        std::fs::write(&file, yaml).expect("write");
-        let path = file.to_string_lossy().into_owned();
-
-        let mut accents = crate::display::theme::Theme::new(true, false, false);
-        accents.accents = true;
-        let out = run(&path, false, false, None, accents);
-        assert_eq!(out.code, crate::verbs::exit::OK, "{}", out.text);
-        assert!(
-            out.text.contains("───▶") || out.text.contains("wave 1"),
-            "the map rides the accents verdict: {}",
-            out.text
-        );
-
-        let sober = run(
-            &path,
-            false,
-            false,
-            None,
-            crate::display::theme::Theme::new(false, false, false),
-        );
-        assert!(
-            !sober.text.contains("───▶"),
-            "sober keeps its exact shape: {}",
-            sober.text
-        );
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
     use super::*;
 
     /// `run_many`: every file audits even after an earlier failure (the

@@ -655,3 +655,40 @@ fn check_skills_rung_greens_reds_and_teaches() {
     assert_eq!(payload["skills_resolve"], true);
     assert!(payload.get("skill_findings").is_none(), "{payload:#}");
 }
+
+/// The DAG map rides the accents check verdict (the audit reads as the
+/// graph it judged) — and never the sober register. (Lives here off the
+/// src loc-cap: the 1500-line law bit check.rs at the merge.)
+#[test]
+fn accents_check_verdict_carries_the_dag_map() {
+    let yaml = "nika: v1\nworkflow: m\ntasks:\n  - id: one\n    infer: { prompt: hi, max_tokens: 5, model: \"mock/echo\" }\n  - id: two\n    depends_on: [one]\n    infer: { prompt: \"${{ tasks.one.output }}\", max_tokens: 5, model: \"mock/echo\" }\n";
+    let dir = std::env::temp_dir().join(format!("nika-check-map-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&dir);
+    let file = dir.join("map.nika.yaml");
+    std::fs::write(&file, yaml).expect("write");
+    let path = file.to_string_lossy().into_owned();
+
+    let mut accents = nika_cli::Theme::new(true, false, false);
+    accents.accents = true;
+    let out = nika_cli::verbs::check::run(&path, false, false, None, accents);
+    assert_eq!(out.code, nika_cli::verbs::exit::OK, "{}", out.text);
+    assert!(
+        out.text.contains("───▶") || out.text.contains("wave 1"),
+        "the map rides the accents verdict: {}",
+        out.text
+    );
+
+    let sober = nika_cli::verbs::check::run(
+        &path,
+        false,
+        false,
+        None,
+        nika_cli::Theme::new(false, false, false),
+    );
+    assert!(
+        !sober.text.contains("───▶"),
+        "sober keeps its shape: {}",
+        sober.text
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
