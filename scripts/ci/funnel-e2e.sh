@@ -66,8 +66,12 @@ run new-from 0 -- "$BIN" new --from chain first.nika.yaml
 [ -f first.nika.yaml ] || fail "[new] no file created"
 run check 0 -- "$BIN" check first.nika.yaml
 need check "audited"
-need check "[inputs]" # the scaffold's ./input.txt trap is taught BEFORE the run
-echo demo >input.txt
+need check "[inputs]" # the scaffold's input trap is taught BEFORE the run
+# Provision the input the scaffold DECLARES (./README.md since the
+# pack-SSOT era · ./input.txt before) — the funnel plays the file,
+# it never assumes the era.
+SRC=$(sed -n 's/^  source: "\(\.\/[A-Za-z0-9._-]*\)".*/\1/p' first.nika.yaml | head -1)
+echo demo >"${SRC:-./input.txt}"
 run run-mock 0 -- "$BIN" run first.nika.yaml --model mock/echo
 TRACE=$(find .nika/traces -name '*.ndjson' 2>/dev/null | sort | tail -1)
 [ -n "$TRACE" ] || fail "[run] no trace recorded"
