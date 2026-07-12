@@ -1,4 +1,6 @@
 pub mod nika_models
+pub mod nika_models::gguf
+pub fn nika_models::gguf::sniff_architecture(path: &std::path::Path) -> core::option::Option<alloc::string::String>
 pub mod nika_models::pull
 pub fn nika_models::pull::run(arg: &str, yes: bool) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub mod nika_models::serve
@@ -58,4 +60,5 @@ pub fn nika_models::ModelsProbe::and<P, B, E>(self, other: P) -> tower_http::fol
 pub fn nika_models::ModelsProbe::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
 impl<T> tracing::instrument::Instrument for nika_models::ModelsProbe
 impl<T> tracing::instrument::WithSubscriber for nika_models::ModelsProbe
+pub const nika_models::SERVE_FAMILY: &str
 pub fn nika_models::models_probe() -> nika_models::ModelsProbe
