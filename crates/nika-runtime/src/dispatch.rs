@@ -246,6 +246,24 @@ impl Dispatched {
             })),
         }
     }
+
+    /// A `skills:` reference that cannot compose (spec 02 §agent skills) —
+    /// the run-side voice of the check-time findings: `NIKA-AGENT-003`
+    /// (text never resolved · the composer did not read it) or
+    /// `NIKA-AGENT-004` (the text is not a valid Agent Skill). `nika
+    /// check` refuses both BEFORE any run reaches here (check≡run); this
+    /// path fires only for an embedder that skipped the composition
+    /// contract — fail the TASK loudly, never inject half a context.
+    fn skill_err(note: &str, code: &str, reason: String) -> Self {
+        Self {
+            note: note.to_owned(),
+            result: Err(FailedDispatch::unspent(TaskErrorRecord {
+                code: code.to_owned(),
+                message: reason,
+                transient: false, // a static composition defect · retry never helps
+            })),
+        }
+    }
 }
 
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
@@ -519,6 +537,15 @@ where
             Ok(v) => v,
             Err(err) => return Dispatched::template_err("agent · ?", &err),
         };
+        // `skills:` — the composer-resolved Agent Skill texts join the
+        // system context as ONE deterministic `## Skills` section (spec
+        // 02 §agent skills · source order · name + description + body).
+        if !action.skills.is_empty() {
+            match self.skill_docs(action) {
+                Ok(docs) => input.system = Some(system_with_skills(input.system.take(), &docs)),
+                Err(refused) => return *refused,
+            }
+        }
         input.model = action.model.as_ref().map(|m| m.value.clone());
         input.tools = action.tools.iter().map(|t| t.value.clone()).collect();
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
@@ -579,6 +606,49 @@ where
                 Dispatched::verb_err_spent("agent · ?".to_owned(), &err, spend)
             }
         }
+    }
+
+    /// Parse the composer-resolved skill texts one agent action names
+    /// (spec 02 §agent skills) — `Err` is the ready-made task refusal
+    /// (BOXED · clippy `result_large_err` · unboxed at the one caller):
+    /// `NIKA-AGENT-003` (text never resolved · the composition root
+    /// skipped `Runtime::with_skills` — `nika check` refuses a missing
+    /// FILE before any run) or `NIKA-AGENT-004` (not a valid Agent
+    /// Skill). Fails BEFORE any provider call — never half a context.
+    fn skill_docs(
+        &self,
+        action: &nika_schema::raw::RawAgentAction,
+    ) -> Result<Vec<nika_schema::SkillDoc>, Box<Dispatched>> {
+        let mut docs = Vec::with_capacity(action.skills.len());
+        for path in &action.skills {
+            let Some(raw) = self.skills.get(&path.value) else {
+                return Err(Box::new(Dispatched::skill_err(
+                    "agent · ?",
+                    "NIKA-AGENT-003",
+                    format!(
+                        "skill `{}` was never resolved at compose time — the \
+                         composition root must read every `skills:` file and \
+                         inject it via `Runtime::with_skills` (nika check \
+                         refuses a missing file before any run)",
+                        path.value
+                    ),
+                )));
+            };
+            match nika_schema::parse_skill(raw) {
+                Ok(doc) => docs.push(doc),
+                Err(defect) => {
+                    return Err(Box::new(Dispatched::skill_err(
+                        "agent · ?",
+                        "NIKA-AGENT-004",
+                        format!(
+                            "skill `{}` is not a valid Agent Skill: {defect}",
+                            path.value
+                        ),
+                    )));
+                }
+            }
+        }
+        Ok(docs)
     }
 }
 
@@ -669,6 +739,36 @@ fn render_opt(
     scope: &Scope<'_>,
 ) -> Result<Option<String>, RuntimeError> {
     field.map(|f| expr::render(&f.value, scope)).transpose()
+}
+
+/// The effective system prompt of a `skills:`-carrying agent (spec 02
+/// §agent skills · normative injection shape): the authored `system:`
+/// (already rendered · absent = the section stands alone), then ONE
+/// `## Skills` section — per skill, in `skills:` source order,
+/// `### <name>` + the description + the body (trimmed). Deterministic
+/// bytes: same inputs, same prompt, provider-cache-friendly.
+pub(crate) fn system_with_skills(system: Option<String>, docs: &[nika_schema::SkillDoc]) -> String {
+    let mut out = match system {
+        Some(s) if !s.is_empty() => {
+            let mut s = s;
+            s.push_str("\n\n");
+            s
+        }
+        _ => String::new(),
+    };
+    out.push_str("## Skills");
+    for doc in docs {
+        out.push_str("\n\n### ");
+        out.push_str(&doc.name);
+        out.push_str("\n\n");
+        out.push_str(&doc.description);
+        let body = doc.body.trim();
+        if !body.is_empty() {
+            out.push_str("\n\n");
+            out.push_str(body);
+        }
+    }
+    out
 }
 
 /// Render the exec subprocess I/O (`cwd` · `env` · `stdin`) onto `input`.

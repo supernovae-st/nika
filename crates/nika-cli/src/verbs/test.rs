@@ -60,7 +60,9 @@ pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
             return out.code;
         }
     };
-    if !report.is_clean() {
+    // #473 · a golden pins the run WITH its skills composed, never without.
+    let resolved = crate::verbs::resolve_workflow_skills(&wf);
+    if !report.is_clean() || !resolved.findings.is_empty() {
         // The SAME findings `nika check` renders — a dirty file never
         // pins (or judges) a golden.
         let out = crate::verbs::check::run(file, false, false, None, theme);
@@ -69,13 +71,14 @@ pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
     }
 
     // ── The mock run (offline · deterministic) ──────────────────────
-    let (code, outputs) = match super::run::capture_mock_outputs(&wf, &report, theme) {
-        Ok(pair) => pair,
-        Err(message) => {
-            eprintln!("nika test: environment: {message}");
-            return exit::ENV;
-        }
-    };
+    let (code, outputs) =
+        match super::run::capture_mock_outputs(&wf, &report, resolved.texts, theme) {
+            Ok(pair) => pair,
+            Err(message) => {
+                eprintln!("nika test: environment: {message}");
+                return exit::ENV;
+            }
+        };
     if code != exit::OK {
         eprintln!(
             "nika test: the mock run failed (exit {code}) — a golden pins a \

@@ -546,3 +546,95 @@ fn graph_dedups_duplicate_depends_on_edges() {
         .count();
     assert_eq!(gather_fan, 1, "duplicate depends_on collapses to one edge");
 }
+
+/// The SKILLS rung (#473) — three postures through the REAL check verb
+/// over real files: green (the skill loads + parses · exit 0 · the rung
+/// is visible), missing file (`NIKA-AGENT-003` · exit 2), malformed file
+/// (`NIKA-AGENT-004` · exit 2 · the explain pointer rides the row) — and
+/// the `--json` machine contract (`skills_resolve` · `skill_findings[]`).
+#[test]
+fn check_skills_rung_greens_reds_and_teaches() {
+    let dir = std::env::temp_dir().join(format!("nika-skills-rung-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let good = dir.join("good-SKILL.md");
+    std::fs::write(&good, "---\nname: g\ndescription: d\n---\nbody\n").expect("fixture");
+    let bad = dir.join("bad-SKILL.md");
+    std::fs::write(&bad, "no frontmatter\n").expect("fixture");
+    let ghost = dir.join("ghost-SKILL.md");
+
+    let wf_with = |skill: &std::path::Path, name: &str| {
+        let path = dir.join(name);
+        std::fs::write(
+            &path,
+            format!(
+                "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: go\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
+                skill.display()
+            ),
+        )
+        .expect("workflow fixture");
+        path.to_str().expect("utf8 path").to_owned()
+    };
+
+    // GREEN — the rung names the count, the audit stays clean (exit 0).
+    let green = check::run(
+        &wf_with(&good, "green.nika.yaml"),
+        false,
+        false,
+        None,
+        PLAIN,
+    );
+    assert_eq!(green.code, exit::OK, "{}", green.text);
+    assert!(
+        green.text.contains("SKILLS") && green.text.contains("1 skill(s) resolve"),
+        "the green rung is visible: {}",
+        green.text
+    );
+
+    // MISSING — NIKA-AGENT-003 · exit 2 · the row names the task + the fix.
+    let missing_path = wf_with(&ghost, "missing.nika.yaml");
+    let missing = check::run(&missing_path, false, false, None, PLAIN);
+    assert_eq!(missing.code, exit::FILE, "{}", missing.text);
+    assert!(
+        missing.text.contains("[NIKA-AGENT-003 · skills] task `go`"),
+        "the row leads with the code: {}",
+        missing.text
+    );
+    assert!(
+        missing.text.contains("fix: nika explain NIKA-AGENT-003"),
+        "the explain pointer teaches: {}",
+        missing.text
+    );
+
+    // MALFORMED — NIKA-AGENT-004 · exit 2 · the defect names the repair.
+    let malformed = check::run(&wf_with(&bad, "bad.nika.yaml"), false, false, None, PLAIN);
+    assert_eq!(malformed.code, exit::FILE, "{}", malformed.text);
+    assert!(
+        malformed.text.contains("NIKA-AGENT-004") && malformed.text.contains("frontmatter"),
+        "the defect teaches the shape: {}",
+        malformed.text
+    );
+
+    // The machine surface: clean=false · skills_resolve=false · the row
+    // carries task/code/docs_url.
+    let out = check::run(&missing_path, true, false, None, PLAIN);
+    assert_eq!(out.code, exit::FILE);
+    let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+    assert_eq!(payload["clean"], false);
+    assert_eq!(payload["skills_resolve"], false);
+    assert_eq!(payload["skill_findings"][0]["task"], "go");
+    assert_eq!(payload["skill_findings"][0]["code"], "NIKA-AGENT-003");
+    assert!(
+        payload["skill_findings"][0]["docs_url"]
+            .as_str()
+            .expect("docs_url")
+            .ends_with("/NIKA-AGENT-003"),
+        "{payload:#}"
+    );
+    // …and the green twin: skills_resolve=true · NO skill_findings key.
+    let out = check::run(&wf_with(&good, "green.nika.yaml"), true, false, None, PLAIN);
+    assert_eq!(out.code, exit::OK, "{}", out.text);
+    let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+    assert_eq!(payload["clean"], true);
+    assert_eq!(payload["skills_resolve"], true);
+    assert!(payload.get("skill_findings").is_none(), "{payload:#}");
+}

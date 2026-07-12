@@ -247,6 +247,11 @@ pub struct RawAgentAction {
     /// `tools:` — whitelist · gitignore-style globs · **default-deny**
     /// (« if absent the agent gets NO tools · least-privilege »).
     pub tools: Vec<Spanned<String>>,
+    /// `skills:` — Agent Skill (SKILL.md) paths, agentskills.io shape ·
+    /// EXPLICIT file paths only (no globs · no `${{ }}` · the permits
+    /// explicitness law) · loaded at COMPOSE time, never by the runtime
+    /// (spec `02-verbs.md` §agent skills).
+    pub skills: Vec<Spanned<String>>,
     /// `max_turns:` — loop limit · default 10 (spec field table).
     pub max_turns: Option<Spanned<u32>>,
     /// `max_tokens_total:` — cumulative token budget.
@@ -266,6 +271,7 @@ impl RawAgentAction {
             system: None,
             model: None,
             tools: Vec::new(),
+            skills: Vec::new(),
             max_turns: None,
             max_tokens_total: None,
             temperature: None,
@@ -315,6 +321,7 @@ mod tests {
         let a = RawAgentAction::new(span_str("Research quantum computing"));
         assert_eq!(a.prompt.value, "Research quantum computing");
         assert!(a.tools.is_empty(), "tools default-deny · empty whitelist");
+        assert!(a.skills.is_empty(), "skills default to none — opt-in");
         assert!(a.max_turns.is_none());
     }
 

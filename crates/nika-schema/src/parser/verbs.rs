@@ -50,6 +50,7 @@ const AGENT_KEYS: &[&str] = &[
     "system",
     "model",
     "tools",
+    "skills",
     "max_turns",
     "max_tokens_total",
     "temperature",
@@ -214,6 +215,13 @@ fn parse_agent_body(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawAgentAct
     action.tools = parse_string_list(cx, body, "tools")?;
     for tool in &action.tools {
         validate_whitelist_namespace(tool)?;
+    }
+    // `skills:` — Agent Skill (SKILL.md) paths · EXPLICIT static paths
+    // only (the permits explicitness law): the composer loads them
+    // BEFORE the run, so a `${{ }}` path would defeat audit-before-run.
+    action.skills = parse_string_list(cx, body, "skills")?;
+    for skill in &action.skills {
+        validate_skill_path(skill)?;
     }
     action.max_turns = parse_max_turns(cx, body)?;
     action.max_tokens_total = parse_u64_field(cx, body, "max_tokens_total")?;
@@ -493,6 +501,34 @@ fn validate_whitelist_namespace(tool: &Spanned<String>) -> Result<(), SchemaErro
                 tool.value
             ),
             span: Some(tool.span),
+        });
+    }
+    Ok(())
+}
+
+/// Validate ONE agent `skills:` entry (spec `02-verbs.md` §agent skills ·
+/// « explicit file paths · no globs · no templates »).
+///
+/// A skill file is loaded at COMPOSE time — before any scope exists — so
+/// a `${{ }}` path could never resolve (and would defeat audit-before-run:
+/// the checker must be able to read exactly what the agent will carry).
+/// Same explicitness law as `permits:`.
+fn validate_skill_path(skill: &Spanned<String>) -> Result<(), SchemaError> {
+    if skill.value.trim().is_empty() {
+        return Err(SchemaError::Validation {
+            message: "`skills` entries must be non-empty file paths (a SKILL.md per entry)"
+                .to_owned(),
+            span: Some(skill.span),
+        });
+    }
+    if skill.value.contains("${{") {
+        return Err(SchemaError::Validation {
+            message: format!(
+                "`skills` entry `{}` carries a `${{{{ }}}}` template — skill paths are \
+                 static (loaded at compose time, before any value exists)",
+                skill.value
+            ),
+            span: Some(skill.span),
         });
     }
     Ok(())
@@ -961,6 +997,8 @@ tasks:
       tools:
         - \"nika:fetch\"
         - \"mcp:browser/*\"
+      skills:
+        - \".agents/skills/nika-authoring/SKILL.md\"
       max_turns: 20
       max_tokens_total: 100000
       temperature: 0.7
@@ -973,6 +1011,7 @@ tasks:
         assert_eq!(action.prompt.value, "Research ${{ vars.topic }}");
         assert_eq!(action.tools.len(), 2);
         assert_eq!(action.tools[1].value, "mcp:browser/*");
+        assert_eq!(action.skills.len(), 1, "agent: MAY declare skills:");
         assert_eq!(action.max_turns.expect("max_turns").value, 20);
         assert_eq!(
             action.max_tokens_total.expect("max_tokens_total").value,
@@ -1009,6 +1048,120 @@ tasks:
             panic!("expected Agent");
         };
         assert!(action.tools.is_empty(), "no tools → pure conversation");
+    }
+
+    #[test]
+    fn agent_skills_list_parses_in_source_order() {
+        let yaml = "\
+tasks:
+  - id: research
+    agent:
+      prompt: \"go\"
+      skills:
+        - \".agents/skills/nika-authoring/SKILL.md\"
+        - \"docs/skills/review/SKILL.md\"
+";
+        let RawAction::Agent(action) = one_action(yaml) else {
+            panic!("expected Agent");
+        };
+        assert_eq!(action.skills.len(), 2);
+        assert_eq!(
+            action.skills[0].value,
+            ".agents/skills/nika-authoring/SKILL.md"
+        );
+        assert_eq!(action.skills[1].value, "docs/skills/review/SKILL.md");
+    }
+
+    #[test]
+    fn agent_skills_absent_means_none() {
+        let yaml = "\
+tasks:
+  - id: chat
+    agent:
+      prompt: \"Just talk\"
+";
+        let RawAction::Agent(action) = one_action(yaml) else {
+            panic!("expected Agent");
+        };
+        assert!(action.skills.is_empty(), "skills are opt-in");
+    }
+
+    #[test]
+    fn agent_skills_must_be_a_list_of_strings() {
+        // A scalar where the sequence goes — the parse_string_list contract.
+        let scalar = "\
+tasks:
+  - id: t
+    agent:
+      prompt: \"go\"
+      skills: \"SKILL.md\"
+";
+        let err = parse_strict(scalar).expect_err("scalar skills");
+        assert!(
+            matches!(&err, SchemaError::Validation { message, .. } if message.contains("sequence")),
+            "{err:?}"
+        );
+        // A non-string entry.
+        let mapping_entry = "\
+tasks:
+  - id: t
+    agent:
+      prompt: \"go\"
+      skills:
+        - path: \"SKILL.md\"
+";
+        let err = parse_strict(mapping_entry).expect_err("mapping entry");
+        assert!(
+            matches!(&err, SchemaError::Validation { message, .. } if message.contains("string")),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn agent_skills_reject_templates_and_empties() {
+        // `${{ }}` in a skill path defeats audit-before-run — refused at
+        // parse (the permits explicitness law).
+        let templated = "\
+tasks:
+  - id: t
+    agent:
+      prompt: \"go\"
+      skills: [\"${{ vars.skill }}\"]
+";
+        let err = parse_strict(templated).expect_err("templated path");
+        assert!(
+            matches!(&err, SchemaError::Validation { message, .. } if message.contains("static")),
+            "{err:?}"
+        );
+        let empty = "\
+tasks:
+  - id: t
+    agent:
+      prompt: \"go\"
+      skills: [\"\"]
+";
+        let err = parse_strict(empty).expect_err("empty path");
+        assert!(
+            matches!(&err, SchemaError::Validation { message, .. } if message.contains("non-empty")),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn agent_unknown_sibling_field_still_refused() {
+        // The field table stays CLOSED — adding `skills` must not loosen
+        // strict mode for anything else (`skils` is the typo class).
+        let yaml = "\
+tasks:
+  - id: t
+    agent:
+      prompt: \"go\"
+      skils: [\"SKILL.md\"]
+";
+        assert!(
+            parse_strict(yaml).is_err(),
+            "unknown `skils:` key must be refused in strict mode"
+        );
     }
 
     #[test]

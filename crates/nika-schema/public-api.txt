@@ -2153,6 +2153,7 @@ pub nika_schema::raw::action::RawAgentAction::max_turns: core::option::Option<ni
 pub nika_schema::raw::action::RawAgentAction::model: core::option::Option<nika_schema::Spanned<alloc::string::String>>
 pub nika_schema::raw::action::RawAgentAction::prompt: nika_schema::Spanned<alloc::string::String>
 pub nika_schema::raw::action::RawAgentAction::schema: core::option::Option<nika_schema::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::action::RawAgentAction::skills: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
 pub nika_schema::raw::action::RawAgentAction::system: core::option::Option<nika_schema::Spanned<alloc::string::String>>
 pub nika_schema::raw::action::RawAgentAction::temperature: core::option::Option<nika_schema::Spanned<f64>>
 pub nika_schema::raw::action::RawAgentAction::tools: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
@@ -2687,6 +2688,7 @@ pub nika_schema::raw::RawAgentAction::max_turns: core::option::Option<nika_schem
 pub nika_schema::raw::RawAgentAction::model: core::option::Option<nika_schema::Spanned<alloc::string::String>>
 pub nika_schema::raw::RawAgentAction::prompt: nika_schema::Spanned<alloc::string::String>
 pub nika_schema::raw::RawAgentAction::schema: core::option::Option<nika_schema::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::RawAgentAction::skills: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
 pub nika_schema::raw::RawAgentAction::system: core::option::Option<nika_schema::Spanned<alloc::string::String>>
 pub nika_schema::raw::RawAgentAction::temperature: core::option::Option<nika_schema::Spanned<f64>>
 pub nika_schema::raw::RawAgentAction::tools: alloc::vec::Vec<nika_schema::Spanned<alloc::string::String>>
@@ -3017,6 +3019,198 @@ impl<T> dyn_clone::DynClone for nika_schema::raw::action::Thinking where T: core
 pub fn nika_schema::raw::action::Thinking::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::Thinking where T: 'static
 pub fn nika_schema::raw::action::Thinking::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub mod nika_schema::skill
+#[non_exhaustive] pub enum nika_schema::skill::SkillDefect
+pub nika_schema::skill::SkillDefect::FrontmatterNotAMapping
+pub nika_schema::skill::SkillDefect::FrontmatterNotAMapping::reason: alloc::string::String
+pub nika_schema::skill::SkillDefect::MissingDescription
+pub nika_schema::skill::SkillDefect::MissingName
+pub nika_schema::skill::SkillDefect::NoFrontmatter
+pub nika_schema::skill::SkillDefect::UnterminatedFrontmatter
+impl core::clone::Clone for nika_schema::skill::SkillDefect
+pub fn nika_schema::skill::SkillDefect::clone(&self) -> nika_schema::skill::SkillDefect
+impl core::cmp::Eq for nika_schema::skill::SkillDefect
+impl core::cmp::PartialEq for nika_schema::skill::SkillDefect
+pub fn nika_schema::skill::SkillDefect::eq(&self, other: &nika_schema::skill::SkillDefect) -> bool
+impl core::error::Error for nika_schema::skill::SkillDefect
+impl core::fmt::Debug for nika_schema::skill::SkillDefect
+pub fn nika_schema::skill::SkillDefect::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_schema::skill::SkillDefect
+pub fn nika_schema::skill::SkillDefect::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::skill::SkillDefect
+impl<D> owo_colors::OwoColorize for nika_schema::skill::SkillDefect
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::skill::SkillDefect where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDefect::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::skill::SkillDefect where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::skill::SkillDefect where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDefect::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::skill::SkillDefect::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::skill::SkillDefect where U: core::convert::From<T>
+pub fn nika_schema::skill::SkillDefect::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::skill::SkillDefect where U: core::convert::Into<T>
+pub type nika_schema::skill::SkillDefect::Error = core::convert::Infallible
+pub fn nika_schema::skill::SkillDefect::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::skill::SkillDefect where U: core::convert::TryFrom<T>
+pub type nika_schema::skill::SkillDefect::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::skill::SkillDefect::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::skill::SkillDefect where T: core::clone::Clone
+pub type nika_schema::skill::SkillDefect::Owned = T
+pub fn nika_schema::skill::SkillDefect::clone_into(&self, target: &mut T)
+pub fn nika_schema::skill::SkillDefect::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_schema::skill::SkillDefect where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDefect::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_schema::skill::SkillDefect where T: 'static + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDefect::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::skill::SkillDefect where T: ?core::marker::Sized
+pub fn nika_schema::skill::SkillDefect::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::skill::SkillDefect where T: ?core::marker::Sized
+pub fn nika_schema::skill::SkillDefect::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::skill::SkillDefect where T: core::clone::Clone
+pub unsafe fn nika_schema::skill::SkillDefect::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::skill::SkillDefect
+pub fn nika_schema::skill::SkillDefect::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::skill::SkillDefect where T: core::clone::Clone
+pub fn nika_schema::skill::SkillDefect::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::skill::SkillDefect where T: 'static
+pub fn nika_schema::skill::SkillDefect::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::skill::ResolvedSkills
+pub nika_schema::skill::ResolvedSkills::findings: alloc::vec::Vec<nika_schema::skill::SkillFinding>
+pub nika_schema::skill::ResolvedSkills::texts: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+impl nika_schema::skill::ResolvedSkills
+pub fn nika_schema::skill::ResolvedSkills::extend_check_json(&self, obj: &mut serde_json::map::Map<alloc::string::String, serde_json::value::Value>)
+pub fn nika_schema::skill::ResolvedSkills::rung(&self) -> core::option::Option<(alloc::string::String, alloc::vec::Vec<alloc::string::String>)>
+impl core::clone::Clone for nika_schema::skill::ResolvedSkills
+pub fn nika_schema::skill::ResolvedSkills::clone(&self) -> nika_schema::skill::ResolvedSkills
+impl core::default::Default for nika_schema::skill::ResolvedSkills
+pub fn nika_schema::skill::ResolvedSkills::default() -> nika_schema::skill::ResolvedSkills
+impl core::fmt::Debug for nika_schema::skill::ResolvedSkills
+pub fn nika_schema::skill::ResolvedSkills::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::skill::ResolvedSkills
+impl<T, U> core::convert::Into<U> for nika_schema::skill::ResolvedSkills where U: core::convert::From<T>
+pub fn nika_schema::skill::ResolvedSkills::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::skill::ResolvedSkills where U: core::convert::Into<T>
+pub type nika_schema::skill::ResolvedSkills::Error = core::convert::Infallible
+pub fn nika_schema::skill::ResolvedSkills::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::skill::ResolvedSkills where U: core::convert::TryFrom<T>
+pub type nika_schema::skill::ResolvedSkills::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::skill::ResolvedSkills::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::skill::ResolvedSkills where T: core::clone::Clone
+pub type nika_schema::skill::ResolvedSkills::Owned = T
+pub fn nika_schema::skill::ResolvedSkills::clone_into(&self, target: &mut T)
+pub fn nika_schema::skill::ResolvedSkills::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::skill::ResolvedSkills where T: 'static + ?core::marker::Sized
+pub fn nika_schema::skill::ResolvedSkills::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::skill::ResolvedSkills where T: ?core::marker::Sized
+pub fn nika_schema::skill::ResolvedSkills::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::skill::ResolvedSkills where T: ?core::marker::Sized
+pub fn nika_schema::skill::ResolvedSkills::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::skill::ResolvedSkills where T: core::clone::Clone
+pub unsafe fn nika_schema::skill::ResolvedSkills::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::skill::ResolvedSkills
+pub fn nika_schema::skill::ResolvedSkills::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::skill::ResolvedSkills where T: core::clone::Clone
+pub fn nika_schema::skill::ResolvedSkills::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::skill::ResolvedSkills where T: 'static
+pub fn nika_schema::skill::ResolvedSkills::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::skill::SkillDoc
+pub nika_schema::skill::SkillDoc::body: alloc::string::String
+pub nika_schema::skill::SkillDoc::description: alloc::string::String
+pub nika_schema::skill::SkillDoc::name: alloc::string::String
+impl nika_schema::skill::SkillDoc
+pub fn nika_schema::skill::SkillDoc::new(name: impl core::convert::Into<alloc::string::String>, description: impl core::convert::Into<alloc::string::String>, body: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_schema::skill::SkillDoc
+pub fn nika_schema::skill::SkillDoc::clone(&self) -> nika_schema::skill::SkillDoc
+impl core::cmp::Eq for nika_schema::skill::SkillDoc
+impl core::cmp::PartialEq for nika_schema::skill::SkillDoc
+pub fn nika_schema::skill::SkillDoc::eq(&self, other: &nika_schema::skill::SkillDoc) -> bool
+impl core::fmt::Debug for nika_schema::skill::SkillDoc
+pub fn nika_schema::skill::SkillDoc::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::skill::SkillDoc
+impl<D> owo_colors::OwoColorize for nika_schema::skill::SkillDoc
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::skill::SkillDoc where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDoc::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::skill::SkillDoc where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::skill::SkillDoc where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDoc::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::skill::SkillDoc::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::skill::SkillDoc where U: core::convert::From<T>
+pub fn nika_schema::skill::SkillDoc::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::skill::SkillDoc where U: core::convert::Into<T>
+pub type nika_schema::skill::SkillDoc::Error = core::convert::Infallible
+pub fn nika_schema::skill::SkillDoc::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::skill::SkillDoc where U: core::convert::TryFrom<T>
+pub type nika_schema::skill::SkillDoc::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::skill::SkillDoc::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::skill::SkillDoc where T: core::clone::Clone
+pub type nika_schema::skill::SkillDoc::Owned = T
+pub fn nika_schema::skill::SkillDoc::clone_into(&self, target: &mut T)
+pub fn nika_schema::skill::SkillDoc::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::skill::SkillDoc where T: 'static + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDoc::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::skill::SkillDoc where T: ?core::marker::Sized
+pub fn nika_schema::skill::SkillDoc::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::skill::SkillDoc where T: ?core::marker::Sized
+pub fn nika_schema::skill::SkillDoc::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::skill::SkillDoc where T: core::clone::Clone
+pub unsafe fn nika_schema::skill::SkillDoc::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::skill::SkillDoc
+pub fn nika_schema::skill::SkillDoc::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::skill::SkillDoc where T: core::clone::Clone
+pub fn nika_schema::skill::SkillDoc::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::skill::SkillDoc where T: 'static
+pub fn nika_schema::skill::SkillDoc::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::skill::SkillFinding
+pub nika_schema::skill::SkillFinding::code: &'static str
+pub nika_schema::skill::SkillFinding::detail: alloc::string::String
+pub nika_schema::skill::SkillFinding::path: alloc::string::String
+pub nika_schema::skill::SkillFinding::task: alloc::string::String
+impl nika_schema::skill::SkillFinding
+pub fn nika_schema::skill::SkillFinding::json(&self) -> serde_json::value::Value
+pub fn nika_schema::skill::SkillFinding::row(&self) -> alloc::string::String
+impl core::clone::Clone for nika_schema::skill::SkillFinding
+pub fn nika_schema::skill::SkillFinding::clone(&self) -> nika_schema::skill::SkillFinding
+impl core::cmp::Eq for nika_schema::skill::SkillFinding
+impl core::cmp::PartialEq for nika_schema::skill::SkillFinding
+pub fn nika_schema::skill::SkillFinding::eq(&self, other: &nika_schema::skill::SkillFinding) -> bool
+impl core::fmt::Debug for nika_schema::skill::SkillFinding
+pub fn nika_schema::skill::SkillFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::skill::SkillFinding
+impl<D> owo_colors::OwoColorize for nika_schema::skill::SkillFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::skill::SkillFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::skill::SkillFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::skill::SkillFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::skill::SkillFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::skill::SkillFinding::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::skill::SkillFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::skill::SkillFinding where U: core::convert::From<T>
+pub fn nika_schema::skill::SkillFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::skill::SkillFinding where U: core::convert::Into<T>
+pub type nika_schema::skill::SkillFinding::Error = core::convert::Infallible
+pub fn nika_schema::skill::SkillFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::skill::SkillFinding where U: core::convert::TryFrom<T>
+pub type nika_schema::skill::SkillFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::skill::SkillFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::skill::SkillFinding where T: core::clone::Clone
+pub type nika_schema::skill::SkillFinding::Owned = T
+pub fn nika_schema::skill::SkillFinding::clone_into(&self, target: &mut T)
+pub fn nika_schema::skill::SkillFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::skill::SkillFinding where T: 'static + ?core::marker::Sized
+pub fn nika_schema::skill::SkillFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::skill::SkillFinding where T: ?core::marker::Sized
+pub fn nika_schema::skill::SkillFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::skill::SkillFinding where T: ?core::marker::Sized
+pub fn nika_schema::skill::SkillFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::skill::SkillFinding where T: core::clone::Clone
+pub unsafe fn nika_schema::skill::SkillFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::skill::SkillFinding
+pub fn nika_schema::skill::SkillFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::skill::SkillFinding where T: core::clone::Clone
+pub fn nika_schema::skill::SkillFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::skill::SkillFinding where T: 'static
+pub fn nika_schema::skill::SkillFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_schema::skill::parse_skill(text: &str) -> core::result::Result<nika_schema::skill::SkillDoc, nika_schema::skill::SkillDefect>
+pub fn nika_schema::skill::resolve_skills(wf: &nika_schema::raw::workflow::RawWorkflow, read: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>) -> nika_schema::skill::ResolvedSkills
+pub fn nika_schema::skill::skill_refs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(&str, &nika_schema::Spanned<alloc::string::String>)>
 pub mod nika_schema::source
 #[non_exhaustive] pub struct nika_schema::source::ByteOffset(pub u32)
 impl nika_schema::ByteOffset
@@ -5961,6 +6155,59 @@ pub fn nika_schema::types::secret::SecretSource::as_any(&self) -> &(dyn core::an
 impl<T> outref::AsOut<T> for nika_schema::types::secret::SecretSource where T: core::marker::Copy
 pub fn nika_schema::types::secret::SecretSource::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> serde_core::de::DeserializeOwned for nika_schema::types::secret::SecretSource where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_schema::SkillDefect
+pub nika_schema::SkillDefect::FrontmatterNotAMapping
+pub nika_schema::SkillDefect::FrontmatterNotAMapping::reason: alloc::string::String
+pub nika_schema::SkillDefect::MissingDescription
+pub nika_schema::SkillDefect::MissingName
+pub nika_schema::SkillDefect::NoFrontmatter
+pub nika_schema::SkillDefect::UnterminatedFrontmatter
+impl core::clone::Clone for nika_schema::skill::SkillDefect
+pub fn nika_schema::skill::SkillDefect::clone(&self) -> nika_schema::skill::SkillDefect
+impl core::cmp::Eq for nika_schema::skill::SkillDefect
+impl core::cmp::PartialEq for nika_schema::skill::SkillDefect
+pub fn nika_schema::skill::SkillDefect::eq(&self, other: &nika_schema::skill::SkillDefect) -> bool
+impl core::error::Error for nika_schema::skill::SkillDefect
+impl core::fmt::Debug for nika_schema::skill::SkillDefect
+pub fn nika_schema::skill::SkillDefect::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_schema::skill::SkillDefect
+pub fn nika_schema::skill::SkillDefect::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::skill::SkillDefect
+impl<D> owo_colors::OwoColorize for nika_schema::skill::SkillDefect
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::skill::SkillDefect where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDefect::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::skill::SkillDefect where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::skill::SkillDefect where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDefect::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::skill::SkillDefect::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::skill::SkillDefect where U: core::convert::From<T>
+pub fn nika_schema::skill::SkillDefect::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::skill::SkillDefect where U: core::convert::Into<T>
+pub type nika_schema::skill::SkillDefect::Error = core::convert::Infallible
+pub fn nika_schema::skill::SkillDefect::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::skill::SkillDefect where U: core::convert::TryFrom<T>
+pub type nika_schema::skill::SkillDefect::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::skill::SkillDefect::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::skill::SkillDefect where T: core::clone::Clone
+pub type nika_schema::skill::SkillDefect::Owned = T
+pub fn nika_schema::skill::SkillDefect::clone_into(&self, target: &mut T)
+pub fn nika_schema::skill::SkillDefect::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_schema::skill::SkillDefect where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDefect::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_schema::skill::SkillDefect where T: 'static + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDefect::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::skill::SkillDefect where T: ?core::marker::Sized
+pub fn nika_schema::skill::SkillDefect::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::skill::SkillDefect where T: ?core::marker::Sized
+pub fn nika_schema::skill::SkillDefect::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::skill::SkillDefect where T: core::clone::Clone
+pub unsafe fn nika_schema::skill::SkillDefect::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::skill::SkillDefect
+pub fn nika_schema::skill::SkillDefect::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::skill::SkillDefect where T: core::clone::Clone
+pub fn nika_schema::skill::SkillDefect::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::skill::SkillDefect where T: 'static
+pub fn nika_schema::skill::SkillDefect::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_schema::SpecCategory
 pub nika_schema::SpecCategory::Cancelled
 pub nika_schema::SpecCategory::InternalError
@@ -6872,6 +7119,45 @@ impl<T> dyn_clone::DynClone for nika_schema::types::on_error::OnError where T: c
 pub fn nika_schema::types::on_error::OnError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_schema::types::on_error::OnError where T: 'static
 pub fn nika_schema::types::on_error::OnError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::ResolvedSkills
+pub nika_schema::ResolvedSkills::findings: alloc::vec::Vec<nika_schema::skill::SkillFinding>
+pub nika_schema::ResolvedSkills::texts: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+impl nika_schema::skill::ResolvedSkills
+pub fn nika_schema::skill::ResolvedSkills::extend_check_json(&self, obj: &mut serde_json::map::Map<alloc::string::String, serde_json::value::Value>)
+pub fn nika_schema::skill::ResolvedSkills::rung(&self) -> core::option::Option<(alloc::string::String, alloc::vec::Vec<alloc::string::String>)>
+impl core::clone::Clone for nika_schema::skill::ResolvedSkills
+pub fn nika_schema::skill::ResolvedSkills::clone(&self) -> nika_schema::skill::ResolvedSkills
+impl core::default::Default for nika_schema::skill::ResolvedSkills
+pub fn nika_schema::skill::ResolvedSkills::default() -> nika_schema::skill::ResolvedSkills
+impl core::fmt::Debug for nika_schema::skill::ResolvedSkills
+pub fn nika_schema::skill::ResolvedSkills::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::skill::ResolvedSkills
+impl<T, U> core::convert::Into<U> for nika_schema::skill::ResolvedSkills where U: core::convert::From<T>
+pub fn nika_schema::skill::ResolvedSkills::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::skill::ResolvedSkills where U: core::convert::Into<T>
+pub type nika_schema::skill::ResolvedSkills::Error = core::convert::Infallible
+pub fn nika_schema::skill::ResolvedSkills::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::skill::ResolvedSkills where U: core::convert::TryFrom<T>
+pub type nika_schema::skill::ResolvedSkills::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::skill::ResolvedSkills::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::skill::ResolvedSkills where T: core::clone::Clone
+pub type nika_schema::skill::ResolvedSkills::Owned = T
+pub fn nika_schema::skill::ResolvedSkills::clone_into(&self, target: &mut T)
+pub fn nika_schema::skill::ResolvedSkills::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::skill::ResolvedSkills where T: 'static + ?core::marker::Sized
+pub fn nika_schema::skill::ResolvedSkills::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::skill::ResolvedSkills where T: ?core::marker::Sized
+pub fn nika_schema::skill::ResolvedSkills::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::skill::ResolvedSkills where T: ?core::marker::Sized
+pub fn nika_schema::skill::ResolvedSkills::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::skill::ResolvedSkills where T: core::clone::Clone
+pub unsafe fn nika_schema::skill::ResolvedSkills::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::skill::ResolvedSkills
+pub fn nika_schema::skill::ResolvedSkills::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::skill::ResolvedSkills where T: core::clone::Clone
+pub fn nika_schema::skill::ResolvedSkills::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::skill::ResolvedSkills where T: 'static
+pub fn nika_schema::skill::ResolvedSkills::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::RetryConfig
 pub nika_schema::RetryConfig::backoff_max_ms: u64
 pub nika_schema::RetryConfig::backoff_ms: u64
@@ -7178,6 +7464,102 @@ pub fn nika_schema::types::secret::SecretRef::__clone_box(&self, _: dyn_clone::s
 impl<T> nika_error::traits::AsAny for nika_schema::types::secret::SecretRef where T: 'static
 pub fn nika_schema::types::secret::SecretRef::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_schema::types::secret::SecretRef where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_schema::SkillDoc
+pub nika_schema::SkillDoc::body: alloc::string::String
+pub nika_schema::SkillDoc::description: alloc::string::String
+pub nika_schema::SkillDoc::name: alloc::string::String
+impl nika_schema::skill::SkillDoc
+pub fn nika_schema::skill::SkillDoc::new(name: impl core::convert::Into<alloc::string::String>, description: impl core::convert::Into<alloc::string::String>, body: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_schema::skill::SkillDoc
+pub fn nika_schema::skill::SkillDoc::clone(&self) -> nika_schema::skill::SkillDoc
+impl core::cmp::Eq for nika_schema::skill::SkillDoc
+impl core::cmp::PartialEq for nika_schema::skill::SkillDoc
+pub fn nika_schema::skill::SkillDoc::eq(&self, other: &nika_schema::skill::SkillDoc) -> bool
+impl core::fmt::Debug for nika_schema::skill::SkillDoc
+pub fn nika_schema::skill::SkillDoc::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::skill::SkillDoc
+impl<D> owo_colors::OwoColorize for nika_schema::skill::SkillDoc
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::skill::SkillDoc where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDoc::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::skill::SkillDoc where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::skill::SkillDoc where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDoc::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::skill::SkillDoc::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::skill::SkillDoc where U: core::convert::From<T>
+pub fn nika_schema::skill::SkillDoc::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::skill::SkillDoc where U: core::convert::Into<T>
+pub type nika_schema::skill::SkillDoc::Error = core::convert::Infallible
+pub fn nika_schema::skill::SkillDoc::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::skill::SkillDoc where U: core::convert::TryFrom<T>
+pub type nika_schema::skill::SkillDoc::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::skill::SkillDoc::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::skill::SkillDoc where T: core::clone::Clone
+pub type nika_schema::skill::SkillDoc::Owned = T
+pub fn nika_schema::skill::SkillDoc::clone_into(&self, target: &mut T)
+pub fn nika_schema::skill::SkillDoc::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::skill::SkillDoc where T: 'static + ?core::marker::Sized
+pub fn nika_schema::skill::SkillDoc::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::skill::SkillDoc where T: ?core::marker::Sized
+pub fn nika_schema::skill::SkillDoc::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::skill::SkillDoc where T: ?core::marker::Sized
+pub fn nika_schema::skill::SkillDoc::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::skill::SkillDoc where T: core::clone::Clone
+pub unsafe fn nika_schema::skill::SkillDoc::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::skill::SkillDoc
+pub fn nika_schema::skill::SkillDoc::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::skill::SkillDoc where T: core::clone::Clone
+pub fn nika_schema::skill::SkillDoc::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::skill::SkillDoc where T: 'static
+pub fn nika_schema::skill::SkillDoc::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::SkillFinding
+pub nika_schema::SkillFinding::code: &'static str
+pub nika_schema::SkillFinding::detail: alloc::string::String
+pub nika_schema::SkillFinding::path: alloc::string::String
+pub nika_schema::SkillFinding::task: alloc::string::String
+impl nika_schema::skill::SkillFinding
+pub fn nika_schema::skill::SkillFinding::json(&self) -> serde_json::value::Value
+pub fn nika_schema::skill::SkillFinding::row(&self) -> alloc::string::String
+impl core::clone::Clone for nika_schema::skill::SkillFinding
+pub fn nika_schema::skill::SkillFinding::clone(&self) -> nika_schema::skill::SkillFinding
+impl core::cmp::Eq for nika_schema::skill::SkillFinding
+impl core::cmp::PartialEq for nika_schema::skill::SkillFinding
+pub fn nika_schema::skill::SkillFinding::eq(&self, other: &nika_schema::skill::SkillFinding) -> bool
+impl core::fmt::Debug for nika_schema::skill::SkillFinding
+pub fn nika_schema::skill::SkillFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::skill::SkillFinding
+impl<D> owo_colors::OwoColorize for nika_schema::skill::SkillFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_schema::skill::SkillFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::skill::SkillFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::skill::SkillFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::skill::SkillFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::skill::SkillFinding::equivalent(&self, key: &K) -> bool
+pub fn nika_schema::skill::SkillFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::skill::SkillFinding where U: core::convert::From<T>
+pub fn nika_schema::skill::SkillFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::skill::SkillFinding where U: core::convert::Into<T>
+pub type nika_schema::skill::SkillFinding::Error = core::convert::Infallible
+pub fn nika_schema::skill::SkillFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::skill::SkillFinding where U: core::convert::TryFrom<T>
+pub type nika_schema::skill::SkillFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::skill::SkillFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::skill::SkillFinding where T: core::clone::Clone
+pub type nika_schema::skill::SkillFinding::Owned = T
+pub fn nika_schema::skill::SkillFinding::clone_into(&self, target: &mut T)
+pub fn nika_schema::skill::SkillFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::skill::SkillFinding where T: 'static + ?core::marker::Sized
+pub fn nika_schema::skill::SkillFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::skill::SkillFinding where T: ?core::marker::Sized
+pub fn nika_schema::skill::SkillFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::skill::SkillFinding where T: ?core::marker::Sized
+pub fn nika_schema::skill::SkillFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::skill::SkillFinding where T: core::clone::Clone
+pub unsafe fn nika_schema::skill::SkillFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::skill::SkillFinding
+pub fn nika_schema::skill::SkillFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_schema::skill::SkillFinding where T: core::clone::Clone
+pub fn nika_schema::skill::SkillFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_schema::skill::SkillFinding where T: 'static
+pub fn nika_schema::skill::SkillFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::SourceFile
 pub nika_schema::SourceFile::content: alloc::sync::Arc<alloc::string::String>
 pub nika_schema::SourceFile::id: nika_schema::FileId
@@ -7514,3 +7896,6 @@ pub fn nika_schema::is_valid_error_code(code: &str) -> bool
 pub fn nika_schema::nika_builtin_tool_enum_schema() -> serde_json::value::Value
 pub fn nika_schema::parse(yaml: &str, file_id: nika_schema::FileId, mode: nika_schema::parser::ParseMode) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, nika_schema::error::SchemaError>
 pub fn nika_schema::parse_go_duration(input: &str) -> core::result::Result<core::time::Duration, nika_schema::types::duration::GoDurationError>
+pub fn nika_schema::parse_skill(text: &str) -> core::result::Result<nika_schema::skill::SkillDoc, nika_schema::skill::SkillDefect>
+pub fn nika_schema::resolve_skills(wf: &nika_schema::raw::workflow::RawWorkflow, read: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>) -> nika_schema::skill::ResolvedSkills
+pub fn nika_schema::skill_refs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(&str, &nika_schema::Spanned<alloc::string::String>)>
