@@ -17,7 +17,7 @@ ignored = ["insta"]  # dev-dep used in #[cfg(test)] blocks
 workspace = true
 
 [dependencies]
-nika-error    = { path = "../nika-error", version = "0.100.0" }
+nika-error    = { path = "../nika-error", version = "0.101.0" }
 trait-variant = { workspace = true }
 thiserror     = { workspace = true }
 miette        = { workspace = true }

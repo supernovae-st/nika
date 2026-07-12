@@ -11,6 +11,11 @@ Versions move together across all manifests (the mirror gate pins it).
   carrying the key loads and is offered next to a control). Kit-only patch
   on the 0.100 wave.
 
+## 0.101.0 — 2026-07-13
+
+Lockstep on the engine wave (the sovereign lane ships whole — every
+release binary serves local models). Kit content unchanged.
+
 ## 0.100.0 — 2026-07-12
 
 The galaxy shares one wave number: engine · extension · client-sdk ·

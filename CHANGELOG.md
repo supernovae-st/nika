@@ -10,6 +10,8 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.101.0](https://github.com/supernovae-st/nika/compare/v0.100.0..v0.101.0) - 2026-07-13
+
 ### Added
 
 - **The sovereign lane ships whole** (#518 · the release ruling,
