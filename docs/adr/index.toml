@@ -277,7 +277,7 @@ affects_layers = ["L0", "L0.5"]
 [[adr]]
 id = "ADR-029"
 title = "EmbeddingSpec value-type reservation (Cortex seed)"
-status = "proposed"
+status = "accepted"
 date = "2026-04-17"
 filename = "adr-029-embedding-spec-reservation.md"
 tags = ["l0", "cortex", "embedding", "reservation", "forward-compat"]
@@ -287,7 +287,7 @@ affects_layers = ["L0", "L0.5"]
 [[adr]]
 id = "ADR-030"
 title = "MemoryFrameRef.trust reservation (Shield gate seed)"
-status = "proposed"
+status = "accepted"
 date = "2026-04-17"
 filename = "adr-030-memory-frame-trust.md"
 tags = ["l0", "cortex", "shield", "trust-level", "reservation", "forward-compat"]
@@ -297,7 +297,7 @@ affects_layers = ["L0", "L0.5"]
 [[adr]]
 id = "ADR-031"
 title = "RecallQuery.tenant reservation (multi-tenant keyspace seed)"
-status = "proposed"
+status = "accepted"
 date = "2026-04-17"
 filename = "adr-031-recall-query-tenant-keyspace.md"
 tags = ["l0", "cortex", "multi-tenant", "tenant-id", "reservation", "forward-compat"]
@@ -307,7 +307,7 @@ affects_layers = ["L0", "L0.5"]
 [[adr]]
 id = "ADR-032"
 title = "WasmPluginError OutOfFuel + Trap + PluginCallContext reservation"
-status = "proposed"
+status = "accepted"
 date = "2026-04-17"
 filename = "adr-032-wasm-plugin-context.md"
 tags = ["l0.5", "wasm", "plugin", "fuel", "trap", "trust-propagation", "reservation", "forward-compat"]
@@ -337,7 +337,7 @@ affects_layers = ["L0.5"]
 [[adr]]
 id = "ADR-035"
 title = "Telemetry seams: SpanGuard parent_span_id + SpanRef (OTel-ready)"
-status = "proposed"
+status = "accepted"
 date = "2026-04-17"
 filename = "adr-035-telemetry-seams.md"
 tags = ["l0.5", "telemetry", "observability", "otel", "span", "reservation", "forward-compat"]
@@ -544,7 +544,7 @@ affects_layers = ["L0", "L0.5", "L1", "L2", "L3", "L4", "L5"]
 [[adr]]
 id = "ADR-091"
 title = "Sovereign local inference · nika-infer-local · pure-Rust candle sidecar, OpenAI-compat reuse, no rig / no mistral.rs"
-status = "proposed"
+status = "accepted"
 date = "2026-06-11"
 filename = "adr-091-nika-infer-local-candle-sidecar.md"
 tags = ["inference", "local", "sovereign", "candle", "sidecar", "providers", "l1.5"]
@@ -564,7 +564,7 @@ affects_layers = ["L0"]
 [[adr]]
 id = "ADR-093"
 title = "nika-infer-local HTTP server · tiny_http for the v1 sidecar endpoint"
-status = "proposed"
+status = "accepted"
 date = "2026-06-11"
 filename = "adr-093-infer-local-http-server-tiny-http.md"
 tags = ["inference", "local", "sidecar", "http", "server", "tiny_http", "l1.5"]
