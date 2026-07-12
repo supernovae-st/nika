@@ -579,7 +579,7 @@ struct RunArgs {
 /// or `inf` would make every comparison false and silently DISARM the
 /// guard the operator believes is armed (the exact silent-no-protection
 /// class the budget exists to kill).
-fn parse_budget_usd(raw: &str) -> Result<f64, String> {
+pub(crate) fn parse_budget_usd(raw: &str) -> Result<f64, String> {
     let value: f64 = raw.parse().map_err(|e| format!("not a number: {e}"))?;
     if !value.is_finite() || value < 0.0 {
         return Err(format!(
@@ -1285,6 +1285,53 @@ mod tests {
     /// agent will never reach (inherited from the stalled 2026-07-05
     /// field-fixes branch: the scaffold then taught zero of the new
     /// train). Derived from the tree itself so it can never lag again.
+    /// The budget guard is ONE guard on both doors: `run` and
+    /// `examples run` share `parse_budget_usd`, so a NaN/inf (which
+    /// silently disarms every comparison) refuses at parse time on
+    /// BOTH — the drift where one door validated and the other let
+    /// the disarmed value through is pinned shut.
+    #[test]
+    fn the_budget_guard_holds_on_both_doors() {
+        for argv in [
+            vec!["nika", "run", "wf.nika.yaml", "--max-cost-usd", "nan"],
+            vec![
+                "nika",
+                "examples",
+                "run",
+                "01-hello",
+                "--max-cost-usd",
+                "nan",
+            ],
+            vec!["nika", "run", "wf.nika.yaml", "--max-cost-usd", "inf"],
+            vec![
+                "nika",
+                "examples",
+                "run",
+                "01-hello",
+                "--max-cost-usd",
+                "-1",
+            ],
+        ] {
+            assert!(
+                Cli::try_parse_from(&argv).is_err(),
+                "{argv:?} must refuse at parse time"
+            );
+        }
+        for argv in [
+            vec!["nika", "run", "wf.nika.yaml", "--max-cost-usd", "0.05"],
+            vec![
+                "nika",
+                "examples",
+                "run",
+                "01-hello",
+                "--max-cost-usd",
+                "0.05",
+            ],
+        ] {
+            assert!(Cli::try_parse_from(&argv).is_ok(), "{argv:?} must parse");
+        }
+    }
+
     #[test]
     fn the_scaffolded_agents_md_teaches_the_live_clap_tree() {
         let agents = nika_cli::verbs::init::agents_md();

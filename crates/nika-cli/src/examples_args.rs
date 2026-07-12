@@ -51,8 +51,11 @@ pub(crate) enum ExamplesAction {
         #[arg(long)]
         no_progress: bool,
         /// Refuse to start if the static cost floor exceeds this (USD);
-        /// metered spend aborts past it mid-run.
-        #[arg(long, value_name = "USD")]
+        /// metered spend aborts past it mid-run. Same guard, same
+        /// parser as `nika run` — a NaN/inf here would silently disarm
+        /// the budget (every comparison false), the exact class the
+        /// parser exists to kill.
+        #[arg(long, value_name = "USD", value_parser = crate::parse_budget_usd)]
         max_cost_usd: Option<f64>,
     },
 }
