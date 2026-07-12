@@ -405,16 +405,35 @@ pub(crate) fn list_at(root: &Path) -> String {
         return text;
     }
     let id_width = items.iter().map(|m| m.serve_id().len()).max().unwrap_or(0);
+    // Per-family voice, same law as the pull receipt (#521): only a
+    // POSITIVE other-family sniff earns a marker — qwen3 and unknown
+    // stay bare (silence = the default just works).
+    let mut any_servable = false;
     for m in &items {
+        let family =
+            crate::gguf::sniff_architecture(&m.path).filter(|arch| arch != crate::SERVE_FAMILY);
+        if family.is_none() {
+            any_servable = true;
+        }
+        let note = family.map_or(String::new(), |arch| format!("  ·  {arch} — runner-only"));
         let _ = writeln!(
             text,
-            "  {:<id_width$}  ·  {:>9}  ·  {}",
+            "  {:<id_width$}  ·  {:>9}  ·  {}{note}",
             m.serve_id(),
             human_size(m.size),
             m.file_name,
         );
     }
-    text.push_str("\nserve one: nika model serve --model <id>  ·  reclaim: nika model rm <id>");
+    if any_servable {
+        text.push_str("\nserve one: nika model serve --model <id>  ·  reclaim: nika model rm <id>");
+    } else {
+        // Every row positively sniffs another family — `serve one:`
+        // would be the false-receipt class. Point at the runners.
+        text.push_str(
+            "\nserve these via a local runner (ollama · llama.cpp · lmstudio)  ·  \
+             reclaim: nika model rm <id>",
+        );
+    }
     text
 }
 
@@ -801,6 +820,52 @@ mod tests {
         let root = temp_root("list-empty");
         let out = list_at(&root);
         assert!(out.contains("nika model pull"), "{out}");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// A minimal GGUF v3 header declaring `general.architecture` —
+    /// the same builder shape as the gguf sniffer's own tests.
+    fn gguf_header(arch: &str) -> Vec<u8> {
+        let mut b = 0x4655_4747u32.to_le_bytes().to_vec();
+        b.extend_from_slice(&3u32.to_le_bytes());
+        b.extend_from_slice(&0u64.to_le_bytes());
+        b.extend_from_slice(&1u64.to_le_bytes());
+        let key = b"general.architecture";
+        b.extend_from_slice(&(key.len() as u64).to_le_bytes());
+        b.extend_from_slice(key);
+        b.extend_from_slice(&8u32.to_le_bytes());
+        b.extend_from_slice(&(arch.len() as u64).to_le_bytes());
+        b.extend_from_slice(arch.as_bytes());
+        b
+    }
+
+    /// The list speaks per-family (the #521 receipt law): a positive
+    /// other-family row is marked runner-only; qwen3 and unsniffable
+    /// rows stay bare, and `serve one:` survives while ANY row serves.
+    /// All-other-family flips the closing line to the runners.
+    #[test]
+    fn list_marks_other_families_and_keeps_serve_line_honest() {
+        let root = temp_root("list-family");
+        let qwen = plant(&root, "q", "good", "good-q8_0.gguf", 0);
+        std::fs::write(&qwen, gguf_header("qwen3")).expect("qwen3 header");
+        let llama = plant(&root, "b", "smol", "smol-q4_k_m.gguf", 0);
+        std::fs::write(&llama, gguf_header("llama")).expect("llama header");
+        let out = list_at(&root);
+        assert!(out.contains("llama — runner-only"), "{out}");
+        assert!(
+            !out.contains("qwen3 — runner-only"),
+            "the servable row stays bare: {out}"
+        );
+        assert!(out.contains("serve one: nika model serve"), "{out}");
+
+        // Only the llama left → the serve promise would be false.
+        std::fs::remove_dir_all(root.join("q")).expect("rm qwen dir");
+        let out = list_at(&root);
+        assert!(
+            !out.contains("serve one: nika model serve"),
+            "no false promise: {out}"
+        );
+        assert!(out.contains("local runner (ollama"), "{out}");
         let _ = std::fs::remove_dir_all(root);
     }
 
