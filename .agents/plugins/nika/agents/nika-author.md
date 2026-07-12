@@ -1,6 +1,7 @@
 ---
 name: nika-author
 description: Writes and repairs .nika.yaml workflows with the deterministic authoring protocol. Use when the user wants repeatable AI work turned into a workflow file, asks for a .nika.yaml, or a nika check must pass. Routes intent to a template, fills the SLOT markers, then loops nika check until rc=0. Read-only oracle; it never runs the workflow.
+readonly: true
 ---
 
 # nika-author · the workflow author
