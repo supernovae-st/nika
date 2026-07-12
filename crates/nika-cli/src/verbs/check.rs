@@ -550,14 +550,15 @@ fn audited_line(report: &CheckReport, wf: &RawWorkflow, hints: usize, t: Theme) 
         "none"
     };
     let floor = crate::display::vocab::at_least(t.ascii);
-    let hint_word = if hints == 1 { "hint" } else { "hints" };
     let mark = if t.ascii { "ok" } else { "✔" };
     t.paint(
         Role::Good,
         &format!(
-            "{mark} audited · {tasks} task(s) · {} wave(s) · permits {permits} · est {floor}${:.4} · {hints} {hint_word}",
-            report.waves.len(),
+            "{mark} audited · {} · {} · permits {permits} · est {floor}${:.4} · {}",
+            crate::text::count(tasks, "task"),
+            crate::text::count(report.waves.len(), "wave"),
             report.cost.min_path_total_usd,
+            crate::text::count(hints, "hint"),
         ),
     )
 }
@@ -629,10 +630,11 @@ fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
         .unwrap_or_default();
     let _ = writeln!(
         out,
-        " {} {}     {} wave(s) · {tasks} task(s) · max parallelism {max_par}{width_note}",
+        " {} {}     {} · {} · max parallelism {max_par}{width_note}",
         mark(t, true),
         t.paint(Role::Strong, "PLAN"),
-        report.waves.len(),
+        crate::text::count(report.waves.len(), "wave"),
+        crate::text::count(tasks, "task"),
     );
     // The membership — WHAT dispatches WHEN (the dry-run answer: check
     // is the dry-run; this line is what `run` will do, wave by wave).
@@ -1414,9 +1416,7 @@ mod tests {
         let yaml = "nika: v1\nworkflow: card\nmodel: mock/echo\ntasks:\n  - id: a\n    exec: { command: \"echo hi\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo bye\" }\n";
         let text = checked_text("audited-card.nika.yaml", yaml, false);
         assert!(
-            text.contains(
-                "✔ audited · 2 task(s) · 2 wave(s) · permits none · est ≥$0.0000 · 1 hint"
-            ),
+            text.contains("✔ audited · 2 tasks · 2 waves · permits none · est ≥$0.0000 · 1 hint"),
             "the audited card line: {text}"
         );
         let ascii = checked_text("audited-card-ascii.nika.yaml", yaml, true);
