@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Document symbols — the task outline.
+//! Document symbols — the file outline.
 //!
 //! A parsed [`RawWorkflow`] becomes a one-root tree: the workflow node
-//! (named by its `workflow:` id) with one child per task. Each task child
-//! is named by its `id`, kinded as a method, and detailed with its verb
-//! (`infer · exec · invoke · agent`). The task child's selection range is
-//! the `id`'s own span (so « reveal symbol » jumps to the id token).
+//! (named by its `workflow:` id) with one child per DECLARATION — every
+//! `vars:` entry (variable), `env:` entry (constant), `secrets:` entry
+//! (key), then one per task (method, detailed with its verb `infer ·
+//! exec · invoke · agent`). Each child's selection range is the name's
+//! own span (so « reveal symbol » jumps to the declaring token) — the
+//! outline is the navigation twin of the member go-to-definition lane.
 //!
 //! Single-file, pure: `(text) -> Vec<DocumentSymbol>`. A document that does
 //! not parse yields an empty outline (the diagnostics surface owns the
@@ -38,11 +40,44 @@ fn workflow_symbol(index: &LineIndex, wf: &RawWorkflow) -> DocumentSymbol {
         .workflow
         .as_ref()
         .map_or_else(|| "workflow".to_owned(), |w| w.value.clone());
-    let children: Vec<DocumentSymbol> = wf
-        .tasks
-        .iter()
-        .map(|task| task_symbol(index, &task.value, task.span))
-        .collect();
+    let mut children: Vec<DocumentSymbol> = Vec::new();
+    for (name, decl) in &wf.vars {
+        let detail = match decl {
+            nika_schema::VarDecl::Typed { r#type, .. } => format!("var · {type}"),
+            // Untyped + any future #[non_exhaustive] form
+            _ => "var".to_owned(),
+        };
+        children.push(decl_symbol(
+            index,
+            &name.value,
+            name.span,
+            detail,
+            SymbolKind::VARIABLE,
+        ));
+    }
+    for (name, _) in &wf.env {
+        children.push(decl_symbol(
+            index,
+            &name.value,
+            name.span,
+            "env".to_owned(),
+            SymbolKind::CONSTANT,
+        ));
+    }
+    for (name, _) in &wf.secrets {
+        children.push(decl_symbol(
+            index,
+            &name.value,
+            name.span,
+            "secret".to_owned(),
+            SymbolKind::KEY,
+        ));
+    }
+    children.extend(
+        wf.tasks
+            .iter()
+            .map(|task| task_symbol(index, &task.value, task.span)),
+    );
     // The workflow's range spans every task's id span, or the whole
     // document when there are no tasks.
     let range = children
@@ -58,6 +93,28 @@ fn workflow_symbol(index: &LineIndex, wf: &RawWorkflow) -> DocumentSymbol {
         range,
         Some(children),
     )
+}
+
+/// One declaration symbol (a `vars:` / `env:` / `secrets:` entry) —
+/// selection range = the declaring name's own span, so the outline
+/// jumps exactly where member go-to-definition lands.
+fn decl_symbol(
+    index: &LineIndex,
+    name: &str,
+    span: Span,
+    detail: String,
+    kind: SymbolKind,
+) -> DocumentSymbol {
+    let range = token_range_at(index, span, name.len());
+    symbol(name.to_owned(), Some(detail), kind, range, range, None)
+}
+
+/// A span widened to the token's byte length (the parser emits point
+/// spans for mapping keys — same discipline as definition.rs).
+fn token_range_at(index: &LineIndex, span: Span, len: usize) -> Range {
+    let start = span.start.0 as usize;
+    let end = (span.end.0 as usize).max(start + len);
+    Range::new(index.position(start), index.position(end))
 }
 
 /// One task symbol — named by id, detailed with its verb.
@@ -260,5 +317,37 @@ mod tests {
             .filter_map(|c| c.detail.as_deref())
             .collect();
         assert_eq!(verbs, ["infer", "exec", "invoke", "agent"]);
+    }
+
+    /// The outline carries every DECLARATION — vars (typed detail) ·
+    /// env · secrets · tasks, in declaration order, each selection
+    /// range on the declaring name (the go-to-definition twin).
+    #[test]
+    fn outline_carries_vars_env_secrets_and_tasks() {
+        let text = "nika: v1\nworkflow: w\nvars:\n  city:\n    type: string\n  out: \"./o\"\nenv:\n  REGION: eu\nsecrets:\n  api_key: { source: vault, key: k }\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n";
+        let syms = document_symbols(text);
+        assert_eq!(syms.len(), 1, "one workflow root");
+        let children = syms[0].children.as_ref().expect("children");
+        let names: Vec<(&str, SymbolKind)> =
+            children.iter().map(|c| (c.name.as_str(), c.kind)).collect();
+        assert_eq!(
+            names,
+            vec![
+                ("city", SymbolKind::VARIABLE),
+                ("out", SymbolKind::VARIABLE),
+                ("REGION", SymbolKind::CONSTANT),
+                ("api_key", SymbolKind::KEY),
+                ("a", SymbolKind::METHOD),
+            ],
+            "{names:?}"
+        );
+        let city = &children[0];
+        assert_eq!(city.detail.as_deref(), Some("var · string"));
+        // the selection range sits on the declaring token, not 0-width
+        assert!(
+            city.selection_range.end.character > city.selection_range.start.character,
+            "widened to the token: {:?}",
+            city.selection_range
+        );
     }
 }
