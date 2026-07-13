@@ -322,12 +322,12 @@ fn model_key_without_space_offers_envelope_keys_not_providers() {
 
 #[test]
 fn template_tasks_dot_offers_task_ids() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: extract\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  - id: use\n    exec: { command: \"echo ${{ tasks.";
+    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: extract\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  - id: use\n    depends_on: [extract]\n    exec: { command: \"echo ${{ tasks.";
     let items = completion(text, text.len());
     assert_eq!(
         labels(&items),
         vec!["extract"],
-        "the OTHER task ids — `use` is the task being edited"
+        "the DECLARED edge — DAG-003 accepts nothing else"
     );
     assert!(
         items
@@ -528,8 +528,9 @@ fn expression_post_dot_completes_cel_methods() {
         "the method set is CLOSED (parser arity table)"
     );
 
-    // Bare `tasks.` still resolves to task IDS, never methods.
-    let bare = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"x\" }\n  - id: b\n    exec: { command: \"echo ${{ tasks.";
+    // Bare `tasks.` still resolves to task IDS, never methods —
+    // and only the DECLARED edges (DAG-003): b waits on a, so a.
+    let bare = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.";
     let ids: Vec<String> = completion(bare, bare.len())
         .into_iter()
         .map(|i| i.label)
@@ -772,18 +773,50 @@ fn island_secrets_and_env_offer_declared_names() {
     assert_eq!(labels_e, vec!["REGION"], "{labels_e:?}");
 }
 
-/// The exclusion is the whole ILLEGAL set — not just self. In the
-/// diamond a → {b, c} → d, task `b` editing a `${{ tasks.` island
-/// may reference `a` (ancestor) and `c` (parallel) but never `d`:
-/// a ref to d is an implicit edge d → b while d already waits on b
-/// — the cycle the check refuses. Same law, one voice.
+/// A task-field island offers ONLY the declared edges — DAG-003
+/// (probed at the binary): even a transitive ancestor or a parallel
+/// task is refused without its own `depends_on` entry. In the
+/// diamond a → {b, c} → d, task `b`'s island offers exactly `a`.
 #[test]
-fn island_tasks_exclude_the_downstream_closure() {
+fn island_tasks_offer_only_the_declared_edges() {
     let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.a.output }}\" }\n  - id: c\n    depends_on: [a]\n    exec: { command: \"x\" }\n  - id: d\n    depends_on: [b, c]\n    exec: { command: \"x\" }\n";
     // cursor mid-island inside task b (document parses whole)
     let cursor = text.find("${{ tasks.").expect("island") + "${{ tasks.".len();
     let got = labels(&completion(text, cursor));
-    assert_eq!(got, vec!["a", "c"], "ancestor + parallel only: {got:?}");
+    assert_eq!(got, vec!["a"], "declared edges only: {got:?}");
+    let items = completion(text, cursor);
+    assert!(
+        items[0]
+            .detail
+            .as_deref()
+            .unwrap_or("")
+            .contains("declared dependency"),
+        "{items:?}"
+    );
+}
+
+/// The recover carve-out (spec 05 · DAG-003 exempt · DAG-004 binds):
+/// a `recover:` island offers everything except the task itself and
+/// its downstream closure — the deadlock set.
+#[test]
+fn recover_island_offers_the_dag004_legal_set() {
+    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: cached\n    exec: { command: \"echo fallback\" }\n  - id: live\n    exec:\n      command: \"false\"\n    on_error:\n      recover: \"${{ tasks.cached.output }}\"\n  - id: after\n    depends_on: [live]\n    exec: { command: \"x\" }\n";
+    let cursor = text.find("${{ tasks.").expect("island") + "${{ tasks.".len();
+    let got = labels(&completion(text, cursor));
+    assert_eq!(
+        got,
+        vec!["cached"],
+        "not itself · not `after` (deadlock): {got:?}"
+    );
+}
+
+/// A workflow-level `outputs:` island is not inside any task — every
+/// task is legal there (probed green at the binary).
+#[test]
+fn outputs_island_offers_every_task() {
+    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"y\" }\noutputs:\n  first: \"${{ tasks.";
+    let got = labels(&completion(text, text.len()));
+    assert_eq!(got, vec!["a", "b"], "outside a task, all ids: {got:?}");
 }
 
 fn labels_of(text: &str) -> Vec<String> {

@@ -20,6 +20,7 @@ pub mod graph;
 pub mod hover;
 pub mod members;
 pub mod position;
+pub mod refs;
 pub mod scope;
 pub mod symbols;
 pub mod vocab;
