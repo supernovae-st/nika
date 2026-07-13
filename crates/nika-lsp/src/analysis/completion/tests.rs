@@ -541,8 +541,9 @@ fn expression_post_dot_completes_cel_methods() {
     );
 }
 
-/// B6 · the island start completes the five locked roots + item +
-/// the two free functions — and outside any island, nothing changes.
+/// B6 · the island start completes the five locked roots + the two
+/// free functions — the loop-scoped pair stays OUT of a non-fan-out
+/// task (its own law test below covers the gate both ways).
 #[test]
 fn expression_start_completes_roots_and_free_functions() {
     let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"${{ ";
@@ -550,7 +551,7 @@ fn expression_start_completes_roots_and_free_functions() {
         .into_iter()
         .map(|i| i.label)
         .collect();
-    for root in ["tasks", "vars", "env", "secrets", "with", "item"] {
+    for root in ["tasks", "vars", "env", "secrets", "with"] {
         assert!(
             labels.contains(&root.to_owned()),
             "missing root {root}: {labels:?}"
@@ -1112,5 +1113,27 @@ fn with_island_offers_the_enclosing_tasks_aliases() {
         got,
         vec!["article", "limit"],
         "b's aliases, never a's: {got:?}"
+    );
+}
+
+/// The loop-scoped pair rides ONLY under a `for_each:` task (spec 04
+/// §loop-scoped locals · #574): outside one, `item`/`index` would
+/// complete references the run cannot resolve.
+#[test]
+fn loop_roots_are_gated_to_for_each_tasks() {
+    let plain = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"${{ ";
+    let got = labels(&completion(plain, plain.len()));
+    assert!(
+        !got.contains(&"item".to_owned()),
+        "no item outside fan-out: {got:?}"
+    );
+    assert!(!got.contains(&"index".to_owned()), "{got:?}");
+
+    let fanned = "nika: v1\nworkflow: w\nvars:\n  urls: [1, 2]\ntasks:\n  - id: a\n    for_each: \"${{ vars.urls }}\"\n    exec: { command: [\"echo\", \"${{ ";
+    let got = labels(&completion(fanned, fanned.len()));
+    assert!(got.contains(&"item".to_owned()), "{got:?}");
+    assert!(
+        got.contains(&"index".to_owned()),
+        "the missing twin joins: {got:?}"
     );
 }

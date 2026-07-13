@@ -214,6 +214,23 @@ pub(super) fn enclosing_block_key(text: &str, offset: usize) -> Option<(String, 
     block.map(|(b, _)| (b, None))
 }
 
+/// Whether the task enclosing `offset` declares `for_each:` — the gate
+/// for the loop-scoped roots (`item` · `index` are alive only inside a
+/// fan-out task · spec 04 §loop-scoped locals). Line-walk like the rest
+/// of this module: scan up to the task boundary looking for the key.
+pub(super) fn in_for_each_task(text: &str, offset: usize) -> bool {
+    for line in lines_upward(text, offset) {
+        let t = line.trim_start();
+        if t.starts_with("for_each:") {
+            return true;
+        }
+        if t.starts_with("- id:") {
+            return false;
+        }
+    }
+    false
+}
+
 /// The lines strictly above `offset`'s line, nearest first.
 fn lines_upward(text: &str, offset: usize) -> impl Iterator<Item = &str> {
     let upto = text.get(..offset).unwrap_or("");
