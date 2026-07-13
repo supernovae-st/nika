@@ -150,10 +150,11 @@ fn client_cell(theme: Theme, c: &crate::verbs::probe::ClientProbe) -> String {
 /// START block's `nika examples run 01-hello` runs exactly what the eye
 /// just read — a test pins that the sample checks clean for real.
 pub(crate) const SAMPLE: &str = r#"nika: v1
-workflow: hello
+workflow:
+  id: hello
 model: mock/echo
 tasks:
-  - id: greet
+  greet:
     infer: { prompt: "say hello to the operator", max_tokens: 50 }"#;
 
 /// The human mirror — sections: identity · this machine · this binary ·

@@ -133,7 +133,7 @@ test FAILS in both directions.
 **KEEP `nika:json_diff` as canonical builtin** ·
 
 ```yaml
-- id: diff
+diff:
   invoke:
     tool: "nika:json_diff"
     args:

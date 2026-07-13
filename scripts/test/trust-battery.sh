@@ -37,12 +37,13 @@ say() { printf '%s\n' "$*"; }
 
 cat >wf.nika.yaml <<'YAML'
 nika: v1
-workflow: trust
+workflow:
+  id: trust
 model: mock/echo
 tasks:
-  - id: fetch
+  fetch:
     exec: { command: ["echo", "data-v1"] }
-  - id: think
+  think:
     depends_on: [fetch]
     infer: { prompt: "sum ${{ tasks.fetch.output }}", max_tokens: 30 }
 YAML

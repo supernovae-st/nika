@@ -7,8 +7,9 @@
 #   infer       agent·leashed  nika:assert
 # Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
-workflow: agent-loop-template       # SLOT: kebab-case workflow id
-description: "plan → budgeted agent → typed result"   # SLOT
+workflow:
+  id: agent-loop-template       # SLOT: kebab-case workflow id
+  description: "plan → budgeted agent → typed result"   # SLOT
 
 model: ollama/qwen3.5:4b           # SLOT: a tool-calling model · local by default
 
@@ -19,7 +20,7 @@ vars:
     description: "What the agent must accomplish"   # SLOT
 
 tasks:
-  - id: plan
+  plan:
     infer:
       prompt: "Break '${{ vars.goal }}' into at most 4 concrete steps."   # SLOT
       schema:
@@ -28,7 +29,7 @@ tasks:
         properties:
           steps: { type: array, items: { type: string } }
 
-  - id: execute
+  execute:
     depends_on: [plan]
     agent:
       # The done-contract belongs IN the prompt: the final message must
@@ -47,7 +48,7 @@ tasks:
         properties:
           findings: { type: array, items: { type: string } }
 
-  - id: confirm
+  confirm:
     depends_on: [execute]
     invoke:
       tool: "nika:assert"

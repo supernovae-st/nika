@@ -325,14 +325,14 @@ secrets:
 
     #[test]
     fn empty_egress_never_sanctions() {
-        let y = "nika: v1\nworkflow: w\nsecrets:\n  k:\n    source: env\n    key: K\ntasks:\n  - id: t\n    invoke: { tool: \"nika:notify\", args: { channel: webhook, target: \"${{ secrets.k }}\", message: \"x\" } }\n";
+        let y = "nika: v1\nworkflow:\n  id: w\nsecrets:\n  k:\n    source: env\n    key: K\ntasks:\n  t:\n    invoke: { tool: \"nika:notify\", args: { channel: webhook, target: \"${{ secrets.k }}\", message: \"x\" } }\n";
         assert!(!sanctioned(y, "k", "t"), "default-deny");
     }
 
     #[test]
     fn self_url_direct_secret_is_sanctioned() {
         let y = format!(
-            "nika: v1\nworkflow: w\n{HOOK}tasks:\n  - id: t\n    invoke: {{ tool: \"nika:notify\", args: {{ channel: webhook, target: \"${{{{ secrets.hook }}}}\", message: \"hi\" }} }}\n"
+            "nika: v1\nworkflow:\n  id: w\n{HOOK}tasks:\n  t:\n    invoke: {{ tool: \"nika:notify\", args: {{ channel: webhook, target: \"${{{{ secrets.hook }}}}\", message: \"hi\" }} }}\n"
         );
         assert!(sanctioned(&y, "hook", "t"));
     }
@@ -341,7 +341,7 @@ secrets:
     fn self_url_concatenated_is_not_sanctioned() {
         // the secret is part of a larger string — not the direct URL.
         let y = format!(
-            "nika: v1\nworkflow: w\n{HOOK}tasks:\n  - id: t\n    invoke: {{ tool: \"nika:notify\", args: {{ channel: webhook, target: \"${{{{ secrets.hook }}}}/extra\", message: \"hi\" }} }}\n"
+            "nika: v1\nworkflow:\n  id: w\n{HOOK}tasks:\n  t:\n    invoke: {{ tool: \"nika:notify\", args: {{ channel: webhook, target: \"${{{{ secrets.hook }}}}/extra\", message: \"hi\" }} }}\n"
         );
         assert!(
             !sanctioned(&y, "hook", "t"),
@@ -353,7 +353,8 @@ secrets:
     fn self_url_with_second_secret_in_body_is_occluded() {
         let y = "\
 nika: v1
-workflow: w
+workflow:
+  id: w
 secrets:
   hook:
     source: env
@@ -365,7 +366,7 @@ secrets:
     source: env
     key: OTHER
 tasks:
-  - id: t
+  t:
     invoke:
       tool: \"nika:notify\"
       args:
@@ -381,7 +382,8 @@ tasks:
         // egress cleared nika:fetch, but the secret is used in exec.
         let y = "\
 nika: v1
-workflow: w
+workflow:
+  id: w
 secrets:
   k:
     source: env
@@ -390,7 +392,7 @@ secrets:
       - to: \"nika:fetch\"
         host: \"api.x.com\"
 tasks:
-  - id: t
+  t:
     exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"api.x.com\"] }
 ";
         assert!(!sanctioned(y, "k", "t"), "fetch clearance ≠ exec clearance");
@@ -400,7 +402,8 @@ tasks:
     fn literal_host_match_is_sanctioned() {
         let y = "\
 nika: v1
-workflow: w
+workflow:
+  id: w
 secrets:
   k:
     source: env
@@ -409,7 +412,7 @@ secrets:
       - to: \"nika:fetch\"
         host: \"api.stripe.com\"
 tasks:
-  - id: t
+  t:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://api.stripe.com/v1/charges\" } }
 ";
         assert!(sanctioned(y, "k", "t"));
@@ -419,7 +422,8 @@ tasks:
     fn literal_host_mismatch_is_not_sanctioned() {
         let y = "\
 nika: v1
-workflow: w
+workflow:
+  id: w
 secrets:
   k:
     source: env
@@ -428,7 +432,7 @@ secrets:
       - to: \"nika:fetch\"
         host: \"api.stripe.com\"
 tasks:
-  - id: t
+  t:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://evil.example.com/x\" } }
 ";
         assert!(!sanctioned(y, "k", "t"), "a cleared host ≠ every host");
@@ -439,7 +443,8 @@ tasks:
         // the url is templated — robust declass refuses (injectable).
         let y = "\
 nika: v1
-workflow: w
+workflow:
+  id: w
 vars: { ep: \"api.stripe.com\" }
 secrets:
   k:
@@ -449,7 +454,7 @@ secrets:
       - to: \"nika:fetch\"
         host: \"api.stripe.com\"
 tasks:
-  - id: t
+  t:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://${{ vars.ep }}/v1/x\", headers: { Authorization: \"${{ secrets.k }}\" } } }
 ";
         assert!(
@@ -463,7 +468,8 @@ tasks:
         // egress cleared the host, but permits.net does NOT list it (L3).
         let y = "\
 nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   net: { http: [\"api.anthropic.com\"] }
   tools: [\"nika:fetch\"]
@@ -475,7 +481,7 @@ secrets:
       - to: \"nika:fetch\"
         host: \"api.stripe.com\"
 tasks:
-  - id: t
+  t:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://api.stripe.com/v1/x\", headers: { Authorization: \"${{ secrets.k }}\" } } }
 ";
         assert!(
@@ -488,7 +494,8 @@ tasks:
     fn permits_intersection_allows_listed_host() {
         let y = "\
 nika: v1
-workflow: w
+workflow:
+  id: w
 permits:
   net: { http: [\"api.stripe.com\"] }
   tools: [\"nika:fetch\"]
@@ -500,7 +507,7 @@ secrets:
       - to: \"nika:fetch\"
         host: \"api.stripe.com\"
 tasks:
-  - id: t
+  t:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://api.stripe.com/v1/x\", headers: { Authorization: \"${{ secrets.k }}\" } } }
 ";
         assert!(sanctioned(y, "k", "t"), "both layers agree on the host");
@@ -510,7 +517,7 @@ tasks:
     fn wrong_tool_id_does_not_match_l1() {
         // egress is for nika:notify but the sink is nika:fetch.
         let y = format!(
-            "nika: v1\nworkflow: w\n{HOOK}tasks:\n  - id: t\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"${{{{ secrets.hook }}}}\" }} }}\n"
+            "nika: v1\nworkflow:\n  id: w\n{HOOK}tasks:\n  t:\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"${{{{ secrets.hook }}}}\" }} }}\n"
         );
         assert!(!sanctioned(&y, "hook", "t"), "L1 sink id must match");
     }
@@ -564,7 +571,8 @@ tasks:
         // through (wrongly sanctioned) — this asserts it stays a leak.
         let y = "\
 nika: v1
-workflow: w
+workflow:
+  id: w
 secrets:
   hook:
     source: env
@@ -576,7 +584,7 @@ secrets:
     source: env
     key: OTHER
 tasks:
-  - id: t
+  t:
     invoke:
       tool: \"nika:notify\"
       args:

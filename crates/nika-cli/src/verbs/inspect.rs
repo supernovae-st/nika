@@ -324,7 +324,7 @@ mod tests {
         // The diamond: width 2 ({left,right}) · pinch {root,join} ·
         // root blocks 3 — the report computed it, inspect must SAY it.
         let path = tmp(
-            "nika: v1\nworkflow: anatomy\n\nmodel: mock/echo\n\ntasks:\n  - id: root\n    infer: { prompt: \"r\", max_tokens: 10 }\n  - id: left\n    depends_on: [root]\n    infer: { prompt: \"l\", max_tokens: 10 }\n  - id: right\n    depends_on: [root]\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: join\n    depends_on: [left, right]\n    infer: { prompt: \"j\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.join.output }}\n",
+            "nika: v1\nworkflow:\n  id: anatomy\n\nmodel: mock/echo\n\ntasks:\n  root:\n    infer: { prompt: \"r\", max_tokens: 10 }\n  left:\n    depends_on: [root]\n    infer: { prompt: \"l\", max_tokens: 10 }\n  right:\n    depends_on: [root]\n    infer: { prompt: \"x\", max_tokens: 10 }\n  join:\n    depends_on: [left, right]\n    infer: { prompt: \"j\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.join.output }}\n",
         );
         let out = run(
             path.to_str().expect("utf-8 tmp path"),
@@ -378,7 +378,7 @@ mod tests {
     fn single_task_anatomy_stays_quiet() {
         // width 1 of 1 is noise, not insight — no engineering section.
         let path = tmp(
-            "nika: v1\nworkflow: solo\n\nmodel: mock/echo\n\ntasks:\n  - id: only\n    infer: { prompt: \"x\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.only.output }}\n",
+            "nika: v1\nworkflow:\n  id: solo\n\nmodel: mock/echo\n\ntasks:\n  only:\n    infer: { prompt: \"x\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.only.output }}\n",
         );
         let out = run(
             path.to_str().expect("utf-8 tmp path"),
@@ -408,7 +408,7 @@ mod tests {
     #[test]
     fn fan_out_groups_the_wave_and_truncates_the_witness() {
         let path = tmp(
-            "nika: v1\nworkflow: fan5\ntasks:\n  - id: root\n    exec: { command: [\"echo\", \"r\"] }\n  - id: c1\n    depends_on: [root]\n    exec: { command: [\"echo\", \"1\"] }\n  - id: c2\n    depends_on: [root]\n    exec: { command: [\"echo\", \"2\"] }\n  - id: c3\n    depends_on: [root]\n    exec: { command: [\"echo\", \"3\"] }\n  - id: c4\n    depends_on: [root]\n    exec: { command: [\"echo\", \"4\"] }\n  - id: c5\n    depends_on: [root]\n    exec: { command: [\"echo\", \"5\"] }\n",
+            "nika: v1\nworkflow:\n  id: fan5\ntasks:\n  root:\n    exec: { command: [\"echo\", \"r\"] }\n  c1:\n    depends_on: [root]\n    exec: { command: [\"echo\", \"1\"] }\n  c2:\n    depends_on: [root]\n    exec: { command: [\"echo\", \"2\"] }\n  c3:\n    depends_on: [root]\n    exec: { command: [\"echo\", \"3\"] }\n  c4:\n    depends_on: [root]\n    exec: { command: [\"echo\", \"4\"] }\n  c5:\n    depends_on: [root]\n    exec: { command: [\"echo\", \"5\"] }\n",
         );
         let out = run(
             path.to_str().expect("utf-8 tmp path"),
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn ascii_theme_draws_the_same_waves() {
         let path = tmp(
-            "nika: v1\nworkflow: fanscii\ntasks:\n  - id: root\n    exec: { command: [\"echo\", \"r\"] }\n  - id: c1\n    depends_on: [root]\n    exec: { command: [\"echo\", \"1\"] }\n  - id: c2\n    depends_on: [root]\n    exec: { command: [\"echo\", \"2\"] }\n",
+            "nika: v1\nworkflow:\n  id: fanscii\ntasks:\n  root:\n    exec: { command: [\"echo\", \"r\"] }\n  c1:\n    depends_on: [root]\n    exec: { command: [\"echo\", \"1\"] }\n  c2:\n    depends_on: [root]\n    exec: { command: [\"echo\", \"2\"] }\n",
         );
         let out = run(
             path.to_str().expect("utf-8 tmp path"),
@@ -494,7 +494,7 @@ mod tests {
     #[test]
     fn width_four_has_no_ellipsis_and_blast_caps_at_three() {
         let path = tmp(
-            "nika: v1\nworkflow: wide-diamond\ntasks:\n  - id: root\n    exec: { command: [\"echo\", \"r\"] }\n  - id: m1\n    depends_on: [root]\n    exec: { command: [\"echo\", \"1\"] }\n  - id: m2\n    depends_on: [root]\n    exec: { command: [\"echo\", \"2\"] }\n  - id: m3\n    depends_on: [root]\n    exec: { command: [\"echo\", \"3\"] }\n  - id: m4\n    depends_on: [root]\n    exec: { command: [\"echo\", \"4\"] }\n  - id: join\n    depends_on: [m1, m2, m3, m4]\n    exec: { command: [\"echo\", \"j\"] }\n",
+            "nika: v1\nworkflow:\n  id: wide-diamond\ntasks:\n  root:\n    exec: { command: [\"echo\", \"r\"] }\n  m1:\n    depends_on: [root]\n    exec: { command: [\"echo\", \"1\"] }\n  m2:\n    depends_on: [root]\n    exec: { command: [\"echo\", \"2\"] }\n  m3:\n    depends_on: [root]\n    exec: { command: [\"echo\", \"3\"] }\n  m4:\n    depends_on: [root]\n    exec: { command: [\"echo\", \"4\"] }\n  join:\n    depends_on: [m1, m2, m3, m4]\n    exec: { command: [\"echo\", \"j\"] }\n",
         );
         let out = run(
             path.to_str().expect("utf-8 tmp path"),

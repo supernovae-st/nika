@@ -22,15 +22,16 @@
 # Run · nika run examples/showcase/t1-og-images.nika.yaml
 
 nika: v1
-workflow: og-images
-description: "Generate the launch OG hero image set into ./assets/og"
+workflow:
+  id: og-images
+  description: "Generate the launch OG hero image set into ./assets/og"
 
 permits:
   fs: { write: ["./assets/og/**"] }   # the ONLY place assets may land
   tools: ["nika:image_generate"]
 
 tasks:
-  - id: hero
+  hero:
     invoke:
       tool: "nika:image_generate"
       args:

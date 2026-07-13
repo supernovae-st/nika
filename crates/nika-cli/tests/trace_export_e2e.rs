@@ -16,12 +16,13 @@ fn run_and_export(dir: &std::path::Path) -> serde_json::Value {
     std::fs::write(
         dir.join("w.nika.yaml"),
         r#"nika: v1
-workflow: export-e2e
+workflow:
+  id: export-e2e
 tasks:
-  - id: seed
+  seed:
     exec:
       command: ["sleep", "0.3"]
-  - id: gated
+  gated:
     depends_on: [seed]
     when: "${{ tasks.seed.status == 'failure' }}"
     exec:
@@ -134,7 +135,7 @@ fn a_failed_run_prints_its_autopsy_a_clean_run_does_not() {
     let dir = tempfile::tempdir().expect("tmpdir");
     std::fs::write(
         dir.path().join("fail.nika.yaml"),
-        "nika: v1\nworkflow: fail-ux\ntasks:\n  - id: boom\n    exec:\n      command: [\"false\"]\n",
+        "nika: v1\nworkflow:\n  id: fail-ux\ntasks:\n  boom:\n    exec:\n      command: [\"false\"]\n",
     )
     .expect("write");
     let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
@@ -154,7 +155,7 @@ fn a_failed_run_prints_its_autopsy_a_clean_run_does_not() {
 
     std::fs::write(
         dir.path().join("ok.nika.yaml"),
-        "nika: v1\nworkflow: ok-ux\ntasks:\n  - id: fine\n    exec:\n      command: [\"true\"]\n",
+        "nika: v1\nworkflow:\n  id: ok-ux\ntasks:\n  fine:\n    exec:\n      command: [\"true\"]\n",
     )
     .expect("write");
     let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))

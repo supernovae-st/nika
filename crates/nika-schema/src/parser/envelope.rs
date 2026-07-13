@@ -995,9 +995,10 @@ mod permits_tests {
 
     const BASE: &str = "\
 nika: v1
-workflow: demo
+workflow:
+  id: demo
 tasks:
-  - id: t
+  t:
     exec: { command: [\"true\"] }
 ";
 

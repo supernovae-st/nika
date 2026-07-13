@@ -36,8 +36,9 @@
 #       an empty row — the finding above, reproduced on your own machine.
 
 nika: v1
-workflow: model-bench
-description: "One question → three local models → a measured comparison table"
+workflow:
+  id: model-bench
+  description: "One question → three local models → a measured comparison table"
 
 model: ollama/qwen3.5:4b # the house default · contenders below pick their own seats
 
@@ -47,25 +48,25 @@ vars:
     default: "Explain, in five lines, why a workflow should be audited before it runs."
 
 tasks:
-  - id: ask_incumbent
+  ask_incumbent:
     infer:
       model: ollama/qwen2.5:14b # the quality bar · the seat to beat
       prompt: "${{ vars.question }}"
       max_tokens: 600
 
-  - id: ask_challenger
+  ask_challenger:
     infer:
       model: ollama/llama3.2:3b # another family · same size class
       prompt: "${{ vars.question }}"
       max_tokens: 600
 
-  - id: ask_tiny
+  ask_tiny:
     infer:
       model: ollama/qwen2.5:0.5b # the "is small enough?" probe
       prompt: "${{ vars.question }}"
       max_tokens: 600
 
-  - id: tabulate
+  tabulate:
     depends_on: [ask_incumbent, ask_challenger, ask_tiny]
     invoke:
       tool: "nika:jq"
@@ -88,7 +89,7 @@ tasks:
                + (.answer | gsub("\n"; " ") | .[0:160]) + " |")
              | join("\n"))
 
-  - id: persist
+  persist:
     depends_on: [tabulate]
     invoke:
       tool: "nika:write"

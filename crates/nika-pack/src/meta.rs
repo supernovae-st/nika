@@ -27,11 +27,40 @@ pub fn meta(slug: &str, body: &str) -> ExampleMeta {
         file: format!("{slug}.nika.yaml"),
         title: title_of(slug, body),
         verbs: verbs_of(body),
-        tasks: body
-            .lines()
-            .filter(|l| l.trim_start().starts_with("- id:"))
-            .count(),
+        tasks: task_key_count(body),
     }
+}
+
+/// Count the task map keys (W1 « the map »): bare `name:` block keys at
+/// indent 2 inside the top-level `tasks:` section — the same boundary
+/// shape every surface anchors on since the list form died.
+fn task_key_count(body: &str) -> usize {
+    let mut in_tasks = false;
+    let mut n = 0;
+    for line in body.lines() {
+        if !line.starts_with(' ') && !line.starts_with('#') && line.contains(':') {
+            in_tasks = line.starts_with("tasks:");
+            continue;
+        }
+        if !in_tasks {
+            continue;
+        }
+        let indent = line.len() - line.trim_start().len();
+        if indent != 2 {
+            continue;
+        }
+        let head = line.trim_start().split('#').next().unwrap_or("").trim_end();
+        if let Some(name) = head.strip_suffix(':')
+            && !name.is_empty()
+            && name.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+            && name
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        {
+            n += 1;
+        }
+    }
+    n
 }
 
 /// The title out of the file's OWN header comments — foundation files

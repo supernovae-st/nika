@@ -452,7 +452,7 @@ mod tests {
         read(yaml).analysis.expect("analysis present")
     }
 
-    const HEADER: &str = "nika: v1\nworkflow: t\n\nmodel: mock/echo\n\ntasks:\n";
+    const HEADER: &str = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\ntasks:\n";
 
     fn infer_task(id: &str, deps: &[&str]) -> String {
         let dep_line = if deps.is_empty() {
@@ -460,7 +460,7 @@ mod tests {
         } else {
             format!("    depends_on: [{}]\n", deps.join(", "))
         };
-        format!("  - id: {id}\n{dep_line}    infer:\n      prompt: \"x\"\n")
+        format!("  {id}:\n{dep_line}    infer:\n      prompt: \"x\"\n")
     }
 
     fn wf(tasks: &[(&str, &[&str])]) -> String {
@@ -599,7 +599,7 @@ mod tests {
     #[test]
     fn parallel_writers_same_literal_path_is_flagged() {
         let yaml = format!(
-            "{HEADER}  - id: left\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  - id: right\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"b\"\n"
+            "{HEADER}  left:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  right:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"b\"\n"
         );
         let hints = read(&yaml).conflicts;
         assert_eq!(hints.len(), 1);
@@ -611,21 +611,21 @@ mod tests {
     #[test]
     fn ordered_writers_are_not_a_race() {
         let yaml = format!(
-            "{HEADER}  - id: first\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  - id: second\n    depends_on: [first]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"b\"\n"
+            "{HEADER}  first:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  second:\n    depends_on: [first]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"b\"\n"
         );
         assert!(read(&yaml).conflicts.is_empty());
     }
 
     #[test]
     fn distinct_or_dynamic_paths_make_no_claim() {
-        let yaml = "nika: v1\nworkflow: t\n\nmodel: mock/echo\n\nvars:\n  name: report\n\ntasks:\n  - id: a\n    invoke:\n      tool: nika:write\n      args:\n        path: out/a.md\n        content: \"a\"\n  - id: b\n    invoke:\n      tool: nika:write\n      args:\n        path: \"out/${{ vars.name }}.md\"\n        content: \"b\"\n";
+        let yaml = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\nvars:\n  name: report\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/a.md\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"out/${{ vars.name }}.md\"\n        content: \"b\"\n";
         assert!(read(yaml).conflicts.is_empty());
     }
 
     #[test]
     fn for_each_over_a_constant_path_is_flagged() {
         let yaml = format!(
-            "{HEADER}  - id: fan\n    for_each: [1, 2, 3]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n"
+            "{HEADER}  fan:\n    for_each: [1, 2, 3]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n"
         );
         let hints = read(&yaml).conflicts;
         assert_eq!(hints.len(), 1);
@@ -636,7 +636,7 @@ mod tests {
     #[test]
     fn empty_workflow_reads_as_width_zero() {
         let parsed = parse(
-            "nika: v1\nworkflow: t\n\nmodel: mock/echo\n\ntasks: []\n",
+            "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\ntasks: []\n",
             FileId::new(0),
             ParseMode::Strict,
         );

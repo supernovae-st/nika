@@ -225,10 +225,11 @@ mod tests {
         let c = ceiling_of(
             "\
 nika: v1
-workflow: priced
+workflow:
+  id: priced
 model: anthropic/claude-sonnet-4-6
 tasks:
-  - id: ask
+  ask:
     infer: { prompt: \"hi\", max_tokens: 1000 }
 ",
         );
@@ -245,12 +246,13 @@ tasks:
         let c = ceiling_of(
             "\
 nika: v1
-workflow: fe-vars
+workflow:
+  id: fe-vars
 model: anthropic/claude-sonnet-4-6
 vars:
   items: [\"a\", \"b\", \"c\"]
 tasks:
-  - id: fan
+  fan:
     for_each: ${{ vars.items }}
     infer: { prompt: \"x\", max_tokens: 100 }
 ",
@@ -269,12 +271,13 @@ tasks:
         let c = ceiling_of(
             "\
 nika: v1
-workflow: fe-typed
+workflow:
+  id: fe-typed
 model: anthropic/claude-sonnet-4-6
 vars:
   items: { type: array, required: true }
 tasks:
-  - id: fan
+  fan:
     for_each: ${{ vars.items }}
     infer: { prompt: \"x\", max_tokens: 100 }
 ",
@@ -292,12 +295,13 @@ tasks:
         let c = ceiling_of(
             "\
 nika: v1
-workflow: fe-typed-default
+workflow:
+  id: fe-typed-default
 model: anthropic/claude-sonnet-4-6
 vars:
   items: { type: array, default: [\"a\", \"b\"] }
 tasks:
-  - id: fan
+  fan:
     for_each: ${{ vars.items }}
     infer: { prompt: \"x\", max_tokens: 100 }
 ",
@@ -311,10 +315,11 @@ tasks:
         let c = ceiling_of(
             "\
 nika: v1
-workflow: unbounded
+workflow:
+  id: unbounded
 model: anthropic/claude-sonnet-4-6
 tasks:
-  - id: ask
+  ask:
     infer: { prompt: \"hi\" }
 ",
         );
@@ -331,10 +336,11 @@ tasks:
         let c = ceiling_of(
             "\
 nika: v1
-workflow: local
+workflow:
+  id: local
 model: ollama/llama3
 tasks:
-  - id: ask
+  ask:
     infer: { prompt: \"hi\", max_tokens: 1000 }
 ",
         );
@@ -350,11 +356,12 @@ tasks:
         let c = ceiling_of(
             "\
 nika: v1
-workflow: noinfer
+workflow:
+  id: noinfer
 tasks:
-  - id: sh
+  sh:
     exec: { command: [\"true\"] }
-  - id: tool
+  tool:
     invoke: { tool: \"nika:read\", args: { path: \"x\" } }
 ",
         );
@@ -367,10 +374,10 @@ tasks:
         // Ignoring retry: silently UNDERCOUNTED the ceiling — 3 attempts
         // can each spend the full budget; first-try success spends 1×.
         let plain = ceiling_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
         );
         let retried = ceiling_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    retry: { max_attempts: 3 }\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    retry: { max_attempts: 3 }\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
         );
         assert_eq!(retried.tasks[0].attempts, 3);
         let one = plain.bounded_total_usd;
@@ -389,7 +396,7 @@ tasks:
     #[test]
     fn when_gated_task_zeroes_the_cheapest_path() {
         let c = ceiling_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: t\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  t:\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
         );
         assert!(c.tasks[0].gated);
         assert_eq!(c.tasks[0].min_path_usd, Some(0.0), "gate closed → $0");
@@ -402,7 +409,7 @@ tasks:
     #[test]
     fn ungated_unretried_task_has_a_degenerate_interval() {
         let c = ceiling_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
         );
         assert!(
             (c.min_path_total_usd - c.bounded_total_usd).abs() < 1e-12,
@@ -415,10 +422,11 @@ tasks:
         let c = ceiling_of(
             "\
 nika: v1
-workflow: agentcost
+workflow:
+  id: agentcost
 model: anthropic/claude-sonnet-4-6
 tasks:
-  - id: loop
+  loop:
     agent: { prompt: \"go\", max_tokens_total: 50000 }
 ",
         );
@@ -445,10 +453,11 @@ mod regression {
         let c = ceiling_of(
             "\
 nika: v1
-workflow: w
+workflow:
+  id: w
 model: ollama/my-gpt-4-finetune
 tasks:
-  - id: t
+  t:
     infer: { prompt: \"hi\", max_tokens: 1000 }
 ",
         );
@@ -474,10 +483,10 @@ mod for_each_fanout {
     fn literal_for_each_multiplies_cost_by_count() {
         // 5-element literal list = 5× the per-call cost (was a 5× undercount).
         let single = ceiling_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
         );
         let batch = ceiling_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    for_each: [1, 2, 3, 4, 5]\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    for_each: [1, 2, 3, 4, 5]\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
         );
         assert_eq!(batch.tasks[0].iterations, 5);
         let one = single.bounded_total_usd;
@@ -493,7 +502,7 @@ mod for_each_fanout {
     fn expression_for_each_is_unbounded() {
         // ${{ vars.items }} source → unknown iteration count → unbounded.
         let c = ceiling_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { items: \"x\" }\ntasks:\n  - id: t\n    for_each: ${{ vars.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\nvars: { items: \"x\" }\ntasks:\n  t:\n    for_each: ${{ vars.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
         );
         assert!(c.has_unbounded);
         assert_eq!(
@@ -515,7 +524,7 @@ mod ceiling_arithmetic {
 
     fn single_task(max_tokens: u32) -> CostCeiling {
         ceiling_of(&format!(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    infer: {{ prompt: \"x\", max_tokens: {max_tokens} }}\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer: {{ prompt: \"x\", max_tokens: {max_tokens} }}\n",
         ))
     }
 
@@ -552,7 +561,7 @@ mod ceiling_arithmetic {
 
         let cost_of = |model: &str| {
             let yaml = format!(
-                "nika: v1\nworkflow: w\nmodel: {model}\ntasks:\n  - id: t\n    infer: {{ prompt: \"x\", max_tokens: 1000 }}\n",
+                "nika: v1\nworkflow:\n  id: w\nmodel: {model}\ntasks:\n  t:\n    infer: {{ prompt: \"x\", max_tokens: 1000 }}\n",
             );
             ceiling_of(&yaml).bounded_total_usd
         };
@@ -573,7 +582,7 @@ mod ceiling_arithmetic {
         // worst (the degenerate n = 1 case cannot see it, which is why it
         // survived). Both ends are still priced (sonnet), so they compare.
         let c = ceiling_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    for_each: [1, 2]\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    for_each: [1, 2]\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
         );
         assert_eq!(c.tasks[0].iterations, 2, "two-element list = 2 iterations");
         assert!(c.bounded_total_usd > 0.0, "priced worst path");

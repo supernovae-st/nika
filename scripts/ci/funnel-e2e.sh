@@ -121,7 +121,7 @@ done
 # 5 · doctor diagnoses offline · broken files fail WITH a code
 run doctor 0 -- "$BIN" doctor
 # shellcheck disable=SC2016 # the ${{ }} island must reach the file UNEXPANDED
-printf 'nika: v1\nworkflow: broken\nmodel: mock/echo\ntasks:\n  - id: a\n    exec: { command: "echo ${{ tasks.ghost.output }}" }\n' >broken.nika.yaml
+printf 'nika: v1\nworkflow:\n  id: broken\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: ["echo", "${{ tasks.ghost.output }}"] }\n' >broken.nika.yaml
 set +e
 OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb "$BIN" check broken.nika.yaml 2>&1)
 GOT=$?

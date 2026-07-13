@@ -134,8 +134,8 @@ mod tests {
     /// BEFORE any spend, exactly like the in-file form.
     #[test]
     fn override_prices_the_effective_model_and_refuses_at_the_gate() {
-        let yaml = "nika: v1\nworkflow: m\ntasks:\n  \
-             - id: a\n    infer: { prompt: hi, max_tokens: 1000000, model: \"mock/echo\" }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+             a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"mock/echo\" }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
         let report = nika_schema::check::check(&wf);
         assert_eq!(
@@ -144,8 +144,8 @@ mod tests {
         );
         // Task-level model wins over the envelope — the override swaps the
         // ENVELOPE default, so the fixture's model must live there instead.
-        let yaml = "nika: v1\nworkflow: m\nmodel: \"mock/echo\"\ntasks:\n  \
-             - id: a\n    infer: { prompt: hi, max_tokens: 1000000 }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: m\nmodel: \"mock/echo\"\ntasks:\n  \
+             a:\n    infer: { prompt: hi, max_tokens: 1000000 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
         let report = nika_schema::check::check(&wf);
         let refused = preflight(
@@ -172,8 +172,8 @@ mod tests {
     /// refuse — the effective floor is zero (offline preview idiom).
     #[test]
     fn override_to_mock_drops_the_floor_and_passes() {
-        let yaml = "nika: v1\nworkflow: m\nmodel: \"anthropic/claude-sonnet-5\"\ntasks:\n  \
-             - id: a\n    infer: { prompt: hi, max_tokens: 1000000 }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: m\nmodel: \"anthropic/claude-sonnet-5\"\ntasks:\n  \
+             a:\n    infer: { prompt: hi, max_tokens: 1000000 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
         let report = nika_schema::check::check(&wf);
         assert!(
@@ -191,8 +191,8 @@ mod tests {
     /// runtime's precedence, mirrored in the effective envelope).
     #[test]
     fn task_level_model_still_beats_the_override_in_the_effective_floor() {
-        let yaml = "nika: v1\nworkflow: m\nmodel: \"mock/echo\"\ntasks:\n  \
-             - id: a\n    infer: { prompt: hi, max_tokens: 1000000, model: \"mock/echo\" }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: m\nmodel: \"mock/echo\"\ntasks:\n  \
+             a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"mock/echo\" }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
         let cost = effective_cost(&wf, "anthropic/claude-sonnet-5");
         assert_eq!(
@@ -206,9 +206,9 @@ mod tests {
         // A priced-but-unbounded task must read « no max_tokens », not
         // « unpriced model » — the operator sees which is FIXABLE.
         let msg = breakdown_of(
-            "nika: v1\nworkflow: m\ntasks:\n  \
-             - id: a\n    infer: { prompt: hi, model: \"anthropic/claude-sonnet-5\" }\n  \
-             - id: b\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n",
+            "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+             a:\n    infer: { prompt: hi, model: \"anthropic/claude-sonnet-5\" }\n  \
+             b:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n",
         );
         assert!(msg.contains("2 task(s)"), "{msg}");
         assert!(
@@ -228,9 +228,9 @@ mod tests {
         // NoTokenLimit — proving the unpriced bucket AND the exclusion of
         // the fully-bounded id a in one shot.
         let msg = breakdown_of(
-            "nika: v1\nworkflow: m\ntasks:\n  \
-             - id: a\n    infer: { prompt: hi, max_tokens: 100, model: \"anthropic/claude-sonnet-5\" }\n  \
-             - id: b\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n",
+            "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+             a:\n    infer: { prompt: hi, max_tokens: 100, model: \"anthropic/claude-sonnet-5\" }\n  \
+             b:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n",
         );
         assert!(
             msg.contains("1 task(s)"),

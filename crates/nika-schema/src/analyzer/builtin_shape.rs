@@ -67,7 +67,7 @@ mod tests {
     fn assert_shape_cases(cases: &[(&str, &str, bool)]) {
         for (args, tool, violates) in cases {
             let yaml = format!(
-                "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    invoke:\n      \
+                "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    invoke:\n      \
                  tool: \"{tool}\"\n      args: {args}\n"
             );
             assert_eq!(
@@ -164,7 +164,7 @@ mod tests {
         ];
         for (args, tool, violates) in &cases {
             let yaml = format!(
-                "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke:\n      \
+                "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke:\n      \
                  tool: \"{tool}\"\n      args: {args}\n"
             );
             assert_eq!(
@@ -258,7 +258,7 @@ mod tests {
         ];
         for (args, tool, violates) in &cases {
             let yaml = format!(
-                "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke:\n      \
+                "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke:\n      \
                  tool: \"{tool}\"\n      args: {args}\n"
             );
             assert_eq!(
@@ -326,7 +326,7 @@ mod tests {
         ];
         for (args, tool, violates) in cases {
             let yaml = format!(
-                "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    invoke:\n      \
+                "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    invoke:\n      \
                  tool: \"{tool}\"\n      args: {args}\n"
             );
             assert_eq!(
@@ -483,7 +483,7 @@ mod tests {
     fn compose_in_agent_whitelist_is_legal() {
         // The positive direction of the A3 row: granting nika:compose to
         // an agent loop is exactly what ADR-096 blesses.
-        let agent = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    agent:\n      \
+        let agent = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    agent:\n      \
                      prompt: \"go\"\n      tools: [\"nika:compose\", \"nika:done\"]\n";
         assert!(!has_shape_error(agent, "nika:compose"));
     }
@@ -491,14 +491,14 @@ mod tests {
     #[test]
     fn done_in_agent_whitelist_is_legal_and_on_finally_is_checked() {
         // The sentinel is LEGAL as an agent tools entry…
-        let agent = "nika: v1\nworkflow: t\ntasks:\n  - id: l\n    agent:\n      \
+        let agent = "nika: v1\nworkflow:\n  id: t\ntasks:\n  l:\n    agent:\n      \
                      prompt: \"go\"\n      tools: [\"nika:done\"]\n";
         assert!(!has_shape_error(agent, "nika:done"));
         // …and cleanup actions face the same shape rules as task actions —
         // a `nika:wait` with neither duration NOR until in an on_finally is
         // the XOR violation (a flat-required miss like `nika:write` content
         // is now the missing-args check's concern · tested there).
-        let finally = "nika: v1\nworkflow: t\ntasks:\n  - id: w\n    \
+        let finally = "nika: v1\nworkflow:\n  id: t\ntasks:\n  w:\n    \
                        exec: { command: [echo] }\n    on_finally:\n      - invoke:\n          \
                        tool: \"nika:wait\"\n          args: {}\n";
         assert!(has_shape_error(finally, "nika:wait"));

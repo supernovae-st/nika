@@ -4,11 +4,12 @@
 # validates against the schema (the engine already enforced it).
 # Model is a placeholder — the runner overrides per manifest row (--model).
 nika: v1
-workflow: battery-s1-nested
+workflow:
+  id: battery-s1-nested
 model: mock/echo
 
 tasks:
-  - id: subject
+  subject:
     infer:
       prompt: |
         Invent the profile of a fictional botanist: her full name, her age,

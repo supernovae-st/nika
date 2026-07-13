@@ -4,11 +4,12 @@
 # fallback (provider JSON mode + local validation) and still succeed.
 # Expected: exit 0 · task success · usage > 0.
 nika: v1
-workflow: battery-s3-underspecified
+workflow:
+  id: battery-s3-underspecified
 model: mock/echo
 
 tasks:
-  - id: note
+  note:
     infer:
       prompt: |
         Write a small structured note about today's weather: a couple of

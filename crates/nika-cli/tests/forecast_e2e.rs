@@ -29,17 +29,18 @@ use nika_verb_invoke::InvokeVerb;
 /// per-task model bucket (`think` rides mock/echo · `probe` is exec).
 const WORKFLOW: &str = r#"
 nika: v1
-workflow: fc-e2e
-description: forecast ladder fixture
+workflow:
+  id: fc-e2e
+  description: forecast ladder fixture
 
 model: mock/echo
 
 tasks:
-  - id: probe
+  probe:
     exec:
       command: ["echo", "ready"]
 
-  - id: think
+  think:
     depends_on: [probe]
     infer:
       prompt: "summarize the probe"

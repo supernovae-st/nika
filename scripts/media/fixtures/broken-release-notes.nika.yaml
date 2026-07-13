@@ -5,8 +5,9 @@
 #   `nika:wrte`     → TOOLS · did you mean `nika:write`? (+ the PERMITS echo)
 # validate-media.sh keeps this file FAILING check — the asset's point.
 nika: v1
-workflow: release-notes
-description: "git log → typed notes → RELEASE_NOTES.md · checked before it spends"
+workflow:
+  id: release-notes
+  description: "git log → typed notes → RELEASE_NOTES.md · checked before it spends"
 
 model: ollama/qwen3.5:4b   # local · zero key · or mistral/mistral-small · mock/echo offline
 
@@ -17,15 +18,15 @@ permits:
   tools: ["nika:write"]
 
 tasks:
-  - id: history
+  history:
     exec:
       command: ["git", "log", "--oneline", "--no-merges", "-8"]
 
-  - id: stats
+  stats:
     exec:
       command: ["git", "shortlog", "-sn", "HEAD"]
 
-  - id: digest
+  digest:
     depends_on: [history]
     infer:
       max_tokens: 400
@@ -40,7 +41,7 @@ tasks:
           highlights: { type: array, items: { type: string } }
         additionalProperties: false
 
-  - id: notes
+  notes:
     depends_on: [digest, stats]
     invoke:
       tool: "nika:wrte"

@@ -46,11 +46,12 @@ fn rule_008_fires_on_interpolated_string_command() {
     // 108:5 — replacing the whole fn body with `()` emits no lint.
     let yaml = "\
 nika: v1
-workflow: interp
+workflow:
+  id: interp
 tasks:
-  - id: produce
+  produce:
     exec: { command: [\"./gen.sh\"] }
-  - id: consume
+  consume:
     depends_on: [produce]
     exec: { shell: \"process ${{ tasks.produce.output }}\" }
 ";
@@ -68,9 +69,10 @@ fn rule_008_silent_on_a_plain_literal_command() {
     // that has no interpolation at all. Asserting zero kills the swap.
     let yaml = "\
 nika: v1
-workflow: plain
+workflow:
+  id: plain
 tasks:
-  - id: build
+  build:
     exec: { command: [\"cargo\", \"build\"] }
 ";
     assert!(
@@ -86,11 +88,12 @@ fn rule_008_silent_on_a_genuine_pipeline() {
     // the `literal_parts_use_shell` true-branch reachability.)
     let yaml = "\
 nika: v1
-workflow: pipe
+workflow:
+  id: pipe
 tasks:
-  - id: produce
+  produce:
     exec: { command: [\"./gen.sh\"] }
-  - id: consume
+  consume:
     depends_on: [produce]
     exec: { shell: \"cat ${{ tasks.produce.output }} | wc -l\" }
 ";
@@ -109,9 +112,10 @@ fn rule_009_fires_on_a_bare_iterator_binding() {
     // 144:5 — replacing the fn body with `()` emits no lint.
     let yaml = "\
 nika: v1
-workflow: stream
+workflow:
+  id: stream
 tasks:
-  - id: fetch
+  fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
     output:
       emails: \".users[]\"
@@ -173,11 +177,12 @@ fn when_expr_some_drives_rule_001() {
     // Some — a forced None silences /001 entirely.
     let yaml = "\
 nika: v1
-workflow: redundant
+workflow:
+  id: redundant
 tasks:
-  - id: a
+  a:
     exec: { command: [\"./a.sh\"] }
-  - id: b
+  b:
     depends_on: [a]
     when: \"${{ tasks.a.status == 'success' }}\"
     exec: { command: [\"./b.sh\"] }
@@ -396,12 +401,13 @@ fn rule_002_fires_for_an_unguarded_dependent() {
     // expected single /002.
     let yaml = "\
 nika: v1
-workflow: skipdep
+workflow:
+  id: skipdep
 tasks:
-  - id: a
+  a:
     on_error: { skip: true }
     exec: { command: [\"./a.sh\"] }
-  - id: b
+  b:
     depends_on: [a]
     exec: { command: [\"./b.sh\"] }
 ";
@@ -423,12 +429,13 @@ fn rule_002_silent_when_the_dependent_reads_status() {
     // dependent is wrongly treated as unguarded ⇒ a spurious /002.
     let yaml = "\
 nika: v1
-workflow: guarded
+workflow:
+  id: guarded
 tasks:
-  - id: a
+  a:
     on_error: { skip: true }
     exec: { command: [\"./a.sh\"] }
-  - id: b
+  b:
     depends_on: [a]
     when: \"${{ tasks.a.status in ['success', 'failure'] }}\"
     exec: { command: [\"./b.sh\"] }
@@ -451,11 +458,12 @@ fn rule_003_fires_on_a_structural_duplicate() {
     // value-producer ⇒ no /004 either) ⇒ zero lints.
     let yaml = "\
 nika: v1
-workflow: dup
+workflow:
+  id: dup
 tasks:
-  - id: build
+  build:
     exec: { command: [\"./build.sh\"] }
-  - id: rebuild
+  rebuild:
     depends_on: [build]
     when: \"${{ tasks.build.status == 'failure' }}\"
     exec: { command: [\"./build.sh\"] }
@@ -835,11 +843,12 @@ fn rule_004_silent_when_guard_has_no_failure_check() {
     // way the assertion (no /003, no /004) holds only for the correct code.
     let yaml = "\
 nika: v1
-workflow: succguard
+workflow:
+  id: succguard
 tasks:
-  - id: a
+  a:
     exec: { command: [\"echo\", \"hi\"] }
-  - id: b
+  b:
     depends_on: [a]
     when: \"${{ tasks.a.status == 'success' }}\"
     invoke: { tool: \"nika:jq\", args: { filter: \".x\" } }
@@ -870,13 +879,14 @@ fn rule_005_fires_on_terminal_cleanup_depending_on_everything() {
     // permissive `when:` fires exactly one /005.
     let yaml = "\
 nika: v1
-workflow: f005
+workflow:
+  id: f005
 tasks:
-  - id: a
+  a:
     exec: { command: [\"./a.sh\"] }
-  - id: b
+  b:
     exec: { command: [\"./b.sh\"] }
-  - id: cleanup
+  cleanup:
     depends_on: [a, b]
     when: \"${{ tasks.a.status in ['success', 'failure'] }}\"
     exec: { command: [\"./cleanup.sh\"] }
@@ -894,11 +904,12 @@ fn rule_005_silent_on_a_two_task_workflow() {
     // cleanup needs ≥ 3 tasks). Asserting zero kills the `>` swap.
     let yaml = "\
 nika: v1
-workflow: f005two
+workflow:
+  id: f005two
 tasks:
-  - id: a
+  a:
     exec: { command: [\"./a.sh\"] }
-  - id: b
+  b:
     depends_on: [a]
     when: \"${{ tasks.a.status != 'success' }}\"
     exec: { command: [\"./b.sh\"] }
@@ -916,13 +927,14 @@ fn rule_005_silent_when_not_depending_on_everything() {
     // from the other direction (deps must EQUAL the full others set).
     let yaml = "\
 nika: v1
-workflow: f005partial
+workflow:
+  id: f005partial
 tasks:
-  - id: a
+  a:
     exec: { command: [\"./a.sh\"] }
-  - id: b
+  b:
     exec: { command: [\"./b.sh\"] }
-  - id: c
+  c:
     depends_on: [a]
     when: \"${{ tasks.a.status in ['success', 'failure'] }}\"
     exec: { command: [\"./c.sh\"] }
@@ -946,9 +958,10 @@ fn rule_006_fires_on_a_timeout_wrapper_in_for_each() {
     // fires exactly one /006.
     let yaml = "\
 nika: v1
-workflow: f006
+workflow:
+  id: f006
 tasks:
-  - id: shards
+  shards:
     for_each: [1, 2, 3]
     exec: { command: [\"timeout\", \"30\", \"./process.sh\"] }
 ";
@@ -963,9 +976,10 @@ fn rule_006_fires_on_a_gtimeout_wrapper() {
     // gtimeout line also fails to fire (`starts "timeout "` is false).
     let yaml = "\
 nika: v1
-workflow: f006g
+workflow:
+  id: f006g
 tasks:
-  - id: shards
+  shards:
     for_each: [1, 2, 3]
     exec: { command: [\"gtimeout\", \"30\", \"./process.sh\"] }
 ";
@@ -980,9 +994,10 @@ fn rule_006_silent_on_a_plain_for_each_command() {
     // (pins the `starts_with("timeout ")` precision · low false-positive).
     let yaml = "\
 nika: v1
-workflow: f006ok
+workflow:
+  id: f006ok
 tasks:
-  - id: shards
+  shards:
     for_each: [1, 2, 3]
     timeout: 30s
     exec: { command: [\"./process.sh\"] }
@@ -1007,14 +1022,15 @@ fn rule_007_fires_on_three_sequential_exec_shards() {
     // the head.
     let yaml = "\
 nika: v1
-workflow: f007
+workflow:
+  id: f007
 tasks:
-  - id: shard1
+  shard1:
     exec: { command: [\"./process.sh\", \"part1\"] }
-  - id: shard2
+  shard2:
     depends_on: [shard1]
     exec: { command: [\"./process.sh\", \"part2\"] }
-  - id: shard3
+  shard3:
     depends_on: [shard2]
     exec: { command: [\"./process.sh\", \"part3\"] }
 ";
@@ -1030,14 +1046,15 @@ fn rule_007_fires_on_three_sequential_invoke_shards() {
     // (in addition to the direct helper tests above).
     let yaml = "\
 nika: v1
-workflow: f007invoke
+workflow:
+  id: f007invoke
 tasks:
-  - id: page1
+  page1:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/page/1\" } }
-  - id: page2
+  page2:
     depends_on: [page1]
     invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/page/2\" } }
-  - id: page3
+  page3:
     depends_on: [page2]
     invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/page/3\" } }
 ";
@@ -1054,11 +1071,12 @@ fn rule_007_silent_on_a_two_task_chain() {
     // skips chains under 3. Asserting zero kills the `>` swap.
     let yaml = "\
 nika: v1
-workflow: f007two
+workflow:
+  id: f007two
 tasks:
-  - id: shard1
+  shard1:
     exec: { command: [\"./process.sh\", \"part1\"] }
-  - id: shard2
+  shard2:
     depends_on: [shard1]
     exec: { command: [\"./process.sh\", \"part2\"] }
 ";
@@ -1074,14 +1092,15 @@ fn rule_007_silent_on_a_genuine_pipeline() {
     // (different programs / token counts) ⇒ `is_shard_chain` false ⇒ no /007.
     let yaml = "\
 nika: v1
-workflow: f007pipe
+workflow:
+  id: f007pipe
 tasks:
-  - id: fetch
+  fetch:
     exec: { command: [\"./fetch.sh\"] }
-  - id: parse
+  parse:
     depends_on: [fetch]
     exec: { command: [\"./parse.sh\", \"--strict\", \"input.json\"] }
-  - id: report
+  report:
     depends_on: [parse]
     exec: { command: [\"./report.sh\"] }
 ";

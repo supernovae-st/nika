@@ -586,7 +586,7 @@ mod tests {
         analyze(&wf)
     }
 
-    const HEADER: &str = "nika: v1\nworkflow: t\n";
+    const HEADER: &str = "nika: v1\nworkflow:\n  id: t\n";
 
     /// The unresolved-ref reference string carried by the first finding.
     fn sole_unresolved(yaml: &str) -> String {
@@ -611,7 +611,7 @@ mod tests {
         // unreported and the workflow wrongly analyzes clean.
         let yaml = format!(
             "{HEADER}tasks:
-  - id: t
+  t:
     with: {{ payload: [\"${{{{ vars.ghost }}}}\"] }}
     exec: {{ command: [echo] }}
 "
@@ -632,7 +632,7 @@ mod tests {
         // the Object arm skips the nested string, hiding the unresolved ref.
         let yaml = format!(
             "{HEADER}tasks:
-  - id: t
+  t:
     with: {{ payload: {{ inner: \"${{{{ vars.ghost }}}}\" }} }}
     exec: {{ command: [echo] }}
 "

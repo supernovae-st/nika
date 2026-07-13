@@ -54,13 +54,14 @@ YAML file and executes a DAG of verbs:
 ```yaml
 # workflow.nika.yaml
 nika: v1
-workflow: summarize-article
+workflow:
+  id: summarize-article
 tasks:
-  - id: fetch
+  fetch:
     invoke:
       tool: "nika:fetch"        # fetch is a builtin tool, not a verb
       with: { url: "https://example.com/article", extract: article }
-  - id: summarize
+  summarize:
     with: { text: $fetch }
     infer: "Summarize in 3 bullets: {{with.text}}"
 ```

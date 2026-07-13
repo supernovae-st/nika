@@ -55,15 +55,54 @@ These 5 pillars are **locked forever** at `nika: v1`. Everything else (providers
 
 ---
 
+## Pre-1.0 stability contract
+
+> **`nika: v1` names the first stable family of the language. Its public
+> stability begins at engine 1.0.0 — not before.**
+
+Until the reference engine ships 1.0.0, the v1 grammar is **pre-stable** ·
+
+- **0.x releases may break the grammar.** Surface spellings — task shape ·
+  dependency syntax · namespace names · field names — can be rewritten
+  deeply while the binary is `0.x`. The 5 pillars above are locked as
+  **concepts**; their surface spellings are pre-stable like everything else
+  until 1.0. What would actually be unclean is freezing ambiguities now and
+  then spending years building checkers, editors and migrations to
+  compensate for them.
+- **No syntax compatibility is promised before 1.0.** No aliases · no
+  deprecation cycles · no dual forms. When a form dies it leaves the parser
+  entirely, in the same release that introduces its replacement.
+- **Every break lands as ONE atomic window** · the spec changes first → the
+  conformance oracle changes → engines re-vendor the pack → parser and
+  runtime change → the whole example/template/conformance corpus migrates →
+  LSP · MCP · editors · docs follow → the old form is gone. A release never
+  ships two worlds.
+- **Consumers pin exact spec commits** (`SPEC_PIN`) — never a moving branch.
+  Cross-repo coherence is judged by pinned re-proof, not by compatibility
+  layers.
+- **Machine contracts version independently** of the language family ·
+  `graph_format` · check `report_version` · run `plan_version` · trace ·
+  lock · receipt formats each carry their own explicit integer and evolve
+  by their own rules.
+- **The meta-principle** · when tooling effort reveals a language defect,
+  the spec changes first and the tooling teaches second. A client-side
+  workaround is never permanent.
+
+At engine 1.0.0 the grammar freezes · from then on `v1` changes are
+additive and feature-detected, exactly as the pillars section states.
+
+---
+
 ## Hello world
 
 ```yaml
 nika: v1
-workflow: hello
+workflow:
+  id: hello
 
 model: ollama/qwen3.5:4b
 tasks:
-  - id: greet
+  greet:
     infer:
       prompt: "Say hello in French"
 ```
@@ -74,25 +113,26 @@ tasks:
 
 ```yaml
 nika: v1
-workflow: scrape-and-summarize
+workflow:
+  id: scrape-and-summarize
 
 model: mistral/mistral-large
 tasks:
-  - id: fetch_page
+  fetch_page:
     invoke:
       tool: "nika:fetch"        # fetching is a TOOL, not a verb (4-verb taxonomy)
       args:
         url: "https://example.com/article"
         mode: article          # readability extraction
 
-  - id: summarize
+  summarize:
     depends_on: [fetch_page]
     with:
       content: ${{ tasks.fetch_page.output }}
     infer:
       prompt: "Summarize in 3 bullets · ${{ with.content }}"
 
-  - id: write_file
+  write_file:
     depends_on: [summarize]
     with:
       summary: ${{ tasks.summarize.output }}
@@ -145,7 +185,7 @@ See [`08-out-of-scope.md`](./08-out-of-scope.md) for the explicit list.
 
 ## Frozen language envelope
 
-The **language** envelope is frozen at `nika: v1` forever. The 5 pillars are locked at the `nika: v1` contract · minor language additions are additive only (feature-detected · no minor version in the file) · breaking changes would ship as a new contract (`nika: v2`) with its own spec, and the envelope being frozen, that is effectively never. (This is the **language** version, independent of any engine version: the reference engine ships its own semver toward a 1.0 release, which does not touch `nika: v1`.)
+The **language** envelope is frozen at `nika: v1` forever. **There is no `nika: v2` — ever.** The version marker names the one language family; deep grammar changes happen INSIDE `v1` while the reference engine is pre-1.0 (per the [pre-1.0 stability contract](#pre-10-stability-contract) above), and after engine 1.0.0 changes are additive only (feature-detected · no minor version in the file). (This is the **language** version, independent of any engine version: the reference engine ships its own semver toward a 1.0 release, which does not touch `nika: v1`.)
 
 In practice · we expect `nika: v1` to last 10+ years.
 

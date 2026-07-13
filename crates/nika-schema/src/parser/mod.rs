@@ -49,16 +49,7 @@ pub enum ParseMode {
 
 /// The canonical top-level envelope keys (spec `01-envelope.md`).
 const TOP_LEVEL_KEYS: &[&str] = &[
-    "nika",
-    "workflow",
-    "description",
-    "model",
-    "vars",
-    "env",
-    "secrets",
-    "permits",
-    "tasks",
-    "outputs",
+    "nika", "workflow", "model", "vars", "env", "secrets", "permits", "tasks", "outputs",
 ];
 
 /// Parse a YAML string into a [`RawWorkflow`].
@@ -137,6 +128,13 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
         mode,
     };
 
+    // W1 « the map » dead forms get their SPECIFIC teachings before the
+    // generic unknown-field check — structural deaths, mode-independent.
+    if let Some(node) = mapping.get_node("description") {
+        return Err(SchemaError::W1TopLevelDescription {
+            span: yaml_span_to_span(file_id, node.span(), &char_to_byte),
+        });
+    }
     cx.check_unknown_keys(mapping, TOP_LEVEL_KEYS, "the workflow envelope")?;
 
     let mut workflow = RawWorkflow::new();
@@ -144,12 +142,31 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
     if let Some(scalar) = mapping.get_scalar("nika") {
         workflow.nika = Some(parse_nika_version(&cx, scalar)?);
     }
-    if let Some(s) = extract_scalar(mapping, "workflow", file_id, &char_to_byte)? {
-        validate_workflow_id(&s)?;
-        workflow.workflow = Some(s);
-    }
-    if let Some(s) = extract_scalar(mapping, "description", file_id, &char_to_byte)? {
-        workflow.description = Some(s);
+    if let Some(node) = mapping.get_node("workflow") {
+        if let Some(scalar) = node.as_scalar() {
+            // the dead scalar form — refused with the migration teaching
+            return Err(SchemaError::W1WorkflowScalar {
+                id: scalar.as_str().to_owned(),
+                span: yaml_span_to_span(file_id, scalar.span(), &char_to_byte),
+            });
+        }
+        let Some(obj) = node.as_mapping() else {
+            return Err(SchemaError::Validation {
+                message: "`workflow` must be a mapping (`id:` + optional `description:`)"
+                    .to_owned(),
+                span: yaml_span_to_span(file_id, node.span(), &char_to_byte),
+            });
+        };
+        cx.check_unknown_keys(obj, &["id", "description"], "the `workflow:` object")?;
+        let Some(id) = extract_scalar(obj, "id", file_id, &char_to_byte)? else {
+            return Err(SchemaError::MissingField {
+                field: "workflow.id".to_owned(),
+                span: yaml_span_to_span(file_id, node.span(), &char_to_byte),
+            });
+        };
+        validate_workflow_id(&id)?;
+        workflow.workflow = Some(id);
+        workflow.description = extract_scalar(obj, "description", file_id, &char_to_byte)?;
     }
     if let Some(s) = extract_scalar(mapping, "model", file_id, &char_to_byte)? {
         workflow.model = Some(s);
@@ -593,9 +610,10 @@ mod tests {
 
     const MINIMAL: &str = "\
 nika: v1
-workflow: hello
+workflow:
+  id: hello
 tasks:
-  - id: greet
+  greet:
     infer:
       prompt: \"Say hi\"
 ";
@@ -604,7 +622,7 @@ tasks:
     fn oversized_source_is_rejected_loud() {
         // a 4 MiB+ document rejects BEFORE marked-yaml allocates the tree
         let big = format!(
-            "nika: v1\nworkflow: w\ndescription: \"{}\"\ntasks: []\n",
+            "nika: v1\nworkflow:\n  id: w\ndescription: \"{}\"\ntasks: []\n",
             "x".repeat(MAX_SOURCE_BYTES)
         );
         let err = parse_strict(&big).expect_err("rejected");
@@ -614,9 +632,9 @@ tasks:
     #[test]
     fn too_many_tasks_is_rejected_loud() {
         use std::fmt::Write as _;
-        let mut yaml = String::from("nika: v1\nworkflow: w\ntasks:\n");
+        let mut yaml = String::from("nika: v1\nworkflow:\n  id: w\ntasks:\n");
         for i in 0..=tasks::MAX_TASKS {
-            let _ = write!(yaml, "  - id: t{i}\n    exec: {{ command: [\"true\"] }}\n");
+            let _ = write!(yaml, "  t{i}:\n    exec: {{ command: [\"true\"] }}\n");
         }
         let err = parse_strict(&yaml).expect_err("rejected");
         assert!(err.to_string().contains("resource bound"), "{err}");
@@ -634,7 +652,7 @@ tasks:
             deep_block.push_str(&" ".repeat(2 * i));
             deep_block.push_str("k:\n");
         }
-        let yaml = format!("nika: v1\nworkflow: w\nx:\n{deep_block}");
+        let yaml = format!("nika: v1\nworkflow:\n  id: w\nx:\n{deep_block}");
         let err = parse_strict(&yaml).expect_err("rejected");
         assert!(
             err.to_string().contains("stack-safety bound"),
@@ -645,7 +663,7 @@ tasks:
         let depth = 140; // > MAX_VALUE_DEPTH(128) · < marked-yaml flow limit
         let inner = format!("{}1{}", "[".repeat(depth), "]".repeat(depth));
         let yaml = format!(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: {{ tool: \"nika:log\", args: {{ v: {inner} }} }}\n"
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: {{ tool: \"nika:log\", args: {{ v: {inner} }} }}\n"
         );
         let err = parse_strict(&yaml).expect_err("rejected");
         assert!(
@@ -669,8 +687,9 @@ tasks:
     fn parse_all_top_level_scalars() {
         let yaml = "\
 nika: v1
-workflow: my-workflow
-description: A demo
+workflow:
+  id: my-workflow
+  description: A demo
 model: anthropic/claude-sonnet-4-6
 ";
         let wf = parse_strict(yaml).expect("parse");
@@ -707,12 +726,13 @@ model: anthropic/claude-sonnet-4-6
 
     #[test]
     fn parse_bad_workflow_id_errors() {
-        // Spec 01 · « Must match · ^[a-z][a-z0-9-]*$ ».
+        // Spec 01 · « Must match · ^[a-z][a-z0-9-]*$ » (W1 object form —
+        // the scalar form dies earlier as NIKA-PARSE-020).
         for bad in [
-            "workflow: Bad_Id\n",
-            "workflow: 9lives\n",
-            "workflow: my_flow\n",
-            "workflow: \"\"\n",
+            "workflow:\n  id: Bad_Id\n",
+            "workflow:\n  id: 9lives\n",
+            "workflow:\n  id: my_flow\n",
+            "workflow:\n  id: \"\"\n",
         ] {
             let err = parse_strict(bad).expect_err("bad workflow id");
             assert!(
@@ -725,7 +745,7 @@ model: anthropic/claude-sonnet-4-6
     #[test]
     fn parse_good_workflow_ids() {
         for good in ["hello", "scrape-and-summarize", "a", "a1-b2"] {
-            let yaml = format!("workflow: {good}\n");
+            let yaml = format!("workflow:\n  id: {good}\n");
             let wf = parse_strict(&yaml).expect("parse");
             assert_eq!(wf.workflow.expect("workflow").value, good);
         }
@@ -736,10 +756,11 @@ model: anthropic/claude-sonnet-4-6
         // Conformance fixture envelope/005-unknown-top-level-key.
         let yaml = "\
 nika: v1
-workflow: hello
+workflow:
+  id: hello
 foo: bar
 tasks:
-  - id: greet
+  greet:
     infer:
       prompt: \"hi\"
 ";
@@ -757,7 +778,7 @@ tasks:
         // the closed vocabulary sat RIGHT THERE in the rejection call.
         // And the suggest module's own law: a wrong suggestion is worse
         // than none — `zzzqx` is nowhere near the vocabulary, so silence.
-        let near = "nika: v1\nworkflow: h\ntasks:\n  - id: g\n    infr:\n      prompt: \"hi\"\n";
+        let near = "nika: v1\nworkflow:\n  id: h\ntasks:\n  g:\n    infr:\n      prompt: \"hi\"\n";
         let err = parse_strict(near).expect_err("unknown key");
         assert!(err.to_string().contains("did you mean `infer`?"), "{err}");
         let SchemaError::UnknownField { suggestion, .. } = err else {
@@ -765,7 +786,7 @@ tasks:
         };
         assert_eq!(suggestion.as_deref(), Some("infer"));
 
-        let far = "nika: v1\nworkflow: h\ntasks:\n  - id: g\n    zzzqx:\n      prompt: \"hi\"\n";
+        let far = "nika: v1\nworkflow:\n  id: h\ntasks:\n  g:\n    zzzqx:\n      prompt: \"hi\"\n";
         let msg = parse_strict(far).expect_err("unknown key").to_string();
         assert!(!msg.contains("did you mean"), "{msg}");
     }
@@ -774,10 +795,11 @@ tasks:
     fn lenient_ignores_unknown_top_level_key() {
         let yaml = "\
 nika: v1
-workflow: hello
+workflow:
+  id: hello
 foo: bar
 tasks:
-  - id: greet
+  greet:
     infer:
       prompt: \"hi\"
 ";
@@ -788,7 +810,8 @@ tasks:
     #[test]
     fn duplicate_top_level_keys_error() {
         // YAML 1.2 · duplicate keys never silently last-win.
-        let err = parse_strict("workflow: first\nworkflow: second\n").expect_err("dup");
+        let err =
+            parse_strict("workflow:\n  id: first\nworkflow:\n  id: second\n").expect_err("dup");
         assert!(matches!(err, SchemaError::DuplicateKey { .. }), "{err:?}");
     }
 
@@ -827,7 +850,7 @@ tasks:
     #[test]
     fn bare_modeline_parse_failure_names_the_cause() {
         let yaml = "$schema=https://nika.sh/schema/v1/workflow.schema.json\n\
-                    nika: v1\nworkflow: hello\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n";
+                    nika: v1\nworkflow:\n  id: hello\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n";
         let err = parse_strict(yaml).expect_err("bare modeline breaks the doc");
         let SchemaError::YamlSyntax { message, span } = err else {
             panic!("expected YamlSyntax, got {err:?}");
@@ -850,7 +873,7 @@ tasks:
     fn bare_language_server_line_is_the_same_class() {
         let yaml = "# SPDX-License-Identifier: Apache-2.0\n\
                     yaml-language-server: $schema=https://nika.sh/x.json\n\
-                    nika: v1\nworkflow: hello\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n";
+                    nika: v1\nworkflow:\n  id: hello\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n";
         let err = parse_strict(yaml).expect_err("unknown top-level field in strict");
         let SchemaError::UnknownField {
             field, suggestion, ..
@@ -870,7 +893,7 @@ tasks:
     fn commented_modeline_never_fires_the_lint() {
         // The HEALTHY form — parse succeeds, the lint is never consulted.
         let yaml = "# yaml-language-server: $schema=https://nika.sh/x.json\n\
-                    nika: v1\nworkflow: hello\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n";
+                    nika: v1\nworkflow:\n  id: hello\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n";
         parse_strict(yaml).expect("commented modeline is valid YAML");
     }
 
@@ -888,7 +911,7 @@ tasks:
 
     #[test]
     fn parse_file_id_propagates_into_span() {
-        let wf = parse("workflow: x\n", FileId::new(42), ParseMode::Strict).expect("parse");
+        let wf = parse("workflow:\n  id: x\n", FileId::new(42), ParseMode::Strict).expect("parse");
         assert_eq!(wf.workflow.expect("workflow").span.file, FileId::new(42));
     }
 
@@ -911,11 +934,12 @@ tasks:
     #[test]
     fn parse_non_ascii_value_span_starts_at_correct_byte() {
         // Regression lock for the char-index → byte-offset fix.
-        let yaml = "desc_\u{00e9}: skip\nworkflow: hit\n";
+        let yaml = "desc_\u{00e9}: skip\nworkflow:\n  id: hit\n";
         let wf = parse(yaml, fid(), ParseMode::Lenient).expect("parse");
         let spanned = wf.workflow.expect("workflow present");
         let line1_bytes = "desc_\u{00e9}: skip\n".len();
-        let expected_start = u32::try_from(line1_bytes + 10).expect("fits"); // "workflow: "
+        // "workflow:\n" (10 bytes) then "  id: " (6 bytes) precede the value
+        let expected_start = u32::try_from(line1_bytes + 16).expect("fits");
         assert_eq!(
             spanned.span.start,
             ByteOffset::new(expected_start),
@@ -1008,7 +1032,7 @@ tasks:
         assert_eq!(super::compact_dash_run("-"), 1); // dash at EOL is a level
         assert_eq!(super::compact_dash_run(""), 0);
         // A normal short workflow list never trips it.
-        check_source_bounds("tasks:\n  - id: a\n  - id: b\n").expect("a real 2-item list is fine");
+        check_source_bounds("tasks:\n  a:\n  b:\n").expect("a real 2-item list is fine");
     }
 
     #[test]
@@ -1064,7 +1088,7 @@ tasks:
         // cap. Guards against a guard that rejects everything (a constant
         // that collapsed to 0 via arithmetic mutation would fail here).
         check_source_bounds("").expect("empty source passes");
-        check_source_bounds("nika: v1\nworkflow: w\n").expect("a normal file passes");
+        check_source_bounds("nika: v1\nworkflow:\n  id: w\n").expect("a normal file passes");
         check_source_bounds(&format!("{}k: v", " ".repeat(MAX_INDENT_BYTES - 1)))
             .expect("just under the indent cap passes");
     }

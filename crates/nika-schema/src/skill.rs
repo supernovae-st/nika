@@ -403,12 +403,13 @@ mod tests {
         // duplicated bad reference gets a row PER TASK without re-reads.
         let yaml = "\
 nika: v1
-workflow: w
+workflow:
+  id: w
 model: mock/echo
 tasks:
-  - id: a
+  a:
     agent: { prompt: \"hi\", skills: [\"good/SKILL.md\", \"ghost/SKILL.md\"] }
-  - id: b
+  b:
     agent: { prompt: \"hi\", skills: [\"bad/SKILL.md\", \"ghost/SKILL.md\"] }
 ";
         let wf = crate::parse(yaml, crate::FileId::new(0), crate::ParseMode::Strict)
@@ -468,7 +469,7 @@ tasks:
     #[test]
     fn resolve_skills_is_empty_for_a_skill_less_workflow() {
         let wf = crate::parse(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
             crate::FileId::new(0),
             crate::ParseMode::Strict,
         )
@@ -481,13 +482,14 @@ tasks:
     fn skill_refs_walks_main_and_finally_actions() {
         let yaml = "\
 nika: v1
-workflow: w
+workflow:
+  id: w
 tasks:
-  - id: a
+  a:
     agent:
       prompt: \"go\"
       skills: [\"s1/SKILL.md\", \"s2/SKILL.md\"]
-  - id: b
+  b:
     exec: { command: [\"echo\", \"hi\"] }
     on_finally:
       - agent:

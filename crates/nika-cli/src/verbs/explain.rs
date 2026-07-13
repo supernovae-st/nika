@@ -135,7 +135,7 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
         ),
         "NIKA-PARSE-019" => Some(
             "the field's YAML SHAPE is wrong (a string where a list goes, a \
-             list where a map goes) — `tasks:` is a LIST of `- id:` entries, \
+             list where a map goes) — `tasks:` is a MAP keyed by task id, \
              and the finding names the field whose shape to fix",
         ),
         "NIKA-VAR-006" => Some(

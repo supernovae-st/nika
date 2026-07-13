@@ -357,7 +357,7 @@ mod tests {
     /// protocols: this pin is the MCP leg of the LSP's parity law).
     #[test]
     fn inspect_serves_the_canonical_projection_verbatim() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n";
         let out = inspect(&serde_json::json!({ "workflow": yaml })).expect("clean");
         let got: Value = serde_json::from_str(&out).expect("json");
         let wf = nika_schema::parse(
@@ -376,7 +376,7 @@ mod tests {
     /// MCP leg) — never a projection of an unproven DAG.
     #[test]
     fn inspect_refuses_findings_with_a_reason() {
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    depends_on: [b]\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n";
         let out = inspect(&serde_json::json!({ "workflow": yaml })).expect("answers");
         let got: Value = serde_json::from_str(&out).expect("json");
         assert_eq!(got["graph"], Value::Null);
@@ -388,7 +388,7 @@ mod tests {
     /// the same payload keys the CLI --json lane carries.
     #[test]
     fn check_reds_a_bare_model_id_with_the_shared_rung() {
-        let yaml = "nika: v1\nworkflow: m\ntasks:\n  - id: think\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n";
         let err = check(&serde_json::json!({ "workflow": yaml })).expect_err("dirty");
         assert!(err.contains("\"models_resolve\": false"), "{err}");
         assert!(
@@ -399,7 +399,7 @@ mod tests {
 
     #[test]
     fn check_reds_a_cataloged_but_unresolvable_provider() {
-        let yaml = "nika: v1\nworkflow: m\ntasks:\n  - id: think\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n";
         let err = check(&serde_json::json!({ "workflow": yaml })).expect_err("dirty");
         assert!(
             err.contains("`azure` does not resolve") || err.contains("provider `azure`"),
@@ -409,7 +409,7 @@ mod tests {
 
     #[test]
     fn check_stays_clean_when_every_model_resolves() {
-        let yaml = "nika: v1\nworkflow: m\ntasks:\n  - id: think\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
         let ok = check(&serde_json::json!({ "workflow": yaml })).expect("clean");
         assert!(ok.contains("clean"), "{ok}");
     }
@@ -464,8 +464,7 @@ mod tests {
 
     #[test]
     fn check_a_clean_workflow_is_ok() {
-        let wf =
-            "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let wf = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let out = execute("nika_check", &json!({ "workflow": wf })).expect("ran");
         assert!(out.contains("clean"), "{out}");
     }
@@ -476,7 +475,7 @@ mod tests {
         // Dirty is an `Err` (→ isError:true) so a wired agent's repair
         // loop triggers, mirroring the CLI's exit-2-on-dirty; the full
         // report still rides the text so the model repairs from it.
-        let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
+        let wf = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
         let err = execute("nika_check", &json!({ "workflow": wf })).expect_err("dirty is an error");
         assert!(err.contains("findings") && err.contains("NIKA-"), "{err}");
     }
@@ -493,7 +492,7 @@ mod tests {
         // it lands in `schema_lints`, NOT `conformance`. The old code rendered
         // only `conformance` → an empty "✖ findings" body for this whole class
         // (the P1). The full-report render must surface it.
-        let wf = "nika: v1\nworkflow: t\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: x\n      max_tokens: 10\n      schema: { type: object, properties: { a: { type: string } }, required: [b] }\n";
+        let wf = "nika: v1\nworkflow:\n  id: t\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: x\n      max_tokens: 10\n      schema: { type: object, properties: { a: { type: string } }, required: [b] }\n";
         let out = execute("nika_check", &json!({ "workflow": wf })).expect_err("dirty is an error");
         assert!(out.contains("findings"), "flags not-clean: {out}");
         assert!(

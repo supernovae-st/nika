@@ -82,7 +82,7 @@ async fn wave_settles_stream_before_the_join() {
     use nika_providers::{ProviderRegistry, ProvidersConfig};
     use std::sync::atomic::AtomicBool;
 
-    let yaml = "nika: v1\nworkflow: stream-settle\ntasks:\n  - id: fast\n    exec: { command: [\"true\"] }\n  - id: gate\n    invoke: { tool: \"nika:jq\", args: { input: [], expression: \".gate\" } }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: stream-settle\ntasks:\n  fast:\n    exec: { command: [\"true\"] }\n  gate:\n    invoke: { tool: \"nika:jq\", args: { input: [], expression: \".gate\" } }\n";
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -155,7 +155,8 @@ fn envelope_values_carries_typed_defaults_and_containers() {
     // value model must carry them (for_each collections · spec 03).
     let yaml = r#"
 nika: v1
-workflow: vals
+workflow:
+  id: vals
 env:
   API_BASE: "https://api.example.test"
 vars:
@@ -163,7 +164,7 @@ vars:
   urls: ["a", "b"]
   topic: { type: string, default: "news" }
 tasks:
-  - id: t
+  t:
     exec: { command: ["true"] }
 "#;
     let wf = nika_schema::parse(
@@ -189,9 +190,10 @@ fn typed_output_type_mismatch_is_a_var009() {
     // the callable contract is broken (spec 01 §engine-MUST rule 6).
     let yaml = r#"
 nika: v1
-workflow: typed-out
+workflow:
+  id: typed-out
 tasks:
-  - id: t
+  t:
     invoke: { tool: "nika:jq", args: { input: { x: 42 }, expression: ".x" } }
 outputs:
   n:
@@ -517,17 +519,18 @@ mod recover_await {
     async fn same_wave_noedge_recover_awaits_the_referent() {
         let yaml = r#"
 nika: v1
-workflow: recover-await-same-wave
+workflow:
+  id: recover-await-same-wave
 tasks:
-  - id: risky
+  risky:
     exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.source.output }}
     output:
       v: "."
-  - id: source
+  source:
     exec: { command: ["echo", "99"] }
-  - id: sink
+  sink:
     depends_on: [risky]
     exec: { command: ["use", "${{ tasks.risky.output }}"] }
 "#;
@@ -578,19 +581,20 @@ tasks:
     async fn later_wave_referent_resolves_transitively_on_the_spine() {
         let yaml = r#"
 nika: v1
-workflow: recover-await-chain
+workflow:
+  id: recover-await-chain
 tasks:
-  - id: a
+  a:
     exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.b.output }}
-  - id: b
+  b:
     exec: { shell: "exit 2" }
     on_error:
       recover: ${{ tasks.c.output }}
-  - id: base
+  base:
     exec: { command: ["echo", "base"] }
-  - id: c
+  c:
     depends_on: [base]
     exec: { command: ["echo", "42"] }
 "#;
@@ -623,15 +627,16 @@ tasks:
     async fn skipped_referent_resolves_to_defined_null() {
         let yaml = r#"
 nika: v1
-workflow: recover-await-skipped
+workflow:
+  id: recover-await-skipped
 tasks:
-  - id: risky
+  risky:
     exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.source.output }}
-  - id: base
+  base:
     exec: { command: ["echo", "base"] }
-  - id: source
+  source:
     depends_on: [base]
     when: false
     exec: { command: ["echo", "never"] }
@@ -659,13 +664,14 @@ tasks:
     async fn mutual_recovery_resolves_at_workflow_end_against_failed_records() {
         let yaml = r#"
 nika: v1
-workflow: recover-await-mutual
+workflow:
+  id: recover-await-mutual
 tasks:
-  - id: a
+  a:
     exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.b.status }}
-  - id: b
+  b:
     exec: { shell: "exit 2" }
     on_error:
       recover: ${{ tasks.a.status }}
@@ -699,11 +705,12 @@ tasks:
     async fn broken_path_into_a_terminal_referent_still_fails_fast() {
         let yaml = r#"
 nika: v1
-workflow: recover-terminal-broken-path
+workflow:
+  id: recover-terminal-broken-path
 tasks:
-  - id: done
+  done:
     exec: { command: ["echo", "ok"] }
-  - id: risky
+  risky:
     depends_on: [done]
     exec: { shell: "exit 1" }
     on_error:
@@ -737,7 +744,7 @@ tasks:
     #[test]
     fn undeclared_awaited_root_fails_fast_at_the_park_site() {
         let yaml =
-            "nika: v1\nworkflow: t\ntasks:\n  - id: risky\n    exec: { shell: \"exit 1\" }\n";
+            "nika: v1\nworkflow:\n  id: t\ntasks:\n  risky:\n    exec: { shell: \"exit 1\" }\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),
@@ -827,14 +834,15 @@ tasks:
     async fn fan_out_iteration_recover_keeps_todays_fail_fast() {
         let yaml = r#"
 nika: v1
-workflow: recover-fanout-boundary
+workflow:
+  id: recover-fanout-boundary
 tasks:
-  - id: fan
+  fan:
     for_each: ["x"]
     exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.source.output }}
-  - id: source
+  source:
     exec: { command: ["echo", "9"] }
 "#;
         let shell = MockShell::new().enqueue_fail(1, "boom").enqueue_ok("9\n");
@@ -896,7 +904,7 @@ mod skill_compose_tests {
 
     fn wf_with_skill() -> nika_schema::raw::RawWorkflow {
         nika_schema::parse(
-            "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: go\n    agent:\n      system: \"Base system.\"\n      prompt: \"hello\"\n      skills: [\"skills/reviewer/SKILL.md\"]\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  go:\n    agent:\n      system: \"Base system.\"\n      prompt: \"hello\"\n      skills: [\"skills/reviewer/SKILL.md\"]\n",
             nika_schema::FileId::new(0),
             nika_schema::ParseMode::Strict,
         )

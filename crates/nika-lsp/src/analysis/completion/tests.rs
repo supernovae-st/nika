@@ -39,7 +39,7 @@ fn flow_map_close_line_suppresses_task_fields() {
     // `}` (a flow-map close). `is_task_field_key`'s guard reads the WHOLE
     // current line via `current_line`; if that returns "" / "xyzzy" /
     // a shifted slice, the `}` is missed and fields are wrongly offered.
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    } x";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    } x";
     let cursor = text.rfind('}').expect("brace"); // caret at the indent
     let items = completion(text, cursor);
     assert!(
@@ -49,7 +49,7 @@ fn flow_map_close_line_suppresses_task_fields() {
     );
     // CONTRAST: a normal indented ident fragment DOES offer fields — so
     // the suppression above is the `}` guard, not a blanket empty.
-    let normal = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    de";
+    let normal = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    de";
     assert!(
         !completion(normal, normal.len()).is_empty(),
         "a normal field fragment still completes"
@@ -62,7 +62,7 @@ fn flow_map_close_line_suppresses_task_fields() {
 /// the trigger free inside prompt blocks and plain text.
 #[test]
 fn a_space_in_running_prose_offers_nothing() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer:\n      prompt: |\n        Summarize the following ";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer:\n      prompt: |\n        Summarize the following ";
     assert!(completion(text, text.len()).is_empty());
 }
 
@@ -71,7 +71,7 @@ fn a_space_in_running_prose_offers_nothing() {
 /// the catalog appears here with zero LSP edits).
 #[test]
 fn tool_value_offers_exactly_the_builtin_set() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    invoke:\n      tool: ";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke:\n      tool: ";
     let items = completion(text, text.len());
     assert_eq!(items.len(), nika_catalog::all_builtins().len());
     let got = labels(&items);
@@ -108,11 +108,11 @@ fn provider_slash_offers_that_providers_models() {
 /// Closed-enum fields offer exactly the spec's vocabulary.
 #[test]
 fn enum_fields_offer_exactly_the_closed_sets() {
-    let text = "nika: v1\ntasks:\n  - id: a\n    exec:\n      command: [\"x\"]\n      capture: ";
+    let text = "nika: v1\ntasks:\n  a:\n    exec:\n      command: [\"x\"]\n      capture: ";
     let labels_ = labels(&completion(text, text.len()));
     assert_eq!(labels_, vec!["text".to_owned(), "structured".to_owned()]);
 
-    let text2 = "nika: v1\ntasks:\n  - id: a\n    retry:\n      backoff_strategy: ";
+    let text2 = "nika: v1\ntasks:\n  a:\n    retry:\n      backoff_strategy: ";
     let l2 = labels(&completion(text2, text2.len()));
     assert_eq!(
         l2,
@@ -147,7 +147,7 @@ fn enum_fields_offer_exactly_the_closed_sets() {
 
 #[test]
 fn model_value_offers_exactly_the_provider_set() {
-    let text = "nika: v1\nworkflow: w\nmodel: ";
+    let text = "nika: v1\nworkflow:\n  id: w\nmodel: ";
     let items = completion(text, text.len());
     // EXACT label set: every provider with a trailing `/`, in canon
     // (local-first) order — not the keyword/field/task sets.
@@ -229,7 +229,7 @@ fn model_value_after_a_space_separated_token_offers_nothing() {
 fn depends_on_offers_exactly_the_task_ids() {
     // The partially-typed `depends_on: [` does not parse → the scan path
     // yields the ids with detail "task" and VARIABLE kind. EXACT set.
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: extract\n    exec: { command: [\"x\"] }\n  - id: save\n    depends_on: [";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    depends_on: [";
     let items = completion(text, text.len());
     assert_eq!(
         labels(&items),
@@ -255,7 +255,7 @@ fn depends_on_in_a_parseable_doc_uses_the_verb_detail() {
     // parse path wins, so each id carries its verb in the detail
     // (`task (exec)`) — the `!wf.tasks.is_empty()` guard + the label/
     // kind/detail fields of the parse-path CompletionItem.
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: extract\n    exec: { command: [\"x\"] }\n  - id: save\n    depends_on: [extract]\n    exec: { command: [\"y\"] }\n";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    depends_on: [extract]\n    exec: { command: [\"y\"] }\n";
     let cursor = text
         .find("depends_on: [")
         .map(|p| p + "depends_on: [".len())
@@ -284,7 +284,7 @@ fn closed_depends_on_after_the_bracket_does_not_offer_task_ids() {
     // The `[` is BALANCED by `]` — the cursor sits after a fully closed
     // depends_on. `in_open_depends_on` must be FALSE (counts equal, not
     // `>=`), so no task-id completion fires here.
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: extract\n    exec: { command: [\"x\"] }\n  - id: save\n    depends_on: [extract] ";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    depends_on: [extract] ";
     let items = completion(text, text.len());
     assert!(
         !labels(&items).iter().any(|l| l == "extract" || l == "save"),
@@ -297,7 +297,7 @@ fn closed_depends_on_after_the_bracket_does_not_offer_task_ids() {
 fn depends_on_offers_task_ids_across_lines() {
     // a multi-line flow list: the cursor is on a continuation line, the
     // `depends_on:` key + unclosed `[` are on PREVIOUS lines.
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: extract\n    exec: { command: [\"x\"] }\n  - id: save\n    depends_on: [\n      extract,\n      ";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    depends_on: [\n      extract,\n      ";
     let items = completion(text, text.len());
     let labels = labels(&items);
     assert!(labels.contains(&"extract".to_owned()), "{labels:?}");
@@ -322,7 +322,7 @@ fn model_key_without_space_offers_envelope_keys_not_providers() {
 
 #[test]
 fn template_tasks_dot_offers_task_ids() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: extract\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  - id: use\n    depends_on: [extract]\n    exec: { command: \"echo ${{ tasks.";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  use:\n    depends_on: [extract]\n    exec: { command: \"echo ${{ tasks.";
     let items = completion(text, text.len());
     assert_eq!(
         labels(&items),
@@ -344,7 +344,7 @@ fn template_island_without_tasks_dot_offers_nothing() {
     // AND `ends_with("tasks.")` — flipping the `&&` to `||` would fire on
     // any open island.
     let text =
-        "nika: v1\nworkflow: w\ntasks:\n  - id: extract\n    exec: { command: \"echo ${{ vars.";
+        "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: \"echo ${{ vars.";
     let items = completion(text, text.len());
     assert!(
         !labels(&items).iter().any(|l| l == "extract"),
@@ -403,7 +403,7 @@ fn top_level_after_a_colon_offers_no_keys() {
     // Once the line has a `:` it is a VALUE position, not a key position.
     // `is_top_level_key`'s `!typed.contains(':')` must hold. The `==` in
     // the char predicate (`c == '_'`) and the `&&` both matter here.
-    let text = "nika: v1\nworkflow: w";
+    let text = "nika: v1\nmodel: o";
     let items = completion(text, text.len());
     assert!(
         !labels(&items).contains(&"workflow".to_owned()),
@@ -417,7 +417,7 @@ fn task_field_offers_exactly_the_fields_and_verbs() {
     // indented key position inside a task: the 12 task fields followed by
     // the 4 verbs, in that order. EXACT set + kinds (fields PROPERTY,
     // verbs KEYWORD).
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    de";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    de";
     let items = completion(text, text.len());
     assert_eq!(
         labels(&items),
@@ -475,12 +475,12 @@ fn task_field_inside_a_flow_map_value_offers_nothing() {
     // and contains a `:` is NOT a field position. `is_task_field_key`
     // requires `!body.contains(':')`; the closing-`}` guard and the
     // ident predicate also gate it.
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command";
     let items = completion(text, text.len());
     // `command` has no colon yet, BUT the line started a flow map — it is
     // still a bare ident fragment, so fields ARE offered here. Assert the
     // CONVERSE boundary: once a `:` appears, nothing fires.
-    let after_colon = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: x";
+    let after_colon = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: x";
     let none = completion(after_colon, after_colon.len());
     assert!(
         none.is_empty(),
@@ -496,7 +496,7 @@ fn task_field_fragment_with_underscore_still_completes() {
     // The field fragment `for_` contains an underscore. `is_task_field_
     // key`'s char predicate `c == '_' || alnum` must accept it (flipping
     // `==` to `!=` would reject the `_` and suppress field completion).
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    for_";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    for_";
     let items = completion(text, text.len());
     assert!(
         labels(&items).contains(&"for_each".to_owned()),
@@ -514,7 +514,7 @@ fn task_field_fragment_with_underscore_still_completes() {
 /// the bare `tasks.` island stays task-id territory (checked first).
 #[test]
 fn expression_post_dot_completes_cel_methods() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"x\" }\n  - id: b\n    depends_on: [a]\n    when: ${{ tasks.a.output.";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n  b:\n    depends_on: [a]\n    when: ${{ tasks.a.output.";
     let items = completion(text, text.len());
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(
@@ -530,7 +530,7 @@ fn expression_post_dot_completes_cel_methods() {
 
     // Bare `tasks.` still resolves to task IDS, never methods —
     // and only the DECLARED edges (DAG-003): b waits on a, so a.
-    let bare = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"x\" }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.";
+    let bare = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n  b:\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.";
     let ids: Vec<String> = completion(bare, bare.len())
         .into_iter()
         .map(|i| i.label)
@@ -546,7 +546,7 @@ fn expression_post_dot_completes_cel_methods() {
 /// task (its own law test below covers the gate both ways).
 #[test]
 fn expression_start_completes_roots_and_free_functions() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"${{ ";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer: { prompt: \"${{ ";
     let labels: Vec<String> = completion(text, text.len())
         .into_iter()
         .map(|i| i.label)
@@ -561,7 +561,7 @@ fn expression_start_completes_roots_and_free_functions() {
 
     // A closed island offers nothing from the expression vocab.
     let closed =
-        "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer: { prompt: \"${{ vars.x }} and ";
+        "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer: { prompt: \"${{ vars.x }} and ";
     let after: Vec<String> = completion(closed, closed.len())
         .into_iter()
         .map(|i| i.label)
@@ -602,7 +602,7 @@ fn scan_task_ids_reads_underscored_ids_in_full() {
     // The scan-path take_while keeps `_` and alnum. An id with an
     // underscore (`my_task`) must be read in FULL (flipping the `==` in
     // the take_while predicate would stop at the `_`, truncating to `my`).
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: my_task\n    exec: { command: [\"x\"] }\n  - id: b\n    depends_on: [";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  my_task:\n    exec: { command: [\"x\"] }\n  b:\n    depends_on: [";
     let items = completion(text, text.len());
     assert_eq!(
         labels(&items),
@@ -617,7 +617,7 @@ fn list_marker_id_is_a_task_field_position() {
     // The `- ` list marker introducing a task is a field position: after
     // stripping `- `, the body is a bare ident fragment. (`is_task_field_
     // key` strips the `- ` marker.)
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - i";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  - i";
     let items = completion(text, text.len());
     assert!(
         labels(&items).contains(&"id".to_owned()),
@@ -629,7 +629,7 @@ fn list_marker_id_is_a_task_field_position() {
 #[test]
 fn inside_a_value_offers_nothing() {
     // cursor inside a quoted prompt value — no trigger context
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"echo ";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: \"echo ";
     let items = completion(text, text.len());
     // not a model/ref/key position → empty (the `command` line has a `:`
     // and an open value)
@@ -646,7 +646,7 @@ fn scan_task_ids_dedups_and_reads_in_order() {
     // (`!id.is_empty() && !ids.contains(&id)` — the `&&` and the `==` in
     // the take_while predicate both matter.) A duplicate id must appear
     // ONCE; the order is source order.
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: first\n    exec: { command: [\"x\"] }\n  - id: second\n    exec: { command: [\"y\"] }\n  - id: first\n    exec: { command: [\"z\"] }\n  - id: editor\n    depends_on: [";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  first:\n    exec: { command: [\"x\"] }\n  second:\n    exec: { command: [\"y\"] }\n  first:\n    exec: { command: [\"z\"] }\n  editor:\n    depends_on: [";
     let items = completion(text, text.len());
     assert_eq!(
         labels(&items),
@@ -677,7 +677,7 @@ fn completion_is_total_over_a_mid_char_offset() {
 /// required ones sorted first and marked.
 #[test]
 fn fetch_args_offer_the_catalog_arg_keys() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: get\n    invoke:\n      tool: nika:fetch\n      args:\n        ";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  get:\n    invoke:\n      tool: nika:fetch\n      args:\n        ";
     let items = completion(text, text.len());
     let fetch = nika_catalog::all_builtins()
         .iter()
@@ -706,7 +706,7 @@ fn fetch_args_offer_the_catalog_arg_keys() {
 /// keys leak under an MCP tool.
 #[test]
 fn mcp_tool_args_do_not_leak_fetch_keys() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: gh\n    invoke:\n      tool: github.search\n      args:\n        ";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  gh:\n    invoke:\n      tool: github.search\n      args:\n        ";
     let labels = labels(&completion(text, text.len()));
     assert!(
         !labels.contains(&"url:".to_owned()),
@@ -719,14 +719,14 @@ fn mcp_tool_args_do_not_leak_fetch_keys() {
 /// with zero LSP edits). Under any other tool the lane stays silent.
 #[test]
 fn fetch_mode_offers_the_stdlib_extract_vocabulary() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: get\n    invoke:\n      tool: nika:fetch\n      args:\n        mode: ";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  get:\n    invoke:\n      tool: nika:fetch\n      args:\n        mode: ";
     let items = completion(text, text.len());
     assert_eq!(items.len(), nika_types::ExtractMode::ALL.len());
     let labels = labels(&items);
     assert_eq!(labels[0], "markdown", "canon order — the default first");
     assert!(labels.contains(&"jq".to_owned()), "{labels:?}");
 
-    let other = "nika: v1\nworkflow: w\ntasks:\n  - id: x\n    invoke:\n      tool: github.search\n      args:\n        mode: ";
+    let other = "nika: v1\nworkflow:\n  id: w\ntasks:\n  x:\n    invoke:\n      tool: github.search\n      args:\n        mode: ";
     assert!(
         labels_of(other).iter().all(|l| l != "jq"),
         "another tool's `mode:` is not the extract vocabulary"
@@ -740,7 +740,7 @@ fn fetch_mode_offers_the_stdlib_extract_vocabulary() {
 /// block scan — names still arrive, detail goes generic.
 #[test]
 fn island_vars_offer_the_declared_names() {
-    let text = "nika: v1\nworkflow: w\nvars:\n  city:\n    type: string\n    required: true\n    description: target city\n  out_dir: \"./out\"\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"${{ vars.city }}\"] }\n";
+    let text = "nika: v1\nworkflow:\n  id: w\nvars:\n  city:\n    type: string\n    required: true\n    description: target city\n  out_dir: \"./out\"\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ vars.city }}\"] }\n";
     let cursor = text.find("${{ vars.").expect("island") + "${{ vars.".len();
     let items = completion(text, cursor);
     let got = labels(&items);
@@ -757,7 +757,7 @@ fn island_vars_offer_the_declared_names() {
 
     // mid-keystroke fallback: unterminated island · parse fails · the
     // block scan still teaches the NAMES
-    let typing = "nika: v1\nworkflow: w\nvars:\n  city:\n    type: string\n  out_dir: \"./out\"\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ vars.";
+    let typing = "nika: v1\nworkflow:\n  id: w\nvars:\n  city:\n    type: string\n  out_dir: \"./out\"\ntasks:\n  a:\n    exec: { command: \"echo ${{ vars.";
     let fallback = labels(&completion(typing, typing.len()));
     assert_eq!(fallback, vec!["city", "out_dir"], "{fallback:?}");
 }
@@ -765,11 +765,11 @@ fn island_vars_offer_the_declared_names() {
 /// `${{ secrets.` / `${{ env.` offer the file's own declared names.
 #[test]
 fn island_secrets_and_env_offer_declared_names() {
-    let text = "nika: v1\nworkflow: w\nenv:\n  REGION: eu-west-1\nsecrets:\n  api_key:\n    source: env\n    key: MY_KEY\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ secrets.";
+    let text = "nika: v1\nworkflow:\n  id: w\nenv:\n  REGION: eu-west-1\nsecrets:\n  api_key:\n    source: env\n    key: MY_KEY\ntasks:\n  a:\n    exec: { command: \"echo ${{ secrets.";
     let labels_s = labels(&completion(text, text.len()));
     assert_eq!(labels_s, vec!["api_key"], "{labels_s:?}");
 
-    let text2 = "nika: v1\nworkflow: w\nenv:\n  REGION: eu-west-1\ntasks:\n  - id: a\n    exec: { command: \"echo ${{ env.";
+    let text2 = "nika: v1\nworkflow:\n  id: w\nenv:\n  REGION: eu-west-1\ntasks:\n  a:\n    exec: { command: \"echo ${{ env.";
     let labels_e = labels(&completion(text2, text2.len()));
     assert_eq!(labels_e, vec!["REGION"], "{labels_e:?}");
 }
@@ -780,7 +780,7 @@ fn island_secrets_and_env_offer_declared_names() {
 /// diamond a → {b, c} → d, task `b`'s island offers exactly `a`.
 #[test]
 fn island_tasks_offer_only_the_declared_edges() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"echo\", \"${{ tasks.a.output }}\"] }\n  - id: c\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  - id: d\n    depends_on: [b, c]\n    exec: { command: [\"x\"] }\n";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"echo\", \"${{ tasks.a.output }}\"] }\n  c:\n    depends_on: [a]\n    exec: { command: [\"x\"] }\n  d:\n    depends_on: [b, c]\n    exec: { command: [\"x\"] }\n";
     // cursor mid-island inside task b (document parses whole)
     let cursor = text.find("${{ tasks.").expect("island") + "${{ tasks.".len();
     let got = labels(&completion(text, cursor));
@@ -801,7 +801,7 @@ fn island_tasks_offer_only_the_declared_edges() {
 /// its downstream closure — the deadlock set.
 #[test]
 fn recover_island_offers_the_dag004_legal_set() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: cached\n    exec: { command: [\"echo\", \"fallback\"] }\n  - id: live\n    exec:\n      command: [\"false\"]\n    on_error:\n      recover: \"${{ tasks.cached.output }}\"\n  - id: after\n    depends_on: [live]\n    exec: { command: [\"x\"] }\n";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  cached:\n    exec: { command: [\"echo\", \"fallback\"] }\n  live:\n    exec:\n      command: [\"false\"]\n    on_error:\n      recover: \"${{ tasks.cached.output }}\"\n  after:\n    depends_on: [live]\n    exec: { command: [\"x\"] }\n";
     let cursor = text.find("${{ tasks.").expect("island") + "${{ tasks.".len();
     let got = labels(&completion(text, cursor));
     assert_eq!(
@@ -815,7 +815,7 @@ fn recover_island_offers_the_dag004_legal_set() {
 /// task is legal there (probed green at the binary).
 #[test]
 fn outputs_island_offers_every_task() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"y\"] }\noutputs:\n  first: \"${{ tasks.";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"y\"] }\noutputs:\n  first: \"${{ tasks.";
     let got = labels(&completion(text, text.len()));
     assert_eq!(got, vec!["a", "b"], "outside a task, all ids: {got:?}");
 }
@@ -828,16 +828,14 @@ fn labels_of(text: &str) -> Vec<String> {
 
 #[test]
 fn agent_tools_list_speaks_the_catalog() {
-    let text =
-        "nika: v1\ntasks:\n  - id: judge\n    agent:\n      prompt: \"rule\"\n      tools: [\"";
+    let text = "nika: v1\ntasks:\n  judge:\n    agent:\n      prompt: \"rule\"\n      tools: [\"";
     let got = labels(&completion(text, text.len()));
     assert!(
         got.iter().any(|l| l == "nika:fetch"),
         "the whitelist position offers the catalog: {got:?}"
     );
     // a CLOSED list is not a completion position
-    let closed =
-        "nika: v1\ntasks:\n  - id: judge\n    agent:\n      tools: [\"nika:fetch\"]\n      ";
+    let closed = "nika: v1\ntasks:\n  judge:\n    agent:\n      tools: [\"nika:fetch\"]\n      ";
     let after = labels(&completion(closed, closed.len()));
     assert!(
         !after.iter().any(|l| l == "nika:fetch"),
@@ -850,8 +848,7 @@ fn an_abandoned_open_bracket_upstream_captures_nothing() {
     // A `tools: ["` left unclosed must not leak the catalog into every
     // later position — the scope dies at the first line back at (or
     // above) the key's indent.
-    let text =
-        "nika: v1\ntasks:\n  - id: judge\n    agent:\n      tools: [\"\n      schema:\n        ";
+    let text = "nika: v1\ntasks:\n  judge:\n    agent:\n      tools: [\"\n      schema:\n        ";
     let got = labels(&completion(text, text.len()));
     assert!(
         !got.iter().any(|l| l.starts_with("nika:")),
@@ -861,7 +858,7 @@ fn an_abandoned_open_bracket_upstream_captures_nothing() {
 
 #[test]
 fn task_member_island_teaches_the_three_facts_and_the_bindings() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: gather\n    exec:\n      command: [\"ls\"]\n    output:\n      first_line: \".stdout\"\n  - id: use\n    depends_on: [gather]\n    when: ${{ tasks.gather.";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n    output:\n      first_line: \".stdout\"\n  use:\n    depends_on: [gather]\n    when: ${{ tasks.gather.";
     let got = labels(&completion(text, text.len()));
     assert!(
         got.contains(&"output".to_owned())
@@ -886,7 +883,8 @@ fn task_member_island_teaches_the_three_facts_and_the_bindings() {
 
 #[test]
 fn task_member_island_survives_an_unknown_id() {
-    let text = "nika: v1\ntasks:\n  - id: a\n    exec: {command: [\"ls\"]}\n  - id: b\n    when: ${{ tasks.ghost.";
+    let text =
+        "nika: v1\ntasks:\n  a:\n    exec: {command: [\"ls\"]}\n  b:\n    when: ${{ tasks.ghost.";
     let got = labels(&completion(text, text.len()));
     assert!(
         got.contains(&"output".to_owned()) && got.contains(&"status".to_owned()),
@@ -898,7 +896,7 @@ fn task_member_island_survives_an_unknown_id() {
 fn data_path_post_dot_still_ends_in_cel_methods() {
     // `tasks.x.output.` is PAST the member — the CEL method position
     // must keep winning there (the member lane stops at one segment).
-    let text = "nika: v1\ntasks:\n  - id: b\n    when: ${{ tasks.x.output.";
+    let text = "nika: v1\ntasks:\n  b:\n    when: ${{ tasks.x.output.";
     let got = labels(&completion(text, text.len()));
     assert!(
         got.iter().any(|l| l.starts_with("size")),
@@ -908,8 +906,7 @@ fn data_path_post_dot_still_ends_in_cel_methods() {
 
 #[test]
 fn schema_children_speak_json_schema_not_task_fields() {
-    let text =
-        "nika: v1\ntasks:\n  - id: a\n    infer:\n      prompt: \"p\"\n      schema:\n        ";
+    let text = "nika: v1\ntasks:\n  a:\n    infer:\n      prompt: \"p\"\n      schema:\n        ";
     let got = labels(&completion(text, text.len()));
     assert!(
         got.contains(&"required".to_owned()) && got.contains(&"properties".to_owned()),
@@ -923,8 +920,7 @@ fn schema_children_speak_json_schema_not_task_fields() {
 
 #[test]
 fn properties_children_belong_to_the_author() {
-    let text =
-        "nika: v1\ntasks:\n  - id: a\n    infer:\n      schema:\n        properties:\n          ";
+    let text = "nika: v1\ntasks:\n  a:\n    infer:\n      schema:\n        properties:\n          ";
     let got = labels(&completion(text, text.len()));
     assert!(
         got.is_empty(),
@@ -934,7 +930,7 @@ fn properties_children_belong_to_the_author() {
 
 #[test]
 fn items_inside_a_schema_keeps_the_keyset() {
-    let text = "nika: v1\ntasks:\n  - id: a\n    infer:\n      schema:\n        properties:\n          rows:\n            items:\n              ";
+    let text = "nika: v1\ntasks:\n  a:\n    infer:\n      schema:\n        properties:\n          rows:\n            items:\n              ";
     let got = labels(&completion(text, text.len()));
     assert!(
         got.contains(&"type".to_owned()) && got.contains(&"enum".to_owned()),
@@ -944,7 +940,7 @@ fn items_inside_a_schema_keeps_the_keyset() {
 
 #[test]
 fn task_fields_survive_outside_schema() {
-    let text = "nika: v1\ntasks:\n  - id: a\n    exec:\n      command: [\"ls\"]\n  - id: b\n    ";
+    let text = "nika: v1\ntasks:\n  a:\n    exec:\n      command: [\"ls\"]\n  b:\n    ";
     let got = labels(&completion(text, text.len()));
     assert!(
         got.contains(&"depends_on".to_owned()),
@@ -954,7 +950,7 @@ fn task_fields_survive_outside_schema() {
 
 // ─── the wave-2 lanes: for_each/when islands · skills list ──────────────────
 
-const FLOW_DOC: &str = "nika: v1\nworkflow: w\nvars:\n  urls:\n    type: array\n    default: []\n  topic: \"rust\"\ntasks:\n  - id: gather\n    exec:\n      command: [\"ls\"]\n  - id: fan\n    depends_on: [gather]\n    for_each: \n    exec:\n      command: [\"echo\"]\n  - id: last\n    depends_on: [fan]\n    exec:\n      command: [\"true\"]\n";
+const FLOW_DOC: &str = "nika: v1\nworkflow:\n  id: w\nvars:\n  urls:\n    type: array\n    default: []\n  topic: \"rust\"\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n  fan:\n    depends_on: [gather]\n    for_each: \n    exec:\n      command: [\"echo\"]\n  last:\n    depends_on: [fan]\n    exec:\n      command: [\"true\"]\n";
 
 #[test]
 fn for_each_offers_typed_arrays_first_then_upstream_cycle_safe() {
@@ -1025,15 +1021,14 @@ fn skills_positions_route_to_the_walk_and_pure_callers_lose_only_that_lane() {
     // Flow form and block form both detect; with no doc_dir (the pure
     // caller) the lane yields empty INSTEAD of falling through to some
     // other register.
-    let flow = "nika: v1\ntasks:\n  - id: a\n    agent:\n      prompt: \"p\"\n      skills: [\"";
+    let flow = "nika: v1\ntasks:\n  a:\n    agent:\n      prompt: \"p\"\n      skills: [\"";
     assert!(completion(flow, flow.len()).is_empty());
     let block =
-        "nika: v1\ntasks:\n  - id: a\n    agent:\n      prompt: \"p\"\n      skills:\n        - ";
+        "nika: v1\ntasks:\n  a:\n    agent:\n      prompt: \"p\"\n      skills:\n        - ";
     assert!(completion(block, block.len()).is_empty());
     // A block item under TOOLS (not skills) keeps its own lane silent-or-
     // catalog — never the skills walk; the ancestor check is exact.
-    let other =
-        "nika: v1\ntasks:\n  - id: a\n    agent:\n      prompt: \"p\"\n      tools:\n        - ";
+    let other = "nika: v1\ntasks:\n  a:\n    agent:\n      prompt: \"p\"\n      tools:\n        - ";
     let got = labels(&completion(other, other.len()));
     assert!(
         !got.iter().any(|l| l.ends_with("SKILL.md")),
@@ -1048,7 +1043,7 @@ fn skills_positions_route_to_the_walk_and_pure_callers_lose_only_that_lane() {
 /// is the parser's own (born-stale, key edition).
 #[test]
 fn retry_block_offers_exactly_the_parser_keyset() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n    retry:\n      ";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n    retry:\n      ";
     let items = completion(text, text.len());
     let expected = nika_schema::keysets::known_child_keys("retry", None).expect("keyset");
     assert_eq!(items.len(), expected.len());
@@ -1067,7 +1062,7 @@ fn retry_block_offers_exactly_the_parser_keyset() {
 /// spec's field table, not the task keys.
 #[test]
 fn infer_block_offers_the_verb_fields() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    infer:\n      ";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer:\n      ";
     let got = labels(&completion(text, text.len()));
     assert!(got.contains(&"prompt:".to_owned()), "{got:?}");
     assert!(got.contains(&"thinking:".to_owned()), "{got:?}");
@@ -1081,11 +1076,11 @@ fn infer_block_offers_the_verb_fields() {
 /// permits (an `fs:` block elsewhere is not the door's business).
 #[test]
 fn permits_and_fs_route_by_parent() {
-    let text = "nika: v1\nworkflow: w\npermits:\n  ";
+    let text = "nika: v1\nworkflow:\n  id: w\npermits:\n  ";
     let got = labels(&completion(text, text.len()));
     assert_eq!(got, vec!["fs:", "net:", "exec:", "tools:"], "{got:?}");
 
-    let text2 = "nika: v1\nworkflow: w\npermits:\n  fs:\n    ";
+    let text2 = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs:\n    ";
     let got2 = labels(&completion(text2, text2.len()));
     assert_eq!(got2, vec!["read:", "write:"], "{got2:?}");
 }
@@ -1094,7 +1089,7 @@ fn permits_and_fs_route_by_parent() {
 /// no invented keys.
 #[test]
 fn free_form_maps_stay_free() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    invoke:\n      tool: github.search\n      args:\n        ";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke:\n      tool: github.search\n      args:\n        ";
     let got = labels(&completion(text, text.len()));
     assert!(
         !got.iter().any(|l| l == "prompt:" || l == "max_attempts:"),
@@ -1106,7 +1101,7 @@ fn free_form_maps_stay_free() {
 /// `with` is task-local, another task's aliases are out of scope.
 #[test]
 fn with_island_offers_the_enclosing_tasks_aliases() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    with:\n      other: 1\n    exec: { command: [\"x\"] }\n  - id: b\n    depends_on: [a]\n    with:\n      article: \"${{ tasks.a.output }}\"\n      limit: 5\n    exec: { command: [\"echo\", \"${{ with.article }}\", \"${{ with.\"] }\n";
+    let text = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    with:\n      other: 1\n    exec: { command: [\"x\"] }\n  b:\n    depends_on: [a]\n    with:\n      article: \"${{ tasks.a.output }}\"\n      limit: 5\n    exec: { command: [\"echo\", \"${{ with.article }}\", \"${{ with.\"] }\n";
     let cursor = text.rfind("${{ with.").expect("island") + "${{ with.".len();
     let got = labels(&completion(text, cursor));
     assert_eq!(
@@ -1121,7 +1116,8 @@ fn with_island_offers_the_enclosing_tasks_aliases() {
 /// complete references the run cannot resolve.
 #[test]
 fn loop_roots_are_gated_to_for_each_tasks() {
-    let plain = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"${{ ";
+    let plain =
+        "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ ";
     let got = labels(&completion(plain, plain.len()));
     assert!(
         !got.contains(&"item".to_owned()),
@@ -1129,7 +1125,7 @@ fn loop_roots_are_gated_to_for_each_tasks() {
     );
     assert!(!got.contains(&"index".to_owned()), "{got:?}");
 
-    let fanned = "nika: v1\nworkflow: w\nvars:\n  urls: [1, 2]\ntasks:\n  - id: a\n    for_each: \"${{ vars.urls }}\"\n    exec: { command: [\"echo\", \"${{ ";
+    let fanned = "nika: v1\nworkflow:\n  id: w\nvars:\n  urls: [1, 2]\ntasks:\n  a:\n    for_each: \"${{ vars.urls }}\"\n    exec: { command: [\"echo\", \"${{ ";
     let got = labels(&completion(fanned, fanned.len()));
     assert!(got.contains(&"item".to_owned()), "{got:?}");
     assert!(

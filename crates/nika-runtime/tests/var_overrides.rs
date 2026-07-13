@@ -25,14 +25,15 @@ use nika_runtime::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, Vec
 
 const WORKFLOW: &str = r#"
 nika: v1
-workflow: var-override
+workflow:
+  id: var-override
 vars:
   topic:
     type: string
     required: true
   lang: { type: string, default: "en" }
 tasks:
-  - id: say
+  say:
     exec: { command: ["echo", "${{ vars.topic }}"] }
 outputs:
   topic_out: ${{ vars.topic }}

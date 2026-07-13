@@ -7,8 +7,9 @@
 #   nika:fetch                 nika:notify
 # Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
-workflow: gate-and-act-template     # SLOT: kebab-case workflow id
-description: "watch a value · act only when the condition holds"   # SLOT
+workflow:
+  id: gate-and-act-template     # SLOT: kebab-case workflow id
+  description: "watch a value · act only when the condition holds"   # SLOT
 
 vars:
   source_url: "https://api.example.com/v1/value"   # SLOT: what to watch
@@ -23,7 +24,7 @@ secrets:
         host_from_self: true        # the secret value IS the destination URL
 
 tasks:
-  - id: check
+  check:
     invoke:
       tool: "nika:fetch"
       args:
@@ -37,7 +38,7 @@ tasks:
       # closed, the skeleton runs green before you wire the real source.
       recover: { value: 42 }
 
-  - id: act
+  act:
     depends_on: [check]
     # when: is a SKIP gate — routing, not failure (a skipped task is not an error)
     when: ${{ tasks.check.value > vars.threshold }}   # SLOT: the CEL condition

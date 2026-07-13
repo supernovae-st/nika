@@ -21,8 +21,9 @@
 # Run · nika run examples/showcase/t4-release-train.nika.yaml --var version=1.4.0
 
 nika: v1
-workflow: release-train
-description: "parallel gates → human GO → hold until the window → ship · verify · record"
+workflow:
+  id: release-train
+  description: "parallel gates → human GO → hold until the window → ship · verify · record"
 
 vars:
   version:
@@ -40,25 +41,25 @@ secrets:
         host_from_self: true
 
 tasks:
-  - id: t0
+  t0:
     invoke:
       tool: "nika:date"
       args: { op: now }
 
   # ── the gate wave · all three run in parallel ──
-  - id: tests
+  tests:
     exec:
       command: ["cargo", "test", "--workspace", "--quiet"]
       capture: structured
     timeout: "15m"
 
-  - id: lint
+  lint:
     exec:
       command: ["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
       capture: structured
     timeout: "10m"
 
-  - id: audit
+  audit:
     exec:
       command: ["cargo", "audit"]
       capture: structured
@@ -66,7 +67,7 @@ tasks:
     retry:
       max_attempts: 2                  # advisory DB fetch can flake
 
-  - id: gates_green
+  gates_green:
     depends_on: [tests, lint, audit]
     invoke:
       tool: "nika:assert"
@@ -74,7 +75,7 @@ tasks:
         condition: "${{ tasks.tests.output.exit_code == 0 && tasks.lint.output.exit_code == 0 && tasks.audit.output.exit_code == 0 }}"
         message: "A release gate is RED: the train does not depart"
 
-  - id: gate_time
+  gate_time:
     depends_on: [t0, gates_green]
     invoke:
       tool: "nika:date"
@@ -85,7 +86,7 @@ tasks:
         unit: minutes
 
   # ── the human signs the departure ──
-  - id: conductor
+  conductor:
     depends_on: [gates_green, gate_time]
     invoke:
       tool: "nika:prompt"
@@ -93,7 +94,7 @@ tasks:
         message: "Gates GREEN in ${{ tasks.gate_time.output }} min. Ship ${{ vars.version }} in the ${{ vars.window }} window?"
         default: false
 
-  - id: approved
+  approved:
     depends_on: [conductor]
     invoke:
       tool: "nika:assert"
@@ -102,7 +103,7 @@ tasks:
         message: "Departure not signed: train cancelled"
 
   # ── hold until the window · absolute time, not a sleep ──
-  - id: hold
+  hold:
     depends_on: [approved]
     invoke:
       tool: "nika:wait"
@@ -110,14 +111,14 @@ tasks:
         until: "${{ vars.window }}"
         timeout: "48h"
 
-  - id: ship
+  ship:
     depends_on: [hold]
     exec:
       command: ["./scripts/release.sh", "${{ vars.version }}"]   # argv: the interpolation cannot break out
       capture: structured
     timeout: "30m"
 
-  - id: verify
+  verify:
     depends_on: [ship]
     invoke:
       tool: "nika:fetch"
@@ -130,7 +131,7 @@ tasks:
       backoff_strategy: exponential
       backoff_ms: 5000
 
-  - id: live
+  live:
     depends_on: [verify]
     invoke:
       tool: "nika:assert"
@@ -142,7 +143,7 @@ tasks:
   # this task runs whether `live` succeeded, failed, or never started
   # (upstream abort) · a record that must land on EVERY outcome is a
   # terminal task, not a cleanup hook (03 §Task states).
-  - id: record
+  record:
     depends_on: [live]
     when: true
     invoke:

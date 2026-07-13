@@ -116,8 +116,8 @@ fn manifest_and_embedded_sets_are_bijective() {
 
 #[test]
 fn lean_strips_the_banner_and_nothing_else() {
-    let text = "# SPDX\n# banner\nnika: v1\nworkflow: x\n";
-    assert_eq!(nika_pack::lean(text), "nika: v1\nworkflow: x");
+    let text = "# SPDX\n# banner\nnika: v1\nworkflow:\n  id: x\n";
+    assert_eq!(nika_pack::lean(text), "nika: v1\nworkflow:\n  id: x");
     // no banner → identity
     assert_eq!(nika_pack::lean("nika: v1\n"), "nika: v1");
     // the hashing invariant · lean() trims ALL trailing newlines and the

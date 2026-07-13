@@ -109,16 +109,17 @@ and the fixed half clean.
 ```yaml
 # review.nika.yaml: read a PR diff, judge its risk, comment only when it's high.
 nika: v1
-workflow: pr-risk-review
+workflow:
+  id: pr-risk-review
 model: ollama/qwen3.5:9b             # local by default. swap to any provider
 
 tasks:
-  - id: diff                          # exec: a read-only shell command
+  diff:                               # exec: a read-only shell command
     exec:
       command: "git diff origin/main...HEAD"
       capture: structured
 
-  - id: assess                        # infer: structured LLM judgment
+  assess:                             # infer: structured LLM judgment
     depends_on: [diff]
     with:
       patch: ${{ tasks.diff.output.stdout }}
@@ -131,7 +132,7 @@ tasks:
         properties:
           risk: { type: string, enum: [low, medium, high] }
 
-  - id: comment                       # invoke: the only write, gated on the verdict
+  comment:                            # invoke: the only write, gated on the verdict
     depends_on: [assess]
     when: ${{ tasks.assess.output.risk == 'high' }}
     invoke:
@@ -379,9 +380,10 @@ Your first workflow runs with **zero setup**: no model, no API key:
 ```sh
 cat > hello.nika.yaml <<'YAML'
 nika: v1
-workflow: hello
+workflow:
+  id: hello
 tasks:
-  - id: greet
+  greet:
     exec:
       command: "echo hello from nika"
 YAML
@@ -395,7 +397,7 @@ Adding an AI step? Point it at a local model and nothing leaves your machine:
 ```yaml
 model: ollama/llama3.2:3b    # local · or mistral/..., anthropic/..., any provider
 tasks:
-  - id: greet
+  greet:
     infer:
       prompt: "Say hello in one sentence."
 ```

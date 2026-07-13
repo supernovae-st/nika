@@ -16,8 +16,9 @@
 # Run · nika run examples/showcase/t1-social-repurpose.nika.yaml
 
 nika: v1
-workflow: social-repurpose
-description: "One post → thread + LinkedIn + newsletter, in parallel"
+workflow:
+  id: social-repurpose
+  description: "One post → thread + LinkedIn + newsletter, in parallel"
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for mistral/mistral-large or any provider
 
@@ -25,28 +26,28 @@ vars:
   post_path: "./blog/launch-post.md"
 
 tasks:
-  - id: post
+  post:
     invoke:
       tool: "nika:read"
       args: { path: "${{ vars.post_path }}" }
 
   # Three rewrites · no deps between them · they run concurrently.
-  - id: thread
+  thread:
     depends_on: [post]
     infer:
       prompt: "Turn this post into a 6-tweet thread · keep the voice · ${{ tasks.post.output }}"
 
-  - id: linkedin
+  linkedin:
     depends_on: [post]
     infer:
       prompt: "Rewrite this post for LinkedIn · hook first · ${{ tasks.post.output }}"
 
-  - id: newsletter
+  newsletter:
     depends_on: [post]
     infer:
       prompt: "Write a 3-sentence newsletter blurb for this post · ${{ tasks.post.output }}"
 
-  - id: bundle
+  bundle:
     depends_on: [thread, linkedin, newsletter]
     with:
       t: ${{ tasks.thread.output }}

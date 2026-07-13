@@ -13,11 +13,12 @@
 #   nika run examples/01-hello.nika.yaml --model mock/echo
 
 nika: v1
-workflow: hello
+workflow:
+  id: hello
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for any cloud provider in the catalog
 
 tasks:
-  - id: greet
+  greet:
     infer:
       prompt: "Say hello in French, in one short sentence."

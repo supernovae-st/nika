@@ -18,8 +18,9 @@
 # Run · nika run examples/showcase/t3-resume-screener.nika.yaml
 
 nika: v1
-workflow: resume-screener
-description: "glob CVs → local-model rubric per candidate → deterministic shortlist"
+workflow:
+  id: resume-screener
+  description: "glob CVs → local-model rubric per candidate → deterministic shortlist"
 
 model: ollama/qwen3.5:4b   # PII stays on the machine · the whole screen is offline
 
@@ -35,12 +36,12 @@ vars:
   shortlist_size: 5
 
 tasks:
-  - id: pool
+  pool:
     invoke:
       tool: "nika:glob"
       args: { pattern: "${{ vars.cv_glob }}" }
 
-  - id: cvs
+  cvs:
     depends_on: [pool]
     for_each: ${{ tasks.pool.output }}
     max_parallel: 8
@@ -51,7 +52,7 @@ tasks:
       tool: "nika:read"
       args: { path: "${{ item }}" }
 
-  - id: pairs
+  pairs:
     depends_on: [pool, cvs]
     invoke:                            # zip path + content · order survived the nulls
       tool: "nika:jq"
@@ -59,7 +60,7 @@ tasks:
         input: ["${{ tasks.pool.output }}", "${{ tasks.cvs.output }}"]
         expression: "transpose | map(select(.[1] != null)) | map({path: .[0], text: .[1]})"
 
-  - id: screened
+  screened:
     depends_on: [pairs]
     for_each: ${{ tasks.pairs.output }}
     max_parallel: 2                    # local model · don't thrash the GPU
@@ -86,7 +87,7 @@ tasks:
           strengths: { type: array, items: { type: string } }
           concerns: { type: array, items: { type: string } }
 
-  - id: ranked
+  ranked:
     depends_on: [screened]
     invoke:
       tool: "nika:jq"
@@ -94,7 +95,7 @@ tasks:
         input: "${{ tasks.screened.output }}"
         expression: 'map(select(. != null)) | map(select(.fit != "weak")) | sort_by(.fit != "strong", -(.years_relevant // 0))'
 
-  - id: shortlist
+  shortlist:
     depends_on: [ranked]
     invoke:
       tool: "nika:jq"
@@ -102,7 +103,7 @@ tasks:
         input: "${{ tasks.ranked.output }}"
         expression: ".[:${{ vars.shortlist_size }}]"
 
-  - id: brief
+  brief:
     depends_on: [shortlist]
     when: ${{ size(tasks.shortlist.output) > 0 }}
     infer:
@@ -112,7 +113,7 @@ tasks:
         One paragraph each · lead with the evidence quotes · end with
         the suggested interview focus.
 
-  - id: save
+  save:
     depends_on: [brief]
     when: ${{ tasks.brief.output != null }}    # skip cascades by VALUE · a skipped brief is null
     invoke:

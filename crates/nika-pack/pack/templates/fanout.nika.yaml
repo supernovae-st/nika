@@ -7,8 +7,9 @@
 #   nika:glob     for_each·infer    nika:jq        infer
 # Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
-workflow: fanout-template           # SLOT: kebab-case workflow id
-description: "discover N items · process in parallel · merge"   # SLOT
+workflow:
+  id: fanout-template           # SLOT: kebab-case workflow id
+  description: "discover N items · process in parallel · merge"   # SLOT
 
 model: ollama/qwen3.5:4b           # SLOT: provider/model · local · zero key
 
@@ -16,12 +17,12 @@ vars:
   collection_source: "./items"      # SLOT: where the collection comes from
 
 tasks:
-  - id: discover
+  discover:
     invoke:                         # SLOT: glob / fetch sitemap / exec + jq split
       tool: "nika:glob"
       args: { pattern: "${{ vars.collection_source }}/*.md" }
 
-  - id: process
+  process:
     depends_on: [discover]
     for_each: ${{ tasks.discover.output }}
     max_parallel: 4                 # SLOT: the polite ceiling
@@ -37,7 +38,7 @@ tasks:
       prompt: |
         Process this item · ${{ item }}
 
-  - id: survivors
+  survivors:
     depends_on: [process]
     invoke:                         # the null-aware fan-in · order preserved
       tool: "nika:jq"
@@ -47,7 +48,7 @@ tasks:
         # upstream) — the fan-in must survive its own quiet day.
         expression: "(. // []) | [ .[] | select(. != null) ]"
 
-  - id: merge
+  merge:
     depends_on: [survivors]
     infer:
       prompt: |

@@ -7,8 +7,9 @@
 #   nika:fetch        infer       nika:write
 # Green as-is · `nika check <file>` · fill the `# SLOT:` lines · repair from the fix lines · re-check.
 nika: v1
-workflow: website-brief-template    # SLOT: kebab-case workflow id
-description: "crawl → brief → persist"   # SLOT: one honest sentence
+workflow:
+  id: website-brief-template    # SLOT: kebab-case workflow id
+  description: "crawl → brief → persist"   # SLOT: one honest sentence
 
 model: ollama/qwen3.5:4b            # SLOT: provider/model · local · zero key
 
@@ -17,14 +18,14 @@ vars:
   out_path: "./out/brief.json"      # SLOT: where the brief lands
 
 tasks:
-  - id: crawl_site
+  crawl_site:
     invoke:
       tool: "nika:fetch"
       args:
         url: "${{ vars.site_url }}"
         traverse: { max_pages: 5 }  # SLOT: crawl bound · 1..=25 (robots honored)
 
-  - id: brief
+  brief:
     depends_on: [crawl_site]
     infer:
       max_tokens: 1200
@@ -45,7 +46,7 @@ tasks:
           assets: { type: array, items: { type: string } }
         required: [domain, theme, audience, colors, assets]
 
-  - id: persist
+  persist:
     depends_on: [brief]
     invoke:
       tool: "nika:write"

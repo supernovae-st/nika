@@ -66,11 +66,12 @@ fn has_kind(stdout: &str, kind: &str) -> bool {
 
 const CHAIN: &str = r#"
 nika: v1
-workflow: resume-chain
+workflow:
+  id: resume-chain
 tasks:
-  - id: a
+  a:
     exec: { command: ["echo", "alpha"] }
-  - id: b
+  b:
     depends_on: [a]
     exec: { command: ["echo", "beta", "${{ tasks.a.output }}"] }
 outputs:
@@ -169,13 +170,14 @@ fn kill_midrun_resume_completes_the_remainder() {
 
 const FORK: &str = r#"
 nika: v1
-workflow: resume-fork
+workflow:
+  id: resume-fork
 vars:
   topic: { type: string, default: "news" }
 tasks:
-  - id: uses_var
+  uses_var:
     exec: { command: ["echo", "about", "${{ vars.topic }}"] }
-  - id: sibling
+  sibling:
     exec: { command: ["echo", "steady"] }
 "#;
 
@@ -255,16 +257,17 @@ fn input_change_rehashes_and_reruns_only_the_consumer() {
 
 const GATED: &str = r#"
 nika: v1
-workflow: resume-gated
+workflow:
+  id: resume-gated
 tasks:
-  - id: prep
+  prep:
     exec: { command: ["echo", "staged"] }
-  - id: approve
+  approve:
     depends_on: [prep]
     invoke:
       tool: "nika:prompt"
       args: { mode: "input", message: "ship it?" }
-  - id: ship
+  ship:
     depends_on: [approve]
     exec: { command: ["echo", "shipping", "${{ tasks.approve.output }}"] }
 "#;
@@ -353,9 +356,10 @@ fn paused_prompt_rearms_and_an_answer_completes_the_run() {
 fn a_prompt_with_a_default_never_pauses() {
     const DEFAULTED: &str = r#"
 nika: v1
-workflow: defaulted-prompt
+workflow:
+  id: defaulted-prompt
 tasks:
-  - id: ask
+  ask:
     invoke:
       tool: "nika:prompt"
       args: { mode: "confirm", message: "auto?", default: true }

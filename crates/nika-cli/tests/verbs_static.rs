@@ -16,8 +16,9 @@ const PLAIN: Theme = Theme::new(false, false, false);
 /// The shared fixture — same shape as the e2e pipeline workflow.
 const WORKFLOW: &str = r#"
 nika: v1
-workflow: static-suite
-description: "the static-verb fixture: all three shipped verbs, a gate, a fan-out"
+workflow:
+  id: static-suite
+  description: "the static-verb fixture: all three shipped verbs, a gate, a fan-out"
 
 model: mock/echo
 
@@ -25,29 +26,29 @@ vars:
   source: "./news.json"
 
 tasks:
-  - id: gather
+  gather:
     invoke:
       tool: "nika:read"
       args: { path: "${{ vars.source }}" }
 
-  - id: probe
+  probe:
     exec:
       command: ["wc", "-l", "./news.json"]
 
-  - id: fan
+  fan:
     depends_on: [gather]
     for_each: ["a", "b", "c"]
     infer:
       prompt: "Classify · ${{ item }}"
       max_tokens: 100
 
-  - id: think
+  think:
     depends_on: [gather, probe]
     infer:
       prompt: "Summarize · ${{ tasks.gather.output }}"
       max_tokens: 800
 
-  - id: notify
+  notify:
     depends_on: [think]
     when: ${{ vars.source != '' }}
     exec:
@@ -482,16 +483,17 @@ fn graph_cost_interval_attributes_each_priced_task_to_itself() {
     // the order — the relative assert is price-change-proof).
     let priced = r#"
 nika: v1
-workflow: priced-pair
+workflow:
+  id: priced-pair
 model: anthropic/claude-sonnet-4-6
 
 tasks:
-  - id: small
+  small:
     infer:
       prompt: "a"
       max_tokens: 100
 
-  - id: large
+  large:
     depends_on: [small]
     infer:
       prompt: "b · ${{ tasks.small.output }}"
@@ -582,7 +584,7 @@ fn check_skills_rung_greens_reds_and_teaches() {
         std::fs::write(
             &path,
             format!(
-                "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: go\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
+                "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  go:\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
                 skill.display()
             ),
         )
@@ -659,7 +661,7 @@ fn check_skills_rung_greens_reds_and_teaches() {
 /// src loc-cap: the 1500-line law bit check.rs at the merge.)
 #[test]
 fn accents_check_verdict_carries_the_dag_map() {
-    let yaml = "nika: v1\nworkflow: m\ntasks:\n  - id: one\n    infer: { prompt: hi, max_tokens: 5, model: \"mock/echo\" }\n  - id: two\n    depends_on: [one]\n    infer: { prompt: \"${{ tasks.one.output }}\", max_tokens: 5, model: \"mock/echo\" }\n";
+    let yaml = "nika: v1\nworkflow:\n  id: m\ntasks:\n  one:\n    infer: { prompt: hi, max_tokens: 5, model: \"mock/echo\" }\n  two:\n    depends_on: [one]\n    infer: { prompt: \"${{ tasks.one.output }}\", max_tokens: 5, model: \"mock/echo\" }\n";
     let dir = std::env::temp_dir().join(format!("nika-check-map-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&dir);
     let file = dir.join("map.nika.yaml");

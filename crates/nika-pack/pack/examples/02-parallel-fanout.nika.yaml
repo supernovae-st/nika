@@ -16,7 +16,8 @@
 # Run · nika run examples/02-parallel-fanout.nika.yaml
 
 nika: v1
-workflow: parallel-fanout
+workflow:
+  id: parallel-fanout
 
 model: mock/echo
 vars:
@@ -24,20 +25,20 @@ vars:
 
 tasks:
   # These three have no dependency on each other → the engine runs them in parallel.
-  - id: angle
+  angle:
     infer:
       prompt: "Give the strategic angle on · ${{ vars.topic }}"
 
-  - id: cost
+  cost:
     infer:
       prompt: "Give the cost angle on · ${{ vars.topic }}"
 
-  - id: risk
+  risk:
     infer:
       prompt: "Give the risk angle on · ${{ vars.topic }}"
 
   # Merge · runs only after all three complete.
-  - id: synthesize
+  synthesize:
     depends_on: [angle, cost, risk]
     with:
       a: ${{ tasks.angle.output }}

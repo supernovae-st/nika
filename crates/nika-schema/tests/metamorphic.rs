@@ -82,11 +82,12 @@ fn workflow_strategy() -> impl Strategy<Value = Vec<TaskSpec>> {
 
 /// Render the structure to YAML with `prefix` naming the tasks.
 fn to_yaml(tasks: &[TaskSpec], prefix: &str) -> String {
-    let mut y =
-        String::from("nika: v1\nworkflow: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n");
+    let mut y = String::from(
+        "nika: v1\nworkflow:\n  id: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n",
+    );
     for (i, t) in tasks.iter().enumerate() {
         let id = format!("{prefix}{i}");
-        let _ = writeln!(y, "  - id: {id}");
+        let _ = writeln!(y, "  {id}:");
         if !t.deps.is_empty() {
             let deps: Vec<String> = t.deps.iter().map(|d| format!("{prefix}{d}")).collect();
             let _ = writeln!(y, "    depends_on: [{}]", deps.join(", "));
@@ -169,13 +170,24 @@ proptest! {
         let yaml_fwd = to_yaml(&tasks, "t");
         let header_end = yaml_fwd.find("tasks:\n").map_or(0, |i| i + 7);
         let (header, body) = yaml_fwd.split_at(header_end);
-        let blocks: Vec<&str> = body
-            .split("  - id: ")
-            .filter(|b| !b.is_empty())
-            .collect();
+        // a block starts at each indent-2 bare `name:` key (the map form)
+        let mut blocks: Vec<String> = Vec::new();
+        for line in body.lines() {
+            let is_key = line.strip_prefix("  ").is_some_and(|r| {
+                !r.starts_with(' ')
+                    && r.trim_end().ends_with(':')
+                    && r.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+            });
+            if is_key || blocks.is_empty() {
+                blocks.push(String::new());
+            }
+            if let Some(b) = blocks.last_mut() {
+                b.push_str(line);
+                b.push('\n');
+            }
+        }
         let mut reversed = String::from(header);
         for b in blocks.iter().rev() {
-            reversed.push_str("  - id: ");
             reversed.push_str(b);
         }
         let backward = run(&reversed).expect("reversed parses");
@@ -260,11 +272,11 @@ proptest! {
                 String::new()
             };
             let mut y = String::from(
-                "nika: v1\nworkflow: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n",
+                "nika: v1\nworkflow:\n  id: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n",
             );
             for i in 0..n {
                 use std::fmt::Write as _;
-                let _ = writeln!(y, "  - id: t{i}");
+                let _ = writeln!(y, "  t{i}:");
                 y.push_str(&retry);
                 if fan {
                     y.push_str("    for_each: [\"a\", \"b\"]\n");
@@ -284,7 +296,7 @@ proptest! {
     fn r4_adding_an_independent_task_is_compositional(tasks in workflow_strategy()) {
         let base = run(&to_yaml(&tasks, "t")).expect("base parses");
         let mut extended_yaml = to_yaml(&tasks, "t");
-        extended_yaml.push_str("  - id: frame_extra\n    exec: { command: [\"true\"] }\n");
+        extended_yaml.push_str("  frame_extra:\n    exec: { command: [\"true\"] }\n");
         let extended = run(&extended_yaml).expect("extended parses");
         let (a1, l1, e1, _) = totals(&base.certificate);
         let (a2, l2, e2, _) = totals(&extended.certificate);
@@ -308,7 +320,12 @@ proptest! {
         let with_retry1 = plain
             .lines()
             .map(|l| {
-                if l.starts_with("  - id: ") {
+                let is_key = l.strip_prefix("  ").is_some_and(|r| {
+                    !r.starts_with(' ')
+                        && r.trim_end().ends_with(':')
+                        && r.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+                });
+                if is_key {
                     format!("{l}\n    retry: {{ max_attempts: 1 }}")
                 } else {
                     l.to_owned()

@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn nodes_are_wave_ordered_regardless_of_authoring_order() {
         let g = doc(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: d\n    depends_on: [b, c]\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: c\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  d:\n    depends_on: [b, c]\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n  a:\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n",
         );
         assert_eq!(g.graph_format, 1);
         let ids: Vec<&str> = g.nodes.iter().map(|n| n.id.as_str()).collect();
@@ -266,7 +266,7 @@ mod tests {
     #[test]
     fn edges_are_sorted_and_deduped() {
         let g = doc(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: b\n    depends_on: [a, a]\n    exec: { command: [\"true\"] }\n",
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    depends_on: [a, a]\n    exec: { command: [\"true\"] }\n",
         );
         let pairs: Vec<(&str, &str)> = g
             .edges
@@ -282,7 +282,7 @@ mod tests {
     #[test]
     fn node_facts_are_projected() {
         let g = doc(
-            "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: think\n    infer: { prompt: \"hi\", max_tokens: 5 }\n    output:\n      summary: \".\"\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n    output:\n      summary: \".\"\n",
         );
         let n = &g.nodes[0];
         assert_eq!(n.verb, "infer");

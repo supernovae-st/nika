@@ -18,8 +18,9 @@
 # Run · nika run examples/showcase/t4-deep-research-brief.nika.yaml --var topic="local-first AI runtimes"
 
 nika: v1
-workflow: deep-research-brief
-description: "plan → budgeted research agent → thinking synthesis → brief on disk"
+workflow:
+  id: deep-research-brief
+  description: "plan → budgeted research agent → thinking synthesis → brief on disk"
 
 model: ollama/qwen3.5:4b   # local default · per-task overrides below pick stronger models
 
@@ -30,7 +31,7 @@ vars:
     description: "What to research"
 
 tasks:
-  - id: plan
+  plan:
     infer:
       model: anthropic/claude-haiku-4-5    # planning is a fast-model job
       prompt: "Break '${{ vars.topic }}' into 4 sharp research queries · no overlap."
@@ -42,7 +43,7 @@ tasks:
             type: array
             items: { type: string }
 
-  - id: investigate
+  investigate:
     depends_on: [plan]
     agent:
       system: |
@@ -67,7 +68,7 @@ tasks:
             type: array
             items: { type: string }
 
-  - id: brief
+  brief:
     depends_on: [investigate]
     infer:
       prompt: |
@@ -79,7 +80,7 @@ tasks:
         enabled: true
         budget_tokens: 8000
 
-  - id: save
+  save:
     depends_on: [brief]
     invoke:
       tool: "nika:write"

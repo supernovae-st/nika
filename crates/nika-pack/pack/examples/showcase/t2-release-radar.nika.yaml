@@ -17,8 +17,9 @@
 # Run · nika run examples/showcase/t2-release-radar.nika.yaml
 
 nika: v1
-workflow: release-radar
-description: "dependency release feed → diff vs last run → only the NEW ships"
+workflow:
+  id: release-radar
+  description: "dependency release feed → diff vs last run → only the NEW ships"
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for any provider in the catalog
 
@@ -28,12 +29,12 @@ vars:
 
 tasks:
   # First run has no state file · recover to an empty list.
-  - id: no_state
+  no_state:
     invoke:
       tool: "nika:jq"
       args: { input: [], expression: "." }
 
-  - id: previous
+  previous:
     invoke:
       tool: "nika:read"
       args: { path: "${{ vars.state_path }}" }
@@ -41,7 +42,7 @@ tasks:
       on_codes: [NIKA-BUILTIN-READ-001]   # not-found ONLY · a permission error still fails loudly
       recover: ${{ tasks.no_state.output }}
 
-  - id: feed
+  feed:
     invoke:
       tool: "nika:fetch"
       args:
@@ -50,7 +51,7 @@ tasks:
     output:
       entries: "[.items[] | {title, url, published}]"
 
-  - id: fresh
+  fresh:
     depends_on: [previous, feed]
     invoke:
       tool: "nika:json_diff"
@@ -58,7 +59,7 @@ tasks:
         before: "${{ tasks.previous.output }}"
         after: "${{ tasks.feed.entries }}"
 
-  - id: digest
+  digest:
     depends_on: [fresh, feed]
     when: ${{ size(tasks.fresh.output) > 0 }}
     infer:
@@ -70,7 +71,7 @@ tasks:
         Write 3 bullets · what shipped · whether it looks breaking ·
         what to check in our code.
 
-  - id: save_state
+  save_state:
     depends_on: [feed]
     invoke:
       tool: "nika:write"

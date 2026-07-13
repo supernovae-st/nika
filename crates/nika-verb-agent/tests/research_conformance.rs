@@ -327,18 +327,20 @@ async fn zero_overlap_queries_fail_open_to_the_full_universe() {
 // ─────── compose · PCE arXiv:2605.24462 + CodeAct arXiv:2402.01030 ───────
 
 const BROKEN_DRAFT: &str = r#"nika: v1
-workflow: broken
+workflow:
+  id: broken
 tasks:
-  - id: a
+  a:
     depends_on: [ghost]
     exec:
       command: ["echo", "x"]
 "#;
 
 const VALID_DRAFT: &str = r#"nika: v1
-workflow: composed-by-agent
+workflow:
+  id: composed-by-agent
 tasks:
-  - id: greet
+  greet:
     exec:
       command: ["echo", "hello"]
 "#;

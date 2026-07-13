@@ -18,14 +18,15 @@
 # too and the whole file is a zero-setup rehearsal).
 
 nika: v1
-workflow: fetch-chain
+workflow:
+  id: fetch-chain
 
 model: mock/echo
 vars:
   api_url: "https://api.example.com/v1/articles/latest"
 
 tasks:
-  - id: fetch_article
+  fetch_article:
     invoke:
       tool: nika:fetch
       args:
@@ -44,7 +45,7 @@ tasks:
           title: "Cached fallback article"
           body: "The archived copy — good enough for a summary when the live API is down."
 
-  - id: summarize
+  summarize:
     depends_on: [fetch_article]
     infer:
       prompt: |

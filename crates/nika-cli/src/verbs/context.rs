@@ -336,13 +336,13 @@ mod tests {
         std::fs::create_dir_all(dir.join(".nika/traces")).expect("mkdir");
         std::fs::write(
             dir.join("good.nika.yaml"),
-            "nika: v1\nworkflow: good\nmodel: mock/echo\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
+            "nika: v1\nworkflow:\n  id: good\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
         )
         .expect("write");
         // `when:` as a bare string = a conformance finding.
         std::fs::write(
             dir.join("flows/bad.nika.yaml"),
-            "nika: v1\nworkflow: bad\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"x\"] }\n  - id: b\n    depends_on: [a]\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
+            "nika: v1\nworkflow:\n  id: bad\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    depends_on: [a]\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
         )
         .expect("write");
         // Hidden from the walk: dependency tree.

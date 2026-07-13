@@ -213,7 +213,8 @@ mod tests {
         let wf = wf_of(
             r#"
 nika: v1
-workflow: req-probe
+workflow:
+  id: req-probe
 model: anthropic/claude-sonnet-4-6
 vars:
   target_url: { type: string, required: true }
@@ -227,15 +228,15 @@ secrets:
 env:
   REGION: eu-west-1
 tasks:
-  - id: fetch
+  fetch:
     invoke:
       tool: "nika:fetch"
       args: { url: "https://api.example.com/${{ env.GITHUB_ORG }}" }
-  - id: digest
+  digest:
     depends_on: [fetch]
     infer:
       prompt: "Summarize for ${{ env.REGION }}"
-  - id: local_pass
+  local_pass:
     depends_on: [fetch]
     for_each: "${{ env.SHARDS }}"
     on_finally:
@@ -286,7 +287,7 @@ outputs:
     #[test]
     fn an_invoke_only_workflow_needs_no_model_and_says_so() {
         let wf = wf_of(
-            "nika: v1\nworkflow: none\ntasks:\n  - id: a\n    invoke: { tool: \"nika:uuid\" }\n",
+            "nika: v1\nworkflow:\n  id: none\ntasks:\n  a:\n    invoke: { tool: \"nika:uuid\" }\n",
         );
         let req = collect(&wf);
         assert!(req.models.is_empty());

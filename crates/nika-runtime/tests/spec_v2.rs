@@ -124,19 +124,20 @@ fn output_str(outcome: &RunOutcome, task: &str) -> String {
 async fn cap_equivalence_byte_identical_streams() {
     let yaml = r#"
 nika: v1
-workflow: cap-eq
+workflow:
+  id: cap-eq
 vars: { publish: "no" }
 tasks:
-  - id: a
+  a:
     exec: { command: ["step", "a"] }
-  - id: b
+  b:
     exec: { command: ["step", "b"] }
-  - id: c
+  c:
     exec: { command: ["step", "c"] }
-  - id: join
+  join:
     depends_on: [a, b, c]
     exec: { command: ["join", "${{ tasks.a.output }}", "${{ tasks.b.output }}", "${{ tasks.c.output }}"] }
-  - id: gated
+  gated:
     depends_on: [join]
     when: ${{ vars.publish == 'yes' }}
     exec: { command: ["echo", "never"] }
@@ -215,11 +216,12 @@ impl ToolExecuteDyn for BarrierTools {
 async fn same_wave_tasks_truly_run_concurrently() {
     let yaml = r#"
 nika: v1
-workflow: handshake
+workflow:
+  id: handshake
 tasks:
-  - id: left
+  left:
     invoke: { tool: "nika:read", args: { path: "left.txt" } }
-  - id: right
+  right:
     invoke: { tool: "nika:read", args: { path: "right.txt" } }
 "#;
     let (wf, report) = parse_and_check(yaml);
@@ -251,11 +253,12 @@ tasks:
 async fn sibling_failure_drains_the_wave() {
     let yaml = r#"
 nika: v1
-workflow: drain
+workflow:
+  id: drain
 tasks:
-  - id: dies
+  dies:
     exec: { command: ["boom"] }
-  - id: survives
+  survives:
     exec: { command: ["fine"] }
 "#;
     let shell = MockShell::new()
@@ -284,14 +287,15 @@ tasks:
 async fn always_pattern_runs_after_upstream_failure() {
     let yaml = r#"
 nika: v1
-workflow: always
+workflow:
+  id: always
 tasks:
-  - id: build
+  build:
     exec: { command: ["make"] }
-  - id: deploy
+  deploy:
     depends_on: [build]
     exec: { command: ["deploy"] }
-  - id: notify
+  notify:
     depends_on: [build]
     when: true
     exec: { command: ["notify", "team"] }
@@ -332,12 +336,13 @@ tasks:
 async fn fan_out_iterations_jitter_on_distinct_streams() {
     let yaml = r#"
 nika: v1
-workflow: herd
+workflow:
+  id: herd
 model: mock/echo
 vars:
   items: ["x", "y"]
 tasks:
-  - id: flaky_fan
+  flaky_fan:
     for_each: ${{ vars.items }}
     max_parallel: 1
     retry: { max_attempts: 2, backoff_ms: 10000, backoff_strategy: fixed, jitter: true }
@@ -401,10 +406,11 @@ tasks:
 async fn transient_failure_retries_and_succeeds() {
     let yaml = r#"
 nika: v1
-workflow: flaky
+workflow:
+  id: flaky
 model: mock/echo
 tasks:
-  - id: ask
+  ask:
     retry: { max_attempts: 3, backoff_ms: 7, backoff_strategy: fixed, jitter: false }
     agent:
       prompt: "try hard"
@@ -454,9 +460,10 @@ tasks:
 async fn terminal_error_never_retries() {
     let yaml = r#"
 nika: v1
-workflow: terminal
+workflow:
+  id: terminal
 tasks:
-  - id: fetch
+  fetch:
     retry: { max_attempts: 5 }
     invoke: { tool: "nika:fetch", args: { url: "https://example.com/data" } }
 "#;
@@ -499,12 +506,13 @@ impl ToolExecuteDyn for HangingTools {
 async fn timeout_kills_a_hanging_task_with_the_spec_code() {
     let yaml = r#"
 nika: v1
-workflow: hung
+workflow:
+  id: hung
 tasks:
-  - id: stuck
+  stuck:
     timeout: "50ms"
     invoke: { tool: "nika:read", args: { path: "slow.txt" } }
-  - id: caught
+  caught:
     timeout: "50ms"
     on_error: { on_codes: [NIKA-TIMEOUT-001], skip: true }
     invoke: { tool: "nika:read", args: { path: "slow.txt" } }
@@ -566,21 +574,22 @@ tasks:
 async fn on_error_recover_skip_and_filter() {
     let yaml = r#"
 nika: v1
-workflow: recovery
+workflow:
+  id: recovery
 tasks:
-  - id: cached
+  cached:
     exec: { command: ["cat", "cache.json"] }
-  - id: live
+  live:
     depends_on: [cached]
     on_error: { recover: "${{ tasks.cached.output }}" }
     invoke: { tool: "nika:fetch", args: { url: "https://example.com/a" } }
-  - id: optional
+  optional:
     on_error: { skip: true }
     invoke: { tool: "nika:fetch", args: { url: "https://example.com/b" } }
-  - id: unmatched
+  unmatched:
     on_error: { on_codes: [NIKA-GHOST-999], skip: true }
     invoke: { tool: "nika:fetch", args: { url: "https://example.com/c" } }
-  - id: downstream
+  downstream:
     depends_on: [live]
     exec: { command: ["use", "${{ tasks.live.output }}"] }
 "#;
@@ -632,9 +641,10 @@ async fn on_codes_matches_the_user_facing_spec_code() {
     // 1 · on_error.on_codes:[NIKA-EXEC-001] on a non-zero exit → recovery FIRES.
     let yaml = r#"
 nika: v1
-workflow: oncodes-catch
+workflow:
+  id: oncodes-catch
 tasks:
-  - id: boom
+  boom:
     exec: { shell: "exit 7" }
     on_error:
       on_codes: [NIKA-EXEC-001]
@@ -657,9 +667,10 @@ tasks:
     //     downstream `on_codes`/CEL filter reads the form it was forced to write).
     let yaml_skip = r#"
 nika: v1
-workflow: oncodes-skip
+workflow:
+  id: oncodes-skip
 tasks:
-  - id: boom
+  boom:
     exec: { shell: "exit 7" }
     on_error: { skip: true }
 "#;
@@ -681,14 +692,20 @@ tasks:
         "NIKA-EXEC-001",
         "the user-facing code is the spec code, not NIKA-440"
     );
+}
 
+/// Part two of the spec-code filter proof: `retry.on_codes` compares the
+/// same user-facing form, and an unlisted code falls through untouched.
+#[tokio::test]
+async fn on_codes_retry_filter_and_selectivity_use_the_spec_code() {
     // 3 · retry.on_codes:[NIKA-EXEC-001] selectively retries a NON-transient
     //     exit (the override's whole point) → a TaskRetrying frame is emitted.
     let yaml_retry = r#"
 nika: v1
-workflow: oncodes-retry
+workflow:
+  id: oncodes-retry
 tasks:
-  - id: boom
+  boom:
     retry: { max_attempts: 2, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-EXEC-001] }
     exec: { shell: "exit 7" }
 "#;
@@ -716,9 +733,10 @@ tasks:
     // 4 · selectivity intact: a NON-matching code does NOT recover.
     let yaml_miss = r#"
 nika: v1
-workflow: oncodes-miss
+workflow:
+  id: oncodes-miss
 tasks:
-  - id: boom
+  boom:
     exec: { shell: "exit 7" }
     on_error:
       on_codes: [NIKA-INFER-001]
@@ -745,16 +763,17 @@ tasks:
 async fn for_each_maps_items_in_order_with_locals() {
     let yaml = r#"
 nika: v1
-workflow: fan
+workflow:
+  id: fan
 vars:
   urls: ["alpha", "beta", "gamma"]
 tasks:
-  - id: scrape
+  scrape:
     for_each: ${{ vars.urls }}
     max_parallel: 1
     with: { page: "${{ item }}" }
     exec: { command: ["fetch", "${{ with.page }}", "at", "${{ index }}"] }
-  - id: join
+  join:
     depends_on: [scrape]
     exec: { command: ["got", "${{ tasks.scrape.output }}"] }
 "#;
@@ -799,12 +818,13 @@ tasks:
 async fn for_each_infer_sums_iteration_tokens() {
     let yaml = r#"
 nika: v1
-workflow: fan-tokens
+workflow:
+  id: fan-tokens
 model: mock/echo
 vars:
   prompts: ["alpha", "beta", "gamma"]
 tasks:
-  - id: think_all
+  think_all:
     for_each: ${{ vars.prompts }}
     max_parallel: 1
     infer:
@@ -842,11 +862,12 @@ tasks:
 async fn for_each_fail_fast_false_nulls_at_index() {
     let yaml = r#"
 nika: v1
-workflow: fan-collect
+workflow:
+  id: fan-collect
 vars:
   items: ["one", "two", "three"]
 tasks:
-  - id: work
+  work:
     for_each: ${{ vars.items }}
     max_parallel: 1
     fail_fast: false
@@ -885,11 +906,12 @@ tasks:
 async fn for_each_on_error_skip_nulls_at_index_parent_succeeds() {
     let yaml = r#"
 nika: v1
-workflow: fan-skip
+workflow:
+  id: fan-skip
 vars:
   items: ["one", "two", "three"]
 tasks:
-  - id: work
+  work:
     for_each: ${{ vars.items }}
     max_parallel: 1
     on_error: { skip: true }
@@ -926,11 +948,12 @@ tasks:
 async fn for_each_fail_fast_true_stops_the_lane() {
     let yaml = r#"
 nika: v1
-workflow: fan-abort
+workflow:
+  id: fan-abort
 vars:
   items: ["one", "two", "three"]
 tasks:
-  - id: work
+  work:
     for_each: ${{ vars.items }}
     max_parallel: 1
     exec: { command: ["do", "${{ item }}"] }
@@ -959,15 +982,16 @@ tasks:
 async fn for_each_empty_skips_and_non_array_fails() {
     let yaml = r#"
 nika: v1
-workflow: fan-edges
+workflow:
+  id: fan-edges
 vars:
   none: []
   scalar: "not a list"
 tasks:
-  - id: empty_lane
+  empty_lane:
     for_each: ${{ vars.none }}
     exec: { command: ["never", "${{ item }}"] }
-  - id: bad_lane
+  bad_lane:
     for_each: ${{ vars.scalar }}
     exec: { command: ["never", "${{ item }}"] }
 "#;
@@ -1004,11 +1028,12 @@ tasks:
 async fn for_each_iterations_run_concurrently_under_the_cap() {
     let yaml = r#"
 nika: v1
-workflow: fan-pair
+workflow:
+  id: fan-pair
 vars:
   items: ["x", "y"]
 tasks:
-  - id: pair
+  pair:
     for_each: ${{ vars.items }}
     max_parallel: 2
     invoke: { tool: "nika:read", args: { path: "${{ item }}" } }
@@ -1043,19 +1068,20 @@ tasks:
 async fn on_finally_runs_on_success_and_failure_and_routes_on_status() {
     let yaml = r#"
 nika: v1
-workflow: cleanup
+workflow:
+  id: cleanup
 tasks:
-  - id: works
+  works:
     exec: { command: ["make", "thing"] }
     on_finally:
       - exec: { command: ["rm", "-f", "scratch-a"] }
-  - id: breaks
+  breaks:
     exec: { command: ["make", "other"] }
     on_finally:
       - when: ${{ tasks.breaks.status == 'failure' }}
         exec: { command: ["alert", "on-call"] }
       - exec: { command: ["rm", "-f", "scratch-b"] }
-  - id: never_ran
+  never_ran:
     depends_on: [breaks]
     exec: { command: ["downstream"] }
     on_finally:
@@ -1094,9 +1120,10 @@ tasks:
 async fn on_finally_errors_are_swallowed() {
     let yaml = r#"
 nika: v1
-workflow: cleanup-err
+workflow:
+  id: cleanup-err
 tasks:
-  - id: main
+  main:
     exec: { command: ["work"] }
     on_finally:
       - exec: { command: ["broken", "cleanup"] }
@@ -1129,13 +1156,14 @@ tasks:
 async fn status_gates_route_on_skipped_upstream() {
     let yaml = r#"
 nika: v1
-workflow: routing
+workflow:
+  id: routing
 vars: { mode: "fast" }
 tasks:
-  - id: slow_path
+  slow_path:
     when: ${{ vars.mode == 'slow' }}
     exec: { command: ["slow", "work"] }
-  - id: report
+  report:
     depends_on: [slow_path]
     when: ${{ tasks.slow_path.status != 'success' }}
     exec: { command: ["report", "skipped", "lane"] }
@@ -1166,9 +1194,10 @@ async fn emitted_spec_codes_resolve_in_the_embedded_canon() {
     // Shape 1 · the timeout class (NIKA-TIMEOUT-001).
     let timeout_yaml = r#"
 nika: v1
-workflow: pin-timeout
+workflow:
+  id: pin-timeout
 tasks:
-  - id: stuck
+  stuck:
     timeout: "10ms"
     invoke: { tool: "nika:read", args: { path: "slow.txt" } }
 "#;
@@ -1198,10 +1227,11 @@ tasks:
     // Shape 2 · the expression-type class (non-array for_each).
     let var_yaml = r#"
 nika: v1
-workflow: pin-var
+workflow:
+  id: pin-var
 vars: { scalar: "not a list" }
 tasks:
-  - id: bad
+  bad:
     for_each: ${{ vars.scalar }}
     exec: { command: ["never", "${{ item }}"] }
 "#;
@@ -1246,11 +1276,12 @@ tasks:
 async fn for_each_when_gate_referencing_item_fails_loudly() {
     let yaml = r#"
 nika: v1
-workflow: gate-item
+workflow:
+  id: gate-item
 vars:
   items: ["a", "b"]
 tasks:
-  - id: fan
+  fan:
     for_each: ${{ vars.items }}
     when: ${{ item != 'skip' }}
     exec: { command: ["do", "${{ item }}"] }
@@ -1300,13 +1331,14 @@ tasks:
 async fn builtin_invoke_array_output_lets_for_each_iterate() {
     let yaml = r#"
 nika: v1
-workflow: glob-fanout
+workflow:
+  id: glob-fanout
 tasks:
-  - id: files
+  files:
     invoke:
       tool: "nika:glob"
       args: { pattern: "./docs/**/*.md" }
-  - id: texts
+  texts:
     depends_on: [files]
     for_each: ${{ tasks.files.output }}
     max_parallel: 1
@@ -1356,13 +1388,14 @@ tasks:
 async fn structured_object_tool_output_navigates() {
     let yaml = r#"
 nika: v1
-workflow: object-nav
+workflow:
+  id: object-nav
 tasks:
-  - id: api
+  api:
     invoke:
       tool: "nika:jq"
       args: { input: { count: 2 }, expression: "." }
-  - id: use
+  use:
     depends_on: [api]
     when: ${{ tasks.api.output.count > 1 }}
     exec: { command: ["echo", "${{ tasks.api.output.count }}"] }
@@ -1399,9 +1432,10 @@ tasks:
 async fn text_only_tool_output_stays_a_string() {
     let yaml = r#"
 nika: v1
-workflow: text-output
+workflow:
+  id: text-output
 tasks:
-  - id: tool
+  tool:
     invoke: { tool: "mcp:server/echo", args: {} }
 "#;
     // A bare success — no with_structured → the MCP text path.

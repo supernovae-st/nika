@@ -44,29 +44,32 @@ fn workspace_tmp_dir(name: &str) -> std::path::PathBuf {
 
 const VALID: &str = r#"
 nika: v1
-workflow: smoke
+workflow:
+  id: smoke
 tasks:
-  - id: greet
+  greet:
     exec: { command: ["echo", "hello"] }
 "#;
 
 const INVALID: &str = r#"
 nika: v1
-workflow: smoke-broken
+workflow:
+  id: smoke-broken
 tasks:
-  - id: a
+  a:
     depends_on: [b]
     exec: { command: ["true"] }
-  - id: b
+  b:
     depends_on: [a]
     exec: { command: ["true"] }
 "#;
 
 const FAILING: &str = r#"
 nika: v1
-workflow: smoke-fail
+workflow:
+  id: smoke-fail
 tasks:
-  - id: boom
+  boom:
     exec: { shell: "exit 7" }
 "#;
 
@@ -168,16 +171,17 @@ fn run_task_scope_still_audits_the_whole_file() {
     let dir = workspace_tmp_dir("nika-bin-run-task-411");
     let poisoned = r#"
 nika: v1
-workflow: i411
+workflow:
+  id: i411
 permits:
   exec: ["echo"]
 tasks:
-  - id: fetch_data
+  fetch_data:
     exec: { command: ["echo", "data"] }
-  - id: render_page
+  render_page:
     depends_on: [fetch_data]
     exec: { command: ["echo", "page"] }
-  - id: compress
+  compress:
     exec: { command: ["tar", "--version"] }
 "#;
     let wf = write_fixture(&dir, "poisoned.nika.yaml", poisoned);
@@ -209,16 +213,17 @@ tasks:
 
     let clean = r#"
 nika: v1
-workflow: i411-clean
+workflow:
+  id: i411-clean
 permits:
   exec: ["echo"]
 tasks:
-  - id: fetch_data
+  fetch_data:
     exec: { command: ["echo", "data"] }
-  - id: render_page
+  render_page:
     depends_on: [fetch_data]
     exec: { command: ["echo", "page"] }
-  - id: compress
+  compress:
     exec: { command: ["echo", "z"] }
 "#;
     let ok = write_fixture(&dir, "clean.nika.yaml", clean);
@@ -658,8 +663,8 @@ fn wire_cursor_migrates_stale_mcp_config() {
 #[test]
 fn check_many_files_keeps_worst_exit_and_json_stays_single() {
     let dir = workspace_tmp_dir("nika-check-many-smoke");
-    let clean = "nika: v1\nworkflow: ok\ntasks:\n  - id: t\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
-    let broken = "nika: v1\nworkflow: bad\ntasks:\n  - id: t\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 10, model: \"mock/echo\" }\n";
+    let clean = "nika: v1\nworkflow:\n  id: ok\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
+    let broken = "nika: v1\nworkflow:\n  id: bad\ntasks:\n  t:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 10, model: \"mock/echo\" }\n";
     let a = dir.join("a.nika.yaml");
     let b = dir.join("broken.nika.yaml");
     let c = dir.join("c.nika.yaml");
@@ -909,7 +914,7 @@ fn mcp_tools_call_check_carries_the_did_you_mean() {
         stdin
             .write_all(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}\n")
             .expect("write initialize");
-        let wf = "nika: v1\nworkflow: agent-authored\ntasks:\n  - id: log_it\n    invoke:\n      tool: \"nika:log\"\n      args:\n        mesage: \"typo'd by the agent\"\n";
+        let wf = "nika: v1\nworkflow:\n  id: agent-authored\ntasks:\n  log_it:\n    invoke:\n      tool: \"nika:log\"\n      args:\n        mesage: \"typo'd by the agent\"\n";
         let call = serde_json::json!({
             "jsonrpc": "2.0", "id": 2, "method": "tools/call",
             "params": { "name": "nika_check", "arguments": { "workflow": wf } }
@@ -1044,7 +1049,7 @@ fn explain_narrates_a_file_and_still_teaches_codes() {
     let wf = write_fixture(
         &dir,
         "story.nika.yaml",
-        "nika: v1\nworkflow: smoke-story\ndescription: a two-step story\n\nmodel: mock/echo\n\ntasks:\n  - id: draft\n    infer: { prompt: \"draft\", max_tokens: 10 }\n  - id: polish\n    depends_on: [draft]\n    infer: { prompt: \"polish\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.polish.output }}\n",
+        "nika: v1\nworkflow:\n  id: smoke-story\n  description: a two-step story\n\nmodel: mock/echo\n\ntasks:\n  draft:\n    infer: { prompt: \"draft\", max_tokens: 10 }\n  polish:\n    depends_on: [draft]\n    infer: { prompt: \"polish\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.polish.output }}\n",
     );
     let out = bin()
         .arg("explain")
@@ -1198,7 +1203,7 @@ fn lsp_survives_adversarial_request_positions_over_stdio() {
     use std::process::Stdio;
     // butterfly + é in a value, a multibyte task id — every position below
     // lands in, or past, one of this document's multibyte spans.
-    let multi = "nika: v1\nworkflow: 🦋é\ntasks:\n  - id: café\n    exec: { command: [\"echo\", \"${{ tasks.café.output }}\"] }\n";
+    let multi = "nika: v1\nworkflow:\n  id: 🦋é\ntasks:\n  café:\n    exec: { command: [\"echo\", \"${{ tasks.café.output }}\"] }\n";
     let uri = "file:///t/multi.nika.yaml";
     let max = u32::MAX;
     let mut child = bin()
@@ -1260,7 +1265,7 @@ fn the_dag_draws_in_the_terminal() {
     let wf = write_fixture(
         &dir,
         "diamond.nika.yaml",
-        "nika: v1\nworkflow: smoke-diamond\nmodel: mock/echo\ntasks:\n  - id: fetch\n    infer: { prompt: \"g\", max_tokens: 10 }\n  - id: sum\n    depends_on: [fetch]\n    infer: { prompt: \"s\", max_tokens: 10 }\n  - id: crit\n    depends_on: [fetch]\n    infer: { prompt: \"c\", max_tokens: 10 }\n  - id: publish\n    depends_on: [sum, crit]\n    infer: { prompt: \"p\", max_tokens: 10 }\n",
+        "nika: v1\nworkflow:\n  id: smoke-diamond\nmodel: mock/echo\ntasks:\n  fetch:\n    infer: { prompt: \"g\", max_tokens: 10 }\n  sum:\n    depends_on: [fetch]\n    infer: { prompt: \"s\", max_tokens: 10 }\n  crit:\n    depends_on: [fetch]\n    infer: { prompt: \"c\", max_tokens: 10 }\n  publish:\n    depends_on: [sum, crit]\n    infer: { prompt: \"p\", max_tokens: 10 }\n",
     );
     let out = bin()
         .arg("inspect")
@@ -1304,12 +1309,12 @@ fn context_aggregates_the_workspace_value_free() {
     write_fixture(
         &dir,
         "good.nika.yaml",
-        "nika: v1\nworkflow: smoke-good\nmodel: mock/echo\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
+        "nika: v1\nworkflow:\n  id: smoke-good\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
     );
     write_fixture(
         &dir.join("flows"),
         "bad.nika.yaml",
-        "nika: v1\nworkflow: smoke-bad\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"x\"] }\n  - id: b\n    depends_on: [a]\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
+        "nika: v1\nworkflow:\n  id: smoke-bad\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    depends_on: [a]\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
     );
     let out = bin()
         .args(["welcome", "--deep"])

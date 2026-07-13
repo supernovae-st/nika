@@ -1310,7 +1310,7 @@ mod infer_deadline_tests {
     async fn task_timeout_governs_the_provider_http_deadline() {
         // The exact field repro: `timeout: "7m"` on a local-model infer.
         let captured = run_and_capture(
-            "nika: v1\nworkflow: w\nmodel: ollama/llama3.2\ntasks:\n  - id: ask\n    timeout: \"7m\"\n    infer: { prompt: \"hello\" }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    timeout: \"7m\"\n    infer: { prompt: \"hello\" }\n",
         )
         .await;
         assert_eq!(captured.len(), 1, "one provider round-trip");
@@ -1324,7 +1324,7 @@ mod infer_deadline_tests {
     #[tokio::test]
     async fn local_provider_without_task_timeout_gets_the_generous_default() {
         let captured = run_and_capture(
-            "nika: v1\nworkflow: w\nmodel: ollama/llama3.2\ntasks:\n  - id: ask\n    infer: { prompt: \"hello\" }\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    infer: { prompt: \"hello\" }\n",
         )
         .await;
         assert_eq!(captured.len(), 1, "one provider round-trip");

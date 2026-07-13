@@ -60,13 +60,14 @@ async fn run(yaml: &str, shell: MockShell) -> RunOutcome {
 async fn interpolated_program_outside_allowlist_is_refused() {
     let yaml = r#"
 nika: v1
-workflow: permits-deny
+workflow:
+  id: permits-deny
 permits:
   exec: ["git"]
 vars:
   prog: "rm"
 tasks:
-  - id: danger
+  danger:
     exec:
       command: ["${{ vars.prog }}", "-rf", "/tmp/x"]
 "#;
@@ -87,13 +88,14 @@ tasks:
 async fn interpolated_program_in_allowlist_runs() {
     let yaml = r#"
 nika: v1
-workflow: permits-allow
+workflow:
+  id: permits-allow
 permits:
   exec: ["git"]
 vars:
   prog: "git"
 tasks:
-  - id: ok
+  ok:
     exec:
       command: ["${{ vars.prog }}", "status"]
 "#;

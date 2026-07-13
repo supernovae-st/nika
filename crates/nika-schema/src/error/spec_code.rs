@@ -166,6 +166,11 @@ impl SchemaError {
             Self::DuplicateKey { .. } => parse(17, ValidationError),
             Self::MissingField { .. } => parse(18, ValidationError),
             Self::Validation { .. } => parse(19, ValidationError),
+            // W1 « the map » migration teachings (dead forms · 0.104)
+            Self::W1WorkflowScalar { .. } => parse(20, ValidationError),
+            Self::W1TopLevelDescription { .. } => parse(21, ValidationError),
+            Self::W1TasksSequence { .. } => parse(22, ValidationError),
+            Self::W1TaskIdField { .. } => parse(23, ValidationError),
 
             // Spec 05 registry · NIKA-VAR-005 = « static expression
             // violation — outside cel-subset/0.1 · chained relation ·

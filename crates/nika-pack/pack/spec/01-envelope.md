@@ -10,15 +10,16 @@
 
 ```yaml
 nika: v1
-workflow: my-workflow-id
+workflow:
+  id: my-workflow-id
 
 tasks:
-  - id: ...
+  my_task:
     ...
 ```
 
-Two required lines (`nika:` + `workflow:`) and a non-empty `tasks:`. That's
-the **whole minimum** to be a valid Nika workflow.
+The `nika:` header, a `workflow:` object with an `id`, and a non-empty
+`tasks:` map. That's the **whole minimum** to be a valid Nika workflow.
 
 ---
 
@@ -26,8 +27,9 @@ the **whole minimum** to be a valid Nika workflow.
 
 ```yaml
 nika: v1                                # required · language + contract version
-workflow: scrape-and-summarize          # required · kebab-case · unique within file
-description: "Fetch + summarize"         # optional · human-readable
+workflow:                               # required · the workflow object (W1: the map)
+  id: scrape-and-summarize              #   required · kebab-case · unique within file
+  description: "Fetch + summarize"      #   optional · human-readable
 
 # Workflow-level default model · any task may override · <provider>/<name>
 model: ollama/qwen3.5:4b         # optional · anthropic/claude-sonnet-4-6 for cloud
@@ -56,9 +58,9 @@ permits:
   fs:   { write: ["./output/**"] }       # no reads · writes only under ./output
   exec: false                            # this workflow runs zero shells
 
-# Tasks (the DAG)
+# Tasks (the DAG) · map keyed by task id
 tasks:
-  - id: ...
+  some_task:
     ...
 
 # What this workflow returns · ${{ tasks.<id>.output }} refs · untyped OR typed
@@ -121,30 +123,31 @@ engine version.)
 > stays `https://nika.sh/spec/v1` for RDF / conformance tooling, but
 > the author never types a URL.
 
-### `workflow` · **required · kebab-case · unique within file**
+### `workflow` · **required · an OBJECT · `{id, description}`**
 
 ```yaml
-workflow: scrape-and-summarize
+workflow:
+  id: scrape-and-summarize
+  description: "Fetch article, summarize in 3 bullets, write to disk"
 ```
 
-A stable identifier for the workflow. Kebab-case. Used in journal events,
-traces, and error messages.
+The workflow object — a stable home for the file's identity and metadata.
+
+- **`id`** · required · kebab-case (`^[a-z][a-z0-9-]*$`) · unique within
+  file · used in journal events, traces and error messages.
+- **`description`** · optional · free-form text · not used by the engine
+  for execution · useful for `nika ls` listings + LSP hover hints.
 
 The presence of `workflow:` is also the **document-type discriminator**:
 it marks this file as a workflow. Future Nika document types (if any ever
 ship) would use their own top-level key; there is no separate `kind:`
 field in v1.
 
-Must match · `^[a-z][a-z0-9-]*$`.
-
-### `description` · *optional · human-readable*
-
-```yaml
-description: "Fetch article, summarize in 3 bullets, write to disk"
-```
-
-Free-form text. Not used by the engine for execution. Useful for `nika ls`
-listings + LSP hover hints.
+**Dead forms (rejected with a migration teaching · W1 « the map »)** ·
+a scalar `workflow: some-id` is `NIKA-PARSE-020`; a top-level
+`description:` is `NIKA-PARSE-021` — both moved INTO the object. No alias
+survives: the old spellings left the parser in the same window that
+introduced the object.
 
 ### `model` · *optional · default model · `<provider>/<name>`*
 
@@ -421,17 +424,24 @@ is checkable BEFORE the run.
 whitelist scopes ONE task's tools; `permits.tools` scopes the WHOLE workflow
 (the union ceiling). An agent may never be granted a tool outside `permits`.
 
-### `tasks` · **required · non-empty**
+### `tasks` · **required · a non-empty MAP · the key IS the identity**
 
 ```yaml
 tasks:
-  - id: task_1
+  task_1:
     ...
-  - id: task_2
+  task_2:
     ...
 ```
 
-The DAG. See [03-dag.md](./03-dag.md) for the task model.
+The DAG. Each key names one task (snake_case · `^[a-z][a-z0-9_]*$` ·
+CEL-safe); duplicate keys are rejected loudly at parse. Source order is
+**presentation only** — the graph alone determines scheduling. See
+[03-dag.md](./03-dag.md) for the task model.
+
+**Dead forms (rejected with a migration teaching · W1 « the map »)** ·
+a `tasks:` SEQUENCE is `NIKA-PARSE-022`; an `id:` field inside a task is
+`NIKA-PARSE-023` — the map key replaced both. No alias survives.
 
 ### `outputs` · *optional · the workflow's return value · untyped OR typed*
 
@@ -542,10 +552,11 @@ these files) should quote-by-default for the four ambiguous-scalar cases above.
 
 ```yaml
 nika: v1
-workflow: hello
+workflow:
+  id: hello
 
 tasks:
-  - id: greet
+  greet:
     infer:
       prompt: "Hello"
       model: anthropic/claude-haiku-4-5
@@ -555,8 +566,9 @@ tasks:
 
 ```yaml
 nika: v1
-workflow: research-pipeline
-description: "Research a topic and write a markdown brief"
+workflow:
+  id: research-pipeline
+  description: "Research a topic and write a markdown brief"
 
 model: anthropic/claude-sonnet-4-6
 vars:
@@ -569,11 +581,11 @@ vars:
     default: "./brief.md"
 
 tasks:
-  - id: research
+  research:
     infer:
       prompt: "Research the topic · ${{ vars.topic }} · in 5 paragraphs"
 
-  - id: write
+  write:
     depends_on: [research]
     with:
       content: ${{ tasks.research.output }}

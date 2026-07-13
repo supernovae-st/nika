@@ -38,15 +38,15 @@ tasks: ...
 
 ```yaml
 # NOT supported in v0.1
-- id: sub
-  workflow: ./subroutine.nika.yaml
+sub:
+    workflow: ./subroutine.nika.yaml
 
 # Also deferred · the nika:run builtin (previously proposed)
-- id: sub
-  invoke:
-    tool: "nika:run"
-    args:
-      workflow: ./subroutine.nika.yaml
+sub:
+    invoke:
+      tool: "nika:run"
+      args:
+        workflow: ./subroutine.nika.yaml
 ```
 
 **Why deferred** · subroutine calling needs scope/binding rules that need thought · plus risks of stack overflow (recursion) and scheduler complexity. The proposed `nika:run` builtin is therefore deferred from v0.1 · use `exec: shell: "nika run subroutine.yaml"` as the workaround.
@@ -76,9 +76,9 @@ a sub-workflow call is the dispatch-and-await model · never a verb).
 macro retry_with_backoff:
   retry: { max_attempts: 5, backoff_ms: 1000 }
 
-- id: task
-  use_macro: retry_with_backoff
-  invoke: { tool: "nika:fetch", ... }
+task:
+    use_macro: retry_with_backoff
+    invoke: { tool: "nika:fetch", ... }
 ```
 
 **Why deferred** · macros are a powerful but dangerous primitive (expansion order · debugging · drift). Most needs are met by `with:` scope + structured retry. Revisit only if empirical demand emerges.
@@ -95,10 +95,10 @@ macro retry_with_backoff:
 
 ```yaml
 # NOT supported in v1 — unbounded iteration
-- id: poll_until
-  while: ${{ tasks.check.output.ready == false }}
-  exec:
-    command: ["./check.sh"]
+poll_until:
+    while: ${{ tasks.check.output.ready == false }}
+    exec:
+      command: ["./check.sh"]
 ```
 
 **Why deferred** · unbounded loops break the « acyclic » guarantee of the DAG
@@ -123,12 +123,12 @@ Never supported. Anti-pattern.
 
 ```yaml
 # NOT supported in v0.1
-- id: stream_chat
-  infer:
-    prompt: "..."
-    stream: true
-  output:
-    chunks: .stream                 # not in v0.1
+stream_chat:
+    infer:
+      prompt: "..."
+      stream: true
+    output:
+      chunks: .stream                 # not in v0.1
 ```
 
 **Why deferred** · streaming semantics in a YAML/DAG model are tricky · tasks are nominally synchronous. Engines MAY stream internally as an implementation detail · workflows see the final assembled response.
@@ -137,8 +137,8 @@ Never supported. Anti-pattern.
 
 ```yaml
 # NOT supported in v0.1
-- id: listen
-  subscribe: "events://orders.created"
+listen:
+    subscribe: "events://orders.created"
 ```
 
 **Why deferred** · v0.1 is finite-DAG. Long-running event listeners belong in the daemon layer or external orchestrators.
@@ -194,9 +194,9 @@ pin in the envelope (`nika: v1` already does this for the language contract). Pe
 
 ```yaml
 # NOT supported in v0.1
-- id: charge
-  idempotency_key: "${{ vars.order_id }}"   # dedup retried side effects
-  invoke: { tool: "mcp:stripe/charge", args: { ... } }
+charge:
+    idempotency_key: "${{ vars.order_id }}"   # dedup retried side effects
+    invoke: { tool: "mcp:stripe/charge", args: { ... } }
 ```
 
 **Why deferred** · idempotency keys are **table-stakes for the durable-execution
@@ -221,12 +221,12 @@ deferral, at the full waypoint.)*
 
 ```yaml
 # The CAPABILITY is deferred (engine waypoint) · the SHAPE is already decided
-- id: recall
-  invoke:
-    tool: "nika:connectome/recall"
-    args:
-      query: "Previous conversations about · ${{ vars.topic }}"
-      top_k: 5
+recall:
+    invoke:
+      tool: "nika:connectome/recall"
+      args:
+        query: "Previous conversations about · ${{ vars.topic }}"
+        top_k: 5
 ```
 
 **No 6th verb, ever.** When the Connectome (the engine's cognitive subsystem)
@@ -266,9 +266,9 @@ agents:
 
 ```yaml
 # NOT supported in v0.1
-- id: ongoing
-  agent:
-    persistent_state_id: "user-123"
+ongoing:
+    agent:
+      persistent_state_id: "user-123"
 ```
 
 **Why deferred** · ties into memory subsystem.

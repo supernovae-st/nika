@@ -234,9 +234,10 @@ mod tests {
     use super::*;
 
     const VALID_DRAFT: &str = r#"nika: v1
-workflow: composed-by-agent
+workflow:
+  id: composed-by-agent
 tasks:
-  - id: greet
+  greet:
     exec:
       command: ["echo", "hello"]
 "#;
@@ -270,9 +271,10 @@ tasks:
     fn a_conformance_violation_feeds_back_code_and_message() {
         // A dependency on a task that does not exist — a classic DAG error.
         let draft = r#"nika: v1
-workflow: broken
+workflow:
+  id: broken
 tasks:
-  - id: a
+  a:
     depends_on: [ghost]
     exec:
       command: ["echo", "x"]
@@ -302,7 +304,10 @@ tasks:
 
     #[test]
     fn oversized_drafts_are_rejected_before_parsing() {
-        let huge = format!("nika: v1\nworkflow: x\n# {}", "y".repeat(MAX_DRAFT_BYTES));
+        let huge = format!(
+            "nika: v1\nworkflow:\n  id: x\n# {}",
+            "y".repeat(MAX_DRAFT_BYTES)
+        );
         let (content, is_error, _) = run_compose(&serde_json::json!({"workflow_yaml": huge}));
         assert!(is_error);
         assert!(content.contains("too large"));

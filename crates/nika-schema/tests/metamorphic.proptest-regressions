@@ -1,0 +1,13 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc b84c6fb7a616d289bb1f4b2a2cba0b9640945103a1c5158d1b48ef70fe3423a8 # shrinks to tasks = [TaskSpec { deps: [], verb: 0, attempts: 1, gate: 0, fan: 0 }]
+cc 777e7b08be5d2b2245977e29cb834f235fbfc7058c1ea319e81670f5024609da # shrinks to tasks = [TaskSpec { deps: [], verb: 0, attempts: 1, gate: 0, fan: 0 }]
+cc c7dce39edcd9fa465e8c8e5fcf13b24c970bbed4bc9ff06f6693e76d25efa826 # shrinks to verb = 0, attempts = 1
+cc 4c8841e5d0e26180b3d6f3b76582e5761e4314ffdb465b06f94f5fbed1bd0453 # shrinks to tasks = [TaskSpec { deps: [], verb: 0, attempts: 1, gate: 0, fan: 0 }]
+cc f83b921c1442661b36dcd066ba41729e3345d69869c72d9fc3795ae755b81d77 # shrinks to tasks = [TaskSpec { deps: [], verb: 0, attempts: 1, gate: 0, fan: 0 }]
+cc e9ace59fb7db47d0f6a9401b0adaf064f82932f745cf9960c406de19316b9543 # shrinks to tasks = [TaskSpec { deps: [], verb: 0, attempts: 1, gate: 0, fan: 0 }]
+cc cedc9fc1b2ed4f350fb5c8e0505e854e4f4072aa976a4178d381c950dc2b9bf0 # shrinks to tasks = [TaskSpec { deps: [], verb: 0, attempts: 1, gate: 0, fan: 0 }]

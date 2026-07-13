@@ -7,16 +7,18 @@
 //! robust line heuristics over a full AST, silence beats noise.
 
 /// The id of the task whose block encloses `offset` — the nearest
-/// preceding `- id:` line. `None` above the first task.
+/// preceding task map key (W1 « the map »: a bare `name:` at indent 2).
+/// `None` above the first task.
 pub(super) fn current_task_id(text: &str, offset: usize) -> Option<String> {
     for line in lines_upward(text, offset) {
-        let t = line.trim_start();
-        if let Some(rest) = t.strip_prefix("- id:") {
-            return Some(unquote(rest).to_owned());
+        if is_task_boundary(line) {
+            let head = line.trim_start().split('#').next().unwrap_or("").trim_end();
+            return head.strip_suffix(':').map(str::to_owned);
         }
         // A column-0 key above us means we left the tasks block — a
         // workflow-level `outputs:`/`vars:` island is NOT inside the
         // last task that happens to sit above it.
+        let t = line.trim_start();
         if !t.is_empty() && line.len() == t.len() {
             return None;
         }
@@ -38,6 +40,29 @@ pub(super) fn in_recover_value(text: &str, offset: usize) -> bool {
         .starts_with("recover:")
 }
 
+/// W1 « the map »: a task boundary is the task's MAP KEY — a bare
+/// `name:` block key at indent 2 (the `- id:` row died with the list
+/// form). Two-indent entries that carry inline values (vars · outputs)
+/// never match; a typed-var block HEAD does — an acceptable stop for
+/// every upward predicate here (nothing task-scoped lives above it
+/// either way).
+fn is_task_boundary(line: &str) -> bool {
+    let indent = line.len() - line.trim_start().len();
+    if indent != 2 {
+        return false;
+    }
+    let t = line.trim_start();
+    let head = t.split('#').next().unwrap_or("").trim_end();
+    let Some(name) = head.strip_suffix(':') else {
+        return false;
+    };
+    !name.is_empty()
+        && name.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+        && name
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
 /// The `tool:` value of the invoke block enclosing `offset`, when the
 /// enclosing task declares one — the scan stops at the task boundary
 /// (`- id:`) so a PREVIOUS task's tool never leaks into this one.
@@ -47,7 +72,7 @@ pub(super) fn enclosing_tool(text: &str, offset: usize) -> Option<String> {
         if let Some(rest) = t.strip_prefix("tool:") {
             return Some(unquote(rest).to_owned());
         }
-        if t.starts_with("- id:") {
+        if is_task_boundary(line) {
             return None;
         }
     }
@@ -128,7 +153,7 @@ pub(super) fn in_schema_key_position(text: &str, offset: usize) -> bool {
         if key.starts_with("schema:") {
             return true;
         }
-        if key.starts_with("- id:") || line_indent == 0 {
+        if is_task_boundary(line) || line_indent == 0 {
             return false;
         }
         current = line_indent;
@@ -160,7 +185,7 @@ pub(super) fn in_schema_scope(text: &str, offset: usize) -> bool {
         if key.starts_with("schema:") {
             return true;
         }
-        if key.starts_with("- id:") || line_indent == 0 {
+        if is_task_boundary(line) || line_indent == 0 {
             return false;
         }
         current = line_indent;
@@ -224,7 +249,7 @@ pub(super) fn in_for_each_task(text: &str, offset: usize) -> bool {
         if t.starts_with("for_each:") {
             return true;
         }
-        if t.starts_with("- id:") {
+        if is_task_boundary(line) {
             return false;
         }
     }
@@ -280,7 +305,7 @@ pub(super) fn in_block_list_item(text: &str, offset: usize, key: &str) -> bool {
 mod tests {
     use super::*;
 
-    const DOC: &str = "nika: v1\nworkflow: w\ntasks:\n  - id: fetch_article\n    invoke:\n      tool: nika:fetch\n      args:\n        url: \"https://x\"\n        \n  - id: second\n    exec:\n      command: [\"ls\"]\n";
+    const DOC: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  fetch_article:\n    invoke:\n      tool: nika:fetch\n      args:\n        url: \"https://x\"\n        \n  second:\n    exec:\n      command: [\"ls\"]\n";
 
     #[test]
     fn current_task_is_the_nearest_id_above() {
@@ -318,7 +343,7 @@ mod tests {
 
     #[test]
     fn quotes_and_comments_shed_from_scalar_values() {
-        let doc = "tasks:\n  - id: a\n    invoke:\n      tool: \"nika:jq\"  # data\n      args:\n        x: 1\n";
+        let doc = "tasks:\n  a:\n    invoke:\n      tool: \"nika:jq\"  # data\n      args:\n        x: 1\n";
         let in_args = doc.find("x: 1").expect("x line");
         assert_eq!(enclosing_tool(doc, in_args).as_deref(), Some("nika:jq"));
     }

@@ -2,7 +2,8 @@
 # declared boundary, max_tokens turns the cost floor into a HARD ceiling.
 # Every vector green, before a single token is spent.
 nika: v1
-workflow: release-brief
+workflow:
+  id: release-brief
 model: ollama/llama3.2:3b
 
 permits:
@@ -11,23 +12,23 @@ permits:
   tools: ["nika:fetch", "nika:write"]
 
 tasks:
-  - id: release
+  release:
     invoke:
       tool: "nika:fetch"
       args: { url: "https://api.github.com/repos/supernovae-st/nika/releases/latest" }
 
-  - id: changelog_page
+  changelog_page:
     invoke:
       tool: "nika:fetch"
       args: { url: "https://nika.sh/changelog" }
 
-  - id: brief
+  brief:
     depends_on: [release, changelog_page]
     infer:
       prompt: "Write a 3-line release brief from this JSON and page."
       max_tokens: 400
 
-  - id: save
+  save:
     depends_on: [brief]
     invoke:
       tool: "nika:write"

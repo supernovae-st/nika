@@ -1016,7 +1016,7 @@ mod tests {
     /// ride verbatim, and `effects_executed` states the contract.
     #[test]
     fn dry_run_payload_projects_the_versioned_plan() {
-        let yaml = "nika: v1\nworkflow: demo\nmodel: mock/echo\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"x\"] }\n  - id: b\n    depends_on: [a]\n    infer: { prompt: \"go ${{ tasks.a.output }}\", max_tokens: 10 }\n\noutputs:\n  out: \"${{ tasks.b.output }}\"\n";
+        let yaml = "nika: v1\nworkflow:\n  id: demo\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    depends_on: [a]\n    infer: { prompt: \"go ${{ tasks.a.output }}\", max_tokens: 10 }\n\noutputs:\n  out: \"${{ tasks.b.output }}\"\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::source::FileId::new(0),
@@ -1080,7 +1080,7 @@ mod tests {
     fn model_override_runs_a_local_model_workflow_offline() {
         let wf = stage(
             "override-infer.nika.yaml",
-            "nika: v1\nworkflow: override-infer\nmodel: ollama/llama3.1\ntasks:\n  - id: think\n    infer: { prompt: \"hello\" }\n",
+            "nika: v1\nworkflow:\n  id: override-infer\nmodel: ollama/llama3.1\ntasks:\n  think:\n    infer: { prompt: \"hello\" }\n",
         );
         let code = run(
             &wf.to_string_lossy(),
@@ -1113,7 +1113,7 @@ mod tests {
     fn model_override_replaces_the_resolved_model() {
         let wf = stage(
             "override-swap.nika.yaml",
-            "nika: v1\nworkflow: override-swap\nmodel: ollama/llama3.1\ntasks:\n  - id: ask\n    infer: { prompt: \"bonjour\" }\n",
+            "nika: v1\nworkflow:\n  id: override-swap\nmodel: ollama/llama3.1\ntasks:\n  ask:\n    infer: { prompt: \"bonjour\" }\n",
         );
         // With the override → mock/echo resolves with no provider → OK.
         let overridden = run(
@@ -1143,7 +1143,7 @@ mod tests {
 
     /// The workflow of the field repro: a `required: true` var with no
     /// default. Before F4 there was NO way to run it from the CLI.
-    const REQUIRED_VAR_WF: &str = "nika: v1\nworkflow: needs-var\nmodel: mock/echo\nvars:\n  topic:\n    type: string\n    required: true\ntasks:\n  - id: ask\n    infer: { prompt: \"about ${{ vars.topic }}\" }\n";
+    const REQUIRED_VAR_WF: &str = "nika: v1\nworkflow:\n  id: needs-var\nmodel: mock/echo\nvars:\n  topic:\n    type: string\n    required: true\ntasks:\n  ask:\n    infer: { prompt: \"about ${{ vars.topic }}\" }\n";
 
     fn run_with_vars(name: &str, vars: &[String]) -> u8 {
         let wf = stage(name, REQUIRED_VAR_WF);
@@ -1203,7 +1203,7 @@ mod tests {
     /// · outputs clear (they may read unscoped tasks).
     #[test]
     fn scope_to_task_keeps_the_ancestor_cone() {
-        let yaml = "nika: v1\nworkflow: diamond\nmodel: mock/echo\ntasks:\n  - id: discover\n    invoke: { tool: \"nika:glob\", args: { pattern: \"*.md\" } }\n  - id: stats\n    depends_on: [discover]\n    infer: { prompt: \"count ${{ tasks.discover.output }}\" }\n  - id: digest\n    depends_on: [discover]\n    infer: { prompt: \"sum ${{ tasks.discover.output }}\" }\n  - id: report\n    depends_on: [stats, digest]\n    infer: { prompt: \"merge ${{ tasks.stats.output }} ${{ tasks.digest.output }}\" }\noutputs:\n  all: ${{ tasks.report.output }}\n";
+        let yaml = "nika: v1\nworkflow:\n  id: diamond\nmodel: mock/echo\ntasks:\n  discover:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"*.md\" } }\n  stats:\n    depends_on: [discover]\n    infer: { prompt: \"count ${{ tasks.discover.output }}\" }\n  digest:\n    depends_on: [discover]\n    infer: { prompt: \"sum ${{ tasks.discover.output }}\" }\n  report:\n    depends_on: [stats, digest]\n    infer: { prompt: \"merge ${{ tasks.stats.output }} ${{ tasks.digest.output }}\" }\noutputs:\n  all: ${{ tasks.report.output }}\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),
@@ -1238,7 +1238,7 @@ mod tests {
     /// run renders describe exactly the cone, not the original file.
     #[test]
     fn scoped_workflow_rechecks_clean() {
-        let yaml = "nika: v1\nworkflow: pair\nmodel: mock/echo\ntasks:\n  - id: a\n    infer: { prompt: \"hi\" }\n  - id: b\n    depends_on: [a]\n    infer: { prompt: \"use ${{ tasks.a.output }}\" }\n";
+        let yaml = "nika: v1\nworkflow:\n  id: pair\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n  b:\n    depends_on: [a]\n    infer: { prompt: \"use ${{ tasks.a.output }}\" }\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),
@@ -1268,7 +1268,7 @@ mod tests {
         std::fs::write(&skill, "---\nname: s\ndescription: d\n---\nBe careful.\n")
             .expect("fixture skill");
         let yaml = format!(
-            "nika: v1\nworkflow: w\nmodel: mock/echo\ntasks:\n  - id: go\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
+            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  go:\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
             skill.display()
         );
         let wf = nika_schema::parse(
