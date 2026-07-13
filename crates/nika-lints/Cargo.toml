@@ -22,7 +22,7 @@ daemon        = "sentinelle"
 archetype     = "style-warden"
 spirit_role   = "murmure la forme canonique · jamais une erreur · la voie évidente reste évidente"
 voice_pattern = "advisory"
-layer         = "L2"
+layer         = "L0"
 
 [lints]
 workspace = true

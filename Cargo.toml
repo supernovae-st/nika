@@ -129,6 +129,7 @@ layers.nika-catalog = "L0"
 layers.nika-catalog-codegen = "L0"
 layers.nika-catalog-verify = "L4"
 layers.nika-schema = "L0"
+layers.nika-lints = "L0"
 # nika-graph · the canonical graph projection (graph_format: 1 · spec 03
 # §graph-projection) · split from nika-schema 2026-07-13 (the crate-size
 # cap · the nika-dap/nika-models precedents) — one projector, every surface.

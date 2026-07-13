@@ -129,20 +129,20 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/lsp-semantic-document`                                      |
-| HEAD             | `4ecb6e9cd` (`4ecb6e9cdad55a71513da44b37bd382c5aeb31d8`)             |
+| branch           | `feat/w1-engine`                                      |
+| HEAD             | `f6755b019` (`f6755b01914925b01a5776178939f73e5a68d5d9`)             |
 | workspace        | v0.103.0                                  |
-| crates (workspace)| 50                                              |
-| crates (admitted)| 48 / 42                                   |
+| crates (workspace)| 51                                              |
+| crates (admitted)| 49 / 42                                   |
 | crates (WIP)     | 2 — nika-chart nika-fx                                  |
-| L0               | 13                                              |
+| L0               | 14                                              |
 | L0.5             | 6                                              |
 | L1               | 13                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 1                                              |
 | L4               | 8                                              |
-| lib tests        | 4181 passed, 0 failed                              |
+| lib tests        | 4216 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 | field            | value                                          |
