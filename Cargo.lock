@@ -3848,7 +3848,6 @@ version = "0.102.0"
 dependencies = [
  "nika-schema",
  "serde",
- "serde_json",
 ]
 
 [[package]]

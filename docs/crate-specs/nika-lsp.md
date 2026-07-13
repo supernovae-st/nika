@@ -36,16 +36,34 @@ ships — zero extension change.
 | Feature | In v0.1 | Source |
 |---|:--:|---|
 | **Diagnostics** (publishDiagnostics) | ✅ | `nika_schema::check` ladder → `lsp_types::Diagnostic` (code + message + range + severity) |
-| **Hover** | ✅ | the 4-verb docs + top-level/task-field keyword docs (static, the language is LOCKED) · PLUS a task REFERENCE (`depends_on:` item / `${{ tasks.X }}`) → the target task's id + verb (reuses the go-to-def resolver) |
-| **Completion** | ✅ | top-level keys · task fields · the 4 verbs · `model: <provider>/` providers · the workflow's own task ids · auto-trigger on `.` `/` `[` |
-| **Document symbols** | ✅ | `RawWorkflow.tasks` → a `workflow → tasks → task(verb)` tree |
-| **Go-to-definition** | ✅ | a task ref (`depends_on:` item or `${{ tasks.X }}`) at the cursor → the task's `id` span |
+| **Hover** | ✅ | verb/keyword docs · task refs → target id+verb · task DECLARATION → the DAG card (wave k/N from the engine's own `analyze` · waits/feeds · downstream reach) · `tool:` → builtin card (category·args·required) · `model:` → catalog windows, provider-card fallback for hand-typed models · member refs → declaration cards |
+| **Completion** | ✅ | top-level keys · task fields · the 4 verbs · `model:` providers → per-provider models · `tool:` + agent `tools: [` builtins · builtin `args:` keys (required-first) · `mode:` extract vocabulary (contextual to `nika:fetch`) · closed enums (`nika:` · `type:` · `capture:` · `backoff_strategy:`) · island members (`${{ vars./secrets./env./tasks.<id>. }}`) · task refs by the law that judges each context (DAG-003 declared edges · recover carve-out · outputs freedom · depends_on anti-cycle) · JSON-Schema keyset inside `schema:` · auto-trigger on `.` `/` `[` and ` ` (value-colon pause · prose-empty pinned) |
+| **Document symbols** | ✅ | every declaration: vars (typed detail) · env · secrets · tasks(verb) — the navigation twin of member go-to-definition |
+| **Go-to-definition** | ✅ | a task ref (`depends_on:` item or `${{ tasks.X }}`) → the task's `id` span · a member ref (`${{ vars.X / secrets.X / env.X }}`) → its declaration |
 | **`$/cancelRequest`** (base protocol) | ✅ | the serve loop drains everything already queued into one batch and answers a request cancelled BEFORE it was computed with `-32800 RequestCancelled` — a fast-typing burst no longer computes stale results the client already discarded |
 | Expression intelligence inside `${{ }}` | 🟡 | CEL completion inside `${{ }}` islands shipped (PR #170) · expression hover stays client-side meanwhile |
 | Code actions / quick fixes | ✅ v0.2 (shipped 2026-07-12) | quickfix-only — the `check --fix` typed-rename engine (`offending`/`suggestion`) projected; unique-token + did-you-mean-only discipline mirrored |
 | Inlay hints · semantic tokens · code lens | ❌ v0.8X | |
 | Model catalog hover/compat (`model_intel`) | ❌ v0.8X | |
 | Multi-file / includes · incremental reparse | ❌ v0.8X | (v0.1 is single-file, full-reparse-on-change) |
+
+## 2bis. Custom requests (the oracle surface · vendor-prefixed)
+
+Convention: permanent extensions live under the `nika/` prefix
+(the rust-analyzer `lsp_ext` discipline) and are capability-gated via
+the `experimental` field of `ServerCapabilities` — a client (or agent)
+reads the advertisement instead of probing blind.
+
+| Method | Params | Result | Capability |
+|---|---|---|---|
+| `nika/semanticDocument` | `{ "uri": … }` (a `TextDocumentIdentifier`) | `{ graph, spans }` — `graph` is the canonical `graph_format: 1` projection VERBATIM (`nika-graph::project` · the same bytes `nika inspect --format json` prints · `null` while the document has findings) · `spans` maps task ids to their declaring token ranges | `experimental.nika.semanticDocument.graphFormat: 1` |
+
+The payload versions ITSELF (`graph.graph_format`) — evolution is
+additive and spec-first (spec 03 §graph-projection moves, then the
+projector, then consumers). This section is doc-synced-to-source: the
+capability pin test (`experimental_advertises_the_semantic_document`)
+and the byte-parity law test (`graph_half_is_the_canonical_projection_
+verbatim`) fail before this table may lie.
 
 ## 3. Public API
 
