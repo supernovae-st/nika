@@ -1,0 +1,43 @@
+name: pack-resync
+
+# The embedded pack follows the spec without the operator-scratch dance:
+# lib.rs promised scripts/sync-pack.sh since the crate's birth; the SSOT
+# sweep (2026-07-13) materialized it and found the pack ALREADY stale in
+# two files the coherence bot's canon-hash probe was blind to. Daily:
+# clone spec@main, run the ONE vendoring lane, open ONE idempotent PR on
+# drift — the 12-gate CI (pack integrity tests included) judges, never a
+# direct push. SECURITY: no github.event data reaches the shell.
+
+on:
+  schedule:
+    - cron: '45 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  heal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: The pack follows the spec
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/supernovae-st/nika-spec ../spec
+          bash scripts/sync-pack.sh ../spec
+          git add crates/nika-pack/pack
+          if git diff --cached --quiet; then echo "pack current — nothing to resync"; exit 0; fi
+          git config user.name "nika-release[bot]"
+          git config user.email "nika@supernovae.studio"
+          git checkout -B bot/pack-resync
+          git commit -m "chore(pack): the pack follows the spec — $(git -C ../spec rev-parse --short HEAD) (pack-resync)"
+          git push -f origin bot/pack-resync
+          gh pr create --head bot/pack-resync \
+            --title "chore(pack): the pack follows the spec" \
+            --body "Automated vendoring (pack-resync · scripts/sync-pack.sh). The 12-gate CI + pack integrity tests judge; merge on green." \
+            2>/dev/null || echo "PR already open — refreshed"
