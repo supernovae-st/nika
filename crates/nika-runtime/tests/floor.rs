@@ -354,10 +354,10 @@ workflow: cycle
 tasks:
   - id: a
     depends_on: [b]
-    exec: { command: 'true' }
+    exec: { command: ['true'] }
   - id: b
     depends_on: [a]
-    exec: { command: 'true' }
+    exec: { command: ['true'] }
 ";
     let wf = parse(dirty, FileId::new(0), ParseMode::Strict).expect("parses");
     let report = check(&wf);
@@ -434,10 +434,10 @@ workflow: gates
 tasks:
   - id: always
     when: true
-    exec: { command: 'echo a' }
+    exec: { command: ['echo', 'a'] }
   - id: never
     when: false
-    exec: { command: 'echo b' }
+    exec: { command: ['echo', 'b'] }
 ";
     let (wf, report) = parse_and_check(yaml);
     assert!(report.is_clean());
@@ -485,7 +485,7 @@ vars:
     default: 'bonjour'
 tasks:
   - id: say
-    exec: { command: 'echo ${{ vars.greeting }}' }
+    exec: { shell: 'echo ${{ vars.greeting }}' }
 outputs:
   said:
     value: ${{ tasks.say.output }}
@@ -596,7 +596,7 @@ model: mock/echo
 tasks:
   - id: maybe
     when: false
-    exec: { command: 'echo never' }
+    exec: { command: ['echo', 'never'] }
   - id: think
     depends_on: [maybe]
     infer:
@@ -640,11 +640,11 @@ async fn stress_deep_chain_threads_bindings_in_order() {
     const DEPTH: usize = 24;
     use std::fmt::Write as _;
     let mut yaml = String::from("nika: v1\nworkflow: deep-chain\ntasks:\n");
-    yaml.push_str("  - id: t0\n    exec: { command: 'step 0' }\n");
+    yaml.push_str("  - id: t0\n    exec: { command: ['step', '0'] }\n");
     for n in 1..DEPTH {
         let _ = writeln!(
             yaml,
-            "  - id: t{n}\n    depends_on: [t{prev}]\n    exec: {{ command: 'step {n} after ${{{{ tasks.t{prev}.output }}}}' }}",
+            "  - id: t{n}\n    depends_on: [t{prev}]\n    exec: {{ shell: 'step {n} after ${{{{ tasks.t{prev}.output }}}}' }}",
             prev = n - 1
         );
     }
@@ -692,7 +692,7 @@ async fn stress_wide_fan_in_joins_every_source() {
     use std::fmt::Write as _;
     let mut yaml = String::from("nika: v1\nworkflow: wide-fan\ntasks:\n");
     for n in 0..WIDTH {
-        let _ = writeln!(yaml, "  - id: src{n}\n    exec: {{ command: 'src {n}' }}");
+        let _ = writeln!(yaml, "  - id: src{n}\n    exec: {{ command: ['src', '{n}'] }}");
     }
     let deps: Vec<String> = (0..WIDTH).map(|n| format!("src{n}")).collect();
     let parts: Vec<String> = (0..WIDTH)
