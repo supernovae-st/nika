@@ -32,7 +32,7 @@ brew install supernovae-st/tap/nika   # the binary first; the plugin invokes it
 | session-context hook | a workspace with workflows greets the agent with the full nika map at session start (surfaces · laws · where traces live) — Cursor **and** Claude Code dialects |
 | check-on-edit hook | every agent edit to a `*.nika.yaml` is audited immediately (findings in the hook log; never blocks the edit) |
 | guard-run hook | `nika run` on a file that fails `nika check` is denied with the findings — the audit-before-run law, structurally unskippable (Cursor `beforeShellExecution` · Claude Code `PreToolUse`) |
-| MCP oracle (8 tools) | `nika_check` · `nika_explain` · `nika_schema` · `nika_examples` · `nika_template` · `nika_canon` · `nika_catalog` · `nika_tools` — read-only, by design |
+| MCP oracle (9 tools) | `nika_check` · `nika_explain` · `nika_schema` · `nika_examples` · `nika_template` · `nika_canon` · `nika_catalog` · `nika_tools` · `nika_inspect` — read-only, by design |
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/supernovae-st/nika-vscode/main/media/check-as-you-type.gif" alt="nika check findings appearing as you type" width="640">
