@@ -56,6 +56,8 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
         f"{R}/supernovae-st/nika-actions-starter/main/.github/workflows/nika-check.yml":
             f"        default: '{starter}'\n",
         f"{R}/supernovae-st/nika-registry/main/scripts/cert.py": f'ENGINE_VERSION = "{certeng}"\n',
+        f"https://api.github.com/repos/supernovae-st/nika/compare/v{tag}...main":
+            json.dumps({"ahead_by": 0, "commits": []}),
         **{f"{R}/supernovae-st/{repo}/main/.github/workflows/{wf}": "on:\n  schedule: []\n"
            for repo, wf in (("nika-docs","release-heal.yml"),("nika.sh","release-heal.yml"),
                             ("nika.sh","spec-resync.yml"),("nika-action","release-heal.yml"),

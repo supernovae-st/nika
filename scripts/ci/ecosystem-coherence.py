@@ -213,6 +213,18 @@ def main():
                 FINDINGS.append((lock_sev, f"lockstep {name}",
                                  f"{name} {mm(ver)} != engine {mm(engine_main)} (doctrine active from 0.97)"))
 
+    # Wave-ripeness (operator ruling 2026-07-13 · option C): the release
+    # stays a DELIBERATE act — the mechanism proposes, the operator
+    # disposes. Informational only, never a finding.
+    ripe = grab(f"https://api.github.com/repos/supernovae-st/nika/compare/v{tag}...main",
+                lambda t: json.loads(t), "wave ripeness")
+    if ripe and isinstance(ripe.get("ahead_by"), int) and ripe["ahead_by"] > 0:
+        heads = [c["commit"]["message"].split("\n")[0]
+                 for c in ripe.get("commits", [])
+                 if c["commit"]["message"].startswith(("feat", "fix"))][-3:]
+        print(f"wave-ripeness: main is {ripe['ahead_by']} commits past v{tag}"
+              + (" · headline candidates: " + " | ".join(heads) if heads else ""))
+
     fails = [f for f in FINDINGS if f[0] == "FAIL"]
     for sev, surface, detail in FINDINGS:
         print(f"{sev}  {surface:16s} {detail}")
