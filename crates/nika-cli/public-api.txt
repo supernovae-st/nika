@@ -44,6 +44,9 @@ pub mod nika_cli::verbs::fix
 pub fn nika_cli::verbs::fix::refuse(reason: &str) -> nika_cli::verbs::VerbOutput
 pub fn nika_cli::verbs::fix::run(path: &str, native_strict: bool, model: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
 pub mod nika_cli::verbs::graph
+pub use nika_cli::verbs::graph::GraphDoc
+pub use nika_cli::verbs::graph::Node
+pub use nika_cli::verbs::graph::project
 pub enum nika_cli::verbs::graph::GraphFormat
 pub nika_cli::verbs::graph::GraphFormat::Ascii
 pub nika_cli::verbs::graph::GraphFormat::Dot
@@ -100,155 +103,9 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::graph::GraphFormat
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::graph::GraphFormat
 impl<T> typenum::type_operators::Same for nika_cli::verbs::graph::GraphFormat
 pub type nika_cli::verbs::graph::GraphFormat::Output = T
-pub struct nika_cli::verbs::graph::Edge
-pub nika_cli::verbs::graph::Edge::from: alloc::string::String
-pub nika_cli::verbs::graph::Edge::kind: &'static str
-pub nika_cli::verbs::graph::Edge::to: alloc::string::String
-impl core::fmt::Debug for nika_cli::verbs::graph::Edge
-pub fn nika_cli::verbs::graph::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl serde_core::ser::Serialize for nika_cli::verbs::graph::Edge
-pub fn nika_cli::verbs::graph::Edge::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<D> owo_colors::OwoColorize for nika_cli::verbs::graph::Edge
-impl<T, U> core::convert::Into<U> for nika_cli::verbs::graph::Edge where U: core::convert::From<T>
-pub fn nika_cli::verbs::graph::Edge::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::graph::Edge where U: core::convert::Into<T>
-pub type nika_cli::verbs::graph::Edge::Error = core::convert::Infallible
-pub fn nika_cli::verbs::graph::Edge::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::graph::Edge where U: core::convert::TryFrom<T>
-pub type nika_cli::verbs::graph::Edge::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli::verbs::graph::Edge::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_cli::verbs::graph::Edge where T: 'static + ?core::marker::Sized
-pub fn nika_cli::verbs::graph::Edge::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli::verbs::graph::Edge where T: ?core::marker::Sized
-pub fn nika_cli::verbs::graph::Edge::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::graph::Edge where T: ?core::marker::Sized
-pub fn nika_cli::verbs::graph::Edge::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_cli::verbs::graph::Edge
-pub fn nika_cli::verbs::graph::Edge::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_cli::verbs::graph::Edge where T: 'static
-pub fn nika_cli::verbs::graph::Edge::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::graph::Edge where T: ?core::marker::Sized
-pub fn nika_cli::verbs::graph::Edge::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli::verbs::graph::Edge::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli::verbs::graph::Edge
-impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::graph::Edge
-impl<T> typenum::type_operators::Same for nika_cli::verbs::graph::Edge
-pub type nika_cli::verbs::graph::Edge::Output = T
-pub struct nika_cli::verbs::graph::FanOut
-pub nika_cli::verbs::graph::FanOut::count: core::option::Option<u64>
-pub nika_cli::verbs::graph::FanOut::kind: &'static str
-impl core::fmt::Debug for nika_cli::verbs::graph::FanOut
-pub fn nika_cli::verbs::graph::FanOut::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl serde_core::ser::Serialize for nika_cli::verbs::graph::FanOut
-pub fn nika_cli::verbs::graph::FanOut::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<D> owo_colors::OwoColorize for nika_cli::verbs::graph::FanOut
-impl<T, U> core::convert::Into<U> for nika_cli::verbs::graph::FanOut where U: core::convert::From<T>
-pub fn nika_cli::verbs::graph::FanOut::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::graph::FanOut where U: core::convert::Into<T>
-pub type nika_cli::verbs::graph::FanOut::Error = core::convert::Infallible
-pub fn nika_cli::verbs::graph::FanOut::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::graph::FanOut where U: core::convert::TryFrom<T>
-pub type nika_cli::verbs::graph::FanOut::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli::verbs::graph::FanOut::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_cli::verbs::graph::FanOut where T: 'static + ?core::marker::Sized
-pub fn nika_cli::verbs::graph::FanOut::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli::verbs::graph::FanOut where T: ?core::marker::Sized
-pub fn nika_cli::verbs::graph::FanOut::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::graph::FanOut where T: ?core::marker::Sized
-pub fn nika_cli::verbs::graph::FanOut::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_cli::verbs::graph::FanOut
-pub fn nika_cli::verbs::graph::FanOut::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_cli::verbs::graph::FanOut where T: 'static
-pub fn nika_cli::verbs::graph::FanOut::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::graph::FanOut where T: ?core::marker::Sized
-pub fn nika_cli::verbs::graph::FanOut::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli::verbs::graph::FanOut::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli::verbs::graph::FanOut
-impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::graph::FanOut
-impl<T> typenum::type_operators::Same for nika_cli::verbs::graph::FanOut
-pub type nika_cli::verbs::graph::FanOut::Output = T
-pub struct nika_cli::verbs::graph::GraphDoc
-pub nika_cli::verbs::graph::GraphDoc::edges: alloc::vec::Vec<nika_cli::verbs::graph::Edge>
-pub nika_cli::verbs::graph::GraphDoc::graph_format: u32
-pub nika_cli::verbs::graph::GraphDoc::nodes: alloc::vec::Vec<nika_cli::verbs::graph::Node>
-pub nika_cli::verbs::graph::GraphDoc::workflow: alloc::string::String
-impl core::fmt::Debug for nika_cli::verbs::graph::GraphDoc
-pub fn nika_cli::verbs::graph::GraphDoc::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl serde_core::ser::Serialize for nika_cli::verbs::graph::GraphDoc
-pub fn nika_cli::verbs::graph::GraphDoc::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<D> owo_colors::OwoColorize for nika_cli::verbs::graph::GraphDoc
-impl<T, U> core::convert::Into<U> for nika_cli::verbs::graph::GraphDoc where U: core::convert::From<T>
-pub fn nika_cli::verbs::graph::GraphDoc::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::graph::GraphDoc where U: core::convert::Into<T>
-pub type nika_cli::verbs::graph::GraphDoc::Error = core::convert::Infallible
-pub fn nika_cli::verbs::graph::GraphDoc::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::graph::GraphDoc where U: core::convert::TryFrom<T>
-pub type nika_cli::verbs::graph::GraphDoc::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli::verbs::graph::GraphDoc::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_cli::verbs::graph::GraphDoc where T: 'static + ?core::marker::Sized
-pub fn nika_cli::verbs::graph::GraphDoc::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli::verbs::graph::GraphDoc where T: ?core::marker::Sized
-pub fn nika_cli::verbs::graph::GraphDoc::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::graph::GraphDoc where T: ?core::marker::Sized
-pub fn nika_cli::verbs::graph::GraphDoc::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_cli::verbs::graph::GraphDoc
-pub fn nika_cli::verbs::graph::GraphDoc::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_cli::verbs::graph::GraphDoc where T: 'static
-pub fn nika_cli::verbs::graph::GraphDoc::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::graph::GraphDoc where T: ?core::marker::Sized
-pub fn nika_cli::verbs::graph::GraphDoc::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli::verbs::graph::GraphDoc::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli::verbs::graph::GraphDoc
-impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::graph::GraphDoc
-impl<T> typenum::type_operators::Same for nika_cli::verbs::graph::GraphDoc
-pub type nika_cli::verbs::graph::GraphDoc::Output = T
-pub struct nika_cli::verbs::graph::Node
-pub nika_cli::verbs::graph::Node::cost_interval: core::option::Option<[f64; 2]>
-pub nika_cli::verbs::graph::Node::fan_out: core::option::Option<nika_cli::verbs::graph::FanOut>
-pub nika_cli::verbs::graph::Node::id: alloc::string::String
-pub nika_cli::verbs::graph::Node::model: core::option::Option<alloc::string::String>
-pub nika_cli::verbs::graph::Node::on_error: core::option::Option<&'static str>
-pub nika_cli::verbs::graph::Node::outputs: alloc::vec::Vec<alloc::string::String>
-pub nika_cli::verbs::graph::Node::permits: alloc::vec::Vec<alloc::string::String>
-pub nika_cli::verbs::graph::Node::retry_max_attempts: core::option::Option<u32>
-pub nika_cli::verbs::graph::Node::timeout_ms: core::option::Option<u64>
-pub nika_cli::verbs::graph::Node::tool: core::option::Option<alloc::string::String>
-pub nika_cli::verbs::graph::Node::verb: &'static str
-pub nika_cli::verbs::graph::Node::when: core::option::Option<alloc::string::String>
-impl core::fmt::Debug for nika_cli::verbs::graph::Node
-pub fn nika_cli::verbs::graph::Node::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl serde_core::ser::Serialize for nika_cli::verbs::graph::Node
-pub fn nika_cli::verbs::graph::Node::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<D> owo_colors::OwoColorize for nika_cli::verbs::graph::Node
-impl<T, U> core::convert::Into<U> for nika_cli::verbs::graph::Node where U: core::convert::From<T>
-pub fn nika_cli::verbs::graph::Node::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::graph::Node where U: core::convert::Into<T>
-pub type nika_cli::verbs::graph::Node::Error = core::convert::Infallible
-pub fn nika_cli::verbs::graph::Node::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::graph::Node where U: core::convert::TryFrom<T>
-pub type nika_cli::verbs::graph::Node::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli::verbs::graph::Node::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_cli::verbs::graph::Node where T: 'static + ?core::marker::Sized
-pub fn nika_cli::verbs::graph::Node::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli::verbs::graph::Node where T: ?core::marker::Sized
-pub fn nika_cli::verbs::graph::Node::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::graph::Node where T: ?core::marker::Sized
-pub fn nika_cli::verbs::graph::Node::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_cli::verbs::graph::Node
-pub fn nika_cli::verbs::graph::Node::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_cli::verbs::graph::Node where T: 'static
-pub fn nika_cli::verbs::graph::Node::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::graph::Node where T: ?core::marker::Sized
-pub fn nika_cli::verbs::graph::Node::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli::verbs::graph::Node::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli::verbs::graph::Node
-impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::graph::Node
-impl<T> typenum::type_operators::Same for nika_cli::verbs::graph::Node
-pub type nika_cli::verbs::graph::Node::Output = T
-pub fn nika_cli::verbs::graph::project(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_schema::check::CheckReport) -> nika_cli::verbs::graph::GraphDoc
 pub fn nika_cli::verbs::graph::run(path: &str, format: nika_cli::verbs::graph::GraphFormat, theme: nika_display::theme::Theme) -> nika_cli::verbs::VerbOutput
-pub fn nika_cli::verbs::graph::to_dot(doc: &nika_cli::verbs::graph::GraphDoc) -> alloc::string::String
-pub fn nika_cli::verbs::graph::to_mermaid(doc: &nika_cli::verbs::graph::GraphDoc) -> alloc::string::String
+pub fn nika_cli::verbs::graph::to_dot(doc: &nika_graph::GraphDoc) -> alloc::string::String
+pub fn nika_cli::verbs::graph::to_mermaid(doc: &nika_graph::GraphDoc) -> alloc::string::String
 pub mod nika_cli::verbs::init
 pub use nika_cli::verbs::init::RECIPE_NAMES
 pub use nika_cli::verbs::init::agents_md
@@ -396,7 +253,7 @@ impl<W: core::io::write::Write> nika_cli::verbs::run::FoldSink<W>
 pub fn nika_cli::verbs::run::FoldSink<W>::into_error(self) -> core::option::Option<core::io::error::Error>
 pub fn nika_cli::verbs::run::FoldSink<W>::new(writer: W, theme: nika_display::theme::Theme, mode: nika_cli::verbs::run::RenderMode) -> Self
 pub fn nika_cli::verbs::run::FoldSink<W>::print_final(&mut self)
-pub fn nika_cli::verbs::run::FoldSink<W>::set_map(&mut self, doc: nika_cli::verbs::graph::GraphDoc, waves: alloc::vec::Vec<alloc::vec::Vec<usize>>)
+pub fn nika_cli::verbs::run::FoldSink<W>::set_map(&mut self, doc: nika_graph::GraphDoc, waves: alloc::vec::Vec<alloc::vec::Vec<usize>>)
 pub fn nika_cli::verbs::run::FoldSink<W>::set_plan(&mut self, waves: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>)
 pub fn nika_cli::verbs::run::FoldSink<W>::show_outputs(&mut self, on: bool)
 pub fn nika_cli::verbs::run::FoldSink<W>::view(&self) -> &nika_display::state::RunView

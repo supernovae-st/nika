@@ -320,7 +320,7 @@ mod tests {
     #[test]
     fn on_finally_cleanup_tools_are_checked() {
         let f = findings_of(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"true\" }\n    on_finally:\n      - invoke: { tool: \"nika:wrte\", args: { path: \"x\", content: \"y\" } }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:wrte\", args: { path: \"x\", content: \"y\" } }\n",
         );
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].task, "t (on_finally)");
@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn on_finally_invoke_args_are_checked() {
         let f = arg_findings_of(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"true\" }\n    on_finally:\n      - invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\", appnd: true } }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\", appnd: true } }\n",
         );
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].task, "t (on_finally)");
@@ -549,7 +549,7 @@ mod tests {
     #[test]
     fn missing_required_in_on_finally_is_checked() {
         let f = missing_of(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"true\" }\n    on_finally:\n      - invoke: { tool: \"nika:hash\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:hash\" }\n",
         );
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].task, "t (on_finally)");

@@ -22,14 +22,17 @@ set -euo pipefail
 SPEC="${1:?usage: sync-pack.sh <nika-spec-checkout>}"
 cd "$(dirname "$0")/.."
 PACK=crates/nika-pack/pack
-[ -f "$SPEC/VERSION" ] || { echo "sync-pack: $SPEC is not a nika-spec checkout" >&2; exit 2; }
+[ -f "$SPEC/VERSION" ] || {
+  echo "sync-pack: $SPEC is not a nika-spec checkout" >&2
+  exit 2
+}
 
-cp "$SPEC/VERSION"                          "$PACK/VERSION"
-cp "$SPEC/QUICKSTART.md"                    "$PACK/QUICKSTART.md"
-cp "$SPEC/canon.yaml"                       "$PACK/canon.yaml"
-cp "$SPEC/conformance/coverage-matrix.tsv"  "$PACK/coverage-matrix.tsv"
-cp "$SPEC/design/tokens.yaml"               "$PACK/design-tokens.yaml"
-cp "$SPEC/design/motion.yaml"               "$PACK/design-motion.yaml"
+cp "$SPEC/VERSION" "$PACK/VERSION"
+cp "$SPEC/QUICKSTART.md" "$PACK/QUICKSTART.md"
+cp "$SPEC/canon.yaml" "$PACK/canon.yaml"
+cp "$SPEC/conformance/coverage-matrix.tsv" "$PACK/coverage-matrix.tsv"
+cp "$SPEC/design/tokens.yaml" "$PACK/design-tokens.yaml"
+cp "$SPEC/design/motion.yaml" "$PACK/design-motion.yaml"
 
 # READMEs are repo navigation, not pack content — the vendored state
 # has never carried them (verified against the #533 tree).

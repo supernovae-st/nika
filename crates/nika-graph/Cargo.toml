@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name        = "nika-graph"
+version     = "0.103.0"
+edition     = "2024"
+rust-version = "1.88"
+license     = "AGPL-3.0-or-later"
+description = "nika's canonical graph projection — graph_format: 1 (spec 03 §graph-projection): ONE projector for every surface (CLI inspect · LSP semanticDocument · future canvases)"
+repository  = "https://github.com/supernovae-st/nika"
+
+[dependencies]
+nika-schema = { path = "../nika-schema", version = "0.103.0" } # RawWorkflow · CheckReport · the analyzed truth this projects
+serde       = { workspace = true }                             # the wire shape (GraphDoc → JSON)
+
+
+[package.metadata.lore]
+daemon        = "navigatrice"
+archetype     = "cartographer"
+spirit_role   = "dessine la carte que toutes les surfaces lisent · une projection · zéro fork"
+
+[lints]
+workspace = true

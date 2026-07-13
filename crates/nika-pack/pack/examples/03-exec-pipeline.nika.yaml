@@ -24,13 +24,13 @@ tasks:
   - id: test
     timeout: "5m"
     exec:
-      command: "sh -lc 'cargo test --workspace --lib'"
+      shell: "cargo test --workspace --lib"   # shell: is the explicit shell door (was: sh -lc wrapper)
       cwd: "."                       # your repo IS the pipeline's world
       capture: structured            # → { stdout, stderr, exit_code }
     on_finally:
       # ALWAYS runs · best-effort · cleanup errors are logged, never propagated
       - exec:
-          command: "rm -rf ./target/tmp"
+          command: ["rm", "-rf", "./target/tmp"]
       - invoke:
           tool: nika:emit
           args:
@@ -42,5 +42,5 @@ tasks:
     depends_on: [test]
     when: ${{ tasks.test.status == 'success' && tasks.test.output.exit_code == 0 }}
     exec:
-      command: "./deploy.sh"                 # your ship step · unreached until tests are green
+      command: ["./deploy.sh"]                 # your ship step · unreached until tests are green
       cwd: "."

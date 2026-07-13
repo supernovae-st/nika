@@ -100,7 +100,7 @@ tasks:
   - id: gate
     depends_on: [src]
     when: ${{ tasks.src.c == 7 }}
-    exec: { command: "echo gated" }
+    exec: { command: ["echo", "gated"] }
 "#;
     let tools = MockToolExecutor::new().enqueue_ok(
         ToolResult::success("c-jq", r#"{"count":7}"#)
@@ -147,7 +147,7 @@ tasks:
   - id: use
     depends_on: [api]
     when: ${{ tasks.api.n == 2 }}
-    exec: { command: "echo two" }
+    exec: { command: ["echo", "two"] }
 "#;
     let body =
         serde_json::json!({ "data": { "users": [ { "email": "a@x" }, { "email": "b@y" } ] } });
@@ -245,7 +245,7 @@ tasks:
   - id: join
     depends_on: [maybe]
     when: ${{ tasks.maybe.c == null }}
-    exec: { command: "echo joined" }
+    exec: { command: ["echo", "joined"] }
 "#;
     let (outcome, _events) = run_to_events(
         yaml,
@@ -282,11 +282,11 @@ nika: v1
 workflow: exec-structured
 tasks:
   - id: probe
-    exec: { command: "run-it", capture: structured }
+    exec: { command: ["run-it"], capture: structured }
   - id: gate
     depends_on: [probe]
     when: ${{ tasks.probe.output.exit_code == 3 }}
-    exec: { command: "echo branched" }
+    exec: { command: ["echo", "branched"] }
 "#;
     // A non-zero exit with BOTH streams — structured carries it as data.
     let shell = MockShell::new()
@@ -335,11 +335,11 @@ nika: v1
 workflow: exec-plain
 tasks:
   - id: e
-    exec: { command: "printf 42" }
+    exec: { command: ["printf", "42"] }
   - id: gate
     depends_on: [e]
     when: ${{ tasks.e.output == '42' }}
-    exec: { command: "echo ok" }
+    exec: { command: ["echo", "ok"] }
 "#;
     let shell = MockShell::new().enqueue_ok("42\n").enqueue_ok("ok\n");
     let (outcome, _events) = run_to_events(

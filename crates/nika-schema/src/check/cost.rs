@@ -353,7 +353,7 @@ nika: v1
 workflow: noinfer
 tasks:
   - id: sh
-    exec: { command: \"true\" }
+    exec: { command: [\"true\"] }
   - id: tool
     invoke: { tool: \"nika:read\", args: { path: \"x\" } }
 ",
@@ -389,7 +389,7 @@ tasks:
     #[test]
     fn when_gated_task_zeroes_the_cheapest_path() {
         let c = ceiling_of(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: t\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n  - id: t\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
         );
         assert!(c.tasks[0].gated);
         assert_eq!(c.tasks[0].min_path_usd, Some(0.0), "gate closed → $0");

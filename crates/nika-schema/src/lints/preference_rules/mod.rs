@@ -361,7 +361,13 @@ fn action_fingerprint(a: &RawAction) -> Value {
     match a {
         RawAction::Exec(e) => json!({
             "verb": "exec",
-            "command": e.command.shell_str().unwrap_or("<argv>"),
+            // Form + parts, never a placeholder: `shell_str().unwrap_or`
+            // collapsed EVERY argv command to one constant, so any two
+            // failure-guarded exec tasks fingerprinted identical and
+            // /003 fired on all of them (the argv sweep's blind helper
+            // — the rule_008 class, caught by spec#78's own fixtures).
+            "command_form": if e.command.shell_str().is_some() { "shell" } else { "argv" },
+            "command": e.command.text_fragments(),
             "cwd": e.cwd.as_ref().map(|s| s.value.clone()),
             "stdin": e.stdin.as_ref().map(|s| s.value.clone()),
             "capture": e.capture.as_ref().map(|c| format!("{:?}", c.value)),
@@ -572,7 +578,13 @@ fn is_value_producer(a: &RawAction) -> bool {
                 let c = c.trim_start();
                 c.starts_with("echo ") && !c.contains("${{")
             }
-            None => false, // argv form has no shell echo
+            // argv `["echo", …]` with template-free elements is the same
+            // mere value (spec#78 fixture 004 — the argv sweep's second
+            // blind helper in this file).
+            None => {
+                e.command.argv_program() == Some("echo")
+                    && !e.command.text_fragments().iter().any(|f| f.contains("${{"))
+            }
         },
         _ => false,
     }
@@ -627,11 +639,18 @@ fn rule_006_per_element_timing(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
         let RawAction::Exec(e) = &task.action else {
             continue;
         };
-        let Some(c) = e.command.shell_str() else {
-            continue; // argv form: no shell timeout wrapper
+        // Both forms wear the wrapper: `shell: "timeout 30 …"` and
+        // `command: ["gtimeout", "30", …]` (0.103: argv is the default
+        // spelling — the D1 migration exposed the shell_str-only blind
+        // spot).
+        let head_is_timeout = match e.command.shell_str() {
+            Some(c) => {
+                let c = c.trim_start();
+                c.starts_with("timeout ") || c.starts_with("gtimeout ")
+            }
+            None => matches!(e.command.argv_program(), Some("timeout" | "gtimeout")),
         };
-        let c = c.trim_start();
-        if !(c.starts_with("timeout ") || c.starts_with("gtimeout ")) {
+        if !head_is_timeout {
             continue;
         }
         lints.push(Lint::new(
@@ -714,13 +733,21 @@ fn is_shard_chain(tasks: &[&RawTask], chain: &[usize]) -> bool {
     let actions: Vec<&RawAction> = chain.iter().map(|&i| &tasks[i].action).collect();
     match actions[0] {
         RawAction::Exec(_) => {
+            // Tokens: argv elements verbatim (0.103's default spelling — the
+            // D1 migration exposed the shell_str-only blind spot), else the
+            // whitespace-split shell line.
             let tokens: Vec<Vec<&str>> = actions
                 .iter()
                 .filter_map(|a| {
                     if let RawAction::Exec(e) = a {
-                        e.command
-                            .shell_str()
-                            .map(|c| c.split_whitespace().collect())
+                        match &e.command {
+                            crate::raw::RawCommand::Argv(parts) => {
+                                Some(parts.iter().map(|p| p.value.as_str()).collect())
+                            }
+                            crate::raw::RawCommand::Shell(c) => {
+                                Some(c.value.split_whitespace().collect())
+                            }
+                        }
                     } else {
                         None
                     }

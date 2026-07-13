@@ -511,6 +511,17 @@ fn check_task_ref(
         errors.push(unresolved(&format!("tasks.{id}"), ctx, span, hint));
         return;
     }
+    if field.is_none() {
+        // 0.103 · #75 D2 — the envelope is not a value: the projection
+        // set is CLOSED and required (kills the #524 golden-drift class
+        // at the root · the pre-0.103 bare form denoted the whole record).
+        errors.push(SchemaError::BareTaskEnvelope {
+            task: id.to_owned(),
+            location: ctx.location.clone(),
+            span: Some(span),
+        });
+        return;
+    }
     if let Some(field) = field {
         let declared = index
             .bindings
@@ -602,7 +613,7 @@ mod tests {
             "{HEADER}tasks:
   - id: t
     with: {{ payload: [\"${{{{ vars.ghost }}}}\"] }}
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
 "
         );
         assert_eq!(
@@ -623,7 +634,7 @@ mod tests {
             "{HEADER}tasks:
   - id: t
     with: {{ payload: {{ inner: \"${{{{ vars.ghost }}}}\" }} }}
-    exec: {{ command: echo }}
+    exec: {{ command: [echo] }}
 "
         );
         assert_eq!(

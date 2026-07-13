@@ -42,12 +42,22 @@ DSL. See [03-dag.md](./03-dag.md#expression-language--a-documented-subset-of-cel
 ```
 ${{ vars.X }}             workflow inputs               (declared in envelope `vars:` · untyped or typed)
 ${{ with.X }}             task-level scope               (declared per-task `with:` block)
-${{ tasks.X.output }}      task output reference          (or .status · .error · .duration_ms)
+${{ tasks.X.output }}      task output reference          (or .status · .error · .duration_ms · the CLOSED projection set)
 ${{ env.X }}              environment variable           (non-sensitive runtime config)
 ${{ secrets.X }}          masked secret reference        (vault-backed · never in logs)
 ```
 
 Five namespaces. That's it.
+
+> **Bare `tasks.X` is not a value (normative · D2 · #75).** The task
+> result is a record; its observable projections are the CLOSED set
+> `.output` (the value) · `.status` (terminal enum) · `.error` ·
+> `.duration_ms` — additions are a spec minor. An UNPROJECTED
+> `${{ tasks.X }}` in any value position is a `validation_error`
+> (`NIKA-VAR` · « the envelope is not a value — pick `.output` »):
+> before 0.103 it silently denoted the whole envelope, the source of
+> the golden-drift trap engine#524 had to teach around. No aliases —
+> one meaning per spelling.
 
 > **Loop-locals are not a 6th namespace.** Inside a `for_each` task body, two
 > extra identifiers are in scope: `${{ item }}` (the current element) and
@@ -121,7 +131,7 @@ Reference any upstream task's output (or status · error · duration_ms) ·
   depends_on: [build, test]
   when: ${{ tasks.test.status == 'success' && tasks.test.output.coverage > 80 }}
   exec:
-    command: "./deploy.sh ${{ tasks.build.output.artifact_path }}"
+    command: ["./deploy.sh", "${{ tasks.build.output.artifact_path }}"]
 ```
 
 `tasks.X` is the task **result record**: a CEL object, NOT the bare output

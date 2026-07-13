@@ -634,7 +634,7 @@ tasks:
 
     #[test]
     fn no_permits_block_no_escapes() {
-        let y = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"rm -rf /\" }\n";
+        let y = "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { shell: \"rm -rf /\" }\n";
         assert!(
             escapes_of(y).is_empty(),
             "absent permits = nothing to enforce"
@@ -643,7 +643,7 @@ tasks:
 
     #[test]
     fn exec_under_false_permit_escapes() {
-        let y = "nika: v1\nworkflow: w\npermits: { exec: false }\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n";
+        let y = "nika: v1\nworkflow: w\npermits: { exec: false }\ntasks:\n  - id: t\n    exec: { shell: \"echo hi\" }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1);
         assert_eq!(e[0].category, "exec");
@@ -771,9 +771,9 @@ workflow: w
 permits: { exec: ["git"] }
 tasks:
   - id: head_allowed
-    exec: { command: "GIT_PAGER=cat git log" }
+    exec: { shell: "GIT_PAGER=cat git log" }
   - id: head_denied
-    exec: { command: "FOO=1 rm -rf x" }
+    exec: { shell: "FOO=1 rm -rf x" }
 "#;
         let e = escapes_of(y);
         assert_eq!(e.len(), 2, "the string FORM escapes, not the head");
@@ -788,7 +788,7 @@ tasks:
         // Before this rule the dynamic head was waved through as « a
         // runtime concern » — but the runtime refuses the string form
         // under an allowlist before it ever looks at the head.
-        let y = "nika: v1\nworkflow: w\npermits: { exec: [\"git\"] }\nvars: { cmd: \"git\" }\ntasks:\n  - id: t\n    exec: { command: \"${{ vars.cmd }} status\" }\n";
+        let y = "nika: v1\nworkflow: w\npermits: { exec: [\"git\"] }\nvars: { cmd: \"git\" }\ntasks:\n  - id: t\n    exec: { shell: \"${{ vars.cmd }} status\" }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 1, "string form under an allowlist escapes");
     }
@@ -1015,7 +1015,7 @@ workflow: w
 permits: { exec: ["sleep"] }
 tasks:
   - id: t
-    exec: { command: "sleep 5" }
+    exec: { shell: "sleep 5" }
 "#;
         let e = escapes(y);
         assert_eq!(e.len(), 1, "string form under an allowlist escapes");

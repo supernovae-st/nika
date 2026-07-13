@@ -49,7 +49,7 @@ use lsp_types::{
 
 use crate::analysis::diagnostics;
 use crate::analysis::document::Document;
-use crate::analysis::{code_action, completion, definition, hover, symbols};
+use crate::analysis::{code_action, completion, definition, hover, semantic_document, symbols};
 use crate::capabilities::server_capabilities;
 use crate::error::LspError;
 
@@ -59,6 +59,13 @@ type Docs = BTreeMap<String, Document>;
 /// The document-symbol request method id (its request marker type is not
 /// re-exported by name, so we match the method string directly).
 const DOCUMENT_SYMBOL_METHOD: &str = "textDocument/documentSymbol";
+
+/// `nika/semanticDocument` — the vendor-prefixed custom request (the
+/// rust-analyzer `lsp_ext` convention: permanent extensions live under
+/// the vendor name; capability-gated via `experimental.nika`). Params:
+/// `{ "textDocument": { "uri": … } }`. Result: the semantic-document
+/// payload (see `analysis::semantic_document`).
+const SEMANTIC_DOCUMENT_METHOD: &str = "nika/semanticDocument";
 
 /// The `exit` notification method string.
 const EXIT_METHOD: &str = "exit";
@@ -225,6 +232,10 @@ fn handle_request(req: Request, docs: &Docs) -> Response {
             Some(DocumentSymbolResponse::Nested(symbols::document_symbols(
                 doc.text(),
             )))
+        }),
+        SEMANTIC_DOCUMENT_METHOD => respond(id, req, |p: lsp_types::TextDocumentIdentifier| {
+            let doc = docs.get(uri_key(&p.uri))?;
+            Some(semantic_document::semantic_document(doc.text()))
         }),
         // Unknown request → null result (a valid JSON-RPC reply the client
         // tolerates; v0.1 advertises only the four read features).
@@ -411,7 +422,7 @@ mod tests {
     #[test]
     fn document_symbol_request_returns_nested_tree() {
         let mut docs = BTreeMap::new();
-        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n";
+        let yaml = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n";
         open(&mut docs, yaml);
         let params = DocumentSymbolParams {
             text_document: TextDocumentIdentifier::new(uri()),
@@ -498,7 +509,7 @@ mod tests {
     #[test]
     fn diagnose_broken_workflow_yields_an_error() {
         let doc = Document::new(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: \"x\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n",
         );
         let diags = diagnose(&doc);
         assert!(
@@ -569,10 +580,10 @@ mod tests {
         let mut docs: Docs = BTreeMap::new();
         open(
             &mut docs,
-            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: \"x\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    exec: { command: [\"x\"] }\n",
         );
         // change to a BROKEN workflow (depends on a ghost) → an error diag.
-        let broken = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: \"x\" }\n";
+        let broken = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
         handle_notification(&server, change_note(broken), &mut docs).expect("handled");
         assert_eq!(
             docs.get(uri_key(&uri())).map(Document::text),
@@ -908,11 +919,11 @@ mod canary {
             .expect("initialized");
 
         // 1) A broken workflow → a NIKA-* error diagnostic published.
-        let broken = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: \"x\" }\n";
+        let broken = "nika: v1\nworkflow: w\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
         did_open(&client, broken);
 
         // 2) A clean workflow with a verb, a dependency and a template ref.
-        let hello = "nika: v1\nworkflow: hello\ntasks:\n  - id: greet\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  - id: use_it\n    depends_on: [greet]\n    exec: { command: \"echo ${{ tasks.greet.output }}\" }\n";
+        let hello = "nika: v1\nworkflow: hello\ntasks:\n  - id: greet\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  - id: use_it\n    depends_on: [greet]\n    exec: { command: [\"echo\", \"${{ tasks.greet.output }}\"] }\n";
         let hello_uri = Uri::from_str("file:///hello.nika.yaml").expect("uri");
         open_uri(&client, &hello_uri, hello);
         let idx = crate::analysis::position::LineIndex::new(hello);

@@ -59,4 +59,4 @@ jobs:
           # have no crates.io release yet — the action hard-errors on the
           # registry lookup for a never-published crate. Remove each at its
           # first release.
-          exclude: nika-fx,nika-onboard
+          exclude: nika-fx,nika-onboard,nika-graph

@@ -423,7 +423,7 @@ tasks:
       command: [\"ls\", \"-la\"]
   - id: sheller
     exec:
-      command: \"echo hi && ls\"
+      shell: \"echo hi && ls\"
   - id: thinker
     infer:
       prompt: p
@@ -559,7 +559,7 @@ tasks:
         // A dynamic SHELL string rides the shell-string arm (the form
         // decides before the head is even looked at).
         let r = infer_of(
-            "nika: v1\nworkflow: w\nvars: { c: \"git\" }\ntasks:\n  - id: t\n    exec: { command: \"${{ vars.c }} status\" }\n",
+            "nika: v1\nworkflow: w\nvars: { c: \"git\" }\ntasks:\n  - id: t\n    exec: { shell: \"${{ vars.c }} status\" }\n",
         );
         assert_eq!(r.permits.exec, Some(ExecPermit::Any), "dynamic → true");
         assert_eq!(r.notes.len(), 1);
@@ -568,13 +568,13 @@ tasks:
 
     #[test]
     fn literal_shell_string_never_infers_a_self_refusing_allowlist() {
-        // The trap this pins: `command: "git log"` used to infer
+        // The trap this pins: `shell: "git log"` used to infer
         // `exec: ["git"]` — a boundary the runtime then REFUSES for the
         // very task it was inferred from (shell-string under a Programs
         // allowlist is rejected wholesale at dispatch). The sound
         // inference is `exec: true` + a rewrite-to-argv note.
         let r = infer_of(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"git log\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { shell: \"git log\" }\n",
         );
         assert_eq!(
             r.permits.exec,
@@ -703,7 +703,7 @@ tasks:
         );
         // ExecPermit::Any — a dynamic command renders `exec: true`.
         assert_round_trips_clean(
-            "nika: v1\nworkflow: w\nvars: { c: \"git\" }\ntasks:\n  - id: t\n    exec: { command: \"${{ vars.c }} status\" }\n",
+            "nika: v1\nworkflow: w\nvars: { c: \"git\" }\ntasks:\n  - id: t\n    exec: { shell: \"${{ vars.c }} status\" }\n",
         );
     }
 

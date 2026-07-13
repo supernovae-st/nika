@@ -95,3 +95,5 @@ nika-tmpl
 nika-onboard
 # --- 2026-07-12: the local-models descent (issue #146 · the 15k wall — nika-onboard/display/dap precedents) ---
 nika-models
+# --- 2026-07-13: the graph-projection descent (semantic-oracle T2 · the 15k wall — nika-models precedent) ---
+nika-graph

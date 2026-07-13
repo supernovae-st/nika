@@ -93,27 +93,27 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `chore/release-0.102.0`                                      |
-| HEAD             | `e241f1cc3` (`e241f1cc342f7c6131c1fe18b75d8837bab1deb6`)             |
-| workspace        | v0.102.0                                  |
-| crates (workspace)| 49                                              |
-| crates (admitted)| 47 / 42                                   |
+| branch           | `feat/lsp-semantic-document`                                      |
+| HEAD             | `4ecb6e9cd` (`4ecb6e9cdad55a71513da44b37bd382c5aeb31d8`)             |
+| workspace        | v0.103.0                                  |
+| crates (workspace)| 50                                              |
+| crates (admitted)| 48 / 42                                   |
 | crates (WIP)     | 2 — nika-chart nika-fx                                  |
-| L0               | 12                                              |
+| L0               | 13                                              |
 | L0.5             | 6                                              |
 | L1               | 13                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 1                                              |
 | L4               | 8                                              |
-| lib tests        | 4133 passed, 0 failed                              |
+| lib tests        | 4181 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `chore/release-0.102.0`                                      |
+| branch           | `chore/release-0.103.0`                                      |
 | HEAD             | `25db7137d` (`25db7137dddbe6fdb7782663d1a07096cafb3bad`)             |
-| workspace        | v0.102.0                                  |
+| workspace        | v0.103.0                                  |
 | crates (workspace)| 42                                              |
 | crates (admitted)| 42 / 42                                   |
 | crates (WIP)     | 0 —                                   |
@@ -129,9 +129,9 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `chore/release-0.102.0`                                      |
+| branch           | `chore/release-0.103.0`                                      |
 | HEAD             | `05cdaab1e` (`05cdaab1ec68217f3a7fb03841dbe5f7720767d4`)             |
-| workspace        | v0.102.0                                  |
+| workspace        | v0.103.0                                  |
 | crates (workspace)| 40                                              |
 | crates (admitted)| 40 / 42                                   |
 | crates (WIP)     | 0 —                                   |

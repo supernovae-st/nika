@@ -443,6 +443,27 @@ pub enum SchemaError {
         /// Source span.
         span: Option<Span>,
     },
+
+    /// A bare `${{ tasks.<id> }}` — the ENVELOPE, not a value (spec
+    /// `04-variables.md` §namespaces · 0.103 · #75 D2).
+    ///
+    /// The projection set is CLOSED (`.output` · `.status` · `.error` ·
+    /// `.duration_ms` + declared bindings); unprojected record access is
+    /// ill-typed. Before 0.103 the bare form silently denoted the whole
+    /// envelope — the golden-drift class engine#524 taught around,
+    /// killed at the root.
+    #[error(
+        "bare `tasks.{task}` is the envelope, not a value — pick `.output` \
+         (or .status/.error/.duration_ms · 04 §namespaces · closed projection set)"
+    )]
+    BareTaskEnvelope {
+        /// The referenced task.
+        task: String,
+        /// Where the reference sits (`when:` · `prompt:` · `outputs.<n>` …).
+        location: String,
+        /// Source span.
+        span: Option<Span>,
+    },
 }
 
 impl SchemaError {
@@ -508,7 +529,8 @@ impl SchemaError {
             | Self::UnresolvedNamespaceRef { span, .. }
             | Self::LoopLocalOutsideForEach { span, .. }
             | Self::UnknownTaskField { span, .. }
-            | Self::OutputPathProvablyInvalid { span, .. } => *span,
+            | Self::OutputPathProvablyInvalid { span, .. }
+            | Self::BareTaskEnvelope { span, .. } => *span,
             Self::Cycle { .. } => None,
         }
     }
@@ -576,6 +598,7 @@ schema_code!(SCHEMA_307, 307, "output-path-provably-invalid");
 schema_code!(SCHEMA_308, 308, "recover-await-deadlock");
 schema_code!(SCHEMA_309, 309, "bad-builtin-args");
 schema_code!(SCHEMA_310, 310, "expression-violation");
+schema_code!(SCHEMA_311, 311, "bare-task-envelope");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -611,6 +634,7 @@ impl NikaErrorCode for SchemaError {
             Self::LoopLocalOutsideForEach { .. } => SCHEMA_305,
             Self::UnknownTaskField { .. } => SCHEMA_306,
             Self::OutputPathProvablyInvalid { .. } => SCHEMA_307,
+            Self::BareTaskEnvelope { .. } => SCHEMA_311,
         }
     }
 
@@ -773,6 +797,11 @@ fn analysis_level_variants() -> Vec<SchemaError> {
             task: String::new(),
             path: String::new(),
             reason: String::new(),
+            span: None,
+        },
+        SchemaError::BareTaskEnvelope {
+            task: String::new(),
+            location: String::new(),
             span: None,
         },
     ]

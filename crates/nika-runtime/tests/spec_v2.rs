@@ -128,18 +128,18 @@ workflow: cap-eq
 vars: { publish: "no" }
 tasks:
   - id: a
-    exec: { command: "step a" }
+    exec: { command: ["step", "a"] }
   - id: b
-    exec: { command: "step b" }
+    exec: { command: ["step", "b"] }
   - id: c
-    exec: { command: "step c" }
+    exec: { command: ["step", "c"] }
   - id: join
     depends_on: [a, b, c]
-    exec: { command: "join ${{ tasks.a.output }} ${{ tasks.b.output }} ${{ tasks.c.output }}" }
+    exec: { command: ["join", "${{ tasks.a.output }}", "${{ tasks.b.output }}", "${{ tasks.c.output }}"] }
   - id: gated
     depends_on: [join]
     when: ${{ vars.publish == 'yes' }}
-    exec: { command: "echo never" }
+    exec: { command: ["echo", "never"] }
 "#;
     let mut streams: Vec<Vec<Event>> = Vec::new();
     for cap in [Some(1), Some(2), Some(8), None] {
@@ -254,9 +254,9 @@ nika: v1
 workflow: drain
 tasks:
   - id: dies
-    exec: { command: "boom" }
+    exec: { command: ["boom"] }
   - id: survives
-    exec: { command: "fine" }
+    exec: { command: ["fine"] }
 "#;
     let shell = MockShell::new()
         .enqueue_fail(9, "kaboom")
@@ -287,14 +287,14 @@ nika: v1
 workflow: always
 tasks:
   - id: build
-    exec: { command: "make" }
+    exec: { command: ["make"] }
   - id: deploy
     depends_on: [build]
-    exec: { command: "deploy" }
+    exec: { command: ["deploy"] }
   - id: notify
     depends_on: [build]
     when: true
-    exec: { command: "notify team" }
+    exec: { command: ["notify", "team"] }
 "#;
     let shell = MockShell::new()
         .enqueue_fail(1, "compile error")
@@ -569,7 +569,7 @@ nika: v1
 workflow: recovery
 tasks:
   - id: cached
-    exec: { command: "cat cache.json" }
+    exec: { command: ["cat", "cache.json"] }
   - id: live
     depends_on: [cached]
     on_error: { recover: "${{ tasks.cached.output }}" }
@@ -582,7 +582,7 @@ tasks:
     invoke: { tool: "nika:fetch", args: { url: "https://example.com/c" } }
   - id: downstream
     depends_on: [live]
-    exec: { command: "use ${{ tasks.live.output }}" }
+    exec: { command: ["use", "${{ tasks.live.output }}"] }
 "#;
     let shell = MockShell::new()
         .enqueue_ok("stale data\n")
@@ -635,7 +635,7 @@ nika: v1
 workflow: oncodes-catch
 tasks:
   - id: boom
-    exec: { command: "exit 7" }
+    exec: { shell: "exit 7" }
     on_error:
       on_codes: [NIKA-EXEC-001]
       recover: "recovered"
@@ -660,7 +660,7 @@ nika: v1
 workflow: oncodes-skip
 tasks:
   - id: boom
-    exec: { command: "exit 7" }
+    exec: { shell: "exit 7" }
     on_error: { skip: true }
 "#;
     let (outcome, _events) = run_to_events(
@@ -690,7 +690,7 @@ workflow: oncodes-retry
 tasks:
   - id: boom
     retry: { max_attempts: 2, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-EXEC-001] }
-    exec: { command: "exit 7" }
+    exec: { shell: "exit 7" }
 "#;
     let shell = MockShell::new()
         .enqueue_fail(7, "boom")
@@ -719,7 +719,7 @@ nika: v1
 workflow: oncodes-miss
 tasks:
   - id: boom
-    exec: { command: "exit 7" }
+    exec: { shell: "exit 7" }
     on_error:
       on_codes: [NIKA-INFER-001]
       recover: "should-not-fire"
@@ -753,10 +753,10 @@ tasks:
     for_each: ${{ vars.urls }}
     max_parallel: 1
     with: { page: "${{ item }}" }
-    exec: { command: "fetch ${{ with.page }} at ${{ index }}" }
+    exec: { command: ["fetch", "${{ with.page }}", "at", "${{ index }}"] }
   - id: join
     depends_on: [scrape]
-    exec: { command: "got ${{ tasks.scrape.output }}" }
+    exec: { command: ["got", "${{ tasks.scrape.output }}"] }
 "#;
     let shell = MockShell::new()
         .enqueue_ok("r-alpha\n")
@@ -850,7 +850,7 @@ tasks:
     for_each: ${{ vars.items }}
     max_parallel: 1
     fail_fast: false
-    exec: { command: "do ${{ item }}" }
+    exec: { command: ["do", "${{ item }}"] }
 "#;
     let shell = MockShell::new()
         .enqueue_ok("ok-one\n")
@@ -893,7 +893,7 @@ tasks:
     for_each: ${{ vars.items }}
     max_parallel: 1
     on_error: { skip: true }
-    exec: { command: "do ${{ item }}" }
+    exec: { command: ["do", "${{ item }}"] }
 "#;
     let shell = MockShell::new()
         .enqueue_ok("ok-one\n")
@@ -933,7 +933,7 @@ tasks:
   - id: work
     for_each: ${{ vars.items }}
     max_parallel: 1
-    exec: { command: "do ${{ item }}" }
+    exec: { command: ["do", "${{ item }}"] }
 "#;
     // Only TWO shell results enqueued: iteration 1 ok · iteration 2
     // fails · iteration 3 must never dispatch (an empty queue would
@@ -966,10 +966,10 @@ vars:
 tasks:
   - id: empty_lane
     for_each: ${{ vars.none }}
-    exec: { command: "never ${{ item }}" }
+    exec: { command: ["never", "${{ item }}"] }
   - id: bad_lane
     for_each: ${{ vars.scalar }}
-    exec: { command: "never ${{ item }}" }
+    exec: { command: ["never", "${{ item }}"] }
 "#;
     let (outcome, events) = run_to_events(
         yaml,
@@ -1046,20 +1046,20 @@ nika: v1
 workflow: cleanup
 tasks:
   - id: works
-    exec: { command: "make thing" }
+    exec: { command: ["make", "thing"] }
     on_finally:
-      - exec: { command: "rm -f scratch-a" }
+      - exec: { command: ["rm", "-f", "scratch-a"] }
   - id: breaks
-    exec: { command: "make other" }
+    exec: { command: ["make", "other"] }
     on_finally:
       - when: ${{ tasks.breaks.status == 'failure' }}
-        exec: { command: "alert on-call" }
-      - exec: { command: "rm -f scratch-b" }
+        exec: { command: ["alert", "on-call"] }
+      - exec: { command: ["rm", "-f", "scratch-b"] }
   - id: never_ran
     depends_on: [breaks]
-    exec: { command: "downstream" }
+    exec: { command: ["downstream"] }
     on_finally:
-      - exec: { command: "must not run" }
+      - exec: { command: ["must", "not", "run"] }
 "#;
     // Queue: works · works-cleanup · breaks(FAIL) · breaks-cleanup-1
     // (alert · gate OPEN on failure) · breaks-cleanup-2 — and NOTHING
@@ -1097,9 +1097,9 @@ nika: v1
 workflow: cleanup-err
 tasks:
   - id: main
-    exec: { command: "work" }
+    exec: { command: ["work"] }
     on_finally:
-      - exec: { command: "broken cleanup" }
+      - exec: { command: ["broken", "cleanup"] }
 "#;
     let shell = MockShell::new()
         .enqueue_ok("worked\n")
@@ -1134,11 +1134,11 @@ vars: { mode: "fast" }
 tasks:
   - id: slow_path
     when: ${{ vars.mode == 'slow' }}
-    exec: { command: "slow work" }
+    exec: { command: ["slow", "work"] }
   - id: report
     depends_on: [slow_path]
     when: ${{ tasks.slow_path.status != 'success' }}
-    exec: { command: "report skipped lane" }
+    exec: { command: ["report", "skipped", "lane"] }
 "#;
     let shell = MockShell::new().enqueue_ok("reported\n");
     let (outcome, _events) = run_to_events(
@@ -1203,7 +1203,7 @@ vars: { scalar: "not a list" }
 tasks:
   - id: bad
     for_each: ${{ vars.scalar }}
-    exec: { command: "never ${{ item }}" }
+    exec: { command: ["never", "${{ item }}"] }
 "#;
     let (outcome2, _) = run_to_events(
         var_yaml,
@@ -1253,7 +1253,7 @@ tasks:
   - id: fan
     for_each: ${{ vars.items }}
     when: ${{ item != 'skip' }}
-    exec: { command: "do ${{ item }}" }
+    exec: { command: ["do", "${{ item }}"] }
 "#;
     let (outcome, events) = run_to_events(
         yaml,
@@ -1365,7 +1365,7 @@ tasks:
   - id: use
     depends_on: [api]
     when: ${{ tasks.api.output.count > 1 }}
-    exec: { command: "echo ${{ tasks.api.output.count }}" }
+    exec: { command: ["echo", "${{ tasks.api.output.count }}"] }
 "#;
     let tools = MockToolExecutor::new().enqueue_ok(
         ToolResult::success("c-jq", r#"{"count":2}"#)

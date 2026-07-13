@@ -211,14 +211,15 @@ mod tests {
         let resp =
             handle(&json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" })).expect("reply");
         let tools = resp["result"]["tools"].as_array().expect("array");
-        // 2 validate (check · explain) + 6 learn (schema · examples ·
-        // template · canon · catalog · tools).
-        assert_eq!(tools.len(), 8);
+        // 3 validate (check · inspect · explain) + 6 learn (schema ·
+        // examples · template · canon · catalog · tools).
+        assert_eq!(tools.len(), 9);
     }
 
     #[test]
     fn tools_call_runs_the_tool() {
-        let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: \"echo hi\" }\n";
+        let wf =
+            "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let resp = handle(&json!({
             "jsonrpc": "2.0", "id": 3, "method": "tools/call",
             "params": { "name": "nika_check", "arguments": { "workflow": wf } }
@@ -238,7 +239,7 @@ mod tests {
         // A workflow with findings comes back isError:true (the model
         // sees the findings AND a repair-on-error harness fires) — the
         // MCP lane must agree with the CLI's exit-2-on-dirty.
-        let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: \"x\" }\n";
+        let wf = "nika: v1\nworkflow: t\ntasks:\n  - id: a\n    depends_on: [ghost]\n    exec: { command: [\"x\"] }\n";
         let resp = handle(&json!({
             "jsonrpc": "2.0", "id": 7, "method": "tools/call",
             "params": { "name": "nika_check", "arguments": { "workflow": wf } }

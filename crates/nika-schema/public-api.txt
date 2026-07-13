@@ -1695,6 +1695,10 @@ pub nika_schema::error::SchemaError::BadTypedVar::span: core::option::Option<nik
 pub nika_schema::error::SchemaError::BadWorkflowId
 pub nika_schema::error::SchemaError::BadWorkflowId::id: alloc::string::String
 pub nika_schema::error::SchemaError::BadWorkflowId::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::BareTaskEnvelope
+pub nika_schema::error::SchemaError::BareTaskEnvelope::location: alloc::string::String
+pub nika_schema::error::SchemaError::BareTaskEnvelope::span: core::option::Option<nika_schema::Span>
+pub nika_schema::error::SchemaError::BareTaskEnvelope::task: alloc::string::String
 pub nika_schema::error::SchemaError::Cycle
 pub nika_schema::error::SchemaError::Cycle::cycle: alloc::vec::Vec<alloc::string::String>
 pub nika_schema::error::SchemaError::DuplicateKey
@@ -5914,6 +5918,10 @@ pub nika_schema::SchemaError::BadTypedVar::span: core::option::Option<nika_schem
 pub nika_schema::SchemaError::BadWorkflowId
 pub nika_schema::SchemaError::BadWorkflowId::id: alloc::string::String
 pub nika_schema::SchemaError::BadWorkflowId::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::BareTaskEnvelope
+pub nika_schema::SchemaError::BareTaskEnvelope::location: alloc::string::String
+pub nika_schema::SchemaError::BareTaskEnvelope::span: core::option::Option<nika_schema::Span>
+pub nika_schema::SchemaError::BareTaskEnvelope::task: alloc::string::String
 pub nika_schema::SchemaError::Cycle
 pub nika_schema::SchemaError::Cycle::cycle: alloc::vec::Vec<alloc::string::String>
 pub nika_schema::SchemaError::DuplicateKey

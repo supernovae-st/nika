@@ -10,6 +10,35 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.103.0](https://github.com/supernovae-st/nika/compare/v0.102.0..v0.103.0) - 2026-07-13
+
+### Changed — BREAKING (the #75 window: the language tightens)
+
+- **exec semantics never fork on a YAML type again** (#570 · spec#78) —
+  `command:` is argv-only (execve · per-element substitution: an
+  interpolated value can never break out); the NEW `shell:` field is
+  the explicit dangerous door (`/bin/sh -c` · pipes/redirects · the
+  blocklist attaches HERE). Exactly one of the two; a string
+  `command:` rejects with the migration teaching.
+- **bare `${{ tasks.X }}` is a validation error** (`NIKA-VAR-020`) —
+  the task result is a record, the projection set (.output/.status/
+  .error/.duration_ms) is CLOSED; the envelope is not a value.
+- **the gate algebra becomes normative** (spec#78) — the when-status
+  pattern is a propagation CHOICE (default gate: failure cancels the
+  cascade · when-form: skip-once-then-continue), stated as a table.
+- **the analyzer learns the argv world** — lints 006/007 (timeout
+  wrapper · shard signature) read argv heads/tokens.
+
+### Added
+
+- **`nika/semanticDocument`** — the LSP's vendor-prefixed custom
+  request (capability-gated via `experimental.nika`): the canonical
+  `graph_format: 1` projection VERBATIM plus a span wrapper (task id →
+  declaring token range). One projector, every surface — the graph
+  moves to its own L0 member **`nika-graph`** (split from nika-schema
+  at the 15k cap; the CLI keeps the renderers and re-exports), so
+  `inspect --format json`, the LSP and future canvases read one truth.
+
 ## [0.102.0](https://github.com/supernovae-st/nika/compare/v0.101.0..v0.102.0) - 2026-07-13
 
 ### Added

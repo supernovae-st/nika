@@ -69,10 +69,10 @@ nika: v1
 workflow: resume-chain
 tasks:
   - id: a
-    exec: { command: "echo alpha" }
+    exec: { command: ["echo", "alpha"] }
   - id: b
     depends_on: [a]
-    exec: { command: "echo beta ${{ tasks.a.output }}" }
+    exec: { command: ["echo", "beta", "${{ tasks.a.output }}"] }
 outputs:
   built: ${{ tasks.b.output }}
 "#;
@@ -174,9 +174,9 @@ vars:
   topic: { type: string, default: "news" }
 tasks:
   - id: uses_var
-    exec: { command: "echo about ${{ vars.topic }}" }
+    exec: { command: ["echo", "about", "${{ vars.topic }}"] }
   - id: sibling
-    exec: { command: "echo steady" }
+    exec: { command: ["echo", "steady"] }
 "#;
 
 #[test]
@@ -258,7 +258,7 @@ nika: v1
 workflow: resume-gated
 tasks:
   - id: prep
-    exec: { command: "echo staged" }
+    exec: { command: ["echo", "staged"] }
   - id: approve
     depends_on: [prep]
     invoke:
@@ -266,7 +266,7 @@ tasks:
       args: { mode: "input", message: "ship it?" }
   - id: ship
     depends_on: [approve]
-    exec: { command: "echo shipping ${{ tasks.approve.output }}" }
+    exec: { command: ["echo", "shipping", "${{ tasks.approve.output }}"] }
 "#;
 
 #[test]

@@ -39,7 +39,7 @@ pub(crate) const INFER_KEYS: &[&str] = &[
 ];
 
 /// `exec:` fields (spec `02-verbs.md` §exec field table).
-pub(crate) const EXEC_KEYS: &[&str] = &["command", "cwd", "env", "stdin", "capture"];
+pub(crate) const EXEC_KEYS: &[&str] = &["command", "shell", "cwd", "env", "stdin", "capture"];
 
 /// `invoke:` fields (spec `02-verbs.md` §invoke field table).
 pub(crate) const INVOKE_KEYS: &[&str] = &["tool", "args"];
@@ -142,41 +142,65 @@ fn parse_exec_body(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawExecActio
     Ok(action)
 }
 
-/// Parse `exec.command` — a scalar (shell) OR a non-empty array (argv).
+/// Parse the exec body — `command:` (argv) XOR `shell:` (one /bin/sh line).
 ///
-/// Spec `02-verbs.md` §exec · « String → `/bin/sh -c`. Array → `execve`,
-/// no shell. » An empty array has no program to run → a parse error.
+/// Spec `02-verbs.md` §exec (0.103 · #75 D1) · semantics never fork on a
+/// YAML type: `command:` is argv-only (`execve` · injection-safe by
+/// construction) and `shell:` is the EXPLICIT shell door (pipes · redirects
+/// · the blocklist). Exactly one of the two; a string `command:` is the
+/// pre-0.103 implicit-shell form and is rejected with the migration
+/// teaching. An empty argv has no program to run → a parse error.
 fn parse_command(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawCommand, SchemaError> {
-    let Some(node) = body.get_node("command") else {
+    let cmd = body.get_node("command");
+    let shell = body.get_node("shell");
+    if cmd.is_some() && shell.is_some() {
+        return Err(SchemaError::Validation {
+            message: "`exec:` takes exactly one of `command:` (argv) | `shell:` (one \
+                      /bin/sh line) — two bodies is two meanings (02 §exec)"
+                .to_owned(),
+            span: cx.span(body.span()),
+        });
+    }
+    if let Some(_node) = shell {
+        // The explicit shell door — one scalar line through `/bin/sh -c`.
+        return Ok(RawCommand::Shell(cx.require_scalar(body, "shell", "exec")?));
+    }
+    let Some(node) = cmd else {
         return Err(SchemaError::MissingField {
-            field: "exec.command".to_owned(),
+            field: "exec.command (argv) | exec.shell".to_owned(),
             span: cx.span(body.span()),
         });
     };
-    if let Some(seq) = node.as_sequence() {
-        if seq.is_empty() {
-            return Err(SchemaError::Validation {
-                message: "`exec.command` array must not be empty (no program to run)".to_owned(),
-                span: cx.span(node.span()),
-            });
-        }
-        let mut parts = Vec::with_capacity(seq.len());
-        for item in seq.iter() {
-            let scalar = item.as_scalar().ok_or_else(|| SchemaError::Validation {
-                message: "each `exec.command` array element must be a string".to_owned(),
-                span: cx.span(item.span()),
-            })?;
-            parts.push(Spanned::new(
-                scalar.as_str().to_owned(),
-                cx.span_or_zero(scalar.span()),
-            ));
-        }
-        return Ok(RawCommand::Argv(parts));
+    let Some(seq) = node.as_sequence() else {
+        // The pre-0.103 implicit-shell string — rejected WITH the migration.
+        return Err(SchemaError::Validation {
+            message: "`exec.command` is argv-only — [\"prog\", \"arg\", …] runs via \
+                      execve, each element one token (an interpolated value can never \
+                      break out) · the old string form was an IMPLICIT shell: \
+                      pipes/redirects/globs now live in `shell:` explicitly (02 §exec \
+                      · 0.103)"
+                .to_owned(),
+            span: cx.span(node.span()),
+        });
+    };
+    if seq.is_empty() {
+        return Err(SchemaError::Validation {
+            message: "`exec.command` array must not be empty (no program to run)".to_owned(),
+            span: cx.span(node.span()),
+        });
     }
-    // Scalar → a shell string (re-uses the canonical require-scalar error).
-    Ok(RawCommand::Shell(
-        cx.require_scalar(body, "command", "exec")?,
-    ))
+    let mut parts = Vec::with_capacity(seq.len());
+    for item in seq.iter() {
+        let scalar = item.as_scalar().ok_or_else(|| SchemaError::Validation {
+            message: "each `exec.command` array element must be a string".to_owned(),
+            span: cx.span(item.span()),
+        })?;
+        parts.push(Spanned::new(
+            scalar.as_str().to_owned(),
+            cx.span_or_zero(scalar.span()),
+        ));
+    }
+    Ok(RawCommand::Argv(parts))
 }
 
 /// Parse `invoke:` — builtin / MCP tool call.
@@ -823,7 +847,7 @@ tasks:
 tasks:
   - id: build
     exec:
-      command: \"cargo build --release\"
+      command: [\"cargo\", \"build\", \"--release\"]
       cwd: ./engine
       env:
         RUST_LOG: debug
@@ -833,7 +857,8 @@ tasks:
         let RawAction::Exec(action) = one_action(yaml) else {
             panic!("expected Exec");
         };
-        assert_eq!(action.command.shell_str(), Some("cargo build --release"));
+        assert_eq!(action.command.argv_program(), Some("cargo"));
+        assert!(action.command.shell_str().is_none(), "argv, not shell");
         assert_eq!(action.cwd.expect("cwd").value, "./engine");
         assert_eq!(action.env.len(), 1);
         assert_eq!(action.env[0].0.value, "RUST_LOG");
@@ -855,7 +880,8 @@ tasks:
 ";
         let err = parse_strict(yaml).expect_err("no command");
         assert!(
-            matches!(&err, SchemaError::MissingField { field, .. } if field == "exec.command"),
+            matches!(&err, SchemaError::MissingField { field, .. }
+                if field == "exec.command (argv) | exec.shell"),
             "{err:?}"
         );
     }
@@ -866,7 +892,7 @@ tasks:
 tasks:
   - id: t
     exec:
-      command: ls
+      command: [ls]
       capture: everything
 ";
         let err = parse_strict(yaml).expect_err("bad capture");
@@ -1216,7 +1242,7 @@ mod argv_command {
     #[test]
     fn scalar_command_is_shell() {
         let c = exec_command(
-            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"a | b\" }\n",
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { shell: \"a | b\" }\n",
         );
         assert!(matches!(c, RawCommand::Shell(_)));
         assert_eq!(c.shell_str(), Some("a | b"));

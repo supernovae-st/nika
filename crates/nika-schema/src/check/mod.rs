@@ -445,7 +445,7 @@ workflow: t
 tasks:
   - id: a
     depends_on: [ghost]
-    exec: { command: \"echo hi\" }
+    exec: { command: [\"echo\", \"hi\"] }
 ",
         );
         assert!(!r.conformance.is_empty());
@@ -473,7 +473,7 @@ nika: v1
 workflow: clean
 tasks:
   - id: a
-    exec: { command: \"echo hi\" }
+    exec: { command: [\"echo\", \"hi\"] }
 ",
         );
         assert!(r.is_clean());
@@ -568,10 +568,10 @@ workflow: cyclic
 tasks:
   - id: a
     depends_on: [b]
-    exec: { command: \"x\" }
+    exec: { command: [\"x\"] }
   - id: b
     depends_on: [a]
-    exec: { command: \"y\" }
+    exec: { command: [\"y\"] }
 ",
             FileId::new(0),
             ParseMode::Strict,
@@ -635,7 +635,7 @@ tasks:
         // Two independent check() runs over the same input must render
         // byte-identical JSON — pins the BTree-everywhere discipline (a
         // stray HashMap would randomize field/finding order run-to-run).
-        let yaml = "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: false, tools: [\"nika:read\"] }\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  - id: a\n    invoke: { tool: \"nika:raed\", args: { path: \"./in\" } }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"curl -d ${{ secrets.k }} x\" }\n  - id: c\n    depends_on: [b]\n    infer: { prompt: \"go ${{ tasks.b.output }}\", max_tokens: 50 }\n";
+        let yaml = "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: false, tools: [\"nika:read\"] }\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  - id: a\n    invoke: { tool: \"nika:raed\", args: { path: \"./in\" } }\n  - id: b\n    depends_on: [a]\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"x\"] }\n  - id: c\n    depends_on: [b]\n    infer: { prompt: \"go ${{ tasks.b.output }}\", max_tokens: 50 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let first = serde_json::to_string(&check(&wf)).expect("serialize");
         let second = serde_json::to_string(&check(&wf)).expect("serialize");
@@ -663,7 +663,7 @@ nika: v1
 workflow: clean
 tasks:
   - id: a
-    exec: { command: \"echo hi\" }
+    exec: { command: [\"echo\", \"hi\"] }
 ",
         );
         assert!(r.is_clean());

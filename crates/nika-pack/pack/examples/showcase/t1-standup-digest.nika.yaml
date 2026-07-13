@@ -30,7 +30,7 @@ tasks:
 
   - id: history
     exec:
-      command: "git log --since=yesterday --oneline --no-merges"
+      command: ["git", "log", "--since=yesterday", "--oneline", "--no-merges"]
 
   - id: digest
     depends_on: [today, history]

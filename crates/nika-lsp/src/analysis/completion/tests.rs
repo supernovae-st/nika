@@ -108,7 +108,7 @@ fn provider_slash_offers_that_providers_models() {
 /// Closed-enum fields offer exactly the spec's vocabulary.
 #[test]
 fn enum_fields_offer_exactly_the_closed_sets() {
-    let text = "nika: v1\ntasks:\n  - id: a\n    exec:\n      command: x\n      capture: ";
+    let text = "nika: v1\ntasks:\n  - id: a\n    exec:\n      command: [\"x\"]\n      capture: ";
     let labels_ = labels(&completion(text, text.len()));
     assert_eq!(labels_, vec!["text".to_owned(), "structured".to_owned()]);
 
@@ -860,7 +860,7 @@ fn an_abandoned_open_bracket_upstream_captures_nothing() {
 
 #[test]
 fn task_member_island_teaches_the_three_facts_and_the_bindings() {
-    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: gather\n    exec:\n      command: ls\n    output:\n      first_line: \".stdout\"\n  - id: use\n    depends_on: [gather]\n    when: ${{ tasks.gather.";
+    let text = "nika: v1\nworkflow: w\ntasks:\n  - id: gather\n    exec:\n      command: [\"ls\"]\n    output:\n      first_line: \".stdout\"\n  - id: use\n    depends_on: [gather]\n    when: ${{ tasks.gather.";
     let got = labels(&completion(text, text.len()));
     assert!(
         got.contains(&"output".to_owned())
@@ -885,7 +885,7 @@ fn task_member_island_teaches_the_three_facts_and_the_bindings() {
 
 #[test]
 fn task_member_island_survives_an_unknown_id() {
-    let text = "nika: v1\ntasks:\n  - id: a\n    exec: {command: ls}\n  - id: b\n    when: ${{ tasks.ghost.";
+    let text = "nika: v1\ntasks:\n  - id: a\n    exec: {command: [\"ls\"]}\n  - id: b\n    when: ${{ tasks.ghost.";
     let got = labels(&completion(text, text.len()));
     assert!(
         got.contains(&"output".to_owned()) && got.contains(&"status".to_owned()),
@@ -943,7 +943,7 @@ fn items_inside_a_schema_keeps_the_keyset() {
 
 #[test]
 fn task_fields_survive_outside_schema() {
-    let text = "nika: v1\ntasks:\n  - id: a\n    exec:\n      command: ls\n  - id: b\n    ";
+    let text = "nika: v1\ntasks:\n  - id: a\n    exec:\n      command: [\"ls\"]\n  - id: b\n    ";
     let got = labels(&completion(text, text.len()));
     assert!(
         got.contains(&"depends_on".to_owned()),
@@ -953,7 +953,7 @@ fn task_fields_survive_outside_schema() {
 
 // ─── the wave-2 lanes: for_each/when islands · skills list ──────────────────
 
-const FLOW_DOC: &str = "nika: v1\nworkflow: w\nvars:\n  urls:\n    type: array\n    default: []\n  topic: \"rust\"\ntasks:\n  - id: gather\n    exec:\n      command: ls\n  - id: fan\n    depends_on: [gather]\n    for_each: \n    exec:\n      command: echo\n  - id: last\n    depends_on: [fan]\n    exec:\n      command: true\n";
+const FLOW_DOC: &str = "nika: v1\nworkflow: w\nvars:\n  urls:\n    type: array\n    default: []\n  topic: \"rust\"\ntasks:\n  - id: gather\n    exec:\n      command: [\"ls\"]\n  - id: fan\n    depends_on: [gather]\n    for_each: \n    exec:\n      command: [\"echo\"]\n  - id: last\n    depends_on: [fan]\n    exec:\n      command: [\"true\"]\n";
 
 #[test]
 fn for_each_offers_typed_arrays_first_then_upstream_cycle_safe() {

@@ -41,7 +41,7 @@ tasks:
   # ── the gather wave · all three run in parallel ──
   - id: logs
     exec:
-      command: "journalctl -u ${{ vars.service }} --since '${{ vars.log_window }}' --no-pager"
+      command: ["journalctl", "-u", "${{ vars.service }}", "--since", "${{ vars.log_window }}", "--no-pager"]
       capture: structured
 
   - id: status_history

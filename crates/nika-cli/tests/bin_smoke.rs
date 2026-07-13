@@ -47,7 +47,7 @@ nika: v1
 workflow: smoke
 tasks:
   - id: greet
-    exec: { command: "echo hello" }
+    exec: { command: ["echo", "hello"] }
 "#;
 
 const INVALID: &str = r#"
@@ -56,10 +56,10 @@ workflow: smoke-broken
 tasks:
   - id: a
     depends_on: [b]
-    exec: { command: "true" }
+    exec: { command: ["true"] }
   - id: b
     depends_on: [a]
-    exec: { command: "true" }
+    exec: { command: ["true"] }
 "#;
 
 const FAILING: &str = r#"
@@ -67,7 +67,7 @@ nika: v1
 workflow: smoke-fail
 tasks:
   - id: boom
-    exec: { command: "exit 7" }
+    exec: { shell: "exit 7" }
 "#;
 
 #[test]
@@ -1198,7 +1198,7 @@ fn lsp_survives_adversarial_request_positions_over_stdio() {
     use std::process::Stdio;
     // butterfly + é in a value, a multibyte task id — every position below
     // lands in, or past, one of this document's multibyte spans.
-    let multi = "nika: v1\nworkflow: 🦋é\ntasks:\n  - id: café\n    exec: { command: \"echo ${{ tasks.café.output }}\" }\n";
+    let multi = "nika: v1\nworkflow: 🦋é\ntasks:\n  - id: café\n    exec: { command: [\"echo\", \"${{ tasks.café.output }}\"] }\n";
     let uri = "file:///t/multi.nika.yaml";
     let max = u32::MAX;
     let mut child = bin()
@@ -1309,7 +1309,7 @@ fn context_aggregates_the_workspace_value_free() {
     write_fixture(
         &dir.join("flows"),
         "bad.nika.yaml",
-        "nika: v1\nworkflow: smoke-bad\ntasks:\n  - id: a\n    exec: { command: \"echo x\" }\n  - id: b\n    depends_on: [a]\n    when: maybe\n    exec: { command: \"echo y\" }\n",
+        "nika: v1\nworkflow: smoke-bad\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"x\"] }\n  - id: b\n    depends_on: [a]\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
     );
     let out = bin()
         .args(["welcome", "--deep"])

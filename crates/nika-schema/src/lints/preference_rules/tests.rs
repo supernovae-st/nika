@@ -49,10 +49,10 @@ nika: v1
 workflow: interp
 tasks:
   - id: produce
-    exec: { command: \"./gen.sh\" }
+    exec: { command: [\"./gen.sh\"] }
   - id: consume
     depends_on: [produce]
-    exec: { command: \"process ${{ tasks.produce.output }}\" }
+    exec: { shell: \"process ${{ tasks.produce.output }}\" }
 ";
     let eight = lints_for(yaml, "one-obvious-way/008");
     assert_eq!(eight.len(), 1, "exactly one /008 must fire");
@@ -71,7 +71,7 @@ nika: v1
 workflow: plain
 tasks:
   - id: build
-    exec: { command: \"cargo build\" }
+    exec: { command: [\"cargo\", \"build\"] }
 ";
     assert!(
         lints_for(yaml, "one-obvious-way/008").is_empty(),
@@ -89,10 +89,10 @@ nika: v1
 workflow: pipe
 tasks:
   - id: produce
-    exec: { command: \"./gen.sh\" }
+    exec: { command: [\"./gen.sh\"] }
   - id: consume
     depends_on: [produce]
-    exec: { command: \"cat ${{ tasks.produce.output }} | wc -l\" }
+    exec: { shell: \"cat ${{ tasks.produce.output }} | wc -l\" }
 ";
     assert!(
         lints_for(yaml, "one-obvious-way/008").is_empty(),
@@ -176,11 +176,11 @@ nika: v1
 workflow: redundant
 tasks:
   - id: a
-    exec: { command: \"./a.sh\" }
+    exec: { command: [\"./a.sh\"] }
   - id: b
     depends_on: [a]
     when: \"${{ tasks.a.status == 'success' }}\"
-    exec: { command: \"./b.sh\" }
+    exec: { command: [\"./b.sh\"] }
 ";
     let one = lints_for(yaml, "one-obvious-way/001");
     assert_eq!(one.len(), 1, "the redundant success `when:` must fire /001");
@@ -400,10 +400,10 @@ workflow: skipdep
 tasks:
   - id: a
     on_error: { skip: true }
-    exec: { command: \"./a.sh\" }
+    exec: { command: [\"./a.sh\"] }
   - id: b
     depends_on: [a]
-    exec: { command: \"./b.sh\" }
+    exec: { command: [\"./b.sh\"] }
 ";
     let two = lints_for(yaml, "one-obvious-way/002");
     assert_eq!(
@@ -427,11 +427,11 @@ workflow: guarded
 tasks:
   - id: a
     on_error: { skip: true }
-    exec: { command: \"./a.sh\" }
+    exec: { command: [\"./a.sh\"] }
   - id: b
     depends_on: [a]
     when: \"${{ tasks.a.status in ['success', 'failure'] }}\"
-    exec: { command: \"./b.sh\" }
+    exec: { command: [\"./b.sh\"] }
 ";
     assert!(
         lints_for(yaml, "one-obvious-way/002").is_empty(),
@@ -454,11 +454,11 @@ nika: v1
 workflow: dup
 tasks:
   - id: build
-    exec: { command: \"./build.sh\" }
+    exec: { command: [\"./build.sh\"] }
   - id: rebuild
     depends_on: [build]
     when: \"${{ tasks.build.status == 'failure' }}\"
-    exec: { command: \"./build.sh\" }
+    exec: { command: [\"./build.sh\"] }
 ";
     let three = lints_for(yaml, "one-obvious-way/003");
     assert_eq!(
@@ -634,14 +634,23 @@ fn value_producer_echo_with_template_is_not_one() {
 
 #[test]
 fn value_producer_argv_and_infer_are_not_value_producers() {
-    // 562:5 (→true): a non-jq invoke is already covered; here the catch-all
-    // `_ => false` paths — an `infer` action and an argv-form exec (no shell
-    // string) must both be false. A forced-true body wrongly flags them.
+    // The catch-all `_ => false` path: an `infer` action is never a mere
+    // value. The argv law flipped with spec#78 fixture 004: `["echo", …]`
+    // with template-free elements IS a value producer now — and an
+    // interpolated element or a non-echo program still is not.
     assert!(!is_value_producer(&infer_prompt("summarize this")));
-    let argv = RawAction::Exec(RawExecAction::with_command(
+    let echo = RawAction::Exec(RawExecAction::with_command(
         crate::raw::action::RawCommand::Argv(vec![sp("echo"), sp("hi")]),
     ));
-    assert!(!is_value_producer(&argv));
+    assert!(is_value_producer(&echo), "template-free argv echo = value");
+    let interp = RawAction::Exec(RawExecAction::with_command(
+        crate::raw::action::RawCommand::Argv(vec![sp("echo"), sp("${{ tasks.a.output }}")]),
+    ));
+    assert!(!is_value_producer(&interp), "interpolation = real work");
+    let prog = RawAction::Exec(RawExecAction::with_command(
+        crate::raw::action::RawCommand::Argv(vec![sp("./gen.sh")]),
+    ));
+    assert!(!is_value_producer(&prog), "non-echo argv = real work");
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -829,7 +838,7 @@ nika: v1
 workflow: succguard
 tasks:
   - id: a
-    exec: { command: \"echo hi\" }
+    exec: { command: [\"echo\", \"hi\"] }
   - id: b
     depends_on: [a]
     when: \"${{ tasks.a.status == 'success' }}\"
@@ -864,13 +873,13 @@ nika: v1
 workflow: f005
 tasks:
   - id: a
-    exec: { command: \"./a.sh\" }
+    exec: { command: [\"./a.sh\"] }
   - id: b
-    exec: { command: \"./b.sh\" }
+    exec: { command: [\"./b.sh\"] }
   - id: cleanup
     depends_on: [a, b]
     when: \"${{ tasks.a.status in ['success', 'failure'] }}\"
-    exec: { command: \"./cleanup.sh\" }
+    exec: { command: [\"./cleanup.sh\"] }
 ";
     let five = lints_for(yaml, "one-obvious-way/005");
     assert_eq!(five.len(), 1, "the terminal cleanup fires /005");
@@ -888,11 +897,11 @@ nika: v1
 workflow: f005two
 tasks:
   - id: a
-    exec: { command: \"./a.sh\" }
+    exec: { command: [\"./a.sh\"] }
   - id: b
     depends_on: [a]
     when: \"${{ tasks.a.status != 'success' }}\"
-    exec: { command: \"./b.sh\" }
+    exec: { command: [\"./b.sh\"] }
 ";
     assert!(
         lints_for(yaml, "one-obvious-way/005").is_empty(),
@@ -910,13 +919,13 @@ nika: v1
 workflow: f005partial
 tasks:
   - id: a
-    exec: { command: \"./a.sh\" }
+    exec: { command: [\"./a.sh\"] }
   - id: b
-    exec: { command: \"./b.sh\" }
+    exec: { command: [\"./b.sh\"] }
   - id: c
     depends_on: [a]
     when: \"${{ tasks.a.status in ['success', 'failure'] }}\"
-    exec: { command: \"./c.sh\" }
+    exec: { command: [\"./c.sh\"] }
 ";
     assert!(
         lints_for(yaml, "one-obvious-way/005").is_empty(),
@@ -941,7 +950,7 @@ workflow: f006
 tasks:
   - id: shards
     for_each: [1, 2, 3]
-    exec: { command: \"timeout 30 ./process.sh\" }
+    exec: { command: [\"timeout\", \"30\", \"./process.sh\"] }
 ";
     let six = lints_for(yaml, "one-obvious-way/006");
     assert_eq!(six.len(), 1, "the per-element timeout wrapper fires /006");
@@ -958,7 +967,7 @@ workflow: f006g
 tasks:
   - id: shards
     for_each: [1, 2, 3]
-    exec: { command: \"gtimeout 30 ./process.sh\" }
+    exec: { command: [\"gtimeout\", \"30\", \"./process.sh\"] }
 ";
     let six = lints_for(yaml, "one-obvious-way/006");
     assert_eq!(six.len(), 1, "the gtimeout wrapper fires /006");
@@ -976,7 +985,7 @@ tasks:
   - id: shards
     for_each: [1, 2, 3]
     timeout: 30s
-    exec: { command: \"./process.sh\" }
+    exec: { command: [\"./process.sh\"] }
 ";
     assert!(
         lints_for(yaml, "one-obvious-way/006").is_empty(),
@@ -1001,13 +1010,13 @@ nika: v1
 workflow: f007
 tasks:
   - id: shard1
-    exec: { command: \"./process.sh part1\" }
+    exec: { command: [\"./process.sh\", \"part1\"] }
   - id: shard2
     depends_on: [shard1]
-    exec: { command: \"./process.sh part2\" }
+    exec: { command: [\"./process.sh\", \"part2\"] }
   - id: shard3
     depends_on: [shard2]
-    exec: { command: \"./process.sh part3\" }
+    exec: { command: [\"./process.sh\", \"part3\"] }
 ";
     let seven = lints_for(yaml, "one-obvious-way/007");
     assert_eq!(seven.len(), 1, "the 3-shard chain fires /007 on the head");
@@ -1048,10 +1057,10 @@ nika: v1
 workflow: f007two
 tasks:
   - id: shard1
-    exec: { command: \"./process.sh part1\" }
+    exec: { command: [\"./process.sh\", \"part1\"] }
   - id: shard2
     depends_on: [shard1]
-    exec: { command: \"./process.sh part2\" }
+    exec: { command: [\"./process.sh\", \"part2\"] }
 ";
     assert!(
         lints_for(yaml, "one-obvious-way/007").is_empty(),
@@ -1068,13 +1077,13 @@ nika: v1
 workflow: f007pipe
 tasks:
   - id: fetch
-    exec: { command: \"./fetch.sh\" }
+    exec: { command: [\"./fetch.sh\"] }
   - id: parse
     depends_on: [fetch]
-    exec: { command: \"./parse.sh --strict input.json\" }
+    exec: { command: [\"./parse.sh\", \"--strict\", \"input.json\"] }
   - id: report
     depends_on: [parse]
-    exec: { command: \"./report.sh\" }
+    exec: { command: [\"./report.sh\"] }
 ";
     assert!(
         lints_for(yaml, "one-obvious-way/007").is_empty(),

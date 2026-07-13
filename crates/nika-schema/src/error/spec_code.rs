@@ -219,6 +219,10 @@ impl SchemaError {
             // binding validation · fixture variables/012) · the
             // category table's « invalid path » class.
             Self::OutputPathProvablyInvalid { .. } => var(3, VariableError),
+            // NIKA-VAR-020 · bare `tasks.X` is the envelope, not a value
+            // (04 §namespaces · 0.103 · #75 D2 · spec fixture
+            // variables/020 matches on namespace + validation_error).
+            Self::BareTaskEnvelope { .. } => var(20, ValidationError),
         }
     }
 }
@@ -387,11 +391,11 @@ mod tests {
             // variants (the spec defines ONE code for the class).
             seen.insert((code.namespace, code.num, code.category.as_str()));
         }
-        // 30 variants · 3 share VAR-001 · 2 share VAR-005 → 27
+        // 31 variants · 3 share VAR-001 · 2 share VAR-005 → 28
         // distinct codes (DAG-004 + BadBuiltinArgs generic + the
-        // registry remaps of 2026-06-11 · the nika:done arm adds
-        // BUILTIN-DONE-001 only when the tool matches — the enumerator
-        // carries the generic arm).
-        assert_eq!(seen.len(), 27, "{seen:?}");
+        // registry remaps of 2026-06-11 · VAR-020 bare-envelope joins
+        // 0.103 · the nika:done arm adds BUILTIN-DONE-001 only when the
+        // tool matches — the enumerator carries the generic arm).
+        assert_eq!(seen.len(), 28, "{seen:?}");
     }
 }

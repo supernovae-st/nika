@@ -23,6 +23,7 @@ pub mod members;
 pub mod position;
 pub mod refs;
 pub mod scope;
+pub mod semantic_document;
 mod skills;
 pub mod symbols;
 pub mod vocab;

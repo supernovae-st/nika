@@ -408,7 +408,7 @@ mod tests {
     #[test]
     fn fan_out_groups_the_wave_and_truncates_the_witness() {
         let path = tmp(
-            "nika: v1\nworkflow: fan5\ntasks:\n  - id: root\n    exec: { command: \"echo r\" }\n  - id: c1\n    depends_on: [root]\n    exec: { command: \"echo 1\" }\n  - id: c2\n    depends_on: [root]\n    exec: { command: \"echo 2\" }\n  - id: c3\n    depends_on: [root]\n    exec: { command: \"echo 3\" }\n  - id: c4\n    depends_on: [root]\n    exec: { command: \"echo 4\" }\n  - id: c5\n    depends_on: [root]\n    exec: { command: \"echo 5\" }\n",
+            "nika: v1\nworkflow: fan5\ntasks:\n  - id: root\n    exec: { command: [\"echo\", \"r\"] }\n  - id: c1\n    depends_on: [root]\n    exec: { command: [\"echo\", \"1\"] }\n  - id: c2\n    depends_on: [root]\n    exec: { command: [\"echo\", \"2\"] }\n  - id: c3\n    depends_on: [root]\n    exec: { command: [\"echo\", \"3\"] }\n  - id: c4\n    depends_on: [root]\n    exec: { command: [\"echo\", \"4\"] }\n  - id: c5\n    depends_on: [root]\n    exec: { command: [\"echo\", \"5\"] }\n",
         );
         let out = run(
             path.to_str().expect("utf-8 tmp path"),
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn ascii_theme_draws_the_same_waves() {
         let path = tmp(
-            "nika: v1\nworkflow: fanscii\ntasks:\n  - id: root\n    exec: { command: \"echo r\" }\n  - id: c1\n    depends_on: [root]\n    exec: { command: \"echo 1\" }\n  - id: c2\n    depends_on: [root]\n    exec: { command: \"echo 2\" }\n",
+            "nika: v1\nworkflow: fanscii\ntasks:\n  - id: root\n    exec: { command: [\"echo\", \"r\"] }\n  - id: c1\n    depends_on: [root]\n    exec: { command: [\"echo\", \"1\"] }\n  - id: c2\n    depends_on: [root]\n    exec: { command: [\"echo\", \"2\"] }\n",
         );
         let out = run(
             path.to_str().expect("utf-8 tmp path"),
@@ -494,7 +494,7 @@ mod tests {
     #[test]
     fn width_four_has_no_ellipsis_and_blast_caps_at_three() {
         let path = tmp(
-            "nika: v1\nworkflow: wide-diamond\ntasks:\n  - id: root\n    exec: { command: \"echo r\" }\n  - id: m1\n    depends_on: [root]\n    exec: { command: \"echo 1\" }\n  - id: m2\n    depends_on: [root]\n    exec: { command: \"echo 2\" }\n  - id: m3\n    depends_on: [root]\n    exec: { command: \"echo 3\" }\n  - id: m4\n    depends_on: [root]\n    exec: { command: \"echo 4\" }\n  - id: join\n    depends_on: [m1, m2, m3, m4]\n    exec: { command: \"echo j\" }\n",
+            "nika: v1\nworkflow: wide-diamond\ntasks:\n  - id: root\n    exec: { command: [\"echo\", \"r\"] }\n  - id: m1\n    depends_on: [root]\n    exec: { command: [\"echo\", \"1\"] }\n  - id: m2\n    depends_on: [root]\n    exec: { command: [\"echo\", \"2\"] }\n  - id: m3\n    depends_on: [root]\n    exec: { command: [\"echo\", \"3\"] }\n  - id: m4\n    depends_on: [root]\n    exec: { command: [\"echo\", \"4\"] }\n  - id: join\n    depends_on: [m1, m2, m3, m4]\n    exec: { command: [\"echo\", \"j\"] }\n",
         );
         let out = run(
             path.to_str().expect("utf-8 tmp path"),

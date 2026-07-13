@@ -198,9 +198,9 @@ nika: v1
 workflow: dup
 tasks:
   - id: same
-    exec: { command: echo }
+    exec: { command: [echo] }
   - id: same
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let errors = analyze_yaml(yaml).expect_err("dup id");
         assert_has(
@@ -220,10 +220,10 @@ nika: v1
 workflow: t
 tasks:
   - id: test
-    exec: { command: \"./test.sh\" }
+    exec: { command: [\"./test.sh\"] }
   - id: deploy
     when: ${{ tasks.test.status == 'success' }}
-    exec: { command: \"./deploy.sh\" }
+    exec: { command: [\"./deploy.sh\"] }
 ";
         let errors = analyze_yaml(yaml).expect_err("no edge");
         assert_has(
@@ -287,7 +287,7 @@ tasks:
     invoke: { tool: \"nika:read\" }
   - id: process
     for_each: ${{ tasks.discover.output }}
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let errors = analyze_yaml(yaml).expect_err("no edge");
         assert_has(
@@ -308,9 +308,9 @@ nika: v1
 workflow: t
 tasks:
   - id: a
-    exec: { command: \"echo hi\" }
+    exec: { command: [\"echo\", \"hi\"] }
   - id: b
-    exec: { command: \"echo ${{ tasks.a.output }}\" }
+    exec: { command: [\"echo\", \"${{ tasks.a.output }}\"] }
 ";
         let errors = analyze_yaml(yaml).expect_err("no edge");
         let rendered = errors
@@ -338,7 +338,7 @@ nika: v1
 workflow: t
 tasks:
   - id: a
-    exec: { command: \"echo ${{ item }}\" }
+    exec: { command: [\"echo\", \"${{ item }}\"] }
 ";
         let errors = analyze_yaml(yaml).expect_err("loop-local out of scope");
         let rendered = errors
@@ -383,7 +383,7 @@ nika: v1
 workflow: t
 tasks:
   - id: test
-    exec: { command: \"cargo test\" }
+    exec: { command: [\"cargo\", \"test\"] }
     on_finally:
       - invoke:
           tool: nika:emit
@@ -475,7 +475,7 @@ workflow: t
 tasks:
   - id: go
     exec:
-      command: \"echo ${{ env.MISSING }} ${{ secrets.api_key }}\"
+      command: [\"echo\", \"${{ env.MISSING }}\", \"${{ secrets.api_key }}\"]
 ";
         let errors = analyze_yaml(yaml).expect_err("undeclared");
         assert_has(
@@ -517,7 +517,7 @@ nika: v1
 workflow: t
 tasks:
   - id: real
-    exec: { command: echo }
+    exec: { command: [echo] }
 outputs:
   result: ${{ tasks.ghost.output }}
 ";
@@ -611,7 +611,7 @@ tasks:
             "${{ vars.a + vars.b }}",          // arithmetic (outside the subset)
         ] {
             let yaml = format!(
-                "nika: v1\nworkflow: t\ntasks:\n  - id: go\n    when: {expr}\n    exec: {{ command: \"echo hi\" }}\n"
+                "nika: v1\nworkflow: t\ntasks:\n  - id: go\n    when: {expr}\n    exec: {{ command: [\"echo\", \"hi\"] }}\n"
             );
             let errors = analyze_yaml(&yaml).expect_err("grammar error");
             assert!(
@@ -723,7 +723,7 @@ workflow: t
 tasks:
   - id: go
     when: \"literal string\"
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let errors = analyze_yaml(yaml).expect_err("literal when");
         assert_has(
@@ -745,7 +745,7 @@ vars:
 tasks:
   - id: go
     when: ${{ vars.threshold }}
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let errors = analyze_yaml(yaml).expect_err("non-bool when");
         assert_has(
@@ -779,7 +779,7 @@ vars:
 tasks:
   - id: go
     when: ${{ vars.threshold > 0 }}
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         analyze_yaml(yaml).expect("comparison is boolean-shaped");
     }
@@ -794,10 +794,10 @@ workflow: t
 vars: { topic: \"x\" }
 tasks:
   - id: extract
-    exec: { command: echo }
+    exec: { command: [echo] }
   - id: report
     depends_on: [extarct]
-    exec: { command: \"echo ${{ vars.topci }} ${{ tasks.extract.output }}\" }
+    exec: { command: [\"echo\", \"${{ vars.topci }}\", \"${{ tasks.extract.output }}\"] }
 ";
         let errors = analyze_yaml(yaml).expect_err("typos");
         let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
@@ -823,7 +823,7 @@ workflow: t
 vars: { topic: \"x\" }
 tasks:
   - id: a
-    exec: { command: \"echo ${{ vrs.topic }}\" }
+    exec: { command: [\"echo\", \"${{ vrs.topic }}\"] }
 ";
         let errors = analyze_yaml(yaml).expect_err("root typo");
         let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
@@ -841,7 +841,7 @@ workflow: t
 vars: { topic: \"x\" }
 tasks:
   - id: a
-    exec: { command: \"echo ${{ vars.zzzzzzzzz }}\" }
+    exec: { command: [\"echo\", \"${{ vars.zzzzzzzzz }}\"] }
 ";
         let errors = analyze_yaml(yaml).expect_err("far typo");
         let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
@@ -865,7 +865,7 @@ tasks:
   - id: a
     depends_on: [ghost]
     when: ${{ vars.nope }}
-    exec: { command: echo }
+    exec: { command: [echo] }
 ";
         let errors = analyze_yaml(yaml).expect_err("multi");
         assert!(errors.len() >= 3, "expected ≥3 errors, got {errors:?}");

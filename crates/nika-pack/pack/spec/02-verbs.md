@@ -115,7 +115,7 @@ Run a shell command. The result is the command's stdout (default) or a structure
 ```yaml
 - id: build
   exec:
-    command: "cargo build --release"
+    command: ["cargo", "build", "--release"]
 ```
 
 ### Full
@@ -124,7 +124,7 @@ Run a shell command. The result is the command's stdout (default) or a structure
 - id: test
   timeout: "60s"                   # task-level (applies to any verb · Go duration · see 03-dag)
   exec:
-    command: "cargo test --workspace --lib"
+    command: ["cargo", "test", "--workspace", "--lib"]
     cwd: "./engine"
     env:
       RUST_LOG: "debug"
@@ -136,7 +136,8 @@ Run a shell command. The result is the command's stdout (default) or a structure
 
 | Field | Required | Type | Notes |
 |---|---|---|---|
-| `command` | yes | string \| array | **String** → run via the OS shell (`/bin/sh -c`) · pipes/redirects work · the shell blocklist applies. **Array** (`["prog", "arg", …]`) → direct `execve`, **NO shell** · each element substituted independently · the one-obvious-way for any command carrying interpolated or untrusted values (see Security). May use `${{ ... }}`. |
+| `command` | one of | array | **argv** — `["prog", "arg", …]` → direct `execve`, **NO shell** · each element substituted independently — an interpolated `${{ }}` value can never break out of its argument (see Security). Exactly one of `command` \| `shell`. |
+| `shell` | one of | string | **The explicit shell door** — one line run via `/bin/sh -c` · pipes · redirects · globs. The blocklist applies HERE; interpolating untrusted values here is the author's own risk, visibly. Exactly one of `command` \| `shell`. *(D1 · #75: semantics never fork on a YAML type — the field name carries the meaning. The old string `command:` is rejected at parse.)* |
 | `cwd` | no | string | Working directory · default = engine's cwd |
 | `env` | no | object | OS environment variables for **this subprocess** · key→value map |
 | `stdin` | no | string | Stdin data · may use `${{ ... }}` |
@@ -154,15 +155,15 @@ Run a shell command. The result is the command's stdout (default) or a structure
 
 A v0.1-compliant engine MUST ·
 
-- **Honor the two `command` forms** · a **string** runs through `/bin/sh -c` (the shell-feature path · pipes · redirects); an **array** runs through `execve` with NO shell: `command[0]` is the program, the rest are argv passed verbatim, each element substituted independently.
-- Implement a shell **blocklist** for dangerous commands on the STRING form (see reference impl `nika-policy` for canonical list · 100+ patterns including `rm -rf /` · `chmod 777` · `curl … | sh` · etc.)
+- **Honor the two exec bodies** · `command:` (array) runs through `execve` with NO shell: `command[0]` is the program, the rest are argv passed verbatim, each element substituted independently. `shell:` (string) runs through `/bin/sh -c` — the shell-feature path (pipes · redirects · globs). **Exactly one** of the two; a string `command:` (the pre-0.103 implicit-shell form) is rejected at parse (`NIKA-PARSE` · `validation_error`).
+- Implement a shell **blocklist** for dangerous commands on `shell:` (see reference impl `nika-policy` for canonical list · 100+ patterns including `rm -rf /` · `chmod 777` · `curl … | sh` · etc.)
 - Reject blocklist matches with a clear error
 - Honor `timeout` with a hard kill (Go-duration string · see 03-dag)
 - Sandbox `cwd` if configured (engine-specific)
 
 > **The argv form is the STRUCTURAL fix for command injection: prefer it.**
 > A `${{ }}`-interpolated value in the STRING form is shell-parsed:
-> `command: "process ${{ item }}"` with `item == "; rm -rf /"` is a classic
+> `shell: "process ${{ item }}"` with `item == "; rm -rf /"` is a classic
 > injection, and the blocklist is a *detector* (best-effort), not a guarantee.
 > The ARRAY form removes the shell entirely: `command: ["process", "${{ item }}"]`
 > passes `item` as ONE argv element no matter what it contains; there is no

@@ -11,7 +11,7 @@ use nika_kernel_mock::MockHttp;
 
 const REV: &str = "0123456789abcdef0123456789abcdef01234567";
 const BODY: &[u8] =
-    b"nika: v1\nworkflow: greet\ntasks:\n  - id: a\n    exec: { command: \"echo hi\" }\n";
+    b"nika: v1\nworkflow: greet\ntasks:\n  - id: a\n    exec: { command: [\"echo\", \"hi\"] }\n";
 
 fn kind_code(err: &RegistryError) -> Option<&'static str> {
     err.code()

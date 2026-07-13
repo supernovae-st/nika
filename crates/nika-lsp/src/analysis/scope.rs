@@ -263,7 +263,7 @@ pub(super) fn in_block_list_item(text: &str, offset: usize, key: &str) -> bool {
 mod tests {
     use super::*;
 
-    const DOC: &str = "nika: v1\nworkflow: w\ntasks:\n  - id: fetch_article\n    invoke:\n      tool: nika:fetch\n      args:\n        url: \"https://x\"\n        \n  - id: second\n    exec:\n      command: ls\n";
+    const DOC: &str = "nika: v1\nworkflow: w\ntasks:\n  - id: fetch_article\n    invoke:\n      tool: nika:fetch\n      args:\n        url: \"https://x\"\n        \n  - id: second\n    exec:\n      command: [\"ls\"]\n";
 
     #[test]
     fn current_task_is_the_nearest_id_above() {

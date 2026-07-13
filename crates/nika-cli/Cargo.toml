@@ -11,11 +11,12 @@ homepage.workspace     = true
 publish                = false  # Internal L4 interface crate (the binary ships, the lib doesn't).
 
 [dependencies]
-nika-event  = { path = "../nika-event", version = "0.102.0" }  # the REAL event taxonomy (the fold input)
-nika-types  = { path = "../nika-types", version = "0.102.0" }  # Timestamp · KeyValue · ids
-nika-schema = { path = "../nika-schema", version = "0.102.0" } # parse + the ADR-092 check ladder (check · inspect · graph)
-nika-error  = { path = "../nika-error", version = "0.102.0" }  # the code registry (`nika explain`)
-nika-pack   = { path = "../nika-pack", version = "0.102.0" }   # the embedded language pack (`nika spec|schema|examples|new`)
+nika-event  = { path = "../nika-event", version = "0.103.0" }  # the REAL event taxonomy (the fold input)
+nika-types  = { path = "../nika-types", version = "0.103.0" }  # Timestamp · KeyValue · ids
+nika-schema = { path = "../nika-schema", version = "0.103.0" } # parse + the ADR-092 check ladder (check · inspect · graph)
+nika-graph = { path = "../nika-graph", version = "0.103.0" }   # the canonical projection (inspect --format json renders it)
+nika-error  = { path = "../nika-error", version = "0.103.0" }  # the code registry (`nika explain`)
+nika-pack   = { path = "../nika-pack", version = "0.103.0" }   # the embedded language pack (`nika spec|schema|examples|new`)
 clap        = { workspace = true }                             # verb tree (completions + man derive later)
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
 serde       = { workspace = true }                             # graph projection envelope (§6)
@@ -26,26 +27,26 @@ uuid        = { workspace = true }
 # the CLI — all strictly downward (L4 → L3/L2/L1.5/L1/L0). Before the run
 # verb these were dev-deps (the e2e rehearsal only); the verb makes them
 # load-bearing in src/.
-nika-kernel      = { path = "../nika-kernel", version = "0.102.0" }        # ProviderInferDyn · Secret · the seam traits
-nika-runtime     = { path = "../nika-runtime", version = "0.102.0" }       # the L3 executor (the composer drives it)
-nika-registry-client = { path = "../nika-registry-client", version = "0.102.0" }  # the L2 resolve/verify/cache half (this crate composes http + executor around it)
-nika-providers   = { path = "../nika-providers", version = "0.102.0" }     # ProviderRegistry — resolve provider/model + keys
-nika-verb-infer  = { path = "../nika-verb-infer", version = "0.102.0" }
-nika-verb-exec   = { path = "../nika-verb-exec", version = "0.102.0" }
-nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.102.0" }
-nika-verb-agent  = { path = "../nika-verb-agent", version = "0.102.0" }
-nika-builtin     = { path = "../nika-builtin", version = "0.102.0" }       # BuiltinDispatcher — the tool plane (invoke + agent tools)
-nika-fs          = { path = "../nika-fs", version = "0.102.0" }            # TokioFs — the builtin tool plane's fs effect
-nika-clock       = { path = "../nika-clock", version = "0.102.0" }         # SystemClock — backoff + timeout + the date builtin
-nika-http        = { path = "../nika-http", version = "0.102.0" }          # ReqwestHttp — the registry + fetch effect
-nika-exec-runner = { path = "../nika-exec-runner", version = "0.102.0" }   # TokioShell — the exec verb's subprocess runner
-nika-catalog     = { path = "../nika-catalog", version = "0.102.0", features = ["providers", "pricing"] }  # env_var ladder + the rates the preflight shows
-nika-lsp         = { path = "../nika-lsp", version = "0.102.0" }           # `nika lsp` — the language server (stdio · drives the editor extension)
-nika-display     = { path = "../nika-display", version = "0.102.0" } # the run-comprehension surface (descended 2026-07-10 · re-exported at display::)
-nika-onboard     = { path = "../nika-onboard", version = "0.102.0" } # the founding wizard + guided first workflow (descended 2026-07-12 · adapters at verbs/{init,new}.rs)
-nika-dap         = { path = "../nika-dap", version = "0.102.0" }           # `nika dap` + the trace-forensics plane (chain · recover · otel · reproduce · store · retention — re-exported at the old verb paths)
-nika-mcp         = { path = "../nika-mcp", version = "0.102.0" }           # `nika mcp` — the MCP server (stdio · exposes check/explain to Cursor/Claude Desktop)
-nika-models      = { path = "../nika-models", version = "0.102.0" }        # `nika model` — the local-models unit (ONE dir · Hub pull · serve glue · descended 2026-07-12)
+nika-kernel      = { path = "../nika-kernel", version = "0.103.0" }        # ProviderInferDyn · Secret · the seam traits
+nika-runtime     = { path = "../nika-runtime", version = "0.103.0" }       # the L3 executor (the composer drives it)
+nika-registry-client = { path = "../nika-registry-client", version = "0.103.0" }  # the L2 resolve/verify/cache half (this crate composes http + executor around it)
+nika-providers   = { path = "../nika-providers", version = "0.103.0" }     # ProviderRegistry — resolve provider/model + keys
+nika-verb-infer  = { path = "../nika-verb-infer", version = "0.103.0" }
+nika-verb-exec   = { path = "../nika-verb-exec", version = "0.103.0" }
+nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.103.0" }
+nika-verb-agent  = { path = "../nika-verb-agent", version = "0.103.0" }
+nika-builtin     = { path = "../nika-builtin", version = "0.103.0" }       # BuiltinDispatcher — the tool plane (invoke + agent tools)
+nika-fs          = { path = "../nika-fs", version = "0.103.0" }            # TokioFs — the builtin tool plane's fs effect
+nika-clock       = { path = "../nika-clock", version = "0.103.0" }         # SystemClock — backoff + timeout + the date builtin
+nika-http        = { path = "../nika-http", version = "0.103.0" }          # ReqwestHttp — the registry + fetch effect
+nika-exec-runner = { path = "../nika-exec-runner", version = "0.103.0" }   # TokioShell — the exec verb's subprocess runner
+nika-catalog     = { path = "../nika-catalog", version = "0.103.0", features = ["providers", "pricing"] }  # env_var ladder + the rates the preflight shows
+nika-lsp         = { path = "../nika-lsp", version = "0.103.0" }           # `nika lsp` — the language server (stdio · drives the editor extension)
+nika-display     = { path = "../nika-display", version = "0.103.0" } # the run-comprehension surface (descended 2026-07-10 · re-exported at display::)
+nika-onboard     = { path = "../nika-onboard", version = "0.103.0" } # the founding wizard + guided first workflow (descended 2026-07-12 · adapters at verbs/{init,new}.rs)
+nika-dap         = { path = "../nika-dap", version = "0.103.0" }           # `nika dap` + the trace-forensics plane (chain · recover · otel · reproduce · store · retention — re-exported at the old verb paths)
+nika-mcp         = { path = "../nika-mcp", version = "0.103.0" }           # `nika mcp` — the MCP server (stdio · exposes check/explain to Cursor/Claude Desktop)
+nika-models      = { path = "../nika-models", version = "0.103.0" }        # `nika model` — the local-models unit (ONE dir · Hub pull · serve glue · descended 2026-07-12)
 tokio            = { workspace = true }                                   # the bin's async entry (block the run on the executor)
 
 [features]
@@ -65,7 +66,7 @@ path = "src/main.rs"
 
 [dev-dependencies]
 # Test-only seams: the mocks the e2e pipeline + the run-verb tests inject.
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.102.0" }
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.103.0" }
 proptest = { workspace = true }   # Gate 6 · the fold's order-independence property (tests/fold_property.rs)
 tempfile = { workspace = true }   # trace-file sink fixtures (`.nika/traces/` journal · sink.rs tests)
 expectrl = { workspace = true }   # PTY e2e · the wizard conversation is TTY-gated — unreachable
