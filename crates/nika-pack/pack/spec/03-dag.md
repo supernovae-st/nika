@@ -86,8 +86,8 @@ A list of task ids this task depends on. The engine MUST not start this task unt
 
 ```yaml
 - id: notify
-  depends_on: [build]
-  when: ${{ tasks.build.status == 'success' }}
+  depends_on: [build]                    # the success-gate — depends_on already requires it
+  when: ${{ tasks.build.output.warnings == 0 }}   # when: is for conditions BEYOND success
   exec:
     command: "./notify.sh"
 ```
